@@ -135,7 +135,6 @@ module time_integ
                          !
                          call mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),q(:,:,pos),pr(:,pos),Rmom_1)
                       else if (flag_emac .eq. 1) then
-                         print*, '--| Inside EMAC RK stage 1'
                          !
                          ! EMAC term
                          !
@@ -146,13 +145,11 @@ module time_integ
                             end do
                          end do
                          !$acc end parallel loop
-                         print*, '--| Computed Aemac'
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Femac(lpoin_w(ipoin)) = dot_product(Aemac(lpoin_w(ipoin),:),Aemac(lpoin_w(ipoin),:))
                          end do
                          !$acc end parallel loop
-                         print*, '--| Computed Femac'
                          call mom_convec_emac(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr(:,pos),Rmom_1)
                       end if
                       if(present(source_term)) then
@@ -322,7 +319,29 @@ module time_integ
                       end do
                       !$acc end parallel loop
 
-                      call mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_1,q_1,pr_1,Rmom_2)
+                      if (flag_emac .eq. 0) then
+                         !
+                         ! Conservation momentum convection div(qi*uj)
+                         !
+                         call mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_1,q_1,pr_1,Rmom_2)
+                      else if (flag_emac .eq. 1) then
+                         !
+                         ! EMAC term
+                         !
+                         !$acc parallel loop collapse(2)
+                         do ipoin = 1,npoin_w
+                            do idime = 1,ndime
+                               Aemac(lpoin_w(ipoin),idime) = q_1(lpoin_w(ipoin),idime)/sqrt(rho_1(lpoin_w(ipoin)))
+                            end do
+                         end do
+                         !$acc end parallel loop
+                         !$acc parallel loop
+                         do ipoin = 1,npoin_w
+                            Femac(lpoin_w(ipoin)) = dot_product(Aemac(lpoin_w(ipoin),:),Aemac(lpoin_w(ipoin),:))
+                         end do
+                         !$acc end parallel loop
+                         call mom_convec_emac(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr_1,Rmom_2)
+                      end if
                       if(present(source_term)) then
                         call mom_source_const_vect(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_2)
                       end if
@@ -485,7 +504,29 @@ module time_integ
                       end do
                       !$acc end parallel loop
 
-                      call mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_2,q_2,pr_2,Rmom_3)
+                      if (flag_emac .eq. 0) then
+                         !
+                         ! Conservation momentum convection div(qi*uj)
+                         !
+                         call mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_2,q_2,pr_2,Rmom_3)
+                      else if (flag_emac .eq. 1) then
+                         !
+                         ! EMAC term
+                         !
+                         !$acc parallel loop collapse(2)
+                         do ipoin = 1,npoin_w
+                            do idime = 1,ndime
+                               Aemac(lpoin_w(ipoin),idime) = q_2(lpoin_w(ipoin),idime)/sqrt(rho_2(lpoin_w(ipoin)))
+                            end do
+                         end do
+                         !$acc end parallel loop
+                         !$acc parallel loop
+                         do ipoin = 1,npoin_w
+                            Femac(lpoin_w(ipoin)) = dot_product(Aemac(lpoin_w(ipoin),:),Aemac(lpoin_w(ipoin),:))
+                         end do
+                         !$acc end parallel loop
+                         call mom_convec_emac(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr_2,Rmom_3)
+                      end if
                       if(present(source_term)) then
                         call mom_source_const_vect(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_3)
                       end if
@@ -651,7 +692,29 @@ module time_integ
                       end do
                       !$acc end parallel loop
 
-                      call mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_3,q_3,pr_3,Rmom_4)
+                      if (flag_emac .eq. 0) then
+                         !
+                         ! Conservation momentum convection div(qi*uj)
+                         !
+                         call mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_3,q_3,pr_3,Rmom_4)
+                      else if (flag_emac .eq. 1) then
+                         !
+                         ! EMAC term
+                         !
+                         !$acc parallel loop collapse(2)
+                         do ipoin = 1,npoin_w
+                            do idime = 1,ndime
+                               Aemac(lpoin_w(ipoin),idime) = q_3(lpoin_w(ipoin),idime)/sqrt(rho_3(lpoin_w(ipoin)))
+                            end do
+                         end do
+                         !$acc end parallel loop
+                         !$acc parallel loop
+                         do ipoin = 1,npoin_w
+                            Femac(lpoin_w(ipoin)) = dot_product(Aemac(lpoin_w(ipoin),:),Aemac(lpoin_w(ipoin),:))
+                         end do
+                         !$acc end parallel loop
+                         call mom_convec_emac(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr_3,Rmom_4)
+                      end if
                       if(present(source_term)) then
                         call mom_source_const_vect(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_4)
                       end if

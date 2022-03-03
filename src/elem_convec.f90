@@ -182,8 +182,7 @@ module elem_convec
                       real(8)                 :: grad_7, grad_8, grad_9
                       real(8)                 :: gradp_1, gradp_2, gradp_3, div_a
 
-                      print*, '--| Inside EMAC subroutine'
-                      call nvtxStartRange("Momentum convection")
+                      call nvtxStartRange("EMAC Momentum convection")
 
                       !
                       ! Start global RHS
@@ -192,8 +191,6 @@ module elem_convec
                       Rmom(:,:) = 0.0d0
                       !$acc end kernels
                       
-                      print*, 'OK1'
-
                       !
                       ! Start elemental ops
                       !
