@@ -3,6 +3,7 @@ module time_integ
       use mod_nvtx
       use elem_convec
       use elem_diffu
+      use elem_source
       use mod_solver
       use mod_entropy_viscosity
 
@@ -11,7 +12,7 @@ module time_integ
               subroutine rk_4_main(flag_predic,nelem,nboun,npbou,npoin,npoin_w,ndime,ngaus,nnode, &
                               ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
                               rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w, &
-                              ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
+                              ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
 
                       implicit none
 
@@ -35,6 +36,7 @@ module time_integ
                       real(8),    intent(out)            :: mu_e(nelem)
                       integer(4), optional, intent(in)   :: ndof, nbnodes, ldof(ndof), lbnodes(nbnodes)
                       integer(4), optional, intent(in)   :: bound(nboun,npbou), bou_codes(nboun,2)
+                      real(8),    optional, intent(in)   :: source_term(ndime)
                       integer(4)                         :: pos, bcode
                       integer(4)                         :: istep, ipoin, idof, idime, iboun, ipbou
                       real(8),    dimension(npoin)       :: rho_1, rho_2, rho_3, rho_4
@@ -127,6 +129,9 @@ module time_integ
                       ! Momentum
                       !
                       call mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),q(:,:,pos),pr(:,pos),Rmom_1)
+                      if(present(source_term)) then
+                        call mom_source_const_vect(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_1)
+                      end if
                       if (flag_predic == 0) then
                          call mom_diffusion(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),mu_e,Rdiff_vect)
                          !$acc parallel loop collapse(2)
@@ -285,6 +290,9 @@ module time_integ
                       !$acc end parallel loop
 
                       call mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_1,q_1,pr_1,Rmom_2)
+                      if(present(source_term)) then
+                        call mom_source_const_vect(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_2)
+                      end if
                       if (flag_predic == 0) then
                          call mom_diffusion(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_1,mu_e,Rdiff_vect)
                          !$acc parallel loop collapse(2)
@@ -438,6 +446,9 @@ module time_integ
                       !$acc end parallel loop
 
                       call mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_2,q_2,pr_2,Rmom_3)
+                      if(present(source_term)) then
+                        call mom_source_const_vect(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_3)
+                      end if
                       if (flag_predic == 0) then
                          call mom_diffusion(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_2,mu_e,Rdiff_vect)
                          !$acc parallel loop collapse(2)
@@ -594,6 +605,9 @@ module time_integ
                       !$acc end parallel loop
 
                       call mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_3,q_3,pr_3,Rmom_4)
+                      if(present(source_term)) then
+                        call mom_source_const_vect(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_4)
+                      end if
                       if (flag_predic == 0) then
                          call mom_diffusion(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_3,mu_e,Rdiff_vect)
                          !$acc parallel loop collapse(2)
