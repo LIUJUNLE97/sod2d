@@ -49,6 +49,7 @@ program sod2d
         real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:)
         real(8),    allocatable    :: Ml(:)!, Mc(:)
         real(8),    allocatable    :: mu_e(:)
+        real(8),    allocatable    :: source_term(:)
         real(8)                    :: s, t, z, detJe
         real(8)                    :: Rgas, gamma_gas, Cp, Cv
         real(8)                    :: dt, cfl, he_aux, time, rho0, P0, T0, EK
@@ -81,6 +82,12 @@ program sod2d
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
         end if
+
+        allocate(source_term(ndime))
+        !set the source term
+        source_term(1) = 0.0040762808843141035d0 !this is for Retau 180
+        source_term(2) = 0.00d0
+        source_term(3) = 0.00d0
 
         !*********************************************************************!
         ! Read mesh in Alya format                                            !
@@ -684,7 +691,7 @@ program sod2d
                   call rk_4_main(flag_predic,nelem,nboun,npbou,npoin,npoin_w,ndime,ngaus,nnode, &
                            ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
                            rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w, &
-                           ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
+                           ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
 
                   !
                   ! Advance with entropy viscosity
@@ -693,7 +700,7 @@ program sod2d
                   call rk_4_main(flag_predic,nelem,nboun,npbou,npoin,npoin_w,ndime,ngaus,nnode, &
                            ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
                            rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w, &
-                           ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
+                           ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
 
                   call nvtxEndRange
 
