@@ -1,0 +1,1 @@
+/opt/nvidia/hpc_sdk/Linux_x86_64/22.2/compilers/bin/nvfortran -lnvToolsExt -fast -D_USE_NVTX -cpp -gpu=cc61,managed,lineinfo -cuda -acc -Minfo=accel CMakeFiles/unitt_generic_scalar_convec.dir/__/__/src/elem_convec.f90.o CMakeFiles/unitt_generic_scalar_convec.dir/unitt_generic_scalar_convec.f90.o -o unitt_generic_scalar_convec 
