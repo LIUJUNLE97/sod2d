@@ -182,6 +182,7 @@ module elem_convec
                       real(8)                 :: grad_7, grad_8, grad_9
                       real(8)                 :: gradp_1, gradp_2, gradp_3, div_a
 
+                      print*, '--| Inside EMAC subroutine'
                       call nvtxStartRange("Momentum convection")
 
                       !
@@ -190,6 +191,8 @@ module elem_convec
                       !$acc kernels
                       Rmom(:,:) = 0.0d0
                       !$acc end kernels
+                      
+                      print*, 'OK1'
 
                       !
                       ! Start elemental ops
@@ -230,15 +233,15 @@ module elem_convec
                             ! u_i,j = | u2,1 u2,2 u2,3 |
                             !         | u3,1 u3,2 u3,3 |
                             !
-                            grad_1 = dot_product(gpcar(1,:),Aemac(:,1))
-                            grad_2 = dot_product(gpcar(2,:),Aemac(:,1))
-                            grad_3 = dot_product(gpcar(3,:),Aemac(:,1))
-                            grad_4 = dot_product(gpcar(1,:),Aemac(:,2))
-                            grad_5 = dot_product(gpcar(2,:),Aemac(:,2))
-                            grad_6 = dot_product(gpcar(3,:),Aemac(:,2))
-                            grad_7 = dot_product(gpcar(1,:),Aemac(:,3))
-                            grad_8 = dot_product(gpcar(2,:),Aemac(:,3))
-                            grad_9 = dot_product(gpcar(3,:),Aemac(:,3))
+                            grad_1 = dot_product(gpcar(1,:),Aemac(connec(ielem,:),1))
+                            grad_2 = dot_product(gpcar(2,:),Aemac(connec(ielem,:),1))
+                            grad_3 = dot_product(gpcar(3,:),Aemac(connec(ielem,:),1))
+                            grad_4 = dot_product(gpcar(1,:),Aemac(connec(ielem,:),2))
+                            grad_5 = dot_product(gpcar(2,:),Aemac(connec(ielem,:),2))
+                            grad_6 = dot_product(gpcar(3,:),Aemac(connec(ielem,:),2))
+                            grad_7 = dot_product(gpcar(1,:),Aemac(connec(ielem,:),3))
+                            grad_8 = dot_product(gpcar(2,:),Aemac(connec(ielem,:),3))
+                            grad_9 = dot_product(gpcar(3,:),Aemac(connec(ielem,:),3))
                             !
                             ! div(A) = tr[grad(A)]
                             !

@@ -135,21 +135,24 @@ module time_integ
                          !
                          call mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),q(:,:,pos),pr(:,pos),Rmom_1)
                       else if (flag_emac .eq. 1) then
+                         print*, '--| Inside EMAC RK stage 1'
                          !
                          ! EMAC term
                          !
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
-                               Aemac(lpoin_w(ipoin),idime) = q(lpoin_w(ipoin),idime,pos)/sqrt(rho(lpoin_w(ipoin)),pos)
+                               Aemac(lpoin_w(ipoin),idime) = q(lpoin_w(ipoin),idime,pos)/sqrt(rho(lpoin_w(ipoin),pos))
                             end do
                          end do
                          !$acc end parallel loop
+                         print*, '--| Computed Aemac'
                          !$acc parallel loop
-                         do ipoin = 1,npoin_
+                         do ipoin = 1,npoin_w
                             Femac(lpoin_w(ipoin)) = dot_product(Aemac(lpoin_w(ipoin),:),Aemac(lpoin_w(ipoin),:))
                          end do
                          !$acc end parallel loop
+                         print*, '--| Computed Femac'
                          call mom_convec_emac(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr(:,pos),Rmom_1)
                       end if
                       if(present(source_term)) then
