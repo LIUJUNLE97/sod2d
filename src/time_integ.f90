@@ -182,6 +182,13 @@ module time_integ
                                   do ipbou = 1,npbou
                                      q_1(bound(iboun,ipbou),3) = 0.0d0
                                   end do
+                               else if (bcode == 3) then ! non_slip wall
+                                  !$acc loop vector
+                                  do ipbou = 1,npbou
+                                     q_1(bound(iboun,ipbou),1) = 0.0d0
+                                     q_1(bound(iboun,ipbou),2) = 0.0d0
+                                     q_1(bound(iboun,ipbou),3) = 0.0d0
+                                  end do
                                end if
                             end do
                             !$acc end parallel loop
@@ -343,6 +350,13 @@ module time_integ
                                   do ipbou = 1,npbou
                                      q_2(bound(iboun,ipbou),3) = 0.0d0
                                   end do
+                               else if (bcode == 3) then ! non_slip wall
+                                  !$acc loop vector
+                                  do ipbou = 1,npbou
+                                     q_1(bound(iboun,ipbou),1) = 0.0d0
+                                     q_1(bound(iboun,ipbou),2) = 0.0d0
+                                     q_1(bound(iboun,ipbou),3) = 0.0d0
+                                  end do
                                end if
                             end do
                             !$acc end parallel loop
@@ -498,6 +512,13 @@ module time_integ
                                   !$acc loop vector
                                   do ipbou = 1,npbou
                                      q_3(bound(iboun,ipbou),3) = 0.0d0
+                                  end do
+                               else if (bcode == 3) then ! non_slip wall
+                                  !$acc loop vector
+                                  do ipbou = 1,npbou
+                                     q_1(bound(iboun,ipbou),1) = 0.0d0
+                                     q_1(bound(iboun,ipbou),2) = 0.0d0
+                                     q_1(bound(iboun,ipbou),3) = 0.0d0
                                   end do
                                end if
                             end do
@@ -659,6 +680,13 @@ module time_integ
                                   !$acc loop vector
                                   do ipbou = 1,npbou
                                      q_4(bound(iboun,ipbou),3) = 0.0d0
+                                  end do
+                               else if (bcode == 3) then ! non_slip wall
+                                  !$acc loop vector
+                                  do ipbou = 1,npbou
+                                     q_1(bound(iboun,ipbou),1) = 0.0d0
+                                     q_1(bound(iboun,ipbou),2) = 0.0d0
+                                     q_1(bound(iboun,ipbou),3) = 0.0d0
                                   end do
                                end if
                             end do
