@@ -156,7 +156,7 @@ module elem_convec
 
               end subroutine mom_convec
 
-              subroutine mom_convec_emac(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u,q,pr,Rmom)
+              subroutine mom_convec_emac(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr,Rmom)
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! Subroutine to compute R = EMAC(A) using a standard Continuous    !
@@ -171,26 +171,48 @@ module elem_convec
                       real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), pr(npoin)
+                      real(8),    intent(in)  :: Aemac(npoin,ndime), Femac(npoin), pr(npoin)
                       real(8),    intent(out) :: Rmom(npoin,ndime)
                       integer(4)              :: ielem, igaus, idime, jdime, inode, kdime
-                      real(8)                 :: Re(nnode,ndime), divgp, grpgp
-                      real(8)                 :: tmp1, tmp2, tmp3, gpcar(ndime,nnode)
+                      real(8)                 :: Re(nnode,ndime)
+                      real(8)                 :: aux(ndime), gpcar(ndime,nnode)
+                      real(8)                 :: tmp1, tmp2, tmp3
+                      real(8)                 :: grad_1, grad_2, grad_3
+                      real(8)                 :: grad_4, grad_5, grad_6
+                      real(8)                 :: grad_7, grad_8, grad_9
+                      real(8)                 :: gradp_1, gradp_2, gradp_3, div_a
 
                       call nvtxStartRange("Momentum convection")
+
+                      !
+                      ! Start global RHS
+                      !
                       !$acc kernels
                       Rmom(:,:) = 0.0d0
                       !$acc end kernels
-                      !$acc parallel loop gang private(Re,gpcar) vector_length(32)
+
+                      !
+                      ! Start elemental ops
+                      !
+                      !$acc parallel loop gang private(Re,gpcar,aux) vector_length(32)
                       do ielem = 1,nelem
+                         !
+                         ! Initialize element vector to 0
+                         !
                          !$acc loop vector collapse(2)
                          do inode = 1,nnode
                             do idime = 1,ndime
                                Re(inode,idime) = 0.0d0
                             end do
                          end do
+                         !
+                         ! Loop over Gauss points
+                         !
                          !$acc loop seq
                          do igaus = 1,ngaus
+                            !
+                            ! Create GPCAR(ndime,nnode) for each element at each Gauss point
+                            !
                             !$acc loop seq
                             do idime = 1,ndime
                                !$acc loop vector
@@ -198,15 +220,54 @@ module elem_convec
                                   gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
                                end do
                             end do
-                            tmp1 = dot_product(gpcar(1,:),q(connec(ielem,:),1)*u(connec(ielem,:),1)+pr(connec(ielem,:)))
-                            tmp1 = tmp1+dot_product(gpcar(2,:),q(connec(ielem,:),1)*u(connec(ielem,:),2))
-                            tmp1 = tmp1+dot_product(gpcar(3,:),q(connec(ielem,:),1)*u(connec(ielem,:),3))
-                            tmp2 = dot_product(gpcar(1,:),q(connec(ielem,:),2)*u(connec(ielem,:),1))
-                            tmp2 = tmp2+dot_product(gpcar(2,:),q(connec(ielem,:),2)*u(connec(ielem,:),2)+pr(connec(ielem,:)))
-                            tmp2 = tmp2+dot_product(gpcar(3,:),q(connec(ielem,:),2)*u(connec(ielem,:),3))
-                            tmp3 = dot_product(gpcar(1,:),q(connec(ielem,:),3)*u(connec(ielem,:),1))
-                            tmp3 = tmp3+dot_product(gpcar(2,:),q(connec(ielem,:),3)*u(connec(ielem,:),2))
-                            tmp3 = tmp3+dot_product(gpcar(3,:),q(connec(ielem,:),3)*u(connec(ielem,:),3)+pr(connec(ielem,:)))
+                            !
+                            ! Compute grad(A) and div(A)
+                            !
+                            !
+                            ! Gradient structure:
+                            !
+                            !         | u1,1 u1,2 u1,3 |
+                            ! u_i,j = | u2,1 u2,2 u2,3 |
+                            !         | u3,1 u3,2 u3,3 |
+                            !
+                            grad_1 = dot_product(gpcar(1,:),Aemac(:,1))
+                            grad_2 = dot_product(gpcar(2,:),Aemac(:,1))
+                            grad_3 = dot_product(gpcar(3,:),Aemac(:,1))
+                            grad_4 = dot_product(gpcar(1,:),Aemac(:,2))
+                            grad_5 = dot_product(gpcar(2,:),Aemac(:,2))
+                            grad_6 = dot_product(gpcar(3,:),Aemac(:,2))
+                            grad_7 = dot_product(gpcar(1,:),Aemac(:,3))
+                            grad_8 = dot_product(gpcar(2,:),Aemac(:,3))
+                            grad_9 = dot_product(gpcar(3,:),Aemac(:,3))
+                            !
+                            ! div(A) = tr[grad(A)]
+                            !
+                            div_a = grad_1 + grad_5 + grad_9
+                            !
+                            ! Pressure gradient
+                            !
+                            gradp_1 = dot_product(gpcar(1,:),pr(connec(ielem,:)))
+                            gradp_2 = dot_product(gpcar(2,:),pr(connec(ielem,:)))
+                            gradp_3 = dot_product(gpcar(3,:),pr(connec(ielem,:)))
+                            !
+                            ! Interpolate A innto an auxiliary array
+                            !
+                            !$acc loop seq
+                            do idime = 1,ndime
+                               aux(idime) = dot_product(Ngp(igaus,:),Aemac(connec(ielem,:),idime))
+                            end do
+                            !
+                            ! Compute terms grad(A)*A+grad^T(A)*A+div(A)*A+grad(P)
+                            !
+                            tmp1 = (grad_1+grad_1+div_a)*aux(1)+(grad_2+grad_4)*aux(2)+(grad_3+grad_7)*aux(3)+gradp_1
+                            tmp2 = (grad_4+grad_2)*aux(1)+(grad_5+grad_5+div_a)*aux(2)+(grad_6+grad_8)*aux(3)+gradp_2
+                            tmp3 = (grad_7+grad_3)*aux(1)+(grad_8+grad_6)*aux(2)+(grad_9+grad_9+div_a)*aux(3)+gradp_3
+                            !
+                            ! Subtract kinetic energy component
+                            !
+                            tmp1 = tmp1 - 0.5d0*dot_product(gpcar(1,:),Femac(connec(ielem,:)))
+                            tmp2 = tmp2 - 0.5d0*dot_product(gpcar(2,:),Femac(connec(ielem,:)))
+                            tmp3 = tmp3 - 0.5d0*dot_product(gpcar(3,:),Femac(connec(ielem,:)))
                             !$acc loop vector
                             do inode = 1,nnode
                                Re(inode,1) = Re(inode,1)+gpvol(1,igaus,ielem)*Ngp(igaus,inode)*tmp1
