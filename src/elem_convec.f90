@@ -230,15 +230,28 @@ module elem_convec
                             ! u_i,j = | u2,1 u2,2 u2,3 |
                             !         | u3,1 u3,2 u3,3 |
                             !
-                            grad_1 = dot_product(gpcar(1,:),Aemac(connec(ielem,:),1))
-                            grad_2 = dot_product(gpcar(2,:),Aemac(connec(ielem,:),1))
-                            grad_3 = dot_product(gpcar(3,:),Aemac(connec(ielem,:),1))
-                            grad_4 = dot_product(gpcar(1,:),Aemac(connec(ielem,:),2))
-                            grad_5 = dot_product(gpcar(2,:),Aemac(connec(ielem,:),2))
-                            grad_6 = dot_product(gpcar(3,:),Aemac(connec(ielem,:),2))
-                            grad_7 = dot_product(gpcar(1,:),Aemac(connec(ielem,:),3))
-                            grad_8 = dot_product(gpcar(2,:),Aemac(connec(ielem,:),3))
-                            grad_9 = dot_product(gpcar(3,:),Aemac(connec(ielem,:),3))
+                            grad_1 = 0.0d0 
+                            grad_2 = 0.0d0 
+                            grad_3 = 0.0d0 
+                            grad_4 = 0.0d0 
+                            grad_5 = 0.0d0 
+                            grad_6 = 0.0d0 
+                            grad_7 = 0.0d0 
+                            grad_8 = 0.0d0 
+                            grad_9 = 0.0d0 
+                            !$acc loop vector &
+                            !$acc reduction(+:grad_1,grad_2,grad_3,grad_4,grad_5,grad_6,grad_7,grad_8,grad_9)
+                            do inode = 1,nnode
+                               grad_1 = grad_1+(gpcar(1,inode)*Aemac(connec(ielem,inode),1))
+                               grad_2 = grad_2+(gpcar(2,inode)*Aemac(connec(ielem,inode),1))
+                               grad_3 = grad_3+(gpcar(3,inode)*Aemac(connec(ielem,inode),1))
+                               grad_4 = grad_4+(gpcar(1,inode)*Aemac(connec(ielem,inode),2))
+                               grad_5 = grad_5+(gpcar(2,inode)*Aemac(connec(ielem,inode),2))
+                               grad_6 = grad_6+(gpcar(3,inode)*Aemac(connec(ielem,inode),2))
+                               grad_7 = grad_7+(gpcar(1,inode)*Aemac(connec(ielem,inode),3))
+                               grad_8 = grad_8+(gpcar(2,inode)*Aemac(connec(ielem,inode),3))
+                               grad_9 = grad_9+(gpcar(3,inode)*Aemac(connec(ielem,inode),3))
+                            end do
                             !
                             ! div(A) = tr[grad(A)]
                             !
@@ -246,9 +259,16 @@ module elem_convec
                             !
                             ! Pressure gradient
                             !
-                            gradp_1 = dot_product(gpcar(1,:),pr(connec(ielem,:)))
-                            gradp_2 = dot_product(gpcar(2,:),pr(connec(ielem,:)))
-                            gradp_3 = dot_product(gpcar(3,:),pr(connec(ielem,:)))
+                            gradp_1 = 0.0d0
+                            gradp_2 = 0.0d0
+                            gradp_3 = 0.0d0
+                            !$acc loop vector &
+                            !$acc reduction(+:gradp_1,gradp_2,gradp_3)
+                            do inode = 1,nnode
+                               gradp_1 = gradp_1+(gpcar(1,inode)*pr(connec(ielem,inode)))
+                               gradp_2 = gradp_2+(gpcar(2,inode)*pr(connec(ielem,inode)))
+                               gradp_3 = gradp_3+(gpcar(3,inode)*pr(connec(ielem,inode)))
+                            end do
                             !
                             ! Interpolate A innto an auxiliary array
                             !
