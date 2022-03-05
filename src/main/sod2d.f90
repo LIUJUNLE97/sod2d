@@ -52,7 +52,7 @@ program sod2d
         real(8),    allocatable    :: source_term(:)
         real(8)                    :: s, t, z, detJe
         real(8)                    :: Rgas, gamma_gas, Cp, Cv
-        real(8)                    :: dt, cfl, he_aux, time, rho0, P0, T0, EK
+        real(8)                    :: dt, cfl, he_aux, time, rho0, P0, T0, EK, VolTot
         character(500)             :: file_path
         character(500)             :: file_name, dumpfile
         character(5)               :: matrix_type, solver_type
@@ -68,12 +68,12 @@ program sod2d
         nnode = 27 ! TODO: need to allow for mixed elements...
         porder = 2 ! TODO: make it input
         npbou = 9 ! TODO: Need to get his from somewhere...
-        nstep = 3000 ! TODO: Needs to be input...
+        nstep = 10 ! TODO: Needs to be input...
         Rgas = 287.00d0 ! TODO: Make it input
         Cp = 1004.00d0 ! TODO: Make it input
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
-        dt = 0.002 ! TODO: make it adaptive...
+        dt = 0.001 ! TODO: make it adaptive...
         nsave = 10 ! First step to save, TODO: input
         nleap = 10 ! Saving interval, TODO: input
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
@@ -82,7 +82,7 @@ program sod2d
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
         end if
-        flag_emac = 1
+        flag_emac = 0
         if (flag_emac == 1) then
            write(*,*) "--| RUNNING WITH EMAC CONVECTION"
         else if (flag_emac == 0) then
@@ -403,14 +403,15 @@ program sod2d
         call nvtxStartRange("Jacobian info")
         allocate(He(ndime,ndime,ngaus,nelem))
         allocate(gpvol(1,ngaus,nelem))
-
+        call elem_jacobian(ndime,nnode,nelem,npoin,ngaus,connec,coord,dNgp,wgp,gpvol,He)
+        call  nvtxEndRange
+        VolTot = 0.0d0
         do ielem = 1,nelem
            do igaus = 1,ngaus
-              call elem_jacobian(ndime,nnode,coord(connec(ielem,1:nnode),:),dNgp(:,:,igaus),detJe,He(:,:,igaus,ielem))
-              gpvol(1,igaus,ielem) = wgp(igaus)*detJe
+              VolTot = VolTot+gpvol(1,igaus,ielem)
            end do
         end do
-        call  nvtxEndRange
+        write(*,*) '--| DOMAIN VOLUME := ',VolTot
 
         !*********************************************************************!
         ! Treat periodicity                                                   !
