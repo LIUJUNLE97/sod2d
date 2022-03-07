@@ -9,7 +9,7 @@ module time_integ
 
       contains
 
-              subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npbou,npoin,npoin_w,ndime,ngaus,nnode, &
+              subroutine rk_4_main(flag_predic,flag_emac,porder,nelem,nboun,npbou,npoin,npoin_w,ndime,ngaus,nnode, &
                               ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
                               rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w, &
                               ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
@@ -17,7 +17,7 @@ module time_integ
                       implicit none
 
                       integer(4), intent(in)             :: flag_predic, flag_emac
-                      integer(4), intent(in)             :: nelem, nboun, npbou, npoin, ndime, ngaus, nnode
+                      integer(4), intent(in)             :: porder, nelem, nboun, npbou, npoin, ndime, ngaus, nnode
                       integer(4), intent(in)             :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w)
                       integer(4), intent(in)             :: ppow
                       real(8),    intent(in)             :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
@@ -97,7 +97,7 @@ module time_integ
                          !
                          ! Compute entropy viscosity
                          !
-                         call smart_visc(nelem,nnode,ndime,npoin,connec,Reta,Rrho, &
+                         call smart_visc(porder,nelem,nnode,ndime,npoin,connec,Reta,Rrho, &
                                          gamma_gas,rho(:,2),u(:,:,2),pr(:,2),helem,mu_e)
                          call nvtxEndRange
 
@@ -293,7 +293,7 @@ module time_integ
                          !
                          ! Compute entropy viscosity
                          !
-                         call smart_visc(nelem,nnode,ndime,npoin,connec,Reta,Rrho, &
+                         call smart_visc(porder,nelem,nnode,ndime,npoin,connec,Reta,Rrho, &
                                          gamma_gas,rho_1,u_1,pr_1,helem,mu_e)
                          call nvtxEndRange
 
@@ -479,7 +479,7 @@ module time_integ
                          !
                          ! Compute entropy viscosity
                          !
-                         call smart_visc(nelem,nnode,ndime,npoin,connec,Reta,Rrho, &
+                         call smart_visc(porder,nelem,nnode,ndime,npoin,connec,Reta,Rrho, &
                                          gamma_gas,rho_2,u_2,pr_2,helem,mu_e)
                          call nvtxEndRange
 
@@ -664,7 +664,7 @@ module time_integ
                          !
                          ! Compute entropy viscosity
                          !
-                         call smart_visc(nelem,nnode,ndime,npoin,connec,Reta,Rrho, &
+                         call smart_visc(porder,nelem,nnode,ndime,npoin,connec,Reta,Rrho, &
                                          gamma_gas,rho_3,u_3,pr_3,helem,mu_e)
                          call nvtxEndRange
 
