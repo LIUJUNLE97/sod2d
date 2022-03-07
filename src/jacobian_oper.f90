@@ -47,7 +47,7 @@ module jacobian_oper
                               !$acc loop vector collapse(2)
                               do idime = 1,ndime
                                  do jdime = 1,ndime
-                                    Je(idime,jdime) = Je(idime,jdime)+dot_product(dNgp(jdime,:,igaus),coord(connec(ielem,:),idime))
+                                    Je(idime,jdime) = Je(idime,jdime)+dot_product(dNgp(idime,:,igaus),coord(connec(ielem,:),jdime))
                                  end do
                               end do
                               !
