@@ -75,12 +75,11 @@ program sod2d
         Cp = 1004.00d0 ! TODO: Make it input
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
-        !dt = 0.001 ! TODO: make it adaptive...
-        cfl_conv = 0.80d0
+        cfl_conv = 0.50d0
         cfl_diff = 0.25d0
         nsave = 1 ! First step to save, TODO: input
         nleap = 1 ! Saving interval, TODO: input
-        isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
+        isPeriodic = 0 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
         if (isPeriodic == 1) then
            nper = 49537 ! TODO: if periodic, request number of periodic nodes
         else if (isPeriodic == 0) then
@@ -111,7 +110,7 @@ program sod2d
         write(*,*) "--| ENTER NAME OF MESH RELATED FILES :"
         call nvtxStartRange("Read mesh")
         !read(*,*) file_name
-        write(file_name,*) "cube" ! Nsys
+        write(file_name,*) "shock_tube" ! Nsys
         call read_dims(file_path,file_name,npoin,nelem,nboun)
         allocate(connec(nelem,nnode))
         if (nboun .ne. 0) then

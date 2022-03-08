@@ -81,69 +81,51 @@ module mass_matrix
 
               end subroutine consistent_mass
 
-              subroutine lumped_mass(nelem,nnode,npoin,ngaus,connec,gpvol,Ngp,Ml,weight)
+              subroutine lumped_mass(nelem,nnode,npoin,ngaus,connec,gpvol,Ngp,Ml)
 
                       implicit none
 
                       integer(4), intent(in)           :: nelem, nnode, npoin, ngaus
                       integer(4), intent(in)           :: connec(nelem,nnode)
                       real(8),    intent(in)           :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
-                      real(8),    intent(in), optional :: weight(npoin)
                       real(8),    intent(out)          :: Ml(npoin)
-                      integer(4)                       :: ielem, igaus, inode, jnode, ind(nnode)
+                      integer(4)                       :: ielem, igaus, inode, jnode
                       real(8)                          :: Me(nnode), alpha, aux1, aux2, el_w(nnode)
 
                       !$acc kernels
                       Ml(:) = 0.0d0
                       !$acc end kernels
 
-                      !$acc parallel loop gang private(ind,Me,el_w)
+                      !$acc parallel loop gang private(Me)
                       do ielem = 1,nelem
-                         ind(1:nnode) = connec(ielem,1:nnode)
-                         if (present(weight)) then
-                            el_w(1:nnode) = weight(ind)
-                         else
-                            el_w(:) = 1.0d0
-                         end if
                          Me = 0.0d0
                          aux1 = 0.0d0
+                         aux2 = 0.0d0
                          !
-                         ! tr[Mc]
+                         ! tr[Mc] and int(detJe)
                          !
-                         !$acc loop vector reduction(+:aux1)
-                         do inode = 1,nnode
-                            !$acc loop seq
-                            do igaus = 1,ngaus
-                            aux1 = aux1+gpvol(1,igaus,ielem)*(dot_product(Ngp(igaus,:),el_w(:)))* &
-                                   Ngp(igaus,inode)*Ngp(igaus,inode)
+                         !$acc loop seq
+                         do igaus = 1,ngaus
+                            !$acc loop vector
+                            do inode = 1,nnode
+                               aux1 = aux1 + gpvol(1,igaus,ielem)*Ngp(igaus,inode)*Ngp(igaus,inode) ! tr[Mc]
                             end do
+                            aux2 = aux2 + gpvol(1,igaus,ielem) ![int(detJe)]
                          end do
-                         !
-                         ! elem. mass
-                         !
-                         !!!$acc loop seq
-                         !!do igaus = 1,ngaus
-                         !!   aux2 = aux2+gpvol(1,igaus,ielem)
-                         !!end do
                          !
                          ! Me
                          !
                          !$acc loop seq
                          do igaus = 1,ngaus
-                            !$acc loop vector
+                            !!$acc loop vector
                             do inode = 1,nnode
                                Me(inode) = Me(inode)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)**2)
                             end do
                          end do
                          !$acc loop vector
                          do inode = 1,nnode
-                            aux2 = 0.0d0
-                            !$acc loop seq
-                            do igaus = 1,ngaus
-                               aux2 = aux2+gpvol(1,igaus,ielem)
-                            end do
                             !$acc atomic update
-                            Ml(ind(inode)) = Ml(ind(inode))+((aux2/aux1)*Me(inode))
+                            Ml(connec(ielem,inode)) = Ml(connec(ielem,inode))+((aux2/aux1)*Me(inode))
                             !$acc end atomic
                          end do
                       end do
