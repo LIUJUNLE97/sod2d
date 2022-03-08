@@ -24,6 +24,7 @@ program sod2d
         use mod_period
         use time_integ
         use mod_analysis
+        use mod_time_ops
 
         implicit none
 
@@ -46,13 +47,14 @@ program sod2d
         real(8),    allocatable    :: Ngp(:,:), dNgp(:,:,:)
         real(8),    allocatable    :: Je(:,:), He(:,:,:,:)
         real(8),    allocatable    :: gpvol(:,:,:)
-        real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:)
+        real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:)
         real(8),    allocatable    :: Ml(:)!, Mc(:)
         real(8),    allocatable    :: mu_e(:)
         real(8),    allocatable    :: source_term(:)
         real(8)                    :: s, t, z, detJe
         real(8)                    :: Rgas, gamma_gas, Cp, Cv
-        real(8)                    :: dt, cfl, he_aux, time, rho0, P0, T0, EK, VolTot
+        real(8)                    :: dt, he_aux, time, rho0, P0, T0, EK, VolTot
+        real(8)                    :: cfl_conv, cfl_diff
         character(500)             :: file_path
         character(500)             :: file_name, dumpfile
         character(5)               :: matrix_type, solver_type
@@ -73,16 +75,18 @@ program sod2d
         Cp = 1004.00d0 ! TODO: Make it input
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
-        dt = 0.001 ! TODO: make it adaptive...
+        !dt = 0.001 ! TODO: make it adaptive...
+        cfl_conv = 0.80d0
+        cfl_diff = 0.25d0
         nsave = 1 ! First step to save, TODO: input
         nleap = 1 ! Saving interval, TODO: input
-        isPeriodic = 0 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
+        isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
         if (isPeriodic == 1) then
            nper = 49537 ! TODO: if periodic, request number of periodic nodes
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
         end if
-        flag_emac = 0
+        flag_emac = 1
         if (flag_emac == 1) then
            write(*,*) "--| RUNNING WITH EMAC CONVECTION"
         else if (flag_emac == 0) then
@@ -107,7 +111,7 @@ program sod2d
         write(*,*) "--| ENTER NAME OF MESH RELATED FILES :"
         call nvtxStartRange("Read mesh")
         !read(*,*) file_name
-        write(file_name,*) "shock_tube" ! Nsys
+        write(file_name,*) "cube" ! Nsys
         call read_dims(file_path,file_name,npoin,nelem,nboun)
         allocate(connec(nelem,nnode))
         if (nboun .ne. 0) then
@@ -238,6 +242,7 @@ program sod2d
         allocate(E(npoin,2))        ! Total Energy
         allocate(Tem(npoin,2))      ! Temperature
         allocate(e_int(npoin,2))    ! Internal Energy
+        allocate(csound(npoin))     ! Speed of sound
         allocate(mu_e(nelem))       ! Elemental viscosity
         call nvtxEndRange
 
@@ -264,12 +269,20 @@ program sod2d
            Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas)
            E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
            q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
+           csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2))
         end do
         !$acc end parallel loop
         !$acc kernels
         mu_e(:) = 0.0d0 ! Element viscosity, will use Sutherland law for generic case
         !$acc end kernels
         call nvtxEndRange
+
+        !*********************************************************************!
+        ! Compute initial time-step size                                      !
+        !*********************************************************************!
+        
+        call adapt_dt_cfl(porder,nelem,ndime,npoin,nnode,connec,helem,u(:,:,2),csound,cfl_conv,dt)
+        write(*,*) "--| TIME STEP SIZE dt := ",dt,"s"
 
         !
         ! Call VTK output (0th step)
@@ -593,6 +606,9 @@ program sod2d
                            rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w, &
                            ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
 
+                 call adapt_dt_cfl(porder,nelem,ndime,npoin,nnode,connec,helem,u(:,:,2),csound,cfl_conv,dt)
+                 write(*,*) "DT := ",dt,"s"
+
                  call nvtxEndRange
 
                  !
@@ -655,6 +671,9 @@ program sod2d
                   write(*,*) "--| time   ,   EK"
                   write(*,*) "--| ",time,"  |  ",EK
 
+                  call adapt_dt_cfl(porder,nelem,ndime,npoin,nnode,connec,helem,u(:,:,2),csound,cfl_conv,dt)
+                  write(*,*) "DT := ",dt,"s"
+
                   call nvtxEndRange
 
                   !
@@ -711,6 +730,9 @@ program sod2d
                            ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
                            rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w, &
                            ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
+
+                  call adapt_dt_cfl(porder,nelem,ndime,npoin,nnode,connec,helem,u(:,:,2),csound,cfl_conv,dt)
+                  write(*,*) "DT := ",dt,"s"
 
                   call nvtxEndRange
 
