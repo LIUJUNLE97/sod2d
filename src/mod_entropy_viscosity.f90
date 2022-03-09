@@ -1,12 +1,13 @@
 module mod_entropy_viscosity
 
+   use mod_constants
    use mod_nvtx
 
       ! TODO: Finish module and create unit tests
 
       contains
 
-              subroutine residuals(nelem,ngaus,npoin,nnode,ndime,npoin_w,lpoin_w, &
+              subroutine residuals(nelem,npoin,npoin_w,lpoin_w, &
                                    ppow, connec, Ngp, dNgp, He, gpvol, Ml, &
                                    dt, rhok, uk, prk, qk, &
                                    rho, u, pr, q, gamma_gas, &
@@ -18,7 +19,7 @@ module mod_entropy_viscosity
 
                       implicit none
 
-                      integer(4), intent(in)  :: nelem, ngaus, npoin, nnode, ndime, ppow, npoin_w
+                      integer(4), intent(in)  :: nelem, npoin, ppow, npoin_w
                       integer(4), intent(in)  :: connec(nelem,nnode), lpoin_w(npoin_w)
                       real(8),    intent(in)  :: Ngp(nnode,ngaus), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
@@ -66,14 +67,14 @@ module mod_entropy_viscosity
                        !
                        ! Entropy residual
                        !
-                       call generic_scalar_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He, &
+                       call generic_scalar_convec(nelem,npoin,connec,Ngp,dNgp,He, &
                                                   gpvol,f_eta,Reta,alpha)
                        !
                        ! Alter Reta with inv(Mc)
                        !
                        call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
                        !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Reta)
-                       call approx_inverse_scalar(nelem,nnode,npoin,npoin_w,lpoin_w,ngaus,connec,gpvol,Ngp,ppow,Ml,Reta)
+                       call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Reta)
                        !
                        ! Update Reta
                        !
@@ -95,7 +96,7 @@ module mod_entropy_viscosity
                        !
                        ! Alter R2 with Mcw
                        !
-                       call wcmass_times_vector(nelem,nnode,npoin,ngaus,connec,gpvol,Ngp,R2,aux1,alpha)
+                       call wcmass_times_vector(nelem,npoin,connec,gpvol,Ngp,R2,aux1,alpha)
                        !
                        ! Compute weighted mass convec
                        !
@@ -104,7 +105,7 @@ module mod_entropy_viscosity
                           Rrho(lpoin_w(ipoin)) = 0.0d0
                        end do
                        !$acc end parallel loop
-                       call generic_scalar_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp, &
+                       call generic_scalar_convec(nelem,npoin,connec,Ngp, &
                                                   dNgp,He,gpvol,f_rho,Rrho,alpha)
                        !
                        ! Update Rrho with both terms
@@ -119,19 +120,19 @@ module mod_entropy_viscosity
                        !
                        call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rrho)
                        !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rrho)
-                       call approx_inverse_scalar(nelem,nnode,npoin,npoin_w,lpoin_w,ngaus,connec,gpvol,Ngp,ppow,Ml,Rrho)
+                       call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Rrho)
                        call nvtxEndRange
 
               end subroutine residuals
 
-              subroutine smart_visc(porder,nelem,nnode,ndime,npoin,connec,Reta,Rrho, &
+              subroutine smart_visc(nelem,npoin,connec,Reta,Rrho, &
                                     gamma_gas,rho,u,pr,helem,mu_e)
               
                       ! TODO: Compute element size h
               
                       implicit none
 
-                      integer(4), intent(in)  :: porder, nelem, nnode, ndime, npoin, connec(nelem,nnode)
+                      integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
                       real(8),    intent(in)  :: Reta(npoin), Rrho(npoin), helem(nelem), gamma_gas
                       real(8),    intent(in)  :: rho(npoin), u(npoin,ndime), pr(npoin)
                       real(8),    intent(out) :: mu_e(nelem)

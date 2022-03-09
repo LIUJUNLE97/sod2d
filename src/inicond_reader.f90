@@ -1,13 +1,15 @@
 module inicond_reader
 
+      use mod_constants
+
       contains
 
-              subroutine read_veloc(ndime,npoin,file_path,u)
+              subroutine read_veloc(npoin,file_path,u)
 
                       implicit none
 
                       character(500), intent(in)  :: file_path
-                      integer(4)    , intent(in)  :: ndime, npoin
+                      integer(4)    , intent(in)  :: npoin
                       real(8)       , intent(out) :: u(npoin,ndime)
                       character(500)              :: file_type, file_name
                       integer(4)                  :: ipoin, ind

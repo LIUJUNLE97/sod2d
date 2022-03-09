@@ -6,10 +6,11 @@ module time_integ
       use elem_source
       use mod_solver
       use mod_entropy_viscosity
+      use mod_constants
 
       contains
 
-              subroutine rk_4_main(flag_predic,flag_emac,porder,nelem,nboun,npbou,npoin,npoin_w,ndime,ngaus,nnode, &
+              subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                               ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
                               rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w, &
                               ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
@@ -17,7 +18,7 @@ module time_integ
                       implicit none
 
                       integer(4), intent(in)             :: flag_predic, flag_emac
-                      integer(4), intent(in)             :: porder, nelem, nboun, npbou, npoin, ndime, ngaus, nnode
+                      integer(4), intent(in)             :: nelem, nboun, npoin
                       integer(4), intent(in)             :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w)
                       integer(4), intent(in)             :: ppow
                       real(8),    intent(in)             :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
@@ -88,7 +89,7 @@ module time_integ
                          ! Compute Reta and Rrho for selector
                          !
                          call nvtxStartRange("ENVIT")
-                         call residuals(nelem,ngaus,npoin,nnode,ndime,npoin_w,lpoin_w, &
+                         call residuals(nelem,npoin,npoin_w,lpoin_w, &
                                    ppow, connec, Ngp, dNgp, He, gpvol, Ml, &
                                    dt, rho(:,2), u(:,:,2), pr(:,2), q(:,:,2), &
                                    rho, u, pr, q, gamma_gas, &
@@ -97,7 +98,7 @@ module time_integ
                          !
                          ! Compute entropy viscosity
                          !
-                         call smart_visc(porder,nelem,nnode,ndime,npoin,connec,Reta,Rrho, &
+                         call smart_visc(nelem,npoin,connec,Reta,Rrho, &
                                          gamma_gas,rho(:,2),u(:,:,2),pr(:,2),helem,mu_e)
                          call nvtxEndRange
 
@@ -106,9 +107,9 @@ module time_integ
                       !
                       ! Mass
                       !
-                      call mass_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,q(:,:,pos),Rmass_1)
+                      call mass_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,q(:,:,pos),Rmass_1)
                       if (flag_predic == 0) then
-                         call mass_diffusion(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,rho(:,pos),mu_e,Rdiff_scal)
+                         call mass_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,pos),mu_e,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rmass_1(lpoin_w(ipoin)) = Rmass_1(lpoin_w(ipoin)) + Rdiff_scal(lpoin_w(ipoin))
@@ -117,8 +118,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_1)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_1)
-                      call approx_inverse_scalar(nelem,nnode,npoin,npoin_w,lpoin_w, &
-                         ngaus,connec,gpvol,Ngp,ppow,Ml,Rmass_1)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmass_1)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_1(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)- &
@@ -133,7 +134,7 @@ module time_integ
                          !
                          ! Conservation momentum convection div(qi*uj)
                          !
-                         call mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),q(:,:,pos),pr(:,pos),Rmom_1)
+                         call mom_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),q(:,:,pos),pr(:,pos),Rmom_1)
                       else if (flag_emac .eq. 1) then
                          !
                          ! EMAC term
@@ -150,13 +151,13 @@ module time_integ
                             Femac(lpoin_w(ipoin)) = dot_product(Aemac(lpoin_w(ipoin),:),Aemac(lpoin_w(ipoin),:))
                          end do
                          !$acc end parallel loop
-                         call mom_convec_emac(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr(:,pos),Rmom_1)
+                         call mom_convec_emac(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr(:,pos),Rmom_1)
                       end if
                       if(present(source_term)) then
-                        call mom_source_const_vect(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_1)
+                        call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_1)
                       end if
                       if (flag_predic == 0) then
-                         call mom_diffusion(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),mu_e,Rdiff_vect)
+                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),mu_e,Rdiff_vect)
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
@@ -165,10 +166,10 @@ module time_integ
                          end do
                          !$acc end parallel loop
                       end if
-                      call lumped_solver_vect(npoin,npoin_w,lpoin_w,ndime,Ml,Rmom_1)
+                      call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_1)
                       !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_1)
-                      call approx_inverse_vect(ndime,nelem,nnode,npoin,npoin_w,lpoin_w, &
-                         ngaus,connec,gpvol,Ngp,ppow,Ml,Rmom_1)
+                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmom_1)
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -229,9 +230,9 @@ module time_integ
                       !
                       ! Total energy
                       !
-                      call ener_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),pr(:,pos),E(:,pos),Rener_1)
+                      call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),pr(:,pos),E(:,pos),Rener_1)
                       if (flag_predic == 0) then
-                         call ener_diffusion(nelem,ngaus,npoin,nnode,ndime, &
+                         call ener_diffusion(nelem,npoin, &
                                              connec,Ngp,dNgp,He,gpvol,u(:,:,pos),Tem(:,pos),mu_e,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
@@ -241,7 +242,7 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_1)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_1)
-                      call approx_inverse_scalar(nelem,nnode,npoin,npoin_w,lpoin_w,ngaus, &
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
                                                  connec,gpvol,Ngp,ppow,Ml,Rener_1)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
@@ -284,7 +285,7 @@ module time_integ
                          ! Compute Reta and Rrho for selector
                          !
                          call nvtxStartRange("ENVIT")
-                         call residuals(nelem,ngaus,npoin,nnode,ndime,npoin_w,lpoin_w, &
+                         call residuals(nelem,npoin,npoin_w,lpoin_w, &
                                    ppow, connec, Ngp, dNgp, He, gpvol, Ml, &
                                    dt, rho_1, u_1, pr_1, q_1, &
                                    rho, u, pr, q, gamma_gas, &
@@ -293,15 +294,15 @@ module time_integ
                          !
                          ! Compute entropy viscosity
                          !
-                         call smart_visc(porder,nelem,nnode,ndime,npoin,connec,Reta,Rrho, &
+                         call smart_visc(nelem,npoin,connec,Reta,Rrho, &
                                          gamma_gas,rho_1,u_1,pr_1,helem,mu_e)
                          call nvtxEndRange
 
                       end if
 
-                      call mass_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,q_1,Rmass_2)
+                      call mass_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,q_1,Rmass_2)
                       if (flag_predic == 0) then
-                         call mass_diffusion(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,rho_1,mu_e,Rdiff_scal)
+                         call mass_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho_1,mu_e,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rmass_2(lpoin_w(ipoin)) = Rmass_2(lpoin_w(ipoin)) + Rdiff_scal(lpoin_w(ipoin))
@@ -310,8 +311,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_2)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_2)
-                      call approx_inverse_scalar(nelem,nnode,npoin,npoin_w,lpoin_w, &
-                         ngaus,connec,gpvol,Ngp,ppow,Ml,Rmass_2)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmass_2)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_2(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)- &
@@ -323,7 +324,7 @@ module time_integ
                          !
                          ! Conservation momentum convection div(qi*uj)
                          !
-                         call mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_1,q_1,pr_1,Rmom_2)
+                         call mom_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,q_1,pr_1,Rmom_2)
                       else if (flag_emac .eq. 1) then
                          !
                          ! EMAC term
@@ -340,13 +341,13 @@ module time_integ
                             Femac(lpoin_w(ipoin)) = dot_product(Aemac(lpoin_w(ipoin),:),Aemac(lpoin_w(ipoin),:))
                          end do
                          !$acc end parallel loop
-                         call mom_convec_emac(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr_1,Rmom_2)
+                         call mom_convec_emac(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr_1,Rmom_2)
                       end if
                       if(present(source_term)) then
-                        call mom_source_const_vect(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_2)
+                        call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_2)
                       end if
                       if (flag_predic == 0) then
-                         call mom_diffusion(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_1,mu_e,Rdiff_vect)
+                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,mu_e,Rdiff_vect)
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
@@ -355,10 +356,10 @@ module time_integ
                          end do
                          !$acc end parallel loop
                       end if
-                      call lumped_solver_vect(npoin,npoin_w,lpoin_w,ndime,Ml,Rmom_2)
+                      call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_2)
                       !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_2)
-                      call approx_inverse_vect(ndime,nelem,nnode,npoin,npoin_w,lpoin_w, &
-                         ngaus,connec,gpvol,Ngp,ppow,Ml,Rmom_2)
+                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmom_2)
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -398,9 +399,9 @@ module time_integ
                                else if (bcode == 3) then ! non_slip wall
                                   !$acc loop vector
                                   do ipbou = 1,npbou
-                                     q_1(bound(iboun,ipbou),1) = 0.0d0
-                                     q_1(bound(iboun,ipbou),2) = 0.0d0
-                                     q_1(bound(iboun,ipbou),3) = 0.0d0
+                                     q_2(bound(iboun,ipbou),1) = 0.0d0
+                                     q_2(bound(iboun,ipbou),2) = 0.0d0
+                                     q_2(bound(iboun,ipbou),3) = 0.0d0
                                   end do
                                end if
                             end do
@@ -416,9 +417,9 @@ module time_integ
                       end do
                       !$acc end parallel loop
 
-                      call ener_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_1,pr_1,E_1,Rener_2)
+                      call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,pr_1,E_1,Rener_2)
                       if (flag_predic == 0) then
-                         call ener_diffusion(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_1,Tem_1,mu_e,Rdiff_scal)
+                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,Tem_1,mu_e,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rener_2(lpoin_w(ipoin)) = Rener_2(lpoin_w(ipoin))+Rdiff_scal(lpoin_w(ipoin))
@@ -427,8 +428,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_2)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_2)
-                      call approx_inverse_scalar(nelem,nnode,npoin,npoin_w,lpoin_w, &
-                         ngaus,connec,gpvol,Ngp,ppow,Ml,Rener_2)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rener_2)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_2(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &
@@ -470,7 +471,7 @@ module time_integ
                          ! Compute Reta and Rrho for selector
                          !
                          call nvtxStartRange("ENVIT")
-                         call residuals(nelem,ngaus,npoin,nnode,ndime,npoin_w,lpoin_w, &
+                         call residuals(nelem,npoin,npoin_w,lpoin_w, &
                                    ppow, connec, Ngp, dNgp, He, gpvol, Ml, &
                                    dt, rho_2, u_2, pr_2, q_2, &
                                    rho, u, pr, q, gamma_gas, &
@@ -479,15 +480,15 @@ module time_integ
                          !
                          ! Compute entropy viscosity
                          !
-                         call smart_visc(porder,nelem,nnode,ndime,npoin,connec,Reta,Rrho, &
+                         call smart_visc(nelem,npoin,connec,Reta,Rrho, &
                                          gamma_gas,rho_2,u_2,pr_2,helem,mu_e)
                          call nvtxEndRange
 
                       end if
 
-                      call mass_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,q_2,Rmass_3)
+                      call mass_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,q_2,Rmass_3)
                       if (flag_predic == 0) then
-                         call mass_diffusion(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,rho_2,mu_e,Rdiff_scal)
+                         call mass_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho_2,mu_e,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rmass_3(lpoin_w(ipoin)) = Rmass_3(lpoin_w(ipoin)) + Rdiff_scal(lpoin_w(ipoin))
@@ -496,8 +497,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_3)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_3)
-                      call approx_inverse_scalar(nelem,nnode,npoin,npoin_w,lpoin_w, &
-                         ngaus,connec,gpvol,Ngp,ppow,Ml,Rmass_3)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmass_3)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_3(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)-(dt/1.0d0)*Rmass_3(lpoin_w(ipoin))
@@ -508,7 +509,7 @@ module time_integ
                          !
                          ! Conservation momentum convection div(qi*uj)
                          !
-                         call mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_2,q_2,pr_2,Rmom_3)
+                         call mom_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,q_2,pr_2,Rmom_3)
                       else if (flag_emac .eq. 1) then
                          !
                          ! EMAC term
@@ -525,13 +526,13 @@ module time_integ
                             Femac(lpoin_w(ipoin)) = dot_product(Aemac(lpoin_w(ipoin),:),Aemac(lpoin_w(ipoin),:))
                          end do
                          !$acc end parallel loop
-                         call mom_convec_emac(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr_2,Rmom_3)
+                         call mom_convec_emac(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr_2,Rmom_3)
                       end if
                       if(present(source_term)) then
-                        call mom_source_const_vect(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_3)
+                        call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_3)
                       end if
                       if (flag_predic == 0) then
-                         call mom_diffusion(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_2,mu_e,Rdiff_vect)
+                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,mu_e,Rdiff_vect)
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
@@ -540,10 +541,10 @@ module time_integ
                          end do
                          !$acc end parallel loop
                       end if
-                      call lumped_solver_vect(npoin,npoin_w,lpoin_w,ndime,Ml,Rmom_3)
+                      call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_3)
                       !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_3)
-                      call approx_inverse_vect(ndime,nelem,nnode,npoin,npoin_w,lpoin_w, &
-                         ngaus,connec,gpvol,Ngp,ppow,Ml,Rmom_3)
+                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmom_3)
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -583,9 +584,9 @@ module time_integ
                                else if (bcode == 3) then ! non_slip wall
                                   !$acc loop vector
                                   do ipbou = 1,npbou
-                                     q_1(bound(iboun,ipbou),1) = 0.0d0
-                                     q_1(bound(iboun,ipbou),2) = 0.0d0
-                                     q_1(bound(iboun,ipbou),3) = 0.0d0
+                                     q_3(bound(iboun,ipbou),1) = 0.0d0
+                                     q_3(bound(iboun,ipbou),2) = 0.0d0
+                                     q_3(bound(iboun,ipbou),3) = 0.0d0
                                   end do
                                end if
                             end do
@@ -601,9 +602,9 @@ module time_integ
                       end do
                       !$acc end parallel loop
 
-                      call ener_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_2,pr_2,E_2,Rener_3)
+                      call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,pr_2,E_2,Rener_3)
                       if (flag_predic == 0) then
-                         call ener_diffusion(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_2,Tem_2,mu_e,Rdiff_scal)
+                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,Tem_2,mu_e,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rener_3(lpoin_w(ipoin)) = Rener_3(lpoin_w(ipoin)) + Rdiff_scal(lpoin_w(ipoin))
@@ -612,8 +613,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_3)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_3)
-                      call approx_inverse_scalar(nelem,nnode,npoin,npoin_w,lpoin_w, &
-                         ngaus,connec,gpvol,Ngp,ppow,Ml,Rener_3)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rener_3)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_3(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &
@@ -655,7 +656,7 @@ module time_integ
                          ! Compute Reta and Rrho for selector
                          !
                          call nvtxStartRange("ENVIT")
-                         call residuals(nelem,ngaus,npoin,nnode,ndime,npoin_w,lpoin_w, &
+                         call residuals(nelem,npoin,npoin_w,lpoin_w, &
                                    ppow, connec, Ngp, dNgp, He, gpvol, Ml, &
                                    dt, rho_3, u_3, pr_3, q_3, &
                                    rho, u, pr, q, gamma_gas, &
@@ -664,15 +665,15 @@ module time_integ
                          !
                          ! Compute entropy viscosity
                          !
-                         call smart_visc(porder,nelem,nnode,ndime,npoin,connec,Reta,Rrho, &
+                         call smart_visc(nelem,npoin,connec,Reta,Rrho, &
                                          gamma_gas,rho_3,u_3,pr_3,helem,mu_e)
                          call nvtxEndRange
 
                       end if
 
-                      call mass_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,q_3,Rmass_4)
+                      call mass_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,q_3,Rmass_4)
                       if (flag_predic == 0) then
-                         call mass_diffusion(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,rho_3,mu_e,Rdiff_scal)
+                         call mass_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho_3,mu_e,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rmass_4(lpoin_w(ipoin)) = Rmass_4(lpoin_w(ipoin)) + Rdiff_scal(lpoin_w(ipoin))
@@ -681,8 +682,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_4)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_4)
-                      call approx_inverse_scalar(nelem,nnode,npoin,npoin_w,lpoin_w, &
-                         ngaus,connec,gpvol,Ngp,ppow,Ml,Rmass_4)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmass_4)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          aux_mass(lpoin_w(ipoin)) = Rmass_1(lpoin_w(ipoin))+2.0d0*Rmass_2(lpoin_w(ipoin))+ &
@@ -696,7 +697,7 @@ module time_integ
                          !
                          ! Conservation momentum convection div(qi*uj)
                          !
-                         call mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_3,q_3,pr_3,Rmom_4)
+                         call mom_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_3,q_3,pr_3,Rmom_4)
                       else if (flag_emac .eq. 1) then
                          !
                          ! EMAC term
@@ -713,13 +714,13 @@ module time_integ
                             Femac(lpoin_w(ipoin)) = dot_product(Aemac(lpoin_w(ipoin),:),Aemac(lpoin_w(ipoin),:))
                          end do
                          !$acc end parallel loop
-                         call mom_convec_emac(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr_3,Rmom_4)
+                         call mom_convec_emac(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr_3,Rmom_4)
                       end if
                       if(present(source_term)) then
-                        call mom_source_const_vect(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_4)
+                        call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_4)
                       end if
                       if (flag_predic == 0) then
-                         call mom_diffusion(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_3,mu_e,Rdiff_vect)
+                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_3,mu_e,Rdiff_vect)
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
@@ -728,10 +729,10 @@ module time_integ
                          end do
                          !$acc end parallel loop
                       end if
-                      call lumped_solver_vect(npoin,npoin_w,lpoin_w,ndime,Ml,Rmom_4)
+                      call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_4)
                       !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_4)
-                      call approx_inverse_vect(ndime,nelem,nnode,npoin,npoin_w,lpoin_w, &
-                         ngaus,connec,gpvol,Ngp,ppow,Ml,Rmom_4)
+                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmom_4)
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -773,9 +774,9 @@ module time_integ
                                else if (bcode == 3) then ! non_slip wall
                                   !$acc loop vector
                                   do ipbou = 1,npbou
-                                     q_1(bound(iboun,ipbou),1) = 0.0d0
-                                     q_1(bound(iboun,ipbou),2) = 0.0d0
-                                     q_1(bound(iboun,ipbou),3) = 0.0d0
+                                     q_4(bound(iboun,ipbou),1) = 0.0d0
+                                     q_4(bound(iboun,ipbou),2) = 0.0d0
+                                     q_4(bound(iboun,ipbou),3) = 0.0d0
                                   end do
                                end if
                             end do
@@ -791,9 +792,9 @@ module time_integ
                       end do
                       !$acc end parallel loop
 
-                      call ener_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_3,pr_3,E_3,Rener_4)
+                      call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_3,pr_3,E_3,Rener_4)
                       if (flag_predic == 0) then
-                         call ener_diffusion(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u_3,Tem_3,mu_e,Rdiff_scal)
+                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_3,Tem_3,mu_e,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rener_4(lpoin_w(ipoin)) = Rener_4(lpoin_w(ipoin)) + Rdiff_scal(lpoin_w(ipoin))
@@ -802,8 +803,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_4)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_4)
-                      call approx_inverse_scalar(nelem,nnode,npoin,npoin_w,lpoin_w, &
-                         ngaus,connec,gpvol,Ngp,ppow,Ml,Rener_4)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rener_4)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          aux_ener(lpoin_w(ipoin)) = Rener_1(lpoin_w(ipoin))+2.0d0*Rener_2(lpoin_w(ipoin))+ &

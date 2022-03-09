@@ -1,14 +1,15 @@
 module mod_time_ops
 
+   use mod_constants
    use mod_nvtx
 
    contains
 
-      subroutine adapt_dt_cfl(porder,nelem,ndime,npoin,nnode,connec,helem,u,csound,cfl_conv,dt,cfl_diff,mu_fluid)
+      subroutine adapt_dt_cfl(nelem,npoin,connec,helem,u,csound,cfl_conv,dt,cfl_diff,mu_fluid)
 
          implicit none
 
-         integer(4), intent(in)           :: porder, nelem, ndime, npoin, nnode, connec(nelem,nnode)
+         integer(4), intent(in)           :: nelem, npoin, connec(nelem,nnode)
          real(8)   , intent(in)           :: helem(nelem)
          real(8)   , intent(in)           :: u(npoin,ndime), csound(npoin)
          real(8)   , intent(in)           :: cfl_conv

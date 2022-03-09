@@ -1,14 +1,15 @@
 module mod_analysis
 
+   use mod_constants
    use mod_nvtx
 
    contains
 
-      subroutine volAvg_EK(nelem,npoin,ndime,nnode,ngaus,connec,gpvol,Ngp,rho0,rho,u,EK)
+      subroutine volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho,u,EK)
 
          implicit none
 
-         integer(4), intent(in)  :: nelem, npoin, ndime, nnode, ngaus, connec(nelem,nnode)
+         integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
          real(8),    intent(in)  :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
          real(8),    intent(in)  :: rho0, rho(npoin), u(npoin,ndime)
          real(8),    intent(out) :: EK

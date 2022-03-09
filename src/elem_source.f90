@@ -1,5 +1,6 @@
 module elem_source
 
+      use mod_constants
       use mod_nvtx
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -12,12 +13,12 @@ module elem_source
 
               ! integrates a constant source term (s[ndime]) for each cartessian
               ! direction in the momentum equations 
-              subroutine mom_source_const_vect(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u,s,Rmom)
+              subroutine mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,s,Rmom)
 
 
                       implicit none
 
-                      integer(4), intent(in)  :: nelem, ngaus, npoin, nnode, ndime
+                      integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
                       real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)

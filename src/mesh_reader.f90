@@ -2,6 +2,7 @@ module mesh_reader
 
    ! TODO: Read fix.bou
    
+      use mod_constants
       contains
       
          subroutine read_dims(file_path,file_name,npoin,nelem,nboun)
@@ -27,12 +28,12 @@ module mesh_reader
          
          end subroutine read_dims
          
-         subroutine read_geo_dat(file_path,file_name,npoin,nelem,nboun,nnode,ndime,npbou,connec,bound,coord)
+         subroutine read_geo_dat(file_path,file_name,npoin,nelem,nboun,connec,bound,coord)
          
             implicit none
             
             character(500), intent(in)  :: file_path, file_name
-            integer(4)    , intent(in)  :: npoin, nelem, nboun, nnode, ndime, npbou
+            integer(4)    , intent(in)  :: npoin, nelem, nboun
             integer(4)    , intent(out) :: connec(nelem,nnode), bound(nboun,npbou)
             real(8)       , intent(out) :: coord(npoin,ndime)
             integer(4)                  :: iline, int1, inode, idime, aux(nnode+1), bou_aux(npbou+1)

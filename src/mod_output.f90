@@ -1,12 +1,13 @@
 module mod_output
 
+   use mod_constants
    contains
 
-      subroutine write_vtk_ascii(istep,ndime,npoin,nelem,nnode,coord,connec, &
+      subroutine write_vtk_ascii(istep,npoin,nelem,coord,connec, &
                                  rho,u,pr,E,mu_e)
          implicit none
       
-         integer(4), intent(in)                           :: istep, ndime, npoin, nelem, nnode
+         integer(4), intent(in)                           :: istep, npoin, nelem
          integer(4), intent(in)                           :: connec(nelem,nnode)
          real(8)   , intent(in)                           :: coord(npoin,ndime)
          real(8)   , intent(in), dimension(npoin)         :: rho, pr, E
@@ -140,12 +141,12 @@ module mod_output
       
       end subroutine
 
-      subroutine write_vtk_binary(isPeriodic,istep,ndime,npoin,nelem,nnode,coord,connec, &
+      subroutine write_vtk_binary(isPeriodic,istep,npoin,nelem,coord,connec, &
                                  rho,u,pr,E,mu_e,nper,masSla)
          implicit none
       
          integer(4), intent(in)                            :: isPeriodic, nper
-         integer(4), intent(in)                            :: istep, ndime, npoin, nelem, nnode
+         integer(4), intent(in)                            :: istep, npoin, nelem
          integer(4), intent(in)                            :: connec(nelem,nnode)
          integer(4), intent(in), optional                  :: masSla(nper,2)
          real(8)   , intent(in)                            :: coord(npoin,ndime)
@@ -170,7 +171,7 @@ module mod_output
          points(:,:) = 0.0d0
          points(:,1:ndime) = coord(:,1:ndime)
          !$acc end kernels
-         print*, 'kernel1: ok!'
+         !print*, 'kernel1: ok!'
       
          !
          ! If case is periodic, adjust slave nodes
@@ -185,7 +186,7 @@ module mod_output
             end do
             !!$acc end parallel loop
          end if
-         print*, 'kernel2: ok!'
+         !print*, 'kernel2: ok!'
 
          !
          ! Pass vector data to a suitable 3D generic format

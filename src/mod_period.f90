@@ -1,13 +1,14 @@
 module mod_period
 
+   use mod_constants
    contains
 
-      subroutine periodic_ops(nelem,npoin,nboun,npbou,npoin_w,nnode,nper, &
+      subroutine periodic_ops(nelem,npoin,nboun,npoin_w,nper, &
                               lpoin_w,connec,connec_orig,masSla,bound,bound_orig)
 
          implicit none
 
-         integer(4), intent(in)               :: nelem, npoin, nnode, nboun, npbou, nper, masSla(nper,2)
+         integer(4), intent(in)               :: nelem, npoin, nboun, nper, masSla(nper,2)
          integer(4), intent(out)              :: npoin_w, connec_orig(nelem,nnode)
          integer(4), intent(inout)            :: connec(nelem,nnode)
          integer(4), optional, intent(out)    :: bound_orig(nboun,npbou)

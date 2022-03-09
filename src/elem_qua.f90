@@ -1,10 +1,11 @@
 module elem_qua
 
+        use mod_constants
+
         contains
 
                 subroutine qua04(s,t,N,dN) ! QUA04 element
 
-                        !$acc routine seq
                         implicit none
 
                         real(8), intent(in)  :: s, t
@@ -30,7 +31,6 @@ module elem_qua
 
                 subroutine qua09(s,t,N,dN) ! QUA09 element
 
-                        !$acc routine seq
                         ! TODO: IMPLEMENT PROPERLY!!!!!
 
                         implicit none
@@ -56,11 +56,11 @@ module elem_qua
 
                 end subroutine qua09
 
-                subroutine quad_edges(ielem,nelem,nnode,npoin,ndime,connec,coord,ncorner,nedge,dist)
+                subroutine quad_edges(ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
 
                         implicit none
 
-                        integer(4), intent(in)            :: ielem, nelem, nnode, npoin, ndime
+                        integer(4), intent(in)            :: ielem, nelem, npoin
                         integer(4), intent(in)            :: connec(nelem,nnode)
                         real(8),    intent(in)            :: coord(npoin,ndime)
                         integer(4), intent(out)           :: ncorner, nedge

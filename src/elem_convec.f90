@@ -1,6 +1,7 @@
 module elem_convec
 
       use mod_nvtx
+      use mod_constants
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Computes convective term for Euler/NS equation system, as well             !
@@ -11,7 +12,7 @@ module elem_convec
 
       contains
 
-              subroutine mass_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,q,Rmass)
+              subroutine mass_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,q,Rmass)
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! Subroutine to compute R = div(rho*u) using a standard Continuous  !
@@ -21,7 +22,7 @@ module elem_convec
 
                       implicit none
 
-                      integer(4), intent(in)  :: nelem, ngaus, npoin, nnode, ndime
+                      integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
                       real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
@@ -80,7 +81,7 @@ module elem_convec
 
               end subroutine mass_convec
 
-              subroutine mom_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u,q,pr,Rmom)
+              subroutine mom_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,q,pr,Rmom)
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! Subroutine to compute R = div(q*u) using a standard Continuous   !
@@ -91,7 +92,7 @@ module elem_convec
 
                       implicit none
 
-                      integer(4), intent(in)  :: nelem, ngaus, npoin, nnode, ndime
+                      integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
                       real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
@@ -156,7 +157,7 @@ module elem_convec
 
               end subroutine mom_convec
 
-              subroutine mom_convec_emac(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr,Rmom)
+              subroutine mom_convec_emac(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr,Rmom)
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! Subroutine to compute R = EMAC(A) using a standard Continuous    !
@@ -166,7 +167,7 @@ module elem_convec
 
                       implicit none
 
-                      integer(4), intent(in)  :: nelem, ngaus, npoin, nnode, ndime
+                      integer(4), intent(in)  :: nelem,npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
                       real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
@@ -312,7 +313,7 @@ module elem_convec
 
               end subroutine mom_convec_emac
 
-              subroutine ener_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,dNgp,He,gpvol,u,pr,E,Rener)
+              subroutine ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,pr,E,Rener)
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! Subroutine to compute R = div(u*(E+p)) using a standard Continuous !
@@ -323,7 +324,7 @@ module elem_convec
 
                       implicit none
 
-                      integer(4), intent(in)  :: nelem, ngaus, npoin, nnode, ndime
+                      integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
                       real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
@@ -378,12 +379,12 @@ module elem_convec
 
               end subroutine ener_convec
 
-              subroutine generic_scalar_convec(nelem,ngaus,npoin,nnode,ndime,connec,Ngp, &
+              subroutine generic_scalar_convec(nelem,npoin,connec,Ngp, &
                                                dNgp,He,gpvol,q,Rconvec,alpha)
 
                       implicit none
 
-                      integer(4), intent(in)  :: nelem, ngaus, npoin, nnode, ndime
+                      integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
                       real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)

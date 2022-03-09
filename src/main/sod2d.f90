@@ -24,16 +24,17 @@ program sod2d
         use mod_period
         use time_integ
         use mod_analysis
+        use mod_constants
         use mod_time_ops
 
         implicit none
 
-        integer(4)                 :: ndime, nnode, ngaus, nstep, nper!, nzdom
+        integer(4)                 :: nstep, nper!, nzdom
         integer(4)                 :: idime, inode, igaus, istep, iper!, izdom
-        integer(4)                 :: nelem, npoin, nboun, npbou, nbcodes
+        integer(4)                 :: nelem, npoin, nboun, nbcodes
         integer(4)                 :: ielem, ipoin, iboun, ipbou
         integer(4)                 :: idof, ndof, nbnodes, ibnodes
-        integer(4)                 :: ppow, porder
+        integer(4)                 :: ppow
         integer(4)                 :: flag_predic, flag_emac
         integer(4)                 :: nsave, nleap
         integer(4)                 :: counter
@@ -52,13 +53,40 @@ program sod2d
         real(8),    allocatable    :: mu_e(:)
         real(8),    allocatable    :: source_term(:)
         real(8)                    :: s, t, z, detJe
-        real(8)                    :: Rgas, gamma_gas, Cp, Cv
-        real(8)                    :: dt, he_aux, time, rho0, P0, T0, EK, VolTot
+        real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot
         real(8)                    :: cfl_conv, cfl_diff
         character(500)             :: file_path
         character(500)             :: file_name, dumpfile
         character(5)               :: matrix_type, solver_type
         character(4)               :: timeStep
+
+#ifdef CHANNEL
+        !channel flow setup
+        real(8)  :: vo = 27.263d0
+        real(8)  :: M  = 0.2d0
+        real(8)  :: delta  = 1.0d0
+        real(8)  :: U0     = 1.0d0
+        real(8)  :: rho0   = 1.0d0
+        real(8)  :: Retau  = 180.0d0
+        real(8)  ::  cp = 1004.0d0
+        real(8)  ::  gamma_g = 1.40d0
+        real(8)  :: yp=0.0d0, ti(3)
+        real(8)  :: velo = 0.0d0, vol = 0.0d0
+        real(8)  :: Re,mul,utau,Rg,to,po
+#else
+        real(8)                    :: Rgas, gamma_gas, Cp, Cv, rho0
+#endif
+
+#ifdef CHANNEL
+        Re     = exp((1.0d0/0.88d0)*log(Retau/0.09d0))
+        mul    = (rho0*2.0d0*delta*vo)/Re
+        utau   = (Retau*mul)/(delta*rho0)
+        Rg = cp*(gamma_g-1.0d0)/gamma_g
+        to = vo*vo/(gamma_g*Rg*M*M)
+        po = rho0*Rg*to
+
+        write(*,*) " Gp ", utau*utau*rho0/delta
+#endif
 
         !*********************************************************************!
         ! Basic data, hardcoded for now                                       !
@@ -66,12 +94,16 @@ program sod2d
 
         write(*,*) "--| ENTER PROBLEM DIMENSION (2 OR 3) :"
         !read(*,*) ndime
-        ndime = 3 ! Nsys
-        nnode = 27 ! TODO: need to allow for mixed elements...
-        porder = 2 ! TODO: make it input
-        npbou = 9 ! TODO: Need to get his from somewhere...
+        !ndime = 3 ! Nsys
+        !nnode = 27 ! TODO: need to allow for mixed elements...
+        !porder = 2 ! TODO: make it input
+        !npbou = 9 ! TODO: Need to get his from somewhere...
         nstep = 10 ! TODO: Needs to be input...
+#ifdef CHANNEL
+        Rgas = Rg
+#else
         Rgas = 287.00d0 ! TODO: Make it input
+#endif
         Cp = 1004.00d0 ! TODO: Make it input
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
@@ -85,7 +117,7 @@ program sod2d
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
         end if
-        flag_emac = 1
+        flag_emac = 0
         if (flag_emac == 1) then
            write(*,*) "--| RUNNING WITH EMAC CONVECTION"
         else if (flag_emac == 0) then
@@ -95,11 +127,13 @@ program sod2d
            STOP(1)
         end if
 
+#ifdef CHANNEL
         allocate(source_term(ndime))
         !set the source term
-        source_term(1) = 0.0040762808843141035d0 !this is for Retau 180
+        source_term(1) = utau*utau*rho0/delta !this is for Retau 180
         source_term(2) = 0.00d0
         source_term(3) = 0.00d0
+#endif
 
         !*********************************************************************!
         ! Read mesh in Alya format                                            !
@@ -119,7 +153,7 @@ program sod2d
            call read_fixbou(file_path,file_name,nboun,nbcodes,bou_codes)
         end if
         allocate(coord(npoin,ndime))
-        call read_geo_dat(file_path,file_name,npoin,nelem,nboun,nnode,ndime,npbou,connec,bound,coord)
+        call read_geo_dat(file_path,file_name,npoin,nelem,nboun,connec,bound,coord)
         if (isPeriodic == 1) then
            allocate(masSla(nper,2))
            allocate(connec_orig(nelem,nnode))
@@ -137,7 +171,7 @@ program sod2d
         call nvtxStartRange("Elem size compute")
         allocate(helem(nelem))
         do ielem = 1,nelem
-           call char_length(ielem,nelem,nnode,npoin,ndime,connec,coord,he_aux)
+           call char_length(ielem,nelem,npoin,connec,coord,he_aux)
            helem(ielem) = he_aux
         end do
         call nvtxEndRange
@@ -249,11 +283,13 @@ program sod2d
         ! Read initial conditions                                             !
         !*********************************************************************!
 
+#ifndef CHANNEL
         call nvtxStartRange("Read ICs")
-        call read_veloc(ndime,npoin,file_path,u(:,:,2))
+        call read_veloc(npoin,file_path,u(:,:,2))
         call read_densi(npoin,file_path,rho(:,2))
         call read_press(npoin,file_path,pr(:,2)) ! Can be switched for TEMPE
         call nvtxEndRange
+#endif
 
         !*********************************************************************!
         ! Generate complementary info                                         !
@@ -262,6 +298,35 @@ program sod2d
         ! Assuming u, rho, p as IC:
 
         call nvtxStartRange("Additional data")
+#ifdef CHANNEL
+        do ipoin = 1,npoin
+
+           if(coord(ipoin,2)<delta) then
+               yp = coord(ipoin,2)*utau/mul
+           else
+              yp = abs(coord(ipoin,2)-2.0d0*delta)*utau/mul
+           end if
+
+          velo = utau*((1.0d0/0.41d0)*log(1.0d0+0.41d0*yp)+7.8d0*(1.0d0-exp(-yp/11.0d0)-(yp/11.0d0)*exp(-yp/3.0d0))) 
+
+          call random_number(ti)
+          !u(ipoin,1,2) = velo*(1.0d0 + 0.05d0*(sin(5.0d0*coord(ipoin,1)) -0.5d0))
+          !u(ipoin,2,2) = velo*(0.05d0*(sin(5.0d0*coord(ipoin,2)) -0.5d0))
+          !u(ipoin,3,2) = velo*(0.05d0*(sin(5.0d0*coord(ipoin,3)) -0.5d0))
+          u(ipoin,1,2) = velo*(1.0d0 + 0.05d0*(ti(1) -0.5d0))
+          u(ipoin,2,2) = velo*(0.05d0*(ti(2) -0.5d0))
+          u(ipoin,3,2) = velo*(0.05d0*(ti(3) -0.5d0))
+
+          pr(ipoin,2) = po
+
+          rho(ipoin,2) = po/Rg/to
+          
+          e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0d0))
+          Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas)
+          E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
+          q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
+        end do
+#else
         !$acc parallel loop
         do ipoin = 1,npoin
            e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0d0))
@@ -271,6 +336,7 @@ program sod2d
            csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2))
         end do
         !$acc end parallel loop
+#endif
         !$acc kernels
         mu_e(:) = 0.0d0 ! Element viscosity, will use Sutherland law for generic case
         !$acc end kernels
@@ -280,7 +346,7 @@ program sod2d
         ! Compute initial time-step size                                      !
         !*********************************************************************!
         
-        call adapt_dt_cfl(porder,nelem,ndime,npoin,nnode,connec,helem,u(:,:,2),csound,cfl_conv,dt)
+        call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
         write(*,*) "--| TIME STEP SIZE dt := ",dt,"s"
 
         !
@@ -289,11 +355,11 @@ program sod2d
         write(*,*) "--| GENERATING 1st OUTPUT..."
         call nvtxStartRange("1st write")
         if (isPeriodic == 0) then
-           call write_vtk_binary(isPeriodic,0,ndime,npoin,nelem,nnode,coord,connec, &
+           call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
                                 rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,nper)
         else
            print*, 'sub call: ok!'
-           call write_vtk_binary(isPeriodic,0,ndime,npoin,nelem,nnode,coord,connec, &
+           call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
                                 rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,nper,masSla)
         end if
         call nvtxEndRange
@@ -307,40 +373,40 @@ program sod2d
         call nvtxStartRange("Gaussian Quadrature")
         ! TODO: allow for more element types...
 
-        if (ndime == 2) then ! 2D elements
-           if (nnode == 3) then ! TRI03
-               ngaus = 3
-               write(*,*) 'NOT CODED YET!'
-               STOP 1
-           else if (nnode == 6) then ! TRI06
-               ngaus = 7
-               write(*,*) 'NOT CODED YET!'
-               STOP 1
-           else if (nnode == 4) then ! QUA04
-               ngaus = 4
-           else if (nnode == 9) then ! QUA09
-               ngaus = 9
-           end if
-        else if (ndime == 3) then ! 3D elements
-           if (nnode == 4) then ! TET04
-              ngaus = 4
-              write(*,*) 'NOT CODED YET!'
-              stop 1
-           else if (nnode == 8) then ! HEX08
-              ngaus = 8
-           else if (nnode == 27) then ! HEX27
-              ngaus = 27
-              write(*,*) '--| USING 27 GAUSS NODES PER ELEMENT!'
-           else if (nnode == 64) then ! HEX64
-              ngaus = 64
-           else
-              write(*,*) 'ELEMENT DOES NOT EXIST, OR IS NOT CODED YET!!'
-              stop 1
-           end if
-        else
-           write(*,*) 'ONLY 2D AND 3D ELEMMENTS SUPPORTED!'
-           stop 1
-        end if
+     !  if (ndime == 2) then ! 2D elements
+     !     if (nnode == 3) then ! TRI03
+     !         ngaus = 3
+     !         write(*,*) 'NOT CODED YET!'
+     !         STOP 1
+     !     else if (nnode == 6) then ! TRI06
+     !         ngaus = 7
+     !         write(*,*) 'NOT CODED YET!'
+     !         STOP 1
+     !     else if (nnode == 4) then ! QUA04
+     !         ngaus = 4
+     !     else if (nnode == 9) then ! QUA09
+     !         ngaus = 9
+     !     end if
+     !  else if (ndime == 3) then ! 3D elements
+     !     if (nnode == 4) then ! TET04
+     !        ngaus = 4
+     !        write(*,*) 'NOT CODED YET!'
+     !        stop 1
+     !     else if (nnode == 8) then ! HEX08
+     !        ngaus = 8
+     !     else if (nnode == 27) then ! HEX27
+     !        ngaus = 27
+     !        write(*,*) '--| USING 27 GAUSS NODES PER ELEMENT!'
+     !     else if (nnode == 64) then ! HEX64
+     !        ngaus = 64
+     !     else
+     !        write(*,*) 'ELEMENT DOES NOT EXIST, OR IS NOT CODED YET!!'
+     !        stop 1
+     !     end if
+     !  else
+     !     write(*,*) 'ONLY 2D AND 3D ELEMMENTS SUPPORTED!'
+     !     stop 1
+     !  end if
 
         ! Option to run with 1 Gauss point per element, for testing and debugging. Will override the previous section.
 
@@ -353,14 +419,14 @@ program sod2d
 
         if (ndime == 2) then
            if (nnode == (porder+1)**2) then ! QUA_XX of order porder
-              call gll_qua(ndime,ngaus,xgp,wgp)
+              call gll_qua(xgp,wgp)
            else if (nnode == 3 .or. nnode == 6 .or. nnode == 10) then ! TRI_XX
               write(*,*) '--| NOT CODED YET!'
               STOP 1
            end if
         else if (ndime == 3) then
            if (nnode == (porder+1)**3) then ! HEX_XX
-              call gll_hex(ndime,ngaus,xgp,wgp)
+              call gll_hex(xgp,wgp)
            else if (nnode == 4 .or. nnode == 10 .or. nnode == 20) then ! TET_XX
               write(*,*) '--| NOT CODED YET!'
               STOP 1
@@ -415,7 +481,7 @@ program sod2d
         call nvtxStartRange("Jacobian info")
         allocate(He(ndime,ndime,ngaus,nelem))
         allocate(gpvol(1,ngaus,nelem))
-        call elem_jacobian(ndime,nnode,nelem,npoin,ngaus,connec,coord,dNgp,wgp,gpvol,He)
+        call elem_jacobian(nelem,npoin,connec,coord,dNgp,wgp,gpvol,He)
         call  nvtxEndRange
         VolTot = 0.0d0
         do ielem = 1,nelem
@@ -434,10 +500,10 @@ program sod2d
 
         if (isPeriodic == 1) then
            if (nboun .eq. 0) then
-              call periodic_ops(nelem,npoin,nboun,npbou,npoin_w,nnode,nper, &
+              call periodic_ops(nelem,npoin,nboun,npoin_w,nper, &
                                 lpoin_w,connec,connec_orig,masSla)
            else
-              call periodic_ops(nelem,npoin,nboun,npbou,npoin_w,nnode,nper, &
+              call periodic_ops(nelem,npoin,nboun,npoin_w,nper, &
                                 lpoin_w,connec,connec_orig,masSla,bound,bound_orig)
            end if
         else if (isPeriodic == 0) then
@@ -457,7 +523,7 @@ program sod2d
         write(*,*) '--| COMPUTING LUMPED MASS MATRIX...'
         call nvtxStartRange("Lumped mass compute")
         allocate(Ml(npoin))
-        call lumped_mass(nelem,nnode,npoin,ngaus,connec,gpvol,Ngp,Ml)
+        call lumped_mass(nelem,npoin,connec,gpvol,Ngp,Ml)
         solver_type = 'LUMSO'
         call nvtxEndRange
 
@@ -553,7 +619,7 @@ program sod2d
         P0 = 1.0d0
         T0 = 1.0d0/(1.4d0*Rgas*(0.1**2))
         rho0 = P0/(Rgas*T0)
-        call volAvg_EK(nelem,npoin,ndime,nnode,ngaus,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
+        call volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
         call write_EK(time,EK)
         write(*,*) "--| time   ,   EK"
         write(*,*) "--| ",time,"  |  ",EK
@@ -591,7 +657,7 @@ program sod2d
                  write(timeStep,'(i4)') istep
                  call nvtxStartRange("RK4 step "//timeStep,istep)
 
-                 call rk_4_main(flag_predic,flag_emac,porder,nelem,nboun,npbou,npoin,npoin_w,ndime,ngaus,nnode, &
+                 call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                            ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
                            rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w, &
                            ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
@@ -600,12 +666,12 @@ program sod2d
                  ! Advance with entropy viscosity
                  !
                  flag_predic = 0
-                 call rk_4_main(flag_predic,flag_emac,porder,nelem,nboun,npbou,npoin,npoin_w,ndime,ngaus,nnode, &
+                 call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                            ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
                            rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w, &
                            ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
 
-                 call adapt_dt_cfl(porder,nelem,ndime,npoin,nnode,connec,helem,u(:,:,2),csound,cfl_conv,dt)
+                 call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
                  write(*,*) "DT := ",dt,"s"
 
                  call nvtxEndRange
@@ -615,7 +681,7 @@ program sod2d
                  !
                  if (istep == nsave) then
                     call nvtxStartRange("Output "//timeStep,istep)
-                    call write_vtk_binary(isPeriodic,counter,ndime,npoin,nelem,nnode,coord,connec, &
+                    call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec, &
                                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,nper)
                     nsave = nsave+nleap
                     call nvtxEndRange
@@ -652,7 +718,7 @@ program sod2d
                   write(timeStep,'(i4)') istep
                   call nvtxStartRange("RK4 step "//timeStep,istep)
 
-                  call rk_4_main(flag_predic,flag_emac,porder,nelem,nboun,npbou,npoin,npoin_w,ndime,ngaus,nnode, &
+                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                            ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
                            rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w)
 
@@ -660,17 +726,17 @@ program sod2d
                   ! Advance with entropy viscosity
                   !
                   flag_predic = 0
-                  call rk_4_main(flag_predic,flag_emac,porder,nelem,nboun,npbou,npoin,npoin_w,ndime,ngaus,nnode, &
+                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                            ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
                            rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w)
 
                   time = time+dt
-                  call volAvg_EK(nelem,npoin,ndime,nnode,ngaus,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
+                  call volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
                   call write_EK(time,EK)
                   write(*,*) "--| time   ,   EK"
                   write(*,*) "--| ",time,"  |  ",EK
 
-                  call adapt_dt_cfl(porder,nelem,ndime,npoin,nnode,connec,helem,u(:,:,2),csound,cfl_conv,dt)
+                  call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
                   write(*,*) "DT := ",dt,"s"
 
                   call nvtxEndRange
@@ -680,7 +746,7 @@ program sod2d
                   !
                   if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
-                     call write_vtk_binary(isPeriodic,counter,ndime,npoin,nelem,nnode,coord,connec_orig, &
+                     call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
                                           rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,nper,masSla)
                      nsave = nsave+nleap
                      call nvtxEndRange
@@ -694,7 +760,7 @@ program sod2d
                write(*,*) '--| PERIODIC CASE WITH BOUNDARIES'
                do istep = 1,nstep
 
-                  write(*,*) '   --| STEP: ', istep
+                  if (istep == nsave) write(*,*) '   --| STEP: ', istep
 
                   !
                   ! Prediction
@@ -713,10 +779,10 @@ program sod2d
                   call nvtxEndRange
 
                   ! nvtx range for full RK
-                  write(timeStep,'(i4)') istep
+                  if (istep == nsave) write(timeStep,'(i4)') istep
                   call nvtxStartRange("RK4 step "//timeStep,istep)
 
-                  call rk_4_main(flag_predic,flag_emac,porder,nelem,nboun,npbou,npoin,npoin_w,ndime,ngaus,nnode, &
+                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                            ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
                            rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w, &
                            ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
@@ -725,12 +791,12 @@ program sod2d
                   ! Advance with entropy viscosity
                   !
                   flag_predic = 0
-                  call rk_4_main(flag_predic,flag_emac,porder,nelem,nboun,npbou,npoin,npoin_w,ndime,ngaus,nnode, &
+                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                            ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
                            rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w, &
                            ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
 
-                  call adapt_dt_cfl(porder,nelem,ndime,npoin,nnode,connec,helem,u(:,:,2),csound,cfl_conv,dt)
+                  call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
                   write(*,*) "DT := ",dt,"s"
 
                   call nvtxEndRange
@@ -740,7 +806,7 @@ program sod2d
                   !
                   if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
-                     call write_vtk_binary(isPeriodic,counter,ndime,npoin,nelem,nnode,coord,connec_orig, &
+                     call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
                                           rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,nper,masSla)
                      nsave = nsave+nleap
                      call nvtxEndRange

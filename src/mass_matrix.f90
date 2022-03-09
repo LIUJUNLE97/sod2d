@@ -1,10 +1,11 @@
 module mass_matrix
 
+   use mod_constants
    use mod_nvtx
 
       contains
 
-              subroutine consistent_mass(nelem,nnode,npoin,ngaus,connec,nzdom,rdom,cdom,gpvol,Ngp,Mc,weight)
+              subroutine consistent_mass(nelem,npoin,connec,nzdom,rdom,cdom,gpvol,Ngp,Mc,weight)
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! Forms Mc as a sparse CSR matrix, utilizing nzdom, rdom and cdom to          !
@@ -14,7 +15,7 @@ module mass_matrix
 
                       implicit none
 
-                      integer(4), intent(in)           :: nelem, nnode, npoin, ngaus, nzdom
+                      integer(4), intent(in)           :: nelem, npoin, nzdom
                       integer(4), intent(in)           :: connec(nelem,nnode), rdom(npoin+1), cdom(nzdom)
                       real(8),    intent(in)           :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
                       real(8),    intent(in), optional :: weight(npoin)
@@ -81,11 +82,11 @@ module mass_matrix
 
               end subroutine consistent_mass
 
-              subroutine lumped_mass(nelem,nnode,npoin,ngaus,connec,gpvol,Ngp,Ml)
+              subroutine lumped_mass(nelem,npoin,connec,gpvol,Ngp,Ml)
 
                       implicit none
 
-                      integer(4), intent(in)           :: nelem, nnode, npoin, ngaus
+                      integer(4), intent(in)           :: nelem, npoin
                       integer(4), intent(in)           :: connec(nelem,nnode)
                       real(8),    intent(in)           :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
                       real(8),    intent(out)          :: Ml(npoin)
@@ -133,7 +134,7 @@ module mass_matrix
 
               end subroutine lumped_mass
 
-              subroutine cmass_times_vector(nelem,nnode,npoin,ngaus,connec,gpvol,Ngp,v,Rmc)
+              subroutine cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,v,Rmc)
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! Forms Mc as a sparse CSR matrix, utilizing nzdom, rdom and cdom to          !
@@ -143,7 +144,7 @@ module mass_matrix
 
                       implicit none
 
-                      integer(4), intent(in)  :: nelem, nnode, npoin, ngaus
+                      integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode), v(npoin)
                       real(8),    intent(out) :: Rmc(npoin)
@@ -189,7 +190,7 @@ module mass_matrix
 
               end subroutine cmass_times_vector
 
-              subroutine wcmass_times_vector(nelem,nnode,npoin,ngaus,connec,gpvol,Ngp,v,Rmc,weight)
+              subroutine wcmass_times_vector(nelem,npoin,connec,gpvol,Ngp,v,Rmc,weight)
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! Forms Mc as a sparse CSR matrix, utilizing nzdom, rdom and cdom to          !
@@ -199,7 +200,7 @@ module mass_matrix
 
                       implicit none
 
-                      integer(4), intent(in)  :: nelem, nnode, npoin, ngaus
+                      integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode), v(npoin)
                       real(8),    intent(in)  :: weight(npoin)

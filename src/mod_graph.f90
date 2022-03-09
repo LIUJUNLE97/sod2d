@@ -1,14 +1,15 @@
 module mod_graph
 
+      use mod_constants
       use mod_nvtx
 
       contains
 
-              subroutine compute_nzdom(npoin,nnode,nelem,connec,nzdom,rdom,aux_cdom)
+              subroutine compute_nzdom(npoin,nelem,connec,nzdom,rdom,aux_cdom)
 
                       implicit none
 
-                      integer(4), intent(in)  :: npoin, nnode, nelem
+                      integer(4), intent(in)  :: npoin, nelem
                       integer(4), intent(in)  :: connec(nelem,nnode)
                       integer(4), intent(out) :: nzdom, rdom(npoin+1), aux_cdom(nelem*nnode*nnode)
                       integer(4)              :: ielem, inode, jnode, ipoin, jpoin, count_repeated

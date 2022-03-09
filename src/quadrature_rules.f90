@@ -1,12 +1,12 @@
 module quadrature_rules
 
+        use mod_constants
         contains
 
-                subroutine gll_qua(ndime,ngaus,xgp,wgp)
+                subroutine gll_qua(xgp,wgp)
 
                         implicit none
 
-                        integer(4), intent(in)  :: ndime, ngaus
                         real(8),    intent(out) :: xgp(ngaus,ndime), wgp(ngaus)
                         real(8)                 :: q
 
@@ -36,11 +36,10 @@ module quadrature_rules
 
                 end subroutine gll_qua
 
-                subroutine gll_hex(ndime,ngaus,xgp,wgp)
+                subroutine gll_hex(xgp,wgp)
 
                         implicit none
 
-                        integer(4), intent(in)  :: ndime, ngaus
                         real(8),    intent(out) :: xgp(ngaus,ndime), wgp(ngaus)
                         real(8)                 :: q, sl, s0, sr, ws, w0
 

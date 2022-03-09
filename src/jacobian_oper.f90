@@ -1,8 +1,9 @@
 module jacobian_oper
 
+        use mod_constants
         contains
 
-                subroutine elem_jacobian(ndime,nnode,nelem,npoin,ngaus,connec,coord,dNgp,wgp,gpvol,He)
+                subroutine elem_jacobian(nelem,npoin,connec,coord,dNgp,wgp,gpvol,He)
 
                         ! Computes the Jacobian transformation of an element, its determinant and
                         ! inverse, for all Gauss points. Valid for 2D and 3D elements.
@@ -10,7 +11,7 @@ module jacobian_oper
 
                         implicit none
 
-                        integer(4), intent(in)  :: ndime, nnode, nelem, npoin, ngaus
+                        integer(4), intent(in)  :: nelem, npoin
                         integer(4), intent(in)  :: connec(nelem,nnode)
                         real(8),    intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
                         real(8),    intent(out) :: gpvol(1,ngaus,nelem), He(ndime,ndime,ngaus,nelem)
@@ -133,13 +134,12 @@ module jacobian_oper
 
                 end subroutine
 
-                subroutine cartesian_deriv(ndime,nnode,dN,He,dxN)
+                subroutine cartesian_deriv(dN,He,dxN)
 
                         ! Pass the isopar. derivatives to cartesian space.
 
                         implicit none
 
-                        integer(4), intent(in)  :: ndime,nnode
                         real(8)   , intent(in)  :: dN(ndime,nnode), He(ndime,ndime)
                         real(8)   , intent(out) :: dxN(ndime,nnode)
 

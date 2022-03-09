@@ -1,5 +1,7 @@
 module elem_hex
 
+   use mod_constants
+
    contains  
 
       subroutine hex08(xi,eta,zeta,N,dN) ! HEX08 element     
@@ -281,11 +283,11 @@ module elem_hex
 
       end subroutine hex27
       
-      subroutine hexa_edges(ielem,nelem,nnode,npoin,ndime,connec,coord,ncorner,nedge,dist)
+      subroutine hexa_edges(ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
 
          implicit none
          
-         integer(4), intent(in)            :: ielem, nelem, nnode, npoin, ndime
+         integer(4), intent(in)            :: ielem, nelem, npoin
          integer(4), intent(in)            :: connec(nelem,nnode)
          real(8),    intent(in)            :: coord(npoin,ndime)
          integer(4), intent(out)           :: ncorner, nedge

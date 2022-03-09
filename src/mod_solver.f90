@@ -1,5 +1,6 @@
 module mod_solver
 
+      use mod_constants
       use mod_nvtx
 
       contains
@@ -21,11 +22,11 @@ module mod_solver
 
               end subroutine lumped_solver_scal
 
-              subroutine lumped_solver_vect(npoin,npoin_w,lpoin_w,ndime,Ml,R)
+              subroutine lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,R)
 
                       implicit none
 
-                      integer(4), intent(in)    :: npoin, ndime, npoin_w, lpoin_w(npoin_w)
+                      integer(4), intent(in)    :: npoin, npoin_w, lpoin_w(npoin_w)
                       real(8),    intent(in)    :: Ml(npoin)
                       real(8),    intent(inout) :: R(npoin,ndime)
                       integer(4)                :: idime, ipoin
@@ -41,7 +42,7 @@ module mod_solver
               end subroutine lumped_solver_vect
 
               !subroutine approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,R)
-              subroutine approx_inverse_scalar(nelem,nnode,npoin,npoin_w,lpoin_w,ngaus,connec,gpvol,Ngp,ppow,Ml,R)
+              subroutine approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,R)
 
                       use mass_matrix
 
@@ -55,7 +56,7 @@ module mod_solver
                       !real(8),    dimension(npoin) :: b, v, x
                       !real(8)                      :: Ar(nzdom)
 
-                      integer(4), intent(in)       :: nelem,nnode,npoin,ngaus,ppow,npoin_w
+                      integer(4), intent(in)       :: nelem,npoin,ppow,npoin_w
                       integer(4), intent(in)       :: connec(nelem,nnode),lpoin_w(npoin_w)
                       real(8),    intent(in)       :: gpvol(1,ngaus,nelem),Ngp(ngaus,nnode),Ml(npoin)
                       real(8),    intent(inout)    :: R(npoin)
@@ -102,7 +103,7 @@ module mod_solver
                       !
                       do ipow = 1,ppow
                          !call CSR_SpMV_scal(npoin,nzdom,rdom,cdom,Ar,v,b)
-                         call cmass_times_vector(nelem,nnode,npoin,ngaus,connec,gpvol,Ngp,v,b)
+                         call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,v,b)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             v(lpoin_w(ipoin)) = v(lpoin_w(ipoin))- &
@@ -121,7 +122,7 @@ module mod_solver
               end subroutine approx_inverse_scalar
 
               !subroutine approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,R)
-              subroutine approx_inverse_vect(ndime,nelem,nnode,npoin,npoin_w,lpoin_w,ngaus,connec,gpvol,Ngp,ppow,Ml,R)
+              subroutine approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,R)
 
                       use mass_matrix
 
@@ -135,7 +136,7 @@ module mod_solver
                       !real(8),    dimension(npoin) :: b, v, x
                       !real(8)                      :: Ar(nzdom)
 
-                      integer(4), intent(in)       :: ndime,nelem,nnode,npoin,ngaus,ppow,npoin_w
+                      integer(4), intent(in)       :: nelem,npoin,ppow,npoin_w
                       integer(4), intent(in)       :: connec(nelem,nnode),lpoin_w(npoin_w)
                       real(8),    intent(in)       :: gpvol(1,ngaus,nelem),Ngp(ngaus,nnode),Ml(npoin)
                       real(8),    intent(inout)    :: R(npoin,ndime)
@@ -182,7 +183,7 @@ module mod_solver
                          !
                          do ipow = 1,ppow
                             !call CSR_SpMV_scal(npoin,nzdom,rdom,cdom,Ar,v,b)
-                            call cmass_times_vector(nelem,nnode,npoin,ngaus,connec,gpvol,Ngp,v,b)
+                            call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,v,b)
                             !$acc parallel loop
                             do ipoin = 1,npoin_w
                                v(lpoin_w(ipoin)) = v(lpoin_w(ipoin))- &
