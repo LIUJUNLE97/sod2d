@@ -142,7 +142,7 @@ module mod_output
       end subroutine
 
       subroutine write_vtk_binary(isPeriodic,istep,npoin,nelem,coord,connec, &
-                                 rho,u,pr,E,mu_e,nper,masSla)
+                                 rho,u,pr,E,mu_fluid,mu_e,nper,masSla)
          implicit none
       
          integer(4), intent(in)                            :: isPeriodic, nper
@@ -150,7 +150,7 @@ module mod_output
          integer(4), intent(in)                            :: connec(nelem,nnode)
          integer(4), intent(in), optional                  :: masSla(nper,2)
          real(8)   , intent(in)                            :: coord(npoin,ndime)
-         real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E
+         real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E, mu_fluid
          real(8)   , intent(inout), dimension(npoin,ndime) :: u
          real(8)   , intent(inout), dimension(nelem)       :: mu_e
          integer(4)                                        :: i, iper, ivtk=9
@@ -171,22 +171,23 @@ module mod_output
          points(:,:) = 0.0d0
          points(:,1:ndime) = coord(:,1:ndime)
          !$acc end kernels
-         !print*, 'kernel1: ok!'
       
          !
          ! If case is periodic, adjust slave nodes
          !
          if (isPeriodic .eq.1 .and. present(masSla)) then
-            !!$acc parallel loop
+            !$acc parallel loop
             do iper = 1,nper
-               u(masSla(iper,2),1:ndime) = u(masSla(iper,1),1:ndime)
+               u(masSla(iper,2),1) = u(masSla(iper,1),1)
+               u(masSla(iper,2),2) = u(masSla(iper,1),2)
+               u(masSla(iper,2),3) = u(masSla(iper,1),3)
                rho(masSla(iper,2)) = rho(masSla(iper,1))
                pr(masSla(iper,2)) = pr(masSla(iper,1))
                E(masSla(iper,2)) = E(masSla(iper,1))
+               mu_fluid(masSla(iper,2)) = mu_fluid(masSla(iper,1))
             end do
-            !!$acc end parallel loop
+            !$acc end parallel loop
          end if
-         !print*, 'kernel2: ok!'
 
          !
          ! Pass vector data to a suitable 3D generic format
@@ -281,6 +282,11 @@ module mod_output
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
             write(ivtk) E(i)
+         end do
+         write(ivtk) lf//lf//'SCALARS VISCO double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) mu_fluid(i)
          end do
          
          !

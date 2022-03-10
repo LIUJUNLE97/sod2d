@@ -7,6 +7,7 @@ module time_integ
       use mod_solver
       use mod_entropy_viscosity
       use mod_constants
+      use mod_fluid_viscosity
 
       contains
 
@@ -101,6 +102,14 @@ module time_integ
                          !
                          call smart_visc(nelem,npoin,connec,Reta,Rrho, &
                                          gamma_gas,rho(:,2),u(:,:,2),pr(:,2),helem,mu_e)
+
+                         !
+                         ! If using Sutherland viscosity model:
+                         !
+                         if (flag_real_diff == 1 .and. flag_diff_suth == 1) then
+                            call sutherland_viscosity(npoin,Tem(:,2),mu_fluid)
+                         end if
+
                          call nvtxEndRange
 
                       end if
@@ -296,6 +305,14 @@ module time_integ
                          !
                          call smart_visc(nelem,npoin,connec,Reta,Rrho, &
                                          gamma_gas,rho_1,u_1,pr_1,helem,mu_e)
+
+                         !
+                         ! If using Sutherland viscosity model:
+                         !
+                         if (flag_real_diff == 1 .and. flag_diff_suth == 1) then
+                            call sutherland_viscosity(npoin,Tem_1,mu_fluid)
+                         end if
+
                          call nvtxEndRange
 
                       end if
@@ -482,6 +499,14 @@ module time_integ
                          !
                          call smart_visc(nelem,npoin,connec,Reta,Rrho, &
                                          gamma_gas,rho_2,u_2,pr_2,helem,mu_e)
+
+                         !
+                         ! If using Sutherland viscosity model:
+                         !
+                         if (flag_real_diff == 1 .and. flag_diff_suth == 1) then
+                            call sutherland_viscosity(npoin,Tem_2,mu_fluid)
+                         end if
+
                          call nvtxEndRange
 
                       end if
@@ -667,6 +692,13 @@ module time_integ
                          !
                          call smart_visc(nelem,npoin,connec,Reta,Rrho, &
                                          gamma_gas,rho_3,u_3,pr_3,helem,mu_e)
+
+                         !
+                         ! If using Sutherland viscosity model:
+                         !
+                         if (flag_real_diff == 1 .and. flag_diff_suth == 1) then
+                            call sutherland_viscosity(npoin,Tem_3,mu_fluid)
+                         end if
                          call nvtxEndRange
 
                       end if
@@ -837,6 +869,13 @@ module time_integ
                       e_int(:,pos) = e_int_4(:)
                       Tem(:,pos) = Tem_4(:)
                       !$acc end kernels
+
+                      !
+                      ! If using Sutherland viscosity model:
+                      !
+                      if (flag_real_diff == 1 .and. flag_diff_suth == 1) then
+                         call sutherland_viscosity(npoin,Tem(:,2),mu_fluid)
+                      end if
                       call nvtxEndRange
 
               end subroutine rk_4_main

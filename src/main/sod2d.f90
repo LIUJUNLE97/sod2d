@@ -346,7 +346,11 @@ program sod2d
         call nvtxEndRange
 
         if (flag_real_diff == 1) then
-           call constant_viscosity(npoin,0.000055d0,mu_fluid)
+           if (flag_diff_suth == 0) then
+              call constant_viscosity(npoin,0.000055d0,mu_fluid)
+           else
+              call sutherland_viscosity(npoin,Tem(:,2),mu_fluid)
+           end if
         else if (flag_real_diff == 0) then
            !$acc kernels
            mu_fluid(:) = 0.0d0
@@ -375,11 +379,11 @@ program sod2d
         call nvtxStartRange("1st write")
         if (isPeriodic == 0) then
            call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
-                                rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,nper)
+                                rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,nper)
         else
            print*, 'sub call: ok!'
            call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
-                                rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,nper,masSla)
+                                rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,nper,masSla)
         end if
         call nvtxEndRange
 
@@ -706,7 +710,7 @@ program sod2d
                  if (istep == nsave) then
                     call nvtxStartRange("Output "//timeStep,istep)
                     call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec, &
-                                         rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,nper)
+                                         rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,nper)
                     nsave = nsave+nleap
                     call nvtxEndRange
                  end if
@@ -776,7 +780,7 @@ program sod2d
                   if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
                      call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
-                                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,nper,masSla)
+                                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,nper,masSla)
                      nsave = nsave+nleap
                      call nvtxEndRange
                   end if
@@ -841,7 +845,7 @@ program sod2d
                   if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
                      call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
-                                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,nper,masSla)
+                                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,nper,masSla)
                      nsave = nsave+nleap
                      call nvtxEndRange
                   end if
