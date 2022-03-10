@@ -60,6 +60,7 @@ program sod2d
         character(5)               :: matrix_type, solver_type
         character(4)               :: timeStep
 
+        real(8)                    :: Rgas, gamma_gas, Cv
 #ifdef CHANNEL
         !channel flow setup
         real(8)  :: vo = 27.263d0
