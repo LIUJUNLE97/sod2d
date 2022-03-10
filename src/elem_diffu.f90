@@ -122,7 +122,7 @@ module elem_diffu
               !
               ! New routine
               !
-              subroutine mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,mu_e,Rmom)
+              subroutine mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,mu_fluid,mu_e,Rmom)
 
                       ! TODO: Add. stab. viscosity
 
@@ -134,13 +134,14 @@ module elem_diffu
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
                       real(8),    intent(in)  :: u(npoin,ndime), mu_e(nelem)
+                      real(8),    intent(in)  :: mu_fluid(npoin)
                       real(8),    intent(out) :: Rmom(npoin,ndime)
                       integer(4)              :: ielem, igaus, idime, jdime, inode, jnode, kdime
                       real(8)                 :: Re(nnode,ndime), twoThirds, gpcar(ndime,nnode)
                       real(8) :: grad_1, grad_2, grad_3, grad_4, grad_5, grad_6, grad_7, grad_8, grad_9
                       real(8) :: div_1
                       real(8) :: tau_1, tau_2, tau_3, tau_4, tau_5, tau_6, tau_7, tau_8, tau_9
-                      real(8) :: tmp1, tmp2, tmp3
+                      real(8) :: tmp1, tmp2, tmp3, mu_fgp
 
                       twoThirds = 2.0d0/3.0d0
                       call nvtxStartRange("Momentum diffusion")
@@ -164,6 +165,7 @@ module elem_diffu
                          !
                          !$acc loop seq
                          do igaus = 1,ngaus
+                            mu_fgp = dot_product(Ngp(igaus,:),mu_fluid(connec(ielem,:)))
                             grad_1=0.0d0
                             grad_2=0.0d0
                             grad_3=0.0d0
@@ -200,15 +202,15 @@ module elem_diffu
                             !
                             ! Compute tau_ij = mu*(u_i,j+u_j,i-(2/3)*u_k,k*d_ij)
                             !
-                            tau_1 = mu_e(ielem)*(grad_1+grad_1-twoThirds*div_1)
-                            tau_2 = mu_e(ielem)*(grad_2+grad_4)
-                            tau_3 = mu_e(ielem)*(grad_3+grad_7)
-                            tau_4 = mu_e(ielem)*(grad_4+grad_2)
-                            tau_5 = mu_e(ielem)*(grad_5+grad_5-twoThirds*div_1)
-                            tau_6 = mu_e(ielem)*(grad_6+grad_8)
-                            tau_7 = mu_e(ielem)*(grad_7+grad_3)
-                            tau_8 = mu_e(ielem)*(grad_8+grad_6)
-                            tau_9 = mu_e(ielem)*(grad_9+grad_9-twoThirds*div_1)
+                            tau_1 = (mu_fgp+mu_e(ielem))*(grad_1+grad_1-twoThirds*div_1)
+                            tau_2 = (mu_fgp+mu_e(ielem))*(grad_2+grad_4)
+                            tau_3 = (mu_fgp+mu_e(ielem))*(grad_3+grad_7)
+                            tau_4 = (mu_fgp+mu_e(ielem))*(grad_4+grad_2)
+                            tau_5 = (mu_fgp+mu_e(ielem))*(grad_5+grad_5-twoThirds*div_1)
+                            tau_6 = (mu_fgp+mu_e(ielem))*(grad_6+grad_8)
+                            tau_7 = (mu_fgp+mu_e(ielem))*(grad_7+grad_3)
+                            tau_8 = (mu_fgp+mu_e(ielem))*(grad_8+grad_6)
+                            tau_9 = (mu_fgp+mu_e(ielem))*(grad_9+grad_9-twoThirds*div_1)
                             !
                             ! Compute N_a,j*tau_ij @ Gauss point k
                             !
@@ -254,7 +256,7 @@ module elem_diffu
 
               end subroutine mom_diffusion
 
-              subroutine ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,Tem,mu_e,Rener)
+              subroutine ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,Tem,mu_fluid,mu_e,Rener)
 
                       implicit none
 
@@ -264,9 +266,10 @@ module elem_diffu
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
                       real(8),    intent(in)  :: u(npoin,ndime), Tem(npoin), mu_e(nelem)
+                      real(8),    intent(in)  :: mu_fluid(npoin)
                       real(8),    intent(out) :: Rener(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime
-                      real(8)                 :: Re(nnode), kappa_e
+                      real(8)                 :: Re(nnode), kappa_e, mu_fgp
                       real(8)                 :: el_Ke(nnode)
                       real(8)                 :: gradT, gradKe, gpcar(ndime,nnode)
 
@@ -280,14 +283,14 @@ module elem_diffu
                          do inode = 1,nnode
                             Re(inode) = 0.0d0
                          end do
-                         kappa_e = mu_e(ielem)*1004.0d0/0.72d0 ! Fixed Cp and Pr
-                         !kappa_e = mu_e(ielem)/(1.40d0-1.0d0)
                          !$acc loop vector
                          do inode = 1,nnode
                             el_Ke(inode) = dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))/2.0d0
                          end do
                          !$acc loop seq
                          do igaus = 1,ngaus
+                            mu_fgp = dot_product(Ngp(igaus,:),mu_fluid(connec(ielem,:)))
+                            kappa_e = (mu_fgp+mu_e(ielem))*1004.0d0/0.71d0
                             !$acc loop seq
                             do idime = 1,ndime
                                !$acc loop vector
@@ -298,7 +301,7 @@ module elem_diffu
                             !$acc loop seq
                             do idime = 1,ndime
                                gradT = kappa_e*dot_product(gpcar(idime,:),Tem(connec(ielem,:)))
-                               gradKe = mu_e(ielem)*dot_product(gpcar(idime,:),el_Ke(:))
+                               gradKe = (mu_fgp+mu_e(ielem))*dot_product(gpcar(idime,:),el_Ke(:))
                                !$acc loop vector
                                do inode = 1,nnode
                                   Re(inode) = Re(inode)+gpvol(1,igaus,ielem)* &

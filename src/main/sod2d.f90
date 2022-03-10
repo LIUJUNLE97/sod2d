@@ -26,6 +26,7 @@ program sod2d
         use mod_analysis
         use mod_constants
         use mod_time_ops
+        use mod_fluid_viscosity
 
         implicit none
 
@@ -50,7 +51,7 @@ program sod2d
         real(8),    allocatable    :: gpvol(:,:,:)
         real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:)
         real(8),    allocatable    :: Ml(:)!, Mc(:)
-        real(8),    allocatable    :: mu_e(:)
+        real(8),    allocatable    :: mu_e(:), mu_fluid(:)
         real(8),    allocatable    :: source_term(:)
         real(8)                    :: s, t, z, detJe
         real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot
@@ -75,7 +76,7 @@ program sod2d
         real(8)  :: velo = 0.0d0, vol = 0.0d0
         real(8)  :: Re,mul,utau,Rg,to,po
 #else
-        real(8)                    :: Rgas, gamma_gas, Cp, Cv, rho0
+        real(8)                    :: Cp, rho0
 #endif
 
 #ifdef CHANNEL
@@ -108,11 +109,11 @@ program sod2d
         Cp = 1004.00d0 ! TODO: Make it input
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
-        cfl_conv = 0.50d0
-        cfl_diff = 0.25d0
+        cfl_conv = 0.80d0
+        cfl_diff = 0.20d0
         nsave = 1 ! First step to save, TODO: input
         nleap = 1 ! Saving interval, TODO: input
-        isPeriodic = 0 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
+        isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
         if (isPeriodic == 1) then
            nper = 49537 ! TODO: if periodic, request number of periodic nodes
         else if (isPeriodic == 0) then
@@ -145,7 +146,7 @@ program sod2d
         write(*,*) "--| ENTER NAME OF MESH RELATED FILES :"
         call nvtxStartRange("Read mesh")
         !read(*,*) file_name
-        write(file_name,*) "shock_tube" ! Nsys
+        write(file_name,*) "cube" ! Nsys
         call read_dims(file_path,file_name,npoin,nelem,nboun)
         allocate(connec(nelem,nnode))
         if (nboun .ne. 0) then
@@ -277,6 +278,7 @@ program sod2d
         allocate(Tem(npoin,2))      ! Temperature
         allocate(e_int(npoin,2))    ! Internal Energy
         allocate(csound(npoin))     ! Speed of sound
+        allocate(mu_fluid(npoin))   ! Fluid viscosity
         allocate(mu_e(nelem))       ! Elemental viscosity
         call nvtxEndRange
 
@@ -339,16 +341,36 @@ program sod2d
         !$acc end parallel loop
 #endif
         !$acc kernels
-        mu_e(:) = 0.0d0 ! Element viscosity, will use Sutherland law for generic case
+        mu_e(:) = 0.0d0 ! Element syabilization viscosity
         !$acc end kernels
         call nvtxEndRange
+
+        if (flag_real_diff == 1) then
+           if (flag_diff_suth == 0) then
+              call constant_viscosity(npoin,0.000055d0,mu_fluid)
+           else
+              call sutherland_viscosity(npoin,Tem(:,2),mu_fluid)
+           end if
+        else if (flag_real_diff == 0) then
+           !$acc kernels
+           mu_fluid(:) = 0.0d0
+           !$acc end kernels
+        else
+           write(*,*) "--| DIFFUSION FLAG MUST BE EITHER 0 OR 1, NOT: ",flag_real_diff
+           STOP(1)
+        end if
 
         !*********************************************************************!
         ! Compute initial time-step size                                      !
         !*********************************************************************!
         
-        call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
-        write(*,*) "--| TIME STEP SIZE dt := ",dt,"s"
+        if (flag_real_diff == 1) then
+           call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid)
+           write(*,*) "--| TIME STEP SIZE dt := ",dt,"s"
+        else
+           call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
+           write(*,*) "--| TIME STEP SIZE dt := ",dt,"s"
+        end if
 
         !
         ! Call VTK output (0th step)
@@ -357,11 +379,11 @@ program sod2d
         call nvtxStartRange("1st write")
         if (isPeriodic == 0) then
            call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
-                                rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,nper)
+                                rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,nper)
         else
            print*, 'sub call: ok!'
            call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
-                                rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,nper,masSla)
+                                rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,nper,masSla)
         end if
         call nvtxEndRange
 
@@ -660,7 +682,7 @@ program sod2d
 
                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                            ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w, &
+                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
                            ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
 
                  !
@@ -669,11 +691,16 @@ program sod2d
                  flag_predic = 0
                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                            ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w, &
+                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
                            ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
 
-                 call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
-                 write(*,*) "DT := ",dt,"s"
+                 if (flag_real_diff == 1) then
+                    call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid)
+                    write(*,*) "DT := ",dt,"s"
+                 else
+                    call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
+                    write(*,*) "DT := ",dt,"s"
+                 end if
 
                  call nvtxEndRange
 
@@ -683,7 +710,7 @@ program sod2d
                  if (istep == nsave) then
                     call nvtxStartRange("Output "//timeStep,istep)
                     call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec, &
-                                         rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,nper)
+                                         rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,nper)
                     nsave = nsave+nleap
                     call nvtxEndRange
                  end if
@@ -721,7 +748,7 @@ program sod2d
 
                   call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                            ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w)
+                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
 
                   !
                   ! Advance with entropy viscosity
@@ -729,7 +756,7 @@ program sod2d
                   flag_predic = 0
                   call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                            ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w)
+                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
 
                   time = time+dt
                   call volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
@@ -737,8 +764,13 @@ program sod2d
                   write(*,*) "--| time   ,   EK"
                   write(*,*) "--| ",time,"  |  ",EK
 
-                  call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
-                  write(*,*) "DT := ",dt,"s"
+                  if (flag_real_diff == 1) then
+                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid)
+                     write(*,*) "DT := ",dt,"s"
+                  else
+                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
+                     write(*,*) "DT := ",dt,"s"
+                  end if
 
                   call nvtxEndRange
 
@@ -748,7 +780,7 @@ program sod2d
                   if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
                      call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
-                                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,nper,masSla)
+                                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,nper,masSla)
                      nsave = nsave+nleap
                      call nvtxEndRange
                   end if
@@ -785,7 +817,7 @@ program sod2d
 
                   call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                            ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w, &
+                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
                            ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
 
                   !
@@ -794,11 +826,16 @@ program sod2d
                   flag_predic = 0
                   call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                            ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w, &
+                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
                            ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
 
-                  call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
-                  write(*,*) "DT := ",dt,"s"
+                  if (flag_real_diff == 1) then
+                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid)
+                     write(*,*) "DT := ",dt,"s"
+                  else
+                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
+                     write(*,*) "DT := ",dt,"s"
+                  end if
 
                   call nvtxEndRange
 
@@ -808,7 +845,7 @@ program sod2d
                   if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
                      call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
-                                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,nper,masSla)
+                                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,nper,masSla)
                      nsave = nsave+nleap
                      call nvtxEndRange
                   end if
