@@ -31,7 +31,7 @@ module mod_entropy_viscosity
                       integer(4)              :: ipoin, idime
                       real(8)                 :: eta(npoin), eta_p(npoin), alpha(npoin), alpha_p(npoin)
                       real(8)                 :: f_eta(npoin,ndime), f_rho(npoin,ndime), R1(npoin), R2(npoin)
-                      real(8)                 :: aux1(npoin)
+                      real(8)                 :: aux1(npoin), maxEta, maxRho
 
                        !
                        ! Entropy function and temporal terms
@@ -123,6 +123,19 @@ module mod_entropy_viscosity
                        call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Rrho)
                        call nvtxEndRange
 
+                       !
+                       ! Normalize
+                       !
+                       maxEta = maxval(abs(eta(lpoin_w(:))))
+                       maxRho = maxval(abs(rhok(lpoin_w(:))))
+
+                       !$acc parallel loop
+                       do ipoin = 1,npoin_w
+                          Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/maxEta
+                          Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
+                       end do
+                       !$acc end parallel loop
+
               end subroutine residuals
 
               subroutine smart_visc(nelem,npoin,connec,Reta,Rrho, &
@@ -139,19 +152,16 @@ module mod_entropy_viscosity
                       integer(4)              :: ielem, inode
                       real(8)                 :: R1, R2, Ve, ue(nnode,ndime), rhoe(nnode), pre(nnode)
                       real(8)                 :: uabs, c_sound, betae
-                      real(8)                 :: L3, aux, maxR1, maxR2
-
-                      maxR1 = maxval(Reta)
-                      maxR2 = maxval(Rrho)
+                      real(8)                 :: L3, aux
 
                       !$acc parallel loop gang
                       do ielem = 1,nelem
                          !
                          ! Initialize arrays
                          !
-                         R1 = maxval(abs(Reta(connec(ielem,:))))/maxR1                ! Linf norm of Reta on element
-                         R2 = maxval(abs(Rrho(connec(ielem,:))))/maxR2                ! Linf norm of Rrho on element
-                         Ve = max(R1,R2)*((helem(ielem)/dble(porder))**2) ! Normalized residual for element
+                         R1 = maxval(abs(Reta(connec(ielem,:))))                ! Linf norm of Reta on element
+                         R2 = maxval(abs(Rrho(connec(ielem,:))))               ! Linf norm of Rrho on element
+                         Ve = 1.0d0*max(R1,R2)*((helem(ielem)/dble(porder))**2) ! Normalized residual for element
                          !
                          ! Max. Wavespeed at element
                          !
@@ -168,7 +178,7 @@ module mod_entropy_viscosity
                          !
                          betae = 0.5d0*(helem(ielem)/dble(porder))*aux
                          mu_e(ielem) = maxval(abs(rho(connec(ielem,:))))*min(Ve,betae) ! Dynamic viscosity
-                         !mu_e(ielem) = betae
+                         !mu_e(ielem) = maxval(abs(rho(connec(ielem,:))))*betae
                       end do
                       !$acc end parallel loop
 
