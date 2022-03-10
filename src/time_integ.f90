@@ -12,7 +12,7 @@ module time_integ
 
               subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                               ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                              rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w, &
+                              rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
                               ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
 
                       implicit none
@@ -34,6 +34,7 @@ module time_integ
                       real(8),    intent(inout)          :: E(npoin,2)
                       real(8),    intent(inout)          :: Tem(npoin,2)
                       real(8),    intent(inout)          :: e_int(npoin,2)
+                      real(8),    intent(inout)          :: mu_fluid(npoin)
                       real(8),    intent(out)            :: mu_e(nelem)
                       integer(4), optional, intent(in)   :: ndof, nbnodes, ldof(ndof), lbnodes(nbnodes)
                       integer(4), optional, intent(in)   :: bound(nboun,npbou), bou_codes(nboun,2)
@@ -157,7 +158,7 @@ module time_integ
                         call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_1)
                       end if
                       if (flag_predic == 0) then
-                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),mu_e,Rdiff_vect)
+                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),mu_fluid,mu_e,Rdiff_vect)
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
@@ -232,8 +233,7 @@ module time_integ
                       !
                       call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),pr(:,pos),E(:,pos),Rener_1)
                       if (flag_predic == 0) then
-                         call ener_diffusion(nelem,npoin, &
-                                             connec,Ngp,dNgp,He,gpvol,u(:,:,pos),Tem(:,pos),mu_e,Rdiff_scal)
+                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),Tem(:,pos),mu_fluid,mu_e,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rener_1(lpoin_w(ipoin)) = Rener_1(lpoin_w(ipoin))+Rdiff_scal(lpoin_w(ipoin))
@@ -347,7 +347,7 @@ module time_integ
                         call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_2)
                       end if
                       if (flag_predic == 0) then
-                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,mu_e,Rdiff_vect)
+                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,mu_fluid,mu_e,Rdiff_vect)
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
@@ -419,7 +419,7 @@ module time_integ
 
                       call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,pr_1,E_1,Rener_2)
                       if (flag_predic == 0) then
-                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,Tem_1,mu_e,Rdiff_scal)
+                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,Tem_1,mu_fluid,mu_e,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rener_2(lpoin_w(ipoin)) = Rener_2(lpoin_w(ipoin))+Rdiff_scal(lpoin_w(ipoin))
@@ -532,7 +532,7 @@ module time_integ
                         call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_3)
                       end if
                       if (flag_predic == 0) then
-                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,mu_e,Rdiff_vect)
+                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,mu_fluid,mu_e,Rdiff_vect)
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
@@ -604,7 +604,7 @@ module time_integ
 
                       call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,pr_2,E_2,Rener_3)
                       if (flag_predic == 0) then
-                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,Tem_2,mu_e,Rdiff_scal)
+                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,Tem_2,mu_fluid,mu_e,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rener_3(lpoin_w(ipoin)) = Rener_3(lpoin_w(ipoin)) + Rdiff_scal(lpoin_w(ipoin))
@@ -720,7 +720,7 @@ module time_integ
                         call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_4)
                       end if
                       if (flag_predic == 0) then
-                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_3,mu_e,Rdiff_vect)
+                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_3,mu_fluid,mu_e,Rdiff_vect)
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
@@ -794,7 +794,7 @@ module time_integ
 
                       call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_3,pr_3,E_3,Rener_4)
                       if (flag_predic == 0) then
-                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_3,Tem_3,mu_e,Rdiff_scal)
+                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_3,Tem_3,mu_fluid,mu_e,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rener_4(lpoin_w(ipoin)) = Rener_4(lpoin_w(ipoin)) + Rdiff_scal(lpoin_w(ipoin))
