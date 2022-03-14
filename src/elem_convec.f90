@@ -189,13 +189,8 @@ module elem_convec
                       real(8),    intent(in)  :: Aemac(npoin,ndime), Femac(npoin), pr(npoin)
                       real(8),    intent(out) :: Rmom(npoin,ndime)
                       integer(4)              :: ielem, igaus, idime, jdime, inode, kdime
-                      real(8)                 :: Re(nnode,ndime)
-                      real(8)                 :: aux(ndime), gpcar(ndime,nnode)
-                      real(8)                 :: tmp1, tmp2, tmp3
-                      real(8)                 :: grad_1, grad_2, grad_3
-                      real(8)                 :: grad_4, grad_5, grad_6
-                      real(8)                 :: grad_7, grad_8, grad_9
-                      real(8)                 :: gradp_1, gradp_2, gradp_3, div_a
+                      real(8)                 :: Re(nnode,ndime), tmp(ndime)
+                      real(8)                 :: gpcar(ndime,nnode), gradA(ndime,ndime), divA, aux
 
                       call nvtxStartRange("EMAC Momentum convection")
 
@@ -209,14 +204,14 @@ module elem_convec
                       !
                       ! Start elemental ops
                       !
-                      !$acc parallel loop gang private(Re,gpcar,aux) vector_length(32)
+                      !$acc parallel loop gang private(Re,gpcar,gradA,tmp) vector_length(32)
                       do ielem = 1,nelem
                          !
                          ! Initialize element vector to 0
                          !
                          !$acc loop vector collapse(2)
-                         do inode = 1,nnode
-                            do idime = 1,ndime
+                         do idime = 1,ndime
+                            do inode = 1,nnode
                                Re(inode,idime) = 0.0d0
                             end do
                          end do
@@ -236,78 +231,87 @@ module elem_convec
                                end do
                             end do
                             !
-                            ! Compute grad(A) and div(A)
-                            !
-                            !
-                            ! Gradient structure:
-                            !
-                            !         | u1,1 u1,2 u1,3 |
-                            ! u_i,j = | u2,1 u2,2 u2,3 |
-                            !         | u3,1 u3,2 u3,3 |
-                            !
-                            grad_1 = 0.0d0 
-                            grad_2 = 0.0d0 
-                            grad_3 = 0.0d0 
-                            grad_4 = 0.0d0 
-                            grad_5 = 0.0d0 
-                            grad_6 = 0.0d0 
-                            grad_7 = 0.0d0 
-                            grad_8 = 0.0d0 
-                            grad_9 = 0.0d0 
-                            !$acc loop vector &
-                            !$acc reduction(+:grad_1,grad_2,grad_3,grad_4,grad_5,grad_6,grad_7,grad_8,grad_9)
-                            do inode = 1,nnode
-                               grad_1 = grad_1+(gpcar(1,inode)*Aemac(connec(ielem,inode),1))
-                               grad_2 = grad_2+(gpcar(2,inode)*Aemac(connec(ielem,inode),1))
-                               grad_3 = grad_3+(gpcar(3,inode)*Aemac(connec(ielem,inode),1))
-                               grad_4 = grad_4+(gpcar(1,inode)*Aemac(connec(ielem,inode),2))
-                               grad_5 = grad_5+(gpcar(2,inode)*Aemac(connec(ielem,inode),2))
-                               grad_6 = grad_6+(gpcar(3,inode)*Aemac(connec(ielem,inode),2))
-                               grad_7 = grad_7+(gpcar(1,inode)*Aemac(connec(ielem,inode),3))
-                               grad_8 = grad_8+(gpcar(2,inode)*Aemac(connec(ielem,inode),3))
-                               grad_9 = grad_9+(gpcar(3,inode)*Aemac(connec(ielem,inode),3))
-                            end do
-                            !
-                            ! div(A) = tr[grad(A)]
-                            !
-                            div_a = grad_1 + grad_5 + grad_9
-                            !
-                            ! Pressure gradient
-                            !
-                            gradp_1 = 0.0d0
-                            gradp_2 = 0.0d0
-                            gradp_3 = 0.0d0
-                            !$acc loop vector &
-                            !$acc reduction(+:gradp_1,gradp_2,gradp_3)
-                            do inode = 1,nnode
-                               gradp_1 = gradp_1+(gpcar(1,inode)*pr(connec(ielem,inode)))
-                               gradp_2 = gradp_2+(gpcar(2,inode)*pr(connec(ielem,inode)))
-                               gradp_3 = gradp_3+(gpcar(3,inode)*pr(connec(ielem,inode)))
-                            end do
-                            !
-                            ! Interpolate A innto an auxiliary array
+                            ! grad(A)
                             !
                             !$acc loop seq
                             do idime = 1,ndime
-                               aux(idime) = dot_product(Ngp(igaus,:),Aemac(connec(ielem,:),idime))
+                               !$acc loop seq
+                               do jdime = 1,ndime
+                                  aux = 0.0d0
+                                  !$acc loop vector reduction(+:aux)
+                                  do inode = 1,nnode
+                                     aux = aux+gpcar(jdime,inode)*Aemac(connec(ielem,inode),idime)
+                                  end do
+                                  gradA(idime,jdime) = aux
+                               end do
                             end do
                             !
-                            ! Compute terms grad(A)*A+grad^T(A)*A+div(A)*A+grad(P)
+                            ! div(A)
                             !
-                            tmp1 = (grad_1+grad_1+div_a)*aux(1)+(grad_2+grad_4)*aux(2)+(grad_3+grad_7)*aux(3)+gradp_1
-                            tmp2 = (grad_4+grad_2)*aux(1)+(grad_5+grad_5+div_a)*aux(2)+(grad_6+grad_8)*aux(3)+gradp_2
-                            tmp3 = (grad_7+grad_3)*aux(1)+(grad_8+grad_6)*aux(2)+(grad_9+grad_9+div_a)*aux(3)+gradp_3
+                            divA = 0.0d0
+                            !$acc loop vector collapse(2) reduction(+:divA)
+                            do idime = 1,ndime
+                               do inode = 1,nnode
+                                  divA = divA+gpcar(idime,inode)*Aemac(connec(ielem,inode),idime)
+                               end do
+                            end do
                             !
-                            ! Subtract kinetic energy component
+                            ! grad(A)*A + gradT(A)*A
                             !
-                            tmp1 = tmp1 - 0.5d0*dot_product(gpcar(1,:),Femac(connec(ielem,:)))
-                            tmp2 = tmp2 - 0.5d0*dot_product(gpcar(2,:),Femac(connec(ielem,:)))
-                            tmp3 = tmp3 - 0.5d0*dot_product(gpcar(3,:),Femac(connec(ielem,:)))
+                            !$acc loop seq
+                            do idime = 1,ndime
+                               tmp(idime) = 0.0d0
+                               !$acc loop seq
+                               do jdime = 1,ndime
+                                  aux = 0.0d0
+                                  !$acc loop vector reduction(+:aux)
+                                  do inode = 1,nnode
+                                     aux = aux+Ngp(igaus,inode)*Aemac(connec(ielem,inode),jdime)
+                                  end do
+                                  tmp(idime) = gradA(idime,jdime)*aux + gradA(jdime,idime)*aux
+                               end do
+                            end do
+                            !
+                            ! Add div(A)*A
+                            !
+                            !$acc loop seq
+                            do idime = 1,ndime
+                               aux = 0.0d0
+                               !$acc loop vector reduction(+:aux)
+                               do inode = 1,nnode
+                                  aux = aux+Ngp(igaus,inode)*Aemac(connec(ielem,inode),idime)
+                               end do
+                               tmp(idime) = tmp(idime)+divA*aux
+                            end do
+                            !
+                            ! Subtract -0.5*grad(F), where F = (A.A)
+                            !
+                            !$acc loop seq
+                            do idime = 1,ndime
+                               aux = 0.0d0
+                               !$acc loop vector reduction(+:aux)
+                               do inode = 1,nnode
+                                  aux = aux+gpcar(idime,inode)*Femac(connec(ielem,inode))
+                               end do
+                               tmp(idime) = tmp(idime)-0.5d0*aux
+                            end do
+                            !
+                            ! Addd pressure
+                            !
+                            !$acc loop seq
+                            do idime = 1,ndime
+                               aux = 0.0d0
+                               !$acc loop vector reduction(+:aux)
+                               do inode = 1,nnode
+                                  aux = aux+gpcar(idime,inode)*pr(connec(ielem,inode))
+                               end do
+                               tmp(idime) = tmp(idime)+aux
+                            end do
                             !$acc loop vector
                             do inode = 1,nnode
-                               Re(inode,1) = Re(inode,1)+gpvol(1,igaus,ielem)*Ngp(igaus,inode)*tmp1
-                               Re(inode,2) = Re(inode,2)+gpvol(1,igaus,ielem)*Ngp(igaus,inode)*tmp2
-                               Re(inode,3) = Re(inode,3)+gpvol(1,igaus,ielem)*Ngp(igaus,inode)*tmp3
+                               Re(inode,1) = Re(inode,1)+gpvol(1,igaus,ielem)*Ngp(igaus,inode)*tmp(1)
+                               Re(inode,2) = Re(inode,2)+gpvol(1,igaus,ielem)*Ngp(igaus,inode)*tmp(2)
+                               Re(inode,3) = Re(inode,3)+gpvol(1,igaus,ielem)*Ngp(igaus,inode)*tmp(3)
                             end do
                          end do
                          !
