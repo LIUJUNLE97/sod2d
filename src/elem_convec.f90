@@ -56,9 +56,11 @@ module elem_convec
                                   gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
                                end do
                             end do
-                            !$acc loop seq
+                            !$acc loop vector collapse(2) reduction(+:tmp1)
                             do idime = 1,ndime
-                               tmp1 = tmp1+dot_product(gpcar(idime,:),q(connec(ielem,:),idime))
+                               do inode = 1,nnode
+                                  tmp1 = tmp1+(gpcar(idime,inode)*q(connec(ielem,inode),idime))
+                               end do
                             end do
                             !$acc loop vector
                             do inode = 1,nnode
@@ -99,15 +101,15 @@ module elem_convec
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
                       real(8),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), pr(npoin)
                       real(8),    intent(out) :: Rmom(npoin,ndime)
-                      integer(4)              :: ielem, igaus, idime, jdime, inode, kdime
-                      real(8)                 :: Re(nnode,ndime), divgp, grpgp
-                      real(8)                 :: tmp1, tmp2, tmp3, gpcar(ndime,nnode)
+                      integer(4)              :: ielem, igaus, idime, jdime, inode
+                      real(8)                 :: Re(nnode,ndime), aux
+                      real(8)                 :: tmp1(ndime), tmp2(ndime), gpcar(ndime,nnode)
 
                       call nvtxStartRange("Momentum convection")
                       !$acc kernels
                       Rmom(:,:) = 0.0d0
                       !$acc end kernels
-                      !$acc parallel loop gang private(Re,gpcar) vector_length(32)
+                      !$acc parallel loop gang private(Re,gpcar,tmp1,tmp2) vector_length(32)
                       do ielem = 1,nelem
                          !$acc loop vector collapse(2)
                          do inode = 1,nnode
@@ -124,20 +126,32 @@ module elem_convec
                                   gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
                                end do
                             end do
-                            tmp1 = dot_product(gpcar(1,:),q(connec(ielem,:),1)*u(connec(ielem,:),1)+pr(connec(ielem,:)))
-                            tmp1 = tmp1+dot_product(gpcar(2,:),q(connec(ielem,:),1)*u(connec(ielem,:),2))
-                            tmp1 = tmp1+dot_product(gpcar(3,:),q(connec(ielem,:),1)*u(connec(ielem,:),3))
-                            tmp2 = dot_product(gpcar(1,:),q(connec(ielem,:),2)*u(connec(ielem,:),1))
-                            tmp2 = tmp2+dot_product(gpcar(2,:),q(connec(ielem,:),2)*u(connec(ielem,:),2)+pr(connec(ielem,:)))
-                            tmp2 = tmp2+dot_product(gpcar(3,:),q(connec(ielem,:),2)*u(connec(ielem,:),3))
-                            tmp3 = dot_product(gpcar(1,:),q(connec(ielem,:),3)*u(connec(ielem,:),1))
-                            tmp3 = tmp3+dot_product(gpcar(2,:),q(connec(ielem,:),3)*u(connec(ielem,:),2))
-                            tmp3 = tmp3+dot_product(gpcar(3,:),q(connec(ielem,:),3)*u(connec(ielem,:),3)+pr(connec(ielem,:)))
+                            !$acc loop seq
+                            do idime = 1,ndime
+                               aux = 0.0d0
+                               !$acc loop seq
+                               do jdime = 1,ndime
+                                  !$acc loop vector reduction(+:aux)
+                                  do inode = 1,nnode
+                                     aux = aux+gpcar(jdime,inode)*(q(connec(ielem,inode),idime)*u(connec(ielem,inode),jdime))
+                                  end do
+                               end do
+                               tmp1(idime) = aux
+                            end do
+                            !$acc loop seq
+                            do idime = 1,ndime
+                               aux = 0.0d0
+                               !$acc loop vector reduction(+:aux)
+                               do inode = 1,nnode
+                                  aux = aux+gpcar(idime,inode)*pr(connec(ielem,inode))
+                               end do
+                               tmp2(idime) = aux
+                            end do
                             !$acc loop vector
                             do inode = 1,nnode
-                               Re(inode,1) = Re(inode,1)+gpvol(1,igaus,ielem)*Ngp(igaus,inode)*tmp1
-                               Re(inode,2) = Re(inode,2)+gpvol(1,igaus,ielem)*Ngp(igaus,inode)*tmp2
-                               Re(inode,3) = Re(inode,3)+gpvol(1,igaus,ielem)*Ngp(igaus,inode)*tmp3
+                               Re(inode,1) = Re(inode,1)+gpvol(1,igaus,ielem)*Ngp(igaus,inode)*(tmp1(1)+tmp2(1))
+                               Re(inode,2) = Re(inode,2)+gpvol(1,igaus,ielem)*Ngp(igaus,inode)*(tmp1(2)+tmp2(2))
+                               Re(inode,3) = Re(inode,3)+gpvol(1,igaus,ielem)*Ngp(igaus,inode)*(tmp1(3)+tmp2(3))
                             end do
                          end do
                          !
