@@ -346,7 +346,7 @@ module elem_convec
                       real(8),    intent(in)  :: u(npoin,ndime), pr(npoin), E(npoin)
                       real(8),    intent(out) :: Rener(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, ipoin, jdime
-                      real(8)                 :: Re(nnode), fener(npoin,ndime)
+                      real(8)                 :: Re(nnode), aux
                       real(8)                 :: tmp1, gpcar(ndime,nnode)
 
                       call nvtxStartRange("Energy Convection")
@@ -369,9 +369,12 @@ module elem_convec
                                end do
                             end do
                             tmp1 = 0.0d0
-                            !$acc loop seq
+                            !$acc loop vector collapse(2) reduction(+:tmp1)
                             do idime = 1,ndime
-                               tmp1 = tmp1+dot_product(gpcar(idime,:),u(connec(ielem,:),idime)*(E(connec(ielem,:))+pr(connec(ielem,:))))
+                               do inode = 1,nnode
+                                  tmp1 = tmp1+(gpcar(idime,inode)* &
+                                     (u(connec(ielem,inode),idime)*(E(connec(ielem,inode))+pr(connec(ielem,inode)))))
+                               end do
                             end do
                             !$acc loop vector
                             do inode = 1,nnode
@@ -428,11 +431,17 @@ module elem_convec
                                   gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
                                end do
                             end do
-                            tmp1 = dot_product(Ngp(igaus,:),alpha(connec(ielem,:)))
+                            tmp1 = 0.0d0
+                            !$acc loop vector reduction(+:tmp1)
+                            do inode = 1,nnode
+                               tmp1 = tmp1+(Ngp(igaus,inode)*alpha(connec(ielem,inode)))
+                            end do
                             tmp2 = 0.0d0
-                            !$acc loop seq
+                            !$acc loop vector collapse(2) reduction(+:tmp2)
                             do idime = 1,ndime
-                               tmp2 = tmp2+dot_product(gpcar(idime,:),q(connec(ielem,:),idime))
+                               do inode = 1,nnode
+                                  tmp2 = tmp2+(gpcar(idime,inode)*q(connec(ielem,inode),idime))
+                               end do
                             end do
                             !$acc loop vector
                             do inode = 1,nnode
