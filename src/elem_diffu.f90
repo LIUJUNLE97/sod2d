@@ -170,9 +170,11 @@ module elem_diffu
                             !
                             ! Compute div(tau) at the Gauss point
                             !
-                            !$acc loop vector collapse(3)
+                            !$acc loop seq
                             do idime = 1,ndime
+                               !$acc loop seq
                                do jdime = 1,ndime
+                                  !$acc loop vector
                                   do inode = 1,nnode
                                      Re(inode,idime) = Re(inode,idime)+gpvol(1,igaus,ielem)* &
                                         gpcar(jdime,inode)*mu_fgp*tau(idime,jdime)
