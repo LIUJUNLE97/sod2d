@@ -46,7 +46,11 @@ module elem_diffu
                             end do
                             !$acc loop seq
                             do idime = 1,ndime
-                               tmp1 = dot_product(gpcar(idime,:),rho(connec(ielem,:)))
+                               tmp1 = 0.0d0
+                               !$acc loop vector reduction(+:tmp1)
+                               do inode = 1,nnode
+                                  tmp1 = tmp1+gpcar(idime,inode)*rho(connec(ielem,inode))
+                               end do
                                !$acc loop vector
                                do inode = 1,nnode
                                   Re(inode) = Re(inode)+gpvol(1,igaus,ielem)* &
@@ -66,62 +70,6 @@ module elem_diffu
 
               end subroutine mass_diffusion
 
-              !
-              ! Old routine
-              !
-              !!oldsubroutine mom_diffusion(nelem,ngaus,npoin,nnode,ndime,connec,Ngp,gpcar,gpvol,u,mu_e,Rmom)
-
-              !!old        ! TODO: Add. stab. viscosity
-
-              !!old        implicit none
-
-              !!old        integer(4), intent(in)  :: nelem, ngaus, npoin, nnode, ndime
-              !!old        integer(4), intent(in)  :: connec(nelem,nnode)
-              !!old        real(8),    intent(in)  :: Ngp(ngaus,nnode)
-              !!old        real(8),    intent(in)  :: gpcar(ndime,nnode,ngaus,nelem)
-              !!old        real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-              !!old        real(8),    intent(in)  :: u(npoin,ndime), mu_e(nelem)
-              !!old        real(8),    intent(out) :: Rmom(npoin,ndime)
-              !!old        integer(4)              :: ind(nnode)
-              !!old        integer(4)              :: ielem, igaus, idime, jdime, inode, kdime
-              !!old        real(8)                 :: Re(nnode,ndime)
-
-              !!old        !$acc kernels
-              !!old        Rmom(:,:) = 0.0d0
-              !!old        !$acc end kernels
-              !!old        call nvtxStartRange("Momentum diffusion")
-              !!old        !$acc parallel loop gang private(ind,Re,gpcar) vector_length(32)
-              !!old        do ielem = 1,nelem
-              !!old           !$acc loop vector
-              !!old           do inode = 1,nnode
-              !!old              Re(inode,:) = 0.0d0
-              !!old              ind(inode) = connec(ielem,inode)
-              !!old           end do
-              !!old           !$acc loop seq
-              !!old           do igaus = 1,ngaus
-              !!old              !$acc loop seq
-              !!old              do idime = 1,ndime
-              !!old                 !$acc loop vector
-              !!old                 do inode = 1,nnode
-              !!old                    gpcar(idime,inode) = dot_product(He(idime,:.igaus,ielem),dNgp(:,inode,igaus))
-              !!old                 end do
-              !!old              end do
-              !!old           end do
-              !!old           !
-              !!old           ! Assembly
-              !!old           !
-              !!old           do idime = 1,ndime
-              !!old              Rmom(ind,idime) = Rmom(ind,idime)+Re(1:nnode,idime)
-              !!old           end do
-              !!old        end do
-              !!old        !$acc end parallel loop
-              !!old        call nvtxEndRange
-
-              !!oldend subroutine mom_diffusion
-
-              !
-              ! New routine
-              !
               subroutine mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,mu_fluid,mu_e,Rmom)
 
                       ! TODO: Add. stab. viscosity
@@ -136,19 +84,16 @@ module elem_diffu
                       real(8),    intent(in)  :: u(npoin,ndime), mu_e(nelem)
                       real(8),    intent(in)  :: mu_fluid(npoin)
                       real(8),    intent(out) :: Rmom(npoin,ndime)
-                      integer(4)              :: ielem, igaus, idime, jdime, inode, jnode, kdime
-                      real(8)                 :: Re(nnode,ndime), twoThirds, gpcar(ndime,nnode)
-                      real(8) :: grad_1, grad_2, grad_3, grad_4, grad_5, grad_6, grad_7, grad_8, grad_9
-                      real(8) :: div_1
-                      real(8) :: tau_1, tau_2, tau_3, tau_4, tau_5, tau_6, tau_7, tau_8, tau_9
-                      real(8) :: tmp1, tmp2, tmp3, mu_fgp
+                      integer(4)              :: ielem, igaus, idime, jdime, inode, jnode
+                      real(8)                 :: Re(nnode,ndime), twoThirds, gpcar(ndime,nnode), tau(ndime,ndime)
+                      real(8)                 :: divU, gradU(ndime,ndime), mu_fgp, aux
 
                       twoThirds = 2.0d0/3.0d0
                       call nvtxStartRange("Momentum diffusion")
                       !$acc kernels
                       Rmom(:,:) = 0.0d0
                       !$acc end kernels
-                      !$acc parallel loop gang private(Re,gpcar) vector_length(32)
+                      !$acc parallel loop gang private(Re,gpcar,tau,gradU) vector_length(32)
                       do ielem = 1,nelem
                          !$acc loop vector collapse(2)
                          do inode = 1,nnode
@@ -165,16 +110,9 @@ module elem_diffu
                          !
                          !$acc loop seq
                          do igaus = 1,ngaus
-                            mu_fgp = dot_product(Ngp(igaus,:),mu_fluid(connec(ielem,:)))
-                            grad_1=0.0d0
-                            grad_2=0.0d0
-                            grad_3=0.0d0
-                            grad_4=0.0d0
-                            grad_5=0.0d0
-                            grad_6=0.0d0
-                            grad_7=0.0d0
-                            grad_8=0.0d0
-                            grad_9=0.0d0
+                            !
+                            ! Compute gpcar
+                            !
                             !$acc loop seq
                             do idime = 1,ndime
                                !$acc loop vector
@@ -183,60 +121,63 @@ module elem_diffu
                                end do
                             end do
                             !
-                            ! compute dN_b,j*u_bi @ Gauss point k
+                            ! Compute combined viscosity at Gauss point
                             !
-                            !$acc loop vector &
-                            !$acc reduction(+:grad_1,grad_2,grad_3,grad_4,grad_5,grad_6,grad_7,grad_8,grad_9)
+                            mu_fgp = 0.0d0
+                            !$acc loop vector reduction(+:mu_fgp)
                             do inode = 1,nnode
-                               grad_1 = grad_1+gpcar(1,inode)*u(connec(ielem,inode),1)
-                               grad_2 = grad_2+gpcar(2,inode)*u(connec(ielem,inode),1)
-                               grad_3 = grad_3+gpcar(3,inode)*u(connec(ielem,inode),1)
-                               grad_4 = grad_4+gpcar(1,inode)*u(connec(ielem,inode),2)
-                               grad_5 = grad_5+gpcar(2,inode)*u(connec(ielem,inode),2)
-                               grad_6 = grad_6+gpcar(3,inode)*u(connec(ielem,inode),2)
-                               grad_7 = grad_7+gpcar(1,inode)*u(connec(ielem,inode),3)
-                               grad_8 = grad_8+gpcar(2,inode)*u(connec(ielem,inode),3)
-                               grad_9 = grad_9+gpcar(3,inode)*u(connec(ielem,inode),3)
+                               mu_fgp = mu_fgp+(Ngp(igaus,inode)*mu_fluid(connec(ielem,inode)))
                             end do
-                            div_1 = grad_1+grad_5+grad_9 ! u_k,k = tr[grad(u)]
+                            mu_fgp = mu_fgp+mu_e(ielem)
                             !
-                            ! Compute tau_ij = mu*(u_i,j+u_j,i-(2/3)*u_k,k*d_ij)
+                            ! Compute grad(u)
                             !
-                            tau_1 = (mu_fgp+mu_e(ielem))*(grad_1+grad_1-twoThirds*div_1)
-                            tau_2 = (mu_fgp+mu_e(ielem))*(grad_2+grad_4)
-                            tau_3 = (mu_fgp+mu_e(ielem))*(grad_3+grad_7)
-                            tau_4 = (mu_fgp+mu_e(ielem))*(grad_4+grad_2)
-                            tau_5 = (mu_fgp+mu_e(ielem))*(grad_5+grad_5-twoThirds*div_1)
-                            tau_6 = (mu_fgp+mu_e(ielem))*(grad_6+grad_8)
-                            tau_7 = (mu_fgp+mu_e(ielem))*(grad_7+grad_3)
-                            tau_8 = (mu_fgp+mu_e(ielem))*(grad_8+grad_6)
-                            tau_9 = (mu_fgp+mu_e(ielem))*(grad_9+grad_9-twoThirds*div_1)
-                            !
-                            ! Compute N_a,j*tau_ij @ Gauss point k
-                            !
-                            tmp1 = 0.0d0
-                            tmp2 = 0.0d0
-                            tmp3 = 0.0d0
-                            !$acc loop vector reduction(+:tmp1,tmp2,tmp3)
-                            do inode = 1,nnode
-                               tmp1 = tmp1+(gpvol(1,igaus,ielem)*gpcar(1,inode)*tau_1)
-                               tmp1 = tmp1+(gpvol(1,igaus,ielem)*gpcar(2,inode)*tau_2)
-                               tmp1 = tmp1+(gpvol(1,igaus,ielem)*gpcar(3,inode)*tau_3)
-                               tmp2 = tmp1+(gpvol(1,igaus,ielem)*gpcar(1,inode)*tau_4)
-                               tmp2 = tmp1+(gpvol(1,igaus,ielem)*gpcar(2,inode)*tau_5)
-                               tmp2 = tmp1+(gpvol(1,igaus,ielem)*gpcar(3,inode)*tau_6)
-                               tmp3 = tmp1+(gpvol(1,igaus,ielem)*gpcar(1,inode)*tau_7)
-                               tmp3 = tmp1+(gpvol(1,igaus,ielem)*gpcar(2,inode)*tau_8)
-                               tmp3 = tmp1+(gpvol(1,igaus,ielem)*gpcar(3,inode)*tau_9)
+                            !$acc loop seq
+                            do idime = 1,ndime
+                               !$acc loop seq
+                               do jdime = 1,ndime
+                                  aux = 0.0d0
+                                  !$acc loop vector reduction(+:aux)
+                                  do inode = 1,nnode
+                                     aux = aux+gpcar(jdime,inode)*u(connec(ielem,inode),idime)
+                                  end do
+                                  gradU(idime,jdime) = aux
+                               end do
                             end do
                             !
-                            ! Gaussian quadrature
+                            ! Compute div(u)
                             !
-                            !$acc loop vector
-                            do inode = 1,nnode
-                               Re(inode,1) = Re(inode,1)+tmp1
-                               Re(inode,2) = Re(inode,2)+tmp2
-                               Re(inode,3) = Re(inode,3)+tmp3
+                            divU = 0.0d0
+                            !$acc loop vector collapse(2) reduction(+:divU)
+                            do idime = 1,ndime
+                               do inode = 1,nnode
+                                  divU = divU+gpcar(jdime,inode)*u(connec(ielem,inode),idime)
+                               end do
+                            end do
+                            !
+                            ! Finish computing tau_ij = u_i,j + u_j,i - (2/3)*div(u)*d_ij
+                            !
+                            !$acc loop seq
+                            do idime = 1,ndime
+                               !$acc loop seq
+                               do jdime = 1,ndime
+                                  tau(idime,jdime) = gradU(idime,jdime)+gradU(jdime,idime)
+                               end do
+                            end do
+                            do idime = 1,ndime
+                               tau(idime,idime) = tau(idime,idime)-twoThirds*divU
+                            end do
+                            !
+                            ! Compute div(tau) at the Gauss point
+                            !
+                            !$acc loop vector collapse(3)
+                            do idime = 1,ndime
+                               do jdime = 1,ndime
+                                  do inode = 1,nnode
+                                     Re(inode,idime) = Re(inode,idime)+gpvol(1,igaus,ielem)* &
+                                        gpcar(jdime,inode)*mu_fgp*tau(idime,jdime)
+                                  end do
+                               end do
                             end do
                          end do
                          !

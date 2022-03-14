@@ -23,7 +23,7 @@ module mod_constants
       !
       ! Flags
       !
-      integer(4), parameter :: flag_real_diff=1
-      integer(4), parameter :: flag_diff_suth=1
+      integer(4), parameter :: flag_real_diff=0
+      integer(4), parameter :: flag_diff_suth=0
 
 end module mod_constants
