@@ -164,6 +164,7 @@ module elem_diffu
                                   tau(idime,jdime) = gradU(idime,jdime)+gradU(jdime,idime)
                                end do
                             end do
+                            !$acc loop seq
                             do idime = 1,ndime
                                tau(idime,idime) = tau(idime,idime)-twoThirds*divU
                             end do
