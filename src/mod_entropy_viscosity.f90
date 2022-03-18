@@ -126,15 +126,15 @@ module mod_entropy_viscosity
                        !
                        ! Normalize
                        !
-                       maxEta = maxval(abs(eta(lpoin_w(:))))
-                       maxRho = maxval(abs(rhok(lpoin_w(:))))
+                    !  maxEta = maxval(abs(eta(lpoin_w(:))))
+                    !  maxRho = maxval(abs(rhok(lpoin_w(:))))
 
-                       !$acc parallel loop
-                       do ipoin = 1,npoin_w
-                          Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/maxEta
-                          Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
-                       end do
-                       !$acc end parallel loop
+                    !  !$acc parallel loop
+                    !  do ipoin = 1,npoin_w
+                    !     Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/maxEta
+                    !     Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
+                    !  end do
+                    !  !$acc end parallel loop
 
               end subroutine residuals
 

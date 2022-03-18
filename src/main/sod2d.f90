@@ -113,8 +113,8 @@ program sod2d
         Cv = Cp/gamma_gas
         cfl_conv = 0.10d0
         cfl_diff = 0.20d0
-        nsave = 500 ! First step to save, TODO: input
-        nleap = 1 ! Saving interval, TODO: input
+        nsave = 1 ! First step to save, TODO: input
+        nleap = 500 ! Saving interval, TODO: input
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
