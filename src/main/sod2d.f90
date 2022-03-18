@@ -102,7 +102,7 @@ program sod2d
         !nnode = 27 ! TODO: need to allow for mixed elements...
         !porder = 2 ! TODO: make it input
         !npbou = 9 ! TODO: Need to get his from somewhere...
-        nstep = 100 ! TODO: Needs to be input...
+        nstep = 1000000 ! TODO: Needs to be input...
 #ifdef CHANNEL
         Rgas = Rg
 #else
@@ -113,11 +113,20 @@ program sod2d
         Cv = Cp/gamma_gas
         cfl_conv = 0.10d0
         cfl_diff = 0.20d0
-        nsave = 1 ! First step to save, TODO: input
+        nsave = 500 ! First step to save, TODO: input
         nleap = 1 ! Saving interval, TODO: input
+#ifdef CHANNEL
+        isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
+#else
         isPeriodic = 0 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
+#endif        
         if (isPeriodic == 1) then
+#ifdef CHANNEL
+           !nper = 8385 ! TODO: if periodic, request number of periodic nodes
+           nper = 2145 ! TODO: if periodic, request number of periodic nodes
+#else
            nper = 49537 ! TODO: if periodic, request number of periodic nodes
+#endif
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
         end if
@@ -148,7 +157,11 @@ program sod2d
         write(*,*) "--| ENTER NAME OF MESH RELATED FILES :"
         call nvtxStartRange("Read mesh")
         !read(*,*) file_name
+#ifdef CHANNEL
+        write(file_name,*) "channel" ! Nsys
+#else
         write(file_name,*) "shock_tube" ! Nsys
+#endif
         call read_dims(file_path,file_name,npoin,nelem,nboun)
         allocate(connec(nelem,nnode))
         if (nboun .ne. 0) then
@@ -821,7 +834,7 @@ program sod2d
                write(*,*) '--| PERIODIC CASE WITH BOUNDARIES'
                do istep = 1,nstep
 
-                  if (istep == nsave) write(*,*) '   --| STEP: ', istep
+                  write(*,*) '   --| STEP: ', istep
 
                   !
                   ! Prediction
@@ -840,7 +853,7 @@ program sod2d
                   call nvtxEndRange
 
                   ! nvtx range for full RK
-                  if (istep == nsave) write(timeStep,'(i4)') istep
+                  write(timeStep,'(i4)') istep
                   call nvtxStartRange("RK4 step "//timeStep,istep)
 
                   if(flag_rk_order .eq. 3) then

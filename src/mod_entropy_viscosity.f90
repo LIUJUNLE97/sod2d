@@ -177,7 +177,7 @@ module mod_entropy_viscosity
                          ! Select against Upwind viscosity
                          !
                          betae = 0.5d0*(helem(ielem)/dble(porder))*aux
-                         mu_e(ielem) = maxval(abs(rho(connec(ielem,:))))*min(Ve,betae) ! Dynamic viscosity
+                         mu_e(ielem) = 0.1d0*maxval(abs(rho(connec(ielem,:))))*min(Ve,betae) ! Dynamic viscosity
                          !mu_e(ielem) = maxval(abs(rho(connec(ielem,:))))*betae
                       end do
                       !$acc end parallel loop
