@@ -128,8 +128,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_1)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_1)
-                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rmass_1)
+                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                      !   connec,gpvol,Ngp,ppow,Ml,Rmass_1)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_1(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)- &
@@ -997,14 +997,35 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_1)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_1)
-                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rmass_1)
+                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                      !   connec,gpvol,Ngp,ppow,Ml,Rmass_1)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_1(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)- &
                                                  dt*Rmass_1(lpoin_w(ipoin))
                       end do
                       !$acc end parallel loop
+
+                      if (nboun .ne. 0) then
+                         if (ndime == 3) then
+                            !
+                            ! Janky wall BC for 2 codes (1=y, 2=z) in 3D
+                            ! Nodes belonging to both codes will be zeroed on both directions.
+                            ! Like this, there's no need to fnd intersections.
+                            !
+                            !$acc parallel loop gang
+                            do iboun = 1,nboun
+                               bcode = bou_codes(iboun,2) ! Boundary element code
+                               if (bcode == 3) then ! non_slip wall
+                                  !$acc loop vector
+                                  do ipbou = 1,npbou
+                                     rho_1(bound(iboun,ipbou)) = 1.0d0
+                                  end do
+                               end if
+                            end do
+                            !$acc end parallel loop
+                         end if
+                      end if
 
                       !
                       ! Momentum
@@ -1021,7 +1042,7 @@ module time_integ
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
-                               Aemac(lpoin_w(ipoin),idime) = q(lpoin_w(ipoin),idime,pos)/sqrt(rho(lpoin_w(ipoin),pos))
+                               Aemac(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,pos)*sqrt(rho(lpoin_w(ipoin),pos))
                             end do
                          end do
                          !$acc end parallel loop
@@ -1047,8 +1068,8 @@ module time_integ
                       end if
                       call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_1)
                       !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_1)
-                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rmom_1)
+                      !call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                      !   connec,gpvol,Ngp,ppow,Ml,Rmom_1)
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -1120,8 +1141,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_1)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_1)
-                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                                                 connec,gpvol,Ngp,ppow,Ml,Rener_1)
+                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                      !                           connec,gpvol,Ngp,ppow,Ml,Rener_1)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_1(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &
@@ -1137,6 +1158,29 @@ module time_integ
                          Tem_1(lpoin_w(ipoin)) = pr_1(lpoin_w(ipoin))/(rho_1(lpoin_w(ipoin))*Rgas)
                       end do
                       !$acc end parallel loop
+                       if (nboun .ne. 0) then
+                          if (ndime == 3) then
+                             !
+                             ! Janky wall BC for 2 codes (1=y, 2=z) in 3D
+                             ! Nodes belonging to both codes will be zeroed on both directions.
+                             ! Like this, there's no need to fnd intersections.
+                             !
+                             !$acc parallel loop gang
+                             do iboun = 1,nboun
+                                bcode = bou_codes(iboun,2) ! Boundary element code
+                                if (bcode == 3) then ! non_slip wall
+                                   !$acc loop vector
+                                   do ipbou = 1,npbou
+                                     ! Tem_1(bound(iboun,ipbou)) = 289.18d0
+                                     ! pr_1(bound(iboun,ipbou)) = Tem_1(bound(iboun,ipbou))*(rho_1(bound(iboun,ipbou))*Rgas)
+                                     ! e_int_1(bound(iboun,ipbou)) = pr_1(bound(iboun,ipbou))/(rho_1(bound(iboun,ipbou))*(gamma_gas-1.0d0))
+                                     ! E_1(bound(iboun,ipbou)) = e_int_1(bound(iboun,ipbou))*rho_1(bound(iboun,ipbou)) ! I assume q is 0
+                                   end do
+                                end if
+                             end do
+                             !$acc end parallel loop
+                          end if
+                       end if
 
                       !
                       ! Sub Step 2
@@ -1197,14 +1241,35 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_2)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_2)
-                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rmass_2)
+                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                      !   connec,gpvol,Ngp,ppow,Ml,Rmass_2)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_2(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)- &
                                                  (dt/2.0d0)*(Rmass_1(lpoin_w(ipoin))/4.0d0+Rmass_2(lpoin_w(ipoin))/4.0d0)
                       end do
                       !$acc end parallel loop
+
+                       if (nboun .ne. 0) then
+                          if (ndime == 3) then
+                             !
+                             ! Janky wall BC for 2 codes (1=y, 2=z) in 3D
+                             ! Nodes belonging to both codes will be zeroed on both directions.
+                             ! Like this, there's no need to fnd intersections.
+                             !
+                             !$acc parallel loop gang
+                             do iboun = 1,nboun
+                                bcode = bou_codes(iboun,2) ! Boundary element code
+                                if (bcode == 3) then ! non_slip wall
+                                   !$acc loop vector
+                                   do ipbou = 1,npbou
+                                      rho_2(bound(iboun,ipbou)) = 1.0d0
+                                   end do
+                                end if
+                             end do
+                             !$acc end parallel loop
+                          end if
+                       end if
 
                       if (flag_emac .eq. 0) then
                          !
@@ -1218,7 +1283,7 @@ module time_integ
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
-                               Aemac(lpoin_w(ipoin),idime) = q_1(lpoin_w(ipoin),idime)/sqrt(rho_1(lpoin_w(ipoin)))
+                               Aemac(lpoin_w(ipoin),idime) = u_1(lpoin_w(ipoin),idime)*sqrt(rho_1(lpoin_w(ipoin)))
                             end do
                          end do
                          !$acc end parallel loop
@@ -1244,8 +1309,8 @@ module time_integ
                       end if
                       call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_2)
                       !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_2)
-                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rmom_2)
+                      !call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                      !   connec,gpvol,Ngp,ppow,Ml,Rmom_2)
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -1314,8 +1379,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_2)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_2)
-                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rener_2)
+                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                      !   connec,gpvol,Ngp,ppow,Ml,Rener_2)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_2(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &
@@ -1331,6 +1396,30 @@ module time_integ
                          Tem_2(lpoin_w(ipoin)) = pr_2(lpoin_w(ipoin))/(rho_2(lpoin_w(ipoin))*Rgas)
                       end do
                       !$acc end parallel loop
+
+                       if (nboun .ne. 0) then
+                          if (ndime == 3) then
+                             !
+                             ! Janky wall BC for 2 codes (1=y, 2=z) in 3D
+                             ! Nodes belonging to both codes will be zeroed on both directions.
+                             ! Like this, there's no need to fnd intersections.
+                             !
+                             !$acc parallel loop gang
+                             do iboun = 1,nboun
+                                bcode = bou_codes(iboun,2) ! Boundary element code
+                                if (bcode == 3) then ! non_slip wall
+                                   !$acc loop vector
+                                   do ipbou = 1,npbou
+                                     ! Tem_2(bound(iboun,ipbou)) = 289.18d0
+                                     ! pr_2(bound(iboun,ipbou)) = Tem_2(bound(iboun,ipbou))*(rho_2(bound(iboun,ipbou))*Rgas)
+                                     ! e_int_2(bound(iboun,ipbou)) = pr_2(bound(iboun,ipbou))/(rho_2(bound(iboun,ipbou))*(gamma_gas-1.0d0))
+                                     ! E_2(bound(iboun,ipbou)) = e_int_2(bound(iboun,ipbou))*rho_2(bound(iboun,ipbou)) ! I assume q is 0
+                                   end do
+                                end if
+                             end do
+                             !$acc end parallel loop
+                          end if
+                       end if
 
                       !
                       ! Sub Step 3
@@ -1391,13 +1480,34 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_3)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_3)
-                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rmass_3)
+                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                      !   connec,gpvol,Ngp,ppow,Ml,Rmass_3)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_3(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)-dt*(Rmass_1(lpoin_w(ipoin))/6.0d0+Rmass_2(lpoin_w(ipoin))/6.0d0+2.0d0*Rmass_3(lpoin_w(ipoin))/3.0d0)
                       end do
                       !$acc end parallel loop
+
+                       if (nboun .ne. 0) then
+                          if (ndime == 3) then
+                             !
+                             ! Janky wall BC for 2 codes (1=y, 2=z) in 3D
+                             ! Nodes belonging to both codes will be zeroed on both directions.
+                             ! Like this, there's no need to fnd intersections.
+                             !
+                             !$acc parallel loop gang
+                             do iboun = 1,nboun
+                                bcode = bou_codes(iboun,2) ! Boundary element code
+                                if (bcode == 3) then ! non_slip wall
+                                   !$acc loop vector
+                                   do ipbou = 1,npbou
+                                      rho_3(bound(iboun,ipbou)) = 1.0d0
+                                   end do
+                                end if
+                             end do
+                             !$acc end parallel loop
+                          end if
+                       end if
 
                       if (flag_emac .eq. 0) then
                          !
@@ -1411,7 +1521,7 @@ module time_integ
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
-                               Aemac(lpoin_w(ipoin),idime) = q_2(lpoin_w(ipoin),idime)/sqrt(rho_2(lpoin_w(ipoin)))
+                               Aemac(lpoin_w(ipoin),idime) = u_2(lpoin_w(ipoin),idime)*sqrt(rho_2(lpoin_w(ipoin)))
                             end do
                          end do
                          !$acc end parallel loop
@@ -1437,8 +1547,8 @@ module time_integ
                       end if
                       call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_3)
                       !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_3)
-                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rmom_3)
+                      !call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                      !   connec,gpvol,Ngp,ppow,Ml,Rmom_3)
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -1507,8 +1617,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_3)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_3)
-                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rener_3)
+                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                      !   connec,gpvol,Ngp,ppow,Ml,Rener_3)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_3(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &
@@ -1525,6 +1635,29 @@ module time_integ
                       end do
                       !$acc end parallel loop
 
+                      if (nboun .ne. 0) then
+                         if (ndime == 3) then
+                            !
+                            ! Janky wall BC for 2 codes (1=y, 2=z) in 3D
+                            ! Nodes belonging to both codes will be zeroed on both directions.
+                            ! Like this, there's no need to fnd intersections.
+                            !
+                            !$acc parallel loop gang
+                            do iboun = 1,nboun
+                               bcode = bou_codes(iboun,2) ! Boundary element code
+                               if (bcode == 3) then ! non_slip wall
+                                  !$acc loop vector
+                                  do ipbou = 1,npbou
+                                     !Tem_3(bound(iboun,ipbou)) = 289.18d0
+                                     !pr_3(bound(iboun,ipbou)) = Tem_3(bound(iboun,ipbou))*(rho_3(bound(iboun,ipbou))*Rgas)
+                                     !e_int_3(bound(iboun,ipbou)) = pr_3(bound(iboun,ipbou))/(rho_3(bound(iboun,ipbou))*(gamma_gas-1.0d0))
+                                     !E_3(bound(iboun,ipbou)) = e_int_3(bound(iboun,ipbou))*rho_3(bound(iboun,ipbou)) ! I assume q is 0
+                                  end do
+                               end if
+                            end do
+                            !$acc end parallel loop
+                         end if
+                      end if
                       !
                       ! Update
                       !

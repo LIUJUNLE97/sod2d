@@ -34,7 +34,7 @@ module elem_diffu
                          do inode = 1,nnode
                             Re(inode) = 0.0d0
                          end do
-                         nu_e = mu_e(ielem)/maxval(abs(rho(connec(ielem,:))))
+                         nu_e = 0.1d0*mu_e(ielem)/maxval(abs(rho(connec(ielem,:))))
                          !$acc loop seq
                          do igaus = 1,ngaus
                             !$acc loop seq
@@ -151,7 +151,7 @@ module elem_diffu
                             !$acc loop vector collapse(2) reduction(+:divU)
                             do idime = 1,ndime
                                do inode = 1,nnode
-                                  divU = divU+gpcar(jdime,inode)*u(connec(ielem,inode),idime)
+                                  divU = divU+gpcar(idime,inode)*u(connec(ielem,inode),idime)
                                end do
                             end do
                             !
@@ -244,8 +244,8 @@ module elem_diffu
                             do inode = 1,nnode
                                mu_fgp = mu_fgp+(Ngp(igaus,inode)*mu_fluid(connec(ielem,inode)))
                             end do
+                            kappa_e =mu_fgp*1004.0d0/0.71d0+0.1d0*mu_e(ielem)/0.4d0
                             mu_fgp = mu_fgp+mu_e(ielem)
-                            kappa_e = mu_fgp*1004.0d0/0.71d0
                             !
                             ! Compute grad(U)
                             !

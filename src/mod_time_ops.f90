@@ -5,7 +5,7 @@ module mod_time_ops
 
    contains
 
-      subroutine adapt_dt_cfl(nelem,npoin,connec,helem,u,csound,cfl_conv,dt,cfl_diff,mu_fluid)
+      subroutine adapt_dt_cfl(nelem,npoin,connec,helem,u,csound,cfl_conv,dt,cfl_diff,mu_fluid,mu_e)
 
          implicit none
 
@@ -13,7 +13,7 @@ module mod_time_ops
          real(8)   , intent(in)           :: helem(nelem)
          real(8)   , intent(in)           :: u(npoin,ndime), csound(npoin)
          real(8)   , intent(in)           :: cfl_conv
-         real(8)   , intent(in), optional :: cfl_diff, mu_fluid(npoin)
+         real(8)   , intent(in), optional :: cfl_diff,mu_fluid(npoin),mu_e(nelem)
          real(8)  , intent(out)           :: dt
 
          integer(4)                       :: inode, ielem
@@ -33,12 +33,13 @@ module mod_time_ops
             end do
             aux2 = cfl_conv*(helem(ielem)/dble(porder))/L3
             dt_conv = min(dt_conv,aux2)
-            if(present(cfl_diff) .and. present(mu_fluid)) then
+            if(present(cfl_diff) .and. present(mu_fluid) .and. present(mu_e)) then
                aux3 = 0.0d0
                do inode = 1,nnode
                   max_MU = max(aux3,mu_fluid(connec(ielem,inode)))
                end do
-               aux4 = cfl_diff*((helem(ielem)/dble(porder))**2)/max_MU
+               aux4 = cfl_diff*((helem(ielem)/dble(porder))**2)/(max_MU)
+               !aux4 = cfl_diff*((helem(ielem)/dble(porder))**2)/(max_MU+mu_e(ielem))
                dt_diff = min(dt_diff,aux4)
             end if
             dt = min(dt_conv,dt_diff)
