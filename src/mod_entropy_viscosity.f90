@@ -161,7 +161,7 @@ module mod_entropy_viscosity
                          !
                          R1 = maxval(abs(Reta(connec(ielem,:))))                ! Linf norm of Reta on element
                          R2 = maxval(abs(Rrho(connec(ielem,:))))               ! Linf norm of Rrho on element
-                         Ve = 1.0d0*max(R1,R2)*((helem(ielem)/dble(porder))**2) ! Normalized residual for element
+                         Ve = flag_ce*max(R1,R2)*((helem(ielem)/dble(porder))**2) ! Normalized residual for element
                          !
                          ! Max. Wavespeed at element
                          !
@@ -177,7 +177,7 @@ module mod_entropy_viscosity
                          !
                          ! Select against Upwind viscosity
                          !
-                         betae = 0.5d0*(helem(ielem)/dble(porder))*aux
+                         betae = flag_cmax*(helem(ielem)/dble(porder))*aux
                          mu_e(ielem) = maxval(abs(rho(connec(ielem,:))))*min(Ve,betae) ! Dynamic viscosity
                          !mu_e(ielem) = maxval(abs(rho(connec(ielem,:))))*betae
                       end do

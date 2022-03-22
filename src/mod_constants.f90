@@ -27,6 +27,9 @@ module mod_constants
       integer(4), parameter :: flag_diff_suth=1
       integer(4), parameter :: flag_rk_order=3
 
-      real(4) :: flag_mu_factor=1.0d0
+      real(8), parameter :: flag_ce = 0.0d0
+      real(8), parameter :: flag_cmax = 0.5d0
+
+      real(8) :: flag_mu_factor=1.0d0
 
 end module mod_constants
