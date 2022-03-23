@@ -31,7 +31,7 @@ module mod_analysis
             EK = EK+R1
          end do
          !$acc end parallel loop
-         EK = EK/(rho0*((2.0d0*3.14159d0)**3))
+         EK = EK/(rho0*((2.0d0*3.14159d0)**3.0d0))
          call nvtxEndRange
 
       end subroutine volAvg_EK

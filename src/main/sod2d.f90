@@ -51,7 +51,7 @@ program sod2d
         real(8),    allocatable    :: gpvol(:,:,:)
         real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:)
         real(8),    allocatable    :: Ml(:)!, Mc(:)
-        real(8),    allocatable    :: mu_e(:), mu_fluid(:)
+        real(8),    allocatable    :: mu_e(:,:), mu_fluid(:)
         real(8),    allocatable    :: source_term(:)
         real(8)                    :: s, t, z, detJe
         real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot
@@ -76,7 +76,7 @@ program sod2d
         real(8)  :: velo = 0.0d0, vol = 0.0d0
         real(8)  :: Re,mul,utau,Rg,to,po,mur
 #else
-        real(8)                    :: Cp, rho0
+        real(8)                    :: Cp, rho0, Re, mul,mur,to
 #endif
 
 #ifdef CHANNEL
@@ -90,6 +90,12 @@ program sod2d
         flag_mu_factor = mul/mur
 
         write(*,*) " Gp ", utau*utau*rho0/delta
+#else
+        Re = 1600.0d0
+        mul = 1.0d0*1.0d0*27.263d0/Re
+        to = 27.263d0*27.263d0/(1.4d0*287.0d0*0.1d0*0.1d0)
+        mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
+        flag_mu_factor = mul/mur
 #endif
 
         !*********************************************************************!
@@ -111,26 +117,27 @@ program sod2d
         Cp = 1004.00d0 ! TODO: Make it input
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
-        cfl_conv = 1.75d0
-        cfl_diff = 0.95d0
+        cfl_conv = 0.5d0
+        cfl_diff = 0.5d0
         nsave = 1 ! First step to save, TODO: input
-        nleap = 25000 ! Saving interval, TODO: input
+        nleap = 50 ! Saving interval, TODO: input
+        !nleap = 25000 ! Saving interval, TODO: input
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
-        isPeriodic = 0 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
+        isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #endif        
         if (isPeriodic == 1) then
 #ifdef CHANNEL
            !nper = 8385 ! TODO: if periodic, request number of periodic nodes
            nper = 2145 ! TODO: if periodic, request number of periodic nodes
 #else
-           nper = 49537 ! TODO: if periodic, request number of periodic nodes
+           nper = 12481 ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
         end if
-        flag_emac = 1
+        flag_emac = 0
         if (flag_emac == 1) then
            write(*,*) "--| RUNNING WITH EMAC CONVECTION"
         else if (flag_emac == 0) then
@@ -160,7 +167,7 @@ program sod2d
 #ifdef CHANNEL
         write(file_name,*) "channel" ! Nsys
 #else
-        write(file_name,*) "shock_tube" ! Nsys
+        write(file_name,*) "cube" ! Nsys
 #endif
         call read_dims(file_path,file_name,npoin,nelem,nboun)
         allocate(connec(nelem,nnode))
@@ -294,7 +301,7 @@ program sod2d
         allocate(e_int(npoin,2))    ! Internal Energy
         allocate(csound(npoin))     ! Speed of sound
         allocate(mu_fluid(npoin))   ! Fluid viscosity
-        allocate(mu_e(nelem))       ! Elemental viscosity
+        allocate(mu_e(nelem,ngaus))       ! Elemental viscosity
         call nvtxEndRange
 
         !*********************************************************************!
@@ -357,7 +364,7 @@ program sod2d
         !$acc end parallel loop
 #endif
         !$acc kernels
-        mu_e(:) = 0.0d0 ! Element syabilization viscosity
+        mu_e(:,:) = 0.0d0 ! Element syabilization viscosity
         !$acc end kernels
         call nvtxEndRange
 
@@ -381,7 +388,7 @@ program sod2d
         !*********************************************************************!
         
         if (flag_real_diff == 1) then
-           call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,mu_e)
+           call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid)
            write(*,*) "--| TIME STEP SIZE dt := ",dt,"s"
         else
            call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
@@ -583,7 +590,7 @@ program sod2d
         if (solver_type == 'APINV') then
             write(*,*) '--| ENTER NUMBER OF ITERATIONS FOR APINV SOLVER:'
             !read(*,*) ppow
-            ppow = 1 ! Nsys
+            ppow = 2 ! Nsys
         end if
         write(*,*) '--| USING SOLVER ',solver_type,' FOR MASS MATRIX'
 
@@ -655,9 +662,9 @@ program sod2d
         !
         open(unit=666,file="analysis.dat",status="new")
         time = 0.0d0
-        P0 = 1.0d0
-        T0 = 1.0d0/(1.4d0*Rgas*(0.1**2))
-        rho0 = P0/(Rgas*T0)
+        !P0 = 1.0d0
+        !T0 = 1.0d0/(1.4d0*Rgas*(0.1**2))
+        rho0 = 1.0d0
         call volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
         call write_EK(time,EK)
         write(*,*) "--| time   ,   EK"
@@ -725,7 +732,7 @@ program sod2d
                  end if
 
                  if (flag_real_diff == 1) then
-                    call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid)
+                    call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,rho(:,2))
                     write(*,*) "DT := ",dt,"s"
                  else
                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
@@ -776,15 +783,15 @@ program sod2d
                   write(timeStep,'(i4)') istep
                   call nvtxStartRange("RK4 step "//timeStep,istep)
 
-                  if(flag_rk_order .eq. 3) then
-                     call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                        rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
-                  else
-                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                        rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
-                  end if
+                 !if(flag_rk_order .eq. 3) then
+                 !   call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                 !      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                 !      rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
+                 !else
+                 !   call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                 !      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                 !      rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
+                 !end if
 
                   !
                   ! Advance with entropy viscosity
@@ -807,7 +814,7 @@ program sod2d
                   write(*,*) "--| ",time,"  |  ",EK
 
                   if (flag_real_diff == 1) then
-                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid)
+                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,rho(:,2))
                      write(*,*) "DT := ",dt,"s"
                   else
                      call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
@@ -857,17 +864,17 @@ program sod2d
                   write(timeStep,'(i4)') istep
                   call nvtxStartRange("RK4 step "//timeStep,istep)
 
-              !  if(flag_rk_order .eq. 3) then
-              !     call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-              !        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-              !        rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
-              !        ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
-              !  else
-              !     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-              !        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-              !        rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
-              !        ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
-              !  end if
+                if(flag_rk_order .eq. 3) then
+                   call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                      rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                      ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
+                else
+                   call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                      rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                      ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
+                end if
 
                   !
                   ! Advance with entropy viscosity
@@ -886,7 +893,7 @@ program sod2d
                   end if
 
                   if (flag_real_diff == 1) then
-                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,mu_e)
+                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,rho(:,2))
                      write(*,*) "DT := ",dt,"s"
                   else
                      call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)

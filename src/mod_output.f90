@@ -12,7 +12,7 @@ module mod_output
          real(8)   , intent(in)                           :: coord(npoin,ndime)
          real(8)   , intent(in), dimension(npoin)         :: rho, pr, E
          real(8)   , intent(in), dimension(npoin,ndime)   :: u
-         real(8)   , intent(in), dimension(nelem)         :: mu_e
+         real(8)   , intent(in), dimension(nelem,ngaus)   :: mu_e
          integer(4)                                       :: i, ivtk=9
          integer(4)            , dimension(nelem,nnode+1) :: cells
          integer(4)            , dimension(nelem)         :: cellTypes
@@ -134,7 +134,7 @@ module mod_output
          write(ivtk,'(a)') 'SCALARS '//' ENVIT '//' double'
          write(ivtk,'(a)') 'LOOKUP_TABLE '//' default'
          do i = 1,nelem
-            write(ivtk,*) mu_e(i)
+            write(ivtk,*) mu_e(i,1)
          end do
          
          close(ivtk)
@@ -152,7 +152,7 @@ module mod_output
          real(8)   , intent(in)                            :: coord(npoin,ndime)
          real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E, mu_fluid
          real(8)   , intent(inout), dimension(npoin,ndime) :: u
-         real(8)   , intent(inout), dimension(nelem)       :: mu_e
+         real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_e
          integer(4)                                        :: i, iper, ivtk=9
          integer(4)            , dimension(nelem,nnode+1)  :: cells
          integer(4)            , dimension(nelem)          :: cellTypes
@@ -306,7 +306,7 @@ module mod_output
          write(ivtk) 'SCALARS ENVIT double'//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,nelem
-            write(ivtk) mu_e(i)
+            write(ivtk) mu_e(i,1)
          end do
          
          close(ivtk)

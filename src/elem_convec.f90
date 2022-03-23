@@ -56,8 +56,9 @@ module elem_convec
                                   gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
                                end do
                             end do
-                            !$acc loop vector collapse(2) reduction(+:tmp1)
+                            !$acc loop seq
                             do idime = 1,ndime
+                               !$acc loop vector reduction(+:tmp1)
                                do inode = 1,nnode
                                   tmp1 = tmp1+(gpcar(idime,inode)*q(connec(ielem,inode),idime))
                                end do

@@ -18,11 +18,11 @@ module elem_diffu
                       real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: rho(npoin), mu_e(nelem)
+                      real(8),    intent(in)  :: rho(npoin), mu_e(nelem,ngaus)
                       real(8),    intent(out) :: Rmass(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime
                       real(8)                 :: Re(nnode), nu_e
-                      real(8)                 :: tmp1, gpcar(ndime,nnode)
+                      real(8)                 :: tmp1, gpcar(ndime,nnode), tmp2
 
                       call nvtxStartRange("Mass diffusion")
                       !$acc kernels
@@ -34,7 +34,6 @@ module elem_diffu
                          do inode = 1,nnode
                             Re(inode) = 0.0d0
                          end do
-                         nu_e = 0.1d0*mu_e(ielem)/maxval(abs(rho(connec(ielem,:))))
                          !$acc loop seq
                          do igaus = 1,ngaus
                             !$acc loop seq
@@ -44,25 +43,28 @@ module elem_diffu
                                   gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
                                end do
                             end do
-                            !$acc loop seq
-                            do idime = 1,ndime
-                               tmp1 = 0.0d0
-                               !$acc loop vector reduction(+:tmp1)
-                               do inode = 1,nnode
-                                  tmp1 = tmp1+gpcar(idime,inode)*rho(connec(ielem,inode))
-                               end do
-                               !$acc loop vector
-                               do inode = 1,nnode
-                                  Re(inode) = Re(inode)+gpvol(1,igaus,ielem)* &
-                                              gpcar(idime,inode)*tmp1
-                               end do
-                            end do
+                           !$acc loop seq
+                           do idime = 1,ndime
+                              tmp1 = 0.0d0
+                              tmp2 = 0.0d0
+                              !$acc loop vector reduction(+:tmp1,tmp2)
+                              do inode = 1,nnode
+                                 tmp1 = tmp1+gpcar(idime,inode)*rho(connec(ielem,inode))
+                                 tmp2 = tmp2+Ngp(igaus,inode)*rho(connec(ielem,inode)) 
+                              end do
+                              nu_e = c_rho*mu_e(ielem,igaus)/tmp2
+                              !$acc loop vector
+                              do inode = 1,nnode
+                                 Re(inode) = Re(inode)+nu_e*gpvol(1,igaus,ielem)* &
+                                             gpcar(idime,inode)*tmp1
+                              end do
+                           end do
                          end do
                          !$acc loop vector
                          do inode = 1,nnode
-                            !$acc atomic update
-                            Rmass(connec(ielem,inode)) = Rmass(connec(ielem,inode))+nu_e*1.0d0*Re(inode)
-                            !$acc end atomic
+                            !!$acc atomic update
+                            Rmass(connec(ielem,inode)) = Rmass(connec(ielem,inode))+Re(inode)
+                            !!$acc end atomic
                          end do
                       end do
                       !$acc end parallel loop
@@ -81,7 +83,7 @@ module elem_diffu
                       real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: u(npoin,ndime), mu_e(nelem)
+                      real(8),    intent(in)  :: u(npoin,ndime),mu_e(nelem,ngaus)
                       real(8),    intent(in)  :: mu_fluid(npoin)
                       real(8),    intent(out) :: Rmom(npoin,ndime)
                       integer(4)              :: ielem, igaus, idime, jdime, inode, jnode
@@ -128,7 +130,7 @@ module elem_diffu
                             do inode = 1,nnode
                                mu_fgp = mu_fgp+(Ngp(igaus,inode)*mu_fluid(connec(ielem,inode)))
                             end do
-                            mu_fgp = mu_fgp+mu_e(ielem)
+                            mu_fgp = mu_fgp+mu_e(ielem,igaus)
                             !
                             ! Compute grad(u)
                             !
@@ -209,7 +211,7 @@ module elem_diffu
                       real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: u(npoin,ndime), Tem(npoin), mu_e(nelem)
+                      real(8),    intent(in)  :: u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus)
                       real(8),    intent(in)  :: mu_fluid(npoin)
                       real(8),    intent(out) :: Rener(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime
@@ -244,8 +246,8 @@ module elem_diffu
                             do inode = 1,nnode
                                mu_fgp = mu_fgp+(Ngp(igaus,inode)*mu_fluid(connec(ielem,inode)))
                             end do
-                            kappa_e =mu_fgp*1004.0d0/0.71d0+0.1d0*mu_e(ielem)/0.4d0
-                            mu_fgp = mu_fgp+mu_e(ielem)
+                            kappa_e =mu_fgp*1004.0d0/0.71d0+c_ener*mu_e(ielem,igaus)/0.4d0
+                            mu_fgp = mu_fgp+mu_e(ielem,igaus)
                             !
                             ! Compute grad(U)
                             !
