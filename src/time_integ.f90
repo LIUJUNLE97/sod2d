@@ -128,8 +128,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_1)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_1)
-                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rmass_1)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmass_1)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_1(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)- &
@@ -178,8 +178,8 @@ module time_integ
                       end if
                       call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_1)
                       !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_1)
-                      !call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rmom_1)
+                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmom_1)
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -251,8 +251,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_1)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_1)
-                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                      !                           connec,gpvol,Ngp,ppow,Ml,Rener_1)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                                                 connec,gpvol,Ngp,ppow,Ml,Rener_1)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_1(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &
@@ -328,8 +328,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_2)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_2)
-                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rmass_2)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmass_2)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_2(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)- &
@@ -375,8 +375,8 @@ module time_integ
                       end if
                       call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_2)
                       !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_2)
-                      !call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rmom_2)
+                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmom_2)
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -445,8 +445,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_2)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_2)
-                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rener_2)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rener_2)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_2(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &
@@ -522,8 +522,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_3)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_3)
-                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rmass_3)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmass_3)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_3(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)-(dt/1.0d0)*Rmass_3(lpoin_w(ipoin))
@@ -568,8 +568,8 @@ module time_integ
                       end if
                       call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_3)
                       !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_3)
-                      !call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rmom_3)
+                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmom_3)
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -638,8 +638,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_3)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_3)
-                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rener_3)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rener_3)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_3(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &
@@ -714,8 +714,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_4)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_4)
-                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rmass_4)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmass_4)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          aux_mass(lpoin_w(ipoin)) = Rmass_1(lpoin_w(ipoin))+2.0d0*Rmass_2(lpoin_w(ipoin))+ &
@@ -763,8 +763,8 @@ module time_integ
                       end if
                       call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_4)
                       !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_4)
-                      !call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rmom_4)
+                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmom_4)
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -835,8 +835,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_4)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_4)
-                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rener_4)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rener_4)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          aux_ener(lpoin_w(ipoin)) = Rener_1(lpoin_w(ipoin))+2.0d0*Rener_2(lpoin_w(ipoin))+ &
@@ -997,8 +997,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_1)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_1)
-                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rmass_1)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmass_1)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_1(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)- &
@@ -1068,8 +1068,8 @@ module time_integ
                       end if
                       call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_1)
                       !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_1)
-                      !call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rmom_1)
+                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmom_1)
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -1141,8 +1141,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_1)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_1)
-                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                      !                           connec,gpvol,Ngp,ppow,Ml,Rener_1)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                                                 connec,gpvol,Ngp,ppow,Ml,Rener_1)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_1(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &
@@ -1241,8 +1241,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_2)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_2)
-                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rmass_2)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmass_2)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_2(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)- &
@@ -1309,8 +1309,8 @@ module time_integ
                       end if
                       call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_2)
                       !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_2)
-                      !call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rmom_2)
+                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmom_2)
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -1379,8 +1379,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_2)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_2)
-                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rener_2)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rener_2)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_2(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &
@@ -1480,8 +1480,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_3)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_3)
-                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rmass_3)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmass_3)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_3(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)-dt*(Rmass_1(lpoin_w(ipoin))/6.0d0+Rmass_2(lpoin_w(ipoin))/6.0d0+2.0d0*Rmass_3(lpoin_w(ipoin))/3.0d0)
@@ -1547,8 +1547,8 @@ module time_integ
                       end if
                       call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_3)
                       !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_3)
-                      !call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rmom_3)
+                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rmom_3)
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -1617,8 +1617,8 @@ module time_integ
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_3)
                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_3)
-                      !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                      !   connec,gpvol,Ngp,ppow,Ml,Rener_3)
+                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                         connec,gpvol,Ngp,ppow,Ml,Rener_3)
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_3(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &

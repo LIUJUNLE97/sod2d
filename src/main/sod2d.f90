@@ -92,8 +92,8 @@ program sod2d
         write(*,*) " Gp ", utau*utau*rho0/delta
 #else
         Re = 1600.0d0
-        mul = 1.0d0*1.0d0*27.263d0/Re
-        to = 27.263d0*27.263d0/(1.4d0*287.0d0*0.1d0*0.1d0)
+        mul = 1.0d0*1.0d0*1.0d0/Re
+        to = 1.0d0*1.0d0/(1.4d0*287.0d0*0.1d0*0.1d0)
         mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
         flag_mu_factor = mul/mur
 #endif
@@ -783,15 +783,15 @@ program sod2d
                   write(timeStep,'(i4)') istep
                   call nvtxStartRange("RK4 step "//timeStep,istep)
 
-                 !if(flag_rk_order .eq. 3) then
-                 !   call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                 !      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                 !      rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
-                 !else
-                 !   call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                 !      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                 !      rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
-                 !end if
+                 if(flag_rk_order .eq. 3) then
+                    call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                       rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
+                 else
+                    call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                       rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
+                 end if
 
                   !
                   ! Advance with entropy viscosity

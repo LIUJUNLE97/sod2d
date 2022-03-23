@@ -299,25 +299,28 @@ module elem_convec
                             !
                             ! Addd pressure
                             !
-                           ! !$acc loop seq
-                           ! do idime = 1,ndime
-                           !    aux = 0.0d0
-                           !    !$acc loop vector reduction(+:aux)
-                           !    do inode = 1,nnode
-                           !       aux = aux+gpcar(idime,inode)*pr(connec(ielem,inode))
-                           !    end do
-                           !    tmp(idime) = tmp(idime)+aux
-                           ! end do
-                            !$acc loop vector
-                            do inode = 1,nnode
+                            !$acc loop seq
+                            do idime = 1,ndime
                                aux = 0.0d0
                                !$acc loop vector reduction(+:aux)
-                               do jnode = 1,nnode
-                                  aux = aux+Ngp(igaus,jnode)*pr(connec(ielem,jnode))
+                               do inode = 1,nnode
+                                  aux = aux+gpcar(idime,inode)*pr(connec(ielem,inode))
                                end do
-                               Re(inode,1) = Re(inode,1)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(1)-aux*gpcar(1,inode))
-                               Re(inode,2) = Re(inode,2)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(2)-aux*gpcar(2,inode))
-                               Re(inode,3) = Re(inode,3)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(3)-aux*gpcar(3,inode))
+                               tmp(idime) = tmp(idime)+aux
+                            end do
+                            !$acc loop vector
+                            do inode = 1,nnode
+                               !aux = 0.0d0
+                               !!$acc loop vector reduction(+:aux)
+                               !do jnode = 1,nnode
+                               !   aux = aux+Ngp(igaus,jnode)*pr(connec(ielem,jnode))
+                               !end do
+                               Re(inode,1) = Re(inode,1)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(1))
+                               Re(inode,2) = Re(inode,2)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(2))
+                               Re(inode,3) = Re(inode,3)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(3))
+                               !Re(inode,1) = Re(inode,1)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(1)-aux*gpcar(1,inode))
+                               !Re(inode,2) = Re(inode,2)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(2)-aux*gpcar(2,inode))
+                               !Re(inode,3) = Re(inode,3)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(3)-aux*gpcar(3,inode))
                             end do
                          end do
                          !

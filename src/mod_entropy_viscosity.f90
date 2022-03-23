@@ -74,13 +74,13 @@ module mod_entropy_viscosity
                        !
                        call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
                        !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Reta)
-                       !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Reta)
+                       call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Reta)
                        !
                        ! Update Reta
                        !
                        !$acc parallel loop
                        do ipoin = 1,npoin_w
-                          Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))!+1.0d0*R1(lpoin_w(ipoin))
+                          Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))+1.0d0*R1(lpoin_w(ipoin))
                        end do
                        !$acc end parallel loop
 
@@ -96,7 +96,7 @@ module mod_entropy_viscosity
                        !
                        ! Alter R2 with Mcw
                        !
-                       !call wcmass_times_vector(nelem,npoin,connec,gpvol,Ngp,R2,aux1,alpha)
+                       call wcmass_times_vector(nelem,npoin,connec,gpvol,Ngp,R2,aux1,alpha)
                        !
                        ! Compute weighted mass convec
                        !
@@ -112,7 +112,7 @@ module mod_entropy_viscosity
                        !
                        !$acc parallel loop
                        do ipoin = 1,npoin_w
-                          Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))!+1.0d0*aux1(lpoin_w(ipoin))
+                          Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))+1.0d0*aux1(lpoin_w(ipoin))
                        end do
                        !$acc end parallel loop
                        !
@@ -120,7 +120,7 @@ module mod_entropy_viscosity
                        !
                        call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rrho)
                        !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rrho)
-                       !call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Rrho)
+                       call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Rrho)
                        call nvtxEndRange
 
                        !
