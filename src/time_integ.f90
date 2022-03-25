@@ -152,7 +152,7 @@ module time_integ
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
-                               Aemac(lpoin_w(ipoin),idime) = q(lpoin_w(ipoin),idime,pos)/sqrt(rho(lpoin_w(ipoin),pos))
+                               Aemac(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,pos)*sqrt(rho(lpoin_w(ipoin),pos))
                             end do
                          end do
                          !$acc end parallel loop
@@ -349,7 +349,7 @@ module time_integ
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
-                               Aemac(lpoin_w(ipoin),idime) = q_1(lpoin_w(ipoin),idime)/sqrt(rho_1(lpoin_w(ipoin)))
+                               Aemac(lpoin_w(ipoin),idime) = u_1(lpoin_w(ipoin),idime)*sqrt(rho_1(lpoin_w(ipoin)))
                             end do
                          end do
                          !$acc end parallel loop
@@ -542,7 +542,7 @@ module time_integ
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
-                               Aemac(lpoin_w(ipoin),idime) = q_2(lpoin_w(ipoin),idime)/sqrt(rho_2(lpoin_w(ipoin)))
+                               Aemac(lpoin_w(ipoin),idime) = u_2(lpoin_w(ipoin),idime)*sqrt(rho_2(lpoin_w(ipoin)))
                             end do
                          end do
                          !$acc end parallel loop
@@ -737,7 +737,7 @@ module time_integ
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
-                               Aemac(lpoin_w(ipoin),idime) = q_3(lpoin_w(ipoin),idime)/sqrt(rho_3(lpoin_w(ipoin)))
+                               Aemac(lpoin_w(ipoin),idime) = u_3(lpoin_w(ipoin),idime)*sqrt(rho_3(lpoin_w(ipoin)))
                             end do
                          end do
                          !$acc end parallel loop

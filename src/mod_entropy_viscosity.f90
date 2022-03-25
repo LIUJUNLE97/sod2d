@@ -151,10 +151,10 @@ module mod_entropy_viscosity
                       real(8),    intent(out) :: mu_e(nelem,ngaus)
                       integer(4)              :: ielem, inode, igaus
                       real(8)                 :: R1, R2, Ve, ue(nnode,ndime), rhoe(nnode), pre(nnode)
-                      real(8)                 :: uabs(inode), c_sound(inode), betae
+                      real(8)                 :: uabs(nnode), c_sound(nnode), betae
                       real(8)                 :: L3, aux1, aux2
 
-                      !!$acc parallel loop gang private(uabs,c_sound) vector_length(32)
+                      !$acc parallel loop gang private(uabs,c_sound) vector_length(32)
                       do ielem = 1,nelem
                          !$acc loop seq
                          do igaus = 1,ngaus
@@ -184,7 +184,7 @@ module mod_entropy_viscosity
                             mu_e(ielem,igaus) = cglob*min(Ve,betae) ! Dynamic viscosity
                          end do
                       end do
-                      !!$acc end parallel loop
+                      !$acc end parallel loop
 
               end subroutine smart_visc
 end module mod_entropy_viscosity

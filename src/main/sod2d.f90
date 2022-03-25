@@ -64,8 +64,8 @@ program sod2d
         real(8)                    :: Rgas, gamma_gas, Cv
 #ifdef CHANNEL
         !channel flow setup
-        real(8)  :: vo = 27.263d0
-        real(8)  :: M  = 0.2d0
+        real(8)  :: vo = 1.0d0
+        real(8)  :: M  = 0.1d0
         real(8)  :: delta  = 1.0d0
         real(8)  :: U0     = 1.0d0
         real(8)  :: rho0   = 1.0d0
@@ -117,11 +117,11 @@ program sod2d
         Cp = 1004.00d0 ! TODO: Make it input
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
-        cfl_conv = 0.5d0
-        cfl_diff = 0.5d0
+        cfl_conv = 1.5d0
+        cfl_diff = 0.8d0
         nsave = 1 ! First step to save, TODO: input
         nleap = 50 ! Saving interval, TODO: input
-        !nleap = 25000 ! Saving interval, TODO: input
+        !nleap = 200 ! Saving interval, TODO: input
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
@@ -129,15 +129,16 @@ program sod2d
 #endif        
         if (isPeriodic == 1) then
 #ifdef CHANNEL
-           !nper = 8385 ! TODO: if periodic, request number of periodic nodes
-           nper = 2145 ! TODO: if periodic, request number of periodic nodes
+           nper = 8385 ! TODO: if periodic, request number of periodic nodes
+           !nper = 2145 ! TODO: if periodic, request number of periodic nodes
 #else
+           !nper = 49537 ! TODO: if periodic, request number of periodic nodes
            nper = 12481 ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
         end if
-        flag_emac = 0
+        flag_emac = 1
         if (flag_emac == 1) then
            write(*,*) "--| RUNNING WITH EMAC CONVECTION"
         else if (flag_emac == 0) then
