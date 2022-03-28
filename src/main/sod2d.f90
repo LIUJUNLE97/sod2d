@@ -96,6 +96,8 @@ program sod2d
         to = 1.0d0*1.0d0/(1.4d0*287.0d0*0.1d0*0.1d0)
         mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
         flag_mu_factor = mul/mur
+
+        !flag_mu_factor = 0.0d0 ! shock
 #endif
 
         !*********************************************************************!
@@ -117,10 +119,10 @@ program sod2d
         Cp = 1004.00d0 ! TODO: Make it input
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
-        cfl_conv = 1.5d0
-        cfl_diff = 0.8d0
+        cfl_conv = 1.85d0
+        cfl_diff = 0.95d0
         nsave = 1 ! First step to save, TODO: input
-        nleap = 50 ! Saving interval, TODO: input
+        nleap = 1000 ! Saving interval, TODO: input
         !nleap = 200 ! Saving interval, TODO: input
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
@@ -168,6 +170,7 @@ program sod2d
 #ifdef CHANNEL
         write(file_name,*) "channel" ! Nsys
 #else
+        !write(file_name,*) "shock_tube" ! Nsys
         write(file_name,*) "cube" ! Nsys
 #endif
         call read_dims(file_path,file_name,npoin,nelem,nboun)
@@ -339,9 +342,9 @@ program sod2d
           !u(ipoin,1,2) = velo*(1.0d0 + 0.05d0*(sin(5.0d0*coord(ipoin,1)) -0.5d0))
           !u(ipoin,2,2) = velo*(0.05d0*(sin(5.0d0*coord(ipoin,2)) -0.5d0))
           !u(ipoin,3,2) = velo*(0.05d0*(sin(5.0d0*coord(ipoin,3)) -0.5d0))
-          u(ipoin,1,2) = velo*(1.0d0 + 0.05d0*(ti(1) -0.5d0))
-          u(ipoin,2,2) = velo*(0.05d0*(ti(2) -0.5d0))
-          u(ipoin,3,2) = velo*(0.05d0*(ti(3) -0.5d0))
+          u(ipoin,1,2) = velo*(1.0d0 + 0.1d0*(ti(1) -0.5d0))
+          u(ipoin,2,2) = velo*(0.1d0*(ti(2) -0.5d0))
+          u(ipoin,3,2) = velo*(0.1d0*(ti(3) -0.5d0))
 
           pr(ipoin,2) = po
 
@@ -360,7 +363,8 @@ program sod2d
            Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas)
            E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
            q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
-           csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2))
+           csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2)) 
+           !u(ipoin,1,2) = 5.0d0
         end do
         !$acc end parallel loop
 #endif
@@ -389,12 +393,19 @@ program sod2d
         !*********************************************************************!
         
         if (flag_real_diff == 1) then
-           call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid)
+           call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,rho(:,2))
            write(*,*) "--| TIME STEP SIZE dt := ",dt,"s"
         else
            call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
            write(*,*) "--| TIME STEP SIZE dt := ",dt,"s"
         end if
+#ifndef CHANNEL
+        !just the shock
+        !!$acc parallel loop
+        !do ipoin = 1,npoin
+        !   u(ipoin,:,2) = 0.0d0
+        !end do
+#endif
 
         !
         ! Call VTK output (0th step)

@@ -101,7 +101,7 @@ module time_integ
                          ! Compute entropy viscosity
                          !
                          call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                         gamma_gas,rho(:,2),u(:,:,2),pr(:,2),helem,mu_e)
+                                         gamma_gas,rho(:,2),u(:,:,2),Tem(:,2),helem,mu_e)
 
                          !
                          ! If using Sutherland viscosity model:
@@ -136,6 +136,33 @@ module time_integ
                                                  (dt/2.0d0)*Rmass_1(lpoin_w(ipoin))
                       end do
                       !$acc end parallel loop
+
+                      if (nboun .ne. 0) then
+                         if (ndime == 3) then
+                            !
+                            ! Janky wall BC for 2 codes (1=y, 2=z) in 3D
+                            ! Nodes belonging to both codes will be zeroed on both directions.
+                            ! Like this, there's no need to fnd intersections.
+                            !
+                            !$acc parallel loop gang
+                            do iboun = 1,nboun
+                               bcode = bou_codes(iboun,2) ! Boundary element code
+                               if (bcode == 4) then ! inlet
+                                  !$acc loop vector
+                                  do ipbou = 1,npbou
+                                     rho_1(bound(iboun,ipbou)) = 1.0d0
+                                  end do
+                               end if
+                               if (bcode == 5) then ! outlet
+                                  !$acc loop vector
+                                  do ipbou = 1,npbou
+                                     rho_1(bound(iboun,ipbou)) = 0.125d0
+                                  end do
+                               end if
+                            end do
+                            !$acc end parallel loop
+                         end if
+                      end if
 
                       !
                       ! Momentum
@@ -304,7 +331,7 @@ module time_integ
                          ! Compute entropy viscosity
                          !
                          call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                         gamma_gas,rho_1,u_1,pr_1,helem,mu_e)
+                                         gamma_gas,rho_1,u_1,Tem_1,helem,mu_e)
 
                          !
                          ! If using Sutherland viscosity model:
@@ -334,6 +361,23 @@ module time_integ
                       do ipoin = 1,npoin_w
                          rho_2(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)- &
                                                  (dt/2.0d0)*Rmass_2(lpoin_w(ipoin))
+                      end do
+                      !$acc end parallel loop
+                      !$acc parallel loop gang
+                      do iboun = 1,nboun
+                         bcode = bou_codes(iboun,2) ! Boundary element code
+                         if (bcode == 4) then ! inlet
+                            !$acc loop vector
+                            do ipbou = 1,npbou
+                               rho_2(bound(iboun,ipbou)) = 1.0d0
+                            end do
+                         end if
+                         if (bcode == 5) then ! outlet
+                            !$acc loop vector
+                            do ipbou = 1,npbou
+                               rho_2(bound(iboun,ipbou)) = 0.125d0
+                            end do
+                         end if
                       end do
                       !$acc end parallel loop
 
@@ -498,7 +542,7 @@ module time_integ
                          ! Compute entropy viscosity
                          !
                          call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                         gamma_gas,rho_2,u_2,pr_2,helem,mu_e)
+                                         gamma_gas,rho_2,u_2,Tem_2,helem,mu_e)
 
                          !
                          ! If using Sutherland viscosity model:
@@ -527,6 +571,24 @@ module time_integ
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_3(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)-(dt/1.0d0)*Rmass_3(lpoin_w(ipoin))
+                      end do
+                      !$acc end parallel loop
+
+                      !$acc parallel loop gang
+                      do iboun = 1,nboun
+                         bcode = bou_codes(iboun,2) ! Boundary element code
+                         if (bcode == 4) then ! inlet
+                            !$acc loop vector
+                            do ipbou = 1,npbou
+                               rho_3(bound(iboun,ipbou)) = 1.0d0
+                            end do
+                         end if
+                         if (bcode == 5) then ! outlet
+                            !$acc loop vector
+                            do ipbou = 1,npbou
+                               rho_3(bound(iboun,ipbou)) = 0.125d0
+                            end do
+                         end if
                       end do
                       !$acc end parallel loop
 
@@ -691,7 +753,7 @@ module time_integ
                          ! Compute entropy viscosity
                          !
                          call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                         gamma_gas,rho_3,u_3,pr_3,helem,mu_e)
+                                         gamma_gas,rho_3,u_3,Tem_3,helem,mu_e)
 
                          !
                          ! If using Sutherland viscosity model:
@@ -722,6 +784,24 @@ module time_integ
                             2.0d0*Rmass_3(lpoin_w(ipoin))+Rmass_4(lpoin_w(ipoin))
                          rho_4(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)- &
                             (dt/6.0d0)*aux_mass(lpoin_w(ipoin))
+                      end do
+                      !$acc end parallel loop
+
+                      !$acc parallel loop gang
+                      do iboun = 1,nboun
+                         bcode = bou_codes(iboun,2) ! Boundary element code
+                         if (bcode == 4) then ! inlet
+                            !$acc loop vector
+                            do ipbou = 1,npbou
+                               rho_4(bound(iboun,ipbou)) = 1.0d0
+                            end do
+                         end if
+                         if (bcode == 5) then ! outlet
+                            !$acc loop vector
+                            do ipbou = 1,npbou
+                               rho_4(bound(iboun,ipbou)) = 0.125d0
+                            end do
+                         end if
                       end do
                       !$acc end parallel loop
 
@@ -970,7 +1050,7 @@ module time_integ
                          ! Compute entropy viscosity
                          !
                          call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                         gamma_gas,rho(:,2),u(:,:,2),pr(:,2),helem,mu_e)
+                                         gamma_gas,rho(:,2),u(:,:,2),Tem(:,2),helem,mu_e)
 
                          !
                          ! If using Sutherland viscosity model:
@@ -1217,7 +1297,7 @@ module time_integ
                          ! Compute entropy viscosity
                          !
                          call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                         gamma_gas,rho_1,u_1,pr_1,helem,mu_e)
+                                         gamma_gas,rho_1,u_1,Tem_1,helem,mu_e)
 
                          !
                          ! If using Sutherland viscosity model:
@@ -1456,7 +1536,7 @@ module time_integ
                          ! Compute entropy viscosity
                          !
                          call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                         gamma_gas,rho_2,u_2,pr_2,helem,mu_e)
+                                         gamma_gas,rho_2,u_2,Tem_2,helem,mu_e)
 
                          !
                          ! If using Sutherland viscosity model:

@@ -139,7 +139,7 @@ module mod_entropy_viscosity
               end subroutine residuals
 
               subroutine smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                    gamma_gas,rho,u,pr,helem,mu_e)
+                                    gamma_gas,rho,u,Tem,helem,mu_e)
               
                       ! TODO: Compute element size h
               
@@ -147,7 +147,7 @@ module mod_entropy_viscosity
 
                       integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
                       real(8),    intent(in)  :: Reta(npoin), Rrho(npoin), Ngp(ngaus,nnode),helem(nelem), gamma_gas
-                      real(8),    intent(in)  :: rho(npoin), u(npoin,ndime), pr(npoin)
+                      real(8),    intent(in)  :: rho(npoin), u(npoin,ndime), Tem(npoin)
                       real(8),    intent(out) :: mu_e(nelem,ngaus)
                       integer(4)              :: ielem, inode, igaus
                       real(8)                 :: R1, R2, Ve, ue(nnode,ndime), rhoe(nnode), pre(nnode)
@@ -174,7 +174,7 @@ module mod_entropy_viscosity
                             !!$acc loop vector reduction(max:aux1)
                             do inode = 1,nnode
                                uabs(inode) = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
-                               c_sound(inode) = sqrt(gamma_gas*pr(connec(ielem,inode))/rho(connec(ielem,inode)))     ! Speed of sound at node
+                               c_sound(inode) = sqrt(gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
                                aux1 = aux1+Ngp(igaus,inode)*(uabs(inode)+c_sound(inode))
                             end do
                             !
