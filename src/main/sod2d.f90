@@ -51,7 +51,7 @@ program sod2d
         real(8),    allocatable    :: gpvol(:,:,:)
         real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:)
         real(8),    allocatable    :: Ml(:)!, Mc(:)
-        real(8),    allocatable    :: mu_e(:), mu_fluid(:)
+        real(8),    allocatable    :: mu_e(:,:), mu_fluid(:)
         real(8),    allocatable    :: source_term(:)
         real(8)                    :: s, t, z, detJe
         real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot
@@ -64,8 +64,8 @@ program sod2d
         real(8)                    :: Rgas, gamma_gas, Cv
 #ifdef CHANNEL
         !channel flow setup
-        real(8)  :: vo = 27.263d0
-        real(8)  :: M  = 0.2d0
+        real(8)  :: vo = 1.0d0
+        real(8)  :: M  = 0.1d0
         real(8)  :: delta  = 1.0d0
         real(8)  :: U0     = 1.0d0
         real(8)  :: rho0   = 1.0d0
@@ -74,9 +74,9 @@ program sod2d
         real(8)  ::  gamma_g = 1.40d0
         real(8)  :: yp=0.0d0, ti(3)
         real(8)  :: velo = 0.0d0, vol = 0.0d0
-        real(8)  :: Re,mul,utau,Rg,to,po
+        real(8)  :: Re,mul,utau,Rg,to,po,mur
 #else
-        real(8)                    :: Cp, rho0
+        real(8)                    :: Cp, rho0, Re, mul,mur,to
 #endif
 
 #ifdef CHANNEL
@@ -86,8 +86,18 @@ program sod2d
         Rg = cp*(gamma_g-1.0d0)/gamma_g
         to = vo*vo/(gamma_g*Rg*M*M)
         po = rho0*Rg*to
+        mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
+        flag_mu_factor = mul/mur
 
         write(*,*) " Gp ", utau*utau*rho0/delta
+#else
+        Re = 1600.0d0
+        mul = 1.0d0*1.0d0*1.0d0/Re
+        to = 1.0d0*1.0d0/(1.4d0*287.0d0*0.1d0*0.1d0)
+        mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
+        flag_mu_factor = mul/mur
+
+        !flag_mu_factor = 0.0d0 ! shock
 #endif
 
         !*********************************************************************!
@@ -98,9 +108,9 @@ program sod2d
         !read(*,*) ndime
         !ndime = 3 ! Nsys
         !nnode = 27 ! TODO: need to allow for mixed elements...
-        !porder = 2 ! TODO: make it input
+        !porder = 1 ! TODO: make it input
         !npbou = 9 ! TODO: Need to get his from somewhere...
-        nstep = 100 ! TODO: Needs to be input...
+        nstep = 1000000 ! TODO: Needs to be input...
 #ifdef CHANNEL
         Rgas = Rg
 #else
@@ -109,17 +119,28 @@ program sod2d
         Cp = 1004.00d0 ! TODO: Make it input
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
-        cfl_conv = 0.10d0
-        cfl_diff = 0.20d0
+        cfl_conv = 1.85d0
+        cfl_diff = 0.95d0
         nsave = 1 ! First step to save, TODO: input
-        nleap = 1 ! Saving interval, TODO: input
-        isPeriodic = 0 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
+        nleap = 1000 ! Saving interval, TODO: input
+        !nleap = 200 ! Saving interval, TODO: input
+#ifdef CHANNEL
+        isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
+#else
+        isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
+#endif        
         if (isPeriodic == 1) then
-           nper = 49537 ! TODO: if periodic, request number of periodic nodes
+#ifdef CHANNEL
+           nper = 8385 ! TODO: if periodic, request number of periodic nodes
+           !nper = 2145 ! TODO: if periodic, request number of periodic nodes
+#else
+           !nper = 49537 ! TODO: if periodic, request number of periodic nodes
+           nper = 12481 ! TODO: if periodic, request number of periodic nodes
+#endif
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
         end if
-        flag_emac = 0
+        flag_emac = 1
         if (flag_emac == 1) then
            write(*,*) "--| RUNNING WITH EMAC CONVECTION"
         else if (flag_emac == 0) then
@@ -146,7 +167,12 @@ program sod2d
         write(*,*) "--| ENTER NAME OF MESH RELATED FILES :"
         call nvtxStartRange("Read mesh")
         !read(*,*) file_name
-        write(file_name,*) "shock_tube" ! Nsys
+#ifdef CHANNEL
+        write(file_name,*) "channel" ! Nsys
+#else
+        !write(file_name,*) "shock_tube" ! Nsys
+        write(file_name,*) "cube" ! Nsys
+#endif
         call read_dims(file_path,file_name,npoin,nelem,nboun)
         allocate(connec(nelem,nnode))
         if (nboun .ne. 0) then
@@ -279,7 +305,7 @@ program sod2d
         allocate(e_int(npoin,2))    ! Internal Energy
         allocate(csound(npoin))     ! Speed of sound
         allocate(mu_fluid(npoin))   ! Fluid viscosity
-        allocate(mu_e(nelem))       ! Elemental viscosity
+        allocate(mu_e(nelem,ngaus))       ! Elemental viscosity
         call nvtxEndRange
 
         !*********************************************************************!
@@ -316,9 +342,9 @@ program sod2d
           !u(ipoin,1,2) = velo*(1.0d0 + 0.05d0*(sin(5.0d0*coord(ipoin,1)) -0.5d0))
           !u(ipoin,2,2) = velo*(0.05d0*(sin(5.0d0*coord(ipoin,2)) -0.5d0))
           !u(ipoin,3,2) = velo*(0.05d0*(sin(5.0d0*coord(ipoin,3)) -0.5d0))
-          u(ipoin,1,2) = velo*(1.0d0 + 0.05d0*(ti(1) -0.5d0))
-          u(ipoin,2,2) = velo*(0.05d0*(ti(2) -0.5d0))
-          u(ipoin,3,2) = velo*(0.05d0*(ti(3) -0.5d0))
+          u(ipoin,1,2) = velo*(1.0d0 + 0.1d0*(ti(1) -0.5d0))
+          u(ipoin,2,2) = velo*(0.1d0*(ti(2) -0.5d0))
+          u(ipoin,3,2) = velo*(0.1d0*(ti(3) -0.5d0))
 
           pr(ipoin,2) = po
 
@@ -328,6 +354,7 @@ program sod2d
           Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas)
           E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
           q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
+          csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2))
         end do
 #else
         !$acc parallel loop
@@ -336,12 +363,13 @@ program sod2d
            Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas)
            E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
            q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
-           csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2))
+           csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2)) 
+           !u(ipoin,1,2) = 5.0d0
         end do
         !$acc end parallel loop
 #endif
         !$acc kernels
-        mu_e(:) = 0.0d0 ! Element syabilization viscosity
+        mu_e(:,:) = 0.0d0 ! Element syabilization viscosity
         !$acc end kernels
         call nvtxEndRange
 
@@ -365,12 +393,19 @@ program sod2d
         !*********************************************************************!
         
         if (flag_real_diff == 1) then
-           call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid)
+           call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,rho(:,2))
            write(*,*) "--| TIME STEP SIZE dt := ",dt,"s"
         else
            call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
            write(*,*) "--| TIME STEP SIZE dt := ",dt,"s"
         end if
+#ifndef CHANNEL
+        !just the shock
+        !!$acc parallel loop
+        !do ipoin = 1,npoin
+        !   u(ipoin,:,2) = 0.0d0
+        !end do
+#endif
 
         !
         ! Call VTK output (0th step)
@@ -639,9 +674,9 @@ program sod2d
         !
         open(unit=666,file="analysis.dat",status="new")
         time = 0.0d0
-        P0 = 1.0d0
-        T0 = 1.0d0/(1.4d0*Rgas*(0.1**2))
-        rho0 = P0/(Rgas*T0)
+        !P0 = 1.0d0
+        !T0 = 1.0d0/(1.4d0*Rgas*(0.1**2))
+        rho0 = 1.0d0
         call volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
         call write_EK(time,EK)
         write(*,*) "--| time   ,   EK"
@@ -678,24 +713,38 @@ program sod2d
 
                  ! nvtx range for full RK
                  write(timeStep,'(i4)') istep
-                 call nvtxStartRange("RK4 step "//timeStep,istep)
+                 call nvtxStartRange("RK step "//timeStep,istep)
 
-                 call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                           ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
-                           ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
+                 if(flag_rk_order .eq. 3) then
+                    call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                       rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
+                 else
+                    call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                       rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
+                 end if
 
                  !
                  ! Advance with entropy viscosity
                  !
                  flag_predic = 0
-                 call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                           ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
-                           ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
+                 if(flag_rk_order .eq. 3) then
+                    call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                       rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
+                 else
+                    call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                       rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
+                 end if
 
                  if (flag_real_diff == 1) then
-                    call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid)
+                    call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,rho(:,2))
                     write(*,*) "DT := ",dt,"s"
                  else
                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
@@ -746,17 +795,29 @@ program sod2d
                   write(timeStep,'(i4)') istep
                   call nvtxStartRange("RK4 step "//timeStep,istep)
 
-                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                           ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
+                 if(flag_rk_order .eq. 3) then
+                    call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                       rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
+                 else
+                    call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                       rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
+                 end if
 
                   !
                   ! Advance with entropy viscosity
                   !
                   flag_predic = 0
-                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                           ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
+                  if(flag_rk_order .eq. 3) then
+                     call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                        rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
+                  else
+                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                        rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
+                  end if
 
                   time = time+dt
                   call volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
@@ -765,7 +826,7 @@ program sod2d
                   write(*,*) "--| ",time,"  |  ",EK
 
                   if (flag_real_diff == 1) then
-                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid)
+                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,rho(:,2))
                      write(*,*) "DT := ",dt,"s"
                   else
                      call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
@@ -793,7 +854,7 @@ program sod2d
                write(*,*) '--| PERIODIC CASE WITH BOUNDARIES'
                do istep = 1,nstep
 
-                  if (istep == nsave) write(*,*) '   --| STEP: ', istep
+                  write(*,*) '   --| STEP: ', istep
 
                   !
                   ! Prediction
@@ -812,25 +873,39 @@ program sod2d
                   call nvtxEndRange
 
                   ! nvtx range for full RK
-                  if (istep == nsave) write(timeStep,'(i4)') istep
+                  write(timeStep,'(i4)') istep
                   call nvtxStartRange("RK4 step "//timeStep,istep)
 
-                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                           ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
-                           ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
+                if(flag_rk_order .eq. 3) then
+                   call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                      rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                      ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
+                else
+                   call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                      rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                      ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
+                end if
 
                   !
                   ! Advance with entropy viscosity
                   !
                   flag_predic = 0
-                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                           ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                           rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
-                           ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
+                  if(flag_rk_order .eq. 3) then
+                     call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                        rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
+                  else
+                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                        rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
+                  end if
 
                   if (flag_real_diff == 1) then
-                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid)
+                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,rho(:,2))
                      write(*,*) "DT := ",dt,"s"
                   else
                      call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)

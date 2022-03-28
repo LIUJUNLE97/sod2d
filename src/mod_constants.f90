@@ -23,7 +23,16 @@ module mod_constants
       !
       ! Flags
       !
-      integer(4), parameter :: flag_real_diff=0
-      integer(4), parameter :: flag_diff_suth=0
+      integer(4), parameter :: flag_real_diff=1
+      integer(4), parameter :: flag_diff_suth=1
+      integer(4), parameter :: flag_rk_order=4
+
+      real(8), parameter :: ce = 1.0d0
+      real(8), parameter :: cmax = 0.5d0
+      real(8), parameter :: cglob = 1.0d0
+      real(8), parameter :: c_rho = 1.0d0
+      real(8), parameter :: c_ener = 1.0d0
+
+      real(8) :: flag_mu_factor=1.0d0
 
 end module mod_constants

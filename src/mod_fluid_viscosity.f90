@@ -33,7 +33,7 @@ module mod_fluid_viscosity
 
       !$acc parallel loop
       do ipoin = 1,npoin
-         mu_fluid(ipoin) = C1*(Tem(ipoin)**1.5d0)/(Tem(ipoin)+S)
+         mu_fluid(ipoin) = flag_mu_factor*C1*(Tem(ipoin)**1.5d0)/(Tem(ipoin)+S)
       end do
       !$acc end parallel loop
 

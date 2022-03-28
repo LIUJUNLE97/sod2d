@@ -58,7 +58,7 @@ module elem_source
                          do idime = 1,ndime
                             do inode = 1,nnode
                               !$acc atomic update
-                              Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)+Re(inode,idime)
+                              Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)-Re(inode,idime)
                               !$acc end atomic
                             end do
                          end do
