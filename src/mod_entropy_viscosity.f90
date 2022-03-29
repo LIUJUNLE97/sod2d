@@ -170,8 +170,7 @@ module mod_entropy_viscosity
                             ! Max. Wavespeed at element
                             !
                             aux1 = 0.0d0
-                            !$acc loop seq
-                            !!$acc loop vector reduction(max:aux1)
+                            !$acc loop vector reduction(+:aux1)
                             do inode = 1,nnode
                                uabs(inode) = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
                                c_sound(inode) = sqrt(gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
