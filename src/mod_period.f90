@@ -51,7 +51,7 @@ module mod_period
          ! Modify bound with Master/Slave relations
          !
          if(present(bound)) then
-            !$acc parallel loop gang
+            !$acc parallel loop gang vector_length(32)
             do iboun = 1,nboun
                !$acc loop vector
                do ipbou = 1,npbou

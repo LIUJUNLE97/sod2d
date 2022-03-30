@@ -8,12 +8,13 @@ module time_integ
       use mod_entropy_viscosity
       use mod_constants
       use mod_fluid_viscosity
+      use mod_sgs_viscosity
 
       contains
 
               subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                               ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                              rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                              rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                               ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
 
                       implicit none
@@ -37,6 +38,7 @@ module time_integ
                       real(8),    intent(inout)          :: e_int(npoin,2)
                       real(8),    intent(inout)          :: mu_fluid(npoin)
                       real(8),    intent(out)            :: mu_e(nelem,ngaus)
+                      real(8),    intent(out)            :: mu_sgs(nelem,ngaus)
                       integer(4), optional, intent(in)   :: ndof, nbnodes, ldof(ndof), lbnodes(nbnodes)
                       integer(4), optional, intent(in)   :: bound(nboun,npbou), bou_codes(nboun,2)
                       real(8),    optional, intent(in)   :: source_term(ndime)
@@ -70,7 +72,7 @@ module time_integ
                       ! Sub Step 1
                       !
 
-                      if (flag_predic == 0) write(*,*) '         SOD2D(1)'
+                      !if (flag_predic == 0) write(*,*) '         SOD2D(1)'
 
                       !$acc kernels
                       rho_1(:) = 0.0d0
@@ -102,6 +104,11 @@ module time_integ
                          !
                          call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
                                          gamma_gas,rho(:,2),u(:,:,2),Tem(:,2),helem,mu_e)
+
+                                      
+                         if(flag_les == 1) then
+                           call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,2),u(:,:,2),mu_sgs)
+                         end if
 
                          !
                          ! If using Sutherland viscosity model:
@@ -135,33 +142,27 @@ module time_integ
                          rho_1(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)- &
                                                  (dt/2.0d0)*Rmass_1(lpoin_w(ipoin))
                       end do
-                      !$acc end parallel loop
+                     !$acc end parallel loop
 
-                      if (nboun .ne. 0) then
-                         if (ndime == 3) then
-                            !
-                            ! Janky wall BC for 2 codes (1=y, 2=z) in 3D
-                            ! Nodes belonging to both codes will be zeroed on both directions.
-                            ! Like this, there's no need to fnd intersections.
-                            !
-                            !$acc parallel loop gang
-                            do iboun = 1,nboun
-                               bcode = bou_codes(iboun,2) ! Boundary element code
-                               if (bcode == 4) then ! inlet
-                                  !$acc loop vector
-                                  do ipbou = 1,npbou
-                                     rho_1(bound(iboun,ipbou)) = 1.0d0
-                                  end do
-                               end if
-                               if (bcode == 5) then ! outlet
-                                  !$acc loop vector
-                                  do ipbou = 1,npbou
-                                     rho_1(bound(iboun,ipbou)) = 0.125d0
-                                  end do
-                               end if
-                            end do
-                            !$acc end parallel loop
-                         end if
+                     if (nboun .ne. 0) then
+                        if (ndime == 3) then
+                           !
+                           ! Janky wall BC for 2 codes (1=y, 2=z) in 3D
+                           ! Nodes belonging to both codes will be zeroed on both directions.
+                           ! Like this, there's no need to fnd intersections.
+                           !
+                           !$acc parallel loop gang
+                           do iboun = 1,nboun
+                              bcode = bou_codes(iboun,2) ! Boundary element code
+                              if (bcode == 3) then ! inlet
+                                 !$acc loop vector
+                                 do ipbou = 1,npbou
+                                    rho_1(bound(iboun,ipbou)) = 1.0d0
+                                 end do
+                              end if
+                           end do
+                           !$acc end parallel loop
+                        end if
                       end if
 
                       !
@@ -194,7 +195,7 @@ module time_integ
                         call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_1)
                       end if
                       if (flag_predic == 0) then
-                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),mu_fluid,mu_e,Rdiff_vect)
+                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),mu_fluid,mu_e,mu_sgs,Rdiff_vect)
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
@@ -269,7 +270,7 @@ module time_integ
                       !
                       call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),pr(:,pos),E(:,pos),Rener_1)
                       if (flag_predic == 0) then
-                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),Tem(:,pos),mu_fluid,mu_e,Rdiff_scal)
+                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),Tem(:,pos),mu_fluid,mu_e,mu_sgs,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rener_1(lpoin_w(ipoin)) = Rener_1(lpoin_w(ipoin))+Rdiff_scal(lpoin_w(ipoin))
@@ -300,7 +301,7 @@ module time_integ
                       ! Sub Step 2
                       !
 
-                      if (flag_predic == 0) write(*,*) '         SOD2D(2)'
+                      !if (flag_predic == 0) write(*,*) '         SOD2D(2)'
 
                       !$acc kernels
                       rho_2(:) = 0.0d0
@@ -332,6 +333,10 @@ module time_integ
                          !
                          call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
                                          gamma_gas,rho_1,u_1,Tem_1,helem,mu_e)
+
+                         if(flag_les == 1) then
+                           call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho_1,u_1,mu_sgs)
+                         end if
 
                          !
                          ! If using Sutherland viscosity model:
@@ -366,16 +371,10 @@ module time_integ
                       !$acc parallel loop gang
                       do iboun = 1,nboun
                          bcode = bou_codes(iboun,2) ! Boundary element code
-                         if (bcode == 4) then ! inlet
+                         if (bcode == 3) then ! inlet
                             !$acc loop vector
                             do ipbou = 1,npbou
                                rho_2(bound(iboun,ipbou)) = 1.0d0
-                            end do
-                         end if
-                         if (bcode == 5) then ! outlet
-                            !$acc loop vector
-                            do ipbou = 1,npbou
-                               rho_2(bound(iboun,ipbou)) = 0.125d0
                             end do
                          end if
                       end do
@@ -408,7 +407,7 @@ module time_integ
                         call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_2)
                       end if
                       if (flag_predic == 0) then
-                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,mu_fluid,mu_e,Rdiff_vect)
+                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,mu_fluid,mu_e,mu_sgs,Rdiff_vect)
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
@@ -480,7 +479,7 @@ module time_integ
 
                       call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,pr_1,E_1,Rener_2)
                       if (flag_predic == 0) then
-                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,Tem_1,mu_fluid,mu_e,Rdiff_scal)
+                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,Tem_1,mu_fluid,mu_e,mu_sgs,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rener_2(lpoin_w(ipoin)) = Rener_2(lpoin_w(ipoin))+Rdiff_scal(lpoin_w(ipoin))
@@ -511,7 +510,7 @@ module time_integ
                       ! Sub Step 3
                       !
 
-                      if (flag_predic == 0) write(*,*) '         SOD2D(3)'
+                      !if (flag_predic == 0) write(*,*) '         SOD2D(3)'
 
                       !$acc kernels
                       rho_3(:) = 0.0d0
@@ -544,6 +543,9 @@ module time_integ
                          call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
                                          gamma_gas,rho_2,u_2,Tem_2,helem,mu_e)
 
+                         if(flag_les == 1) then
+                           call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho_2,u_2,mu_sgs)
+                         end if
                          !
                          ! If using Sutherland viscosity model:
                          !
@@ -577,16 +579,10 @@ module time_integ
                       !$acc parallel loop gang
                       do iboun = 1,nboun
                          bcode = bou_codes(iboun,2) ! Boundary element code
-                         if (bcode == 4) then ! inlet
+                         if (bcode == 3) then ! inlet
                             !$acc loop vector
                             do ipbou = 1,npbou
                                rho_3(bound(iboun,ipbou)) = 1.0d0
-                            end do
-                         end if
-                         if (bcode == 5) then ! outlet
-                            !$acc loop vector
-                            do ipbou = 1,npbou
-                               rho_3(bound(iboun,ipbou)) = 0.125d0
                             end do
                          end if
                       end do
@@ -619,7 +615,7 @@ module time_integ
                         call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_3)
                       end if
                       if (flag_predic == 0) then
-                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,mu_fluid,mu_e,Rdiff_vect)
+                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,mu_fluid,mu_e,mu_sgs,Rdiff_vect)
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
@@ -691,7 +687,7 @@ module time_integ
 
                       call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,pr_2,E_2,Rener_3)
                       if (flag_predic == 0) then
-                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,Tem_2,mu_fluid,mu_e,Rdiff_scal)
+                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,Tem_2,mu_fluid,mu_e,mu_sgs,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rener_3(lpoin_w(ipoin)) = Rener_3(lpoin_w(ipoin)) + Rdiff_scal(lpoin_w(ipoin))
@@ -722,7 +718,7 @@ module time_integ
                       ! Sub Step 4
                       !
 
-                      if (flag_predic == 0) write(*,*) '         SOD2D(4)'
+                      !if (flag_predic == 0) write(*,*) '         SOD2D(4)'
 
                       !$acc kernels
                       rho_4(:) = 0.0d0
@@ -755,6 +751,9 @@ module time_integ
                          call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
                                          gamma_gas,rho_3,u_3,Tem_3,helem,mu_e)
 
+                         if(flag_les == 1) then
+                           call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho_3,u_3,mu_sgs)
+                         end if
                          !
                          ! If using Sutherland viscosity model:
                          !
@@ -790,16 +789,10 @@ module time_integ
                       !$acc parallel loop gang
                       do iboun = 1,nboun
                          bcode = bou_codes(iboun,2) ! Boundary element code
-                         if (bcode == 4) then ! inlet
+                         if (bcode == 3) then ! inlet
                             !$acc loop vector
                             do ipbou = 1,npbou
                                rho_4(bound(iboun,ipbou)) = 1.0d0
-                            end do
-                         end if
-                         if (bcode == 5) then ! outlet
-                            !$acc loop vector
-                            do ipbou = 1,npbou
-                               rho_4(bound(iboun,ipbou)) = 0.125d0
                             end do
                          end if
                       end do
@@ -832,7 +825,7 @@ module time_integ
                         call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_4)
                       end if
                       if (flag_predic == 0) then
-                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_3,mu_fluid,mu_e,Rdiff_vect)
+                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_3,mu_fluid,mu_e,mu_sgs,Rdiff_vect)
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
@@ -906,7 +899,7 @@ module time_integ
 
                       call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_3,pr_3,E_3,Rener_4)
                       if (flag_predic == 0) then
-                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_3,Tem_3,mu_fluid,mu_e,Rdiff_scal)
+                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_3,Tem_3,mu_fluid,mu_e,mu_sgs,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rener_4(lpoin_w(ipoin)) = Rener_4(lpoin_w(ipoin)) + Rdiff_scal(lpoin_w(ipoin))
@@ -962,7 +955,7 @@ module time_integ
                       
               subroutine rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                               ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                              rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                              rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                               ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
 
                       implicit none
@@ -986,6 +979,7 @@ module time_integ
                       real(8),    intent(inout)          :: e_int(npoin,2)
                       real(8),    intent(inout)          :: mu_fluid(npoin)
                       real(8),    intent(out)            :: mu_e(nelem,ngaus)
+                      real(8),    intent(out)            :: mu_sgs(nelem,ngaus)
                       integer(4), optional, intent(in)   :: ndof, nbnodes, ldof(ndof), lbnodes(nbnodes)
                       integer(4), optional, intent(in)   :: bound(nboun,npbou), bou_codes(nboun,2)
                       real(8),    optional, intent(in)   :: source_term(ndime)
@@ -1019,7 +1013,7 @@ module time_integ
                       ! Sub Step 1
                       !
 
-                      if (flag_predic == 0) write(*,*) '         SOD2D(1)'
+                      !if (flag_predic == 0) write(*,*) '         SOD2D(1)'
 
                       !$acc kernels
                       rho_1(:) = 0.0d0
@@ -1051,6 +1045,10 @@ module time_integ
                          !
                          call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
                                          gamma_gas,rho(:,2),u(:,:,2),Tem(:,2),helem,mu_e)
+
+                         if(flag_les == 1) then
+                           call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,2),u(:,:,2),mu_sgs)
+                         end if
 
                          !
                          ! If using Sutherland viscosity model:
@@ -1137,7 +1135,7 @@ module time_integ
                         call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_1)
                       end if
                       if (flag_predic == 0) then
-                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),mu_fluid,mu_e,Rdiff_vect)
+                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),mu_fluid,mu_e,mu_sgs,Rdiff_vect)
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
@@ -1212,7 +1210,7 @@ module time_integ
                       !
                       call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),pr(:,pos),E(:,pos),Rener_1)
                       if (flag_predic == 0) then
-                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),Tem(:,pos),mu_fluid,mu_e,Rdiff_scal)
+                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),Tem(:,pos),mu_fluid,mu_e,mu_sgs,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rener_1(lpoin_w(ipoin)) = Rener_1(lpoin_w(ipoin))+Rdiff_scal(lpoin_w(ipoin))
@@ -1266,7 +1264,7 @@ module time_integ
                       ! Sub Step 2
                       !
 
-                      if (flag_predic == 0) write(*,*) '         SOD2D(2)'
+                      !if (flag_predic == 0) write(*,*) '         SOD2D(2)'
 
                       !$acc kernels
                       rho_2(:) = 0.0d0
@@ -1299,6 +1297,9 @@ module time_integ
                          call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
                                          gamma_gas,rho_1,u_1,Tem_1,helem,mu_e)
 
+                         if(flag_les == 1) then
+                           call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho_1,u_1,mu_sgs)
+                         end if
                          !
                          ! If using Sutherland viscosity model:
                          !
@@ -1378,7 +1379,7 @@ module time_integ
                         call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_2)
                       end if
                       if (flag_predic == 0) then
-                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,mu_fluid,mu_e,Rdiff_vect)
+                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,mu_fluid,mu_e,mu_sgs,Rdiff_vect)
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
@@ -1450,7 +1451,7 @@ module time_integ
 
                       call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,pr_1,E_1,Rener_2)
                       if (flag_predic == 0) then
-                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,Tem_1,mu_fluid,mu_e,Rdiff_scal)
+                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_1,Tem_1,mu_fluid,mu_e,mu_sgs,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rener_2(lpoin_w(ipoin)) = Rener_2(lpoin_w(ipoin))+Rdiff_scal(lpoin_w(ipoin))
@@ -1505,7 +1506,7 @@ module time_integ
                       ! Sub Step 3
                       !
 
-                      if (flag_predic == 0) write(*,*) '         SOD2D(3)'
+                      !if (flag_predic == 0) write(*,*) '         SOD2D(3)'
 
                       !$acc kernels
                       rho_3(:) = 0.0d0
@@ -1538,6 +1539,9 @@ module time_integ
                          call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
                                          gamma_gas,rho_2,u_2,Tem_2,helem,mu_e)
 
+                         if(flag_les == 1) then
+                           call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho_2,u_2,mu_sgs)
+                         end if
                          !
                          ! If using Sutherland viscosity model:
                          !
@@ -1616,7 +1620,7 @@ module time_integ
                         call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom_3)
                       end if
                       if (flag_predic == 0) then
-                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,mu_fluid,mu_e,Rdiff_vect)
+                         call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,mu_fluid,mu_e,mu_sgs,Rdiff_vect)
                          !$acc parallel loop collapse(2)
                          do ipoin = 1,npoin_w
                             do idime = 1,ndime
@@ -1688,7 +1692,7 @@ module time_integ
 
                       call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,pr_2,E_2,Rener_3)
                       if (flag_predic == 0) then
-                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,Tem_2,mu_fluid,mu_e,Rdiff_scal)
+                         call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u_2,Tem_2,mu_fluid,mu_e,mu_sgs,Rdiff_scal)
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
                             Rener_3(lpoin_w(ipoin)) = Rener_3(lpoin_w(ipoin)) + Rdiff_scal(lpoin_w(ipoin))

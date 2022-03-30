@@ -4,7 +4,7 @@ module mod_output
    contains
 
       subroutine write_vtk_ascii(istep,npoin,nelem,coord,connec, &
-                                 rho,u,pr,E,mu_e)
+                                 rho,u,pr,E,mu_e, mu_sgs)
          implicit none
       
          integer(4), intent(in)                           :: istep, npoin, nelem
@@ -13,6 +13,7 @@ module mod_output
          real(8)   , intent(in), dimension(npoin)         :: rho, pr, E
          real(8)   , intent(in), dimension(npoin,ndime)   :: u
          real(8)   , intent(in), dimension(nelem,ngaus)   :: mu_e
+         real(8)   , intent(in), dimension(nelem,ngaus)   :: mu_sgs
          integer(4)                                       :: i, ivtk=9
          integer(4)            , dimension(nelem,nnode+1) :: cells
          integer(4)            , dimension(nelem)         :: cellTypes
@@ -136,13 +137,18 @@ module mod_output
          do i = 1,nelem
             write(ivtk,*) mu_e(i,1)
          end do
+         write(ivtk,'(a)') 'SCALARS '//' SGSVI '//' double'
+         write(ivtk,'(a)') 'LOOKUP_TABLE '//' default'
+         do i = 1,nelem
+            write(ivtk,*) mu_sgs(i,1)
+         end do
          
          close(ivtk)
       
       end subroutine
 
       subroutine write_vtk_binary(isPeriodic,istep,npoin,nelem,coord,connec, &
-                                 rho,u,pr,E,mu_fluid,mu_e,nper,masSla)
+                                 rho,u,pr,E,mu_fluid,mu_e,mu_sgs,nper,masSla)
          implicit none
       
          integer(4), intent(in)                            :: isPeriodic, nper
@@ -153,6 +159,7 @@ module mod_output
          real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E, mu_fluid
          real(8)   , intent(inout), dimension(npoin,ndime) :: u
          real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_e
+         real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_sgs
          integer(4)                                        :: i, iper, ivtk=9
          integer(4)            , dimension(nelem,nnode+1)  :: cells
          integer(4)            , dimension(nelem)          :: cellTypes
@@ -202,8 +209,8 @@ module mod_output
          !
          !$acc kernels
          cells(:,1) = nnode
-         cells(:,2:nnode+1) = connec(:,1:nnode)
-         cells(:,2:nnode+1) = cells(:,2:nnode+1)-1 ! maybe can be removed?
+         cells(:,2:nnode+1) = connec(:,1:nnode)-1
+         !cells(:,2:nnode+1) = cells(:,2:nnode+1)-1 ! maybe can be removed?
          !$acc end kernels
       
          !
@@ -307,6 +314,11 @@ module mod_output
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,nelem
             write(ivtk) mu_e(i,1)
+         end do
+         write(ivtk) 'SCALARS SGSVI double'//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,nelem
+            write(ivtk) mu_sgs(i,1)
          end do
          
          close(ivtk)

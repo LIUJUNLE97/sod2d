@@ -100,11 +100,13 @@ module mod_entropy_viscosity
                        !
                        ! Compute weighted mass convec
                        !
-                       !$acc parallel loop
-                       do ipoin = 1,npoin_w
-                          Rrho(lpoin_w(ipoin)) = 0.0d0
-                       end do
-                       !$acc end parallel loop
+                       ! oriol: is no needed generic_scalar_conv already does
+                       ! this
+                       !!$acc parallel loop
+                       !do ipoin = 1,npoin_w
+                       !   Rrho(lpoin_w(ipoin)) = 0.0d0
+                       !end do
+                       !!$acc end parallel loop
                        call generic_scalar_convec(nelem,npoin,connec,Ngp, &
                                                   dNgp,He,gpvol,f_rho,Rrho,alpha)
                        !
@@ -150,11 +152,11 @@ module mod_entropy_viscosity
                       real(8),    intent(in)  :: rho(npoin), u(npoin,ndime), Tem(npoin)
                       real(8),    intent(out) :: mu_e(nelem,ngaus)
                       integer(4)              :: ielem, inode, igaus
-                      real(8)                 :: R1, R2, Ve, ue(nnode,ndime), rhoe(nnode), pre(nnode)
+                      real(8)                 :: R1, R2, Ve
                       real(8)                 :: uabs(nnode), c_sound(nnode), betae
                       real(8)                 :: L3, aux1, aux2
 
-                      !$acc parallel loop gang private(uabs,c_sound) vector_length(32)
+                      !$acc parallel loop gang  private(uabs,c_sound) vector_length(32)
                       do ielem = 1,nelem
                          !$acc loop seq
                          do igaus = 1,ngaus
@@ -170,8 +172,7 @@ module mod_entropy_viscosity
                             ! Max. Wavespeed at element
                             !
                             aux1 = 0.0d0
-                            !$acc loop seq
-                            !!$acc loop vector reduction(max:aux1)
+                            !$acc loop vector reduction(+:aux1)
                             do inode = 1,nnode
                                uabs(inode) = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
                                c_sound(inode) = sqrt(gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node

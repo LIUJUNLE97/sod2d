@@ -38,6 +38,7 @@ program sod2d
         integer(4)                 :: ppow
         integer(4)                 :: flag_predic, flag_emac
         integer(4)                 :: nsave, nleap
+        integer(4)                 :: nsave2, nleap2
         integer(4)                 :: counter
         integer(4)                 :: isPeriodic, npoin_w
         !integer(4), allocatable    :: rdom(:), cdom(:), aux_cdom(:) ! Use with CSR matrices
@@ -51,7 +52,7 @@ program sod2d
         real(8),    allocatable    :: gpvol(:,:,:)
         real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:)
         real(8),    allocatable    :: Ml(:)!, Mc(:)
-        real(8),    allocatable    :: mu_e(:,:), mu_fluid(:)
+        real(8),    allocatable    :: mu_e(:,:), mu_fluid(:),mu_sgs(:,:)
         real(8),    allocatable    :: source_term(:)
         real(8)                    :: s, t, z, detJe
         real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot
@@ -65,11 +66,11 @@ program sod2d
 #ifdef CHANNEL
         !channel flow setup
         real(8)  :: vo = 1.0d0
-        real(8)  :: M  = 0.1d0
+        real(8)  :: M  = 0.25d0
         real(8)  :: delta  = 1.0d0
         real(8)  :: U0     = 1.0d0
         real(8)  :: rho0   = 1.0d0
-        real(8)  :: Retau  = 180.0d0
+        real(8)  :: Retau  = 950.0d0
         real(8)  ::  cp = 1004.0d0
         real(8)  ::  gamma_g = 1.40d0
         real(8)  :: yp=0.0d0, ti(3)
@@ -119,11 +120,13 @@ program sod2d
         Cp = 1004.00d0 ! TODO: Make it input
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
-        cfl_conv = 1.85d0
+        cfl_conv = 0.95d0
         cfl_diff = 0.95d0
-        nsave = 1 ! First step to save, TODO: input
-        nleap = 1000 ! Saving interval, TODO: input
-        !nleap = 200 ! Saving interval, TODO: input
+        nsave  = 1 ! First step to save, TODO: input
+        nsave2 = 1 ! First step to save, TODO: input
+        !nleap = 1000 ! Saving interval, TODO: input
+        nleap2 = 1 ! Saving interval, TODO: input
+        nleap = 200 ! Saving interval, TODO: input
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
@@ -131,7 +134,7 @@ program sod2d
 #endif        
         if (isPeriodic == 1) then
 #ifdef CHANNEL
-           nper = 8385 ! TODO: if periodic, request number of periodic nodes
+           nper = 6305 ! TODO: if periodic, request number of periodic nodes
            !nper = 2145 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 49537 ! TODO: if periodic, request number of periodic nodes
@@ -240,7 +243,7 @@ program sod2d
             !
             ! If node is on boundary, zero corresponding aux1 entry
             !
-            !$acc parallel loop gang
+            !$acc parallel loop gang 
             do iboun = 1,nboun
                !$acc loop vector
                do ipbou = 1,npbou
@@ -305,7 +308,8 @@ program sod2d
         allocate(e_int(npoin,2))    ! Internal Energy
         allocate(csound(npoin))     ! Speed of sound
         allocate(mu_fluid(npoin))   ! Fluid viscosity
-        allocate(mu_e(nelem,ngaus))       ! Elemental viscosity
+        allocate(mu_e(nelem,ngaus))  ! Elemental viscosity
+        allocate(mu_sgs(nelem,ngaus))! SGS viscosity
         call nvtxEndRange
 
         !*********************************************************************!
@@ -339,9 +343,9 @@ program sod2d
           velo = utau*((1.0d0/0.41d0)*log(1.0d0+0.41d0*yp)+7.8d0*(1.0d0-exp(-yp/11.0d0)-(yp/11.0d0)*exp(-yp/3.0d0))) 
 
           call random_number(ti)
-          !u(ipoin,1,2) = velo*(1.0d0 + 0.05d0*(sin(5.0d0*coord(ipoin,1)) -0.5d0))
-          !u(ipoin,2,2) = velo*(0.05d0*(sin(5.0d0*coord(ipoin,2)) -0.5d0))
-          !u(ipoin,3,2) = velo*(0.05d0*(sin(5.0d0*coord(ipoin,3)) -0.5d0))
+          !u(ipoin,1,2) = velo*(1.0d0 + 0.1d0*(sin(5.0d0*coord(ipoin,1)) -0.5d0))
+          !u(ipoin,2,2) = velo*(0.1d0*(sin(5.0d0*coord(ipoin,2)) -0.5d0))
+          !u(ipoin,3,2) = velo*(0.1d0*(sin(5.0d0*coord(ipoin,3)) -0.5d0))
           u(ipoin,1,2) = velo*(1.0d0 + 0.1d0*(ti(1) -0.5d0))
           u(ipoin,2,2) = velo*(0.1d0*(ti(2) -0.5d0))
           u(ipoin,3,2) = velo*(0.1d0*(ti(3) -0.5d0))
@@ -370,6 +374,7 @@ program sod2d
 #endif
         !$acc kernels
         mu_e(:,:) = 0.0d0 ! Element syabilization viscosity
+        mu_sgs(:,:) = 0.0d0
         !$acc end kernels
         call nvtxEndRange
 
@@ -414,11 +419,11 @@ program sod2d
         call nvtxStartRange("1st write")
         if (isPeriodic == 0) then
            call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
-                                rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,nper)
+                                rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
         else
            print*, 'sub call: ok!'
            call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
-                                rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,nper,masSla)
+                                rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
         end if
         call nvtxEndRange
 
@@ -715,18 +720,19 @@ program sod2d
                  write(timeStep,'(i4)') istep
                  call nvtxStartRange("RK step "//timeStep,istep)
 
+#ifndef NOPRED
                  if(flag_rk_order .eq. 3) then
                     call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                       rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                       rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  else
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                       rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                       rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  end if
-
+#endif
                  !
                  ! Advance with entropy viscosity
                  !
@@ -734,12 +740,12 @@ program sod2d
                  if(flag_rk_order .eq. 3) then
                     call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                       rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                       rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  else
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                       rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                       rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  end if
 
@@ -759,7 +765,7 @@ program sod2d
                  if (istep == nsave) then
                     call nvtxStartRange("Output "//timeStep,istep)
                     call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec, &
-                                         rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,nper)
+                                         rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
                     nsave = nsave+nleap
                     call nvtxEndRange
                  end if
@@ -794,17 +800,17 @@ program sod2d
                   ! nvtx range for full RK
                   write(timeStep,'(i4)') istep
                   call nvtxStartRange("RK4 step "//timeStep,istep)
-
+#ifndef NOPRED
                  if(flag_rk_order .eq. 3) then
                     call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                       rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
+                       rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid)
                  else
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                       rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
+                       rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid)
                  end if
-
+#endif
                   !
                   ! Advance with entropy viscosity
                   !
@@ -812,11 +818,11 @@ program sod2d
                   if(flag_rk_order .eq. 3) then
                      call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                         ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                        rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
+                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid)
                   else
                      call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                         ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                        rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid)
+                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid)
                   end if
 
                   time = time+dt
@@ -841,7 +847,7 @@ program sod2d
                   if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
                      call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
-                                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,nper,masSla)
+                                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
                      nsave = nsave+nleap
                      call nvtxEndRange
                   end if
@@ -854,7 +860,7 @@ program sod2d
                write(*,*) '--| PERIODIC CASE WITH BOUNDARIES'
                do istep = 1,nstep
 
-                  write(*,*) '   --| STEP: ', istep
+                  if (istep == nsave)write(*,*) '   --| STEP: ', istep
 
                   !
                   ! Prediction
@@ -873,21 +879,21 @@ program sod2d
                   call nvtxEndRange
 
                   ! nvtx range for full RK
-                  write(timeStep,'(i4)') istep
+                 ! write(timeStep,'(i4)') istep
                   call nvtxStartRange("RK4 step "//timeStep,istep)
-
+#ifndef NOPRED
                 if(flag_rk_order .eq. 3) then
                    call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                      rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                      rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
                 else
                    call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                      rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                      rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
                 end if
-
+#endif
                   !
                   ! Advance with entropy viscosity
                   !
@@ -895,21 +901,22 @@ program sod2d
                   if(flag_rk_order .eq. 3) then
                      call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                         ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                        rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
                   else
                      call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                         ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                        rho,u,q,pr,E,Tem,e_int,mu_e,lpoin_w,mu_fluid, &
+                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
                   end if
 
+                  time = time+dt
                   if (flag_real_diff == 1) then
                      call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,rho(:,2))
-                     write(*,*) "DT := ",dt,"s"
+                     if (istep == nsave2)write(*,*) "DT := ",dt,"s time := ",time,"s"
                   else
                      call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
-                     write(*,*) "DT := ",dt,"s"
+                     if (istep == nsave2)write(*,*) "DT := ",dt,"s time := ",time,"s"
                   end if
 
                   call nvtxEndRange
@@ -920,9 +927,13 @@ program sod2d
                   if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
                      call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
-                                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,nper,masSla)
+                                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
                      nsave = nsave+nleap
                      call nvtxEndRange
+                  end if
+
+                  if(istep==nsave2) then
+                     nsave2 = nsave2+nleap2
                   end if
 
                   counter = counter+1
