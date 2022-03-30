@@ -59,11 +59,13 @@ module mod_solver
                       !
                       ! Initialize series at k=0
                       !
-                      !$acc kernels
-                      b(:) = R(:)
-                      v(:) = b(:)
-                      x(:) = b(:)
-                      !$acc end kernels
+                      !$acc parallel loop
+                      do ipoin = 1,npoin_w
+                         b(lpoin_w(ipoin)) = R(lpoin_w(ipoin))
+                         v(lpoin_w(ipoin)) = b(lpoin_w(ipoin))
+                         x(lpoin_w(ipoin)) = b(lpoin_w(ipoin))
+                      end do
+                      !$acc end parallel loop
 
                       !
                       ! Step over sucessive powers
@@ -106,11 +108,13 @@ module mod_solver
                          !
                          ! Initialize series at k=0
                          !
-                         !$acc kernels
-                         b(:) = R(:,idime)
-                         v(:) = b(:)
-                         x(:) = b(:)
-                         !$acc end kernels
+                         !$acc parallel loop
+                         do ipoin = 1,npoin_w
+                            b(lpoin_w(ipoin)) = R(lpoin_w(ipoin),idime)
+                            v(lpoin_w(ipoin)) = b(lpoin_w(ipoin))
+                            x(lpoin_w(ipoin)) = b(lpoin_w(ipoin))
+                         end do
+                         !$acc end parallel loop
 
                          !
                          ! Step over sucessive powers

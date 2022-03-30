@@ -74,15 +74,18 @@ module time_integ
 
                       !if (flag_predic == 0) write(*,*) '         SOD2D(1)'
 
-                      !$acc kernels
-                      rho_1(:) = 0.0d0
-                      u_1(:,:) = 0.0d0
-                      q_1(:,:) = 0.0d0
-                      pr_1(:) = 0.0d0
-                      E_1(:) = 0.0d0
-                      Tem_1(:) = 0.0d0
-                      e_int_1(:) = 0.0d0
-                      !$acc end kernels
+
+                      !$acc parallel loop
+                      do ipoin = 1,npoin
+                         rho_1(ipoin) = 0.0d0
+                         u_1(ipoin,1:ndime) = 0.0d0
+                         q_1(ipoin,1:ndime) = 0.0d0
+                         pr_1(ipoin) = 0.0d0
+                         E_1(ipoin) = 0.0d0
+                         Tem_1(ipoin) = 0.0d0
+                         e_int_1(ipoin) = 0.0d0
+                      end do
+                      !$acc end parallel loop
 
                       !
                       ! Entropy viscosity update
@@ -134,9 +137,10 @@ module time_integ
                          !$acc end parallel loop
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_1)
-                      !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_1)
+#ifndef LUMPED
                       call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
                          connec,gpvol,Ngp,ppow,Ml,Rmass_1)
+#endif
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_1(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)- &
@@ -177,15 +181,11 @@ module time_integ
                          !
                          ! EMAC term
                          !
-                         !$acc parallel loop collapse(2)
-                         do ipoin = 1,npoin_w
-                            do idime = 1,ndime
-                               Aemac(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,pos)*sqrt(rho(lpoin_w(ipoin),pos))
-                            end do
-                         end do
-                         !$acc end parallel loop
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
+                            Aemac(lpoin_w(ipoin),1) = u(lpoin_w(ipoin),1,pos)*sqrt(rho(lpoin_w(ipoin),pos))
+                            Aemac(lpoin_w(ipoin),2) = u(lpoin_w(ipoin),2,pos)*sqrt(rho(lpoin_w(ipoin),pos))
+                            Aemac(lpoin_w(ipoin),3) = u(lpoin_w(ipoin),3,pos)*sqrt(rho(lpoin_w(ipoin),pos))
                             Femac(lpoin_w(ipoin)) = dot_product(Aemac(lpoin_w(ipoin),:),Aemac(lpoin_w(ipoin),:))
                          end do
                          !$acc end parallel loop
@@ -205,9 +205,10 @@ module time_integ
                          !$acc end parallel loop
                       end if
                       call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_1)
-                      !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_1)
+#ifndef LUMPED
                       call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
                          connec,gpvol,Ngp,ppow,Ml,Rmom_1)
+#endif
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -278,9 +279,10 @@ module time_integ
                          !$acc end parallel loop
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_1)
-                      !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_1)
+#ifndef LUMPED
                       call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
                                                  connec,gpvol,Ngp,ppow,Ml,Rener_1)
+#endif
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_1(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &
@@ -303,16 +305,17 @@ module time_integ
 
                       !if (flag_predic == 0) write(*,*) '         SOD2D(2)'
 
-                      !$acc kernels
-                      rho_2(:) = 0.0d0
-                      u_2(:,:) = 0.0d0
-                      q_2(:,:) = 0.0d0
-                      pr_2(:) = 0.0d0
-                      E_2(:) = 0.0d0
-                      Tem_2(:) = 0.0d0
-                      e_int_2(:) = 0.0d0
-                      !$acc end kernels
-
+                      !$acc parallel loop
+                      do ipoin = 1,npoin
+                         rho_2(ipoin) = 0.0d0
+                         u_2(ipoin,1:ndime) = 0.0d0
+                         q_2(ipoin,1:ndime) = 0.0d0
+                         pr_2(ipoin) = 0.0d0
+                         E_2(ipoin) = 0.0d0
+                         Tem_2(ipoin) = 0.0d0
+                         e_int_2(ipoin) = 0.0d0
+                      end do
+                      !$acc end parallel loop
                       !
                       ! Entropy viscosity update
                       !
@@ -359,9 +362,10 @@ module time_integ
                          !$acc end parallel loop
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_2)
-                      !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_2)
+#ifndef LUMPED
                       call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
                          connec,gpvol,Ngp,ppow,Ml,Rmass_2)
+#endif
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_2(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)- &
@@ -389,15 +393,11 @@ module time_integ
                          !
                          ! EMAC term
                          !
-                         !$acc parallel loop collapse(2)
-                         do ipoin = 1,npoin_w
-                            do idime = 1,ndime
-                               Aemac(lpoin_w(ipoin),idime) = u_1(lpoin_w(ipoin),idime)*sqrt(rho_1(lpoin_w(ipoin)))
-                            end do
-                         end do
-                         !$acc end parallel loop
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
+                            Aemac(lpoin_w(ipoin),1) = u_1(lpoin_w(ipoin),1)*sqrt(rho_1(lpoin_w(ipoin)))
+                            Aemac(lpoin_w(ipoin),2) = u_1(lpoin_w(ipoin),2)*sqrt(rho_1(lpoin_w(ipoin)))
+                            Aemac(lpoin_w(ipoin),3) = u_1(lpoin_w(ipoin),3)*sqrt(rho_1(lpoin_w(ipoin)))
                             Femac(lpoin_w(ipoin)) = dot_product(Aemac(lpoin_w(ipoin),:),Aemac(lpoin_w(ipoin),:))
                          end do
                          !$acc end parallel loop
@@ -417,9 +417,10 @@ module time_integ
                          !$acc end parallel loop
                       end if
                       call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_2)
-                      !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_2)
+#ifndef LUMPED
                       call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
                          connec,gpvol,Ngp,ppow,Ml,Rmom_2)
+#endif
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -487,9 +488,10 @@ module time_integ
                          !$acc end parallel loop
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_2)
-                      !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_2)
+#ifndef LUMPED
                       call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
                          connec,gpvol,Ngp,ppow,Ml,Rener_2)
+#endif
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_2(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &
@@ -512,15 +514,17 @@ module time_integ
 
                       !if (flag_predic == 0) write(*,*) '         SOD2D(3)'
 
-                      !$acc kernels
-                      rho_3(:) = 0.0d0
-                      u_3(:,:) = 0.0d0
-                      q_3(:,:) = 0.0d0
-                      pr_3(:) = 0.0d0
-                      E_3(:) = 0.0d0
-                      Tem_3(:) = 0.0d0
-                      e_int_3(:) = 0.0d0
-                      !$acc end kernels
+                      !$acc parallel loop
+                      do ipoin = 1,npoin
+                         rho_3(ipoin) = 0.0d0
+                         u_3(ipoin,1:ndime) = 0.0d0
+                         q_3(ipoin,1:ndime) = 0.0d0
+                         pr_3(ipoin) = 0.0d0
+                         E_3(ipoin) = 0.0d0
+                         Tem_3(ipoin) = 0.0d0
+                         e_int_3(ipoin) = 0.0d0
+                      end do
+                      !$acc end parallel loop
 
                       !
                       ! Entropy viscosity update
@@ -567,9 +571,10 @@ module time_integ
                          !$acc end parallel loop
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_3)
-                      !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_3)
+#ifndef LUMPED
                       call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
                          connec,gpvol,Ngp,ppow,Ml,Rmass_3)
+#endif
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_3(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)-(dt/1.0d0)*Rmass_3(lpoin_w(ipoin))
@@ -597,15 +602,11 @@ module time_integ
                          !
                          ! EMAC term
                          !
-                         !$acc parallel loop collapse(2)
-                         do ipoin = 1,npoin_w
-                            do idime = 1,ndime
-                               Aemac(lpoin_w(ipoin),idime) = u_2(lpoin_w(ipoin),idime)*sqrt(rho_2(lpoin_w(ipoin)))
-                            end do
-                         end do
-                         !$acc end parallel loop
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
+                            Aemac(lpoin_w(ipoin),1) = u_2(lpoin_w(ipoin),1)*sqrt(rho_2(lpoin_w(ipoin)))
+                            Aemac(lpoin_w(ipoin),2) = u_2(lpoin_w(ipoin),2)*sqrt(rho_2(lpoin_w(ipoin)))
+                            Aemac(lpoin_w(ipoin),3) = u_2(lpoin_w(ipoin),3)*sqrt(rho_2(lpoin_w(ipoin)))
                             Femac(lpoin_w(ipoin)) = dot_product(Aemac(lpoin_w(ipoin),:),Aemac(lpoin_w(ipoin),:))
                          end do
                          !$acc end parallel loop
@@ -625,9 +626,10 @@ module time_integ
                          !$acc end parallel loop
                       end if
                       call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_3)
-                      !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_3)
+#ifndef LUMPED
                       call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
                          connec,gpvol,Ngp,ppow,Ml,Rmom_3)
+#endif
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -695,9 +697,10 @@ module time_integ
                          !$acc end parallel loop
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_3)
-                      !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_3)
+#ifndef LUMPED
                       call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
                          connec,gpvol,Ngp,ppow,Ml,Rener_3)
+#endif
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_3(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &
@@ -720,15 +723,17 @@ module time_integ
 
                       !if (flag_predic == 0) write(*,*) '         SOD2D(4)'
 
-                      !$acc kernels
-                      rho_4(:) = 0.0d0
-                      u_4(:,:) = 0.0d0
-                      q_4(:,:) = 0.0d0
-                      pr_4(:) = 0.0d0
-                      E_4(:) = 0.0d0
-                      Tem_4(:) = 0.0d0
-                      e_int_4(:) = 0.0d0
-                      !$acc end kernels
+                      !$acc parallel loop
+                      do ipoin = 1,npoin_w
+                         rho_4(ipoin) = 0.0d0
+                         u_4(ipoin,1:ndime) = 0.0d0
+                         q_4(ipoin,1:ndime) = 0.0d0
+                         pr_4(ipoin) = 0.0d0
+                         E_4(ipoin) = 0.0d0
+                         Tem_4(ipoin) = 0.0d0
+                         e_int_4(ipoin) = 0.0d0
+                      end do
+                      !$acc end parallel loop
 
                       !
                       ! Entropy viscosity update
@@ -774,9 +779,10 @@ module time_integ
                          !$acc end parallel loop
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_4)
-                      !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmass_4)
+#ifndef LUMPED
                       call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
                          connec,gpvol,Ngp,ppow,Ml,Rmass_4)
+#endif
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          aux_mass(lpoin_w(ipoin)) = Rmass_1(lpoin_w(ipoin))+2.0d0*Rmass_2(lpoin_w(ipoin))+ &
@@ -807,15 +813,11 @@ module time_integ
                          !
                          ! EMAC term
                          !
-                         !$acc parallel loop collapse(2)
-                         do ipoin = 1,npoin_w
-                            do idime = 1,ndime
-                               Aemac(lpoin_w(ipoin),idime) = u_3(lpoin_w(ipoin),idime)*sqrt(rho_3(lpoin_w(ipoin)))
-                            end do
-                         end do
-                         !$acc end parallel loop
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
+                            Aemac(lpoin_w(ipoin),1) = u_3(lpoin_w(ipoin),1)*sqrt(rho_3(lpoin_w(ipoin)))
+                            Aemac(lpoin_w(ipoin),2) = u_3(lpoin_w(ipoin),2)*sqrt(rho_3(lpoin_w(ipoin)))
+                            Aemac(lpoin_w(ipoin),3) = u_3(lpoin_w(ipoin),3)*sqrt(rho_3(lpoin_w(ipoin)))
                             Femac(lpoin_w(ipoin)) = dot_product(Aemac(lpoin_w(ipoin),:),Aemac(lpoin_w(ipoin),:))
                          end do
                          !$acc end parallel loop
@@ -835,9 +837,10 @@ module time_integ
                          !$acc end parallel loop
                       end if
                       call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_4)
-                      !call approx_inverse_vect(ndime,npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rmom_4)
+#ifndef LUMPED
                       call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
                          connec,gpvol,Ngp,ppow,Ml,Rmom_4)
+#endif
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -907,9 +910,10 @@ module time_integ
                          !$acc end parallel loop
                       end if
                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_4)
-                      !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rener_4)
+#ifndef LUMPED
                       call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
                          connec,gpvol,Ngp,ppow,Ml,Rener_4)
+#endif
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          aux_ener(lpoin_w(ipoin)) = Rener_1(lpoin_w(ipoin))+2.0d0*Rener_2(lpoin_w(ipoin))+ &
@@ -933,15 +937,17 @@ module time_integ
                       !
 
                       call nvtxStartRange("Update")
-                      !$acc kernels
-                      rho(:,pos) = rho_4(:)
-                      u(:,:,pos) = u_4(:,:)
-                      pr(:,pos) = pr_4(:)
-                      E(:,pos) = E_4(:)
-                      q(:,:,pos) = q_4(:,:)
-                      e_int(:,pos) = e_int_4(:)
-                      Tem(:,pos) = Tem_4(:)
-                      !$acc end kernels
+                      !$acc parallel loop
+                      do ipoin = 1,npoin
+                         rho(ipoin,pos) = rho_4(ipoin)
+                         u(ipoin,1:ndime,pos) = u_4(ipoin,1:ndime)
+                         pr(ipoin,pos) = pr_4(ipoin)
+                         E(ipoin,pos) = E_4(ipoin)
+                         q(ipoin,1:ndime,pos) = q_4(ipoin,1:ndime)
+                         e_int(ipoin,pos) = e_int_4(ipoin)
+                         Tem(ipoin,pos) = Tem_4(ipoin)
+                      end do
+                      !$acc end parallel loop
 
                       !
                       ! If using Sutherland viscosity model:
