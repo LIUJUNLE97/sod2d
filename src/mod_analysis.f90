@@ -18,7 +18,7 @@ module mod_analysis
 
          call nvtxStartRange("Compute EK")
          EK = 0.0d0
-         !$acc parallel loop gang reduction(+:EK)
+         !$acc parallel loop gang reduction(+:EK) vector_length(32)
          do ielem = 1,nelem
             R1 = 0.0d0
             !$acc loop vector collapse(2) reduction(+:R1)

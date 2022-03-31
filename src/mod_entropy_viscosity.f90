@@ -39,31 +39,24 @@ module mod_entropy_viscosity
                        call nvtxStartRange("Entropy transport")
                        !$acc parallel loop
                        do ipoin = 1,npoin_w
+
                           eta(lpoin_w(ipoin)) = (rhok(lpoin_w(ipoin))/(gamma_gas-1.0d0))* &
                              log(prk(lpoin_w(ipoin))/(rhok(lpoin_w(ipoin))**gamma_gas))
                           eta_p(lpoin_w(ipoin)) = (rho(lpoin_w(ipoin),1)/(gamma_gas-1.0d0))* &
                              log(pr(lpoin_w(ipoin),1)/(rho(lpoin_w(ipoin),1)**gamma_gas))
-                       end do
-                       !$acc end parallel loop
 
-                       !$acc parallel loop collapse(2)
-                       do ipoin = 1,npoin_w
                           do idime = 1,ndime
                              f_eta(lpoin_w(ipoin),idime) = uk(lpoin_w(ipoin),idime)*eta(lpoin_w(ipoin))
                              f_rho(lpoin_w(ipoin),idime) = qk(lpoin_w(ipoin),idime)
                           end do
-                       end do
 
-                       !
-                       ! Temporal eta
-                       !
-                       !$acc parallel loop
-                       do ipoin = 1,npoin_w
                           R1(lpoin_w(ipoin)) = (eta_p(lpoin_w(ipoin))-eta(lpoin_w(ipoin)))/dt  ! Temporal entropy
                           Reta(lpoin_w(ipoin)) = 0.0d0
                           alpha(lpoin_w(ipoin)) = 1.0d0
+
                        end do
                        !$acc end parallel loop
+
                        !
                        ! Entropy residual
                        !
@@ -73,22 +66,16 @@ module mod_entropy_viscosity
                        ! Alter Reta with inv(Mc)
                        !
                        call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
-                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Reta)
+#ifndef LUMPED
                        call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Reta)
+#endif 
                        !
                        ! Update Reta
                        !
                        !$acc parallel loop
                        do ipoin = 1,npoin_w
                           Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))+1.0d0*R1(lpoin_w(ipoin))
-                       end do
-                       !$acc end parallel loop
 
-                       !
-                       ! Temporal mass
-                       !
-                       !$acc parallel loop
-                       do ipoin = 1,npoin_w
                           R2(lpoin_w(ipoin)) = (rho(lpoin_w(ipoin),1)-rhok(lpoin_w(ipoin)))/dt
                           alpha(lpoin_w(ipoin)) = eta(lpoin_w(ipoin))/rhok(lpoin_w(ipoin))
                        end do
@@ -100,11 +87,8 @@ module mod_entropy_viscosity
                        !
                        ! Compute weighted mass convec
                        !
-                       !$acc parallel loop
-                       do ipoin = 1,npoin_w
-                          Rrho(lpoin_w(ipoin)) = 0.0d0
-                       end do
-                       !$acc end parallel loop
+                       ! oriol: is no needed generic_scalar_conv already does
+                       ! this
                        call generic_scalar_convec(nelem,npoin,connec,Ngp, &
                                                   dNgp,He,gpvol,f_rho,Rrho,alpha)
                        !
@@ -119,8 +103,9 @@ module mod_entropy_viscosity
                        ! Apply solver
                        !
                        call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rrho)
-                       !call approx_inverse_scalar(npoin,nzdom,rdom,cdom,ppow,Ml,Mc,Rrho)
+#ifndef LUMPED
                        call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Rrho)
+#endif
                        call nvtxEndRange
 
                        !
@@ -150,11 +135,11 @@ module mod_entropy_viscosity
                       real(8),    intent(in)  :: rho(npoin), u(npoin,ndime), Tem(npoin)
                       real(8),    intent(out) :: mu_e(nelem,ngaus)
                       integer(4)              :: ielem, inode, igaus
-                      real(8)                 :: R1, R2, Ve, ue(nnode,ndime), rhoe(nnode), pre(nnode)
-                      real(8)                 :: uabs(nnode), c_sound(nnode), betae
-                      real(8)                 :: L3, aux1, aux2
+                      real(8)                 :: R1, R2, Ve
+                      real(8)                 :: betae
+                      real(8)                 :: L3, aux1, aux2, aux3
 
-                      !$acc parallel loop gang private(uabs,c_sound) vector_length(32)
+                      !$acc parallel loop gang  vector_length(32)
                       do ielem = 1,nelem
                          !$acc loop seq
                          do igaus = 1,ngaus
@@ -172,9 +157,9 @@ module mod_entropy_viscosity
                             aux1 = 0.0d0
                             !$acc loop vector reduction(+:aux1)
                             do inode = 1,nnode
-                               uabs(inode) = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
-                               c_sound(inode) = sqrt(gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
-                               aux1 = aux1+Ngp(igaus,inode)*(uabs(inode)+c_sound(inode))
+                               aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
+                               aux3 = sqrt(gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
+                               aux1 = aux1+Ngp(igaus,inode)*(aux2+aux3)
                             end do
                             !
                             ! Select against Upwind viscosity

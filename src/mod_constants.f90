@@ -10,15 +10,15 @@ module mod_constants
       !
       ! Element characteristics
       !
-      integer(4), parameter :: nnode=27
-      integer(4), parameter :: porder=2
-      integer(4), parameter :: npbou=9
-      integer(4), parameter :: ngaus=27
+      !integer(4), parameter :: nnode=27
+      !integer(4), parameter :: porder=2
+      !integer(4), parameter :: npbou=9
+      !integer(4), parameter :: ngaus=27
 
-      !integer(4), parameter :: nnode=8
-      !integer(4), parameter :: porder=1
-      !integer(4), parameter :: npbou=4
-      !integer(4), parameter :: ngaus=8
+      integer(4), parameter :: nnode=8
+      integer(4), parameter :: porder=1
+      integer(4), parameter :: npbou=4
+      integer(4), parameter :: ngaus=8
 
       !
       ! Flags
@@ -26,12 +26,14 @@ module mod_constants
       integer(4), parameter :: flag_real_diff=1
       integer(4), parameter :: flag_diff_suth=1
       integer(4), parameter :: flag_rk_order=4
+      integer(4), parameter :: flag_les=0
 
       real(8), parameter :: ce = 1.0d0
       real(8), parameter :: cmax = 0.5d0
       real(8), parameter :: cglob = 1.0d0
       real(8), parameter :: c_rho = 1.0d0
       real(8), parameter :: c_ener = 1.0d0
+      real(8), parameter :: c_sgs = 0.07d0
 
       real(8) :: flag_mu_factor=1.0d0
 

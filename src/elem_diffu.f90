@@ -28,7 +28,7 @@ module elem_diffu
                       !$acc kernels
                       Rmass(:) = 0.0d0
                       !$acc end kernels
-                      !$acc parallel loop gang private(gpcar,Re) vector_length(32)
+                      !$acc parallel loop gang  private(gpcar,Re) vector_length(32)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
@@ -72,7 +72,7 @@ module elem_diffu
 
               end subroutine mass_diffusion
 
-              subroutine mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,mu_fluid,mu_e,Rmom)
+              subroutine mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,mu_fluid,mu_e,mu_sgs,Rmom)
 
                       ! TODO: Add. stab. viscosity
 
@@ -83,7 +83,7 @@ module elem_diffu
                       real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: u(npoin,ndime),mu_e(nelem,ngaus)
+                      real(8),    intent(in)  :: u(npoin,ndime),mu_e(nelem,ngaus),mu_sgs(nelem,ngaus)
                       real(8),    intent(in)  :: mu_fluid(npoin)
                       real(8),    intent(out) :: Rmom(npoin,ndime)
                       integer(4)              :: ielem, igaus, idime, jdime, inode, jnode
@@ -95,7 +95,7 @@ module elem_diffu
                       !$acc kernels
                       Rmom(:,:) = 0.0d0
                       !$acc end kernels
-                      !$acc parallel loop gang private(Re,gpcar,tau,gradU) vector_length(32)
+                      !$acc parallel loop gang  private(Re,gpcar,tau,gradU) vector_length(32)
                       do ielem = 1,nelem
                          !$acc loop vector collapse(2)
                          do inode = 1,nnode
@@ -130,7 +130,7 @@ module elem_diffu
                             do inode = 1,nnode
                                mu_fgp = mu_fgp+(Ngp(igaus,inode)*mu_fluid(connec(ielem,inode)))
                             end do
-                            mu_fgp = mu_fgp+mu_e(ielem,igaus)
+                            mu_fgp = mu_fgp+mu_e(ielem,igaus)+mu_sgs(ielem,igaus)
                             !
                             ! Compute grad(u)
                             !
@@ -202,7 +202,7 @@ module elem_diffu
 
               end subroutine mom_diffusion
 
-              subroutine ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,Tem,mu_fluid,mu_e,Rener)
+              subroutine ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,Tem,mu_fluid,mu_e,mu_sgs,Rener)
 
                       implicit none
 
@@ -211,7 +211,7 @@ module elem_diffu
                       real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus)
+                      real(8),    intent(in)  :: u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
                       real(8),    intent(in)  :: mu_fluid(npoin)
                       real(8),    intent(out) :: Rener(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime
@@ -223,7 +223,7 @@ module elem_diffu
                       !$acc kernels
                       Rener(:) = 0.0d0
                       !$acc end kernels
-                      !$acc parallel loop gang private(Re,gpcar,gradU,gradT,tauU) vector_length(32)
+                      !$acc parallel loop gang  private(Re,gpcar,gradU,gradT,tauU)  vector_length(32)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
@@ -246,7 +246,7 @@ module elem_diffu
                             do inode = 1,nnode
                                mu_fgp = mu_fgp+(Ngp(igaus,inode)*mu_fluid(connec(ielem,inode)))
                             end do
-                            kappa_e =mu_fgp*1004.0d0/0.71d0+c_ener*mu_e(ielem,igaus)/0.4d0
+                            kappa_e =mu_fgp*1004.0d0/0.71d0+c_ener*mu_e(ielem,igaus)/0.4d0 + mu_sgs(ielem,igaus)/0.9d0
                             mu_fgp = mu_fgp+mu_e(ielem,igaus)
                             !
                             ! Compute grad(U)
