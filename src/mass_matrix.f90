@@ -91,13 +91,13 @@ module mass_matrix
                       real(8),    intent(in)           :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
                       real(8),    intent(out)          :: Ml(npoin)
                       integer(4)                       :: ielem, igaus, inode, jnode
-                      real(8)                          :: Me(nnode), alpha, aux1, aux2, el_w(nnode)
+                      real(8)                          :: Me(nnode), alpha, aux1, aux2, el_w(nnode), T,d
 
                       !$acc kernels
                       Ml(:) = 0.0d0
                       !$acc end kernels
-
-                      !$acc parallel loop gang private(Me)
+#if 1
+                      !$acc parallel loop gang private(Me) vector_length(32)
                       do ielem = 1,nelem
                          Me = 0.0d0
                          aux1 = 0.0d0
@@ -107,7 +107,7 @@ module mass_matrix
                          !
                          !$acc loop seq
                          do igaus = 1,ngaus
-                            !$acc loop vector
+                            !$acc loop vector reduction(+:aux1)
                             do inode = 1,nnode
                                aux1 = aux1 + gpvol(1,igaus,ielem)*Ngp(igaus,inode)*Ngp(igaus,inode) ! tr[Mc]
                             end do
@@ -118,7 +118,7 @@ module mass_matrix
                          !
                          !$acc loop seq
                          do igaus = 1,ngaus
-                            !!$acc loop vector
+                            !$acc loop vector
                             do inode = 1,nnode
                                Me(inode) = Me(inode)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)**2)
                             end do
@@ -131,16 +131,35 @@ module mass_matrix
                          end do
                       end do
                       !$acc end parallel loop
+#else
+                      !$acc parallel loop gang private(Me) vector_length(32)
+                      do ielem = 1,nelem
+                         !$acc loop vector
+                         do inode = 1,nnode
+                            Me(inode) = 0.0d0
+                         end do
+                         !$acc loop seq
+                         do igaus = 1,ngaus
+                            !$acc loop vector
+                            do inode = 1,nnode
+                               Me(inode) = Me(inode) &
+                                   +gpvol(1,igaus,ielem)&
+                                   *Ngp(igaus,inode)
+                            end do
+                         end do
 
+                         !$acc loop vector
+                         do inode = 1,nnode
+                            !$acc atomic update
+                            Ml(connec(ielem,inode)) = Ml(connec(ielem,inode))+Me(inode)
+                            !$acc end atomic
+                         end do
+                      end do
+                      !$acc end parallel loop
+#endif
               end subroutine lumped_mass
 
               subroutine cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,v,Rmc)
-
-                      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                      ! Forms Mc as a sparse CSR matrix, utilizing nzdom, rdom and cdom to          !
-                      ! compress the elemental matrices into the full sparse assembly structure.    !
-                      ! Mc is defined by A{int(Na*Nb*det(Je))}, where A{} is the assembly operator. !
-                      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
                       implicit none
 
@@ -148,7 +167,7 @@ module mass_matrix
                       integer(4), intent(in)  :: connec(nelem,nnode)
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode), v(npoin)
                       real(8),    intent(out) :: Rmc(npoin)
-                      integer(4)              :: ielem, igaus, inode, ind(nnode)
+                      integer(4)              :: ielem, igaus, inode
                       real(8)                 :: Re(nnode), tmp2
 
                       !
@@ -159,19 +178,22 @@ module mass_matrix
                       Rmc(:) = 0.0d0
                       !$acc end kernels
 
-                      !$acc parallel loop gang private(ind,Re) vector_length(32)
+                      !$acc parallel loop gang private(Re) vector_length(32)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
                             Re(inode) = 0.0d0
-                            ind(inode) = connec(ielem,inode) ! get elemental indices
                          end do
                          !
                          ! Form Re with Gaussian quadrature (open)
                          !
                          !$acc loop seq
                          do igaus = 1,ngaus ! Loop over Gauss points
-                            tmp2 = dot_product(Ngp(igaus,:),v(ind))
+                            tmp2 = 0.0d0
+                            !$acc loop vector reduction(+:tmp2)
+                            do inode = 1,nnode
+                               tmp2 = tmp2+Ngp(igaus,inode)*v(connec(ielem,inode)) 
+                            end do
                             !$acc loop vector
                             do inode = 1,nnode ! Loop over element nodes (row)
                                Re(inode) = Re(inode)+gpvol(1,igaus,ielem)* &
@@ -181,7 +203,7 @@ module mass_matrix
                          !$acc loop vector
                          do inode = 1,nnode
                             !$acc atomic update
-                            Rmc(ind(inode)) = Rmc(ind(inode))+Re(inode)
+                            Rmc(connec(ielem,inode)) = Rmc(connec(ielem,inode))+Re(inode)
                             !$acc end atomic
                          end do
                       end do
@@ -192,12 +214,6 @@ module mass_matrix
 
               subroutine wcmass_times_vector(nelem,npoin,connec,gpvol,Ngp,v,Rmc,weight)
 
-                      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-                      ! Forms Mc as a sparse CSR matrix, utilizing nzdom, rdom and cdom to          !
-                      ! compress the elemental matrices into the full sparse assembly structure.    !
-                      ! Mc is defined by A{int(Na*Nb*det(Je))}, where A{} is the assembly operator. !
-                      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
                       implicit none
 
                       integer(4), intent(in)  :: nelem, npoin
@@ -205,7 +221,7 @@ module mass_matrix
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode), v(npoin)
                       real(8),    intent(in)  :: weight(npoin)
                       real(8),    intent(out) :: Rmc(npoin)
-                      integer(4)              :: ielem, igaus, inode, ind(nnode)
+                      integer(4)              :: ielem, igaus, inode
                       real(8)                 :: Re(nnode), tmp1, tmp2
 
                       !
@@ -219,31 +235,35 @@ module mass_matrix
                       !
                       ! Loop over all elements to form Mc_e(nnode,nnode)
                       !
-                      !$acc parallel loop gang private(ind,Re) vector_length(32)
+                      !$acc parallel loop gang private(Re) vector_length(32)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
                             Re(inode) = 0.0d0
-                            ind(inode) = connec(ielem,inode) ! get elemental indices
                          end do
                          !
                          ! Form Re with Gaussian quadrature (open)
                          !
                          !$acc loop seq
                          do igaus = 1,ngaus ! Loop over Gauss points
-                            tmp1 = dot_product(Ngp(igaus,:),weight(ind))
-                            tmp2 = dot_product(Ngp(igaus,:),v(ind))
+                            tmp1 = 0.0d0
+                            tmp2 = 0.0d0
+                            !$acc loop vector reduction(+:tmp1,tmp2)
+                            do inode = 1,nnode
+                               tmp1 = tmp1+Ngp(igaus,inode)*weight(connec(ielem,inode)) 
+                               tmp2 = tmp2+Ngp(igaus,inode)*v(connec(ielem,inode)) 
+                            end do
                             !$acc loop vector
-                            do inode = 1,nnode ! Loop over element nodes (row)
+                            do inode = 1,nnode 
                                Re(inode) = Re(inode) + &
-                                  gpvol(1,igaus,ielem)*(tmp1)* &
+                                  gpvol(1,igaus,ielem)*tmp1* &
                                   Ngp(igaus,inode)*tmp2
                             end do
                          end do
                          !$acc loop vector
                          do inode = 1,nnode
                             !$acc atomic update
-                            Rmc(ind(inode)) = Rmc(ind(inode))+Re(inode)
+                            Rmc(connec(ielem,inode)) = Rmc(connec(ielem,inode))+Re(inode)
                             !$acc end atomic
                          end do
                       end do
