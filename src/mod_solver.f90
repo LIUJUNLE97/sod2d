@@ -238,4 +238,55 @@ module mod_solver
 
               end subroutine CSR_SpMV_scal
 
+              subroutine conjGrad_scalar()
+
+                 implicit none
+                 !
+                 ! Initialize solver
+                 !
+                 !$acc kernels
+                 x(:) = b(:)
+                 !$acc end kernels
+                 call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,v,b)
+                 !$acc parallel loop
+                 do ipoin = 1,npoin_w
+                    r0(lpoin_w(ipoin)) = b(lpoin_w(ipoin))-v(lpoin_w(ipoin))
+                    p0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))
+                 end do
+                 !$acc end parallel loop
+                 !
+                 ! Check residual before continuing
+                 !
+                 !
+                 ! Start iterations
+                 !
+                 do iter = 1,maxIter
+                    call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,q,p0)
+                    Q1 = dot_product(r0,r0)
+                    Q2 = dot_product(p0,q)
+                    !$acc parallel loop
+                    do ipoin = 1,npoin_w
+                       x(lpoin_w(ipoin)) = x(lpoin_w(ipoin))+alpha*p0(lpoin_w(ipoin))
+                       r0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))-alpha*q(lpoin_w(ipoin))
+                    end do
+                    !$acc end parallel loop
+                    T1 = dot_product(r1,r1)
+                    !
+                    ! Stop cond
+                    !
+                    !if () then
+                    !end if
+                    !
+                    ! Update p
+                    !
+                    beta = T1/Q1
+                    !$acc parallel loop
+                    do ipoin = 1,npoin_w
+                       p0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))+beta*p0(lpoin_w(ipoin))
+                    end do
+                    !$acc end parallel loop
+                 end do
+
+              end subroutine conjGrad_scalar
+
 end module mod_solver
