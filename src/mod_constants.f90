@@ -27,7 +27,17 @@ module mod_constants
       integer(4), parameter :: flag_diff_suth=1
       integer(4), parameter :: flag_rk_order=4
       integer(4), parameter :: flag_les=0
+      integer(4), parameter :: flag_cg_solver=1
 
+      !
+      ! Solver params
+      !
+      integer(4), parameter :: maxIter=100
+      real(8)   , parameter :: tol=0.00000001d0
+
+      !
+      ! Other constants
+      !
       real(8), parameter :: ce = 1.0d0
       real(8), parameter :: cmax = 0.5d0
       real(8), parameter :: cglob = 1.0d0
