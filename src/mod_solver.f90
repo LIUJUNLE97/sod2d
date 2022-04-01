@@ -175,25 +175,31 @@ module mod_solver
 
               end subroutine CSR_SpMV_scal
 
-              subroutine conjGrad_scalar()
+              subroutine conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,R)
+
+                 use mass_matrix
 
                  implicit none
+
+                 integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w)
+                 real(8)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
+                 real(8)   , intent(inout) :: R(npoin)
+                 integer(4)                :: ipoin, iter
+                 real(8), dimension(npoin) :: x, r0, p0, q
+                 real(8)                   :: Q1, Q2, T1, alpha, beta
                  !
                  ! Initialize solver
                  !
                  !$acc kernels
-                 x(:) = b(:)
+                 x(:) = R(:)
                  !$acc end kernels
-                 call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,v,b)
+                 call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,q,x)
                  !$acc parallel loop
                  do ipoin = 1,npoin_w
-                    r0(lpoin_w(ipoin)) = b(lpoin_w(ipoin))-v(lpoin_w(ipoin))
+                    r0(lpoin_w(ipoin)) = x(lpoin_w(ipoin))-q(lpoin_w(ipoin))
                     p0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))
                  end do
                  !$acc end parallel loop
-                 !
-                 ! Check residual before continuing
-                 !
                  !
                  ! Start iterations
                  !
@@ -201,18 +207,20 @@ module mod_solver
                     call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,q,p0)
                     Q1 = dot_product(r0,r0)
                     Q2 = dot_product(p0,q)
+                    alpha = Q1/Q2
                     !$acc parallel loop
                     do ipoin = 1,npoin_w
                        x(lpoin_w(ipoin)) = x(lpoin_w(ipoin))+alpha*p0(lpoin_w(ipoin))
                        r0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))-alpha*q(lpoin_w(ipoin))
                     end do
                     !$acc end parallel loop
-                    T1 = dot_product(r1,r1)
+                    T1 = dot_product(r0,r0)
                     !
                     ! Stop cond
                     !
-                    !if () then
-                    !end if
+                    if (sqrt(T1) .gt. tol) then
+                       exit
+                    end if
                     !
                     ! Update p
                     !
@@ -223,6 +231,9 @@ module mod_solver
                     end do
                     !$acc end parallel loop
                  end do
+                 !$acc kernels
+                 R(:) = x(:)
+                 !$acc end kernels
 
               end subroutine conjGrad_scalar
 
