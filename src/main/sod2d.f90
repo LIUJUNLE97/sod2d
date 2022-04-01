@@ -59,7 +59,6 @@ program sod2d
         real(8)                    :: cfl_conv, cfl_diff
         character(500)             :: file_path
         character(500)             :: file_name, dumpfile
-        character(5)               :: matrix_type, solver_type
         character(4)               :: timeStep
 
         real(8)                    :: Rgas, gamma_gas, Cv
@@ -112,7 +111,7 @@ program sod2d
         !nnode = 27 ! TODO: need to allow for mixed elements...
         !porder = 1 ! TODO: make it input
         !npbou = 9 ! TODO: Need to get his from somewhere...
-        nstep = 1000000 ! TODO: Needs to be input...
+        nstep = 3 ! TODO: Needs to be input...
 #ifdef CHANNEL
         Rgas = Rg
 #else
@@ -121,16 +120,16 @@ program sod2d
         Cp = 1004.00d0 ! TODO: Make it input
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
-        cfl_conv = 0.95d0
+        cfl_conv = 0.10d0
         cfl_diff = 0.95d0
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
-        nleap = 5000 ! Saving interval, TODO: input
-        nleap2 = 10  ! Saving interval, TODO: input
+        nleap = 1 ! Saving interval, TODO: input
+        nleap2 = 1  ! Saving interval, TODO: input
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
-        isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
+        isPeriodic = 0 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #endif        
         if (isPeriodic == 1) then
 #ifdef CHANNEL
@@ -143,7 +142,7 @@ program sod2d
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
         end if
-        flag_emac = 1
+        flag_emac = 0
         if (flag_emac == 1) then
            write(1,*) "--| RUNNING WITH EMAC CONVECTION"
         else if (flag_emac == 0) then
@@ -173,8 +172,8 @@ program sod2d
 #ifdef CHANNEL
         write(file_name,*) "channel" ! Nsys
 #else
-        !write(file_name,*) "shock_tube" ! Nsys
-        write(file_name,*) "cube" ! Nsys
+        write(file_name,*) "shock_tube" ! Nsys
+        !write(file_name,*) "cube" ! Nsys
 #endif
         call read_dims(file_path,file_name,npoin,nelem,nboun)
         allocate(connec(nelem,nnode))
@@ -537,8 +536,6 @@ program sod2d
         ! Generate Jacobian related information                               !
         !*********************************************************************!
 
-        ! TODO: create as a subroutine
-        
         write(1,*) "--| GENERATING JACOBIAN RELATED INFORMATION..."
 
         call nvtxStartRange("Jacobian info")
@@ -587,7 +584,6 @@ program sod2d
         call nvtxStartRange("Lumped mass compute")
         allocate(Ml(npoin))
         call lumped_mass(nelem,npoin,connec,gpvol,Ngp,Ml)
-        solver_type = 'LUMSO'
         call nvtxEndRange
 
         !
@@ -597,19 +593,12 @@ program sod2d
         !allocate(Mc(nzdom))
         !call consistent_mass(nelem,nnode,npoin,ngaus,connec,nzdom,rdom,cdom,gpvol,Ngp,Mc)
 
-        !
-        ! Set solver type
-        !
-        write(1,*) '--| ENTER REQUIRED SOLVER FOR MASS MATRIX:'
-        write(1,*) '--| AVAILABLE SOLVERS ARE: LUMSO, APINV:'
-        !read(*,*) solver_type
-        write(solver_type,'(a)') "APINV" ! Nsys
-        if (solver_type == 'APINV') then
+        if (flag_solver_type == 2) then
             write(1,*) '--| ENTER NUMBER OF ITERATIONS FOR APINV SOLVER:'
             !read(*,*) ppow
             ppow = 2 ! Nsys
         end if
-        write(1,*) '--| USING SOLVER ',solver_type,' FOR MASS MATRIX'
+        write(1,*) '--| USING SOLVER ',flag_solver_type,' FOR MASS MATRIX'
 
         !*********************************************************************!
         ! Create variables on GPU                                             !
