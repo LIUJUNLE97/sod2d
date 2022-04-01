@@ -187,6 +187,9 @@ module mod_solver
                  integer(4)                :: ipoin, iter
                  real(8), dimension(npoin) :: x, r0, p0, q
                  real(8)                   :: Q1, Q2, T1, alpha, beta
+
+
+                 call nvtxStartRange("CG solver scalar")
                  !
                  ! Initialize solver
                  !
@@ -205,8 +208,14 @@ module mod_solver
                  !
                  do iter = 1,maxIter
                     call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,q,p0)
-                    Q1 = dot_product(r0,r0)
-                    Q2 = dot_product(p0,q)
+                    Q1 = 0.0d0
+                    Q2 = 0.0d0
+                    !$acc parallel loop reduction(+:Q1,Q2)
+                    do ipoin = 1,npoin
+                       Q1 = Q1+r0(ipoin)*r0(ipoin)
+                       Q2 = Q2+p0(ipoin)*q(ipoin)
+                    end do
+                    !$acc end parallel loop
                     alpha = Q1/Q2
                     !$acc parallel loop
                     do ipoin = 1,npoin_w
@@ -214,11 +223,17 @@ module mod_solver
                        r0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))-alpha*q(lpoin_w(ipoin))
                     end do
                     !$acc end parallel loop
-                    T1 = dot_product(r0,r0)
+                    T1 = 0.0d0
+                    !$acc parallel loop reduction(+:T1)
+                    do ipoin = 1,npoin
+                       T1 = T1+r0(ipoin)*r0(ipoin)
+                    end do
+                    !$acc end parallel loop
                     !
                     ! Stop cond
                     !
                     if (sqrt(T1) .lt. tol) then
+                       print*, iter, sqrt(T1)
                        exit
                     end if
                     !
@@ -231,9 +246,15 @@ module mod_solver
                     end do
                     !$acc end parallel loop
                  end do
+                 if (iter == maxIter) then
+                    write(*,*) "--| TOO MANY ITERATIONS!"
+                    write(*,*) T1
+                    STOP(1)
+                 end if
                  !$acc kernels
                  R(:) = x(:)
                  !$acc end kernels
+                 call nvtxEndRange
 
               end subroutine conjGrad_scalar
 
@@ -250,15 +271,15 @@ module mod_solver
                  real(8), dimension(npoin) :: x, r0, p0, q
                  real(8)                   :: Q1, Q2, T1, alpha, beta
 
+
+                 call nvtxStartRange("CG solver scalar")
                  do idime = 1,ndime
                     !
                     ! Initialize solver
                     !
-                    !$acc parallel loop
-                    do ipoin = 1,npoin
-                       x(ipoin) = R(ipoin,idime)
-                    end do
-                    !$acc end parallel loop
+                    !$acc kernels
+                    x(:) = R(:,idime)
+                    !$acc end kernels
                     call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,q,x)
                     !$acc parallel loop
                     do ipoin = 1,npoin_w
@@ -271,8 +292,14 @@ module mod_solver
                     !
                     do iter = 1,maxIter
                        call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,q,p0)
-                       Q1 = dot_product(r0,r0)
-                       Q2 = dot_product(p0,q)
+                       Q1 = 0.0d0
+                       Q2 = 0.0d0
+                       !$acc parallel loop reduction(+:Q1,Q2)
+                       do ipoin = 1,npoin
+                          Q1 = Q1+r0(ipoin)*r0(ipoin)
+                          Q2 = Q2+p0(ipoin)*q(ipoin)
+                       end do
+                       !$acc end parallel loop
                        alpha = Q1/Q2
                        !$acc parallel loop
                        do ipoin = 1,npoin_w
@@ -280,11 +307,17 @@ module mod_solver
                           r0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))-alpha*q(lpoin_w(ipoin))
                        end do
                        !$acc end parallel loop
-                       T1 = dot_product(r0,r0)
+                       T1 = 0.0d0
+                       !$acc parallel loop reduction(+:T1)
+                       do ipoin = 1,npoin
+                          T1 = T1+r0(ipoin)*r0(ipoin)
+                       end do
+                       !$acc end parallel loop
                        !
                        ! Stop cond
                        !
                        if (sqrt(T1) .lt. tol) then
+                          print*, iter, sqrt(T1)
                           exit
                        end if
                        !
@@ -297,13 +330,18 @@ module mod_solver
                        end do
                        !$acc end parallel loop
                     end do
-                    !$acc parallel loop
-                    do ipoin = 1,npoin
-                       R(ipoin,idime) = x(ipoin)
-                    end do
-                    !$acc end parallel loop
+                    if (iter == maxIter) then
+                       write(*,*) "--| TOO MANY ITERATIONS!"
+                       write(*,*) T1
+                       STOP(1)
+                    end if
+                    !$acc kernels
+                    R(:,idime) = x(:)
+                    !$acc end kernels
                  end do
+                 call nvtxEndRange
 
               end subroutine conjGrad_vector
+
 
 end module mod_solver
