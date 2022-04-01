@@ -45,13 +45,14 @@ module mod_entropy_viscosity
                           eta_p(lpoin_w(ipoin)) = (rho(lpoin_w(ipoin),1)/(gamma_gas-1.0d0))* &
                              log(pr(lpoin_w(ipoin),1)/(rho(lpoin_w(ipoin),1)**gamma_gas))
 
+                          !$acc loop vector
                           do idime = 1,ndime
                              f_eta(lpoin_w(ipoin),idime) = uk(lpoin_w(ipoin),idime)*eta(lpoin_w(ipoin))
                              f_rho(lpoin_w(ipoin),idime) = qk(lpoin_w(ipoin),idime)
                           end do
 
                           R1(lpoin_w(ipoin)) = (eta_p(lpoin_w(ipoin))-eta(lpoin_w(ipoin)))/dt  ! Temporal entropy
-                          Reta(lpoin_w(ipoin)) = 0.0d0
+                          !Reta(lpoin_w(ipoin)) = 0.0d0
                           alpha(lpoin_w(ipoin)) = 1.0d0
 
                        end do
@@ -65,10 +66,17 @@ module mod_entropy_viscosity
                        !
                        ! Alter Reta with inv(Mc)
                        !
-                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
-#ifndef LUMPED
-                       call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Reta)
-#endif 
+                       if (flag_solver_type == 1) then
+                          call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
+                       else if (flag_solver_type == 2) then
+                          call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
+                          call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Reta)
+                       else if (flag_solver_type == 3) then
+                          call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Reta)
+                       else
+                          write(1,*) "--| SOLVER NOT CODED!"
+                          STOP(1)
+                       end if
                        !
                        ! Update Reta
                        !
@@ -83,7 +91,13 @@ module mod_entropy_viscosity
                        !
                        ! Alter R2 with Mcw
                        !
-                       call wcmass_times_vector(nelem,npoin,connec,gpvol,Ngp,R2,aux1,alpha)
+                       if (flag_solver_type == 2 .or. flag_solver_type == 3) then
+                          call wcmass_times_vector(nelem,npoin,connec,gpvol,Ngp,R2,aux1,alpha)
+                       else if (flag_solver_type == 1) then
+                          !call wlmass_times_vector()
+                          write(1,*) "--| NOT CODED YET!"
+                          STOP(1)
+                       end if
                        !
                        ! Compute weighted mass convec
                        !
@@ -102,24 +116,31 @@ module mod_entropy_viscosity
                        !
                        ! Apply solver
                        !
-                       call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rrho)
-#ifndef LUMPED
-                       call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Rrho)
-#endif
+                       if (flag_solver_type == 1) then
+                          call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rrho)
+                       else if (flag_solver_type == 2) then
+                          call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rrho)
+                          call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Rrho)
+                       else if (flag_solver_type == 3) then
+                          call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rrho)
+                       else
+                          write(1,*) "--| SOLVER NOT CODED!"
+                          STOP(1)
+                       end if
                        call nvtxEndRange
 
-                       !
-                       ! Normalize
-                       !
-                      maxEta = maxval(abs(eta(lpoin_w(:))))
-                      maxRho = maxval(abs(rhok(lpoin_w(:))))
+                       !!
+                       !! Normalize
+                       !!
+                       !maxEta = maxval(abs(eta(lpoin_w(:))))
+                       !maxRho = maxval(abs(rhok(lpoin_w(:))))
 
-                      !$acc parallel loop
-                      do ipoin = 1,npoin_w
-                         Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/maxEta
-                         Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
-                      end do
-                      !$acc end parallel loop
+                       !!$acc parallel loop
+                       !do ipoin = 1,npoin_w
+                       !   Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/maxEta
+                       !   Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
+                       !end do
+                       !!$acc end parallel loop
 
               end subroutine residuals
 
@@ -139,9 +160,9 @@ module mod_entropy_viscosity
                       real(8)                 :: betae
                       real(8)                 :: L3, aux1, aux2, aux3
 
-                      !$acc parallel loop gang  vector_length(32)
+                      !$acc parallel loop gang vector_length(32)
                       do ielem = 1,nelem
-                         !$acc loop seq
+                         !$acc loop worker
                          do igaus = 1,ngaus
                             R1 = 0.0d0
                             R2 = 0.0d0

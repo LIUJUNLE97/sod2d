@@ -218,7 +218,7 @@ module mod_solver
                     !
                     ! Stop cond
                     !
-                    if (sqrt(T1) .gt. tol) then
+                    if (sqrt(T1) .lt. tol) then
                        exit
                     end if
                     !
@@ -236,5 +236,74 @@ module mod_solver
                  !$acc end kernels
 
               end subroutine conjGrad_scalar
+
+              subroutine conjGrad_vector(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,R)
+
+                 use mass_matrix
+
+                 implicit none
+
+                 integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w)
+                 real(8)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
+                 real(8)   , intent(inout) :: R(npoin,ndime)
+                 integer(4)                :: ipoin, idime, iter
+                 real(8), dimension(npoin) :: x, r0, p0, q
+                 real(8)                   :: Q1, Q2, T1, alpha, beta
+
+                 do idime = 1,ndime
+                    !
+                    ! Initialize solver
+                    !
+                    !$acc parallel loop
+                    do ipoin = 1,npoin
+                       x(ipoin) = R(ipoin,idime)
+                    end do
+                    !$acc end parallel loop
+                    call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,q,x)
+                    !$acc parallel loop
+                    do ipoin = 1,npoin_w
+                       r0(lpoin_w(ipoin)) = x(lpoin_w(ipoin))-q(lpoin_w(ipoin))
+                       p0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))
+                    end do
+                    !$acc end parallel loop
+                    !
+                    ! Start iterations
+                    !
+                    do iter = 1,maxIter
+                       call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,q,p0)
+                       Q1 = dot_product(r0,r0)
+                       Q2 = dot_product(p0,q)
+                       alpha = Q1/Q2
+                       !$acc parallel loop
+                       do ipoin = 1,npoin_w
+                          x(lpoin_w(ipoin)) = x(lpoin_w(ipoin))+alpha*p0(lpoin_w(ipoin))
+                          r0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))-alpha*q(lpoin_w(ipoin))
+                       end do
+                       !$acc end parallel loop
+                       T1 = dot_product(r0,r0)
+                       !
+                       ! Stop cond
+                       !
+                       if (sqrt(T1) .lt. tol) then
+                          exit
+                       end if
+                       !
+                       ! Update p
+                       !
+                       beta = T1/Q1
+                       !$acc parallel loop
+                       do ipoin = 1,npoin_w
+                          p0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))+beta*p0(lpoin_w(ipoin))
+                       end do
+                       !$acc end parallel loop
+                    end do
+                    !$acc parallel loop
+                    do ipoin = 1,npoin
+                       R(ipoin,idime) = x(ipoin)
+                    end do
+                    !$acc end parallel loop
+                 end do
+
+              end subroutine conjGrad_vector
 
 end module mod_solver
