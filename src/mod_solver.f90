@@ -175,4 +175,224 @@ module mod_solver
 
               end subroutine CSR_SpMV_scal
 
+              subroutine conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,R)
+
+                 use mass_matrix
+
+                 implicit none
+
+                 integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w)
+                 real(8)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
+                 real(8)   , intent(inout) :: R(npoin)
+                 integer(4)                :: ipoin, iter
+                 real(8), dimension(npoin) :: x, r0, p0, q, v, b
+                 real(8)                   :: Q1, Q2, T1, alpha, beta
+
+
+                 call nvtxStartRange("CG solver scalar")
+                 !$acc kernels
+                 x(:) = 0.0d0
+                 r0(:) = 0.0d0
+                 p0(:) = 0.0d0
+                 q(:) = 0.0d0
+                 v(:) = 0.0d0
+                 b(:) = 0.0d0
+                 !$acc end kernels
+                 !
+                 ! Initialize solver
+                 !
+                 !$acc parallel loop
+                 do ipoin = 1,npoin_w
+                    x(lpoin_w(ipoin)) = R(lpoin_w(ipoin))
+                    b(lpoin_w(ipoin)) = R(lpoin_w(ipoin))
+                 end do
+                 !$acc end parallel loop
+                 call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,x,q) ! A*x0
+                 !$acc parallel loop
+                 do ipoin = 1,npoin_w
+                    r0(lpoin_w(ipoin)) = b(lpoin_w(ipoin))-q(lpoin_w(ipoin)) ! b-A*x0
+                    p0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin)) ! s0 = r0
+                 end do
+
+                 !
+                 ! Start iterations
+                 !
+                 do iter = 1,maxIter
+                    call nvtxStartRange("Iteration")
+                    call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,p0,q) ! A*s_k-1
+                    Q1 = 0.0d0
+                    Q2 = 0.0d0
+                    !$acc parallel loop reduction(+:Q1,Q2)
+                    do ipoin = 1,npoin_w
+                       Q1 = Q1+p0(lpoin_w(ipoin))*r0(lpoin_w(ipoin)) ! <s_k-1,r_k-1>
+                       Q2 = Q2+p0(lpoin_w(ipoin))*q(lpoin_w(ipoin)) ! <s_k-1,A*s_k-1>
+                    end do
+                    !$acc end parallel loop
+                    alpha = Q1/Q2
+                    !$acc parallel loop
+                    do ipoin = 1,npoin_w
+                       x(lpoin_w(ipoin)) = x(lpoin_w(ipoin))+alpha*p0(lpoin_w(ipoin)) ! x_k = x_k-1 + alpha*s_k-1
+                    end do
+                    !$acc end parallel loop
+                    call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,x,v) ! A*x_k
+                    !$acc parallel loop
+                    do ipoin = 1,npoin_w
+                       r0(lpoin_w(ipoin)) = b(lpoin_w(ipoin))-v(lpoin_w(ipoin)) ! b-A*x_k
+                    end do
+                    !$acc end parallel loop
+                    T1 = 0.0d0
+                    !$acc parallel loop reduction(+:T1)
+                    do ipoin = 1,npoin
+                       T1 = T1+r0(ipoin)*r0(ipoin)
+                    end do
+                    !$acc end parallel loop
+                    !
+                    ! Stop cond
+                    !
+                    if (sqrt(T1) .lt. tol) then
+                       call nvtxEndRange
+                       exit
+                    end if
+                    !
+                    ! Update p
+                    !
+                    T1 = 0.0d0
+                    !$acc parallel loop reduction(+:T1)
+                    do ipoin = 1,npoin
+                       T1 = T1+r0(ipoin)*q(ipoin) ! <r_k,A*s_k-1>
+                    end do
+                    !$acc end parallel loop
+                    beta = T1/Q1
+                    !$acc parallel loop
+                    do ipoin = 1,npoin_w
+                       p0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))-beta*p0(lpoin_w(ipoin)) ! s_k = r_k+beta*s_k-1
+                    end do
+                    !$acc end parallel loop
+                    call nvtxEndRange
+                 end do
+                 if (iter == maxIter) then
+                    write(1,*) "--| TOO MANY ITERATIONS!"
+                    call nvtxEndRange
+                    STOP(1)
+                 end if
+                 !$acc kernels
+                 R(:) = x(:)
+                 !$acc end kernels
+                 call nvtxEndRange
+
+              end subroutine conjGrad_scalar
+
+              subroutine conjGrad_vector(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,R)
+
+                 use mass_matrix
+
+                 implicit none
+
+                 integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w)
+                 real(8)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
+                 real(8)   , intent(inout) :: R(npoin,ndime)
+                 integer(4)                :: ipoin, idime, iter
+                 real(8), dimension(npoin) :: x, r0, p0, q, v, b
+                 real(8)                   :: Q1, Q2, T1, alpha, beta
+
+
+                 call nvtxStartRange("CG solver vector")
+                 do idime = 1,ndime
+                    call nvtxStartRange("Dimension")
+                    !$acc kernels
+                    x(:) = 0.0d0
+                    r0(:) = 0.0d0
+                    p0(:) = 0.0d0
+                    q(:) = 0.0d0
+                    v(:) = 0.0d0
+                    b(:) = 0.0d0
+                    !$acc end kernels
+                    !
+                    ! Initialize solver
+                    !
+                    !$acc parallel loop
+                    do ipoin = 1,npoin_w
+                       x(lpoin_w(ipoin)) = R(lpoin_w(ipoin),idime)
+                       b(lpoin_w(ipoin)) = R(lpoin_w(ipoin),idime)
+                    end do
+                    !$acc end parallel loop
+                    call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,x,q) ! A*x0
+                    !$acc parallel loop
+                    do ipoin = 1,npoin_w
+                       r0(lpoin_w(ipoin)) = b(lpoin_w(ipoin))-q(lpoin_w(ipoin)) ! b-A*x0
+                       p0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin)) ! s0 = r0
+                    end do
+                    !$acc end parallel loop
+                    !
+                    ! Start iterations
+                    !
+                    do iter = 1,maxIter
+                       call nvtxStartRange("Iteration")
+                       call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,p0,q) ! A*s_k-1
+                       Q1 = 0.0d0
+                       Q2 = 0.0d0
+                       !$acc parallel loop reduction(+:Q1,Q2)
+                       do ipoin = 1,npoin
+                          Q1 = Q1+p0(ipoin)*r0(ipoin) ! <s_k-1,r_k-1>
+                          Q2 = Q2+p0(ipoin)*q(ipoin) ! <s_k-1,A*s_k-1>
+                       end do
+                       !$acc end parallel loop
+                       alpha = Q1/Q2
+                       !$acc parallel loop
+                       do ipoin = 1,npoin_w
+                          x(lpoin_w(ipoin)) = x(lpoin_w(ipoin))+alpha*p0(lpoin_w(ipoin)) ! x_k = x_k-1 + alpha*s_k-1
+                       end do
+                       !$acc end parallel loop
+                       call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,x,v) ! A*x_k
+                       !$acc parallel loop
+                       do ipoin = 1,npoin_w
+                          r0(lpoin_w(ipoin)) = b(lpoin_w(ipoin))-v(lpoin_w(ipoin)) ! b-A*x_k
+                       end do
+                       !$acc end parallel loop
+                       T1 = 0.0d0
+                       !$acc parallel loop reduction(+:T1)
+                       do ipoin = 1,npoin
+                          T1 = T1+r0(ipoin)*r0(ipoin)
+                       end do
+                       !$acc end parallel loop
+                       !
+                       ! Stop cond
+                       !
+                       if (sqrt(T1) .lt. tol) then
+                          call nvtxEndRange
+                          exit
+                       end if
+                       !
+                       ! Update p
+                       !
+                       T1 = 0.0d0
+                       !$acc parallel loop reduction(+:T1)
+                       do ipoin = 1,npoin
+                          T1 = T1+r0(ipoin)*q(ipoin) ! <r_k,A*s_k-1>
+                       end do
+                       !$acc end parallel loop
+                       beta = T1/Q1
+                       !$acc parallel loop
+                       do ipoin = 1,npoin_w
+                          p0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))-beta*p0(lpoin_w(ipoin)) ! s_k = r_k+beta*s_k-1
+                       end do
+                       !$acc end parallel loop
+                       call nvtxEndRange
+                    end do
+                    if (iter == maxIter) then
+                       write(1,*) "--| TOO MANY ITERATIONS!"
+                       call nvtxEndRange
+                       STOP(1)
+                    end if
+                    !$acc parallel loop
+                    do ipoin = 1,npoin
+                       R(ipoin,idime) = x(ipoin)
+                    end do
+                    !$acc end parallel loop
+                    call nvtxEndRange
+                 end do
+                 call nvtxEndRange
+
+              end subroutine conjGrad_vector
+
 end module mod_solver

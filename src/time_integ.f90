@@ -136,11 +136,18 @@ module time_integ
                          end do
                          !$acc end parallel loop
                       end if
-                      call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_1)
-#ifndef LUMPED
-                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rmass_1)
-#endif
+                      if (flag_solver_type == 1) then
+                         call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_1)
+                      else if (flag_solver_type == 2) then
+                         call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_1)
+                         call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                            connec,gpvol,Ngp,ppow,Ml,Rmass_1)
+                      else if (flag_solver_type == 3) then
+                         call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rmass_1)
+                      else 
+                         write(1,*) "--| SOLVER NOT CODED YET!"
+                         STOP(1)
+                      end if
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_1(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)- &
@@ -204,11 +211,18 @@ module time_integ
                          end do
                          !$acc end parallel loop
                       end if
-                      call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_1)
-#ifndef LUMPED
-                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rmom_1)
-#endif
+                      if (flag_solver_type == 1) then
+                         call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_1)
+                      else if (flag_solver_type == 2) then
+                         call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_1)
+                         call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                            connec,gpvol,Ngp,ppow,Ml,Rmom_1)
+                      else if (flag_solver_type == 3) then
+                         call conjGrad_vector(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rmom_1)
+                      else 
+                         write(1,*) "--| SOLVER NOT CODED YET!"
+                         STOP(1)
+                      end if
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -278,11 +292,18 @@ module time_integ
                          end do
                          !$acc end parallel loop
                       end if
-                      call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_1)
-#ifndef LUMPED
-                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                                                 connec,gpvol,Ngp,ppow,Ml,Rener_1)
-#endif
+                      if (flag_solver_type == 1) then
+                         call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_1)
+                      else if (flag_solver_type == 2) then
+                         call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_1)
+                         call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                            connec,gpvol,Ngp,ppow,Ml,Rener_1)
+                      else if (flag_solver_type == 3) then
+                         call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rener_1)
+                      else 
+                         write(1,*) "--| SOLVER NOT CODED YET!"
+                         STOP(1)
+                      end if
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_1(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &
@@ -361,11 +382,18 @@ module time_integ
                          end do
                          !$acc end parallel loop
                       end if
-                      call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_2)
-#ifndef LUMPED
-                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rmass_2)
-#endif
+                      if (flag_solver_type == 1) then
+                         call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_2)
+                      else if (flag_solver_type == 2) then
+                         call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_2)
+                         call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                            connec,gpvol,Ngp,ppow,Ml,Rmass_2)
+                      else if (flag_solver_type == 3) then
+                         call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rmass_2)
+                      else 
+                         write(1,*) "--| SOLVER NOT CODED YET!"
+                         STOP(1)
+                      end if
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_2(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)- &
@@ -416,11 +444,18 @@ module time_integ
                          end do
                          !$acc end parallel loop
                       end if
-                      call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_2)
-#ifndef LUMPED
-                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rmom_2)
-#endif
+                      if (flag_solver_type == 1) then
+                         call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_2)
+                      else if (flag_solver_type == 2) then
+                         call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_2)
+                         call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                            connec,gpvol,Ngp,ppow,Ml,Rmom_2)
+                      else if (flag_solver_type == 3) then
+                         call conjGrad_vector(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rmom_2)
+                      else 
+                         write(1,*) "--| SOLVER NOT CODED YET!"
+                         STOP(1)
+                      end if
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -487,11 +522,18 @@ module time_integ
                          end do
                          !$acc end parallel loop
                       end if
-                      call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_2)
-#ifndef LUMPED
-                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rener_2)
-#endif
+                      if (flag_solver_type == 1) then
+                         call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_2)
+                      else if (flag_solver_type == 2) then
+                         call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_2)
+                         call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                            connec,gpvol,Ngp,ppow,Ml,Rener_2)
+                      else if (flag_solver_type == 3) then
+                         call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rener_2)
+                      else 
+                         write(1,*) "--| SOLVER NOT CODED YET!"
+                         STOP(1)
+                      end if
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_2(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &
@@ -570,11 +612,18 @@ module time_integ
                          end do
                          !$acc end parallel loop
                       end if
-                      call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_3)
-#ifndef LUMPED
-                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rmass_3)
-#endif
+                      if (flag_solver_type == 1) then
+                         call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_3)
+                      else if (flag_solver_type == 2) then
+                         call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_3)
+                         call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                            connec,gpvol,Ngp,ppow,Ml,Rmass_3)
+                      else if (flag_solver_type == 3) then
+                         call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rmass_3)
+                      else 
+                         write(1,*) "--| SOLVER NOT CODED YET!"
+                         STOP(1)
+                      end if
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          rho_3(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),pos)-(dt/1.0d0)*Rmass_3(lpoin_w(ipoin))
@@ -625,11 +674,18 @@ module time_integ
                          end do
                          !$acc end parallel loop
                       end if
-                      call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_3)
-#ifndef LUMPED
-                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rmom_3)
-#endif
+                      if (flag_solver_type == 1) then
+                         call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_3)
+                      else if (flag_solver_type == 2) then
+                         call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_3)
+                         call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                            connec,gpvol,Ngp,ppow,Ml,Rmom_3)
+                      else if (flag_solver_type == 3) then
+                         call conjGrad_vector(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rmom_3)
+                      else 
+                         write(1,*) "--| SOLVER NOT CODED YET!"
+                         STOP(1)
+                      end if
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -696,11 +752,18 @@ module time_integ
                          end do
                          !$acc end parallel loop
                       end if
-                      call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_3)
-#ifndef LUMPED
-                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rener_3)
-#endif
+                      if (flag_solver_type == 1) then
+                         call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_3)
+                      else if (flag_solver_type == 2) then
+                         call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_3)
+                         call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                            connec,gpvol,Ngp,ppow,Ml,Rener_3)
+                      else if (flag_solver_type == 3) then
+                         call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rener_3)
+                      else 
+                         write(1,*) "--| SOLVER NOT CODED YET!"
+                         STOP(1)
+                      end if
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          E_3(lpoin_w(ipoin)) = E(lpoin_w(ipoin),pos)- &
@@ -778,11 +841,18 @@ module time_integ
                          end do
                          !$acc end parallel loop
                       end if
-                      call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_4)
-#ifndef LUMPED
-                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rmass_4)
-#endif
+                      if (flag_solver_type == 1) then
+                         call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_4)
+                      else if (flag_solver_type == 2) then
+                         call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass_4)
+                         call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                            connec,gpvol,Ngp,ppow,Ml,Rmass_4)
+                      else if (flag_solver_type == 3) then
+                         call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rmass_4)
+                      else 
+                         write(1,*) "--| SOLVER NOT CODED YET!"
+                         STOP(1)
+                      end if
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          aux_mass(lpoin_w(ipoin)) = Rmass_1(lpoin_w(ipoin))+2.0d0*Rmass_2(lpoin_w(ipoin))+ &
@@ -836,11 +906,18 @@ module time_integ
                          end do
                          !$acc end parallel loop
                       end if
-                      call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_4)
-#ifndef LUMPED
-                      call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rmom_4)
-#endif
+                      if (flag_solver_type == 1) then
+                         call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_4)
+                      else if (flag_solver_type == 2) then
+                         call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom_4)
+                         call approx_inverse_vect(nelem,npoin,npoin_w,lpoin_w, &
+                            connec,gpvol,Ngp,ppow,Ml,Rmom_4)
+                      else if (flag_solver_type == 3) then
+                         call conjGrad_vector(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rmom_4)
+                      else 
+                         write(1,*) "--| SOLVER NOT CODED YET!"
+                         STOP(1)
+                      end if
                       !$acc parallel loop collapse(2)
                       do ipoin = 1,npoin_w
                          do idime = 1,ndime
@@ -909,11 +986,18 @@ module time_integ
                          end do
                          !$acc end parallel loop
                       end if
-                      call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_4)
-#ifndef LUMPED
-                      call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
-                         connec,gpvol,Ngp,ppow,Ml,Rener_4)
-#endif
+                      if (flag_solver_type == 1) then
+                         call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_4)
+                      else if (flag_solver_type == 2) then
+                         call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener_4)
+                         call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w, &
+                            connec,gpvol,Ngp,ppow,Ml,Rener_4)
+                      else if (flag_solver_type == 3) then
+                         call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rener_4)
+                      else 
+                         write(1,*) "--| SOLVER NOT CODED YET!"
+                         STOP(1)
+                      end if
                       !$acc parallel loop
                       do ipoin = 1,npoin_w
                          aux_ener(lpoin_w(ipoin)) = Rener_1(lpoin_w(ipoin))+2.0d0*Rener_2(lpoin_w(ipoin))+ &
