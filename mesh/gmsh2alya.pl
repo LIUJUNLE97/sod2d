@@ -92,7 +92,7 @@ print "Detection Mode only (I will not write any output files)\n\n" if ($DetectM
 		   #28: 6-node fifth order edge (2 nodes associated with the vertices, 4 internal to the edge)
 		   push @Elements1D, [ @values[2..$#values] ];
 	       }
-	       when ([2,3, 9,10,16,20,21,22,23,24,25] ){ #Two dimensional elements:
+	       when ([2,3, 9,10,16,20,21,22,23,24,25,36] ){ #Two dimensional elements:
 		   #2: 3-node triangle.
 		   #3: 4-node quadrangle.
 		   #9: 6-node second order triangle (3 nodes associated with the vertices and 3 with the edges).
@@ -104,9 +104,10 @@ print "Detection Mode only (I will not write any output files)\n\n" if ($DetectM
 		   #23: 15-node fourth order triangle (3 nodes associated with the vertices, 9 with the edges, 3 with the face)
 		   #24: 15-node fifth order incomplete triangle (3 nodes associated with the vertices, 12 with the edges)
 		   #25: 21-node fifth order complete triangle (3 nodes associated with the vertices, 12 with the edges, 6 with the face)
+		   #36: 16-node fifth order complete triangle (4 nodes associated with the vertices, 8 with the edges, 4 with the face)
 		   push @Elements2D, [ @values[2..$#values] ];
 	       }
-	       when ([4,5,6, 7, 11,12,13, 14,17,18,19,29,30,31 ]){ #Three dimensional elements:
+	       when ([4,5,6, 7, 11,12,13, 14,17,18,19,29,30,31,92 ]){ #Three dimensional elements:
 		   #4: 4-node tetrahedron.
 		   #5: 8-node hexahedron.
 		   #6: 6-node prism.
@@ -121,6 +122,7 @@ print "Detection Mode only (I will not write any output files)\n\n" if ($DetectM
 		   #29: 20-node third order tetrahedron (4 nodes associated with the vertices, 12 with the edges, 4 with the faces)
 		   #30: 35-node fourth order tetrahedron (4 nodes associated with the vertices, 18 with the edges, 12 with the faces, 1 in the volume)
 		   #31: 56-node fifth order tetrahedron (4 nodes associated with the vertices, 24 with the edges, 24 with the faces, 4 in the volume)
+		   #92: 64-node third order hexahedron (8 nodes associated with the vertices, 24 with the edges, 24 with the faces, 8 in the volume)
 		   push @Elements3D, [ @values[2..$#values] ];
 	       }
 	       default{ die "I could not understand the element type: $values[1]";}

@@ -225,6 +225,8 @@ module mod_output
                cellTypes = 12
             else if (nnode .eq. 27) then ! HEX27
                cellTypes = 29
+            else if (nnode .eq. 64) then ! HEX64
+               cellTypes = 72
             end if
          end if
       
