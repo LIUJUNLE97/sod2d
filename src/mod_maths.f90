@@ -37,7 +37,7 @@ module mod_maths
             lorder(i) = i-2
          end do
          do i = 1,porder+1
-            xi_chb(lorder(i)) = -cos(v_pi*dble(lorder(i-1))/dble(porder))
+            xi_chb(lorder(i)) = -cos(v_pi*dble(lorder(i))/dble(porder))
          end do
 
       end subroutine chebyshev_roots

@@ -1,6 +1,7 @@
 module quadrature_rules
 
         use mod_constants
+
         contains
 
                 subroutine gll_qua(xgp,wgp)
@@ -150,6 +151,21 @@ module quadrature_rules
                         end if
 
                 end subroutine gll_hex
+
+                pure subroutine chebyshev_hex()
+
+                   use mod_maths
+
+                   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                   ! Closed rule quadrature that uses the     !
+                   ! Chebyshev grid+enddpoints as abcissas.   !
+                   ! Weights are obtained by evaluating       !
+                   ! w_j = int(l^n_i(xi_j),-1,1).             !
+                   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                   !
+                   implicit none
+                   call chebyshev_roots(xi_chb)
+                end subroutine chebyshev_hex
 
 
 end module quadrature_rules
