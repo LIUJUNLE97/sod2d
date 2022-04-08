@@ -38,6 +38,7 @@ module mod_constants
       !
       ! Other constants
       !
+      real(8), parameter :: v_pi = 2.0d0*asin(1.0d0) ! Value of Pi
       real(8), parameter :: ce = 1.0d0
       real(8), parameter :: cmax = 0.5d0
       real(8), parameter :: cglob = 1.0d0
