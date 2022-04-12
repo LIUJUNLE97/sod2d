@@ -42,6 +42,48 @@ module mod_maths
 
       end subroutine chebyshev_roots
 
+      pure subroutine eval_chebyshevPoly1(xi,Tn)
+
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         ! Evaluates all type 1 Chebyshev polys from        !
+         ! order 0 to 1 using the recursion expression.     !
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+         implicit none
+
+         real(8), intent(in)  :: xi
+         real(8), intent(out) :: Tn(porder+1)
+         integer(4)           :: n
+
+         Tn(1) = 1.0d0
+         Tn(2) = xi
+         do n = 3,porder+1
+            Tn(n) = 2.0d0*xi*Tn(n-1)-Tn(n-2)
+         end do
+
+      end subroutine eval_chebyshevPoly1
+
+      pure subroutine eval_chebyshevPoly2(xi,Un)
+
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         ! Evaluates all type 2 Chebyshev polys from        !
+         ! order 0 to 1 using the recursion expression.     !
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+         implicit none
+
+         real(8), intent(in)  :: xi
+         real(8), intent(out) :: Un(porder+1)
+         integer(4)           :: n
+
+         Un(1) = 1.0d0
+         Un(2) = 2.0d0*xi
+         do n = 3,porder+1
+            Un(n) = 2.0d0*xi*Un(n-1)-Un(n-2)
+         end do
+
+      end subroutine eval_chebyshevPoly2
+
       pure subroutine lagrange_roots(xi_lag)
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
