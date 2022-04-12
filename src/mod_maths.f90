@@ -29,15 +29,10 @@ module mod_maths
          implicit none
 
          real(8), intent(out) :: xi_chb(porder+1)
-         integer(4)           :: i, lorder(porder+1)
+         integer(4)           :: i
 
-         lorder(1) = 0
-         lorder(2) = porder
-         do i = 3,porder+1
-            lorder(i) = i-2
-         end do
          do i = 1,porder+1
-            xi_chb(lorder(i)) = -cos(v_pi*dble(lorder(i))/dble(porder))
+            xi_chb(i) = -cos(v_pi*dble(i-1)/dble(porder))
          end do
 
       end subroutine chebyshev_roots
@@ -99,15 +94,10 @@ module mod_maths
          implicit none
 
          real(8), intent(out) :: xi_lag(porder+1)
-         integer(4)           :: i, lorder(porder+1)
+         integer(4)           :: i
 
-         lorder(1) = 0
-         lorder(2) = porder
-         do i = 3,porder+1
-            lorder(i) = i-2
-         end do
          do i = 1,porder+1
-            xi_lag(lorder(i)) = -1.0d0+(2.0d0*dble(lorder(i))/dble(porder))
+            xi_lag(i) = -1.0d0+(2.0d0*dble(i-1)/dble(porder))
          end do
 
       end subroutine lagrange_roots
