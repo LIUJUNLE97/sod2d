@@ -282,6 +282,26 @@ module elem_hex
 
 
       end subroutine hex27
+
+      subroutine hex64(xi,eta,zeta,N,dN)
+
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         ! Lagrangian HEX64 element model. Built using    !
+         ! equispaced nodes between [-1,1] on             !
+         ! (xi,eta,zeta). Ordering follows that of GMSH.  !
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+         implicit none
+         call lagrange_roots(xi) ! Build evaluation grid in 1D
+         do i = 1,porder+1
+            xi_p = xi()
+            call eval_lagrangePoly(xi,xi_p,l_ip) ! Create 1D Na at every point
+         end do
+      end subroutine hex64
+
+      subroutine chb_hex64()
+         implicit none
+      end subroutine chb_hex64
       
       subroutine hexa_edges(ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
 
