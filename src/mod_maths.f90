@@ -217,7 +217,7 @@ module mod_maths
 
       end subroutine TripleTensorProduct
 
-      pure subroutine var_interpolate()
+      pure subroutine var_interpolate(var,Neval,var_a)
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          ! Interpolates a variable using element shape      !
@@ -231,8 +231,12 @@ module mod_maths
          !  0    2    3    4    5    1 i                    !
          !                                                  !
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-         !
+         
          implicit none
+
+         real(8), intent(in)  :: var(nnode), Neval(nnode)
+         real(8), intent(out) :: var_a
+         integer(4)           :: inode
 
          var_a = 0.0d0
          do inode = 1,nnode

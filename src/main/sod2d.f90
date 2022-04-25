@@ -45,7 +45,7 @@ program sod2d
         integer(4), allocatable    :: connec(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
         integer(4), allocatable    :: masSla(:,:), connec_orig(:,:), aux1(:), bound_orig(:,:)
         integer(4), allocatable    :: lpoin_w(:)
-        real(8),    allocatable    :: coord(:,:), helem(:)
+        real(8),    allocatable    :: coord(:,:), coord_old(:,:), helem(:)
         real(8),    allocatable    :: xgp(:,:), wgp(:)
         real(8),    allocatable    :: Ngp(:,:), dNgp(:,:,:)
         real(8),    allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:)
@@ -503,6 +503,22 @@ program sod2d
            end if
         end do
         call nvtxEndRange
+
+        !*********************************************************************!
+        ! Adjust element nodes if spectral element type being used            !
+        !*********************************************************************!
+
+        if (flag_spectralElem == 1) then
+           allocate(coord_old(npoin,ndime))
+           coord_old(:,:) = coord(:,:)
+           do ielem = 1,nelem
+              do inode = (2**ndime)+1,nnode
+                 do idime = 1,ndime
+                    call var_interpolate(coord_old(connec(ielem,:),idime),Ngp_l(inode,:),coord(connec(ielem,inode),idime))
+                 end do
+              end do
+           end do
+        end if
 
         !*********************************************************************!
         ! Generate Jacobian related information                               !
