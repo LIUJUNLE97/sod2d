@@ -27,7 +27,8 @@ module mod_constants
       integer(4), parameter :: flag_diff_suth=0
       integer(4), parameter :: flag_rk_order=4
       integer(4), parameter :: flag_les=0
-      integer(4), parameter :: flag_solver_type=3 ! 1 = Lumped, 2 = APINV, 3 = CG
+      integer(4), parameter :: flag_solver_type=3    ! 1 = Lumped, 2 = APINV, 3 = CG
+      integer(4), parameter :: flag_spectralElem=0  ! 0 for Lagrange type, 1 for Chebyshev type
 
       !
       ! Solver params

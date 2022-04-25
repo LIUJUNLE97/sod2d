@@ -1,6 +1,7 @@
 module elem_hex
 
    use mod_constants
+   use mod_maths
 
    contains  
 
@@ -283,7 +284,7 @@ module elem_hex
 
       end subroutine hex27
 
-      subroutine hex64(xi,eta,zeta,N,dN)
+      subroutine hex64(xi,eta,zeta,N,dN,N_lagrange,dN_lagrange)
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          ! Lagrangian HEX64 element model. Built using    !
@@ -292,17 +293,29 @@ module elem_hex
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
          implicit none
-         call lagrange_roots(xi) ! Build evaluation grid in 1D
-         do i = 1,porder+1
-            xi_p = xi()
-            call eval_lagrangePoly(xi,xi_p,l_ip) ! Create 1D Na at every point
-         end do
+
+         real(8),           intent(in)  :: xi, eta, zeta
+         real(8),           intent(out) :: N(nnode), dN(ndime,nnode)
+         real(8), optional, intent(out) :: N_lagrange(nnode), dN_lagrange(ndime,nnode)
+         integer(4)                     :: atoIJK(64)
+         real(8)                        :: xi_grid(porder+1)
+
+         atoIJK = [1,4,11,12,2,3,15,16,9,20,33,34,10,19,36,35, &
+                   5,8,27,28,6,7,29,30,25,32,53,56,26,31,54,55, &
+                   13,23,41,44,17,21,45,46,37,50,57,60,38,49,58,59, &
+                   14,24,42,43,18,22,48,47,40,51,61,64,39,52,62,63]
+                
+         call lagrange_roots(xi_grid)
+         call tripleTensorProduct(xi_grid,xi,eta,zeta,atoIJK,N,dN)
+         if (flag_spectralElem == 1) then
+            N_lagrange(:) = N(:)
+            dN_lagrange(:,:) = dN(:,:)
+            call chebyshev_roots(xi_grid)
+            call tripleTensorProduct(xi_grid,xi,eta,zeta,atoIJK,N,dN)
+         end if
+
       end subroutine hex64
 
-      subroutine chb_hex64()
-         implicit none
-      end subroutine chb_hex64
-      
       subroutine hexa_edges(ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
 
          implicit none

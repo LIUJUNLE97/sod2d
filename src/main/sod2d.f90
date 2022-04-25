@@ -48,6 +48,7 @@ program sod2d
         real(8),    allocatable    :: coord(:,:), helem(:)
         real(8),    allocatable    :: xgp(:,:), wgp(:)
         real(8),    allocatable    :: Ngp(:,:), dNgp(:,:,:)
+        real(8),    allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:)
         real(8),    allocatable    :: Je(:,:), He(:,:,:,:)
         real(8),    allocatable    :: gpvol(:,:,:)
         real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:)
@@ -433,48 +434,6 @@ program sod2d
         write(1,*) "--| GENERATING GAUSSIAN QUADRATURE TABLE..."
 
         call nvtxStartRange("Gaussian Quadrature")
-        ! TODO: allow for more element types...
-
-     !  if (ndime == 2) then ! 2D elements
-     !     if (nnode == 3) then ! TRI03
-     !         ngaus = 3
-     !         write(*,*) 'NOT CODED YET!'
-     !         STOP 1
-     !     else if (nnode == 6) then ! TRI06
-     !         ngaus = 7
-     !         write(*,*) 'NOT CODED YET!'
-     !         STOP 1
-     !     else if (nnode == 4) then ! QUA04
-     !         ngaus = 4
-     !     else if (nnode == 9) then ! QUA09
-     !         ngaus = 9
-     !     end if
-     !  else if (ndime == 3) then ! 3D elements
-     !     if (nnode == 4) then ! TET04
-     !        ngaus = 4
-     !        write(*,*) 'NOT CODED YET!'
-     !        stop 1
-     !     else if (nnode == 8) then ! HEX08
-     !        ngaus = 8
-     !     else if (nnode == 27) then ! HEX27
-     !        ngaus = 27
-     !        write(*,*) '--| USING 27 GAUSS NODES PER ELEMENT!'
-     !     else if (nnode == 64) then ! HEX64
-     !        ngaus = 64
-     !     else
-     !        write(*,*) 'ELEMENT DOES NOT EXIST, OR IS NOT CODED YET!!'
-     !        stop 1
-     !     end if
-     !  else
-     !     write(*,*) 'ONLY 2D AND 3D ELEMMENTS SUPPORTED!'
-     !     stop 1
-     !  end if
-
-        ! Option to run with 1 Gauss point per element, for testing and debugging. Will override the previous section.
-
-#ifdef TGAUS
-        ngaus = 1 ! Test value
-#endif
 
         allocate(xgp(ngaus,ndime))
         allocate(wgp(ngaus))
@@ -488,7 +447,13 @@ program sod2d
            end if
         else if (ndime == 3) then
            if (nnode == (porder+1)**3) then ! HEX_XX
-              call gll_hex(xgp,wgp)
+              if (flag_SpectralElem == 0) then
+                 write(1,*) "  --| GENERATING GLL TABLE..."
+                 call gll_hex(xgp,wgp)
+              else if (flag_SpectralElem == 1) then
+                 write(1,*) "  --| GENERATING CHEBYSHEV TABLE..."
+                 call chebyshev_hex(xgp,wgp)
+              end if
            else if (nnode == 4 .or. nnode == 10 .or. nnode == 20) then ! TET_XX
               write(1,*) '--| NOT CODED YET!'
               STOP 1
@@ -506,6 +471,9 @@ program sod2d
         call nvtxStartRange("N and dN")
 
         allocate(Ngp(ngaus,nnode),dNgp(ndime,nnode,ngaus))
+        if (flag_SpectralElem == 1) then
+           allocate(Ngp_l(ngaus,nnode),dNgp_l(ndime,nnode,ngaus))
+        end if
 
         do igaus = 1,ngaus
            s = xgp(igaus,1)
@@ -524,8 +492,12 @@ program sod2d
                  call hex08(s,t,z,Ngp(igaus,:),dNgp(:,:,igaus))
               else if (nnode == 27) then
                  call hex27(s,t,z,Ngp(igaus,:),dNgp(:,:,igaus))
-              else if (nnode == 64) then
-                 !call hex64(s,t,z,Ngp(igaus,:),dNgp(:,:,igaus))
+              else if (nnode .ge. 64) then
+                 if (flag_spectralElem == 0) then
+                    call hex64(s,t,z,Ngp(igaus,:),dNgp(:,:,igaus))
+                 else if (flag_spectralElem == 1) then
+                    call hex64(s,t,z,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus))
+                 end if
               else
               end if
            end if
