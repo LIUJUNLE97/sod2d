@@ -159,6 +159,31 @@ module mass_matrix
 #endif
               end subroutine lumped_mass
 
+              subroutine lumped_mass_spectral(nelem,npoin,connec,gpvol,Ml)
+
+                 implicit none
+
+                 integer(4), intent(in)  :: nelem,npoin, connec(nelem,nnode)
+                 real(8),    intent(in)  :: gpvol(1ngaus,nelem)
+                 real(8),    intent(out) :: Ml(npoin)
+                 integer(4)              :: ielem, inode
+
+                 !$acc kernels
+                 Ml(:) = 0.0d0
+                 !$acc end kernels
+                 !$acc parallel loop gang vector_length(nnode)
+                 do ielem = 1,nelem
+                    !$acc loop vector
+                    do inode = 1,nnode
+                       !$acc atomic update
+                       Ml(connec(ielem,inode)) = Ml(connec(ielem,inode))+gpvol(1,inode,ielem)
+                       !$acc end atomic
+                    end do
+                 end do
+                 !$acc end parallel loop
+
+              end subroutine lumped_mass_spectral
+
               subroutine cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,v,Rmc)
 
                       implicit none

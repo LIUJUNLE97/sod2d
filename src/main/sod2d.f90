@@ -10,6 +10,7 @@ program sod2d
         use mod_gpu_vars
 #endif
         use cudafor
+        use mod_veclen
 
         use elem_qua
         use elem_hex
@@ -55,6 +56,7 @@ program sod2d
         real(8),    allocatable    :: Ml(:)!, Mc(:)
         real(8),    allocatable    :: mu_e(:,:), mu_fluid(:),mu_sgs(:,:)
         real(8),    allocatable    :: source_term(:)
+        real(8),    allocatable    :: aux_1(:,:), aux_2(:)
         real(8)                    :: s, t, z, detJe
         real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot
         real(8)                    :: cfl_conv, cfl_diff
@@ -160,6 +162,12 @@ program sod2d
         source_term(2) = 0.00d0
         source_term(3) = 0.00d0
 #endif
+
+        !*********************************************************************!
+        ! Define vector length to be used                                     !
+        !*********************************************************************!
+        
+        call define_veclen()
 
         !*********************************************************************!
         ! Read mesh in Alya format                                            !
@@ -404,26 +412,21 @@ program sod2d
            call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
            write(1,*) "--| TIME STEP SIZE dt := ",dt,"s"
         end if
-#ifndef CHANNEL
-        !just the shock
-        !!$acc parallel loop
-        !do ipoin = 1,npoin
-        !   u(ipoin,:,2) = 0.0d0
-        !end do
-#endif
 
-        !
-        ! Call VTK output (0th step)
-        !
-        write(1,*) "--| GENERATING 1st OUTPUT..."
-        call nvtxStartRange("1st write")
-        if (isPeriodic == 0) then
-           call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
-                                rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
-        else
-           print*, 'sub call: ok!'
-           call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
-                                rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
+        if (((porder+1)**ndime) .le. (3**ndime) .and. flag_spectralElem == 0) then
+           !
+           ! Call VTK output (0th step)
+           !
+           write(1,*) "--| GENERATING 1st OUTPUT..."
+           call nvtxStartRange("1st write")
+           if (isPeriodic == 0) then
+              call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
+                                   rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
+           else
+              print*, 'sub call: ok!'
+              call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
+                                   rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
+           end if
         end if
         call nvtxEndRange
 
@@ -492,30 +495,81 @@ program sod2d
                  call hex08(s,t,z,Ngp(igaus,:),dNgp(:,:,igaus))
               else if (nnode == 27) then
                  call hex27(s,t,z,Ngp(igaus,:),dNgp(:,:,igaus))
-              else if (nnode .ge. 64) then
+              else if (nnode == 64) then
                  if (flag_spectralElem == 0) then
                     call hex64(s,t,z,Ngp(igaus,:),dNgp(:,:,igaus))
                  else if (flag_spectralElem == 1) then
                     call hex64(s,t,z,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus))
                  end if
               else
+                 write(1,*) '--| NOT CODED YET!'
+                 STOP(1)
               end if
            end if
         end do
         call nvtxEndRange
 
         !*********************************************************************!
-        ! Adjust element nodes if spectral element type being used            !
+        ! Adjust element nodes and variables if spectral 
+        ! element type being used                                             !
         !*********************************************************************!
 
         if (flag_spectralElem == 1) then
-           allocate(coord_old(npoin,ndime))
-           coord_old(:,:) = coord(:,:)
+           allocate(aux_1(npoin,ndime))
+           aux_1(:,:) = coord(:,:)
            do ielem = 1,nelem
               do inode = (2**ndime)+1,nnode
                  do idime = 1,ndime
-                    call var_interpolate(coord_old(connec(ielem,:),idime),Ngp_l(inode,:),coord(connec(ielem,inode),idime))
+                    call var_interpolate(aux_1(connec(ielem,:),idime),Ngp_l(inode,:),coord(connec(ielem,inode),idime))
                  end do
+              end do
+           end do
+           aux_1(:,:) = u(:,:,2)
+           do ielem = 1,nelem
+              do inode = (2**ndime)+1,nnode
+                 do idime = 1,ndime
+                    call var_interpolate(aux_1(connec(ielem,:),idime),Ngp_l(inode,:),u(connec(ielem,inode),idime,2))
+                 end do
+              end do
+           end do
+           aux_1(:,:) = q(:,:,2)
+           do ielem = 1,nelem
+              do inode = (2**ndime)+1,nnode
+                 do idime = 1,ndime
+                    call var_interpolate(aux_1(connec(ielem,:),idime),Ngp_l(inode,:),q(connec(ielem,inode),idime,2))
+                 end do
+              end do
+           end do
+           deallocate(aux_1)
+           allocate(aux_2(npoin))
+           aux_2(:) = rho(:,2)
+           do ielem = 1,nelem
+              do inode = (2**ndime)+1,nnode
+                 call var_interpolate(aux_2(connec(ielem,:)),Ngp_l(inode,:),rho(connec(ielem,inode),2))
+              end do
+           end do
+           aux_2(:) = pr(:,2)
+           do ielem = 1,nelem
+              do inode = (2**ndime)+1,nnode
+                 call var_interpolate(aux_2(connec(ielem,:)),Ngp_l(inode,:),pr(connec(ielem,inode),2))
+              end do
+           end do
+           aux_2(:) = E(:,2)
+           do ielem = 1,nelem
+              do inode = (2**ndime)+1,nnode
+                 call var_interpolate(aux_2(connec(ielem,:)),Ngp_l(inode,:),E(connec(ielem,inode),2))
+              end do
+           end do
+           aux_2(:) = Tem(:,2)
+           do ielem = 1,nelem
+              do inode = (2**ndime)+1,nnode
+                 call var_interpolate(aux_2(connec(ielem,:)),Ngp_l(inode,:),Tem(connec(ielem,inode),2))
+              end do
+           end do
+           aux_2(:) = e_int(:,2)
+           do ielem = 1,nelem
+              do inode = (2**ndime)+1,nnode
+                 call var_interpolate(aux_2(connec(ielem,:)),Ngp_l(inode,:),e_int(connec(ielem,inode),2))
               end do
            end do
         end if
@@ -571,7 +625,13 @@ program sod2d
         write(1,*) '--| COMPUTING LUMPED MASS MATRIX...'
         call nvtxStartRange("Lumped mass compute")
         allocate(Ml(npoin))
-        call lumped_mass(nelem,npoin,connec,gpvol,Ngp,Ml)
+        if (flag_spectralElem == 0) then
+           call lumped_mass(nelem,npoin,connec,gpvol,Ngp,Ml)
+        else if (flag_spectralElem == 1) then
+           call lumped_mass_spectral(nelem,npoin,connec,gpvol,Ml)
+        else
+           write(1,*) '--| SPECTRAL ELEMENT FLAG MUST BE 1 OR 0!'
+        end if
         call nvtxEndRange
 
         !
@@ -581,7 +641,7 @@ program sod2d
         !allocate(Mc(nzdom))
         !call consistent_mass(nelem,nnode,npoin,ngaus,connec,nzdom,rdom,cdom,gpvol,Ngp,Mc)
 
-        if (flag_solver_type == 2) then
+        if (flag_solver_type == 2 .and. flag_spectralElem == 0) then
             write(1,*) '--| ENTER NUMBER OF ITERATIONS FOR APINV SOLVER:'
             !read(*,*) ppow
             ppow = 2 ! Nsys
