@@ -2,6 +2,7 @@ module mod_entropy_viscosity
 
    use mod_constants
    use mod_nvtx
+   use mod_veclen
 
       ! TODO: Finish module and create unit tests
 
@@ -160,7 +161,7 @@ module mod_entropy_viscosity
                       real(8)                 :: betae
                       real(8)                 :: L3, aux1, aux2, aux3
 
-                      !$acc parallel loop gang vector_length(32)
+                      !$acc parallel loop gang vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop worker
                          do igaus = 1,ngaus

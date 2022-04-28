@@ -2,6 +2,7 @@ module mod_sgs_viscosity
 
    use mod_constants
    use mod_nvtx
+   use mod_veclen
 
       ! TODO: Finish module and create unit tests
 
@@ -24,7 +25,7 @@ module mod_sgs_viscosity
                       real(8)                 :: hLES, evol,gpcar(ndime,nnode), aux
                       real(8)                 :: gradU(ndime,ndime),gradV2(ndime,ndime),Bbeta, alpha, tau
 
-                      !$acc parallel loop gang  private(gpcar,gradU,gradV2) vector_length(32)
+                      !$acc parallel loop gang  private(gpcar,gradU,gradV2) vector_length(vecLength)
                       do ielem = 1,nelem
                          evol = 0.0d0
                          !$acc loop vector reduction(+:evol)

@@ -2,6 +2,7 @@ module elem_convec
 
       use mod_nvtx
       use mod_constants
+      use mod_veclen
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Computes convective term for Euler/NS equation system, as well             !
@@ -37,7 +38,7 @@ module elem_convec
                       !$acc kernels
                       Rmass(:) = 0.0d0
                       !$acc end kernels
-                      !$acc parallel loop gang  private(Re,gpcar) vector_length(32)
+                      !$acc parallel loop gang  private(Re,gpcar) vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
@@ -110,7 +111,7 @@ module elem_convec
                       !$acc kernels
                       Rmom(:,:) = 0.0d0
                       !$acc end kernels
-                      !$acc parallel loop gang  private(Re,gpcar,tmp1,tmp2,gradQ,divU) vector_length(32)
+                      !$acc parallel loop gang  private(Re,gpcar,tmp1,tmp2,gradQ,divU) vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector collapse(2)
                          do inode = 1,nnode
@@ -205,7 +206,7 @@ module elem_convec
                       !
                       ! Start elemental ops
                       !
-                      !$acc parallel loop gang  private(Re,gpcar,gradA,tmp,gpA) vector_length(32)
+                      !$acc parallel loop gang  private(Re,gpcar,gradA,tmp,gpA) vector_length(vecLength)
                       do ielem = 1,nelem
                          !
                          ! Initialize element vector to 0
@@ -345,7 +346,7 @@ module elem_convec
                       !$acc kernels
                       Rener(:) = 0.0d0
                       !$acc end kernels
-                      !$acc parallel loop gang  private(Re,gpcar) vector_length(32)
+                      !$acc parallel loop gang  private(Re,gpcar) vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
@@ -408,7 +409,7 @@ module elem_convec
                       !$acc kernels
                       Rconvec(:) = 0.0d0
                       !$acc end kernels
-                      !$acc parallel loop gang  private(Re,gpcar) vector_length(32)
+                      !$acc parallel loop gang  private(Re,gpcar) vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode

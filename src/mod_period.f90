@@ -1,6 +1,8 @@
 module mod_period
 
    use mod_constants
+   use mod_veclen
+
    contains
 
       subroutine periodic_ops(nelem,npoin,nboun,npoin_w,nper, &
@@ -33,7 +35,7 @@ module mod_period
          !
          ! Modify connec with Master/Slave relations
          !
-         !$acc parallel loop gang vector_length(32)
+         !$acc parallel loop gang vector_length(vecLength)
          do ielem = 1,nelem
             !$acc loop vector
             do inode = 1,nnode
@@ -51,7 +53,7 @@ module mod_period
          ! Modify bound with Master/Slave relations
          !
          if(present(bound)) then
-            !$acc parallel loop gang vector_length(32)
+            !$acc parallel loop gang vector_length(vecLength)
             do iboun = 1,nboun
                !$acc loop vector
                do ipbou = 1,npbou
