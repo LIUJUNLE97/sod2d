@@ -1,6 +1,6 @@
 module mod_analysis
 
-   use mod_constantsa
+   use mod_constants
    use mod_veclen
    use mod_nvtx
 

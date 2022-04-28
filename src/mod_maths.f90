@@ -177,7 +177,7 @@ module mod_maths
                         aux = aux * (xi_p-xi(m+1))/(xi(lorder(i+1))-xi(m+1))
                      end if
                   end do
-                  dl_ip(i+1) = dl_ip(i+1) + (1.0d0/(xi(lorder(i+1)-xi(j+1))))*aux
+                  dl_ip(i+1) = dl_ip(i+1) + (1.0d0/(xi(lorder(i+1))-xi(j+1)))*aux
                end if
             end do
          end do

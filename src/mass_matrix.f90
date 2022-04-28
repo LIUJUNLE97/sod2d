@@ -165,7 +165,7 @@ module mass_matrix
                  implicit none
 
                  integer(4), intent(in)  :: nelem,npoin, connec(nelem,nnode)
-                 real(8),    intent(in)  :: gpvol(1ngaus,nelem)
+                 real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
                  real(8),    intent(out) :: Ml(npoin)
                  integer(4)              :: ielem, inode
 

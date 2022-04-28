@@ -10,10 +10,10 @@ module mod_constants
       !
       ! Element characteristics
       !
-      integer(4), parameter :: nnode=27
-      integer(4), parameter :: porder=2
-      integer(4), parameter :: npbou=9
-      integer(4), parameter :: ngaus=27
+      integer(4), parameter :: nnode=64
+      integer(4), parameter :: porder=3
+      integer(4), parameter :: npbou=16
+      integer(4), parameter :: ngaus=64
 
       !integer(4), parameter :: nnode=8
       !integer(4), parameter :: porder=1
@@ -27,8 +27,8 @@ module mod_constants
       integer(4), parameter :: flag_diff_suth=0
       integer(4), parameter :: flag_rk_order=4
       integer(4), parameter :: flag_les=0
-      integer(4), parameter :: flag_solver_type=3    ! 1 = Lumped, 2 = APINV, 3 = CG
-      integer(4), parameter :: flag_spectralElem=0  ! 0 for Lagrange type, 1 for Chebyshev type
+      integer(4), parameter :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
+      integer(4), parameter :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
 
       !
       ! Solver params
