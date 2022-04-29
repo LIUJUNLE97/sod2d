@@ -37,7 +37,7 @@ module mesh_reader
             integer(4)    , intent(out) :: connec(nelem,nnode), bound(nboun,npbou)
             real(8)       , intent(out) :: coord(npoin,ndime)
             integer(4)                  :: iline, int1, inode, idime, aux(nnode+1), bou_aux(npbou+1)
-            character(500)              :: file_type, line
+            character(2000)              :: file_type, line
             
             write(file_type,*) ".geo.dat"
             

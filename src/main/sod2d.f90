@@ -114,7 +114,7 @@ program sod2d
         !nnode = 27 ! TODO: need to allow for mixed elements...
         !porder = 1 ! TODO: make it input
         !npbou = 9 ! TODO: Need to get his from somewhere...
-        nstep = 3 ! TODO: Needs to be input...
+        nstep = 1 ! TODO: Needs to be input...
 #ifdef CHANNEL
         Rgas = Rg
 #else
@@ -572,6 +572,19 @@ program sod2d
                  call var_interpolate(aux_2(connec(ielem,:)),Ngp_l(inode,:),e_int(connec(ielem,inode),2))
               end do
            end do
+           aux_2(:) = csound(:)
+           do ielem = 1,nelem
+              do inode = (2**ndime)+1,nnode
+                 call var_interpolate(aux_2(connec(ielem,:)),Ngp_l(inode,:),csound(connec(ielem,inode)))
+              end do
+           end do
+           aux_2(:) = mu_fluid(:)
+           do ielem = 1,nelem
+              do inode = (2**ndime)+1,nnode
+                 call var_interpolate(aux_2(connec(ielem,:)),Ngp_l(inode,:),mu_fluid(connec(ielem,inode)))
+              end do
+           end do
+           deallocate(aux_2)
         end if
 
         !*********************************************************************!
@@ -592,6 +605,7 @@ program sod2d
            end do
         end do
         write(1,*) '--| DOMAIN VOLUME := ',VolTot
+        STOP(1)
 
         !*********************************************************************!
         ! Treat periodicity                                                   !
