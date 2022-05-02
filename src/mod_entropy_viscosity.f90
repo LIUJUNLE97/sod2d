@@ -96,8 +96,8 @@ module mod_entropy_viscosity
                           call wcmass_times_vector(nelem,npoin,connec,gpvol,Ngp,R2,aux1,alpha)
                        else if (flag_solver_type == 1) then
                           !call wlmass_times_vector()
-                          write(1,*) "--| NOT CODED YET!"
-                          STOP(1)
+                          !write(1,*) "--| NOT CODED YET!"
+                          !STOP(1)
                        end if
                        !
                        ! Compute weighted mass convec
@@ -130,18 +130,18 @@ module mod_entropy_viscosity
                        end if
                        call nvtxEndRange
 
-                       !!
-                       !! Normalize
-                       !!
-                       !maxEta = maxval(abs(eta(lpoin_w(:))))
-                       !maxRho = maxval(abs(rhok(lpoin_w(:))))
+                       !
+                       ! Normalize
+                       !
+                       maxEta = maxval(abs(eta(lpoin_w(:))))
+                       maxRho = maxval(abs(rhok(lpoin_w(:))))
 
-                       !!$acc parallel loop
-                       !do ipoin = 1,npoin_w
-                       !   Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/maxEta
-                       !   Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
-                       !end do
-                       !!$acc end parallel loop
+                       !$acc parallel loop
+                       do ipoin = 1,npoin_w
+                          Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/maxEta
+                          Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
+                       end do
+                       !$acc end parallel loop
 
               end subroutine residuals
 
