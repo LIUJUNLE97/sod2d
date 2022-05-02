@@ -45,7 +45,7 @@ program sod2d
         !integer(4), allocatable    :: rdom(:), cdom(:), aux_cdom(:) ! Use with CSR matrices
         integer(4), allocatable    :: connec(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
         integer(4), allocatable    :: masSla(:,:), connec_orig(:,:), aux1(:), bound_orig(:,:)
-        integer(4), allocatable    :: lpoin_w(:)
+        integer(4), allocatable    :: lpoin_w(:), listHEX08(:,:), connecLINEAR(:,:)
         real(8),    allocatable    :: coord(:,:), coord_old(:,:), helem(:)
         real(8),    allocatable    :: xgp(:,:), wgp(:)
         real(8),    allocatable    :: Ngp(:,:), dNgp(:,:,:)
@@ -509,7 +509,8 @@ program sod2d
                  if (flag_spectralElem == 0) then
                     call hex64(s,t,z,Ngp(igaus,:),dNgp(:,:,igaus))
                  else if (flag_spectralElem == 1) then
-                    call hex64(s,t,z,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus))
+                    allocate(listHEX08((porder**ndime),2*ndime))
+                    call hex64(s,t,z,listHEX08,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus))
                  end if
               else
                  write(1,*) '--| NOT CODED YET!'
@@ -595,6 +596,26 @@ program sod2d
               end do
            end do
            deallocate(aux_2)
+        end if
+
+        !*********************************************************************!
+        ! Generate linear mesh and output for spectral case                   !
+        !*********************************************************************!
+        if (flag_spectralElem == 1) then
+           allocate(connecLINEAR(nelem*(porder**ndime),2*ndime))
+           call linearMeshOutput(connec,listHEX08,connecLINEAR)
+           !
+           ! Call VTK output (0th step)
+           !
+           write(1,*) "--| GENERATING 1st OUTPUT..."
+           call nvtxStartRange("1st write")
+           if (isPeriodic == 0) then
+              call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR, &
+                                   rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
+           else
+              call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR, &
+                                   rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
+           end if
         end if
 
         !*********************************************************************!

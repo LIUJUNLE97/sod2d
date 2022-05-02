@@ -327,6 +327,178 @@ module mod_output
       
       end subroutine write_vtk_binary
 
+      subroutine write_vtk_binary_linearized(isPeriodic,istep,npoin,nelem,coord,connecLINEAR, &
+                                 rho,u,pr,E,mu_fluid,mu_e,mu_sgs,nper,masSla)
+         implicit none
+      
+         integer(4), intent(in)                            :: isPeriodic, nper
+         integer(4), intent(in)                            :: istep, npoin, nelem
+         integer(4), intent(in)                            :: connecLINEAR(nelem*(porder**ndime),2*ndime)
+         integer(4), intent(in), optional                  :: masSla(nper,2)
+         real(8)   , intent(in)                            :: coord(npoin,ndime)
+         real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E, mu_fluid
+         real(8)   , intent(inout), dimension(npoin,ndime) :: u
+         real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_e
+         real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_sgs
+         integer(4)                                        :: i, iper, ivtk=9
+         integer(4)            , dimension(nelem,nnode+1)  :: cells
+         integer(4)            , dimension(nelem)          :: cellTypes
+         real(8)               , dimension(npoin,3)        :: points, u3d
+         character(500)                                    :: filename
+         character(80)                                     :: buffer
+         character(8)                                      :: str1, str2
+         character(1)                                      :: lf
+
+         lf = achar(10)
+      
+         !
+         ! Pass coordinates to a suitable 3D generic format
+         !
+         !$acc kernels
+         points(:,:) = 0.0d0
+         points(:,1:ndime) = coord(:,1:ndime)
+         !$acc end kernels
+      
+         !
+         ! If case is periodic, adjust slave nodes
+         !
+         if (isPeriodic .eq.1 .and. present(masSla)) then
+            !$acc parallel loop
+            do iper = 1,nper
+               u(masSla(iper,2),1) = u(masSla(iper,1),1)
+               u(masSla(iper,2),2) = u(masSla(iper,1),2)
+               u(masSla(iper,2),3) = u(masSla(iper,1),3)
+               rho(masSla(iper,2)) = rho(masSla(iper,1))
+               pr(masSla(iper,2)) = pr(masSla(iper,1))
+               E(masSla(iper,2)) = E(masSla(iper,1))
+               mu_fluid(masSla(iper,2)) = mu_fluid(masSla(iper,1))
+            end do
+            !$acc end parallel loop
+         end if
+
+         !
+         ! Pass vector data to a suitable 3D generic format
+         !
+         !$acc kernels
+         u3d(:,:) = 0.0d0
+         u3d(:,1:ndime) = u(:,1:ndime)
+         !$acc end kernels
+      
+         !
+         ! Pass cell list to VTK format
+         !
+         !$acc kernels
+         cells(:,1) = 2*ndime
+         cells(:,2:2*ndime+1) = connecLINEAR(:,1:2*ndime)-1
+         !cells(:,2:nnode+1) = cells(:,2:nnode+1)-1 ! maybe can be removed?
+         !$acc end kernels
+      
+         !
+         ! Define cell types
+         !
+         if (ndime .eq. 2) then
+            cellTypes = 9
+         else if (ndime .eq. 3) then
+            cellTypes = 12
+         end if
+      
+         !
+         ! Open file with ascii input
+         !
+         write(filename,'("vtkTstep_",i0,".vtk")') istep
+         open(unit=ivtk,file=filename,status='replace',access='stream',convert='BIG_ENDIAN') ! Binary file access with stream
+         
+         !
+         ! Write header in ascii format
+         !
+         write(ivtk) '# vtk DataFile Version 3.0'//lf
+         write(ivtk) 'unstr_grid'//lf
+         write(ivtk) 'BINARY'//lf
+         write(ivtk) 'DATASET UNSTRUCTURED_GRID'//lf//lf
+         
+         !
+         ! Write points
+         !
+         write(str1(1:8),'(i8)') npoin
+         write(ivtk) 'POINTS '//str1//'  double'//lf
+         do i = 1,npoin
+            write(ivtk) points(i,:)
+         end do
+         
+         !
+         ! Write cells
+         !
+         write(str1(1:8),'(i8)') nelem
+         write(str2(1:8),'(i8)') nelem*(nnode+1)
+         write(ivtk) lf//lf//'CELLS '//str1//' '//str2//lf
+         do i = 1,nelem
+            write(ivtk) cells(i,:)
+         end do
+         
+         !
+         ! Write cell types
+         !
+         write(str1(1:8),'(i8)') nelem
+         write(ivtk) lf//lf//'CELL_TYPES '//str1//lf
+         do i = 1,nelem
+            write(ivtk) cellTypes(i)
+         end do
+         
+         !
+         ! Write point scalar data
+         !
+         write(str1(1:8),'(i8)') npoin
+         write(ivtk) lf//lf//'POINT_DATA '//str1//lf
+         write(ivtk) 'SCALARS DENSI double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) rho(i)
+         end do
+         write(ivtk) lf//lf//'SCALARS PRESS double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) pr(i)
+         end do
+         write(ivtk) lf//lf//'SCALARS TENER double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) E(i)
+         end do
+         write(ivtk) lf//lf//'SCALARS VISCO double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) mu_fluid(i)
+         end do
+         
+         !
+         ! Write point vector data
+         !
+         write(str1(1:8),'(i8)') npoin
+         write(ivtk) lf//lf//'VECTORS VELOC double'//lf
+         do i = 1,npoin
+            write(ivtk) u3d(i,:)
+         end do
+         
+         !
+         ! Write cell scalar data
+         !
+         write(str1(1:8),'(i8)') nelem
+         write(ivtk) lf//lf//'CELL_DATA '//str1//lf
+         write(ivtk) 'SCALARS ENVIT double'//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,nelem
+            write(ivtk) mu_e(i,1)
+         end do
+         write(ivtk) 'SCALARS SGSVI double'//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,nelem
+            write(ivtk) mu_sgs(i,1)
+         end do
+         
+         close(ivtk)
+      
+      end subroutine write_vtk_binary
+
       subroutine read_vtk_binary(isPeriodic,istep,npoin,nelem,coord,connec, &
                                  rho,u,pr,E,mu_fluid,mu_e,mu_sgs,nper,masSla)
          implicit none
