@@ -441,7 +441,7 @@ module mod_output
          !
          ! Write cell types
          !
-         write(str1(1:8),'(i8)') nelem
+         write(str1(1:8),'(i8)') nelem_l
          write(ivtk) lf//lf//'CELL_TYPES '//str1//lf
          do i = 1,nelem_l
             write(ivtk) cellTypes(i)
