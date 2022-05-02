@@ -598,6 +598,14 @@ program sod2d
         end if
 
         !*********************************************************************!
+        ! Generate linear mesh and output for spectral case                   !
+        !*********************************************************************!
+        if (flag_spectralElem == 1) then
+           call linearMeshOutput()
+           call write_vtk_binary_spectrral()
+        end if
+
+        !*********************************************************************!
         ! Generate Jacobian related information                               !
         !*********************************************************************!
 

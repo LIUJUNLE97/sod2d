@@ -51,4 +51,13 @@ module mod_geom
 
          end subroutine char_length
 
+         subroutine linearMeshOutput(connec,listHEX08,connecLINEAR)
+
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            ! Given a high order mesh, generates a linearized connectivity !
+            ! table based on listHEX08 ordering for each elem. type.       !
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            implicit none
+         end subroutine linearMeshOutput
+
 end module mod_geom
