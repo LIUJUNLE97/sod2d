@@ -57,7 +57,21 @@ module mod_geom
             ! Given a high order mesh, generates a linearized connectivity !
             ! table based on listHEX08 ordering for each elem. type.       !
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
             implicit none
+
+            integer(4), intent(in)  :: connec(nelem,nnode), listHEX08((porder**ndime),2*ndime) ! TODO: make this more generic
+            integer(4), intent(out) :: connecLinear(nelem*(porder**ndime),2*ndime)
+            integer(4)              :: ind, iproxy
+
+            ind = 0
+            do ielem = 1,nelem
+               do iproxy = 1,(porder**ndime)
+                  ind = ind+1
+                  connecLINEAR(ind,1:8) = connec(ielem,listHEX08(iproxy,1:8))
+               end do
+            end do
+
          end subroutine linearMeshOutput
 
 end module mod_geom
