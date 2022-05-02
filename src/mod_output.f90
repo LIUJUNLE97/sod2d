@@ -391,7 +391,7 @@ module mod_output
          ! Pass cell list to VTK format
          !
          !$acc kernels
-         cells(:,1) = 2*ndime
+         cells(:,1) = 2**ndime
          cells(:,2:2*ndime+1) = connecLINEAR(:,1:nnode_l)-1
          !cells(:,2:nnode+1) = cells(:,2:nnode+1)-1 ! maybe can be removed?
          !$acc end kernels
