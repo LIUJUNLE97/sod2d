@@ -51,7 +51,7 @@ module mod_geom
 
          end subroutine char_length
 
-         subroutine linearMeshOutput(connec,listHEX08,connecLINEAR)
+         subroutine linearMeshOutput(nelem,connec,listHEX08,connecLINEAR)
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! Given a high order mesh, generates a linearized connectivity !
@@ -60,7 +60,7 @@ module mod_geom
 
             implicit none
 
-            integer(4), intent(in)  :: connec(nelem,nnode), listHEX08((porder**ndime),2*ndime) ! TODO: make this more generic
+            integer(4), intent(in)  :: nelem,connec(nelem,nnode), listHEX08((porder**ndime),2*ndime) ! TODO: make this more generic
             integer(4), intent(out) :: connecLinear(nelem*(porder**ndime),2*ndime)
             integer(4)              :: ind, iproxy,nelem,ielem
 
@@ -71,6 +71,7 @@ module mod_geom
                   connecLINEAR(ind,1:8) = connec(ielem,listHEX08(iproxy,1:8))
                end do
             end do
+            write(*,*) " ind ",ind
 
          end subroutine linearMeshOutput
 

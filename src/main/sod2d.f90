@@ -604,7 +604,7 @@ program sod2d
         !*********************************************************************!
         if (flag_spectralElem == 1) then
            allocate(connecLINEAR(nelem*(porder**ndime),2*ndime))
-           call linearMeshOutput(connec,listHEX08,connecLINEAR)
+           call linearMeshOutput(nelem,connec,listHEX08,connecLINEAR)
            !
            ! Call VTK output (0th step)
            !
