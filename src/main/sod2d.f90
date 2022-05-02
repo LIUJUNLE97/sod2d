@@ -114,7 +114,7 @@ program sod2d
         !nnode = 27 ! TODO: need to allow for mixed elements...
         !porder = 1 ! TODO: make it input
         !npbou = 9 ! TODO: Need to get his from somewhere...
-        nstep = 10000 ! TODO: Needs to be input...
+        nstep = 1 ! TODO: Needs to be input...
 #ifdef CHANNEL
         Rgas = Rg
 #else
@@ -127,8 +127,8 @@ program sod2d
         cfl_diff = 0.9d0
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
-        nleap = 100 ! Saving interval, TODO: input
-        nleap2 = 10  ! Saving interval, TODO: input
+        nleap = 1 ! Saving interval, TODO: input
+        nleap2 = 1  ! Saving interval, TODO: input
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
@@ -434,8 +434,8 @@ program sod2d
                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
            else
               print*, 'sub call: ok!'
-             ! call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
-             !                      rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
+              call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
+                                   rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
            end if
         end if
         call nvtxEndRange
@@ -507,7 +507,8 @@ program sod2d
                  call hex27(s,t,z,Ngp(igaus,:),dNgp(:,:,igaus))
               else if (nnode == 64) then
                  if (flag_spectralElem == 0) then
-                    call hex64(s,t,z,Ngp(igaus,:),dNgp(:,:,igaus))
+                    allocate(listHEX08((porder**ndime),2*ndime))
+                    call hex64(s,t,z,listHEX08,Ngp(igaus,:),dNgp(:,:,igaus))
                  else if (flag_spectralElem == 1) then
                     allocate(listHEX08((porder**ndime),2*ndime))
                     call hex64(s,t,z,listHEX08,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus))
@@ -931,8 +932,8 @@ program sod2d
                   !
                   if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
-                     !call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
-                     !                     rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
+                     call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
+                                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
                      nsave = nsave+nleap
                      call nvtxEndRange
                   end if

@@ -62,7 +62,7 @@ module mod_geom
 
             integer(4), intent(in)  :: connec(nelem,nnode), listHEX08((porder**ndime),2*ndime) ! TODO: make this more generic
             integer(4), intent(out) :: connecLinear(nelem*(porder**ndime),2*ndime)
-            integer(4)              :: ind, iproxy
+            integer(4)              :: ind, iproxy,nelem,ielem
 
             ind = 0
             do ielem = 1,nelem

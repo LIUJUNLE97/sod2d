@@ -340,9 +340,9 @@ module mod_output
          real(8)   , intent(inout), dimension(npoin,ndime) :: u
          real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_e
          real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_sgs
-         integer(4)                                        :: i, iper, ivtk=9
-         integer(4)            , dimension(nelem,nnode+1)  :: cells
-         integer(4)            , dimension(nelem)          :: cellTypes
+         integer(4)                                        :: i, iper, ivtk=9, nelem_l, nnode_l
+         integer(4)            , dimension(nelem*(porder**ndime),2*ndime+1)  :: cells
+         integer(4)            , dimension(nelem*(porder**ndime))          :: cellTypes
          real(8)               , dimension(npoin,3)        :: points, u3d
          character(500)                                    :: filename
          character(80)                                     :: buffer
@@ -350,6 +350,9 @@ module mod_output
          character(1)                                      :: lf
 
          lf = achar(10)
+
+         nelem_l = nelem*(porder**ndime)
+         nnode_l = 2*ndime 
       
          !
          ! Pass coordinates to a suitable 3D generic format
@@ -428,10 +431,10 @@ module mod_output
          !
          ! Write cells
          !
-         write(str1(1:8),'(i8)') nelem
-         write(str2(1:8),'(i8)') nelem*(nnode+1)
+         write(str1(1:8),'(i8)') nelem_l
+         write(str2(1:8),'(i8)') nelem_l*(nnode_l+1)
          write(ivtk) lf//lf//'CELLS '//str1//' '//str2//lf
-         do i = 1,nelem
+         do i = 1,nelem_l
             write(ivtk) cells(i,:)
          end do
          
@@ -440,7 +443,7 @@ module mod_output
          !
          write(str1(1:8),'(i8)') nelem
          write(ivtk) lf//lf//'CELL_TYPES '//str1//lf
-         do i = 1,nelem
+         do i = 1,nelem_l
             write(ivtk) cellTypes(i)
          end do
          
@@ -479,25 +482,25 @@ module mod_output
             write(ivtk) u3d(i,:)
          end do
          
-         !
-         ! Write cell scalar data
-         !
-         write(str1(1:8),'(i8)') nelem
-         write(ivtk) lf//lf//'CELL_DATA '//str1//lf
-         write(ivtk) 'SCALARS ENVIT double'//lf
-         write(ivtk) 'LOOKUP_TABLE default'//lf
-         do i = 1,nelem
-            write(ivtk) mu_e(i,1)
-         end do
-         write(ivtk) 'SCALARS SGSVI double'//lf
-         write(ivtk) 'LOOKUP_TABLE default'//lf
-         do i = 1,nelem
-            write(ivtk) mu_sgs(i,1)
-         end do
+         !!
+         !! Write cell scalar data
+         !!
+         !write(str1(1:8),'(i8)') nelem_l
+         !write(ivtk) lf//lf//'CELL_DATA '//str1//lf
+         !write(ivtk) 'SCALARS ENVIT double'//lf
+         !write(ivtk) 'LOOKUP_TABLE default'//lf
+         !do i = 1,nelem_l
+         !   write(ivtk) mu_e(i,1)
+         !end do
+         !write(ivtk) 'SCALARS SGSVI double'//lf
+         !write(ivtk) 'LOOKUP_TABLE default'//lf
+         !do i = 1,nelem_l
+         !   write(ivtk) mu_sgs(i,1)
+         !end do
          
          close(ivtk)
       
-      end subroutine write_vtk_binary
+      end subroutine write_vtk_binary_linearized
 
       subroutine read_vtk_binary(isPeriodic,istep,npoin,nelem,coord,connec, &
                                  rho,u,pr,E,mu_fluid,mu_e,mu_sgs,nper,masSla)
