@@ -60,8 +60,8 @@ module mod_geom
 
             implicit none
 
-            integer(4), intent(in)  :: nelem,connec(nelem,nnode), listHEX08((porder**ndime),2*ndime) ! TODO: make this more generic
-            integer(4), intent(out) :: connecLinear(nelem*(porder**ndime),2*ndime)
+            integer(4), intent(in)  :: nelem,connec(nelem,nnode), listHEX08((porder**ndime),2**ndime) ! TODO: make this more generic
+            integer(4), intent(out) :: connecLinear(nelem*(porder**ndime),2**ndime)
             integer(4)              :: ind, iproxy,ielem
 
             ind = 0

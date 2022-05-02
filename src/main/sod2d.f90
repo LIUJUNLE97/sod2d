@@ -507,10 +507,10 @@ program sod2d
                  call hex27(s,t,z,Ngp(igaus,:),dNgp(:,:,igaus))
               else if (nnode == 64) then
                  if (flag_spectralElem == 0) then
-                    allocate(listHEX08((porder**ndime),2*ndime))
+                    allocate(listHEX08((porder**ndime),2**ndime))
                     call hex64(s,t,z,listHEX08,Ngp(igaus,:),dNgp(:,:,igaus))
                  else if (flag_spectralElem == 1) then
-                    allocate(listHEX08((porder**ndime),2*ndime))
+                    allocate(listHEX08((porder**ndime),2**ndime))
                     call hex64(s,t,z,listHEX08,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus))
                  end if
               else
@@ -603,7 +603,7 @@ program sod2d
         ! Generate linear mesh and output for spectral case                   !
         !*********************************************************************!
         if (flag_spectralElem == 1) then
-           allocate(connecLINEAR(nelem*(porder**ndime),2*ndime))
+           allocate(connecLINEAR(nelem*(porder**ndime),2**ndime))
            call linearMeshOutput(nelem,connec,listHEX08,connecLINEAR)
            !
            ! Call VTK output (0th step)

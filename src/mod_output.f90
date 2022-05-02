@@ -333,7 +333,7 @@ module mod_output
       
          integer(4), intent(in)                            :: isPeriodic, nper
          integer(4), intent(in)                            :: istep, npoin, nelem
-         integer(4), intent(in)                            :: connecLINEAR(nelem*(porder**ndime),2*ndime)
+         integer(4), intent(in)                            :: connecLINEAR(nelem*(porder**ndime),2**ndime)
          integer(4), intent(in), optional                  :: masSla(nper,2)
          real(8)   , intent(in)                            :: coord(npoin,ndime)
          real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E, mu_fluid
@@ -352,7 +352,7 @@ module mod_output
          lf = achar(10)
 
          nelem_l = nelem*(porder**ndime)
-         nnode_l = 2*ndime 
+         nnode_l = 2**ndime 
       
          !
          ! Pass coordinates to a suitable 3D generic format
@@ -392,7 +392,7 @@ module mod_output
          !
          !$acc kernels
          cells(:,1) = 2*ndime
-         cells(:,2:2*ndime+1) = connecLINEAR(:,1:2*ndime)-1
+         cells(:,2:2*ndime+1) = connecLINEAR(:,1:nnode_l)-1
          !cells(:,2:nnode+1) = cells(:,2:nnode+1)-1 ! maybe can be removed?
          !$acc end kernels
       
