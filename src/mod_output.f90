@@ -341,7 +341,7 @@ module mod_output
          real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_e
          real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_sgs
          integer(4)                                        :: i, iper, ivtk=9, nelem_l, nnode_l
-         integer(4)            , dimension(nelem*(porder**ndime),2*ndime+1)  :: cells
+         integer(4)            , dimension(nelem*(porder**ndime),2**ndime+1)  :: cells
          integer(4)            , dimension(nelem*(porder**ndime))          :: cellTypes
          real(8)               , dimension(npoin,3)        :: points, u3d
          character(500)                                    :: filename
