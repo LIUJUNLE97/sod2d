@@ -23,8 +23,8 @@ module mod_constants
       !
       ! Flags
       !
-      integer(4), parameter :: flag_real_diff=0
-      integer(4), parameter :: flag_diff_suth=0
+      integer(4), parameter :: flag_real_diff=1
+      integer(4), parameter :: flag_diff_suth=1
       integer(4), parameter :: flag_rk_order=4
       integer(4), parameter :: flag_les=0
       integer(4), parameter :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
