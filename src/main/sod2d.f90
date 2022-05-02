@@ -604,7 +604,18 @@ program sod2d
         if (flag_spectralElem == 1) then
            allocate(connecLINEAR(nelem*(porder**ndime),2*ndime))
            call linearMeshOutput(connec,listHEX08,connecLINEAR)
-           call write_vtk_binary_spectrral()
+           !
+           ! Call VTK output (0th step)
+           !
+           write(1,*) "--| GENERATING 1st OUTPUT..."
+           call nvtxStartRange("1st write")
+           if (isPeriodic == 0) then
+              call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR, &
+                                   rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
+           else
+              call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR, &
+                                   rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
+           end if
         end if
 
         !*********************************************************************!
