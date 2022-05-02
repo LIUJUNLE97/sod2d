@@ -68,7 +68,7 @@ program sod2d
 #ifdef CHANNEL
         !channel flow setup
         real(8)  :: vo = 1.0d0
-        real(8)  :: M  = 0.25d0
+        real(8)  :: M  = 0.08d0
         real(8)  :: delta  = 1.0d0
         real(8)  :: U0     = 1.0d0
         real(8)  :: rho0   = 1.0d0
@@ -123,7 +123,7 @@ program sod2d
         Cp = 1004.00d0 ! TODO: Make it input
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
-        cfl_conv = 0.10d0
+        cfl_conv = 0.95d0
         cfl_diff = 0.95d0
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
@@ -132,7 +132,7 @@ program sod2d
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
-        isPeriodic = 0 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
+        isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #endif        
         if (isPeriodic == 1) then
 #ifdef CHANNEL
@@ -140,12 +140,12 @@ program sod2d
            !nper = 2145 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 49537 ! TODO: if periodic, request number of periodic nodes
-           nper = 12481 ! TODO: if periodic, request number of periodic nodes
+           nper = 12097  ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
         end if
-        flag_emac = 0
+        flag_emac = 1
         if (flag_emac == 1) then
            write(1,*) "--| RUNNING WITH EMAC CONVECTION"
         else if (flag_emac == 0) then
@@ -158,7 +158,7 @@ program sod2d
 #ifdef CHANNEL
         allocate(source_term(ndime))
         !set the source term
-        source_term(1) = utau*utau*rho0/delta !this is for Retau 180
+        source_term(1) = (utau*utau*rho0/delta)/36.0d0
         source_term(2) = 0.00d0
         source_term(3) = 0.00d0
 #endif
@@ -181,8 +181,8 @@ program sod2d
 #ifdef CHANNEL
         write(file_name,*) "channel" ! Nsys
 #else
-        write(file_name,*) "shock_tube" ! Nsys
-        !write(file_name,*) "cube" ! Nsys
+        !write(file_name,*) "shock_tube" ! Nsys
+        write(file_name,*) "cube" ! Nsys
 #endif
         call read_dims(file_path,file_name,npoin,nelem,nboun)
         allocate(connec(nelem,nnode))
@@ -340,34 +340,45 @@ program sod2d
 
         call nvtxStartRange("Additional data")
 #ifdef CHANNEL
-        do ipoin = 1,npoin
+        if(1) then
+           do ipoin = 1,npoin
 
-           if(coord(ipoin,2)<delta) then
-               yp = coord(ipoin,2)*utau/mul
-           else
-              yp = abs(coord(ipoin,2)-2.0d0*delta)*utau/mul
-           end if
+              if(coord(ipoin,2)<delta) then
+                 yp = coord(ipoin,2)*utau/mul
+              else
+                 yp = abs(coord(ipoin,2)-2.0d0*delta)*utau/mul
+              end if
 
-          velo = utau*((1.0d0/0.41d0)*log(1.0d0+0.41d0*yp)+7.8d0*(1.0d0-exp(-yp/11.0d0)-(yp/11.0d0)*exp(-yp/3.0d0))) 
+              velo = utau*((1.0d0/0.41d0)*log(1.0d0+0.41d0*yp)+7.8d0*(1.0d0-exp(-yp/11.0d0)-(yp/11.0d0)*exp(-yp/3.0d0))) 
 
-          call random_number(ti)
-          !u(ipoin,1,2) = velo*(1.0d0 + 0.1d0*(sin(5.0d0*coord(ipoin,1)) -0.5d0))
-          !u(ipoin,2,2) = velo*(0.1d0*(sin(5.0d0*coord(ipoin,2)) -0.5d0))
-          !u(ipoin,3,2) = velo*(0.1d0*(sin(5.0d0*coord(ipoin,3)) -0.5d0))
-          u(ipoin,1,2) = velo*(1.0d0 + 0.1d0*(ti(1) -0.5d0))
-          u(ipoin,2,2) = velo*(0.1d0*(ti(2) -0.5d0))
-          u(ipoin,3,2) = velo*(0.1d0*(ti(3) -0.5d0))
+              call random_number(ti)
+              u(ipoin,1,2) = velo*(1.0d0 + 0.1d0*(ti(1) -0.5d0))
+              u(ipoin,2,2) = velo*(0.1d0*(ti(2) -0.5d0))
+              u(ipoin,3,2) = velo*(0.1d0*(ti(3) -0.5d0))
 
-          pr(ipoin,2) = po
+              pr(ipoin,2) = po
 
-          rho(ipoin,2) = po/Rg/to
-          
-          e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0d0))
-          Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas)
-          E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
-          q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
-          csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2))
-        end do
+              rho(ipoin,2) = po/Rg/to
+
+              e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0d0))
+              Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas)
+              E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
+              q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
+              csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2))
+           end do
+        else        
+           call read_vtk_binary(isPeriodic,230001,npoin,nelem,coord,connec, &
+              rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
+           do ipoin = 1,npoin
+              pr(ipoin,2) = po
+              rho(ipoin,2) = po/Rg/to
+              e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0d0))
+              Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas)
+              E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
+              q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
+              csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2))
+           end do
+        endif        
 #else
         !$acc parallel loop
         do ipoin = 1,npoin
@@ -376,7 +387,6 @@ program sod2d
            E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
            q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
            csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2)) 
-           !u(ipoin,1,2) = 5.0d0
         end do
         !$acc end parallel loop
 #endif
@@ -605,7 +615,7 @@ program sod2d
            end do
         end do
         write(1,*) '--| DOMAIN VOLUME := ',VolTot
-        STOP(1)
+        !STOP(1)
 
         !*********************************************************************!
         ! Treat periodicity                                                   !
