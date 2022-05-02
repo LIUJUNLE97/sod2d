@@ -305,14 +305,22 @@ module elem_hex
                    13,23,41,44,17,21,45,46,37,50,57,60,38,49,58,59, &
                    14,24,42,43,18,22,48,47,40,51,61,64,39,52,62,63]
 
-         listHEX08(1,1:8) = []
-         listHEX08(2,1:8) = []
-         listHEX08(3,1:8) = []
-         listHEX08(4,1:8) = []
-         listHEX08(5,1:8) = []
-         listHEX08(6,1:8) = []
-         listHEX08(7,1:8) = []
-         listHEX08(8,1:8) = []
+         listHEX08( 1,1:8) = []
+         listHEX08( 2,1:8) = []
+         listHEX08( 3,1:8) = []
+         listHEX08( 4,1:8) = []
+         listHEX08( 5,1:8) = []
+         listHEX08( 6,1:8) = []
+         listHEX08( 7,1:8) = []
+         listHEX08( 8,1:8) = []
+         listHEX08( 9,1:8) = []
+         listHEX08(10,1:8) = []
+         listHEX08(11,1:8) = []
+         listHEX08(12,1:8) = []
+         listHEX08(13,1:8) = []
+         listHEX08(14,1:8) = []
+         listHEX08(15,1:8) = []
+         listHEX08(16,1:8) = []
                 
          call lagrange_roots(xi_grid)
          call tripleTensorProduct(xi_grid,xi,eta,zeta,atoIJK,N,dN)
