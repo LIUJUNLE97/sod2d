@@ -114,7 +114,7 @@ program sod2d
         !nnode = 27 ! TODO: need to allow for mixed elements...
         !porder = 1 ! TODO: make it input
         !npbou = 9 ! TODO: Need to get his from somewhere...
-        nstep = 1 ! TODO: Needs to be input...
+        nstep = 30 ! TODO: Needs to be input...
 #ifdef CHANNEL
         Rgas = Rg
 #else
@@ -123,8 +123,8 @@ program sod2d
         Cp = 1004.00d0 ! TODO: Make it input
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
-        cfl_conv = 0.9d0
-        cfl_diff = 0.9d0
+        cfl_conv = 0.5d0
+        cfl_diff = 0.5d0
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
         nleap = 1 ! Saving interval, TODO: input
@@ -140,7 +140,7 @@ program sod2d
            !nper = 2145 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
-           nper = 37  ! TODO: if periodic, request number of periodic nodes
+           nper = 12097  ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
@@ -934,8 +934,13 @@ program sod2d
                   !
                   if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
-                     call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
-                                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
+                     if (flag_spectralElem == 1) then
+                        call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR, &
+                           rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
+                     else 
+                        call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
+                           rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
+                     end if
                      nsave = nsave+nleap
                      call nvtxEndRange
                   end if
