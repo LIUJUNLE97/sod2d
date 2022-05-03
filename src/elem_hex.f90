@@ -284,7 +284,7 @@ module elem_hex
 
       end subroutine hex27
 
-      subroutine hex64(xi,eta,zeta,listHEX08,N,dN,N_lagrange,dN_lagrange)
+      subroutine hex64(xi,eta,zeta,atoIJK,listHEX08,N,dN,N_lagrange,dN_lagrange)
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          ! Lagrangian HEX64 element model. Built using    !
@@ -295,10 +295,10 @@ module elem_hex
          implicit none
 
          integer(4), optional, intent(out) :: listHEX08(27,8)
+         integer(4),           intent(out) :: atoIJK(64)
          real(8),              intent(in)  :: xi, eta, zeta
          real(8),    optional, intent(out) :: N(nnode), dN(ndime,nnode)
          real(8),    optional, intent(out) :: N_lagrange(nnode), dN_lagrange(ndime,nnode)
-         integer(4)                        :: atoIJK(64)
          real(8)                           :: xi_grid(porder+1)
 
          atoIJK = [1,4,11,12,2,3,15,16,9,20,33,34,10,19,36,35, &
