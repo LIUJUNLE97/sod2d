@@ -152,7 +152,7 @@ module quadrature_rules
 
                 end subroutine gll_hex
 
-                pure subroutine chebyshev_hex(xgp,wgp)
+                pure subroutine chebyshev_hex(atoIJK,xgp,wgp)
 
                    use mod_maths
 
@@ -165,6 +165,7 @@ module quadrature_rules
                    
                    implicit none
 
+                   integer(4), intent(in) :: atoIJK(ngaus)
                    real(8), intent(out) :: xgp(ngaus,ndime), wgp(ngaus)
                    real(8)              :: xi(porder+1), w0, w1, w2, w3
 
