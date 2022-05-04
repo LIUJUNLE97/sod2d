@@ -2,6 +2,7 @@ module elem_source
 
       use mod_constants
       use mod_nvtx
+      use mod_veclen
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Computes source term integration                                           !
@@ -34,7 +35,7 @@ module elem_source
                       !this subroutine at least having convection so Rmom is
                       !already initialized
 
-                      !$acc parallel loop gang private(Re) vector_length(32)
+                      !$acc parallel loop gang private(Re) vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector collapse(2)
                          do inode = 1,nnode

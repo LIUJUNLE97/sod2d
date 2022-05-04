@@ -2,6 +2,7 @@ module mass_matrix
 
    use mod_constants
    use mod_nvtx
+   use mod_veclen
 
       contains
 
@@ -97,7 +98,7 @@ module mass_matrix
                       Ml(:) = 0.0d0
                       !$acc end kernels
 #if 1
-                      !$acc parallel loop gang private(Me) vector_length(32)
+                      !$acc parallel loop gang private(Me) vector_length(vecLength)
                       do ielem = 1,nelem
                          Me = 0.0d0
                          aux1 = 0.0d0
@@ -132,7 +133,7 @@ module mass_matrix
                       end do
                       !$acc end parallel loop
 #else
-                      !$acc parallel loop gang private(Me) vector_length(32)
+                      !$acc parallel loop gang private(Me) vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
@@ -159,6 +160,31 @@ module mass_matrix
 #endif
               end subroutine lumped_mass
 
+              subroutine lumped_mass_spectral(nelem,npoin,connec,gpvol,Ml)
+
+                 implicit none
+
+                 integer(4), intent(in)  :: nelem,npoin, connec(nelem,nnode)
+                 real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
+                 real(8),    intent(out) :: Ml(npoin)
+                 integer(4)              :: ielem, inode
+
+                 !$acc kernels
+                 Ml(:) = 0.0d0
+                 !$acc end kernels
+                 !$acc parallel loop gang vector_length(vecLength)
+                 do ielem = 1,nelem
+                    !$acc loop vector
+                    do inode = 1,nnode
+                       !$acc atomic update
+                       Ml(connec(ielem,inode)) = Ml(connec(ielem,inode))+gpvol(1,inode,ielem)
+                       !$acc end atomic
+                    end do
+                 end do
+                 !$acc end parallel loop
+
+              end subroutine lumped_mass_spectral
+
               subroutine cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,v,Rmc)
 
                       implicit none
@@ -178,7 +204,7 @@ module mass_matrix
                       Rmc(:) = 0.0d0
                       !$acc end kernels
 
-                      !$acc parallel loop gang private(Re) vector_length(32)
+                      !$acc parallel loop gang private(Re) vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
@@ -235,7 +261,7 @@ module mass_matrix
                       !
                       ! Loop over all elements to form Mc_e(nnode,nnode)
                       !
-                      !$acc parallel loop gang private(Re) vector_length(32)
+                      !$acc parallel loop gang private(Re) vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode

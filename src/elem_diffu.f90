@@ -2,6 +2,7 @@ module elem_diffu
 
       use mod_nvtx
       use mod_constants
+      use mod_veclen
 
       ! TODO: Create unit tests for all subroutines
 
@@ -28,7 +29,7 @@ module elem_diffu
                       !$acc kernels
                       Rmass(:) = 0.0d0
                       !$acc end kernels
-                      !$acc parallel loop gang  private(gpcar,Re) vector_length(32)
+                      !$acc parallel loop gang  private(gpcar,Re) vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
@@ -95,7 +96,7 @@ module elem_diffu
                       !$acc kernels
                       Rmom(:,:) = 0.0d0
                       !$acc end kernels
-                      !$acc parallel loop gang  private(Re,gpcar,tau,gradU) vector_length(32)
+                      !$acc parallel loop gang  private(Re,gpcar,tau,gradU) vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector collapse(2)
                          do inode = 1,nnode
@@ -223,7 +224,7 @@ module elem_diffu
                       !$acc kernels
                       Rener(:) = 0.0d0
                       !$acc end kernels
-                      !$acc parallel loop gang  private(Re,gpcar,gradU,gradT,tauU)  vector_length(32)
+                      !$acc parallel loop gang  private(Re,gpcar,gradU,gradT,tauU)  vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode

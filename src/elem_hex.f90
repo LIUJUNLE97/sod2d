@@ -1,6 +1,7 @@
 module elem_hex
 
    use mod_constants
+   use mod_maths
 
    contains  
 
@@ -282,7 +283,72 @@ module elem_hex
 
 
       end subroutine hex27
-      
+
+      subroutine hex64(xi,eta,zeta,atoIJK,listHEX08,N,dN,N_lagrange,dN_lagrange)
+
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         ! Lagrangian HEX64 element model. Built using    !
+         ! equispaced nodes between [-1,1] on             !
+         ! (xi,eta,zeta). Ordering follows that of GMSH.  !
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+         implicit none
+
+         integer(4), optional, intent(out) :: listHEX08(27,8)
+         integer(4),           intent(out) :: atoIJK(64)
+         real(8),              intent(in)  :: xi, eta, zeta
+         real(8),    optional, intent(out) :: N(nnode), dN(ndime,nnode)
+         real(8),    optional, intent(out) :: N_lagrange(nnode), dN_lagrange(ndime,nnode)
+         real(8)                           :: xi_grid(porder+1)
+
+         atoIJK = [1,4,11,12,2,3,15,16,9,20,33,34,10,19,36,35, &
+                   5,8,27,28,6,7,29,30,25,32,53,56,26,31,54,55, &
+                   13,23,41,44,17,21,45,46,37,50,57,60,38,49,58,59, &
+                   14,24,42,43,18,22,48,47,40,51,61,64,39,52,62,63]
+
+         if (present(listHEX08)) then
+            listHEX08( 1,1:8) = [1,9,33,11,13,37,57,41]
+            listHEX08( 2,1:8) = [9,10,36,33,37,38,58,57]
+            listHEX08( 3,1:8) = [10,2,15,36,38,17,45,58]
+            listHEX08( 4,1:8) = [11,33,34,12,41,57,60,44]
+            listHEX08( 5,1:8) = [33,36,35,34,57,58,59,60]
+            listHEX08( 6,1:8) = [36,15,16,35,58,45,46,59]
+            listHEX08( 7,1:8) = [12,34,20,4,44,60,50,23]
+            listHEX08( 8,1:8) = [34,35,19,20,60,59,49,50]
+            listHEX08( 9,1:8) = [35,16,3,19,59,46,21,49]
+            listHEX08(10,1:8) = [13,37,57,41,14,40,61,42]
+            listHEX08(11,1:8) = [37,38,58,57,40,39,62,61]
+            listHEX08(12,1:8) = [38,17,45,58,39,18,48,62]
+            listHEX08(13,1:8) = [41,57,60,44,42,61,64,43]
+            listHEX08(14,1:8) = [57,58,59,60,61,62,63,64]
+            listHEX08(15,1:8) = [58,45,46,59,62,48,47,63]
+            listHEX08(16,1:8) = [44,60,50,23,43,64,51,24]
+            listHEX08(17,1:8) = [60,59,49,50,64,63,52,51]
+            listHEX08(18,1:8) = [59,46,21,49,63,47,22,52]
+            listHEX08(19,1:8) = [14,40,61,42,5,25,53,27]
+            listHEX08(20,1:8) = [40,39,62,61,25,26,54,53]
+            listHEX08(21,1:8) = [39,18,48,62,26,6,29,54]
+            listHEX08(22,1:8) = [42,61,64,43,27,53,56,28]
+            listHEX08(23,1:8) = [61,62,63,64,53,54,55,56]
+            listHEX08(24,1:8) = [62,48,47,63,54,29,30,55]
+            listHEX08(25,1:8) = [43,64,51,24,28,56,32,8]
+            listHEX08(26,1:8) = [64,63,52,51,56,55,31,32]
+            listHEX08(27,1:8) = [63,47,22,52,55,30,7,31]
+         end if
+
+         if (present(N) .and. present(dN)) then
+            call lagrange_roots(xi_grid)
+            call tripleTensorProduct(xi_grid,xi,eta,zeta,atoIJK,N,dN)
+            if (flag_spectralElem == 1) then
+               N_lagrange(:) = N(:)
+               dN_lagrange(:,:) = dN(:,:)
+               call chebyshev_roots(xi_grid)
+               call tripleTensorProduct(xi_grid,xi,eta,zeta,atoIJK,N,dN)
+            end if
+         end if
+
+      end subroutine hex64
+
       subroutine hexa_edges(ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
 
          implicit none

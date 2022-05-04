@@ -1,6 +1,8 @@
 module jacobian_oper
 
         use mod_constants
+        use mod_veclen
+
         contains
 
                 subroutine elem_jacobian(nelem,npoin,connec,coord,dNgp,wgp,gpvol,He)
@@ -29,7 +31,7 @@ module jacobian_oper
                         !
                         ! Loop over elements
                         !
-                        !$acc parallel loop gang private(Je,a,b) vector_length(32)
+                        !$acc parallel loop gang private(Je,a,b) vector_length(vecLength)
                         do ielem = 1,nelem
                            !
                            ! Loop over Gauss points
