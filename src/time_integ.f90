@@ -13,7 +13,7 @@ module time_integ
       contains
 
               subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                              ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                              ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
                               rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                               ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
 
@@ -26,7 +26,7 @@ module time_integ
                       real(8),    intent(in)             :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)             :: He(ndime,ndime,ngaus,nelem)
                       real(8),    intent(in)             :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)             :: dt, helem(nelem)
+                      real(8),    intent(in)             :: dt,helem(nelem),helem_l(npoin)
                       real(8),    intent(in)             :: Ml(npoin)
                       real(8),    intent(in)             :: Rgas, gamma_gas
                       real(8),    intent(inout)          :: rho(npoin,2)
@@ -105,9 +105,13 @@ module time_integ
                          !
                          ! Compute entropy viscosity
                          !
-                         call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                         gamma_gas,rho(:,2),u(:,:,2),Tem(:,2),helem,mu_e)
-
+                         if (flag_SpectralElem == 1) then
+                            call smart_visc_spectral(nelem,npoin,connec,Reta,Rrho,Ngp, &
+                               gamma_gas,rho(:,2),u(:,:,2),Tem(:,2),helem_l,mu_e)
+                         else
+                            call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
+                               gamma_gas,rho(:,2),u(:,:,2),Tem(:,2),helem,mu_e)
+                         end if
                                       
                          if(flag_les == 1) then
                            call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,2),u(:,:,2),mu_sgs)
@@ -355,9 +359,13 @@ module time_integ
                          !
                          ! Compute entropy viscosity
                          !
-                         call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                         gamma_gas,rho_1,u_1,Tem_1,helem,mu_e)
-
+                         if (flag_SpectralElem == 1) then
+                            call smart_visc_spectral(nelem,npoin,connec,Reta,Rrho,Ngp, &
+                               gamma_gas,rho_1,u_1,Tem_1,helem_l,mu_e)
+                         else
+                            call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
+                               gamma_gas,rho_1,u_1,Tem_1,helem,mu_e)
+                         end if
                          if(flag_les == 1) then
                            call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho_1,u_1,mu_sgs)
                          end if
@@ -586,9 +594,13 @@ module time_integ
                          !
                          ! Compute entropy viscosity
                          !
-                         call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                         gamma_gas,rho_2,u_2,Tem_2,helem,mu_e)
-
+                         if (flag_SpectralElem == 1) then
+                            call smart_visc_spectral(nelem,npoin,connec,Reta,Rrho,Ngp, &
+                               gamma_gas,rho_2,u_2,Tem_2,helem_l,mu_e)
+                         else
+                            call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
+                               gamma_gas,rho_2,u_2,Tem_2,helem,mu_e)
+                         end if
                          if(flag_les == 1) then
                            call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho_2,u_2,mu_sgs)
                          end if
@@ -816,9 +828,13 @@ module time_integ
                          !
                          ! Compute entropy viscosity
                          !
-                         call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                         gamma_gas,rho_3,u_3,Tem_3,helem,mu_e)
-
+                         if (flag_SpectralElem == 1) then
+                            call smart_visc_spectral(nelem,npoin,connec,Reta,Rrho,Ngp, &
+                               gamma_gas,rho_3,u_3,Tem_3,helem_l,mu_e)
+                         else
+                            call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
+                               gamma_gas,rho_3,u_3,Tem_3,helem,mu_e)
+                         end if
                          if(flag_les == 1) then
                            call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho_3,u_3,mu_sgs)
                          end if
@@ -1134,7 +1150,7 @@ module time_integ
                          ! Compute entropy viscosity
                          !
                          call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                         gamma_gas,rho(:,2),u(:,:,2),Tem(:,2),helem,mu_e)
+                            gamma_gas,rho(:,2),u(:,:,2),Tem(:,2),helem,mu_e)
 
                          if(flag_les == 1) then
                            call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,2),u(:,:,2),mu_sgs)

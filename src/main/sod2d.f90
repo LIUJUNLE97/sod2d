@@ -46,7 +46,7 @@ program sod2d
         integer(4), allocatable    :: connec(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
         integer(4), allocatable    :: masSla(:,:), connec_orig(:,:), aux1(:), bound_orig(:,:)
         integer(4), allocatable    :: lpoin_w(:), atoIJK(:), listHEX08(:,:), connecLINEAR(:,:)
-        real(8),    allocatable    :: coord(:,:), coord_old(:,:), helem(:)
+        real(8),    allocatable    :: coord(:,:), coord_old(:,:), helem(:),helem_l(:)
         real(8),    allocatable    :: xgp(:,:), wgp(:)
         real(8),    allocatable    :: Ngp(:,:), dNgp(:,:,:)
         real(8),    allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:)
@@ -68,7 +68,7 @@ program sod2d
 #ifdef CHANNEL
         !channel flow setup
         real(8)  :: vo = 1.0d0
-        real(8)  :: M  = 0.08d0
+        real(8)  :: M  = 0.1d0
         real(8)  :: delta  = 1.0d0
         real(8)  :: U0     = 1.0d0
         real(8)  :: rho0   = 1.0d0
@@ -114,7 +114,7 @@ program sod2d
         !nnode = 27 ! TODO: need to allow for mixed elements...
         !porder = 1 ! TODO: make it input
         !npbou = 9 ! TODO: Need to get his from somewhere...
-        nstep = 1000 ! TODO: Needs to be input...
+        nstep = 900000 ! TODO: Needs to be input...
 #ifdef CHANNEL
         Rgas = Rg
 #else
@@ -127,7 +127,7 @@ program sod2d
         cfl_diff = 0.9d0
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
-        nleap = 100 ! Saving interval, TODO: input
+        nleap = 200 ! Saving interval, TODO: input
         nleap2 = 10  ! Saving interval, TODO: input
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
@@ -136,16 +136,16 @@ program sod2d
 #endif        
         if (isPeriodic == 1) then
 #ifdef CHANNEL
-           nper = 6305 ! TODO: if periodic, request number of periodic nodes
+           nper = 6499 ! TODO: if periodic, request number of periodic nodes
            !nper = 2145 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
-           nper = 12097  ! TODO: if periodic, request number of periodic nodes
+           nper = 24571  ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
         end if
-        flag_emac = 1
+        flag_emac = 0
         if (flag_emac == 1) then
            write(1,*) "--| RUNNING WITH EMAC CONVECTION"
         else if (flag_emac == 0) then
@@ -600,6 +600,15 @@ program sod2d
            end do
            deallocate(aux_2)
         end if
+        !charecteristic length for spectral elements for the entropy
+        !stablisation
+        allocate(helem_l(npoin))
+        if (flag_SpectralElem == 1) then
+           helem_l(:) = 1000000000000000000000000000000000000000000000000000000000000000000000.0d0
+           do ielem = 1,nelem
+              call char_length_spectral(ielem,nelem,npoin,connec,coord,helem_l)
+           end do
+        end if
 
         !*********************************************************************!
         ! Generate linear mesh and output for spectral case                   !
@@ -813,7 +822,7 @@ program sod2d
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  else
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  end if
@@ -829,7 +838,7 @@ program sod2d
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  else
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  end if
@@ -892,7 +901,7 @@ program sod2d
                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid)
                  else
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid)
                  end if
 #endif
@@ -906,7 +915,7 @@ program sod2d
                         rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid)
                   else
                      call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
                         rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid)
                   end if
 
@@ -988,7 +997,7 @@ program sod2d
                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
                 else
                    call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
                       rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
                 end if
@@ -1004,7 +1013,7 @@ program sod2d
                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
                   else
                      call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
+                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
                         rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
                   end if
@@ -1025,8 +1034,13 @@ program sod2d
                   !
                   if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
-                     call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
-                                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
+                     if (flag_spectralElem == 1) then
+                        call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR, &
+                           rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
+                     else 
+                        call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
+                           rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
+                     end if
                      nsave = nsave+nleap
                      call nvtxEndRange
                   end if
