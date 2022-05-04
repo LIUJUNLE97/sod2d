@@ -130,9 +130,9 @@ module mod_entropy_viscosity
                        end if
                        call nvtxEndRange
 
-                     !
-                     ! Normalize
-                     !
+                    !!
+                    !! Normalize
+                    !!
                     !maxEta = maxval(abs(eta(lpoin_w(:))))
                     !maxRho = maxval(abs(rhok(lpoin_w(:))))
 
@@ -212,31 +212,22 @@ module mod_entropy_viscosity
 
                       !$acc parallel loop gang vector_length(vecLength)
                       do ielem = 1,nelem
-                         !$acc loop worker
-                         do igaus = 1,ngaus
-                            R1 = 0.0d0
-                            R2 = 0.0d0
-                            !$acc loop vector reduction(+:R1,R2)
-                            do inode = 1,nnode
-                               R1 = R1+Ngp(igaus,inode)*abs(Reta(connec(ielem,inode))) ! Linf norm of Reta on element
-                               R2 = R2+Ngp(igaus,inode)*abs(Rrho(connec(ielem,inode))) ! Linf norm of Rrho on element
-                            end do
-                            Ve = ce*max(R1,R2)*(helem(connec(ielem,igaus))**2) ! Normalized residual for element
+                         !$acc loop vector
+                         do inode = 1,nnode
+                            R1 = abs(Reta(connec(ielem,inode)))
+                            R2 = 0.0d0*abs(Rrho(connec(ielem,inode)))
+                            Ve = ce*max(R1,R2)*(helem(connec(ielem,inode))**2) ! Normalized residual for element
                             !
                             ! Max. Wavespeed at element
                             !
-                            aux1 = 0.0d0
-                            !$acc loop vector reduction(+:aux1)
-                            do inode = 1,nnode
-                               aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
-                               aux3 = sqrt(gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
-                               aux1 = aux1+Ngp(igaus,inode)*(aux2+aux3)
-                            end do
+                            aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
+                            aux3 = sqrt(gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
+                            aux1 = aux2+aux3
                             !
                             ! Select against Upwind viscosity
                             !
-                            betae = cmax*helem(connec(ielem,igaus))*aux1
-                            mu_e(ielem,igaus) = cglob*min(Ve,betae) ! Dynamic viscosity
+                            betae = cmax*helem(connec(ielem,inode))*aux1
+                            mu_e(ielem,inode) = cglob*min(Ve,betae) ! Dynamic viscosity
                          end do
                       end do
                       !$acc end parallel loop
