@@ -198,6 +198,36 @@ module time_integ
                             !$acc end parallel loop
                             call mom_convec_emac(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,aux_pr,Rmom)
                          end if
+                         !
+                         ! Add convection and diffusion terms (Rdiff_* is zero during prediction)
+                         !
+                         !$acc kernels
+                         Rmass(:) = Rmass(:) + Rdiff_mass(:)
+                         Rener(:) = Rener(:) + Rdiff_ener(:)
+                         Rmom(:,:) = Rmom(:,:) + Rdiff_mom(:,:)
+                         !$acc end kernels
+                         !
+                         ! Call lumped mass matrix solver
+                         !
+                         if (flag_solver_type == 1) then ! Lumped mass
+                            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass)
+                            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener)
+                            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmom)
+                         else if (flag_solver_type == 2) then ! Lumped+apinv
+                            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass)
+                            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener)
+                            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmom)
+                            call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Rmass)
+                            call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Rener)
+                            call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Rmom)
+                         else if (flag_solver_type == 3) then ! ConjGrad
+                            call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rmass)
+                            call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rener)
+                            call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rmom)
+                         else 
+                            write(1,*) "--| SOLVER NOT CODED YET!"
+                            STOP(1)
+                         end if
                       end do
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
