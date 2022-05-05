@@ -59,7 +59,10 @@ module time_integ
                       real(8),    dimension(4)            :: a_i, b_i, c_i
                       real(8),    dimension(npoin,ndime)  :: aux_u, aux_q
                       real(8),    dimension(npoin)        :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int
+                      real(8),    dimension(npoin)        :: Rmass, Rener
+                      real(8),    dimension(npoin,ndime)  :: Rmom
                       real(8)                             :: Rdiff_scal(npoin), Rdiff_vect(npoin,ndime)
+                      real(8)                             :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
                       real(8)                             :: Aemac(npoin,ndime), Femac(npoin)
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -90,23 +93,36 @@ module time_integ
                       end if
 
                       !
-                      ! Initialize intermediate with current values (pos = 2)
+                      ! Initialize variables to zero
                       !
-
                       !$acc kernels
-                      aux_rho(1:npoin) = rho(1:npoin,2)
-                      aux_u(1:npoin,1:ndime) = u(1:npoin,1:ndime,2)
-                      aux_q(1:npoin,1:ndime) = q(1:npoin,1:ndime,2)
-                      aux_pr(1:npoin) = pr(1:npoin,2)
-                      aux_E(1:npoin) = E(1:npoin,2)
-                      aux_Tem(1:npoin) = Tem(1:npoin,2)
-                      aux_e_int(1:npoin) = e_int(1:npoin,2)
+                      aux_rho(1:npoin) = 0.0d0
+                      aux_u(1:npoin,1:ndime) = 0.0d0
+                      aux_q(1:npoin,1:ndime) = 0.0d0
+                      aux_pr(1:npoin) = 0.0d0
+                      aux_E(1:npoin) = 0.0d0
+                      aux_Tem(1:npoin) = 0.0d0
+                      aux_e_int(1:npoin) = 0.0d0
+                      Rdiff_mass(1:npoin) = 0.0d0
+                      Rdiff_mom(1:npoin,1:ndime) = 0.0d0
+                      Rdiff_ener(1:npoin) = 0.0d0
+                      Rmass(1:npoin) = 0.0d0
+                      Rmom(1:npoin,1:ndime) = 0.0d0
+                      Rener(1:npoin) = 0.0d0
                       !$acc end kernels
 
                       !
                       ! Loop over all RK steps
                       !
                       do istep = 1,flag_rk_order
+                         !
+                         ! Compute variable at substep (y_i = y_n+dt*A_ij*R_j)
+                         !
+                         !$acc kernels
+                         aux_rho(:) = rho(:,2) + dt*a_i(istep)*Rmass(:)
+                         aux_q(:,:) = q(:,:,2) + dt*a_i(istep)*Rmom(:,:)
+                         aux_E(:)   = E(:,2)   + dt*a_i(istep)*Rener(:)
+                         !$acc end kernels
                          !
                          ! Determine wheter to use prediction position or update position
                          !
@@ -120,7 +136,7 @@ module time_integ
                             call nvtxStartRange("ENVIT")
                             call residuals(nelem,npoin,npoin_w,lpoin_w, &
                                       ppow, connec, Ngp, dNgp, He, gpvol, Ml, &
-                                      dt, aux_rho(:), aux_u(:,:), aux_pr(:), aux_q(:,:), &
+                                      dt, aux_rho, aux_u, aux_pr, aux_q, &
                                       rho, u, pr, q, gamma_gas, &
                                       Reta, Rrho)
                             !
@@ -128,10 +144,10 @@ module time_integ
                             !
                             if (flag_SpectralElem == 1) then
                                call smart_visc_spectral(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                  gamma_gas,aux_rho(:),aux_u(:,:),aux_Tem(:),helem_l,mu_e)
+                                  gamma_gas,aux_rho,aux_u,aux_Tem,helem_l,mu_e)
                             else
                                call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                  gamma_gas,aux_rho(:),aux_u(:,:),aux_Tem(:),helem,mu_e)
+                                  gamma_gas,aux_rho,aux_u,aux_Tem,helem,mu_e)
                             end if
                             call nvtxEndRange
                             !
@@ -139,7 +155,7 @@ module time_integ
                             !
                             if(flag_les == 1) then
                                call nvtxStartRange("MU_SGS")
-                               call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_rho(:),aux_u(:,:),mu_sgs)
+                               call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_rho,aux_u,mu_sgs)
                                call nvtxEndRange
                             end if
                             !
@@ -147,17 +163,9 @@ module time_integ
                             !
                             if (flag_real_diff == 1 .and. flag_diff_suth == 1) then
                                call nvtxStartRange("MU_SUT")
-                               call sutherland_viscosity(npoin,aux_Tem(:),mu_fluid)
+                               call sutherland_viscosity(npoin,aux_Tem,mu_fluid)
                                call nvtxEndRange
                             end if
-                            !
-                            ! Compute diffusion terms with current values
-                            !
-                            call nvtxStartRange("DIFFUSION")
-                            call mass_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_rho(:),mu_e,Rdiff_scal)
-                            call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u(:,:),mu_fluid,mu_e,mu_sgs,Rdiff_vect)
-                            call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u(:,:),aux_Tem(:),mu_fluid,mu_e,mu_sgs,Rdiff_scal)
-                            call nvtxEndRange
                          end if
                       end do
 
