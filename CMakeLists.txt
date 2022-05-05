@@ -1,5 +1,5 @@
 # Declare minimum version of CMake required
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.15)
 
 project(sod2d)           # Project name
 enable_language(Fortran) # Supported language Fortran
@@ -32,7 +32,7 @@ elseif (Fortran_COMPILER_NAME MATCHES "nvfortran")
   # nvfortran
   set (CMAKE_Fortran_FLAGS_RELEASE "-fast -D_USE_NVTX -cpp -gpu=cc61,managed,lineinfo -cuda -acc -Minfo=accel")
   #set (CMAKE_Fortran_FLAGS_RELEASE "-fast -D_USE_NVTX -cpp -cuda -Minfo=accel")
-  set (CMAKE_Fortran_FLAGS_DEBUG   "-O0 -DGPU -cpp -Mcuda=cc70 -Wall -C -Ktrap=fp -g")
+  set (CMAKE_Fortran_FLAGS_DEBUG   "-O0 -D_USE_NVTX -cpp -gpu=cc61,managed -cuda -acc -Wall -C -Ktrap=fp -Minfo=all -g")
   add_link_options(-lnvToolsExt)
 else (Fortran_COMPILER_NAME MATCHES "gfortran.*")
   message ("CMAKE_Fortran_COMPILER full path: " ${CMAKE_Fortran_COMPILER})
