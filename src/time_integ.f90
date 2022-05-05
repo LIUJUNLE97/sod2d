@@ -19,48 +19,48 @@ module time_integ
 
                       implicit none
 
-                      integer(4),           intent(in)                 :: flag_predic, flag_emac
-                      integer(4),           intent(in)                 :: nelem, nboun, npoin
-                      integer(4),           intent(in)                 :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w)
-                      integer(4),           intent(in)                 :: ppow
-                      real(8),              intent(in)                 :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                      real(8),              intent(in)                 :: He(ndime,ndime,ngaus,nelem)
-                      real(8),              intent(in)                 :: gpvol(1,ngaus,nelem)
-                      real(8),              intent(in)                 :: dt,helem(nelem),helem_l(npoin)
-                      real(8),              intent(in)                 :: Ml(npoin)
-                      real(8),              intent(in)                 :: Rgas, gamma_gas
-                      real(8),              intent(inout)              :: rho(npoin,2)
-                      real(8),              intent(inout)              :: u(npoin,ndime,2)
-                      real(8),              intent(inout)              :: q(npoin,ndime,2)
-                      real(8),              intent(inout)              :: pr(npoin,2)
-                      real(8),              intent(inout)              :: E(npoin,2)
-                      real(8),              intent(inout)              :: Tem(npoin,2)
-                      real(8),              intent(inout)              :: e_int(npoin,2)
-                      real(8),              intent(inout)              :: mu_fluid(npoin)
-                      real(8),              intent(out)                :: mu_e(nelem,ngaus)
-                      real(8),              intent(out)                :: mu_sgs(nelem,ngaus)
-                      integer(4), optional, intent(in)                 :: ndof, nbnodes, ldof(ndof), lbnodes(nbnodes)
-                      integer(4), optional, intent(in)                 :: bound(nboun,npbou), bou_codes(nboun,2)
-                      real(8),    optional, intent(in)                 :: source_term(ndime)
-                      integer(4)                                       :: pos, bcode
-                      integer(4)                                       :: istep, ipoin, idof, idime, iboun, ipbou
-                      real(8),    dimension(npoin)                     :: rho_1, rho_2, rho_3, rho_4
-                      real(8),    dimension(npoin,ndime)               :: u_1, u_2, u_3, u_4
-                      real(8),    dimension(npoin,ndime)               :: q_1, q_2, q_3, q_4
-                      real(8),    dimension(npoin)                     :: pr_1, pr_2, pr_3, pr_4
-                      real(8),    dimension(npoin)                     :: E_1, E_2, E_3, E_4
-                      real(8),    dimension(npoin)                     :: Tem_1, Tem_2, Tem_3, Tem_4
-                      real(8),    dimension(npoin)                     :: e_int_1, e_int_2, e_int_3, e_int_4
-                      real(8),    dimension(npoin)                     :: Rmass_1, Rmass_2, Rmass_3, Rmass_4
-                      real(8),    dimension(npoin)                     :: Rener_1, Rener_2, Rener_3, Rener_4
-                      real(8),    dimension(npoin,ndime)               :: Rmom_1, Rmom_2, Rmom_3, Rmom_4
-                      real(8),    dimension(npoin)                     :: aux_mass, aux_ener, Reta, Rrho
-                      real(8),    dimension(npoin,ndime)               :: aux_mom
-                      real(8),    dimension(4)                       :: a_i, b_i, c_i
-                      real(8),    dimension(npoin,flag_rk_order)       :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int
-                      real(8),    dimension(npoin,ndime,flag_rk_order) :: aux_u, aux_q
-                      real(8)                                          :: Rdiff_scal(npoin), Rdiff_vect(npoin,ndime)
-                      real(8)                                          :: Aemac(npoin,ndime), Femac(npoin)
+                      integer(4),           intent(in)    :: flag_predic, flag_emac
+                      integer(4),           intent(in)    :: nelem, nboun, npoin
+                      integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w)
+                      integer(4),           intent(in)    :: ppow
+                      real(8),              intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                      real(8),              intent(in)    :: He(ndime,ndime,ngaus,nelem)
+                      real(8),              intent(in)    :: gpvol(1,ngaus,nelem)
+                      real(8),              intent(in)    :: dt,helem(nelem),helem_l(npoin)
+                      real(8),              intent(in)    :: Ml(npoin)
+                      real(8),              intent(in)    :: Rgas, gamma_gas
+                      real(8),              intent(inout) :: rho(npoin,2)
+                      real(8),              intent(inout) :: u(npoin,ndime,2)
+                      real(8),              intent(inout) :: q(npoin,ndime,2)
+                      real(8),              intent(inout) :: pr(npoin,2)
+                      real(8),              intent(inout) :: E(npoin,2)
+                      real(8),              intent(inout) :: Tem(npoin,2)
+                      real(8),              intent(inout) :: e_int(npoin,2)
+                      real(8),              intent(inout) :: mu_fluid(npoin)
+                      real(8),              intent(out)   :: mu_e(nelem,ngaus)
+                      real(8),              intent(out)   :: mu_sgs(nelem,ngaus)
+                      integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(ndof), lbnodes(nbnodes)
+                      integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun,2)
+                      real(8),    optional, intent(in)    :: source_term(ndime)
+                      integer(4)                          :: pos, bcode
+                      integer(4)                          :: istep, ipoin, idof, idime, iboun, ipbou
+                      real(8),    dimension(npoin)        :: rho_1, rho_2, rho_3, rho_4
+                      real(8),    dimension(npoin,ndime)  :: u_1, u_2, u_3, u_4
+                      real(8),    dimension(npoin,ndime)  :: q_1, q_2, q_3, q_4
+                      real(8),    dimension(npoin)        :: pr_1, pr_2, pr_3, pr_4
+                      real(8),    dimension(npoin)        :: E_1, E_2, E_3, E_4
+                      real(8),    dimension(npoin)        :: Tem_1, Tem_2, Tem_3, Tem_4
+                      real(8),    dimension(npoin)        :: e_int_1, e_int_2, e_int_3, e_int_4
+                      real(8),    dimension(npoin)        :: Rmass_1, Rmass_2, Rmass_3, Rmass_4
+                      real(8),    dimension(npoin)        :: Rener_1, Rener_2, Rener_3, Rener_4
+                      real(8),    dimension(npoin,ndime)  :: Rmom_1, Rmom_2, Rmom_3, Rmom_4
+                      real(8),    dimension(npoin)        :: aux_mass, aux_ener, Reta, Rrho
+                      real(8),    dimension(npoin,ndime)  :: aux_mom
+                      real(8),    dimension(4)            :: a_i, b_i, c_i
+                      real(8),    dimension(npoin,ndime)  :: aux_u, aux_q
+                      real(8),    dimension(npoin)        :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int
+                      real(8)                             :: Rdiff_scal(npoin), Rdiff_vect(npoin,ndime)
+                      real(8)                             :: Aemac(npoin,ndime), Femac(npoin)
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! New version of RK4 using loops                 !
@@ -90,17 +90,17 @@ module time_integ
                       end if
 
                       !
-                      ! Initialize intermediate with current values
+                      ! Initialize intermediate with current values (pos = 2)
                       !
 
                       !$acc kernels
-                      aux_rho(1:npoin,1) = rho(1:npoin,2)
-                      aux_u(1:npoin,1:ndime,1) = u(1:npoin,1:ndime,2)
-                      aux_q(1:npoin,1:ndime,1) = q(1:npoin,1:ndime,2)
-                      aux_pr(1:npoin,1) = pr(1:npoin,2)
-                      aux_E(1:npoin,1) = E(1:npoin,2)
-                      aux_Tem(1:npoin,1) = Tem(1:npoin,2)
-                      aux_e_int(1:npoin,1) = e_int(1:npoin,2)
+                      aux_rho(1:npoin) = rho(1:npoin,2)
+                      aux_u(1:npoin,1:ndime) = u(1:npoin,1:ndime,2)
+                      aux_q(1:npoin,1:ndime) = q(1:npoin,1:ndime,2)
+                      aux_pr(1:npoin) = pr(1:npoin,2)
+                      aux_E(1:npoin) = E(1:npoin,2)
+                      aux_Tem(1:npoin) = Tem(1:npoin,2)
+                      aux_e_int(1:npoin) = e_int(1:npoin,2)
                       !$acc end kernels
 
                       !
@@ -113,14 +113,14 @@ module time_integ
                          if (flag_predic == 1) then
                             pos = 1 ! Prediction
                          else if (flag_predic == 0) then
-                            pos = 2 ! Update
-                            call nvtxStartRange("ENVIT")
+                            pos = 2 ! Update                       call nvtxStartRange("ENVIT")
                             !
                             ! Update residuals for envit
                             !
+                            call nvtxStartRange("ENVIT")
                             call residuals(nelem,npoin,npoin_w,lpoin_w, &
                                       ppow, connec, Ngp, dNgp, He, gpvol, Ml, &
-                                      dt, aux_rho(:,istep), aux_u(:,:,istep), aux_pr(:,istep), aux_q(:,:,istep), &
+                                      dt, aux_rho(:), aux_u(:,:), aux_pr(:), aux_q(:,:), &
                                       rho, u, pr, q, gamma_gas, &
                                       Reta, Rrho)
                             !
@@ -128,10 +128,10 @@ module time_integ
                             !
                             if (flag_SpectralElem == 1) then
                                call smart_visc_spectral(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                  gamma_gas,rho(:,2),u(:,:,2),Tem(:,2),helem_l,mu_e)
+                                  gamma_gas,aux_rho(:),aux_u(:,:),aux_Tem(:),helem_l,mu_e)
                             else
                                call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                  gamma_gas,rho(:,2),u(:,:,2),Tem(:,2),helem,mu_e)
+                                  gamma_gas,aux_rho(:),aux_u(:,:),aux_Tem(:),helem,mu_e)
                             end if
                          end if
                       end do
