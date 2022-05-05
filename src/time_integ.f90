@@ -134,9 +134,20 @@ module time_integ
                                   gamma_gas,aux_rho(:),aux_u(:,:),aux_Tem(:),helem,mu_e)
                             end if
                             call nvtxEndRange
+                            !
+                            ! Compute subgrid viscosity if active
+                            !
                             if(flag_les == 1) then
                                call nvtxStartRange("MU_SGS")
                                call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_rho(:),aux_u(:,:),mu_sgs)
+                               call nvtxEndRange
+                            end if
+                            !
+                            ! Update viscosity if Sutherland's law is active
+                            !
+                            if (flag_real_diff == 1 .and. flag_diff_suth == 1) then
+                               call nvtxStartRange("MU_SUT")
+                               call sutherland_viscosity(npoin,aux_Tem(:),mu_fluid)
                                call nvtxEndRange
                             end if
                          end if
