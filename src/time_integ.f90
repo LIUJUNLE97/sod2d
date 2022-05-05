@@ -150,6 +150,12 @@ module time_integ
                                call sutherland_viscosity(npoin,aux_Tem(:),mu_fluid)
                                call nvtxEndRange
                             end if
+                            !
+                            ! Compute diffusion terms with current values
+                            !
+                            call mass_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_rho(:),mu_e,Rdiff_scal)
+                            call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u(:,:),mu_fluid,mu_e,mu_sgs,Rdiff_vect)
+                            call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u(:,:),aux_Tem(:),mu_fluid,mu_e,mu_sgs,Rdiff_scal)
                          end if
                       end do
 
