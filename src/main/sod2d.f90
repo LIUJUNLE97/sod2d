@@ -124,10 +124,10 @@ program sod2d
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
         cfl_conv = 0.9d0
-        cfl_diff = 0.9d0
+        cfl_diff = 2.0d0
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
-        nleap = 200 ! Saving interval, TODO: input
+        nleap = 400 ! Saving interval, TODO: input
         nleap2 = 10  ! Saving interval, TODO: input
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
@@ -140,12 +140,12 @@ program sod2d
            !nper = 2145 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
-           nper = 24571  ! TODO: if periodic, request number of periodic nodes
+           nper = 48007  ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
         end if
-        flag_emac = 0
+        flag_emac = 1
         if (flag_emac == 1) then
            write(1,*) "--| RUNNING WITH EMAC CONVECTION"
         else if (flag_emac == 0) then
@@ -622,10 +622,10 @@ program sod2d
            write(1,*) "--| GENERATING 1st OUTPUT..."
            call nvtxStartRange("1st write")
            if (isPeriodic == 0) then
-              call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR, &
+              call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR,connec, &
                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
            else
-              call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR, &
+              call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR,connec, &
                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
            end if
         end if
@@ -944,7 +944,7 @@ program sod2d
                   if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
                      if (flag_spectralElem == 1) then
-                        call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR, &
+                        call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR,connec, &
                            rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
                      else 
                         call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
@@ -1035,7 +1035,7 @@ program sod2d
                   if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
                      if (flag_spectralElem == 1) then
-                        call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR, &
+                        call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR,connec, &
                            rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
                      else 
                         call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
