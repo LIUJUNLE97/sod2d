@@ -56,7 +56,7 @@ module time_integ
                       real(8),    dimension(npoin,ndime)               :: Rmom_1, Rmom_2, Rmom_3, Rmom_4
                       real(8),    dimension(npoin)                     :: aux_mass, aux_ener, Reta, Rrho
                       real(8),    dimension(npoin,ndime)               :: aux_mom
-                      real(8),    dimension(flag_rk_order)             :: a_i, b_i, c_i
+                      real(8),    dimension(4)                       :: a_i, b_i, c_i
                       real(8),    dimension(npoin,flag_rk_order)       :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int
                       real(8),    dimension(npoin,ndime,flag_rk_order) :: aux_u, aux_q
                       real(8)                                          :: Rdiff_scal(npoin), Rdiff_vect(npoin,ndime)
@@ -70,13 +70,13 @@ module time_integ
                       ! Butcher tableau
                       !
                       if (flag_rk_order == 1) then
-                         a_i = [0.0d0]
-                         c_i = [0.0d0]
-                         b_i = [1.0d0]
+                         a_i = [0.0d0, 0.0d0, 0.0d0, 0.0d0]
+                         c_i = [0.0d0, 0.0d0, 0.0d0, 0.0d0]
+                         b_i = [1.0d0, 0.0d0, 0.0d0, 0.0d0]
                       else if (flag_rk_order == 2) then
-                         a_i = [0.0d0, 1.0d0]
-                         c_i = [0.0d0, 1.0d0]
-                         b_i = [0.5d0, 0.5d0]
+                         a_i = [0.0d0, 1.0d0, 0.0d0, 0.0d0]
+                         c_i = [0.0d0, 1.0d0, 0.0d0, 0.0d0]
+                         b_i = [0.5d0, 0.5d0, 0.0d0, 0.0d0]
                       else if (flag_rk_order == 3) then
                          write(1,*) "--| NOT CODED FOR RK3 YET!"
                          STOP(1)
