@@ -19,45 +19,46 @@ module time_integ
 
                       implicit none
 
-                      integer(4), intent(in)             :: flag_predic, flag_emac
-                      integer(4), intent(in)             :: nelem, nboun, npoin
-                      integer(4), intent(in)             :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w)
-                      integer(4), intent(in)             :: ppow
-                      real(8),    intent(in)             :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                      real(8),    intent(in)             :: He(ndime,ndime,ngaus,nelem)
-                      real(8),    intent(in)             :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)             :: dt,helem(nelem),helem_l(npoin)
-                      real(8),    intent(in)             :: Ml(npoin)
-                      real(8),    intent(in)             :: Rgas, gamma_gas
-                      real(8),    intent(inout)          :: rho(npoin,2)
-                      real(8),    intent(inout)          :: u(npoin,ndime,2)
-                      real(8),    intent(inout)          :: q(npoin,ndime,2)
-                      real(8),    intent(inout)          :: pr(npoin,2)
-                      real(8),    intent(inout)          :: E(npoin,2)
-                      real(8),    intent(inout)          :: Tem(npoin,2)
-                      real(8),    intent(inout)          :: e_int(npoin,2)
-                      real(8),    intent(inout)          :: mu_fluid(npoin)
-                      real(8),    intent(out)            :: mu_e(nelem,ngaus)
-                      real(8),    intent(out)            :: mu_sgs(nelem,ngaus)
-                      integer(4), optional, intent(in)   :: ndof, nbnodes, ldof(ndof), lbnodes(nbnodes)
-                      integer(4), optional, intent(in)   :: bound(nboun,npbou), bou_codes(nboun,2)
-                      real(8),    optional, intent(in)   :: source_term(ndime)
-                      integer(4)                         :: pos, bcode
-                      integer(4)                         :: istep, ipoin, idof, idime, iboun, ipbou
-                      real(8),    dimension(npoin)       :: rho_1, rho_2, rho_3, rho_4
-                      real(8),    dimension(npoin,ndime) :: u_1, u_2, u_3, u_4
-                      real(8),    dimension(npoin,ndime) :: q_1, q_2, q_3, q_4
-                      real(8),    dimension(npoin)       :: pr_1, pr_2, pr_3, pr_4
-                      real(8),    dimension(npoin)       :: E_1, E_2, E_3, E_4
-                      real(8),    dimension(npoin)       :: Tem_1, Tem_2, Tem_3, Tem_4
-                      real(8),    dimension(npoin)       :: e_int_1, e_int_2, e_int_3, e_int_4
-                      real(8),    dimension(npoin)       :: Rmass_1, Rmass_2, Rmass_3, Rmass_4
-                      real(8),    dimension(npoin)       :: Rener_1, Rener_2, Rener_3, Rener_4
-                      real(8),    dimension(npoin,ndime) :: Rmom_1, Rmom_2, Rmom_3, Rmom_4
-                      real(8),    dimension(npoin)       :: aux_mass, aux_ener, Reta, Rrho
-                      real(8),    dimension(npoin,ndime) :: aux_mom
-                      real(8)                            :: Rdiff_scal(npoin), Rdiff_vect(npoin,ndime)
-                      real(8)                            :: Aemac(npoin,ndime), Femac(npoin)
+                      integer(4), intent(in)               :: flag_predic, flag_emac
+                      integer(4), intent(in)               :: nelem, nboun, npoin
+                      integer(4), intent(in)               :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w)
+                      integer(4), intent(in)               :: ppow
+                      real(8),    intent(in)               :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                      real(8),    intent(in)               :: He(ndime,ndime,ngaus,nelem)
+                      real(8),    intent(in)               :: gpvol(1,ngaus,nelem)
+                      real(8),    intent(in)               :: dt,helem(nelem),helem_l(npoin)
+                      real(8),    intent(in)               :: Ml(npoin)
+                      real(8),    intent(in)               :: Rgas, gamma_gas
+                      real(8),    intent(inout)            :: rho(npoin,2)
+                      real(8),    intent(inout)            :: u(npoin,ndime,2)
+                      real(8),    intent(inout)            :: q(npoin,ndime,2)
+                      real(8),    intent(inout)            :: pr(npoin,2)
+                      real(8),    intent(inout)            :: E(npoin,2)
+                      real(8),    intent(inout)            :: Tem(npoin,2)
+                      real(8),    intent(inout)            :: e_int(npoin,2)
+                      real(8),    intent(inout)            :: mu_fluid(npoin)
+                      real(8),    intent(out)              :: mu_e(nelem,ngaus)
+                      real(8),    intent(out)              :: mu_sgs(nelem,ngaus)
+                      integer(4), optional, intent(in)     :: ndof, nbnodes, ldof(ndof), lbnodes(nbnodes)
+                      integer(4), optional, intent(in)     :: bound(nboun,npbou), bou_codes(nboun,2)
+                      real(8),    optional, intent(in)     :: source_term(ndime)
+                      integer(4)                           :: pos, bcode
+                      integer(4)                           :: istep, ipoin, idof, idime, iboun, ipbou
+                      real(8),    dimension(npoin)         :: rho_1, rho_2, rho_3, rho_4
+                      real(8),    dimension(npoin,ndime)   :: u_1, u_2, u_3, u_4
+                      real(8),    dimension(npoin,ndime)   :: q_1, q_2, q_3, q_4
+                      real(8),    dimension(npoin)         :: pr_1, pr_2, pr_3, pr_4
+                      real(8),    dimension(npoin)         :: E_1, E_2, E_3, E_4
+                      real(8),    dimension(npoin)         :: Tem_1, Tem_2, Tem_3, Tem_4
+                      real(8),    dimension(npoin)         :: e_int_1, e_int_2, e_int_3, e_int_4
+                      real(8),    dimension(npoin)         :: Rmass_1, Rmass_2, Rmass_3, Rmass_4
+                      real(8),    dimension(npoin)         :: Rener_1, Rener_2, Rener_3, Rener_4
+                      real(8),    dimension(npoin,ndime)   :: Rmom_1, Rmom_2, Rmom_3, Rmom_4
+                      real(8),    dimension(npoin)         :: aux_mass, aux_ener, Reta, Rrho
+                      real(8),    dimension(npoin,ndime)   :: aux_mom
+                      real(8),    dimension(flag_rk_order) :: a_i, b_i, c_i
+                      real(8)                              :: Rdiff_scal(npoin), Rdiff_vect(npoin,ndime)
+                      real(8)                              :: Aemac(npoin,ndime), Femac(npoin)
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! New version of RK4 using loops                 !
@@ -68,13 +69,42 @@ module time_integ
                       !
 
                       if (flag_rk_order == 1) then
+                         a_i = [0.0d0]
+                         c_i = [0.0d0]
+                         b_i = [1.0d0]
                       else if (flag_rk_order == 2) then
+                         a_i = [0.0d0, 1.0d0]
+                         c_i = [0.0d0, 1.0d0]
+                         b_i = [0.5d0, 0.5d0]
                       else if (flag_rk_order == 3) then
+                         write(1,*) "--| NOT CODED FOR RK3 YET!"
+                         STOP(1)
                       else if (flag_rk_order == 4) then
+                         a_i = [0.0d0, 0.5d0, 0.5d0, 1.0d0]
+                         c_i = [0.0d0, 0.5d0, 0.5d0, 1.0d0]
+                         b_i = [1.0d0/6.0d0, 1.0d0/3.0d0, 1.0d0/3.0d0, 1.0d0/6.0d0]
                       else
+                         write(1,*) "--| NOT CODED FOR RK > 4 YET!"
+                         STOP(1)
                       end if
 
+                      !
+                      ! Initialize intermediiate
+                      !
 
+                      !$acc kernels
+                      aux_rho(1:npoin,1:flag_rk_order) = 0.0d0
+                      aux_u(1:npoin,1:ndime,1:flag_rk_order) = 0.0d0
+                      aux_q(1:npoin,1:ndime,1:flag_rk_order) = 0.0d0
+                      aux_pr(1:npoin,1:flag_rk_order) = 0.0d0
+                      aux_E(1:npoin,1:flag_rk_order) = 0.0d0
+                      aux_Tem(1:npoin,1:flag_rk_order) = 0.0d0
+                      aux_e_int(1:npoin,1:flag_rk_order) = 0.0d0
+                      !$acc end kernels
+
+                      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                      ! Old version of RK4                             !
+                      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
                       !
                       ! Determine wheter to use prediction position or update position
