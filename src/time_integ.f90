@@ -59,6 +59,23 @@ module time_integ
                       real(8)                            :: Rdiff_scal(npoin), Rdiff_vect(npoin,ndime)
                       real(8)                            :: Aemac(npoin,ndime), Femac(npoin)
 
+                      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                      ! New version of RK4 using loops                 !
+                      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+                      !
+                      ! Butcher tableau
+                      !
+
+                      if (flag_rk_order == 1) then
+                      else if (flag_rk_order == 2) then
+                      else if (flag_rk_order == 3) then
+                      else if (flag_rk_order == 4) then
+                      else
+                      end if
+
+
+
                       !
                       ! Determine wheter to use prediction position or update position
                       !
