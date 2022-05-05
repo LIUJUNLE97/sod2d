@@ -153,9 +153,11 @@ module time_integ
                             !
                             ! Compute diffusion terms with current values
                             !
+                            call nvtxStartRange("DIFFUSION")
                             call mass_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_rho(:),mu_e,Rdiff_scal)
                             call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u(:,:),mu_fluid,mu_e,mu_sgs,Rdiff_vect)
                             call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u(:,:),aux_Tem(:),mu_fluid,mu_e,mu_sgs,Rdiff_scal)
+                            call nvtxEndRange
                          end if
                       end do
 
