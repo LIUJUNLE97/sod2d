@@ -327,23 +327,25 @@ module mod_output
       
       end subroutine write_vtk_binary
 
-      subroutine write_vtk_binary_linearized(isPeriodic,istep,npoin,nelem,coord,connecLINEAR, &
+      subroutine write_vtk_binary_linearized(isPeriodic,istep,npoin,nelem,coord,connecLINEAR,connec, &
                                  rho,u,pr,E,mu_fluid,mu_e,mu_sgs,nper,masSla)
          implicit none
       
          integer(4), intent(in)                            :: isPeriodic, nper
          integer(4), intent(in)                            :: istep, npoin, nelem
          integer(4), intent(in)                            :: connecLINEAR(nelem*(porder**ndime),2**ndime)
+         integer(4), intent(in)                            :: connec(nelem,nnode)
          integer(4), intent(in), optional                  :: masSla(nper,2)
          real(8)   , intent(in)                            :: coord(npoin,ndime)
          real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E, mu_fluid
          real(8)   , intent(inout), dimension(npoin,ndime) :: u
          real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_e
          real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_sgs
-         integer(4)                                        :: i, iper, ivtk=9, nelem_l, nnode_l
+         integer(4)                                        :: i,j, iper, ivtk=9, nelem_l, nnode_l
          integer(4)            , dimension(nelem*(porder**ndime),2**ndime+1)  :: cells
          integer(4)            , dimension(nelem*(porder**ndime))          :: cellTypes
          real(8)               , dimension(npoin,3)        :: points, u3d
+         real(8)               , dimension(npoin)        :: envit, mut
          character(500)                                    :: filename
          character(80)                                     :: buffer
          character(8)                                      :: str1, str2
@@ -365,6 +367,12 @@ module mod_output
          !
          ! If case is periodic, adjust slave nodes
          !
+         do i = 1,nelem
+            do j = 1, nnode
+               envit(connec(i,j)) =  mu_e(i,j)
+               mut(connec(i,j))   =  mu_sgs(i,j)
+            end do
+         end do
          if (isPeriodic .eq.1 .and. present(masSla)) then
             !$acc parallel loop
             do iper = 1,nper
@@ -375,6 +383,8 @@ module mod_output
                pr(masSla(iper,2)) = pr(masSla(iper,1))
                E(masSla(iper,2)) = E(masSla(iper,1))
                mu_fluid(masSla(iper,2)) = mu_fluid(masSla(iper,1))
+               mut(masSla(iper,2)) = mut(masSla(iper,1))
+               envit(masSla(iper,2)) = envit(masSla(iper,1))
             end do
             !$acc end parallel loop
          end if
@@ -466,6 +476,16 @@ module mod_output
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
             write(ivtk) E(i)
+         end do
+         write(ivtk) lf//lf//'SCALARS ENVIT double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) envit(i)
+         end do
+         write(ivtk) lf//lf//'SCALARS SGSVI double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) mut(i)
          end do
          write(ivtk) lf//lf//'SCALARS VISCO double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf

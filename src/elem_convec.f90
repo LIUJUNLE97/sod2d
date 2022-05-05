@@ -162,18 +162,18 @@ module elem_convec
                          !$acc loop vector collapse(2)
                          do idime = 1,ndime
                             do inode = 1,nnode
-                              !$acc atomic update
-                              Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)+Re(inode,idime)
-                              !$acc end atomic
+                               !$acc atomic update
+                               Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)+Re(inode,idime)
+                               !$acc end atomic
                             end do
                          end do
                       end do
                       !$acc end parallel loop
                       call nvtxEndRange
 
-              end subroutine mom_convec
+                   end subroutine mom_convec
 
-              subroutine mom_convec_emac(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr,Rmom)
+                   subroutine mom_convec_emac(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,pr,Rmom)
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! Subroutine to compute R = EMAC(A) using a standard Continuous    !
@@ -202,120 +202,223 @@ module elem_convec
                       !$acc kernels
                       Rmom(:,:) = 0.0d0
                       !$acc end kernels
-                      
-                      !
-                      ! Start elemental ops
-                      !
-                      !$acc parallel loop gang  private(Re,gpcar,gradA,tmp,gpA) vector_length(vecLength)
-                      do ielem = 1,nelem
+
+                      if (flag_SpectralElem == 0) then
+                         ! Start elemental ops
                          !
-                         ! Initialize element vector to 0
-                         !
-                         !$acc loop vector collapse(2)
-                         do idime = 1,ndime
-                            do inode = 1,nnode
-                               Re(inode,idime) = 0.0d0
-                            end do
-                         end do
-                         !
-                         ! Loop over Gauss points
-                         !
-                         !$acc loop seq
-                         do igaus = 1,ngaus
+                         !$acc parallel loop gang  private(Re,gpcar,gradA,tmp,gpA) vector_length(vecLength)
+                         do ielem = 1,nelem
                             !
-                            ! Create GPCAR(ndime,nnode) for each element at each Gauss point
+                            ! Initialize element vector to 0
                             !
-                            !$acc loop seq
+                            !$acc loop vector collapse(2)
                             do idime = 1,ndime
-                               !$acc loop vector
                                do inode = 1,nnode
-                                  gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                                  Re(inode,idime) = 0.0d0
                                end do
                             end do
                             !
-                            ! grad(A) gpA
+                            ! Loop over Gauss points
                             !
                             !$acc loop seq
-                            do idime = 1,ndime
+                            do igaus = 1,ngaus
+                               !
+                               ! Create GPCAR(ndime,nnode) for each element at each Gauss point
+                               !
                                !$acc loop seq
-                               do jdime = 1,ndime
+                               do idime = 1,ndime
+                                  !$acc loop vector
+                                  do inode = 1,nnode
+                                     gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                                  end do
+                               end do
+                               !
+                               ! grad(A) gpA
+                               !
+                               !$acc loop seq
+                               do idime = 1,ndime
+                                  !$acc loop seq
+                                  do jdime = 1,ndime
+                                     aux = 0.0d0
+                                     !$acc loop vector reduction(+:aux)
+                                     do inode = 1,nnode
+                                        aux = aux+gpcar(jdime,inode)*Aemac(connec(ielem,inode),idime)
+                                     end do
+                                     gradA(idime,jdime) = aux
+                                  end do
                                   aux = 0.0d0
                                   !$acc loop vector reduction(+:aux)
                                   do inode = 1,nnode
-                                     aux = aux+gpcar(jdime,inode)*Aemac(connec(ielem,inode),idime)
+                                     aux = aux+Ngp(igaus,inode)*Aemac(connec(ielem,inode),idime)
                                   end do
-                                  gradA(idime,jdime) = aux
+                                  gpA(idime) = aux
                                end do
-                               aux = 0.0d0
-                               !$acc loop vector reduction(+:aux)
-                               do inode = 1,nnode
-                                  aux = aux+Ngp(igaus,inode)*Aemac(connec(ielem,inode),idime)
-                               end do
-                               gpA(idime) = aux
-                            end do
-                            !
-                            ! div(A)
-                            !
-                            
-                            divA = gradA(1,1)+gradA(2,2)+gradA(3,3)
-                            
-                            !
-                            ! grad(A)*A + gradT(A)*A + div(A)*A
-                            !
-                            !$acc loop seq
-                            do idime = 1,ndime
-                               tmp(idime) = 0.0d0
+                               !
+                               ! div(A)
+                               !
+
+                               divA = gradA(1,1)+gradA(2,2)+gradA(3,3)
+
+                               !
+                               ! grad(A)*A + gradT(A)*A + div(A)*A
+                               !
                                !$acc loop seq
-                               do jdime = 1,ndime
-                                  tmp(idime) = tmp(idime) + (gradA(idime,jdime)+gradA(jdime,idime))*gpA(jdime)
+                               do idime = 1,ndime
+                                  tmp(idime) = 0.0d0
+                                  !$acc loop seq
+                                  do jdime = 1,ndime
+                                     tmp(idime) = tmp(idime) + (gradA(idime,jdime)+gradA(jdime,idime))*gpA(jdime)
+                                  end do
+                                  tmp(idime) = tmp(idime)+0.5d0*divA*gpA(idime)
                                end do
-                               tmp(idime) = tmp(idime)+divA*gpA(idime)
-                            end do
-                            !
-                            ! Subtract -0.5*grad(F), where F = (A.A)
-                            !
-                            !$acc loop seq
-                            do idime = 1,ndime
-                               aux = 0.0d0
-                               !$acc loop vector reduction(+:aux)
+                               !
+                               ! Subtract -0.5*grad(F), where F = (A.A)
+                               !
+                                !$acc loop seq
+                                do idime = 1,ndime
+                                   aux = 0.0d0
+                                   !$acc loop vector reduction(+:aux)
+                                   do inode = 1,nnode
+                                      aux = aux+gpcar(idime,inode)*Femac(connec(ielem,inode))
+                                   end do
+                                   tmp(idime) = tmp(idime)-0.5d0*aux
+                                end do
+
+                               !
+                               ! Addd pressure
+                               !
+                               !$acc loop seq
+                               do idime = 1,ndime
+                                  aux = 0.0d0
+                                  !$acc loop vector reduction(+:aux)
+                                  do inode = 1,nnode
+                                     aux = aux+gpcar(idime,inode)*pr(connec(ielem,inode))
+                                  end do
+                                  tmp(idime) = tmp(idime) + aux
+                               end do
+                               !$acc loop vector
                                do inode = 1,nnode
-                                  aux = aux+gpcar(idime,inode)*Femac(connec(ielem,inode))
+                                  Re(inode,1) = Re(inode,1)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(1))
+                                  Re(inode,2) = Re(inode,2)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(2))
+                                  Re(inode,3) = Re(inode,3)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(3))
                                end do
-                               tmp(idime) = tmp(idime)-0.5d0*aux
                             end do
-                            
                             !
-                            ! Addd pressure
+                            ! Final assembly
                             !
-                            !$acc loop seq
+                            !$acc loop vector collapse(2)
                             do idime = 1,ndime
-                               aux = 0.0d0
-                               !$acc loop vector reduction(+:aux)
                                do inode = 1,nnode
-                                  aux = aux+gpcar(idime,inode)*pr(connec(ielem,inode))
+                                  !$acc atomic update
+                                  Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)+Re(inode,idime)
+                                  !$acc end atomic
                                end do
-                               tmp(idime) = tmp(idime) + aux
-                            end do
-                            !$acc loop vector
-                            do inode = 1,nnode
-                               Re(inode,1) = Re(inode,1)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(1))
-                               Re(inode,2) = Re(inode,2)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(2))
-                               Re(inode,3) = Re(inode,3)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(3))
                             end do
                          end do
+                         !$acc end parallel loop
+                      else !spectral
                          !
-                         ! Final assembly
+                         ! Start elemental ops
                          !
-                         !$acc loop vector collapse(2)
-                         do idime = 1,ndime
-                            do inode = 1,nnode
-                              !$acc atomic update
-                              Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)+Re(inode,idime)
-                              !$acc end atomic
+                         !$acc parallel loop gang  private(Re,gpcar,gradA,tmp,gpA) vector_length(vecLength)
+                         do ielem = 1,nelem
+                            !
+                            ! Initialize element vector to 0
+                            !
+                            !$acc loop vector collapse(2)
+                            do idime = 1,ndime
+                               do inode = 1,nnode
+                                  Re(inode,idime) = 0.0d0
+                               end do
+                            end do
+                            !
+                            ! Loop over Gauss points
+                            !
+                            !$acc loop seq
+                            do igaus = 1,ngaus
+                               !
+                               ! Create GPCAR(ndime,nnode) for each element at each Gauss point
+                               !
+                               !$acc loop seq
+                               do idime = 1,ndime
+                                  !$acc loop vector
+                                  do inode = 1,nnode
+                                     gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                                  end do
+                               end do
+                               !
+                               ! grad(A) gpA
+                               !
+                               !$acc loop seq
+                               do idime = 1,ndime
+                                  !$acc loop seq
+                                  do jdime = 1,ndime
+                                     aux = 0.0d0
+                                     !$acc loop vector reduction(+:aux)
+                                     do inode = 1,nnode
+                                        aux = aux+gpcar(jdime,inode)*Aemac(connec(ielem,inode),idime)
+                                     end do
+                                     gradA(idime,jdime) = aux
+                                  end do
+                                  aux = 0.0d0
+                                  !$acc loop vector reduction(+:aux)
+                                  do inode = 1,nnode
+                                     aux = aux+Ngp(igaus,inode)*Aemac(connec(ielem,inode),idime)
+                                  end do
+                                  gpA(idime) = aux
+                               end do
+                               !
+                               ! div(A)
+                               !
+
+                               divA = gradA(1,1)+gradA(2,2)+gradA(3,3)
+
+                               !
+                               ! grad(A)*A + 0.5*div(A)*A
+                               !
+                               !$acc loop seq
+                               do idime = 1,ndime
+                                  tmp(idime) = 0.0d0
+                                  !$acc loop seq
+                                  do jdime = 1,ndime
+                                     tmp(idime) = tmp(idime) + gradA(idime,jdime)*gpA(jdime)
+                                  end do
+                                  tmp(idime) = tmp(idime)+0.5d0*divA*gpA(idime)
+                               end do
+
+                               !
+                               ! Addd pressure
+                               !
+                               !$acc loop seq
+                               do idime = 1,ndime
+                                  aux = 0.0d0
+                                  !$acc loop vector reduction(+:aux)
+                                  do inode = 1,nnode
+                                     aux = aux+gpcar(idime,inode)*pr(connec(ielem,inode))
+                                  end do
+                                  tmp(idime) = tmp(idime) + aux
+                               end do
+                               !$acc loop vector
+                               do inode = 1,nnode
+                                  Re(inode,1) = Re(inode,1)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(1))
+                                  Re(inode,2) = Re(inode,2)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(2))
+                                  Re(inode,3) = Re(inode,3)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(3))
+                               end do
+                            end do
+                            !
+                            ! Final assembly
+                            !
+                            !$acc loop vector collapse(2)
+                            do idime = 1,ndime
+                               do inode = 1,nnode
+                                  !$acc atomic update
+                                  Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)+Re(inode,idime)
+                                  !$acc end atomic
+                               end do
                             end do
                          end do
-                      end do
-                      !$acc end parallel loop
+                         !$acc end parallel loop
+                      end if
                       call nvtxEndRange
 
               end subroutine mom_convec_emac

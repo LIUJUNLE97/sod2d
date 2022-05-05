@@ -130,18 +130,18 @@ module mod_entropy_viscosity
                        end if
                        call nvtxEndRange
 
-                    !!
-                    !! Normalize
-                    !!
-                    !maxEta = maxval(abs(eta(lpoin_w(:))))
-                    !maxRho = maxval(abs(rhok(lpoin_w(:))))
+                   !!!
+                   !!! Normalize
+                   !!!
+                   !maxEta = maxval(abs(eta(lpoin_w(:))))
+                   !maxRho = maxval(abs(rhok(lpoin_w(:))))
 
-                    !!$acc parallel loop
-                    !do ipoin = 1,npoin_w
-                    !   Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/maxEta
-                    !   Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
-                    !end do
-                    !!$acc end parallel loop
+                   !!$acc parallel loop
+                   !do ipoin = 1,npoin_w
+                   !   Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/maxEta
+                   !   Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
+                   !end do
+                   !!$acc end parallel loop
 
               end subroutine residuals
 
@@ -207,16 +207,15 @@ module mod_entropy_viscosity
                       real(8),    intent(out) :: mu_e(nelem,ngaus)
                       integer(4)              :: ielem, inode, igaus
                       real(8)                 :: R1, R2, Ve
-                      real(8)                 :: betae
+                      real(8)                 :: betae,hmax
                       real(8)                 :: L3, aux1, aux2, aux3
 
                       !$acc parallel loop gang vector_length(vecLength)
                       do ielem = 1,nelem
+                         betae = 0.0d0
+                         hmax = 0.0d0
                          !$acc loop vector
                          do inode = 1,nnode
-                            R1 = abs(Reta(connec(ielem,inode)))
-                            R2 = 0.0d0*abs(Rrho(connec(ielem,inode)))
-                            Ve = ce*max(R1,R2)*(helem(connec(ielem,inode))**2) ! Normalized residual for element
                             !
                             ! Max. Wavespeed at element
                             !
@@ -226,7 +225,15 @@ module mod_entropy_viscosity
                             !
                             ! Select against Upwind viscosity
                             !
-                            betae = cmax*helem(connec(ielem,inode))*aux1
+                            betae = max(betae,cmax*aux1)
+                            hmax  = max(hmax,helem(connec(ielem,inode)))
+                         end do
+                         betae = betae*hmax
+                         !$acc loop vector
+                         do inode = 1,nnode
+                            R1 = abs(Reta(connec(ielem,inode)))
+                            R2 = 0.0d0*abs(Rrho(connec(ielem,inode)))
+                            Ve = ce*max(R1,R2)*(helem(connec(ielem,inode))**2) ! Normalized residual for element
                             mu_e(ielem,inode) = cglob*min(Ve,betae) ! Dynamic viscosity
                          end do
                       end do
