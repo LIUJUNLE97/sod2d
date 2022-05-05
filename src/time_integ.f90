@@ -133,6 +133,12 @@ module time_integ
                                call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
                                   gamma_gas,aux_rho(:),aux_u(:,:),aux_Tem(:),helem,mu_e)
                             end if
+                            call nvtxEndRange
+                            if(flag_les == 1) then
+                               call nvtxStartRange("MU_SGS")
+                               call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_rho(:),aux_u(:,:),mu_sgs)
+                               call nvtxEndRange
+                            end if
                          end if
                       end do
 
