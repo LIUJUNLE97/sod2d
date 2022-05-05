@@ -235,6 +235,10 @@ module time_integ
                             write(1,*) "--| SOLVER NOT CODED YET!"
                             STOP(1)
                          end if
+                         do ipoin = 1,npoin
+                            ! TODO: define "somevar"
+                            somevar(ipoin) = somevar(ipoin) + b_i(istep)*Rmass(ipoin)
+                         end do
                       end do
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
