@@ -118,11 +118,18 @@ module time_integ
                          !
                          ! Compute variable at substep (y_i = y_n+dt*A_ij*R_j)
                          !
+                         call nvtxStartRange("Update aux_*")
                          !$acc kernels
                          aux_rho(:) = rho(:,2) + dt*a_i(istep)*Rmass(:)
                          aux_q(:,:) = q(:,:,2) + dt*a_i(istep)*Rmom(:,:)
                          aux_E(:)   = E(:,2)   + dt*a_i(istep)*Rener(:)
                          !$acc end kernels
+                         call nvtxEndRange
+                         !
+                         ! Update equations of state
+                         !
+                         call nvtxStartRange("Update EOS vars")
+                         call nvtxEndRange
                          !
                          ! Determine wheter to use prediction position or update position
                          !
