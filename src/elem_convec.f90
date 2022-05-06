@@ -382,7 +382,9 @@ module elem_convec
                                   !$acc loop seq
                                   do jdime = 1,ndime
                                      tmp(idime) = tmp(idime) + gradA(idime,jdime)*gpA(jdime)
+                                     !tmp(idime) = tmp(idime) + (gradA(idime,jdime)+gradA(jdime,idime))*gpA(jdime)
                                   end do
+                                  !tmp(idime) = tmp(idime)+divA*gpA(idime)
                                   tmp(idime) = tmp(idime)+0.5d0*divA*gpA(idime)
                                end do
 
@@ -394,7 +396,8 @@ module elem_convec
                                   aux = 0.0d0
                                   !$acc loop vector reduction(+:aux)
                                   do inode = 1,nnode
-                                     aux = aux+gpcar(idime,inode)*pr(connec(ielem,inode))
+                                  aux = aux+gpcar(idime,inode)*pr(connec(ielem,inode))
+                                  !aux = aux+gpcar(idime,inode)*(pr(connec(ielem,inode))-0.5*Femac(connec(ielem,inode)))
                                   end do
                                   tmp(idime) = tmp(idime) + aux
                                end do

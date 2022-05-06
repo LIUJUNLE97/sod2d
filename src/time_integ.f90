@@ -107,7 +107,7 @@ module time_integ
                          !
                          if (flag_SpectralElem == 1) then
                             call smart_visc_spectral(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                               gamma_gas,rho(:,2),u(:,:,2),Tem(:,2),helem_l,mu_e)
+                               gamma_gas,rho(:,2),u(:,:,2),Tem(:,2),helem_l,helem,mu_e)
                          else
                             call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
                                gamma_gas,rho(:,2),u(:,:,2),Tem(:,2),helem,mu_e)
@@ -361,7 +361,7 @@ module time_integ
                          !
                          if (flag_SpectralElem == 1) then
                             call smart_visc_spectral(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                               gamma_gas,rho_1,u_1,Tem_1,helem_l,mu_e)
+                               gamma_gas,rho_1,u_1,Tem_1,helem_l,helem,mu_e)
                          else
                             call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
                                gamma_gas,rho_1,u_1,Tem_1,helem,mu_e)
@@ -596,7 +596,7 @@ module time_integ
                          !
                          if (flag_SpectralElem == 1) then
                             call smart_visc_spectral(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                               gamma_gas,rho_2,u_2,Tem_2,helem_l,mu_e)
+                               gamma_gas,rho_2,u_2,Tem_2,helem_l,helem,mu_e)
                          else
                             call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
                                gamma_gas,rho_2,u_2,Tem_2,helem,mu_e)
@@ -830,7 +830,7 @@ module time_integ
                          !
                          if (flag_SpectralElem == 1) then
                             call smart_visc_spectral(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                               gamma_gas,rho_3,u_3,Tem_3,helem_l,mu_e)
+                               gamma_gas,rho_3,u_3,Tem_3,helem_l,helem,mu_e)
                          else
                             call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
                                gamma_gas,rho_3,u_3,Tem_3,helem,mu_e)
