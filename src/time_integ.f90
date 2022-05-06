@@ -275,8 +275,8 @@ module time_integ
                       !
                       !$acc parallel loop
                       do ipoin = 1,npoin
-                         rho(ipoin,pos) = rho(:,pos)-dt*Rmass_sum(ipoin)
-                         E(ipoin,pos) = E(:,pos)-dt*Rener_sum(ipoin)
+                         rho(ipoin,pos) = rho(ipoin,pos)-dt*Rmass_sum(ipoin)
+                         E(ipoin,pos) = E(ipoin,pos)-dt*Rener_sum(ipoin)
                          !$acc loop seq
                          do idime = 1,ndime
                             q(ipoin,idime,pos) = q(ipoin,idime,pos)-dt*Rmom_sum(ipoin,idime)
