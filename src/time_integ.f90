@@ -255,8 +255,14 @@ module time_integ
                                Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)
                             end do
                          end do
+                         !$acc end parallel loop
                       end do
-                      !$acc end parallel loop
+                      !
+                      ! RK update to variables
+                      !
+                      rho(:,pos) = rho(:,pos)+dt*Rmass_sum(:)
+                      E(:,pos) = E(:,pos)+dt*Rener_sum(:)
+                      q(:,:,pos) = q(:,:,pos)+dt*Rmom_sum(:,:)
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! Old version of RK4                             !
