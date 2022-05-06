@@ -59,8 +59,8 @@ module time_integ
                       real(8),    dimension(4)            :: a_i, b_i, c_i
                       real(8),    dimension(npoin,ndime)  :: aux_u, aux_q
                       real(8),    dimension(npoin)        :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int
-                      real(8),    dimension(npoin)        :: Rmass, Rener
-                      real(8),    dimension(npoin,ndime)  :: Rmom
+                      real(8),    dimension(npoin)        :: Rmass, Rener, Rmass_sum, Rener_sum
+                      real(8),    dimension(npoin,ndime)  :: Rmom, Rmom_sum
                       real(8)                             :: Rdiff_scal(npoin), Rdiff_vect(npoin,ndime)
                       real(8)                             :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
                       real(8)                             :: Aemac(npoin,ndime), Femac(npoin)
@@ -109,6 +109,9 @@ module time_integ
                       Rmass(1:npoin) = 0.0d0
                       Rmom(1:npoin,1:ndime) = 0.0d0
                       Rener(1:npoin) = 0.0d0
+                      Rmass_sum(1:npoin) = 0.0d0
+                      Rener_sum(1:npoin) = 0.0d0
+                      Rmom_sum(1:npoin,1:ndime) = 0.0d0
                       !$acc end kernels
 
                       !
@@ -245,12 +248,11 @@ module time_integ
                          end if
                          !$acc parallel loop
                          do ipoin = 1,npoin
-                            ! TODO: define "somevar"
-                            somevar(ipoin) = somevar(ipoin) + b_i(istep)*Rmass(ipoin)
-                            somevar(ipoin) = somevar(ipoin) + b_i(istep)*Rener(ipoin)
+                            Rmass_sum(ipoin) = Rmass_sum(ipoin) + b_i(istep)*Rmass(ipoin)
+                            Rener_sum(ipoin) = Rener_sum(ipoin) + b_i(istep)*Rener(ipoin)
                             !$acc loop seq
                             do idime = 1,ndime
-                               somevar(ipoin,idime) = somevar(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)
+                               Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)
                             end do
                          end do
                       end do
