@@ -70,6 +70,14 @@ module time_integ
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
                       !
+                      ! Choose between updating prediction or correction
+                      !
+                      pos = 2 ! Set correction as default value
+                      if (flag_predic == 1) then
+                         pos = 1 ! Change to prediction update
+                      end if
+
+                      !
                       ! Butcher tableau
                       !
                       if (flag_rk_order == 1) then
@@ -122,11 +130,17 @@ module time_integ
                          ! Compute variable at substep (y_i = y_n+dt*A_ij*R_j)
                          !
                          call nvtxStartRange("Update aux_*")
-                         !$acc kernels
-                         aux_rho(:) = rho(:,2) + dt*a_i(istep)*Rmass(:)
-                         aux_q(:,:) = q(:,:,2) + dt*a_i(istep)*Rmom(:,:)
-                         aux_E(:)   = E(:,2)   + dt*a_i(istep)*Rener(:)
-                         !$acc end kernels
+                         !$acc parallel loop
+                         do ipoin = 1,npoin
+                            aux_rho(ipoin) = rho(ipoin,pos) - dt*a_i(istep)*Rmass(ipoin)
+                            aux_E(ipoin)   = E(ipoin,pos)   - dt*a_i(istep)*Rener(ipoin)
+                            !$acc loop seq
+                            do idime = 1,ndime
+                               aux_q(ipoin,idime) = q(ipoin,idime,pos) - dt*a_i(istep)*Rmom(ipoin,idime)
+                               aux_u(ipoin,idime) = aux_q(ipoin,idime)/aux_rho(ipoin)
+                            end do
+                         end do
+                         !$acc end parallel loop
                          call nvtxEndRange
                          !
                          ! Update equations of state
@@ -142,21 +156,18 @@ module time_integ
                          !$acc end parallel loop
                          call nvtxEndRange
                          !
-                         ! Determine wheter to use prediction position or update position
+                         ! If updating the correction, compute viscosities and diffusion
                          !
-                         if (flag_predic == 1) then
-                            pos = 1 ! Prediction
-                         else if (flag_predic == 0) then
-                            pos = 2 ! Update                       call nvtxStartRange("ENVIT")
+                         if (flag_predic == 0) then
                             !
                             ! Update residuals for envit
                             !
                             call nvtxStartRange("ENVIT")
                             call residuals(nelem,npoin,npoin_w,lpoin_w, &
-                                      ppow, connec, Ngp, dNgp, He, gpvol, Ml, &
-                                      dt, aux_rho, aux_u, aux_pr, aux_q, &
-                                      rho, u, pr, q, gamma_gas, &
-                                      Reta, Rrho)
+                                           ppow, connec, Ngp, dNgp, He, gpvol, Ml, &
+                                           dt, aux_rho, aux_u, aux_pr, aux_q, &
+                                           rho, u, pr, q, gamma_gas, &
+                                           Reta, Rrho)
                             !
                             ! Compute entropy viscosity
                             !
@@ -187,9 +198,11 @@ module time_integ
                             !
                             ! Compute diffusion terms with values at current substep
                             !
+                            call nvtxStartRange("DIFFUSIONS")
                             call mass_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_rho,mu_e,Rdiff_mass)
                             call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,mu_fluid,mu_e,mu_sgs,Rdiff_mom)
                             call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Rdiff_ener)
+                            call nvtxEndRange
                          end if
                          !
                          ! Compute convective terms
@@ -260,9 +273,19 @@ module time_integ
                       !
                       ! RK update to variables
                       !
-                      rho(:,pos) = rho(:,pos)+dt*Rmass_sum(:)
-                      E(:,pos) = E(:,pos)+dt*Rener_sum(:)
-                      q(:,:,pos) = q(:,:,pos)+dt*Rmom_sum(:,:)
+                      !$acc parallel loop
+                      do ipoin = 1,npoin
+                         rho(ipoin,pos) = rho(:,pos)-dt*Rmass_sum(ipoin)
+                         E(ipoin,pos) = E(:,pos)-dt*Rener_sum(ipoin)
+                         !$acc loop seq
+                         do idime = 1,ndime
+                            q(ipoin,idime,pos) = q(ipoin,idime,pos)-dt*Rmom_sum(ipoin,idime)
+                            u(ipoin,idime,pos) = q(ipoin,idime,pos)/rho(ipoin,pos)
+                         end do
+                      end do
+                      !$acc end parallel loop
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! Old version of RK4                             !
