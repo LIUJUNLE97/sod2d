@@ -269,7 +269,7 @@ module elem_convec
                                   do jdime = 1,ndime
                                      tmp(idime) = tmp(idime) + (gradA(idime,jdime)+gradA(jdime,idime))*gpA(jdime)
                                   end do
-                                  tmp(idime) = tmp(idime)+0.5d0*divA*gpA(idime)
+                                  tmp(idime) = tmp(idime)+divA*gpA(idime)
                                end do
                                !
                                ! Subtract -0.5*grad(F), where F = (A.A)
