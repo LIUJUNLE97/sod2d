@@ -129,6 +129,14 @@ module time_integ
                          ! Update equations of state
                          !
                          call nvtxStartRange("Update EOS vars")
+                         !$acc parallel loop
+                         do ipoin = 1,npoin_w
+                            aux_e_int(lpoin_w(ipoin)) = (aux_E(lpoin_w(ipoin))/aux_rho(lpoin_w(ipoin)))- &
+                               0.5d0*dot_product(aux_u(lpoin_w(ipoin),:),aux_u(lpoin_w(ipoin),:))
+                            aux_pr(lpoin_w(ipoin)) = aux_rho(lpoin_w(ipoin))*(gamma_gas-1.0d0)*aux_e_int(lpoin_w(ipoin))
+                            aux_Tem(lpoin_w(ipoin)) = aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))*Rgas)
+                         end do
+                         !$acc end parallel loop
                          call nvtxEndRange
                          !
                          ! Determine wheter to use prediction position or update position
@@ -235,11 +243,18 @@ module time_integ
                             write(1,*) "--| SOLVER NOT CODED YET!"
                             STOP(1)
                          end if
+                         !$acc parallel loop
                          do ipoin = 1,npoin
                             ! TODO: define "somevar"
                             somevar(ipoin) = somevar(ipoin) + b_i(istep)*Rmass(ipoin)
+                            somevar(ipoin) = somevar(ipoin) + b_i(istep)*Rener(ipoin)
+                            !$acc loop seq
+                            do idime = 1,ndime
+                               somevar(ipoin,idime) = somevar(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)
+                            end do
                          end do
                       end do
+                      !$acc end parallel loop
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! Old version of RK4                             !
