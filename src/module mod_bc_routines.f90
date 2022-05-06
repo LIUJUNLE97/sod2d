@@ -2,6 +2,7 @@ module mod_bc_routines
    implicit none
       contains
          subroutine temporary_bc_routine()
+            ! TODO: This wont compile yet
             implicit none
                if (nboun .ne. 0) then
                   if (ndime == 3) then
