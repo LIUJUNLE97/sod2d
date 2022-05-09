@@ -152,7 +152,7 @@ module quadrature_rules
 
                 end subroutine gll_hex
 
-                pure subroutine chebyshev_hex(atoIJK,xgp,wgp)
+                subroutine chebyshev_hex(atoIJK,xgp,wgp)
 
                    use mod_maths
 
