@@ -146,14 +146,20 @@ module time_integ
                          ! Impose boundary conditions
                          !
                          if (nboun .ne. 0) then
+                            call nvtxStartRange("Boundary conditions")
                             call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_rho,aux_q)
+                            call nvtxEndRange
                          end if
                          !
-                         ! Update equations of state
+                         ! Update velocity and equations of state
                          !
-                         call nvtxStartRange("Update EOS vars")
+                         call nvtxStartRange("Update u and EOS")
                          !$acc parallel loop
                          do ipoin = 1,npoin_w
+                            !$acc loop seq
+                            do idime = 1,ndime
+                               aux_u(lpoin_w(ipoin),idime) == aux_q(lpoin_w(ipoin),idime)/aux_rho(lpoin_w(ipoin))
+                            end do
                             aux_e_int(lpoin_w(ipoin)) = (aux_E(lpoin_w(ipoin))/aux_rho(lpoin_w(ipoin)))- &
                                0.5d0*dot_product(aux_u(lpoin_w(ipoin),:),aux_u(lpoin_w(ipoin),:))
                             aux_pr(lpoin_w(ipoin)) = aux_rho(lpoin_w(ipoin))*(gamma_gas-1.0d0)*aux_e_int(lpoin_w(ipoin))
