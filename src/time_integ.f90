@@ -9,6 +9,7 @@ module time_integ
       use mod_constants
       use mod_fluid_viscosity
       use mod_sgs_viscosity
+      use mod_bc_routines
 
       contains
 
@@ -137,11 +138,16 @@ module time_integ
                             !$acc loop seq
                             do idime = 1,ndime
                                aux_q(ipoin,idime) = q(ipoin,idime,pos) - dt*a_i(istep)*Rmom(ipoin,idime)
-                               aux_u(ipoin,idime) = aux_q(ipoin,idime)/aux_rho(ipoin)
                             end do
                          end do
                          !$acc end parallel loop
                          call nvtxEndRange
+                         !
+                         ! Impose boundary conditions
+                         !
+                         if (nboun .ne. 0) then
+                            call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_rho,aux_q)
+                         end if
                          !
                          ! Update equations of state
                          !
