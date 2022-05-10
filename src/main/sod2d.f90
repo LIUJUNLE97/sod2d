@@ -114,7 +114,7 @@ program sod2d
         !nnode = 27 ! TODO: need to allow for mixed elements...
         !porder = 1 ! TODO: make it input
         !npbou = 9 ! TODO: Need to get his from somewhere...
-        nstep = 900000 ! TODO: Needs to be input...
+        nstep = 10 ! TODO: Needs to be input...
 #ifdef CHANNEL
         Rgas = Rg
 #else
@@ -127,8 +127,8 @@ program sod2d
         cfl_diff = 0.85d0
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
-        nleap = 100 ! Saving interval, TODO: input
-        nleap2 = 10  ! Saving interval, TODO: input
+        nleap = 1 ! Saving interval, TODO: input
+        nleap2 = 1  ! Saving interval, TODO: input
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
@@ -141,7 +141,7 @@ program sod2d
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
            !nper = 12097  ! TODO: if periodic, request number of periodic nodes
-           nper = 2791  ! TODO: if periodic, request number of periodic nodes
+           nper = 27937  ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
@@ -438,8 +438,8 @@ program sod2d
               call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
            end if
+           call nvtxEndRange
         end if
-        call nvtxEndRange
 
         !*********************************************************************!
         ! Generate GLL table                                                  !
@@ -629,6 +629,7 @@ program sod2d
               call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR,connec, &
                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
            end if
+           call nvtxEndRange
         end if
 
         !*********************************************************************!
@@ -888,6 +889,7 @@ program sod2d
                   ! Prediction
                   !
                   flag_predic = 1
+                  write(timeStep,'(i4)') istep
                   call nvtxStartRange("Init pred "//timeStep,istep)
                   !$acc kernels
                   rho(:,1) = rho(:,2)
@@ -901,7 +903,6 @@ program sod2d
                   call nvtxEndRange
 
                   ! nvtx range for full RK
-                  !write(timeStep,'(i4)') istep
                   call nvtxStartRange("RK4 step "//timeStep,istep)
 #ifndef NOPRED
                  if(flag_rk_order .eq. 3) then

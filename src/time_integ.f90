@@ -66,6 +66,7 @@ module time_integ
             !
             ! Butcher tableau
             !
+            call nvtxStartRange("Create tableau")
             if (flag_rk_order == 1) then
                a_i = [0.0d0, 0.0d0, 0.0d0, 0.0d0]
                c_i = [0.0d0, 0.0d0, 0.0d0, 0.0d0]
@@ -85,9 +86,11 @@ module time_integ
                write(1,*) "--| NOT CODED FOR RK > 4 YET!"
                STOP(1)
             end if
+            call nvtxEndRange
             !
             ! Initialize variables to zero
             !
+            call nvtxStartRange("Initialize variables")
             !$acc kernels
             aux_rho(1:npoin) = 0.0d0
             aux_u(1:npoin,1:ndime) = 0.0d0
@@ -106,9 +109,11 @@ module time_integ
             Rener_sum(1:npoin) = 0.0d0
             Rmom_sum(1:npoin,1:ndime) = 0.0d0
             !$acc end kernels
+            call nvtxEndRange
             !
             ! Loop over all RK steps
             !
+            call nvtxStartRange("Loop over RK steps")
             do istep = 1,flag_rk_order
                !
                ! Compute variable at substep (y_i = y_n+dt*A_ij*R_j)
@@ -233,14 +238,17 @@ module time_integ
                !
                ! Add convection and diffusion terms (Rdiff_* is zero during prediction)
                !
+               call nvtxStartRange("Add convection and diffusion")
                !$acc kernels
                Rmass(:) = Rmass(:) + Rdiff_mass(:)
                Rener(:) = Rener(:) + Rdiff_ener(:)
                Rmom(:,:) = Rmom(:,:) + Rdiff_mom(:,:)
                !$acc end kernels
+               call nvtxEndRange
                !
                ! Call lumped mass matrix solver
                !
+               call nvtxStartRange("Call solver")
                if (flag_solver_type == 1) then ! Lumped mass
                   call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass)
                   call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener)
@@ -260,6 +268,11 @@ module time_integ
                   write(1,*) "--| SOLVER NOT CODED YET!"
                   STOP(1)
                end if
+               call nvtxEndRange
+               !
+               ! Accumulate the residuals
+               !
+               call nvtxStartRange("Accumulate residuals")
                !$acc parallel loop
                do ipoin = 1,npoin
                   Rmass_sum(ipoin) = Rmass_sum(ipoin) + b_i(istep)*Rmass(ipoin)
@@ -270,7 +283,9 @@ module time_integ
                   end do
                end do
                !$acc end parallel loop
+               call nvtxEndRange
             end do
+            call nvtxEndRange
             !
             ! RK update to variables
             !
@@ -311,13 +326,6 @@ module time_integ
                Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
             end do
             !$acc end parallel loop
-            call nvtxEndRange
-            !
-            ! If using Sutherland viscosity model:
-            !
-            if (flag_real_diff == 1 .and. flag_diff_suth == 1) then
-               call sutherland_viscosity(npoin,Tem(:,2),mu_fluid)
-            end if
             call nvtxEndRange
             !
             ! If using Sutherland viscosity model:
