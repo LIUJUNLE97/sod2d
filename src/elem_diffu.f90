@@ -151,12 +151,21 @@ module elem_diffu
                             ! Compute div(u)
                             !
                             divU = 0.0d0
-                            !$acc loop vector collapse(2) reduction(+:divU)
+                            ! divU = gradU(1,1)+gradU(2,2)+gradU(3,3)
+                            !$acc loop seq
                             do idime = 1,ndime
-                               do inode = 1,nnode
-                                  divU = divU+gpcar(idime,inode)*u(connec(ielem,inode),idime)
-                               end do
+                               divU = divU+gradU(idime,idime)
                             end do
+
+                            ! TODO: Remove this
+                            !divU = 0.0d0
+                            !!$acc loop vector collapse(2) reduction(+:divU)
+                            !do idime = 1,ndime
+                            !   do inode = 1,nnode
+                            !      divU = divU+gpcar(idime,inode)*u(connec(ielem,inode),idime)
+                            !   end do
+                            !end do
+
                             !
                             ! Finish computing tau_ij = u_i,j + u_j,i - (2/3)*div(u)*d_ij
                             !
@@ -266,14 +275,21 @@ module elem_diffu
                             end do
                             !
                             ! Compute div(u)
-                            !
                             divU = 0.0d0
-                            !$acc loop vector collapse(2) reduction(+:divU)
+                            !$acc loop seq
                             do idime = 1,ndime
-                               do inode = 1,nnode
-                                  divU = divU+gpcar(idime,inode)*u(connec(ielem,inode),idime)
-                               end do
+                               divU = divU+gradU(idime,idime)
                             end do
+
+                            ! TODO: Remove this lines
+                            !divU = 0.0d0
+                            !!$acc loop vector collapse(2) reduction(+:divU)
+                            !do idime = 1,ndime
+                            !   do inode = 1,nnode
+                            !      divU = divU+gpcar(idime,inode)*u(connec(ielem,inode),idime)
+                            !   end do
+                            !end do
+
                             !
                             ! Compute tau*u
                             !
