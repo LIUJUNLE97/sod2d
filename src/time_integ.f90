@@ -168,7 +168,7 @@ module time_integ
                   !
                   if (flag_SpectralElem == 1) then
                      call smart_visc_spectral(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                        gamma_gas,aux_rho,aux_u,aux_Tem,helem_l,mu_e)
+                        gamma_gas,aux_rho,aux_u,aux_Tem,helem_l,helem,mu_e)
                   else
                      call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
                         gamma_gas,aux_rho,aux_u,aux_Tem,helem,mu_e)
