@@ -213,8 +213,7 @@ module mod_entropy_viscosity
                       !$acc parallel loop gang vector_length(vecLength)
                       do ielem = 1,nelem
                          betae = 0.0d0
-                         !!$acc loop vector
-                         !$acc loop seq
+                         !$acc loop vector reduction(max:betae)
                          do inode = 1,nnode
                             aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
                             aux3 = sqrt(gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node

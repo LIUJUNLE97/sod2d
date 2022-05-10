@@ -124,10 +124,10 @@ program sod2d
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
         cfl_conv = 0.85d0
-        cfl_diff = 2.5d0
+        cfl_diff = 0.85d0
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
-        nleap = 200 ! Saving interval, TODO: input
+        nleap = 100 ! Saving interval, TODO: input
         nleap2 = 10  ! Saving interval, TODO: input
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
@@ -136,12 +136,12 @@ program sod2d
 #endif        
         if (isPeriodic == 1) then
 #ifdef CHANNEL
-           nper = 6499 ! TODO: if periodic, request number of periodic nodes
+           nper = 2791 ! TODO: if periodic, request number of periodic nodes
            !nper = 2145 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
-           nper = 12097  ! TODO: if periodic, request number of periodic nodes
-           !nper = 48007  ! TODO: if periodic, request number of periodic nodes
+           !nper = 12097  ! TODO: if periodic, request number of periodic nodes
+           nper = 2791  ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
@@ -353,9 +353,9 @@ program sod2d
               velo = utau*((1.0d0/0.41d0)*log(1.0d0+0.41d0*yp)+7.8d0*(1.0d0-exp(-yp/11.0d0)-(yp/11.0d0)*exp(-yp/3.0d0))) 
 
               call random_number(ti)
-              u(ipoin,1,2) = velo*(1.0d0 + 0.1d0*(ti(1) -0.5d0))
-              u(ipoin,2,2) = velo*(0.1d0*(ti(2) -0.5d0))
-              u(ipoin,3,2) = velo*(0.1d0*(ti(3) -0.5d0))
+              u(ipoin,1,2) = velo*(1.0d0 + 0.05d0*(ti(1) -0.5d0))
+              u(ipoin,2,2) = velo*(0.05d0*(ti(2) -0.5d0))
+              u(ipoin,3,2) = velo*(0.05d0*(ti(3) -0.5d0))
 
               pr(ipoin,2) = po
 
