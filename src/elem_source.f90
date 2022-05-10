@@ -19,15 +19,15 @@ module elem_source
 
                       implicit none
 
-                      integer(4), intent(in)  :: nelem, npoin
-                      integer(4), intent(in)  :: connec(nelem,nnode)
-                      real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                      real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
-                      real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: s(ndime), u(npoin,ndime)
-                      real(8),    intent(out) :: Rmom(npoin,ndime)
-                      integer(4)              :: ielem, igaus, idime, inode
-                      real(8)                 :: Re(nnode,ndime)
+                      integer(4), intent(in)    :: nelem, npoin
+                      integer(4), intent(in)    :: connec(nelem,nnode)
+                      real(8),    intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                      real(8),    intent(in)    :: He(ndime,ndime,ngaus,nelem)
+                      real(8),    intent(in)    :: gpvol(1,ngaus,nelem)
+                      real(8),    intent(in)    :: s(ndime), u(npoin,ndime)
+                      real(8),    intent(inout) :: Rmom(npoin,ndime)
+                      integer(4)                :: ielem, igaus, idime, inode
+                      real(8)                   :: Re(nnode,ndime)
 
                       call nvtxStartRange("Momentum source term")
                       
