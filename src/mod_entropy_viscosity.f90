@@ -130,18 +130,18 @@ module mod_entropy_viscosity
                        end if
                        call nvtxEndRange
 
-                   !!!
-                   !!! Normalize
-                   !!!
-                   !maxEta = maxval(abs(eta(lpoin_w(:))))
-                   !maxRho = maxval(abs(rhok(lpoin_w(:))))
+                  !!!
+                  !!! Normalize
+                  !!!
+                  !maxEta = maxval(abs(eta(lpoin_w(:))))
+                  !maxRho = maxval(abs(rhok(lpoin_w(:))))
 
-                   !!$acc parallel loop
-                   !do ipoin = 1,npoin_w
-                   !   Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/maxEta
-                   !   Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
-                   !end do
-                   !!$acc end parallel loop
+                  !!$acc parallel loop
+                  !do ipoin = 1,npoin_w
+                  !   Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/maxEta
+                  !   Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
+                  !end do
+                  !!$acc end parallel loop
 
               end subroutine residuals
 
@@ -172,7 +172,7 @@ module mod_entropy_viscosity
                                R1 = R1+Ngp(igaus,inode)*abs(Reta(connec(ielem,inode))) ! Linf norm of Reta on element
                                R2 = R2+Ngp(igaus,inode)*abs(Rrho(connec(ielem,inode))) ! Linf norm of Rrho on element
                             end do
-                            Ve = ce*max(R1,R2)*((helem(ielem)/dble(porder+1))**2) ! Normalized residual for element
+                            Ve = ce*max(R1,R2)*((helem(ielem)/dble(porder))**2) ! Normalized residual for element
                             !
                             ! Max. Wavespeed at element
                             !
@@ -186,7 +186,7 @@ module mod_entropy_viscosity
                             !
                             ! Select against Upwind viscosity
                             !
-                            betae = cmax*(helem(ielem)/dble(porder+1))*aux1
+                            betae = cmax*(helem(ielem)/dble(porder))*aux1
                             mu_e(ielem,igaus) = cglob*min(Ve,betae) ! Dynamic viscosity
                          end do
                       end do
@@ -195,46 +195,36 @@ module mod_entropy_viscosity
               end subroutine smart_visc
 
               subroutine smart_visc_spectral(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                    gamma_gas,rho,u,Tem,helem,mu_e)
+                                    gamma_gas,rho,u,Tem,helem,helem_k,mu_e)
               
                       ! TODO: Compute element size h
               
                       implicit none
 
                       integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
-                      real(8),    intent(in)  :: Reta(npoin), Rrho(npoin), Ngp(ngaus,nnode),helem(npoin), gamma_gas
+                      real(8),    intent(in)  :: Reta(npoin), Rrho(npoin), Ngp(ngaus,nnode),helem(npoin),helem_k(nelem),gamma_gas
                       real(8),    intent(in)  :: rho(npoin), u(npoin,ndime), Tem(npoin)
                       real(8),    intent(out) :: mu_e(nelem,ngaus)
                       integer(4)              :: ielem, inode, igaus
                       real(8)                 :: R1, R2, Ve
-                      real(8)                 :: betae,hmax
+                      real(8)                 :: betae
                       real(8)                 :: L3, aux1, aux2, aux3
 
                       !$acc parallel loop gang vector_length(vecLength)
                       do ielem = 1,nelem
                          betae = 0.0d0
-                         hmax = 0.0d0
-                         !$acc loop vector
+                         !$acc loop vector reduction(max:betae)
                          do inode = 1,nnode
-                            !
-                            ! Max. Wavespeed at element
-                            !
                             aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
                             aux3 = sqrt(gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
                             aux1 = aux2+aux3
-                            !
-                            ! Select against Upwind viscosity
-                            !
-                            betae = max(betae,cmax*aux1)
-                            hmax  = max(hmax,helem(connec(ielem,inode)))
+                            betae = max(betae,helem_k(ielem)*(cmax/dble(porder))*aux1)
                          end do
-                         betae = betae*hmax
                          !$acc loop vector
                          do inode = 1,nnode
                             R1 = abs(Reta(connec(ielem,inode)))
-                            R2 = 0.0d0*abs(Rrho(connec(ielem,inode)))
-                            Ve = ce*max(R1,R2)*(helem(connec(ielem,inode))**2) ! Normalized residual for element
-                            mu_e(ielem,inode) = cglob*min(Ve,betae) ! Dynamic viscosity
+                            Ve = ce*R1*(helem(connec(ielem,inode))**2)
+                            mu_e(ielem,inode) = cglob*min(Ve,betae)
                          end do
                       end do
                       !$acc end parallel loop
