@@ -225,6 +225,12 @@ module time_integ
                   call mom_convec_emac(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,aux_pr,Rmom)
                end if
                !
+               ! Call source term if applicable
+               !
+               if(present(source_term)) then
+                  call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,source_term,Rmom)
+               end if
+               !
                ! Add convection and diffusion terms (Rdiff_* is zero during prediction)
                !
                !$acc kernels
