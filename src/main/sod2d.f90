@@ -789,6 +789,7 @@ program sod2d
               write(1,*) '--| ERROR: CASE MUST HAVE BOUNDARIES!'
               STOP(1)
            else ! Case has boundaries
+              !TODO: Add call for write_vtk_linearized when mesh is spectral
               write(1,*) '--| NON-PERIODIC CASE WITH BOUNDARIES'
               do istep = 1,nstep
 
@@ -816,11 +817,13 @@ program sod2d
 
 #ifndef NOPRED
                  if(flag_rk_order .eq. 3) then
+                    ! TODO: Remove rk_3_main
                     call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  else
+                    ! TODO: Rename this to something more descriptive
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
