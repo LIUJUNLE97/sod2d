@@ -862,8 +862,13 @@ program sod2d
                  !
                  if (istep == nsave) then
                     call nvtxStartRange("Output "//timeStep,istep)
-                    call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec, &
-                                         rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
+                    if (flag_spectralElem == 1) then
+                       call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR,connec, &
+                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
+                    else 
+                       call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
+                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
+                    end if
                     nsave = nsave+nleap
                     call nvtxEndRange
                  end if
