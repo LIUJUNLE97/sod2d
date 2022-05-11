@@ -297,7 +297,6 @@ module time_integ
                !$acc loop seq
                do idime = 1,ndime
                   q(ipoin,idime,pos) = q(ipoin,idime,pos)-dt*Rmom_sum(ipoin,idime)
-                  u(ipoin,idime,pos) = q(ipoin,idime,pos)/rho(ipoin,pos)
                end do
             end do
             !$acc end parallel loop
