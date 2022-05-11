@@ -306,7 +306,7 @@ module time_integ
             !
             if (nboun .ne. 0) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,rho(:,pos),u(:,:,pos))
+               call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,rho(:,pos),q(:,:,pos))
                call nvtxEndRange
             end if
             !
@@ -331,7 +331,7 @@ module time_integ
             !
             if (flag_real_diff == 1 .and. flag_diff_suth == 1) then
                call nvtxStartRange("Sutherland viscosity")
-               call sutherland_viscosity(npoin,Tem(:,2),mu_fluid)
+               call sutherland_viscosity(npoin,Tem(:,pos),mu_fluid)
                call nvtxEndRange
             end if
          end subroutine rk_4_main
