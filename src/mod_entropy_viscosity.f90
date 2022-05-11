@@ -206,12 +206,13 @@ module mod_entropy_viscosity
                       real(8),    intent(in)  :: rho(npoin), u(npoin,ndime), Tem(npoin)
                       real(8),    intent(out) :: mu_e(nelem,ngaus)
                       integer(4)              :: ielem, inode, igaus
-                      real(8)                 :: R1, R2, Ve, mue(npoin)
+                      real(8)                 :: R1, R2, Ve, mue(npoin),ave(npoin)
                       real(8)                 :: betae
                       real(8)                 :: L3, aux1, aux2, aux3
 
                       !$acc kernels
-                      mue(:) = 1000000000000000000.0d0
+                      mue(:) = 0.0d0
+                      ave(:) = 0.0d0
                       !$acc end kernels
 
                       !$acc parallel loop gang vector_length(vecLength)
@@ -224,12 +225,17 @@ module mod_entropy_viscosity
                             aux1 = aux2+aux3
                             betae = max(betae,helem_k(ielem)*(cmax/dble(porder))*aux1)
                          end do
-                         !$acc loop vector reduction(min:aux1)
+                         !$acc loop vector
                          do inode = 1,nnode
                             R1 = abs(Reta(connec(ielem,inode)))
                             Ve = ce*R1*(helem(connec(ielem,inode))**2)
-                            aux1 = min(mue(connec(ielem,inode)),cglob*min(Ve,betae))
-                            mue(connec(ielem,inode)) = aux1
+                            aux1 = cglob*min(Ve,betae)
+                            !$acc atomic update
+                            mue(connec(ielem,inode)) = mue(connec(ielem,inode))+aux1
+                            !$acc end atomic
+                            !$acc atomic update
+                            ave(connec(ielem,inode)) = ave(connec(ielem,inode))+1.0d0
+                            !$acc end atomic
                          end do
                       end do
                       !$acc end parallel loop
@@ -238,7 +244,7 @@ module mod_entropy_viscosity
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
-                            mu_e(ielem,inode) = mue(connec(ielem,inode))
+                            mu_e(ielem,inode) = mue(connec(ielem,inode))/ave(connec(ielem,inode))
                          end do
                       end do
                       !$acc end parallel loop

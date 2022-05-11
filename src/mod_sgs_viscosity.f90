@@ -22,7 +22,7 @@ module mod_sgs_viscosity
                       real(8),    intent(in)  :: rho(npoin), u(npoin,ndime)
                       real(8),    intent(out) :: mu_sgs(nelem,ngaus)
                       integer(4)              :: ielem, inode, igaus, kdime, idime, jdime
-                      real(8)                 :: hLES, evol,gpcar(ndime,nnode), aux, mue(npoin)
+                      real(8)                 :: hLES, evol,gpcar(ndime,nnode), aux, mue(npoin), ave(npoin)
                       real(8)                 :: gradU(ndime,ndime),gradV2(ndime,ndime),Bbeta, alpha, tau
 
 
@@ -93,6 +93,7 @@ module mod_sgs_viscosity
                       else
                          !$acc kernels
                          mue(:) = 0.0d0
+                         ave(:) = 0.0d0
                          !$acc end kernels
                          !$acc parallel loop gang  private(gpcar,gradU,gradV2) vector_length(vecLength)
                          do ielem = 1,nelem
@@ -147,9 +148,16 @@ module mod_sgs_viscosity
                                end do
                                Bbeta = gradV2(1,1)*gradV2(2,2) + gradV2(1,1)*gradV2(3,3) + gradV2(2,2)*gradV2(3,3) &
                                   - gradV2(1,2)*gradV2(1,2) - gradV2(1,3)*gradV2(1,3) - gradV2(2,3)*gradV2(2,3)
+                               aux = 0.0d0
                                if(alpha > 1.0e-10) then
-                                  mue(connec(ielem,igaus)) = max(mue(connec(ielem,igaus)),c_sgs*sqrt(max(Bbeta,1.0e-10)/alpha))
+                                  aux = c_sgs*sqrt(max(Bbeta,1.0e-10)/alpha)
                                end if
+                               !$acc atomic update
+                               mue(connec(ielem,igaus)) = mue(connec(ielem,igaus))+aux
+                               !$acc end atomic
+                               !$acc atomic update
+                               ave(connec(ielem,igaus)) = ave(connec(ielem,igaus))+1.0d0
+                               !$acc end atomic
                             end do
                          end do
                          !$acc end parallel loop
@@ -158,7 +166,7 @@ module mod_sgs_viscosity
                          do ielem = 1,nelem
                             !$acc loop vector
                             do inode = 1,nnode
-                               mu_sgs(ielem,inode) = mue(connec(ielem,inode))
+                               mu_sgs(ielem,inode) = mue(connec(ielem,inode))/ave(connec(ielem,inode))
                             end do
                          end do
                          !$acc end parallel loop
