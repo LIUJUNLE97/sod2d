@@ -41,7 +41,7 @@ module mod_constants
       !
       real(8), parameter :: v_pi = 2.0d0*asin(1.0d0) ! Value of Pi
       real(8), parameter :: ce = 1.0d0   
-      real(8), parameter :: cmax = 0.05d0 ! for FEM 0.5 for SEM 0.05/p
+      real(8), parameter :: cmax = 0.5d0 ! for FEM 0.5 for SEM 0.05/p
       real(8), parameter :: cglob = 1.0d0
       real(8), parameter :: c_rho = 1.0d0
       real(8), parameter :: c_ener = 1.0d0
