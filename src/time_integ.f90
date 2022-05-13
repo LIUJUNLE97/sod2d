@@ -203,11 +203,17 @@ module time_integ
                   call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,mu_fluid,mu_e,mu_sgs,Rdiff_mom)
                   call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Rdiff_ener)
                   call nvtxEndRange
+                  !
+                  ! Call source term if applicable
+                  !
+                  if(present(source_term)) then
+                     call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,source_term,Rdiff_mom)
+                  end if
                end if
                !
                ! Compute convective terms
                !
-               call mass_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_q,Rmass)
+               call mass_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_q,aux_rho,aux_u,Rmass)
                call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_pr,aux_E,Rener)
                if (flag_emac .eq. 0) then
                   !
@@ -228,12 +234,6 @@ module time_integ
                   end do
                   !$acc end parallel loop
                   call mom_convec_emac(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,aux_pr,Rmom)
-               end if
-               !
-               ! Call source term if applicable
-               !
-               if(present(source_term)) then
-                  call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,source_term,Rmom)
                end if
                !
                ! Add convection and diffusion terms (Rdiff_* is zero during prediction)

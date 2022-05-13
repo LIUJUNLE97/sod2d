@@ -114,7 +114,7 @@ program sod2d
         !nnode = 27 ! TODO: need to allow for mixed elements...
         !porder = 1 ! TODO: make it input
         !npbou = 9 ! TODO: Need to get his from somewhere...
-        nstep = 10 ! TODO: Needs to be input...
+        nstep = 900000 ! TODO: Needs to be input...
 #ifdef CHANNEL
         Rgas = Rg
 #else
@@ -126,9 +126,9 @@ program sod2d
         cfl_conv = 0.85d0
         cfl_diff = 0.85d0
         nsave  = 1   ! First step to save, TODO: input
-        nsave2 = 1   ! First step to save, TODO: input
-        nleap = 1 ! Saving interval, TODO: input
-        nleap2 = 1  ! Saving interval, TODO: input
+     nsave2 = 1   ! First step to save, TODO: input
+        nleap = 10000 ! Saving interval, TODO: input
+        nleap2 = 10  ! Saving interval, TODO: input
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
@@ -136,17 +136,18 @@ program sod2d
 #endif        
         if (isPeriodic == 1) then
 #ifdef CHANNEL
-           nper = 2791 ! TODO: if periodic, request number of periodic nodes
+           nper = 1891 ! TODO: if periodic, request number of periodic nodes
            !nper = 2145 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
-           !nper = 12097  ! TODO: if periodic, request number of periodic nodes
-           nper = 27937  ! TODO: if periodic, request number of periodic nodes
+           !nper = 10981  ! TODO: if periodic, request number of periodic nodes
+           !nper = 48007   ! TODO: if periodic, request number of periodic nodes
+           nper = 97741   ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
         end if
-        flag_emac = 1
+        flag_emac = 0
         if (flag_emac == 1) then
            write(1,*) "--| RUNNING WITH EMAC CONVECTION"
         else if (flag_emac == 0) then
@@ -159,7 +160,8 @@ program sod2d
 #ifdef CHANNEL
         allocate(source_term(ndime))
         !set the source term
-        source_term(1) = (utau*utau*rho0/delta)/36.0d0
+        !source_term(1) = (utau*utau*rho0/delta)/36.0d0
+        source_term(1) = (utau*utau*rho0/delta)
         source_term(2) = 0.00d0
         source_term(3) = 0.00d0
 #endif
@@ -438,8 +440,8 @@ program sod2d
               call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
            end if
-           call nvtxEndRange
         end if
+        call nvtxEndRange
 
         !*********************************************************************!
         ! Generate GLL table                                                  !
@@ -629,7 +631,6 @@ program sod2d
               call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR,connec, &
                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
            end if
-           call nvtxEndRange
         end if
 
         !*********************************************************************!
@@ -791,7 +792,6 @@ program sod2d
               write(1,*) '--| ERROR: CASE MUST HAVE BOUNDARIES!'
               STOP(1)
            else ! Case has boundaries
-              !TODO: Add call for write_vtk_linearized when mesh is spectral
               write(1,*) '--| NON-PERIODIC CASE WITH BOUNDARIES'
               do istep = 1,nstep
 
@@ -819,13 +819,11 @@ program sod2d
 
 #ifndef NOPRED
                  if(flag_rk_order .eq. 3) then
-                    ! TODO: Remove rk_3_main
                     call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  else
-                    ! TODO: Rename this to something more descriptive
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
@@ -863,13 +861,8 @@ program sod2d
                  !
                  if (istep == nsave) then
                     call nvtxStartRange("Output "//timeStep,istep)
-                    if (flag_spectralElem == 1) then
-                       call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR,connec, &
-                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
-                    else 
-                       call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
-                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
-                    end if
+                    call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec, &
+                                         rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
                     nsave = nsave+nleap
                     call nvtxEndRange
                  end if
@@ -889,7 +882,6 @@ program sod2d
                   ! Prediction
                   !
                   flag_predic = 1
-                  write(timeStep,'(i4)') istep
                   call nvtxStartRange("Init pred "//timeStep,istep)
                   !$acc kernels
                   rho(:,1) = rho(:,2)
@@ -903,6 +895,7 @@ program sod2d
                   call nvtxEndRange
 
                   ! nvtx range for full RK
+                  !write(timeStep,'(i4)') istep
                   call nvtxStartRange("RK4 step "//timeStep,istep)
 #ifndef NOPRED
                  if(flag_rk_order .eq. 3) then

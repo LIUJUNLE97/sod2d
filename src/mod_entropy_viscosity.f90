@@ -63,7 +63,7 @@ module mod_entropy_viscosity
                        ! Entropy residual
                        !
                        call generic_scalar_convec(nelem,npoin,connec,Ngp,dNgp,He, &
-                                                  gpvol,f_eta,Reta,alpha)
+                                                  gpvol,f_eta,rho,u,Reta,alpha)
                        !
                        ! Alter Reta with inv(Mc)
                        !
@@ -105,7 +105,7 @@ module mod_entropy_viscosity
                        ! oriol: is no needed generic_scalar_conv already does
                        ! this
                        call generic_scalar_convec(nelem,npoin,connec,Ngp, &
-                                                  dNgp,He,gpvol,f_rho,Rrho,alpha)
+                                                  dNgp,He,gpvol,f_rho,rho,u,Rrho,alpha)
                        !
                        ! Update Rrho with both terms
                        !
