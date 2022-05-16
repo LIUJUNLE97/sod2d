@@ -88,10 +88,6 @@ module elem_convec
                       else
                          !$acc parallel loop gang  private(Re,gpcar) vector_length(vecLength)
                          do ielem = 1,nelem
-                            !$acc loop vector
-                            do inode = 1,nnode
-                               Re(inode) = 0.0d0
-                            end do
                             !
                             ! Quadrature
                             !
@@ -110,7 +106,7 @@ module elem_convec
                                !$acc loop seq
                                do idime = 1,ndime
                                   tmp3 = 0.0d0
-                                  !$acc loop vector reduction(+:tmp1)
+                                  !$acc loop vector reduction(+:tmp1,tmp2,tmp3)
                                   do inode = 1,nnode
                                      tmp1 = tmp1+(gpcar(idime,inode)*q(connec(ielem,inode),idime))
                                      tmp2 = tmp2+(gpcar(idime,inode)*u(connec(ielem,inode),idime))
@@ -118,7 +114,7 @@ module elem_convec
                                   end do
                                   tmp4 = tmp4 + u(connec(ielem,igaus),idime)*tmp3
                                end do
-                               Re(igaus) = Re(igaus)+gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp2*rho(connec(ielem,igaus))+tmp4)
+                               Re(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp2*rho(connec(ielem,igaus))+tmp4)
                             end do
                             !
                             ! Assembly
@@ -528,9 +524,9 @@ module elem_convec
                       end if
                       call nvtxEndRange
 
-              end subroutine mom_convec_emac
+                   end subroutine mom_convec_emac
 
-              subroutine ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,pr,E,Rener)
+                   subroutine ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,pr,E,Rener)
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! Subroutine to compute R = div(u*(E+p)) using a standard Continuous !
@@ -550,51 +546,96 @@ module elem_convec
                       real(8),    intent(out) :: Rener(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, ipoin, jdime
                       real(8)                 :: Re(nnode), aux
-                      real(8)                 :: tmp1,gpcar(ndime,nnode)
+                      real(8)                 :: tmp1,gpcar(ndime,nnode),tmp2,tmp3,tmp4,tmp5
 
                       call nvtxStartRange("Energy Convection")
                       !$acc kernels
                       Rener(:) = 0.0d0
                       !$acc end kernels
-                      !$acc parallel loop gang  private(Re,gpcar) vector_length(vecLength)
-                      do ielem = 1,nelem
-                         !$acc loop vector
-                         do inode = 1,nnode
-                            Re(inode) = 0.0d0
-                         end do
-                         !$acc loop seq
-                         do igaus = 1,ngaus
-                            !$acc loop seq
-                            do idime = 1,ndime
-                               !$acc loop vector
-                               do inode = 1,nnode
-                                  gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
-                               end do
-                            end do
-                            tmp1 = 0.0d0
-                            !$acc loop vector collapse(2) reduction(+:tmp1)
-                            do idime = 1,ndime
-                               do inode = 1,nnode
-                                  tmp1 = tmp1+(gpcar(idime,inode)* &
-                                     (u(connec(ielem,inode),idime)*(E(connec(ielem,inode))+pr(connec(ielem,inode)))))
-                               end do
-                            end do
+                      if (flag_SpectralElem == 0) then
+                         !$acc parallel loop gang  private(Re,gpcar) vector_length(vecLength)
+                         do ielem = 1,nelem
                             !$acc loop vector
                             do inode = 1,nnode
-                               Re(inode) = Re(inode)+gpvol(1,igaus,ielem)*Ngp(igaus,inode)*tmp1
+                               Re(inode) = 0.0d0
+                            end do
+                            !$acc loop seq
+                            do igaus = 1,ngaus
+                               !$acc loop seq
+                               do idime = 1,ndime
+                                  !$acc loop vector
+                                  do inode = 1,nnode
+                                     gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                                  end do
+                               end do
+                               tmp1 = 0.0d0
+                               !$acc loop vector collapse(2) reduction(+:tmp1)
+                               do idime = 1,ndime
+                                  do inode = 1,nnode
+                                     tmp1 = tmp1+(gpcar(idime,inode)* &
+                                        (u(connec(ielem,inode),idime)*(E(connec(ielem,inode))+pr(connec(ielem,inode)))))
+                                  end do
+                               end do
+                               !$acc loop vector
+                               do inode = 1,nnode
+                                  Re(inode) = Re(inode)+gpvol(1,igaus,ielem)*Ngp(igaus,inode)*tmp1
+                               end do
+                            end do
+                            !
+                            ! Assembly
+                            !
+                            !$acc loop vector
+                            do inode = 1,nnode
+                               !$acc atomic update
+                               Rener(connec(ielem,inode)) = Rener(connec(ielem,inode))+Re(inode)
+                               !$acc end atomic
                             end do
                          end do
-                         !
-                         ! Assembly
-                         !
-                         !$acc loop vector
-                         do inode = 1,nnode
-                            !$acc atomic update
-                            Rener(connec(ielem,inode)) = Rener(connec(ielem,inode))+Re(inode)
-                            !$acc end atomic
+                         !$acc end parallel loop
+                      else
+
+                         !$acc parallel loop gang  private(Re,gpcar) vector_length(vecLength)
+                         do ielem = 1,nelem
+                            !$acc loop seq
+                            do igaus = 1,ngaus
+                               !$acc loop seq
+                               do idime = 1,ndime
+                                  !$acc loop vector
+                                  do inode = 1,nnode
+                                     gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                                  end do
+                               end do
+                               tmp1 = 0.0d0
+                               tmp2 = 0.0d0
+                               tmp4 = 0.0d0
+                               tmp5 = 0.0d0
+                               !$acc loop seq
+                               do idime = 1,ndime
+                                  tmp3 = 0.0d0
+                                  !$acc loop vector reduction(+:tmp1,tmp5,tmp2,tmp3)
+                                  do inode = 1,nnode
+                                     tmp1 = tmp1+gpcar(idime,inode)*u(connec(ielem,inode),idime)*E(connec(ielem,inode))
+                                     tmp5 = tmp5+gpcar(idime,inode)*u(connec(ielem,inode),idime)*pr(connec(ielem,inode))
+                                     tmp2 = tmp2+gpcar(idime,inode)*u(connec(ielem,inode),idime)
+                                     tmp3 = tmp3+gpcar(idime,inode)*E(connec(ielem,inode))
+                                  end do
+                                  tmp4 = tmp4 + u(connec(ielem,igaus),idime)*tmp3
+                               end do
+                               Re(igaus) = gpvol(1,igaus,ielem)*(0.5d0*(tmp1+E(connec(ielem,igaus))*tmp2+tmp4)+tmp5)
+                            end do
+                            !
+                            ! Assembly
+                            !
+                            !$acc loop vector
+                            do inode = 1,nnode
+                               !$acc atomic update
+                               Rener(connec(ielem,inode)) = Rener(connec(ielem,inode))+Re(inode)
+                               !$acc end atomic
+                            end do
                          end do
-                      end do
-                      !$acc end parallel loop
+                         !$acc end parallel loop
+
+                      end if
                       call nvtxEndRange
 
                    end subroutine ener_convec
@@ -669,10 +710,6 @@ module elem_convec
                       else
                          !$acc parallel loop gang  private(Re,gpcar) vector_length(vecLength)
                          do ielem = 1,nelem
-                            !$acc loop vector
-                            do inode = 1,nnode
-                               Re(inode) = 0.0d0
-                            end do
                             !$acc loop seq
                             do igaus = 1,ngaus
                                !$acc loop seq
@@ -688,7 +725,7 @@ module elem_convec
                                !$acc loop seq
                                do idime = 1,ndime
                                   tmp3 = 0.0d0
-                                  !$acc loop vector reduction(+:tmp1)
+                                  !$acc loop vector reduction(+:tmp1,tmp2,tmp3)
                                   do inode = 1,nnode
                                      tmp1 = tmp1+gpcar(idime,inode)*q(connec(ielem,inode),idime)*alpha(connec(ielem,inode))
                                      tmp2 = tmp2+gpcar(idime,inode)*u(connec(ielem,inode),idime)
@@ -696,7 +733,7 @@ module elem_convec
                                   end do
                                   tmp4 = tmp4 + u(connec(ielem,igaus),idime)*tmp3
                                end do
-                               Re(igaus) = Re(igaus)+gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp2*rho(connec(ielem,igaus))*alpha(connec(ielem,igaus))+tmp4)
+                               Re(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp2*rho(connec(ielem,igaus))*alpha(connec(ielem,igaus))+tmp4)
                             end do
                             !
                             ! Assembly

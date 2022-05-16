@@ -127,7 +127,7 @@ program sod2d
         cfl_diff = 0.85d0
         nsave  = 1   ! First step to save, TODO: input
      nsave2 = 1   ! First step to save, TODO: input
-        nleap = 10000 ! Saving interval, TODO: input
+        nleap = 400 ! Saving interval, TODO: input
         nleap2 = 10  ! Saving interval, TODO: input
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
@@ -136,8 +136,8 @@ program sod2d
 #endif        
         if (isPeriodic == 1) then
 #ifdef CHANNEL
-           nper = 1891 ! TODO: if periodic, request number of periodic nodes
-           !nper = 2145 ! TODO: if periodic, request number of periodic nodes
+           !nper = 1891 ! TODO: if periodic, request number of periodic nodes
+           nper = 5551 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
            !nper = 10981  ! TODO: if periodic, request number of periodic nodes
@@ -355,9 +355,14 @@ program sod2d
               velo = utau*((1.0d0/0.41d0)*log(1.0d0+0.41d0*yp)+7.8d0*(1.0d0-exp(-yp/11.0d0)-(yp/11.0d0)*exp(-yp/3.0d0))) 
 
               call random_number(ti)
-              u(ipoin,1,2) = velo*(1.0d0 + 0.05d0*(ti(1) -0.5d0))
-              u(ipoin,2,2) = velo*(0.05d0*(ti(2) -0.5d0))
-              u(ipoin,3,2) = velo*(0.05d0*(ti(3) -0.5d0))
+
+              !u(ipoin,1,2) = velo*(1.0d0 + 0.01d0*(sin(5.0d0*coord(ipoin,1)) -0.5d0))
+              !u(ipoin,2,2) = velo*(0.01d0*(sin(5.0d0*coord(ipoin,2))+cos(1.0d0*coord(ipoin,2)) -0.5d0))
+              u(ipoin,3,2) = velo*(0.05d0*(sin(20.0d0*coord(ipoin,3))+cos(10.0d0*coord(ipoin,3))+sin(5.0d0*coord(ipoin,3))+cos(2.5d0*coord(ipoin,3)) -0.5d0))
+
+              u(ipoin,1,2) = velo
+              !u(ipoin,2,2) = velo*(0.001d0*(ti(2) -0.5d0))
+              !u(ipoin,3,2) = velo*(0.001d0*(ti(3) -0.5d0))
 
               pr(ipoin,2) = po
 
