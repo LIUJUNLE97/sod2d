@@ -78,6 +78,9 @@ program mesh_interpolate
       call read_vtk_binary(lin_npoin,lin_nelem,lin_xyz,lin_connec,lin_rho,lin_u,lin_pr,lin_E,lin_mu_fluid)
    else
       ! Read ascii file *.alya
+      call read_veloc(lin_npoin,lin_file_path,lin_u)
+      call read_densi(lin_npoin,lin_file_path,lin_rho)
+      call read_press(lin_npoin,lin_file_path,lin_pr)
    end if
 
    ! Create master element geometries (HEX08 as a subset of HEX high order)
