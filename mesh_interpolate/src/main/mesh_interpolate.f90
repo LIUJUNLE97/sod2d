@@ -9,7 +9,7 @@ program mesh_interpolate
 
    implicit none
 
-   integer(4)              :: igaus
+   integer(4)              :: igaus, ielem, inode, idime, ierr
    integer(4)              :: lin_npoin, lin_nelem, lin_nboun
    integer(4)              :: npoin, nelem, nboun
    integer(4), allocatable :: lin_connec(:,:), lin_bound(:,:)
@@ -39,6 +39,27 @@ program mesh_interpolate
    call read_dims(file_path,file_name,npoin,nelem,nboun)
    allocate(connec(nelem,nnode), bound(nboun,npbou), xyz(npoin,ndime))
    call read_geo_dat(file_path,file_name,npoin,nelem,nboun,connec,bound,xyz)
+
+   ! Check if the mesh is compatible
+   ierr = 0
+   if (nelem .ne. lin_nelem) then
+      write(*,*) "The number of elements in the high-order mesh is different from the number of elements in the linear mesh"
+      error stop
+   end if
+   !$acc parallel loop gang vector_length(32)
+   do ielem = 1,nelem
+      !$acc loop seq
+      do inode = 1,nncorner
+         if ( connec(ielem,inode) .ne. lin_connec(ielem,inode) ) then
+            ierr = 1
+         end if
+      end do
+   end do
+   !$acc end parallel loop
+   if (ierr .ne. 0) then
+      write(*,*) "The connectivity of the high-order mesh is different from the connectivity of the linear mesh"
+      error stop
+   end if
 
    ! Allocate data for linear and high order  variables
    allocate(lin_u(lin_npoin,ndime))
@@ -77,4 +98,9 @@ program mesh_interpolate
 		zeta = xnodes(igaus,3)
       call hex08(xi,eta,zeta,Ngp(igaus,:),dNgp(:,:,igaus))
 	end do
+
+   ! Loop over all elements and interpolate variables
+   do ielem = 1,nelem
+   end do
+
 end program mesh_interpolate
