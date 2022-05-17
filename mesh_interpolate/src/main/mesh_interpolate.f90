@@ -19,6 +19,8 @@ program mesh_interpolate
    real(8),    allocatable :: lin_xyz(:,:), xyz(:,:)
    real(8),    allocatable :: xnodes(:,:), wgp(:)
    real(8),    allocatable :: Ngp(:,:), dNgp(:,:,:)
+   real(8),    allocatable :: lin_u(:,:), lin_rho(:), lin_pr(:), lin_E(:), lin_mu_fluid(:)
+   real(8),    allocatable :: u(:,:), rho(:), pr(:), E(:), mu_fluid(:)
    character(500)          :: lin_file_path, lin_file_name
    character(500)          :: file_path, file_name
 
@@ -37,6 +39,25 @@ program mesh_interpolate
    call read_dims(file_path,file_name,npoin,nelem,nboun)
    allocate(connec(nelem,nnode), bound(nboun,npbou), xyz(npoin,ndime))
    call read_geo_dat(file_path,file_name,npoin,nelem,nboun,connec,bound,xyz)
+
+   ! Allocate data for linear and high order  variables
+   allocate(lin_u(lin_npoin,ndime))
+   allocate(lin_rho(lin_npoin))
+   allocate(lin_pr(lin_npoin))
+   allocate(lin_E(lin_npoin))
+   allocate(lin_mu_fluid(lin_npoin))
+   allocate(u(npoin,ndime))
+   allocate(rho(npoin))
+   allocate(pr(npoin))
+   allocate(E(npoin))
+   allocate(mu_fluid(npoin))
+
+   ! Read initial condition from linear mesh
+   if (flag_readVTK == 1) then
+      call read_vtk_binary(lin_npoin,lin_nelem,lin_xyz,lin_connec,lin_rho,lin_u,lin_pr,lin_E,lin_mu_fluid)
+   else
+      ! Read ascii file *.alya
+   end if
 
    ! Create master element geometries (HEX08 as a subset of HEX high order)
    allocate(atoIJK(nnode))

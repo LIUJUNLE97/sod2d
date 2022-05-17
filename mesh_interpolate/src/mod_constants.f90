@@ -38,4 +38,9 @@ module mod_constants
       !
       real(8), parameter :: v_pi=3.1415926535897932385d0
 
+      !
+      ! Flags
+      !
+      integer(4), parameter :: flag_readVTK=1
+
 end module mod_constants

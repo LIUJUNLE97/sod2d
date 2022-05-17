@@ -4,8 +4,8 @@ module mod_output
 
    contains
 
-      subroutine read_vtk_binary(npoin,nelem,coord,connec, &
-                                 rho,u,pr,E,mu_fluid,mu_e,mu_sgs)
+      subroutine read_vtk_binary(npoin,nelem,coord,connec,rho,u,pr,E,mu_fluid)
+      
          implicit none
       
          integer(4), intent(in)                            :: npoin, nelem
@@ -13,8 +13,6 @@ module mod_output
          real(8)   , intent(in)                            :: coord(npoin,ndime)
          real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E, mu_fluid
          real(8)   , intent(inout), dimension(npoin,ndime) :: u
-         real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_e
-         real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_sgs
          integer(4)                                        :: i, iper, ivtk=99
          integer(4)            , dimension(nelem,nnode+1)  :: cells
          integer(4)            , dimension(nelem)          :: cellTypes
