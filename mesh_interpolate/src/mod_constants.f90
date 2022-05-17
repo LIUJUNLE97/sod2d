@@ -28,4 +28,9 @@ module mod_constants
       !
       integer(4), parameter :: nncorner=8
 
+      !
+      ! Constants
+      !
+      real(8), parameter :: v_pi=3.1415926535897932385d0
+
 end module mod_constants
