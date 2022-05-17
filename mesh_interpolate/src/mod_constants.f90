@@ -3,6 +3,11 @@ module mod_constants
       implicit none
 
       !
+      ! Time-step to read, matching the vtk file
+      !
+      integer(4), parameter :: istep=0
+
+      !
       ! Dimensions
       !
       integer(4), parameter :: ndime=3
