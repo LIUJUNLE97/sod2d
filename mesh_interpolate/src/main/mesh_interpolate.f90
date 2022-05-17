@@ -41,10 +41,8 @@ program mesh_interpolate
    allocate(listHEX08(porder**ndime,nncorner))
    allocate(xnodes(ngaus,ndime))
    allocate(wgp(ngaus))
-   if (ndime == 3) then
-      if (nnode == 64) then
-         call hex64(1.0d0,1.0d0,1.0d0,atoIJK)
-      end if
+   if (nnode == 64) then
+      call hex64(1.0d0,1.0d0,1.0d0,atoIJK)
    end if
    call lagrange_hex(atoIJK,xnodes,wgp)
 
