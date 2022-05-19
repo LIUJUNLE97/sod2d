@@ -114,6 +114,7 @@ module elem_convec
                                   end do
                                   tmp4 = tmp4 + u(connec(ielem,igaus),idime)*tmp3
                                end do
+                               !Re(igaus) = gpvol(1,igaus,ielem)*tmp1
                                Re(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp2*rho(connec(ielem,igaus))+tmp4)
                             end do
                             !
@@ -247,7 +248,7 @@ module elem_convec
                                 end do
                                 aux4 = aux4+u(connec(ielem,igaus),jdime)*aux2
                              end do
-                             tmp1(idime) = 0.5d0*(aux+u(connec(ielem,igaus),idime)*aux3+aux4)
+                             tmp1(idime) = 0.5d0*(aux+q(connec(ielem,igaus),idime)*aux3+aux4)
                           end do
                           !$acc loop seq
                           do idime = 1,ndime
@@ -425,20 +426,10 @@ module elem_convec
                          end do
                          !$acc end parallel loop
                       else !spectral
-                         !
                          ! Start elemental ops
                          !
                          !$acc parallel loop gang  private(Re,gpcar,gradA,tmp,gpA) vector_length(vecLength)
                          do ielem = 1,nelem
-                            !
-                            ! Initialize element vector to 0
-                            !
-                            !$acc loop vector collapse(2)
-                            do idime = 1,ndime
-                               do inode = 1,nnode
-                                  Re(inode,idime) = 0.0d0
-                               end do
-                            end do
                             !
                             ! Loop over Gauss points
                             !
@@ -477,16 +468,16 @@ module elem_convec
                                divA = gradA(1,1)+gradA(2,2)+gradA(3,3)
 
                                !
-                               ! grad(A)*A + 0.5*div(A)*A
+                               ! grad(A)*A + gradT(A)*A + div(A)*A
                                !
                                !$acc loop seq
                                do idime = 1,ndime
                                   tmp(idime) = 0.0d0
                                   !$acc loop seq
                                   do jdime = 1,ndime
-                                     tmp(idime) = tmp(idime) + gradA(idime,jdime)*gpA(jdime)
+                                     tmp(idime) = tmp(idime) + (gradA(idime,jdime)+gradA(jdime,idime))*gpA(jdime)
                                   end do
-                                  tmp(idime) = tmp(idime)+0.5d0*divA*gpA(idime)
+                                  tmp(idime) = tmp(idime)+divA*gpA(idime)
                                end do
 
                                !
@@ -497,16 +488,13 @@ module elem_convec
                                   aux = 0.0d0
                                   !$acc loop vector reduction(+:aux)
                                   do inode = 1,nnode
-                                     aux = aux+gpcar(idime,inode)*pr(connec(ielem,inode))
+                                     aux = aux+gpcar(idime,inode)*(pr(connec(ielem,inode))-0.5d0*Femac(connec(ielem,inode)))
                                   end do
                                   tmp(idime) = tmp(idime) + aux
                                end do
-                               !$acc loop vector
-                               do inode = 1,nnode
-                                  Re(inode,1) = Re(inode,1)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(1))
-                                  Re(inode,2) = Re(inode,2)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(2))
-                                  Re(inode,3) = Re(inode,3)+gpvol(1,igaus,ielem)*(Ngp(igaus,inode)*tmp(3))
-                               end do
+                               Re(igaus,1) = gpvol(1,igaus,ielem)*tmp(1)
+                               Re(igaus,2) = gpvol(1,igaus,ielem)*tmp(2)
+                               Re(igaus,3) = gpvol(1,igaus,ielem)*tmp(3)
                             end do
                             !
                             ! Final assembly
@@ -521,12 +509,14 @@ module elem_convec
                             end do
                          end do
                          !$acc end parallel loop
+
                       end if
+
                       call nvtxEndRange
 
                    end subroutine mom_convec_emac
 
-                   subroutine ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,pr,E,Rener)
+                   subroutine ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,pr,E,rho,q,Rener)
 
                       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                       ! Subroutine to compute R = div(u*(E+p)) using a standard Continuous !
@@ -542,7 +532,7 @@ module elem_convec
                       real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: u(npoin,ndime), pr(npoin), E(npoin)
+                      real(8),    intent(in)  :: u(npoin,ndime), pr(npoin), E(npoin), rho(npoin),q(npoin,ndime)
                       real(8),    intent(out) :: Rener(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, ipoin, jdime
                       real(8)                 :: Re(nnode), aux
@@ -614,6 +604,7 @@ module elem_convec
                                   tmp3 = 0.0d0
                                   !$acc loop vector reduction(+:tmp1,tmp5,tmp2,tmp3)
                                   do inode = 1,nnode
+                                     !tmp1 = tmp1+gpcar(idime,inode)*u(connec(ielem,inode),idime)*(E(connec(ielem,inode))+pr(connec(ielem,inode)))
                                      tmp1 = tmp1+gpcar(idime,inode)*u(connec(ielem,inode),idime)*E(connec(ielem,inode))
                                      tmp5 = tmp5+gpcar(idime,inode)*u(connec(ielem,inode),idime)*pr(connec(ielem,inode))
                                      tmp2 = tmp2+gpcar(idime,inode)*u(connec(ielem,inode),idime)
@@ -622,6 +613,7 @@ module elem_convec
                                   tmp4 = tmp4 + u(connec(ielem,igaus),idime)*tmp3
                                end do
                                Re(igaus) = gpvol(1,igaus,ielem)*(0.5d0*(tmp1+E(connec(ielem,igaus))*tmp2+tmp4)+tmp5)
+                               !Re(igaus) = gpvol(1,igaus,ielem)*tmp1
                             end do
                             !
                             ! Assembly
@@ -733,7 +725,7 @@ module elem_convec
                                   end do
                                   tmp4 = tmp4 + u(connec(ielem,igaus),idime)*tmp3
                                end do
-                               Re(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp2*rho(connec(ielem,igaus))*alpha(connec(ielem,igaus))+tmp4)
+                               Re(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp2*rho(connec(ielem,inode))*alpha(connec(ielem,igaus))+tmp4)
                             end do
                             !
                             ! Assembly

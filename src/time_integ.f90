@@ -214,7 +214,7 @@ module time_integ
                ! Compute convective terms
                !
                call mass_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_q,aux_rho,aux_u,Rmass)
-               call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_pr,aux_E,Rener)
+               call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_pr,aux_E,aux_rho,aux_q,Rener)
                if (flag_emac .eq. 0) then
                   !
                   ! Conservation momentum convection div(qi*uj)+grad(p)

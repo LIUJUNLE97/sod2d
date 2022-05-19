@@ -130,18 +130,29 @@ module mod_entropy_viscosity
                        end if
                        call nvtxEndRange
 
-                  !!!
-                  !!! Normalize
-                  !!!
-                  !maxEta = maxval(abs(eta(lpoin_w(:))))
-                  !maxRho = maxval(abs(rhok(lpoin_w(:))))
+                  !!
+                  !! Normalize
+                  !!
+                 maxEta = 0.0d0 !maxval(abs(eta(lpoin_w(:))))
+                 !maxRho = maxval(abs(rhok(lpoin_w(:))))
 
-                  !!$acc parallel loop
-                  !do ipoin = 1,npoin_w
-                  !   Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/maxEta
-                  !   Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
-                  !end do
-                  !!$acc end parallel loop
+                 !$acc parallel loop reduction(+:maxEta)
+                 do ipoin = 1,npoin_w
+                    maxEta = maxEta + eta(lpoin_w(ipoin))
+                    !maxRho = maxRho + rho(lpoin_w(ipoin))
+                    !Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
+                 end do
+                 !$acc end parallel loop
+                 maxEta = maxEta/dble(npoin_w)
+                 !maxRho = maxRho/dble(npoin_w)
+
+                 !$acc parallel loop 
+                 do ipoin = 1,npoin_w
+                    Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/maxEta
+                    !Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
+                    !Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/abs(maxEta-eta(lpoin_w(ipoin)))
+                    !Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
+                 end do
 
               end subroutine residuals
 
@@ -223,13 +234,16 @@ module mod_entropy_viscosity
                             aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
                             aux3 = sqrt(gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
                             aux1 = aux2+aux3
+                            !betae = max(betae,helem_k(ielem)*cmax*aux1)
                             betae = max(betae,helem_k(ielem)*(cmax/dble(porder))*aux1)
                          end do
                          !$acc loop vector
                          do inode = 1,nnode
                             R1 = abs(Reta(connec(ielem,inode)))
+                            !R2 = abs(Rrho(connec(ielem,inode)))
                             Ve = ce*R1*(helem(connec(ielem,inode))**2)
-                            aux1 = cglob*min(Ve,betae)
+                            !aux1 = rho(connec(ielem,inode))*cglob*betae
+                            aux1 = rho(connec(ielem,inode))*cglob*min(Ve,betae)
                             !$acc atomic update
                             mue(connec(ielem,inode)) = mue(connec(ielem,inode))+aux1
                             !$acc end atomic
