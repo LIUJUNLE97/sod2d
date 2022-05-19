@@ -6,6 +6,7 @@ program mesh_interpolate
    use elem_hex
    use inicond_reader
    use mod_output
+   use mod_maths
 
    implicit none
 
@@ -103,7 +104,18 @@ program mesh_interpolate
 	end do
 
    ! Loop over all elements and interpolate variables
+   !$acc parallel loop gang
    do ielem = 1,nelem
+      !$acc loop vector
+      do inode = nncorner,nnode
+         !$acc loop seq
+         do idime = 1,ndime
+            call var_interpolate(lin_u(lin_connec(ielem,:),idime),Ngp(inode,:),u(connec(ielem,inode),idime))
+         end do
+         call var_interpolate(lin_rho(lin_connec(ielem,:)),Ngp(inode,:),rho(connec(ielem,inode)))
+         call var_interpolate(lin_pr(lin_connec(ielem,:)),Ngp(inode,:),pr(connec(ielem,inode)))
+      end do
    end do
+   !$acc end parallel loop
 
 end program mesh_interpolate
