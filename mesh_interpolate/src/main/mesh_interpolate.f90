@@ -10,7 +10,7 @@ program mesh_interpolate
 
    implicit none
 
-   integer(4)              :: igaus, ielem, inode, idime, jelem
+   integer(4)              :: ipoin, igaus, ielem, inode, idime, jelem
    integer(4)              :: lin_npoin, lin_nelem, lin_nboun
    integer(4)              :: npoin, nelem, nboun
    integer(4)              :: counter, numMatches
@@ -27,16 +27,24 @@ program mesh_interpolate
    character(500)          :: lin_file_path, lin_file_name
    character(500)          :: file_path, file_name
 
+   ! Greet
+   write(*,*) '*** MESH INTERPOLATOR v1.0 ***'
+
+   write(*,*) '*** MAKE SURE YOU HAVE BOTH MMESHES IN SEPARATE DIRECTORIES ***'
+   write(*,*) '*** AND THE CORRESPONDING INICOND FILES IN VTK OR ASCII ***'
+
    ! Define case name
    write(lin_file_name,*) "cube"
    file_name = lin_file_name
 
    ! Read the linear mesh
+   WRITE(*,*) '*** Reading linear mesh...'
    write(lin_file_path,*) "./mesh_lin/"
    call read_dims(lin_file_path,lin_file_name,lin_npoin,lin_nelem,lin_nboun)
    allocate(lin_connec(lin_nelem,lin_nnode), lin_bound(lin_nboun,lin_npbou), lin_xyz(lin_npoin,ndime))
    call read_geo_dat(lin_file_path,lin_file_name,lin_npoin,lin_nelem,lin_nboun,lin_nnode,lin_npbou,lin_connec,lin_bound,lin_xyz)
 
+   WRITE(*,*) '*** Reading high-order mesh...'
    ! Read the high-order mesh
    write(file_path,*) "./mesh/"
    call read_dims(file_path,file_name,npoin,nelem,nboun)
@@ -45,33 +53,28 @@ program mesh_interpolate
 
    ! Check if the mesh is compatible
    if (nelem .ne. lin_nelem) then
-      write(*,*) "The number of elements in the high-order mesh is different from the number of elements in the linear mesh"
+      write(*,*) "*** The number of elements in the high-order mesh is different from the number of elements in the linear mesh!"
       error stop
    end if
    
    ! Create a list of matching pairs of high-order and linear elements
    ! Col. 1: low-order element number
    ! Col. 2: high-order element number
+   WRITE(*,*) '*** Matching elements...'
    allocate(lmatch(nelem,2))
    allocate(aux(lin_nnode,ndime))
    numMatches = 0
    linear: do ielem = 1, nelem
-      print*,'ielem = ',ielem
       lmatch(ielem,1) = ielem
       aux(1:lin_nnode,1:ndime) = lin_xyz(lin_connec(ielem,1:lin_nnode),1:ndime)
       nonlinear: do jelem = 1,nelem
-         print*, '   jelem = ',jelem
          counter = 0
          corners: do inode = 1,nncorner
-            print*, '      inode = ',inode
             do idime = 1,ndime
-               print*, '         idime = ',idime
                if (aux(inode,idime) .ne. xyz(connec(jelem,inode),idime)) then
-                  print*, '         match not found'
                   exit corners
                else if (aux(inode,idime) .eq. xyz(connec(jelem,inode),idime)) then
                   counter = counter + 1
-                  print*, '         counter = ',counter
                end if
             end do
          end do corners
@@ -87,8 +90,8 @@ program mesh_interpolate
       write(*,*) "The number of matches is different from the number of elements in the high-order mesh"
       error stop
    else
-      write(*,*) 'numMatches = ',numMatches
-      write(*,*) 'All the elements in the high-order mesh have been matched with an element in the linear mesh'
+      write(*,*) '*** numMatches = ',numMatches
+      write(*,*) '*** All the elements in the high-order mesh have been matched with an element in the linear mesh!'
    end if
 
    ! Allocate data for linear and high order  variables
@@ -104,7 +107,9 @@ program mesh_interpolate
    allocate(mu_fluid(npoin))
 
    ! Read initial condition from linear mesh
+   WRITE(*,*) '*** Reading initial condition from linear mesh...'
    if (flag_readVTK == 1) then
+      WRITE(*,*) '*** Reading VTK binary file...'
       call read_vtk_binary(lin_npoin,lin_nelem,lin_xyz,lin_connec,lin_rho,lin_u,lin_pr,lin_E,lin_mu_fluid)
    else
       ! Read ascii file *.alya
@@ -114,6 +119,7 @@ program mesh_interpolate
    end if
 
    ! Create master element geometries (HEX08 as a subset of HEX high order)
+   WRITE(*,*) '*** Generating master element geometry...'
    allocate(atoIJK(nnode))
    allocate(listHEX08(porder**ndime,nncorner))
    allocate(xnodes(ngaus,ndime))
@@ -124,6 +130,7 @@ program mesh_interpolate
    call lagrange_hex(atoIJK,xnodes,wgp)
 
    ! Generate linear shape functions at each high-order node
+   WRITE(*,*) '*** Generating master shape functions...'
 	allocate(Ngp(ngaus,lin_nnode),dNgp(ndime,lin_nnode,ngaus))
 	do igaus = 1, ngaus
 		xi = xnodes(igaus,1)
@@ -133,18 +140,12 @@ program mesh_interpolate
 	end do
 
    ! Loop over all elements and interpolate variables
-   !$acc parallel loop gang
+   WRITE(*,*) '*** Starting interpolation process...'
    do ielem = 1,nelem
-      !$acc loop vector
-      do inode = nncorner,nnode
-         !$acc loop seq
-         do idime = 1,ndime
-            call var_interpolate(lin_u(lin_connec(ielem,:),idime),Ngp(inode,:),u(connec(lmatch(ielem,2),inode),idime))
-         end do
-         call var_interpolate(lin_rho(lin_connec(ielem,:)),Ngp(inode,:),rho(connec(lmatch(ielem,2),inode)))
-         call var_interpolate(lin_pr(lin_connec(ielem,:)),Ngp(inode,:),pr(connec(lmatch(ielem,2),inode)))
+      do igaus = 1,ngaus
+         call var_interpolate(lin_nnode,lin_rho(lin_connec(ielem,:)),Ngp(igaus,:),rho(connec(lmatch(ielem,2),igaus)))
+         write(*,*) ielem, connec(lmatch(ielem,2),igaus), rho(connec(lmatch(ielem,2),igaus))
       end do
    end do
-   !$acc end parallel loop
 
 end program mesh_interpolate

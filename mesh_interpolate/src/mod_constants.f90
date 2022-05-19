@@ -41,6 +41,6 @@ module mod_constants
       !
       ! Flags
       !
-      integer(4), parameter :: flag_readVTK=1
+      integer(4), parameter :: flag_readVTK=0
 
 end module mod_constants
