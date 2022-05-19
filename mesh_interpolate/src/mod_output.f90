@@ -4,6 +4,15 @@ module mod_output
 
    contains
 
+      subroutine write_ascii_fields(npoin,rho,u,pr)
+         implicit none
+         integer(4), intent(in)  :: npoin
+         real(8),    intent(out) :: rho(npoin), u(npoin,ndime), pr(npoin)
+         integer(4)              :: ipoin, idime
+         integer(4), parameter   :: fileID=667
+         character(500)          :: filename
+      end subroutine write_ascii_fields
+
       subroutine write_vtk_binary_linearized(npoin,nelem,coord,connecLINEAR,connec,rho,u,pr)
          implicit none
       
