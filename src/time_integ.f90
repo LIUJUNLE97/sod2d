@@ -180,14 +180,6 @@ module time_integ
                   end if
                   call nvtxEndRange
                   !
-                  ! Compute subgrid viscosity if active
-                  !
-                  if(flag_les == 1) then
-                     call nvtxStartRange("MU_SGS")
-                     call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_rho,aux_u,mu_sgs)
-                     call nvtxEndRange
-                  end if
-                  !
                   ! Update viscosity if Sutherland's law is active
                   !
                   if (flag_real_diff == 1 .and. flag_diff_suth == 1) then
@@ -199,9 +191,13 @@ module time_integ
                   ! Compute diffusion terms with values at current substep
                   !
                   call nvtxStartRange("DIFFUSIONS")
-                  call mass_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_rho,mu_e,Rdiff_mass)
-                  call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,mu_fluid,mu_e,mu_sgs,Rdiff_mom)
-                  call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Rdiff_ener)
+                  if(flag_SpectralElem == 0) then
+                     call mass_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_rho,mu_e,Rdiff_mass)
+                     call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,mu_fluid,mu_e,mu_sgs,Rdiff_mom)
+                     call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Rdiff_ener)
+                  else 
+                     call full_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_rho,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Rdiff_mass,Rdiff_mom,Rdiff_ener)
+                  end if
                   call nvtxEndRange
                   !
                   ! Call source term if applicable
@@ -332,6 +328,14 @@ module time_integ
             if (flag_real_diff == 1 .and. flag_diff_suth == 1) then
                call nvtxStartRange("Sutherland viscosity")
                call sutherland_viscosity(npoin,Tem(:,pos),mu_fluid)
+               call nvtxEndRange
+            end if
+            !
+            ! Compute subgrid viscosity if active
+            !
+            if(flag_les == 1) then
+               call nvtxStartRange("MU_SGS")
+               call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,pos),u(:,:,pos),mu_sgs)
                call nvtxEndRange
             end if
          end subroutine rk_4_main
