@@ -7,6 +7,7 @@ program mesh_interpolate
    use inicond_reader
    use mod_output
    use mod_maths
+   use mod_geom
 
    implicit none
 
@@ -17,7 +18,7 @@ program mesh_interpolate
    integer(4), allocatable :: lin_connec(:,:), lin_bound(:,:)
    integer(4), allocatable :: atoIJK(:), listHEX08(:,:)
    integer(4), allocatable :: connec(:,:), bound(:,:)
-   integer(4), allocatable :: lmatch(:,:)
+   integer(4), allocatable :: lmatch(:,:), connecLINEAR(:,:)
 	real(8)                 :: xi, eta, zeta
    real(8),    allocatable :: lin_xyz(:,:), xyz(:,:), aux(:,:)
    real(8),    allocatable :: xnodes(:,:), wgp(:)
@@ -125,7 +126,7 @@ program mesh_interpolate
    allocate(xnodes(ngaus,ndime))
    allocate(wgp(ngaus))
    if (nnode == 64) then
-      call hex64(1.0d0,1.0d0,1.0d0,atoIJK)
+      call hex64(1.0d0,1.0d0,1.0d0,atoIJK,listHEX08)
    end if
    call lagrange_hex(atoIJK,xnodes,wgp)
 
@@ -143,9 +144,18 @@ program mesh_interpolate
    WRITE(*,*) '*** Starting interpolation process...'
    do ielem = 1,nelem
       do igaus = 1,ngaus
+         do idime = 1,ndime
+            call var_interpolate(lin_nnode,lin_u(lin_connec(ielem,:),idime),Ngp(igaus,:),u(connec(lmatch(ielem,2),igaus),idime))
+         end do
          call var_interpolate(lin_nnode,lin_rho(lin_connec(ielem,:)),Ngp(igaus,:),rho(connec(lmatch(ielem,2),igaus)))
-         write(*,*) ielem, connec(lmatch(ielem,2),igaus), rho(connec(lmatch(ielem,2),igaus))
+         call var_interpolate(lin_nnode,lin_pr(lin_connec(ielem,:)),Ngp(igaus,:),pr(connec(lmatch(ielem,2),igaus)))
       end do
    end do
+
+   ! Output results to VTK file
+   WRITE(*,*) '*** Writing VTK file...'
+   allocate(connecLINEAR(nelem*(porder**ndime),2**ndime))
+   call linearMeshOutput(nelem,connec,listHEX08,connecLINEAR)
+   call write_vtk_binary_linearized(npoin,nelem,xyz,connecLINEAR,connec,rho,u,pr)
 
 end program mesh_interpolate
