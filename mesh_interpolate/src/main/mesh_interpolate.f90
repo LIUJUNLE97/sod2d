@@ -13,7 +13,7 @@ program mesh_interpolate
    integer(4)              :: igaus, ielem, inode, idime, jelem
    integer(4)              :: lin_npoin, lin_nelem, lin_nboun
    integer(4)              :: npoin, nelem, nboun
-   integer(4)              :: counter
+   integer(4)              :: counter, numMatches
    integer(4), allocatable :: lin_connec(:,:), lin_bound(:,:)
    integer(4), allocatable :: atoIJK(:), listHEX08(:,:)
    integer(4), allocatable :: connec(:,:), bound(:,:)
@@ -35,13 +35,13 @@ program mesh_interpolate
    write(lin_file_path,*) "./mesh_lin/"
    call read_dims(lin_file_path,lin_file_name,lin_npoin,lin_nelem,lin_nboun)
    allocate(lin_connec(lin_nelem,lin_nnode), lin_bound(lin_nboun,lin_npbou), lin_xyz(lin_npoin,ndime))
-   call read_geo_dat(lin_file_path,lin_file_name,lin_npoin,lin_nelem,lin_nboun,lin_connec,lin_bound,lin_xyz)
+   call read_geo_dat(lin_file_path,lin_file_name,lin_npoin,lin_nelem,lin_nboun,lin_nnode,lin_npbou,lin_connec,lin_bound,lin_xyz)
 
    ! Read the high-order mesh
    write(file_path,*) "./mesh/"
    call read_dims(file_path,file_name,npoin,nelem,nboun)
    allocate(connec(nelem,nnode), bound(nboun,npbou), xyz(npoin,ndime))
-   call read_geo_dat(file_path,file_name,npoin,nelem,nboun,connec,bound,xyz)
+   call read_geo_dat(file_path,file_name,npoin,nelem,nboun,nnode,npbou,connec,bound,xyz)
 
    ! Check if the mesh is compatible
    if (nelem .ne. lin_nelem) then
@@ -54,28 +54,42 @@ program mesh_interpolate
    ! Col. 2: high-order element number
    allocate(lmatch(nelem,2))
    allocate(aux(lin_nnode,ndime))
+   numMatches = 0
    linear: do ielem = 1, nelem
+      print*,'ielem = ',ielem
       lmatch(ielem,1) = ielem
       aux(1:lin_nnode,1:ndime) = lin_xyz(lin_connec(ielem,1:lin_nnode),1:ndime)
       nonlinear: do jelem = 1,nelem
+         print*, '   jelem = ',jelem
          counter = 0
          corners: do inode = 1,nncorner
+            print*, '      inode = ',inode
             do idime = 1,ndime
+               print*, '         idime = ',idime
                if (aux(inode,idime) .ne. xyz(connec(jelem,inode),idime)) then
+                  print*, '         match not found'
                   exit corners
                else if (aux(inode,idime) .eq. xyz(connec(jelem,inode),idime)) then
                   counter = counter + 1
+                  print*, '         counter = ',counter
                end if
             end do
          end do corners
          if (counter .eq. ndime*nncorner) then
             lmatch(ielem,2) = jelem
-         else
-            write(*,*) "Did not found a matching pair of elements! Check your mesh!"
-            error stop
+            numMatches = numMatches + 1
+            exit nonlinear
          end if
       end do nonlinear
    end do linear
+   if (numMatches .ne. nelem) then
+      write(*,*) 'numMatches = ',numMatches
+      write(*,*) "The number of matches is different from the number of elements in the high-order mesh"
+      error stop
+   else
+      write(*,*) 'numMatches = ',numMatches
+      write(*,*) 'All the elements in the high-order mesh have been matched with an element in the linear mesh'
+   end if
 
    ! Allocate data for linear and high order  variables
    allocate(lin_u(lin_npoin,ndime))
