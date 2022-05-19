@@ -10,14 +10,16 @@ program mesh_interpolate
 
    implicit none
 
-   integer(4)              :: igaus, ielem, inode, idime, ierr
+   integer(4)              :: igaus, ielem, inode, idime, jelem
    integer(4)              :: lin_npoin, lin_nelem, lin_nboun
    integer(4)              :: npoin, nelem, nboun
+   integer(4)              :: counter
    integer(4), allocatable :: lin_connec(:,:), lin_bound(:,:)
    integer(4), allocatable :: atoIJK(:), listHEX08(:,:)
    integer(4), allocatable :: connec(:,:), bound(:,:)
+   integer(4), allocatable :: lmatch(:,:)
 	real(8)                 :: xi, eta, zeta
-   real(8),    allocatable :: lin_xyz(:,:), xyz(:,:)
+   real(8),    allocatable :: lin_xyz(:,:), xyz(:,:), aux(:,:)
    real(8),    allocatable :: xnodes(:,:), wgp(:)
    real(8),    allocatable :: Ngp(:,:), dNgp(:,:,:)
    real(8),    allocatable :: lin_u(:,:), lin_rho(:), lin_pr(:), lin_E(:), lin_mu_fluid(:)
@@ -42,25 +44,38 @@ program mesh_interpolate
    call read_geo_dat(file_path,file_name,npoin,nelem,nboun,connec,bound,xyz)
 
    ! Check if the mesh is compatible
-   ierr = 0
    if (nelem .ne. lin_nelem) then
       write(*,*) "The number of elements in the high-order mesh is different from the number of elements in the linear mesh"
       error stop
    end if
-   !$acc parallel loop gang vector_length(32)
-   do ielem = 1,nelem
-      !$acc loop seq
-      do inode = 1,nncorner
-         if ( connec(ielem,inode) .ne. lin_connec(ielem,inode) ) then
-            ierr = 1
+   
+   ! Create a list of matching pairs of high-order and linear elements
+   ! Col. 1: low-order element number
+   ! Col. 2: high-order element number
+   allocate(lmatch(nelem,2))
+   allocate(aux(lin_nnode,ndime))
+   linear: do ielem = 1, nelem
+      lmatch(ielem,1) = ielem
+      aux(1:lin_nnode,1:ndime) = lin_xyz(lin_connec(ielem,1:lin_nnode),1:ndime)
+      nonlinear: do jelem = 1,nelem
+         counter = 0
+         corners: do inode = 1,nncorner
+            do idime = 1,ndime
+               if (aux(inode,idime) .ne. xyz(connec(jelem,inode),idime)) then
+                  exit corners
+               else if (aux(inode,idime) .eq. xyz(connec(jelem,inode),idime)) then
+                  counter = counter + 1
+               end if
+            end do
+         end do corners
+         if (counter .eq. ndime*nncorner) then
+            lmatch(ielem,2) = jelem
+         else
+            write(*,*) "Did not found a matching pair of elements! Check your mesh!"
+            error stop
          end if
-      end do
-   end do
-   !$acc end parallel loop
-   if (ierr .ne. 0) then
-      write(*,*) "The connectivity of the high-order mesh is different from the connectivity of the linear mesh"
-      error stop
-   end if
+      end do nonlinear
+   end do linear
 
    ! Allocate data for linear and high order  variables
    allocate(lin_u(lin_npoin,ndime))
