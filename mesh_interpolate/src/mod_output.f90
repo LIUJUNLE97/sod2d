@@ -5,12 +5,39 @@ module mod_output
    contains
 
       subroutine write_ascii_fields(npoin,rho,u,pr)
+
          implicit none
+
          integer(4), intent(in)  :: npoin
          real(8),    intent(out) :: rho(npoin), u(npoin,ndime), pr(npoin)
-         integer(4)              :: ipoin, idime
+         integer(4)              :: ipoin
          integer(4), parameter   :: fileID=667
          character(500)          :: filename
+
+         ! Write velocity vector u to VELOC.alya file
+         write(filename,'("VELOC.alya")')
+         open(unit=fileID,file=filename,status='unknown')
+         do ipoin = 1, npoin
+            write(fileID,'(I7,2X,F16.8,2X,F16.8,2X,F16.8)') ipoin, u(ipoin,1), u(ipoin,2), u(ipoin,3)
+         end do
+         close(fileID)
+
+         ! Write density rho to DENSITY.alya file
+         write(filename,'("DENSI.alya")')
+         open(unit=fileID,file=filename,status='unknown')
+         do ipoin = 1, npoin
+            write(fileID,*) ipoin, rho(ipoin)
+         end do
+         close(fileID)
+
+         ! Write pressure pr to PRESSURE.alya file
+         write(filename,'("PRESS.alya")')
+         open(unit=fileID,file=filename,status='unknown')
+         do ipoin = 1, npoin
+            write(fileID,*) ipoin, pr(ipoin)
+         end do
+         close(fileID)
+
       end subroutine write_ascii_fields
 
       subroutine write_vtk_binary_linearized(npoin,nelem,coord,connecLINEAR,connec,rho,u,pr)

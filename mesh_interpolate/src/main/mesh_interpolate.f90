@@ -157,5 +157,7 @@ program mesh_interpolate
    allocate(connecLINEAR(nelem*(porder**ndime),2**ndime))
    call linearMeshOutput(nelem,connec,listHEX08,connecLINEAR)
    call write_vtk_binary_linearized(npoin,nelem,xyz,connecLINEAR,connec,rho,u,pr)
+   WRITE(*,*) '*** Writing ASCII files...'
+   call write_ascii_fields(npoin,rho,u,pr)
 
 end program mesh_interpolate
