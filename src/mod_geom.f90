@@ -67,6 +67,7 @@ module mod_geom
                  !
                  ! Obtain ||dist||_2 for all edges and select minimum size as elem. characteristic size
                  !
+                 !aux = 0.0d0
                  aux = 1000000000000000000000000000000000000000000000000000000000000000000000.0d0
                  do inode = 1,nnode
                     do jnode = 1,nnode

@@ -63,9 +63,9 @@ module elem_diffu
                          end do
                          !$acc loop vector
                          do inode = 1,nnode
-                            !!$acc atomic update
+                            !$acc atomic update
                             Rmass(connec(ielem,inode)) = Rmass(connec(ielem,inode))+Re(inode)
-                            !!$acc end atomic
+                            !$acc end atomic
                          end do
                       end do
                       !$acc end parallel loop
@@ -348,5 +348,145 @@ module elem_diffu
                       call nvtxEndRange
 
               end subroutine ener_diffusion
+
+              subroutine full_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho,u,Tem,mu_fluid,mu_e,mu_sgs,Rmass,Rmom,Rener)
+                      implicit none
+
+                      integer(4), intent(in)  :: nelem, npoin
+                      integer(4), intent(in)  :: connec(nelem,nnode)
+                      real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                      real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
+                      real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
+                      real(8),    intent(in)  :: rho(npoin),u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
+                      real(8),    intent(in)  :: mu_fluid(npoin)
+                      real(8),    intent(out) :: Rmass(npoin)
+                      real(8),    intent(out) :: Rmom(npoin,ndime)
+                      real(8),    intent(out) :: Rener(npoin)
+                      integer(4)              :: ielem, igaus, inode, idime, jdime
+                      real(8)                 :: Re_mass(nnode),Re_mom(nnode,ndime),Re_ener(nnode)
+                      real(8)                 :: kappa_e, mu_fgp, aux, divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
+                      real(8)                 :: gpcar(ndime,nnode), gradU(ndime,ndime), gradT(ndime),tmp1,ugp(ndime)
+
+                      call nvtxStartRange("Full diffusion")
+                      twoThirds = 2.0d0/3.0d0
+                      !$acc kernels
+                      Rmass(:) = 0.0d0
+                      Rmom(:,:) = 0.0d0
+                      Rener(:) = 0.0d0
+                      !$acc end kernels
+
+                      !$acc parallel loop gang  private(gpcar,Re_mass,Re_mom,tau,gradU,Re_ener,gradT,tauU,ugp) vector_length(vecLength)
+                      do ielem = 1,nelem
+                         !$acc loop vector
+                         do inode = 1,nnode
+                            Re_mass(inode) = 0.0d0
+                            Re_ener(inode) = 0.0d0
+                         end do
+                         !$acc loop vector collapse(2)
+                         do inode = 1,nnode
+                            do idime = 1,ndime
+                               Re_mom(inode,idime) = 0.0d0
+                            end do
+                         end do
+                         !$acc loop seq
+                         do igaus = 1,ngaus
+                            !$acc loop seq
+                            do idime = 1,ndime
+                               !$acc loop vector
+                               do inode = 1,nnode
+                                  gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                               end do
+                               ugp(idime) = u(connec(ielem,igaus),idime)
+                            end do
+                            nu_e = c_rho*mu_e(ielem,igaus)/rho(connec(ielem,igaus))
+                            mu_fgp = mu_fluid(connec(ielem,igaus))+mu_e(ielem,igaus)+mu_sgs(ielem,igaus)
+                            kappa_e =mu_fluid(connec(ielem,igaus))*1004.0d0/0.71d0+c_ener*mu_e(ielem,igaus)/0.4d0 + mu_sgs(ielem,igaus)/0.9d0
+                            !
+                            ! Compute grad(u)
+                            !
+                            !$acc loop seq
+                            do idime = 1,ndime
+                               !$acc loop seq
+                               do jdime = 1,ndime
+                                  aux = 0.0d0
+                                  !$acc loop vector reduction(+:aux)
+                                  do inode = 1,nnode
+                                     aux = aux+gpcar(jdime,inode)*u(connec(ielem,inode),idime)
+                                  end do
+                                  gradU(idime,jdime) = aux
+                               end do
+                            end do
+                            !
+                            ! Compute div(u)
+                            !
+                            divU = gradU(1,1)+gradU(2,2)+gradU(3,3)
+                            !
+                            ! Finish computing tau_ij = u_i,j + u_j,i - (2/3)*div(u)*d_ij
+                            ! Compute tau*u
+                            !
+                            !$acc loop seq
+                            do idime = 1,ndime
+                               tauU(idime) = 0.0d0
+                               !$acc loop seq
+                               do jdime = 1,ndime
+                                  tauU(idime) = tauU(idime) + &
+                                     (gradU(idime,jdime)+ gradU(jdime,idime))*ugp(jdime)
+                                  tau(idime,jdime) = gradU(idime,jdime)+gradU(jdime,idime)
+                               end do
+                               tauU(idime) = tauU(idime)-twoThirds*divU*ugp(idime)
+                               tau(idime,idime) = tau(idime,idime)-twoThirds*divU
+                            end do
+
+                            ! Dif rho
+                            ! Dif T
+                            ! Compute div(tau) at the Gauss point
+                            !$acc loop seq
+                            do idime = 1,ndime
+                               tmp1 = 0.0d0
+                               aux = 0.0d0
+                               !$acc loop vector reduction(+:tmp1,aux)
+                               do inode = 1,nnode
+                                  tmp1 = tmp1+gpcar(idime,inode)*rho(connec(ielem,inode))
+                                  aux = aux+gpcar(idime,inode)*Tem(connec(ielem,inode))
+                               end do
+                               !$acc loop vector
+                               do inode = 1,nnode
+                                  Re_mass(inode) = Re_mass(inode)+nu_e*gpvol(1,igaus,ielem)* &
+                                     gpcar(idime,inode)*tmp1
+                                  Re_ener(inode) = Re_ener(inode)+gpvol(1,igaus,ielem)*gpcar(idime,inode)* &
+                                                   (mu_fgp*tauU(idime)+kappa_e*aux)
+                               end do
+                               !$acc loop seq
+                               do jdime = 1,ndime
+                                  !$acc loop vector
+                                  do inode = 1,nnode
+                                     Re_mom(inode,idime) = Re_mom(inode,idime)+gpvol(1,igaus,ielem)* &
+                                        gpcar(jdime,inode)*mu_fgp*tau(idime,jdime)
+                                  end do
+                               end do
+                            end do
+                         end do
+                         !$acc loop vector
+                         do inode = 1,nnode
+                            !$acc atomic update
+                            Rmass(connec(ielem,inode)) = Rmass(connec(ielem,inode))+Re_mass(inode)
+                            !$acc end atomic
+                            !$acc atomic update
+                            Rener(connec(ielem,inode)) = Rener(connec(ielem,inode))+Re_ener(inode)
+                            !$acc end atomic
+                         end do
+                         !$acc loop vector collapse(2)
+                         do inode = 1,nnode
+                            do idime = 1,ndime
+                               !$acc atomic update
+                               Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)+Re_mom(inode,idime)
+                               !$acc end atomic
+                            end do
+                         end do
+                      end do
+                      !$acc end parallel loop
+                      call nvtxEndRange
+
+              end subroutine full_diffusion
 
 end module elem_diffu

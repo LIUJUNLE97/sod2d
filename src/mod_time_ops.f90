@@ -30,11 +30,13 @@ module mod_time_ops
             L3 = 0.0d0
             !$acc loop vector reduction(max:L3)
             do inode = 1,nnode
-               umag = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:)))
+               umag = abs(u(connec(ielem,inode),1))
+               umag = max(umag,abs(u(connec(ielem,inode),2)))
+               umag = max(umag,abs(u(connec(ielem,inode),3)))
                aux1 = umag+csound(connec(ielem,inode))
                L3 = max(L3,aux1)
             end do
-            aux2 = cfl_conv*(helem(ielem)/dble(porder))/L3
+            aux2 = cfl_conv*(helem(ielem)/dble(porder+1))/L3
             dt_conv = min(dt_conv,aux2)
             if(present(cfl_diff) .and. present(mu_fluid) .and. present(rho)) then
                max_MU = 0.0d0
