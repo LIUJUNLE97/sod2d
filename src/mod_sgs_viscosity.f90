@@ -11,7 +11,7 @@ module mod_sgs_viscosity
                ! it implents the Vreman SGS
 
               subroutine sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol, &
-                                    rho,u,mu_sgs)
+                                    rho,u,Ml,mu_sgs)
               
                       implicit none
 
@@ -19,7 +19,7 @@ module mod_sgs_viscosity
                       real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: rho(npoin), u(npoin,ndime)
+                      real(8),    intent(in)  :: rho(npoin), u(npoin,ndime),Ml(npoin)
                       real(8),    intent(out) :: mu_sgs(nelem,ngaus)
                       integer(4)              :: ielem, inode, igaus, kdime, idime, jdime
                       real(8)                 :: hLES, evol,gpcar(ndime,nnode), aux, mue(npoin), ave(npoin)
@@ -97,14 +97,9 @@ module mod_sgs_viscosity
                          !$acc end kernels
                          !$acc parallel loop gang  private(gpcar,gradU,gradV2) vector_length(vecLength)
                          do ielem = 1,nelem
-                            evol = 0.0d0
-                            !$acc loop vector reduction(+:evol)
-                            do igaus = 1,ngaus
-                               evol = evol + gpvol(1,igaus,ielem)
-                            end do
-                            hLES = (evol**(1.0d0/3.0d0))/dble(porder+1)
                             !$acc loop seq
                             do igaus = 1,ngaus
+                               hLES = Ml(connec(ielem,igaus))**(1.0d0/3.0d0)
                                !$acc loop seq
                                do idime = 1,ndime
                                   !$acc loop vector
@@ -152,24 +147,25 @@ module mod_sgs_viscosity
                                if(alpha > 1.0e-10) then
                                   aux = c_sgs*sqrt(max(Bbeta,1.0e-10)/alpha)
                                end if
-                               !$acc atomic update
-                               mue(connec(ielem,igaus)) = mue(connec(ielem,igaus))+aux
-                               !$acc end atomic
-                               !$acc atomic update
-                               ave(connec(ielem,igaus)) = ave(connec(ielem,igaus))+1.0d0
-                               !$acc end atomic
+                               mu_sgs(ielem,igaus) = aux
+                              !!$acc atomic update
+                              !mue(connec(ielem,igaus)) = mue(connec(ielem,igaus))+aux
+                              !!$acc end atomic
+                              !!$acc atomic update
+                              !ave(connec(ielem,igaus)) = ave(connec(ielem,igaus))+1.0d0
+                              !!$acc end atomic
                             end do
                          end do
                          !$acc end parallel loop
 
-                         !$acc parallel loop gang vector_length(vecLength)
-                         do ielem = 1,nelem
-                            !$acc loop vector
-                            do inode = 1,nnode
-                               mu_sgs(ielem,inode) = mue(connec(ielem,inode))/ave(connec(ielem,inode))
-                            end do
-                         end do
-                         !$acc end parallel loop
+                       ! !$acc parallel loop gang vector_length(vecLength)
+                       ! do ielem = 1,nelem
+                       !    !$acc loop vector
+                       !    do inode = 1,nnode
+                       !       mu_sgs(ielem,inode) = mue(connec(ielem,inode))/ave(connec(ielem,inode))
+                       !    end do
+                       ! end do
+                       ! !$acc end parallel loop
 
                       end if
 

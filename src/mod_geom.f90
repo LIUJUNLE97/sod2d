@@ -51,13 +51,13 @@ module mod_geom
 
          end subroutine char_length
 
-         subroutine char_length_spectral(ielem,nelem,npoin,connec,coord,he_l)
+         subroutine char_length_spectral(ielem,nelem,npoin,connec,coord,Ml,he_l)
 
                  implicit none
 
                  integer(4), intent(in)    :: ielem, nelem, npoin, connec(nelem,nnode)
-                 real(8),    intent(in)    :: coord(npoin,ndime)
-                 real(8),    intent(inout) :: he_l(npoin)
+                 real(8),    intent(in)    :: coord(npoin,ndime), Ml(npoin)
+                 real(8),    intent(inout) :: he_l(nelem,nnode)
                  integer(4)                :: inode, jnode,idime
                  real(8)                   :: aux,dist(ndime),dist2
 
@@ -68,18 +68,19 @@ module mod_geom
                  ! Obtain ||dist||_2 for all edges and select minimum size as elem. characteristic size
                  !
                  !aux = 0.0d0
-                 aux = 1000000000000000000000000000000000000000000000000000000000000000000000.0d0
+                 !aux = 1000000000000000000000000000000000000000000000000000000000000000000000.0d0
+                 !do inode = 1,nnode
+                 !   do jnode = 1,nnode
+                 !      if(inode .ne. jnode) then 
+                 !         dist = coord(connec(ielem,inode),:)-coord(connec(ielem,jnode),:)
+                 !         dist2 = sqrt(dot_product(dist(:),dist(:)))
+                 !         aux = min(dist2,aux)
+                 !      end if
+                 !   end do
+                 !end do
                  do inode = 1,nnode
-                    do jnode = 1,nnode
-                       if(inode .ne. jnode) then 
-                          dist = coord(connec(ielem,inode),:)-coord(connec(ielem,jnode),:)
-                          dist2 = sqrt(dot_product(dist(:),dist(:)))
-                          aux = min(dist2,aux)
-                       end if
-                    end do
-                    he_l(connec(ielem,inode)) = min(aux,he_l(connec(ielem,inode)))
+                    he_l(ielem,inode) = Ml(connec(ielem,inode))**(1.0d0/dble(ndime))
                  end do
-
          end subroutine char_length_spectral
 
          subroutine linearMeshOutput(nelem,connec,listHEX08,connecLINEAR)

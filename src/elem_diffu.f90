@@ -349,7 +349,7 @@ module elem_diffu
 
               end subroutine ener_diffusion
 
-              subroutine full_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho,u,Tem,mu_fluid,mu_e,mu_sgs,Rmass,Rmom,Rener)
+              subroutine full_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho,u,Tem,mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener)
                       implicit none
 
                       integer(4), intent(in)  :: nelem, npoin
@@ -357,7 +357,7 @@ module elem_diffu
                       real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: rho(npoin),u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
+                      real(8),    intent(in)  :: rho(npoin),u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus),Ml(npoin)
                       real(8),    intent(in)  :: mu_fluid(npoin)
                       real(8),    intent(out) :: Rmass(npoin)
                       real(8),    intent(out) :: Rmom(npoin,ndime)
@@ -365,7 +365,7 @@ module elem_diffu
                       integer(4)              :: ielem, igaus, inode, idime, jdime
                       real(8)                 :: Re_mass(nnode),Re_mom(nnode,ndime),Re_ener(nnode)
                       real(8)                 :: kappa_e, mu_fgp, aux, divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
-                      real(8)                 :: gpcar(ndime,nnode), gradU(ndime,ndime), gradT(ndime),tmp1,ugp(ndime)
+                      real(8)                 :: gpcar(ndime,nnode), gradU(ndime,ndime), gradT(ndime),tmp1,ugp(ndime),vol,arho
 
                       call nvtxStartRange("Full diffusion")
                       twoThirds = 2.0d0/3.0d0
@@ -398,7 +398,15 @@ module elem_diffu
                                end do
                                ugp(idime) = u(connec(ielem,igaus),idime)
                             end do
-                            nu_e = c_rho*mu_e(ielem,igaus)/rho(connec(ielem,igaus))
+                            arho = 0.0d0
+                            vol = 0.0d0
+                            !$acc loop vector reduction(+:arho,vol)
+                            do inode = 1,nnode
+                               arho  = arho + rho(connec(ielem,inode))
+                               vol = vol + Ml(inode)
+                            end do
+                            arho = arho/vol
+                            nu_e = c_rho*mu_e(ielem,igaus)/arho
                             mu_fgp = mu_fluid(connec(ielem,igaus))+mu_e(ielem,igaus)+mu_sgs(ielem,igaus)
                             kappa_e =mu_fluid(connec(ielem,igaus))*1004.0d0/0.71d0+c_ener*mu_e(ielem,igaus)/0.4d0 + mu_sgs(ielem,igaus)/0.9d0
                             !

@@ -46,7 +46,7 @@ program sod2d
         integer(4), allocatable    :: connec(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
         integer(4), allocatable    :: masSla(:,:), connec_orig(:,:), aux1(:), bound_orig(:,:)
         integer(4), allocatable    :: lpoin_w(:), atoIJK(:), listHEX08(:,:), connecLINEAR(:,:)
-        real(8),    allocatable    :: coord(:,:), coord_old(:,:), helem(:),helem_l(:)
+        real(8),    allocatable    :: coord(:,:), coord_old(:,:), helem(:),helem_l(:,:)
         real(8),    allocatable    :: xgp(:,:), wgp(:)
         real(8),    allocatable    :: Ngp(:,:), dNgp(:,:,:)
         real(8),    allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:)
@@ -101,7 +101,7 @@ program sod2d
         mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
         flag_mu_factor = mul/mur
 
-        flag_mu_factor = 0.0d0 ! shock
+        !flag_mu_factor = 0.0d0 ! shock
 #endif
 
         !*********************************************************************!
@@ -123,8 +123,8 @@ program sod2d
         Cp = 1004.00d0 ! TODO: Make it input
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
-        cfl_conv = 2.0d0
-        cfl_diff = 2.0d0
+        cfl_conv = 0.1d0
+        cfl_diff = 0.1d0
         nsave  = 1   ! First step to save, TODO: input
      nsave2 = 1   ! First step to save, TODO: input
         nleap = 1000 ! Saving interval, TODO: input
@@ -132,18 +132,19 @@ program sod2d
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
-        isPeriodic = 0 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
+        isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #endif        
         if (isPeriodic == 1) then
 #ifdef CHANNEL
            !nper = 1891 ! TODO: if periodic, request number of periodic nodes
-           nper = 5551 ! TODO: if periodic, request number of periodic nodes
+           !nper = 5551 ! TODO: if periodic, request number of periodic nodes
+           nper = 4753 ! TODO: if periodic, request number of periodic nodes
            !nper = 16471 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
-           !nper = 10981  ! TODO: if periodic, request number of periodic nodes
+           nper = 10981  ! TODO: if periodic, request number of periodic nodes
            !nper = 48007   ! TODO: if periodic, request number of periodic nodes
-           nper = 97741   ! TODO: if periodic, request number of periodic nodes
+           !nper = 97741   ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
@@ -185,8 +186,8 @@ program sod2d
 #ifdef CHANNEL
         write(file_name,*) "channel" ! Nsys
 #else
-        write(file_name,*) "shock_tube" ! Nsys
-        !write(file_name,*) "cube" ! Nsys
+        !write(file_name,*) "shock_tube" ! Nsys
+        write(file_name,*) "cube" ! Nsys
 #endif
         call read_dims(file_path,file_name,npoin,nelem,nboun)
         allocate(connec(nelem,nnode))
@@ -379,9 +380,10 @@ program sod2d
            !call read_vtk_binary(isPeriodic,230001,npoin,nelem,coord,connec, &
            !   rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
            call read_veloc(npoin,file_path,u(:,:,2))
+           call read_densi(npoin,file_path,rho(:,2))
            do ipoin = 1,npoin
               pr(ipoin,2) = po
-              rho(ipoin,2) = po/Rg/to
+              !rho(ipoin,2) = po/Rg/to
               e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0d0))
               Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas)
               E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
@@ -610,16 +612,6 @@ program sod2d
            end do
            deallocate(aux_2)
         end if
-        !charecteristic length for spectral elements for the entropy
-        !stablisation
-        allocate(helem_l(npoin))
-        if (flag_SpectralElem == 1) then
-           !helem_l(:) = 0.0d0
-           helem_l(:) = 1000000000000000000000000000000000000000000000000000000000000000000000.0d0
-           do ielem = 1,nelem
-              call char_length_spectral(ielem,nelem,npoin,connec,coord,helem_l)
-           end do
-        end if
 
         !*********************************************************************!
         ! Generate linear mesh and output for spectral case                   !
@@ -701,6 +693,17 @@ program sod2d
            write(1,*) '--| SPECTRAL ELEMENT FLAG MUST BE 1 OR 0!'
         end if
         call nvtxEndRange
+
+        !charecteristic length for spectral elements for the entropy
+        !stablisation
+        allocate(helem_l(nelem,nnode))
+        if (flag_SpectralElem == 1) then
+           !helem_l(:) = 0.0d0
+           helem_l(:) = 1000000000000000000000000000000000000000000000000000000000000000000000.0d0
+           do ielem = 1,nelem
+              call char_length_spectral(ielem,nelem,npoin,connec,coord,Ml,helem_l)
+           end do
+        end if
 
         !
         ! Consisten mass: activate with CSR related operations

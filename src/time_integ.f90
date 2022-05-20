@@ -173,7 +173,7 @@ module time_integ
                   !
                   if (flag_SpectralElem == 1) then
                      call smart_visc_spectral(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                        gamma_gas,aux_rho,aux_u,aux_Tem,helem_l,helem,mu_e)
+                        gamma_gas,aux_rho,aux_u,aux_Tem,helem_l,helem,Ml,mu_e)
                   else
                      call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
                         gamma_gas,aux_rho,aux_u,aux_Tem,helem,mu_e)
@@ -196,7 +196,7 @@ module time_integ
                      call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,mu_fluid,mu_e,mu_sgs,Rdiff_mom)
                      call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Rdiff_ener)
                   else 
-                     call full_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_rho,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Rdiff_mass,Rdiff_mom,Rdiff_ener)
+                     call full_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_rho,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass,Rdiff_mom,Rdiff_ener)
                   end if
                   call nvtxEndRange
                   !
@@ -215,7 +215,7 @@ module time_integ
                   !
                   ! Conservation momentum convection div(qi*uj)+grad(p)
                   !
-                  call mom_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_q,aux_pr,Rmom)
+                  call mom_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_q,aux_rho,aux_pr,Rmom)
                else if (flag_emac .eq. 1) then
                   !
                   ! EMAC term
@@ -335,7 +335,7 @@ module time_integ
             !
             if(flag_les == 1) then
                call nvtxStartRange("MU_SGS")
-               call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,pos),u(:,:,pos),mu_sgs)
+               call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,pos),u(:,:,pos),Ml,mu_sgs)
                call nvtxEndRange
             end if
          end subroutine rk_4_main

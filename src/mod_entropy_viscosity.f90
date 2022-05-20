@@ -32,7 +32,7 @@ module mod_entropy_viscosity
                       integer(4)              :: ipoin, idime
                       real(8)                 :: eta(npoin), eta_p(npoin), alpha(npoin), alpha_p(npoin)
                       real(8)                 :: f_eta(npoin,ndime), f_rho(npoin,ndime), R1(npoin), R2(npoin)
-                      real(8)                 :: aux1(npoin), maxEta, maxRho
+                      real(8)                 :: aux1(npoin), maxEta, maxRho,vol
 
                        !
                        ! Entropy function and temporal terms
@@ -43,16 +43,19 @@ module mod_entropy_viscosity
 
                           eta(lpoin_w(ipoin)) = (rhok(lpoin_w(ipoin))/(gamma_gas-1.0d0))* &
                              log(prk(lpoin_w(ipoin))/(rhok(lpoin_w(ipoin))**gamma_gas))
-                          eta_p(lpoin_w(ipoin)) = (rho(lpoin_w(ipoin),1)/(gamma_gas-1.0d0))* &
-                             log(pr(lpoin_w(ipoin),1)/(rho(lpoin_w(ipoin),1)**gamma_gas))
+                          eta_p(lpoin_w(ipoin)) = (rho(lpoin_w(ipoin),2)/(gamma_gas-1.0d0))* &
+                             log(pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)**gamma_gas))
+                          !eta_p(lpoin_w(ipoin)) = (rho(lpoin_w(ipoin),1)/(gamma_gas-1.0d0))* &
+                          !   log(pr(lpoin_w(ipoin),1)/(rho(lpoin_w(ipoin),1)**gamma_gas))
 
                           !$acc loop vector
                           do idime = 1,ndime
-                             f_eta(lpoin_w(ipoin),idime) = uk(lpoin_w(ipoin),idime)*eta(lpoin_w(ipoin))
-                             f_rho(lpoin_w(ipoin),idime) = qk(lpoin_w(ipoin),idime)
+                             f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,2)*eta_p(lpoin_w(ipoin))
+!                             f_rho(lpoin_w(ipoin),idime) = q(lpoin_w(ipoin),idime,2)
                           end do
 
-                          R1(lpoin_w(ipoin)) = (eta_p(lpoin_w(ipoin))-eta(lpoin_w(ipoin)))/dt  ! Temporal entropy
+                          R1(lpoin_w(ipoin)) = (eta(lpoin_w(ipoin))-eta_p(lpoin_w(ipoin)))/dt  ! Temporal entropy
+                          !R1(lpoin_w(ipoin)) = (eta_p(lpoin_w(ipoin))-eta(lpoin_w(ipoin)))/dt  ! Temporal entropy
                           !Reta(lpoin_w(ipoin)) = 0.0d0
                           alpha(lpoin_w(ipoin)) = 1.0d0
 
@@ -63,7 +66,7 @@ module mod_entropy_viscosity
                        ! Entropy residual
                        !
                        call generic_scalar_convec(nelem,npoin,connec,Ngp,dNgp,He, &
-                                                  gpvol,f_eta,rho,u,Reta,alpha)
+                                                  gpvol,f_eta,eta_p,u(:,:,2),Reta,alpha)
                        !
                        ! Alter Reta with inv(Mc)
                        !
@@ -81,78 +84,80 @@ module mod_entropy_viscosity
                        !
                        ! Update Reta
                        !
-                       !$acc parallel loop
-                       do ipoin = 1,npoin_w
-                          Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))+1.0d0*R1(lpoin_w(ipoin))
+                      !!$acc parallel loop
+                      !do ipoin = 1,npoin_w
+                      !   Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))+1.0d0*R1(lpoin_w(ipoin))
 
-                          R2(lpoin_w(ipoin)) = (rho(lpoin_w(ipoin),1)-rhok(lpoin_w(ipoin)))/dt
-                          alpha(lpoin_w(ipoin)) = eta(lpoin_w(ipoin))/rhok(lpoin_w(ipoin))
-                       end do
-                       !$acc end parallel loop
-                       !
-                       ! Alter R2 with Mcw
-                       !
-                       if (flag_solver_type == 2 .or. flag_solver_type == 3) then
-                          call wcmass_times_vector(nelem,npoin,connec,gpvol,Ngp,R2,aux1,alpha)
-                       else if (flag_solver_type == 1) then
-                          !call wlmass_times_vector()
-                          !write(1,*) "--| NOT CODED YET!"
-                          !STOP(1)
-                       end if
-                       !
-                       ! Compute weighted mass convec
-                       !
-                       ! oriol: is no needed generic_scalar_conv already does
-                       ! this
-                       call generic_scalar_convec(nelem,npoin,connec,Ngp, &
-                                                  dNgp,He,gpvol,f_rho,rho,u,Rrho,alpha)
-                       !
-                       ! Update Rrho with both terms
-                       !
-                       !$acc parallel loop
-                       do ipoin = 1,npoin_w
-                          Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))+1.0d0*aux1(lpoin_w(ipoin))
-                       end do
-                       !$acc end parallel loop
-                       !
-                       ! Apply solver
-                       !
-                       if (flag_solver_type == 1) then
-                          call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rrho)
-                       else if (flag_solver_type == 2) then
-                          call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rrho)
-                          call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Rrho)
-                       else if (flag_solver_type == 3) then
-                          call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rrho)
-                       else
-                          write(1,*) "--| SOLVER NOT CODED!"
-                          STOP(1)
-                       end if
-                       call nvtxEndRange
+                      !   R2(lpoin_w(ipoin)) = (rhok(lpoin_w(ipoin))-rho(lpoin_w(ipoin),2))/dt
+                      !   !R2(lpoin_w(ipoin)) = (rho(lpoin_w(ipoin),1)-rhok(lpoin_w(ipoin)))/dt
+                      !   alpha(lpoin_w(ipoin)) = eta(lpoin_w(ipoin))/rhok(lpoin_w(ipoin))
+                      !end do
+                      !!$acc end parallel loop
+                      !!
+                      !! Alter R2 with Mcw
+                      !!
+                      !if (flag_solver_type == 2 .or. flag_solver_type == 3) then
+                      !   call wcmass_times_vector(nelem,npoin,connec,gpvol,Ngp,R2,aux1,alpha)
+                      !else if (flag_solver_type == 1) then
+                      !   !call wlmass_times_vector()
+                      !   !write(1,*) "--| NOT CODED YET!"
+                      !   !STOP(1)
+                      !end if
+                      !!
+                      !! Compute weighted mass convec
+                      !!
+                      !! oriol: is no needed generic_scalar_conv already does
+                      !! this
+                      !call generic_scalar_convec(nelem,npoin,connec,Ngp, &
+                      !                           dNgp,He,gpvol,f_rho,rho,u,Rrho,alpha)
+                      !!
+                      !! Update Rrho with both terms
+                      !!
+                      !!$acc parallel loop
+                      !do ipoin = 1,npoin_w
+                      !   Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))+1.0d0*aux1(lpoin_w(ipoin))
+                      !end do
+                      !!$acc end parallel loop
+                      !!
+                      !! Apply solver
+                      !!
+                      !if (flag_solver_type == 1) then
+                      !   call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rrho)
+                      !else if (flag_solver_type == 2) then
+                      !   call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rrho)
+                      !   call approx_inverse_scalar(nelem,npoin,npoin_w,lpoin_w,connec,gpvol,Ngp,ppow,Ml,Rrho)
+                      !else if (flag_solver_type == 3) then
+                      !   call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rrho)
+                      !else
+                      !   write(1,*) "--| SOLVER NOT CODED!"
+                      !   STOP(1)
+                      !end if
+                      !call nvtxEndRange
 
                   !!
                   !! Normalize
                   !!
-                 maxEta = 0.0d0 !maxval(abs(eta(lpoin_w(:))))
-                 !maxRho = maxval(abs(rhok(lpoin_w(:))))
+                  maxEta = 0.0d0 !maxval(abs(eta(lpoin_w(:))))
+                  !maxRho = 0.0d0 !maxval(abs(rhok(lpoin_w(:))))
+                  vol = 0.0d0
 
-                 !$acc parallel loop reduction(+:maxEta)
-                 do ipoin = 1,npoin_w
-                    maxEta = maxEta + eta(lpoin_w(ipoin))
-                    !maxRho = maxRho + rho(lpoin_w(ipoin))
-                    !Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
-                 end do
-                 !$acc end parallel loop
-                 maxEta = maxEta/dble(npoin_w)
-                 !maxRho = maxRho/dble(npoin_w)
+                  !$acc parallel loop reduction(+:maxEta,maxRho)
+                  do ipoin = 1,npoin_w
+                     maxEta = maxEta + eta(lpoin_w(ipoin))*Ml(lpoin_w(ipoin))
+                     !maxRho = maxRho + rho(lpoin_w(ipoin))*Ml(lpoin_w(ipoin))
+                     vol    = vol + Ml(lpoin_w(ipoin))
+                  end do
+                  !$acc end parallel loop
+                  maxEta = maxEta/vol
+                  !maxRho = maxRho/vol
 
-                 !$acc parallel loop 
-                 do ipoin = 1,npoin_w
-                    Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/maxEta
-                    !Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
-                    !Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/abs(maxEta-eta(lpoin_w(ipoin)))
-                    !Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
-                 end do
+                  !$acc parallel loop 
+                  do ipoin = 1,npoin_w
+                     Reta(lpoin_w(ipoin)) = abs(Reta(lpoin_w(ipoin)))/abs(maxEta-eta(lpoin_w(ipoin)))
+                     !Rrho(lpoin_w(ipoin)) = abs(Rrho(lpoin_w(ipoin)))/abs(maxRho-rho(lpoin_w(ipoin)))
+                     !Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/abs(maxEta-eta(lpoin_w(ipoin)))
+                     !Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
+                  end do
 
               end subroutine residuals
 
@@ -206,19 +211,19 @@ module mod_entropy_viscosity
               end subroutine smart_visc
 
               subroutine smart_visc_spectral(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                    gamma_gas,rho,u,Tem,helem,helem_k,mu_e)
+                                    gamma_gas,rho,u,Tem,helem,helem_k,Ml,mu_e)
               
                       ! TODO: Compute element size h
               
                       implicit none
 
                       integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
-                      real(8),    intent(in)  :: Reta(npoin), Rrho(npoin), Ngp(ngaus,nnode),helem(npoin),helem_k(nelem),gamma_gas
-                      real(8),    intent(in)  :: rho(npoin), u(npoin,ndime), Tem(npoin)
+                      real(8),    intent(in)  :: Reta(npoin), Rrho(npoin), Ngp(ngaus,nnode),helem(nelem,nnode),helem_k(nelem),gamma_gas
+                      real(8),    intent(in)  :: rho(npoin), u(npoin,ndime), Tem(npoin), Ml(npoin)
                       real(8),    intent(out) :: mu_e(nelem,ngaus)
                       integer(4)              :: ielem, inode, igaus
                       real(8)                 :: R1, R2, Ve, mue(npoin),ave(npoin)
-                      real(8)                 :: betae
+                      real(8)                 :: betae,mu,vol
                       real(8)                 :: L3, aux1, aux2, aux3
 
                       !$acc kernels
@@ -228,40 +233,43 @@ module mod_entropy_viscosity
 
                       !$acc parallel loop gang vector_length(vecLength)
                       do ielem = 1,nelem
-                         betae = 0.0d0
-                         !$acc loop vector reduction(max:betae)
+                         mu = 0.0d0
+                         vol = 0.0d0
+                         !$acc loop vector reduction(max:mu)
+                         !!$acc loop vector reduction(+:mu,vol)
                          do inode = 1,nnode
                             aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
                             aux3 = sqrt(gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
                             aux1 = aux2+aux3
-                            !betae = max(betae,helem_k(ielem)*cmax*aux1)
-                            betae = max(betae,helem_k(ielem)*(cmax/dble(porder))*aux1)
+                            betae = helem(ielem,inode)*cmax*aux1
+                            R1 = Reta(connec(ielem,inode))
+                            Ve = ce*R1*(helem(ielem,inode)**2)
+                            mu  = max(mu , rho(connec(ielem,inode))*cglob*min(Ve,betae))
+                            !mu  = mu + rho(connec(ielem,inode))*cglob*min(Ve,betae)*Ml(inode)
+                            !vol = vol + Ml(inode)
                          end do
+                         !mu = mu/vol
                          !$acc loop vector
                          do inode = 1,nnode
-                            R1 = abs(Reta(connec(ielem,inode)))
-                            !R2 = abs(Rrho(connec(ielem,inode)))
-                            Ve = ce*R1*(helem(connec(ielem,inode))**2)
-                            !aux1 = rho(connec(ielem,inode))*cglob*betae
-                            aux1 = rho(connec(ielem,inode))*cglob*min(Ve,betae)
-                            !$acc atomic update
-                            mue(connec(ielem,inode)) = mue(connec(ielem,inode))+aux1
-                            !$acc end atomic
-                            !$acc atomic update
-                            ave(connec(ielem,inode)) = ave(connec(ielem,inode))+1.0d0
-                            !$acc end atomic
+                            mu_e(ielem,inode) = mu
+                           ! !$acc atomic update
+                           ! mue(connec(ielem,inode)) = mue(connec(ielem,inode))+aux1
+                           ! !$acc end atomic
+                           ! !$acc atomic update
+                           ! ave(connec(ielem,inode)) = ave(connec(ielem,inode))+1.0d0
+                           ! !$acc end atomic
                          end do
                       end do
                       !$acc end parallel loop
 
-                      !$acc parallel loop gang vector_length(vecLength)
-                      do ielem = 1,nelem
-                         !$acc loop vector
-                         do inode = 1,nnode
-                            mu_e(ielem,inode) = mue(connec(ielem,inode))/ave(connec(ielem,inode))
-                         end do
-                      end do
-                      !$acc end parallel loop
+                     ! !$acc parallel loop gang vector_length(vecLength)
+                     ! do ielem = 1,nelem
+                     !    !$acc loop vector
+                     !    do inode = 1,nnode
+                     !       mu_e(ielem,inode) = mue(connec(ielem,inode))/ave(connec(ielem,inode))
+                     !    end do
+                     ! end do
+                     ! !$acc end parallel loop
 
               end subroutine smart_visc_spectral
 end module mod_entropy_viscosity

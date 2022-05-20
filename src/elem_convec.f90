@@ -133,7 +133,7 @@ module elem_convec
 
               end subroutine mass_convec
 
-              subroutine mom_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,q,pr,Rmom)
+              subroutine mom_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,q,rho,pr,Rmom)
 
                  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
                  ! Subroutine to compute R = div(q*u) using a standard Continuous   !
@@ -149,12 +149,12 @@ module elem_convec
                  real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                  real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
                  real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                 real(8),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), pr(npoin)
+                 real(8),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), rho(npoin),pr(npoin)
                  real(8),    intent(out) :: Rmom(npoin,ndime)
                  integer(4)              :: ielem, igaus, idime, jdime, inode
                  real(8)                 :: Re(nnode,ndime), aux, divU,gradQ(ndime, ndime)
                  real(8)                 :: tmp1(ndime), tmp2(ndime), gpcar(ndime,nnode)
-                 real(8)                 :: aux2,aux3,aux4
+                 real(8)                 :: aux2,aux3,aux4,aux5
 
                  call nvtxStartRange("Momentum convection")
                  !$acc kernels
@@ -237,18 +237,20 @@ module elem_convec
                              aux  = 0.0d0
                              aux3  = 0.0d0
                              aux4  = 0.0d0
+                             aux5  = 0.0d0
                              !$acc loop seq
                              do jdime = 1,ndime
                                 aux2  = 0.0d0
                                 !$acc loop vector reduction(+:aux,aux2,aux3)
                                 do inode = 1,nnode
                                    aux = aux  +gpcar(jdime,inode)*(q(connec(ielem,inode),idime)*u(connec(ielem,inode),jdime))
-                                   aux2 = aux2+gpcar(jdime,inode)*q(connec(ielem,inode),idime)
+                                   aux2 = aux2+gpcar(jdime,inode)*u(connec(ielem,inode),idime)
                                    aux3 = aux3+gpcar(jdime,inode)*u(connec(ielem,inode),jdime)
+                                   aux5 = aux5+u(connec(ielem,igaus),jdime)*gpcar(jdime,inode)*rho(connec(ielem,inode))
                                 end do
-                                aux4 = aux4+u(connec(ielem,igaus),jdime)*aux2
+                                aux4 = aux4+q(connec(ielem,igaus),jdime)*aux2
                              end do
-                             tmp1(idime) = 0.5d0*(aux+q(connec(ielem,igaus),idime)*aux3+aux4)
+                             tmp1(idime) = 0.5d0*(aux+q(connec(ielem,igaus),idime)*aux3+aux4+u(connec(ielem,igaus),idime)*aux5)
                           end do
                           !$acc loop seq
                           do idime = 1,ndime
@@ -633,7 +635,7 @@ module elem_convec
                    end subroutine ener_convec
 
                    subroutine generic_scalar_convec(nelem,npoin,connec,Ngp, &
-                         dNgp,He,gpvol,q,rho,u,Rconvec,alpha)
+                         dNgp,He,gpvol,q,eta,u,Rconvec,alpha)
 
                       implicit none
 
@@ -643,12 +645,12 @@ module elem_convec
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
                       real(8),    intent(in)  :: q(npoin,ndime)
-                      real(8),    intent(in)  :: rho(npoin)
+                      real(8),    intent(in)  :: eta(npoin)
                       real(8),    intent(in)  :: u(npoin,ndime)
                       real(8),    intent(in)  :: alpha(npoin)
                       real(8),    intent(out) :: Rconvec(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime
-                      real(8)                 :: tmp1, tmp2, Re(nnode), gpcar(ndime,nnode),tmp3,tmp4
+                      real(8)                 :: tmp1, tmp2, Re(nnode), gpcar(ndime,nnode),tmp3,tmp4,tmp5
 
                       call nvtxStartRange("Generic Convection")
                       !$acc kernels
@@ -719,13 +721,13 @@ module elem_convec
                                   tmp3 = 0.0d0
                                   !$acc loop vector reduction(+:tmp1,tmp2,tmp3)
                                   do inode = 1,nnode
-                                     tmp1 = tmp1+gpcar(idime,inode)*q(connec(ielem,inode),idime)*alpha(connec(ielem,inode))
+                                     tmp1 = tmp1+gpcar(idime,inode)*q(connec(ielem,inode),idime)
                                      tmp2 = tmp2+gpcar(idime,inode)*u(connec(ielem,inode),idime)
-                                     tmp3 = tmp3+gpcar(idime,inode)*rho(connec(ielem,inode))*alpha(connec(ielem,inode))
+                                     tmp3 = tmp3+gpcar(idime,inode)*eta(connec(ielem,inode))
                                   end do
                                   tmp4 = tmp4 + u(connec(ielem,igaus),idime)*tmp3
                                end do
-                               Re(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp2*rho(connec(ielem,inode))*alpha(connec(ielem,igaus))+tmp4)
+                               Re(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp2*eta(connec(ielem,inode))*alpha(connec(ielem,igaus))+tmp4)
                             end do
                             !
                             ! Assembly
