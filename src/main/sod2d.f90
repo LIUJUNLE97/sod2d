@@ -817,6 +817,7 @@ program sod2d
                  E(:,1) = E(:,2)
                  Tem(:,1) = Tem(:,2)
                  e_int(:,1) = e_int(:,2)
+                 eta(:,1) = eta(:,2)
                  !$acc end kernels
                  call nvtxEndRange
 
@@ -912,6 +913,7 @@ program sod2d
                   E(:,1) = E(:,2)
                   Tem(:,1) = Tem(:,2)
                   e_int(:,1) = e_int(:,2)
+                 eta(:,1) = eta(:,2)
                   !$acc end kernels
                   call nvtxEndRange
 
@@ -1007,6 +1009,7 @@ program sod2d
                   E(:,1) = E(:,2)
                   Tem(:,1) = Tem(:,2)
                   e_int(:,1) = e_int(:,2)
+                 eta(:,1) = eta(:,2)
                   !$acc end kernels
                   call nvtxEndRange
 

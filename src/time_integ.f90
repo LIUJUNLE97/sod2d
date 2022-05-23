@@ -246,8 +246,10 @@ module time_integ
                   call mom_convec_emac(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,aux_pr,Rmom)
                end if
                ! entropy advection
+#ifndef NOPRED
                call generic_scalar_convec(nelem,npoin,connec,Ngp,dNgp,He, &
                   gpvol,f_eta,aux_eta,aux_u,Reta,alpha)
+#endif
                !
                ! Add convection and diffusion terms (Rdiff_* is zero during prediction)
                !
@@ -324,27 +326,50 @@ module time_integ
                call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,rho(:,pos),q(:,:,pos))
                call nvtxEndRange
             end if
+
             !
             ! Update velocity and equations of state
             !
             call nvtxStartRange("Update u and EOS")
+#ifdef NOPRED
+            !$acc parallel loop
+            do ipoin = 1,npoin_w
+               !$acc loop seq
+               do idime = 1,ndime
+                  f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,pos)*eta(lpoin_w(ipoin),pos)
+               end do
+            end do
+            !$acc end parallel loop
+            call generic_scalar_convec(nelem,npoin,connec,Ngp,dNgp,He, &
+                  gpvol,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
             !$acc parallel loop
             do ipoin = 1,npoin_w
                !$acc loop seq
                do idime = 1,ndime
                   u(lpoin_w(ipoin),idime,pos) = q(lpoin_w(ipoin),idime,pos)/rho(lpoin_w(ipoin),pos)
                end do
-               e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &
-                  0.5d0*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
                pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0d0)*e_int(lpoin_w(ipoin),pos)
                Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
-
-               Reta(lpoin_w(ipoin)) = eta(lpoin_w(ipoin),pos)/dt-Reta_sum(lpoin_w(ipoin))
+               e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &
+                  0.5d0*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
                eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0d0))* &
                   log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
-               Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))-eta(lpoin_w(ipoin),pos)/dt
             end do
             !$acc end parallel loop
+#else
+            !$acc parallel loop
+            do ipoin = 1,npoin_w
+               !$acc loop seq
+               do idime = 1,ndime
+                  u(lpoin_w(ipoin),idime,pos) = q(lpoin_w(ipoin),idime,pos)/rho(lpoin_w(ipoin),pos)
+               end do
+               pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0d0)*e_int(lpoin_w(ipoin),pos)
+               Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
+               e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &
+                  0.5d0*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
+               eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0d0))* &
+                  log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
+#endif
             call nvtxEndRange
             !
             ! If using Sutherland viscosity model:
@@ -355,6 +380,10 @@ module time_integ
                call nvtxEndRange
             end if
 #ifdef NOPRED
+            !$acc parallel loop
+            do ipoin = 1,npoin_w
+               Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+            end do
             !
             ! Compute entropy viscosity
             !
