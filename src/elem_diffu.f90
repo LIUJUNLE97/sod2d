@@ -364,7 +364,7 @@ module elem_diffu
                       real(8),    intent(out) :: Rener(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime
                       real(8)                 :: Re_mass(nnode),Re_mom(nnode,ndime),Re_ener(nnode)
-                      real(8)                 :: kappa_e, mu_fgp, aux, divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
+                      real(8)                 :: kappa_e, mu_fgp, mu_egp,aux, divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
                       real(8)                 :: gpcar(ndime,nnode), gradU(ndime,ndime), gradT(ndime),tmp1,ugp(ndime),vol,arho
 
                       call nvtxStartRange("Full diffusion")
@@ -398,17 +398,10 @@ module elem_diffu
                                end do
                                ugp(idime) = u(connec(ielem,igaus),idime)
                             end do
-                            arho = 0.0d0
-                            vol = 0.0d0
-                            !$acc loop vector reduction(+:arho,vol)
-                            do inode = 1,nnode
-                               arho  = arho + rho(connec(ielem,inode))
-                               vol = vol + Ml(inode)
-                            end do
-                            arho = arho/vol
-                            nu_e = c_rho*mu_e(ielem,igaus)/arho
-                            mu_fgp = mu_fluid(connec(ielem,igaus))+mu_e(ielem,igaus)+mu_sgs(ielem,igaus)
-                            kappa_e =mu_fluid(connec(ielem,igaus))*1004.0d0/0.71d0+c_ener*mu_e(ielem,igaus)/0.4d0 + mu_sgs(ielem,igaus)/0.9d0
+                            nu_e = c_rho*mu_e(ielem,igaus)/rho(connec(ielem,igaus))
+                            mu_fgp = mu_fluid(connec(ielem,igaus))+rho(connec(ielem,igaus))*mu_sgs(ielem,igaus)
+                            mu_egp = mu_e(ielem,igaus)
+                            kappa_e =mu_fluid(connec(ielem,igaus))*1004.0d0/0.71d0+c_ener*mu_e(ielem,igaus)/0.4d0 + rho(connec(ielem,igaus))*mu_sgs(ielem,igaus)/0.9d0
                             !
                             ! Compute grad(u)
                             !
@@ -438,11 +431,11 @@ module elem_diffu
                                !$acc loop seq
                                do jdime = 1,ndime
                                   tauU(idime) = tauU(idime) + &
-                                     (gradU(idime,jdime)+ gradU(jdime,idime))*ugp(jdime)
-                                  tau(idime,jdime) = gradU(idime,jdime)+gradU(jdime,idime)
+                                     (mu_fgp+mu_egp)*(gradU(idime,jdime)+ gradU(jdime,idime))*ugp(jdime)
+                                  tau(idime,jdime) = (mu_fgp+mu_egp)*(gradU(idime,jdime)+gradU(jdime,idime))
                                end do
-                               tauU(idime) = tauU(idime)-twoThirds*divU*ugp(idime)
-                               tau(idime,idime) = tau(idime,idime)-twoThirds*divU
+                               tauU(idime) = tauU(idime)-mu_fgp*twoThirds*divU*ugp(idime)
+                               tau(idime,idime) = tau(idime,idime)-mu_fgp*twoThirds*divU
                             end do
 
                             ! Dif rho
@@ -462,14 +455,14 @@ module elem_diffu
                                   Re_mass(inode) = Re_mass(inode)+nu_e*gpvol(1,igaus,ielem)* &
                                      gpcar(idime,inode)*tmp1
                                   Re_ener(inode) = Re_ener(inode)+gpvol(1,igaus,ielem)*gpcar(idime,inode)* &
-                                                   (mu_fgp*tauU(idime)+kappa_e*aux)
+                                                   (tauU(idime)+kappa_e*aux)
                                end do
                                !$acc loop seq
                                do jdime = 1,ndime
                                   !$acc loop vector
                                   do inode = 1,nnode
                                      Re_mom(inode,idime) = Re_mom(inode,idime)+gpvol(1,igaus,ielem)* &
-                                        gpcar(jdime,inode)*mu_fgp*tau(idime,jdime)
+                                        gpcar(jdime,inode)*tau(idime,jdime)
                                   end do
                                end do
                             end do

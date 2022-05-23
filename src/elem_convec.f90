@@ -727,7 +727,7 @@ module elem_convec
                                   end do
                                   tmp4 = tmp4 + u(connec(ielem,igaus),idime)*tmp3
                                end do
-                               Re(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp2*eta(connec(ielem,inode))*alpha(connec(ielem,igaus))+tmp4)
+                               Re(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp2*eta(connec(ielem,inode))+tmp4)
                             end do
                             !
                             ! Assembly

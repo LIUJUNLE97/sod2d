@@ -52,7 +52,7 @@ program sod2d
         real(8),    allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:)
         real(8),    allocatable    :: Je(:,:), He(:,:,:,:)
         real(8),    allocatable    :: gpvol(:,:,:)
-        real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:)
+        real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:)
         real(8),    allocatable    :: Ml(:)!, Mc(:)
         real(8),    allocatable    :: mu_e(:,:), mu_fluid(:),mu_sgs(:,:)
         real(8),    allocatable    :: source_term(:)
@@ -101,7 +101,7 @@ program sod2d
         mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
         flag_mu_factor = mul/mur
 
-        !flag_mu_factor = 0.0d0 ! shock
+        flag_mu_factor = 0.0d0 ! shock
 #endif
 
         !*********************************************************************!
@@ -123,22 +123,21 @@ program sod2d
         Cp = 1004.00d0 ! TODO: Make it input
         gamma_gas = 1.40d0 ! TODO: Make it innput
         Cv = Cp/gamma_gas
-        cfl_conv = 0.1d0
-        cfl_diff = 0.1d0
+        cfl_conv = 0.5d0
+        cfl_diff = 0.5d0
         nsave  = 1   ! First step to save, TODO: input
-     nsave2 = 1   ! First step to save, TODO: input
-        nleap = 1000 ! Saving interval, TODO: input
+        nsave2 = 1   ! First step to save, TODO: input
+        nleap = 100 ! Saving interval, TODO: input
         nleap2 = 10  ! Saving interval, TODO: input
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
-        isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
+        isPeriodic = 0 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #endif        
         if (isPeriodic == 1) then
 #ifdef CHANNEL
            !nper = 1891 ! TODO: if periodic, request number of periodic nodes
-           !nper = 5551 ! TODO: if periodic, request number of periodic nodes
-           nper = 4753 ! TODO: if periodic, request number of periodic nodes
+           nper = 7663 ! TODO: if periodic, request number of periodic nodes
            !nper = 16471 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
@@ -186,8 +185,8 @@ program sod2d
 #ifdef CHANNEL
         write(file_name,*) "channel" ! Nsys
 #else
-        !write(file_name,*) "shock_tube" ! Nsys
-        write(file_name,*) "cube" ! Nsys
+        write(file_name,*) "shock_tube" ! Nsys
+        !write(file_name,*) "cube" ! Nsys
 #endif
         call read_dims(file_path,file_name,npoin,nelem,nboun)
         allocate(connec(nelem,nnode))
@@ -319,6 +318,7 @@ program sod2d
         allocate(E(npoin,2))        ! Total Energy
         allocate(Tem(npoin,2))      ! Temperature
         allocate(e_int(npoin,2))    ! Internal Energy
+        allocate(eta(npoin,2))      ! entropy
         allocate(csound(npoin))     ! Speed of sound
         allocate(mu_fluid(npoin))   ! Fluid viscosity
         allocate(mu_e(nelem,ngaus))  ! Elemental viscosity
@@ -358,13 +358,10 @@ program sod2d
 
               call random_number(ti)
 
-              !u(ipoin,1,2) = velo*(1.0d0 + 0.01d0*(sin(5.0d0*coord(ipoin,1)) -0.5d0))
-              !u(ipoin,2,2) = velo*(0.01d0*(sin(5.0d0*coord(ipoin,2))+cos(1.0d0*coord(ipoin,2)) -0.5d0))
-              u(ipoin,3,2) = velo*(0.05d0*(sin(20.0d0*coord(ipoin,3))+cos(10.0d0*coord(ipoin,3))+sin(5.0d0*coord(ipoin,3))+cos(2.5d0*coord(ipoin,3)) -0.5d0))
 
-          u(ipoin,1,2) = velo*(1.0d0 + 0.1d0*(ti(1) -0.5d0))
-          u(ipoin,2,2) = velo*(0.1d0*(ti(2) -0.5d0))
-          u(ipoin,3,2) = velo*(0.1d0*(ti(3) -0.5d0))
+              u(ipoin,1,2) = velo*(1.0d0 + 0.1d0*(ti(1) -0.5d0))
+              u(ipoin,2,2) = velo*(0.1d0*(ti(2) -0.5d0))
+              u(ipoin,3,2) = velo*(0.1d0*(ti(3) -0.5d0))
 
               pr(ipoin,2) = po
 
@@ -380,10 +377,10 @@ program sod2d
            !call read_vtk_binary(isPeriodic,230001,npoin,nelem,coord,connec, &
            !   rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
            call read_veloc(npoin,file_path,u(:,:,2))
-           call read_densi(npoin,file_path,rho(:,2))
+           !call read_densi(npoin,file_path,rho(:,2))
            do ipoin = 1,npoin
               pr(ipoin,2) = po
-              !rho(ipoin,2) = po/Rg/to
+              rho(ipoin,2) = po/Rg/to
               e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0d0))
               Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas)
               E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
@@ -699,7 +696,6 @@ program sod2d
         allocate(helem_l(nelem,nnode))
         if (flag_SpectralElem == 1) then
            !helem_l(:) = 0.0d0
-           helem_l(:) = 1000000000000000000000000000000000000000000000000000000000000000000000.0d0
            do ielem = 1,nelem
               call char_length_spectral(ielem,nelem,npoin,connec,coord,Ml,helem_l)
            end do
@@ -837,7 +833,7 @@ program sod2d
                  else
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
-                       rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                       rho,u,q,pr,E,Tem,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  end if
 #endif
@@ -853,7 +849,7 @@ program sod2d
                  else
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
-                       rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                       rho,u,q,pr,E,Tem,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  end if
 
@@ -930,7 +926,7 @@ program sod2d
                  else
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
-                       rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid)
+                       rho,u,q,pr,E,Tem,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid)
                  end if
 #endif
                   !
@@ -944,7 +940,7 @@ program sod2d
                   else
                      call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                         ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
-                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid)
+                        rho,u,q,pr,E,Tem,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid)
                   end if
 
                   time = time+dt
@@ -1026,7 +1022,7 @@ program sod2d
                 else
                    call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
-                      rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                      rho,u,q,pr,E,Tem,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
                 end if
 #endif
@@ -1042,7 +1038,7 @@ program sod2d
                   else
                      call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                         ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
-                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                        rho,u,q,pr,E,Tem,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
                   end if
 

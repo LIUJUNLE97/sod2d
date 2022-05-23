@@ -24,12 +24,12 @@ module mod_bc_routines
                !$acc parallel loop gang
                do iboun = 1,nboun
                   bcode = bou_codes(iboun,2) ! Boundary element code
-                 ! if (bcode == 3) then ! inlet
-                 !    !$acc loop vector
-                 !    do ipbou = 1,npbou
-                 !       aux_rho(bound(iboun,ipbou)) = 1.0d0
-                 !    end do
-                 ! end if
+                  if (bcode == 3) then ! inlet
+                     !$acc loop vector
+                     do ipbou = 1,npbou
+                        aux_rho(bound(iboun,ipbou)) = 1.0d0
+                     end do
+                  end if
                end do
                !$acc end parallel loop
             end if

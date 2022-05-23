@@ -91,15 +91,20 @@ module mod_sgs_viscosity
                          !$acc end parallel loop
 
                       else
-                         !$acc kernels
-                         mue(:) = 0.0d0
-                         ave(:) = 0.0d0
-                         !$acc end kernels
+                         !!$acc kernels
+                         !mue(:) = 0.0d0
+                         !ave(:) = 0.0d0
+                         !!$acc end kernels
                          !$acc parallel loop gang  private(gpcar,gradU,gradV2) vector_length(vecLength)
                          do ielem = 1,nelem
+                            evol = 0.0d0
+                            !$acc loop vector reduction(+:evol)
+                            do igaus = 1,ngaus
+                               evol = evol + gpvol(1,igaus,ielem)
+                            end do
+                            hLES = (evol**(1.0d0/3.0d0))/dble(porder)
                             !$acc loop seq
                             do igaus = 1,ngaus
-                               hLES = Ml(connec(ielem,igaus))**(1.0d0/3.0d0)
                                !$acc loop seq
                                do idime = 1,ndime
                                   !$acc loop vector

@@ -137,27 +137,22 @@ module mod_entropy_viscosity
                   !!
                   !! Normalize
                   !!
-                  maxEta = 0.0d0 !maxval(abs(eta(lpoin_w(:))))
-                  !maxRho = 0.0d0 !maxval(abs(rhok(lpoin_w(:))))
-                  vol = 0.0d0
+               !   maxEta = 0.0d0 !maxval(abs(eta(lpoin_w(:))))
+               !   vol = 0.0d0
 
-                  !$acc parallel loop reduction(+:maxEta,maxRho)
-                  do ipoin = 1,npoin_w
-                     maxEta = maxEta + eta(lpoin_w(ipoin))*Ml(lpoin_w(ipoin))
-                     !maxRho = maxRho + rho(lpoin_w(ipoin))*Ml(lpoin_w(ipoin))
-                     vol    = vol + Ml(lpoin_w(ipoin))
-                  end do
-                  !$acc end parallel loop
-                  maxEta = maxEta/vol
-                  !maxRho = maxRho/vol
+               !   !$acc parallel loop reduction(+:maxEta,vol)
+               !   do ipoin = 1,npoin_w
+               !      maxEta = maxEta + eta(lpoin_w(ipoin))*Ml(lpoin_w(ipoin))
+               !      vol    = vol + Ml(lpoin_w(ipoin))
+               !   end do
+               !   !$acc end parallel loop
+               !   maxEta = maxEta/vol
 
-                  !$acc parallel loop 
-                  do ipoin = 1,npoin_w
-                     Reta(lpoin_w(ipoin)) = abs(Reta(lpoin_w(ipoin)))/abs(maxEta-eta(lpoin_w(ipoin)))
-                     !Rrho(lpoin_w(ipoin)) = abs(Rrho(lpoin_w(ipoin)))/abs(maxRho-rho(lpoin_w(ipoin)))
-                     !Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin))/abs(maxEta-eta(lpoin_w(ipoin)))
-                     !Rrho(lpoin_w(ipoin)) = Rrho(lpoin_w(ipoin))/maxRho
-                  end do
+                !  !$acc parallel loop 
+                !  do ipoin = 1,npoin_w
+                !     Reta(lpoin_w(ipoin)) = abs(Reta(lpoin_w(ipoin)))/abs(maxEta)
+                !     !Reta(lpoin_w(ipoin)) = abs(Reta(lpoin_w(ipoin)))/abs(maxEta-eta(lpoin_w(ipoin)))
+                !  end do
 
               end subroutine residuals
 
@@ -210,66 +205,62 @@ module mod_entropy_viscosity
 
               end subroutine smart_visc
 
-              subroutine smart_visc_spectral(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                                    gamma_gas,rho,u,Tem,helem,helem_k,Ml,mu_e)
+              subroutine smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp, &
+                                    gamma_gas,rho,u,Tem,eta,helem,helem_k,Ml,mu_e)
               
                       ! TODO: Compute element size h
               
                       implicit none
 
-                      integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
-                      real(8),    intent(in)  :: Reta(npoin), Rrho(npoin), Ngp(ngaus,nnode),helem(nelem,nnode),helem_k(nelem),gamma_gas
-                      real(8),    intent(in)  :: rho(npoin), u(npoin,ndime), Tem(npoin), Ml(npoin)
+                      integer(4), intent(in)  :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
+                      real(8),    intent(in)  :: Reta(npoin), Rrho(npoin), Ngp(ngaus,nnode),gamma_gas
+                      real(8),    intent(in)  :: rho(npoin), u(npoin,ndime), Tem(npoin), eta(npoin),helem(nelem,nnode),helem_k(nelem),Ml(npoin)
                       real(8),    intent(out) :: mu_e(nelem,ngaus)
-                      integer(4)              :: ielem, inode, igaus
-                      real(8)                 :: R1, R2, Ve, mue(npoin),ave(npoin)
-                      real(8)                 :: betae,mu,vol
+                      integer(4)              :: ielem, inode,igaus,ipoin
+                      real(8)                 :: R1, R2, Ve
+                      real(8)                 :: betae,mu,vol,vol2
                       real(8)                 :: L3, aux1, aux2, aux3
+                      real(8)                 ::  maxEta, maxRho, norm
 
-                      !$acc kernels
-                      mue(:) = 0.0d0
-                      ave(:) = 0.0d0
-                      !$acc end kernels
+                      !maxEta = 0.0d0
+                      !!$acc parallel loop reduction(+:maxEta)
+                      !do ipoin = 1,npoin_w
+                      !   maxEta = maxEta + eta(lpoin_w(ipoin))
+                      !end do
+                      !!$acc end parallel loop
+                      !maxEta = maxEta/dble(npoin_w)
+
+                      !norm = 0.0d0
+                      !!$acc parallel loop reduction(max:norm)
+                      !do ipoin = 1,npoin_w
+                      !   norm = max(norm, abs(eta(lpoin_w(ipoin))-maxEta))
+                      !end do
+                      !!$acc end parallel loop
 
                       !$acc parallel loop gang vector_length(vecLength)
                       do ielem = 1,nelem
                          mu = 0.0d0
-                         vol = 0.0d0
-                         !$acc loop vector reduction(max:mu)
-                         !!$acc loop vector reduction(+:mu,vol)
+                         betae = 0.0d0
+                         !$acc loop vector reduction(max:betae)
                          do inode = 1,nnode
                             aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
                             aux3 = sqrt(gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
                             aux1 = aux2+aux3
-                            betae = helem(ielem,inode)*cmax*aux1
-                            R1 = Reta(connec(ielem,inode))
-                            Ve = ce*R1*(helem(ielem,inode)**2)
-                            mu  = max(mu , rho(connec(ielem,inode))*cglob*min(Ve,betae))
-                            !mu  = mu + rho(connec(ielem,inode))*cglob*min(Ve,betae)*Ml(inode)
-                            !vol = vol + Ml(inode)
+                            betae = max(betae,(rho(connec(ielem,inode))*helem_k(ielem))*(cmax/dble(porder))*aux1)
                          end do
-                         !mu = mu/vol
+                         !$acc loop vector reduction(+:mu)
+                         do inode = 1,nnode
+                            R1 = abs(Reta(connec(ielem,inode)))!/norm
+                            Ve = ce*R1*(helem(ielem,inode))**2
+                            mu = mu + cglob*min(Ve,betae)
+                         end do
+                         mu = mu/dble(nnode)
                          !$acc loop vector
                          do inode = 1,nnode
                             mu_e(ielem,inode) = mu
-                           ! !$acc atomic update
-                           ! mue(connec(ielem,inode)) = mue(connec(ielem,inode))+aux1
-                           ! !$acc end atomic
-                           ! !$acc atomic update
-                           ! ave(connec(ielem,inode)) = ave(connec(ielem,inode))+1.0d0
-                           ! !$acc end atomic
                          end do
                       end do
                       !$acc end parallel loop
-
-                     ! !$acc parallel loop gang vector_length(vecLength)
-                     ! do ielem = 1,nelem
-                     !    !$acc loop vector
-                     !    do inode = 1,nnode
-                     !       mu_e(ielem,inode) = mue(connec(ielem,inode))/ave(connec(ielem,inode))
-                     !    end do
-                     ! end do
-                     ! !$acc end parallel loop
 
               end subroutine smart_visc_spectral
 end module mod_entropy_viscosity
