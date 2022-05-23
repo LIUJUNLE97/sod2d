@@ -401,7 +401,8 @@ module elem_diffu
                             nu_e = c_rho*mu_e(ielem,igaus)/rho(connec(ielem,igaus))
                             mu_fgp = mu_fluid(connec(ielem,igaus))+rho(connec(ielem,igaus))*mu_sgs(ielem,igaus)
                             mu_egp = mu_e(ielem,igaus)
-                            kappa_e =mu_fluid(connec(ielem,igaus))*1004.0d0/0.71d0+c_ener*mu_e(ielem,igaus)/0.4d0 + rho(connec(ielem,igaus))*mu_sgs(ielem,igaus)/0.9d0
+                            kappa_e =mu_fluid(connec(ielem,igaus))*1.6d0/0.71d0+c_ener*mu_e(ielem,igaus)/0.4d0 + rho(connec(ielem,igaus))*mu_sgs(ielem,igaus)/0.9d0
+                            !kappa_e =mu_fluid(connec(ielem,igaus))*1004.0d0/0.71d0+c_ener*mu_e(ielem,igaus)/0.4d0 + rho(connec(ielem,igaus))*mu_sgs(ielem,igaus)/0.9d0
                             !
                             ! Compute grad(u)
                             !
