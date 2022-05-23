@@ -369,6 +369,8 @@ module time_integ
                   0.5d0*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
                eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0d0))* &
                   log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
+            end do
+            !$acc end parallel loop
 #endif
             call nvtxEndRange
             !
