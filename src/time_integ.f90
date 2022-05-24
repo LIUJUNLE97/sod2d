@@ -15,7 +15,7 @@ module time_integ
 
          subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                          ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
-                         rho,u,q,pr,E,Tem,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional arg
 
             implicit none
@@ -39,6 +39,8 @@ module time_integ
             real(8),              intent(inout) :: e_int(npoin,2)
             real(8),              intent(inout) :: eta(npoin,2)
             real(8),              intent(inout) :: mu_fluid(npoin)
+            real(8),              intent(out)   :: csound(npoin)
+            real(8),              intent(out)   :: machno(npoin)
             real(8),              intent(out)   :: mu_e(nelem,ngaus)
             real(8),              intent(out)   :: mu_sgs(nelem,ngaus)
             integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(ndof), lbnodes(nbnodes)
@@ -52,8 +54,9 @@ module time_integ
             real(8),    dimension(npoin)        :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
             real(8),    dimension(npoin)        :: Rmass, Rener, Rmass_sum, Rener_sum, alpha,Reta_sum
             real(8),    dimension(npoin,ndime)  :: Rmom, Rmom_sum, f_eta
-            real(8)                               :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
-            real(8)                             :: Aemac(npoin,ndime), Femac(npoin)
+            real(8)                             :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
+            real(8)                             :: Aemac(npoin,ndime), Femac(npoin), umag
+
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! New version of RK4 using loops                 !
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -344,9 +347,11 @@ module time_integ
                   gpvol,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
             !$acc parallel loop
             do ipoin = 1,npoin_w
+               umag = 0.0d0
                !$acc loop seq
                do idime = 1,ndime
                   u(lpoin_w(ipoin),idime,pos) = q(lpoin_w(ipoin),idime,pos)/rho(lpoin_w(ipoin),pos)
+                  umag = umag + sqrt(u(lpoin_w(ipoin),idime,pos)**2)
                end do
                pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0d0)*e_int(lpoin_w(ipoin),pos)
                Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
@@ -354,14 +359,18 @@ module time_integ
                   0.5d0*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
                eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0d0))* &
                   log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
+               csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
+               machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
             end do
             !$acc end parallel loop
 #else
             !$acc parallel loop
             do ipoin = 1,npoin_w
+               umag = 0.0d0
                !$acc loop seq
                do idime = 1,ndime
                   u(lpoin_w(ipoin),idime,pos) = q(lpoin_w(ipoin),idime,pos)/rho(lpoin_w(ipoin),pos)
+                  umag = umag + sqrt(u(lpoin_w(ipoin),idime,pos)**2)
                end do
                pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0d0)*e_int(lpoin_w(ipoin),pos)
                Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
@@ -369,6 +378,8 @@ module time_integ
                   0.5d0*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
                eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0d0))* &
                   log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
+               csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
+               machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
             end do
             !$acc end parallel loop
 #endif
@@ -397,7 +408,7 @@ module time_integ
                    gamma_gas,rho(:,pos),u(:,:,pos),Tem(:,pos),helem,mu_e)
              end if
 #endif
-             !
+            !
             ! Compute subgrid viscosity if active
             !
             if(flag_les == 1) then
@@ -405,5 +416,7 @@ module time_integ
                call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,pos),u(:,:,pos),Ml,mu_sgs)
                call nvtxEndRange
             end if
+
          end subroutine rk_4_main
+
 end module time_integ
