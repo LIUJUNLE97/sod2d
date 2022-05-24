@@ -119,7 +119,7 @@ program sod2d
         !nnode = 27 ! TODO: need to allow for mixed elements...
         !porder = 1 ! TODO: make it input
         !npbou = 9 ! TODO: Need to get his from somewhere...
-        nstep = 5 ! TODO: Needs to be input...
+        nstep = 100 ! TODO: Needs to be input...
 #ifdef CHANNEL
         Rgas = Rg
 #else
@@ -132,9 +132,9 @@ program sod2d
         Cv = Cp/gamma_gas
         cfl_conv = 0.5d0
         cfl_diff = 0.5d0
-        nsave  = 1   ! First step to save, TODO: input
+        nsave  = 10   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
-        nleap = 1 ! Saving interval, TODO: input
+        nleap = 10 ! Saving interval, TODO: input
         nleap2 = 1  ! Saving interval, TODO: input
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
