@@ -59,18 +59,17 @@ module mod_analysis
          eps_T = 0.0d0
 
          call nvtxStartRange("Compute visc_dissipationRate")
-         !$acc parallel loop gang private(gradU,gpcar) reduction(+:eps_S,eps_D)
+         !$acc parallel loop gang private(gradU,gpcar) reduction(+:eps_S,eps_D) vector_length(vecLength)
          do ielem = 1,nelem
             R1 = 0.0d0
             R2 = 0.0d0
-            !$acc loop vector reduction(+:R1,R2)
+            !$acc loop seq
             do igaus = 1,ngaus
                !
                ! Compute gpcar
                !
-               !$acc loop seq
+               !$acc loop vector collapse(2)
                do idime = 1,ndime
-                  !$acc loop seq
                   do inode = 1,nnode
                      gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
                   end do
@@ -83,7 +82,7 @@ module mod_analysis
                   !$acc loop seq
                   do kdime = 1,ndime
                      aux = 0.0d0
-                     !$acc loop seq
+                     !$acc loop vector reduction(+:aux)
                      do inode = 1,nnode
                         aux = aux + gpcar(jdime,inode)*u(connec(ielem,inode),kdime)
                      end do
@@ -103,11 +102,9 @@ module mod_analysis
                ! Compute dot vproduct of curl u and curl u
                !
                curl2U = 0.0d0
-               !$acc loop seq
+               !$acc loop vector collapse(3) reduction(+:curl2U)
                do idime = 1,ndime
-                  !$acc loop seq
                   do jdime = 1,ndime
-                     !$acc loop seq
                      do kdime = 1,ndime
                         curl2U = curl2U+(leviCivi(idime,jdime,kdime)*gradU(jdime,kdime))**2
                      end do
@@ -125,7 +122,7 @@ module mod_analysis
             eps_S = eps_S+R1
             eps_D = eps_D+R2
          end do
-         !$acc end parallel loop
+         !!$acc end parallel loop
          call nvtxEndRange
 
          alpha = 1.0d0/(rho0*Re)
@@ -142,7 +139,7 @@ module mod_analysis
          real(8), intent(in) :: time, EK, eps_S, eps_D, eps_T
 
          write(666,10) time, EK, eps_S, eps_D, eps_T
-10       format(5(F16.8,2X))
+10       format(5(F12.8,2X))
 
       end subroutine write_EK
 
