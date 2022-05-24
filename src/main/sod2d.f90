@@ -119,7 +119,7 @@ program sod2d
         !nnode = 27 ! TODO: need to allow for mixed elements...
         !porder = 1 ! TODO: make it input
         !npbou = 9 ! TODO: Need to get his from somewhere...
-        nstep = 100 ! TODO: Needs to be input...
+        nstep = 900000 ! TODO: Needs to be input...
 #ifdef CHANNEL
         Rgas = Rg
 #else
@@ -130,9 +130,9 @@ program sod2d
         Cp = gamma_gas*Rgas/(gamma_gas-1.0d0)
         write(1,*) "Cp ",Cp
         Cv = Cp/gamma_gas
-        cfl_conv = 0.5d0
-        cfl_diff = 0.5d0
-        nsave  = 10   ! First step to save, TODO: input
+        cfl_conv = 0.1d0
+        cfl_diff = 0.1d0
+        nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
         nleap = 200 ! Saving interval, TODO: input
         tleap = 0.5d0 ! Saving interval, TODO: input
@@ -149,10 +149,10 @@ program sod2d
            !nper = 16471 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
-           !nper = 10981  ! TODO: if periodic, request number of periodic nodes
+           nper = 10981  ! TODO: if periodic, request number of periodic nodes
            !nper = 48007   ! TODO: if periodic, request number of periodic nodes
            !nper = 97741   ! TODO: if periodic, request number of periodic nodes
-           nper = 195841   ! TODO: if periodic, request number of periodic nodes
+           !nper = 195841   ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
@@ -808,7 +808,7 @@ program sod2d
         !T0 = 1.0d0/(1.4d0*Rgas*(0.1**2))
         !rho0 = 1.0d0
         call volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
-        call visc_dissipationRate(nelem,npoin,connec,leviCivi,rho0,mu_fluid,u(:,:,2),Re,gpvol,He,dNgp,eps_S,eps_D,eps_T)
+        call visc_dissipationRate(nelem,npoin,connec,leviCivi,rho0,mu_fluid,u(:,:,2),VolTot,gpvol,He,dNgp,eps_S,eps_D,eps_T)
         call write_EK(time,EK,eps_S,eps_D,eps_T)
         write(1,*) "--| time     EK     eps_S     eps_D     eps_T"
         write(1,20) time, EK, eps_S, eps_D, eps_T
@@ -974,7 +974,7 @@ program sod2d
 
                   if (istep == nsave2) then
                      call volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
-                     call visc_dissipationRate(nelem,npoin,connec,leviCivi,rho0,mu_fluid,u(:,:,2),Re,gpvol,He,dNgp,eps_S,eps_D,eps_T)
+                     call visc_dissipationRate(nelem,npoin,connec,leviCivi,rho0,mu_fluid,u(:,:,2),VolTot,gpvol,He,dNgp,eps_S,eps_D,eps_T)
                      call write_EK(time,EK,eps_S, eps_D, eps_T)
                      write(1,*) "--| time     EK     eps_S     eps_D     eps_T"
                      write(1,20) time, EK, eps_S, eps_D, eps_T

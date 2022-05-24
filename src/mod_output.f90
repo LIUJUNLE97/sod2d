@@ -82,7 +82,7 @@ module mod_output
          ! Write cells
          !
          write(str1(1:8),'(i8)') nelem
-         write(str2(1:16),'(i16)') nelem*(nnode+1)
+         write(str2(1:16),'(i8)') nelem*(nnode+1)
          write(ivtk,'(a)') 'CELLS '//trim(str1)//trim(str2)
          do i = 1,nelem
             write(ivtk,*) cells(i,:)
