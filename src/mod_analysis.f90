@@ -37,13 +37,112 @@ module mod_analysis
 
       end subroutine volAvg_EK
 
-      subroutine write_EK(time,EK)
+      subroutine visc_dissipationRate(nelem,npoin,connec,leviCivi,rho0,mu_fluid,u,Re,gpvol,He,dNgp,eps_S,eps_D,eps_T)
 
          implicit none
 
-         real(8), intent(in) :: time, EK
+         integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
+         real(8),    intent(in)  :: leviCivi(3,3,3), rho0, mu_fluid(npoin), u(npoin,ndime), Re
+         real(8),    intent(in)  :: gpvol(1,ngaus,nelem), He(ndime,ndime,ngaus,nelem), dNgp(ndime,ngaus,nelem)
+         real(8),    intent(out) :: eps_S, eps_D, eps_T
+         integer(4)              :: ielem, igaus, inode, idime, jdime, kdime
+         real(8)                 :: R1, R2, div2U, curl2U, alpha, aux
+         real(8)                 :: gpcar(ndime,nnode), gradU(ndime,ndime)
 
-         write(666,*) time, EK
+         if (flag_spectralElem .ne. 1) then
+            write(1,*) "--| THIS ONLY WORKS WITH SPECTRAL ELEMENTS FOR NOW!"
+            error stop
+         end if
+
+         eps_S = 0.0d0
+         eps_D = 0.0d0
+         eps_T = 0.0d0
+
+         call nvtxStartRange("Compute visc_dissipationRate")
+         !$acc parallel loop gang private(gradU,gpcar) reduction(+:eps_S,eps_D)
+         do ielem = 1,nelem
+            R1 = 0.0d0
+            R2 = 0.0d0
+            !$acc loop vector reduction(+:R1,R2)
+            do igaus = 1,ngaus
+               !
+               ! Compute gpcar
+               !
+               !$acc loop seq
+               do idime = 1,ndime
+                  !$acc loop seq
+                  do inode = 1,nnode
+                     gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                  end do
+               end do
+               !
+               ! Compute gradient of u
+               !
+               !$acc loop seq
+               do jdime = 1,ndime
+                  !$acc loop seq
+                  do kdime = 1,ndime
+                     aux = 0.0d0
+                     !$acc loop seq
+                     do inode = 1,nnode
+                        aux = aux + gpcar(jdime,inode)*u(connec(ielem,inode),kdime)
+                     end do
+                     gradU(jdime,kdime) = aux
+                  end do
+               end do
+               !
+               ! Compute divergence of u
+               !
+               div2U = gradU(1,1)+gradU(2,2)+gradU(3,3)
+               !
+               ! Squared divergence of u
+               !
+               div2U = div2U**2
+               !
+               !
+               ! Compute dot vproduct of curl u and curl u
+               !
+               curl2U = 0.0d0
+               !$acc loop seq
+               do idime = 1,ndime
+                  !$acc loop seq
+                  do jdime = 1,ndime
+                     !$acc loop seq
+                     do kdime = 1,ndime
+                        curl2U = curl2U+(leviCivi(idime,jdime,kdime)*gradU(jdime,kdime))**2
+                     end do
+                  end do
+               end do
+               !
+               ! Compute enstrophy
+               !
+               R1 = R1+gpvol(1,igaus,ielem)*mu_fluid(connec(ielem,igaus))*curl2U
+               !
+               ! Compute dilational component
+               !
+               R2 = R2+gpvol(1,igaus,ielem)*mu_fluid(connec(ielem,igaus))*div2U
+            end do
+            eps_S = eps_S+R1
+            eps_D = eps_D+R2
+         end do
+         !$acc end parallel loop
+         call nvtxEndRange
+
+         alpha = 1.0d0/(rho0*Re)
+         eps_S = eps_S*alpha
+         eps_D = (4.0d0/3.0d0)*eps_D*alpha
+         eps_T = eps_S+eps_D
+
+      end subroutine visc_dissipationRate
+
+      subroutine write_EK(time,EK,eps_S,eps_D,eps_T)
+
+         implicit none
+
+         real(8), intent(in) :: time, EK, eps_S, eps_D, eps_T
+
+         write(666,10) time, EK, eps_S, eps_D, eps_T
+10       format(5(F16.8,2X))
 
       end subroutine write_EK
 
