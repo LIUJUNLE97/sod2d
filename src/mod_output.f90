@@ -19,7 +19,7 @@ module mod_output
          integer(4)            , dimension(nelem)         :: cellTypes
          real(8)               , dimension(npoin,3)       :: points, u3d
          character(500)                                   :: filename
-         character(8)                                     :: str1, str2
+         character(16)                                   :: str1, str2
       
          !
          ! Pass coordinates to a suitable 3D generic format
@@ -82,7 +82,7 @@ module mod_output
          ! Write cells
          !
          write(str1(1:8),'(i8)') nelem
-         write(str2(1:8),'(i8)') nelem*(nnode+1)
+         write(str2(1:16),'(i16)') nelem*(nnode+1)
          write(ivtk,'(a)') 'CELLS '//trim(str1)//trim(str2)
          do i = 1,nelem
             write(ivtk,*) cells(i,:)

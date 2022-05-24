@@ -64,7 +64,7 @@ program sod2d
         character(500)             :: file_name, dumpfile
         character(4)               :: timeStep
 
-        real(8)                    :: Rgas, gamma_gas, Cv
+        real(8)                    :: Rgas, gamma_gas, Cv, tleap, atime
 #ifdef CHANNEL
         !channel flow setup
         real(8)  :: vo = 1.0d0
@@ -134,6 +134,7 @@ program sod2d
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
         nleap = 200 ! Saving interval, TODO: input
+        tleap = 0.5d0 ! Saving interval, TODO: input
         nleap2 = 10  ! Saving interval, TODO: input
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
@@ -149,7 +150,8 @@ program sod2d
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
            !nper = 10981  ! TODO: if periodic, request number of periodic nodes
            !nper = 48007   ! TODO: if periodic, request number of periodic nodes
-           nper = 97741   ! TODO: if periodic, request number of periodic nodes
+           !nper = 97741   ! TODO: if periodic, request number of periodic nodes
+           nper = 195841   ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
@@ -903,6 +905,7 @@ program sod2d
         else if (isPeriodic .eq. 1) then ! Case is periodic
            if (nboun .eq. 0) then ! Case has no boundaries
                write(1,*) '--| PERIODIC CASE WITH NO BOUNDARIES'
+               atime = 0.0d0
                do istep = 1,nstep
 
                   if (istep == nsave) write(1,*) '   --| STEP: ', istep
@@ -953,6 +956,7 @@ program sod2d
                   end if
 
                   time = time+dt
+                  atime = atime+dt
 
                   if (istep == nsave2) then
                      call volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
@@ -974,7 +978,8 @@ program sod2d
                   !
                   ! Call VTK output
                   !
-                  if (istep == nsave) then
+                  if (atime .gt. tleap) then
+                  !if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
                      if (flag_spectralElem == 1) then
                         call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR,connec, &
@@ -984,6 +989,7 @@ program sod2d
                            rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
                      end if
                      nsave = nsave+nleap
+                     atime = 0.0d0
                      call nvtxEndRange
                   end if
 
