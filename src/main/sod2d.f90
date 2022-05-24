@@ -58,8 +58,9 @@ program sod2d
         real(8),    allocatable    :: source_term(:)
         real(8),    allocatable    :: aux_1(:,:), aux_2(:)
         real(8)                    :: s, t, z, detJe
-        real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot
+        real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot, eps_D, eps_S, eps_T
         real(8)                    :: cfl_conv, cfl_diff
+        real(8)                    :: leviCivi(3,3,3)
         character(500)             :: file_path
         character(500)             :: file_name, dumpfile
         character(4)               :: timeStep
@@ -118,7 +119,7 @@ program sod2d
         !nnode = 27 ! TODO: need to allow for mixed elements...
         !porder = 1 ! TODO: make it input
         !npbou = 9 ! TODO: Need to get his from somewhere...
-        nstep = 900000 ! TODO: Needs to be input...
+        nstep = 100 ! TODO: Needs to be input...
 #ifdef CHANNEL
         Rgas = Rg
 #else
@@ -131,7 +132,7 @@ program sod2d
         Cv = Cp/gamma_gas
         cfl_conv = 0.5d0
         cfl_diff = 0.5d0
-        nsave  = 1   ! First step to save, TODO: input
+        nsave  = 10   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
         nleap = 200 ! Saving interval, TODO: input
         tleap = 0.5d0 ! Saving interval, TODO: input
@@ -788,6 +789,17 @@ program sod2d
         !*********************************************************************!
 
         !
+        ! Compute Levi-Civita tensor
+        !
+        leviCivi = 0.0d0
+        leviCivi(2,3,1) =  1.0d0
+        leviCivi(3,2,1) = -1.0d0
+        leviCivi(1,3,2) = -1.0d0
+        leviCivi(3,1,2) =  1.0d0
+        leviCivi(1,2,3) =  1.0d0
+        leviCivi(2,1,3) = -1.0d0
+
+        !
         ! Write EK to file
         !
         open(unit=666,file="analysis.dat",status="replace")
@@ -796,9 +808,11 @@ program sod2d
         !T0 = 1.0d0/(1.4d0*Rgas*(0.1**2))
         !rho0 = 1.0d0
         call volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
-        call write_EK(time,EK)
-        write(1,*) "--| time   ,   EK"
-        write(1,*) "--| ",time,"  |  ",EK
+        call visc_dissipationRate(nelem,npoin,connec,leviCivi,rho0,mu_fluid,u(:,:,2),Re,gpvol,He,dNgp,eps_S,eps_D,eps_T)
+        call write_EK(time,EK,eps_S,eps_D,eps_T)
+        write(1,*) "--| time     EK     eps_S     eps_D     eps_T"
+        write(1,20) time, EK, eps_S, eps_D, eps_T
+20      format(5(F16.8,2X))
 
         counter = 1
 
@@ -960,9 +974,10 @@ program sod2d
 
                   if (istep == nsave2) then
                      call volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
-                     call write_EK(time,EK)
-                     write(1,*) "--| time   ,   EK"
-                     write(1,*) "--| ",time,"  |  ",EK
+                     call visc_dissipationRate(nelem,npoin,connec,leviCivi,rho0,mu_fluid,u(:,:,2),Re,gpvol,He,dNgp,eps_S,eps_D,eps_T)
+                     call write_EK(time,EK,eps_S, eps_D, eps_T)
+                     write(1,*) "--| time     EK     eps_S     eps_D     eps_T"
+                     write(1,20) time, EK, eps_S, eps_D, eps_T
                   end if
 
                   if (flag_real_diff == 1) then
