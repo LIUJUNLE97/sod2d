@@ -82,7 +82,7 @@ module mod_output
          ! Write cells
          !
          write(str1(1:8),'(i8)') nelem
-         write(str2(1:16),'(i8)') nelem*(nnode+1)
+         write(str2(1:8),'(i8)') nelem*(nnode+1)
          write(ivtk,'(a)') 'CELLS '//trim(str1)//trim(str2)
          do i = 1,nelem
             write(ivtk,*) cells(i,:)
@@ -348,7 +348,8 @@ module mod_output
          real(8)               , dimension(npoin)        :: envit, mut
          character(500)                                    :: filename
          character(80)                                     :: buffer
-         character(8)                                      :: str1, str2
+         character(8)                                      :: str1
+         character(16)                                     :: str2
          character(1)                                      :: lf
 
          lf = achar(10)
@@ -442,7 +443,7 @@ module mod_output
          ! Write cells
          !
          write(str1(1:8),'(i8)') nelem_l
-         write(str2(1:8),'(i8)') nelem_l*(nnode_l+1)
+         write(str2(1:16),'(i16)') nelem_l*(nnode_l+1)
          write(ivtk) lf//lf//'CELLS '//str1//' '//str2//lf
          do i = 1,nelem_l
             write(ivtk) cells(i,:)
