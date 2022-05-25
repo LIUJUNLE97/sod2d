@@ -52,13 +52,13 @@ program sod2d
         real(8),    allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:)
         real(8),    allocatable    :: Je(:,:), He(:,:,:,:)
         real(8),    allocatable    :: gpvol(:,:,:)
-        real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:)
+        real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:), machno(:)
         real(8),    allocatable    :: Ml(:)!, Mc(:)
         real(8),    allocatable    :: mu_e(:,:), mu_fluid(:),mu_sgs(:,:)
         real(8),    allocatable    :: source_term(:)
         real(8),    allocatable    :: aux_1(:,:), aux_2(:)
         real(8)                    :: s, t, z, detJe
-        real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot, eps_D, eps_S, eps_T
+        real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
         real(8)                    :: cfl_conv, cfl_diff
         real(8)                    :: leviCivi(3,3,3)
         character(500)             :: file_path
@@ -329,6 +329,7 @@ program sod2d
         allocate(e_int(npoin,2))    ! Internal Energy
         allocate(eta(npoin,2))      ! entropy
         allocate(csound(npoin))     ! Speed of sound
+        allocate(machno(npoin))     ! Speed of sound
         allocate(mu_fluid(npoin))   ! Fluid viscosity
         allocate(mu_e(nelem,ngaus))  ! Elemental viscosity
         allocate(mu_sgs(nelem,ngaus))! SGS viscosity
@@ -409,6 +410,12 @@ program sod2d
         end do
         !$acc end parallel loop
 #endif
+        !$acc parallel loop
+        do ipoin = 1,npoin
+           machno(ipoin) = dot_product(u(ipoin,:,2),u(ipoin,:,2))/csound(ipoin)
+        end do
+        !$acc end parallel loop
+
         !$acc kernels
         mu_e(:,:) = 0.0d0 ! Element syabilization viscosity
         mu_sgs(:,:) = 0.0d0
@@ -611,6 +618,12 @@ program sod2d
                  call var_interpolate(aux_2(connec(ielem,:)),Ngp_l(inode,:),csound(connec(ielem,inode)))
               end do
            end do
+           aux_2(:) = machno(:)
+           do ielem = 1,nelem
+              do inode = (2**ndime)+1,nnode
+                 call var_interpolate(aux_2(connec(ielem,:)),Ngp_l(inode,:),machno(connec(ielem,inode)))
+              end do
+           end do
            aux_2(:) = mu_fluid(:)
            do ielem = 1,nelem
               do inode = (2**ndime)+1,nnode
@@ -809,10 +822,11 @@ program sod2d
         !rho0 = 1.0d0
         call volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
         call visc_dissipationRate(nelem,npoin,connec,leviCivi,rho0,mu_fluid,u(:,:,2),VolTot,gpvol,He,dNgp,eps_S,eps_D,eps_T)
-        call write_EK(time,EK,eps_S,eps_D,eps_T)
-        write(1,*) "--| time     EK     eps_S     eps_D     eps_T"
-        write(1,20) time, EK, eps_S, eps_D, eps_T
-20      format(5(F16.8,2X))
+        call maxMach(npoin,machno,maxmachno)
+        call write_EK(time,EK,eps_S,eps_D,eps_T,maxmachno)
+        write(1,*) "--| time     EK     eps_S     eps_D     eps_T     max(Ma)"
+        write(1,20) time, EK, eps_S, eps_D, eps_T, maxmachno
+20      format(6(F16.8,2X))
 
         counter = 1
 
@@ -857,7 +871,7 @@ program sod2d
                  else
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
-                       rho,u,q,pr,E,Tem,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                       rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  end if
 #endif
@@ -873,7 +887,7 @@ program sod2d
                  else
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
-                       rho,u,q,pr,E,Tem,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                       rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  end if
 
@@ -952,7 +966,7 @@ program sod2d
                  else
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
-                       rho,u,q,pr,E,Tem,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid)
+                       rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid)
                  end if
 #endif
                   !
@@ -966,7 +980,7 @@ program sod2d
                   else
                      call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                         ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
-                        rho,u,q,pr,E,Tem,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid)
+                        rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid)
                   end if
 
                   time = time+dt
@@ -975,9 +989,10 @@ program sod2d
                   if (istep == nsave2) then
                      call volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
                      call visc_dissipationRate(nelem,npoin,connec,leviCivi,rho0,mu_fluid,u(:,:,2),VolTot,gpvol,He,dNgp,eps_S,eps_D,eps_T)
-                     call write_EK(time,EK,eps_S, eps_D, eps_T)
-                     write(1,*) "--| time     EK     eps_S     eps_D     eps_T"
-                     write(1,20) time, EK, eps_S, eps_D, eps_T
+                     call maxMach(npoin,machno,maxmachno)
+                     call write_EK(time,EK,eps_S, eps_D, eps_T, maxmachno)
+                     write(1,*) "--| time     EK     eps_S     eps_D     eps_T     max(Ma)"
+                     write(1,20) time, EK, eps_S, eps_D, eps_T, maxmachno
                   end if
 
                   if (flag_real_diff == 1) then
@@ -1053,7 +1068,7 @@ program sod2d
                 else
                    call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
-                      rho,u,q,pr,E,Tem,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                      rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
                 end if
 #endif
@@ -1069,7 +1084,7 @@ program sod2d
                   else
                      call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                         ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
-                        rho,u,q,pr,E,Tem,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                        rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
                   end if
 
