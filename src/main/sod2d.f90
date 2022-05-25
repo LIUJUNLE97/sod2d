@@ -58,7 +58,7 @@ program sod2d
         real(8),    allocatable    :: source_term(:)
         real(8),    allocatable    :: aux_1(:,:), aux_2(:)
         real(8)                    :: s, t, z, detJe
-        real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot, eps_D, eps_S, eps_T
+        real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
         real(8)                    :: cfl_conv, cfl_diff
         real(8)                    :: leviCivi(3,3,3)
         character(500)             :: file_path
@@ -822,9 +822,10 @@ program sod2d
         !rho0 = 1.0d0
         call volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
         call visc_dissipationRate(nelem,npoin,connec,leviCivi,rho0,mu_fluid,u(:,:,2),VolTot,gpvol,He,dNgp,eps_S,eps_D,eps_T)
-        call write_EK(time,EK,eps_S,eps_D,eps_T)
+        call maxMach(npoin,machno,maxmachno)
+        call write_EK(time,EK,eps_S,eps_D,eps_T,maxmachno)
         write(1,*) "--| time     EK     eps_S     eps_D     eps_T     max(Ma)"
-        write(1,20) time, EK, eps_S, eps_D, eps_T, maxval(machno(:))
+        write(1,20) time, EK, eps_S, eps_D, eps_T, maxmachno
 20      format(6(F16.8,2X))
 
         counter = 1
@@ -870,7 +871,7 @@ program sod2d
                  else
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
-                       rho,u,q,pr,E,Tem,csound,machnno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                       rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  end if
 #endif
@@ -988,9 +989,10 @@ program sod2d
                   if (istep == nsave2) then
                      call volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
                      call visc_dissipationRate(nelem,npoin,connec,leviCivi,rho0,mu_fluid,u(:,:,2),VolTot,gpvol,He,dNgp,eps_S,eps_D,eps_T)
-                     call write_EK(time,EK,eps_S, eps_D, eps_T)
+                     call maxMach(npoin,machno,maxmachno)
+                     call write_EK(time,EK,eps_S, eps_D, eps_T, maxmachno)
                      write(1,*) "--| time     EK     eps_S     eps_D     eps_T     max(Ma)"
-                     write(1,20) time, EK, eps_S, eps_D, eps_T, maxval(machno(:))
+                     write(1,20) time, EK, eps_S, eps_D, eps_T, maxmachno
                   end if
 
                   if (flag_real_diff == 1) then
