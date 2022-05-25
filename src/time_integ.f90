@@ -351,8 +351,9 @@ module time_integ
                !$acc loop seq
                do idime = 1,ndime
                   u(lpoin_w(ipoin),idime,pos) = q(lpoin_w(ipoin),idime,pos)/rho(lpoin_w(ipoin),pos)
-                  umag = umag + sqrt(u(lpoin_w(ipoin),idime,pos)**2)
+                  umag = umag + u(lpoin_w(ipoin),idime,pos)**2
                end do
+               umag = sqrt(umag)
                pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0d0)*e_int(lpoin_w(ipoin),pos)
                Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
                e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &
@@ -370,8 +371,9 @@ module time_integ
                !$acc loop seq
                do idime = 1,ndime
                   u(lpoin_w(ipoin),idime,pos) = q(lpoin_w(ipoin),idime,pos)/rho(lpoin_w(ipoin),pos)
-                  umag = umag + sqrt(u(lpoin_w(ipoin),idime,pos)**2)
+                  umag = umag + u(lpoin_w(ipoin),idime,pos)**2
                end do
+               umag = sqrt(umag)
                pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0d0)*e_int(lpoin_w(ipoin),pos)
                Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
                e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &

@@ -37,13 +37,13 @@ module mod_analysis
 
       end subroutine volAvg_EK
 
-      subroutine visc_dissipationRate(nelem,npoin,connec,leviCivi,rho0,mu_fluid,u,volT,gpvol,He,dNgp,eps_S,eps_D,eps_T)
+      subroutine visc_dissipationRate(nelem,npoin,connec,leviCivi,rho0,mu_fluid,mu_e,u,volT,gpvol,He,dNgp,eps_S,eps_D,eps_T)
 
          implicit none
 
          integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
          real(8),    intent(in)  :: leviCivi(3,3,3), rho0, mu_fluid(npoin), u(npoin,ndime), volT
-         real(8),    intent(in)  :: gpvol(1,ngaus,nelem), He(ndime,ndime,ngaus,nelem), dNgp(ndime,ngaus,nelem)
+         real(8),    intent(in)  :: gpvol(1,ngaus,nelem), He(ndime,ndime,ngaus,nelem), dNgp(ndime,ngaus,nelem),mu_e(nelem,ngaus)
          real(8),    intent(out) :: eps_S, eps_D, eps_T
          integer(4)              :: ielem, igaus, inode, idime, jdime, kdime
          real(8)                 :: R1, R2, div2U, curl2U, alpha, aux,aux2
@@ -118,7 +118,7 @@ module mod_analysis
                !
                ! Compute enstrophy
                !
-               R1 = R1+gpvol(1,igaus,ielem)*mu_fluid(connec(ielem,igaus))*curl2U
+               R1 = R1+gpvol(1,igaus,ielem)*(mu_fluid(connec(ielem,igaus))+mu_e(ielem,igaus))*curl2U
                !
                ! Compute dilational component
                !
@@ -137,19 +137,21 @@ module mod_analysis
 
       end subroutine visc_dissipationRate
 
-      subroutine maxMach(npoin,machno,maxmachno)
+      subroutine maxMach(npoin,npoin_w,lpoin_w,machno,maxmachno)
 
          implicit none
 
          integer(4), intent(in)  :: npoin
+         integer(4), intent(in)  :: npoin_w
+         integer(4), intent(in)  :: lpoin_w(npoin)
          real(8),    intent(in)  :: machno(npoin)
          real(8),    intent(out) :: maxmachno
          integer(4)              :: ipoin
 
          maxmachno = 0.0d0
          !$acc parallel loop reduction(max:maxmachno)
-         do ipoin = 1,npoin
-            maxmachno = max(maxmachno,machno(ipoin))
+         do ipoin = 1,npoin_w
+            maxmachno = max(maxmachno,machno(lpoin_w(ipoin)))
          end do
          !$acc end parallel loop
 

@@ -222,7 +222,7 @@ module mod_entropy_viscosity
                       real(8)                 :: L3, aux1, aux2, aux3
                       real(8)                 ::  maxEta, maxRho, norm, Rgas
 
-                      Rgas = 1.0d0!*1.0d0/(1.4d0*1.0d0*1.25d0*1.25d0)
+                      Rgas = 1.0d0*1.0d0/(1.4d0*1.0d0*1.25d0*1.25d0)
 
                       !maxEta = 0.0d0
                       !!$acc parallel loop reduction(+:maxEta)

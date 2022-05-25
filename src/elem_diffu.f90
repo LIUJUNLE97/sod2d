@@ -435,8 +435,8 @@ module elem_diffu
                                      (mu_fgp+mu_egp)*(gradU(idime,jdime)+ gradU(jdime,idime))*ugp(jdime)
                                   tau(idime,jdime) = (mu_fgp+mu_egp)*(gradU(idime,jdime)+gradU(jdime,idime))
                                end do
-                               tauU(idime) = tauU(idime)-mu_fgp*twoThirds*divU*ugp(idime)
-                               tau(idime,idime) = tau(idime,idime)-mu_fgp*twoThirds*divU
+                               tauU(idime) = tauU(idime)-(mu_fgp)*twoThirds*divU*ugp(idime)
+                               tau(idime,idime) = tau(idime,idime)-(mu_fgp)*twoThirds*divU
                             end do
 
                             ! Dif rho
