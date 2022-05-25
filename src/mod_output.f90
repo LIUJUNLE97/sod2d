@@ -345,7 +345,7 @@ module mod_output
          integer(4)            , dimension(nelem*(porder**ndime),2**ndime+1)  :: cells
          integer(4)            , dimension(nelem*(porder**ndime))          :: cellTypes
          real(8)               , dimension(npoin,3)        :: points, u3d
-         real(8)               , dimension(npoin)        :: envit, mut
+         real(8)               , dimension(npoin)          :: envit, mut
          character(500)                                    :: filename
          character(80)                                     :: buffer
          character(8)                                      :: str1
@@ -551,6 +551,7 @@ module mod_output
          integer(4)                                        :: i, iper, ivtk=99
          integer(4)            , dimension(nelem,nnode+1)  :: cells
          integer(4)            , dimension(nelem)          :: cellTypes
+         integer(4)            , dimension(npoin)          :: envit, mut
          real(8)               , dimension(npoin,3)        :: points
          character(500)                                    :: filename
 
@@ -638,6 +639,20 @@ module mod_output
          call skip_line(ivtk)
          do i = 1,npoin
             read(ivtk) machno(i)
+         end do
+         call skip_line(ivtk)
+         call skip_line(ivtk)
+         call skip_line(ivtk)
+         call skip_line(ivtk)
+         do i = 1,npoin
+            read(ivtk) envit(i)
+         end do
+         call skip_line(ivtk)
+         call skip_line(ivtk)
+         call skip_line(ivtk)
+         call skip_line(ivtk)
+         do i = 1,npoin
+            read(ivtk) mut(i)
          end do
          call skip_line(ivtk)
          call skip_line(ivtk)
