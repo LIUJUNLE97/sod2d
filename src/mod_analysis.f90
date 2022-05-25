@@ -137,14 +137,32 @@ module mod_analysis
 
       end subroutine visc_dissipationRate
 
-      subroutine write_EK(time,EK,eps_S,eps_D,eps_T)
+      subroutine maxMach(npoin,machno,maxmachno)
 
          implicit none
 
-         real(8), intent(in) :: time, EK, eps_S, eps_D, eps_T
+         integer(4), intent(in)  :: npoin
+         real(8),    intent(in)  :: machno(npoin)
+         real(8),    intent(out) :: maxmachno
+         integer(4)              :: ipoin
 
-         write(666,10) time, EK, eps_S, eps_D, eps_T
-10       format(5(F12.8,2X))
+         maxmachno = 0.0d0
+         !$acc parallel loop reduction(max:maxmachno)
+         do ipoin = 1,npoin
+            maxmachno = max(maxmachno,machno(ipoin))
+         end do
+         !$acc end parallel loop
+
+      end subroutine maxMach
+
+      subroutine write_EK(time,EK,eps_S,eps_D,eps_T,maxmachno)
+
+         implicit none
+
+         real(8), intent(in) :: time, EK, eps_S, eps_D, eps_T, maxmachno
+
+         write(666,10) time, EK, eps_S, eps_D, eps_T, maxmachno
+10       format(6(F12.8,2X))
 
       end subroutine write_EK
 
