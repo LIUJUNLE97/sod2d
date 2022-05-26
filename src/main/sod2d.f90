@@ -464,8 +464,8 @@ program sod2d
               call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
            end if
+           call nvtxEndRange
         end if
-        call nvtxEndRange
 
         !*********************************************************************!
         ! Generate GLL table                                                  !
@@ -652,6 +652,7 @@ program sod2d
               call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR,connec, &
                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper,masSla)
            end if
+           call nvtxEndRange
         end if
 
         !*********************************************************************!
