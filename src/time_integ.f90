@@ -226,28 +226,14 @@ module time_integ
                !
                ! Compute convective terms
                !
-               call mass_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_q,aux_rho,aux_u,Rmass)
-               call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_pr,aux_E,aux_rho,aux_q,Rener)
-               if (flag_emac .eq. 0) then
-                  !
-                  ! Conservation momentum convection div(qi*uj)+grad(p)
-                  !
+               if(flag_SpectralElem == 0) then
+                  call mass_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_q,aux_rho,aux_u,Rmass)
+                  call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_pr,aux_E,aux_rho,aux_q,Rener)
                   call mom_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_q,aux_rho,aux_pr,Rmom)
-               else if (flag_emac .eq. 1) then
-                  !
-                  ! EMAC term
-                  !
-                  !$acc parallel loop
-                  do ipoin = 1,npoin
-                     !$acc loop seq
-                     do idime = 1,ndime
-                        Aemac(ipoin,idime) = aux_u(ipoin,idime)*sqrt(aux_rho(ipoin))
-                     end do
-                     Femac(ipoin) = dot_product(Aemac(ipoin,:),Aemac(ipoin,:))
-                  end do
-                  !$acc end parallel loop
-                  call mom_convec_emac(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Aemac,Femac,aux_pr,Rmom)
+               else 
+                  call full_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_q,aux_rho,aux_pr,aux_E,Rmass,Rmom,Rener)
                end if
+
                ! entropy advection
 #ifndef NOPRED
                call generic_scalar_convec(nelem,npoin,connec,Ngp,dNgp,He, &
