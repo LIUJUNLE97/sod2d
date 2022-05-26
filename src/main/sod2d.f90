@@ -131,8 +131,8 @@ program sod2d
         Cp = gamma_gas*Rgas/(gamma_gas-1.0d0)
         write(1,*) "Cp ",Cp
         Cv = Cp/gamma_gas
-        cfl_conv = 0.1d0
-        cfl_diff = 0.1d0
+        cfl_conv = 0.5d0
+        cfl_diff = 0.5d0
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
         nleap = 200 ! Saving interval, TODO: input
@@ -150,9 +150,9 @@ program sod2d
            !nper = 16471 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
-           nper = 10981  ! TODO: if periodic, request number of periodic nodes
+           !nper = 10981  ! TODO: if periodic, request number of periodic nodes
            !nper = 48007   ! TODO: if periodic, request number of periodic nodes
-           !nper = 97741   ! TODO: if periodic, request number of periodic nodes
+           nper = 97741   ! TODO: if periodic, request number of periodic nodes
            !nper = 195841   ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then

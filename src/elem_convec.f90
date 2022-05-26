@@ -799,7 +799,7 @@ module elem_convec
                           !$acc loop seq
                           do jdime = 1,ndime
                              aux2_mom  = 0.0d0
-                             !$acc loop vector reduction(+:aux_mom,aux2_mom,aux3_mom)
+                             !$acc loop vector reduction(+:aux_mom,aux2_mom,aux3_mom,aux5_mom)
                              do inode = 1,nnode
                                 aux_mom = aux_mom  +gpcar(jdime,inode)*(q(connec(ielem,inode),idime)*u(connec(ielem,inode),jdime))
                                 aux2_mom = aux2_mom+gpcar(jdime,inode)*u(connec(ielem,inode),idime)
