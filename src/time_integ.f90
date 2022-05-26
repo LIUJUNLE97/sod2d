@@ -14,7 +14,7 @@ module time_integ
       contains
 
          subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                         ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
+                         ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional arg
 
@@ -29,7 +29,7 @@ module time_integ
             real(8),              intent(in)    :: gpvol(1,ngaus,nelem)
             real(8),              intent(in)    :: dt, helem(nelem), helem_l(npoin)
             real(8),              intent(in)    :: Ml(npoin)
-            real(8),              intent(in)    :: Rgas, gamma_gas
+            real(8),              intent(in)    :: Rgas, gamma_gas, Cp, Prt
             real(8),              intent(inout) :: rho(npoin,2)
             real(8),              intent(inout) :: u(npoin,ndime,2)
             real(8),              intent(inout) :: q(npoin,ndime,2)
@@ -213,7 +213,7 @@ module time_integ
                      call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,mu_fluid,mu_e,mu_sgs,Rdiff_mom)
                      call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Rdiff_ener)
                   else 
-                     call full_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_rho,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass,Rdiff_mom,Rdiff_ener)
+                     call full_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Cp,Prt,aux_rho,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass,Rdiff_mom,Rdiff_ener)
                   end if
                   call nvtxEndRange
                   !

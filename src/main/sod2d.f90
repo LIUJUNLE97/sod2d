@@ -64,8 +64,8 @@ program sod2d
         character(500)             :: file_path
         character(500)             :: file_name, dumpfile
         character(4)               :: timeStep
-
-        real(8)                    :: Rgas, gamma_gas, Cv, tleap, atime
+        real(8)  ::  Cp = 1004.0d0
+        real(8)                    :: Rgas, gamma_gas, Cv, tleap, atime, Prt
 #ifdef CHANNEL
         !channel flow setup
         real(8)  :: vo = 1.0d0
@@ -74,21 +74,22 @@ program sod2d
         real(8)  :: U0     = 1.0d0
         real(8)  :: rho0   = 1.0d0
         real(8)  :: Retau  = 950.0d0
-        real(8)  ::  cp = 1004.0d0
         real(8)  ::  gamma_g = 1.40d0
         real(8)  :: yp=0.0d0, ti(3)
         real(8)  :: velo = 0.0d0, vol = 0.0d0
         real(8)  :: Re,mul,utau,Rg,to,po,mur
 #else
-        real(8)                    :: Cp, rho0, Re, mul,mur,to
+        real(8)                    :: rho0, Re, mul,mur,to
 #endif
 
         open(unit=1,file="sod2d.log",status="replace")
+
+        Prt = 0.71d0
 #ifdef CHANNEL
         Re     = exp((1.0d0/0.88d0)*log(Retau/0.09d0))
         mul    = (rho0*2.0d0*delta*vo)/Re
         utau   = (Retau*mul)/(delta*rho0)
-        Rg = cp*(gamma_g-1.0d0)/gamma_g
+        Rg = Cp*(gamma_g-1.0d0)/gamma_g
         to = vo*vo/(gamma_g*Rg*M*M)
         po = rho0*Rg*to
         mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
@@ -870,7 +871,7 @@ program sod2d
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  else
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
+                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                        rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  end if
@@ -886,7 +887,7 @@ program sod2d
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  else
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
+                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                        rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
                  end if
@@ -965,7 +966,7 @@ program sod2d
                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid)
                  else
                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
+                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                        rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid)
                  end if
 #endif
@@ -979,7 +980,7 @@ program sod2d
                         rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid)
                   else
                      call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
+                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid)
                   end if
 
@@ -1067,7 +1068,7 @@ program sod2d
                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
                 else
                    call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
+                      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                       rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
                 end if
@@ -1083,7 +1084,7 @@ program sod2d
                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
                   else
                      call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas, &
+                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
                   end if

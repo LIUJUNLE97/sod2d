@@ -349,7 +349,7 @@ module elem_diffu
 
               end subroutine ener_diffusion
 
-              subroutine full_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho,u,Tem,mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener)
+              subroutine full_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Cp,Pr,rho,u,Tem,mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener)
                       implicit none
 
                       integer(4), intent(in)  :: nelem, npoin
@@ -357,7 +357,7 @@ module elem_diffu
                       real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                       real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
                       real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: rho(npoin),u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus),Ml(npoin)
+                      real(8),    intent(in)  :: Cp,Pr,rho(npoin),u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus),Ml(npoin)
                       real(8),    intent(in)  :: mu_fluid(npoin)
                       real(8),    intent(out) :: Rmass(npoin)
                       real(8),    intent(out) :: Rmom(npoin,ndime)
@@ -401,7 +401,7 @@ module elem_diffu
                             nu_e = c_rho*mu_e(ielem,igaus)/rho(connec(ielem,igaus))
                             mu_fgp = mu_fluid(connec(ielem,igaus))+rho(connec(ielem,igaus))*mu_sgs(ielem,igaus)
                             mu_egp = mu_e(ielem,igaus)
-                            kappa_e =mu_fluid(connec(ielem,igaus))*1.6d0/0.71d0+c_ener*mu_e(ielem,igaus)/0.4d0 + rho(connec(ielem,igaus))*mu_sgs(ielem,igaus)/0.9d0
+                            kappa_e =mu_fluid(connec(ielem,igaus))*Cp/Pr+c_ener*mu_e(ielem,igaus)/0.4d0 + rho(connec(ielem,igaus))*mu_sgs(ielem,igaus)/0.9d0
                             !kappa_e =mu_fluid(connec(ielem,igaus))*1004.0d0/0.71d0+c_ener*mu_e(ielem,igaus)/0.4d0 + rho(connec(ielem,igaus))*mu_sgs(ielem,igaus)/0.9d0
                             !
                             ! Compute grad(u)
