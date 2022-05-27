@@ -767,7 +767,7 @@ module elem_convec
                  real(8)                 :: tmp1_ener,tmp2_ener,tmp3_ener,tmp4_ener, tmp5_ener
 
 
-                 call nvtxStartRange("Momentum convection")
+                 call nvtxStartRange("Full convection")
                  !$acc kernels
                  Rmom(:,:) = 0.0d0
                  Rmass(:) = 0.0d0
