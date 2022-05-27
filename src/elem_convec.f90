@@ -830,7 +830,7 @@ module elem_convec
                           do inode = 1,nnode
                              tmp1_mass = tmp1_mass+(gpcar(idime,inode)*ql(inode,idime))
                              tmp3_mass = tmp3_mass+(gpcar(idime,inode)*rhol(inode))
-                             aux_mom = aux_mom+gpcar(idime,inode)*pr(connec(ielem,inode))
+                             aux_mom = aux_mom+gpcar(idime,inode)*prl(inode)
                              tmp1_ener = tmp1_ener+gpcar(idime,inode)*ul(inode,idime)*El(inode)
                              tmp5_ener = tmp5_ener+gpcar(idime,inode)*ul(inode,idime)*prl(inode)
                              tmp3_ener = tmp3_ener+gpcar(idime,inode)*El(inode)
