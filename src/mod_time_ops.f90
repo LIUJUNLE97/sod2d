@@ -25,7 +25,7 @@ module mod_time_ops
          dt_conv = 100000000000000.0d0
          dt_diff = 100000000000000.0d0
          dt      = 100000000000000.0d0
-         !$acc parallel loop gang num_gangs(nelem) reduction(min:dt_conv,dt_diff,dt) vector_length(vecLength)
+         !$acc parallel loop gang  reduction(min:dt_conv,dt_diff,dt) vector_length(vecLength)
          do ielem = 1,nelem
             L3 = 0.0d0
             !$acc loop vector reduction(max:L3)
