@@ -366,6 +366,7 @@ module elem_diffu
                       real(8)                 :: Re_mass(nnode),Re_mom(nnode,ndime),Re_ener(nnode)
                       real(8)                 :: kappa_e, mu_fgp, mu_egp,aux, divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
                       real(8)                 :: gpcar(ndime,nnode), gradU(ndime,ndime), gradT(ndime),tmp1,ugp(ndime),vol,arho
+                      real(8)                 :: ul(nnode,ndime), rhol(nnode),Teml(nnode),mufluidl(nnode)
 
                       call nvtxStartRange("Full diffusion")
                       twoThirds = 2.0d0/3.0d0
@@ -375,17 +376,21 @@ module elem_diffu
                       Rener(:) = 0.0d0
                       !$acc end kernels
 
-                      !$acc parallel loop gang  private(gpcar,Re_mass,Re_mom,tau,gradU,Re_ener,gradT,tauU,ugp) vector_length(vecLength)
+                      !$acc parallel loop gang  private(ul,Teml,rhol,mufluidl,gpcar,Re_mass,Re_mom,tau,gradU,Re_ener,gradT,tauU,ugp) vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
                             Re_mass(inode) = 0.0d0
                             Re_ener(inode) = 0.0d0
+                            rhol(inode) = rho(connec(ielem,inode))
+                            Teml(inode) = Tem(connec(ielem,inode))
+                            mufluidl(inode) = mu_fluid(connec(ielem,inode))
                          end do
                          !$acc loop vector collapse(2)
                          do inode = 1,nnode
                             do idime = 1,ndime
                                Re_mom(inode,idime) = 0.0d0
+                               ul(inode,idime) = u(connec(ielem,inode),idime)
                             end do
                          end do
                          !$acc loop seq
@@ -396,13 +401,12 @@ module elem_diffu
                                do inode = 1,nnode
                                   gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
                                end do
-                               ugp(idime) = u(connec(ielem,igaus),idime)
+                               ugp(idime) = ul(igaus,idime)
                             end do
-                            nu_e = c_rho*mu_e(ielem,igaus)/rho(connec(ielem,igaus))
-                            mu_fgp = mu_fluid(connec(ielem,igaus))+rho(connec(ielem,igaus))*mu_sgs(ielem,igaus)
+                            nu_e = c_rho*mu_e(ielem,igaus)/rhol(igaus)
+                            mu_fgp = mufluidl(igaus)+rhol(igaus)*mu_sgs(ielem,igaus)
                             mu_egp = mu_e(ielem,igaus)
-                            kappa_e =mu_fluid(connec(ielem,igaus))*Cp/Pr+c_ener*mu_e(ielem,igaus)/0.4d0 + rho(connec(ielem,igaus))*mu_sgs(ielem,igaus)/0.9d0
-                            !kappa_e =mu_fluid(connec(ielem,igaus))*1004.0d0/0.71d0+c_ener*mu_e(ielem,igaus)/0.4d0 + rho(connec(ielem,igaus))*mu_sgs(ielem,igaus)/0.9d0
+                            kappa_e =mufluidl(igaus)*Cp/Pr+c_ener*mu_e(ielem,igaus)/0.4d0 + rhol(igaus)*mu_sgs(ielem,igaus)/0.9d0
                             !
                             ! Compute grad(u)
                             !
@@ -413,7 +417,7 @@ module elem_diffu
                                   aux = 0.0d0
                                   !$acc loop vector reduction(+:aux)
                                   do inode = 1,nnode
-                                     aux = aux+gpcar(jdime,inode)*u(connec(ielem,inode),idime)
+                                     aux = aux+gpcar(jdime,inode)*ul(inode,idime)
                                   end do
                                   gradU(idime,jdime) = aux
                                end do
@@ -448,8 +452,8 @@ module elem_diffu
                                aux = 0.0d0
                                !$acc loop vector reduction(+:tmp1,aux)
                                do inode = 1,nnode
-                                  tmp1 = tmp1+gpcar(idime,inode)*rho(connec(ielem,inode))
-                                  aux = aux+gpcar(idime,inode)*Tem(connec(ielem,inode))
+                                  tmp1 = tmp1+gpcar(idime,inode)*rhol(inode)
+                                  aux = aux+gpcar(idime,inode)*Teml(inode)
                                end do
                                !$acc loop vector
                                do inode = 1,nnode

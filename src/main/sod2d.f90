@@ -98,12 +98,12 @@ program sod2d
         write(1,*) " Gp ", utau*utau*rho0/delta
 #else
         Re = 1600.0d0
-        to = 1.0d0
-        Rgas = 1.0d0*1.0d0/(1.4d0*1.0d0*1.25d0*1.25d0)
-        !rho0 = 1.0d0 !TGV
-        rho0 = (1.0d0/(1.4d0*1.25*1.25))/(Rgas*to)
+        !to = 1.0d0
+        !Rgas = 1.0d0*1.0d0/(1.4d0*1.0d0*1.25d0*1.25d0)
+        rho0 = 1.0d0 !TGV
+        !rho0 = (1.0d0/(1.4d0*1.25*1.25))/(Rgas*to)
         mul = rho0*1.0d0*1.0d0/Re
-        !to = 1.0d0*1.0d0/(1.4d0*287.0d0*0.1d0*0.1d0) !TGV
+        to = 1.0d0*1.0d0/(1.4d0*287.0d0*0.1d0*0.1d0) !TGV
         mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
         flag_mu_factor = mul/mur
 
@@ -120,19 +120,19 @@ program sod2d
         !nnode = 27 ! TODO: need to allow for mixed elements...
         !porder = 1 ! TODO: make it input
         !npbou = 9 ! TODO: Need to get his from somewhere...
-        nstep = 100 ! TODO: Needs to be input...
+        nstep = 900000 ! TODO: Needs to be input...
 #ifdef CHANNEL
         Rgas = Rg
 #else
-!        Rgas = 287.00d0 ! TODO: Make it inpu TGV shockt
+        Rgas = 287.00d0 ! TODO: Make it inpu TGV shockt
 #endif
-        !Cp = 1004.00d0 ! TODO: Make it input !TGV
+        Cp = 1004.00d0 ! TODO: Make it input !TGV
         gamma_gas = 1.40d0 ! TODO: Make it innput
-        Cp = gamma_gas*Rgas/(gamma_gas-1.0d0)
+        !Cp = gamma_gas*Rgas/(gamma_gas-1.0d0)
         write(1,*) "Cp ",Cp
         Cv = Cp/gamma_gas
-        cfl_conv = 0.5d0
-        cfl_diff = 0.5d0
+        cfl_conv = 0.85d0
+        cfl_diff = 0.85d0
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
         nleap = 200 ! Saving interval, TODO: input
@@ -150,9 +150,9 @@ program sod2d
            !nper = 16471 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
-           !nper = 10981  ! TODO: if periodic, request number of periodic nodes
+           nper = 10981  ! TODO: if periodic, request number of periodic nodes
            !nper = 48007   ! TODO: if periodic, request number of periodic nodes
-           nper = 97741   ! TODO: if periodic, request number of periodic nodes
+           !nper = 97741   ! TODO: if periodic, request number of periodic nodes
            !nper = 195841   ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
@@ -403,8 +403,8 @@ program sod2d
         !$acc parallel loop
         do ipoin = 1,npoin
            e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0d0))
-           Tem(ipoin,2) = 1.0d0
-           !Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas) !TGV
+           !Tem(ipoin,2) = 1.0d0
+           Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas) !TGV
            E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
            q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
            csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2)) 
