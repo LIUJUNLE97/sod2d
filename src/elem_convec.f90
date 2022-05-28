@@ -651,6 +651,7 @@ module elem_convec
                       real(8),    intent(out) :: Rconvec(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime
                       real(8)                 :: tmp1, tmp2, Re(nnode), gpcar(ndime,nnode),tmp3,tmp4,tmp5
+                      real(8)                 :: ul(nnode,ndime), ql(nnode,ndime), etal(nnode)
 
                       call nvtxStartRange("Generic Convection")
                       !$acc kernels
@@ -702,15 +703,26 @@ module elem_convec
                          end do
                          !$acc end parallel loop
                       else
-                         !$acc parallel loop gang  private(Re,gpcar) vector_length(vecLength)
+                         !$acc parallel loop gang  private(Re,ul,ql,etal) !!vector_length(vecLength)
                          do ielem = 1,nelem
-                            !$acc loop seq
+                            !$acc loop vector collapse(2)
+                            do idime = 1,ndime
+                               do inode = 1,nnode
+                                  ul(inode,idime) = u(connec(ielem,inode),idime)
+                                  ql(inode,idime) = q(connec(ielem,inode),idime)
+                               end do
+                            end do
+                            !$acc loop vector
+                            do inode = 1,nnode
+                               etal(inode) = eta(connec(ielem,inode))
+                            end do
+                            !$acc loop worker private(gpcar)
                             do igaus = 1,ngaus
-                               !$acc loop seq
+                               !$acc loop vector collapse(2)
                                do idime = 1,ndime
-                                  !$acc loop vector
                                   do inode = 1,nnode
-                                     gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                                     tmp1 = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                                     gpcar(idime,inode) = tmp1
                                   end do
                                end do
                                tmp1 = 0.0d0
@@ -718,16 +730,22 @@ module elem_convec
                                tmp4 = 0.0d0
                                !$acc loop seq
                                do idime = 1,ndime
-                                  tmp3 = 0.0d0
-                                  !$acc loop vector reduction(+:tmp1,tmp2,tmp3)
+                                  !$acc loop vector reduction(+:tmp1)
                                   do inode = 1,nnode
-                                     tmp1 = tmp1+gpcar(idime,inode)*q(connec(ielem,inode),idime)
-                                     tmp2 = tmp2+gpcar(idime,inode)*u(connec(ielem,inode),idime)
-                                     tmp3 = tmp3+gpcar(idime,inode)*eta(connec(ielem,inode))
+                                     tmp1 = tmp1+gpcar(idime,inode)*ql(inode,idime)&
+                                                 +etal(inode)*gpcar(idime,inode)*ul(inode,idime)
                                   end do
-                                  tmp4 = tmp4 + u(connec(ielem,igaus),idime)*tmp3
                                end do
-                               Re(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp2*eta(connec(ielem,inode))+tmp4)
+                               !$acc loop seq
+                               do idime = 1,ndime
+                                  tmp3 = 0.0d0
+                                  !$acc loop vector reduction(+:tmp3)
+                                  do inode = 1,nnode
+                                     tmp3 = tmp3+gpcar(idime,inode)*etal(inode)
+                                  end do
+                                  tmp4 = tmp4 + ul(igaus,idime)*tmp3
+                               end do
+                               Re(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp4)
                             end do
                             !
                             ! Assembly
