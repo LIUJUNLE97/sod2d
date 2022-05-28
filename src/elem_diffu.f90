@@ -366,7 +366,7 @@ module elem_diffu
                       real(8)                 :: Re_mass(nnode),Re_mom(nnode,ndime),Re_ener(nnode)
                       real(8)                 :: kappa_e, mu_fgp, mu_egp,aux, divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
                       real(8)                 :: gpcar(ndime,nnode), gradU(ndime,ndime), gradT(ndime),tmp1,ugp(ndime),vol,arho
-                      real(8)                 :: ul(nnode,ndime), rhol(nnode),Teml(nnode),mufluidl(nnode)
+                      real(8)                 :: ul(nnode,ndime), rhol(nnode),Teml(nnode),mufluidl(nnode), aux2
 
                       call nvtxStartRange("Full diffusion")
                       twoThirds = 2.0d0/3.0d0
@@ -376,7 +376,7 @@ module elem_diffu
                       Rener(:) = 0.0d0
                       !$acc end kernels
 
-                      !$acc parallel loop gang  private(ul,Teml,rhol,mufluidl,gpcar,Re_mass,Re_mom,tau,gradU,Re_ener,gradT,tauU,ugp) vector_length(vecLength)
+                      !$acc parallel loop gang  private(ul,Teml,rhol,mufluidl,Re_mass,Re_mom,Re_ener) !!vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
@@ -393,13 +393,14 @@ module elem_diffu
                                ul(inode,idime) = u(connec(ielem,inode),idime)
                             end do
                          end do
-                         !$acc loop seq
+                         !$acc loop worker private(gpcar,tau,gradU,gradT,tauU,ugp)
                          do igaus = 1,ngaus
                             !$acc loop seq
                             do idime = 1,ndime
                                !$acc loop vector
                                do inode = 1,nnode
-                                  gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                                  aux =  dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                                  gpcar(idime,inode) = aux
                                end do
                                ugp(idime) = ul(igaus,idime)
                             end do
@@ -457,17 +458,22 @@ module elem_diffu
                                end do
                                !$acc loop vector
                                do inode = 1,nnode
+                                  !$acc atomic update
                                   Re_mass(inode) = Re_mass(inode)+nu_e*gpvol(1,igaus,ielem)* &
                                      gpcar(idime,inode)*tmp1
+                                  !$acc end atomic
+                                  !$acc atomic update
                                   Re_ener(inode) = Re_ener(inode)+gpvol(1,igaus,ielem)*gpcar(idime,inode)* &
-                                                   (tauU(idime)+kappa_e*aux)
+                                     (tauU(idime)+kappa_e*aux) 
+                                  !$acc end atomic
                                end do
-                               !$acc loop seq
+                               !$acc loop vector collapse(2)
                                do jdime = 1,ndime
-                                  !$acc loop vector
                                   do inode = 1,nnode
+                                     !$acc atomic update
                                      Re_mom(inode,idime) = Re_mom(inode,idime)+gpvol(1,igaus,ielem)* &
                                         gpcar(jdime,inode)*tau(idime,jdime)
+                                     !$acc end atomic
                                   end do
                                end do
                             end do

@@ -775,7 +775,7 @@ module elem_convec
                  Rener(:) = 0.0d0
                  !$acc end kernels
 
-                 !$acc parallel loop gang private(Re_ener,Re_mass,Re_mom,tmp1_mom,tmp2_mom,gpcar,ul,ql,rhol,prl,El) vector_length(vecLength)
+                 !$acc parallel loop gang private(Re_ener,Re_mass,Re_mom,ul,ql,rhol,prl,El) !!num_workers(4) vector_length(vecLength)
                  do ielem = 1,nelem
                     !$acc loop vector collapse(2)
                     do idime = 1,ndime
@@ -790,12 +790,13 @@ module elem_convec
                        El(inode) = E(connec(ielem,inode))
                        prl(inode) = pr(connec(ielem,inode))
                     end do
-                    !$acc loop seq
+                    !$acc loop worker private(tmp1_mom,tmp2_mom,gpcar)
                     do igaus = 1,ngaus
                        !$acc loop vector collapse(2)
                        do idime = 1,ndime
                           do inode = 1,nnode
-                             gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                             aux_mom =  dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                             gpcar(idime,inode) = aux_mom
                           end do
                        end do
                        tmp1_mass = 0.0d0
