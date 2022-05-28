@@ -827,7 +827,6 @@ module elem_convec
                              end do
                              aux4_mom = aux4_mom+ql(igaus,jdime)*aux2_mom
                           end do
-
                           tmp1_mom(idime) = 0.5d0*(aux_mom+ql(igaus,idime)*aux3_mom+aux4_mom)
 
                           aux_mom = 0.0d0
@@ -851,7 +850,6 @@ module elem_convec
                        Re_mom(igaus,3) = gpvol(1,igaus,ielem)*(tmp1_mom(3)+tmp2_mom(3))
 
                        Re_mass(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1_mass+aux3_mom*rhol(igaus)+tmp4_mass)
-
                        Re_ener(igaus) = gpvol(1,igaus,ielem)*(0.5d0*(tmp1_ener+El(igaus)*aux3_mom+tmp4_ener)+tmp5_ener)
                     end do
                     !
