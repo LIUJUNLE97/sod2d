@@ -810,18 +810,24 @@ module elem_convec
                           aux3_mom  = 0.0d0
                           aux4_mom  = 0.0d0
                           aux5_mom  = 0.0d0
-                          !$acc loop seq
+                          !$acc loop vector collapse(2) reduction(+:aux_mom,aux3_mom,aux5_mom)
                           do jdime = 1,ndime
-                             aux2_mom  = 0.0d0
-                             !$acc loop vector reduction(+:aux_mom,aux2_mom,aux3_mom,aux5_mom)
                              do inode = 1,nnode
                                 aux_mom = aux_mom  +gpcar(jdime,inode)*(ql(inode,idime)*ul(inode,jdime))
-                                aux2_mom = aux2_mom+gpcar(jdime,inode)*ul(inode,idime)
                                 aux3_mom = aux3_mom+gpcar(jdime,inode)*ul(inode,jdime)
                                 aux5_mom = aux5_mom+ul(igaus,jdime)*gpcar(jdime,inode)*rhol(inode)
                              end do
+                          end do
+                          !$acc loop seq
+                          do jdime = 1,ndime
+                             aux2_mom  = 0.0d0
+                             !$acc loop vector reduction(+:aux2_mom)
+                             do inode = 1,nnode
+                                aux2_mom = aux2_mom+gpcar(jdime,inode)*ul(inode,idime)
+                             end do
                              aux4_mom = aux4_mom+ql(igaus,jdime)*aux2_mom
                           end do
+
                           tmp1_mom(idime) = 0.5d0*(aux_mom+ql(igaus,idime)*aux3_mom+aux4_mom+ul(igaus,idime)*aux5_mom)
 
                           aux_mom = 0.0d0
