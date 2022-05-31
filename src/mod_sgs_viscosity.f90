@@ -102,7 +102,7 @@ module mod_sgs_viscosity
                             do igaus = 1,ngaus
                                evol = evol + gpvol(1,igaus,ielem)
                             end do
-                            hLES = (evol**(1.0d0/3.0d0))/dble(porder)
+                            hLES = (evol**(1.0d0/3.0d0))/dble(porder+1)
                             !$acc loop seq
                             do igaus = 1,ngaus
                                !$acc loop seq
