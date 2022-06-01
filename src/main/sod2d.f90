@@ -43,7 +43,7 @@ program sod2d
         integer(4)                 :: counter
         integer(4)                 :: isPeriodic, npoin_w
         !integer(4), allocatable    :: rdom(:), cdom(:), aux_cdom(:) ! Use with CSR matrices
-        integer(4), allocatable    :: connec(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
+        integer(4), allocatable    :: connec(:,:), connecVTK(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
         integer(4), allocatable    :: masSla(:,:), connec_orig(:,:), aux1(:), bound_orig(:,:)
         integer(4), allocatable    :: lpoin_w(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:)
         real(8),    allocatable    :: coord(:,:), coord_old(:,:), helem(:),helem_l(:,:)
@@ -451,6 +451,9 @@ program sod2d
            write(1,*) "--| TIME STEP SIZE dt := ",dt,"s"
         end if
 
+        !*********************************************************************!
+        ! Output the initial time-step                                        !
+        !*********************************************************************!
         if (((porder+1)**ndime) .le. (3**ndime) .and. flag_spectralElem == 0) then
            !
            ! Call VTK output (0th step)
@@ -460,13 +463,28 @@ program sod2d
            if (isPeriodic == 0) then
               call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
+           else if (flag_spectralElem == 1) then
+               !
+               ! Generate new connecVTK table to account for different meshers
+               !
            else
-              print*, 'sub call: ok!'
               call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
            end if
            call nvtxEndRange
+        else if (flag_spectralElem == 1) then
+           allocate(atoIJK(64))
+           allocate(vtk_atoIJK(64))
+           allocate(connecVTK(nelem,nnode))
+           call hex64(1.0d0,1.0d0,1.0d0,atoIJK,vtk_atoIJK)
+           call create_connecVTK(nelem,connec,atoIJK,vtk_atoIJK,connecVTK)
+           if (isPeriodic == 1) then
+              call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connecVTK, &
+                                   rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
+           else
+           end if
         end if
+        STOP(1)
 
         !*********************************************************************!
         ! Generate GLL table                                                  !
@@ -493,9 +511,6 @@ program sod2d
                  call gll_hex(xgp,wgp)
               else if (flag_SpectralElem == 1) then
                  write(1,*) "  --| GENERATING CHEBYSHEV TABLE..."
-                 allocate(atoIJK(64))
-                 allocate(vtk_atoIJK(64))
-                 call hex64(1.0d0,1.0d0,1.0d0,atoIJK,vtk_atoIJK)
                  call chebyshev_hex(atoIJK,xgp,wgp)
               end if
            else if (nnode == 4 .or. nnode == 10 .or. nnode == 20) then ! TET_XX

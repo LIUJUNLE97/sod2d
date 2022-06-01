@@ -121,15 +121,15 @@ module mod_geom
                do k = 0,porder
                   do i = 0,porder
                      do j = 0,porder
-                        indGmsh = atoIJK((porder**2)*k+porder*i+j+1)
-                        indVTK = vtk_atoIJK((porder**2)*k+porder*i+j+1)
+                        indGmsh = atoIJK(((porder+1)**2)*k+(porder+1)*i+j+1)
+                        indVTK = vtk_atoIJK(((porder+1)**2)*k+(porder+1)*i+j+1)
                         connecVTK(ielem,indVTK) = connec(ielem,indGmsh)
                      end do
                   end do
                end do
             end do
             !$acc end parallel loop
-            
+
          end subroutine create_connecVTK
 
 end module mod_geom
