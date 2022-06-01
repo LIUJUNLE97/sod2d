@@ -149,7 +149,7 @@ module mod_output
       end subroutine
 
       subroutine write_vtk_binary(isPeriodic,istep,npoin,nelem,coord,connec, &
-                                 rho,u,pr,E,csound,machno,gradRho,mu_fluid,mu_e,mu_sgs,nper,masSla)
+                                 rho,u,pr,E,csound,machno,gradRho,divU,mu_fluid,mu_e,mu_sgs,nper,masSla)
          implicit none
       
          integer(4), intent(in)                            :: isPeriodic, nper
@@ -157,7 +157,7 @@ module mod_output
          integer(4), intent(in)                            :: connec(nelem,nnode)
          integer(4), intent(in), optional                  :: masSla(nper,2)
          real(8)   , intent(in)                            :: coord(npoin,ndime)
-         real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E, csound, machno, mu_fluid
+         real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E, csound, machno, mu_fluid, divU
          real(8)   , intent(inout), dimension(npoin,ndime) :: u
          real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_e
          real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_sgs
@@ -207,10 +207,12 @@ module mod_output
                pr(masSla(iper,2)) = pr(masSla(iper,1))
                E(masSla(iper,2)) = E(masSla(iper,1))
                E(masSla(iper,2)) = E(masSla(iper,1))
+               csound(masSla(iper,2)) = csound(masSla(iper,1))
                machno(masSla(iper,2)) = machno(masSla(iper,1))
                mu_fluid(masSla(iper,2)) = mu_fluid(masSla(iper,1))
                mut(masSla(iper,2)) = mut(masSla(iper,1))
                envit(masSla(iper,2)) = envit(masSla(iper,1))
+               divU(masSla(iper,2)) = divU(masSla(iper,1))
             end do
             !$acc end parallel loop
          end if
@@ -314,6 +316,11 @@ module mod_output
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
             write(ivtk) csound(i)
+         end do
+         write(ivtk) lf//lf//'SCALARS DIVEU double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) divU(i)
          end do
          write(ivtk) lf//lf//'SCALARS MACHNO double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
