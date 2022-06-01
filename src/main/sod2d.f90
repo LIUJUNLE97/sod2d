@@ -154,7 +154,8 @@ program sod2d
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
            !nper = 10981  ! TODO: if periodic, request number of periodic nodes
            !nper = 48007   ! TODO: if periodic, request number of periodic nodes
-           nper = 97741   ! TODO: if periodic, request number of periodic nodes
+           !nper = 97741   ! TODO: if periodic, request number of periodic nodes
+           nper = 2791
            !nper = 195841   ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
@@ -462,6 +463,11 @@ program sod2d
         ! Generate GLL table                                                  !
         !*********************************************************************!
 
+        if (flag_spectralElem == 1) then
+           allocate(atoIJK(64))
+           allocate(vtk_atoIJK(64))
+           call hex64(1.0d0,1.0d0,1.0d0,atoIJK,vtk_atoIJK)
+        end if
         write(1,*) "--| GENERATING GAUSSIAN QUADRATURE TABLE..."
 
         call nvtxStartRange("Gaussian Quadrature")
@@ -665,12 +671,9 @@ program sod2d
            end if
            call nvtxEndRange
         else if (flag_spectralElem == 1) then
-           allocate(atoIJK(64))
-           allocate(vtk_atoIJK(64))
            allocate(connecVTK(nelem,nnode))
-           call hex64(1.0d0,1.0d0,1.0d0,atoIJK,vtk_atoIJK)
-           call create_connecVTK(nelem,connec,atoIJK,vtk_atoIJK,connecVTK)
            allocate(connecLINEAR(nelem*(porder**ndime),2**ndime))
+           call create_connecVTK(nelem,connec,atoIJK,vtk_atoIJK,connecVTK)
            call linearMeshOutput(nelem,connec,listHEX08,connecLINEAR)
            !
            ! Call VTK output (0th step)
