@@ -28,6 +28,7 @@ program sod2d
         use mod_constants
         use mod_time_ops
         use mod_fluid_viscosity
+        use mod_postpro
 
         implicit none
 
@@ -44,14 +45,14 @@ program sod2d
         integer(4)                 :: isPeriodic, npoin_w
         !integer(4), allocatable    :: rdom(:), cdom(:), aux_cdom(:) ! Use with CSR matrices
         integer(4), allocatable    :: connec(:,:), connecVTK(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
-        integer(4), allocatable    :: masSla(:,:), connec_orig(:,:), aux1(:), bound_orig(:,:)
+        integer(4), allocatable    :: masSla(:,:), connec_orig(:,:), aux1(:), bound_orig(:,:), lelpn(:)
         integer(4), allocatable    :: lpoin_w(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:)
         real(8),    allocatable    :: coord(:,:), coord_old(:,:), helem(:),helem_l(:,:)
         real(8),    allocatable    :: xgp(:,:), wgp(:)
         real(8),    allocatable    :: Ngp(:,:), dNgp(:,:,:)
         real(8),    allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:)
         real(8),    allocatable    :: Je(:,:), He(:,:,:,:)
-        real(8),    allocatable    :: gpvol(:,:,:)
+        real(8),    allocatable    :: gpvol(:,:,:), gradRho(:,:)
         real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:), machno(:)
         real(8),    allocatable    :: Ml(:)!, Mc(:)
         real(8),    allocatable    :: mu_e(:,:), mu_fluid(:),mu_sgs(:,:)
@@ -217,6 +218,12 @@ program sod2d
            call read_periodic(file_path,file_name,nper,masSla)
         end if
         call nvtxEndRange
+
+        !*********************************************************************!
+        ! Compute list of elements per node (connectivity index)              !
+        !*********************************************************************!
+        allocate(lelpn(npoin))
+        call elemPerNode(nelem,npoin,connec,lelpn)
 
         !*********************************************************************!
         ! Compute characteristic size of elements                             !
@@ -452,41 +459,6 @@ program sod2d
         end if
 
         !*********************************************************************!
-        ! Output the initial time-step                                        !
-        !*********************************************************************!
-        if (((porder+1)**ndime) .le. (3**ndime) .and. flag_spectralElem == 0) then
-           !
-           ! Call VTK output (0th step)
-           !
-           write(1,*) "--| GENERATING 1st OUTPUT..."
-           call nvtxStartRange("1st write")
-           if (isPeriodic == 0) then
-              call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
-                                   rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
-           else if (flag_spectralElem == 1) then
-               !
-               ! Generate new connecVTK table to account for different meshers
-               !
-           else
-              call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
-                                   rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
-           end if
-           call nvtxEndRange
-        else if (flag_spectralElem == 1) then
-           allocate(atoIJK(64))
-           allocate(vtk_atoIJK(64))
-           allocate(connecVTK(nelem,nnode))
-           call hex64(1.0d0,1.0d0,1.0d0,atoIJK,vtk_atoIJK)
-           call create_connecVTK(nelem,connec,atoIJK,vtk_atoIJK,connecVTK)
-           if (isPeriodic == 1) then
-              call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connecVTK, &
-                                   rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
-           else
-           end if
-        end if
-        STOP(1)
-
-        !*********************************************************************!
         ! Generate GLL table                                                  !
         !*********************************************************************!
 
@@ -651,26 +623,6 @@ program sod2d
            deallocate(aux_2)
         end if
 
-        !*********************************************************************!
-        ! Generate linear mesh and output for spectral case                   !
-        !*********************************************************************!
-        if (flag_spectralElem == 1) then
-           allocate(connecLINEAR(nelem*(porder**ndime),2**ndime))
-           call linearMeshOutput(nelem,connec,listHEX08,connecLINEAR)
-           !
-           ! Call VTK output (0th step)
-           !
-           write(1,*) "--| GENERATING 1st OUTPUT..."
-           call nvtxStartRange("1st write")
-           if (isPeriodic == 0) then
-              call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR,connec, &
-                                   rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper)
-           else
-              call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR,connec, &
-                                   rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper,masSla)
-           end if
-           call nvtxEndRange
-        end if
 
         !*********************************************************************!
         ! Generate Jacobian related information                               !
@@ -690,7 +642,57 @@ program sod2d
            end do
         end do
         write(1,*) '--| DOMAIN VOLUME := ',VolTot
-        !STOP(1)
+
+        !*********************************************************************!
+        ! Compute derivative-related fields and produce the 1st output        !
+        !*********************************************************************!
+        allocate(gradRho(npoin,ndime))
+        call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,rho(:,2),gradRho)
+        if (((porder+1)**ndime) .le. (3**ndime) .and. flag_spectralElem == 0) then
+           !
+           ! Call VTK output (0th step)
+           !
+           write(1,*) "--| GENERATING 1st OUTPUT..."
+           call nvtxStartRange("1st write")
+           if (isPeriodic == 0) then
+              call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
+                                   rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
+                                   gradRho,mu_fluid,mu_e,mu_sgs,nper)
+           else
+              call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
+                                   rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
+                                   gradRho,mu_fluid,mu_e,mu_sgs,nper,masSla)
+           end if
+           call nvtxEndRange
+        else if (flag_spectralElem == 1) then
+           allocate(atoIJK(64))
+           allocate(vtk_atoIJK(64))
+           allocate(connecVTK(nelem,nnode))
+           call hex64(1.0d0,1.0d0,1.0d0,atoIJK,vtk_atoIJK)
+           call create_connecVTK(nelem,connec,atoIJK,vtk_atoIJK,connecVTK)
+           allocate(connecLINEAR(nelem*(porder**ndime),2**ndime))
+           call linearMeshOutput(nelem,connec,listHEX08,connecLINEAR)
+           !
+           ! Call VTK output (0th step)
+           !
+           write(1,*) "--| GENERATING 1st OUTPUT..."
+           call nvtxStartRange("1st write")
+           if (isPeriodic == 0) then
+              call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connecVTK, &
+                                     rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
+                                     gradRho,mu_fluid,mu_e,mu_sgs,nper)
+              !call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR,connec, &
+              !                     rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper)
+           else
+              call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connecVTK, &
+                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
+                                    gradRho,mu_fluid,mu_e,mu_sgs,nper,masSla)
+              !call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR,connec, &
+              !                     rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper,masSla)
+           end if
+           call nvtxEndRange
+        end if
+        STOP(1)
 
         !*********************************************************************!
         ! Treat periodicity                                                   !
@@ -898,19 +900,14 @@ program sod2d
                  ! Advance with entropy viscosity
                  !
                  flag_predic = 0
-                 if(flag_rk_order .eq. 3) then
-                    call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                       rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
-                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
-                 else
-                    call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                       rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
-                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
-                 end if
 
-                  time = time+dt
+                 call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                    ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+                    rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                    ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
+
+
+                 time = time+dt
 
                  if (flag_real_diff == 1) then
                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,rho(:,2))
@@ -932,7 +929,8 @@ program sod2d
                           rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper)
                     else
                        call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec, &
-                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper)
+                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
+                          gradRho,mu_fluid,mu_e,mu_sgs,nper)
 
                     end if
                     nsave = nsave+nleap
@@ -978,29 +976,19 @@ program sod2d
                   !write(timeStep,'(i4)') istep
                   call nvtxStartRange("RK4 step "//timeStep,istep)
 #ifndef NOPRED
-                 if(flag_rk_order .eq. 3) then
-                    call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                       rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid)
-                 else
-                    call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                       rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid)
-                 end if
+                 call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                    ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+                    rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid)
 #endif
                   !
                   ! Advance with entropy viscosity
                   !
                   flag_predic = 0
-                  if(flag_rk_order .eq. 3) then
-                     call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid)
-                  else
-                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                        rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid)
-                  end if
+
+                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                     ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+                     rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid)
+
 
                   time = time+dt
                   atime = atime+dt
@@ -1031,11 +1019,15 @@ program sod2d
                   !if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
                      if (flag_spectralElem == 1) then
-                        call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR,connec, &
-                           rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper,masSla)
-                     else 
+                        call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connecVTK, &
+                                              rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
+                                              gradRho,mu_fluid,mu_e,mu_sgs,nper,masSla)
+                        !call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR,connec, &
+                        !   rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper,masSla)
+                     else
                         call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
-                           rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
+                           rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
+                           gradRho,mu_fluid,mu_e,mu_sgs,nper,masSla)
                      end if
                      nsave = nsave+nleap
                      atime = 0.0d0
@@ -1071,41 +1063,28 @@ program sod2d
                   E(:,1) = E(:,2)
                   Tem(:,1) = Tem(:,2)
                   e_int(:,1) = e_int(:,2)
-                 eta(:,1) = eta(:,2)
+                  eta(:,1) = eta(:,2)
                   !$acc end kernels
                   call nvtxEndRange
 
-                  ! nvtx range for full RK
+                 ! nvtx range for full RK
                  ! write(timeStep,'(i4)') istep
                   call nvtxStartRange("RK4 step "//timeStep,istep)
 #ifndef NOPRED
-                if(flag_rk_order .eq. 3) then
-                   call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                      rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
-                      ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
-                else
-                   call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                      rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
-                      ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
-                end if
+                call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                   ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+                   rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                   ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
 #endif
                   !
                   ! Advance with entropy viscosity
                   !
                   flag_predic = 0
-                  if(flag_rk_order .eq. 3) then
-                     call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                        rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
-                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
-                  else
-                     call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                        rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
-                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
-                  end if
+                  
+                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                     ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+                     rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                     ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
 
                   time = time+dt
                   if (flag_real_diff == 1) then
@@ -1128,7 +1107,8 @@ program sod2d
                            rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper,masSla)
                      else 
                         call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
-                           rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_fluid,mu_e,mu_sgs,nper,masSla)
+                           rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
+                           gradRho,mu_fluid,mu_e,mu_sgs,nper,masSla)
                      end if
                      nsave = nsave+nleap
                      call nvtxEndRange
