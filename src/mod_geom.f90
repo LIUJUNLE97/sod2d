@@ -132,4 +132,26 @@ module mod_geom
 
          end subroutine create_connecVTK
 
+         subroutine elemPerNode(nelem,npoin,connec,lelpn)
+
+            implicit none
+
+            integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
+            integer(4), intent(out) :: lelpn(npoin)
+            integer(4)              :: aux, ipoin, inode, ielem
+
+            do ipoin = 1,npoin
+               aux = 0
+               do ielem = 1,nelem
+                  do inode = 1,nnode
+                     if (connec(ielem,inode) == ipoin) then
+                        aux = aux+1
+                     end if
+                  end do
+               end do
+               lelpn(ipoin) = aux
+            end do
+
+         end subroutine elemPerNode
+
 end module mod_geom
