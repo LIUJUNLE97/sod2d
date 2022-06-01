@@ -140,17 +140,24 @@ module mod_geom
             integer(4), intent(out) :: lelpn(npoin)
             integer(4)              :: aux, ipoin, inode, ielem
 
-            do ipoin = 1,npoin
-               aux = 0
-               do ielem = 1,nelem
-                  do inode = 1,nnode
+            !$acc kernels
+            lelpn(:) = 0
+            !$acc end kernels
+            !$acc parallel loop gang
+            do ielem = 1,nelem
+               !$acc loop worker
+               do inode = 1,nnode
+                  !$acc loop vector
+                  do ipoin = 1,npoin
                      if (connec(ielem,inode) == ipoin) then
-                        aux = aux+1
+                        !$acc atomic update
+                        lelpn(ipoin) = lelpn(ipoin)+1
+                        !$acc end atomic
                      end if
                   end do
                end do
-               lelpn(ipoin) = aux
             end do
+            !$acc end parallel loop
 
          end subroutine elemPerNode
 
