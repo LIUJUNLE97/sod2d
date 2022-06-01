@@ -107,4 +107,29 @@ module mod_geom
 
          end subroutine linearMeshOutput
 
+         subroutine create_connecVTK(nelem,connec,atoIJK,vtk_atoIJK,connecVTK)
+
+            implicit none
+
+            integer(4), intent(in)  :: nelem, connec(nelem,nnode), atoIJK(nnode), vtk_atoIJK(nnode)
+            integer(4), intent(out) :: connecVTK(nelem,nnode)
+            integer(4)              :: i, j, k, ielem, indGmsh, indVTK
+
+            !$acc parallel loop gang
+            do ielem = 1,nelem
+               !$acc loop vector collapse(3)
+               do k = 0,porder
+                  do i = 0,porder
+                     do j = 0,porder
+                        indGmsh = atoIJK((porder**2)*k+porder*i+j+1)
+                        indVTK = vtk_atoIJK((porder**2)*k+porder*i+j+1)
+                        connecVTK(ielem,indVTK) = connec(ielem,indGmsh)
+                     end do
+                  end do
+               end do
+            end do
+            !$acc end parallel loop
+            
+         end subroutine create_connecVTK
+
 end module mod_geom
