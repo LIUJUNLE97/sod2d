@@ -18,13 +18,13 @@ module mod_postpro
 			!$acc kernels
 			gradRho(:,:) = 0.0d0
 			!$acc end kernels
-			!$acc parallel loop gang
+			!$acc parallel loop gang private(rho_e)
 			do ielem = 1,nelem
 				!$acc loop vector
 				do inode = 1,nnode
 					rho_e(inode) = rho(connec(ielem,inode))
 				end do
-				!$acc loop worker
+				!$acc loop worker private(gpcar,aux1)
 				do igaus = 1,ngaus
 					!$acc loop vector collapse(2)
 					do idime = 1,ndime
@@ -35,15 +35,17 @@ module mod_postpro
 					!$acc loop seq
 					do  idime = 1,ndime
 						aux1 = 0.0d0
-						!$acc loop vector
+						!$acc loop vector reduction(+:aux1)
 						do inode = 1,nnode
 							aux1 = aux1+gpcar(idime,inode)*rho_e(inode)
 						end do
+						!$acc atomic update
 						gradRho(connec(ielem,igaus),idime) = gradRho(connec(ielem,igaus),idime) + aux1
+						!$acc end atomic
 					end do
 				end do
 			end do
-			!$acc end parallel loop gang
+			!$acc end parallel loop
 
 			!$acc parallel loop collapse(2)
 			do idime = 1,ndime
