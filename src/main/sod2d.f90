@@ -45,7 +45,7 @@ program sod2d
         !integer(4), allocatable    :: rdom(:), cdom(:), aux_cdom(:) ! Use with CSR matrices
         integer(4), allocatable    :: connec(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
         integer(4), allocatable    :: masSla(:,:), connec_orig(:,:), aux1(:), bound_orig(:,:)
-        integer(4), allocatable    :: lpoin_w(:), atoIJK(:), listHEX08(:,:), connecLINEAR(:,:)
+        integer(4), allocatable    :: lpoin_w(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:)
         real(8),    allocatable    :: coord(:,:), coord_old(:,:), helem(:),helem_l(:,:)
         real(8),    allocatable    :: xgp(:,:), wgp(:)
         real(8),    allocatable    :: Ngp(:,:), dNgp(:,:,:)
@@ -494,7 +494,8 @@ program sod2d
               else if (flag_SpectralElem == 1) then
                  write(1,*) "  --| GENERATING CHEBYSHEV TABLE..."
                  allocate(atoIJK(64))
-                 call hex64(1.0d0,1.0d0,1.0d0,atoIJK)
+                 allocate(vtk_atoIJK(64))
+                 call hex64(1.0d0,1.0d0,1.0d0,atoIJK,vtk_atoIJK)
                  call chebyshev_hex(atoIJK,xgp,wgp)
               end if
            else if (nnode == 4 .or. nnode == 10 .or. nnode == 20) then ! TET_XX
@@ -538,10 +539,10 @@ program sod2d
               else if (nnode == 64) then
                  if (flag_spectralElem == 0) then
                     allocate(listHEX08((porder**ndime),2**ndime))
-                    call hex64(s,t,z,atoIJK,listHEX08,Ngp(igaus,:),dNgp(:,:,igaus))
+                    call hex64(s,t,z,atoIJK,vtk_atoIJK,listHEX08,Ngp(igaus,:),dNgp(:,:,igaus))
                  else if (flag_spectralElem == 1) then
                     allocate(listHEX08((porder**ndime),2**ndime))
-                    call hex64(s,t,z,atoIJK,listHEX08,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus))
+                    call hex64(s,t,z,atoIJK,vtk_atoIJK,listHEX08,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus))
                  end if
               else
                  write(1,*) '--| NOT CODED YET!'
