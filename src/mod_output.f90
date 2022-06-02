@@ -392,7 +392,7 @@ module mod_output
       end subroutine write_vtk_binary
 
       subroutine write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connec, &
-                                 acuvel,acurho,acupre,acutim,nper,masSla)
+                                 acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
 
          implicit none
 
@@ -403,12 +403,12 @@ module mod_output
          real(8)   , intent(in)                              :: coord(npoin,ndime)
          real(8)   , intent(inout)                           :: acutim
          real(8)   , intent(inout), dimension(npoin)         :: acurho, acupre
-         real(8)   , intent(inout), dimension(npoin,ndime)   :: acuvel
+         real(8)   , intent(inout), dimension(npoin,ndime)   :: acuvel, acuve2
          integer(4)                                          :: i, j, iper, ivtk=9, idime, ipoin
          integer(4)               , dimension(nelem,nnode+1) :: cells
          integer(4)               , dimension(nelem)         :: cellTypes
          real(8)                  , dimension(npoin)         :: avrho, avpre
-         real(8)                  , dimension(npoin,ndime)   :: avvel
+         real(8)                  , dimension(npoin,ndime)   :: avvel, avve2
          real(8)                  , dimension(npoin,3)       :: points, u3d
          character(500)                                      :: filename
          character(80)                                       :: buffer
@@ -434,6 +434,9 @@ module mod_output
                acuvel(masSla(iper,2),1) = acuvel(masSla(iper,1),1)
                acuvel(masSla(iper,2),2) = acuvel(masSla(iper,1),2)
                acuvel(masSla(iper,2),3) = acuvel(masSla(iper,1),3)
+               acuve2(masSla(iper,2),1) = acuve2(masSla(iper,1),1)
+               acuve2(masSla(iper,2),2) = acuve2(masSla(iper,1),2)
+               acuve2(masSla(iper,2),3) = acuve2(masSla(iper,1),3)
                acurho(masSla(iper,2)) = acurho(masSla(iper,1))
                acupre(masSla(iper,2)) = acupre(masSla(iper,1))
             end do
@@ -447,6 +450,7 @@ module mod_output
          avrho(:) = acurho(:) / acutim
          avpre(:) = acupre(:) / acutim
          avvel(:,:) = acuvel(:,:) / acutim
+         avve2(:,:) = acuve2(:,:) / acutim
          !$acc end kernels
 
          !
@@ -454,10 +458,10 @@ module mod_output
          !
          !$acc parallel loop
          do ipoin = 1,npoin
-            avpre(ipoin) = avpre(ipoin)/avrho(ipoin)
             !$acc loop seq
             do idime = 1,ndime
                avvel(ipoin,idime) = avvel(ipoin,idime)/avrho(ipoin)
+               avve2(ipoin,idime) = avve2(ipoin,idime)/avrho(ipoin)
             end do
          end do
          !$acc end parallel loop
