@@ -52,7 +52,7 @@ program sod2d
         real(8),    allocatable    :: Ngp(:,:), dNgp(:,:,:)
         real(8),    allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:)
         real(8),    allocatable    :: Je(:,:), He(:,:,:,:)
-        real(8),    allocatable    :: gpvol(:,:,:), gradRho(:,:)
+        real(8),    allocatable    :: gpvol(:,:,:), gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
         real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:), machno(:)
         real(8),    allocatable    :: Ml(:)!, Mc(:)
         real(8),    allocatable    :: mu_e(:,:), mu_fluid(:),mu_sgs(:,:)
@@ -153,9 +153,9 @@ program sod2d
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
            !nper = 10981  ! TODO: if periodic, request number of periodic nodes
-           !nper = 48007   ! TODO: if periodic, request number of periodic nodes
-           !nper = 97741   ! TODO: if periodic, request number of periodic nodes
-           nper = 2791
+           !nper = 24571   ! TODO: if periodic, request number of periodic nodes
+           nper = 97741   ! TODO: if periodic, request number of periodic nodes
+           !nper = 2791
            !nper = 195841   ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
@@ -653,7 +653,20 @@ program sod2d
         ! Compute derivative-related fields and produce the 1st output        !
         !*********************************************************************!
         allocate(gradRho(npoin,ndime))
-        call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,rho(:,2),gradRho)
+        allocate(curlU(npoin,ndime))
+        allocate(divU(npoin))
+        allocate(Qcrit(npoin))
+        !
+        ! Compute Levi-Civita tensor
+        !
+        leviCivi = 0.0d0
+        leviCivi(2,3,1) =  1.0d0
+        leviCivi(3,2,1) = -1.0d0
+        leviCivi(1,3,2) = -1.0d0
+        leviCivi(3,1,2) =  1.0d0
+        leviCivi(1,2,3) =  1.0d0
+        leviCivi(2,1,3) = -1.0d0
+        call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
         if (((porder+1)**ndime) .le. (3**ndime) .and. flag_spectralElem == 0) then
            !
            ! Call VTK output (0th step)
@@ -663,11 +676,11 @@ program sod2d
            if (isPeriodic == 0) then
               call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
-                                   gradRho,mu_fluid,mu_e,mu_sgs,nper)
+                                   gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nper)
            else
               call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connec, &
                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
-                                   gradRho,mu_fluid,mu_e,mu_sgs,nper,masSla)
+                                   gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nper,masSla)
            end if
            call nvtxEndRange
         else if (flag_spectralElem == 1) then
@@ -683,19 +696,18 @@ program sod2d
            if (isPeriodic == 0) then
               call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connecVTK, &
                                      rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
-                                     gradRho,mu_fluid,mu_e,mu_sgs,nper)
+                                     gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nper)
               !call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR,connec, &
               !                     rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper)
            else
               call write_vtk_binary(isPeriodic,0,npoin,nelem,coord,connecVTK, &
                                     rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
-                                    gradRho,mu_fluid,mu_e,mu_sgs,nper,masSla)
+                                    gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nper,masSla)
               !call write_vtk_binary_linearized(isPeriodic,0,npoin,nelem,coord,connecLINEAR,connec, &
               !                     rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper,masSla)
            end if
            call nvtxEndRange
         end if
-        STOP(1)
 
         !*********************************************************************!
         ! Treat periodicity                                                   !
@@ -826,17 +838,6 @@ program sod2d
         !*********************************************************************!
 
         !
-        ! Compute Levi-Civita tensor
-        !
-        leviCivi = 0.0d0
-        leviCivi(2,3,1) =  1.0d0
-        leviCivi(3,2,1) = -1.0d0
-        leviCivi(1,3,2) = -1.0d0
-        leviCivi(3,1,2) =  1.0d0
-        leviCivi(1,2,3) =  1.0d0
-        leviCivi(2,1,3) = -1.0d0
-
-        !
         ! Write EK to file
         !
         open(unit=666,file="analysis.dat",status="replace")
@@ -933,7 +934,7 @@ program sod2d
                     else
                        call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec, &
                           rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
-                          gradRho,mu_fluid,mu_e,mu_sgs,nper)
+                          gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nper)
 
                     end if
                     nsave = nsave+nleap
@@ -1020,17 +1021,18 @@ program sod2d
                   !
                   if (atime .gt. tleap) then
                   !if (istep == nsave) then
+                     call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
                      call nvtxStartRange("Output "//timeStep,istep)
                      if (flag_spectralElem == 1) then
                         call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connecVTK, &
                                               rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
-                                              gradRho,mu_fluid,mu_e,mu_sgs,nper,masSla)
+                                              gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nper,masSla)
                         !call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR,connec, &
                         !   rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper,masSla)
                      else
                         call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
                            rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
-                           gradRho,mu_fluid,mu_e,mu_sgs,nper,masSla)
+                           gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nper,masSla)
                      end if
                      nsave = nsave+nleap
                      atime = 0.0d0
@@ -1111,7 +1113,7 @@ program sod2d
                      else 
                         call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
                            rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
-                           gradRho,mu_fluid,mu_e,mu_sgs,nper,masSla)
+                           gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nper,masSla)
                      end if
                      nsave = nsave+nleap
                      call nvtxEndRange
