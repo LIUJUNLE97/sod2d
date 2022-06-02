@@ -4,21 +4,23 @@ module mod_postpro
 
       contains
 
-      subroutine compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,rho,u,gradRho,divU)
+      subroutine compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho,u,gradRho,curlU,divU)
 
          implicit none
 
 			integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode), lelpn(npoin)
 			real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dNgp(ndime,nnode,ngaus)
 			real(8),    intent(in)  :: rho(npoin), u(npoin,ndime)
-			real(8),    intent(out) :: gradRho(npoin,ndime), divU(npoin)
-			integer(4)              :: ielem, idime, inode, igaus, ipoin, jdime
+			real(8),    intent(in)  :: leviCivi(ndime,ndime,ndime)
+			real(8),    intent(out) :: gradRho(npoin,ndime), curlU(npoin,ndime), divU(npoin)
+			integer(4)              :: ielem, idime, inode, igaus, ipoin, jdime, kdime
 			real(8)                 :: gpcar(ndime,nnode), rho_e(nnode), u_e(nnode,ndime), aux1, aux2
 			real(8)                 :: gradu_e(ndime,ndime)
 
 			!$acc kernels
-			gradRho(:,:) = 0.0d0
 			divU(:) = 0.0d0
+			gradRho(:,:) = 0.0d0
+			curlU(:,:) = 0.0d0
 			!$acc end kernels
 			!$acc parallel loop gang private(rho_e,u_e)
 			do ielem = 1,nelem
@@ -38,7 +40,7 @@ module mod_postpro
 						end do
 					end do
 					!$acc loop seq
-					do  idime = 1,ndime
+					do idime = 1,ndime
 						aux1 = 0.0d0
 						!$acc loop vector reduction(+:aux1)
 						do inode = 1,nnode
@@ -53,12 +55,30 @@ module mod_postpro
 							end do
 							gradu_e(idime,jdime) = aux2
 						end do
+						!
+						! Gradient of density
+						!
 						!$acc atomic update
 						gradRho(connec(ielem,igaus),idime) = gradRho(connec(ielem,igaus),idime) + aux1
 						!$acc end atomic
+						!
+						! Divergence of velocity field
+						!
 						!$acc atomic update
 						divU(connec(ielem,igaus)) = divU(connec(ielem,igaus)) + gradu_e(idime,idime)
 						!$acc end atomic
+					end do
+					!$acc loop seq
+					do idime = 1,ndime
+						!$acc loop seq
+						do jdime = 1,ndime
+							!$acc loop seq
+							do kdime = 1,ndime
+								!$acc atomic update
+								curlU(connec(ielem,igaus),idime) = curlU(connec(ielem,igaus),idime) + leviCivi(idime,jdime,kdime)*gradu_e(jdime,kdime)
+								!$$acc end atomic update
+							end do
+						end do
 					end do
 				end do
 			end do
@@ -69,6 +89,7 @@ module mod_postpro
 				!$acc loop seq
 				do idime = 1,ndime
 					gradRho(ipoin,idime) = gradRho(ipoin,idime)/dble(lelpn(ipoin))
+					curlU(ipoin,idime) = curlU(ipoin,idime)/dble(lelpn(ipoin))
 				end do
 				divU(ipoin) = divU(ipoin)/dble(lelpn(ipoin))
 			end do

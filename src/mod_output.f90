@@ -149,7 +149,8 @@ module mod_output
       end subroutine
 
       subroutine write_vtk_binary(isPeriodic,istep,npoin,nelem,coord,connec, &
-                                 rho,u,pr,E,csound,machno,gradRho,divU,mu_fluid,mu_e,mu_sgs,nper,masSla)
+                                 rho,u,pr,E,csound,machno, &
+                                 gradRho,curlU,divU,mu_fluid,mu_e,mu_sgs,nper,masSla)
          implicit none
       
          integer(4), intent(in)                            :: isPeriodic, nper
@@ -161,7 +162,7 @@ module mod_output
          real(8)   , intent(inout), dimension(npoin,ndime) :: u
          real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_e
          real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_sgs
-         real(8)   , intent(inout), dimension(npoin,ndime) :: gradRho
+         real(8)   , intent(inout), dimension(npoin,ndime) :: gradRho, curlU
          integer(4)                                        :: i, j, iper, ivtk=9
          integer(4)            , dimension(nelem,nnode+1)  :: cells
          integer(4)            , dimension(nelem)          :: cellTypes
@@ -203,6 +204,9 @@ module mod_output
                gradRho(masSla(iper,2),1) = gradRho(masSla(iper,1),1)
                gradRho(masSla(iper,2),2) = gradRho(masSla(iper,1),2)
                gradRho(masSla(iper,2),3) = gradRho(masSla(iper,1),3)
+               curlU(masSla(iper,2),1) = curlU(masSla(iper,1),1)
+               curlU(masSla(iper,2),2) = curlU(masSla(iper,1),2)
+               curlU(masSla(iper,2),3) = curlU(masSla(iper,1),3)
                rho(masSla(iper,2)) = rho(masSla(iper,1))
                pr(masSla(iper,2)) = pr(masSla(iper,1))
                E(masSla(iper,2)) = E(masSla(iper,1))
@@ -354,6 +358,11 @@ module mod_output
          write(ivtk) lf//lf//'VECTORS GRDEN double'//lf
          do i = 1,npoin
             write(ivtk) gradRho(i,:)
+         end do
+         write(str1(1:8),'(i8)') npoin
+         write(ivtk) lf//lf//'VECTORS VORTI double'//lf
+         do i = 1,npoin
+            write(ivtk) curlU(i,:)
          end do
 
          !
