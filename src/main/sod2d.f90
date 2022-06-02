@@ -937,13 +937,39 @@ program sod2d
                  call nvtxEndRange
 
                  !
+                 ! Update the accumulators for averaging
+                 !
+                 call nvtxStartRange("Accumulate")
+                 call favre_average(npoin,npoin_w,lpoin_w,dt,rho,u,pr,acutim,acurho,acupre,acuvel,acuve2)
+                 call nvtxEndRange
+                 !
+                 ! Output the averages after some steps (user defined)
+                 !
+                 if (istep == nsaveAVG) then
+                    call nvtxStartRange("Output AVG"//timeStep,istep)
+                     if (flag_spectralElem == 1) then
+                         call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connecVTK, &
+                                                  acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
+                     else
+                         call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connec_orig, &
+                                                  acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
+                     end if
+                     nsaveAVG = nsaveAVG+nleapAVG
+                     call nvtxEndRange
+                 end if
+
+                 !
                  ! Call VTK output
                  !
                  if (istep == nsave) then
+                    call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
                     call nvtxStartRange("Output "//timeStep,istep)
                     if (flag_spectralElem == 1) then
-                       call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR,connec, &
-                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper)
+                       call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec, &
+                          rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
+                          gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nper)
+                       !call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR,connec, &
+                       !   rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper)
                     else
                        call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec, &
                           rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
