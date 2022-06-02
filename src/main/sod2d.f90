@@ -1141,6 +1141,27 @@ program sod2d
                   call nvtxEndRange
 
                   !
+                  ! Update the accumulators for averaging
+                  !
+                  call nvtxStartRange("Accumulate "//timeStep,istep)
+                  call favre_average(npoin,npoin_w,lpoin_w,dt,rho,u,pr,acutim,acurho,acupre,acuvel)
+                  call nvtxEndRange
+
+                  !
+                  ! Output the averages after some steps (user defined)
+                  !
+                  if (istep == nsaveAVG) then
+                      if (flag_spectralElem == 1) then
+                          call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connecVTK, &
+                                                   acuvel,acurho,acupre,acutim,nper,masSla)
+                      else
+                          call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connec_orig, &
+                                                   acurho,acuvel,acupre,acutim,nper,masSla)
+                      end if
+                      nsaveAVG = nsaveAVG+nleapAVG
+                  end if
+
+                  !
                   ! Call VTK output
                   !
                   if (istep == nsave) then
