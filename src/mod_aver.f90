@@ -4,7 +4,7 @@ module mod_aver
 
 	contains
 
-	subroutine  favre_average(npoin,npoin_w,lpoin_w,dt,rho,u,pr,acutim,acurho,acupre,acuvel)
+	subroutine  favre_average(npoin,npoin_w,lpoin_w,dt,rho,u,pr,acutim,acurho,acupre,acuvel,acuve2)
 
 		implicit none
 
@@ -14,7 +14,7 @@ module mod_aver
 		real(8),    intent(in),    dimension(npoin,ndime)  :: u
 		real(8),    intent(inout)                          :: acutim
 		real(8),    intent(inout), dimension(npoin)        :: acurho, acupre
-		real(8),    intent(inout), dimension(npoin,ndime)  :: acuvel
+		real(8),    intent(inout), dimension(npoin,ndime)  :: acuvel, acuve2
 		integer(4)                                         :: ipoin, idime
 
 		! Compute accumulated time
@@ -30,7 +30,7 @@ module mod_aver
 		!$acc parallel loop
 		do ipoin = 1,npoin_w
 			!$acc atomic update
-			acupre(lpoin_w(ipoin)) = acupre(lpoin_w(ipoin))+rho(lpoin_w(ipoin))*pr(lpoin_w(ipoin))*dt
+			acupre(lpoin_w(ipoin)) = acupre(lpoin_w(ipoin))+pr(lpoin_w(ipoin))*dt
 			!$acc end atomic
 		end do
 		!$acc end parallel loop
@@ -39,6 +39,16 @@ module mod_aver
 			do idime = 1,ndime
 				!$acc atomic update
 				acuvel(lpoin_w(ipoin),idime) = acuvel(lpoin_w(ipoin),idime)+rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*dt
+				!$acc end atomic
+			end do
+		end do
+		!$acc end parallel loop
+		!$acc parallel loop collapse(2)
+		do ipoin = 1,npoin_w
+			do idime = 1,ndime
+				!$acc atomic update
+				acuve2(lpoin_w(ipoin),idime) = acuve2(lpoin_w(ipoin),idime)+ &
+					rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*u(lpoin_w(ipoin),idime)*dt
 				!$acc end atomic
 			end do
 		end do

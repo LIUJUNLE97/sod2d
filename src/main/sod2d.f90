@@ -60,7 +60,7 @@ program sod2d
         real(8),    allocatable    :: mu_e(:,:), mu_fluid(:),mu_sgs(:,:)
         real(8),    allocatable    :: source_term(:)
         real(8),    allocatable    :: aux_1(:,:), aux_2(:)
-        real(8),    allocatable    :: acurho(:), acupre(:), acuvel(:,:)
+        real(8),    allocatable    :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:)
         real(8)                    :: s, t, z, detJe
         real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
         real(8)                    :: cfl_conv, cfl_diff, acutim
@@ -843,11 +843,13 @@ program sod2d
         allocate(acurho(npoin))
         allocate(acupre(npoin))
         allocate(acuvel(npoin,ndime))
+        allocate(acuve2(npoin,ndime))
 
         !$acc kernels
         acurho(:) = 0.0d0
         acupre(:) = 0.0d0
         acuvel(:,:) = 0.00d0
+        acuve2(:,:) = 0.00d0
         !$acc end kernels
         acutim = 0.0d0
 
@@ -906,17 +908,10 @@ program sod2d
                  call nvtxStartRange("RK step "//timeStep,istep)
 
 #ifndef NOPRED
-                 if(flag_rk_order .eq. 3) then
-                    call rk_3_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
-                       ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,Rgas,gamma_gas, &
-                       rho,u,q,pr,E,Tem,e_int,mu_e,mu_sgs,lpoin_w,mu_fluid, &
-                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
-                 else
-                    call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                 call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                        rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
-                 end if
 #endif
                  !
                  ! Advance with entropy viscosity
@@ -1038,7 +1033,7 @@ program sod2d
                   ! Update the accumulators for averaging
                   !
                   call nvtxStartRange("Accumulate")
-                  call favre_average(npoin,npoin_w,lpoin_w,dt,rho,u,pr,acutim,acurho,acupre,acuvel)
+                  call favre_average(npoin,npoin_w,lpoin_w,dt,rho,u,pr,acutim,acurho,acupre,acuvel,acuve2)
                   call nvtxEndRange
 
                   !
@@ -1048,10 +1043,10 @@ program sod2d
                      call nvtxStartRange("Output AVG"//timeStep,istep)
                       if (flag_spectralElem == 1) then
                           call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connecVTK, &
-                                                   acuvel,acurho,acupre,acutim,nper,masSla)
+                                                   acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
                       else
                           call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connec_orig, &
-                                                   acurho,acuvel,acupre,acutim,nper,masSla)
+                                                   acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
                       end if
                       nsaveAVG = nsaveAVG+nleapAVG
                       call nvtxEndRange
@@ -1147,7 +1142,7 @@ program sod2d
                   ! Update the accumulators for averaging
                   !
                   call nvtxStartRange("Accumulate"//timeStep,istep)
-                  call favre_average(npoin,npoin_w,lpoin_w,dt,rho,u,pr,acutim,acurho,acupre,acuvel)
+                  call favre_average(npoin,npoin_w,lpoin_w,dt,rho,u,pr,acutim,acurho,acupre,acuvel,acuve2)
                   call nvtxEndRange
 
                   !
@@ -1157,10 +1152,10 @@ program sod2d
                      call nvtxStartRange("Output AVG"//timeStep,istep)
                       if (flag_spectralElem == 1) then
                           call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connecVTK, &
-                                                   acuvel,acurho,acupre,acutim,nper,masSla)
+                                                   acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
                       else
                           call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connec_orig, &
-                                                   acurho,acuvel,acupre,acutim,nper,masSla)
+                                                   acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
                       end if
                       nsaveAVG = nsaveAVG+nleapAVG
                       call nvtxEndRange
