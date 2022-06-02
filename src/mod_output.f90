@@ -563,9 +563,14 @@ module mod_output
          ! Write point vector data
          !
          write(str1(1:8),'(i8)') npoin
-         write(ivtk) lf//lf//'VECTORS AVVEL double'//lf
+         write(ivtk) lf//lf//'VECTORS FAVVEL double'//lf
          do i = 1,npoin
             write(ivtk) avvel(i,:)
+         end do
+         write(str1(1:8),'(i8)') npoin
+         write(ivtk) lf//lf//'VECTORS FAVVE2 double'//lf
+         do i = 1,npoin
+            write(ivtk) avve2(i,:)
          end do
 
          !
