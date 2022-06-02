@@ -388,8 +388,201 @@ module mod_output
          !end do
          
          close(ivtk)
-      
+
       end subroutine write_vtk_binary
+
+      subroutine write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connec, &
+                                 acuvel,acurho,acupre,acutim,nper,masSla)
+
+         implicit none
+
+         integer(4), intent(in)                              :: isPeriodic, nper
+         integer(4), intent(in)                              :: istep, npoin, nelem
+         integer(4), intent(in)                              :: connec(nelem,nnode)
+         integer(4), intent(in), optional                    :: masSla(nper,2)
+         real(8)   , intent(in)                              :: coord(npoin,ndime)
+         real(8)   , intent(inout)                           :: acutim
+         real(8)   , intent(inout), dimension(npoin)         :: acurho, acupre
+         real(8)   , intent(inout), dimension(npoin,ndime)   :: acuvel
+         integer(4)                                          :: i, j, iper, ivtk=9, idime, ipoin
+         integer(4)               , dimension(nelem,nnode+1) :: cells
+         integer(4)               , dimension(nelem)         :: cellTypes
+         real(8)                  , dimension(npoin)         :: avrho, avpre
+         real(8)                  , dimension(npoin,ndime)   :: avvel
+         real(8)                  , dimension(npoin,3)       :: points, u3d
+         character(500)                                      :: filename
+         character(80)                                       :: buffer
+         character(8)                                        :: str1, str2
+         character(1)                                        :: lf
+
+         lf = achar(10)
+
+         !
+         ! Pass coordinates to a suitable 3D generic format
+         !
+         !$acc kernels
+         points(:,:) = 0.0d0
+         points(:,1:ndime) = coord(:,1:ndime)
+         !$acc end kernels
+
+         !
+         ! If case is periodic, adjust slave nodes
+         !
+         if (isPeriodic .eq.1 .and. present(masSla)) then
+            !$acc parallel loop
+            do iper = 1,nper
+               acuvel(masSla(iper,2),1) = acuvel(masSla(iper,1),1)
+               acuvel(masSla(iper,2),2) = acuvel(masSla(iper,1),2)
+               acuvel(masSla(iper,2),3) = acuvel(masSla(iper,1),3)
+               acurho(masSla(iper,2)) = acurho(masSla(iper,1))
+               acupre(masSla(iper,2)) = acupre(masSla(iper,1))
+            end do
+            !$acc end parallel loop
+         end if
+
+         !
+         ! Divide accumulated vars by the accumulated time
+         !
+         !$acc kernels
+         avrho(:) = acurho(:) / acutim
+         avpre(:) = acupre(:) / acutim
+         avvel(:,:) = acuvel(:,:) / acutim
+         !$acc end kernels
+
+         !
+         ! Favre average the rho*phi reynolds-averagedd variables
+         !
+         !$acc parallel loop
+         do ipoin = 1,npoin
+            avpre(ipoin) = avpre(ipoin)/avrho(ipoin)
+            !$acc loop seq
+            do idime = 1,ndime
+               avvel(ipoin,idime) = avvel(ipoin,idime)/avrho(ipoin)
+            end do
+         end do
+         !$acc end parallel loop
+
+         !
+         ! Reset the accumulated variables
+         !
+         !$acc kernels
+         acurho(:) = 0.0d0
+         acupre(:) = 0.0d0
+         acuvel(:,:) = 0.0d0
+         !$acc end kernels
+         acutim = 0.0d0
+
+         !
+         ! Pass cell list to VTK format
+         !
+         !$acc kernels
+         cells(:,1) = nnode
+         cells(:,2:nnode+1) = connec(:,1:nnode)-1
+         !$acc end kernels
+
+         !
+         ! Define cell types
+         !
+         if (ndime .eq. 2) then
+            if (nnode .eq. 4) then ! QUA04
+               cellTypes = 9
+            end if
+         else if (ndime .eq. 3) then
+            if (nnode .eq. 8) then ! HEX08
+               cellTypes = 12
+            else if (nnode .eq. 27) then ! HEX27
+               cellTypes = 29
+            else if (nnode .eq. 64) then ! HEX64
+               cellTypes = 72
+            end if
+         end if
+
+         !
+         ! Open file with ascii input
+         !
+         write(filename,'("vtkAVG_step_",i0,".vtk")') istep
+         open(unit=ivtk,file=filename,status='replace',access='stream',convert='BIG_ENDIAN') ! Binary file access with stream
+
+         !
+         ! Write header in ascii format
+         !
+         write(ivtk) '# vtk DataFile Version 3.0'//lf
+         write(ivtk) 'unstr_grid'//lf
+         write(ivtk) 'BINARY'//lf
+         write(ivtk) 'DATASET UNSTRUCTURED_GRID'//lf//lf
+
+         !
+         ! Write points
+         !
+         write(str1(1:8),'(i8)') npoin
+         write(ivtk) 'POINTS '//str1//'  double'//lf
+         do i = 1,npoin
+            write(ivtk) points(i,:)
+         end do
+
+         !
+         ! Write cells
+         !
+         write(str1(1:8),'(i8)') nelem
+         write(str2(1:8),'(i8)') nelem*(nnode+1)
+         write(ivtk) lf//lf//'CELLS '//str1//' '//str2//lf
+         do i = 1,nelem
+            write(ivtk) cells(i,:)
+         end do
+
+         !
+         ! Write cell types
+         !
+         write(str1(1:8),'(i8)') nelem
+         write(ivtk) lf//lf//'CELL_TYPES '//str1//lf
+         do i = 1,nelem
+            write(ivtk) cellTypes(i)
+         end do
+
+         !
+         ! Write point scalar data
+         !
+         write(str1(1:8),'(i8)') npoin
+         write(ivtk) lf//lf//'POINT_DATA '//str1//lf
+         write(ivtk) 'SCALARS AVDEN double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) avrho(i)
+         end do
+         write(ivtk) lf//lf//'SCALARS AVPRE double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) avpre(i)
+         end do
+
+         !
+         ! Write point vector data
+         !
+         write(str1(1:8),'(i8)') npoin
+         write(ivtk) lf//lf//'VECTORS AVVEL double'//lf
+         do i = 1,npoin
+            write(ivtk) avvel(i,:)
+         end do
+
+         !
+         ! Write cell scalar data
+         !
+         !write(str1(1:8),'(i8)') nelem
+         !write(ivtk) lf//lf//'CELL_DATA '//str1//lf
+         !write(ivtk) 'SCALARS ENVIT double'//lf
+         !write(ivtk) 'LOOKUP_TABLE default'//lf
+         !do i = 1,nelem
+         !   write(ivtk) mu_e(i,1)
+         !end do
+         !write(ivtk) 'SCALARS SGSVI double'//lf
+         !write(ivtk) 'LOOKUP_TABLE default'//lf
+         !do i = 1,nelem
+         !   write(ivtk) mu_sgs(i,1)
+         !end do
+
+         close(ivtk)
+
+      end subroutine write_vtkAVG_binary
 
       subroutine write_vtk_binary_linearized(isPeriodic,istep,npoin,nelem,coord,connecLINEAR,connec, &
                                  rho,u,pr,E,csound,machno,mu_fluid,mu_e,mu_sgs,nper,masSla)
