@@ -1,6 +1,7 @@
 module mod_output
 
    use mod_constants
+
    contains
 
       subroutine write_vtk_ascii(istep,npoin,nelem,coord,connec, &
@@ -148,7 +149,8 @@ module mod_output
       end subroutine
 
       subroutine write_vtk_binary(isPeriodic,istep,npoin,nelem,coord,connec, &
-                                 rho,u,pr,E,mu_fluid,mu_e,mu_sgs,nper,masSla)
+                                 rho,u,pr,E,csound,machno, &
+                                 gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nper,masSla)
          implicit none
       
          integer(4), intent(in)                            :: isPeriodic, nper
@@ -156,13 +158,15 @@ module mod_output
          integer(4), intent(in)                            :: connec(nelem,nnode)
          integer(4), intent(in), optional                  :: masSla(nper,2)
          real(8)   , intent(in)                            :: coord(npoin,ndime)
-         real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E, mu_fluid
+         real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E, csound, machno, mu_fluid, divU, Qcrit
          real(8)   , intent(inout), dimension(npoin,ndime) :: u
          real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_e
          real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_sgs
-         integer(4)                                        :: i, iper, ivtk=9
+         real(8)   , intent(inout), dimension(npoin,ndime) :: gradRho, curlU
+         integer(4)                                        :: i, j, iper, ivtk=9
          integer(4)            , dimension(nelem,nnode+1)  :: cells
          integer(4)            , dimension(nelem)          :: cellTypes
+         real(8)               , dimension(npoin)          :: envit, mut
          real(8)               , dimension(npoin,3)        :: points, u3d
          character(500)                                    :: filename
          character(80)                                     :: buffer
@@ -178,7 +182,16 @@ module mod_output
          points(:,:) = 0.0d0
          points(:,1:ndime) = coord(:,1:ndime)
          !$acc end kernels
-      
+
+         !
+         ! Adjust mu_sgs and envit to be nodal
+         !
+         do i = 1,nelem
+            do j = 1, nnode
+               envit(connec(i,j)) =  mu_e(i,j)
+               mut(connec(i,j))   =  mu_sgs(i,j)
+            end do
+         end do
          !
          ! If case is periodic, adjust slave nodes
          !
@@ -188,10 +201,23 @@ module mod_output
                u(masSla(iper,2),1) = u(masSla(iper,1),1)
                u(masSla(iper,2),2) = u(masSla(iper,1),2)
                u(masSla(iper,2),3) = u(masSla(iper,1),3)
+               gradRho(masSla(iper,2),1) = gradRho(masSla(iper,1),1)
+               gradRho(masSla(iper,2),2) = gradRho(masSla(iper,1),2)
+               gradRho(masSla(iper,2),3) = gradRho(masSla(iper,1),3)
+               curlU(masSla(iper,2),1) = curlU(masSla(iper,1),1)
+               curlU(masSla(iper,2),2) = curlU(masSla(iper,1),2)
+               curlU(masSla(iper,2),3) = curlU(masSla(iper,1),3)
                rho(masSla(iper,2)) = rho(masSla(iper,1))
                pr(masSla(iper,2)) = pr(masSla(iper,1))
                E(masSla(iper,2)) = E(masSla(iper,1))
+               E(masSla(iper,2)) = E(masSla(iper,1))
+               csound(masSla(iper,2)) = csound(masSla(iper,1))
+               machno(masSla(iper,2)) = machno(masSla(iper,1))
                mu_fluid(masSla(iper,2)) = mu_fluid(masSla(iper,1))
+               mut(masSla(iper,2)) = mut(masSla(iper,1))
+               envit(masSla(iper,2)) = envit(masSla(iper,1))
+               divU(masSla(iper,2)) = divU(masSla(iper,1))
+               Qcrit(masSla(iper,2)) = Qcrit(masSla(iper,1))
             end do
             !$acc end parallel loop
          end if
@@ -210,7 +236,6 @@ module mod_output
          !$acc kernels
          cells(:,1) = nnode
          cells(:,2:nnode+1) = connec(:,1:nnode)-1
-         !cells(:,2:nnode+1) = cells(:,2:nnode+1)-1 ! maybe can be removed?
          !$acc end kernels
       
          !
@@ -292,12 +317,41 @@ module mod_output
          do i = 1,npoin
             write(ivtk) E(i)
          end do
+         write(ivtk) lf//lf//'SCALARS CSOUND double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) csound(i)
+         end do
+         write(ivtk) lf//lf//'SCALARS DIVEU double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) divU(i)
+         end do
+         write(ivtk) lf//lf//'SCALARS QCRIT double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) Qcrit(i)
+         end do
+         write(ivtk) lf//lf//'SCALARS MACHNO double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) machno(i)
+         end do
          write(ivtk) lf//lf//'SCALARS VISCO double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
             write(ivtk) mu_fluid(i)
          end do
-         
+         write(ivtk) lf//lf//'SCALARS SGSVI double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) mut(i)
+         end do
+         write(ivtk) lf//lf//'SCALARS ENVIT double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) envit(i)
+         end do
          !
          ! Write point vector data
          !
@@ -306,22 +360,32 @@ module mod_output
          do i = 1,npoin
             write(ivtk) u3d(i,:)
          end do
-         
+         write(str1(1:8),'(i8)') npoin
+         write(ivtk) lf//lf//'VECTORS GRDEN double'//lf
+         do i = 1,npoin
+            write(ivtk) gradRho(i,:)
+         end do
+         write(str1(1:8),'(i8)') npoin
+         write(ivtk) lf//lf//'VECTORS VORTI double'//lf
+         do i = 1,npoin
+            write(ivtk) curlU(i,:)
+         end do
+
          !
          ! Write cell scalar data
          !
-         write(str1(1:8),'(i8)') nelem
-         write(ivtk) lf//lf//'CELL_DATA '//str1//lf
-         write(ivtk) 'SCALARS ENVIT double'//lf
-         write(ivtk) 'LOOKUP_TABLE default'//lf
-         do i = 1,nelem
-            write(ivtk) mu_e(i,1)
-         end do
-         write(ivtk) 'SCALARS SGSVI double'//lf
-         write(ivtk) 'LOOKUP_TABLE default'//lf
-         do i = 1,nelem
-            write(ivtk) mu_sgs(i,1)
-         end do
+         !write(str1(1:8),'(i8)') nelem
+         !write(ivtk) lf//lf//'CELL_DATA '//str1//lf
+         !write(ivtk) 'SCALARS ENVIT double'//lf
+         !write(ivtk) 'LOOKUP_TABLE default'//lf
+         !do i = 1,nelem
+         !   write(ivtk) mu_e(i,1)
+         !end do
+         !write(ivtk) 'SCALARS SGSVI double'//lf
+         !write(ivtk) 'LOOKUP_TABLE default'//lf
+         !do i = 1,nelem
+         !   write(ivtk) mu_sgs(i,1)
+         !end do
          
          close(ivtk)
       

@@ -15,7 +15,7 @@ program unitt_hex64_test
 
    integer(4) :: idime, inode, igaus
    integer(4) :: jdime, jnode, jgaus
-   integer(4) :: atoIJK(ngaus), listHEX08(27,8)
+   integer(4) :: atoIJK(ngaus), vtk_atoIJK(ngaus), listHEX08(27,8)
    real(8)    :: s, t, z, aux
    real(8)    :: elcod(nnode,ndime)
    real(8)    :: xgp(ngaus,ndime), wgp(ngaus)
@@ -31,7 +31,7 @@ program unitt_hex64_test
    !
    ! Element geometry: comes from the chebyshev_hex quadrature rule
    !
-   call hex64(1.0d0,1.0d0,1.0d0,atoIJK,listHEX08)
+   call hex64(1.0d0,1.0d0,1.0d0,atoIJK,vtk_atoIJK,listHEX08)
    call chebyshev_hex(atoIJK,xgp,wgp)
 
    !
@@ -41,7 +41,7 @@ program unitt_hex64_test
       s = xgp(igaus,1)
       t = xgp(igaus,2)
       z = xgp(igaus,3)
-      call hex64(s,t,z,atoIJK,listHEX08,N(igaus,:),dN(:,:,igaus),Nl,dNl)
+      call hex64(s,t,z,atoIJK,vtk_atoIJK,listHEX08,N(igaus,:),dN(:,:,igaus),Nl,dNl)
       do jgaus = 1,ngaus
          aux = N(igaus,jgaus)
          if (jgaus == igaus .and. aux .ne. 1.0d0) then
