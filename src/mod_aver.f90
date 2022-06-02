@@ -16,6 +16,7 @@ module mod_aver
 		real(8),    intent(inout), dimension(npoin)        :: acurho, acupre
 		real(8),    intent(inout), dimension(npoin,ndime)  :: acuvel
 		integer(4)                                         :: ipoin, idime
+
 		! Compute accumulated time
 		acutim = acutim+dt
 		! Compute accumulated tally for density times current dt and other variables times density times current dt

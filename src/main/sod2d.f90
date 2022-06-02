@@ -60,10 +60,10 @@ program sod2d
         real(8),    allocatable    :: mu_e(:,:), mu_fluid(:),mu_sgs(:,:)
         real(8),    allocatable    :: source_term(:)
         real(8),    allocatable    :: aux_1(:,:), aux_2(:)
-        real(8),    allocatable    :: acutim, acurho(:), acupre(:), acuvel(:,:)
+        real(8),    allocatable    :: acurho(:), acupre(:), acuvel(:,:)
         real(8)                    :: s, t, z, detJe
         real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
-        real(8)                    :: cfl_conv, cfl_diff
+        real(8)                    :: cfl_conv, cfl_diff, acutim
         real(8)                    :: leviCivi(3,3,3)
         character(500)             :: file_path
         character(500)             :: file_name, dumpfile
@@ -139,7 +139,7 @@ program sod2d
         cfl_diff = 2.2d0
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
-        nsaveAVG = 1
+        nsaveAVG = 10
         nleap = 10000 ! Saving interval, TODO: input
         tleap = 0.5d0 ! Saving interval, TODO: input
         nleap2 = 10  ! Saving interval, TODO: input
@@ -161,7 +161,7 @@ program sod2d
            !nper = 24571   ! TODO: if periodic, request number of periodic nodes
            !nper = 97741   ! TODO: if periodic, request number of periodic nodes
            !nper = 2791
-           nper = 195841   ! TODO: if periodic, request number of periodic nodes
+           nper = 10981   ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
@@ -849,6 +849,7 @@ program sod2d
         acupre(:) = 0.0d0
         acuvel(:,:) = 0.00d0
         !$acc end kernels
+        acutim = 0.0d0
 
         !*********************************************************************!
         ! Start of time stepping                                              !
@@ -1036,7 +1037,7 @@ program sod2d
                   !
                   ! Update the accumulators for averaging
                   !
-                  call nvtxStartRange("Accumulate "//timeStep,istep)
+                  call nvtxStartRange("Accumulate")
                   call favre_average(npoin,npoin_w,lpoin_w,dt,rho,u,pr,acutim,acurho,acupre,acuvel)
                   call nvtxEndRange
 
@@ -1044,6 +1045,7 @@ program sod2d
                   ! Output the averages after some steps (user defined)
                   !
                   if (istep == nsaveAVG) then
+                     call nvtxStartRange("Output AVG"//timeStep,istep)
                       if (flag_spectralElem == 1) then
                           call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connecVTK, &
                                                    acuvel,acurho,acupre,acutim,nper,masSla)
@@ -1052,6 +1054,7 @@ program sod2d
                                                    acurho,acuvel,acupre,acutim,nper,masSla)
                       end if
                       nsaveAVG = nsaveAVG+nleapAVG
+                      call nvtxEndRange
                   end if
 
                   !
@@ -1143,7 +1146,7 @@ program sod2d
                   !
                   ! Update the accumulators for averaging
                   !
-                  call nvtxStartRange("Accumulate "//timeStep,istep)
+                  call nvtxStartRange("Accumulate"//timeStep,istep)
                   call favre_average(npoin,npoin_w,lpoin_w,dt,rho,u,pr,acutim,acurho,acupre,acuvel)
                   call nvtxEndRange
 
@@ -1151,6 +1154,7 @@ program sod2d
                   ! Output the averages after some steps (user defined)
                   !
                   if (istep == nsaveAVG) then
+                     call nvtxStartRange("Output AVG"//timeStep,istep)
                       if (flag_spectralElem == 1) then
                           call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connecVTK, &
                                                    acuvel,acurho,acupre,acutim,nper,masSla)
@@ -1159,6 +1163,7 @@ program sod2d
                                                    acurho,acuvel,acupre,acutim,nper,masSla)
                       end if
                       nsaveAVG = nsaveAVG+nleapAVG
+                      call nvtxEndRange
                   end if
 
                   !
