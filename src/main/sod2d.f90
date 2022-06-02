@@ -29,6 +29,7 @@ program sod2d
         use mod_time_ops
         use mod_fluid_viscosity
         use mod_postpro
+        use mod_aver
 
         implicit none
 
@@ -41,6 +42,7 @@ program sod2d
         integer(4)                 :: flag_predic, flag_emac
         integer(4)                 :: nsave, nleap
         integer(4)                 :: nsave2, nleap2
+        integer(4)                 :: nsaveAVG, nleapAVG
         integer(4)                 :: counter
         integer(4)                 :: isPeriodic, npoin_w
         !integer(4), allocatable    :: rdom(:), cdom(:), aux_cdom(:) ! Use with CSR matrices
@@ -58,6 +60,7 @@ program sod2d
         real(8),    allocatable    :: mu_e(:,:), mu_fluid(:),mu_sgs(:,:)
         real(8),    allocatable    :: source_term(:)
         real(8),    allocatable    :: aux_1(:,:), aux_2(:)
+        real(8),    allocatable    :: acutim, acurho(:), acupre(:), acuvel(:,:)
         real(8)                    :: s, t, z, detJe
         real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
         real(8)                    :: cfl_conv, cfl_diff
@@ -136,9 +139,11 @@ program sod2d
         cfl_diff = 2.2d0
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
+        nsaveAVG = 1
         nleap = 10000 ! Saving interval, TODO: input
         tleap = 0.5d0 ! Saving interval, TODO: input
         nleap2 = 10  ! Saving interval, TODO: input
+        nleapAVG = 10
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
@@ -832,6 +837,18 @@ program sod2d
         !call nvtxEndRange
 
 #endif
+        !*********************************************************************!
+        ! Allocate accumulators for averaging process                         !
+        !*********************************************************************!
+        allocate(acurho(npoin))
+        allocate(acupre(npoin))
+        allocate(acuvel(npoin,ndime))
+
+        !$acc kernels
+        acurho(:) = 0.0d0
+        acupre(:) = 0.0d0
+        acuvel(:,:) = 0.00d0
+        !$acc end kernels
 
         !*********************************************************************!
         ! Start of time stepping                                              !
@@ -1015,6 +1032,27 @@ program sod2d
                   end if
 
                   call nvtxEndRange
+
+                  !
+                  ! Update the accumulators for averaging
+                  !
+                  call nvtxStartRange("Accumulate "//timeStep,istep)
+                  call favre_average(npoin,npoin_w,lpoin_w,dt,rho,u,pr,acutim,acurho,acupre,acuvel)
+                  call nvtxEndRange
+
+                  !
+                  ! Output the averages after some steps (user defined)
+                  !
+                  if (istep == nsaveAVG) then
+                      if (flag_spectralElem == 1) then
+                          call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connecVTK, &
+                                                   acuvel,acurho,acupre,acutim,nper,masSla)
+                      else
+                          call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connec_orig, &
+                                                   acurho,acuvel,acupre,acutim,nper,masSla)
+                      end if
+                      nsaveAVG = nsaveAVG+nleapAVG
+                  end if
 
                   !
                   ! Call VTK output
