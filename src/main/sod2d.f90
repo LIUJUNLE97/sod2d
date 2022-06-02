@@ -154,9 +154,9 @@ program sod2d
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
            !nper = 10981  ! TODO: if periodic, request number of periodic nodes
            !nper = 24571   ! TODO: if periodic, request number of periodic nodes
-           nper = 97741   ! TODO: if periodic, request number of periodic nodes
+           !nper = 97741   ! TODO: if periodic, request number of periodic nodes
            !nper = 2791
-           !nper = 195841   ! TODO: if periodic, request number of periodic nodes
+           nper = 195841   ! TODO: if periodic, request number of periodic nodes
 #endif
         else if (isPeriodic == 0) then
            nper = 0 ! Set periodic nodes to zero if case is not periodic
@@ -174,8 +174,8 @@ program sod2d
 #ifdef CHANNEL
         allocate(source_term(ndime))
         !set the source term
-        source_term(1) = (utau*utau*rho0/delta)/36.0d0
-        !source_term(1) = (utau*utau*rho0/delta)
+!        source_term(1) = (utau*utau*rho0/delta)/36.0d0
+        source_term(1) = (utau*utau*rho0/delta)
         source_term(2) = 0.00d0
         source_term(3) = 0.00d0
 #endif
@@ -1108,8 +1108,12 @@ program sod2d
                   if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
                      if (flag_spectralElem == 1) then
-                        call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR,connec, &
-                           rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper,masSla)
+                        call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
+                        call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connecVTK, &
+                                              rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
+                                              gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nper,masSla)
+                        !call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR,connec, &
+                        !   rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper,masSla)
                      else 
                         call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec_orig, &
                            rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
