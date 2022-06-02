@@ -139,11 +139,11 @@ program sod2d
         cfl_diff = 2.2d0
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
-        nsaveAVG = 10
+        nsaveAVG = 1
         nleap = 10000 ! Saving interval, TODO: input
         tleap = 0.5d0 ! Saving interval, TODO: input
         nleap2 = 10  ! Saving interval, TODO: input
-        nleapAVG = 10
+        nleapAVG = 10000
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
@@ -152,9 +152,9 @@ program sod2d
         if (isPeriodic == 1) then
 #ifdef CHANNEL
            !nper = 1891 ! TODO: if periodic, request number of periodic nodes
-           !nper = 7663 ! TODO: if periodic, request number of periodic nodes
+           nper = 7663 ! TODO: if periodic, request number of periodic nodes
            !nper = 16471 ! TODO: if periodic, request number of periodic nodes
-           nper = 32131 ! TODO: if periodic, request number of periodic nodes
+           !nper = 32131 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
            !nper = 10981  ! TODO: if periodic, request number of periodic nodes

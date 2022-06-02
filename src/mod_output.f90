@@ -473,6 +473,7 @@ module mod_output
          acurho(:) = 0.0d0
          acupre(:) = 0.0d0
          acuvel(:,:) = 0.0d0
+         acuve2(:,:) = 0.0d0
          !$acc end kernels
          acutim = 0.0d0
 
