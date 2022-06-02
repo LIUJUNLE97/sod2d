@@ -4,7 +4,7 @@ module mod_postpro
 
       contains
 
-      subroutine compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho,u,gradRho,curlU,divU)
+      subroutine compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho,u,gradRho,curlU,divU,Qcrit)
 
          implicit none
 
@@ -12,7 +12,7 @@ module mod_postpro
 			real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dNgp(ndime,nnode,ngaus)
 			real(8),    intent(in)  :: rho(npoin), u(npoin,ndime)
 			real(8),    intent(in)  :: leviCivi(ndime,ndime,ndime)
-			real(8),    intent(out) :: gradRho(npoin,ndime), curlU(npoin,ndime), divU(npoin)
+			real(8),    intent(out) :: gradRho(npoin,ndime), curlU(npoin,ndime), divU(npoin), Qcrit(npoin)
 			integer(4)              :: ielem, idime, inode, igaus, ipoin, jdime, kdime
 			real(8)                 :: gpcar(ndime,nnode), rho_e(nnode), u_e(nnode,ndime), aux1, aux2
 			real(8)                 :: gradu_e(ndime,ndime)
@@ -21,6 +21,7 @@ module mod_postpro
 			divU(:) = 0.0d0
 			gradRho(:,:) = 0.0d0
 			curlU(:,:) = 0.0d0
+			Qcrit(:) = 0.0d0
 			!$acc end kernels
 			!$acc parallel loop gang private(rho_e,u_e)
 			do ielem = 1,nelem
@@ -78,6 +79,9 @@ module mod_postpro
 								curlU(connec(ielem,igaus),idime) = curlU(connec(ielem,igaus),idime) + leviCivi(idime,jdime,kdime)*gradu_e(jdime,kdime)
 								!$$acc end atomic update
 							end do
+							!$acc atomic update
+							Qcrit(connec(ielem,igaus)) = Qcrit(connec(ielem,igaus))-0.5d0*(gradu_e(idime,jdime)*gradu_e(jdime,idime))
+							!$acc end atomic
 						end do
 					end do
 				end do
@@ -92,6 +96,7 @@ module mod_postpro
 					curlU(ipoin,idime) = curlU(ipoin,idime)/dble(lelpn(ipoin))
 				end do
 				divU(ipoin) = divU(ipoin)/dble(lelpn(ipoin))
+				Qcrit(ipoin) = Qcrit(ipoin)/dble(lelpn(ipoin))
 			end do
 			!$acc end parallel loop
 

@@ -150,7 +150,7 @@ module mod_output
 
       subroutine write_vtk_binary(isPeriodic,istep,npoin,nelem,coord,connec, &
                                  rho,u,pr,E,csound,machno, &
-                                 gradRho,curlU,divU,mu_fluid,mu_e,mu_sgs,nper,masSla)
+                                 gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nper,masSla)
          implicit none
       
          integer(4), intent(in)                            :: isPeriodic, nper
@@ -158,7 +158,7 @@ module mod_output
          integer(4), intent(in)                            :: connec(nelem,nnode)
          integer(4), intent(in), optional                  :: masSla(nper,2)
          real(8)   , intent(in)                            :: coord(npoin,ndime)
-         real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E, csound, machno, mu_fluid, divU
+         real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E, csound, machno, mu_fluid, divU, Qcrit
          real(8)   , intent(inout), dimension(npoin,ndime) :: u
          real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_e
          real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_sgs
@@ -217,6 +217,7 @@ module mod_output
                mut(masSla(iper,2)) = mut(masSla(iper,1))
                envit(masSla(iper,2)) = envit(masSla(iper,1))
                divU(masSla(iper,2)) = divU(masSla(iper,1))
+               Qcrit(masSla(iper,2)) = Qcrit(masSla(iper,1))
             end do
             !$acc end parallel loop
          end if
@@ -325,6 +326,11 @@ module mod_output
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
             write(ivtk) divU(i)
+         end do
+         write(ivtk) lf//lf//'SCALARS QCRIT double '//lf
+         write(ivtk) 'LOOKUP_TABLE default'//lf
+         do i = 1,npoin
+            write(ivtk) Qcrit(i)
          end do
          write(ivtk) lf//lf//'SCALARS MACHNO double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
