@@ -31,9 +31,15 @@ module mod_maths
          real(8), intent(out) :: xi_chb(porder+1)
          integer(4)           :: i
 
-         do i = 1,porder+1
-            xi_chb(i) = -cos(v_pi*dble(i-1)/dble(porder))
-         end do
+         !do i = 1,porder+1
+         !   xi_chb(i) = -cos(v_pi*dble(i-1)/dble(porder))
+         !end do
+
+         xi_chb(1) = -1.0d0
+         xi_chb(2) = -0.447213595499958d0
+         xi_chb(3) =  0.447213595499958d0
+         xi_chb(4) =  1.0d0
+
 
       end subroutine chebyshev_roots
 

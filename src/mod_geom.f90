@@ -107,4 +107,58 @@ module mod_geom
 
          end subroutine linearMeshOutput
 
+         subroutine create_connecVTK(nelem,connec,atoIJK,vtk_atoIJK,connecVTK)
+
+            implicit none
+
+            integer(4), intent(in)  :: nelem, connec(nelem,nnode), atoIJK(nnode), vtk_atoIJK(nnode)
+            integer(4), intent(out) :: connecVTK(nelem,nnode)
+            integer(4)              :: i, j, k, ielem, indGmsh, indVTK
+
+            !$acc parallel loop gang
+            do ielem = 1,nelem
+               !$acc loop vector collapse(3)
+               do k = 0,porder
+                  do i = 0,porder
+                     do j = 0,porder
+                        indGmsh = atoIJK(((porder+1)**2)*k+(porder+1)*i+j+1)
+                        indVTK = vtk_atoIJK(((porder+1)**2)*k+(porder+1)*i+j+1)
+                        connecVTK(ielem,indVTK) = connec(ielem,indGmsh)
+                     end do
+                  end do
+               end do
+            end do
+            !$acc end parallel loop
+
+         end subroutine create_connecVTK
+
+         subroutine elemPerNode(nelem,npoin,connec,lelpn)
+
+            implicit none
+
+            integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
+            integer(4), intent(out) :: lelpn(npoin)
+            integer(4)              :: aux, ipoin, inode, ielem
+
+            !$acc kernels
+            lelpn(:) = 0
+            !$acc end kernels
+            !$acc parallel loop gang
+            do ielem = 1,nelem
+               !$acc loop worker
+               do inode = 1,nnode
+                  !$acc loop vector
+                  do ipoin = 1,npoin
+                     if (connec(ielem,inode) == ipoin) then
+                        !$acc atomic update
+                        lelpn(ipoin) = lelpn(ipoin)+1
+                        !$acc end atomic
+                     end if
+                  end do
+               end do
+            end do
+            !$acc end parallel loop
+
+         end subroutine elemPerNode
+
 end module mod_geom

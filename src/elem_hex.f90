@@ -284,7 +284,7 @@ module elem_hex
 
       end subroutine hex27
 
-      subroutine hex64(xi,eta,zeta,atoIJK,listHEX08,N,dN,N_lagrange,dN_lagrange)
+      subroutine hex64(xi,eta,zeta,atoIJK,vtk_atoIJK,listHEX08,N,dN,N_lagrange,dN_lagrange)
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          ! Lagrangian HEX64 element model. Built using    !
@@ -295,7 +295,7 @@ module elem_hex
          implicit none
 
          integer(4), optional, intent(out) :: listHEX08(27,8)
-         integer(4),           intent(out) :: atoIJK(64)
+         integer(4),           intent(out) :: atoIJK(64), vtk_atoIJK(64)
          real(8),              intent(in)  :: xi, eta, zeta
          real(8),    optional, intent(out) :: N(nnode), dN(ndime,nnode)
          real(8),    optional, intent(out) :: N_lagrange(nnode), dN_lagrange(ndime,nnode)
@@ -305,6 +305,11 @@ module elem_hex
                    5,8,27,28,6,7,29,30,25,32,53,56,26,31,54,55, &
                    13,23,41,44,17,21,45,46,37,50,57,60,38,49,58,59, &
                    14,24,42,43,18,22,48,47,40,51,61,64,39,52,62,63]
+         
+         vtk_atoIJK = [1,4,15,16,2,3,11,12,9,13,49,51,10,14,50,52, &
+                       5,8,23,24,6,7,19,20,17,21,53,55,18,22,54,56, &
+                       25,29,33,34,27,31,37,38,41,45,57,59,42,46,58,60, &
+                       26,30,35,36,28,32,39,40,43,47,61,63,44,48,62,64]
 
          if (present(listHEX08)) then
             listHEX08( 1,1:8) = [1,9,33,11,13,37,57,41]

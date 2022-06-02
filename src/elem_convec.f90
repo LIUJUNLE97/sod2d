@@ -651,6 +651,7 @@ module elem_convec
                       real(8),    intent(out) :: Rconvec(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime
                       real(8)                 :: tmp1, tmp2, Re(nnode), gpcar(ndime,nnode),tmp3,tmp4,tmp5
+                      real(8)                 :: ul(nnode,ndime), ql(nnode,ndime), etal(nnode)
 
                       call nvtxStartRange("Generic Convection")
                       !$acc kernels
@@ -702,15 +703,26 @@ module elem_convec
                          end do
                          !$acc end parallel loop
                       else
-                         !$acc parallel loop gang  private(Re,gpcar) vector_length(vecLength)
+                         !$acc parallel loop gang  private(Re,ul,ql,etal) !!vector_length(vecLength)
                          do ielem = 1,nelem
-                            !$acc loop seq
+                            !$acc loop vector collapse(2)
+                            do idime = 1,ndime
+                               do inode = 1,nnode
+                                  ul(inode,idime) = u(connec(ielem,inode),idime)
+                                  ql(inode,idime) = q(connec(ielem,inode),idime)
+                               end do
+                            end do
+                            !$acc loop vector
+                            do inode = 1,nnode
+                               etal(inode) = eta(connec(ielem,inode))
+                            end do
+                            !$acc loop worker private(gpcar)
                             do igaus = 1,ngaus
-                               !$acc loop seq
+                               !$acc loop vector collapse(2)
                                do idime = 1,ndime
-                                  !$acc loop vector
                                   do inode = 1,nnode
-                                     gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                                     tmp1 = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                                     gpcar(idime,inode) = tmp1
                                   end do
                                end do
                                tmp1 = 0.0d0
@@ -718,16 +730,22 @@ module elem_convec
                                tmp4 = 0.0d0
                                !$acc loop seq
                                do idime = 1,ndime
-                                  tmp3 = 0.0d0
-                                  !$acc loop vector reduction(+:tmp1,tmp2,tmp3)
+                                  !$acc loop vector reduction(+:tmp1)
                                   do inode = 1,nnode
-                                     tmp1 = tmp1+gpcar(idime,inode)*q(connec(ielem,inode),idime)
-                                     tmp2 = tmp2+gpcar(idime,inode)*u(connec(ielem,inode),idime)
-                                     tmp3 = tmp3+gpcar(idime,inode)*eta(connec(ielem,inode))
+                                     tmp1 = tmp1+gpcar(idime,inode)*ql(inode,idime)&
+                                                 +etal(inode)*gpcar(idime,inode)*ul(inode,idime)
                                   end do
-                                  tmp4 = tmp4 + u(connec(ielem,igaus),idime)*tmp3
                                end do
-                               Re(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp2*eta(connec(ielem,inode))+tmp4)
+                               !$acc loop seq
+                               do idime = 1,ndime
+                                  tmp3 = 0.0d0
+                                  !$acc loop vector reduction(+:tmp3)
+                                  do inode = 1,nnode
+                                     tmp3 = tmp3+gpcar(idime,inode)*etal(inode)
+                                  end do
+                                  tmp4 = tmp4 + ul(igaus,idime)*tmp3
+                               end do
+                               Re(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp4)
                             end do
                             !
                             ! Assembly
@@ -759,12 +777,13 @@ module elem_convec
                  real(8),    intent(out) :: Rmom(npoin,ndime)
                  real(8),    intent(out) :: Rener(npoin)
                  integer(4)              :: ielem, igaus, idime, jdime, inode
-                 real(8)                 :: Re_mom(nnode,ndime), aux_mom, divU
+                 real(8)                 :: Re_mom(nnode,ndime), aux_mom
                  real(8)                 :: Re_mass(nnode), Re_ener(nnode)
                  real(8)                 :: tmp1_mom(ndime), tmp2_mom(ndime), gpcar(ndime,nnode)
                  real(8)                 :: aux2_mom,aux3_mom,aux4_mom,aux5_mom
                  real(8)                 :: tmp1_mass,tmp2_mass,tmp3_mass,tmp4_mass
                  real(8)                 :: tmp1_ener,tmp2_ener,tmp3_ener,tmp4_ener, tmp5_ener
+                 real(8)                 :: ul(nnode,ndime), ql(nnode,ndime), rhol(nnode), prl(nnode),El(nnode)
 
 
                  call nvtxStartRange("Full convection")
@@ -774,15 +793,28 @@ module elem_convec
                  Rener(:) = 0.0d0
                  !$acc end kernels
 
-                 !$acc parallel loop gang  private(Re_ener,Re_mass,Re_mom,gpcar,tmp1_mom,tmp2_mom,divU) vector_length(vecLength)
+                 !$acc parallel loop gang private(Re_ener,Re_mass,Re_mom,ul,ql,rhol,prl,El) !!num_workers(4) vector_length(vecLength)
                  do ielem = 1,nelem
-                    !$acc loop seq
+                    !$acc loop vector collapse(2)
+                    do idime = 1,ndime
+                       do inode = 1,nnode
+                          ul(inode,idime) = u(connec(ielem,inode),idime)
+                          ql(inode,idime) = q(connec(ielem,inode),idime)
+                       end do
+                    end do
+                    !$acc loop vector
+                    do inode = 1,nnode
+                       rhol(inode) = rho(connec(ielem,inode))
+                       El(inode) = E(connec(ielem,inode))
+                       prl(inode) = pr(connec(ielem,inode))
+                    end do
+                    !$acc loop worker private(tmp1_mom,tmp2_mom,gpcar)
                     do igaus = 1,ngaus
-                       !$acc loop seq
+                       !$acc loop vector collapse(2)
                        do idime = 1,ndime
-                          !$acc loop vector
                           do inode = 1,nnode
-                             gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                             aux_mom =  dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                             gpcar(idime,inode) = aux_mom
                           end do
                        end do
                        tmp1_mass = 0.0d0
@@ -796,43 +828,47 @@ module elem_convec
                           aux3_mom  = 0.0d0
                           aux4_mom  = 0.0d0
                           aux5_mom  = 0.0d0
+                          !$acc loop vector collapse(2) reduction(+:aux_mom,aux3_mom)
+                          do jdime = 1,ndime
+                             do inode = 1,nnode
+                                aux_mom = aux_mom+gpcar(jdime,inode)*(ql(inode,idime)*ul(inode,jdime))
+                                aux_mom = aux_mom+ul(igaus,idime)*ul(igaus,jdime)*gpcar(jdime,inode)*rhol(inode)
+                                aux3_mom = aux3_mom+gpcar(jdime,inode)*ul(inode,jdime)
+                             end do
+                          end do
                           !$acc loop seq
                           do jdime = 1,ndime
                              aux2_mom  = 0.0d0
-                             !$acc loop vector reduction(+:aux_mom,aux2_mom,aux3_mom,aux5_mom)
+                             !$acc loop vector reduction(+:aux2_mom)
                              do inode = 1,nnode
-                                aux_mom = aux_mom  +gpcar(jdime,inode)*(q(connec(ielem,inode),idime)*u(connec(ielem,inode),jdime))
-                                aux2_mom = aux2_mom+gpcar(jdime,inode)*u(connec(ielem,inode),idime)
-                                aux3_mom = aux3_mom+gpcar(jdime,inode)*u(connec(ielem,inode),jdime)
-                                aux5_mom = aux5_mom+u(connec(ielem,igaus),jdime)*gpcar(jdime,inode)*rho(connec(ielem,inode))
+                                aux2_mom = aux2_mom+gpcar(jdime,inode)*ul(inode,idime)
                              end do
-                             aux4_mom = aux4_mom+q(connec(ielem,igaus),jdime)*aux2_mom
+                             aux4_mom = aux4_mom+ql(igaus,jdime)*aux2_mom
                           end do
-                          tmp1_mom(idime) = 0.5d0*(aux_mom+q(connec(ielem,igaus),idime)*aux3_mom+aux4_mom+u(connec(ielem,igaus),idime)*aux5_mom)
+                          tmp1_mom(idime) = 0.5d0*(aux_mom+ql(igaus,idime)*aux3_mom+aux4_mom)
 
                           aux_mom = 0.0d0
                           tmp3_mass = 0.0d0
                           tmp3_ener = 0.0d0
                           !$acc loop vector reduction(+:tmp1_mass,aux_mom,tmp3_mass,tmp1_ener,tmp5_ener,tmp3_ener)
                           do inode = 1,nnode
-                             tmp1_mass = tmp1_mass+(gpcar(idime,inode)*q(connec(ielem,inode),idime))
-                             tmp3_mass = tmp3_mass+(gpcar(idime,inode)*rho(connec(ielem,inode)))
-                             aux_mom = aux_mom+gpcar(idime,inode)*pr(connec(ielem,inode))
-                             tmp1_ener = tmp1_ener+gpcar(idime,inode)*u(connec(ielem,inode),idime)*E(connec(ielem,inode))
-                             tmp5_ener = tmp5_ener+gpcar(idime,inode)*u(connec(ielem,inode),idime)*pr(connec(ielem,inode))
-                             tmp3_ener = tmp3_ener+gpcar(idime,inode)*E(connec(ielem,inode))
+                             tmp1_mass = tmp1_mass+(gpcar(idime,inode)*ql(inode,idime))
+                             tmp3_mass = tmp3_mass+(gpcar(idime,inode)*rhol(inode))
+                             aux_mom = aux_mom+gpcar(idime,inode)*prl(inode)
+                             tmp1_ener = tmp1_ener+gpcar(idime,inode)*ul(inode,idime)*El(inode)
+                             tmp5_ener = tmp5_ener+gpcar(idime,inode)*ul(inode,idime)*prl(inode)
+                             tmp3_ener = tmp3_ener+gpcar(idime,inode)*El(inode)
                           end do
-                          tmp4_mass = tmp4_mass + u(connec(ielem,igaus),idime)*tmp3_mass
-                          tmp4_ener = tmp4_ener + u(connec(ielem,igaus),idime)*tmp3_ener
+                          tmp4_mass = tmp4_mass + ul(igaus,idime)*tmp3_mass
+                          tmp4_ener = tmp4_ener + ul(igaus,idime)*tmp3_ener
                           tmp2_mom(idime) = aux_mom
                        end do
                        Re_mom(igaus,1) = gpvol(1,igaus,ielem)*(tmp1_mom(1)+tmp2_mom(1))
                        Re_mom(igaus,2) = gpvol(1,igaus,ielem)*(tmp1_mom(2)+tmp2_mom(2))
                        Re_mom(igaus,3) = gpvol(1,igaus,ielem)*(tmp1_mom(3)+tmp2_mom(3))
 
-                       Re_mass(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1_mass+aux3_mom*rho(connec(ielem,igaus))+tmp4_mass)
-
-                       Re_ener(igaus) = gpvol(1,igaus,ielem)*(0.5d0*(tmp1_ener+E(connec(ielem,igaus))*aux3_mom+tmp4_ener)+tmp5_ener)
+                       Re_mass(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1_mass+aux3_mom*rhol(igaus)+tmp4_mass)
+                       Re_ener(igaus) = gpvol(1,igaus,ielem)*(0.5d0*(tmp1_ener+El(igaus)*aux3_mom+tmp4_ener)+tmp5_ener)
                     end do
                     !
                     ! Final assembly
