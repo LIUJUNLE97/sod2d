@@ -102,16 +102,16 @@ program sod2d
         write(1,*) " Gp ", utau*utau*rho0/delta
 #else
         Re = 1600.0d0
-        to = 1.0d0
-        Rgas = 1.0d0*1.0d0/(1.4d0*1.0d0*1.25d0*1.25d0)
-        !rho0 = 1.0d0 !TGV
-        rho0 = (1.0d0/(1.4d0*1.25*1.25))/(Rgas*to)
+        !to = 1.0d0
+        !Rgas = 1.0d0*1.0d0/(1.4d0*1.0d0*1.25d0*1.25d0)
+        rho0 = 1.0d0 !TGV
+        !rho0 = (1.0d0/(1.4d0*1.25*1.25))/(Rgas*to)
         mul = rho0*1.0d0*1.0d0/Re
         !to = 1.0d0*1.0d0/(1.4d0*287.0d0*0.1d0*0.1d0) !TGV
         mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
         flag_mu_factor = mul/mur
 
-        !flag_mu_factor = 0.0d0 ! shock
+        flag_mu_factor = 0.0d0 ! shock
 #endif
 
         !*********************************************************************!
@@ -128,11 +128,11 @@ program sod2d
 #ifdef CHANNEL
         Rgas = Rg
 #else
-        !Rgas = 287.00d0 ! TODO: Make it inpu TGV shockt
+        Rgas = 287.00d0 ! TODO: Make it inpu TGV shockt
 #endif
-        !Cp = 1004.00d0 ! TODO: Make it input !TGV
+        Cp = 1004.00d0 ! TODO: Make it input !TGV
         gamma_gas = 1.40d0 ! TODO: Make it innput
-        Cp = gamma_gas*Rgas/(gamma_gas-1.0d0)
+        !Cp = gamma_gas*Rgas/(gamma_gas-1.0d0)
         write(1,*) "Cp ",Cp
         Cv = Cp/gamma_gas
         cfl_conv = 2.2d0
@@ -147,14 +147,14 @@ program sod2d
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
-        isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
+        isPeriodic = 0 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #endif        
         if (isPeriodic == 1) then
 #ifdef CHANNEL
            !nper = 1891 ! TODO: if periodic, request number of periodic nodes
-           nper = 7663 ! TODO: if periodic, request number of periodic nodes
+           !nper = 7663 ! TODO: if periodic, request number of periodic nodes
            !nper = 16471 ! TODO: if periodic, request number of periodic nodes
-           !nper = 32131 ! TODO: if periodic, request number of periodic nodes
+           nper = 32131 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
            !nper = 10981  ! TODO: if periodic, request number of periodic nodes
@@ -203,8 +203,8 @@ program sod2d
 #ifdef CHANNEL
         write(file_name,*) "channel" ! Nsys
 #else
-        !write(file_name,*) "shock_tube" ! Nsys
-        write(file_name,*) "cube" ! Nsys
+        write(file_name,*) "shock_tube" ! Nsys
+        !write(file_name,*) "cube" ! Nsys
 #endif
         call read_dims(file_path,file_name,npoin,nelem,nboun)
         allocate(connec(nelem,nnode))
@@ -417,8 +417,8 @@ program sod2d
         !$acc parallel loop
         do ipoin = 1,npoin
            e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0d0))
-           Tem(ipoin,2) = 1.0d0
-           !Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas) !TGV
+           !Tem(ipoin,2) = 1.0d0
+           Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas) !TGV
            E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
            q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
            csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2)) 
@@ -925,6 +925,7 @@ program sod2d
 
 
                  time = time+dt
+                 atime = atime+dt
 
                  if (flag_real_diff == 1) then
                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,rho(:,2))
@@ -961,11 +962,12 @@ program sod2d
                  !
                  ! Call VTK output
                  !
-                 if (istep == nsave) then
+                 if (atime .gt. tleap) then
+                 !if (istep == nsave) then
                     call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
                     call nvtxStartRange("Output "//timeStep,istep)
                     if (flag_spectralElem == 1) then
-                       call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connec, &
+                       call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connecVTK, &
                           rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
                           gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nper)
                        !call write_vtk_binary_linearized(isPeriodic,counter,npoin,nelem,coord,connecLINEAR,connec, &
@@ -977,6 +979,7 @@ program sod2d
 
                     end if
                     nsave = nsave+nleap
+                    atime = 0.0d0
                     call nvtxEndRange
                  end if
 

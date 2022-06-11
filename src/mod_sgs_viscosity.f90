@@ -23,7 +23,7 @@ module mod_sgs_viscosity
                       real(8),    intent(out) :: mu_sgs(nelem,ngaus)
                       integer(4)              :: ielem, inode, igaus, kdime, idime, jdime
                       real(8)                 :: hLES, evol,gpcar(ndime,nnode), aux, mue(npoin), ave(npoin)
-                      real(8)                 :: gradU(ndime,ndime),gradV2(ndime,ndime),Bbeta, alpha, tau
+                      real(8)                 :: gradU(ndime,ndime),gradV2(ndime,ndime),Bbeta, alpha, tau, aux2
 
 
                       if (flag_SpectralElem == 0) then
@@ -91,20 +91,12 @@ module mod_sgs_viscosity
                          !$acc end parallel loop
 
                       else
-                         !!$acc kernels
-                         !mue(:) = 0.0d0
-                         !ave(:) = 0.0d0
-                         !!$acc end kernels
                          !$acc parallel loop gang  private(gpcar,gradU,gradV2) vector_length(vecLength)
                          do ielem = 1,nelem
-                            evol = 0.0d0
-                            !$acc loop vector reduction(+:evol)
-                            do igaus = 1,ngaus
-                               evol = evol + gpvol(1,igaus,ielem)
-                            end do
-                            hLES = (evol**(1.0d0/3.0d0))/dble(porder+1)
+                            aux2 = 0.0d0
                             !$acc loop seq
                             do igaus = 1,ngaus
+                               hLES = (gpvol(1,igaus,ielem)**(1.0d0/3.0d0))
                                !$acc loop seq
                                do idime = 1,ndime
                                   !$acc loop vector
@@ -148,29 +140,18 @@ module mod_sgs_viscosity
                                end do
                                Bbeta = gradV2(1,1)*gradV2(2,2) + gradV2(1,1)*gradV2(3,3) + gradV2(2,2)*gradV2(3,3) &
                                   - gradV2(1,2)*gradV2(1,2) - gradV2(1,3)*gradV2(1,3) - gradV2(2,3)*gradV2(2,3)
-                               aux = 0.0d0
                                if(alpha > 1.0e-10) then
-                                  aux = c_sgs*sqrt(max(Bbeta,1.0e-10)/alpha)
+                                  aux2 = aux2 + c_sgs*sqrt(max(Bbeta,1.0e-10)/alpha)
                                end if
-                               mu_sgs(ielem,igaus) = aux
-                              !!$acc atomic update
-                              !mue(connec(ielem,igaus)) = mue(connec(ielem,igaus))+aux
-                              !!$acc end atomic
-                              !!$acc atomic update
-                              !ave(connec(ielem,igaus)) = ave(connec(ielem,igaus))+1.0d0
-                              !!$acc end atomic
                             end do
+                            aux2 = aux2/dble(nnode)
+                            !$acc loop vector
+                            do inode = 1,nnode
+                               mu_sgs(ielem,inode) = aux2
+                            end do
+
                          end do
                          !$acc end parallel loop
-
-                       ! !$acc parallel loop gang vector_length(vecLength)
-                       ! do ielem = 1,nelem
-                       !    !$acc loop vector
-                       !    do inode = 1,nnode
-                       !       mu_sgs(ielem,inode) = mue(connec(ielem,inode))/ave(connec(ielem,inode))
-                       !    end do
-                       ! end do
-                       ! !$acc end parallel loop
 
                       end if
 
