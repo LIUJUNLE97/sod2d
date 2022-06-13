@@ -9,13 +9,14 @@ module time_integ
    use mod_constants
    use mod_fluid_viscosity
    use mod_sgs_viscosity
+   use mod_sgs_ilsa_viscosity
    use mod_bc_routines
 
       contains
 
          subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                          ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional arg
 
             implicit none
@@ -43,6 +44,12 @@ module time_integ
             real(8),              intent(out)   :: machno(npoin)
             real(8),              intent(out)   :: mu_e(nelem,ngaus)
             real(8),              intent(out)   :: mu_sgs(nelem,ngaus)
+            real(8),              intent(out)   :: kres(npoin)
+            real(8),              intent(out)   :: etot(npoin)
+            real(8),              intent(out)   :: au(npoin,ndime)
+            real(8),              intent(out)   :: ax1(npoin)
+            real(8),              intent(out)   :: ax2(npoin)
+            real(8),              intent(out)   :: ax3(npoin)
             integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(ndof), lbnodes(nbnodes)
             integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun,2)
             real(8),    optional, intent(in)    :: source_term(ndime)
@@ -401,7 +408,11 @@ module time_integ
             !
             if(flag_les == 1) then
                call nvtxStartRange("MU_SGS")
-               call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,pos),u(:,:,pos),Ml,mu_sgs)
+               if(flag_les_ilsa) then
+                  call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dt,rho(:,pos),u(:,:,pos),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
+               else
+                  call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,pos),u(:,:,pos),Ml,mu_sgs)
+               end if
                call nvtxEndRange
             end if
 

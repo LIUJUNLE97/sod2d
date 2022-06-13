@@ -61,6 +61,7 @@ program sod2d
         real(8),    allocatable    :: source_term(:)
         real(8),    allocatable    :: aux_1(:,:), aux_2(:)
         real(8),    allocatable    :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:)
+        real(8),    allocatable    :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
         real(8)                    :: s, t, z, detJe
         real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
         real(8)                    :: cfl_conv, cfl_diff, acutim
@@ -152,9 +153,9 @@ program sod2d
         if (isPeriodic == 1) then
 #ifdef CHANNEL
            !nper = 1891 ! TODO: if periodic, request number of periodic nodes
-           !nper = 7663 ! TODO: if periodic, request number of periodic nodes
+           nper = 7663 ! TODO: if periodic, request number of periodic nodes
            !nper = 16471 ! TODO: if periodic, request number of periodic nodes
-           nper = 32131 ! TODO: if periodic, request number of periodic nodes
+           !nper = 32131 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
            !nper = 10981  ! TODO: if periodic, request number of periodic nodes
@@ -348,6 +349,13 @@ program sod2d
         allocate(mu_fluid(npoin))   ! Fluid viscosity
         allocate(mu_e(nelem,ngaus))  ! Elemental viscosity
         allocate(mu_sgs(nelem,ngaus))! SGS viscosity
+        !ilsa
+        allocate(kres(npoin))
+        allocate(etot(npoin))
+        allocate(au(npoin,ndime))
+        allocate(ax1(npoin))
+        allocate(ax2(npoin))
+        allocate(ax3(npoin))
         call nvtxEndRange
 
         !*********************************************************************!
@@ -434,6 +442,12 @@ program sod2d
         !$acc kernels
         mu_e(:,:) = 0.0d0 ! Element syabilization viscosity
         mu_sgs(:,:) = 0.0d0
+        kres(:) = 0.0d0
+        etot(:) = 0.0d0
+        ax1(:) = 0.0d0
+        ax2(:) = 0.0d0
+        ax3(:) = 0.0d0
+        au(:,:) = 0.0d0
         !$acc end kernels
         call nvtxEndRange
 
@@ -910,7 +924,7 @@ program sod2d
 #ifndef NOPRED
                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                       rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                       rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
 #endif
                  !
@@ -920,7 +934,7 @@ program sod2d
 
                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                     ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                    rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                    rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
                     ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
 
 
@@ -1024,7 +1038,7 @@ program sod2d
 #ifndef NOPRED
                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                     ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                    rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid)
+                    rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid)
 #endif
                   !
                   ! Advance with entropy viscosity
@@ -1033,7 +1047,7 @@ program sod2d
 
                   call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                     rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid)
+                     rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid)
 
 
                   time = time+dt
@@ -1143,7 +1157,7 @@ program sod2d
 #ifndef NOPRED
                 call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                    ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                   rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                   rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
                    ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
 #endif
                   !
@@ -1153,7 +1167,7 @@ program sod2d
                   
                   call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
                      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                     rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,lpoin_w,mu_fluid, &
+                     rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
                      ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
 
                   time = time+dt
