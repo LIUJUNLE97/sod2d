@@ -471,7 +471,7 @@ program sod2d
         !*********************************************************************!
         
         if (flag_real_diff == 1) then
-           call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,rho(:,2))
+           call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,mu_sgs,rho(:,2))
            write(1,*) "--| TIME STEP SIZE dt := ",dt,"s"
         else
            call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
@@ -942,7 +942,7 @@ program sod2d
                  atime = atime+dt
 
                  if (flag_real_diff == 1) then
-                    call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,rho(:,2))
+                    call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,mu_sgs,rho(:,2))
                      if (istep == nsave2)write(1,*) "DT := ",dt,"s time := ",time,"s"
                  else
                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
@@ -1063,7 +1063,7 @@ program sod2d
                   end if
 
                   if (flag_real_diff == 1) then
-                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,rho(:,2))
+                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,mu_sgs,rho(:,2))
                      if (istep == nsave2)write(1,*) "DT := ",dt,"s time := ",time,"s"
                   else
                      call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)
@@ -1172,7 +1172,7 @@ program sod2d
 
                   time = time+dt
                   if (flag_real_diff == 1) then
-                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,rho(:,2))
+                     call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt,cfl_diff,mu_fluid,mu_sgs,rho(:,2))
                      if (istep == nsave2)write(1,*) "DT := ",dt,"s time := ",time,"s"
                   else
                      call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,cfl_conv,dt)

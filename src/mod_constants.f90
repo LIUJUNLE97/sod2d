@@ -48,7 +48,7 @@ module mod_constants
       real(8), parameter :: c_ener = 1.0d0
       real(8), parameter :: c_sgs = 0.025d0
       real(8), parameter :: stau   = 0.022d0
-      real(8), parameter :: T_ilsa = 0.1d0
+      real(8), parameter :: T_ilsa = 6.0d0
 
       real(8) :: flag_mu_factor=1.0d0
 
