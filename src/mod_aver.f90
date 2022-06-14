@@ -4,18 +4,22 @@ module mod_aver
 
 	contains
 
-	subroutine  favre_average(npoin,npoin_w,lpoin_w,dt,rho,u,pr,acutim,acurho,acupre,acuvel,acuve2)
+	subroutine  favre_average(nelem,npoin,npoin_w,lpoin_w,dt,rho,u,pr, &
+									  mu_fluid,mu_e,mu_sgs,acutim,acurho,acupre,acuvel,acuve2,acumueff)
 
 		implicit none
 
-		integer(4), intent(in)                             :: npoin, npoin_w, lpoin_w(npoin_w)
+		integer(4), intent(in)                             :: nelem, npoin, npoin_w, lpoin_w(npoin_w)
 		real(8),    intent(in)                             :: dt
-		real(8),    intent(in),    dimension(npoin)        :: rho, pr
+		real(8),    intent(in),    dimension(npoin)        :: rho, pr, mu_fluid
 		real(8),    intent(in),    dimension(npoin,ndime)  :: u
+		real(8),    intent(in),    dimension(nelem,ngaus)  :: mu_e, mu_sgs
 		real(8),    intent(inout)                          :: acutim
 		real(8),    intent(inout), dimension(npoin)        :: acurho, acupre
 		real(8),    intent(inout), dimension(npoin,ndime)  :: acuvel, acuve2
-		integer(4)                                         :: ipoin, idime
+		real(8),    intent(inout), dimension(nelem,ngaus)  :: acumueff
+		integer(4)                                         :: ipoin, idime, ielem, inode
+		real(8)                                            :: envit(npoin), mut(npoin)
 
 		! Compute accumulated time
 		acutim = acutim+dt
@@ -51,6 +55,24 @@ module mod_aver
 					rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*u(lpoin_w(ipoin),idime)*dt
 				!$acc end atomic
 			end do
+		end do
+		!$acc end parallel loop
+
+		! Compute accumulated tally for effective viscosity times current dt
+		!$acc parallel loop collapse(2)
+		do ielem = 1,nelem
+         do inode = 1, nnode
+            envit(connec(ielem,inode)) =  mu_e(ielem,inode)
+            mut(connec(ielem,inode))   =  mu_sgs(ielem,inode)
+         end do
+      end do
+		!$acc end parallel loop
+		!$acc parallel loop
+		do ipoin = 1,npoin_w
+			!$acc atomic update
+			acumueff(lpoin_w(ipoin)) = acumueff(lpoin_w(ipoin))+ &
+				(mu_fluid(lpoin_w(ipoin))+envit(lpoin_w(ipoin))+mut(lpoin_w(ipoin)))*dt
+			!$acc end atomic
 		end do
 		!$acc end parallel loop
 
