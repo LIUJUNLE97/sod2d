@@ -966,10 +966,10 @@ program sod2d
                     call nvtxStartRange("Output AVG"//timeStep,istep)
                      if (flag_spectralElem == 1) then
                          call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connecVTK, &
-                                                  acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
+                                                  acuvel,acuve2,acurho,acupre,acumueff,acutim,nper,masSla)
                      else
                          call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connec_orig, &
-                                                  acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
+                                                  acuvel,acuve2,acurho,acupre,acumueff,acutim,nper,masSla)
                      end if
                      nsaveAVG = nsaveAVG+nleapAVG
                      call nvtxEndRange
@@ -1089,10 +1089,10 @@ program sod2d
                      call nvtxStartRange("Output AVG"//timeStep,istep)
                       if (flag_spectralElem == 1) then
                           call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connecVTK, &
-                                                   acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
+                                                   acuvel,acuve2,acurho,acupre,acumueff,acutim,nper,masSla)
                       else
                           call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connec_orig, &
-                                                   acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
+                                                   acuvel,acuve2,acurho,acupre,acumueff,acutim,nper,masSla)
                       end if
                       nsaveAVG = nsaveAVG+nleapAVG
                       call nvtxEndRange
@@ -1199,10 +1199,10 @@ program sod2d
                      call nvtxStartRange("Output AVG"//timeStep,istep)
                       if (flag_spectralElem == 1) then
                           call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connecVTK, &
-                                                   acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
+                                                   acuvel,acuve2,acurho,acupre,acumueff,acutim,nper,masSla)
                       else
                           call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connec_orig, &
-                                                   acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
+                                                   acuvel,acuve2,acurho,acupre,acumueff,acutim,nper,masSla)
                       end if
                       nsaveAVG = nsaveAVG+nleapAVG
                       call nvtxEndRange
