@@ -4,20 +4,19 @@ module mod_aver
 
 	contains
 
-	subroutine  favre_average(nelem,npoin,npoin_w,lpoin_w,dt,rho,u,pr, &
+	subroutine  favre_average(nelem,npoin,npoin_w,lpoin_w,connec,dt,rho,u,pr, &
 									  mu_fluid,mu_e,mu_sgs,acutim,acurho,acupre,acuvel,acuve2,acumueff)
 
 		implicit none
 
-		integer(4), intent(in)                             :: nelem, npoin, npoin_w, lpoin_w(npoin_w)
+		integer(4), intent(in)                             :: nelem, npoin, npoin_w, lpoin_w(npoin_w), connec(nelem,nnode)
 		real(8),    intent(in)                             :: dt
 		real(8),    intent(in),    dimension(npoin)        :: rho, pr, mu_fluid
 		real(8),    intent(in),    dimension(npoin,ndime)  :: u
 		real(8),    intent(in),    dimension(nelem,ngaus)  :: mu_e, mu_sgs
 		real(8),    intent(inout)                          :: acutim
-		real(8),    intent(inout), dimension(npoin)        :: acurho, acupre
+		real(8),    intent(inout), dimension(npoin)        :: acurho, acupre, acumueff
 		real(8),    intent(inout), dimension(npoin,ndime)  :: acuvel, acuve2
-		real(8),    intent(inout), dimension(nelem,ngaus)  :: acumueff
 		integer(4)                                         :: ipoin, idime, ielem, inode
 		real(8)                                            :: envit(npoin), mut(npoin)
 
