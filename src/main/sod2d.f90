@@ -60,7 +60,7 @@ program sod2d
         real(8),    allocatable    :: mu_e(:,:), mu_fluid(:),mu_sgs(:,:)
         real(8),    allocatable    :: source_term(:)
         real(8),    allocatable    :: aux_1(:,:), aux_2(:)
-        real(8),    allocatable    :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:)
+        real(8),    allocatable    :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:)
         real(8),    allocatable    :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
         real(8)                    :: s, t, z, detJe
         real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
@@ -856,6 +856,7 @@ program sod2d
         !*********************************************************************!
         allocate(acurho(npoin))
         allocate(acupre(npoin))
+        allocate(acumueff(npoin))
         allocate(acuvel(npoin,ndime))
         allocate(acuve2(npoin,ndime))
 
@@ -955,7 +956,8 @@ program sod2d
                  ! Update the accumulators for averaging
                  !
                  call nvtxStartRange("Accumulate")
-                 call favre_average(npoin,npoin_w,lpoin_w,dt,rho,u,pr,acutim,acurho,acupre,acuvel,acuve2)
+                 call favre_average(nelem,npoin,npoin_w,lpoin_w,connec,dt,rho,u,pr, &
+                                    mu_fluid,mu_e,mu_sgs,acutim,acurho,acupre,acuvel,acuve2,acumueff)
                  call nvtxEndRange
                  !
                  ! Output the averages after some steps (user defined)
@@ -964,10 +966,10 @@ program sod2d
                     call nvtxStartRange("Output AVG"//timeStep,istep)
                      if (flag_spectralElem == 1) then
                          call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connecVTK, &
-                                                  acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
+                                                  acuvel,acuve2,acurho,acupre,acumueff,acutim,nper,masSla)
                      else
                          call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connec_orig, &
-                                                  acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
+                                                  acuvel,acuve2,acurho,acupre,acumueff,acutim,nper,masSla)
                      end if
                      nsaveAVG = nsaveAVG+nleapAVG
                      call nvtxEndRange
@@ -1076,7 +1078,8 @@ program sod2d
                   ! Update the accumulators for averaging
                   !
                   call nvtxStartRange("Accumulate")
-                  call favre_average(npoin,npoin_w,lpoin_w,dt,rho,u,pr,acutim,acurho,acupre,acuvel,acuve2)
+                  call favre_average(nelem,npoin,npoin_w,lpoin_w,connec,dt,rho,u,pr, &
+                                     mu_fluid,mu_e,mu_sgs,acutim,acurho,acupre,acuvel,acuve2,acumueff)
                   call nvtxEndRange
 
                   !
@@ -1086,10 +1089,10 @@ program sod2d
                      call nvtxStartRange("Output AVG"//timeStep,istep)
                       if (flag_spectralElem == 1) then
                           call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connecVTK, &
-                                                   acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
+                                                   acuvel,acuve2,acurho,acupre,acumueff,acutim,nper,masSla)
                       else
                           call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connec_orig, &
-                                                   acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
+                                                   acuvel,acuve2,acurho,acupre,acumueff,acutim,nper,masSla)
                       end if
                       nsaveAVG = nsaveAVG+nleapAVG
                       call nvtxEndRange
@@ -1185,7 +1188,8 @@ program sod2d
                   ! Update the accumulators for averaging
                   !
                   call nvtxStartRange("Accumulate"//timeStep,istep)
-                  call favre_average(npoin,npoin_w,lpoin_w,dt,rho,u,pr,acutim,acurho,acupre,acuvel,acuve2)
+                  call favre_average(nelem,npoin,npoin_w,lpoin_w,connec,dt,rho,u,pr, &
+                                     mu_fluid,mu_e,mu_sgs,acutim,acurho,acupre,acuvel,acuve2,acumueff)
                   call nvtxEndRange
 
                   !
@@ -1195,10 +1199,10 @@ program sod2d
                      call nvtxStartRange("Output AVG"//timeStep,istep)
                       if (flag_spectralElem == 1) then
                           call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connecVTK, &
-                                                   acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
+                                                   acuvel,acuve2,acurho,acupre,acumueff,acutim,nper,masSla)
                       else
                           call write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connec_orig, &
-                                                   acuvel,acuve2,acurho,acupre,acutim,nper,masSla)
+                                                   acuvel,acuve2,acurho,acupre,acumueff,acutim,nper,masSla)
                       end if
                       nsaveAVG = nsaveAVG+nleapAVG
                       call nvtxEndRange
