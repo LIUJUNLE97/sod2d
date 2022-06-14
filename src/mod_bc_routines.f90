@@ -6,13 +6,14 @@ module mod_bc_routines
 
       contains
 
-         subroutine temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_rho,aux_q)
+         subroutine temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_rho,aux_q,aux_p,aux_c)
 
             implicit none
 
             integer(4), intent(in)    :: npoin, nboun, bou_codes(nboun,2), bound(nboun,npbou)
             integer(4), intent(in)    :: nbnodes, lbnodes(nbnodes)
-            real(8),    intent(inout) :: aux_rho(npoin), aux_q(npoin,ndime)
+            real(8),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_p(npoin),aux_c(npoin)
+            real(8)                   :: ubc,L5,L1
             integer(4)                :: iboun, bcode, ipbou
 
             if (ndime == 3) then
@@ -66,6 +67,14 @@ module mod_bc_routines
                         aux_q(bound(iboun,ipbou),2) = 0.0d0
                         aux_q(bound(iboun,ipbou),3) = 0.0d0
                      end do
+                  else if (bcode == 4) then ! inlet just for aligened inlets with x
+                     do ipbou = 1,npbou
+                        aux_q(bound(iboun,ipbou),1) = ubc
+                        aux_q(bound(iboun,ipbou),2) = 0.0d0
+                        aux_q(bound(iboun,ipbou),3) = 0.0d0
+                     end do
+                  else if (bcode == 5) then ! outlet
+                        ! we assume neuman
                   end if
                end do
                !$acc end parallel loop

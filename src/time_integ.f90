@@ -155,7 +155,7 @@ module time_integ
                !
                if (nboun .ne. 0) then
                   call nvtxStartRange("Boundary conditions")
-                  call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_rho,aux_q)
+                  call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_rho,aux_q,aux_pr,csound) !we need to think on the updates of c and pr
                   call nvtxEndRange
                end if
                !
@@ -319,7 +319,7 @@ module time_integ
             !
             if (nboun .ne. 0) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,rho(:,pos),q(:,:,pos))
+               call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,rho(:,pos),q(:,:,pos),pr(:,pos),csound)
                call nvtxEndRange
             end if
 

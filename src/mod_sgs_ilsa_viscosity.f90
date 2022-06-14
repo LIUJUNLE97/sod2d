@@ -32,7 +32,7 @@ contains
       real(8)                 :: gpkres,ax1l(nnode),ax2l(nnode),ax3l(nnode),gpax1,gpax2,gpax3,c_k,a,b,c,d,gprij(ndime,ndime),gplest,gpepst,aul(nnode,ndime)
 
       if(time_ilsa>T_ilsa) then
-         time_ilsa = 0.0
+         time_ilsa = 0.0d0
       end if
       ave = dt/(time_ilsa+dt)
       eliti = time_ilsa/(time_ilsa+dt)
@@ -50,7 +50,8 @@ contains
       do ielem = 1,nelem
          !$acc loop vector
          do inode = 1,nnode
-            mueff(inode) = mu_fluid(connec(ielem,inode))/rho(connec(ielem,inode)) + mue(ielem,inode)/rho(connec(ielem,inode))+mu_sgs(ielem,inode)
+            !mueff(inode) = mu_fluid(connec(ielem,inode))/rho(connec(ielem,inode)) + mue(ielem,inode)/rho(connec(ielem,inode))+mu_sgs(ielem,inode)
+            mueff(inode) = mu_fluid(connec(ielem,inode))/rho(connec(ielem,inode)) + mu_sgs(ielem,inode)
             kresl(inode) = kres(connec(ielem,inode))
             etotl(inode) = etot(connec(ielem,inode)) 
             ax1l(inode)  = ax1(connec(ielem,inode)) 

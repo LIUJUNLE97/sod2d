@@ -153,9 +153,9 @@ program sod2d
         if (isPeriodic == 1) then
 #ifdef CHANNEL
            !nper = 1891 ! TODO: if periodic, request number of periodic nodes
-           nper = 7663 ! TODO: if periodic, request number of periodic nodes
+           !nper = 7663 ! TODO: if periodic, request number of periodic nodes
            !nper = 16471 ! TODO: if periodic, request number of periodic nodes
-           !nper = 32131 ! TODO: if periodic, request number of periodic nodes
+           nper = 32131 ! TODO: if periodic, request number of periodic nodes
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
            !nper = 10981  ! TODO: if periodic, request number of periodic nodes
