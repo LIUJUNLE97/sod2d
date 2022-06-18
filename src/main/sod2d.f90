@@ -74,7 +74,7 @@ program sod2d
 #ifdef CHANNEL
         !channel flow setup
         real(8)  :: vo = 1.0d0
-        real(8)  :: M  = 0.29d0
+        real(8)  :: M  = 0.2d0
         real(8)  :: delta  = 1.0d0
         real(8)  :: U0     = 1.0d0
         real(8)  :: rho0   = 1.0d0
@@ -83,6 +83,7 @@ program sod2d
         real(8)  :: yp=0.0d0, ti(3)
         real(8)  :: velo = 0.0d0, vol = 0.0d0
         real(8)  :: Re,mul,utau,Rg,to,po,mur
+        integer(4) :: isCylinder = -1
 #else
         real(8)                    :: rho0, Re, mul,mur,to
 #endif
@@ -91,16 +92,29 @@ program sod2d
 
         Prt = 0.71d0
 #ifdef CHANNEL
-        Re     = exp((1.0d0/0.88d0)*log(Retau/0.09d0))
-        mul    = (rho0*2.0d0*delta*vo)/Re
-        utau   = (Retau*mul)/(delta*rho0)
-        Rg = Cp*(gamma_g-1.0d0)/gamma_g
-        to = vo*vo/(gamma_g*Rg*M*M)
-        po = rho0*Rg*to
-        mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
-        flag_mu_factor = mul/mur
+        if(isCylinder>0) then
+           Re     = exp((1.0d0/0.88d0)*log(Retau/0.09d0))
+           mul    = (rho0*2.0d0*delta*vo)/Re
+           utau   = (Retau*mul)/(delta*rho0)
+           Rg = Cp*(gamma_g-1.0d0)/gamma_g
+           to = vo*vo/(gamma_g*Rg*M*M)
+           po = rho0*Rg*to
+           mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
+           flag_mu_factor = mul/mur
+           write(1,*) " Gp ", utau*utau*rho0/delta
+        else
+           Re     = 3900.0d0
+           mul    = (rho0*1.0d0*vo)/Re
+           Rg = Cp*(gamma_g-1.0d0)/gamma_g
+           to = vo*vo/(gamma_g*Rg*M*M)
+           po = rho0*Rg*to
+           mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
+           flag_mu_factor = mul/mur
 
-        write(1,*) " Gp ", utau*utau*rho0/delta
+           nscbc_ut = vo
+           nscbc_p_inf = po
+           nscbc_rho = rho0
+        end if
 #else
         Re = 1600.0d0
         !to = 1.0d0
@@ -136,15 +150,15 @@ program sod2d
         !Cp = gamma_gas*Rgas/(gamma_gas-1.0d0)
         write(1,*) "Cp ",Cp
         Cv = Cp/gamma_gas
-        cfl_conv = 2.2d0
-        cfl_diff = 2.2d0
+        cfl_conv = 1.5d0
+        cfl_diff = 1.5d0
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
         nsaveAVG = 1
-        nleap = 10000 ! Saving interval, TODO: input
+        nleap = 1000 ! Saving interval, TODO: input
         tleap = 0.5d0 ! Saving interval, TODO: input
         nleap2 = 10  ! Saving interval, TODO: input
-        nleapAVG = 10000
+        nleapAVG = 1000
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
@@ -152,10 +166,14 @@ program sod2d
 #endif        
         if (isPeriodic == 1) then
 #ifdef CHANNEL
+        if(isCylinder>0) then
            !nper = 1891 ! TODO: if periodic, request number of periodic nodes
            !nper = 7663 ! TODO: if periodic, request number of periodic nodes
            !nper = 16471 ! TODO: if periodic, request number of periodic nodes
            nper = 32131 ! TODO: if periodic, request number of periodic nodes
+        else
+           nper = 69186  ! TODO: if periodic, request number of periodic nodes
+        end if
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
            !nper = 10981  ! TODO: if periodic, request number of periodic nodes
@@ -180,10 +198,16 @@ program sod2d
 #ifdef CHANNEL
         allocate(source_term(ndime))
         !set the source term
-!        source_term(1) = (utau*utau*rho0/delta)/36.0d0
-        source_term(1) = (utau*utau*rho0/delta)
-        source_term(2) = 0.00d0
-        source_term(3) = 0.00d0
+        !        source_term(1) = (utau*utau*rho0/delta)/36.0d0
+        if(isCylinder>0) then
+           source_term(1) = (utau*utau*rho0/delta)
+           source_term(2) = 0.00d0
+           source_term(3) = 0.00d0
+        else
+           source_term(1) = 0.00d0
+           source_term(2) = 0.00d0
+           source_term(3) = 0.00d0
+        end if
 #endif
 
         !*********************************************************************!
@@ -202,7 +226,11 @@ program sod2d
         call nvtxStartRange("Read mesh")
         !read(*,*) file_name
 #ifdef CHANNEL
-        write(file_name,*) "channel" ! Nsys
+        if(isCylinder>0) then
+            write(file_name,*) "channel" ! Nsys
+        else
+            write(file_name,*) "cylin" ! Nsys
+        end if
 #else
         write(file_name,*) "shock_tube" ! Nsys
         !write(file_name,*) "cube" ! Nsys
@@ -378,7 +406,8 @@ program sod2d
 
         call nvtxStartRange("Additional data")
 #ifdef CHANNEL
-        if(0) then
+        if(1) then
+        if(isCylinder>0) then
            do ipoin = 1,npoin
 
               if(coord(ipoin,2)<delta) then
@@ -406,6 +435,24 @@ program sod2d
               q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
               csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2))
            end do
+        else
+           do ipoin = 1,npoin
+
+              u(ipoin,1,2) = 1.0d0
+              u(ipoin,2,2) = 0.0d0
+              u(ipoin,3,2) = 0.0d0
+
+              pr(ipoin,2) = po
+
+              rho(ipoin,2) = po/Rg/to
+
+              e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0d0))
+              Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas)
+              E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
+              q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
+              csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2))
+           end do
+        end if
         else        
            !call read_vtk_binary(isPeriodic,230001,npoin,nelem,coord,connec, &
            !   rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,mu_fluid,mu_e,mu_sgs,nper,masSla)
@@ -865,6 +912,7 @@ program sod2d
         acupre(:) = 0.0d0
         acuvel(:,:) = 0.00d0
         acuve2(:,:) = 0.00d0
+        acumueff(:) = 0.00d0
         !$acc end kernels
         acutim = 0.0d0
 

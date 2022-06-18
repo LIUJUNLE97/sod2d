@@ -26,8 +26,8 @@ module mod_constants
       integer(4), parameter :: flag_real_diff=1
       integer(4), parameter :: flag_diff_suth=1
       integer(4), parameter :: flag_rk_order=4
-      integer(4), parameter :: flag_les=1
-      integer(4), parameter :: flag_les_ilsa=1
+      integer(4), parameter :: flag_les=0
+      integer(4), parameter :: flag_les_ilsa=0
       integer(4), parameter :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
       integer(4), parameter :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
 
@@ -47,9 +47,18 @@ module mod_constants
       real(8), parameter :: c_rho =1.0d0
       real(8), parameter :: c_ener = 1.0d0
       real(8), parameter :: c_sgs = 0.025d0
-      real(8), parameter :: stau   = 0.022d0
-      real(8), parameter :: T_ilsa = 6.0d0
+      real(8), parameter :: stau   = 0.02d0
+      real(8), parameter :: T_ilsa = 1.0d0
 
       real(8) :: flag_mu_factor=1.0d0
+
+      !
+      ! NSCBC parameters
+      !
+      real(8) :: nscbc_ut   = 1.0d0
+      real(8) :: nscbc_p_inf = 0.0d0
+      real(8) :: nscbc_sigma = 1.0d0
+      real(8) :: nscbc_L     = 1.0d0
+      real(8) :: nscbc_rho   = 1.0d0
 
 end module mod_constants

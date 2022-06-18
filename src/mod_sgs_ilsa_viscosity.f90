@@ -29,7 +29,7 @@ contains
       integer(4)              :: ielem, inode, igaus, kdime, idime, jdime,ipoin
       real(8)                 :: gpcar(ndime,nnode), aux,aux2,mueff(nnode),ul(nnode,ndime),kresl(nnode),etotl(nnode)
       real(8)                 :: gradU(ndime,ndime), gradUf(ndime,ndime),eliti,ave,strain(ndime,ndime),strain_m,strainf(ndime,ndime),uf(nnode,ndime)
-      real(8)                 :: gpkres,ax1l(nnode),ax2l(nnode),ax3l(nnode),gpax1,gpax2,gpax3,c_k,a,b,c,d,gprij(ndime,ndime),gplest,gpepst,aul(nnode,ndime)
+      real(8)                 :: gpkres,ax1l(nnode),ax2l(nnode),ax3l(nnode),gpax1,gpax2,gpax3,c_k,a,b,c,d,gprij(ndime,ndime),gplest,gpepst,aul(nnode,ndime),aux3(nnode)
 
       if(time_ilsa>T_ilsa) then
          time_ilsa = 0.0d0
@@ -46,7 +46,7 @@ contains
       end do
       !$acc end parallel loop
 
-      !$acc parallel loop gang private(ul,mueff,kresl,etotl,ax1l,ax2l,ax3l,uf,aul) 
+      !$acc parallel loop gang private(ul,mueff,kresl,etotl,ax1l,ax2l,ax3l,uf,aul,aux3) 
       do ielem = 1,nelem
          !$acc loop vector
          do inode = 1,nnode
@@ -148,19 +148,23 @@ contains
             end if
             c_k = max(max(aux,aux2), 0.0d0)
 
-
-            ! final viscosity
-            if(etotl(igaus)>1.0e-10) then
-               mu_sgs(ielem,igaus) =  (c_k)*(gplest*gplest)*strain_m
-            else
-               mu_sgs(ielem,igaus) = 0.0d0
-            end if
+            aux3(igaus) = (c_k)*(gplest*gplest)*strain_m
 
             kres(connec(ielem,igaus)) = gpkres
             etot(connec(ielem,igaus)) = gpepst
             ax1(connec(ielem,igaus))  = gpax1
             ax2(connec(ielem,igaus))  = gpax2
             ax3(connec(ielem,igaus))  = gpax3
+         end do
+         aux=0.0d0
+         !$acc loop vector reduction(+:aux)
+         do inode = 1,nnode
+            aux = aux + aux3(inode)
+         end do
+         aux = aux/dble(nnode)
+         !$acc loop vector
+         do inode = 1,nnode
+            mu_sgs(ielem,inode) = aux
          end do
       end do
       !$acc end parallel loop

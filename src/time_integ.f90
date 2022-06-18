@@ -155,7 +155,7 @@ module time_integ
                !
                if (nboun .ne. 0) then
                   call nvtxStartRange("Boundary conditions")
-                  call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_rho,aux_q,aux_pr,csound) !we need to think on the updates of c and pr
+                  call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_rho,aux_q,aux_pr,csound,aux_u,dt,1) !we need to think on the updates of c and pr
                   call nvtxEndRange
                end if
                !
@@ -181,6 +181,14 @@ module time_integ
                   Reta(ipoin) = (-eta(lpoin_w(ipoin),1) + aux_eta(lpoin_w(ipoin)))/dt   - a_i(istep)*Rener(lpoin_w(ipoin))
                end do
                !$acc end parallel loop
+               !
+               ! Impose boundary conditions
+               !
+               if (nboun .ne. 0) then
+                  call nvtxStartRange("Boundary conditions")
+                  call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_rho,aux_q,aux_pr,csound,aux_u,dt,-1) !we need to think on the updates of c and pr
+                  call nvtxEndRange
+               end if
                call nvtxEndRange
                !
                ! If updating the correction, compute viscosities and diffusion
@@ -319,7 +327,7 @@ module time_integ
             !
             if (nboun .ne. 0) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,rho(:,pos),q(:,:,pos),pr(:,pos),csound)
+               call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,rho(:,pos),q(:,:,pos),pr(:,pos),csound,u(:,:,pos),dt,1)
                call nvtxEndRange
             end if
 
@@ -378,6 +386,14 @@ module time_integ
             end do
             !$acc end parallel loop
 #endif
+            !
+            ! Apply bcs after update
+            !
+            if (nboun .ne. 0) then
+               call nvtxStartRange("BCS_AFTER_UPDATE")
+               call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,rho(:,pos),q(:,:,pos),pr(:,pos),csound,u(:,:,pos),dt,-1)
+               call nvtxEndRange
+            end if
             call nvtxEndRange
             !
             ! If using Sutherland viscosity model:
