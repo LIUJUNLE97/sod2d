@@ -910,6 +910,7 @@ program sod2d
         !$acc kernels
         acurho(:) = 0.0d0
         acupre(:) = 0.0d0
+        acumueff(:) = 0.0d0
         acuvel(:,:) = 0.00d0
         acuve2(:,:) = 0.00d0
         acumueff(:) = 0.00d0
