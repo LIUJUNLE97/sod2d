@@ -6,15 +6,15 @@ module mod_bc_routines
 
       contains
 
-         subroutine temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_rho,aux_q,dt)
+         subroutine temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,lnbn,aux_rho,aux_q,aux_u,aux_p,aux_E)
 
             implicit none
 
             integer(4), intent(in)    :: npoin, nboun, bou_codes(nboun,2), bound(nboun,npbou)
-            integer(4), intent(in)    :: nbnodes, lbnodes(nbnodes)
-            real(8),    intent(in)    :: dt
-            real(8),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime)
+            integer(4), intent(in)    :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou)
+            real(8),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             integer(4)                :: iboun, bcode, ipbou
+            real(8)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b
 
             if (ndime == 3) then
                !
@@ -70,9 +70,42 @@ module mod_bc_routines
                   else if (bcode == 4) then ! inlet just for aligened inlets with x
                      !$acc loop vector
                      do ipbou = 1,npbou
-                        aux_q(bound(iboun,ipbou),1) = nscbc_u_inf*aux_rho(bound(iboun,ipbou))
+                        cin = sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou)))
+                        R_plus  = aux_q(lnbn(iboun,ipbou),1)/aux_rho(lnbn(iboun,ipbou)) + 2.0d0*cin/(nscbc_gamma_inf-1.0d0)
+                        R_minus = nscbc_u_inf - 2.0d0*nscbc_c_inf/(nscbc_gamma_inf-1.0d0)
+                        v_b = (R_plus+R_minus)*0.5d0
+                        c_b  = (nscbc_gamma_inf-1.0d0)*(R_plus-R_minus)/4.0d0
+                        s_b = nscbc_c_inf*nscbc_c_inf/(nscbc_gamma_inf*nscbc_rho_inf**(nscbc_gamma_inf-1.0d0))
+                        rho_b = (c_b*c_b/(nscbc_gamma_inf*s_b))
+                        p_b = rho_b*c_b*c_b/nscbc_gamma_inf
+
+                        aux_q(bound(iboun,ipbou),1) = v_b*rho_b
                         aux_q(bound(iboun,ipbou),2) = 0.0d0
                         aux_q(bound(iboun,ipbou),3) = 0.0d0
+
+                        aux_rho(bound(iboun,ipbou)) = rho_b
+
+                        aux_E(bound(iboun,ipbou)) = rho_b*0.5d0*v_b*v_b + p_b/(nscbc_gamma_inf-1.0d0)
+                     end do
+                  else if (bcode == 5) then ! inlet just for aligened inlets with x
+                     !$acc loop vector
+                     do ipbou = 1,npbou
+                        cin = sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou)))
+                        R_minus= aux_q(lnbn(iboun,ipbou),1)/aux_rho(lnbn(iboun,ipbou)) - 2.0d0*cin/(nscbc_gamma_inf-1.0d0)
+                        R_plus = nscbc_u_inf + 2.0d0*nscbc_c_inf/(nscbc_gamma_inf-1.0d0)
+                        v_b = (R_plus+R_minus)*0.5d0
+                        c_b  = (nscbc_gamma_inf-1.0d0)*(R_plus-R_minus)/4.0d0
+                        s_b = cin*cin/(nscbc_gamma_inf*aux_rho(lnbn(iboun,ipbou))**(nscbc_gamma_inf-1.0d0))
+                        rho_b = (c_b*c_b/(nscbc_gamma_inf*s_b))
+                        p_b = rho_b*c_b*c_b/nscbc_gamma_inf
+                        
+                        aux_q(bound(iboun,ipbou),1) = v_b*rho_b
+                        aux_q(bound(iboun,ipbou),2) = 0.0d0
+                        aux_q(bound(iboun,ipbou),3) = 0.0d0
+
+                        aux_rho(bound(iboun,ipbou)) = rho_b
+
+                        aux_E(bound(iboun,ipbou)) = rho_b*0.5d0*v_b*v_b + p_b/(nscbc_gamma_inf-1.0d0)
                      end do
                   end if
                end do
@@ -80,14 +113,15 @@ module mod_bc_routines
             end if
          end subroutine temporary_bc_routine_dirichlet_prim
 
-         subroutine temporary_bc_routine_dirichlet_sec(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_u,aux_p,aux_t)
+         subroutine temporary_bc_routine_dirichlet_sec(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,lnbn,aux_rho,aux_q,aux_u,aux_p,aux_E)
 
             implicit none
 
             integer(4), intent(in)    :: npoin, nboun, bou_codes(nboun,2), bound(nboun,npbou)
-            integer(4), intent(in)    :: nbnodes, lbnodes(nbnodes)
-            real(8),    intent(inout) :: aux_u(npoin,ndime),aux_p(npoin),aux_t(npoin)
+            integer(4), intent(in)    :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou)
+            real(8),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             integer(4)                :: iboun, bcode, ipbou
+            real(8)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b
 
              if (ndime == 3) then
                !
@@ -101,15 +135,38 @@ module mod_bc_routines
                   if (bcode == 4) then ! inlet just for aligened inlets with x
                      !$acc loop vector
                      do ipbou = 1,npbou
-                        aux_u(bound(iboun,ipbou),1) = nscbc_u_inf
+                        cin = sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou)))
+                        R_plus  = aux_q(lnbn(iboun,ipbou),1)/aux_rho(lnbn(iboun,ipbou)) + 2.0d0*cin/(nscbc_gamma_inf-1.0d0)
+                        R_minus = nscbc_u_inf - 2.0d0*nscbc_c_inf/(nscbc_gamma_inf-1.0d0)
+                        v_b = (R_plus+R_minus)*0.5d0
+                        c_b  = (nscbc_gamma_inf-1.0d0)*(R_plus-R_minus)/4.0d0
+                        s_b = nscbc_c_inf*nscbc_c_inf/(nscbc_gamma_inf*nscbc_rho_inf**(nscbc_gamma_inf-1.0d0))
+                        rho_b = (c_b*c_b/(nscbc_gamma_inf*s_b))
+                        p_b = rho_b*c_b*c_b/nscbc_gamma_inf
+                        
+                        aux_u(bound(iboun,ipbou),1) = v_b
                         aux_u(bound(iboun,ipbou),2) = 0.0d0
                         aux_u(bound(iboun,ipbou),3) = 0.0d0
+
+                        aux_p(bound(iboun,ipbou)) = p_b
                      end do
-                  else if (bcode == 5) then ! outlet
-                     ! we assume neuman
+                  else if (bcode == 5) then ! inlet just for aligened inlets with x
                      !$acc loop vector
                      do ipbou = 1,npbou
-                        aux_p(bound(iboun,ipbou)) = nscbc_p_inf
+                        cin = sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou)))
+                        R_minus= aux_q(lnbn(iboun,ipbou),1)/aux_rho(lnbn(iboun,ipbou)) - 2.0d0*cin/(nscbc_gamma_inf-1.0d0)
+                        R_plus = nscbc_u_inf + 2.0d0*nscbc_c_inf/(nscbc_gamma_inf-1.0d0)
+                        v_b = (R_plus+R_minus)*0.5d0
+                        c_b  = (nscbc_gamma_inf-1.0d0)*(R_plus-R_minus)/4.0d0
+                        s_b = cin*cin/(nscbc_gamma_inf*aux_rho(lnbn(iboun,ipbou))**(nscbc_gamma_inf-1.0d0))
+                        rho_b = (c_b*c_b/(nscbc_gamma_inf*s_b))
+                        p_b = rho_b*c_b*c_b/nscbc_gamma_inf
+                        
+                        aux_u(bound(iboun,ipbou),1) = v_b
+                        aux_u(bound(iboun,ipbou),2) = 0.0d0
+                        aux_u(bound(iboun,ipbou),3) = 0.0d0
+
+                        aux_p(bound(iboun,ipbou)) = p_b
                      end do
                   end if
                end do

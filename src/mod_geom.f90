@@ -138,16 +138,20 @@ module mod_geom
 
             integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
             integer(4), intent(out) :: lelpn(npoin),point2elem(npoin)
-            integer(4)              :: aux, ipoin, inode, ielem
+            integer(4)              ::  ipoin, inode, ielem, aux
 
             !$acc kernels
             lelpn(:) = 0
+            point2elem(:) = 0
             !$acc end kernels
             !$acc parallel loop gang
             do ielem = 1,nelem
-               !$acc loop worker
+               !$acc loop seq
                do inode = 1,nnode
                   point2elem(connec(ielem,inode)) = ielem
+               end do
+               !$acc loop worker
+               do inode = 1,nnode
                   !$acc loop vector
                   do ipoin = 1,npoin
                      if (connec(ielem,inode) == ipoin) then
@@ -169,29 +173,27 @@ module mod_geom
             integer(4), intent(in)  :: nelem,npoin,nboun,connec(nelem,nnode),bound(nboun,npbou),point2elem(npoin)
             real(8), intent(in) :: coord(npoin,ndime)
             integer(4), intent(out) :: lnbn(nboun,npbou)
-            integer(4)              :: ipoin, inode, ielem,bnode,ipbou,iboun
-            real(8)                 :: dist(ndime), dist2,aux,aux2
+            integer(4)              :: ipoin, inode,ielem,bnode,ipbou,iboun,rnode
+            real(8)                 :: dist2,aux,aux2
 
-            !$acc kernels
-            lnbn(:,:) = 0
-            !$acc end kernels
             !$acc parallel loop gang
             do iboun = 1,nboun
                !$acc loop seq
                do ipbou = 1,npbou
                   bnode = bound(iboun,ipbou)
-                  ielem = point2elem(bound(iboun,ipbou))
+                  ielem = point2elem(bnode)
                   aux = 1000000000000000000000000000000000000000000000000000000000000000000000.0d0
                   !$acc loop seq
                   do inode = 1,nnode
-                     if(inode .ne. bnode) then 
-                        aux2 = coord(connec(ielem,inode),1)-coord(connec(ielem,bnode),1)
+                     rnode = connec(ielem,inode)
+                     if(rnode .ne. bnode) then 
+                        aux2 = coord(rnode,1)-coord(bnode,1)
                         if(aux2>1.0e10) then
-                           dist = coord(connec(ielem,inode),:)-coord(connec(ielem,bnode),:)
-                           dist2 = sqrt(dot_product(dist(:),dist(:)))
+                           dist2 = sqrt(dot_product(coord(rnode,:)-coord(bnode,:),&
+                                                    coord(rnode,:)-coord(bnode,:)))
                            if(dist2<aux) then
                               aux = dist2
-                              lnbn(iboun,ipbou)=connec(ielem,inode)
+                              lnbn(iboun,ipbou)=rnode
                            end if
                         end if
                      end if

@@ -115,7 +115,7 @@ program sod2d
            nscbc_p_inf = po
            nscbc_rho_inf = rho0
            nscbc_gamma_inf = gamma_g
-           nscbc_c_inf = sqrt(gamma_gas*po/rho0)
+           nscbc_c_inf = sqrt(gamma_g*po/rho0)
         end if
 #else
         Re = 1600.0d0
@@ -261,7 +261,9 @@ program sod2d
         !*********************************************************************!
         allocate(lelpn(npoin))
         allocate(point2elem(npoin))
+        write(1,*) '--| POINT 2 ELEM begin'
         call elemPerNode(nelem,npoin,connec,lelpn,point2elem)
+        write(1,*) '--| POINT 2 ELEM done'
 
         !*********************************************************************!
         ! Compute characteristic size of elements                             !
@@ -357,7 +359,9 @@ program sod2d
 
 
             allocate(lnbn(nboun,npbou))
+            write(1,*) '--| EVAL near boundaries nodes '
             call nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,lnbn)
+            write(1,*) '--| EVAL near boundaries nodes end'
 
             call nvtxEndRange
         end if

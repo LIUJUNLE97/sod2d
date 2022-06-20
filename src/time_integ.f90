@@ -155,7 +155,7 @@ module time_integ
                !
                if (nboun .ne. 0) then
                   call nvtxStartRange("Boundary conditions")
-                  call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_rho,aux_q,dt*a_i(istep))
+                  call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,lnbn,aux_rho,aux_q,aux_u,aux_pr,aux_E)
                   call nvtxEndRange
                end if
                !
@@ -184,11 +184,11 @@ module time_integ
                !
                ! Impose boundary conditions
                !
-               if (nboun .ne. 0) then
-                  call nvtxStartRange("Boundary conditions")
-                  call temporary_bc_routine_dirichlet_sec(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_u,aux_pr,aux_Tem)
-                  call nvtxEndRange
-               end if
+              ! if (nboun .ne. 0) then
+              !    call nvtxStartRange("Boundary conditions")
+              !    call temporary_bc_routine_dirichlet_sec(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,lnbn,aux_rho,aux_q,aux_u,aux_pr,aux_E)
+              !    call nvtxEndRange
+              ! end if
                call nvtxEndRange
                !
                ! If updating the correction, compute viscosities and diffusion
@@ -327,7 +327,7 @@ module time_integ
             !
             if (nboun .ne. 0) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,rho(:,pos),q(:,:,pos),dt)
+               call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,lnbn,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos))
                call nvtxEndRange
             end if
 
@@ -389,11 +389,11 @@ module time_integ
             !
             ! Apply bcs after update
             !
-            if (nboun .ne. 0) then
-               call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine_dirichlet_sec(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,u(:,:,pos),pr(:,pos),Tem(:,pos))
-               call nvtxEndRange
-            end if
+         !   if (nboun .ne. 0) then
+         !      call nvtxStartRange("BCS_AFTER_UPDATE")
+         !      call temporary_bc_routine_dirichlet_sec(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,lnbn,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos))
+         !      call nvtxEndRange
+         !   end if
             call nvtxEndRange
             !
             ! If using Sutherland viscosity model:
