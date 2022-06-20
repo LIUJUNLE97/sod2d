@@ -14,7 +14,7 @@ module time_integ
 
       contains
 
-         subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+         subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem, lnbn, &
                          ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional arg
@@ -23,7 +23,7 @@ module time_integ
 
             integer(4),           intent(in)    :: flag_predic, flag_emac
             integer(4),           intent(in)    :: nelem, nboun, npoin
-            integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w)
+            integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou)
             integer(4),           intent(in)    :: ppow
             real(8),              intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
             real(8),              intent(in)    :: He(ndime,ndime,ngaus,nelem)
@@ -155,7 +155,7 @@ module time_integ
                !
                if (nboun .ne. 0) then
                   call nvtxStartRange("Boundary conditions")
-                  call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_rho,aux_q,aux_pr,csound,aux_u,dt,1) !we need to think on the updates of c and pr
+                  call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_rho,aux_q,dt*a_i(istep))
                   call nvtxEndRange
                end if
                !
@@ -186,7 +186,7 @@ module time_integ
                !
                if (nboun .ne. 0) then
                   call nvtxStartRange("Boundary conditions")
-                  call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_rho,aux_q,aux_pr,csound,aux_u,dt,-1) !we need to think on the updates of c and pr
+                  call temporary_bc_routine_dirichlet_sec(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_u,aux_pr,aux_Tem)
                   call nvtxEndRange
                end if
                call nvtxEndRange
@@ -202,13 +202,13 @@ module time_integ
                   ! Compute entropy viscosity
                   !
 #ifndef NOPRED
-                   if (flag_SpectralElem == 1) then
-                      call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp, &
-                         gamma_gas,aux_rho,aux_u,aux_Tem,aux_eta,helem_l,helem,Ml,mu_e)
-                   else
-                      call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                         gamma_gas,aux_rho,aux_u,aux_Tem,helem,mu_e)
-                   end if
+                  if (flag_SpectralElem == 1) then
+                     call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp, &
+                        gamma_gas,aux_rho,aux_u,aux_Tem,aux_eta,helem_l,helem,Ml,mu_e)
+                  else
+                     call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
+                        gamma_gas,aux_rho,aux_u,aux_Tem,helem,mu_e)
+                  end if
 #endif
                   call nvtxEndRange
                   !
@@ -327,7 +327,7 @@ module time_integ
             !
             if (nboun .ne. 0) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,rho(:,pos),q(:,:,pos),pr(:,pos),csound,u(:,:,pos),dt,1)
+               call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,rho(:,pos),q(:,:,pos),dt)
                call nvtxEndRange
             end if
 
@@ -345,7 +345,7 @@ module time_integ
             end do
             !$acc end parallel loop
             call generic_scalar_convec(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
+               gpvol,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
             !$acc parallel loop
             do ipoin = 1,npoin_w
                umag = 0.0d0
@@ -355,10 +355,10 @@ module time_integ
                   umag = umag + u(lpoin_w(ipoin),idime,pos)**2
                end do
                umag = sqrt(umag)
-               pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0d0)*e_int(lpoin_w(ipoin),pos)
-               Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
                e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &
                   0.5d0*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
+               pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0d0)*e_int(lpoin_w(ipoin),pos)
+               Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
                eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0d0))* &
                   log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
                csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
@@ -391,7 +391,7 @@ module time_integ
             !
             if (nboun .ne. 0) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,rho(:,pos),q(:,:,pos),pr(:,pos),csound,u(:,:,pos),dt,-1)
+               call temporary_bc_routine_dirichlet_sec(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,u(:,:,pos),pr(:,pos),Tem(:,pos))
                call nvtxEndRange
             end if
             call nvtxEndRange
@@ -411,13 +411,13 @@ module time_integ
             !
             ! Compute entropy viscosity
             !
-             if (flag_SpectralElem == 1) then
-                call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp, &
-                   gamma_gas,rho(:,pos),u(:,:,pos),Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e)
-             else
-                call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                   gamma_gas,rho(:,pos),u(:,:,pos),Tem(:,pos),helem,mu_e)
-             end if
+            if (flag_SpectralElem == 1) then
+               call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp, &
+                  gamma_gas,rho(:,pos),u(:,:,pos),Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e)
+            else
+               call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
+                  gamma_gas,rho(:,pos),u(:,:,pos),Tem(:,pos),helem,mu_e)
+            end if
 #endif
             !
             ! Compute subgrid viscosity if active
@@ -434,4 +434,4 @@ module time_integ
 
          end subroutine rk_4_main
 
-end module time_integ
+      end module time_integ

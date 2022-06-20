@@ -132,12 +132,12 @@ module mod_geom
 
          end subroutine create_connecVTK
 
-         subroutine elemPerNode(nelem,npoin,connec,lelpn)
+         subroutine elemPerNode(nelem,npoin,connec,lelpn,point2elem)
 
             implicit none
 
             integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
-            integer(4), intent(out) :: lelpn(npoin)
+            integer(4), intent(out) :: lelpn(npoin),point2elem(npoin)
             integer(4)              :: aux, ipoin, inode, ielem
 
             !$acc kernels
@@ -147,6 +147,7 @@ module mod_geom
             do ielem = 1,nelem
                !$acc loop worker
                do inode = 1,nnode
+                  point2elem(connec(ielem,inode)) = ielem
                   !$acc loop vector
                   do ipoin = 1,npoin
                      if (connec(ielem,inode) == ipoin) then
@@ -160,5 +161,45 @@ module mod_geom
             !$acc end parallel loop
 
          end subroutine elemPerNode
+
+         subroutine nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,lnbn)
+
+            implicit none
+
+            integer(4), intent(in)  :: nelem,npoin,nboun,connec(nelem,nnode),bound(nboun,npbou),point2elem(npoin)
+            real(8), intent(in) :: coord(npoin,ndime)
+            integer(4), intent(out) :: lnbn(nboun,npbou)
+            integer(4)              :: ipoin, inode, ielem,bnode,ipbou,iboun
+            real(8)                 :: dist(ndime), dist2,aux,aux2
+
+            !$acc kernels
+            lnbn(:,:) = 0
+            !$acc end kernels
+            !$acc parallel loop gang
+            do iboun = 1,nboun
+               !$acc loop seq
+               do ipbou = 1,npbou
+                  bnode = bound(iboun,ipbou)
+                  ielem = point2elem(bound(iboun,ipbou))
+                  aux = 1000000000000000000000000000000000000000000000000000000000000000000000.0d0
+                  !$acc loop seq
+                  do inode = 1,nnode
+                     if(inode .ne. bnode) then 
+                        aux2 = coord(connec(ielem,inode),1)-coord(connec(ielem,bnode),1)
+                        if(aux2>1.0e10) then
+                           dist = coord(connec(ielem,inode),:)-coord(connec(ielem,bnode),:)
+                           dist2 = sqrt(dot_product(dist(:),dist(:)))
+                           if(dist2<aux) then
+                              aux = dist2
+                              lnbn(iboun,ipbou)=connec(ielem,inode)
+                           end if
+                        end if
+                     end if
+                  end do
+               end do
+            end do
+            !$acc end parallel loop
+
+         end subroutine nearBoundaryNode
 
 end module mod_geom
