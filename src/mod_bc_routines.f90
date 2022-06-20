@@ -87,6 +87,7 @@ module mod_bc_routines
                         do ipbou = 1,npbou
                            L1=nscbc_sigma*aux_c(bound(iboun,ipbou))*(aux_p(bound(iboun,ipbou))-nscbc_p_inf)/nscbc_L
                            L5=nscbc_sigma*aux_c(bound(iboun,ipbou))*aux_c(bound(iboun,ipbou))*aux_rho(bound(iboun,ipbou))*(aux_u(bound(iboun,ipbou),1)-nscbc_ut)/nscbc_L 
+
                            ubc = aux_u(bound(iboun,ipbou),1) - dt*(L5-L1)/(2.0d0*aux_c(bound(iboun,ipbou))*aux_rho(bound(iboun,ipbou)))
                            aux_q(bound(iboun,ipbou),1) = ubc*aux_rho(bound(iboun,ipbou))
                            aux_q(bound(iboun,ipbou),2) = 0.0d0
@@ -94,6 +95,9 @@ module mod_bc_routines
                            aux_u(bound(iboun,ipbou),1) = ubc
                            aux_u(bound(iboun,ipbou),2) = 0.0d0
                            aux_u(bound(iboun,ipbou),3) = 0.0d0
+
+                           !ubc = aux_p(bound(iboun,ipbou)) - dt*(L5+L1)/2.0d0
+                           !aux_p(bound(iboun,ipbou)) = ubc
                         end do
                      else if (bcode == 5) then ! outlet
                         ! we assume neuman
@@ -101,8 +105,18 @@ module mod_bc_routines
                         do ipbou = 1,npbou
                            L1=nscbc_sigma*aux_c(bound(iboun,ipbou))*(aux_p(bound(iboun,ipbou))-nscbc_p_inf)/nscbc_L
                            L5=nscbc_sigma*aux_c(bound(iboun,ipbou))*aux_c(bound(iboun,ipbou))*aux_rho(bound(iboun,ipbou))*(aux_u(bound(iboun,ipbou),1)-nscbc_ut)/nscbc_L 
-                           ubc = aux_p(bound(iboun,ipbou)) - dt*(L5+L1)/2.0d0
+                           
+                           ubc = aux_p(bound(iboun,ipbou)) - dt*(L1)/2.0d0
+                           !ubc = aux_p(bound(iboun,ipbou)) - dt*(L5+L1)/2.0d0
                            aux_p(bound(iboun,ipbou)) = ubc
+
+                           !ubc = aux_u(bound(iboun,ipbou),1) - dt*(L5-L1)/(2.0d0*aux_c(bound(iboun,ipbou))*aux_rho(bound(iboun,ipbou)))
+                           !aux_q(bound(iboun,ipbou),1) = ubc*aux_rho(bound(iboun,ipbou))
+                           !aux_q(bound(iboun,ipbou),2) = 0.0d0
+                           !aux_q(bound(iboun,ipbou),3) = 0.0d0
+                           !aux_u(bound(iboun,ipbou),1) = ubc
+                           !aux_u(bound(iboun,ipbou),2) = 0.0d0
+                           !aux_u(bound(iboun,ipbou),3) = 0.0d0
                         end do
                      end if
                   end do
