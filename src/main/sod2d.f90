@@ -358,10 +358,6 @@ program sod2d
             !$acc end parallel loop
 
 
-            allocate(lnbn(nboun,npbou))
-            write(1,*) '--| EVAL near boundaries nodes '
-            call nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,lnbn)
-            write(1,*) '--| EVAL near boundaries nodes end'
 
             call nvtxEndRange
         end if
@@ -545,6 +541,12 @@ program sod2d
            allocate(atoIJK(64))
            allocate(vtk_atoIJK(64))
            call hex64(1.0d0,1.0d0,1.0d0,atoIJK,vtk_atoIJK)
+
+           !not the best place Oriol!
+            allocate(lnbn(nboun,npbou))
+            write(1,*) '--| EVAL near boundaries nodes '
+            call nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,atoIJK,lnbn)
+            write(1,*) '--| EVAL near boundaries nodes end'
         end if
         write(1,*) "--| GENERATING GAUSSIAN QUADRATURE TABLE..."
 

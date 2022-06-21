@@ -151,14 +151,6 @@ module time_integ
                !$acc end parallel loop
                call nvtxEndRange
                !
-               ! Impose boundary conditions
-               !
-               if (nboun .ne. 0) then
-                  call nvtxStartRange("Boundary conditions")
-                  call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,lnbn,aux_rho,aux_q,aux_u,aux_pr,aux_E)
-                  call nvtxEndRange
-               end if
-               !
                ! Update velocity and equations of state
                !
                call nvtxStartRange("Update u and EOS")
@@ -171,6 +163,18 @@ module time_integ
                   aux_e_int(lpoin_w(ipoin)) = (aux_E(lpoin_w(ipoin))/aux_rho(lpoin_w(ipoin)))- &
                      0.5d0*dot_product(aux_u(lpoin_w(ipoin),:),aux_u(lpoin_w(ipoin),:))
                   aux_pr(lpoin_w(ipoin)) = aux_rho(lpoin_w(ipoin))*(gamma_gas-1.0d0)*aux_e_int(lpoin_w(ipoin))
+               end do
+               !$acc end parallel loop
+               !
+               ! Impose boundary conditions
+               !
+               if (nboun .ne. 0) then
+                  call nvtxStartRange("Boundary conditions")
+                  call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,lnbn,aux_rho,aux_q,aux_u,aux_pr,aux_E)
+                  call nvtxEndRange
+               end if
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
                   aux_Tem(lpoin_w(ipoin)) = aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))*Rgas)
                   aux_eta(lpoin_w(ipoin)) = (aux_rho(lpoin_w(ipoin))/(gamma_gas-1.0d0))* &
                      log(aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))**gamma_gas))
@@ -181,14 +185,7 @@ module time_integ
                   Reta(ipoin) = (-eta(lpoin_w(ipoin),1) + aux_eta(lpoin_w(ipoin)))/dt   - a_i(istep)*Rener(lpoin_w(ipoin))
                end do
                !$acc end parallel loop
-               !
-               ! Impose boundary conditions
-               !
-              ! if (nboun .ne. 0) then
-              !    call nvtxStartRange("Boundary conditions")
-              !    call temporary_bc_routine_dirichlet_sec(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,lnbn,aux_rho,aux_q,aux_u,aux_pr,aux_E)
-              !    call nvtxEndRange
-              ! end if
+
                call nvtxEndRange
                !
                ! If updating the correction, compute viscosities and diffusion
@@ -322,14 +319,6 @@ module time_integ
             end do
             !$acc end parallel loop
             call nvtxEndRange
-            !
-            ! Apply bcs after update
-            !
-            if (nboun .ne. 0) then
-               call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,lnbn,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos))
-               call nvtxEndRange
-            end if
 
             !
             ! Update velocity and equations of state
@@ -358,9 +347,6 @@ module time_integ
                e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &
                   0.5d0*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
                pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0d0)*e_int(lpoin_w(ipoin),pos)
-               Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
-               eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0d0))* &
-                  log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
                csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
                machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
             end do
@@ -376,11 +362,6 @@ module time_integ
                end do
                umag = sqrt(umag)
                pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0d0)*e_int(lpoin_w(ipoin),pos)
-               Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
-               e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &
-                  0.5d0*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
-               eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0d0))* &
-                  log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
                csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
                machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
             end do
@@ -389,11 +370,19 @@ module time_integ
             !
             ! Apply bcs after update
             !
-         !   if (nboun .ne. 0) then
-         !      call nvtxStartRange("BCS_AFTER_UPDATE")
-         !      call temporary_bc_routine_dirichlet_sec(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,lnbn,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos))
-         !      call nvtxEndRange
-         !   end if
+            if (nboun .ne. 0) then
+               call nvtxStartRange("BCS_AFTER_UPDATE")
+               call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,lnbn,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos))
+               call nvtxEndRange
+            end if
+            !$acc parallel loop
+            do ipoin = 1,npoin_w
+               Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
+               eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0d0))* &
+                  log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
+            end do
+            !$acc end parallel loop
+
             call nvtxEndRange
             !
             ! If using Sutherland viscosity model:
