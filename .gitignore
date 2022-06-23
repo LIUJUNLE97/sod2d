@@ -5,3 +5,10 @@
 # Ignore weird files
 *.swp
 *.mod
+
+# Ignore VSCODE estensions and configs
+.trunk
+.vscode
+.flake8
+.isort.cfg
+.markdownlint.yaml
