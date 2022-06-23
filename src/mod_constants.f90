@@ -56,9 +56,9 @@ module mod_constants
       ! NSCBC parameters
       !
       real(8) :: nscbc_u_inf   = 1.0d0
-      real(8) :: nscbc_p_inf = 0.0d0
+      real(8) :: nscbc_p_inf = 1.0d0
       real(8) :: nscbc_gamma_inf = 1.0d0
-      real(8) :: nscbc_c_inf = 0.0d0
+      real(8) :: nscbc_c_inf = 1.0d0
       real(8) :: nscbc_rho_inf   = 1.0d0
 
 end module mod_constants

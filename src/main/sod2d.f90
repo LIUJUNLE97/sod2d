@@ -542,11 +542,6 @@ program sod2d
            allocate(vtk_atoIJK(64))
            call hex64(1.0d0,1.0d0,1.0d0,atoIJK,vtk_atoIJK)
 
-           !not the best place Oriol!
-            allocate(lnbn(nboun,npbou))
-            write(1,*) '--| EVAL near boundaries nodes '
-            call nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,atoIJK,lnbn)
-            write(1,*) '--| EVAL near boundaries nodes end'
         end if
         write(1,*) "--| GENERATING GAUSSIAN QUADRATURE TABLE..."
 
@@ -813,6 +808,12 @@ program sod2d
            end do
            !$acc end parallel loop
         end if
+        ! evaluate near boundaries for the inlets and outlets
+           !not the best place Oriol!
+            allocate(lnbn(nboun,npbou))
+            write(1,*) '--| EVAL near boundaries nodes '
+            call nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,atoIJK,lnbn)
+            write(1,*) '--| EVAL near boundaries nodes end'
 
         !*********************************************************************!
         ! Compute mass matrix (Lumped and Consistent) and set solver type     !

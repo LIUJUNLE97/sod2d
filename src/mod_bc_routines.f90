@@ -90,12 +90,8 @@ module mod_bc_routines
                         rho_b = (c_b**2/(nscbc_gamma_inf*s_b))**(1.0/(nscbc_gamma_inf-1.0d0))
                         p_b = rho_b*c_b**2/nscbc_gamma_inf
 
+                        !write(*,*) " R ",R_plus," R ",R_minus
 
-                        !write(1,*) " v_b ",v_b," cin ",cin
-                        !write(1,*) " R+ ",R_plus," R- ",R_minus
-                        !write(1,*) " s_b ",s_b," cb ",c_b
-                        !write(1,*) " rb ",rho_b," pb ",p_b
-                        
                         aux_q(bound(iboun,ipbou),1) = v_b*rho_b
                         aux_q(bound(iboun,ipbou),2) = 0.0d0
                         aux_q(bound(iboun,ipbou),3) = 0.0d0
