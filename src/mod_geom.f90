@@ -182,51 +182,45 @@ module mod_geom
                do ipbou = 1,npbou
                   bnode = bound(iboun,ipbou)
                   ielem = point2elem(bnode)
-                 !$acc loop seq
-     !           do inode = 1,nnode
-     !              innode = connec(ielem,inode)
-     !              if(innode .eq. bnode) then 
-     !                 exit
-     !              end if
-     !           end do
-     !           c = 0
-     !    outer: do k = 1,porder+1
-     !              do i = 1,porder+1
-     !                 do j = 1,porder+1
-     !                    c = c+1
-     !                    if(atoIJK(c) .eq. inode) then
-     !                        exit outer
-     !                    end if
-     !                 end do
-     !              end do
-     !           end do outer
+              !   !$acc loop seq
+              !   do inode = 1,nnode
+              !      if(connec(ielem,inode) .eq. bnode) then 
+              !         exit
+              !      end if
+              !   end do
+              !   c = 0
+              !   !$acc loop seq
+              !   outer: do k = 1,porder+1
+              !      do i = 1,porder+1
+              !         do j = 1,porder+1
+              !            c = c+1
+              !            if(atoIJK(c) .eq. inode) then
+              !               exit outer
+              !            end if
+              !         end do
+              !      end do
+              !   end do outer
 
-     !           if(i>1) then
-     !              lnbn(iboun,ipbou) = connec(ielem,atoIJK(k*4*4+(i-1)*4+j))
-     !           else 
-     !              lnbn(iboun,ipbou) = connec(ielem,atoIJK(k*4*4+(i+1)*4+j))
-     !           end if
+                  !lnbn(iboun,ipbou) = connec(ielem,atoIJK(c+8))
+                  !lnbn(iboun,ipbou) = connec(ielem,atoIJK(c+4))
+                  lnbn(iboun,ipbou) = connec(ielem,atoIJK(64))
 
-                  lnbn(iboun,ipbou) = connec(ielem,atoIJK(nnode))
-
-                  !lnbn(iboun,ipbou) = connec(ielem,nnode) !bnode
-                  !lnbn(iboun,ipbou) = bnode
-                  !aux = 1000000000000000000000000000000000000000000000000000000000000000000000.0d0
-                  !!$acc loop seq
-                  !do inode = 1,nnode
-                  !   rnode = connec(ielem,inode)
-                  !   if(rnode .ne. bnode) then 
-                  !      aux2 = abs(coord(rnode,1)-coord(bnode,1))
-                  !      if(aux2>1.0e6) then
-                  !         dist2 = sqrt(dot_product(coord(rnode,:)-coord(bnode,:),&
-                  !            coord(rnode,:)-coord(bnode,:)))
-                  !         if(dist2<aux) then
-                  !            aux = dist2
-                  !            lnbn(iboun,ipbou)=rnode
-                  !         end if
-                  !      end if
-                  !   end if
-                  !end do
+                  aux = 1000000000000000000000000000000000000000000000000000000000000000000000.0d0
+                  !$acc loop seq
+                  do inode = 1,nnode
+                     rnode = connec(ielem,inode)
+                     if(rnode .ne. bnode) then 
+                        aux2 = abs(coord(rnode,1)-coord(bnode,1))
+                        if(aux2>1.0e6) then
+                           dist2 = sqrt(dot_product(coord(rnode,:)-coord(bnode,:),&
+                              coord(rnode,:)-coord(bnode,:)))
+                           if(dist2<aux) then
+                              aux = dist2
+                              lnbn(iboun,ipbou)=rnode
+                           end if
+                        end if
+                     end if
+                  end do
                end do
             end do
             !$acc end parallel loop
