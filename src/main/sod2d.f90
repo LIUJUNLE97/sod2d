@@ -74,7 +74,7 @@ program sod2d
 #ifdef CHANNEL
         !channel flow setup
         real(8)  :: vo = 1.0d0
-        real(8)  :: M  = 0.2d0
+        real(8)  :: M  = 0.1d0
         real(8)  :: delta  = 1.0d0
         real(8)  :: U0     = 1.0d0
         real(8)  :: rho0   = 1.0d0
@@ -152,8 +152,8 @@ program sod2d
         !Cp = gamma_gas*Rgas/(gamma_gas-1.0d0)
         write(1,*) "Cp ",Cp
         Cv = Cp/gamma_gas
-        cfl_conv = 1.5d0
-        cfl_diff = 1.5d0
+        cfl_conv = 2.75d0
+        cfl_diff = 2.75d0
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
         nsaveAVG = 1

@@ -202,6 +202,8 @@ module mod_geom
                   end do outer
 
                   lnbn(iboun,ipbou) = connec(ielem,atoIJK(c+8))
+                  !lnbn(iboun,ipbou) = connec(ielem,atoIJK(c+12))
+                  !lnbn(iboun,ipbou) = bnode
                end do
             end do
             !$acc end parallel loop
