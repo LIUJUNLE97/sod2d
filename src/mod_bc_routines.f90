@@ -143,8 +143,12 @@ module mod_bc_routines
                   else if (bcode == 1) then
                      !$acc loop vector
                      do ipbou = 1,npbou
+                        aux_q(bound(iboun,ipbou),1) = nscbc_rho_inf*nscbc_u_inf
+                        aux_u(bound(iboun,ipbou),1) = nscbc_u_inf
                         aux_q(bound(iboun,ipbou),2) = 0.0d0
                         aux_u(bound(iboun,ipbou),2) = 0.0d0
+                        aux_q(bound(iboun,ipbou),3) = 0.0d0
+                        aux_u(bound(iboun,ipbou),3) = 0.0d0
 
                         aux_p(bound(iboun,ipbou)) = nscbc_p_inf
                         aux_rho(bound(iboun,ipbou)) = nscbc_rho_inf

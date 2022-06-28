@@ -14,7 +14,7 @@ module time_integ
 
       contains
 
-         subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem, lnbn, &
+         subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem, lnbn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                          ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional arg
@@ -24,9 +24,10 @@ module time_integ
             integer(4),           intent(in)    :: flag_predic, flag_emac
             integer(4),           intent(in)    :: nelem, nboun, npoin
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou)
+            integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             integer(4),           intent(in)    :: ppow
-            real(8),              intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-            real(8),              intent(in)    :: He(ndime,ndime,ngaus,nelem)
+            real(8),              intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
+            real(8),              intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
             real(8),              intent(in)    :: gpvol(1,ngaus,nelem)
             real(8),              intent(in)    :: dt, helem(nelem), helem_l(npoin)
             real(8),              intent(in)    :: Ml(npoin)
@@ -243,13 +244,14 @@ module time_integ
                   call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_pr,aux_E,aux_rho,aux_q,Rener)
                   call mom_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_q,aux_rho,aux_pr,Rmom)
                else 
-                  call full_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_q,aux_rho,aux_pr,aux_E,Rmass,Rmom,Rener)
+                  !call full_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_q,aux_rho,aux_pr,aux_E,Rmass,Rmom,Rener)
+                  call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_u,aux_q,aux_rho,aux_pr,aux_E,Rmass,Rmom,Rener)
                end if
 
                ! entropy advection
 #ifndef NOPRED
-               call generic_scalar_convec(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,f_eta,aux_eta,aux_u,Reta,alpha)
+               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+                  gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,aux_eta,aux_u,Reta,alpha)
 #endif
                !
                ! Add convection and diffusion terms (Rdiff_* is zero during prediction)
@@ -333,8 +335,8 @@ module time_integ
                end do
             end do
             !$acc end parallel loop
-            call generic_scalar_convec(nelem,npoin,connec,Ngp,dNgp,He, &
-               gpvol,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
+            call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+               gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
             !$acc parallel loop
             do ipoin = 1,npoin_w
                umag = 0.0d0

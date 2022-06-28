@@ -284,7 +284,7 @@ module elem_hex
 
       end subroutine hex27
 
-      subroutine hex64(xi,eta,zeta,atoIJK,vtk_atoIJK,listHEX08,N,dN,N_lagrange,dN_lagrange)
+      subroutine hex64(xi,eta,zeta,atoIJK,vtk_atoIJK,listHEX08,N,dN,N_lagrange,dN_lagrange,dlxigp_ip)
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          ! Lagrangian HEX64 element model. Built using    !
@@ -297,7 +297,7 @@ module elem_hex
          integer(4), optional, intent(out) :: listHEX08(27,8)
          integer(4),           intent(out) :: atoIJK(64), vtk_atoIJK(64)
          real(8),              intent(in)  :: xi, eta, zeta
-         real(8),    optional, intent(out) :: N(nnode), dN(ndime,nnode)
+         real(8),    optional, intent(out) :: N(nnode), dN(ndime,nnode),dlxigp_ip(ndime,porder+1)
          real(8),    optional, intent(out) :: N_lagrange(nnode), dN_lagrange(ndime,nnode)
          real(8)                           :: xi_grid(porder+1)
 
@@ -348,7 +348,7 @@ module elem_hex
                N_lagrange(:) = N(:)
                dN_lagrange(:,:) = dN(:,:)
                call chebyshev_roots(xi_grid)
-               call tripleTensorProduct(xi_grid,xi,eta,zeta,atoIJK,N,dN)
+               call tripleTensorProduct(xi_grid,xi,eta,zeta,atoIJK,N,dN,dlxigp_ip)
             end if
          end if
 

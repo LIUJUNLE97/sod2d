@@ -210,4 +210,26 @@ module mod_geom
 
          end subroutine nearBoundaryNode
 
+         subroutine atioIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+
+            implicit none
+
+            integer(4), intent(in)  :: atoIJK(nnode)
+            integer(4), intent(out) :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+            integer(4)              :: i,j,k,c
+
+            c=0
+            !$acc loop seq
+            do k = 1,porder+1
+               do i = 1,porder+1
+                  do j = 1,porder+1
+                     c = c+1
+                     invAtoIJK(i,j,k) = atoIJK(c)
+                     gmshAtoI(atoIJK(c)) = i
+                     gmshAtoJ(atoIJK(c)) = j
+                     gmshAtoK(atoIJK(c)) = k
+                  end do
+               end do
+            end do
+         end subroutine atioIJKInverse
 end module mod_geom
