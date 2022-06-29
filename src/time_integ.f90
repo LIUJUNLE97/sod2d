@@ -226,7 +226,8 @@ module time_integ
                      call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,mu_fluid,mu_e,mu_sgs,Rdiff_mom)
                      call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Rdiff_ener)
                   else 
-                     call full_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Cp,Prt,aux_rho,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass,Rdiff_mom,Rdiff_ener)
+                     !call full_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Cp,Prt,aux_rho,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass,Rdiff_mom,Rdiff_ener)
+                     call full_diffusion_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,aux_rho,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass,Rdiff_mom,Rdiff_ener)
                   end if
                   call nvtxEndRange
                   !
