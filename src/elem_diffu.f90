@@ -516,7 +516,6 @@ module elem_diffu
                       real(8),    intent(out) :: Rmom(npoin,ndime)
                       real(8),    intent(out) :: Rener(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
-                      real(8)                 :: Re_mass(nnode),Re_mom(nnode,ndime),Re_ener(nnode)
                       real(8)                 :: kappa_e, mu_fgp, mu_egp,divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
                       real(8)                 :: gradU(ndime,ndime), gradT(ndime),tmp1,vol,arho
                       real(8)                 :: gradIsoRho(ndime),gradIsoT(ndime),gradIsoU(ndime,ndime)
@@ -525,7 +524,6 @@ module elem_diffu
                       real(8)                 :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
                       real(8)                 :: gradTl(nnode,ndime),gradRhol(nnode,ndime),tauUl(nnode,ndime)
                       real(8)                 :: gradIsoDe(ndime,ndime),gradIsoDr(ndime,ndime)
-                      real(8), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
 
                       call nvtxStartRange("Full diffusion")
                       twoThirds = 2.0d0/3.0d0
@@ -539,8 +537,6 @@ module elem_diffu
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
-                            Re_mass(inode) = 0.0d0
-                            Re_ener(inode) = 0.0d0
                             rhol(inode) = rho(connec(ielem,inode))
                             Teml(inode) = Tem(connec(ielem,inode))
                             mufluidl(inode) = mu_fluid(connec(ielem,inode))
@@ -548,7 +544,6 @@ module elem_diffu
                          !$acc loop vector collapse(2)
                          do inode = 1,nnode
                             do idime = 1,ndime
-                               Re_mom(inode,idime) = 0.0d0
                                ul(inode,idime) = u(connec(ielem,inode),idime)
                             end do
                          end do
@@ -558,19 +553,13 @@ module elem_diffu
                          gradTl(:,:) = 0.0d0
                          gradRhol(:,:) = 0.0d0
                          tauUl(:,:) = 0.0d0
-                         !$acc loop vector private(tau,gradU,gradT,tauU,dlxi_ip,dleta_ip,dlzeta_ip,gradIsoRho,gradIsoT,gradIsoU,gradRho)
+
+                         !$acc loop vector private(tau,gradU,gradT,tauU,gradIsoRho,gradIsoT,gradIsoU,gradRho,divU)
                          do igaus = 1,ngaus
                             nu_e = c_rho*mu_e(ielem,igaus)/rhol(igaus)
                             mu_fgp = mufluidl(igaus)+rhol(igaus)*mu_sgs(ielem,igaus)
                             mu_egp = mu_e(ielem,igaus)
                             kappa_e =mufluidl(igaus)*Cp/Pr+c_ener*mu_e(ielem,igaus)/0.4d0 + rhol(igaus)*mu_sgs(ielem,igaus)/0.9d0
-
-                            !$acc loop seq
-                            do ii=1,porder+1
-                               dlxi_ip(ii) = dlxigp_ip(igaus,1,ii)
-                               dleta_ip(ii) = dlxigp_ip(igaus,2,ii)
-                               dlzeta_ip(ii) = dlxigp_ip(igaus,3,ii)
-                            end do
 
                             isoI = gmshAtoI(igaus) 
                             isoJ = gmshAtoJ(igaus) 
@@ -581,19 +570,19 @@ module elem_diffu
                             gradIsoU(:,:) = 0.0d0
                             !$acc loop seq
                             do ii=1,porder+1
-                               gradIsoRho(1) = gradIsoRho(1) + dlxi_ip(ii)*rhol(invAtoIJK(ii,isoJ,isoK))
-                               gradIsoRho(2) = gradIsoRho(2) + dleta_ip(ii)*rhol(invAtoIJK(isoI,ii,isoK))
-                               gradIsoRho(3) = gradIsoRho(3) + dlzeta_ip(ii)*rhol(invAtoIJK(isoI,isoJ,ii))
+                               gradIsoRho(1) = gradIsoRho(1) + dlxigp_ip(igaus,1,ii)*rhol(invAtoIJK(ii,isoJ,isoK))
+                               gradIsoRho(2) = gradIsoRho(2) + dlxigp_ip(igaus,2,ii)*rhol(invAtoIJK(isoI,ii,isoK))
+                               gradIsoRho(3) = gradIsoRho(3) + dlxigp_ip(igaus,3,ii)*rhol(invAtoIJK(isoI,isoJ,ii))
 
-                               gradIsoT(1) = gradIsoT(1) + dlxi_ip(ii)*Teml(invAtoIJK(ii,isoJ,isoK))
-                               gradIsoT(2) = gradIsoT(2) + dleta_ip(ii)*Teml(invAtoIJK(isoI,ii,isoK))
-                               gradIsoT(3) = gradIsoT(3) + dlzeta_ip(ii)*Teml(invAtoIJK(isoI,isoJ,ii))
+                               gradIsoT(1) = gradIsoT(1) + dlxigp_ip(igaus,1,ii)*Teml(invAtoIJK(ii,isoJ,isoK))
+                               gradIsoT(2) = gradIsoT(2) + dlxigp_ip(igaus,2,ii)*Teml(invAtoIJK(isoI,ii,isoK))
+                               gradIsoT(3) = gradIsoT(3) + dlxigp_ip(igaus,3,ii)*Teml(invAtoIJK(isoI,isoJ,ii))
 
                                !$acc loop seq
                                do idime=1,ndime
-                                  gradIsoU(idime,1) = gradIsoU(idime,1) + dlxi_ip(ii)*ul(invAtoIJK(ii,isoJ,isoK),idime)
-                                  gradIsoU(idime,2) = gradIsoU(idime,2) + dleta_ip(ii)*ul(invAtoIJK(isoI,ii,isoK),idime)
-                                  gradIsoU(idime,3) = gradIsoU(idime,3) + dlzeta_ip(ii)*ul(invAtoIJK(isoI,isoJ,ii),idime)
+                                  gradIsoU(idime,1) = gradIsoU(idime,1) + dlxigp_ip(igaus,1,ii)*ul(invAtoIJK(ii,isoJ,isoK),idime)
+                                  gradIsoU(idime,2) = gradIsoU(idime,2) + dlxigp_ip(igaus,2,ii)*ul(invAtoIJK(isoI,ii,isoK),idime)
+                                  gradIsoU(idime,3) = gradIsoU(idime,3) + dlxigp_ip(igaus,3,ii)*ul(invAtoIJK(isoI,isoJ,ii),idime)
                                end do
                             end do
 
@@ -639,19 +628,12 @@ module elem_diffu
                             end do
                          end do
 
-                         !$acc loop vector private(dlxi_ip,dleta_ip,dlzeta_ip,gradIsoDr,gradIsoDe,gradIsoDm,divDm)
+                         !$acc loop vector private(gradIsoDr,gradIsoDe,gradIsoDm,divDm,divDr,divDe) 
                          do igaus = 1,ngaus
                             nu_e = c_rho*mu_e(ielem,igaus)/rhol(igaus)
                             mu_fgp = mufluidl(igaus)+rhol(igaus)*mu_sgs(ielem,igaus)
                             mu_egp = mu_e(ielem,igaus)
                             kappa_e =mufluidl(igaus)*Cp/Pr+c_ener*mu_e(ielem,igaus)/0.4d0 + rhol(igaus)*mu_sgs(ielem,igaus)/0.9d0
-
-                            !$acc loop seq
-                            do ii=1,porder+1
-                               dlxi_ip(ii) = dlxigp_ip(igaus,1,ii)
-                               dleta_ip(ii) = dlxigp_ip(igaus,2,ii)
-                               dlzeta_ip(ii) = dlxigp_ip(igaus,3,ii)
-                            end do
 
                             isoI = gmshAtoI(igaus) 
                             isoJ = gmshAtoJ(igaus) 
@@ -664,28 +646,28 @@ module elem_diffu
                             do ii=1,porder+1
                                !$acc loop seq
                                do idime=1,ndime
-                                  gradIsoDr(idime,1) = gradIsoDr(idime,1) + dlxi_ip(ii)*gradRhol(invAtoIJK(ii,isoJ,isoK),idime)
-                                  gradIsoDr(idime,2) = gradIsoDr(idime,2) + dleta_ip(ii)*gradRhol(invAtoIJK(isoI,ii,isoK),idime)
-                                  gradIsoDr(idime,3) = gradIsoDr(idime,3) + dlzeta_ip(ii)*gradRhol(invAtoIJK(isoI,isoJ,ii),idime)
+                                  gradIsoDr(idime,1) = gradIsoDr(idime,1) + dlxigp_ip(igaus,1,ii)*gradRhol(invAtoIJK(ii,isoJ,isoK),idime)
+                                  gradIsoDr(idime,2) = gradIsoDr(idime,2) + dlxigp_ip(igaus,2,ii)*gradRhol(invAtoIJK(isoI,ii,isoK),idime)
+                                  gradIsoDr(idime,3) = gradIsoDr(idime,3) + dlxigp_ip(igaus,3,ii)*gradRhol(invAtoIJK(isoI,isoJ,ii),idime)
 
-                                  gradIsoDe(idime,1) = gradIsoDe(idime,1) + dlxi_ip(ii)*(tauUl(invAtoIJK(ii,isoJ,isoK),idime)&
-                                                                                         +kappa_e*gradTl(invAtoIJK(ii,isoJ,isoK),idime))
-                                  gradIsoDe(idime,2) = gradIsoDe(idime,2) + dleta_ip(ii)*(tauUl(invAtoIJK(isoI,ii,isoK),idime)&
-                                                                                          +kappa_e*gradTl(invAtoIJK(isoI,ii,isoK),idime))
-                                  gradIsoDe(idime,3) = gradIsoDe(idime,3) + dlzeta_ip(ii)*(tauUl(invAtoIJK(isoI,isoJ,ii),idime)&
-                                                                                          +kappa_e*gradTl(invAtoIJK(isoI,isoJ,ii),idime))
+                                  gradIsoDe(idime,1) = gradIsoDe(idime,1) + dlxigp_ip(igaus,1,ii)*(tauUl(invAtoIJK(ii,isoJ,isoK),idime)&
+                                                                                                  +kappa_e*gradTl(invAtoIJK(ii,isoJ,isoK),idime))
+                                  gradIsoDe(idime,2) = gradIsoDe(idime,2) + dlxigp_ip(igaus,2,ii)*(tauUl(invAtoIJK(isoI,ii,isoK),idime)&
+                                                                                                  +kappa_e*gradTl(invAtoIJK(isoI,ii,isoK),idime))
+                                  gradIsoDe(idime,3) = gradIsoDe(idime,3) + dlxigp_ip(igaus,3,ii)*(tauUl(invAtoIJK(isoI,isoJ,ii),idime)&
+                                                                                                  +kappa_e*gradTl(invAtoIJK(isoI,isoJ,ii),idime))
                                  
-                                  gradIsoDm(1,idime,1) = gradIsoDm(1,idime,1) + dlxi_ip(ii)*tauXl(invAtoIJK(ii,isoJ,isoK),idime)
-                                  gradIsoDm(1,idime,2) = gradIsoDm(1,idime,2) + dleta_ip(ii)*tauXl(invAtoIJK(isoI,ii,isoK),idime)
-                                  gradIsoDm(1,idime,3) = gradIsoDm(1,idime,3) + dlzeta_ip(ii)*tauXl(invAtoIJK(isoI,isoJ,ii),idime)
+                                  gradIsoDm(1,idime,1) = gradIsoDm(1,idime,1) + dlxigp_ip(igaus,1,ii)*tauXl(invAtoIJK(ii,isoJ,isoK),idime)
+                                  gradIsoDm(1,idime,2) = gradIsoDm(1,idime,2) + dlxigp_ip(igaus,2,ii)*tauXl(invAtoIJK(isoI,ii,isoK),idime)
+                                  gradIsoDm(1,idime,3) = gradIsoDm(1,idime,3) + dlxigp_ip(igaus,3,ii)*tauXl(invAtoIJK(isoI,isoJ,ii),idime)
 
-                                  gradIsoDm(2,idime,1) = gradIsoDm(2,idime,1) + dlxi_ip(ii)*tauYl(invAtoIJK(ii,isoJ,isoK),idime)
-                                  gradIsoDm(2,idime,2) = gradIsoDm(2,idime,2) + dleta_ip(ii)*tauYl(invAtoIJK(isoI,ii,isoK),idime)
-                                  gradIsoDm(2,idime,3) = gradIsoDm(2,idime,3) + dlzeta_ip(ii)*tauYl(invAtoIJK(isoI,isoJ,ii),idime)
+                                  gradIsoDm(2,idime,1) = gradIsoDm(2,idime,1) + dlxigp_ip(igaus,1,ii)*tauYl(invAtoIJK(ii,isoJ,isoK),idime)
+                                  gradIsoDm(2,idime,2) = gradIsoDm(2,idime,2) + dlxigp_ip(igaus,2,ii)*tauYl(invAtoIJK(isoI,ii,isoK),idime)
+                                  gradIsoDm(2,idime,3) = gradIsoDm(2,idime,3) + dlxigp_ip(igaus,3,ii)*tauYl(invAtoIJK(isoI,isoJ,ii),idime)
 
-                                  gradIsoDm(3,idime,1) = gradIsoDm(3,idime,1) + dlxi_ip(ii)*tauZl(invAtoIJK(ii,isoJ,isoK),idime)
-                                  gradIsoDm(3,idime,2) = gradIsoDm(3,idime,2) + dleta_ip(ii)*tauZl(invAtoIJK(isoI,ii,isoK),idime)
-                                  gradIsoDm(3,idime,3) = gradIsoDm(3,idime,3) + dlzeta_ip(ii)*tauZl(invAtoIJK(isoI,isoJ,ii),idime)
+                                  gradIsoDm(3,idime,1) = gradIsoDm(3,idime,1) + dlxigp_ip(igaus,1,ii)*tauZl(invAtoIJK(ii,isoJ,isoK),idime)
+                                  gradIsoDm(3,idime,2) = gradIsoDm(3,idime,2) + dlxigp_ip(igaus,2,ii)*tauZl(invAtoIJK(isoI,ii,isoK),idime)
+                                  gradIsoDm(3,idime,3) = gradIsoDm(3,idime,3) + dlxigp_ip(igaus,3,ii)*tauZl(invAtoIJK(isoI,isoJ,ii),idime)
                                end do
                             end do
 
