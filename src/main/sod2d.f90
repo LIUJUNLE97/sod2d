@@ -174,8 +174,8 @@ program sod2d
            !nper = 16471 ! TODO: if periodic, request number of periodic nodes
            nper = 32131 ! TODO: if periodic, request number of periodic nodes
         else
-           nper = 69186  ! TODO: if periodic, request number of periodic nodes
-           !nper = 114444  ! TODO: if periodic, request number of periodic nodes
+          ! nper = 69186  ! TODO: if periodic, request number of periodic nodes
+           nper = 114444  ! TODO: if periodic, request number of periodic nodes
         end if
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
