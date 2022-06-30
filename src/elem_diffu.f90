@@ -519,11 +519,10 @@ module elem_diffu
                       real(8)                 :: kappa_e, mu_fgp, mu_egp,divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
                       real(8)                 :: gradU(ndime,ndime), gradT(ndime),tmp1,vol,arho
                       real(8)                 :: gradIsoRho(ndime),gradIsoT(ndime),gradIsoU(ndime,ndime)
-                      real(8)                 :: gradRho(ndime), gradIsoDm(ndime,ndime,ndime),divDm(ndime),divDr,divDe
+                      real(8)                 :: gradRho(ndime),divDm(ndime),divDr,divDe
                       real(8)                 :: ul(nnode,ndime), rhol(nnode),Teml(nnode),mufluidl(nnode)
                       real(8)                 :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
                       real(8)                 :: gradTl(nnode,ndime),gradRhol(nnode,ndime),tauUl(nnode,ndime)
-                      real(8)                 :: gradIsoDe(ndime,ndime),gradIsoDr(ndime,ndime)
 
                       call nvtxStartRange("Full diffusion")
                       twoThirds = 2.0d0/3.0d0
@@ -628,7 +627,7 @@ module elem_diffu
                             end do
                          end do
 
-                         !$acc loop vector private(gradIsoDr,gradIsoDe,gradIsoDm,divDm,divDr,divDe) 
+                         !$acc loop vector private(divDm,divDr,divDe) 
                          do igaus = 1,ngaus
                             nu_e = c_rho*mu_e(ielem,igaus)/rhol(igaus)
                             mu_fgp = mufluidl(igaus)+rhol(igaus)*mu_sgs(ielem,igaus)
@@ -639,62 +638,45 @@ module elem_diffu
                             isoJ = gmshAtoJ(igaus) 
                             isoK = gmshAtoK(igaus) 
 
-                            gradIsoDm(:,:,:) = 0.0d0
-                            gradIsoDe(:,:) = 0.0d0
-                            gradIsoDr(:,:) = 0.0d0
+                            divDe = 0.0d0
+                            divDr = 0.0d0
+                            divDm(:) = 0.0d0
+                            
                             !$acc loop seq
                             do ii=1,porder+1
                                !$acc loop seq
                                do idime=1,ndime
-                                  gradIsoDr(idime,1) = gradIsoDr(idime,1) + dlxigp_ip(igaus,1,ii)*gradRhol(invAtoIJK(ii,isoJ,isoK),idime)
-                                  gradIsoDr(idime,2) = gradIsoDr(idime,2) + dlxigp_ip(igaus,2,ii)*gradRhol(invAtoIJK(isoI,ii,isoK),idime)
-                                  gradIsoDr(idime,3) = gradIsoDr(idime,3) + dlxigp_ip(igaus,3,ii)*gradRhol(invAtoIJK(isoI,isoJ,ii),idime)
+                                  divDr = divDr + He(idime,1,invAtoIJK(ii,isoJ,isoK),ielem)*gpvol(1,invAtoIJK(ii,isoJ,isoK),ielem)*dlxigp_ip(igaus,1,ii)*gradRhol(invAtoIJK(ii,isoJ,isoK),idime)
+                                  divDr = divDr + He(idime,2,invAtoIJK(isoI,ii,isoK),ielem)*gpvol(1,invAtoIJK(isoI,ii,isoK),ielem)*dlxigp_ip(igaus,2,ii)*gradRhol(invAtoIJK(isoI,ii,isoK),idime)
+                                  divDr = divDr + He(idime,3,invAtoIJK(isoI,isoJ,ii),ielem)*gpvol(1,invAtoIJK(isoI,isoJ,ii),ielem)*dlxigp_ip(igaus,3,ii)*gradRhol(invAtoIJK(isoI,isoJ,ii),idime)
 
-                                  gradIsoDe(idime,1) = gradIsoDe(idime,1) + dlxigp_ip(igaus,1,ii)*(tauUl(invAtoIJK(ii,isoJ,isoK),idime)&
-                                                                                                  +kappa_e*gradTl(invAtoIJK(ii,isoJ,isoK),idime))
-                                  gradIsoDe(idime,2) = gradIsoDe(idime,2) + dlxigp_ip(igaus,2,ii)*(tauUl(invAtoIJK(isoI,ii,isoK),idime)&
-                                                                                                  +kappa_e*gradTl(invAtoIJK(isoI,ii,isoK),idime))
-                                  gradIsoDe(idime,3) = gradIsoDe(idime,3) + dlxigp_ip(igaus,3,ii)*(tauUl(invAtoIJK(isoI,isoJ,ii),idime)&
-                                                                                                  +kappa_e*gradTl(invAtoIJK(isoI,isoJ,ii),idime))
+                                  divDe = divDe + He(idime,1,invAtoIJK(ii,isoJ,isoK),ielem)*gpvol(1,invAtoIJK(ii,isoJ,isoK),ielem)*dlxigp_ip(igaus,1,ii)*(tauUl(invAtoIJK(ii,isoJ,isoK),idime)+kappa_e*gradTl(invAtoIJK(ii,isoJ,isoK),idime))
+                                  divDe = divDe + He(idime,2,invAtoIJK(isoI,ii,isoK),ielem)*gpvol(1,invAtoIJK(isoI,ii,isoK),ielem)*dlxigp_ip(igaus,2,ii)*(tauUl(invAtoIJK(isoI,ii,isoK),idime)+kappa_e*gradTl(invAtoIJK(isoI,ii,isoK),idime))
+                                  divDe = divDe + He(idime,3,invAtoIJK(isoI,isoJ,ii),ielem)*gpvol(1,invAtoIJK(isoI,isoJ,ii),ielem)*dlxigp_ip(igaus,3,ii)*(tauUl(invAtoIJK(isoI,isoJ,ii),idime)+kappa_e*gradTl(invAtoIJK(isoI,isoJ,ii),idime))
                                  
-                                  gradIsoDm(1,idime,1) = gradIsoDm(1,idime,1) + dlxigp_ip(igaus,1,ii)*tauXl(invAtoIJK(ii,isoJ,isoK),idime)
-                                  gradIsoDm(1,idime,2) = gradIsoDm(1,idime,2) + dlxigp_ip(igaus,2,ii)*tauXl(invAtoIJK(isoI,ii,isoK),idime)
-                                  gradIsoDm(1,idime,3) = gradIsoDm(1,idime,3) + dlxigp_ip(igaus,3,ii)*tauXl(invAtoIJK(isoI,isoJ,ii),idime)
+                                  divDm(1) = divDm(1) + He(idime,1,invAtoIJK(ii,isoJ,isoK),ielem)*gpvol(1,invAtoIJK(ii,isoJ,isoK),ielem)*dlxigp_ip(igaus,1,ii)*tauXl(invAtoIJK(ii,isoJ,isoK),idime)
+                                  divDm(1) = divDm(1) + He(idime,2,invAtoIJK(isoI,ii,isoK),ielem)*gpvol(1,invAtoIJK(isoI,ii,isoK),ielem)*dlxigp_ip(igaus,2,ii)*tauXl(invAtoIJK(isoI,ii,isoK),idime)
+                                  divDm(1) = divDm(1) + He(idime,3,invAtoIJK(isoI,isoJ,ii),ielem)*gpvol(1,invAtoIJK(isoI,isoJ,ii),ielem)*dlxigp_ip(igaus,3,ii)*tauXl(invAtoIJK(isoI,isoJ,ii),idime)
 
-                                  gradIsoDm(2,idime,1) = gradIsoDm(2,idime,1) + dlxigp_ip(igaus,1,ii)*tauYl(invAtoIJK(ii,isoJ,isoK),idime)
-                                  gradIsoDm(2,idime,2) = gradIsoDm(2,idime,2) + dlxigp_ip(igaus,2,ii)*tauYl(invAtoIJK(isoI,ii,isoK),idime)
-                                  gradIsoDm(2,idime,3) = gradIsoDm(2,idime,3) + dlxigp_ip(igaus,3,ii)*tauYl(invAtoIJK(isoI,isoJ,ii),idime)
+                                  divDm(2) = divDm(2) + He(idime,1,invAtoIJK(ii,isoJ,isoK),ielem)*gpvol(1,invAtoIJK(ii,isoJ,isoK),ielem)*dlxigp_ip(igaus,1,ii)*tauYl(invAtoIJK(ii,isoJ,isoK),idime)
+                                  divDm(2) = divDm(2) + He(idime,2,invAtoIJK(isoI,ii,isoK),ielem)*gpvol(1,invAtoIJK(isoI,ii,isoK),ielem)*dlxigp_ip(igaus,2,ii)*tauYl(invAtoIJK(isoI,ii,isoK),idime)
+                                  divDm(2) = divDm(2) + He(idime,3,invAtoIJK(isoI,isoJ,ii),ielem)*gpvol(1,invAtoIJK(isoI,isoJ,ii),ielem)*dlxigp_ip(igaus,3,ii)*tauYl(invAtoIJK(isoI,isoJ,ii),idime)
 
-                                  gradIsoDm(3,idime,1) = gradIsoDm(3,idime,1) + dlxigp_ip(igaus,1,ii)*tauZl(invAtoIJK(ii,isoJ,isoK),idime)
-                                  gradIsoDm(3,idime,2) = gradIsoDm(3,idime,2) + dlxigp_ip(igaus,2,ii)*tauZl(invAtoIJK(isoI,ii,isoK),idime)
-                                  gradIsoDm(3,idime,3) = gradIsoDm(3,idime,3) + dlxigp_ip(igaus,3,ii)*tauZl(invAtoIJK(isoI,isoJ,ii),idime)
+                                  divDm(3) = divDm(3) + He(idime,1,invAtoIJK(ii,isoJ,isoK),ielem)*gpvol(1,invAtoIJK(ii,isoJ,isoK),ielem)*dlxigp_ip(igaus,1,ii)*tauZl(invAtoIJK(ii,isoJ,isoK),idime)
+                                  divDm(3) = divDm(3) + He(idime,2,invAtoIJK(isoI,ii,isoK),ielem)*gpvol(1,invAtoIJK(isoI,ii,isoK),ielem)*dlxigp_ip(igaus,2,ii)*tauZl(invAtoIJK(isoI,ii,isoK),idime)
+                                  divDm(3) = divDm(3) + He(idime,3,invAtoIJK(isoI,isoJ,ii),ielem)*gpvol(1,invAtoIJK(isoI,isoJ,ii),ielem)*dlxigp_ip(igaus,3,ii)*tauZl(invAtoIJK(isoI,isoJ,ii),idime)
                                end do
                             end do
 
-                            divDe = 0.0d0
-                            divDr = 0.0d0
-                            !$acc loop seq
-                            do idime=1, ndime
-                               divDm(idime) = 0.0d0
-                               !$acc loop seq
-                               do jdime=1, ndime
-                                  divDr = divDr + He(idime,jdime,igaus,ielem) * gradIsoDr(idime,jdime)
-                                  divDe = divDe + He(idime,jdime,igaus,ielem) * gradIsoDe(idime,jdime)
-                                  !$acc loop seq
-                                  do kdime=1,ndime
-                                     divDm(idime) = divDm(idime) + He(jdime,kdime,igaus,ielem)*gradIsoDm(idime,jdime,kdime)
-                                  end do
-                               end do
-                            end do
                             !$acc atomic update
-                            Rmass(connec(ielem,igaus)) = Rmass(connec(ielem,igaus))+nu_e*gpvol(1,igaus,ielem)*divDr
+                            Rmass(connec(ielem,igaus)) = Rmass(connec(ielem,igaus))+nu_e*divDr
                             !$acc end atomic
                             !$acc atomic update
-                            Rener(connec(ielem,igaus)) = Rener(connec(ielem,igaus))+gpvol(1,igaus,ielem)*divDe
+                            Rener(connec(ielem,igaus)) = Rener(connec(ielem,igaus))+divDe
                             !$acc end atomic
                             do idime = 1,ndime
                                !$acc atomic update
-                               Rmom(connec(ielem,igaus),idime) = Rmom(connec(ielem,igaus),idime)+gpvol(1,igaus,ielem)*divDm(idime)
+                               Rmom(connec(ielem,igaus),idime) = Rmom(connec(ielem,igaus),idime)+divDm(idime)
                                !$acc end atomic
                             end do
                          end do
