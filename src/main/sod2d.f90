@@ -47,12 +47,12 @@ program sod2d
         integer(4)                 :: isPeriodic, npoin_w
         !integer(4), allocatable    :: rdom(:), cdom(:), aux_cdom(:) ! Use with CSR matrices
         integer(4), allocatable    :: connec(:,:), connecVTK(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
-        integer(4), allocatable    :: masSla(:,:), connec_orig(:,:), aux1(:), bound_orig(:,:), lelpn(:)
-        integer(4), allocatable    :: lpoin_w(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:)
+        integer(4), allocatable    :: masSla(:,:), connec_orig(:,:), aux1(:), bound_orig(:,:), lelpn(:),point2elem(:)
+        integer(4), allocatable    :: lpoin_w(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
         real(8),    allocatable    :: coord(:,:), coord_old(:,:), helem(:),helem_l(:,:)
         real(8),    allocatable    :: xgp(:,:), wgp(:)
         real(8),    allocatable    :: Ngp(:,:), dNgp(:,:,:)
-        real(8),    allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:)
+        real(8),    allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
         real(8),    allocatable    :: Je(:,:), He(:,:,:,:)
         real(8),    allocatable    :: gpvol(:,:,:), gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
         real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:), machno(:)
@@ -111,9 +111,11 @@ program sod2d
            mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
            flag_mu_factor = mul/mur
 
-           nscbc_ut = vo
+           nscbc_u_inf = vo
            nscbc_p_inf = po
-           nscbc_rho = rho0
+           nscbc_rho_inf = rho0
+           nscbc_gamma_inf = gamma_g
+           nscbc_c_inf = sqrt(gamma_g*po/rho0)
         end if
 #else
         Re = 1600.0d0
@@ -172,7 +174,8 @@ program sod2d
            !nper = 16471 ! TODO: if periodic, request number of periodic nodes
            nper = 32131 ! TODO: if periodic, request number of periodic nodes
         else
-           nper = 69186  ! TODO: if periodic, request number of periodic nodes
+          ! nper = 69186  ! TODO: if periodic, request number of periodic nodes
+           nper = 114444  ! TODO: if periodic, request number of periodic nodes
         end if
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
@@ -258,7 +261,10 @@ program sod2d
         ! Compute list of elements per node (connectivity index)              !
         !*********************************************************************!
         allocate(lelpn(npoin))
-        call elemPerNode(nelem,npoin,connec,lelpn)
+        allocate(point2elem(npoin))
+        write(1,*) '--| POINT 2 ELEM begin'
+        call elemPerNode(nelem,npoin,connec,lelpn,point2elem)
+        write(1,*) '--| POINT 2 ELEM done'
 
         !*********************************************************************!
         ! Compute characteristic size of elements                             !
@@ -351,6 +357,9 @@ program sod2d
                end if
             end do
             !$acc end parallel loop
+
+
+
             call nvtxEndRange
         end if
 
@@ -406,7 +415,7 @@ program sod2d
 
         call nvtxStartRange("Additional data")
 #ifdef CHANNEL
-        if(1) then
+        if(0) then
         if(isCylinder>0) then
            do ipoin = 1,npoin
 
@@ -533,6 +542,7 @@ program sod2d
            allocate(atoIJK(64))
            allocate(vtk_atoIJK(64))
            call hex64(1.0d0,1.0d0,1.0d0,atoIJK,vtk_atoIJK)
+
         end if
         write(1,*) "--| GENERATING GAUSSIAN QUADRATURE TABLE..."
 
@@ -576,6 +586,7 @@ program sod2d
         allocate(Ngp(ngaus,nnode),dNgp(ndime,nnode,ngaus))
         if (flag_SpectralElem == 1) then
            allocate(Ngp_l(ngaus,nnode),dNgp_l(ndime,nnode,ngaus))
+           allocate(dlxigp_ip(ngaus,ndime,porder+1))
         end if
 
         do igaus = 1,ngaus
@@ -601,7 +612,7 @@ program sod2d
                     call hex64(s,t,z,atoIJK,vtk_atoIJK,listHEX08,Ngp(igaus,:),dNgp(:,:,igaus))
                  else if (flag_spectralElem == 1) then
                     allocate(listHEX08((porder**ndime),2**ndime))
-                    call hex64(s,t,z,atoIJK,vtk_atoIJK,listHEX08,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus))
+                    call hex64(s,t,z,atoIJK,vtk_atoIJK,listHEX08,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
                  end if
               else
                  write(1,*) '--| NOT CODED YET!'
@@ -609,6 +620,9 @@ program sod2d
               end if
            end if
         end do
+
+
+
         call nvtxEndRange
 
         !*********************************************************************!
@@ -799,6 +813,16 @@ program sod2d
            end do
            !$acc end parallel loop
         end if
+        ! evaluate near boundaries for the inlets and outlets
+           !not the best place Oriol!
+            allocate(lnbn(nboun,npbou))
+            call nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,atoIJK,lnbn)
+
+            allocate(invAtoIJK(porder+1,porder+1,porder+1))
+            allocate(gmshAtoI(nnode))
+            allocate(gmshAtoJ(nnode))
+            allocate(gmshAtoK(nnode))
+            call atioIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
 
         !*********************************************************************!
         ! Compute mass matrix (Lumped and Consistent) and set solver type     !
@@ -972,7 +996,7 @@ program sod2d
                  call nvtxStartRange("RK step "//timeStep,istep)
 
 #ifndef NOPRED
-                 call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                 call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,dlxigp_ip,xgp,atoIJK, invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                        rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
@@ -982,7 +1006,7 @@ program sod2d
                  !
                  flag_predic = 0
 
-                 call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                 call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,xgp,dlxigp_ip,atoIJK, invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                     ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                     rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
                     ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
@@ -1087,7 +1111,7 @@ program sod2d
                   !write(timeStep,'(i4)') istep
                   call nvtxStartRange("RK4 step "//timeStep,istep)
 #ifndef NOPRED
-                 call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                 call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,dlxigp_ip,xgp,atoIJK, invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                     ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                     rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid)
 #endif
@@ -1096,7 +1120,7 @@ program sod2d
                   !
                   flag_predic = 0
 
-                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,dlxigp_ip,xgp,atoIJK, invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                      rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid)
 
@@ -1207,7 +1231,7 @@ program sod2d
                  ! write(timeStep,'(i4)') istep
                   call nvtxStartRange("RK4 step "//timeStep,istep)
 #ifndef NOPRED
-                call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,dlxigp_ip,xgp,atoIJK, invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                    ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                    rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
                    ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
@@ -1217,7 +1241,7 @@ program sod2d
                   !
                   flag_predic = 0
                   
-                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,dlxigp_ip,xgp,atoIJK, invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                      rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
                      ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args

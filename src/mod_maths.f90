@@ -126,6 +126,7 @@ module mod_maths
 
          implicit none
 
+
          real(8),    intent(in)  :: xi(porder+1), xi_p
          real(8),    intent(out) :: l_ip(porder+1)
          integer(4)              :: i, j, lorder(porder+1)
@@ -163,6 +164,7 @@ module mod_maths
 
          implicit none
 
+
          real(8),    intent(in)  :: xi(porder+1), xi_p
          real(8),    intent(out) :: dl_ip(porder+1)
          integer(4)              :: i, j, m, lorder(porder+1)
@@ -190,13 +192,14 @@ module mod_maths
 
       end subroutine eval_lagrangePolyDeriv
 
-      pure subroutine TripleTensorProduct(xi_grid,s,t,z,atoIJK,N,dN)
+      pure subroutine TripleTensorProduct(xi_grid,s,t,z,atoIJK,N,dN,dlxigp_ip)
 
          implicit none
 
          integer(4), intent(in)       :: atoIJK(nnode)
          real(8), intent(in)          :: s, t, z, xi_grid(porder+1)
          real(8), intent(out)         :: N(nnode), dN(ndime,nnode)
+         real(8),    optional, intent(out) :: dlxigp_ip(ndime,porder+1)
          integer(4)                   :: i, j, k, c
          real(8), dimension(porder+1) :: lxi_ip, leta_ip, lzeta_ip
          real(8), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
@@ -207,6 +210,12 @@ module mod_maths
          call eval_lagrangePolyDeriv(xi_grid,s,dlxi_ip)
          call eval_lagrangePolyDeriv(xi_grid,t,dleta_ip)
          call eval_lagrangePolyDeriv(xi_grid,z,dlzeta_ip)
+
+         if(present(dlxigp_ip)) then
+            dlxigp_ip(1,:) = dlxi_ip(:)
+            dlxigp_ip(2,:) = dleta_ip(:)
+            dlxigp_ip(3,:) = dlzeta_ip(:)
+         end if
 
          c = 0
          do k = 1,porder+1

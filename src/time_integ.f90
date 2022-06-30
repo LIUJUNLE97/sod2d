@@ -14,7 +14,7 @@ module time_integ
 
       contains
 
-         subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w, &
+         subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem, lnbn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                          ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional arg
@@ -23,10 +23,11 @@ module time_integ
 
             integer(4),           intent(in)    :: flag_predic, flag_emac
             integer(4),           intent(in)    :: nelem, nboun, npoin
-            integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w)
+            integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou)
+            integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             integer(4),           intent(in)    :: ppow
-            real(8),              intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-            real(8),              intent(in)    :: He(ndime,ndime,ngaus,nelem)
+            real(8),              intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
+            real(8),              intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
             real(8),              intent(in)    :: gpvol(1,ngaus,nelem)
             real(8),              intent(in)    :: dt, helem(nelem), helem_l(npoin)
             real(8),              intent(in)    :: Ml(npoin)
@@ -151,14 +152,6 @@ module time_integ
                !$acc end parallel loop
                call nvtxEndRange
                !
-               ! Impose boundary conditions
-               !
-               if (nboun .ne. 0) then
-                  call nvtxStartRange("Boundary conditions")
-                  call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_rho,aux_q,aux_pr,csound,aux_u,dt,1) !we need to think on the updates of c and pr
-                  call nvtxEndRange
-               end if
-               !
                ! Update velocity and equations of state
                !
                call nvtxStartRange("Update u and EOS")
@@ -171,6 +164,18 @@ module time_integ
                   aux_e_int(lpoin_w(ipoin)) = (aux_E(lpoin_w(ipoin))/aux_rho(lpoin_w(ipoin)))- &
                      0.5d0*dot_product(aux_u(lpoin_w(ipoin),:),aux_u(lpoin_w(ipoin),:))
                   aux_pr(lpoin_w(ipoin)) = aux_rho(lpoin_w(ipoin))*(gamma_gas-1.0d0)*aux_e_int(lpoin_w(ipoin))
+               end do
+               !$acc end parallel loop
+               !
+               ! Impose boundary conditions
+               !
+               if (nboun .ne. 0) then
+                  call nvtxStartRange("Boundary conditions")
+                  call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,lnbn,aux_rho,aux_q,aux_u,aux_pr,aux_E)
+                  call nvtxEndRange
+               end if
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
                   aux_Tem(lpoin_w(ipoin)) = aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))*Rgas)
                   aux_eta(lpoin_w(ipoin)) = (aux_rho(lpoin_w(ipoin))/(gamma_gas-1.0d0))* &
                      log(aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))**gamma_gas))
@@ -181,14 +186,7 @@ module time_integ
                   Reta(ipoin) = (-eta(lpoin_w(ipoin),1) + aux_eta(lpoin_w(ipoin)))/dt   - a_i(istep)*Rener(lpoin_w(ipoin))
                end do
                !$acc end parallel loop
-               !
-               ! Impose boundary conditions
-               !
-               if (nboun .ne. 0) then
-                  call nvtxStartRange("Boundary conditions")
-                  call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,aux_rho,aux_q,aux_pr,csound,aux_u,dt,-1) !we need to think on the updates of c and pr
-                  call nvtxEndRange
-               end if
+
                call nvtxEndRange
                !
                ! If updating the correction, compute viscosities and diffusion
@@ -202,13 +200,13 @@ module time_integ
                   ! Compute entropy viscosity
                   !
 #ifndef NOPRED
-                   if (flag_SpectralElem == 1) then
-                      call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp, &
-                         gamma_gas,aux_rho,aux_u,aux_Tem,aux_eta,helem_l,helem,Ml,mu_e)
-                   else
-                      call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                         gamma_gas,aux_rho,aux_u,aux_Tem,helem,mu_e)
-                   end if
+                  if (flag_SpectralElem == 1) then
+                     call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp, &
+                        gamma_gas,aux_rho,aux_u,aux_Tem,aux_eta,helem_l,helem,Ml,mu_e)
+                  else
+                     call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
+                        gamma_gas,aux_rho,aux_u,aux_Tem,helem,mu_e)
+                  end if
 #endif
                   call nvtxEndRange
                   !
@@ -228,7 +226,8 @@ module time_integ
                      call mom_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,mu_fluid,mu_e,mu_sgs,Rdiff_mom)
                      call ener_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Rdiff_ener)
                   else 
-                     call full_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Cp,Prt,aux_rho,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass,Rdiff_mom,Rdiff_ener)
+                     !call full_diffusion(nelem,npoin,connec,Ngp,dNgp,He,gpvol,Cp,Prt,aux_rho,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass,Rdiff_mom,Rdiff_ener)
+                     call full_diffusion_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,aux_rho,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass,Rdiff_mom,Rdiff_ener)
                   end if
                   call nvtxEndRange
                   !
@@ -246,13 +245,14 @@ module time_integ
                   call ener_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_pr,aux_E,aux_rho,aux_q,Rener)
                   call mom_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_q,aux_rho,aux_pr,Rmom)
                else 
-                  call full_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_q,aux_rho,aux_pr,aux_E,Rmass,Rmom,Rener)
+                  !call full_convec(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,aux_q,aux_rho,aux_pr,aux_E,Rmass,Rmom,Rener)
+                  call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_u,aux_q,aux_rho,aux_pr,aux_E,Rmass,Rmom,Rener)
                end if
 
                ! entropy advection
 #ifndef NOPRED
-               call generic_scalar_convec(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,f_eta,aux_eta,aux_u,Reta,alpha)
+               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+                  gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,aux_eta,aux_u,Reta,alpha)
 #endif
                !
                ! Add convection and diffusion terms (Rdiff_* is zero during prediction)
@@ -322,14 +322,6 @@ module time_integ
             end do
             !$acc end parallel loop
             call nvtxEndRange
-            !
-            ! Apply bcs after update
-            !
-            if (nboun .ne. 0) then
-               call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,rho(:,pos),q(:,:,pos),pr(:,pos),csound,u(:,:,pos),dt,1)
-               call nvtxEndRange
-            end if
 
             !
             ! Update velocity and equations of state
@@ -344,8 +336,8 @@ module time_integ
                end do
             end do
             !$acc end parallel loop
-            call generic_scalar_convec(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
+            call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+               gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
             !$acc parallel loop
             do ipoin = 1,npoin_w
                umag = 0.0d0
@@ -355,12 +347,9 @@ module time_integ
                   umag = umag + u(lpoin_w(ipoin),idime,pos)**2
                end do
                umag = sqrt(umag)
-               pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0d0)*e_int(lpoin_w(ipoin),pos)
-               Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
                e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &
                   0.5d0*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
-               eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0d0))* &
-                  log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
+               pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0d0)*e_int(lpoin_w(ipoin),pos)
                csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
                machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
             end do
@@ -376,11 +365,6 @@ module time_integ
                end do
                umag = sqrt(umag)
                pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0d0)*e_int(lpoin_w(ipoin),pos)
-               Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
-               e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &
-                  0.5d0*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
-               eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0d0))* &
-                  log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
                csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
                machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
             end do
@@ -391,9 +375,17 @@ module time_integ
             !
             if (nboun .ne. 0) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,rho(:,pos),q(:,:,pos),pr(:,pos),csound,u(:,:,pos),dt,-1)
+               call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bound,nbnodes,lbnodes,lnbn,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos))
                call nvtxEndRange
             end if
+            !$acc parallel loop
+            do ipoin = 1,npoin_w
+               Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
+               eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0d0))* &
+                  log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
+            end do
+            !$acc end parallel loop
+
             call nvtxEndRange
             !
             ! If using Sutherland viscosity model:
@@ -411,13 +403,13 @@ module time_integ
             !
             ! Compute entropy viscosity
             !
-             if (flag_SpectralElem == 1) then
-                call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp, &
-                   gamma_gas,rho(:,pos),u(:,:,pos),Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e)
-             else
-                call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
-                   gamma_gas,rho(:,pos),u(:,:,pos),Tem(:,pos),helem,mu_e)
-             end if
+            if (flag_SpectralElem == 1) then
+               call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp, &
+                  gamma_gas,rho(:,pos),u(:,:,pos),Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e)
+            else
+               call smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
+                  gamma_gas,rho(:,pos),u(:,:,pos),Tem(:,pos),helem,mu_e)
+            end if
 #endif
             !
             ! Compute subgrid viscosity if active
@@ -434,4 +426,4 @@ module time_integ
 
          end subroutine rk_4_main
 
-end module time_integ
+      end module time_integ

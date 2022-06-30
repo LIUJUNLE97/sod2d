@@ -132,19 +132,24 @@ module mod_geom
 
          end subroutine create_connecVTK
 
-         subroutine elemPerNode(nelem,npoin,connec,lelpn)
+         subroutine elemPerNode(nelem,npoin,connec,lelpn,point2elem)
 
             implicit none
 
             integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
-            integer(4), intent(out) :: lelpn(npoin)
-            integer(4)              :: aux, ipoin, inode, ielem
+            integer(4), intent(out) :: lelpn(npoin),point2elem(npoin)
+            integer(4)              ::  ipoin, inode, ielem, aux
 
             !$acc kernels
             lelpn(:) = 0
+            point2elem(:) = 0
             !$acc end kernels
             !$acc parallel loop gang
             do ielem = 1,nelem
+               !$acc loop seq
+               do inode = 1,nnode
+                  point2elem(connec(ielem,inode)) = ielem
+               end do
                !$acc loop worker
                do inode = 1,nnode
                   !$acc loop vector
@@ -161,4 +166,70 @@ module mod_geom
 
          end subroutine elemPerNode
 
+         subroutine nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,atoIJK,lnbn)
+
+            implicit none
+
+            integer(4), intent(in)  :: nelem,npoin,nboun,connec(nelem,nnode),bound(nboun,npbou),point2elem(npoin),atoIJK(nnode)
+            real(8), intent(in) :: coord(npoin,ndime)
+            integer(4), intent(out) :: lnbn(nboun,npbou)
+            integer(4)              :: ipoin, inode,ielem,bnode,ipbou,iboun,rnode,c,i,j,k,innode
+            real(8)                 :: dist2,aux,aux2
+
+            !$acc parallel loop gang
+            do iboun = 1,nboun
+               !$acc loop seq
+               do ipbou = 1,npbou
+                  bnode = bound(iboun,ipbou)
+                  ielem = point2elem(bnode)
+                  !$acc loop seq
+                  do inode = 1,nnode
+                     if(connec(ielem,inode) .eq. bnode) then 
+                        exit
+                     end if
+                  end do
+                  c = 0
+                  !$acc loop seq
+                  outer: do k = 1,porder+1
+                     do i = 1,porder+1
+                        do j = 1,porder+1
+                           c = c+1
+                           if(atoIJK(c) .eq. inode) then
+                              exit outer
+                           end if
+                        end do
+                     end do
+                  end do outer
+
+                  lnbn(iboun,ipbou) = connec(ielem,atoIJK(c+8))
+                  !lnbn(iboun,ipbou) = connec(ielem,atoIJK(c+12))
+                  !lnbn(iboun,ipbou) = bnode
+               end do
+            end do
+            !$acc end parallel loop
+
+         end subroutine nearBoundaryNode
+
+         subroutine atioIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+
+            implicit none
+
+            integer(4), intent(in)  :: atoIJK(nnode)
+            integer(4), intent(out) :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+            integer(4)              :: i,j,k,c
+
+            c=0
+            !$acc loop seq
+            do k = 1,porder+1
+               do i = 1,porder+1
+                  do j = 1,porder+1
+                     c = c+1
+                     invAtoIJK(i,j,k) = atoIJK(c)
+                     gmshAtoI(atoIJK(c)) = i
+                     gmshAtoJ(atoIJK(c)) = j
+                     gmshAtoK(atoIJK(c)) = k
+                  end do
+               end do
+            end do
+         end subroutine atioIJKInverse
 end module mod_geom
