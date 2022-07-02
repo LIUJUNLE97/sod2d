@@ -18,12 +18,13 @@ module mod_fluid_viscosity
 
    end subroutine constant_viscosity
 
-   subroutine sutherland_viscosity(npoin,Tem,mu_fluid)
+   subroutine sutherland_viscosity(npoin,Tem,mu_factor,mu_fluid)
 
       implicit none
       
       integer(4), intent(in)    :: npoin
       real(8),    intent(in)    :: Tem(npoin)
+      real(8),    intent(in)    :: mu_factor(npoin)
       real(8),    intent(inout) :: mu_fluid(npoin)
       integer(4)                :: ipoin
       real(8)                   :: C1, S
@@ -33,7 +34,7 @@ module mod_fluid_viscosity
 
       !$acc parallel loop
       do ipoin = 1,npoin
-         mu_fluid(ipoin) = flag_mu_factor*C1*(Tem(ipoin)**1.5d0)/(Tem(ipoin)+S)
+         mu_fluid(ipoin) = mu_factor(ipoin)*C1*(Tem(ipoin)**1.5d0)/(Tem(ipoin)+S)
       end do
       !$acc end parallel loop
 

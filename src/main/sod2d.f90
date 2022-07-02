@@ -57,7 +57,7 @@ program sod2d
         real(8),    allocatable    :: gpvol(:,:,:), gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
         real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:), machno(:)
         real(8),    allocatable    :: Ml(:)!, Mc(:)
-        real(8),    allocatable    :: mu_e(:,:), mu_fluid(:),mu_sgs(:,:)
+        real(8),    allocatable    :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:),mu_factor(:)
         real(8),    allocatable    :: source_term(:)
         real(8),    allocatable    :: aux_1(:,:), aux_2(:)
         real(8),    allocatable    :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:)
@@ -141,7 +141,7 @@ program sod2d
         !nnode = 27 ! TODO: need to allow for mixed elements...
         !porder = 1 ! TODO: make it input
         !npbou = 9 ! TODO: Need to get his from somewhere...
-        nstep = 900000 ! TODO: Needs to be input...
+        nstep = 90000000 ! TODO: Needs to be input...
 #ifdef CHANNEL
         Rgas = Rg
 #else
@@ -157,7 +157,7 @@ program sod2d
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
         nsaveAVG = 1
-        nleap = 1000 ! Saving interval, TODO: input
+        nleap = 20000 ! Saving interval, TODO: input
         tleap = 0.5d0 ! Saving interval, TODO: input
         nleap2 = 10  ! Saving interval, TODO: input
         nleapAVG = 1000
@@ -174,8 +174,8 @@ program sod2d
            !nper = 16471 ! TODO: if periodic, request number of periodic nodes
            nper = 32131 ! TODO: if periodic, request number of periodic nodes
         else
-          ! nper = 69186  ! TODO: if periodic, request number of periodic nodes
-           nper = 114444  ! TODO: if periodic, request number of periodic nodes
+           nper = 69186  ! TODO: if periodic, request number of periodic nodes
+           !nper = 114444  ! TODO: if periodic, request number of periodic nodes
         end if
 #else
            !nper = 1387 ! TODO: if periodic, request number of periodic nodes
@@ -384,6 +384,7 @@ program sod2d
         allocate(csound(npoin))     ! Speed of sound
         allocate(machno(npoin))     ! Speed of sound
         allocate(mu_fluid(npoin))   ! Fluid viscosity
+        allocate(mu_factor(npoin))   ! Fluid viscosity
         allocate(mu_e(nelem,ngaus))  ! Elemental viscosity
         allocate(mu_sgs(nelem,ngaus))! SGS viscosity
         !ilsa
@@ -394,6 +395,7 @@ program sod2d
         allocate(ax2(npoin))
         allocate(ax3(npoin))
         call nvtxEndRange
+
 
         !*********************************************************************!
         ! Read initial conditions                                             !
@@ -415,7 +417,7 @@ program sod2d
 
         call nvtxStartRange("Additional data")
 #ifdef CHANNEL
-        if(0) then
+        if(1) then
         if(isCylinder>0) then
            do ipoin = 1,npoin
 
@@ -507,11 +509,38 @@ program sod2d
         !$acc end kernels
         call nvtxEndRange
 
+        !$acc parallel loop
+        do ipoin = 1,npoin
+           mu_factor(ipoin) = flag_mu_factor
+        end do
+        !$acc end parallel loop
+
+#ifdef CHANNEL
+        if(isCylinder<0) then
+           !$acc parallel loop
+           do ipoin = 1,npoin
+              if(coord(ipoin,1)<-2) then
+                 mu_factor(ipoin) = flag_mu_factor*1000.0d0
+              end if
+              if(coord(ipoin,1)>18) then
+                 mu_factor(ipoin) = flag_mu_factor*1000.0d0
+              end if
+              if(coord(ipoin,2)<-8) then
+                 mu_factor(ipoin) = flag_mu_factor*1000.0d0
+              end if
+              if(coord(ipoin,2)>8) then
+                 mu_factor(ipoin) = flag_mu_factor*1000.0d0
+              end if
+           end do
+           !$acc end parallel loop
+        end if
+#endif
+
         if (flag_real_diff == 1) then
            if (flag_diff_suth == 0) then
               call constant_viscosity(npoin,0.000055d0,mu_fluid)
            else
-              call sutherland_viscosity(npoin,Tem(:,2),mu_fluid)
+              call sutherland_viscosity(npoin,Tem(:,2),mu_factor,mu_fluid)
            end if
         else if (flag_real_diff == 0) then
            !$acc kernels
@@ -998,7 +1027,7 @@ program sod2d
 #ifndef NOPRED
                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,dlxigp_ip,xgp,atoIJK, invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                        ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                       rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
+                       rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
 #endif
                  !
@@ -1008,7 +1037,7 @@ program sod2d
 
                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,xgp,dlxigp_ip,atoIJK, invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                     ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                    rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
+                    rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                     ndof,nbnodes,ldof,lbnodes,bound,bou_codes) ! Optional args
 
 
@@ -1113,7 +1142,7 @@ program sod2d
 #ifndef NOPRED
                  call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,dlxigp_ip,xgp,atoIJK, invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                     ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                    rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid)
+                    rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor)
 #endif
                   !
                   ! Advance with entropy viscosity
@@ -1122,7 +1151,7 @@ program sod2d
 
                   call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,dlxigp_ip,xgp,atoIJK, invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                     rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid)
+                     rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor)
 
 
                   time = time+dt
@@ -1233,7 +1262,7 @@ program sod2d
 #ifndef NOPRED
                 call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,dlxigp_ip,xgp,atoIJK, invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                    ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                   rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
+                   rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                    ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
 #endif
                   !
@@ -1243,7 +1272,7 @@ program sod2d
                   
                   call rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,dlxigp_ip,xgp,atoIJK, invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                      ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                     rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
+                     rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                      ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
 
                   time = time+dt

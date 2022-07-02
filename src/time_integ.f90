@@ -16,7 +16,7 @@ module time_integ
 
          subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem, lnbn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                          ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid, &
+                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional arg
 
             implicit none
@@ -31,6 +31,7 @@ module time_integ
             real(8),              intent(in)    :: gpvol(1,ngaus,nelem)
             real(8),              intent(in)    :: dt, helem(nelem), helem_l(npoin)
             real(8),              intent(in)    :: Ml(npoin)
+            real(8),              intent(in)    :: mu_factor(npoin)
             real(8),              intent(in)    :: Rgas, gamma_gas, Cp, Prt
             real(8),              intent(inout) :: rho(npoin,2)
             real(8),              intent(inout) :: u(npoin,ndime,2)
@@ -214,7 +215,7 @@ module time_integ
                   !
                   if (flag_real_diff == 1 .and. flag_diff_suth == 1) then
                      call nvtxStartRange("MU_SUT")
-                     call sutherland_viscosity(npoin,aux_Tem,mu_fluid)
+                     call sutherland_viscosity(npoin,aux_Tem,mu_factor,mu_fluid)
                      call nvtxEndRange
                   end if
                   !
@@ -392,7 +393,7 @@ module time_integ
             !
             if (flag_real_diff == 1 .and. flag_diff_suth == 1) then
                call nvtxStartRange("Sutherland viscosity")
-               call sutherland_viscosity(npoin,Tem(:,pos),mu_fluid)
+               call sutherland_viscosity(npoin,Tem(:,pos),mu_factor,mu_fluid)
                call nvtxEndRange
             end if
 #ifdef NOPRED

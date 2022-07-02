@@ -14,7 +14,8 @@ module mod_bc_routines
             integer(4), intent(in)    :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou)
             real(8),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             integer(4)                :: iboun, bcode, ipbou
-            real(8)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr
+            real(8)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
+            real(8)                   :: q_hll,rho_hll,E_hll, E_inf
 
             if (ndime == 3) then
                !
@@ -53,92 +54,114 @@ module mod_bc_routines
                   if (bcode == 4) then ! inlet just for aligened inlets with x
                      !$acc loop vector
                      do ipbou = 1,npbou
-                        cin = sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou)))
-                        R_plus  = aux_q(lnbn(iboun,ipbou),1)/aux_rho(lnbn(iboun,ipbou)) + 2.0d0*cin/(nscbc_gamma_inf-1.0d0)
-                        R_minus = nscbc_u_inf - 2.0d0*nscbc_c_inf/(nscbc_gamma_inf-1.0d0)
-                        v_b = (R_plus+R_minus)*0.5d0
-                        c_b  = (nscbc_gamma_inf-1.0d0)*(R_plus-R_minus)/4.0d0
-                        s_b = nscbc_c_inf**2/(nscbc_gamma_inf*nscbc_rho_inf**(nscbc_gamma_inf-1.0d0))
-                        rho_b = (c_b**2/(nscbc_gamma_inf*s_b))**(1.0/(nscbc_gamma_inf-1.0d0))
-                        p_b = rho_b*c_b**2/nscbc_gamma_inf
 
-                        !write(*,*) "v_b ",v_b," rb ",rho_b
+                       sl = min(nscbc_u_inf-nscbc_c_inf, aux_u(lnbn(iboun,ipbou),1) - sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou))))
+                       sr =  max(aux_u(lnbn(iboun,ipbou),1) + sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou))), nscbc_u_inf+nscbc_c_inf)
 
-                       !aux_q(bound(iboun,ipbou),1) = v_b*rho_b
-                       !aux_q(bound(iboun,ipbou),2) = 0.0d0
-                       !aux_q(bound(iboun,ipbou),3) = 0.0d0
+                       E_inf = (nscbc_rho_inf*0.5d0*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0d0))
 
-                       !aux_rho(bound(iboun,ipbou)) = rho_b
+                       rho_hll = (sr*aux_rho(lnbn(iboun,ipbou))-sl*nscbc_rho_inf+nscbc_rho_inf*nscbc_u_inf-aux_q(lnbn(iboun,ipbou),1))/(sr-sl)
+                       q_hll   = (sr*aux_q(lnbn(iboun,ipbou),1)-sl*nscbc_rho_inf*nscbc_u_inf+nscbc_rho_inf*nscbc_u_inf**2-aux_u(lnbn(iboun,ipbou),1)*aux_q(lnbn(iboun,ipbou),1))/(sr-sl)
+                       E_hll   = (sr*aux_E(lnbn(iboun,ipbou))-sl*E_inf+nscbc_u_inf*(E_inf+nscbc_p_inf)-aux_u(lnbn(iboun,ipbou),1)*(aux_E(lnbn(iboun,ipbou))+aux_p(lnbn(iboun,ipbou))))/(sr-sl)
 
-                       !aux_E(bound(iboun,ipbou)) = rho_b*0.5d0*v_b**2 + p_b/(nscbc_gamma_inf-1.0d0)
+                       sl = min(nscbc_u_inf-nscbc_c_inf, aux_u(lnbn(iboun,ipbou),1) - sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou))))
+                       sr =  max(aux_u(lnbn(iboun,ipbou),1) + sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou))), nscbc_u_inf+nscbc_c_inf)
 
-                       !aux_p(bound(iboun,ipbou)) = p_b
+                       E_inf = (nscbc_rho_inf*0.5d0*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0d0))
 
-                       !aux_u(bound(iboun,ipbou),1) = v_b
-                       !aux_u(bound(iboun,ipbou),2) = 0.0d0
-                       !aux_u(bound(iboun,ipbou),3) = 0.0d0
+                       rho_hll = (sr*aux_rho(lnbn(iboun,ipbou))-sl*nscbc_rho_inf+nscbc_rho_inf*nscbc_u_inf-aux_q(lnbn(iboun,ipbou),1))/(sr-sl)
+                       q_hll   = (sr*aux_q(lnbn(iboun,ipbou),1)-sl*nscbc_rho_inf*nscbc_u_inf+nscbc_rho_inf*nscbc_u_inf**2-aux_u(lnbn(iboun,ipbou),1)*aux_q(lnbn(iboun,ipbou),1))/(sr-sl)
+                       E_hll   = (sr*aux_E(lnbn(iboun,ipbou))-sl*E_inf+nscbc_u_inf*(E_inf+nscbc_p_inf)-aux_u(lnbn(iboun,ipbou),1)*(aux_E(lnbn(iboun,ipbou))+aux_p(lnbn(iboun,ipbou))))/(sr-sl)
 
-                        rl = sqrt(nscbc_rho_inf)
-                        rr = sqrt(aux_rho(lnbn(iboun,ipbou)))
 
-                        aux_q(bound(iboun,ipbou),1) = (rl*nscbc_u_inf*nscbc_rho_inf + rr*aux_q(lnbn(iboun,ipbou),1))/(rr+rl) 
-                        aux_q(bound(iboun,ipbou),2) = 0.0d0
-                        aux_q(bound(iboun,ipbou),3) = 0.0d0
+                       aux_q(bound(iboun,ipbou),1) = q_hll
 
-                        aux_rho(bound(iboun,ipbou)) = sqrt(aux_rho(lnbn(iboun,ipbou))*nscbc_rho_inf)
+                       aux_rho(bound(iboun,ipbou)) = rho_hll
+                       aux_E(bound(iboun,ipbou)) = E_hll
 
-                        aux_E(bound(iboun,ipbou)) = (aux_E(lnbn(iboun,ipbou))*rr + &
-                                                    rl*(nscbc_rho_inf*0.5d0*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0d0)))/(rr+rl)
+                       sl = min(-nscbc_c_inf, aux_u(lnbn(iboun,ipbou),2) - sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou))))
+                       sr =  max(aux_u(lnbn(iboun,ipbou),2) + sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou))), nscbc_c_inf)
+                       q_hll   = (sr*aux_q(lnbn(iboun,ipbou),2)-aux_u(lnbn(iboun,ipbou),2)*aux_q(lnbn(iboun,ipbou),2))/(sr-sl)
 
-                        aux_u(bound(iboun,ipbou),1) = (rr*aux_u(lnbn(iboun,ipbou),1)+rl*nscbc_u_inf)/(rr+rl)
-                        aux_u(bound(iboun,ipbou),2) = 0.0d0
-                        aux_u(bound(iboun,ipbou),3) = 0.0d0
+                       aux_q(bound(iboun,ipbou),2) = q_hll
 
-                        aux_p(bound(iboun,ipbou)) = (rr*aux_p(lnbn(iboun,ipbou))+rl*nscbc_p_inf)/(rr+rl)
+                       sl = min(-nscbc_c_inf, aux_u(lnbn(iboun,ipbou),3) - sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou))))
+                       sr =  max(aux_u(lnbn(iboun,ipbou),3) + sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou))), nscbc_c_inf)
+                       q_hll   = (sr*aux_q(lnbn(iboun,ipbou),3)-aux_u(lnbn(iboun,ipbou),2)*aux_q(lnbn(iboun,ipbou),3))/(sr-sl)
+
+                       aux_q(bound(iboun,ipbou),3) = q_hll
+
+                       aux_u(bound(iboun,ipbou),1) = aux_q(bound(iboun,ipbou),1)/aux_rho(bound(iboun,ipbou))
+                       aux_u(bound(iboun,ipbou),2) = aux_q(bound(iboun,ipbou),2)/aux_rho(bound(iboun,ipbou))
+                       aux_u(bound(iboun,ipbou),3) = aux_q(bound(iboun,ipbou),3)/aux_rho(bound(iboun,ipbou))
+
+                       aux_p(bound(iboun,ipbou)) = aux_rho(bound(iboun,ipbou))*(nscbc_gamma_inf-1.0d0)*((aux_E(bound(iboun,ipbou))/aux_rho(bound(iboun,ipbou)))- &
+                          0.5d0*dot_product(aux_u(bound(iboun,ipbou),:),aux_u(bound(iboun,ipbou),:)))
+
+                      !rl = sqrt(nscbc_rho_inf)
+                      !rr = sqrt(aux_rho(lnbn(iboun,ipbou)))
+
+                      !aux_q(bound(iboun,ipbou),1) = (rl*nscbc_u_inf*nscbc_rho_inf + rr*aux_q(lnbn(iboun,ipbou),1))/(rr+rl) 
+                      !aux_q(bound(iboun,ipbou),2) = (rr*aux_q(lnbn(iboun,ipbou),2))/(rr+rl)
+                      !aux_q(bound(iboun,ipbou),3) = (rr*aux_q(lnbn(iboun,ipbou),3))/(rr+rl)
+
+                      !aux_rho(bound(iboun,ipbou)) = sqrt(aux_rho(lnbn(iboun,ipbou))*nscbc_rho_inf)
+
+                      !aux_E(bound(iboun,ipbou)) = (aux_E(lnbn(iboun,ipbou))*rr + &
+                      !                            rl*(nscbc_rho_inf*0.5d0*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0d0)))/(rr+rl)
+
+                      !aux_u(bound(iboun,ipbou),1) = (rr*aux_u(lnbn(iboun,ipbou),1)+rl*nscbc_u_inf)/(rr+rl)
+                      !aux_u(bound(iboun,ipbou),2) = (rr*aux_u(lnbn(iboun,ipbou),2))/(rr+rl)
+                      !aux_u(bound(iboun,ipbou),3) = (rr*aux_u(lnbn(iboun,ipbou),3))/(rr+rl)
+
+                      !aux_p(bound(iboun,ipbou)) = (rr*aux_p(lnbn(iboun,ipbou))+rl*nscbc_p_inf)/(rr+rl)
+
                      end do
                   else if (bcode == 5) then ! inlet just for aligened inlets with x
                      !$acc loop vector
                      do ipbou = 1,npbou
-                        cin = sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou)))
-                        R_plus  = aux_q(lnbn(iboun,ipbou),1)/aux_rho(lnbn(iboun,ipbou)) + 2.0d0*cin/(nscbc_gamma_inf-1.0d0)
-                        R_minus = nscbc_u_inf - 2.0d0*nscbc_c_inf/(nscbc_gamma_inf-1.0d0)
-                        v_b = (R_plus+R_minus)*0.5d0
-                        c_b  = (nscbc_gamma_inf-1.0d0)*(R_plus-R_minus)/4.0d0
-                        s_b = cin**2/(nscbc_gamma_inf*aux_rho(lnbn(iboun,ipbou))**(nscbc_gamma_inf-1.0d0))
-                        rho_b = (c_b**2/(nscbc_gamma_inf*s_b))**(1.0/(nscbc_gamma_inf-1.0d0))
-                        p_b = rho_b*c_b**2/nscbc_gamma_inf
 
-                       !aux_q(bound(iboun,ipbou),1) = v_b*rho_b
-                       !aux_q(bound(iboun,ipbou),2) = 0.0d0
-                       !aux_q(bound(iboun,ipbou),3) = 0.0d0
+                       sl = min(nscbc_u_inf-nscbc_c_inf, aux_u(lnbn(iboun,ipbou),1) - sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou))))
+                       sr =  max(aux_u(lnbn(iboun,ipbou),1) + sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou))), nscbc_u_inf+nscbc_c_inf)
 
-                       !aux_rho(bound(iboun,ipbou)) = rho_b
+                       E_inf = (nscbc_rho_inf*0.5d0*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0d0))
 
-                       !aux_E(bound(iboun,ipbou)) = rho_b*0.5d0*v_b**2 + p_b/(nscbc_gamma_inf-1.0d0)
+                       rho_hll = (sr*aux_rho(lnbn(iboun,ipbou))-sl*nscbc_rho_inf+nscbc_rho_inf*nscbc_u_inf-aux_q(lnbn(iboun,ipbou),1))/(sr-sl)
+                       q_hll   = (sr*aux_q(lnbn(iboun,ipbou),1)-sl*nscbc_rho_inf*nscbc_u_inf+nscbc_rho_inf*nscbc_u_inf**2-aux_u(lnbn(iboun,ipbou),1)*aux_q(lnbn(iboun,ipbou),1))/(sr-sl)
+                       E_hll   = (sr*aux_E(lnbn(iboun,ipbou))-sl*E_inf+nscbc_u_inf*(E_inf+nscbc_p_inf)-aux_u(lnbn(iboun,ipbou),1)*(aux_E(lnbn(iboun,ipbou))+aux_p(lnbn(iboun,ipbou))))/(sr-sl)
 
-                       !aux_p(bound(iboun,ipbou)) = p_b
 
-                       !aux_u(bound(iboun,ipbou),1) = v_b
-                       !aux_u(bound(iboun,ipbou),2) = 0.0d0
-                       !aux_u(bound(iboun,ipbou),3) = 0.0d0
+                       aux_q(bound(iboun,ipbou),1) = q_hll
+                       aux_q(bound(iboun,ipbou),2) = 0.0d0
+                       aux_q(bound(iboun,ipbou),3) = 0.0d0
 
-                        rl = sqrt(nscbc_rho_inf)
-                        rr = sqrt(aux_rho(lnbn(iboun,ipbou)))
+                       aux_rho(bound(iboun,ipbou)) = rho_hll
+                       aux_E(bound(iboun,ipbou)) = E_hll
 
-                        aux_q(bound(iboun,ipbou),1) = (rl*nscbc_u_inf*nscbc_rho_inf + rr*aux_q(lnbn(iboun,ipbou),1))/(rr+rl) 
-                        aux_q(bound(iboun,ipbou),2) = 0.0d0
-                        aux_q(bound(iboun,ipbou),3) = 0.0d0
+                       aux_u(bound(iboun,ipbou),1) = aux_q(bound(iboun,ipbou),1)/aux_rho(bound(iboun,ipbou))
+                       aux_u(bound(iboun,ipbou),2) = aux_q(bound(iboun,ipbou),2)/aux_rho(bound(iboun,ipbou))
+                       aux_u(bound(iboun,ipbou),3) = aux_q(bound(iboun,ipbou),3)/aux_rho(bound(iboun,ipbou))
 
-                        aux_rho(bound(iboun,ipbou)) = sqrt(aux_rho(lnbn(iboun,ipbou))*nscbc_rho_inf)
+                       aux_p(bound(iboun,ipbou)) = aux_rho(bound(iboun,ipbou))*(nscbc_gamma_inf-1.0d0)*((aux_E(bound(iboun,ipbou))/aux_rho(bound(iboun,ipbou)))- &
+                          0.5d0*dot_product(aux_u(bound(iboun,ipbou),:),aux_u(bound(iboun,ipbou),:)))
 
-                        aux_E(bound(iboun,ipbou)) = (aux_E(lnbn(iboun,ipbou))*rr + &
-                                                    rl*(nscbc_rho_inf*0.5d0*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0d0)))/(rr+rl)
+                      !rl = sqrt(nscbc_rho_inf)
+                      !rr = sqrt(aux_rho(lnbn(iboun,ipbou)))
 
-                        aux_u(bound(iboun,ipbou),1) = (rr*aux_u(lnbn(iboun,ipbou),1)+rl*nscbc_u_inf)/(rr+rl)
-                        aux_u(bound(iboun,ipbou),2) = 0.0d0
-                        aux_u(bound(iboun,ipbou),3) = 0.0d0
+                      !aux_q(bound(iboun,ipbou),1) = (rl*nscbc_u_inf*nscbc_rho_inf + rr*aux_q(lnbn(iboun,ipbou),1))/(rr+rl) 
+                      !aux_q(bound(iboun,ipbou),2) = (rr*aux_q(lnbn(iboun,ipbou),2))/(rr+rl)
+                      !aux_q(bound(iboun,ipbou),3) = (rr*aux_q(lnbn(iboun,ipbou),3))/(rr+rl)
 
-                        aux_p(bound(iboun,ipbou)) = (rr*aux_p(lnbn(iboun,ipbou))+rl*nscbc_p_inf)/(rr+rl)
+                      !aux_rho(bound(iboun,ipbou)) = sqrt(aux_rho(lnbn(iboun,ipbou))*nscbc_rho_inf)
+
+                      !aux_E(bound(iboun,ipbou)) = (aux_E(lnbn(iboun,ipbou))*rr + &
+                      !   rl*(nscbc_rho_inf*0.5d0*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0d0)))/(rr+rl)
+
+                      !aux_u(bound(iboun,ipbou),1) = (rr*aux_u(lnbn(iboun,ipbou),1)+rl*nscbc_u_inf)/(rr+rl)
+                      !aux_u(bound(iboun,ipbou),2) = (rr*aux_u(lnbn(iboun,ipbou),2))/(rr+rl)
+                      !aux_u(bound(iboun,ipbou),3) = (rr*aux_u(lnbn(iboun,ipbou),3))/(rr+rl)
+
+                      !aux_p(bound(iboun,ipbou)) = (rr*aux_p(lnbn(iboun,ipbou))+rl*nscbc_p_inf)/(rr+rl)
                      end do
                   else if (bcode == 1) then
                      !$acc loop vector
