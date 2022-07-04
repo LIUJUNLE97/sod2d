@@ -1,6 +1,7 @@
 module quadrature_rules
 
         use mod_constants
+        use mod_maths
 
         contains
 
@@ -152,6 +153,52 @@ module quadrature_rules
 
                 end subroutine gll_hex
 
+		!> @brief Computes the integral of a function over a QUA_XX
+		!> @details Closed rule quadrature for a function f(x) over a
+		!> QUA_X element type. The integral is computed using the
+		!> given grid and weights associated with a particular element order.
+		!> Notice that the order of the nodes follows that of the element itself.
+		!> For boundary elements only!
+		!> @param[in] atoIJ Node a to IJ rellationship
+		!> @param[out] xgp Quadrature points
+		!> @param[out] wgp Quadrature weights
+		subroutine chebyshev_qua(atoIJ,xgp,wgp)
+			implicit none
+			integer(4), intent(in)  :: atoIJ(npbou)
+			real(rp),    intent(out) :: xgp(npbou,ndime-1), wgp(npbou)
+			integer(4)              :: inode, i, j, lorder(porder+1)
+			real(rp)                 :: xi(porder+1),w1d(porder+1)
+			call chebyshev_roots(xi)
+			lorder(1) = 1
+			lorder(2) = porder+1
+			do i = 3,porder+1
+				lorder(i) = i-1
+			end do
+			if (porder == 3) then
+				!w1d(1:4) = [1.0d0/9.0d0, 8.0d0/9.0d0, 8.0d0/9.0d0, 1.0d0/9.0d0]
+				w1d(1:4) = [1.0d0/6.0d0, 5.0d0/6.0d0, 5.0d0/6.0d0, 1.0d0/6.0d0]
+			else
+				write(1,*) "--| WEIGHTING FUNCTION NOT CODED YET"
+				STOP(1)
+			end if
+			inode = 0
+			do i = 1,porder+1
+				do j = 1,porder+1
+					inode = inode + 1
+					xgp(atoIJ(inode),1:2) = [xi(lorder(i)), xi(lorder(j))]
+					wgp(atoIJ(inode)) = w1d(lorder(i))*w1d(lorder(j))
+				end do
+			end do
+		end subroutine chebyshev_qua
+
+      !> @brief Computes the integral of a function over a HEX_XX
+		!> @details Closed rule quadrature for a function f(x) over a
+		!> HEX_XX element type. The integral is computed using the
+		!> given grid and weights associated with a particular element order.
+		!> Notice that the order of the nodes follows that of the element itself.
+		!> @param[in] atoIJK Node a to IJK rellationship
+		!> @param[out] xgp Quadrature points
+		!> @param[out] wgp Quadrature weights
                 subroutine chebyshev_hex(atoIJK,xgp,wgp)
 
                    use mod_maths
