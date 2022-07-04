@@ -21,13 +21,13 @@ contains
 
       integer(4), intent(in)    :: nelem, npoin
       integer(4), intent(in)    :: connec(nelem,nnode)
-      real(8),    intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-      real(8),    intent(in)    :: He(ndime,ndime,ngaus,nelem)
-      real(8),    intent(in)    :: gpvol(1,ngaus,nelem)
-      real(8),    intent(in)    :: s(ndime), u(npoin,ndime)
-      real(8),    intent(inout) :: Rmom(npoin,ndime)
+      real(rp),    intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+      real(rp),    intent(in)    :: He(ndime,ndime,ngaus,nelem)
+      real(rp),    intent(in)    :: gpvol(1,ngaus,nelem)
+      real(rp),    intent(in)    :: s(ndime), u(npoin,ndime)
+      real(rp),    intent(inout) :: Rmom(npoin,ndime)
       integer(4)                :: ielem, igaus, idime, inode
-      real(8)                   :: Re(nnode,ndime)
+      real(rp)                   :: Re(nnode,ndime)
 
       call nvtxStartRange("Momentum source term")
 
@@ -41,7 +41,7 @@ contains
             !$acc loop vector collapse(2)
             do inode = 1,nnode
                do idime = 1,ndime
-                  Re(inode,idime) = 0.0d0
+                  Re(inode,idime) = 0.0_rp
                end do
             end do
             !$acc loop seq

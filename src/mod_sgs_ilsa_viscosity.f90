@@ -8,7 +8,7 @@ module mod_sgs_ilsa_viscosity
 
    implicit none
 
-   real(8), save :: time_ilsa = 0.0d0
+   real(rp), save :: time_ilsa = 0.0_rp
 
 contains
 
@@ -20,19 +20,19 @@ contains
       implicit none
 
       integer(4), intent(in)  :: nelem, npoin, npoin_w,lpoin_w(npoin_w),connec(nelem,nnode)
-      real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-      real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem),dt
-      real(8),    intent(in)  :: rho(npoin), u(npoin,ndime)
-      real(8),    intent(out) :: mu_sgs(nelem,ngaus)
-      real(8),    intent(in) :: mu_fluid(npoin),mue(nelem,ngaus)
-      real(8),    intent(inout) :: kres(npoin),etot(npoin),au(npoin,ndime),ax1(npoin),ax2(npoin),ax3(npoin)
+      real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+      real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem),dt
+      real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime)
+      real(rp),    intent(out) :: mu_sgs(nelem,ngaus)
+      real(rp),    intent(in) :: mu_fluid(npoin),mue(nelem,ngaus)
+      real(rp),    intent(inout) :: kres(npoin),etot(npoin),au(npoin,ndime),ax1(npoin),ax2(npoin),ax3(npoin)
       integer(4)              :: ielem, inode, igaus, kdime, idime, jdime,ipoin
-      real(8)                 :: gpcar(ndime,nnode), aux,aux2,mueff(nnode),ul(nnode,ndime),kresl(nnode),etotl(nnode)
-      real(8)                 :: gradU(ndime,ndime), gradUf(ndime,ndime),eliti,ave,strain(ndime,ndime),strain_m,strainf(ndime,ndime),uf(nnode,ndime)
-      real(8)                 :: gpkres,ax1l(nnode),ax2l(nnode),ax3l(nnode),gpax1,gpax2,gpax3,c_k,a,b,c,d,gprij(ndime,ndime),gplest,gpepst,aul(nnode,ndime),aux3(nnode)
+      real(rp)                 :: gpcar(ndime,nnode), aux,aux2,mueff(nnode),ul(nnode,ndime),kresl(nnode),etotl(nnode)
+      real(rp)                 :: gradU(ndime,ndime), gradUf(ndime,ndime),eliti,ave,strain(ndime,ndime),strain_m,strainf(ndime,ndime),uf(nnode,ndime)
+      real(rp)                 :: gpkres,ax1l(nnode),ax2l(nnode),ax3l(nnode),gpax1,gpax2,gpax3,c_k,a,b,c,d,gprij(ndime,ndime),gplest,gpepst,aul(nnode,ndime),aux3(nnode)
 
       if(time_ilsa>T_ilsa) then
-         time_ilsa = 0.0d0
+         time_ilsa = 0.0_rp
       end if
       ave = dt/(time_ilsa+dt)
       eliti = time_ilsa/(time_ilsa+dt)
@@ -82,8 +82,8 @@ contains
             do idime = 1,ndime
                !$acc loop seq
                do jdime = 1,ndime
-                  aux  = 0.0d0
-                  aux2 = 0.0d0
+                  aux  = 0.0_rp
+                  aux2 = 0.0_rp
                   !$acc loop vector reduction(+:aux,aux2)
                   do inode = 1,nnode
                      aux  = aux +gpcar(jdime,inode)*ul(inode,idime)
@@ -93,29 +93,29 @@ contains
                   gradUf(idime,jdime) = aux-aux2
                end do
             end do
-            strain_m = 0.0d0
-            gpkres = eliti*kresl(igaus)+ave*0.5d0*(uf(igaus,1)**2+uf(igaus,2)**2+uf(igaus,3)**2)
-            aux = 0.0d0
+            strain_m = 0.0_rp
+            gpkres = eliti*kresl(igaus)+ave*0.5_rp*(uf(igaus,1)**2+uf(igaus,2)**2+uf(igaus,3)**2)
+            aux = 0.0_rp
             !$acc loop seq
             do idime = 1,ndime
                !$acc loop seq
                do jdime = 1,ndime
-                  strain(idime,jdime)  = 0.5d0*(gradU(idime,jdime)+gradU(jdime,idime))
-                  strainf(idime,jdime) = 0.5d0*(gradUf(idime,jdime)+gradUf(jdime,idime))
+                  strain(idime,jdime)  = 0.5_rp*(gradU(idime,jdime)+gradU(jdime,idime))
+                  strainf(idime,jdime) = 0.5_rp*(gradUf(idime,jdime)+gradUf(jdime,idime))
                   strain_m = strain_m + strain(idime,jdime)*strain(idime,jdime)
                   aux = aux + strainf(idime,jdime)*strainf(idime,jdime)
                   gprij(idime,jdime) =  uf(igaus,idime)*uf(igaus,jdime)
                end do
-               gprij(idime,idime) = gprij(idime,idime) - (1.0d0/3.0d0)*uf(igaus,idime)*uf(igaus,idime)
+               gprij(idime,idime) = gprij(idime,idime) - (1.0_rp/3.0_rp)*uf(igaus,idime)*uf(igaus,idime)
             end do
-            strain_m = sqrt(2.0d0*strain_m)
-            gpepst = eliti*etotl(igaus) + ave*2.0d0*mueff(igaus)*aux
+            strain_m = sqrt(2.0_rp*strain_m)
+            gpepst = eliti*etotl(igaus) + ave*2.0_rp*mueff(igaus)*aux
 
             ! Isla evaluations for ck
             gplest = sqrt(gpkres**3)/(1e-10+gpepst)
-            gpax1 = eliti*ax1l(igaus)+ave*2.0d0*(gplest**4)*(strain_m**4)
-            aux = 0.0d0
-            aux2= 0.0d0
+            gpax1 = eliti*ax1l(igaus)+ave*2.0_rp*(gplest**4)*(strain_m**4)
+            aux = 0.0_rp
+            aux2= 0.0_rp
             !$acc loop seq
             do idime = 1,ndime
                !$acc loop seq
@@ -124,29 +124,29 @@ contains
                   aux2 = aux2 + gprij(idime,jdime)*gprij(idime,jdime)
                end do
             end do
-            gpax2 = eliti*ax2l(igaus) + ave*4.0d0*gplest*gplest*strain_m*aux
+            gpax2 = eliti*ax2l(igaus) + ave*4.0_rp*gplest*gplest*strain_m*aux
             gpax3 = eliti*ax3l(igaus) + ave*aux2
-            a = gpax1*(1.0d0 - (1.0d0/stau)**2)
+            a = gpax1*(1.0_rp - (1.0_rp/stau)**2)
             b = -gpax2
             c = gpax3
-            if(b> 0.0d0) then
-               d = -0.5d0*(b + sqrt(b*b - 4.0d0*a*c))
+            if(b> 0.0_rp) then
+               d = -0.5_rp*(b + sqrt(b*b - 4.0_rp*a*c))
             else 
-               d = -0.5d0*(b - sqrt(b*b - 4.0d0*a*c))
+               d = -0.5_rp*(b - sqrt(b*b - 4.0_rp*a*c))
             end if
             if(abs(d)> 1e-10) then
                if(abs(a)>1e-10) then 
                   aux = d / a
                   aux2 = c / d   
                else
-                  aux = 0.0d0
+                  aux = 0.0_rp
                   aux2 = c / d
                end if
             else
-               aux = 0.0d0
-               aux2 = 0.0d0 
+               aux = 0.0_rp
+               aux2 = 0.0_rp 
             end if
-            c_k = max(max(aux,aux2), 0.0d0)
+            c_k = max(max(aux,aux2), 0.0_rp)
 
             aux3(igaus) = (c_k)*(gplest*gplest)*strain_m
 
@@ -156,12 +156,12 @@ contains
             ax2(connec(ielem,igaus))  = gpax2
             ax3(connec(ielem,igaus))  = gpax3
          end do
-         aux=0.0d0
+         aux=0.0_rp
          !$acc loop vector reduction(+:aux)
          do inode = 1,nnode
             aux = aux + aux3(inode)
          end do
-         aux = aux/dble(nnode)
+         aux = aux/real(nnode,rp)
          !$acc loop vector
          do inode = 1,nnode
             mu_sgs(ielem,inode) = aux

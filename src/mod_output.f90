@@ -10,28 +10,28 @@ module mod_output
       
          integer(4), intent(in)                           :: istep, npoin, nelem
          integer(4), intent(in)                           :: connec(nelem,nnode)
-         real(8)   , intent(in)                           :: coord(npoin,ndime)
-         real(8)   , intent(in), dimension(npoin)         :: rho, pr, E
-         real(8)   , intent(in), dimension(npoin,ndime)   :: u
-         real(8)   , intent(in), dimension(nelem,ngaus)   :: mu_e
-         real(8)   , intent(in), dimension(nelem,ngaus)   :: mu_sgs
+         real(rp)   , intent(in)                           :: coord(npoin,ndime)
+         real(rp)   , intent(in), dimension(npoin)         :: rho, pr, E
+         real(rp)   , intent(in), dimension(npoin,ndime)   :: u
+         real(rp)   , intent(in), dimension(nelem,ngaus)   :: mu_e
+         real(rp)   , intent(in), dimension(nelem,ngaus)   :: mu_sgs
          integer(4)                                       :: i, ivtk=9
          integer(4)            , dimension(nelem,nnode+1) :: cells
          integer(4)            , dimension(nelem)         :: cellTypes
-         real(8)               , dimension(npoin,3)       :: points, u3d
+         real(rp)               , dimension(npoin,3)       :: points, u3d
          character(500)                                   :: filename
          character(16)                                   :: str1, str2
       
          !
          ! Pass coordinates to a suitable 3D generic format
          !
-         points = 0.0d0
+         points = 0.0_rp
          points(:,1:ndime) = coord(:,1:ndime)
       
          !
          ! Pass vector data to a suitable 3D generic format
          !
-         u3d = 0.0d0
+         u3d = 0.0_rp
          u3d(:,1:ndime) = u(:,1:ndime)
       
          !
@@ -157,17 +157,17 @@ module mod_output
          integer(4), intent(in)                            :: istep, npoin, nelem
          integer(4), intent(in)                            :: connec(nelem,nnode)
          integer(4), intent(in), optional                  :: masSla(nper,2)
-         real(8)   , intent(in)                            :: coord(npoin,ndime)
-         real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E, csound, machno, mu_fluid, divU, Qcrit
-         real(8)   , intent(inout), dimension(npoin,ndime) :: u
-         real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_e
-         real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_sgs
-         real(8)   , intent(inout), dimension(npoin,ndime) :: gradRho, curlU
+         real(rp)   , intent(in)                            :: coord(npoin,ndime)
+         real(rp)   , intent(inout), dimension(npoin)       :: rho, pr, E, csound, machno, mu_fluid, divU, Qcrit
+         real(rp)   , intent(inout), dimension(npoin,ndime) :: u
+         real(rp)   , intent(inout), dimension(nelem,ngaus) :: mu_e
+         real(rp)   , intent(inout), dimension(nelem,ngaus) :: mu_sgs
+         real(rp)   , intent(inout), dimension(npoin,ndime) :: gradRho, curlU
          integer(4)                                        :: i, j, iper, ivtk=9
          integer(4)            , dimension(nelem,nnode+1)  :: cells
          integer(4)            , dimension(nelem)          :: cellTypes
-         real(8)               , dimension(npoin)          :: envit, mut
-         real(8)               , dimension(npoin,3)        :: points, u3d
+         real(rp)               , dimension(npoin)          :: envit, mut
+         real(rp)               , dimension(npoin,3)        :: points, u3d
          character(500)                                    :: filename
          character(80)                                     :: buffer
          character(8)                                      :: str1, str2
@@ -179,7 +179,7 @@ module mod_output
          ! Pass coordinates to a suitable 3D generic format
          !
          !$acc kernels
-         points(:,:) = 0.0d0
+         points(:,:) = 0.0_rp
          points(:,1:ndime) = coord(:,1:ndime)
          !$acc end kernels
 
@@ -226,7 +226,7 @@ module mod_output
          ! Pass vector data to a suitable 3D generic format
          !
          !$acc kernels
-         u3d(:,:) = 0.0d0
+         u3d(:,:) = 0.0_rp
          u3d(:,1:ndime) = u(:,1:ndime)
          !$acc end kernels
       
@@ -275,7 +275,7 @@ module mod_output
          write(str1(1:8),'(i8)') npoin
          write(ivtk) 'POINTS '//str1//'  double'//lf
          do i = 1,npoin
-            write(ivtk) points(i,:)
+            write(ivtk) dble(points(i,:))
          end do
          
          !
@@ -305,52 +305,52 @@ module mod_output
          write(ivtk) 'SCALARS DENSI double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
-            write(ivtk) rho(i)
+            write(ivtk) dble(rho(i))
          end do
          write(ivtk) lf//lf//'SCALARS PRESS double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
-            write(ivtk) pr(i)
+            write(ivtk) dble(pr(i))
          end do
          write(ivtk) lf//lf//'SCALARS TENER double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
-            write(ivtk) E(i)
+            write(ivtk) dble(E(i))
          end do
          write(ivtk) lf//lf//'SCALARS CSOUND double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
-            write(ivtk) csound(i)
+            write(ivtk) dble(csound(i))
          end do
          write(ivtk) lf//lf//'SCALARS DIVEU double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
-            write(ivtk) divU(i)
+            write(ivtk) dble(divU(i))
          end do
          write(ivtk) lf//lf//'SCALARS QCRIT double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
-            write(ivtk) Qcrit(i)
+            write(ivtk) dble(Qcrit(i))
          end do
          write(ivtk) lf//lf//'SCALARS MACHNO double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
-            write(ivtk) machno(i)
+            write(ivtk) dble(machno(i))
          end do
          write(ivtk) lf//lf//'SCALARS VISCO double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
-            write(ivtk) mu_fluid(i)
+            write(ivtk) dble(mu_fluid(i))
          end do
          write(ivtk) lf//lf//'SCALARS SGSVI double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
-            write(ivtk) mut(i)
+            write(ivtk) dble(mut(i))
          end do
          write(ivtk) lf//lf//'SCALARS ENVIT double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
-            write(ivtk) envit(i)
+            write(ivtk) dble(envit(i))
          end do
          !
          ! Write point vector data
@@ -358,17 +358,17 @@ module mod_output
          write(str1(1:8),'(i8)') npoin
          write(ivtk) lf//lf//'VECTORS VELOC double'//lf
          do i = 1,npoin
-            write(ivtk) u3d(i,:)
+            write(ivtk) dble(u3d(i,:))
          end do
          write(str1(1:8),'(i8)') npoin
          write(ivtk) lf//lf//'VECTORS GRDEN double'//lf
          do i = 1,npoin
-            write(ivtk) gradRho(i,:)
+            write(ivtk) dble(gradRho(i,:))
          end do
          write(str1(1:8),'(i8)') npoin
          write(ivtk) lf//lf//'VECTORS VORTI double'//lf
          do i = 1,npoin
-            write(ivtk) curlU(i,:)
+            write(ivtk) dble(curlU(i,:))
          end do
 
          !
@@ -400,16 +400,16 @@ module mod_output
          integer(4), intent(in)                              :: istep, npoin, nelem
          integer(4), intent(in)                              :: connec(nelem,nnode)
          integer(4), intent(in), optional                    :: masSla(nper,2)
-         real(8)   , intent(in)                              :: coord(npoin,ndime)
-         real(8)   , intent(inout)                           :: acutim
-         real(8)   , intent(inout), dimension(npoin)         :: acurho, acupre, acumueff
-         real(8)   , intent(inout), dimension(npoin,ndime)   :: acuvel, acuve2
+         real(rp)   , intent(in)                              :: coord(npoin,ndime)
+         real(rp)   , intent(inout)                           :: acutim
+         real(rp)   , intent(inout), dimension(npoin)         :: acurho, acupre, acumueff
+         real(rp)   , intent(inout), dimension(npoin,ndime)   :: acuvel, acuve2
          integer(4)                                          :: i, j, iper, ivtk=9, idime, ipoin
          integer(4)               , dimension(nelem,nnode+1) :: cells
          integer(4)               , dimension(nelem)         :: cellTypes
-         real(8)                  , dimension(npoin)         :: avrho, avpre, avmueff
-         real(8)                  , dimension(npoin,ndime)   :: avvel, avve2
-         real(8)                  , dimension(npoin,3)       :: points, u3d
+         real(rp)                  , dimension(npoin)         :: avrho, avpre, avmueff
+         real(rp)                  , dimension(npoin,ndime)   :: avvel, avve2
+         real(rp)                  , dimension(npoin,3)       :: points, u3d
          character(500)                                      :: filename
          character(80)                                       :: buffer
          character(8)                                        :: str1, str2
@@ -421,7 +421,7 @@ module mod_output
          ! Pass coordinates to a suitable 3D generic format
          !
          !$acc kernels
-         points(:,:) = 0.0d0
+         points(:,:) = 0.0_rp
          points(:,1:ndime) = coord(:,1:ndime)
          !$acc end kernels
 
@@ -472,13 +472,13 @@ module mod_output
          ! Reset the accumulated variables
          !
          !$acc kernels
-         acurho(:) = 0.0d0
-         acupre(:) = 0.0d0
-         acumueff(:) = 0.0d0
-         acuvel(:,:) = 0.0d0
-         acuve2(:,:) = 0.0d0
+         acurho(:) = 0.0_rp
+         acupre(:) = 0.0_rp
+         acumueff(:) = 0.0_rp
+         acuvel(:,:) = 0.0_rp
+         acuve2(:,:) = 0.0_rp
          !$acc end kernels
-         acutim = 0.0d0
+         acutim = 0.0_rp
 
          !
          ! Pass cell list to VTK format
@@ -525,7 +525,7 @@ module mod_output
          write(str1(1:8),'(i8)') npoin
          write(ivtk) 'POINTS '//str1//'  double'//lf
          do i = 1,npoin
-            write(ivtk) points(i,:)
+            write(ivtk) dble(points(i,:))
          end do
 
          !
@@ -555,17 +555,17 @@ module mod_output
          write(ivtk) 'SCALARS AVDEN double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
-            write(ivtk) avrho(i)
+            write(ivtk) dble(avrho(i))
          end do
          write(ivtk) lf//lf//'SCALARS AVPRE double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
-            write(ivtk) avpre(i)
+            write(ivtk) dble(avpre(i))
          end do
          write(ivtk) lf//lf//'SCALARS AVMUEFF double '//lf
          write(ivtk) 'LOOKUP_TABLE default'//lf
          do i = 1,npoin
-            write(ivtk) avmueff(i)
+            write(ivtk) dble(avmueff(i))
          end do
 
          !
@@ -574,12 +574,12 @@ module mod_output
          write(str1(1:8),'(i8)') npoin
          write(ivtk) lf//lf//'VECTORS FAVVEL double'//lf
          do i = 1,npoin
-            write(ivtk) avvel(i,:)
+            write(ivtk) dble(avvel(i,:))
          end do
          write(str1(1:8),'(i8)') npoin
          write(ivtk) lf//lf//'VECTORS FAVVE2 double'//lf
          do i = 1,npoin
-            write(ivtk) avve2(i,:)
+            write(ivtk) dble(avve2(i,:))
          end do
 
          !
@@ -611,16 +611,16 @@ module mod_output
          integer(4), intent(in)                            :: connecLINEAR(nelem*(porder**ndime),2**ndime)
          integer(4), intent(in)                            :: connec(nelem,nnode)
          integer(4), intent(in), optional                  :: masSla(nper,2)
-         real(8)   , intent(in)                            :: coord(npoin,ndime)
-         real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E, mu_fluid, csound, machno
-         real(8)   , intent(inout), dimension(npoin,ndime) :: u
-         real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_e
-         real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_sgs
+         real(rp)   , intent(in)                            :: coord(npoin,ndime)
+         real(rp)   , intent(inout), dimension(npoin)       :: rho, pr, E, mu_fluid, csound, machno
+         real(rp)   , intent(inout), dimension(npoin,ndime) :: u
+         real(rp)   , intent(inout), dimension(nelem,ngaus) :: mu_e
+         real(rp)   , intent(inout), dimension(nelem,ngaus) :: mu_sgs
          integer(4)                                        :: i,j, iper, ivtk=9, nelem_l, nnode_l
          integer(4)            , dimension(nelem*(porder**ndime),2**ndime+1)  :: cells
          integer(4)            , dimension(nelem*(porder**ndime))          :: cellTypes
-         real(8)               , dimension(npoin,3)        :: points, u3d
-         real(8)               , dimension(npoin)          :: envit, mut
+         real(rp)               , dimension(npoin,3)        :: points, u3d
+         real(rp)               , dimension(npoin)          :: envit, mut
          character(500)                                    :: filename
          character(80)                                     :: buffer
          character(8)                                      :: str1
@@ -636,7 +636,7 @@ module mod_output
          ! Pass coordinates to a suitable 3D generic format
          !
          !$acc kernels
-         points(:,:) = 0.0d0
+         points(:,:) = 0.0_rp
          points(:,1:ndime) = coord(:,1:ndime)
          !$acc end kernels
       
@@ -671,7 +671,7 @@ module mod_output
          ! Pass vector data to a suitable 3D generic format
          !
          !$acc kernels
-         u3d(:,:) = 0.0d0
+         u3d(:,:) = 0.0_rp
          u3d(:,1:ndime) = u(:,1:ndime)
          !$acc end kernels
       
@@ -818,16 +818,16 @@ module mod_output
          integer(4), intent(in)                            :: istep, npoin, nelem
          integer(4), intent(in)                            :: connec(nelem,nnode)
          integer(4), intent(in), optional                  :: masSla(nper,2)
-         real(8)   , intent(in)                            :: coord(npoin,ndime)
-         real(8)   , intent(inout), dimension(npoin)       :: rho, pr, E, csound, machno, mu_fluid
-         real(8)   , intent(inout), dimension(npoin,ndime) :: u
-         real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_e
-         real(8)   , intent(inout), dimension(nelem,ngaus) :: mu_sgs
+         real(rp)   , intent(in)                            :: coord(npoin,ndime)
+         real(rp)   , intent(inout), dimension(npoin)       :: rho, pr, E, csound, machno, mu_fluid
+         real(rp)   , intent(inout), dimension(npoin,ndime) :: u
+         real(rp)   , intent(inout), dimension(nelem,ngaus) :: mu_e
+         real(rp)   , intent(inout), dimension(nelem,ngaus) :: mu_sgs
          integer(4)                                        :: i, iper, ivtk=99
          integer(4)            , dimension(nelem,nnode+1)  :: cells
          integer(4)            , dimension(nelem)          :: cellTypes
          integer(4)            , dimension(npoin)          :: envit, mut
-         real(8)               , dimension(npoin,3)        :: points
+         real(rp)               , dimension(npoin,3)        :: points
          character(500)                                    :: filename
 
          write(1,*) " begining the reading of the vtk binary "

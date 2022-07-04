@@ -49,66 +49,67 @@ program sod2d
         integer(4), allocatable    :: connec(:,:), connecVTK(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
         integer(4), allocatable    :: masSla(:,:), connec_orig(:,:), aux1(:), bound_orig(:,:), lelpn(:),point2elem(:)
         integer(4), allocatable    :: lpoin_w(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
-        real(8),    allocatable    :: coord(:,:), coord_old(:,:), helem(:),helem_l(:,:)
-        real(8),    allocatable    :: xgp(:,:), wgp(:)
-        real(8),    allocatable    :: Ngp(:,:), dNgp(:,:,:)
-        real(8),    allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
-        real(8),    allocatable    :: Je(:,:), He(:,:,:,:)
-        real(8),    allocatable    :: gpvol(:,:,:), gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
-        real(8),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:), machno(:)
-        real(8),    allocatable    :: Ml(:)!, Mc(:)
-        real(8),    allocatable    :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:),mu_factor(:)
-        real(8),    allocatable    :: source_term(:)
-        real(8),    allocatable    :: aux_1(:,:), aux_2(:)
-        real(8),    allocatable    :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:)
-        real(8),    allocatable    :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
-        real(8)                    :: s, t, z, detJe
-        real(8)                    :: dt, he_aux, time, P0, T0, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
-        real(8)                    :: cfl_conv, cfl_diff, acutim
-        real(8)                    :: leviCivi(3,3,3)
+        real(rp),    allocatable    :: coord(:,:), coord_old(:,:), helem(:),helem_l(:,:)
+        real(rp),    allocatable    :: xgp(:,:), wgp(:)
+        real(rp),    allocatable    :: Ngp(:,:), dNgp(:,:,:)
+        real(rp),    allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
+        real(rp),    allocatable    :: Je(:,:), He(:,:,:,:)
+        real(rp),    allocatable    :: gpvol(:,:,:), gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
+        real(rp),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:), machno(:)
+        real(rp),    allocatable    :: Ml(:)!, Mc(:)
+        real(rp),    allocatable    :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:),mu_factor(:)
+        real(rp),    allocatable    :: source_term(:)
+        real(rp),    allocatable    :: aux_1(:,:), aux_2(:)
+        real(rp),    allocatable    :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:)
+        real(rp),    allocatable    :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
+        real(rp)                    :: s, t, z, detJe
+        real(rp)                    :: dt, he_aux, time, P0, T0, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
+        real(rp)                    :: cfl_conv, cfl_diff, acutim
+        real(rp)                    :: leviCivi(3,3,3)
         character(500)             :: file_path
         character(500)             :: file_name, dumpfile
         character(4)               :: timeStep
-        real(8)  ::  Cp = 1004.0d0
-        real(8)                    :: Rgas, gamma_gas, Cv, tleap, atime, Prt
+        real(rp)  ::  Cp = 1004.0_rp
+        real(rp)                    :: Rgas, gamma_gas, Cv, tleap, atime, Prt
 #ifdef CHANNEL
         !channel flow setup
-        real(8)  :: vo = 1.0d0
-        real(8)  :: M  = 0.2d0
-        real(8)  :: delta  = 1.0d0
-        real(8)  :: U0     = 1.0d0
-        real(8)  :: rho0   = 1.0d0
-        real(8)  :: Retau  = 950.0d0
-        real(8)  ::  gamma_g = 1.40d0
-        real(8)  :: yp=0.0d0, ti(3)
-        real(8)  :: velo = 0.0d0, vol = 0.0d0
-        real(8)  :: Re,mul,utau,Rg,to,po,mur
-        integer(4) :: isCylinder = -1
+        real(rp)  :: vo = 1.0_rp
+        real(rp)  :: M  = 0.2_rp
+        real(rp)  :: delta  = 1.0_rp
+        real(rp)  :: U0     = 1.0_rp
+        real(rp)  :: rho0   = 1.0_rp
+        real(rp)  :: Retau  = 950.0_rp
+        real(rp)  ::  gamma_g = 1.40_rp
+        real(rp)  :: yp=0.0_rp, ti(3)
+        real(rp)  :: velo = 0.0_rp, vol = 0.0_rp
+        real(rp)  :: Re,mul,utau,Rg,to,po,mur
+        !integer(4) :: isCylinder = -1
+        integer(4) :: isCylinder = 1
 #else
-        real(8)                    :: rho0, Re, mul,mur,to
+        real(rp)                    :: rho0, Re, mul,mur,to
 #endif
 
         open(unit=1,file="sod2d.log",status="replace")
 
-        Prt = 0.71d0
+        Prt = 0.71_rp
 #ifdef CHANNEL
         if(isCylinder>0) then
-           Re     = exp((1.0d0/0.88d0)*log(Retau/0.09d0))
-           mul    = (rho0*2.0d0*delta*vo)/Re
+           Re     = exp((1.0_rp/0.88_rp)*log(Retau/0.09_rp))
+           mul    = (rho0*2.0_rp*delta*vo)/Re
            utau   = (Retau*mul)/(delta*rho0)
-           Rg = Cp*(gamma_g-1.0d0)/gamma_g
+           Rg = Cp*(gamma_g-1.0_rp)/gamma_g
            to = vo*vo/(gamma_g*Rg*M*M)
            po = rho0*Rg*to
-           mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
+           mur = 0.000001458_rp*(to**1.50_rp)/(to+110.40_rp)
            flag_mu_factor = mul/mur
            write(1,*) " Gp ", utau*utau*rho0/delta
         else
-           Re     = 3900.0d0
-           mul    = (rho0*1.0d0*vo)/Re
-           Rg = Cp*(gamma_g-1.0d0)/gamma_g
+           Re     = 3900.0_rp
+           mul    = (rho0*1.0_rp*vo)/Re
+           Rg = Cp*(gamma_g-1.0_rp)/gamma_g
            to = vo*vo/(gamma_g*Rg*M*M)
            po = rho0*Rg*to
-           mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
+           mur = 0.000001458_rp*(to**1.50_rp)/(to+110.40_rp)
            flag_mu_factor = mul/mur
 
            nscbc_u_inf = vo
@@ -118,17 +119,17 @@ program sod2d
            nscbc_c_inf = sqrt(gamma_g*po/rho0)
         end if
 #else
-        Re = 1600.0d0
-        !to = 1.0d0
-        !Rgas = 1.0d0*1.0d0/(1.4d0*1.0d0*1.25d0*1.25d0)
-        rho0 = 1.0d0 !TGV
-        !rho0 = (1.0d0/(1.4d0*1.25*1.25))/(Rgas*to)
-        mul = rho0*1.0d0*1.0d0/Re
-        !to = 1.0d0*1.0d0/(1.4d0*287.0d0*0.1d0*0.1d0) !TGV
-        mur = 0.000001458d0*(to**1.50d0)/(to+110.40d0)
+        Re = 1600.0_rp
+        !to = 1.0_rp
+        !Rgas = 1.0_rp*1.0_rp/(1.4_rp*1.0_rp*1.25_rp*1.25_rp)
+        rho0 = 1.0_rp !TGV
+        !rho0 = (1.0_rp/(1.4_rp*1.25*1.25))/(Rgas*to)
+        mul = rho0*1.0_rp*1.0_rp/Re
+        !to = 1.0_rp*1.0_rp/(1.4_rp*287.0_rp*0.1_rp*0.1_rp) !TGV
+        mur = 0.000001458_rp*(to**1.50_rp)/(to+110.40_rp)
         flag_mu_factor = mul/mur
 
-        flag_mu_factor = 0.0d0 ! shock
+        flag_mu_factor = 0.0_rp ! shock
 #endif
 
         !*********************************************************************!
@@ -145,22 +146,22 @@ program sod2d
 #ifdef CHANNEL
         Rgas = Rg
 #else
-        Rgas = 287.00d0 ! TODO: Make it inpu TGV shockt
+        Rgas = 287.00_rp ! TODO: Make it inpu TGV shockt
 #endif
-        Cp = 1004.00d0 ! TODO: Make it input !TGV
-        gamma_gas = 1.40d0 ! TODO: Make it innput
-        !Cp = gamma_gas*Rgas/(gamma_gas-1.0d0)
+        Cp = 1004.00_rp ! TODO: Make it input !TGV
+        gamma_gas = 1.40_rp ! TODO: Make it innput
+        !Cp = gamma_gas*Rgas/(gamma_gas-1.0_rp)
         write(1,*) "Cp ",Cp
         Cv = Cp/gamma_gas
-        cfl_conv = 1.5d0
-        cfl_diff = 1.5d0
+        cfl_conv = 2.2_rp
+        cfl_diff = 2.2_rp
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
         nsaveAVG = 1
         nleap = 20000 ! Saving interval, TODO: input
-        tleap = 0.5d0 ! Saving interval, TODO: input
+        tleap = 0.5_rp ! Saving interval, TODO: input
         nleap2 = 10  ! Saving interval, TODO: input
-        nleapAVG = 1000
+        nleapAVG = 20000
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
@@ -201,15 +202,15 @@ program sod2d
 #ifdef CHANNEL
         allocate(source_term(ndime))
         !set the source term
-        !        source_term(1) = (utau*utau*rho0/delta)/36.0d0
+        !        source_term(1) = (utau*utau*rho0/delta)/36.0_rp
         if(isCylinder>0) then
            source_term(1) = (utau*utau*rho0/delta)
-           source_term(2) = 0.00d0
-           source_term(3) = 0.00d0
+           source_term(2) = 0.00_rp
+           source_term(3) = 0.00_rp
         else
-           source_term(1) = 0.00d0
-           source_term(2) = 0.00d0
-           source_term(3) = 0.00d0
+           source_term(1) = 0.00_rp
+           source_term(2) = 0.00_rp
+           source_term(3) = 0.00_rp
         end if
 #endif
 
@@ -417,49 +418,49 @@ program sod2d
 
         call nvtxStartRange("Additional data")
 #ifdef CHANNEL
-        if(1) then
+        if(0) then
         if(isCylinder>0) then
            do ipoin = 1,npoin
 
               if(coord(ipoin,2)<delta) then
                  yp = coord(ipoin,2)*utau/mul
               else
-                 yp = abs(coord(ipoin,2)-2.0d0*delta)*utau/mul
+                 yp = abs(coord(ipoin,2)-2.0_rp*delta)*utau/mul
               end if
 
-              velo = utau*((1.0d0/0.41d0)*log(1.0d0+0.41d0*yp)+7.8d0*(1.0d0-exp(-yp/11.0d0)-(yp/11.0d0)*exp(-yp/3.0d0))) 
+              velo = utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
 
               call random_number(ti)
 
 
-              u(ipoin,1,2) = velo*(1.0d0 + 0.1d0*(ti(1) -0.5d0))
-              u(ipoin,2,2) = velo*(0.1d0*(ti(2) -0.5d0))
-              u(ipoin,3,2) = velo*(0.1d0*(ti(3) -0.5d0))
+              u(ipoin,1,2) = velo*(1.0_rp + 0.1_rp*(ti(1) -0.5_rp))
+              u(ipoin,2,2) = velo*(0.1_rp*(ti(2) -0.5_rp))
+              u(ipoin,3,2) = velo*(0.1_rp*(ti(3) -0.5_rp))
 
               pr(ipoin,2) = po
 
               rho(ipoin,2) = po/Rg/to
 
-              e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0d0))
+              e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0_rp))
               Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas)
-              E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
+              E(ipoin,2) = rho(ipoin,2)*(0.5_rp*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
               q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
               csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2))
            end do
         else
            do ipoin = 1,npoin
 
-              u(ipoin,1,2) = 1.0d0
-              u(ipoin,2,2) = 0.0d0
-              u(ipoin,3,2) = 0.0d0
+              u(ipoin,1,2) = 1.0_rp
+              u(ipoin,2,2) = 0.0_rp
+              u(ipoin,3,2) = 0.0_rp
 
               pr(ipoin,2) = po
 
               rho(ipoin,2) = po/Rg/to
 
-              e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0d0))
+              e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0_rp))
               Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas)
-              E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
+              E(ipoin,2) = rho(ipoin,2)*(0.5_rp*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
               q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
               csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2))
            end do
@@ -472,9 +473,9 @@ program sod2d
            do ipoin = 1,npoin
               pr(ipoin,2) = po
               rho(ipoin,2) = po/Rg/to
-              e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0d0))
+              e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0_rp))
               Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas)
-              E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
+              E(ipoin,2) = rho(ipoin,2)*(0.5_rp*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
               q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
               csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2))
            end do
@@ -482,10 +483,10 @@ program sod2d
 #else
         !$acc parallel loop
         do ipoin = 1,npoin
-           e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0d0))
-           !Tem(ipoin,2) = 1.0d0
+           e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(gamma_gas-1.0_rp))
+           !Tem(ipoin,2) = 1.0_rp
            Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*Rgas) !TGV
-           E(ipoin,2) = rho(ipoin,2)*(0.5d0*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
+           E(ipoin,2) = rho(ipoin,2)*(0.5_rp*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
            q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
            csound(ipoin) = sqrt(gamma_gas*pr(ipoin,2)/rho(ipoin,2)) 
         end do
@@ -498,14 +499,14 @@ program sod2d
         !$acc end parallel loop
 
         !$acc kernels
-        mu_e(:,:) = 0.0d0 ! Element syabilization viscosity
-        mu_sgs(:,:) = 0.0d0
-        kres(:) = 0.0d0
-        etot(:) = 0.0d0
-        ax1(:) = 0.0d0
-        ax2(:) = 0.0d0
-        ax3(:) = 0.0d0
-        au(:,:) = 0.0d0
+        mu_e(:,:) = 0.0_rp ! Element syabilization viscosity
+        mu_sgs(:,:) = 0.0_rp
+        kres(:) = 0.0_rp
+        etot(:) = 0.0_rp
+        ax1(:) = 0.0_rp
+        ax2(:) = 0.0_rp
+        ax3(:) = 0.0_rp
+        au(:,:) = 0.0_rp
         !$acc end kernels
         call nvtxEndRange
 
@@ -520,16 +521,16 @@ program sod2d
            !$acc parallel loop
            do ipoin = 1,npoin
               if(coord(ipoin,1)<-2) then
-                 mu_factor(ipoin) = flag_mu_factor*1000.0d0
+                 mu_factor(ipoin) = flag_mu_factor*1000.0_rp
               end if
               if(coord(ipoin,1)>18) then
-                 mu_factor(ipoin) = flag_mu_factor*1000.0d0
+                 mu_factor(ipoin) = flag_mu_factor*1000.0_rp
               end if
               if(coord(ipoin,2)<-8) then
-                 mu_factor(ipoin) = flag_mu_factor*1000.0d0
+                 mu_factor(ipoin) = flag_mu_factor*1000.0_rp
               end if
               if(coord(ipoin,2)>8) then
-                 mu_factor(ipoin) = flag_mu_factor*1000.0d0
+                 mu_factor(ipoin) = flag_mu_factor*1000.0_rp
               end if
            end do
            !$acc end parallel loop
@@ -538,13 +539,13 @@ program sod2d
 
         if (flag_real_diff == 1) then
            if (flag_diff_suth == 0) then
-              call constant_viscosity(npoin,0.000055d0,mu_fluid)
+              call constant_viscosity(npoin,0.000055_rp,mu_fluid)
            else
               call sutherland_viscosity(npoin,Tem(:,2),mu_factor,mu_fluid)
            end if
         else if (flag_real_diff == 0) then
            !$acc kernels
-           mu_fluid(:) = 0.0d0
+           mu_fluid(:) = 0.0_rp
            !$acc end kernels
         else
            write(1,*) "--| DIFFUSION FLAG MUST BE EITHER 0 OR 1, NOT: ",flag_real_diff
@@ -570,7 +571,7 @@ program sod2d
         if (flag_spectralElem == 1) then
            allocate(atoIJK(64))
            allocate(vtk_atoIJK(64))
-           call hex64(1.0d0,1.0d0,1.0d0,atoIJK,vtk_atoIJK)
+           call hex64(1.0_rp,1.0_rp,1.0_rp,atoIJK,vtk_atoIJK)
 
         end if
         write(1,*) "--| GENERATING GAUSSIAN QUADRATURE TABLE..."
@@ -750,7 +751,7 @@ program sod2d
         allocate(gpvol(1,ngaus,nelem))
         call elem_jacobian(nelem,npoin,connec,coord,dNgp,wgp,gpvol,He)
         call  nvtxEndRange
-        VolTot = 0.0d0
+        VolTot = 0.0_rp
         do ielem = 1,nelem
            do igaus = 1,ngaus
               VolTot = VolTot+gpvol(1,igaus,ielem)
@@ -768,13 +769,13 @@ program sod2d
         !
         ! Compute Levi-Civita tensor
         !
-        leviCivi = 0.0d0
-        leviCivi(2,3,1) =  1.0d0
-        leviCivi(3,2,1) = -1.0d0
-        leviCivi(1,3,2) = -1.0d0
-        leviCivi(3,1,2) =  1.0d0
-        leviCivi(1,2,3) =  1.0d0
-        leviCivi(2,1,3) = -1.0d0
+        leviCivi = 0.0_rp
+        leviCivi(2,3,1) =  1.0_rp
+        leviCivi(3,2,1) = -1.0_rp
+        leviCivi(1,3,2) = -1.0_rp
+        leviCivi(3,1,2) =  1.0_rp
+        leviCivi(1,2,3) =  1.0_rp
+        leviCivi(2,1,3) = -1.0_rp
         call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
         if (((porder+1)**ndime) .le. (3**ndime) .and. flag_spectralElem == 0) then
            !
@@ -873,7 +874,7 @@ program sod2d
         !stablisation
         allocate(helem_l(nelem,nnode))
         if (flag_SpectralElem == 1) then
-           !helem_l(:) = 0.0d0
+           !helem_l(:) = 0.0_rp
            do ielem = 1,nelem
               call char_length_spectral(ielem,nelem,npoin,connec,coord,Ml,helem_l)
            end do
@@ -961,14 +962,14 @@ program sod2d
         allocate(acuve2(npoin,ndime))
 
         !$acc kernels
-        acurho(:) = 0.0d0
-        acupre(:) = 0.0d0
-        acumueff(:) = 0.0d0
-        acuvel(:,:) = 0.00d0
-        acuve2(:,:) = 0.00d0
-        acumueff(:) = 0.00d0
+        acurho(:) = 0.0_rp
+        acupre(:) = 0.0_rp
+        acumueff(:) = 0.0_rp
+        acuvel(:,:) = 0.00_rp
+        acuve2(:,:) = 0.00_rp
+        acumueff(:) = 0.00_rp
         !$acc end kernels
-        acutim = 0.0d0
+        acutim = 0.0_rp
 
         !*********************************************************************!
         ! Start of time stepping                                              !
@@ -978,10 +979,10 @@ program sod2d
         ! Write EK to file
         !
         open(unit=666,file="analysis.dat",status="replace")
-        time = 0.0d0
-        !P0 = 1.0d0
-        !T0 = 1.0d0/(1.4d0*Rgas*(0.1**2))
-        !rho0 = 1.0d0
+        time = 0.0_rp
+        !P0 = 1.0_rp
+        !T0 = 1.0_rp/(1.4_rp*Rgas*(0.1**2))
+        !rho0 = 1.0_rp
         call volAvg_EK(nelem,npoin,connec,gpvol,Ngp,rho0,rho(:,2),u(:,:,2),EK)
         call visc_dissipationRate(nelem,npoin,connec,leviCivi,rho0,mu_fluid,mu_e,u(:,:,2),VolTot,gpvol,He,dNgp,eps_S,eps_D,eps_T)
         call maxMach(npoin,npoin_w,lpoin_w,machno,maxmachno)
@@ -1097,7 +1098,7 @@ program sod2d
 
                     end if
                     nsave = nsave+nleap
-                    atime = 0.0d0
+                    atime = 0.0_rp
                     call nvtxEndRange
                  end if
 
@@ -1114,7 +1115,7 @@ program sod2d
         else if (isPeriodic .eq. 1) then ! Case is periodic
            if (nboun .eq. 0) then ! Case has no boundaries
                write(1,*) '--| PERIODIC CASE WITH NO BOUNDARIES'
-               atime = 0.0d0
+               atime = 0.0_rp
                do istep = 1,nstep
 
                   if (istep == nsave) write(1,*) '   --| STEP: ', istep
@@ -1219,7 +1220,7 @@ program sod2d
                            gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nper,masSla)
                      end if
                      nsave = nsave+nleap
-                     atime = 0.0d0
+                     atime = 0.0_rp
                      call nvtxEndRange
                   end if
 

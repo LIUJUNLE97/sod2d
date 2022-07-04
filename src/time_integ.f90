@@ -26,45 +26,45 @@ module time_integ
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             integer(4),           intent(in)    :: ppow
-            real(8),              intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
-            real(8),              intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
-            real(8),              intent(in)    :: gpvol(1,ngaus,nelem)
-            real(8),              intent(in)    :: dt, helem(nelem), helem_l(npoin)
-            real(8),              intent(in)    :: Ml(npoin)
-            real(8),              intent(in)    :: mu_factor(npoin)
-            real(8),              intent(in)    :: Rgas, gamma_gas, Cp, Prt
-            real(8),              intent(inout) :: rho(npoin,2)
-            real(8),              intent(inout) :: u(npoin,ndime,2)
-            real(8),              intent(inout) :: q(npoin,ndime,2)
-            real(8),              intent(inout) :: pr(npoin,2)
-            real(8),              intent(inout) :: E(npoin,2)
-            real(8),              intent(inout) :: Tem(npoin,2)
-            real(8),              intent(inout) :: e_int(npoin,2)
-            real(8),              intent(inout) :: eta(npoin,2)
-            real(8),              intent(inout) :: mu_fluid(npoin)
-            real(8),              intent(inout)   :: csound(npoin)
-            real(8),              intent(inout)   :: machno(npoin)
-            real(8),              intent(inout)   :: mu_e(nelem,ngaus)
-            real(8),              intent(inout)   :: mu_sgs(nelem,ngaus)
-            real(8),              intent(inout)   :: kres(npoin)
-            real(8),              intent(inout)   :: etot(npoin)
-            real(8),              intent(inout)   :: au(npoin,ndime)
-            real(8),              intent(inout)   :: ax1(npoin)
-            real(8),              intent(inout)   :: ax2(npoin)
-            real(8),              intent(inout)   :: ax3(npoin)
+            real(rp),              intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
+            real(rp),              intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
+            real(rp),              intent(in)    :: gpvol(1,ngaus,nelem)
+            real(rp),              intent(in)    :: dt, helem(nelem), helem_l(npoin)
+            real(rp),              intent(in)    :: Ml(npoin)
+            real(rp),              intent(in)    :: mu_factor(npoin)
+            real(rp),              intent(in)    :: Rgas, gamma_gas, Cp, Prt
+            real(rp),              intent(inout) :: rho(npoin,2)
+            real(rp),              intent(inout) :: u(npoin,ndime,2)
+            real(rp),              intent(inout) :: q(npoin,ndime,2)
+            real(rp),              intent(inout) :: pr(npoin,2)
+            real(rp),              intent(inout) :: E(npoin,2)
+            real(rp),              intent(inout) :: Tem(npoin,2)
+            real(rp),              intent(inout) :: e_int(npoin,2)
+            real(rp),              intent(inout) :: eta(npoin,2)
+            real(rp),              intent(inout) :: mu_fluid(npoin)
+            real(rp),              intent(inout)   :: csound(npoin)
+            real(rp),              intent(inout)   :: machno(npoin)
+            real(rp),              intent(inout)   :: mu_e(nelem,ngaus)
+            real(rp),              intent(inout)   :: mu_sgs(nelem,ngaus)
+            real(rp),              intent(inout)   :: kres(npoin)
+            real(rp),              intent(inout)   :: etot(npoin)
+            real(rp),              intent(inout)   :: au(npoin,ndime)
+            real(rp),              intent(inout)   :: ax1(npoin)
+            real(rp),              intent(inout)   :: ax2(npoin)
+            real(rp),              intent(inout)   :: ax3(npoin)
             integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(ndof), lbnodes(nbnodes)
             integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun,2)
-            real(8),    optional, intent(in)    :: source_term(ndime)
+            real(rp),    optional, intent(in)    :: source_term(ndime)
             integer(4)                          :: pos
             integer(4)                          :: istep, ipoin, idime
-            real(8),    dimension(npoin)        :: Reta, Rrho
-            real(8),    dimension(4)            :: a_i, b_i, c_i
-            real(8),    dimension(npoin,ndime)  :: aux_u, aux_q
-            real(8),    dimension(npoin)        :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
-            real(8),    dimension(npoin)        :: Rmass, Rener, Rmass_sum, Rener_sum, alpha,Reta_sum
-            real(8),    dimension(npoin,ndime)  :: Rmom, Rmom_sum, f_eta
-            real(8)                             :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
-            real(8)                             :: Aemac(npoin,ndime), Femac(npoin), umag
+            real(rp),    dimension(npoin)        :: Reta, Rrho
+            real(rp),    dimension(4)            :: a_i, b_i, c_i
+            real(rp),    dimension(npoin,ndime)  :: aux_u, aux_q
+            real(rp),    dimension(npoin)        :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
+            real(rp),    dimension(npoin)        :: Rmass, Rener, Rmass_sum, Rener_sum, alpha,Reta_sum
+            real(rp),    dimension(npoin,ndime)  :: Rmom, Rmom_sum, f_eta
+            real(rp)                             :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
+            real(rp)                             :: Aemac(npoin,ndime), Femac(npoin), umag
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! New version of RK4 using loops                 !
@@ -81,25 +81,25 @@ module time_integ
             !
             call nvtxStartRange("Create tableau")
             !if(flag_predic ==1) then
-            !      a_i = [0.0d0, 0.0d0, 0.0d0, 0.0d0]
-            !      c_i = [0.0d0, 0.0d0, 0.0d0, 0.0d0]
-            !      b_i = [1.0d0, 0.0d0, 0.0d0, 0.0d0]
+            !      a_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
+            !      c_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
+            !      b_i = [1.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
             !else
                if (flag_rk_order == 1) then
-                  a_i = [0.0d0, 0.0d0, 0.0d0, 0.0d0]
-                  c_i = [0.0d0, 0.0d0, 0.0d0, 0.0d0]
-                  b_i = [1.0d0, 0.0d0, 0.0d0, 0.0d0]
+                  a_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
+                  c_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
+                  b_i = [1.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
                else if (flag_rk_order == 2) then
-                  a_i = [0.0d0, 1.0d0, 0.0d0, 0.0d0]
-                  c_i = [0.0d0, 1.0d0, 0.0d0, 0.0d0]
-                  b_i = [0.5d0, 0.5d0, 0.0d0, 0.0d0]
+                  a_i = [0.0_rp, 1.0_rp, 0.0_rp, 0.0_rp]
+                  c_i = [0.0_rp, 1.0_rp, 0.0_rp, 0.0_rp]
+                  b_i = [0.5_rp, 0.5_rp, 0.0_rp, 0.0_rp]
                else if (flag_rk_order == 3) then
                   write(1,*) "--| NOT CODED FOR RK3 YET!"
                   STOP(1)
                else if (flag_rk_order == 4) then
-                  a_i = [0.0d0, 0.5d0, 0.5d0, 1.0d0]
-                  c_i = [0.0d0, 0.5d0, 0.5d0, 1.0d0]
-                  b_i = [1.0d0/6.0d0, 1.0d0/3.0d0, 1.0d0/3.0d0, 1.0d0/6.0d0]
+                  a_i = [0.0_rp, 0.5_rp, 0.5_rp, 1.0_rp]
+                  c_i = [0.0_rp, 0.5_rp, 0.5_rp, 1.0_rp]
+                  b_i = [1.0_rp/6.0_rp, 1.0_rp/3.0_rp, 1.0_rp/3.0_rp, 1.0_rp/6.0_rp]
                else
                   write(1,*) "--| NOT CODED FOR RK > 4 YET!"
                   STOP(1)
@@ -111,25 +111,25 @@ module time_integ
             !
             call nvtxStartRange("Initialize variables")
             !$acc kernels
-            aux_rho(1:npoin) = 0.0d0
-            aux_u(1:npoin,1:ndime) = 0.0d0
-            aux_q(1:npoin,1:ndime) = 0.0d0
-            aux_pr(1:npoin) = 0.0d0
-            aux_E(1:npoin) = 0.0d0
-            aux_Tem(1:npoin) = 0.0d0
-            aux_e_int(1:npoin) = 0.0d0
-            aux_eta(1:npoin) = 0.0d0
-            Rdiff_mass(1:npoin) = 0.0d0
-            Rdiff_mom(1:npoin,1:ndime) = 0.0d0
-            Rdiff_ener(1:npoin) = 0.0d0
-            Rmass(1:npoin) = 0.0d0
-            Rmom(1:npoin,1:ndime) = 0.0d0
-            Rener(1:npoin) = 0.0d0
-            Reta(1:npoin) = 0.0d0
-            Rmass_sum(1:npoin) = 0.0d0
-            Rener_sum(1:npoin) = 0.0d0
-            Reta_sum(1:npoin) = 0.0d0
-            Rmom_sum(1:npoin,1:ndime) = 0.0d0
+            aux_rho(1:npoin) = 0.0_rp
+            aux_u(1:npoin,1:ndime) = 0.0_rp
+            aux_q(1:npoin,1:ndime) = 0.0_rp
+            aux_pr(1:npoin) = 0.0_rp
+            aux_E(1:npoin) = 0.0_rp
+            aux_Tem(1:npoin) = 0.0_rp
+            aux_e_int(1:npoin) = 0.0_rp
+            aux_eta(1:npoin) = 0.0_rp
+            Rdiff_mass(1:npoin) = 0.0_rp
+            Rdiff_mom(1:npoin,1:ndime) = 0.0_rp
+            Rdiff_ener(1:npoin) = 0.0_rp
+            Rmass(1:npoin) = 0.0_rp
+            Rmom(1:npoin,1:ndime) = 0.0_rp
+            Rener(1:npoin) = 0.0_rp
+            Reta(1:npoin) = 0.0_rp
+            Rmass_sum(1:npoin) = 0.0_rp
+            Rener_sum(1:npoin) = 0.0_rp
+            Reta_sum(1:npoin) = 0.0_rp
+            Rmom_sum(1:npoin,1:ndime) = 0.0_rp
             !$acc end kernels
             call nvtxEndRange
             !
@@ -163,8 +163,8 @@ module time_integ
                      aux_u(lpoin_w(ipoin),idime) = aux_q(lpoin_w(ipoin),idime)/aux_rho(lpoin_w(ipoin))
                   end do
                   aux_e_int(lpoin_w(ipoin)) = (aux_E(lpoin_w(ipoin))/aux_rho(lpoin_w(ipoin)))- &
-                     0.5d0*dot_product(aux_u(lpoin_w(ipoin),:),aux_u(lpoin_w(ipoin),:))
-                  aux_pr(lpoin_w(ipoin)) = aux_rho(lpoin_w(ipoin))*(gamma_gas-1.0d0)*aux_e_int(lpoin_w(ipoin))
+                     0.5_rp*dot_product(aux_u(lpoin_w(ipoin),:),aux_u(lpoin_w(ipoin),:))
+                  aux_pr(lpoin_w(ipoin)) = aux_rho(lpoin_w(ipoin))*(gamma_gas-1.0_rp)*aux_e_int(lpoin_w(ipoin))
                end do
                !$acc end parallel loop
                !
@@ -178,7 +178,7 @@ module time_integ
                !$acc parallel loop
                do ipoin = 1,npoin_w
                   aux_Tem(lpoin_w(ipoin)) = aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))*Rgas)
-                  aux_eta(lpoin_w(ipoin)) = (aux_rho(lpoin_w(ipoin))/(gamma_gas-1.0d0))* &
+                  aux_eta(lpoin_w(ipoin)) = (aux_rho(lpoin_w(ipoin))/(gamma_gas-1.0_rp))* &
                      log(aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))**gamma_gas))
                   !$acc loop seq
                   do idime = 1,ndime
@@ -341,7 +341,7 @@ module time_integ
                gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               umag = 0.0d0
+               umag = 0.0_rp
                !$acc loop seq
                do idime = 1,ndime
                   u(lpoin_w(ipoin),idime,pos) = q(lpoin_w(ipoin),idime,pos)/rho(lpoin_w(ipoin),pos)
@@ -349,8 +349,8 @@ module time_integ
                end do
                umag = sqrt(umag)
                e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &
-                  0.5d0*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
-               pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0d0)*e_int(lpoin_w(ipoin),pos)
+                  0.5_rp*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
+               pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0_rp)*e_int(lpoin_w(ipoin),pos)
                csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
                machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
             end do
@@ -358,14 +358,14 @@ module time_integ
 #else
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               umag = 0.0d0
+               umag = 0.0_rp
                !$acc loop seq
                do idime = 1,ndime
                   u(lpoin_w(ipoin),idime,pos) = q(lpoin_w(ipoin),idime,pos)/rho(lpoin_w(ipoin),pos)
                   umag = umag + u(lpoin_w(ipoin),idime,pos)**2
                end do
                umag = sqrt(umag)
-               pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0d0)*e_int(lpoin_w(ipoin),pos)
+               pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0_rp)*e_int(lpoin_w(ipoin),pos)
                csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
                machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
             end do
@@ -382,7 +382,7 @@ module time_integ
             !$acc parallel loop
             do ipoin = 1,npoin_w
                Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
-               eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0d0))* &
+               eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0_rp))* &
                   log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
             end do
             !$acc end parallel loop

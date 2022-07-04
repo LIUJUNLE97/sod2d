@@ -16,26 +16,26 @@ module mod_sgs_viscosity
                       implicit none
 
                       integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
-                      real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                      real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
-                      real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: rho(npoin), u(npoin,ndime),Ml(npoin)
-                      real(8),    intent(out) :: mu_sgs(nelem,ngaus)
+                      real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                      real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
+                      real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
+                      real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime),Ml(npoin)
+                      real(rp),    intent(out) :: mu_sgs(nelem,ngaus)
                       integer(4)              :: ielem, inode, igaus, kdime, idime, jdime
-                      real(8)                 :: hLES, evol,gpcar(ndime,nnode), aux, mue(npoin), ave(npoin)
-                      real(8)                 :: gradU(ndime,ndime),gradV2(ndime,ndime),Bbeta, alpha, tau, aux2
+                      real(rp)                 :: hLES, evol,gpcar(ndime,nnode), aux, mue(npoin), ave(npoin)
+                      real(rp)                 :: gradU(ndime,ndime),gradV2(ndime,ndime),Bbeta, alpha, tau, aux2
 
 
                       if (flag_SpectralElem == 0) then
 
                          !$acc parallel loop gang  private(gpcar,gradU,gradV2) vector_length(vecLength)
                          do ielem = 1,nelem
-                            evol = 0.0d0
+                            evol = 0.0_rp
                             !$acc loop vector reduction(+:evol)
                             do igaus = 1,ngaus
                                evol = evol + gpvol(1,igaus,ielem)
                             end do
-                            hLES = (evol**(1.0d0/3.0d0))/dble(porder)
+                            hLES = (evol**(1.0_rp/3.0_rp))/real(porder,rp)
                             !$acc loop seq
                             do igaus = 1,ngaus
                                !$acc loop seq
@@ -52,7 +52,7 @@ module mod_sgs_viscosity
                                do idime = 1,ndime
                                   !$acc loop seq
                                   do jdime = 1,ndime
-                                     aux = 0.0d0
+                                     aux = 0.0_rp
                                      !$acc loop vector reduction(+:aux)
                                      do inode = 1,nnode
                                         aux = aux+gpcar(jdime,inode)*u(connec(ielem,inode),idime)
@@ -60,11 +60,11 @@ module mod_sgs_viscosity
                                      gradU(idime,jdime) = aux
                                   end do
                                end do
-                               alpha = 0.0d0
+                               alpha = 0.0_rp
                                !$acc loop vector collapse(2)
                                do idime = 1, ndime
                                   do jdime = 1, ndime
-                                     gradV2(idime,jdime) = 0.0d0
+                                     gradV2(idime,jdime) = 0.0_rp
                                   end do
                                end do
 
@@ -84,7 +84,7 @@ module mod_sgs_viscosity
                                if(alpha > 1.0e-10) then
                                   mu_sgs(ielem,igaus) = c_sgs*sqrt(max(Bbeta,1.0e-10)/alpha)
                                else
-                                  mu_sgs(ielem,igaus) = 0.0d0
+                                  mu_sgs(ielem,igaus) = 0.0_rp
                                end if
                             end do
                          end do
@@ -93,10 +93,10 @@ module mod_sgs_viscosity
                       else
                          !$acc parallel loop gang  private(gpcar,gradU,gradV2) vector_length(vecLength)
                          do ielem = 1,nelem
-                            aux2 = 0.0d0
+                            aux2 = 0.0_rp
                             !$acc loop seq
                             do igaus = 1,ngaus
-                               hLES = (gpvol(1,igaus,ielem)**(1.0d0/3.0d0))
+                               hLES = (gpvol(1,igaus,ielem)**(1.0_rp/3.0_rp))
                                !$acc loop seq
                                do idime = 1,ndime
                                   !$acc loop vector
@@ -111,7 +111,7 @@ module mod_sgs_viscosity
                                do idime = 1,ndime
                                   !$acc loop seq
                                   do jdime = 1,ndime
-                                     aux = 0.0d0
+                                     aux = 0.0_rp
                                      !$acc loop vector reduction(+:aux)
                                      do inode = 1,nnode
                                         aux = aux+gpcar(jdime,inode)*u(connec(ielem,inode),idime)
@@ -119,11 +119,11 @@ module mod_sgs_viscosity
                                      gradU(idime,jdime) = aux
                                   end do
                                end do
-                               alpha = 0.0d0
+                               alpha = 0.0_rp
                                !$acc loop vector collapse(2)
                                do idime = 1, ndime
                                   do jdime = 1, ndime
-                                     gradV2(idime,jdime) = 0.0d0
+                                     gradV2(idime,jdime) = 0.0_rp
                                   end do
                                end do
 
@@ -144,7 +144,7 @@ module mod_sgs_viscosity
                                   aux2 = aux2 + c_sgs*sqrt(max(Bbeta,1.0e-10)/alpha)
                                end if
                             end do
-                            aux2 = aux2/dble(nnode)
+                            aux2 = aux2/real(nnode,rp)
                             !$acc loop vector
                             do inode = 1,nnode
                                mu_sgs(ielem,inode) = aux2

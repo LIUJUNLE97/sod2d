@@ -8,15 +8,15 @@ module quadrature_rules
 
                         implicit none
 
-                        real(8),    intent(out) :: xgp(ngaus,ndime), wgp(ngaus)
-                        real(8)                 :: q
+                        real(rp),    intent(out) :: xgp(ngaus,ndime), wgp(ngaus)
+                        real(rp)                 :: q
 
                         if (ngaus == 1) then
-                           xgp(1,1) = 0.0d0
-                           xgp(1,2) = 0.0d0
-                           wgp(1) = 4.0d0
+                           xgp(1,1) = 0.0_rp
+                           xgp(1,2) = 0.0_rp
+                           wgp(1) = 4.0_rp
                         else if (ngaus == 4) then
-                           q = 1.0d0/sqrt(3.0d0)
+                           q = 1.0_rp/sqrt(3.0_rp)
                            xgp(1,1) = -q
                            xgp(1,2) = -q
                            xgp(2,1) =  q
@@ -25,14 +25,14 @@ module quadrature_rules
                            xgp(3,2) =  q
                            xgp(4,1) = -q
                            xgp(4,2) =  q
-                           wgp(1) = 1.0d0
-                           wgp(2) = 1.0d0
-                           wgp(3) = 1.0d0
-                           wgp(4) = 1.0d0
+                           wgp(1) = 1.0_rp
+                           wgp(2) = 1.0_rp
+                           wgp(3) = 1.0_rp
+                           wgp(4) = 1.0_rp
                         else if (ngaus == 9) then
                            write(*,*) 'NOT CODED YET!'
-                           xgp = 0.0d0
-                           wgp = 0.0d0
+                           xgp = 0.0_rp
+                           wgp = 0.0_rp
                         end if
 
                 end subroutine gll_qua
@@ -41,16 +41,16 @@ module quadrature_rules
 
                         implicit none
 
-                        real(8),    intent(out) :: xgp(ngaus,ndime), wgp(ngaus)
-                        real(8)                 :: q, sl, s0, sr, ws, w0
+                        real(rp),    intent(out) :: xgp(ngaus,ndime), wgp(ngaus)
+                        real(rp)                 :: q, sl, s0, sr, ws, w0
 
                         if (ngaus == 1) then
-                           xgp(1,1) = 0.0d0
-                           xgp(1,2) = 0.0d0
-                           xgp(1,3) = 0.0d0
-                           wgp(1) = 4.0d0
+                           xgp(1,1) = 0.0_rp
+                           xgp(1,2) = 0.0_rp
+                           xgp(1,3) = 0.0_rp
+                           wgp(1) = 4.0_rp
                         else if (ngaus == 8) then
-                           q = 1.0d0/sqrt(3.0d0)
+                           q = 1.0_rp/sqrt(3.0_rp)
                            xgp(1,1) = -q ! xi
                            xgp(1,2) = -q ! eta
                            xgp(1,3) = -q ! zeta
@@ -75,18 +75,18 @@ module quadrature_rules
                            xgp(8,1) =  q
                            xgp(8,2) =  q
                            xgp(8,3) = -q
-                           wgp(1) = 1.0d0
-                           wgp(2) = 1.0d0
-                           wgp(3) = 1.0d0
-                           wgp(4) = 1.0d0
-                           wgp(5) = 1.0d0
-                           wgp(6) = 1.0d0
-                           wgp(7) = 1.0d0
-                           wgp(8) = 1.0d0
+                           wgp(1) = 1.0_rp
+                           wgp(2) = 1.0_rp
+                           wgp(3) = 1.0_rp
+                           wgp(4) = 1.0_rp
+                           wgp(5) = 1.0_rp
+                           wgp(6) = 1.0_rp
+                           wgp(7) = 1.0_rp
+                           wgp(8) = 1.0_rp
                         else if (ngaus == 27) then
-                           sl = -sqrt(0.6d0)
-                           s0 = 0.0d0
-                           sr = sqrt(0.6d0)
+                           sl = -sqrt(0.6_rp)
+                           s0 = 0.0_rp
+                           sr = sqrt(0.6_rp)
                            xgp(1,1:3) = [sl,sl,sl]
                            xgp(2,1:3) = [sl,sl,s0]
                            xgp(3,1:3) = [sl,sl,sr]
@@ -115,8 +115,8 @@ module quadrature_rules
                            xgp(26,1:3) = [sr,sr,s0]
                            xgp(27,1:3) = [sr,sr,sr]
 
-                           ws = 5.0d0/9.0d0
-                           w0 = 8.0d0/9.0d0
+                           ws = 5.0_rp/9.0_rp
+                           w0 = 8.0_rp/9.0_rp
                            wgp(1) = ws*ws*ws
                            wgp(2) = ws*ws*w0
                            wgp(3) = ws*ws*ws
@@ -146,8 +146,8 @@ module quadrature_rules
                            wgp(27) = ws*ws*ws
                         else if (ngaus == 64) then
                            write(*,*) 'NOT CODED YET!'
-                           xgp = 0.0d0
-                           wgp = 0.0d0
+                           xgp = 0.0_rp
+                           wgp = 0.0_rp
                         end if
 
                 end subroutine gll_hex
@@ -166,9 +166,9 @@ module quadrature_rules
                    implicit none
 
                    integer(4), intent(in)  :: atoIJK(ngaus)
-                   real(8),    intent(out) :: xgp(ngaus,ndime), wgp(ngaus)
+                   real(rp),    intent(out) :: xgp(ngaus,ndime), wgp(ngaus)
                    integer(4)              :: inode, i, j, k, lorder(porder+1)
-                   real(8)                 :: xi(porder+1),w1d(porder+1),w0,w1,w2,w3
+                   real(rp)                 :: xi(porder+1),w1d(porder+1),w0,w1,w2,w3
 
                    call chebyshev_roots(xi)
                    lorder(1) = 1
@@ -179,8 +179,8 @@ module quadrature_rules
 
 
                    if (porder == 3) then
-                      !w1d(1:4) = [1.0d0/9.0d0, 8.0d0/9.0d0, 8.0d0/9.0d0, 1.0d0/9.0d0]
-                      w1d(1:4) = [1.0d0/6.0d0, 5.0d0/6.0d0, 5.0d0/6.0d0, 1.0d0/6.0d0]
+                      !w1d(1:4) = [1.0_rp/9.0_rp, 8.0_rp/9.0_rp, 8.0_rp/9.0_rp, 1.0_rp/9.0_rp]
+                      w1d(1:4) = [1.0_rp/6.0_rp, 5.0_rp/6.0_rp, 5.0_rp/6.0_rp, 1.0_rp/6.0_rp]
                    else
                       STOP(1)
                    end if
@@ -263,10 +263,10 @@ module quadrature_rules
                   !   xgp(63,1:3) = [xi(3) , xi(3) , xi(3)]
                   !   xgp(64,1:3) = [xi(2) , xi(3) , xi(3)]
 
-                  !    w0 = 1.0d0/9.0d0
-                  !    w1 = 8.0d0/9.0d0
-                  !    w2 = 8.0d0/9.0d0
-                  !    w3 = 1.0d0/9.0d0
+                  !    w0 = 1.0_rp/9.0_rp
+                  !    w1 = 8.0_rp/9.0_rp
+                  !    w2 = 8.0_rp/9.0_rp
+                  !    w3 = 1.0_rp/9.0_rp
 
                   !    wgp( 1) = w0*w0*w0
                   !    wgp( 2) = w3*w0*w0

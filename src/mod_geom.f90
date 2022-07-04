@@ -11,10 +11,10 @@ module mod_geom
                  implicit none
 
                  integer(4), intent(in)  :: ielem, nelem, npoin, connec(nelem,nnode)
-                 real(8),    intent(in)  :: coord(npoin,ndime)
-                 real(8),    intent(out) :: he
+                 real(rp),    intent(in)  :: coord(npoin,ndime)
+                 real(rp),    intent(out) :: he
                  integer(4)              :: iedge, ncorner, nedge
-                 real(8)                 :: dist(12,ndime), dist2, aux
+                 real(rp)                 :: dist(12,ndime), dist2, aux
 
                  !
                  ! Compute r = x2-x1 for all element edges
@@ -42,7 +42,7 @@ module mod_geom
                  !
                  ! Obtain ||dist||_2 for all edges and select minimum size as elem. characteristic size
                  !
-                 dist2 = 1000000000000000000000000000000000000000000000000000000000000000000000.0d0
+                 dist2 = 1000000000000.0_rp
                  do iedge = 1,nedge
                     aux = sqrt(dot_product(dist(iedge,:),dist(iedge,:)))
                     dist2 = min(dist2,aux)
@@ -56,10 +56,10 @@ module mod_geom
                  implicit none
 
                  integer(4), intent(in)    :: ielem, nelem, npoin, connec(nelem,nnode)
-                 real(8),    intent(in)    :: coord(npoin,ndime), Ml(npoin)
-                 real(8),    intent(inout) :: he_l(nelem,nnode)
+                 real(rp),    intent(in)    :: coord(npoin,ndime), Ml(npoin)
+                 real(rp),    intent(inout) :: he_l(nelem,nnode)
                  integer(4)                :: inode, jnode,idime
-                 real(8)                   :: aux,dist(ndime),dist2
+                 real(rp)                   :: aux,dist(ndime),dist2
 
                  !
                  ! Compute r = x2-x1 for all element nodes
@@ -67,8 +67,8 @@ module mod_geom
                  !
                  ! Obtain ||dist||_2 for all edges and select minimum size as elem. characteristic size
                  !
-                 !aux = 0.0d0
-                 !aux = 1000000000000000000000000000000000000000000000000000000000000000000000.0d0
+                 !aux = 0.0_rp
+                 !aux = 1000000000000000000000000000000000000000000000000000000000000000000000.0_rp
                  !do inode = 1,nnode
                  !   do jnode = 1,nnode
                  !      if(inode .ne. jnode) then 
@@ -79,7 +79,7 @@ module mod_geom
                  !   end do
                  !end do
                  do inode = 1,nnode
-                    he_l(ielem,inode) = Ml(connec(ielem,inode))**(1.0d0/dble(ndime))
+                    he_l(ielem,inode) = Ml(connec(ielem,inode))**(1.0_rp/real(ndime,rp))
                  end do
          end subroutine char_length_spectral
 
@@ -171,10 +171,10 @@ module mod_geom
             implicit none
 
             integer(4), intent(in)  :: nelem,npoin,nboun,connec(nelem,nnode),bound(nboun,npbou),point2elem(npoin),atoIJK(nnode)
-            real(8), intent(in) :: coord(npoin,ndime)
+            real(rp), intent(in) :: coord(npoin,ndime)
             integer(4), intent(out) :: lnbn(nboun,npbou)
             integer(4)              :: ipoin, inode,ielem,bnode,ipbou,iboun,rnode,c,i,j,k,innode
-            real(8)                 :: dist2,aux,aux2
+            integer(4)              :: aux1, aux2
 
             !$acc parallel loop gang
             do iboun = 1,nboun
@@ -185,6 +185,7 @@ module mod_geom
                   !$acc loop seq
                   do inode = 1,nnode
                      if(connec(ielem,inode) .eq. bnode) then 
+                        aux1=inode
                         exit
                      end if
                   end do
@@ -194,16 +195,16 @@ module mod_geom
                      do i = 1,porder+1
                         do j = 1,porder+1
                            c = c+1
-                           if(atoIJK(c) .eq. inode) then
+                           if(atoIJK(c) .eq. aux1) then
+                              aux2=c
                               exit outer
                            end if
                         end do
                      end do
                   end do outer
 
-                  lnbn(iboun,ipbou) = connec(ielem,atoIJK(c+8))
-                  !lnbn(iboun,ipbou) = connec(ielem,atoIJK(c+12))
-                  !lnbn(iboun,ipbou) = bnode
+                  !lnbn(iboun,ipbou) = connec(ielem,atoIJK(aux2+8))
+                  lnbn(iboun,ipbou) = connec(ielem,atoIJK(64))
                end do
             end do
             !$acc end parallel loop

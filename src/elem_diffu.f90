@@ -16,24 +16,24 @@ module elem_diffu
 
                       integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
-                      real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                      real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
-                      real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: rho(npoin), mu_e(nelem,ngaus)
-                      real(8),    intent(out) :: Rmass(npoin)
+                      real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                      real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
+                      real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
+                      real(rp),    intent(in)  :: rho(npoin), mu_e(nelem,ngaus)
+                      real(rp),    intent(out) :: Rmass(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime
-                      real(8)                 :: Re(nnode), nu_e
-                      real(8)                 :: tmp1, gpcar(ndime,nnode), tmp2
+                      real(rp)                 :: Re(nnode), nu_e
+                      real(rp)                 :: tmp1, gpcar(ndime,nnode), tmp2
 
                       call nvtxStartRange("Mass diffusion")
                       !$acc kernels
-                      Rmass(:) = 0.0d0
+                      Rmass(:) = 0.0_rp
                       !$acc end kernels
                       !$acc parallel loop gang  private(gpcar,Re) vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
-                            Re(inode) = 0.0d0
+                            Re(inode) = 0.0_rp
                          end do
                          !$acc loop seq
                          do igaus = 1,ngaus
@@ -46,8 +46,8 @@ module elem_diffu
                             end do
                            !$acc loop seq
                            do idime = 1,ndime
-                              tmp1 = 0.0d0
-                              tmp2 = 0.0d0
+                              tmp1 = 0.0_rp
+                              tmp2 = 0.0_rp
                               !$acc loop vector reduction(+:tmp1,tmp2)
                               do inode = 1,nnode
                                  tmp1 = tmp1+gpcar(idime,inode)*rho(connec(ielem,inode))
@@ -81,27 +81,27 @@ module elem_diffu
 
                       integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
-                      real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                      real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
-                      real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: u(npoin,ndime),mu_e(nelem,ngaus),mu_sgs(nelem,ngaus)
-                      real(8),    intent(in)  :: mu_fluid(npoin)
-                      real(8),    intent(out) :: Rmom(npoin,ndime)
+                      real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                      real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
+                      real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
+                      real(rp),    intent(in)  :: u(npoin,ndime),mu_e(nelem,ngaus),mu_sgs(nelem,ngaus)
+                      real(rp),    intent(in)  :: mu_fluid(npoin)
+                      real(rp),    intent(out) :: Rmom(npoin,ndime)
                       integer(4)              :: ielem, igaus, idime, jdime, inode, jnode
-                      real(8)                 :: Re(nnode,ndime), twoThirds, gpcar(ndime,nnode), tau(ndime,ndime)
-                      real(8)                 :: divU, gradU(ndime,ndime), mu_fgp, aux
+                      real(rp)                 :: Re(nnode,ndime), twoThirds, gpcar(ndime,nnode), tau(ndime,ndime)
+                      real(rp)                 :: divU, gradU(ndime,ndime), mu_fgp, aux
 
-                      twoThirds = 2.0d0/3.0d0
+                      twoThirds = 2.0_rp/3.0_rp
                       call nvtxStartRange("Momentum diffusion")
                       !$acc kernels
-                      Rmom(:,:) = 0.0d0
+                      Rmom(:,:) = 0.0_rp
                       !$acc end kernels
                       !$acc parallel loop gang  private(Re,gpcar,tau,gradU) vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector collapse(2)
                          do inode = 1,nnode
                             do idime = 1,ndime
-                               Re(inode,idime) = 0.0d0
+                               Re(inode,idime) = 0.0_rp
                             end do
                          end do
                          !
@@ -126,7 +126,7 @@ module elem_diffu
                             !
                             ! Compute combined viscosity at Gauss point
                             !
-                            mu_fgp = 0.0d0
+                            mu_fgp = 0.0_rp
                             !$acc loop vector reduction(+:mu_fgp)
                             do inode = 1,nnode
                                mu_fgp = mu_fgp+(Ngp(igaus,inode)*mu_fluid(connec(ielem,inode)))
@@ -139,7 +139,7 @@ module elem_diffu
                             do idime = 1,ndime
                                !$acc loop seq
                                do jdime = 1,ndime
-                                  aux = 0.0d0
+                                  aux = 0.0_rp
                                   !$acc loop vector reduction(+:aux)
                                   do inode = 1,nnode
                                      aux = aux+gpcar(jdime,inode)*u(connec(ielem,inode),idime)
@@ -150,7 +150,7 @@ module elem_diffu
                             !
                             ! Compute div(u)
                             !
-                            divU = 0.0d0
+                            divU = 0.0_rp
                             ! divU = gradU(1,1)+gradU(2,2)+gradU(3,3)
                             !$acc loop seq
                             do idime = 1,ndime
@@ -158,7 +158,7 @@ module elem_diffu
                             end do
 
                             ! TODO: Remove this
-                            !divU = 0.0d0
+                            !divU = 0.0_rp
                             !!$acc loop vector collapse(2) reduction(+:divU)
                             !do idime = 1,ndime
                             !   do inode = 1,nnode
@@ -202,7 +202,7 @@ module elem_diffu
                          do inode = 1,nnode
                             do idime = 1,ndime
                                !$acc atomic update
-                               Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)+1.0d0*Re(inode,idime)
+                               Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)+1.0_rp*Re(inode,idime)
                                !$acc end atomic
                             end do
                          end do
@@ -218,26 +218,26 @@ module elem_diffu
 
                       integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
-                      real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                      real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
-                      real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
-                      real(8),    intent(in)  :: mu_fluid(npoin)
-                      real(8),    intent(out) :: Rener(npoin)
+                      real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                      real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
+                      real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
+                      real(rp),    intent(in)  :: u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
+                      real(rp),    intent(in)  :: mu_fluid(npoin)
+                      real(rp),    intent(out) :: Rener(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime
-                      real(8)                 :: Re(nnode), kappa_e, mu_fgp, aux, divU, tauU(ndime), twoThirds
-                      real(8)                 :: gpcar(ndime,nnode), gradU(ndime,ndime), gradT(ndime)
+                      real(rp)                 :: Re(nnode), kappa_e, mu_fgp, aux, divU, tauU(ndime), twoThirds
+                      real(rp)                 :: gpcar(ndime,nnode), gradU(ndime,ndime), gradT(ndime)
 
                       call nvtxStartRange("Energy diffusion")
-                      twoThirds = 2.0d0/3.0d0
+                      twoThirds = 2.0_rp/3.0_rp
                       !$acc kernels
-                      Rener(:) = 0.0d0
+                      Rener(:) = 0.0_rp
                       !$acc end kernels
                       !$acc parallel loop gang  private(Re,gpcar,gradU,gradT,tauU)  vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
-                            Re(inode) = 0.0d0
+                            Re(inode) = 0.0_rp
                          end do
                          !$acc loop seq
                          do igaus = 1,ngaus
@@ -251,12 +251,12 @@ module elem_diffu
                             !
                             ! Compute viscosity and conductivity at Gauss point
                             !
-                            mu_fgp = 0.0d0
+                            mu_fgp = 0.0_rp
                             !$acc loop vector reduction(+:mu_fgp)
                             do inode = 1,nnode
                                mu_fgp = mu_fgp+(Ngp(igaus,inode)*mu_fluid(connec(ielem,inode)))
                             end do
-                            kappa_e =mu_fgp*1004.0d0/0.71d0+c_ener*mu_e(ielem,igaus)/0.4d0 + mu_sgs(ielem,igaus)/0.9d0
+                            kappa_e =mu_fgp*1004.0_rp/0.71_rp+c_ener*mu_e(ielem,igaus)/0.4_rp + mu_sgs(ielem,igaus)/0.9_rp
                             mu_fgp = mu_fgp+mu_e(ielem,igaus)
                             !
                             ! Compute grad(U)
@@ -265,7 +265,7 @@ module elem_diffu
                             do idime = 1,ndime
                                !$acc loop seq
                                do jdime = 1,ndime
-                                  aux = 0.0d0
+                                  aux = 0.0_rp
                                   !$acc loop vector reduction(+:aux)
                                   do inode = 1,nnode
                                      aux = aux+gpcar(jdime,inode)*u(connec(ielem,inode),idime)
@@ -275,14 +275,14 @@ module elem_diffu
                             end do
                             !
                             ! Compute div(u)
-                            divU = 0.0d0
+                            divU = 0.0_rp
                             !$acc loop seq
                             do idime = 1,ndime
                                divU = divU+gradU(idime,idime)
                             end do
 
                             ! TODO: Remove this lines
-                            !divU = 0.0d0
+                            !divU = 0.0_rp
                             !!$acc loop vector collapse(2) reduction(+:divU)
                             !do idime = 1,ndime
                             !   do inode = 1,nnode
@@ -295,10 +295,10 @@ module elem_diffu
                             !
                             !$acc loop seq
                             do idime = 1,ndime
-                               tauU(idime) = 0.0d0
+                               tauU(idime) = 0.0_rp
                                !$acc loop seq
                                do jdime = 1,ndime
-                                  aux = 0.0d0
+                                  aux = 0.0_rp
                                   !$acc loop vector reduction(+:aux)
                                   do inode = 1,nnode
                                      aux = aux+Ngp(igaus,inode)*u(connec(ielem,inode),jdime)
@@ -306,7 +306,7 @@ module elem_diffu
                                   tauU(idime) = tauU(idime) + &
                                      gradU(idime,jdime)*aux + gradU(jdime,idime)*aux
                                end do
-                               aux = 0.0d0
+                               aux = 0.0_rp
                                !$acc loop vector reduction(+:aux)
                                do inode = 1,nnode
                                   aux = aux+Ngp(igaus,inode)*u(connec(ielem,inode),idime)
@@ -318,7 +318,7 @@ module elem_diffu
                             !
                             !$acc loop seq
                             do idime = 1,ndime
-                               aux = 0.0d0
+                               aux = 0.0_rp
                                !$acc loop vector reduction(+:aux)
                                do inode = 1,nnode
                                   aux = aux+gpcar(idime,inode)*Tem(connec(ielem,inode))
@@ -340,7 +340,7 @@ module elem_diffu
                          !$acc loop vector
                          do inode = 1,nnode
                             !$acc atomic update
-                            Rener(connec(ielem,inode)) = Rener(connec(ielem,inode))+1.0d0*Re(inode)
+                            Rener(connec(ielem,inode)) = Rener(connec(ielem,inode))+1.0_rp*Re(inode)
                             !$acc end atomic
                          end do
                       end do
@@ -354,34 +354,34 @@ module elem_diffu
 
                       integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
-                      real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                      real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
-                      real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: Cp,Pr,rho(npoin),u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus),Ml(npoin)
-                      real(8),    intent(in)  :: mu_fluid(npoin)
-                      real(8),    intent(out) :: Rmass(npoin)
-                      real(8),    intent(out) :: Rmom(npoin,ndime)
-                      real(8),    intent(out) :: Rener(npoin)
+                      real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                      real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
+                      real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
+                      real(rp),    intent(in)  :: Cp,Pr,rho(npoin),u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus),Ml(npoin)
+                      real(rp),    intent(in)  :: mu_fluid(npoin)
+                      real(rp),    intent(out) :: Rmass(npoin)
+                      real(rp),    intent(out) :: Rmom(npoin,ndime)
+                      real(rp),    intent(out) :: Rener(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime
-                      real(8)                 :: Re_mass(nnode),Re_mom(nnode,ndime),Re_ener(nnode)
-                      real(8)                 :: kappa_e, mu_fgp, mu_egp,aux, divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
-                      real(8)                 :: gpcar(ndime,nnode), gradU(ndime,ndime), gradT(ndime),tmp1,ugp(ndime),vol,arho
-                      real(8)                 :: ul(nnode,ndime), rhol(nnode),Teml(nnode),mufluidl(nnode), aux2
+                      real(rp)                 :: Re_mass(nnode),Re_mom(nnode,ndime),Re_ener(nnode)
+                      real(rp)                 :: kappa_e, mu_fgp, mu_egp,aux, divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
+                      real(rp)                 :: gpcar(ndime,nnode), gradU(ndime,ndime), gradT(ndime),tmp1,ugp(ndime),vol,arho
+                      real(rp)                 :: ul(nnode,ndime), rhol(nnode),Teml(nnode),mufluidl(nnode), aux2
 
                       call nvtxStartRange("Full diffusion")
-                      twoThirds = 2.0d0/3.0d0
+                      twoThirds = 2.0_rp/3.0_rp
                       !$acc kernels
-                      Rmass(:) = 0.0d0
-                      Rmom(:,:) = 0.0d0
-                      Rener(:) = 0.0d0
+                      Rmass(:) = 0.0_rp
+                      Rmom(:,:) = 0.0_rp
+                      Rener(:) = 0.0_rp
                       !$acc end kernels
 
                       !$acc parallel loop gang  private(ul,Teml,rhol,mufluidl,Re_mass,Re_mom,Re_ener) !!vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
-                            Re_mass(inode) = 0.0d0
-                            Re_ener(inode) = 0.0d0
+                            Re_mass(inode) = 0.0_rp
+                            Re_ener(inode) = 0.0_rp
                             rhol(inode) = rho(connec(ielem,inode))
                             Teml(inode) = Tem(connec(ielem,inode))
                             mufluidl(inode) = mu_fluid(connec(ielem,inode))
@@ -389,7 +389,7 @@ module elem_diffu
                          !$acc loop vector collapse(2)
                          do inode = 1,nnode
                             do idime = 1,ndime
-                               Re_mom(inode,idime) = 0.0d0
+                               Re_mom(inode,idime) = 0.0_rp
                                ul(inode,idime) = u(connec(ielem,inode),idime)
                             end do
                          end do
@@ -407,7 +407,7 @@ module elem_diffu
                             nu_e = c_rho*mu_e(ielem,igaus)/rhol(igaus)
                             mu_fgp = mufluidl(igaus)+rhol(igaus)*mu_sgs(ielem,igaus)
                             mu_egp = mu_e(ielem,igaus)
-                            kappa_e =mufluidl(igaus)*Cp/Pr+c_ener*mu_e(ielem,igaus)/0.4d0 + rhol(igaus)*mu_sgs(ielem,igaus)/0.9d0
+                            kappa_e =mufluidl(igaus)*Cp/Pr+c_ener*mu_e(ielem,igaus)/0.4_rp + rhol(igaus)*mu_sgs(ielem,igaus)/0.9_rp
                             !
                             ! Compute grad(u)
                             !
@@ -415,7 +415,7 @@ module elem_diffu
                             do idime = 1,ndime
                                !$acc loop seq
                                do jdime = 1,ndime
-                                  aux = 0.0d0
+                                  aux = 0.0_rp
                                   !$acc loop vector reduction(+:aux)
                                   do inode = 1,nnode
                                      aux = aux+gpcar(jdime,inode)*ul(inode,idime)
@@ -433,7 +433,7 @@ module elem_diffu
                             !
                             !$acc loop seq
                             do idime = 1,ndime
-                               tauU(idime) = 0.0d0
+                               tauU(idime) = 0.0_rp
                                !$acc loop seq
                                do jdime = 1,ndime
                                   tauU(idime) = tauU(idime) + &
@@ -449,8 +449,8 @@ module elem_diffu
                             ! Compute div(tau) at the Gauss point
                             !$acc loop seq
                             do idime = 1,ndime
-                               tmp1 = 0.0d0
-                               aux = 0.0d0
+                               tmp1 = 0.0_rp
+                               aux = 0.0_rp
                                !$acc loop vector reduction(+:tmp1,aux)
                                do inode = 1,nnode
                                   tmp1 = tmp1+gpcar(idime,inode)*rhol(inode)
@@ -506,30 +506,30 @@ module elem_diffu
 
                       integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
-                      real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                      real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
-                      real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
+                      real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                      real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
+                      real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
                       integer(4), intent(in)  :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-                      real(8),    intent(in)  :: Cp,Pr,rho(npoin),u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus),Ml(npoin)
-                      real(8),    intent(in)  :: mu_fluid(npoin)
-                      real(8),    intent(out) :: Rmass(npoin)
-                      real(8),    intent(out) :: Rmom(npoin,ndime)
-                      real(8),    intent(out) :: Rener(npoin)
+                      real(rp),    intent(in)  :: Cp,Pr,rho(npoin),u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus),Ml(npoin)
+                      real(rp),    intent(in)  :: mu_fluid(npoin)
+                      real(rp),    intent(out) :: Rmass(npoin)
+                      real(rp),    intent(out) :: Rmom(npoin,ndime)
+                      real(rp),    intent(out) :: Rener(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
-                      real(8)                 :: kappa_e, mu_fgp, mu_egp,divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
-                      real(8)                 :: gradU(ndime,ndime), gradT(ndime),tmp1,vol,arho
-                      real(8)                 :: gradIsoRho(ndime),gradIsoT(ndime),gradIsoU(ndime,ndime)
-                      real(8)                 :: gradRho(ndime),divDm(ndime),divDr,divDe
-                      real(8)                 :: ul(nnode,ndime), rhol(nnode),Teml(nnode),mufluidl(nnode)
-                      real(8)                 :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
-                      real(8)                 :: gradTl(nnode,ndime),gradRhol(nnode,ndime),tauUl(nnode,ndime)
+                      real(rp)                 :: kappa_e, mu_fgp, mu_egp,divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
+                      real(rp)                 :: gradU(ndime,ndime), gradT(ndime),tmp1,vol,arho
+                      real(rp)                 :: gradIsoRho(ndime),gradIsoT(ndime),gradIsoU(ndime,ndime)
+                      real(rp)                 :: gradRho(ndime),divDm(ndime),divDr,divDe
+                      real(rp)                 :: ul(nnode,ndime), rhol(nnode),Teml(nnode),mufluidl(nnode)
+                      real(rp)                 :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
+                      real(rp)                 :: gradTl(nnode,ndime),gradRhol(nnode,ndime),tauUl(nnode,ndime)
 
                       call nvtxStartRange("Full diffusion")
-                      twoThirds = 2.0d0/3.0d0
+                      twoThirds = 2.0_rp/3.0_rp
                       !$acc kernels
-                      Rmass(:) = 0.0d0
-                      Rmom(:,:) = 0.0d0
-                      Rener(:) = 0.0d0
+                      Rmass(:) = 0.0_rp
+                      Rmom(:,:) = 0.0_rp
+                      Rener(:) = 0.0_rp
                       !$acc end kernels
 
                       !$acc parallel loop gang  private(ul,Teml,rhol,mufluidl,gradRhol,gradTl,tauUl,tauXl,tauYl,tauZl)
@@ -546,27 +546,27 @@ module elem_diffu
                                ul(inode,idime) = u(connec(ielem,inode),idime)
                             end do
                          end do
-                         tauXl(:,:) = 0.0d0
-                         tauYl(:,:) = 0.0d0
-                         tauZl(:,:) = 0.0d0
-                         gradTl(:,:) = 0.0d0
-                         gradRhol(:,:) = 0.0d0
-                         tauUl(:,:) = 0.0d0
+                         tauXl(:,:) = 0.0_rp
+                         tauYl(:,:) = 0.0_rp
+                         tauZl(:,:) = 0.0_rp
+                         gradTl(:,:) = 0.0_rp
+                         gradRhol(:,:) = 0.0_rp
+                         tauUl(:,:) = 0.0_rp
 
                          !$acc loop vector private(tau,gradU,gradT,tauU,gradIsoRho,gradIsoT,gradIsoU,gradRho,divU)
                          do igaus = 1,ngaus
                             nu_e = c_rho*mu_e(ielem,igaus)/rhol(igaus)
                             mu_fgp = mufluidl(igaus)+rhol(igaus)*mu_sgs(ielem,igaus)
                             mu_egp = mu_e(ielem,igaus)
-                            kappa_e =mufluidl(igaus)*Cp/Pr+c_ener*mu_e(ielem,igaus)/0.4d0 + rhol(igaus)*mu_sgs(ielem,igaus)/0.9d0
+                            kappa_e =mufluidl(igaus)*Cp/Pr+c_ener*mu_e(ielem,igaus)/0.4_rp + rhol(igaus)*mu_sgs(ielem,igaus)/0.9_rp
 
                             isoI = gmshAtoI(igaus) 
                             isoJ = gmshAtoJ(igaus) 
                             isoK = gmshAtoK(igaus) 
 
-                            gradIsoRho(:) = 0.0d0
-                            gradIsoT(:) = 0.0d0
-                            gradIsoU(:,:) = 0.0d0
+                            gradIsoRho(:) = 0.0_rp
+                            gradIsoT(:) = 0.0_rp
+                            gradIsoU(:,:) = 0.0_rp
                             !$acc loop seq
                             do ii=1,porder+1
                                gradIsoRho(1) = gradIsoRho(1) + dlxigp_ip(igaus,1,ii)*rhol(invAtoIJK(ii,isoJ,isoK))
@@ -585,9 +585,9 @@ module elem_diffu
                                end do
                             end do
 
-                            gradRho(:) = 0.0d0
-                            gradT(:) = 0.0d0
-                            gradU(:,:) = 0.0d0
+                            gradRho(:) = 0.0_rp
+                            gradT(:) = 0.0_rp
+                            gradU(:,:) = 0.0_rp
                             !$acc loop seq
                             do idime=1, ndime
                                !$acc loop seq
@@ -603,7 +603,7 @@ module elem_diffu
 
                             divU = gradU(1,1)+gradU(2,2)+gradU(3,3)
 
-                            tauU(:) = 0.0d0
+                            tauU(:) = 0.0_rp
                             !$acc loop seq
                             do idime = 1,ndime
                                !$acc loop seq
@@ -632,15 +632,15 @@ module elem_diffu
                             nu_e = c_rho*mu_e(ielem,igaus)/rhol(igaus)
                             mu_fgp = mufluidl(igaus)+rhol(igaus)*mu_sgs(ielem,igaus)
                             mu_egp = mu_e(ielem,igaus)
-                            kappa_e =mufluidl(igaus)*Cp/Pr+c_ener*mu_e(ielem,igaus)/0.4d0 + rhol(igaus)*mu_sgs(ielem,igaus)/0.9d0
+                            kappa_e =mufluidl(igaus)*Cp/Pr+c_ener*mu_e(ielem,igaus)/0.4_rp + rhol(igaus)*mu_sgs(ielem,igaus)/0.9_rp
 
                             isoI = gmshAtoI(igaus) 
                             isoJ = gmshAtoJ(igaus) 
                             isoK = gmshAtoK(igaus) 
 
-                            divDe = 0.0d0
-                            divDr = 0.0d0
-                            divDm(:) = 0.0d0
+                            divDe = 0.0_rp
+                            divDr = 0.0_rp
+                            divDm(:) = 0.0_rp
                             
                             !$acc loop seq
                             do ii=1,porder+1
