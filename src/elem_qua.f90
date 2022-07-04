@@ -8,24 +8,24 @@ module elem_qua
 
                         implicit none
 
-                        real(8), intent(in)  :: s, t
-                        real(8), intent(out) :: N(4), dN(2,4)
+                        real(rp), intent(in)  :: s, t
+                        real(rp), intent(out) :: N(4), dN(2,4)
 
-                        N(1) = (1.0d0-s)*(1.0d0-t)
-                        N(2) = (1.0d0+s)*(1.0d0-t)
-                        N(3) = (1.0d0+s)*(1.0d0+t)
-                        N(4) = (1.0d0-s)*(1.0d0+t)
-                        N = 0.25d0*N
+                        N(1) = (1.0_rp-s)*(1.0_rp-t)
+                        N(2) = (1.0_rp+s)*(1.0_rp-t)
+                        N(3) = (1.0_rp+s)*(1.0_rp+t)
+                        N(4) = (1.0_rp-s)*(1.0_rp+t)
+                        N = 0.25_rp*N
 
-                        dN(1,1) = -1.0d0+t
-                        dN(2,1) = -1.0d0+s
-                        dN(1,2) =  1.0d0-t
-                        dN(2,2) = -1.0d0-s
-                        dN(1,3) =  1.0d0+t
-                        dN(2,3) =  1.0d0+s
-                        dN(1,4) = -1.0d0-t
-                        dN(2,4) =  1.0d0-s
-                        dN = 0.25d0*dN
+                        dN(1,1) = -1.0_rp+t
+                        dN(2,1) = -1.0_rp+s
+                        dN(1,2) =  1.0_rp-t
+                        dN(2,2) = -1.0_rp-s
+                        dN(1,3) =  1.0_rp+t
+                        dN(2,3) =  1.0_rp+s
+                        dN(1,4) = -1.0_rp-t
+                        dN(2,4) =  1.0_rp-s
+                        dN = 0.25_rp*dN
 
                 end subroutine qua04
 
@@ -35,24 +35,24 @@ module elem_qua
 
                         implicit none
 
-                        real(8), intent(in)  :: s, t
-                        real(8), intent(out) :: N(9), dN(2,9)
+                        real(rp), intent(in)  :: s, t
+                        real(rp), intent(out) :: N(9), dN(2,9)
 
-                        N(1) = (1.0d0-s)*(1.0d0-t)
-                        N(2) = (1.0d0+s)*(1.0d0-t)
-                        N(3) = (1.0d0+s)*(1.0d0+t)
-                        N(4) = (1.0d0-s)*(1.0d0+t)
-                        N = 0.25d0*N
+                        N(1) = (1.0_rp-s)*(1.0_rp-t)
+                        N(2) = (1.0_rp+s)*(1.0_rp-t)
+                        N(3) = (1.0_rp+s)*(1.0_rp+t)
+                        N(4) = (1.0_rp-s)*(1.0_rp+t)
+                        N = 0.25_rp*N
 
-                        dN(1,1) = -1.0d0+t
-                        dN(2,1) = -1.0d0+s
-                        dN(1,2) =  1.0d0-t
-                        dN(2,2) = -1.0d0-s
-                        dN(1,3) =  1.0d0+t
-                        dN(2,3) =  1.0d0+s
-                        dN(1,4) = -1.0d0-t
-                        dN(2,4) =  1.0d0-s
-                        dN = 0.25d0*dN
+                        dN(1,1) = -1.0_rp+t
+                        dN(2,1) = -1.0_rp+s
+                        dN(1,2) =  1.0_rp-t
+                        dN(2,2) = -1.0_rp-s
+                        dN(1,3) =  1.0_rp+t
+                        dN(2,3) =  1.0_rp+s
+                        dN(1,4) = -1.0_rp-t
+                        dN(2,4) =  1.0_rp-s
+                        dN = 0.25_rp*dN
 
                 end subroutine qua09
 
@@ -62,11 +62,11 @@ module elem_qua
 
                         integer(4), intent(in)            :: ielem, nelem, npoin
                         integer(4), intent(in)            :: connec(nelem,nnode)
-                        real(8),    intent(in)            :: coord(npoin,ndime)
+                        real(rp),    intent(in)            :: coord(npoin,ndime)
                         integer(4), intent(out)           :: ncorner, nedge
-                        real(8),    intent(out)           :: dist(4,ndime)
+                        real(rp),    intent(out)           :: dist(4,ndime)
                         integer(4)                        :: ind(nnode)
-                        real(8)                           :: xp(4,ndime)
+                        real(rp)                           :: xp(4,ndime)
 
                         ind = connec(ielem,:)
                         ncorner = 4

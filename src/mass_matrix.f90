@@ -18,18 +18,18 @@ module mass_matrix
 
                       integer(4), intent(in)           :: nelem, npoin, nzdom
                       integer(4), intent(in)           :: connec(nelem,nnode), rdom(npoin+1), cdom(nzdom)
-                      real(8),    intent(in)           :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
-                      real(8),    intent(in), optional :: weight(npoin)
-                      real(8),    intent(out)          :: Mc(nzdom)
+                      real(rp),    intent(in)           :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
+                      real(rp),    intent(in), optional :: weight(npoin)
+                      real(rp),    intent(out)          :: Mc(nzdom)
                       integer(4)                       :: ielem, igaus, inode, jnode, lnode(nnode), izdom, ipoin, jpoin
                       integer(4)                       :: jzdom, rowb, rowe
-                      real(8)                          :: Me(nnode,nnode), el_w(nnode), tmp
+                      real(rp)                          :: Me(nnode,nnode), el_w(nnode), tmp
 
                       !
                       ! Initialize Mc to zeros
                       !
                       call nvtxStartRange("Mass Matrix")
-                      Mc = 0.0d0
+                      Mc = 0.0_rp
 
                       !
                       ! Loop over all elements to form Mc_e(nnode,nnode)
@@ -39,14 +39,14 @@ module mass_matrix
                          if(present(weight))then
                             el_w(1:nnode) = weight(lnode)
                          else
-                            el_w(:) = 1.0d0
+                            el_w(:) = 1.0_rp
                          end if
 
                          !
                          ! Form Mc_e with Gaussian quadrature (open)
                          !
                          call nvtxStartRange("Elemental Matrix")
-                         Me = 0.0d0
+                         Me = 0.0_rp
                          do igaus = 1,ngaus ! Loop over Gauss points
                             tmp = dot_product(Ngp(igaus,:),el_w(:))
                             do inode = 1,nnode ! Loop over element nodes (row)
@@ -89,20 +89,20 @@ module mass_matrix
 
                       integer(4), intent(in)           :: nelem, npoin
                       integer(4), intent(in)           :: connec(nelem,nnode)
-                      real(8),    intent(in)           :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
-                      real(8),    intent(out)          :: Ml(npoin)
+                      real(rp),    intent(in)           :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
+                      real(rp),    intent(out)          :: Ml(npoin)
                       integer(4)                       :: ielem, igaus, inode, jnode
-                      real(8)                          :: Me(nnode), alpha, aux1, aux2, el_w(nnode), T,d
+                      real(rp)                          :: Me(nnode), alpha, aux1, aux2, el_w(nnode), T,d
 
                       !$acc kernels
-                      Ml(:) = 0.0d0
+                      Ml(:) = 0.0_rp
                       !$acc end kernels
 #if 1
                       !$acc parallel loop gang private(Me) vector_length(vecLength)
                       do ielem = 1,nelem
-                         Me = 0.0d0
-                         aux1 = 0.0d0
-                         aux2 = 0.0d0
+                         Me = 0.0_rp
+                         aux1 = 0.0_rp
+                         aux2 = 0.0_rp
                          !
                          ! tr[Mc] and int(detJe)
                          !
@@ -137,7 +137,7 @@ module mass_matrix
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
-                            Me(inode) = 0.0d0
+                            Me(inode) = 0.0_rp
                          end do
                          !$acc loop seq
                          do igaus = 1,ngaus
@@ -165,12 +165,12 @@ module mass_matrix
                  implicit none
 
                  integer(4), intent(in)  :: nelem,npoin, connec(nelem,nnode)
-                 real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                 real(8),    intent(out) :: Ml(npoin)
+                 real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
+                 real(rp),    intent(out) :: Ml(npoin)
                  integer(4)              :: ielem, inode
 
                  !$acc kernels
-                 Ml(:) = 0.0d0
+                 Ml(:) = 0.0_rp
                  !$acc end kernels
                  !$acc parallel loop gang vector_length(vecLength)
                  do ielem = 1,nelem
@@ -191,31 +191,31 @@ module mass_matrix
 
                       integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
-                      real(8),    intent(in)  :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode), v(npoin)
-                      real(8),    intent(out) :: Rmc(npoin)
+                      real(rp),    intent(in)  :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode), v(npoin)
+                      real(rp),    intent(out) :: Rmc(npoin)
                       integer(4)              :: ielem, igaus, inode
-                      real(8)                 :: Re(nnode), tmp2
+                      real(rp)                 :: Re(nnode), tmp2
 
                       !
                       ! Initialize Mc to zeros
                       !
                       call nvtxStartRange("Cmass times vector")
                       !$acc kernels
-                      Rmc(:) = 0.0d0
+                      Rmc(:) = 0.0_rp
                       !$acc end kernels
 
                       !$acc parallel loop gang private(Re) vector_length(vecLength)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
-                            Re(inode) = 0.0d0
+                            Re(inode) = 0.0_rp
                          end do
                          !
                          ! Form Re with Gaussian quadrature (open)
                          !
                          !$acc loop seq
                          do igaus = 1,ngaus ! Loop over Gauss points
-                            tmp2 = 0.0d0
+                            tmp2 = 0.0_rp
                             !$acc loop vector reduction(+:tmp2)
                             do inode = 1,nnode
                                tmp2 = tmp2+Ngp(igaus,inode)*v(connec(ielem,inode)) 
@@ -244,18 +244,18 @@ module mass_matrix
 
                       integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
-                      real(8),    intent(in)  :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode), v(npoin)
-                      real(8),    intent(in)  :: weight(npoin)
-                      real(8),    intent(out) :: Rmc(npoin)
+                      real(rp),    intent(in)  :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode), v(npoin)
+                      real(rp),    intent(in)  :: weight(npoin)
+                      real(rp),    intent(out) :: Rmc(npoin)
                       integer(4)              :: ielem, igaus, inode
-                      real(8)                 :: Re(nnode), tmp1, tmp2
+                      real(rp)                 :: Re(nnode), tmp1, tmp2
 
                       !
                       ! Initialize Mc to zeros
                       !
                       call nvtxStartRange("Cmass times vector")
                       !$acc kernels
-                      Rmc(:) = 0.0d0
+                      Rmc(:) = 0.0_rp
                       !$acc end kernels
 
                       !
@@ -265,15 +265,15 @@ module mass_matrix
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
-                            Re(inode) = 0.0d0
+                            Re(inode) = 0.0_rp
                          end do
                          !
                          ! Form Re with Gaussian quadrature (open)
                          !
                          !$acc loop seq
                          do igaus = 1,ngaus ! Loop over Gauss points
-                            tmp1 = 0.0d0
-                            tmp2 = 0.0d0
+                            tmp1 = 0.0_rp
+                            tmp2 = 0.0_rp
                             !$acc loop vector reduction(+:tmp1,tmp2)
                             do inode = 1,nnode
                                tmp1 = tmp1+Ngp(igaus,inode)*weight(connec(ielem,inode)) 

@@ -9,19 +9,19 @@ contains
       implicit none
 
       integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode), lelpn(npoin)
-      real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dNgp(ndime,nnode,ngaus)
-      real(8),    intent(in)  :: rho(npoin), u(npoin,ndime)
-      real(8),    intent(in)  :: leviCivi(ndime,ndime,ndime)
-      real(8),    intent(out) :: gradRho(npoin,ndime), curlU(npoin,ndime), divU(npoin), Qcrit(npoin)
+      real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dNgp(ndime,nnode,ngaus)
+      real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime)
+      real(rp),    intent(in)  :: leviCivi(ndime,ndime,ndime)
+      real(rp),    intent(out) :: gradRho(npoin,ndime), curlU(npoin,ndime), divU(npoin), Qcrit(npoin)
       integer(4)              :: ielem, idime, inode, igaus, ipoin, jdime, kdime
-      real(8)                 :: gpcar(ndime,nnode), rho_e(nnode), u_e(nnode,ndime), aux1, aux2
-      real(8)                 :: gradu_e(ndime,ndime)
+      real(rp)                 :: gpcar(ndime,nnode), rho_e(nnode), u_e(nnode,ndime), aux1, aux2
+      real(rp)                 :: gradu_e(ndime,ndime)
 
       !$acc kernels
-      divU(:) = 0.0d0
-      gradRho(:,:) = 0.0d0
-      curlU(:,:) = 0.0d0
-      Qcrit(:) = 0.0d0
+      divU(:) = 0.0_rp
+      gradRho(:,:) = 0.0_rp
+      curlU(:,:) = 0.0_rp
+      Qcrit(:) = 0.0_rp
       !$acc end kernels
       !$acc parallel loop gang private(rho_e,u_e)
       do ielem = 1,nelem
@@ -42,14 +42,14 @@ contains
             end do
             !$acc loop seq
             do idime = 1,ndime
-               aux1 = 0.0d0
+               aux1 = 0.0_rp
                !$acc loop vector reduction(+:aux1)
                do inode = 1,nnode
                   aux1 = aux1+gpcar(idime,inode)*rho_e(inode)
                end do
                !$acc loop seq
                do jdime = 1,ndime
-                  aux2 = 0.0d0
+                  aux2 = 0.0_rp
                   !$acc loop vector reduction(+:aux2)
                   do inode = 1,nnode
                      aux2 = aux2+gpcar(jdime,inode)*u_e(inode,idime)
@@ -80,7 +80,7 @@ contains
                      !$$acc end atomic update
                   end do
                   !$acc atomic update
-                  Qcrit(connec(ielem,igaus)) = Qcrit(connec(ielem,igaus))-0.5d0*(gradu_e(idime,jdime)*gradu_e(jdime,idime))
+                  Qcrit(connec(ielem,igaus)) = Qcrit(connec(ielem,igaus))-0.5_rp*(gradu_e(idime,jdime)*gradu_e(jdime,idime))
                   !$acc end atomic
                end do
             end do
@@ -92,11 +92,11 @@ contains
       do ipoin = 1,npoin
          !$acc loop seq
          do idime = 1,ndime
-            gradRho(ipoin,idime) = gradRho(ipoin,idime)/dble(lelpn(ipoin))
-            curlU(ipoin,idime) = curlU(ipoin,idime)/dble(lelpn(ipoin))
+            gradRho(ipoin,idime) = gradRho(ipoin,idime)/real(lelpn(ipoin),rp)
+            curlU(ipoin,idime) = curlU(ipoin,idime)/real(lelpn(ipoin),rp)
          end do
-         divU(ipoin) = divU(ipoin)/dble(lelpn(ipoin))
-         Qcrit(ipoin) = Qcrit(ipoin)/dble(lelpn(ipoin))
+         divU(ipoin) = divU(ipoin)/real(lelpn(ipoin),rp)
+         Qcrit(ipoin) = Qcrit(ipoin)/real(lelpn(ipoin),rp)
       end do
       !$acc end parallel loop
 

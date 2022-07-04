@@ -15,17 +15,17 @@ module jacobian_oper
 
                         integer(4), intent(in)  :: nelem, npoin
                         integer(4), intent(in)  :: connec(nelem,nnode)
-                        real(8),    intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
-                        real(8),    intent(out) :: gpvol(1,ngaus,nelem), He(ndime,ndime,ngaus,nelem)
+                        real(rp),    intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
+                        real(rp),    intent(out) :: gpvol(1,ngaus,nelem), He(ndime,ndime,ngaus,nelem)
                         integer(4)              :: idime, jdime, inode, ielem, igaus
-                        real(8)                 :: Je(ndime,ndime), a(9), b(9)
+                        real(rp)                 :: Je(ndime,ndime), a(9), b(9)
 
                         !
                         ! Initialize He and gpvol
                         !
                         !$acc kernels
-                        He(:,:,:,:) = 0.0d0
-                        gpvol(:,:,:) = 0.0d0
+                        He(:,:,:,:) = 0.0_rp
+                        gpvol(:,:,:) = 0.0_rp
                         !$acc end kernels
 
                         !
@@ -44,7 +44,7 @@ module jacobian_oper
                               !$acc loop vector collapse(2)
                               do idime = 1,ndime
                                  do jdime = 1,ndime
-                                    Je(idime,jdime) = 0.0d0
+                                    Je(idime,jdime) = 0.0_rp
                                  end do
                               end do
                               !$acc loop vector collapse(2)
@@ -65,7 +65,7 @@ module jacobian_oper
                                  !$acc loop vector collapse(2)
                                  do idime = 1,ndime
                                     do jdime = 1,ndime
-                                       He(idime,jdime,igaus,ielem) = (1.0d0/gpvol(1,igaus,ielem))*He(idime,jdime,igaus,ielem)
+                                       He(idime,jdime,igaus,ielem) = (1.0_rp/gpvol(1,igaus,ielem))*He(idime,jdime,igaus,ielem)
                                     end do
                                  end do
                                  gpvol(1,igaus,ielem) = wgp(igaus)*gpvol(1,igaus,ielem)
@@ -113,7 +113,7 @@ module jacobian_oper
                                  !
                                  !$acc loop seq
                                  do idime = 1,9
-                                    b(idime) = (1.0d0/gpvol(1,igaus,ielem))*b(idime)
+                                    b(idime) = (1.0_rp/gpvol(1,igaus,ielem))*b(idime)
                                  end do
 
                                  !
@@ -142,8 +142,8 @@ module jacobian_oper
 
                         implicit none
 
-                        real(8)   , intent(in)  :: dN(ndime,nnode), He(ndime,ndime)
-                        real(8)   , intent(out) :: dxN(ndime,nnode)
+                        real(rp)   , intent(in)  :: dN(ndime,nnode), He(ndime,ndime)
+                        real(rp)   , intent(out) :: dxN(ndime,nnode)
 
                         if (ndime ==2) then
                            dxN(1,:) = He(1,1)*dN(1,:)+He(1,2)*dN(2,:)

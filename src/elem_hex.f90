@@ -9,8 +9,8 @@ module elem_hex
 
          implicit none
          
-         real(8), intent(in)  :: xi, eta, zeta
-         real(8), intent(out) :: N(8), dN(3,8)
+         real(rp), intent(in)  :: xi, eta, zeta
+         real(rp), intent(out) :: N(8), dN(3,8)
 
          ! Regarding coordinates for the isopar space:
          ! xi is left to right (-1,1)
@@ -19,48 +19,48 @@ module elem_hex
          ! These are like the Gmsh (x,y,z) system.
          ! These will apply to all orders of HEX
 
-         N(1) = (1.0d0-xi)*(1.0d0-eta)*(1.0d0-zeta)
-         N(2) = (1.0d0-xi)*(1.0d0-eta)*(1.0d0+zeta)
-         N(3) = (1.0d0+xi)*(1.0d0-eta)*(1.0d0+zeta)
-         N(4) = (1.0d0+xi)*(1.0d0-eta)*(1.0d0-zeta)
-         N(5) = (1.0d0-xi)*(1.0d0+eta)*(1.0d0-zeta)
-         N(6) = (1.0d0-xi)*(1.0d0+eta)*(1.0d0+zeta)
-         N(7) = (1.0d0+xi)*(1.0d0+eta)*(1.0d0+zeta)
-         N(8) = (1.0d0+xi)*(1.0d0+eta)*(1.0d0-zeta)
-         N = 0.125d0*N
+         N(1) = (1.0_rp-xi)*(1.0_rp-eta)*(1.0_rp-zeta)
+         N(2) = (1.0_rp-xi)*(1.0_rp-eta)*(1.0_rp+zeta)
+         N(3) = (1.0_rp+xi)*(1.0_rp-eta)*(1.0_rp+zeta)
+         N(4) = (1.0_rp+xi)*(1.0_rp-eta)*(1.0_rp-zeta)
+         N(5) = (1.0_rp-xi)*(1.0_rp+eta)*(1.0_rp-zeta)
+         N(6) = (1.0_rp-xi)*(1.0_rp+eta)*(1.0_rp+zeta)
+         N(7) = (1.0_rp+xi)*(1.0_rp+eta)*(1.0_rp+zeta)
+         N(8) = (1.0_rp+xi)*(1.0_rp+eta)*(1.0_rp-zeta)
+         N = 0.125_rp*N
          
-         dN(1,1) = -(1.0d0-eta)*(1.0d0-zeta)
-         dN(2,1) = -(1.0d0-xi )*(1.0d0-zeta)
-         dN(3,1) = -(1.0d0-xi )*(1.0d0-eta )
+         dN(1,1) = -(1.0_rp-eta)*(1.0_rp-zeta)
+         dN(2,1) = -(1.0_rp-xi )*(1.0_rp-zeta)
+         dN(3,1) = -(1.0_rp-xi )*(1.0_rp-eta )
 
-         dN(1,2) = -(1.0d0-eta)*(1.0d0+zeta)
-         dN(2,2) = -(1.0d0-xi )*(1.0d0+zeta)
-         dN(3,2) =  (1.0d0-xi )*(1.0d0-eta )
+         dN(1,2) = -(1.0_rp-eta)*(1.0_rp+zeta)
+         dN(2,2) = -(1.0_rp-xi )*(1.0_rp+zeta)
+         dN(3,2) =  (1.0_rp-xi )*(1.0_rp-eta )
 
-         dN(1,3) =  (1.0d0-eta)*(1.0d0+zeta)
-         dN(2,3) = -(1.0d0+xi )*(1.0d0+zeta)
-         dN(3,3) =  (1.0d0+xi )*(1.0d0-eta )
+         dN(1,3) =  (1.0_rp-eta)*(1.0_rp+zeta)
+         dN(2,3) = -(1.0_rp+xi )*(1.0_rp+zeta)
+         dN(3,3) =  (1.0_rp+xi )*(1.0_rp-eta )
 
-         dN(1,4) =  (1.0d0-eta)*(1.0d0-zeta)
-         dN(2,4) = -(1.0d0+xi )*(1.0d0-zeta)
-         dN(3,4) = -(1.0d0+xi )*(1.0d0-eta )
+         dN(1,4) =  (1.0_rp-eta)*(1.0_rp-zeta)
+         dN(2,4) = -(1.0_rp+xi )*(1.0_rp-zeta)
+         dN(3,4) = -(1.0_rp+xi )*(1.0_rp-eta )
 
-         dN(1,5) = -(1.0d0+eta)*(1.0d0-zeta)
-         dN(2,5) =  (1.0d0-xi )*(1.0d0-zeta)
-         dN(3,5) = -(1.0d0-xi )*(1.0d0+eta )
+         dN(1,5) = -(1.0_rp+eta)*(1.0_rp-zeta)
+         dN(2,5) =  (1.0_rp-xi )*(1.0_rp-zeta)
+         dN(3,5) = -(1.0_rp-xi )*(1.0_rp+eta )
 
-         dN(1,6) = -(1.0d0+eta)*(1.0d0+zeta)
-         dN(2,6) =  (1.0d0-xi )*(1.0d0+zeta)
-         dN(3,6) =  (1.0d0-xi )*(1.0d0+eta )
+         dN(1,6) = -(1.0_rp+eta)*(1.0_rp+zeta)
+         dN(2,6) =  (1.0_rp-xi )*(1.0_rp+zeta)
+         dN(3,6) =  (1.0_rp-xi )*(1.0_rp+eta )
 
-         dN(1,7) =  (1.0d0+eta)*(1.0d0+zeta)
-         dN(2,7) =  (1.0d0+xi )*(1.0d0+zeta)
-         dN(3,7) =  (1.0d0+xi )*(1.0d0+eta )
+         dN(1,7) =  (1.0_rp+eta)*(1.0_rp+zeta)
+         dN(2,7) =  (1.0_rp+xi )*(1.0_rp+zeta)
+         dN(3,7) =  (1.0_rp+xi )*(1.0_rp+eta )
 
-         dN(1,8) =  (1.0d0+eta)*(1.0d0-zeta)
-         dN(2,8) =  (1.0d0+xi )*(1.0d0-zeta)
-         dN(3,8) = -(1.0d0+xi )*(1.0d0+eta )
-         dN = 0.125d0*dN
+         dN(1,8) =  (1.0_rp+eta)*(1.0_rp-zeta)
+         dN(2,8) =  (1.0_rp+xi )*(1.0_rp-zeta)
+         dN(3,8) = -(1.0_rp+xi )*(1.0_rp+eta )
+         dN = 0.125_rp*dN
 
       end subroutine hex08
       
@@ -68,40 +68,40 @@ module elem_hex
 
          implicit none
          
-         real(8), intent(in)  :: xi, eta, zeta
-         real(8), intent(out) :: N(27), dN(3,27)
-         real(8)              :: n1xi, n2xi, n3xi
-         real(8)              :: n1eta, n2eta, n3eta
-         real(8)              :: n1zeta, n2zeta, n3zeta
-         real(8)              :: dn1xi, dn2xi, dn3xi
-         real(8)              :: dn1eta, dn2eta, dn3eta
-         real(8)              :: dn1zeta, dn2zeta, dn3zeta
+         real(rp), intent(in)  :: xi, eta, zeta
+         real(rp), intent(out) :: N(27), dN(3,27)
+         real(rp)              :: n1xi, n2xi, n3xi
+         real(rp)              :: n1eta, n2eta, n3eta
+         real(rp)              :: n1zeta, n2zeta, n3zeta
+         real(rp)              :: dn1xi, dn2xi, dn3xi
+         real(rp)              :: dn1eta, dn2eta, dn3eta
+         real(rp)              :: dn1zeta, dn2zeta, dn3zeta
 
          !
          ! Triquadratic brick
          !        
 
          ! 1D quadratic functions for xi, eta, zeta
-         n1xi   = 0.5d0*xi*(xi-1.0d0)
-         n1eta  = 0.5d0*eta*(eta-1.0d0)
-         n1zeta = 0.5d0*zeta*(zeta-1.0d0)
-         n2xi   = 1.0d0-xi*xi
-         n2eta  = 1.0d0-eta*eta
-         n2zeta = 1.0d0-zeta*zeta
-         n3xi   = 0.5d0*xi*(xi+1.0d0)
-         n3eta  = 0.5d0*eta*(eta+1.0d0)
-         n3zeta = 0.5d0*zeta*(zeta+1.0d0)
+         n1xi   = 0.5_rp*xi*(xi-1.0_rp)
+         n1eta  = 0.5_rp*eta*(eta-1.0_rp)
+         n1zeta = 0.5_rp*zeta*(zeta-1.0_rp)
+         n2xi   = 1.0_rp-xi*xi
+         n2eta  = 1.0_rp-eta*eta
+         n2zeta = 1.0_rp-zeta*zeta
+         n3xi   = 0.5_rp*xi*(xi+1.0_rp)
+         n3eta  = 0.5_rp*eta*(eta+1.0_rp)
+         n3zeta = 0.5_rp*zeta*(zeta+1.0_rp)
 
          ! 1D quadratic function derivatives for xi, eta, zeta
-         dn1xi   = 0.5d0*(2.0d0*xi-1.0d0)
-         dn1eta  = 0.5d0*(2.0d0*eta-1.0d0)
-         dn1zeta = 0.5d0*(2.0d0*zeta-1.0d0)
-         dn2xi   = -2.0d0*xi
-         dn2eta  = -2.0d0*eta
-         dn2zeta = -2.0d0*zeta
-         dn3xi   = 0.5d0*(2.0d0*xi+1.0d0)
-         dn3eta  = 0.5d0*(2.0d0*eta+1.0d0)
-         dn3zeta = 0.5d0*(2.0d0*zeta+1.0d0)
+         dn1xi   = 0.5_rp*(2.0_rp*xi-1.0_rp)
+         dn1eta  = 0.5_rp*(2.0_rp*eta-1.0_rp)
+         dn1zeta = 0.5_rp*(2.0_rp*zeta-1.0_rp)
+         dn2xi   = -2.0_rp*xi
+         dn2eta  = -2.0_rp*eta
+         dn2zeta = -2.0_rp*zeta
+         dn3xi   = 0.5_rp*(2.0_rp*xi+1.0_rp)
+         dn3eta  = 0.5_rp*(2.0_rp*eta+1.0_rp)
+         dn3zeta = 0.5_rp*(2.0_rp*zeta+1.0_rp)
 
          !
          ! Shape functions
@@ -296,10 +296,10 @@ module elem_hex
 
          integer(4), optional, intent(out) :: listHEX08(27,8)
          integer(4),           intent(out) :: atoIJK(64), vtk_atoIJK(64)
-         real(8),              intent(in)  :: xi, eta, zeta
-         real(8),    optional, intent(out) :: N(nnode), dN(ndime,nnode),dlxigp_ip(ndime,porder+1)
-         real(8),    optional, intent(out) :: N_lagrange(nnode), dN_lagrange(ndime,nnode)
-         real(8)                           :: xi_grid(porder+1)
+         real(rp),              intent(in)  :: xi, eta, zeta
+         real(rp),    optional, intent(out) :: N(nnode), dN(ndime,nnode),dlxigp_ip(ndime,porder+1)
+         real(rp),    optional, intent(out) :: N_lagrange(nnode), dN_lagrange(ndime,nnode)
+         real(rp)                           :: xi_grid(porder+1)
 
          atoIJK = [1,4,11,12,2,3,15,16,9,20,33,34,10,19,36,35, &
                    5,8,27,28,6,7,29,30,25,32,53,56,26,31,54,55, &
@@ -360,11 +360,11 @@ module elem_hex
          
          integer(4), intent(in)            :: ielem, nelem, npoin
          integer(4), intent(in)            :: connec(nelem,nnode)
-         real(8),    intent(in)            :: coord(npoin,ndime)
+         real(rp),    intent(in)            :: coord(npoin,ndime)
          integer(4), intent(out)           :: ncorner, nedge
-         real(8),    intent(out)           :: dist(12,ndime)
+         real(rp),    intent(out)           :: dist(12,ndime)
          integer(4)                        :: ind(nnode)
-         real(8)                           :: xp(12,ndime)
+         real(rp)                           :: xp(12,ndime)
          
          ind = connec(ielem,:)
          ncorner = 8

@@ -26,20 +26,20 @@ module elem_convec
 
                       integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
-                      real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                      real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
-                      real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: q(npoin,ndime)
-                      real(8),    intent(in)  :: rho(npoin)
-                      real(8),    intent(in)  :: u(npoin,ndime)
-                      real(8),    intent(out) :: Rmass(npoin)
+                      real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                      real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
+                      real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
+                      real(rp),    intent(in)  :: q(npoin,ndime)
+                      real(rp),    intent(in)  :: rho(npoin)
+                      real(rp),    intent(in)  :: u(npoin,ndime)
+                      real(rp),    intent(out) :: Rmass(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime
-                      real(8)                 :: Re(nnode)
-                      real(8)                 :: tmp1,gpcar(ndime,nnode),tmp2,tmp3,tmp4
+                      real(rp)                 :: Re(nnode)
+                      real(rp)                 :: tmp1,gpcar(ndime,nnode),tmp2,tmp3,tmp4
 
                       call nvtxStartRange("Mass Convection")
                       !$acc kernels
-                      Rmass(:) = 0.0d0
+                      Rmass(:) = 0.0_rp
                       !$acc end kernels
 
                       if (flag_SpectralElem == 0) then
@@ -47,14 +47,14 @@ module elem_convec
                          do ielem = 1,nelem
                             !$acc loop vector
                             do inode = 1,nnode
-                               Re(inode) = 0.0d0
+                               Re(inode) = 0.0_rp
                             end do
                             !
                             ! Quadrature
                             !
                             !$acc loop seq
                             do igaus = 1,ngaus
-                               tmp1 = 0.0d0
+                               tmp1 = 0.0_rp
                                !$acc loop seq
                                do idime = 1,ndime
                                   !$acc loop vector
@@ -101,12 +101,12 @@ module elem_convec
                                      gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
                                   end do
                                end do
-                               tmp1 = 0.0d0
-                               tmp2 = 0.0d0
-                               tmp4 = 0.0d0
+                               tmp1 = 0.0_rp
+                               tmp2 = 0.0_rp
+                               tmp4 = 0.0_rp
                                !$acc loop seq
                                do idime = 1,ndime
-                                  tmp3 = 0.0d0
+                                  tmp3 = 0.0_rp
                                   !$acc loop vector reduction(+:tmp1,tmp2,tmp3)
                                   do inode = 1,nnode
                                      tmp1 = tmp1+(gpcar(idime,inode)*q(connec(ielem,inode),idime))
@@ -116,7 +116,7 @@ module elem_convec
                                   tmp4 = tmp4 + u(connec(ielem,igaus),idime)*tmp3
                                end do
                                !Re(igaus) = gpvol(1,igaus,ielem)*tmp1
-                               Re(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp2*rho(connec(ielem,igaus))+tmp4)
+                               Re(igaus) = gpvol(1,igaus,ielem)*0.5_rp*(tmp1+tmp2*rho(connec(ielem,igaus))+tmp4)
                             end do
                             !
                             ! Assembly
@@ -147,19 +147,19 @@ module elem_convec
 
                  integer(4), intent(in)  :: nelem, npoin
                  integer(4), intent(in)  :: connec(nelem,nnode)
-                 real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                 real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
-                 real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                 real(8),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), rho(npoin),pr(npoin)
-                 real(8),    intent(out) :: Rmom(npoin,ndime)
+                 real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                 real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
+                 real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
+                 real(rp),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), rho(npoin),pr(npoin)
+                 real(rp),    intent(out) :: Rmom(npoin,ndime)
                  integer(4)              :: ielem, igaus, idime, jdime, inode
-                 real(8)                 :: Re(nnode,ndime), aux, divU,gradQ(ndime, ndime)
-                 real(8)                 :: tmp1(ndime), tmp2(ndime), gpcar(ndime,nnode)
-                 real(8)                 :: aux2,aux3,aux4,aux5
+                 real(rp)                 :: Re(nnode,ndime), aux, divU,gradQ(ndime, ndime)
+                 real(rp)                 :: tmp1(ndime), tmp2(ndime), gpcar(ndime,nnode)
+                 real(rp)                 :: aux2,aux3,aux4,aux5
 
                  call nvtxStartRange("Momentum convection")
                  !$acc kernels
-                 Rmom(:,:) = 0.0d0
+                 Rmom(:,:) = 0.0_rp
                  !$acc end kernels
 
                  if (flag_SpectralElem == 0) then
@@ -168,7 +168,7 @@ module elem_convec
                        !$acc loop vector collapse(2)
                        do inode = 1,nnode
                           do idime = 1,ndime
-                             Re(inode,idime) = 0.0d0
+                             Re(inode,idime) = 0.0_rp
                           end do
                        end do
                        !$acc loop seq
@@ -182,7 +182,7 @@ module elem_convec
                           end do
                           !$acc loop seq
                           do idime = 1,ndime
-                             aux = 0.0d0
+                             aux = 0.0_rp
                              !$acc loop seq
                              do jdime = 1,ndime
                                 !$acc loop vector reduction(+:aux)
@@ -194,7 +194,7 @@ module elem_convec
                           end do
                           !$acc loop seq
                           do idime = 1,ndime
-                             aux = 0.0d0
+                             aux = 0.0_rp
                              !$acc loop vector reduction(+:aux)
                              do inode = 1,nnode
                                 aux = aux+gpcar(idime,inode)*pr(connec(ielem,inode))
@@ -235,13 +235,13 @@ module elem_convec
                           end do
                           !$acc loop seq
                           do idime = 1,ndime
-                             aux  = 0.0d0
-                             aux3  = 0.0d0
-                             aux4  = 0.0d0
-                             aux5  = 0.0d0
+                             aux  = 0.0_rp
+                             aux3  = 0.0_rp
+                             aux4  = 0.0_rp
+                             aux5  = 0.0_rp
                              !$acc loop seq
                              do jdime = 1,ndime
-                                aux2  = 0.0d0
+                                aux2  = 0.0_rp
                                 !$acc loop vector reduction(+:aux,aux2,aux3)
                                 do inode = 1,nnode
                                    aux = aux  +gpcar(jdime,inode)*(q(connec(ielem,inode),idime)*u(connec(ielem,inode),jdime))
@@ -251,11 +251,11 @@ module elem_convec
                                 end do
                                 aux4 = aux4+q(connec(ielem,igaus),jdime)*aux2
                              end do
-                             tmp1(idime) = 0.5d0*(aux+q(connec(ielem,igaus),idime)*aux3+aux4+u(connec(ielem,igaus),idime)*aux5)
+                             tmp1(idime) = 0.5_rp*(aux+q(connec(ielem,igaus),idime)*aux3+aux4+u(connec(ielem,igaus),idime)*aux5)
                           end do
                           !$acc loop seq
                           do idime = 1,ndime
-                             aux = 0.0d0
+                             aux = 0.0_rp
                              !$acc loop vector reduction(+:aux)
                              do inode = 1,nnode
                                 aux = aux+gpcar(idime,inode)*pr(connec(ielem,inode))
@@ -297,14 +297,14 @@ module elem_convec
 
                  integer(4), intent(in)  :: nelem,npoin
                  integer(4), intent(in)  :: connec(nelem,nnode)
-                 real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                 real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
-                 real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                 real(8),    intent(in)  :: Aemac(npoin,ndime), Femac(npoin), pr(npoin)
-                 real(8),    intent(out) :: Rmom(npoin,ndime)
+                 real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                 real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
+                 real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
+                 real(rp),    intent(in)  :: Aemac(npoin,ndime), Femac(npoin), pr(npoin)
+                 real(rp),    intent(out) :: Rmom(npoin,ndime)
                  integer(4)              :: ielem, igaus, idime, jdime, inode,jnode, kdime
-                 real(8)                 :: Re(nnode,ndime), tmp(ndime),gpA(ndime),aux2
-                 real(8)                 :: gpcar(ndime,nnode), gradA(ndime,ndime), divA, aux
+                 real(rp)                 :: Re(nnode,ndime), tmp(ndime),gpA(ndime),aux2
+                 real(rp)                 :: gpcar(ndime,nnode), gradA(ndime,ndime), divA, aux
 
                  call nvtxStartRange("EMAC Momentum convection")
 
@@ -312,7 +312,7 @@ module elem_convec
                  ! Start global RHS
                  !
                  !$acc kernels
-                 Rmom(:,:) = 0.0d0
+                 Rmom(:,:) = 0.0_rp
                  !$acc end kernels
 
                  if (flag_SpectralElem == 0) then
@@ -326,7 +326,7 @@ module elem_convec
                        !$acc loop vector collapse(2)
                        do idime = 1,ndime
                           do inode = 1,nnode
-                             Re(inode,idime) = 0.0d0
+                             Re(inode,idime) = 0.0_rp
                           end do
                        end do
                        !
@@ -351,14 +351,14 @@ module elem_convec
                           do idime = 1,ndime
                              !$acc loop seq
                              do jdime = 1,ndime
-                                aux = 0.0d0
+                                aux = 0.0_rp
                                 !$acc loop vector reduction(+:aux)
                                 do inode = 1,nnode
                                    aux = aux+gpcar(jdime,inode)*Aemac(connec(ielem,inode),idime)
                                 end do
                                 gradA(idime,jdime) = aux
                              end do
-                             aux = 0.0d0
+                             aux = 0.0_rp
                              !$acc loop vector reduction(+:aux)
                              do inode = 1,nnode
                                 aux = aux+Ngp(igaus,inode)*Aemac(connec(ielem,inode),idime)
@@ -376,7 +376,7 @@ module elem_convec
                           !
                                !$acc loop seq
                                do idime = 1,ndime
-                                  tmp(idime) = 0.0d0
+                                  tmp(idime) = 0.0_rp
                                   !$acc loop seq
                                   do jdime = 1,ndime
                                      tmp(idime) = tmp(idime) + (gradA(idime,jdime)+gradA(jdime,idime))*gpA(jdime)
@@ -388,12 +388,12 @@ module elem_convec
                                !
                                 !$acc loop seq
                                 do idime = 1,ndime
-                                   aux = 0.0d0
+                                   aux = 0.0_rp
                                    !$acc loop vector reduction(+:aux)
                                    do inode = 1,nnode
                                       aux = aux+gpcar(idime,inode)*Femac(connec(ielem,inode))
                                    end do
-                                   tmp(idime) = tmp(idime)-0.5d0*aux
+                                   tmp(idime) = tmp(idime)-0.5_rp*aux
                                 end do
 
                                !
@@ -401,7 +401,7 @@ module elem_convec
                                !
                                !$acc loop seq
                                do idime = 1,ndime
-                                  aux = 0.0d0
+                                  aux = 0.0_rp
                                   !$acc loop vector reduction(+:aux)
                                   do inode = 1,nnode
                                      aux = aux+gpcar(idime,inode)*pr(connec(ielem,inode))
@@ -455,7 +455,7 @@ module elem_convec
                                do idime = 1,ndime
                                   !$acc loop seq
                                   do jdime = 1,ndime
-                                     aux = 0.0d0
+                                     aux = 0.0_rp
                                      !$acc loop vector reduction(+:aux)
                                      do inode = 1,nnode
                                         aux = aux+gpcar(jdime,inode)*Aemac(connec(ielem,inode),idime)
@@ -475,7 +475,7 @@ module elem_convec
                                !
                                !$acc loop seq
                                do idime = 1,ndime
-                                  tmp(idime) = 0.0d0
+                                  tmp(idime) = 0.0_rp
                                   !$acc loop seq
                                   do jdime = 1,ndime
                                      tmp(idime) = tmp(idime) + (gradA(idime,jdime)+gradA(jdime,idime))*gpA(jdime)
@@ -488,10 +488,10 @@ module elem_convec
                                !
                                !$acc loop seq
                                do idime = 1,ndime
-                                  aux = 0.0d0
+                                  aux = 0.0_rp
                                   !$acc loop vector reduction(+:aux)
                                   do inode = 1,nnode
-                                     aux = aux+gpcar(idime,inode)*(pr(connec(ielem,inode))-0.5d0*Femac(connec(ielem,inode)))
+                                     aux = aux+gpcar(idime,inode)*(pr(connec(ielem,inode))-0.5_rp*Femac(connec(ielem,inode)))
                                   end do
                                   tmp(idime) = tmp(idime) + aux
                                end do
@@ -532,25 +532,25 @@ module elem_convec
 
                       integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
-                      real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                      real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
-                      real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: u(npoin,ndime), pr(npoin), E(npoin), rho(npoin),q(npoin,ndime)
-                      real(8),    intent(out) :: Rener(npoin)
+                      real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                      real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
+                      real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
+                      real(rp),    intent(in)  :: u(npoin,ndime), pr(npoin), E(npoin), rho(npoin),q(npoin,ndime)
+                      real(rp),    intent(out) :: Rener(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, ipoin, jdime
-                      real(8)                 :: Re(nnode), aux
-                      real(8)                 :: tmp1,gpcar(ndime,nnode),tmp2,tmp3,tmp4,tmp5
+                      real(rp)                 :: Re(nnode), aux
+                      real(rp)                 :: tmp1,gpcar(ndime,nnode),tmp2,tmp3,tmp4,tmp5
 
                       call nvtxStartRange("Energy Convection")
                       !$acc kernels
-                      Rener(:) = 0.0d0
+                      Rener(:) = 0.0_rp
                       !$acc end kernels
                       if (flag_SpectralElem == 0) then
                          !$acc parallel loop gang  private(Re,gpcar) vector_length(vecLength)
                          do ielem = 1,nelem
                             !$acc loop vector
                             do inode = 1,nnode
-                               Re(inode) = 0.0d0
+                               Re(inode) = 0.0_rp
                             end do
                             !$acc loop seq
                             do igaus = 1,ngaus
@@ -561,7 +561,7 @@ module elem_convec
                                      gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
                                   end do
                                end do
-                               tmp1 = 0.0d0
+                               tmp1 = 0.0_rp
                                !$acc loop vector collapse(2) reduction(+:tmp1)
                                do idime = 1,ndime
                                   do inode = 1,nnode
@@ -598,13 +598,13 @@ module elem_convec
                                      gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
                                   end do
                                end do
-                               tmp1 = 0.0d0
-                               tmp2 = 0.0d0
-                               tmp4 = 0.0d0
-                               tmp5 = 0.0d0
+                               tmp1 = 0.0_rp
+                               tmp2 = 0.0_rp
+                               tmp4 = 0.0_rp
+                               tmp5 = 0.0_rp
                                !$acc loop seq
                                do idime = 1,ndime
-                                  tmp3 = 0.0d0
+                                  tmp3 = 0.0_rp
                                   !$acc loop vector reduction(+:tmp1,tmp5,tmp2,tmp3)
                                   do inode = 1,nnode
                                      !tmp1 = tmp1+gpcar(idime,inode)*u(connec(ielem,inode),idime)*(E(connec(ielem,inode))+pr(connec(ielem,inode)))
@@ -615,7 +615,7 @@ module elem_convec
                                   end do
                                   tmp4 = tmp4 + u(connec(ielem,igaus),idime)*tmp3
                                end do
-                               Re(igaus) = gpvol(1,igaus,ielem)*(0.5d0*(tmp1+E(connec(ielem,igaus))*tmp2+tmp4)+tmp5)
+                               Re(igaus) = gpvol(1,igaus,ielem)*(0.5_rp*(tmp1+E(connec(ielem,igaus))*tmp2+tmp4)+tmp5)
                                !Re(igaus) = gpvol(1,igaus,ielem)*tmp1
                             end do
                             !
@@ -642,28 +642,28 @@ module elem_convec
 
                       integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
-                      real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                      real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
-                      real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      real(8),    intent(in)  :: q(npoin,ndime)
-                      real(8),    intent(in)  :: eta(npoin)
-                      real(8),    intent(in)  :: u(npoin,ndime)
-                      real(8),    intent(in)  :: alpha(npoin)
-                      real(8),    intent(out) :: Rconvec(npoin)
+                      real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                      real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
+                      real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
+                      real(rp),    intent(in)  :: q(npoin,ndime)
+                      real(rp),    intent(in)  :: eta(npoin)
+                      real(rp),    intent(in)  :: u(npoin,ndime)
+                      real(rp),    intent(in)  :: alpha(npoin)
+                      real(rp),    intent(out) :: Rconvec(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime
-                      real(8)                 :: tmp1, tmp2, Re(nnode), gpcar(ndime,nnode),tmp3,tmp4,tmp5
-                      real(8)                 :: ul(nnode,ndime), ql(nnode,ndime), etal(nnode)
+                      real(rp)                 :: tmp1, tmp2, Re(nnode), gpcar(ndime,nnode),tmp3,tmp4,tmp5
+                      real(rp)                 :: ul(nnode,ndime), ql(nnode,ndime), etal(nnode)
 
                       call nvtxStartRange("Generic Convection")
                       !$acc kernels
-                      Rconvec(:) = 0.0d0
+                      Rconvec(:) = 0.0_rp
                       !$acc end kernels
                       if (flag_SpectralElem == 0) then
                          !$acc parallel loop gang  private(Re,gpcar) vector_length(vecLength)
                          do ielem = 1,nelem
                             !$acc loop vector
                             do inode = 1,nnode
-                               Re(inode) = 0.0d0
+                               Re(inode) = 0.0_rp
                             end do
                             !$acc loop seq
                             do igaus = 1,ngaus
@@ -674,12 +674,12 @@ module elem_convec
                                      gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
                                   end do
                                end do
-                               tmp1 = 0.0d0
+                               tmp1 = 0.0_rp
                                !$acc loop vector reduction(+:tmp1)
                                do inode = 1,nnode
                                   tmp1 = tmp1+(Ngp(igaus,inode)*alpha(connec(ielem,inode)))
                                end do
-                               tmp2 = 0.0d0
+                               tmp2 = 0.0_rp
                                !$acc loop vector collapse(2) reduction(+:tmp2)
                                do idime = 1,ndime
                                   do inode = 1,nnode
@@ -726,9 +726,9 @@ module elem_convec
                                      gpcar(idime,inode) = tmp1
                                   end do
                                end do
-                               tmp1 = 0.0d0
-                               tmp2 = 0.0d0
-                               tmp4 = 0.0d0
+                               tmp1 = 0.0_rp
+                               tmp2 = 0.0_rp
+                               tmp4 = 0.0_rp
                                !$acc loop seq
                                do idime = 1,ndime
                                   !$acc loop vector reduction(+:tmp1)
@@ -739,14 +739,14 @@ module elem_convec
                                end do
                                !$acc loop seq
                                do idime = 1,ndime
-                                  tmp3 = 0.0d0
+                                  tmp3 = 0.0_rp
                                   !$acc loop vector reduction(+:tmp3)
                                   do inode = 1,nnode
                                      tmp3 = tmp3+gpcar(idime,inode)*etal(inode)
                                   end do
                                   tmp4 = tmp4 + ul(igaus,idime)*tmp3
                                end do
-                               Re(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1+tmp4)
+                               Re(igaus) = gpvol(1,igaus,ielem)*0.5_rp*(tmp1+tmp4)
                             end do
                             !
                             ! Assembly
@@ -770,28 +770,28 @@ module elem_convec
 
                  integer(4), intent(in)  :: nelem, npoin
                  integer(4), intent(in)  :: connec(nelem,nnode)
-                 real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                 real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
-                 real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
-                 real(8),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), rho(npoin),pr(npoin), E(npoin)
-                 real(8),    intent(out) :: Rmass(npoin)
-                 real(8),    intent(out) :: Rmom(npoin,ndime)
-                 real(8),    intent(out) :: Rener(npoin)
+                 real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                 real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
+                 real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
+                 real(rp),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), rho(npoin),pr(npoin), E(npoin)
+                 real(rp),    intent(out) :: Rmass(npoin)
+                 real(rp),    intent(out) :: Rmom(npoin,ndime)
+                 real(rp),    intent(out) :: Rener(npoin)
                  integer(4)              :: ielem, igaus, idime, jdime, inode
-                 real(8)                 :: Re_mom(nnode,ndime), aux_mom
-                 real(8)                 :: Re_mass(nnode), Re_ener(nnode)
-                 real(8)                 :: tmp1_mom(ndime), tmp2_mom(ndime), gpcar(ndime,nnode)
-                 real(8)                 :: aux2_mom,aux3_mom,aux4_mom,aux5_mom
-                 real(8)                 :: tmp1_mass,tmp2_mass,tmp3_mass,tmp4_mass
-                 real(8)                 :: tmp1_ener,tmp2_ener,tmp3_ener,tmp4_ener, tmp5_ener
-                 real(8)                 :: ul(nnode,ndime), ql(nnode,ndime), rhol(nnode), prl(nnode),El(nnode)
+                 real(rp)                 :: Re_mom(nnode,ndime), aux_mom
+                 real(rp)                 :: Re_mass(nnode), Re_ener(nnode)
+                 real(rp)                 :: tmp1_mom(ndime), tmp2_mom(ndime), gpcar(ndime,nnode)
+                 real(rp)                 :: aux2_mom,aux3_mom,aux4_mom,aux5_mom
+                 real(rp)                 :: tmp1_mass,tmp2_mass,tmp3_mass,tmp4_mass
+                 real(rp)                 :: tmp1_ener,tmp2_ener,tmp3_ener,tmp4_ener, tmp5_ener
+                 real(rp)                 :: ul(nnode,ndime), ql(nnode,ndime), rhol(nnode), prl(nnode),El(nnode)
 
 
                  call nvtxStartRange("Full convection")
                  !$acc kernels
-                 Rmom(:,:) = 0.0d0
-                 Rmass(:) = 0.0d0
-                 Rener(:) = 0.0d0
+                 Rmom(:,:) = 0.0_rp
+                 Rmass(:) = 0.0_rp
+                 Rener(:) = 0.0_rp
                  !$acc end kernels
 
                  !$acc parallel loop gang private(Re_ener,Re_mass,Re_mom,ul,ql,rhol,prl,El) !!num_workers(4) vector_length(vecLength)
@@ -818,17 +818,17 @@ module elem_convec
                              gpcar(idime,inode) = aux_mom
                           end do
                        end do
-                       tmp1_mass = 0.0d0
-                       tmp4_mass = 0.0d0
-                       tmp1_ener = 0.0d0
-                       tmp4_ener = 0.0d0
-                       tmp5_ener = 0.0d0
+                       tmp1_mass = 0.0_rp
+                       tmp4_mass = 0.0_rp
+                       tmp1_ener = 0.0_rp
+                       tmp4_ener = 0.0_rp
+                       tmp5_ener = 0.0_rp
                        !$acc loop seq
                        do idime = 1,ndime
-                          aux_mom  = 0.0d0
-                          aux3_mom  = 0.0d0
-                          aux4_mom  = 0.0d0
-                          aux5_mom  = 0.0d0
+                          aux_mom  = 0.0_rp
+                          aux3_mom  = 0.0_rp
+                          aux4_mom  = 0.0_rp
+                          aux5_mom  = 0.0_rp
                           !$acc loop vector collapse(2) reduction(+:aux_mom,aux3_mom)
                           do jdime = 1,ndime
                              do inode = 1,nnode
@@ -839,18 +839,18 @@ module elem_convec
                           end do
                           !$acc loop seq
                           do jdime = 1,ndime
-                             aux2_mom  = 0.0d0
+                             aux2_mom  = 0.0_rp
                              !$acc loop vector reduction(+:aux2_mom)
                              do inode = 1,nnode
                                 aux2_mom = aux2_mom+gpcar(jdime,inode)*ul(inode,idime)
                              end do
                              aux4_mom = aux4_mom+ql(igaus,jdime)*aux2_mom
                           end do
-                          tmp1_mom(idime) = 0.5d0*(aux_mom+ql(igaus,idime)*aux3_mom+aux4_mom)
+                          tmp1_mom(idime) = 0.5_rp*(aux_mom+ql(igaus,idime)*aux3_mom+aux4_mom)
 
-                          aux_mom = 0.0d0
-                          tmp3_mass = 0.0d0
-                          tmp3_ener = 0.0d0
+                          aux_mom = 0.0_rp
+                          tmp3_mass = 0.0_rp
+                          tmp3_ener = 0.0_rp
                           !$acc loop vector reduction(+:tmp1_mass,aux_mom,tmp3_mass,tmp1_ener,tmp5_ener,tmp3_ener)
                           do inode = 1,nnode
                              tmp1_mass = tmp1_mass+(gpcar(idime,inode)*ql(inode,idime))
@@ -868,8 +868,8 @@ module elem_convec
                        Re_mom(igaus,2) = gpvol(1,igaus,ielem)*(tmp1_mom(2)+tmp2_mom(2))
                        Re_mom(igaus,3) = gpvol(1,igaus,ielem)*(tmp1_mom(3)+tmp2_mom(3))
 
-                       Re_mass(igaus) = gpvol(1,igaus,ielem)*0.5d0*(tmp1_mass+aux3_mom*rhol(igaus)+tmp4_mass)
-                       Re_ener(igaus) = gpvol(1,igaus,ielem)*(0.5d0*(tmp1_ener+El(igaus)*aux3_mom+tmp4_ener)+tmp5_ener)
+                       Re_mass(igaus) = gpvol(1,igaus,ielem)*0.5_rp*(tmp1_mass+aux3_mom*rhol(igaus)+tmp4_mass)
+                       Re_ener(igaus) = gpvol(1,igaus,ielem)*(0.5_rp*(tmp1_ener+El(igaus)*aux3_mom+tmp4_ener)+tmp5_ener)
                     end do
                     !
                     ! Final assembly
@@ -904,27 +904,27 @@ module elem_convec
 
                  integer(4), intent(in)  :: nelem, npoin
                  integer(4), intent(in)  :: connec(nelem,nnode)
-                 real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                 real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
-                 real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
+                 real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                 real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
+                 real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
                  integer(4), intent(in)  :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-                 real(8),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), rho(npoin),pr(npoin), E(npoin)
-                 real(8),    intent(out) :: Rmass(npoin)
-                 real(8),    intent(out) :: Rmom(npoin,ndime)
-                 real(8),    intent(out) :: Rener(npoin)
+                 real(rp),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), rho(npoin),pr(npoin), E(npoin)
+                 real(rp),    intent(out) :: Rmass(npoin)
+                 real(rp),    intent(out) :: Rmom(npoin,ndime)
+                 real(rp),    intent(out) :: Rener(npoin)
                  integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,kdime,ii
-                 real(8)                 :: Re_mom(nnode,ndime)
-                 real(8)                 :: Re_mass(nnode), Re_ener(nnode)
-                 real(8)                 :: gradIsoRho(ndime),gradIsoP(ndime), gradIsoE(ndime),gradIsoU(ndime,ndime), gradIsoF(ndime,ndime,ndime), gradIsoQ(ndime,ndime), gradIsoFe(ndime,ndime)
-                 real(8)                 :: gradRho(ndime),gradP(ndime),gradE(ndime),gradU(ndime,ndime),divF(ndime),divU,divFe,divQ
-                 real(8)                 :: ul(nnode,ndime), ql(nnode,ndime), rhol(nnode), prl(nnode),El(nnode),fel(nnode,ndime),fl(nnode,ndime,ndime)
-                 real(8), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
+                 real(rp)                 :: Re_mom(nnode,ndime)
+                 real(rp)                 :: Re_mass(nnode), Re_ener(nnode)
+                 real(rp)                 :: gradIsoRho(ndime),gradIsoP(ndime), gradIsoE(ndime),gradIsoU(ndime,ndime), gradIsoF(ndime,ndime,ndime), gradIsoQ(ndime,ndime), gradIsoFe(ndime,ndime)
+                 real(rp)                 :: gradRho(ndime),gradP(ndime),gradE(ndime),gradU(ndime,ndime),divF(ndime),divU,divFe,divQ
+                 real(rp)                 :: ul(nnode,ndime), ql(nnode,ndime), rhol(nnode), prl(nnode),El(nnode),fel(nnode,ndime),fl(nnode,ndime,ndime)
+                 real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
 
                  call nvtxStartRange("Full convection")
                  !$acc kernels
-                 Rmom(:,:) = 0.0d0
-                 Rmass(:) = 0.0d0
-                 Rener(:) = 0.0d0
+                 Rmom(:,:) = 0.0_rp
+                 Rmass(:) = 0.0_rp
+                 Rener(:) = 0.0_rp
                  !$acc end kernels
 
                  !$acc parallel loop gang private(Re_ener,Re_mass,Re_mom,ul,ql,rhol,prl,El,fl,fel) !!vector_length(vecLength)
@@ -963,13 +963,13 @@ module elem_convec
                        isoJ = gmshAtoJ(igaus) 
                        isoK = gmshAtoK(igaus) 
 
-                       gradIsoRho(:) = 0.0d0
-                       gradIsoP(:) = 0.0d0
-                       gradIsoE(:) = 0.0d0
-                       gradIsoU(:,:) = 0.0d0
-                       gradIsoF(:,:,:) = 0.d0
-                       gradIsoQ(:,:) = 0.d0
-                       gradIsoFe(:,:) = 0.d0
+                       gradIsoRho(:) = 0.0_rp
+                       gradIsoP(:) = 0.0_rp
+                       gradIsoE(:) = 0.0_rp
+                       gradIsoU(:,:) = 0.0_rp
+                       gradIsoF(:,:,:) = 0._rp
+                       gradIsoQ(:,:) = 0._rp
+                       gradIsoFe(:,:) = 0._rp
                        !$acc loop seq
                        do ii=1,porder+1
                           gradIsoRho(1) = gradIsoRho(1) + dlxi_ip(ii)*rhol(invAtoIJK(ii,isoJ,isoK))
@@ -1007,13 +1007,13 @@ module elem_convec
                           end do
                        end do
 
-                       gradRho(:) = 0.0d0
-                       gradP(:) = 0.0d0
-                       gradE(:) = 0.0d0
-                       gradU(:,:) = 0.0d0
-                       divF(:) = 0.0d0
-                       divQ = 0.0d0
-                       divFe = 0.0d0
+                       gradRho(:) = 0.0_rp
+                       gradP(:) = 0.0_rp
+                       gradE(:) = 0.0_rp
+                       gradU(:,:) = 0.0_rp
+                       divF(:) = 0.0_rp
+                       divQ = 0.0_rp
+                       divFe = 0.0_rp
                        !$acc loop seq
                        do idime=1, ndime
                           !$acc loop seq
@@ -1031,16 +1031,16 @@ module elem_convec
                           end do
                        end do
                        divU  = gradU(1,1)  + gradU(2,2)  + gradU(3,3) 
-                       Re_mass(igaus) = 0.5d0*(divQ+rhol(igaus)*divU) 
-                       Re_ener(igaus) = 0.5d0*(divFe+(El(igaus)+prl(igaus))*divU)
+                       Re_mass(igaus) = 0.5_rp*(divQ+rhol(igaus)*divU) 
+                       Re_ener(igaus) = 0.5_rp*(divFe+(El(igaus)+prl(igaus))*divU)
                        !$acc loop seq
                        do idime=1, ndime
-                          Re_mom(igaus,idime) = 0.5d0*(divF(idime)+ql(igaus,idime)*divU)+ gradP(idime)
-                          Re_mass(igaus) = Re_mass(igaus) + 0.5d0*(ul(igaus,idime)*gradRho(idime))
-                          Re_ener(igaus) = Re_ener(igaus) + 0.5d0*(ul(igaus,idime)*gradE(idime))
+                          Re_mom(igaus,idime) = 0.5_rp*(divF(idime)+ql(igaus,idime)*divU)+ gradP(idime)
+                          Re_mass(igaus) = Re_mass(igaus) + 0.5_rp*(ul(igaus,idime)*gradRho(idime))
+                          Re_ener(igaus) = Re_ener(igaus) + 0.5_rp*(ul(igaus,idime)*gradE(idime))
                           !$acc loop seq
                           do jdime=1, ndime
-                             Re_mom(igaus,idime) = Re_mom(igaus,idime) + 0.5d0*(ul(igaus,idime)*ul(igaus,jdime)*gradRho(jdime) &
+                             Re_mom(igaus,idime) = Re_mom(igaus,idime) + 0.5_rp*(ul(igaus,idime)*ul(igaus,jdime)*gradRho(jdime) &
                                                                        + ql(igaus,jdime)*gradU(idime,jdime))
                           end do
                           Re_mom(igaus,idime) = gpvol(1,igaus,ielem)*Re_mom(igaus,idime)
@@ -1082,24 +1082,24 @@ module elem_convec
 
                  integer(4), intent(in)  :: nelem, npoin
                  integer(4), intent(in)  :: connec(nelem,nnode)
-                 real(8),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                 real(8),    intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
-                 real(8),    intent(in)  :: gpvol(1,ngaus,nelem)
+                 real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                 real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
+                 real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
                  integer(4), intent(in)  :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-                 real(8),    intent(in)  :: q(npoin,ndime)
-                 real(8),    intent(in)  :: eta(npoin)
-                 real(8),    intent(in)  :: u(npoin,ndime)
-                 real(8),    intent(in)  :: alpha(npoin)
-                 real(8),    intent(out) :: Rconvec(npoin)
+                 real(rp),    intent(in)  :: q(npoin,ndime)
+                 real(rp),    intent(in)  :: eta(npoin)
+                 real(rp),    intent(in)  :: u(npoin,ndime)
+                 real(rp),    intent(in)  :: alpha(npoin)
+                 real(rp),    intent(out) :: Rconvec(npoin)
                  integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ii
-                 real(8)                 :: gradIsoE(ndime),gradIsoU(ndime,ndime),gradIsoFe(ndime,ndime)
-                 real(8)                 :: gradE(ndime),gradU(ndime,ndime),divU,divFe
-                 real(8)                 :: ul(nnode,ndime), fel(nnode,ndime), etal(nnode), Re(nnode)
-                 real(8), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
+                 real(rp)                 :: gradIsoE(ndime),gradIsoU(ndime,ndime),gradIsoFe(ndime,ndime)
+                 real(rp)                 :: gradE(ndime),gradU(ndime,ndime),divU,divFe
+                 real(rp)                 :: ul(nnode,ndime), fel(nnode,ndime), etal(nnode), Re(nnode)
+                 real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
 
                  call nvtxStartRange("Generic Convection")
                  !$acc kernels
-                 Rconvec(:) = 0.0d0
+                 Rconvec(:) = 0.0_rp
                  !$acc end kernels
                  !$acc parallel loop gang  private(Re,ul,fel,etal) !!vector_length(vecLength)
                  do ielem = 1,nelem
@@ -1126,9 +1126,9 @@ module elem_convec
                        isoJ = gmshAtoJ(igaus) 
                        isoK = gmshAtoK(igaus) 
 
-                       gradIsoE(:) = 0.0d0
-                       gradIsoU(:,:) = 0.0d0
-                       gradIsoFe(:,:) = 0.d0
+                       gradIsoE(:) = 0.0_rp
+                       gradIsoU(:,:) = 0.0_rp
+                       gradIsoFe(:,:) = 0._rp
                        !$acc loop seq
                        do ii=1,porder+1
                           gradIsoE(1) = gradIsoE(1) + dlxi_ip(ii)*etal(invAtoIJK(ii,isoJ,isoK))
@@ -1146,9 +1146,9 @@ module elem_convec
                           end do
                        end do
 
-                       gradE(:) = 0.0d0
-                       divU = 0.0d0
-                       divFe = 0.0d0
+                       gradE(:) = 0.0_rp
+                       divU = 0.0_rp
+                       divFe = 0.0_rp
                        !$acc loop seq
                        do idime=1, ndime
                           !$acc loop seq
@@ -1159,10 +1159,10 @@ module elem_convec
                           end do
                        end do
 
-                       Re(igaus) = 0.5d0*(divFe+etal(igaus)*divU)
+                       Re(igaus) = 0.5_rp*(divFe+etal(igaus)*divU)
                        !$acc loop seq
                        do idime=1, ndime
-                          Re(igaus) = Re(igaus) + 0.5d0*(ul(igaus,idime)*gradE(idime))
+                          Re(igaus) = Re(igaus) + 0.5_rp*(ul(igaus,idime)*gradE(idime))
                        end do
                        Re(igaus) = gpvol(1,igaus,ielem)*Re(igaus)
                     end do

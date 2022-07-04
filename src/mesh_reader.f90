@@ -35,10 +35,11 @@ module mesh_reader
             character(500), intent(in)  :: file_path, file_name
             integer(4)    , intent(in)  :: npoin, nelem, nboun
             integer(4)    , intent(out) :: connec(nelem,nnode), bound(nboun,npbou)
-            real(8)       , intent(out) :: coord(npoin,ndime)
+            real(rp)       , intent(out) :: coord(npoin,ndime)
             integer(4)                  :: iline, int1, inode, idime, aux(nnode+1), bou_aux(npbou+1)
             character(2000)              :: file_type, line
-            
+            real(8)                       :: x,y,z
+
             write(file_type,*) ".geo.dat"
             
             write(*,*) "--| READING GEO.DAT FILE..."
@@ -71,7 +72,14 @@ module mesh_reader
                if (ndime == 2) then
                   read(99,*) int1, coord(iline,1), coord(iline,2)
                else if (ndime == 3) then
-                  read(99,*) int1, coord(iline,1), coord(iline,2), coord(iline,3)
+                  if(rp == 4) then
+                     read(99,*) int1, x, y, z
+                     coord(iline,1)=real(x,rp)
+                     coord(iline,2)=real(y,rp) 
+                     coord(iline,3)=real(z,rp)
+                  else
+                     read(99,*) int1, coord(iline,1), coord(iline,2), coord(iline,3)
+                  end if
                end if
             end do
             read(99,*) ! Section ender

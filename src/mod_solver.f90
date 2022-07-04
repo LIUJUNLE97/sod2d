@@ -10,8 +10,8 @@ module mod_solver
                       implicit none
 
                       integer(4), intent(in)    :: npoin, npoin_w, lpoin_w(npoin_w)
-                      real(8),    intent(in)    :: Ml(npoin)
-                      real(8),    intent(inout) :: R(npoin)
+                      real(rp),    intent(in)    :: Ml(npoin)
+                      real(rp),    intent(inout) :: R(npoin)
                       integer(4)                :: ipoin
 
                       !$acc parallel loop
@@ -27,8 +27,8 @@ module mod_solver
                       implicit none
 
                       integer(4), intent(in)    :: npoin, npoin_w, lpoin_w(npoin_w)
-                      real(8),    intent(in)    :: Ml(npoin)
-                      real(8),    intent(inout) :: R(npoin,ndime)
+                      real(rp),    intent(in)    :: Ml(npoin)
+                      real(rp),    intent(inout) :: R(npoin,ndime)
                       integer(4)                :: idime, ipoin
 
                       !$acc parallel loop collapse(2)
@@ -49,10 +49,10 @@ module mod_solver
 
                       integer(4), intent(in)       :: nelem,npoin,ppow,npoin_w
                       integer(4), intent(in)       :: connec(nelem,nnode),lpoin_w(npoin_w)
-                      real(8),    intent(in)       :: gpvol(1,ngaus,nelem),Ngp(ngaus,nnode),Ml(npoin)
-                      real(8),    intent(inout)    :: R(npoin)
+                      real(rp),    intent(in)       :: gpvol(1,ngaus,nelem),Ngp(ngaus,nnode),Ml(npoin)
+                      real(rp),    intent(inout)    :: R(npoin)
                       integer(4)                   :: ipoin, ipow
-                      real(8),    dimension(npoin) :: b, v, x
+                      real(rp),    dimension(npoin) :: b, v, x
 
                       call nvtxStartRange("Scalar APINV")
 
@@ -97,10 +97,10 @@ module mod_solver
 
                       integer(4), intent(in)       :: nelem,npoin,ppow,npoin_w
                       integer(4), intent(in)       :: connec(nelem,nnode),lpoin_w(npoin_w)
-                      real(8),    intent(in)       :: gpvol(1,ngaus,nelem),Ngp(ngaus,nnode),Ml(npoin)
-                      real(8),    intent(inout)    :: R(npoin,ndime)
+                      real(rp),    intent(in)       :: gpvol(1,ngaus,nelem),Ngp(ngaus,nnode),Ml(npoin)
+                      real(rp),    intent(inout)    :: R(npoin,ndime)
                       integer(4)                   :: ipoin, idime, ipow
-                      real(8),    dimension(npoin) :: b, v, x
+                      real(rp),    dimension(npoin) :: b, v, x
 
                       call nvtxStartRange("Vector APINV")
 
@@ -145,13 +145,13 @@ module mod_solver
 
                       integer(4), intent(in)  :: npoin, nzdom
                       integer(4), intent(in)  :: rdom(npoin+1), cdom(nzdom)
-                      real(8),    intent(in)  :: Mc(nzdom), v(npoin)
-                      real(8),    intent(out) :: u(npoin)
+                      real(rp),    intent(in)  :: Mc(nzdom), v(npoin)
+                      real(rp),    intent(out) :: u(npoin)
                       integer(4)              :: ipoin, izdom, jpoin, rowb, rowe
 
                       call nvtxStartRange("SPMV")
                       !$acc kernels
-                      u(:) = 0.0d0
+                      u(:) = 0.0_rp
                       !$acc end kernels
                       !
                       !$acc parallel loop
@@ -182,21 +182,21 @@ module mod_solver
                  implicit none
 
                  integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w)
-                 real(8)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
-                 real(8)   , intent(inout) :: R(npoin)
+                 real(rp)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
+                 real(rp)   , intent(inout) :: R(npoin)
                  integer(4)                :: ipoin, iter
-                 real(8), dimension(npoin) :: x, r0, p0, q, v, b
-                 real(8)                   :: Q1, Q2, T1, alpha, beta
+                 real(rp), dimension(npoin) :: x, r0, p0, q, v, b
+                 real(rp)                   :: Q1, Q2, T1, alpha, beta
 
 
                  call nvtxStartRange("CG solver scalar")
                  !$acc kernels
-                 x(:) = 0.0d0
-                 r0(:) = 0.0d0
-                 p0(:) = 0.0d0
-                 q(:) = 0.0d0
-                 v(:) = 0.0d0
-                 b(:) = 0.0d0
+                 x(:) = 0.0_rp
+                 r0(:) = 0.0_rp
+                 p0(:) = 0.0_rp
+                 q(:) = 0.0_rp
+                 v(:) = 0.0_rp
+                 b(:) = 0.0_rp
                  !$acc end kernels
                  !
                  ! Initialize solver
@@ -220,8 +220,8 @@ module mod_solver
                  do iter = 1,maxIter
                     call nvtxStartRange("Iteration")
                     call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,p0,q) ! A*s_k-1
-                    Q1 = 0.0d0
-                    Q2 = 0.0d0
+                    Q1 = 0.0_rp
+                    Q2 = 0.0_rp
                     !$acc parallel loop reduction(+:Q1,Q2)
                     do ipoin = 1,npoin_w
                        Q1 = Q1+p0(lpoin_w(ipoin))*r0(lpoin_w(ipoin)) ! <s_k-1,r_k-1>
@@ -240,7 +240,7 @@ module mod_solver
                        r0(lpoin_w(ipoin)) = b(lpoin_w(ipoin))-v(lpoin_w(ipoin)) ! b-A*x_k
                     end do
                     !$acc end parallel loop
-                    T1 = 0.0d0
+                    T1 = 0.0_rp
                     !$acc parallel loop reduction(+:T1)
                     do ipoin = 1,npoin
                        T1 = T1+r0(ipoin)*r0(ipoin)
@@ -256,7 +256,7 @@ module mod_solver
                     !
                     ! Update p
                     !
-                    T1 = 0.0d0
+                    T1 = 0.0_rp
                     !$acc parallel loop reduction(+:T1)
                     do ipoin = 1,npoin
                        T1 = T1+r0(ipoin)*q(ipoin) ! <r_k,A*s_k-1>
@@ -289,23 +289,23 @@ module mod_solver
                  implicit none
 
                  integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w)
-                 real(8)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
-                 real(8)   , intent(inout) :: R(npoin,ndime)
+                 real(rp)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
+                 real(rp)   , intent(inout) :: R(npoin,ndime)
                  integer(4)                :: ipoin, idime, iter
-                 real(8), dimension(npoin) :: x, r0, p0, q, v, b
-                 real(8)                   :: Q1, Q2, T1, alpha, beta
+                 real(rp), dimension(npoin) :: x, r0, p0, q, v, b
+                 real(rp)                   :: Q1, Q2, T1, alpha, beta
 
 
                  call nvtxStartRange("CG solver vector")
                  do idime = 1,ndime
                     call nvtxStartRange("Dimension")
                     !$acc kernels
-                    x(:) = 0.0d0
-                    r0(:) = 0.0d0
-                    p0(:) = 0.0d0
-                    q(:) = 0.0d0
-                    v(:) = 0.0d0
-                    b(:) = 0.0d0
+                    x(:) = 0.0_rp
+                    r0(:) = 0.0_rp
+                    p0(:) = 0.0_rp
+                    q(:) = 0.0_rp
+                    v(:) = 0.0_rp
+                    b(:) = 0.0_rp
                     !$acc end kernels
                     !
                     ! Initialize solver
@@ -329,8 +329,8 @@ module mod_solver
                     do iter = 1,maxIter
                        call nvtxStartRange("Iteration")
                        call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,p0,q) ! A*s_k-1
-                       Q1 = 0.0d0
-                       Q2 = 0.0d0
+                       Q1 = 0.0_rp
+                       Q2 = 0.0_rp
                        !$acc parallel loop reduction(+:Q1,Q2)
                        do ipoin = 1,npoin
                           Q1 = Q1+p0(ipoin)*r0(ipoin) ! <s_k-1,r_k-1>
@@ -349,7 +349,7 @@ module mod_solver
                           r0(lpoin_w(ipoin)) = b(lpoin_w(ipoin))-v(lpoin_w(ipoin)) ! b-A*x_k
                        end do
                        !$acc end parallel loop
-                       T1 = 0.0d0
+                       T1 = 0.0_rp
                        !$acc parallel loop reduction(+:T1)
                        do ipoin = 1,npoin
                           T1 = T1+r0(ipoin)*r0(ipoin)
@@ -365,7 +365,7 @@ module mod_solver
                        !
                        ! Update p
                        !
-                       T1 = 0.0d0
+                       T1 = 0.0_rp
                        !$acc parallel loop reduction(+:T1)
                        do ipoin = 1,npoin
                           T1 = T1+r0(ipoin)*q(ipoin) ! <r_k,A*s_k-1>

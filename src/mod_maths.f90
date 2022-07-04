@@ -28,17 +28,17 @@ module mod_maths
 
          implicit none
 
-         real(8), intent(out) :: xi_chb(porder+1)
+         real(rp), intent(out) :: xi_chb(porder+1)
          integer(4)           :: i
 
          !do i = 1,porder+1
          !   xi_chb(i) = -cos(v_pi*dble(i-1)/dble(porder))
          !end do
 
-         xi_chb(1) = -1.0d0
-         xi_chb(2) = -0.447213595499958d0
-         xi_chb(3) =  0.447213595499958d0
-         xi_chb(4) =  1.0d0
+         xi_chb(1) = -1.0_rp
+         xi_chb(2) = -0.447213595499958_rp
+         xi_chb(3) =  0.447213595499958_rp
+         xi_chb(4) =  1.0_rp
 
 
       end subroutine chebyshev_roots
@@ -52,14 +52,14 @@ module mod_maths
 
          implicit none
 
-         real(8), intent(in)  :: xi
-         real(8), intent(out) :: Tn(porder+1)
+         real(rp), intent(in)  :: xi
+         real(rp), intent(out) :: Tn(porder+1)
          integer(4)           :: n
 
-         Tn(1) = 1.0d0
+         Tn(1) = 1.0_rp
          Tn(2) = xi
          do n = 3,porder+1
-            Tn(n) = 2.0d0*xi*Tn(n-1)-Tn(n-2)
+            Tn(n) = 2.0_rp*xi*Tn(n-1)-Tn(n-2)
          end do
 
       end subroutine eval_chebyshevPoly1
@@ -73,14 +73,14 @@ module mod_maths
 
          implicit none
 
-         real(8), intent(in)  :: xi
-         real(8), intent(out) :: Un(porder+1)
+         real(rp), intent(in)  :: xi
+         real(rp), intent(out) :: Un(porder+1)
          integer(4)           :: n
 
-         Un(1) = 1.0d0
-         Un(2) = 2.0d0*xi
+         Un(1) = 1.0_rp
+         Un(2) = 2.0_rp*xi
          do n = 3,porder+1
-            Un(n) = 2.0d0*xi*Un(n-1)-Un(n-2)
+            Un(n) = 2.0_rp*xi*Un(n-1)-Un(n-2)
          end do
 
       end subroutine eval_chebyshevPoly2
@@ -99,11 +99,11 @@ module mod_maths
          !
          implicit none
 
-         real(8), intent(out) :: xi_lag(porder+1)
+         real(rp), intent(out) :: xi_lag(porder+1)
          integer(4)           :: i
 
          do i = 1,porder+1
-            xi_lag(i) = -1.0d0+(2.0d0*dble(i-1)/dble(porder))
+            xi_lag(i) = -1.0_rp+(2.0_rp*real(i-1,rp)/real(porder,rp))
          end do
 
       end subroutine lagrange_roots
@@ -127,8 +127,8 @@ module mod_maths
          implicit none
 
 
-         real(8),    intent(in)  :: xi(porder+1), xi_p
-         real(8),    intent(out) :: l_ip(porder+1)
+         real(rp),    intent(in)  :: xi(porder+1), xi_p
+         real(rp),    intent(out) :: l_ip(porder+1)
          integer(4)              :: i, j, lorder(porder+1)
 
          lorder(1) = 1
@@ -137,7 +137,7 @@ module mod_maths
             lorder(i) = i-1
          end do
          do i = 0,porder ! Nodal loop
-            l_ip(i+1) = 1.0d0
+            l_ip(i+1) = 1.0_rp
             do j = 0,porder ! Product series
                if (j .ne. (lorder(i+1)-1)) then
                   l_ip(i+1) = l_ip(i+1)*((xi_p-xi(j+1))/(xi(lorder(i+1))-xi(j+1)))
@@ -165,10 +165,10 @@ module mod_maths
          implicit none
 
 
-         real(8),    intent(in)  :: xi(porder+1), xi_p
-         real(8),    intent(out) :: dl_ip(porder+1)
+         real(rp),    intent(in)  :: xi(porder+1), xi_p
+         real(rp),    intent(out) :: dl_ip(porder+1)
          integer(4)              :: i, j, m, lorder(porder+1)
-         real(8)                 :: aux
+         real(rp)                 :: aux
 
          lorder(1) = 1
          lorder(2) = porder+1
@@ -176,16 +176,16 @@ module mod_maths
             lorder(i) = i-1
          end do
          do i = 0,porder ! Nodal loop
-            dl_ip(i+1) = 0.0d0
+            dl_ip(i+1) = 0.0_rp
             do j = 0,porder ! Product series
-               aux = 1.0d0
+               aux = 1.0_rp
                if (j .ne. (lorder(i+1)-1)) then
                   do m = 0,porder
                      if (m .ne. j .and. m .ne. lorder(i+1)-1) then
                         aux = aux * (xi_p-xi(m+1))/(xi(lorder(i+1))-xi(m+1))
                      end if
                   end do
-                  dl_ip(i+1) = dl_ip(i+1) + (1.0d0/(xi(lorder(i+1))-xi(j+1)))*aux
+                  dl_ip(i+1) = dl_ip(i+1) + (1.0_rp/(xi(lorder(i+1))-xi(j+1)))*aux
                end if
             end do
          end do
@@ -197,12 +197,12 @@ module mod_maths
          implicit none
 
          integer(4), intent(in)       :: atoIJK(nnode)
-         real(8), intent(in)          :: s, t, z, xi_grid(porder+1)
-         real(8), intent(out)         :: N(nnode), dN(ndime,nnode)
-         real(8),    optional, intent(out) :: dlxigp_ip(ndime,porder+1)
+         real(rp), intent(in)          :: s, t, z, xi_grid(porder+1)
+         real(rp), intent(out)         :: N(nnode), dN(ndime,nnode)
+         real(rp),    optional, intent(out) :: dlxigp_ip(ndime,porder+1)
          integer(4)                   :: i, j, k, c
-         real(8), dimension(porder+1) :: lxi_ip, leta_ip, lzeta_ip
-         real(8), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
+         real(rp), dimension(porder+1) :: lxi_ip, leta_ip, lzeta_ip
+         real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
 
          call eval_lagrangePoly(xi_grid,s,lxi_ip)
          call eval_lagrangePoly(xi_grid,t,leta_ip)
@@ -249,11 +249,11 @@ module mod_maths
          
          implicit none
 
-         real(8), intent(in)  :: var(nnode), Neval(nnode)
-         real(8), intent(out) :: var_a
+         real(rp), intent(in)  :: var(nnode), Neval(nnode)
+         real(rp), intent(out) :: var_a
          integer(4)           :: inode
 
-         var_a = 0.0d0
+         var_a = 0.0_rp
          do inode = 1,nnode
             var_a = var_a+Neval(inode)*var(inode)
          end do
