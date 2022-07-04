@@ -175,8 +175,8 @@ module quadrature_rules
 				lorder(i) = i-1
 			end do
 			if (porder == 3) then
-				!w1d(1:4) = [1.0d0/9.0d0, 8.0d0/9.0d0, 8.0d0/9.0d0, 1.0d0/9.0d0]
-				w1d(1:4) = [1.0d0/6.0d0, 5.0d0/6.0d0, 5.0d0/6.0d0, 1.0d0/6.0d0]
+				!w1d(1:4) = [1.0_rp/9.0_rp, 8.0_rp/9.0_rp, 8.0_rp/9.0_rp, 1.0_rp/9.0_rp]
+				w1d(1:4) = [1.0_rp/6.0_rp, 5.0_rp/6.0_rp, 5.0_rp/6.0_rp, 1.0_rp/6.0_rp]
 			else
 				write(1,*) "--| WEIGHTING FUNCTION NOT CODED YET"
 				STOP(1)
