@@ -83,8 +83,8 @@ program sod2d
         real(rp)  :: yp=0.0_rp, ti(3)
         real(rp)  :: velo = 0.0_rp, vol = 0.0_rp
         real(rp)  :: Re,mul,utau,Rg,to,po,mur
-        !integer(4) :: isCylinder = -1
-        integer(4) :: isCylinder = 1
+        integer(4) :: isCylinder = -1
+        !integer(4) :: isCylinder = 1
 #else
         real(rp)                    :: rho0, Re, mul,mur,to
 #endif
@@ -153,15 +153,15 @@ program sod2d
         !Cp = gamma_gas*Rgas/(gamma_gas-1.0_rp)
         write(1,*) "Cp ",Cp
         Cv = Cp/gamma_gas
-        cfl_conv = 2.2_rp
-        cfl_diff = 2.2_rp
+        cfl_conv = 1.5_rp
+        cfl_diff = 1.5_rp
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
         nsaveAVG = 1
-        nleap = 20000 ! Saving interval, TODO: input
+        nleap = 8000 ! Saving interval, TODO: input
         tleap = 0.5_rp ! Saving interval, TODO: input
         nleap2 = 10  ! Saving interval, TODO: input
-        nleapAVG = 20000
+        nleapAVG = 8000
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
@@ -258,14 +258,6 @@ program sod2d
         end if
         call nvtxEndRange
 
-        !*********************************************************************!
-        ! Compute list of elements per node (connectivity index)              !
-        !*********************************************************************!
-        allocate(lelpn(npoin))
-        allocate(point2elem(npoin))
-        write(1,*) '--| POINT 2 ELEM begin'
-        call elemPerNode(nelem,npoin,connec,lelpn,point2elem)
-        write(1,*) '--| POINT 2 ELEM done'
 
         !*********************************************************************!
         ! Compute characteristic size of elements                             !
@@ -776,7 +768,7 @@ program sod2d
         leviCivi(3,1,2) =  1.0_rp
         leviCivi(1,2,3) =  1.0_rp
         leviCivi(2,1,3) = -1.0_rp
-        call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
+        call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
         if (((porder+1)**ndime) .le. (3**ndime) .and. flag_spectralElem == 0) then
            !
            ! Call VTK output (0th step)
@@ -843,16 +835,25 @@ program sod2d
            end do
            !$acc end parallel loop
         end if
-        ! evaluate near boundaries for the inlets and outlets
-           !not the best place Oriol!
-            allocate(lnbn(nboun,npbou))
-            call nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,atoIJK,lnbn)
+        !*********************************************************************!
+        ! Compute list of elements per node (connectivity index)              !
+        !*********************************************************************!
+        allocate(lelpn(npoin))
+        allocate(point2elem(npoin))
+        write(1,*) '--| POINT 2 ELEM begin'
+        call elemPerNode(nelem,npoin,connec,lelpn,point2elem)
 
-            allocate(invAtoIJK(porder+1,porder+1,porder+1))
-            allocate(gmshAtoI(nnode))
-            allocate(gmshAtoJ(nnode))
-            allocate(gmshAtoK(nnode))
-            call atioIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+        write(1,*) '--| POINT 2 ELEM done'
+        ! evaluate near boundaries for the inlets and outlets
+        !not the best place Oriol!
+        allocate(lnbn(nboun,npbou))
+        call nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,atoIJK,lnbn)
+
+        allocate(invAtoIJK(porder+1,porder+1,porder+1))
+        allocate(gmshAtoI(nnode))
+        allocate(gmshAtoJ(nnode))
+        allocate(gmshAtoK(nnode))
+        call atioIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
 
         !*********************************************************************!
         ! Compute mass matrix (Lumped and Consistent) and set solver type     !
@@ -1083,7 +1084,7 @@ program sod2d
                  !
                  if (atime .gt. tleap) then
                  !if (istep == nsave) then
-                    call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
+                    call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
                     call nvtxStartRange("Output "//timeStep,istep)
                     if (flag_spectralElem == 1) then
                        call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connecVTK, &
@@ -1206,7 +1207,7 @@ program sod2d
                   !
                   if (atime .gt. tleap) then
                   !if (istep == nsave) then
-                     call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
+                     call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
                      call nvtxStartRange("Output "//timeStep,istep)
                      if (flag_spectralElem == 1) then
                         call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connecVTK, &
@@ -1317,7 +1318,7 @@ program sod2d
                   if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
                      if (flag_spectralElem == 1) then
-                        call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
+                        call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
                         call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connecVTK, &
                                               rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
                                               gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nper,masSla)
