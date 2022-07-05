@@ -177,15 +177,19 @@ module mod_analysis
 		!> @param[in] bou_code Matching of surface codes to boundary elements
 		!> @param[in] bounorm The normal of each boundary element at each reference node
 		!> @param[out] surfArea The area of the selected surface
-      subroutine surfInfo(nbound,surfCode,bou_code,bounorm,wgp_b,surfArea)
+      subroutine surfInfo(npoin,nbound,surfCode,bound,bou_code,bounorm,wgp_b,pr,surfArea,Fpr)
+
          implicit none
-			integer(4), intent(in)  :: nbound, surfCode, bou_code(nbound,2)
+
+			integer(4), intent(in)  :: npoin, nbound, surfCode, bound(nbound,npbou), bou_code(nbound,2)
          real(rp),    intent(in)  :: wgp_b(npbou), bounorm(nbound,ndime*npbou)
-			real(rp),    intent(out) :: surfArea
+         real(rp),    intent(in)  :: pr(npoin)
+			real(rp),    intent(out) :: surfArea, Fpr(ndime)
          integer(4)              :: ibound, idime, igaus, ipbou
          integer(4)              :: numBelem, counter
          integer(4), allocatable :: lelbo(:)
-         real(rp)                 :: bnorm(npbou*ndime), nmag
+         real(rp)                 :: bnorm(npbou*ndime), nmag, prl(npbou)
+
 			! Create lelbo for the surface, where lelbo is a list of boundary elements belonging to that surface
 			numBelem = 0
 			do ibound = 1, nbound
@@ -201,15 +205,19 @@ module mod_analysis
 					lelbo(counter) = bou_code(ibound,1)
 				end if
 			end do
+
 			! Compute surface information through sum of Gaussian quadratures over all boundary elements
 			surfArea = 0.0_rp
+         Fpr(:) = 0.0_rp
 			do ibound = 1, numBelem
 				bnorm(1:npbou*ndime) = bounorm(lelbo(ibound),1:npbou*ndime)
+            prl(1:npbou) = pr(bound(lelbo(ibound),1:npbou))
 				! Element area
 				do igaus = 1,npbou
 					nmag = 0.0_rp
 					do idime = 1,ndime
 						nmag = nmag + bnorm((igaus-1)*ndime+idime)*bnorm((igaus-1)*ndime+idime)
+                  Fpr(idime) = Fpr(idime)+wgp_b(igaus)*prl(igaus)*bnorm((igaus-1)*ndime+idime)
 					end do
                nmag = sqrt(nmag)
 					surfArea = surfArea + nmag*wgp_b(igaus)
