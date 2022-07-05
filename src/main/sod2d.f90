@@ -33,8 +33,8 @@ program sod2d
 
         implicit none
 
-        integer(4)                 :: nstep, nper!, nzdom
-        integer(4)                 :: idime, inode, igaus, istep, iper!, izdom
+        integer(4)                 :: nstep, nper, numCodes!, nzdom
+        integer(4)                 :: idime, inode, igaus, istep, iper, icode!, izdom
         integer(4)                 :: nelem, npoin, nboun, nbcodes
         integer(4)                 :: ielem, ipoin, iboun, ipbou
         integer(4)                 :: idof, ndof, nbnodes, ibnodes
@@ -247,6 +247,8 @@ program sod2d
            allocate(bou_codes(nboun,2))
 		     allocate(bou_norm(nboun,ndime*npbou))
            call read_fixbou(file_path,file_name,nboun,nbcodes,bou_codes)
+           numCodes = maxval(bou_codes(:,2))
+           write(1,*) "--| TOTAL BOUNDARY CODES :", numCodes
         end if
         allocate(coord(npoin,ndime))
         call read_geo_dat(file_path,file_name,npoin,nelem,nboun,connec,bound,coord)
@@ -770,12 +772,13 @@ program sod2d
 	     if (nboun .ne. 0) then
            allocate(Fpr(ndime))
 	        write(1,*) "--| COMPUTING BOUNDARY ELEMENT NORMALS"
-	        call nvtxStartRange("BBou normals")
+	        call nvtxStartRange("Bou normals")
 	        call boundary_normals(npoin,nboun,bound,leviCivi,coord,dNgp_b,bou_norm)
 	        call nvtxEndRange
-	        call surfInfo(npoin,nboun,1,bound,bou_codes,bou_norm,wgp_b,pr(:,2),surfArea,Fpr)
+           do icode = 1,numCodes
+	           call surfInfo(npoin,nboun,icode,bound,bou_codes,bou_norm,wgp_b,pr(:,2),surfArea,Fpr)
+           end do
 	     end if
-
 
         !*********************************************************************!
         ! Generate Jacobian related information                               !
