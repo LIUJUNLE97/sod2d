@@ -773,7 +773,7 @@ program sod2d
 	        call nvtxStartRange("BBou normals")
 	        call boundary_normals(npoin,nboun,bound,leviCivi,coord,dNgp_b,bou_norm)
 	        call nvtxEndRange
-	        call surfInfo(npoin,nboun,2,bound,bou_codes,bou_norm,wgp_b,pr(:,2),surfArea,Fpr)
+	        call surfInfo(npoin,nboun,1,bound,bou_codes,bou_norm,wgp_b,pr(:,2),surfArea,Fpr)
 	     end if
 
 
