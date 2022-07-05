@@ -232,6 +232,44 @@ module mod_maths
 
       end subroutine TripleTensorProduct
 
+      !> @brief Computes the shape functions and their derivatives for QUA boundary elements
+      !> @details Given a QUA_XX boundary element of order p, the routine computes
+      !> a 1D Lagrangian polynomial over a given grid for x and y coordinate arguments,
+      !> then sets N_a = phi_i*phi_j, where atoIJ gives the node a to IJ relationship.
+      !> @param [in] xi_grid Either a Lagrange of GLL or Chebyshev 1D grid
+      !> @param [in] s The xi isoparametric coordinate of the point where the shape functions are evaluated
+      !> @param [in] t The eta isoparametric coordinate of the point where the shape functions are evaluated
+      !> @param [in] atoIJ The node a to IJ relationship
+      !> @param [out] N The shape functions
+      !> @param [out] dN The derivatives of the shape functions
+      pure subroutine DoubleTensorProduct(xi_grid,s,t,atoIJ,N,dN)
+
+         implicit none
+
+         integer(4), intent(in)       :: atoIJ(npbou)
+         real(rp), intent(in)          :: s, t, xi_grid(porder+1)
+         real(rp), intent(out)         :: N(npbou), dN(ndime-1,npbou)
+         integer(4)                   :: i, j, c
+         real(rp), dimension(porder+1) :: lxi_ip, leta_ip
+         real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip
+
+         call eval_lagrangePoly(xi_grid,s,lxi_ip)
+         call eval_lagrangePoly(xi_grid,t,leta_ip)
+         call eval_lagrangePolyDeriv(xi_grid,s,dlxi_ip)
+         call eval_lagrangePolyDeriv(xi_grid,t,dleta_ip)
+
+         c = 0
+         do i = 1,porder+1
+            do j = 1,porder+1
+               c = c+1
+               N(atoIJ(c)) = lxi_ip(i)*leta_ip(j)
+               dN(1,atoIJ(c)) = dlxi_ip(i)*leta_ip(j)
+               dN(2,atoIJ(c)) = lxi_ip(i)*dleta_ip(j)
+            end do
+         end do
+
+      end subroutine DoubleTensorProduct
+      
       pure subroutine var_interpolate(var,Neval,var_a)
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

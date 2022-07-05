@@ -168,4 +168,54 @@ module mod_analysis
 
       end subroutine write_EK
 
+		!> @brife Compute the area of a particular physical boundary
+		!> @details Using the boundary elements that compose the selected surface, the
+		!> routine computes the area as the sum of all int(|n|,dxi,deta), where the normal
+		!> of each element has been pre-computed and is stored into bounorm.
+		!> @param[in] nbound The number of boundary elements
+		!> @param[in] surfCode The surface code
+		!> @param[in] bou_code Matching of surface codes to boundary elements
+		!> @param[in] bounorm The normal of each boundary element at each reference node
+		!> @param[out] surfArea The area of the selected surface
+      subroutine surfInfo(nbound,surfCode,bou_code,bounorm,wgp_b,surfArea)
+         implicit none
+			integer(4), intent(in)  :: nbound, surfCode, bou_code(nbound,2)
+         real(rp),    intent(in)  :: wgp_b(npbou), bounorm(nbound,ndime*npbou)
+			real(rp),    intent(out) :: surfArea
+         integer(4)              :: ibound, idime, igaus, ipbou
+         integer(4)              :: numBelem, counter
+         integer(4), allocatable :: lelbo(:)
+         real(rp)                 :: bnorm(npbou*ndime), nmag
+			! Create lelbo for the surface, where lelbo is a list of boundary elements belonging to that surface
+			numBelem = 0
+			do ibound = 1, nbound
+				if (bou_code(ibound,2) == surfCode) then
+					numBelem = numBelem + 1
+				end if
+			end do
+			counter = 0
+			allocate(lelbo(numBelem))
+			do ibound = 1, nbound
+				if (bou_code(ibound,2) == surfCode) then
+					counter = counter + 1
+					lelbo(counter) = bou_code(ibound,1)
+				end if
+			end do
+			! Compute surface information through sum of Gaussian quadratures over all boundary elements
+			surfArea = 0.0d0
+			do ibound = 1, numBelem
+				bnorm(1:npbou*ndime) = bounorm(lelbo(ibound),1:npbou*ndime)
+				! Element area
+				do igaus = 1,npbou
+					nmag = 0.0d0
+					do idime = 1,ndime
+						nmag = nmag + bnorm((igaus-1)*ndime+idime)*bnorm((igaus-1)*ndime+idime)
+					end do
+               nmag = sqrt(nmag)
+					surfArea = surfArea + nmag*wgp_b(igaus)
+				end do
+			end do
+			deallocate(lelbo)
+      end subroutine surfInfo
+
 end module mod_analysis
