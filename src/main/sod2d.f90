@@ -801,16 +801,6 @@ program sod2d
         allocate(curlU(npoin,ndime))
         allocate(divU(npoin))
         allocate(Qcrit(npoin))
-        !
-        ! Compute Levi-Civita tensor
-        !
-        leviCivi = 0.0_rp
-        leviCivi(2,3,1) =  1.0_rp
-        leviCivi(3,2,1) = -1.0_rp
-        leviCivi(1,3,2) = -1.0_rp
-        leviCivi(3,1,2) =  1.0_rp
-        leviCivi(1,2,3) =  1.0_rp
-        leviCivi(2,1,3) = -1.0_rp
         call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
         if (((porder+1)**ndime) .le. (3**ndime) .and. flag_spectralElem == 0) then
            !
