@@ -48,12 +48,12 @@ program sod2d
         !integer(4), allocatable    :: rdom(:), cdom(:), aux_cdom(:) ! Use with CSR matrices
         integer(4), allocatable    :: connec(:,:), connecVTK(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
         integer(4), allocatable    :: masSla(:,:), connec_orig(:,:), aux1(:), bound_orig(:,:), lelpn(:),point2elem(:)
-        integer(4), allocatable    :: lpoin_w(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
+        integer(4), allocatable    :: lpoin_w(:), atoIJ(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
         real(rp),    allocatable    :: coord(:,:), coord_old(:,:), helem(:),helem_l(:,:)
-        real(rp),    allocatable    :: xgp(:,:), wgp(:)
-        real(rp),    allocatable    :: Ngp(:,:), dNgp(:,:,:)
+        real(rp),    allocatable    :: xgp(:,:), wgp(:), xgp_b(:,:), wgp_b(:)
+        real(rp),    allocatable    :: Ngp(:,:), dNgp(:,:,:), Ngp_b(:,:), dNgp_b(:,:,:)
         real(rp),    allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
-        real(rp),    allocatable    :: Je(:,:), He(:,:,:,:)
+        real(rp),    allocatable    :: Je(:,:), He(:,:,:,:), bou_norm(:,:)
         real(rp),    allocatable    :: gpvol(:,:,:), gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
         real(rp),    allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:), machno(:)
         real(rp),    allocatable    :: Ml(:)!, Mc(:)
@@ -63,7 +63,7 @@ program sod2d
         real(rp),    allocatable    :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:)
         real(rp),    allocatable    :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
         real(rp)                    :: s, t, z, detJe
-        real(rp)                    :: dt, he_aux, time, P0, T0, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
+        real(rp)                    :: dt, he_aux, time, P0, T0, EK, VolTot, eps_D, eps_S, eps_T, maxmachno, surfArea
         real(rp)                    :: cfl_conv, cfl_diff, acutim
         real(rp)                    :: leviCivi(3,3,3)
         character(500)             :: file_path
@@ -569,9 +569,11 @@ program sod2d
         !*********************************************************************!
 
         if (flag_spectralElem == 1) then
+           allocate(atoIJ(16))
            allocate(atoIJK(64))
            allocate(vtk_atoIJK(64))
            call hex64(1.0_rp,1.0_rp,1.0_rp,atoIJK,vtk_atoIJK)
+           call qua16(1.0_rp,1.0_rp,atoIJ)
 
         end if
         write(1,*) "--| GENERATING GAUSSIAN QUADRATURE TABLE..."
@@ -580,6 +582,8 @@ program sod2d
 
         allocate(xgp(ngaus,ndime))
         allocate(wgp(ngaus))
+        allocate(xgp_b(npbou,ndime-1))
+        allocate(wgp_b(npbou))
 
         if (ndime == 2) then
            if (nnode == (porder+1)**2) then ! QUA_XX of order porder
@@ -596,6 +600,7 @@ program sod2d
               else if (flag_SpectralElem == 1) then
                  write(1,*) "  --| GENERATING CHEBYSHEV TABLE..."
                  call chebyshev_hex(atoIJK,xgp,wgp)
+                 call chebyshev_qua(atoIJ,xgp_b,wgp_b)
               end if
            else if (nnode == 4 .or. nnode == 10 .or. nnode == 20) then ! TET_XX
               write(1,*) '--| NOT CODED YET!'
@@ -616,6 +621,7 @@ program sod2d
         allocate(Ngp(ngaus,nnode),dNgp(ndime,nnode,ngaus))
         if (flag_SpectralElem == 1) then
            allocate(Ngp_l(ngaus,nnode),dNgp_l(ndime,nnode,ngaus))
+           allocate(Ngp_b(npbou,npbou),dNgp_b(ndime-1,npbou,npbou))
            allocate(dlxigp_ip(ngaus,ndime,porder+1))
         end if
 
@@ -650,6 +656,16 @@ program sod2d
               end if
            end if
         end do
+        !
+        ! Compute N andd dN for boundary elements
+        !
+        if (flag_spectralElem == 1) then
+           do igaus = 1,npbou
+              s = xgp_b(igaus,1)
+              t = xgp_b(igaus,2)
+              call qua16(s,t,atoIJ,Ngp_b(igaus,:),dNgp_b(:,:,igaus))
+           end do
+        end if
 
 
 
