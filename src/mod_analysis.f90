@@ -192,6 +192,7 @@ module mod_analysis
 
 			! Create lelbo for the surface, where lelbo is a list of boundary elements belonging to that surface
 			numBelem = 0
+         !$acc parallel loop reduction(+:numBelem)
 			do ibound = 1, nbound
 				if (bou_code(ibound,2) == surfCode) then
 					numBelem = numBelem + 1
@@ -208,21 +209,29 @@ module mod_analysis
 
 			! Compute surface information through sum of Gaussian quadratures over all boundary elements
 			surfArea = 0.0_rp
+         !$acc kernels
          Fpr(:) = 0.0_rp
+         !$acc end kernels
+         !$acc parallel loop gang private(bnorm,prl) reduction(+:surfArea)
 			do ibound = 1, numBelem
 				bnorm(1:npbou*ndime) = bounorm(lelbo(ibound),1:npbou*ndime)
             prl(1:npbou) = pr(bound(lelbo(ibound),1:npbou))
 				! Element area
+            !$acc loop vector
 				do igaus = 1,npbou
 					nmag = 0.0_rp
+               !$acc loop seq
 					do idime = 1,ndime
 						nmag = nmag + bnorm((igaus-1)*ndime+idime)*bnorm((igaus-1)*ndime+idime)
+                  !$acc atomic update
                   Fpr(idime) = Fpr(idime)+wgp_b(igaus)*prl(igaus)*bnorm((igaus-1)*ndime+idime)
+                  !$acc end atomic
 					end do
                nmag = sqrt(nmag)
 					surfArea = surfArea + nmag*wgp_b(igaus)
 				end do
 			end do
+         !$acc end parallel loop
 			deallocate(lelbo)
       end subroutine surfInfo
 

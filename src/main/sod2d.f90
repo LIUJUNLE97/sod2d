@@ -237,7 +237,7 @@ program sod2d
             write(file_name,*) "cylin" ! Nsys
         end if
 #else
-        write(file_name,*) "shock_tube" ! Nsys
+        write(file_name,*) "cyl" ! Nsys
         !write(file_name,*) "cube" ! Nsys
 #endif
         call read_dims(file_path,file_name,npoin,nelem,nboun)
@@ -268,7 +268,9 @@ program sod2d
         allocate(lelpn(npoin))
         allocate(point2elem(npoin))
         write(1,*) '--| POINT 2 ELEM begin'
+        call nvtxStartRange("elemPerNode")
         call elemPerNode(nelem,npoin,connec,lelpn,point2elem)
+        call nvtxEndRange
         write(1,*) '--| POINT 2 ELEM done'
 
         !*********************************************************************!
@@ -776,7 +778,11 @@ program sod2d
 	        call boundary_normals(npoin,nboun,bound,leviCivi,coord,dNgp_b,bou_norm)
 	        call nvtxEndRange
            do icode = 1,numCodes
+              call nvtxStartRange("Surface info")
 	           call surfInfo(npoin,nboun,icode,bound,bou_codes,bou_norm,wgp_b,pr(:,2),surfArea,Fpr)
+              call nvtxEndRange
+              print*, icode, surfArea
+              print*, icode, Fpr(:)
            end do
 	     end if
 
