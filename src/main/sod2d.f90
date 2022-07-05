@@ -666,9 +666,6 @@ program sod2d
               call qua16(s,t,atoIJ,Ngp_b(igaus,:),dNgp_b(:,:,igaus))
            end do
         end if
-
-
-
         call nvtxEndRange
 
         !*********************************************************************!
@@ -754,6 +751,27 @@ program sod2d
            end do
            deallocate(aux_2)
         end if
+
+	     !*********************************************************************!
+	     ! Compute boundary element normals at every node							 !
+	     !*********************************************************************!
+	     !
+	     ! Compute Levi-Civita tensor
+	     !
+	     leviCivi = 0.0d0
+	     leviCivi(2,3,1) =  1.0d0
+	     leviCivi(3,2,1) = -1.0d0
+	     leviCivi(1,3,2) = -1.0d0
+	     leviCivi(3,1,2) =  1.0d0
+	     leviCivi(1,2,3) =  1.0d0
+	     leviCivi(2,1,3) = -1.0d0
+	     if (nboun .ne. 0) then
+	        write(1,*) "--| COMPUTING BOUNDARY ELEMENT NORMALS"
+	        call nvtxStartRange("BBou normals")
+	        call boundary_normals(npoin,nboun,bound,leviCivi,coord,dNgp_b,bou_norm)
+	        call nvtxEndRange
+	        call surfInfo(nboun,2,bou_codes,bou_norm,wgp_b,surfArea)
+	     end if
 
 
         !*********************************************************************!
