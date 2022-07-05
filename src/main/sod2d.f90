@@ -760,12 +760,12 @@ program sod2d
 	     ! Compute Levi-Civita tensor
 	     !
 	     leviCivi = 0.0d0
-	     leviCivi(2,3,1) =  1.0d0
-	     leviCivi(3,2,1) = -1.0d0
-	     leviCivi(1,3,2) = -1.0d0
-	     leviCivi(3,1,2) =  1.0d0
-	     leviCivi(1,2,3) =  1.0d0
-	     leviCivi(2,1,3) = -1.0d0
+	     leviCivi(2,3,1) =  1.0_rp
+	     leviCivi(3,2,1) = -1.0_rp
+	     leviCivi(1,3,2) = -1.0_rp
+	     leviCivi(3,1,2) =  1.0_rp
+	     leviCivi(1,2,3) =  1.0_rp
+	     leviCivi(2,1,3) = -1.0_rp
 	     if (nboun .ne. 0) then
 	        write(1,*) "--| COMPUTING BOUNDARY ELEMENT NORMALS"
 	        call nvtxStartRange("BBou normals")
