@@ -244,6 +244,7 @@ program sod2d
         if (nboun .ne. 0) then
            allocate(bound(nboun,npbou))
            allocate(bou_codes(nboun,2))
+		     allocate(bou_norm(nboun,ndime*npbou))
            call read_fixbou(file_path,file_name,nboun,nbcodes,bou_codes)
         end if
         allocate(coord(npoin,ndime))
