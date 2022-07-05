@@ -2,6 +2,8 @@ module mod_constants
 
       implicit none
 
+      integer(4), parameter::rp = 4
+
       !
       ! Dimensions
       !
@@ -29,19 +31,19 @@ module mod_constants
       ! Solver params
       !
       integer(4), parameter :: maxIter=3
-      real(8)   , parameter :: tol=0.00001d0
+      real(rp)   , parameter :: tol=0.00001_rp
 
       !
       ! Other constants
       !
-      real(8), parameter :: v_pi = 2.0d0*asin(1.0d0) ! Value of Pi
-      real(8), parameter :: ce = 1.0d0   
-      real(8), parameter :: cmax = 0.05d0 ! for FEM 0.5 for SEM 0.05/p
-      real(8), parameter :: cglob = 1.0d0
-      real(8), parameter :: c_rho = 1.0d0
-      real(8), parameter :: c_ener = 1.0d0
-      real(8), parameter :: c_sgs = 0.07d0
+      real(rp), parameter :: v_pi = 2.0_rp*asin(1.0_rp) ! Value of Pi
+      real(rp), parameter :: ce = 1.0_rp   
+      real(rp), parameter :: cmax = 0.05_rp ! for FEM 0.5 for SEM 0.05/p
+      real(rp), parameter :: cglob = 1.0_rp
+      real(rp), parameter :: c_rho = 1.0_rp
+      real(rp), parameter :: c_ener = 1.0_rp
+      real(rp), parameter :: c_sgs = 0.07_rp
 
-      real(8) :: flag_mu_factor=1.0d0
+      real(rp) :: flag_mu_factor=1.0_rp
 
 end module mod_constants
