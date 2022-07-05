@@ -233,4 +233,41 @@ module mod_geom
                end do
             end do
          end subroutine atioIJKInverse
+			subroutine boundary_normals(npoin,nboun,bound,leviCivi,coord,dNgp_b,bounorm)
+				implicit none
+				integer(4), intent(in)  :: npoin, nboun, bound(nboun,npbou)
+				real(rp),    intent(in)  :: coord(npoin,ndime), dNgp_b(ndime-1,npbou,npbou), leviCivi(ndime,ndime,ndime)
+				real(rp),    intent(out) :: bounorm(nboun,ndime*npbou)
+				integer(4)              :: iboun, inode, jnode, idime, jdime, kdime
+				real(rp)                 :: xyz(npbou,ndime), u(ndime), v(ndime), aux1, aux2
+				do iboun = 1,nboun
+					do idime = 1,ndime
+						do inode = 1,npbou
+							xyz(inode,idime) = coord(bound(iboun,inode),idime)
+						end do
+					end do
+					do inode = 1,npbou
+						do idime = 1,ndime
+							aux1 = 0.0_rp
+							aux2 = 0.0_rp
+							do jnode = 1,npbou
+								aux1 = aux1+dNgp_b(1,jnode,inode)*xyz(jnode,idime)
+								aux2 = aux2+dNgp_b(2,jnode,inode)*xyz(jnode,idime)
+							end do
+							u(idime) = aux1
+							v(idime) = aux2
+						end do
+						do idime = 1,ndime
+							aux1 = 0.0_rp
+							do jdime = 1,ndime
+								do kdime = 1,ndime
+									aux1 = aux1 + leviCivi(idime,jdime,kdime)*u(jdime)*v(kdime)
+								end do
+							end do
+							bounorm(iboun,(inode-1)*ndime+idime) = aux1
+						end do
+					end do
+				end do
+			end subroutine boundary_normals
+
 end module mod_geom
