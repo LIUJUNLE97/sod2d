@@ -202,12 +202,12 @@ module mod_analysis
 				end if
 			end do
 			! Compute surface information through sum of Gaussian quadratures over all boundary elements
-			surfArea = 0.0d0
+			surfArea = 0.0_rp
 			do ibound = 1, numBelem
 				bnorm(1:npbou*ndime) = bounorm(lelbo(ibound),1:npbou*ndime)
 				! Element area
 				do igaus = 1,npbou
-					nmag = 0.0d0
+					nmag = 0.0_rp
 					do idime = 1,ndime
 						nmag = nmag + bnorm((igaus-1)*ndime+idime)*bnorm((igaus-1)*ndime+idime)
 					end do

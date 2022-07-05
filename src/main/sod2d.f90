@@ -759,7 +759,7 @@ program sod2d
 	     !
 	     ! Compute Levi-Civita tensor
 	     !
-	     leviCivi = 0.0d0
+	     leviCivi = 0.0_rp
 	     leviCivi(2,3,1) =  1.0_rp
 	     leviCivi(3,2,1) = -1.0_rp
 	     leviCivi(1,3,2) = -1.0_rp
