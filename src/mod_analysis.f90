@@ -177,14 +177,17 @@ module mod_analysis
 		!> @param[in] bou_code Matching of surface codes to boundary elements
 		!> @param[in] bounorm The normal of each boundary element at each reference node
 		!> @param[out] surfArea The area of the selected surface
-      subroutine surfInfo(npoin,nbound,surfCode,bound,bou_code,bounorm,wgp_b,pr,surfArea,Fpr)
+      subroutine surfInfo(nelem,npoin,nbound,surfCode,connec,bound,point2elem,bou_code, &
+                          bounorm,wgp_b,dlxigp_ip,He,u,pr,surfArea,Fpr,Ftau)
 
          implicit none
 
 			integer(4), intent(in)  :: npoin, nbound, surfCode, bound(nbound,npbou), bou_code(nbound,2)
+			integer(4), intent(in)  :: nelem, connec(nelem,nnode), point2elem(npoin)
          real(rp),    intent(in)  :: wgp_b(npbou), bounorm(nbound,ndime*npbou)
-         real(rp),    intent(in)  :: pr(npoin)
-			real(rp),    intent(out) :: surfArea, Fpr(ndime)
+         real(rp),    intent(in)  :: u(npoin,ndime), pr(npoin)
+         real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1)
+			real(rp),    intent(out) :: surfArea, Fpr(ndime), Ftau(ndime)
          integer(4)              :: ibound, idime, igaus, ipbou
          integer(4)              :: numBelem, counter
          integer(4), allocatable :: lelbo(:)
@@ -211,6 +214,7 @@ module mod_analysis
 			surfArea = 0.0_rp
          !$acc kernels
          Fpr(:) = 0.0_rp
+         Ftau(:) = 0.0_rp
          !$acc end kernels
          !$acc parallel loop gang private(bnorm,prl) reduction(+:surfArea)
 			do ibound = 1, numBelem

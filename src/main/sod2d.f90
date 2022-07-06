@@ -62,7 +62,7 @@ program sod2d
         real(rp),    allocatable    :: aux_1(:,:), aux_2(:)
         real(rp),    allocatable    :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:)
         real(rp),    allocatable    :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
-        real(rp),    allocatable    :: Fpr(:)
+        real(rp),    allocatable    :: Fpr(:), Ftau(:)
         real(rp)                    :: s, t, z, detJe
         real(rp)                    :: dt, he_aux, time, P0, T0, EK, VolTot, eps_D, eps_S, eps_T, maxmachno, surfArea
         real(rp)                    :: cfl_conv, cfl_diff, acutim
@@ -763,13 +763,15 @@ program sod2d
 	     leviCivi(2,1,3) = -1.0_rp
 	     if (nboun .ne. 0) then
            allocate(Fpr(ndime))
+           allocate(Ftau(ndime))
 	        write(1,*) "--| COMPUTING BOUNDARY ELEMENT NORMALS"
 	        call nvtxStartRange("Bou normals")
 	        call boundary_normals(npoin,nboun,bound,leviCivi,coord,dNgp_b,bou_norm)
 	        call nvtxEndRange
            do icode = 1,numCodes
               call nvtxStartRange("Surface info")
-	           call surfInfo(npoin,nboun,icode,bound,bou_codes,bou_norm,wgp_b,pr(:,2),surfArea,Fpr)
+	           call surfInfo(nelem,npoin,nbound,surfCode,connec,bound,point2elem, &
+                            bou_code,bounorm,wgp_b,dlxigp_ip,He,u,pr,surfArea,Fpr,Ftau)
               call nvtxEndRange
               print*, icode, surfArea
               print*, icode, Fpr(:)
