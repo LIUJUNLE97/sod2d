@@ -1,6 +1,7 @@
 module elem_qua
 
         use mod_constants
+        use mod_maths
 
         contains
 
@@ -55,6 +56,24 @@ module elem_qua
                         dN = 0.25_rp*dN
 
                 end subroutine qua09
+
+		!> @brief Computes the shape functions and their derivatives for QUA_16
+		!> @param[in] xi The isoparametric coordinate in xi-direction
+		!> @param[in] eta The isoparametric coordinate in eta-direction
+		!> @param[out] N The shape functions and their derivatives
+		!> @param[out] atoIJ Node a to IJ relationship
+		subroutine qua16(xi,eta,atoIJ,N,dN) ! QUA16 element
+			implicit none
+			integer(4),           intent(out) :: atoIJ(16)
+			real(rp),              intent(in)  :: xi, eta
+			real(rp),    optional, intent(out) :: N(16), dN(2,16)
+			real(rp)                           :: xi_grid(porder+1)
+			atoIJ = [1,4,12,11,2,3,7,8,5,10,13,16,6,9,14,15]
+			if (present(N) .and. present(dN)) then
+				call chebyshev_roots(xi_grid)
+				call DoubleTensorProduct(xi_grid,xi,eta,atoIJ,N,dN)
+			end if
+		end subroutine qua16
 
                 subroutine quad_edges(ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
 

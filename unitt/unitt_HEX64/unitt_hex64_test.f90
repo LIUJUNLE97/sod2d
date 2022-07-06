@@ -16,11 +16,11 @@ program unitt_hex64_test
    integer(4) :: idime, inode, igaus
    integer(4) :: jdime, jnode, jgaus
    integer(4) :: atoIJK(ngaus), vtk_atoIJK(ngaus), listHEX08(27,8)
-   real(8)    :: s, t, z, aux
-   real(8)    :: elcod(nnode,ndime)
-   real(8)    :: xgp(ngaus,ndime), wgp(ngaus)
-   real(8)    :: Nl(nnode), dNl(ndime,nnode)
-   real(8)    :: N(ngaus,nnode), dN(ndime,nnode,ngaus)
+   real(rp)    :: s, t, z, aux
+   real(rp)    :: elcod(nnode,ndime)
+   real(rp)    :: xgp(ngaus,ndime), wgp(ngaus)
+   real(rp)    :: Nl(nnode), dNl(ndime,nnode)
+   real(rp)    :: N(ngaus,nnode), dN(ndime,nnode,ngaus)
    logical    :: flag_pass
 
    !
@@ -31,7 +31,7 @@ program unitt_hex64_test
    !
    ! Element geometry: comes from the chebyshev_hex quadrature rule
    !
-   call hex64(1.0d0,1.0d0,1.0d0,atoIJK,vtk_atoIJK,listHEX08)
+   call hex64(1.0_rp,1.0_rp,1.0_rp,atoIJK,vtk_atoIJK,listHEX08)
    call chebyshev_hex(atoIJK,xgp,wgp)
 
    !
@@ -44,10 +44,10 @@ program unitt_hex64_test
       call hex64(s,t,z,atoIJK,vtk_atoIJK,listHEX08,N(igaus,:),dN(:,:,igaus),Nl,dNl)
       do jgaus = 1,ngaus
          aux = N(igaus,jgaus)
-         if (jgaus == igaus .and. aux .ne. 1.0d0) then
+         if (jgaus == igaus .and. aux .ne. 1.0_rp) then
             flag_pass = .false.
             exit outer
-         else if (jgaus .ne. igaus .and. aux .ne. 0.0d0) then
+         else if (jgaus .ne. igaus .and. aux .ne. 0.0_rp) then
             flag_pass = .false.
             exit outer
          end if
