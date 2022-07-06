@@ -262,16 +262,6 @@ program sod2d
         end if
         call nvtxEndRange
 
-        !*********************************************************************!
-        ! Compute list of elements per node (connectivity index)              !
-        !*********************************************************************!
-        allocate(lelpn(npoin))
-        allocate(point2elem(npoin))
-        write(1,*) '--| POINT 2 ELEM begin'
-        call nvtxStartRange("elemPerNode")
-        call elemPerNode(nelem,npoin,connec,lelpn,point2elem)
-        call nvtxEndRange
-        write(1,*) '--| POINT 2 ELEM done'
 
         !*********************************************************************!
         ! Compute characteristic size of elements                             !
@@ -805,14 +795,20 @@ program sod2d
         end do
         write(1,*) '--| DOMAIN VOLUME := ',VolTot
 
-        !*********************************************************************!
-        ! Compute derivative-related fields and produce the 1st output        !
-        !*********************************************************************!
-        allocate(gradRho(npoin,ndime))
-        allocate(curlU(npoin,ndime))
-        allocate(divU(npoin))
-        allocate(Qcrit(npoin))
-        call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
+        if (flag_spectralElem == 1) then
+           allocate(connecVTK(nelem,nnode))
+           allocate(connecLINEAR(nelem*(porder**ndime),2**ndime))
+           call create_connecVTK(nelem,connec,atoIJK,vtk_atoIJK,connecVTK)
+           call linearMeshOutput(nelem,connec,listHEX08,connecLINEAR)
+        end if
+
+        allocate(invAtoIJK(porder+1,porder+1,porder+1))
+        allocate(gmshAtoI(nnode))
+        allocate(gmshAtoJ(nnode))
+        allocate(gmshAtoK(nnode))
+        call atioIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+
+#if 0
         if (((porder+1)**ndime) .le. (3**ndime) .and. flag_spectralElem == 0) then
            !
            ! Call VTK output (0th step)
@@ -830,10 +826,6 @@ program sod2d
            end if
            call nvtxEndRange
         else if (flag_spectralElem == 1) then
-           allocate(connecVTK(nelem,nnode))
-           allocate(connecLINEAR(nelem*(porder**ndime),2**ndime))
-           call create_connecVTK(nelem,connec,atoIJK,vtk_atoIJK,connecVTK)
-           call linearMeshOutput(nelem,connec,listHEX08,connecLINEAR)
            !
            ! Call VTK output (0th step)
            !
@@ -854,7 +846,7 @@ program sod2d
            end if
            call nvtxEndRange
         end if
-
+#endif
         !*********************************************************************!
         ! Treat periodicity                                                   !
         !*********************************************************************!
@@ -879,17 +871,31 @@ program sod2d
            end do
            !$acc end parallel loop
         end if
+        !*********************************************************************!
+        ! Compute list of elements per node (connectivity index)              !
+        !*********************************************************************!
         ! evaluate near boundaries for the inlets and outlets
-           !not the best place Oriol!
-            allocate(lnbn(nboun,npbou))
-            call nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,atoIJK,lnbn)
+        !not the best place Oriol!
+        allocate(lelpn(npoin))
+        allocate(point2elem(npoin))
+        write(1,*) '--| POINT 2 ELEM begin'
+        call elemPerNode(nelem,npoin,connec,lelpn,point2elem)
 
-            allocate(invAtoIJK(porder+1,porder+1,porder+1))
-            allocate(gmshAtoI(nnode))
-            allocate(gmshAtoJ(nnode))
-            allocate(gmshAtoK(nnode))
-            call atioIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+        write(1,*) '--| POINT 2 ELEM done'
+        
+        allocate(lnbn(nboun,npbou))
+        call nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,atoIJK,lnbn)
 
+
+        !*********************************************************************!
+        ! Compute derivative-related fields and produce the 1st output        !
+        !*********************************************************************!
+        allocate(gradRho(npoin,ndime))
+        allocate(curlU(npoin,ndime))
+        allocate(divU(npoin))
+        allocate(Qcrit(npoin))
+
+        call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
         !*********************************************************************!
         ! Compute mass matrix (Lumped and Consistent) and set solver type     !
         !*********************************************************************!
@@ -1119,7 +1125,7 @@ program sod2d
                  !
                  if (atime .gt. tleap) then
                  !if (istep == nsave) then
-                    call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
+                    call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
                     call nvtxStartRange("Output "//timeStep,istep)
                     if (flag_spectralElem == 1) then
                        call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connecVTK, &
@@ -1242,7 +1248,7 @@ program sod2d
                   !
                   if (atime .gt. tleap) then
                   !if (istep == nsave) then
-                     call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
+                     call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
                      call nvtxStartRange("Output "//timeStep,istep)
                      if (flag_spectralElem == 1) then
                         call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connecVTK, &
@@ -1353,7 +1359,7 @@ program sod2d
                   if (istep == nsave) then
                      call nvtxStartRange("Output "//timeStep,istep)
                      if (flag_spectralElem == 1) then
-                        call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
+                        call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
                         call write_vtk_binary(isPeriodic,counter,npoin,nelem,coord,connecVTK, &
                                               rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
                                               gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nper,masSla)
