@@ -14,7 +14,7 @@ contains
 
    ! it implents the ILSA SGS
 
-   subroutine sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dt, &
+   subroutine sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt, &
          rho,u,mu_sgs,mu_fluid,mue,kres,etot,au,ax1,ax2,ax3)
 
       implicit none
@@ -22,14 +22,17 @@ contains
       integer(4), intent(in)  :: nelem, npoin, npoin_w,lpoin_w(npoin_w),connec(nelem,nnode)
       real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
       real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem),dt
+      real(rp),    intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1)
+      integer(4), intent(in)  :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
       real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime)
       real(rp),    intent(out) :: mu_sgs(nelem,ngaus)
       real(rp),    intent(in) :: mu_fluid(npoin),mue(nelem,ngaus)
       real(rp),    intent(inout) :: kres(npoin),etot(npoin),au(npoin,ndime),ax1(npoin),ax2(npoin),ax3(npoin)
-      integer(4)              :: ielem, inode, igaus, kdime, idime, jdime,ipoin
+      integer(4)              :: ielem, inode, igaus, kdime, idime, jdime,ipoin,kdime,isoI, isoJ, isoK , ii
       real(rp)                 :: gpcar(ndime,nnode), aux,aux2,mueff(nnode),ul(nnode,ndime),kresl(nnode),etotl(nnode)
       real(rp)                 :: gradU(ndime,ndime), gradUf(ndime,ndime),eliti,ave,strain(ndime,ndime),strain_m,strainf(ndime,ndime),uf(nnode,ndime)
       real(rp)                 :: gpkres,ax1l(nnode),ax2l(nnode),ax3l(nnode),gpax1,gpax2,gpax3,c_k,a,b,c,d,gprij(ndime,ndime),gplest,gpepst,aul(nnode,ndime),aux3(nnode)
+      real(rp)                 :: gradIsoUf(ndime,ndime),gradIsoU(ndime,ndime)
 
       if(time_ilsa>T_ilsa) then
          time_ilsa = 0.0_rp
@@ -66,33 +69,42 @@ contains
                aul(inode,idime) = au(connec(ielem,inode),idime)
             end do
          end do
-         !$acc loop worker private(gpcar,gradU,strain,strainf,gradUf,gprij,aux,aux2,strain_m,gpkres,gpepst,gplest,gpax1,gpax2,gpax3,a,b,c,d)
+         !$acc loop vector private(gpcar,gradU,strain,strainf,gradUf,gprij,aux,aux2,strain_m,gpkres,gpepst,gplest,gpax1,gpax2,gpax3,a,b,c,d,gradIsoUf, gradIsoU)
          do igaus = 1,ngaus
+            isoI = gmshAtoI(igaus) 
+            isoJ = gmshAtoJ(igaus) 
+            isoK = gmshAtoK(igaus) 
+
+            gradIsoU(:,:) = 0.0_rp
+            gradIsoUf(:,:) = 0.0_rp
             !$acc loop seq
-            do idime = 1,ndime
-               !$acc loop vector
-               do inode = 1,nnode
-                  aux =  dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
-                  gpcar(idime,inode) = aux
+            do ii=1,porder+1
+               !$acc loop seq
+               do idime=1,ndime
+                  gradIsoU(idime,1) = gradIsoU(idime,1) + dlxigp_ip(igaus,1,ii)*ul(invAtoIJK(ii,isoJ,isoK),idime)
+                  gradIsoU(idime,2) = gradIsoU(idime,2) + dlxigp_ip(igaus,2,ii)*ul(invAtoIJK(isoI,ii,isoK),idime)
+                  gradIsoU(idime,3) = gradIsoU(idime,3) + dlxigp_ip(igaus,3,ii)*ul(invAtoIJK(isoI,isoJ,ii),idime)
+
+                  gradIsoUf(idime,1) = gradIsoUf(idime,1) + dlxigp_ip(igaus,1,ii)*aul(invAtoIJK(ii,isoJ,isoK),idime)
+                  gradIsoUf(idime,2) = gradIsoUf(idime,2) + dlxigp_ip(igaus,2,ii)*aul(invAtoIJK(isoI,ii,isoK),idime)
+                  gradIsoUf(idime,3) = gradIsoUf(idime,3) + dlxigp_ip(igaus,3,ii)*aul(invAtoIJK(isoI,isoJ,ii),idime)
                end do
             end do
 
-            ! Compute strain
+            gradU(:,:) = 0.0_rp
+            gradUf(:,:) = 0.0_rp
             !$acc loop seq
-            do idime = 1,ndime
+            do idime=1, ndime
                !$acc loop seq
-               do jdime = 1,ndime
-                  aux  = 0.0_rp
-                  aux2 = 0.0_rp
-                  !$acc loop vector reduction(+:aux,aux2)
-                  do inode = 1,nnode
-                     aux  = aux +gpcar(jdime,inode)*ul(inode,idime)
-                     aux2 = aux2+gpcar(jdime,inode)*aul(inode,idime)
+               do jdime=1, ndime
+                  !$acc loop seq
+                  do kdime=1,ndime
+                     gradU(idime,jdime) = gradU(idime,jdime) + He(jdime,kdime,igaus,ielem) * gradIsoU(idime,kdime)
+                     gradUf(idime,jdime) = gradUf(idime,jdime) + He(jdime,kdime,igaus,ielem) * (gradIsoU(idime,kdime)-gradIsoUf(idime,kdime))
                   end do
-                  gradU(idime,jdime) = aux
-                  gradUf(idime,jdime) = aux-aux2
                end do
             end do
+
             strain_m = 0.0_rp
             gpkres = eliti*kresl(igaus)+ave*0.5_rp*(uf(igaus,1)**2+uf(igaus,2)**2+uf(igaus,3)**2)
             aux = 0.0_rp
