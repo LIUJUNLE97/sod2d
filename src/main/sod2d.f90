@@ -83,8 +83,8 @@ program sod2d
         real(rp)  :: yp=0.0_rp, ti(3)
         real(rp)  :: velo = 0.0_rp, vol = 0.0_rp
         real(rp)  :: Re,mul,utau,Rg,to,po,mur
-        integer(4) :: isCylinder = -1
-        !integer(4) :: isCylinder = 1
+        !integer(4) :: isCylinder = -1
+        integer(4) :: isCylinder = 1
 #else
         real(rp)                    :: rho0, Re, mul,mur,to
 #endif
@@ -153,15 +153,15 @@ program sod2d
         !Cp = gamma_gas*Rgas/(gamma_gas-1.0_rp)
         write(1,*) "Cp ",Cp
         Cv = Cp/gamma_gas
-        cfl_conv = 1.5_rp
-        cfl_diff = 1.5_rp
+        cfl_conv = 2.2_rp
+        cfl_diff = 2.2_rp
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
         nsaveAVG = 1
-        nleap = 8000 ! Saving interval, TODO: input
+        nleap = 20000 ! Saving interval, TODO: input
         tleap = 0.5_rp ! Saving interval, TODO: input
         nleap2 = 10  ! Saving interval, TODO: input
-        nleapAVG = 8000
+        nleapAVG = 20000
 #ifdef CHANNEL
         isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
 #else
@@ -751,24 +751,20 @@ program sod2d
         end do
         write(1,*) '--| DOMAIN VOLUME := ',VolTot
 
-        !*********************************************************************!
-        ! Compute derivative-related fields and produce the 1st output        !
-        !*********************************************************************!
-        allocate(gradRho(npoin,ndime))
-        allocate(curlU(npoin,ndime))
-        allocate(divU(npoin))
-        allocate(Qcrit(npoin))
-        !
-        ! Compute Levi-Civita tensor
-        !
-        leviCivi = 0.0_rp
-        leviCivi(2,3,1) =  1.0_rp
-        leviCivi(3,2,1) = -1.0_rp
-        leviCivi(1,3,2) = -1.0_rp
-        leviCivi(3,1,2) =  1.0_rp
-        leviCivi(1,2,3) =  1.0_rp
-        leviCivi(2,1,3) = -1.0_rp
-        call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
+        if (flag_spectralElem == 1) then
+           allocate(connecVTK(nelem,nnode))
+           allocate(connecLINEAR(nelem*(porder**ndime),2**ndime))
+           call create_connecVTK(nelem,connec,atoIJK,vtk_atoIJK,connecVTK)
+           call linearMeshOutput(nelem,connec,listHEX08,connecLINEAR)
+        end if
+
+        allocate(invAtoIJK(porder+1,porder+1,porder+1))
+        allocate(gmshAtoI(nnode))
+        allocate(gmshAtoJ(nnode))
+        allocate(gmshAtoK(nnode))
+        call atioIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+
+#if 0
         if (((porder+1)**ndime) .le. (3**ndime) .and. flag_spectralElem == 0) then
            !
            ! Call VTK output (0th step)
@@ -786,10 +782,6 @@ program sod2d
            end if
            call nvtxEndRange
         else if (flag_spectralElem == 1) then
-           allocate(connecVTK(nelem,nnode))
-           allocate(connecLINEAR(nelem*(porder**ndime),2**ndime))
-           call create_connecVTK(nelem,connec,atoIJK,vtk_atoIJK,connecVTK)
-           call linearMeshOutput(nelem,connec,listHEX08,connecLINEAR)
            !
            ! Call VTK output (0th step)
            !
@@ -810,7 +802,7 @@ program sod2d
            end if
            call nvtxEndRange
         end if
-
+#endif
         !*********************************************************************!
         ! Treat periodicity                                                   !
         !*********************************************************************!
@@ -838,23 +830,37 @@ program sod2d
         !*********************************************************************!
         ! Compute list of elements per node (connectivity index)              !
         !*********************************************************************!
+        ! evaluate near boundaries for the inlets and outlets
+        !not the best place Oriol!
         allocate(lelpn(npoin))
         allocate(point2elem(npoin))
         write(1,*) '--| POINT 2 ELEM begin'
         call elemPerNode(nelem,npoin,connec,lelpn,point2elem)
 
         write(1,*) '--| POINT 2 ELEM done'
-        ! evaluate near boundaries for the inlets and outlets
-        !not the best place Oriol!
+        
         allocate(lnbn(nboun,npbou))
         call nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,atoIJK,lnbn)
 
-        allocate(invAtoIJK(porder+1,porder+1,porder+1))
-        allocate(gmshAtoI(nnode))
-        allocate(gmshAtoJ(nnode))
-        allocate(gmshAtoK(nnode))
-        call atioIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
 
+        !*********************************************************************!
+        ! Compute derivative-related fields and produce the 1st output        !
+        !*********************************************************************!
+        allocate(gradRho(npoin,ndime))
+        allocate(curlU(npoin,ndime))
+        allocate(divU(npoin))
+        allocate(Qcrit(npoin))
+        !
+        ! Compute Levi-Civita tensor
+        !
+        leviCivi = 0.0_rp
+        leviCivi(2,3,1) =  1.0_rp
+        leviCivi(3,2,1) = -1.0_rp
+        leviCivi(1,3,2) = -1.0_rp
+        leviCivi(3,1,2) =  1.0_rp
+        leviCivi(1,2,3) =  1.0_rp
+        leviCivi(2,1,3) = -1.0_rp
+        call compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
         !*********************************************************************!
         ! Compute mass matrix (Lumped and Consistent) and set solver type     !
         !*********************************************************************!
