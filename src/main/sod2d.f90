@@ -83,8 +83,8 @@ program sod2d
         real(rp)  :: yp=0.0_rp, ti(3)
         real(rp)  :: velo = 0.0_rp, vol = 0.0_rp
         real(rp)  :: Re,mul,utau,Rg,to,po,mur
-        !integer(4) :: isCylinder = -1
-        integer(4) :: isCylinder = 1
+        integer(4) :: isCylinder = -1
+        !integer(4) :: isCylinder = 1
 #else
         real(rp)                    :: rho0, Re, mul,mur,to
 #endif
@@ -153,8 +153,8 @@ program sod2d
         !Cp = gamma_gas*Rgas/(gamma_gas-1.0_rp)
         write(1,*) "Cp ",Cp
         Cv = Cp/gamma_gas
-        cfl_conv = 2.2_rp
-        cfl_diff = 2.2_rp
+        cfl_conv = 1.5_rp
+        cfl_diff = 1.5_rp
         nsave  = 1   ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
         nsaveAVG = 1
