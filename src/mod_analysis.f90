@@ -226,7 +226,7 @@ module mod_analysis
 				bnorm(1:npbou*ndime) = bounorm(lelbo(ibound),1:npbou*ndime)
             prl(1:npbou) = pr(bound(lelbo(ibound),1:npbou))
 				! Element area
-            !$acc loop vector
+            !$acc loop vector private(ul,rhol,mufluidl,gradIsoU,gradU)
 				do igaus = 1,npbou
                ielem = point2elem(bound(lelbo(ibound),igaus))
                jgaus = minloc(abs(connec(ielem,:)-bound(lelbo(ibound),igaus)),1)
@@ -239,7 +239,9 @@ module mod_analysis
                isoJ = gmshAtoJ(jgaus)
                isoK = gmshAtoK(jgaus)
                gradIsoU(:,:) = 0.0_rp
+               !$acc loop seq
                do ii = 1,porder+1
+                  !$acc lop seq
                   do idime = 1,ndime
                      gradIsoU(idime,1) = gradIsoU(idime,1)+dlxigp_ip(jgaus,idime,ii)*ul(invAtoIJK(ii,isoJ,isoK),idime)
                      gradIsoU(idime,2) = gradIsoU(idime,2)+dlxigp_ip(jgaus,idime,ii)*ul(invAtoIJK(isoI,ii,isoK),idime)
@@ -247,19 +249,24 @@ module mod_analysis
                   end do
                end do
                gradU(:,:) = 0.0_rp
+               !$acc loop seq
                do idime = 1,ndime
+                  !$acc loop seq
                   do jdime = 1,ndime
+                     !$acc loop seq
                      do kdime = 1,ndime
                         gradU(idime,jdime) = gradU(idime,jdime) + He(jdime,kdime,jgaus,ielem)*gradIsoU(idime,kdime)
                      end do
                   end do
                end do
                divU = gradU(1,1)+gradU(2,2)+gradU(3,3)
+               !$acc loop seq
                do idime = 1,ndime
+                  !$acc loop seq
                   do jdime = 1,ndime
-                     tau(idime,jdime) = gradU(idime,jdime)+gradU(jdime,idime)
+                     tau(idime,jdime) = (mu_fgp+mu_egp)*(gradU(idime,jdime)+gradU(jdime,idime))
                   end do
-                  tau(idime,idime) = tau(idime,idime) - (2.0_rp/3.0_rp)*divU
+                  tau(idime,idime) = tau(idime,idime) - (mu_fgp)*(2.0_rp/3.0_rp)*divU
                end do
 					nmag = 0.0_rp
                !$acc loop seq
