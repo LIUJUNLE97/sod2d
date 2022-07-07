@@ -291,6 +291,8 @@ module mod_analysis
 			end do
          !$acc end parallel loop
 			deallocate(lelbo)
+         write(888+surfCode,50) surfArea, Fpr(1), Fpr(2), Fpr(3), Ftau(1), Ftau(2), Ftau(3)
+50       format(7(F12.8,2X))
       end subroutine surfInfo
 
 end module mod_analysis

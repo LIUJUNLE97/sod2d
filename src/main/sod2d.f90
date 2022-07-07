@@ -68,7 +68,7 @@ program sod2d
         real(rp)                    :: cfl_conv, cfl_diff, acutim
         real(rp)                    :: leviCivi(3,3,3)
         character(500)             :: file_path
-        character(500)             :: file_name, dumpfile
+        character(500)             :: file_name, dumpfile, tmpname
         character(4)               :: timeStep
         real(rp)  ::  Cp = 1004.0_rp
         real(rp)                    :: Rgas, gamma_gas, Cv, tleap, atime, Prt
@@ -885,6 +885,8 @@ program sod2d
         !*********************************************************************!
         if (nboun .ne. 0) then
            do icode = 1,numCodes
+              write(tmpname,'("surfcode_",i0,".dat")') icode
+              open(unit=888+icode,form='formatted',file=tmpname,status='replace')
               call nvtxStartRange("Surface info")
 	           call surfInfo(nelem,npoin,nboun,icode,connec,bound,point2elem, &
                             bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He, &
