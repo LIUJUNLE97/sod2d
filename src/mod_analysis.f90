@@ -178,20 +178,21 @@ module mod_analysis
 		!> @param[in] bounorm The normal of each boundary element at each reference node
 		!> @param[out] surfArea The area of the selected surface
       subroutine surfInfo(nelem,npoin,nbound,surfCode,connec,bound,point2elem,bou_code, &
-                          bounorm,wgp_b,dlxigp_ip,He,u,pr,surfArea,Fpr,Ftau)
+                          bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,u,pr,surfArea,Fpr,Ftau)
 
          implicit none
 
 			integer(4), intent(in)  :: npoin, nbound, surfCode, bound(nbound,npbou), bou_code(nbound,2)
 			integer(4), intent(in)  :: nelem, connec(nelem,nnode), point2elem(npoin)
+			integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
          real(rp),    intent(in)  :: wgp_b(npbou), bounorm(nbound,ndime*npbou)
          real(rp),    intent(in)  :: u(npoin,ndime), pr(npoin)
          real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1)
 			real(rp),    intent(out) :: surfArea, Fpr(ndime), Ftau(ndime)
-         integer(4)              :: ibound, idime, igaus, ipbou
-         integer(4)              :: numBelem, counter
+         integer(4)              :: ibound, idime, igaus, ipbou, ielem, jgaus
+         integer(4)              :: numBelem, counter, isoI, isoJ, isoK
          integer(4), allocatable :: lelbo(:)
-         real(rp)                 :: bnorm(npbou*ndime), nmag, prl(npbou)
+         real(rp)                 :: bnorm(npbou*ndime), nmag, prl(npbou), ul(nnode,ndime)
 
 			! Create lelbo for the surface, where lelbo is a list of boundary elements belonging to that surface
 			numBelem = 0
@@ -223,6 +224,12 @@ module mod_analysis
 				! Element area
             !$acc loop vector
 				do igaus = 1,npbou
+               ielem = point2elem(bound(lelbo(ibound),igaus))
+               jgaus = minloc(abs(connec(ielem,:)-bound(lelbo(ibound),igaus)),1)
+               ul(1:nnode,1:ndime) = u(connec(ielem,:),1:ndime)
+               isoI = gmshAtoI(jgaus)
+               isoJ = gmshAtoJ(jgaus)
+               isoK = gmshAtoK(jgaus)
 					nmag = 0.0_rp
                !$acc loop seq
 					do idime = 1,ndime
