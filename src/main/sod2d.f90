@@ -237,7 +237,7 @@ program sod2d
             write(file_name,*) "cylin" ! Nsys
         end if
 #else
-        write(file_name,*) "cyl" ! Nsys
+        write(file_name,*) "box" ! Nsys
         !write(file_name,*) "cube" ! Nsys
 #endif
         call read_dims(file_path,file_name,npoin,nelem,nboun)
@@ -768,15 +768,6 @@ program sod2d
 	        call nvtxStartRange("Bou normals")
 	        call boundary_normals(npoin,nboun,bound,leviCivi,coord,dNgp_b,bou_norm)
 	        call nvtxEndRange
-           do icode = 1,numCodes
-              call nvtxStartRange("Surface info")
-	           call surfInfo(nelem,npoin,nboun,icode,connec,bound,point2elem, &
-                            bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He, &
-                            mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),surfArea,Fpr,Ftau)
-              call nvtxEndRange
-              print*, icode, surfArea
-              print*, icode, Fpr(:)
-           end do
 	     end if
 
         !*********************************************************************!
@@ -889,6 +880,21 @@ program sod2d
         allocate(lnbn(nboun,npbou))
         call nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,atoIJK,lnbn)
 
+        !*********************************************************************!
+        ! Compute surface forces and area                                                                !
+        !*********************************************************************!
+        if (nboun .ne. 0) then
+           do icode = 1,numCodes
+              call nvtxStartRange("Surface info")
+	           call surfInfo(nelem,npoin,nboun,icode,connec,bound,point2elem, &
+                            bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He, &
+                            mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),surfArea,Fpr,Ftau)
+              call nvtxEndRange
+              print*, icode, surfArea
+              print*, icode, Fpr(:)
+              print*, icode, Ftau(:)
+           end do
+        end if
 
         !*********************************************************************!
         ! Compute derivative-related fields and produce the 1st output        !
