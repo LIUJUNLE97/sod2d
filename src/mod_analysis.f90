@@ -190,9 +190,10 @@ module mod_analysis
          real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1)
 			real(rp),    intent(out) :: surfArea, Fpr(ndime), Ftau(ndime)
          integer(4)              :: ibound, idime, igaus, ipbou, ielem, jgaus
-         integer(4)              :: numBelem, counter, isoI, isoJ, isoK
+         integer(4)              :: numBelem, counter, isoI, isoJ, isoK, ii, jdime, kdime
          integer(4), allocatable :: lelbo(:)
          real(rp)                 :: bnorm(npbou*ndime), nmag, prl(npbou), ul(nnode,ndime)
+         real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), divU
 
 			! Create lelbo for the surface, where lelbo is a list of boundary elements belonging to that surface
 			numBelem = 0
@@ -239,12 +240,19 @@ module mod_analysis
                   end do
                end do
                gradU(:,:) = 0.0_rp
-               do idme = 1,ndime
+               do idime = 1,ndime
                   do jdime = 1,ndime
                      do kdime = 1,ndime
                         gradU(idime,jdime) = gradU(idime,jdime) + He(jdime,kdime,jgaus,ielem)*gradIsoU(idime,kdime)
                      end do
                   end do
+               end do
+               divU = gradU(1,1)+gradU(2,2)+gradU(3,3)
+               do idime = 1,ndime
+                  do jdime = 1,ndime
+                     tau(idime,jdime) = gradU(idime,jdime)+gradU(jdime,idime)
+                  end do
+                  tau(idime,idime) = tau(idime,idime) - (2.0_rp/3.0_rp)*divU
                end do
 					nmag = 0.0_rp
                !$acc loop seq
