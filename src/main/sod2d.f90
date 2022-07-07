@@ -771,7 +771,8 @@ program sod2d
            do icode = 1,numCodes
               call nvtxStartRange("Surface info")
 	           call surfInfo(nelem,npoin,nboun,icode,connec,bound,point2elem, &
-                            bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,u,pr,surfArea,Fpr,Ftau)
+                            bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He, &
+                            mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),surfArea,Fpr,Ftau)
               call nvtxEndRange
               print*, icode, surfArea
               print*, icode, Fpr(:)
