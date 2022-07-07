@@ -33,8 +33,8 @@ program sod2d
 
         implicit none
 
-        integer(4)                 :: nstep, nper!, nzdom
-        integer(4)                 :: idime, inode, igaus, istep, iper!, izdom
+        integer(4)                 :: nstep, nper, numCodes!, nzdom
+        integer(4)                 :: idime, inode, igaus, istep, iper, icode!, izdom
         integer(4)                 :: nelem, npoin, nboun, nbcodes
         integer(4)                 :: ielem, ipoin, iboun, ipbou
         integer(4)                 :: idof, ndof, nbnodes, ibnodes
@@ -62,6 +62,7 @@ program sod2d
         real(rp),    allocatable    :: aux_1(:,:), aux_2(:)
         real(rp),    allocatable    :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:)
         real(rp),    allocatable    :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
+        real(rp),    allocatable    :: Fpr(:), Ftau(:)
         real(rp)                    :: s, t, z, detJe
         real(rp)                    :: dt, he_aux, time, P0, T0, EK, VolTot, eps_D, eps_S, eps_T, maxmachno, surfArea
         real(rp)                    :: cfl_conv, cfl_diff, acutim
@@ -236,7 +237,7 @@ program sod2d
             write(file_name,*) "cylin" ! Nsys
         end if
 #else
-        write(file_name,*) "shock_tube" ! Nsys
+        write(file_name,*) "box" ! Nsys
         !write(file_name,*) "cube" ! Nsys
 #endif
         call read_dims(file_path,file_name,npoin,nelem,nboun)
@@ -246,6 +247,8 @@ program sod2d
            allocate(bou_codes(nboun,2))
 		     allocate(bou_norm(nboun,ndime*npbou))
            call read_fixbou(file_path,file_name,nboun,nbcodes,bou_codes)
+           numCodes = maxval(bou_codes(:,2))
+           write(1,*) "--| TOTAL BOUNDARY CODES :", numCodes
         end if
         allocate(coord(npoin,ndime))
         call read_geo_dat(file_path,file_name,npoin,nelem,nboun,connec,bound,coord)
@@ -759,13 +762,13 @@ program sod2d
 	     leviCivi(1,2,3) =  1.0_rp
 	     leviCivi(2,1,3) = -1.0_rp
 	     if (nboun .ne. 0) then
+           allocate(Fpr(ndime))
+           allocate(Ftau(ndime))
 	        write(1,*) "--| COMPUTING BOUNDARY ELEMENT NORMALS"
-	        call nvtxStartRange("BBou normals")
+	        call nvtxStartRange("Bou normals")
 	        call boundary_normals(npoin,nboun,bound,leviCivi,coord,dNgp_b,bou_norm)
 	        call nvtxEndRange
-	        call surfInfo(nboun,2,bou_codes,bou_norm,wgp_b,surfArea)
 	     end if
-
 
         !*********************************************************************!
         ! Generate Jacobian related information                               !
@@ -877,6 +880,21 @@ program sod2d
         allocate(lnbn(nboun,npbou))
         call nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,atoIJK,lnbn)
 
+        !*********************************************************************!
+        ! Compute surface forces and area                                                                !
+        !*********************************************************************!
+        if (nboun .ne. 0) then
+           do icode = 1,numCodes
+              call nvtxStartRange("Surface info")
+	           call surfInfo(nelem,npoin,nboun,icode,connec,bound,point2elem, &
+                            bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He, &
+                            mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),surfArea,Fpr,Ftau)
+              call nvtxEndRange
+              print*, icode, surfArea
+              print*, icode, Fpr(:)
+              print*, icode, Ftau(:)
+           end do
+        end if
 
         !*********************************************************************!
         ! Compute derivative-related fields and produce the 1st output        !
