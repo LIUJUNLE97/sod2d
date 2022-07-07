@@ -230,6 +230,22 @@ module mod_analysis
                isoI = gmshAtoI(jgaus)
                isoJ = gmshAtoJ(jgaus)
                isoK = gmshAtoK(jgaus)
+               gradIsoU(:,:) = 0.0_rp
+               do ii = 1,porder+1
+                  do idime = 1,ndime
+                     gradIsoU(idime,1) = gradIsoU(idime,1)+dlxigp_ip(jgaus,idime,ii)*ul(invAtoIJK(ii,isoJ,isoK),idime)
+                     gradIsoU(idime,2) = gradIsoU(idime,2)+dlxigp_ip(jgaus,idime,ii)*ul(invAtoIJK(isoI,ii,isoK),idime)
+                     gradIsoU(idime,3) = gradIsoU(idime,3)+dlxigp_ip(jgaus,idime,ii)*ul(invAtoIJK(isoI,isoJ,ii),idime)
+                  end do
+               end do
+               gradU(:,:) = 0.0_rp
+               do idme = 1,ndime
+                  do jdime = 1,ndime
+                     do kdime = 1,ndime
+                        gradU(idime,jdime) = gradU(idime,jdime) + He(jdime,kdime,jgaus,ielem)*gradIsoU(idime,kdime)
+                     end do
+                  end do
+               end do
 					nmag = 0.0_rp
                !$acc loop seq
 					do idime = 1,ndime
