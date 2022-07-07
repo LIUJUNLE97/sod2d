@@ -196,7 +196,7 @@ module mod_analysis
          integer(4), allocatable :: lelbo(:)
          real(rp)                 :: bnorm(npbou*ndime), nmag, prl(npbou), ul(nnode,ndime), rhol(nnode)
          real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), tau(ndime,ndime), divU
-         real(rp)                :: mu_fgp, mu_egp, mufluidl(nnode)
+         real(rp)                :: mu_fgp, mu_egp, mufluidl(nnode), surfAreal
 
 			! Create lelbo for the surface, where lelbo is a list of boundary elements belonging to that surface
 			numBelem = 0
@@ -225,8 +225,9 @@ module mod_analysis
 			do ibound = 1, numBelem
 				bnorm(1:npbou*ndime) = bounorm(lelbo(ibound),1:npbou*ndime)
             prl(1:npbou) = pr(bound(lelbo(ibound),1:npbou))
+            surfAreal = 0.0_rp
 				! Element area
-            !$acc loop vector private(ul,rhol,mufluidl,gradIsoU,gradU)
+            !$acc loop vector private(ul,rhol,mufluidl,gradIsoU,gradU) reduction(+:surfAreal)
 				do igaus = 1,npbou
                ielem = point2elem(bound(lelbo(ibound),igaus))
                jgaus = minloc(abs(connec(ielem,:)-bound(lelbo(ibound),igaus)),1)
@@ -243,9 +244,9 @@ module mod_analysis
                do ii = 1,porder+1
                   !$acc lop seq
                   do idime = 1,ndime
-                     gradIsoU(idime,1) = gradIsoU(idime,1)+dlxigp_ip(jgaus,idime,ii)*ul(invAtoIJK(ii,isoJ,isoK),idime)
-                     gradIsoU(idime,2) = gradIsoU(idime,2)+dlxigp_ip(jgaus,idime,ii)*ul(invAtoIJK(isoI,ii,isoK),idime)
-                     gradIsoU(idime,3) = gradIsoU(idime,3)+dlxigp_ip(jgaus,idime,ii)*ul(invAtoIJK(isoI,isoJ,ii),idime)
+                     gradIsoU(idime,1) = gradIsoU(idime,1)+dlxigp_ip(jgaus,1,ii)*ul(invAtoIJK(ii,isoJ,isoK),idime)
+                     gradIsoU(idime,2) = gradIsoU(idime,2)+dlxigp_ip(jgaus,2,ii)*ul(invAtoIJK(isoI,ii,isoK),idime)
+                     gradIsoU(idime,3) = gradIsoU(idime,3)+dlxigp_ip(jgaus,3,ii)*ul(invAtoIJK(isoI,isoJ,ii),idime)
                   end do
                end do
                gradU(:,:) = 0.0_rp
@@ -281,13 +282,14 @@ module mod_analysis
                   !$acc loop seq 
                   do jdime = 1,ndime
                      !$acc atomic update
-                     Ftau(idime) = Ftau(idime)+wgp_b(igaus)*tau(idime,idime)*bnorm((igaus-1)*ndime+idime)
+                     Ftau(idime) = Ftau(idime)+wgp_b(igaus)*tau(idime,jdime)*bnorm((igaus-1)*ndime+idime)
                      !$acc end atomic
                   end do
                end do
                nmag = sqrt(nmag)
-					surfArea = surfArea + nmag*wgp_b(igaus)
+					surfAreal = surfAreal + nmag*wgp_b(igaus)
 				end do
+            surfArea = surfArea + surfAreal
 			end do
          !$acc end parallel loop
 			deallocate(lelbo)
