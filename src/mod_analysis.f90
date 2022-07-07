@@ -178,7 +178,8 @@ module mod_analysis
 		!> @param[in] bounorm The normal of each boundary element at each reference node
 		!> @param[out] surfArea The area of the selected surface
       subroutine surfInfo(nelem,npoin,nbound,surfCode,connec,bound,point2elem,bou_code, &
-                          bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,u,pr,surfArea,Fpr,Ftau)
+                          bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He, &
+                          mu_fluid,mu_e,mu_sgs,rho,u,pr,surfArea,Fpr,Ftau)
 
          implicit none
 
@@ -186,14 +187,16 @@ module mod_analysis
 			integer(4), intent(in)  :: nelem, connec(nelem,nnode), point2elem(npoin)
 			integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
          real(rp),    intent(in)  :: wgp_b(npbou), bounorm(nbound,ndime*npbou)
-         real(rp),    intent(in)  :: u(npoin,ndime), pr(npoin)
+         real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime), pr(npoin)
+         real(rp),    intent(in)  :: mu_e(nelem,ngaus), mu_sgs(nelem,ngaus), mu_fluid(npoin)
          real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1)
 			real(rp),    intent(out) :: surfArea, Fpr(ndime), Ftau(ndime)
          integer(4)              :: ibound, idime, igaus, ipbou, ielem, jgaus
          integer(4)              :: numBelem, counter, isoI, isoJ, isoK, ii, jdime, kdime
          integer(4), allocatable :: lelbo(:)
-         real(rp)                 :: bnorm(npbou*ndime), nmag, prl(npbou), ul(nnode,ndime)
-         real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), divU
+         real(rp)                 :: bnorm(npbou*ndime), nmag, prl(npbou), ul(nnode,ndime), rhol(nnode)
+         real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), tau(ndime,ndime), divU
+         real(rp)                :: mu_fgp, mu_egp, mufluidl(nnode)
 
 			! Create lelbo for the surface, where lelbo is a list of boundary elements belonging to that surface
 			numBelem = 0
@@ -228,6 +231,10 @@ module mod_analysis
                ielem = point2elem(bound(lelbo(ibound),igaus))
                jgaus = minloc(abs(connec(ielem,:)-bound(lelbo(ibound),igaus)),1)
                ul(1:nnode,1:ndime) = u(connec(ielem,:),1:ndime)
+               rhol(1:nnode) = rho(connec(ielem,:))
+               mufluidl(1:nnode) = mu_fluid(connec(ielem,1:nnode))
+               mu_fgp = mufluidl(jgaus)+rhol(jgaus)*mu_sgs(ielem,jgaus)
+               mu_egp = mu_e(ielem,jgaus)
                isoI = gmshAtoI(jgaus)
                isoJ = gmshAtoJ(jgaus)
                isoK = gmshAtoK(jgaus)
