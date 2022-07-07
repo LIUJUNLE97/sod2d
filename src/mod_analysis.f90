@@ -276,6 +276,15 @@ module mod_analysis
                   Fpr(idime) = Fpr(idime)+wgp_b(igaus)*prl(igaus)*bnorm((igaus-1)*ndime+idime)
                   !$acc end atomic
 					end do
+               !$acc loop seq
+               do idime = 1,ndime
+                  !$acc loop seq 
+                  do jdime = 1,ndime
+                     !$acc atomic update
+                     Ftau(idime) = Ftau(idime)+wgp_b(igaus)*tau(idime,idime)*bnorm((igaus-1)*ndime+idime)
+                     !$acc end atomic
+                  end do
+               end do
                nmag = sqrt(nmag)
 					surfArea = surfArea + nmag*wgp_b(igaus)
 				end do
