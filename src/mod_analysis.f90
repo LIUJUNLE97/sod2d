@@ -178,7 +178,7 @@ module mod_analysis
 		!> @param[in] bounorm The normal of each boundary element at each reference node
 		!> @param[out] surfArea The area of the selected surface
       subroutine surfInfo(nelem,npoin,nbound,surfCode,connec,bound,point2elem,bou_code, &
-                          bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He, &
+                          bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coord, &
                           mu_fluid,mu_e,mu_sgs,rho,u,pr,surfArea,Fpr,Ftau)
 
          implicit none
@@ -189,14 +189,14 @@ module mod_analysis
          real(rp),    intent(in)  :: wgp_b(npbou), bounorm(nbound,ndime*npbou)
          real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime), pr(npoin)
          real(rp),    intent(in)  :: mu_e(nelem,ngaus), mu_sgs(nelem,ngaus), mu_fluid(npoin)
-         real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1)
+         real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1),coord(npoin,ndime)
 			real(rp),    intent(out) :: surfArea, Fpr(ndime), Ftau(ndime)
          integer(4)              :: ibound, idime, igaus, ipbou, ielem, jgaus
          integer(4)              :: numBelem, counter, isoI, isoJ, isoK, ii, jdime, kdime
          integer(4), allocatable :: lelbo(:)
          real(rp)                 :: bnorm(npbou*ndime), nmag, prl(npbou), ul(nnode,ndime), rhol(nnode)
          real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), tau(ndime,ndime), divU
-         real(rp)                :: mu_fgp, mu_egp, mufluidl(nnode), surfAreal
+         real(rp)                :: mu_fgp, mu_egp, mufluidl(nnode),surfAreal,face2centoid(ndime),sig,aux(ndime)
 
 			! Create lelbo for the surface, where lelbo is a list of boundary elements belonging to that surface
 			numBelem = 0
@@ -228,7 +228,7 @@ module mod_analysis
             prl(1:npbou) = pr(bound(lelbo(ibound),1:npbou))
             surfAreal = 0.0_rp
 				! Element area
-            !$acc loop vector private(tau,ul,rhol,mufluidl,gradIsoU,gradU) reduction(+:surfAreal)
+            !$acc loop vector private(tau,ul,rhol,mufluidl,gradIsoU,gradU,face2centoid) reduction(+:surfAreal)
 				do igaus = 1,npbou
                ielem = point2elem(bound(lelbo(ibound),igaus))
                jgaus = minloc(abs(connec(ielem,:)-bound(lelbo(ibound),igaus)),1)
@@ -244,6 +244,15 @@ module mod_analysis
                isoI = gmshAtoI(jgaus)
                isoJ = gmshAtoJ(jgaus)
                isoK = gmshAtoK(jgaus)
+
+               sig=1.0_rp
+               aux(1) = bnorm((igaus-1)*ndime+1)
+               aux(2) = bnorm((igaus-1)*ndime+2)
+               aux(3) = bnorm((igaus-1)*ndime+3)
+               if(dot_product(coord(connec(ielem,nnode),:)-coord(connec(ielem,jgaus),:), aux(:)) .lt. 0.0_rp ) then
+                  sig=-1.0_rp
+               end if
+
                gradIsoU(:,:) = 0.0_rp
                !$acc loop seq
                do ii = 1,porder+1
@@ -283,8 +292,7 @@ module mod_analysis
                !$acc loop seq
 					do idime = 1,ndime
                   !$acc atomic update
-                  Fpr(idime) = Fpr(idime)+wgp_b(igaus)*prl(igaus)*bnorm((igaus-1)*ndime+idime)*nmag
-                  !Fpr(idime) = Fpr(idime)+wgp_b(igaus)*(prl(igaus)-nscbc_p_inf)*bnorm((igaus-1)*ndime+idime)*nmag
+                  Fpr(idime) = Fpr(idime)-wgp_b(igaus)*prl(igaus)*bnorm((igaus-1)*ndime+idime)*sig!*nmag
                   !$acc end atomic
 					end do
                !$acc loop seq
@@ -292,7 +300,7 @@ module mod_analysis
                   !$acc loop seq 
                   do jdime = 1,ndime
                      !$acc atomic update
-                     Ftau(idime) = Ftau(idime)+wgp_b(igaus)*tau(idime,jdime)*bnorm((igaus-1)*ndime+jdime)*nmag
+                     Ftau(idime) = Ftau(idime)+wgp_b(igaus)*tau(idime,jdime)*bnorm((igaus-1)*ndime+jdime)*sig
                      !$acc end atomic
                   end do
                end do

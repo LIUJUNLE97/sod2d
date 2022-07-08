@@ -84,8 +84,8 @@ program sod2d
         real(rp)  :: yp=0.0_rp, ti(3)
         real(rp)  :: velo = 0.0_rp, vol = 0.0_rp
         real(rp)  :: Re,mul,utau,Rg,to,po,mur
-        !integer(4) :: isCylinder = -1
-        integer(4) :: isCylinder = 1
+        integer(4) :: isCylinder = -1
+        !integer(4) :: isCylinder = 1
 #else
         real(rp)                    :: rho0, Re, mul,mur,to
 #endif
@@ -890,7 +890,7 @@ program sod2d
               open(unit=888+icode,form='formatted',file=tmpname,status='replace')
               call nvtxStartRange("Surface info")
 	           call surfInfo(nelem,npoin,nboun,icode,connec,bound,point2elem, &
-                            bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He, &
+                            bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coord, &
                             mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),surfArea,Fpr,Ftau)
               call nvtxEndRange
            end do
@@ -1351,7 +1351,7 @@ program sod2d
                         do icode = 1,numCodes
                            call nvtxStartRange("Surface info")
                            call surfInfo(nelem,npoin,nboun,icode,connec,bound,point2elem, &
-                              bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He, &
+                              bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coord, &
                               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),surfArea,Fpr,Ftau)
                            call nvtxEndRange
                            call flush(888+icode)
