@@ -292,7 +292,7 @@ module mod_analysis
                !$acc loop seq
 					do idime = 1,ndime
                   !$acc atomic update
-                  Fpr(idime) = Fpr(idime)-wgp_b(igaus)*prl(igaus)*bnorm((igaus-1)*ndime+idime)*sig!*nmag
+                  Fpr(idime) = Fpr(idime)-wgp_b(igaus)*prl(igaus)*bnorm((igaus-1)*ndime+idime)*sig
                   !$acc end atomic
 					end do
                !$acc loop seq
