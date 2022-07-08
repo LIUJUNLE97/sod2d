@@ -228,14 +228,14 @@ module mod_analysis
             prl(1:npbou) = pr(bound(lelbo(ibound),1:npbou))
             surfAreal = 0.0_rp
 				! Element area
-            !$acc loop vector private(ul,rhol,mufluidl,gradIsoU,gradU) reduction(+:surfAreal)
+            !$acc loop vector private(tau,ul,rhol,mufluidl,gradIsoU,gradU) reduction(+:surfAreal)
 				do igaus = 1,npbou
                ielem = point2elem(bound(lelbo(ibound),igaus))
-               jgaus = 1  !minloc(abs(connec(ielem,:)-bound(lelbo(ibound),igaus)),1)
-               !$acc loop seq
-               do ii=1, ngaus
-                  if(connec(ielem,ii) .eq. bound(lelbo(ibound),igaus)) jgaus=ii
-               end do
+               jgaus = minloc(abs(connec(ielem,:)-bound(lelbo(ibound),igaus)),1)
+              ! !$acc loop seq
+              ! do ii=1, ngaus
+              !    if(connec(ielem,ii) .eq. bound(lelbo(ibound),igaus)) jgaus=ii
+              ! end do
                ul(1:nnode,1:ndime) = u(connec(ielem,:),1:ndime)
                rhol(1:nnode) = rho(connec(ielem,:))
                mufluidl(1:nnode) = mu_fluid(connec(ielem,1:nnode))
@@ -278,8 +278,13 @@ module mod_analysis
                !$acc loop seq
 					do idime = 1,ndime
 						nmag = nmag + bnorm((igaus-1)*ndime+idime)*bnorm((igaus-1)*ndime+idime)
+					end do
+               nmag = sqrt(nmag)
+               !$acc loop seq
+					do idime = 1,ndime
                   !$acc atomic update
-                  Fpr(idime) = Fpr(idime)+wgp_b(igaus)*prl(igaus)*bnorm((igaus-1)*ndime+idime)
+                  Fpr(idime) = Fpr(idime)+wgp_b(igaus)*prl(igaus)*bnorm((igaus-1)*ndime+idime)*nmag
+                  !Fpr(idime) = Fpr(idime)+wgp_b(igaus)*(prl(igaus)-nscbc_p_inf)*bnorm((igaus-1)*ndime+idime)*nmag
                   !$acc end atomic
 					end do
                !$acc loop seq
@@ -287,11 +292,10 @@ module mod_analysis
                   !$acc loop seq 
                   do jdime = 1,ndime
                      !$acc atomic update
-                     Ftau(idime) = Ftau(idime)+wgp_b(igaus)*tau(idime,jdime)*bnorm((igaus-1)*ndime+jdime)
+                     Ftau(idime) = Ftau(idime)+wgp_b(igaus)*tau(idime,jdime)*bnorm((igaus-1)*ndime+jdime)*nmag
                      !$acc end atomic
                   end do
                end do
-               nmag = sqrt(nmag)
 					surfAreal = surfAreal + nmag*wgp_b(igaus)
 				end do
             surfArea = surfArea + surfAreal

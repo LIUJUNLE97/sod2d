@@ -104,6 +104,7 @@ program sod2d
            mur = 0.000001458_rp*(to**1.50_rp)/(to+110.40_rp)
            flag_mu_factor = mul/mur
            write(1,*) " Gp ", utau*utau*rho0/delta
+           nscbc_p_inf = po
         else
            Re     = 3900.0_rp
            mul    = (rho0*1.0_rp*vo)/Re
