@@ -888,8 +888,10 @@ program sod2d
            do icode = 1,numCodes
               write(tmpname,'("surfcode_",i0,".dat")') icode
               open(unit=888+icode,form='formatted',file=tmpname,status='replace')
+              write(888+icode,60) "ITER", "TIME", "AREA", "FPRE_X", "FPRE_Y", "FPRE_Z", "FTAU_X", "FTAU_Y", "FTAU_Z"
+60            format(9(3X,A,5X))
               call nvtxStartRange("Surface info")
-	           call surfInfo(nelem,npoin,nboun,icode,connec,bound,point2elem, &
+	           call surfInfo(0,0.0_rp,nelem,npoin,nboun,icode,connec,bound,point2elem, &
                             bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coord, &
                             mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),surfArea,Fpr,Ftau)
               call nvtxEndRange
@@ -1350,7 +1352,7 @@ program sod2d
                      if (nboun .ne. 0) then
                         do icode = 1,numCodes
                            call nvtxStartRange("Surface info")
-                           call surfInfo(nelem,npoin,nboun,icode,connec,bound,point2elem, &
+                           call surfInfo(istep,time,nelem,npoin,nboun,icode,connec,bound,point2elem, &
                               bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coord, &
                               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),surfArea,Fpr,Ftau)
                            call nvtxEndRange

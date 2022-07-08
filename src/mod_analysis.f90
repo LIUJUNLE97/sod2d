@@ -177,16 +177,16 @@ module mod_analysis
 		!> @param[in] bou_code Matching of surface codes to boundary elements
 		!> @param[in] bounorm The normal of each boundary element at each reference node
 		!> @param[out] surfArea The area of the selected surface
-      subroutine surfInfo(nelem,npoin,nbound,surfCode,connec,bound,point2elem,bou_code, &
+      subroutine surfInfo(iter,time,nelem,npoin,nbound,surfCode,connec,bound,point2elem,bou_code, &
                           bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coord, &
                           mu_fluid,mu_e,mu_sgs,rho,u,pr,surfArea,Fpr,Ftau)
 
          implicit none
 
-			integer(4), intent(in)  :: npoin, nbound, surfCode, bound(nbound,npbou), bou_code(nbound,2)
+			integer(4), intent(in)  :: iter, npoin, nbound, surfCode, bound(nbound,npbou), bou_code(nbound,2)
 			integer(4), intent(in)  :: nelem, connec(nelem,nnode), point2elem(npoin)
 			integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-         real(rp),    intent(in)  :: wgp_b(npbou), bounorm(nbound,ndime*npbou)
+         real(rp),    intent(in)  :: wgp_b(npbou), bounorm(nbound,ndime*npbou), time
          real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime), pr(npoin)
          real(rp),    intent(in)  :: mu_e(nelem,ngaus), mu_sgs(nelem,ngaus), mu_fluid(npoin)
          real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1),coord(npoin,ndime)
@@ -310,8 +310,9 @@ module mod_analysis
 			end do
          !$acc end parallel loop
 			deallocate(lelbo)
-         write(888+surfCode,50) surfArea, Fpr(1), Fpr(2), Fpr(3), Ftau(1), Ftau(2), Ftau(3)
-50       format(7(F12.8,2X))
+         write(888+surfCode,"(I8,1X,A)",ADVANCE="NO") iter, ","
+         write(888+surfCode,50) time, ",", surfArea, ",", Fpr(1), ",", Fpr(2), ",", Fpr(3), ",", Ftau(1), ",", Ftau(2), ",", Ftau(3), ""
+50       format(16(1X,E10.4,1X,A))
       end subroutine surfInfo
 
 end module mod_analysis
