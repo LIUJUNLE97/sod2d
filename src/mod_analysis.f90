@@ -206,6 +206,7 @@ module mod_analysis
 					numBelem = numBelem + 1
 				end if
 			end do
+         !$acc end parallel loop
 			counter = 0
 			allocate(lelbo(numBelem))
 			do ibound = 1, nbound
@@ -230,7 +231,11 @@ module mod_analysis
             !$acc loop vector private(ul,rhol,mufluidl,gradIsoU,gradU) reduction(+:surfAreal)
 				do igaus = 1,npbou
                ielem = point2elem(bound(lelbo(ibound),igaus))
-               jgaus = minloc(abs(connec(ielem,:)-bound(lelbo(ibound),igaus)),1)
+               jgaus = 1  !minloc(abs(connec(ielem,:)-bound(lelbo(ibound),igaus)),1)
+               !$acc loop seq
+               do ii=1, ngaus
+                  if(connec(ielem,ii) .eq. bound(lelbo(ibound),igaus)) jgaus=ii
+               end do
                ul(1:nnode,1:ndime) = u(connec(ielem,:),1:ndime)
                rhol(1:nnode) = rho(connec(ielem,:))
                mufluidl(1:nnode) = mu_fluid(connec(ielem,1:nnode))
@@ -242,7 +247,7 @@ module mod_analysis
                gradIsoU(:,:) = 0.0_rp
                !$acc loop seq
                do ii = 1,porder+1
-                  !$acc lop seq
+                  !$acc loop seq
                   do idime = 1,ndime
                      gradIsoU(idime,1) = gradIsoU(idime,1)+dlxigp_ip(jgaus,1,ii)*ul(invAtoIJK(ii,isoJ,isoK),idime)
                      gradIsoU(idime,2) = gradIsoU(idime,2)+dlxigp_ip(jgaus,2,ii)*ul(invAtoIJK(isoI,ii,isoK),idime)
@@ -282,7 +287,7 @@ module mod_analysis
                   !$acc loop seq 
                   do jdime = 1,ndime
                      !$acc atomic update
-                     Ftau(idime) = Ftau(idime)+wgp_b(igaus)*tau(idime,jdime)*bnorm((igaus-1)*ndime+idime)
+                     Ftau(idime) = Ftau(idime)+wgp_b(igaus)*tau(idime,jdime)*bnorm((igaus-1)*ndime+jdime)
                      !$acc end atomic
                   end do
                end do

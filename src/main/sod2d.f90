@@ -84,8 +84,8 @@ program sod2d
         real(rp)  :: yp=0.0_rp, ti(3)
         real(rp)  :: velo = 0.0_rp, vol = 0.0_rp
         real(rp)  :: Re,mul,utau,Rg,to,po,mur
-        integer(4) :: isCylinder = -1
-        !integer(4) :: isCylinder = 1
+        !integer(4) :: isCylinder = -1
+        integer(4) :: isCylinder = 1
 #else
         real(rp)                    :: rho0, Re, mul,mur,to
 #endif
@@ -143,7 +143,7 @@ program sod2d
         !nnode = 27 ! TODO: need to allow for mixed elements...
         !porder = 1 ! TODO: make it input
         !npbou = 9 ! TODO: Need to get his from somewhere...
-        nstep = 100 ! TODO: Needs to be input...
+        nstep = 90000000 ! TODO: Needs to be input...
 #ifdef CHANNEL
         Rgas = Rg
 #else
@@ -156,7 +156,7 @@ program sod2d
         Cv = Cp/gamma_gas
         cfl_conv = 1.5_rp
         cfl_diff = 1.5_rp
-        nsave  = 1   ! First step to save, TODO: input
+        nsave  = 1  ! First step to save, TODO: input
         nsave2 = 1   ! First step to save, TODO: input
         nsaveAVG = 1
         nleap = 20000 ! Saving interval, TODO: input
@@ -1155,7 +1155,6 @@ program sod2d
                   if(istep==nsave2) then
                      nsave2 = nsave2+nleap2
                      call flush(666)
-                     call flush(888)
                      call flush(1)
                   end if
 
@@ -1354,6 +1353,7 @@ program sod2d
                               bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He, &
                               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),surfArea,Fpr,Ftau)
                            call nvtxEndRange
+                           call flush(888+icode)
                         end do
                      end if
                   end if
@@ -1398,7 +1398,6 @@ program sod2d
                   if(istep==nsave2) then
                      nsave2 = nsave2+nleap2
                      call flush(1)
-                     call flush(888)
                   end if
 
                   counter = counter+1
