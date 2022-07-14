@@ -292,7 +292,7 @@ module mod_analysis
                !$acc loop seq
 					do idime = 1,ndime
                   !$acc atomic update
-                  Fpr(idime) = Fpr(idime)-wgp_b(igaus)*prl(igaus)*bnorm((igaus-1)*ndime+idime)*sig
+                  Fpr(idime) = Fpr(idime)-wgp_b(igaus)*(prl(igaus)-nscbc_p_inf)*bnorm((igaus-1)*ndime+idime)*sig
                   !$acc end atomic
 					end do
                !$acc loop seq
@@ -311,8 +311,9 @@ module mod_analysis
          !$acc end parallel loop
 			deallocate(lelbo)
          write(888+surfCode,"(I8,1X,A)",ADVANCE="NO") iter, ","
-         write(888+surfCode,50) time, ",", surfArea, ",", Fpr(1), ",", Fpr(2), ",", Fpr(3), ",", Ftau(1), ",", Ftau(2), ",", Ftau(3), ""
-50       format(16(1X,E10.4,1X,A))
+         write(888+surfCode,50) time, ",", dble(surfArea), ",", dble(Fpr(1)), ",", dble(Fpr(2)), ",", dble(Fpr(3)), ",", dble(Ftau(1)), ",", dble(Ftau(2)), ",", dble(Ftau(3)), ""
+!50       format(16(1X,E10.4,1X,A))
+50       format(16(1X,F16.8,1X,A))
       end subroutine surfInfo
 
 end module mod_analysis

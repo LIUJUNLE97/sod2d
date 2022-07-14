@@ -177,7 +177,7 @@ program sod2d
            !nper = 16471 ! TODO: if periodic, request number of periodic nodes
            nper = 32131 ! TODO: if periodic, request number of periodic nodes
         else
-           nper = 69186  ! TODO: if periodic, request number of periodic nodes
+           nper = 71484  ! TODO: if periodic, request number of periodic nodes
            !nper = 114444  ! TODO: if periodic, request number of periodic nodes
         end if
 #else
@@ -415,7 +415,7 @@ program sod2d
 
         call nvtxStartRange("Additional data")
 #ifdef CHANNEL
-        if(0) then
+        if(1) then
         if(isCylinder>0) then
            do ipoin = 1,npoin
 
@@ -517,16 +517,16 @@ program sod2d
         if(isCylinder<0) then
            !$acc parallel loop
            do ipoin = 1,npoin
-              if(coord(ipoin,1)<-2) then
+              if(coord(ipoin,1)<-13) then
                  mu_factor(ipoin) = flag_mu_factor*1000.0_rp
               end if
-              if(coord(ipoin,1)>18) then
+              if(coord(ipoin,1)>13) then
                  mu_factor(ipoin) = flag_mu_factor*1000.0_rp
               end if
-              if(coord(ipoin,2)<-8) then
+              if(coord(ipoin,2)<-13) then
                  mu_factor(ipoin) = flag_mu_factor*1000.0_rp
               end if
-              if(coord(ipoin,2)>8) then
+              if(coord(ipoin,2)>13) then
                  mu_factor(ipoin) = flag_mu_factor*1000.0_rp
               end if
            end do
