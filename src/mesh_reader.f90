@@ -10,7 +10,7 @@ module mesh_reader
             implicit none
             
             character(500), intent(in)  :: file_path, file_name
-            integer(4)    , intent(out) :: npoin, nelem, nboun
+            integer(4)    , intent(inout) :: npoin, nelem, nboun
             character(500)              :: file_type, line
             
             write(file_type,*) ".dims.dat"
@@ -34,8 +34,8 @@ module mesh_reader
             
             character(500), intent(in)  :: file_path, file_name
             integer(4)    , intent(in)  :: npoin, nelem, nboun
-            integer(4)    , intent(out) :: connec(nelem,nnode), bound(nboun,npbou)
-            real(rp)       , intent(out) :: coord(npoin,ndime)
+            integer(4)    , intent(inout) :: connec(nelem,nnode), bound(nboun,npbou)
+            real(rp)       , intent(inout) :: coord(npoin,ndime)
             integer(4)                  :: iline, int1, inode, idime, aux(nnode+1), bou_aux(npbou+1)
             character(2000)              :: file_type, line
             real(8)                       :: x,y,z
@@ -104,7 +104,7 @@ module mesh_reader
 
             character(500), intent(in)  :: file_path, file_name
             integer(4)    , intent(in)  :: nboun
-            integer(4)    , intent(out) :: nbcodes, bou_codes(nboun,2)
+            integer(4)    , intent(inout) :: nbcodes, bou_codes(nboun,2)
             integer(4)                  :: iboun, ii
             character(500)              :: file_type, line
             
@@ -129,7 +129,7 @@ module mesh_reader
 
             character(500), intent(in)  :: file_path, file_name
             integer(4)    , intent(in)  :: nper
-            integer(4)    , intent(out) :: masSla(nper,2)
+            integer(4)    , intent(inout) :: masSla(nper,2)
             integer(4)                  :: ii
             character(500)              :: file_type, line
 
