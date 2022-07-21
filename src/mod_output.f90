@@ -462,8 +462,8 @@ module mod_output
          do ipoin = 1,npoin
             !$acc loop seq
             do idime = 1,ndime
-               avvel(ipoin,idime) = avvel(ipoin,idime)/avrho(ipoin)
-               avve2(ipoin,idime) = avve2(ipoin,idime)/avrho(ipoin)
+               avvel(ipoin,idime) = avvel(ipoin,idime)!/avrho(ipoin)
+               avve2(ipoin,idime) = avve2(ipoin,idime)!/avrho(ipoin)
             end do
          end do
          !$acc end parallel loop

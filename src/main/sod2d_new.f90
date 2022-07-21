@@ -69,7 +69,7 @@ contains
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
       this%to = 0.5_rp*(293.0_rp+586.0_rp)
-      this%delta  = 0.015_rp
+      this%delta  = 0.0015_rp*2.0_rp
       this%rho0   = 0.80396_rp
       this%Retau  = 400.0_rp
       this%gamma_gas = 1.40_rp
