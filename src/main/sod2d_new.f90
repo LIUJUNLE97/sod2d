@@ -64,7 +64,7 @@ contains
       this%nleap2 = 10  ! Saving interval, TODO: input
       this%nleapAVG = 20000
       this%isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
-      this%nper = 24541 ! TODO: if periodic, request number of periodic nodes
+      this%nper = 58561 ! TODO: if periodic, request number of periodic nodes
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

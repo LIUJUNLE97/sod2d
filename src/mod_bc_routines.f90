@@ -171,8 +171,8 @@ module mod_bc_routines
                         aux_u(bound(iboun,ipbou),3) = 0.0_rp
 
                         aux_rho(bound(iboun,ipbou)) = nscbc_p_inf/nscbc_Rgas_inf/586.0_rp
-                        !aux_p(bound(iboun,ipbou)) = nscbc_p_inf
-                        !aux_E(bound(iboun,ipbou)) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
+                        aux_p(bound(iboun,ipbou)) = nscbc_p_inf
+                        aux_E(bound(iboun,ipbou)) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
                      end do
                   else if (bcode == 7) then ! non_slip wall cold
                      !$acc loop vector
@@ -186,8 +186,8 @@ module mod_bc_routines
                         aux_u(bound(iboun,ipbou),3) = 0.0_rp
 
                         aux_rho(bound(iboun,ipbou)) = nscbc_p_inf/nscbc_Rgas_inf/293.0_rp
-                        !aux_p(bound(iboun,ipbou)) = nscbc_p_inf
-                        !aux_E(bound(iboun,ipbou)) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
+                        aux_p(bound(iboun,ipbou)) = nscbc_p_inf
+                        aux_E(bound(iboun,ipbou)) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
                     end do
                   end if
                end do
