@@ -309,12 +309,6 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4) :: ipoin
 
-        !$acc parallel loop
-        do ipoin = 1,this%npoin
-           mu_factor(ipoin) = flag_mu_factor
-        end do
-        !$acc end parallel loop
-
         if (flag_real_diff == 1) then
            if (flag_diff_suth == 0) then
               call constant_viscosity(this%npoin,0.000055_rp,mu_fluid)

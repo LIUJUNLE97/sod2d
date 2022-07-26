@@ -1,4 +1,4 @@
-module ChannelFlowSolver_mod
+module BluffBodySolver_mod
    use mod_arrays
    use mod_nvtx
    use cudafor
@@ -25,36 +25,25 @@ module ChannelFlowSolver_mod
    implicit none
    private
 
-   type, public, extends(CFDSolverPeriodicWithBoundaries) :: ChannelFlowSolver
+   type, public, extends(CFDSolverPeriodicWithBoundaries) :: BluffBodySolver
 
-      real(rp) , public  :: vo, M, delta, U0, rho0, Retau, Re, utau, to, po
+      real(rp) , public  :: vo, M, delta, rho0, Re, to, po
 
    contains
-      procedure, public :: initializeParameters  => ChannelFlowSolver_initializeParameters
-      procedure, public :: initializeSourceTerms => ChannelFlowSolver_initializeSourceTerms
-      procedure, public :: evalInitialConditions => ChannelFlowSolver_evalInitialConditions
-   end type ChannelFlowSolver
+      procedure, public :: initializeParameters  => BluffBodySolver_initializeParameters
+      procedure, public :: evalInitialConditions => BluffBodySolver_evalInitialConditions
+   end type BluffBodySolver
 contains
 
-   subroutine ChannelFlowSolver_initializeSourceTerms(this)
-      class(ChannelFlowSolver), intent(inout) :: this
-
-        allocate(source_term(ndime))
-        source_term(1) = (this%utau*this%utau*this%rho0/this%delta)
-        source_term(2) = 0.00_rp
-        source_term(3) = 0.00_rp
-
-   end subroutine ChannelFlowSolver_initializeSourceTerms
-
-   subroutine ChannelFlowSolver_initializeParameters(this)
-      class(ChannelFlowSolver), intent(inout) :: this
+   subroutine BluffBodySolver_initializeParameters(this)
+      class(BluffBodySolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%file_name,*) "channel" 
+      write(this%file_name,*) "cylin" 
 
       this%nstep = 90000000 
-      this%cfl_conv = 2.2_rp
-      this%cfl_diff = 2.2_rp
+      this%cfl_conv = 1.5_rp
+      this%cfl_diff = 1.5_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
@@ -63,36 +52,48 @@ contains
       this%nleap2 = 10  ! Saving interval, TODO: input
       this%nleapAVG = 20000
       this%isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
-      this%nper = 32131 ! TODO: if periodic, request number of periodic nodes
+      this%nper = 71484  ! TODO: if periodic, request number of periodic nodes
+      !this%nper = 114444  ! TODO: if periodic, request number of periodic nodes
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
       this%vo = 1.0_rp
       this%M  = 0.2_rp
       this%delta  = 1.0_rp
-      this%U0     = 1.0_rp
       this%rho0   = 1.0_rp
-      this%Retau  = 950.0_rp
       this%gamma_gas = 1.40_rp
+      this%Re     =  3900.0_rp
 
-      this%Re     = exp((1.0_rp/0.88_rp)*log(this%Retau/0.09_rp))
-      mul    = (this%rho0*2.0_rp*this%delta*this%vo)/this%Re
-      this%utau   = (this%Retau*mul)/(this%delta*this%rho0)
+      mul    = (this%rho0*1.0_rp*this%vo)/this%Re
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
       this%to = this%vo*this%vo/(this%gamma_gas*this%Rgas*this%M*this%M)
       this%po = this%rho0*this%Rgas*this%to
       mur = 0.000001458_rp*(this%to**1.50_rp)/(this%to+110.40_rp)
       flag_mu_factor = mul/mur
-      write(1,*) " Gp ", this%utau*this%utau*this%rho0/this%delta
+
+      nscbc_u_inf = this%vo
       nscbc_p_inf = this%po
+      nscbc_rho_inf = this%rho0
+      nscbc_gamma_inf = this%gamma_gas
+      nscbc_c_inf = sqrt(this%gamma_gas*this%po/this%rho0)
 
-   end subroutine ChannelFlowSolver_initializeParameters
+   end subroutine BluffBodySolver_initializeParameters
 
-   subroutine ChannelFlowSolver_evalInitialConditions(this)
-      class(ChannelFlowSolver), intent(inout) :: this
-      integer(4) :: ipoin
+   subroutine BluffBodySolver_evalInitialConditions(this)
+      class(BluffBodySolver), intent(inout) :: this
+      integer(4) :: ipoin, readFiles = 1
 
-      call read_veloc(this%npoin,this%file_path,u(:,:,2))
+      if(readFiles .eq. 0) then
+         !$acc parallel loop
+         do ipoin = 1,this%npoin
+              u(ipoin,1,2) = 1.0_rp
+              u(ipoin,2,2) = 0.0_rp
+              u(ipoin,3,2) = 0.0_rp
+         end do
+         !$acc end parallel loop
+      else
+         call read_veloc(this%npoin,this%file_path,u(:,:,2))
+      end if
       !$acc parallel loop
       do ipoin = 1,this%npoin
          pr(ipoin,2) = this%po
@@ -123,11 +124,27 @@ contains
       !$acc end kernels
       call nvtxEndRange
 
+      ! set out of the buffer zone
+      ! remember that the mu_factor field has to we filled at least with the
+      ! flag_mu_factor
+
       !$acc parallel loop
       do ipoin = 1,this%npoin
          mu_factor(ipoin) = flag_mu_factor
+         if(coord(ipoin,1)<-13.0_rp) then
+            mu_factor(ipoin) = flag_mu_factor*1000.0_rp
+         end if
+         if(coord(ipoin,1)>13.0_rp) then
+            mu_factor(ipoin) = flag_mu_factor*1000.0_rp
+         end if
+         if(coord(ipoin,2)<-13.0_rp) then
+            mu_factor(ipoin) = flag_mu_factor*1000.0_rp
+         end if
+         if(coord(ipoin,2)>13.0_rp) then
+            mu_factor(ipoin) = flag_mu_factor*1000.0_rp
+         end if
       end do
       !$acc end parallel loop
-   end subroutine ChannelFlowSolver_evalInitialConditions
+   end subroutine BluffBodySolver_evalInitialConditions
 
-end module ChannelFlowSolver_mod
+end module BluffBodySolver_mod

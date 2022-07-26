@@ -1,15 +1,15 @@
-
-
-
 ! main.f90
 program main
    use mod_constants
-   use ThermalChannelFlowSolver_mod
+   !use ThermalChannelFlowSolver_mod
+   use BluffBodySolver_mod
 
    implicit none
-   type(ThermalChannelFlowSolver)  :: channel
+   type(BluffBodySolver)  :: bluff
+   !type(ThermalChannelFlowSolver)  :: channel
 
-   call channel%run()
+   call bluff%run()
+   !call channel%run()
 
 end program main
 
