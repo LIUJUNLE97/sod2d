@@ -54,8 +54,8 @@ contains
       write(this%file_name,*) "channel_sem" 
 
       this%nstep = 90000000
-      this%cfl_conv = 2.2_rp
-      this%cfl_diff = 2.2_rp
+      this%cfl_conv = 1.5_rp
+      this%cfl_diff = 1.5_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
@@ -64,7 +64,9 @@ contains
       this%nleap2 = 10  ! Saving interval, TODO: input
       this%nleapAVG = 20000
       this%isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
-      this%nper = 58561 ! TODO: if periodic, request number of periodic nodes
+      !this%nper = 58561 ! TODO: if periodic, request number of periodic nodes
+      this%nper = 24541 ! TODO: if periodic, request number of periodic nodes
+      !this%nper = 92131 ! TODO: if periodic, request number of periodic nodes
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
