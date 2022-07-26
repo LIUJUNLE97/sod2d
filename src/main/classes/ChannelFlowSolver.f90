@@ -21,11 +21,11 @@ module ChannelFlowSolver_mod
    use mod_fluid_viscosity
    use mod_postpro
    use mod_aver
-   use CFDSolverBase_mod
+   use CFDSolverPeriodicWithBoundaries_mod
    implicit none
    private
 
-   type, public, extends(CFDSolverBase) :: ChannelFlowSolver
+   type, public, extends(CFDSolverPeriodicWithBoundaries) :: ChannelFlowSolver
 
       real(rp) , public  :: vo, M, delta, U0, rho0, Retau, Re, utau, to, po
 

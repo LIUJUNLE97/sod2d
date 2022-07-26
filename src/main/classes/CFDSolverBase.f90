@@ -60,7 +60,7 @@ module CFDSolverBase_mod
       integer(4), public         :: nsave2, nleap2
       integer(4), public         :: nsaveAVG, nleapAVG
       integer(4), public         :: counter, npoin_w
-      integer(4), public         :: isPeriodic, getForces,globalAnalysis
+      integer(4), public         :: isPeriodic=0,globalAnalysis=0
 
       ! main char variables
       character(500), public    :: file_path
@@ -96,6 +96,9 @@ module CFDSolverBase_mod
       procedure, public :: evalMass=>CFDSolverBase_evalMass
       procedure, public :: evalFirstOutput =>CFDSolverBase_evalFirstOutput
       procedure, public :: evalTimeIteration =>CFDSolverBase_evalTimeIteration
+      procedure, public :: callTimeIntegration =>CFDSolverBase_callTimeIntegration
+      procedure, public :: saveAverages =>CFDSolverBase_saveAverages
+      procedure, public :: savePosprocessingFields =>CFDSolverBase_savePosprocessingFields
    end type CFDSolverBase
 contains
 
@@ -671,6 +674,32 @@ contains
 
    end subroutine CFDSolverBase_evalFirstOutput
 
+   subroutine CFDSolverBase_callTimeIntegration(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      write(1,*) " Time integration should be overwritted"
+      STOP(1)
+
+   end subroutine CFDSolverBase_callTimeIntegration
+
+   subroutine CFDSolverBase_saveAverages(this,istep)
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4)              , intent(in)   :: istep
+
+      write(1,*) " Save Averages should be overwritted"
+      STOP(1)
+
+   end subroutine CFDSolverBase_saveAverages
+
+   subroutine CFDSolverBase_savePosprocessingFields(this,istep)
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4)              , intent(in)   :: istep
+
+      write(1,*) " Save Posprocessing Fields should be overwritted"
+      STOP(1)
+
+   end subroutine CFDSolverBase_savePosprocessingFields
+
    subroutine CFDSolverBase_evalTimeIteration(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4) :: icode, counter,istep, ppow=1, flag_emac, flag_predic
@@ -706,23 +735,25 @@ contains
          ! nvtx range for full RK
          ! write(timeStep,'(i4)') istep
          call nvtxStartRange("RK4 step "//timeStep,istep)
-#ifndef NOPRED
-         call rk_4_main(flag_predic,flag_emac,this%nelem,this%nboun,this%npoin,this%npoin_w,point2elem,lnbn,dlxigp_ip,xgp,atoIJK, invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-            ppow,connec,Ngp,dNgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
-            rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
-            this%ndof,this%nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
-#endif
          !
          ! Advance with entropy viscosity
          !
          flag_predic = 0
 
-         call rk_4_main(flag_predic,flag_emac,this%nelem,this%nboun,this%npoin,this%npoin_w,point2elem,lnbn,dlxigp_ip,xgp,atoIJK, invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-            ppow,connec,Ngp,dNgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
-            rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
-            this%ndof,this%nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
-
+         call this%callTimeIntegration()
+         
          this%time = this%time+this%dt
+         
+         if (istep == this%nsave2 .and. (this%globalAnalysis .eq. 1)) then
+            call volAvg_EK(this%nelem,this%npoin,connec,gpvol,Ngp,nscbc_rho_inf,rho(:,2),u(:,:,2),this%EK)
+            call visc_dissipationRate(this%nelem,this%npoin,connec,this%leviCivi,nscbc_rho_inf,mu_fluid,mu_e,u(:,:,2),this%VolTot,gpvol,He,dNgp,this%eps_S,this%eps_D,this%eps_T)
+            call maxMach(this%npoin,this%npoin_w,lpoin_w,machno,this%maxmachno)
+            call write_EK(this%time,this%EK,this%eps_S,this%eps_D,this%eps_T,this%maxmachno)
+            write(1,*) "--| time     EK     eps_S     eps_D     eps_T     max(Ma)"
+            write(1,20) this%time, this%EK, this%eps_S, this%eps_D, this%eps_T, this%maxmachno
+20      format(6(F16.8,2X))
+         end if
+
          if (flag_real_diff == 1) then
             call adapt_dt_cfl(this%nelem,this%npoin,connec,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
             if (istep == this%nsave2)write(1,*) "DT := ",this%dt,"s time := ",this%time,"s"
@@ -760,8 +791,7 @@ contains
          !
          if (istep == this%nsaveAVG) then
             call nvtxStartRange("Output AVG"//timeStep,istep)
-            call write_vtkAVG_binary(this%isPeriodic,istep,this%npoin,this%nelem,coord,connecVTK, &
-               acuvel,acuve2,acurho,acupre,acumueff,this%acutim,this%nper,masSla)
+            call this%saveAverages(istep)
             this%nsaveAVG = this%nsaveAVG+this%nleapAVG
             call nvtxEndRange
          end if
@@ -772,9 +802,7 @@ contains
          if (istep == this%nsave) then
             call nvtxStartRange("Output "//timeStep,istep)
             call compute_fieldDerivs(this%nelem,this%npoin,connec,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
-            call write_vtk_binary(this%isPeriodic,counter,this%npoin,this%nelem,coord,connecVTK, &
-               rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
-               gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,this%nper,masSla)
+            call this%savePosprocessingFields(istep)
             this%nsave = this%nsave+this%nleap
             call nvtxEndRange
          end if

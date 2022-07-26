@@ -22,11 +22,11 @@ module ThermalChannelFlowSolver_mod
    use mod_fluid_viscosity
    use mod_postpro
    use mod_aver
-   use CFDSolverBase_mod
+   use CFDSolverPeriodicWithBoundaries_mod
    implicit none
    private
 
-   type, public, extends(CFDSolverBase) :: ThermalChannelFlowSolver
+   type, public, extends(CFDSolverPeriodicWithBoundaries) :: ThermalChannelFlowSolver
 
       real(rp) , public  ::  delta, rho0, Retau, utau, to, po, mul
 
