@@ -28,7 +28,7 @@ module ThermalChannelFlowSolver_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: ThermalChannelFlowSolver
 
-      real(rp) , public  ::  delta, rho0, Retau, utau, to, po, mul
+      real(rp) , public  ::  delta, rhoC,rhoH, RetauH,RetauC, utauH,utauC, tC,tH, po, muC,muH, tauwH, tauwC
 
    contains
       procedure, public :: initializeParameters  => ThermalChannelFlowSolver_initializeParameters
@@ -41,7 +41,7 @@ contains
       class(ThermalChannelFlowSolver), intent(inout) :: this
 
         allocate(source_term(ndime))
-        source_term(1) = (this%utau*this%utau*this%rho0/this%delta)
+        source_term(1) = (0.5_rp*(this%tauwC+this%tauwH))/this%delta
         source_term(2) = 0.00_rp
         source_term(3) = 0.00_rp
 
@@ -64,23 +64,36 @@ contains
       this%nleapAVG = 20000
       this%isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
       !this%nper = 58561 ! TODO: if periodic, request number of periodic nodes
-      this%nper = 24541 ! TODO: if periodic, request number of periodic nodes
-      !this%nper = 92131 ! TODO: if periodic, request number of periodic nodes
+      !this%nper = 24541 ! TODO: if periodic, request number of periodic nodes
+      this%nper = 92131 ! TODO: if periodic, request number of periodic nodes
+      !this%nper = 18643 ! TODO: if periodic, request number of periodic nodes
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
-      this%to = 0.5_rp*(293.0_rp+586.0_rp)
+      this%tC = 293.0_rp
+      this%tH = 586.0_rp
       this%delta  = 0.0015_rp*2.0_rp
-      this%rho0   = 0.80396_rp
-      this%Retau  = 400.0_rp
       this%gamma_gas = 1.40_rp
-
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
-      this%po   = this%rho0*this%Rgas*this%to
-      this%mul = 0.000001458_rp*(this%to**1.50_rp)/(this%to+110.40_rp)
-      this%utau = (this%Retau*this%mul)/(this%delta*this%rho0)
+      this%po   = 0.80396*this%Rgas*(0.5_rp*(this%tC+this%tH))
+
+      this%muC = 0.000001458_rp*(this%tC**1.50_rp)/(this%tC+110.40_rp)
+      this%muH = 0.000001458_rp*(this%tH**1.50_rp)/(this%tH+110.40_rp)
+
+      this%rhoC = this%po/(this%Rgas*this%tC)
+      this%rhoH = this%po/(this%Rgas*this%tH)
+
+      this%RetauC = 235.0_rp
+      this%RetauH = 565.0_rp
+
+      this%utauC = (this%RetauC*this%muC)/(this%delta*this%rhoC)
+      this%utauH = (this%RetauH*this%muH)/(this%delta*this%rhoH)
+
+      this%tauwC = this%rhoC*this%utauC*this%utauC
+      this%tauwH = this%rhoH*this%utauH*this%utauH
+
       flag_mu_factor = 1.0_rp
-      write(1,*) " Gp ", this%utau*this%utau*this%rho0/this%delta, " utau ",this%utau
+      write(1,*) " Gp ", (0.5_rp*(this%tauwC+this%tauwH))/this%delta
       nscbc_p_inf = this%po
       nscbc_Rgas_inf = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
@@ -111,12 +124,12 @@ contains
          !!$acc parallel loop
          do ipoin = 1,this%npoin
             if(coord(ipoin,2)<this%delta) then
-               yp = coord(ipoin,2)*this%utau*this%rho0/this%mul
+               yp = coord(ipoin,2)*this%utauC*this%rhoC/this%muC
             else
-               yp = abs(coord(ipoin,2)-2.0_rp*this%delta)*this%utau*this%rho0/this%mul
+               yp = abs(coord(ipoin,2)-2.0_rp*this%delta)*this%utauC*this%rhoC/this%muC
             end if
 
-            velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
+            velo = this%utauC*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
 
             call random_number(ti)
 
@@ -125,9 +138,9 @@ contains
             u(ipoin,2,2) = velo*(0.1_rp*(ti(2) -0.5_rp))
             u(ipoin,3,2) = velo*(0.1_rp*(ti(3) -0.5_rp))
             pr(ipoin,2) = this%po
-            rho(ipoin,2) = this%rho0
+            rho(ipoin,2) = 0.5_rp*(this%rhoC+this%rhoH)
             e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(this%gamma_gas-1.0_rp))
-            Tem(ipoin,2) = this%to
+            Tem(ipoin,2) = 0.5_rp*(this%tC+this%tH)
             E(ipoin,2) = rho(ipoin,2)*(0.5_rp*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
             q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
             csound(ipoin) = sqrt(this%gamma_gas*pr(ipoin,2)/rho(ipoin,2))

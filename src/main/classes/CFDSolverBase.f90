@@ -746,6 +746,7 @@ contains
             write(1,*) "--| time     EK     eps_S     eps_D     eps_T     max(Ma)"
             write(1,20) this%time, this%EK, this%eps_S, this%eps_D, this%eps_T, this%maxmachno
 20      format(6(F16.8,2X))
+            call flush(666)
          end if
 
          if (flag_real_diff == 1) then

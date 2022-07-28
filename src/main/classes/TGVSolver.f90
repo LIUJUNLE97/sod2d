@@ -1,4 +1,4 @@
-module ChannelFlowSolver_mod
+module TGVSolver_mod
    use mod_arrays
    use mod_nvtx
    use cudafor
@@ -21,84 +21,69 @@ module ChannelFlowSolver_mod
    use mod_fluid_viscosity
    use mod_postpro
    use mod_aver
-   use CFDSolverPeriodicWithBoundaries_mod
+   use CFDSolverPeriodic_mod
    implicit none
    private
 
-   type, public, extends(CFDSolverPeriodicWithBoundaries) :: ChannelFlowSolver
+   type, public, extends(CFDSolverPeriodic) :: TGVSolver
 
-      real(rp) , public  :: vo, M, delta, U0, rho0, Retau, Re, utau, to, po
+      real(rp) , public  ::  M, rho0,Re,to, po
 
    contains
-      procedure, public :: initializeParameters  => ChannelFlowSolver_initializeParameters
-      procedure, public :: initializeSourceTerms => ChannelFlowSolver_initializeSourceTerms
-      procedure, public :: evalInitialConditions => ChannelFlowSolver_evalInitialConditions
-   end type ChannelFlowSolver
+      procedure, public :: initializeParameters  => TGVSolver_initializeParameters
+      procedure, public :: evalInitialConditions => TGVSolver_evalInitialConditions
+   end type TGVSolver
 contains
 
-   subroutine ChannelFlowSolver_initializeSourceTerms(this)
-      class(ChannelFlowSolver), intent(inout) :: this
-
-        allocate(source_term(ndime))
-        source_term(1) = (this%utau*this%utau*this%rho0/this%delta)
-        source_term(2) = 0.00_rp
-        source_term(3) = 0.00_rp
-
-   end subroutine ChannelFlowSolver_initializeSourceTerms
-
-   subroutine ChannelFlowSolver_initializeParameters(this)
-      class(ChannelFlowSolver), intent(inout) :: this
+   subroutine TGVSolver_initializeParameters(this)
+      class(TGVSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%file_name,*) "channel" 
+      write(this%file_name,*) "cube" 
 
-      this%nstep = 90000000 
-      this%cfl_conv = 2.2_rp
-      this%cfl_diff = 2.2_rp
+      this%nstep = 10000 
+      this%cfl_conv = 0.95_rp
+      this%cfl_diff = 0.95_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 20000 ! Saving interval, TODO: input
+      this%nleap = 250 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 20000
+      this%nleapAVG = 2000000000
       this%isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
-      this%nper = 32131 ! TODO: if periodic, request number of periodic nodes
+      this%nper = 97741 ! TODO: if periodic, request number of periodic nodes
+      this%globalAnalysis = 1
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
-      this%vo = 1.0_rp
-      this%M  = 0.2_rp
-      this%delta  = 1.0_rp
-      this%U0     = 1.0_rp
+      this%M  = 0.1_rp
+      this%Re = 1600.0_rp
       this%rho0   = 1.0_rp
-      this%Retau  = 950.0_rp
       this%gamma_gas = 1.40_rp
 
-      this%Re     = exp((1.0_rp/0.88_rp)*log(this%Retau/0.09_rp))
-      mul    = (this%rho0*2.0_rp*this%delta*this%vo)/this%Re
-      this%utau   = (this%Retau*mul)/(this%delta*this%rho0)
+      mul    = (this%rho0*1.0_rp*1.0_rp)/this%Re
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
-      this%to = this%vo*this%vo/(this%gamma_gas*this%Rgas*this%M*this%M)
+      this%to = 1.0_rp*1.0_rp/(this%gamma_gas*this%Rgas*this%M*this%M)
       this%po = this%rho0*this%Rgas*this%to
       mur = 0.000001458_rp*(this%to**1.50_rp)/(this%to+110.40_rp)
       flag_mu_factor = mul/mur
-      write(1,*) " Gp ", this%utau*this%utau*this%rho0/this%delta
+
       nscbc_p_inf = this%po
       nscbc_Rgas_inf = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
 
-   end subroutine ChannelFlowSolver_initializeParameters
+   end subroutine TGVSolver_initializeParameters
 
-   subroutine ChannelFlowSolver_evalInitialConditions(this)
-      class(ChannelFlowSolver), intent(inout) :: this
+   subroutine TGVSolver_evalInitialConditions(this)
+      class(TGVSolver), intent(inout) :: this
       integer(4) :: ipoin
 
       call read_veloc(this%npoin,this%file_path,u(:,:,2))
+      call read_densi(this%npoin,this%file_path,rho(:,2))
+      call read_press(this%npoin,this%file_path,pr(:,2))
       !$acc parallel loop
       do ipoin = 1,this%npoin
-         pr(ipoin,2) = this%po
-         rho(ipoin,2) = this%po/this%Rgas/this%to
          e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(this%gamma_gas-1.0_rp))
          Tem(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*this%Rgas)
          E(ipoin,2) = rho(ipoin,2)*(0.5_rp*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
@@ -130,6 +115,6 @@ contains
          mu_factor(ipoin) = flag_mu_factor
       end do
       !$acc end parallel loop
-   end subroutine ChannelFlowSolver_evalInitialConditions
+   end subroutine TGVSolver_evalInitialConditions
 
-end module ChannelFlowSolver_mod
+end module TGVSolver_mod
