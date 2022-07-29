@@ -182,9 +182,9 @@ contains
          area = this%delta*2.0*v_pi*this%delta*v_pi
          tw = 0.5_rp*((Ftau(codeH,1)/area)+(Ftau(codeC,1)/area))
          if(tw .le. this%tauw) then 
-            source_term(1) = source_term(1)*1.01_rp
+            source_term(1) = source_term(1)*1.05_rp
          else  
-            source_term(1) = source_term(1)*0.99_rp
+            source_term(1) = source_term(1)*0.95_rp
          end if
         source_term(2) = 0.00_rp
         source_term(3) = 0.00_rp
