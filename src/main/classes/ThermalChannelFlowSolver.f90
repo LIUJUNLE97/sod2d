@@ -66,8 +66,8 @@ contains
       this%isPeriodic = 1 ! TODO: make it a read parameter (0 if not periodic, 1 if periodic)
       !this%nper = 58561 ! TODO: if periodic, request number of periodic nodes
       !this%nper = 24541 ! TODO: if periodic, request number of periodic nodes
-      this%nper = 92131 ! TODO: if periodic, request number of periodic nodes
-      !this%nper = 18643 ! TODO: if periodic, request number of periodic nodes
+      !this%nper = 92131 ! TODO: if periodic, request number of periodic nodes
+      this%nper = 18643 ! TODO: if periodic, request number of periodic nodes
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -182,11 +182,13 @@ contains
          area = this%delta*2.0*v_pi*this%delta*v_pi
          tw = 0.5_rp*((Ftau(codeH,1)/area)+(Ftau(codeC,1)/area))
          if(tw .le. this%tauw) then 
-            this%tauw = this%tauw*1.01_rp
+            tw = tw*1.01_rp
          else  
-            this%tauw = this%tauw*0.99_rp    
+            tw = tw*0.99_rp    
          end if
-         call this%initializeSourceTerms()
+        source_term(1) = tw/this%delta
+        source_term(2) = 0.00_rp
+        source_term(3) = 0.00_rp
       end if
 
    end subroutine ThermalChannelFlowSolver_afterDt
