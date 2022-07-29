@@ -222,22 +222,27 @@ module mod_entropy_viscosity
                       real(rp)                 :: L3, aux1, aux2, aux3
                       real(rp)                 ::  maxEta, maxRho, norm, Rgas
 
-                      Rgas = 1.0_rp*1.0_rp/(1.4_rp*1.0_rp*1.25_rp*1.25_rp)
+                      !Rgas = 1.0_rp*1.0_rp/(1.4_rp*1.0_rp*1.25_rp*1.25_rp)
+                      Rgas = nscbc_Rgas_inf
 
-                      !maxEta = 0.0_rp
-                      !!$acc parallel loop reduction(+:maxEta)
-                      !do ipoin = 1,npoin_w
-                      !   maxEta = maxEta + eta(lpoin_w(ipoin))
-                      !end do
-                      !!$acc end parallel loop
-                      !maxEta = maxEta/dble(npoin_w)
+                      norm = 1.0_rp
 
-                      !norm = 0.0_rp
-                      !!$acc parallel loop reduction(max:norm)
-                      !do ipoin = 1,npoin_w
-                      !   norm = max(norm, abs(eta(lpoin_w(ipoin))-maxEta))
-                      !end do
-                      !!$acc end parallel loop
+                      if(flag_normalise_entropy .eq. 1) then
+                         maxEta = 0.0_rp
+                         !$acc parallel loop reduction(+:maxEta)
+                         do ipoin = 1,npoin_w
+                            maxEta = maxEta + eta(lpoin_w(ipoin))
+                         end do
+                         !$acc end parallel loop
+                         maxEta = maxEta/dble(npoin_w)
+
+                         norm = 0.0_rp
+                         !$acc parallel loop reduction(max:norm)
+                         do ipoin = 1,npoin_w
+                            norm = max(norm, abs(eta(lpoin_w(ipoin))-maxEta))
+                         end do
+                         !$acc end parallel loop
+                      end if
 
                       !$acc parallel loop gang vector_length(vecLength)
                       do ielem = 1,nelem
@@ -252,7 +257,7 @@ module mod_entropy_viscosity
                          end do
                          !$acc loop vector reduction(+:mu)
                          do inode = 1,nnode
-                            R1 = abs(Reta(connec(ielem,inode)))!/norm
+                            R1 = rho(connec(ielem,inode))*abs(Reta(connec(ielem,inode)))/norm
                             Ve = ce*R1*(helem(ielem,inode))**2
                             mu = mu + cglob*min(Ve,betae)
                          end do

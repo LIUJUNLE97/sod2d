@@ -1,5 +1,5 @@
 # Declare minimum version of CMake required
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.10)
 
 project(sod2d)           # Project name
 enable_language(Fortran) # Supported language Fortran
@@ -30,15 +30,15 @@ elseif (Fortran_COMPILER_NAME MATCHES "ifort.*")
   set (CMAKE_Fortran_FLAGS_DEBUG   "-mtune=native -list-line-len=512 -fpp -ftrapuv -check all,noarg_temp_created -traceback -debug full -warn all,nodec,nointerfaces -fp-stack-check -ansi-alias -O0 -g")
 elseif (Fortran_COMPILER_NAME MATCHES "nvfortran")
   # nvfortran
-  set (CMAKE_Fortran_FLAGS_RELEASE "-fast -D_USE_NVTX -cpp -gpu=cc61,managed,lineinfo -cuda -acc -Minfo=accel")
+  set (CMAKE_Fortran_FLAGS_RELEASE "-fast -D_USE_NVTX -cpp -gpu=cc70,managed,lineinfo -cuda -acc -Minfo=accel -DNOPRED -DCHANNEL")
   #set (CMAKE_Fortran_FLAGS_RELEASE "-fast -D_USE_NVTX -cpp -cuda -Minfo=accel")
-  set (CMAKE_Fortran_FLAGS_DEBUG   "-O0 -D_USE_NVTX -cpp -gpu=cc61,managed -cuda -acc -Wall -C -Ktrap=fp -Minfo=all -g")
-  add_link_options(-lnvToolsExt)
+  set (CMAKE_Fortran_FLAGS_DEBUG   "-O0 -DGPU -cpp -Mcuda=cc70 -Wall -C -Ktrap=fp -g")
+  #set (CMAKE_Fortran_FLAGS_DEBUG   "-O0 -DGPU -cpp -Mcuda=cc70 -Wall -C -Ktrap=fp -g -DCHANNEL")
+  ##  add_link_options(-lnvToolsExt)
 else (Fortran_COMPILER_NAME MATCHES "gfortran.*")
   message ("CMAKE_Fortran_COMPILER full path: " ${CMAKE_Fortran_COMPILER})
   message ("Fortran compiler: " ${Fortran_COMPILER_NAME})
   message ("No optimized Fortran compiler flags are known, we just try -O2...")
-  set (CMAKE_Fortran_FLAGS_RELEASE "-O2")
   set (CMAKE_Fortran_FLAGS_DEBUG   "-O0 -g")
 endif (Fortran_COMPILER_NAME MATCHES "gfortran.*")
 
@@ -46,5 +46,5 @@ enable_testing()
 ADD_SUBDIRECTORY(unitt)
 
 # Compile
-file(GLOB sources src/*.f90 src/main/*.f90) # Adds all files to compilation list, with dependencies pre analyzed by CMake
+file(GLOB sources src/*.f90 src/main/classes/*.f90 src/main/sod2d_new.f90) # Adds all files to compilation list, with dependencies pre analyzed by CMake
 add_executable(sod2d.x ${sources})   # Build executable from listed sources
