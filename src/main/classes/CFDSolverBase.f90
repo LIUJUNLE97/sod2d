@@ -809,12 +809,12 @@ contains
             call nvtxEndRange
          end if
 
+         call this%afterDt(istep)
+
          if(istep==this%nsave2) then
             this%nsave2 = this%nsave2+this%nleap2
             call flush(1)
          end if
-
-         call this%afterDt(istep)
 
          counter = counter+1
 
