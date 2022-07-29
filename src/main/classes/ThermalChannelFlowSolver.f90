@@ -28,12 +28,13 @@ module ThermalChannelFlowSolver_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: ThermalChannelFlowSolver
 
-      real(rp) , public  ::  delta, rhoC,rhoH, RetauH,RetauC, utauH,utauC, tC,tH, po, muC,muH, tauwH, tauwC
+      real(rp) , public  ::  delta, rho, Retau, utau, tC,tH, po,to, mu,tauw
 
    contains
       procedure, public :: initializeParameters  => ThermalChannelFlowSolver_initializeParameters
       procedure, public :: initializeSourceTerms => ThermalChannelFlowSolver_initializeSourceTerms
       procedure, public :: evalInitialConditions => ThermalChannelFlowSolver_evalInitialConditions
+      procedure, public :: afterDt => ThermalChannelFlowSolver_afterDt
    end type ThermalChannelFlowSolver
 contains
 
@@ -41,7 +42,7 @@ contains
       class(ThermalChannelFlowSolver), intent(inout) :: this
 
         allocate(source_term(ndime))
-        source_term(1) = (0.5_rp*(this%tauwC+this%tauwH))/this%delta
+        source_term(1) = this%tauw/this%delta
         source_term(2) = 0.00_rp
         source_term(3) = 0.00_rp
 
@@ -75,25 +76,20 @@ contains
       this%delta  = 0.0015_rp*2.0_rp
       this%gamma_gas = 1.40_rp
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
-      this%po   = 0.80396*this%Rgas*(0.5_rp*(this%tC+this%tH))
+      this%to = 0.5_rp*(this%tC+this%tH)
+      this%po  = 101325.0_rp 
+      this%rho = this%po/(this%Rgas*this%to)
 
-      this%muC = 0.000001458_rp*(this%tC**1.50_rp)/(this%tC+110.40_rp)
-      this%muH = 0.000001458_rp*(this%tH**1.50_rp)/(this%tH+110.40_rp)
+      this%mu = 0.000001458_rp*(this%to**1.50_rp)/(this%to+110.40_rp)
 
-      this%rhoC = this%po/(this%Rgas*this%tC)
-      this%rhoH = this%po/(this%Rgas*this%tH)
+      this%Retau = 400.0_rp
 
-      this%RetauC = 235.0_rp
-      this%RetauH = 565.0_rp
+      this%utau = (this%Retau*this%mu)/(this%delta*this%rho)
 
-      this%utauC = (this%RetauC*this%muC)/(this%delta*this%rhoC)
-      this%utauH = (this%RetauH*this%muH)/(this%delta*this%rhoH)
-
-      this%tauwC = this%rhoC*this%utauC*this%utauC
-      this%tauwH = this%rhoH*this%utauH*this%utauH
+      this%tauw = this%rho*this%utau*this%utau
 
       flag_mu_factor = 1.0_rp
-      write(1,*) " Gp ", (0.5_rp*(this%tauwC+this%tauwH))/this%delta
+      write(1,*) " Gp ", this%tauw/this%delta
       nscbc_p_inf = this%po
       nscbc_Rgas_inf = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
@@ -124,12 +120,12 @@ contains
          !!$acc parallel loop
          do ipoin = 1,this%npoin
             if(coord(ipoin,2)<this%delta) then
-               yp = coord(ipoin,2)*this%utauC*this%rhoC/this%muC
+               yp = coord(ipoin,2)*this%utau*this%rho/this%mu
             else
-               yp = abs(coord(ipoin,2)-2.0_rp*this%delta)*this%utauC*this%rhoC/this%muC
+               yp = abs(coord(ipoin,2)-2.0_rp*this%delta)*this%utau*this%rho/this%mu
             end if
 
-            velo = this%utauC*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
+            velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
 
             call random_number(ti)
 
@@ -138,9 +134,9 @@ contains
             u(ipoin,2,2) = velo*(0.1_rp*(ti(2) -0.5_rp))
             u(ipoin,3,2) = velo*(0.1_rp*(ti(3) -0.5_rp))
             pr(ipoin,2) = this%po
-            rho(ipoin,2) = 0.5_rp*(this%rhoC+this%rhoH)
+            rho(ipoin,2) = this%rho
             e_int(ipoin,2) = pr(ipoin,2)/(rho(ipoin,2)*(this%gamma_gas-1.0_rp))
-            Tem(ipoin,2) = 0.5_rp*(this%tC+this%tH)
+            Tem(ipoin,2) = this%to
             E(ipoin,2) = rho(ipoin,2)*(0.5_rp*dot_product(u(ipoin,:,2),u(ipoin,:,2))+e_int(ipoin,2))
             q(ipoin,1:ndime,2) = rho(ipoin,2)*u(ipoin,1:ndime,2)
             csound(ipoin) = sqrt(this%gamma_gas*pr(ipoin,2)/rho(ipoin,2))
@@ -173,5 +169,26 @@ contains
       end do
       !$acc end parallel loop
    end subroutine ThermalChannelFlowSolver_evalInitialConditions
+
+   subroutine ThermalChannelFlowSolver_afterDt(this,istep)
+      class(ThermalChannelFlowSolver), intent(inout) :: this
+      integer(4)              , intent(in)   :: istep
+      integer(4) :: codeH, codeC
+      real(rp) :: area,tw
+
+      if(istep == this%nsave2) then
+         codeH = 6
+         codeC = 7
+         area = this%delta*2.0*v_pi*this%delta*v_pi
+         tw = 0.5_rp*((Ftau(codeH,1)/area)+(Ftau(codeC,1)/area))
+         if(tw .le. this%tauw) then 
+            this%tauw = this%tauw*1.01_rp
+         else  
+            this%tauw = this%tauw*0.99_rp    
+         end if
+         call this%initializeSourceTerms()
+      end if
+
+   end subroutine ThermalChannelFlowSolver_afterDt
 
 end module ThermalChannelFlowSolver_mod

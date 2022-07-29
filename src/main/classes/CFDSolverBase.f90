@@ -19,7 +19,7 @@ module mod_arrays
       real(rp), allocatable    :: source_term(:)
       real(rp), allocatable    :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:)
       real(rp), allocatable    :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
-      real(rp), allocatable    :: Fpr(:), Ftau(:)
+      real(rp), allocatable    :: Fpr(:,:), Ftau(:,:)
 
 end module mod_arrays
 
@@ -99,6 +99,7 @@ module CFDSolverBase_mod
       procedure, public :: callTimeIntegration =>CFDSolverBase_callTimeIntegration
       procedure, public :: saveAverages =>CFDSolverBase_saveAverages
       procedure, public :: savePosprocessingFields =>CFDSolverBase_savePosprocessingFields
+      procedure, public :: afterDt =>CFDSolverBase_afterDt
    end type CFDSolverBase
 contains
 
@@ -144,6 +145,8 @@ contains
          allocate(bou_norm(this%nboun,ndime*npbou))
          call read_fixbou(this%file_path,this%file_name,this%nboun,this%nbcodes,bou_codes)
          this%numCodes = maxval(bou_codes(:,2))
+         allocate(Fpr(this%numCodes,ndime))
+         allocate(Ftau(this%numCodes,ndime))
          write(1,*) "--| TOTAL BOUNDARY CODES :", this%numCodes
       end if
       allocate(coord(this%npoin,ndime))
@@ -510,8 +513,6 @@ contains
       this%leviCivi(1,2,3) =  1.0_rp
       this%leviCivi(2,1,3) = -1.0_rp
       if (this%nboun .ne. 0) then
-         allocate(Fpr(ndime))
-         allocate(Ftau(ndime))
          write(1,*) "--| COMPUTING BOUNDARY ELEMENT NORMALS"
          call nvtxStartRange("Bou normals")
          call boundary_normals(this%npoin,this%nboun,bound,this%leviCivi,coord,dNgp_b,bou_norm)
@@ -642,7 +643,7 @@ contains
             call nvtxStartRange("Surface info")
             call surfInfo(0,0.0_rp,this%nelem,this%npoin,this%nboun,icode,connec,bound,point2elem, &
                bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coord, &
-               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr,Ftau)
+               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(icode,:),Ftau(icode,:))
             call nvtxEndRange
          end do
       end if
@@ -684,6 +685,12 @@ contains
       STOP(1)
 
    end subroutine CFDSolverBase_saveAverages
+
+   subroutine CFDSolverBase_afterDt(this,istep)
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4)              , intent(in)   :: istep
+
+   end subroutine CFDSolverBase_afterDt
 
    subroutine CFDSolverBase_savePosprocessingFields(this,istep)
       class(CFDSolverBase), intent(inout) :: this
@@ -773,7 +780,7 @@ contains
                   call nvtxStartRange("Surface info")
                   call surfInfo(istep,this%time,this%nelem,this%npoin,this%nboun,icode,connec,bound,point2elem, &
                      bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coord, &
-                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr,Ftau)
+                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(icode,:),Ftau(icode,:))
 
                   call nvtxEndRange
                   call flush(888+icode)
@@ -806,6 +813,8 @@ contains
             this%nsave2 = this%nsave2+this%nleap2
             call flush(1)
          end if
+
+         call this%afterDt(istep)
 
          counter = counter+1
 
