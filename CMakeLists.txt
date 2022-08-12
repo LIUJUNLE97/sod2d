@@ -1,77 +1,93 @@
-# Declare minimum version of CMake required
-cmake_minimum_required(VERSION 3.10)
+# Set minimum CMake version
+cmake_minimum_required(VERSION 3.15)
 
-project(sod2d)           # Project name
-enable_language(CXX)     # Supported language CXX
-enable_language(Fortran) # Supported language Fortran
+# Set project versions: major, minor and patch
+set(TEST_VERSION_MAJOR "0")
+set(TEST_VERSION_MINOR "0")
+set(TEST_VERSION_PATCH "0")
+set(TEST_VERSION "${TEST_VERSION_MAJOR}.${TEST_VERSION_MINOR}.${TEST_VERSION_PATCH}")
 
+# Options
+#option(UNIT_TESTING "Enable unit tests" ON)
+option(USE_MPI "Compile using MPI" ON)
+option(USE_HDF5 "Compile using HDF5" ON)
+option(USE_GEMPA "Compile using GEMPA" ON)
 
+option(USE_PCPOWER "Compiling in PC-POWER" OFF)
 
-# make sure that the default is a RELEASE
-if (NOT CMAKE_BUILD_TYPE)
-  set (CMAKE_BUILD_TYPE RELEASE CACHE STRING
-      "Choose the type of build, options are: None Debug Release."
-      FORCE)
-endif (NOT CMAKE_BUILD_TYPE)
+option(USE_GPU "Compile using GPU" OFF)
+option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
 
-# default installation
-get_filename_component (default_prefix ".." ABSOLUTE)
-set (CMAKE_INSTALL_PREFIX ${default_prefix} CACHE STRING
-	"Choose the installation directory; by default it installs in the SOD2D directory."
-      FORCE)
+# Folder with files configuring extra CMake options
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
-# FFLAGS depend on the compiler
-get_filename_component (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
+# Configure compiler options
+include(compilerOps)
 
-if (Fortran_COMPILER_NAME MATCHES "gfortran.*")
-  # gfortran
-  set (CMAKE_Fortran_FLAGS_RELEASE "-fopenmp -cpp -funroll-all-loops -fno-f2c -O3 -ffree-line-length-512 -march=native")
-  set (CMAKE_Fortran_FLAGS_DEBUG   "-fopenmp -cpp -ffree-line-length-512 -fbounds-check -fbacktrace -ftrapv -Wconversion-extra -O0 -g")
-elseif (Fortran_COMPILER_NAME MATCHES "ifort.*")
-  # ifort (untested)
-  set (CMAKE_Fortran_FLAGS_RELEASE "-mtune=native -list-line-len=512 -fpp -mtune=native -O3")
-  set (CMAKE_Fortran_FLAGS_DEBUG   "-mtune=native -list-line-len=512 -fpp -ftrapuv -check all,noarg_temp_created -traceback -debug full -warn all,nodec,nointerfaces -fp-stack-check -ansi-alias -O0 -g")
-elseif (Fortran_COMPILER_NAME MATCHES "nvfortran")
-  # nvfortran
-  set (CMAKE_Fortran_FLAGS_RELEASE "-fast -D_USE_NVTX -cpp -gpu=cc70,managed,lineinfo -cuda -acc -Minfo=accel -DNOPRED -DCHANNEL")
-  set (CMAKE_Fortran_FLAGS_DEBUG   "-O0 -DGPU -cpp -Mcuda=cc70 -Wall -C -Ktrap=fp -g")
-  #set (CMAKE_Fortran_FLAGS_DEBUG   "-O0 -DGPU -cpp -Mcuda=cc70 -Wall -C -Ktrap=fp -g -DCHANNEL")
-  ##  add_link_options(-lnvToolsExt)
-elseif (Fortran_COMPILER_NAME MATCHES "mpif90")
-  # mpif90
-  message ("Compiler mpif90")
-  
-  set(CMAKE_PREFIX_PATH "/home/jmuela/libs/hdf5/")
-  set(HDF5_ROOT "/home/jmuela/libs/hdf5/")
-  set(HDF5_PREFER_PARALLEL TRUE)
+# Set project name, version and languages
+project(sod2d LANGUAGES C CXX Fortran)
 
-  find_package( MPI REQUIRED )
-  find_package( HDF5 REQUIRED COMPONENTS Fortran C HL)
+# Configure MPI module
+include(mpi)
 
-  add_library(gempa STATIC IMPORTED) 
-  set_target_properties(gempa PROPERTIES
-    IMPORTED_LOCATION "/home/jmuela/libs/gempa/lib/libgempa.so"
-    INTERFACE_INCLUDE_DIRECTORIES "/home/jmuela/libs/gempa/include/"
-  )
+# Configure HDF5 module
+include(hdf5)
 
-  #set (CMAKE_Fortran_FLAGS_RELEASE "-fast -D_USE_NVTX -cpp -gpu=cc61,managed,lineinfo -cuda -acc -Minfo=accel")
-  set (CMAKE_Fortran_FLAGS_RELEASE "-fast -cuda -cpp -Minfo=accel")
-  set (CMAKE_Fortran_FLAGS_DEBUG   "-O0 -D_USE_NVTX -cpp -gpu=cc70,managed -cuda -acc -Wall -C -Ktrap=fp -Minfo=all -g")
-  #add_link_options(-lnvToolsExt)
-else (Fortran_COMPILER_NAME MATCHES "gfortran.*")
-  message ("CMAKE_Fortran_COMPILER full path: " ${CMAKE_Fortran_COMPILER})
-  message ("Fortran compiler: " ${Fortran_COMPILER_NAME})
-  message ("No optimized Fortran compiler flags are known, we just try -O2...")
-  set (CMAKE_Fortran_FLAGS_DEBUG   "-O0 -g")
-endif (Fortran_COMPILER_NAME MATCHES "gfortran.*")
+# Include external projects
+include(ExternalProject)
 
-##enable_testing()
-ADD_SUBDIRECTORY(unitt)
+# Set library types to be shared
+set(LIBRARY_TYPE SHARED)
+#set(LIBRARY_TYPE STATIC)
 
-# Compile
-file(GLOB sources src/*.cpp src/*.f90 src/main/classes/*.f90 src/main/sod2d_new.f90) # Adds all files to compilation list, with dependencies pre analyzed by CMake
-add_executable(sod2d.x ${sources})   # Build executable from listed sources
+# Set a default build type
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
 
-target_link_libraries(sod2d.x PRIVATE HDF5::HDF5 gempa)
+# Set compilation config for certain compilers
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wsign-conversion -Wold-style-cast")
+    set(CMAKE_CXX_FLAGS_DEBUG "-g")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+endif()
 
-set_property(TARGET sod2d.x PROPERTY LINKER_LANGUAGE Fortran)
+# Set C/C++ standard
+set(CMAKE_CXX_STANDARD 11)
+
+# use, i.e. don't skip the full RPATH for the build tree
+set(CMAKE_SKIP_BUILD_RPATH FALSE)
+
+# when building, don't use the install RPATH already
+# (but later on when installing)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+
+set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+
+# add the automatically determined parts of the RPATH
+# which point to directories outside the build tree to the install RPATH
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+# the RPATH to be used when installing, but only if it's not a system directory
+list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
+if("${isSystemDir}" STREQUAL "-1")
+    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+endif("${isSystemDir}" STREQUAL "-1")
+
+# Enable GEMPA if requested
+include(gempa)
+if (USE_GEMPA)
+  init_gempa()
+endif()
+
+add_subdirectory(external)
+add_subdirectory(src)
+
+#enable folder unitt
+#add_subdirectory(unitt)
+
+# Enable testing
+#if(UNIT_TESTING)
+#    enable_testing()
+#    add_subdirectory(tests)
+#endif()

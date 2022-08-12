@@ -1,0 +1,32 @@
+message("-- Configuring MPI, if appropriate...")
+if (USE_MPI)
+    find_package(MPI REQUIRED)
+    if (NOT MPI_CXX_FOUND)
+        #do nothing
+        message(FATAL_ERROR "MPI not found!")
+    endif()
+endif()
+
+function(set_mpi)
+    target_link_libraries(${PROJECT_NAME} MPI::MPI_CXX MPI::MPI_C MPI::MPI_Fortran)
+endfunction()
+#function(set_mpi)
+#   if (USE_MPI)
+#       message("1 PASA PER AQUI?")
+#       if(TAR)
+#       if(NOT TARGET MPI::MPI_CXX)
+#           message("2 PASA PER AQUI?")
+#           add_library(MPI::MPI_CXX IMPORTED INTERFACE)
+#           set_property(TARGET MPI::MPI_CXX
+#               PROPERTY INTERFACE_COMPILE_OPTIONS ${MPI_CXX_COMPILE_FLAGS})
+#           set_property(TARGET MPI::MPI_CXX
+#               PROPERTY INTERFACE_INCLUDE_DIRECTORIES "${MPI_CXX_INCLUDE_PATH}")
+#           set_property(TARGET MPI::MPI_CXX
+#               PROPERTY INTERFACE_LINK_LIBRARIES ${MPI_CXX_LINK_FLAGS} ${MPI_CXX_LIBRARIES})
+#       endif()
+#       target_link_libraries(${PROJECT_NAME} MPI::MPI_CXX)
+#   else()
+#       message("  -- Not using MPI...")
+#       add_definitions(-DNO_MPI)
+#   endif()
+#endfunction()
