@@ -10,8 +10,10 @@ module mod_comms
     integer(4), dimension(:), allocatable :: aux_intField_s, aux_intField_r
     real(4), dimension(:), allocatable :: aux_floatField_s, aux_floatField_r
     real(8), dimension(:), allocatable :: aux_doubleField_s, aux_doubleField_r
+    real(4), dimension(:), allocatable :: aux_floatField_5s, aux_floatField_5r
 
     integer :: window_id_int,window_id_float,window_id_double
+    integer :: window_id_float5
     integer :: window_id_sm
 
     logical :: isInt,isFloat,isDouble
@@ -22,8 +24,6 @@ module mod_comms
 
     !integer :: ms_rank,ms_size,ms_newComm
     type(c_ptr) :: c_ms_ptr
-
-
 
 contains
 
@@ -55,6 +55,11 @@ contains
             allocate(aux_floatField_r(numNodesToComm))
             !$acc enter data create(aux_floatField_s(:))
             !$acc enter data create(aux_floatField_r(:))
+
+            allocate(aux_floatField_5s(5*numNodesToComm))
+            allocate(aux_floatField_5r(5*numNodesToComm))
+            !$acc enter data create(aux_floatField_5s(:))
+            !$acc enter data create(aux_floatField_5r(:))
 
             call init_window_floatField()
         end if
@@ -91,6 +96,11 @@ contains
             deallocate(aux_floatField_s)
             deallocate(aux_floatField_r)
 
+           !$acc exit data delete(aux_floatField_5s(:))
+           !$acc exit data delete(aux_floatField_5r(:))
+            deallocate(aux_floatField_5s)
+            deallocate(aux_floatField_5r)
+
             call close_window_floatField()
         end if
 
@@ -125,12 +135,17 @@ contains
 
         window_buffer_size = mpi_float_size*numNodesToComm
         call MPI_Win_create(aux_floatField_r,window_buffer_size,mpi_float_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_float,mpi_err)
+
+        window_buffer_size = 5*mpi_float_size*numNodesToComm
+        call MPI_Win_create(aux_floatField_5r,window_buffer_size,mpi_float_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_float5,mpi_err)
     end subroutine init_window_floatField
 
     subroutine close_window_floatField()
         implicit none
         
         call MPI_Win_free(window_id_float,mpi_err)
+
+        call MPI_Win_free(window_id_float5,mpi_err)
     end subroutine close_window_floatField
 !-------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
@@ -210,17 +225,18 @@ contains
         integer :: i,iNodeL,iRank
         integer :: memPos_l,memSize
  
-        !call timer_f1%start_timer()
+        !$acc parallel loop
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
             aux_floatField_s(i) = floatField(iNodeL)
         end do
+        !$acc end parallel loop
+        !$acc kernels
         aux_floatField_r(:)=0.
-        !call timer_f2%start_timer()
+        !$acc end kernels
 
         call MPI_Win_fence(0,window_id_float,mpi_err)
 
-        !call timer_f3%start_timer()
         do i=1,numRanksWithComms
             iRank=ranksToComm(i)
             memPos_l  = commsMemPosInLoc(i)
@@ -238,18 +254,275 @@ contains
             !                    iRank,memPos_t,memSize,MPI_FLOAT,MPI_SUM,window_id_float,mpi_err)
         end do
 
-        !call timer_f3%stop_timer()
-
         !! Wait for the MPI_Get issued to complete before going any further
         call MPI_Win_fence(0,window_id_float,mpi_err)
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            !$acc atomic update
+            floatField(iNodeL) = floatField(iNodeL) + aux_floatField_r(i)
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+
+    end subroutine update_and_comm_floatField
+
+    subroutine update_and_comm_floatField_all(numNodesRankPar,fmass,fener,fmomx,fmomy,fmomz)
+    !TESTEJAR FER LA COMUNICACIO DE TOTS ELS FIELDS AQUI A LA VEGADA, AMB UN SOL PUT
+    !I NO FER 6 COMUNICACIONS DIFERENTS
+    !POT SER ALGO HARDCODEJAT PERO POT VALER LA PENA...
+    !MIRAR BE PERQUE AIXO TE MIGA SI ES VOL FER ELS 5 ARRAYS DE COP!
+    !CREC QUE NO ES TAN STRAIGHTFORWARD....
+        implicit none
+        integer :: numNodesRankPar
+        real(4), intent(inout) :: fmass(numNodesRankPar),fener(numNodesRankPar)
+        real(4), intent(inout) :: fmomx(numNodesRankPar),fmomy(numNodesRankPar),fmomz(numNodesRankPar)
+        integer :: i,iRank,iNodeL,ngbRank,tagComm
+        integer :: memPos_l,memSize,numFields,origMemPos,newMemPos
+        
+        numFields=5
+
+        !$acc parallel loop
+        do iRank=1,numRanksWithComms
+            ngbRank=ranksToComm(iRank)
+            
+            origMemPos = commsMemPosInLoc(iRank)-1
+            newMemPos  = (commsMemPosInLoc(iRank)-1)*numFields
+            memSize    = commsMemSize(iRank)
+
+            do i=1,memSize
+                iNodeL = matrixCommScheme(origMemPos+i,1)
+
+                aux_floatField_5s(newMemPos+i)           = fmass(iNodeL)
+                aux_floatField_5s(newMemPos+i+memSize*1) = fener(iNodeL)
+                aux_floatField_5s(newMemPos+i+memSize*2) = fmomx(iNodeL)
+                aux_floatField_5s(newMemPos+i+memSize*3) = fmomy(iNodeL)
+                aux_floatField_5s(newMemPos+i+memSize*4) = fmomz(iNodeL)
+            end do 
+        end do
+        !$acc end parallel loop
+        !$acc kernels
+        aux_floatField_5r(:)=0.
+        !$acc end kernels
+
+        call MPI_Win_fence(0,window_id_float5,mpi_err)
+
+        do i=1,numRanksWithComms
+            ngbRank=ranksToComm(i)
+
+            memPos_l  = (commsMemPosInLoc(i)-1)*numFields + 1
+            memPos_t  = (commsMemPosInNgb(i)-1)*numFields
+            memSize   = commsMemSize(i)*numFields
+
+            call MPI_Put(aux_floatField_5s(memPos_l),memSize,MPI_FLOAT,ngbRank,memPos_t,memSize,MPI_FLOAT,window_id_float5,mpi_err)
+        end do
+
+        !! Wait for the MPI_Get issued to complete before going any further
+        call MPI_Win_fence(0,window_id_float5,mpi_err)
+
+        !$acc parallel loop
+        do iRank=1,numRanksWithComms
+            origMemPos = commsMemPosInLoc(iRank)-1
+            newMemPos  = (commsMemPosInLoc(iRank)-1)*numFields
+            memSize    = commsMemSize(iRank)
+
+            do i=1,memSize
+                iNodeL = matrixCommScheme(origMemPos+i,1)
+
+                fmass(iNodeL) = fmass(iNodeL) + aux_floatField_5r(newMemPos+i)
+                fener(iNodeL) = fener(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*1)
+                fmomx(iNodeL) = fmomx(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*2)
+                fmomy(iNodeL) = fmomy(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*3)
+                fmomz(iNodeL) = fmomz(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*4)
+            end do 
+        end do
+        !$acc end parallel loop
+
+    end subroutine update_and_comm_floatField_all
+
+    subroutine sendRcv_floatField(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,iNodeL,ngbRank,tagComm
+        integer :: memPos_l,memSize
+ 
+        !$acc data present(aux_floatField_s(:),aux_floatField_r(:))
+        !$acc parallel loop 
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            aux_floatField_s(i) = floatField(iNodeL)
+        end do
+        !$acc end parallel loop
+        !$acc kernels
+        aux_floatField_r(:)=0.
+        !$acc end kernels
+
+        do i=1,numRanksWithComms
+            ngbRank=ranksToComm(i)
+            tagComm=0
+            memPos_l  = commsMemPosInLoc(i)
+            memSize = commsMemSize(i)
+            !memPos_t  = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+
+            !write(*,*) '[',mpi_rank,']iRank->',iRank
+            !write(*,*) '[',mpi_rank,']memPos_l->',memPos_l
+            !write(*,*) '[',mpi_rank,']memSize->',memSize
+          !$acc host_data use_device (aux_floatField_s,aux_floatField_r)
+            call MPI_Sendrecv(aux_floatfield_s(mempos_l), memSize, MPI_FLOAT, ngbRank, tagComm, &
+                              aux_floatfield_r(mempos_l), memSize, MPI_FLOAT, ngbRank, tagComm, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+!            call MPI_Sendrecv(aux_floatField_s, memSize, MPI_FLOAT, ngbRank, tagComm, &
+!                              aux_floatField_r, memSize, MPI_FLOAT, ngbRank, tagComm, &
+!                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+          !$acc end host_data
+        end do
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            !$acc atomic update
+            floatField(iNodeL) = floatField(iNodeL) + aux_floatField_r(i)
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+        !$acc end data
+
+    end subroutine sendRcv_floatField
+
+    subroutine sendRcv_floatField_noGPU(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,iNodeL,ngbRank,tagComm
+        integer :: memPos_l,memSize
+ 
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            aux_floatField_s(i) = floatField(iNodeL)
+        end do
+        aux_floatField_r(:)=0.
+
+        do i=1,numRanksWithComms
+            ngbRank=ranksToComm(i)
+            tagComm=0
+            memPos_l  = commsMemPosInLoc(i)
+            memSize = commsMemSize(i)
+
+            call MPI_Sendrecv(aux_floatfield_s(mempos_l), memSize, MPI_FLOAT, ngbRank, tagComm, &
+                              aux_floatfield_r(mempos_l), memSize, MPI_FLOAT, ngbRank, tagComm, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+        end do
 
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
             floatField(iNodeL) = floatField(iNodeL) + aux_floatField_r(i)
         end do
-        !call timer_f1%stop_timer()
 
-    end subroutine update_and_comm_floatField
+    end subroutine sendRcv_floatField_noGPU
+
+    subroutine sendRcv_floatField_devel(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(numNodesRankPar)
+        real(4) :: aux_ff_s(numNodesToComm), aux_ff_r(numNodesToComm)
+        integer :: i,iNodeL,ngbRank,tagComm
+        integer :: memPos_l,memSize
+ 
+        !$acc parallel loop copyin(floatField(:),matrixCommScheme(:,:)) copyout(aux_ff_s(:))
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            aux_ff_s(i) = floatField(iNodeL)
+        end do
+        !$acc end parallel loop
+        !$acc kernels copyout(aux_ff_r(:))
+        aux_ff_r(:)=0.0_rp
+        !$acc end kernels
+        call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+        do i=1,numRanksWithComms
+            ngbRank=ranksToComm(i)
+            tagComm=0
+            memPos_l  = commsMemPosInLoc(i)
+            memSize = commsMemSize(i)
+
+            call MPI_Sendrecv(aux_ff_s(mempos_l), memSize, MPI_FLOAT, ngbRank, tagComm, &
+                              aux_ff_r(mempos_l), memSize, MPI_FLOAT, ngbRank, tagComm, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+        end do
+        call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+        !$acc parallel loop copyin(aux_ff_r(:),matrixCommScheme(:,:)) copy(floatField(:)) 
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            !$acc atomic update
+            floatField(iNodeL) = floatField(iNodeL) + aux_ff_r(i)
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+    end subroutine sendRcv_floatField_devel
+
+    subroutine sendRcv_floatField_all(numNodesRankPar,fmass,fener,fmomx,fmomy,fmomz)
+        implicit none
+        integer :: numNodesRankPar
+        real(4), intent(inout) :: fmass(numNodesRankPar),fener(numNodesRankPar)
+        real(4), intent(inout) :: fmomx(numNodesRankPar),fmomy(numNodesRankPar),fmomz(numNodesRankPar)
+        integer :: i,iRank,iNodeL,ngbRank,tagComm
+        integer :: memPos_l,memSize,numFields,origMemPos,newMemPos
+ 
+        numFields=5
+
+        !$acc parallel loop
+        do iRank=1,numRanksWithComms
+            ngbRank=ranksToComm(iRank)
+            
+            origMemPos = commsMemPosInLoc(iRank)-1
+            newMemPos  = (commsMemPosInLoc(iRank)-1)*numFields
+            memSize    = commsMemSize(iRank)
+
+            do i=1,memSize
+                iNodeL = matrixCommScheme(origMemPos+i,1)
+
+                aux_floatField_5s(newMemPos+i)           = fmass(iNodeL)
+                aux_floatField_5s(newMemPos+i+memSize*1) = fener(iNodeL)
+                aux_floatField_5s(newMemPos+i+memSize*2) = fmomx(iNodeL)
+                aux_floatField_5s(newMemPos+i+memSize*3) = fmomy(iNodeL)
+                aux_floatField_5s(newMemPos+i+memSize*4) = fmomz(iNodeL)
+            end do 
+        end do
+        !$acc end parallel loop
+        !$acc kernels
+        aux_floatField_5r(:)=0.
+        !$acc end kernels
+
+        do i=1,numRanksWithComms
+            ngbRank=ranksToComm(i)
+            tagComm=0
+            memPos_l  = (commsMemPosInLoc(i)-1)*numFields + 1
+            memSize   = commsMemSize(i)*numFields
+
+            call MPI_Sendrecv(aux_floatField_5s(mempos_l), memSize, MPI_FLOAT, ngbRank, tagComm, &
+                              aux_floatField_5r(mempos_l), memSize, MPI_FLOAT, ngbRank, tagComm, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+        end do
+
+        !$acc parallel loop
+        do iRank=1,numRanksWithComms
+            origMemPos = commsMemPosInLoc(iRank)-1
+            newMemPos  = (commsMemPosInLoc(iRank)-1)*numFields
+            memSize    = commsMemSize(iRank)
+
+            do i=1,memSize
+                iNodeL = matrixCommScheme(origMemPos+i,1)
+
+                !$acc atomic update
+                fmass(iNodeL) = fmass(iNodeL) + aux_floatField_5r(newMemPos+i)
+                fener(iNodeL) = fener(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*1)
+                fmomx(iNodeL) = fmomx(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*2)
+                fmomy(iNodeL) = fmomy(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*3)
+                fmomz(iNodeL) = fmomz(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*4)
+                !$acc end atomic
+            end do 
+        end do
+        !$acc end parallel loop
+
+    end subroutine sendRcv_floatField_all
 
     subroutine update_and_comm_intField(intField)
         implicit none
@@ -280,7 +553,9 @@ contains
 
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
+            !$acc atomic update
             intField(iNodeL) = intField(iNodeL) + aux_intField_r(i)
+            !$acc end atomic
         end do
 
     end subroutine update_and_comm_intField

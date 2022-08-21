@@ -39,18 +39,18 @@ contains
 
    subroutine CFDSolverPeriodic_callTimeIntegration(this)
       class(CFDSolverPeriodic), intent(inout) :: this
-#if 1
-      call rk_4_main(0,0,numElemsInRank,this%nboun,numNodesRankPar,numNodesRankPar_w,point2elem,lnbn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-         1,connecPar,Ngp,dNgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
+
+      call rk_4_main(0,0,numElemsInRank,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,point2elem,lnbn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         1,connecParWork,Ngp,dNgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor)
-#endif
+
    end subroutine CFDSolverPeriodic_callTimeIntegration
 
    subroutine CFDSolverPeriodic_saveAverages(this,istep)
       class(CFDSolverPeriodic), intent(inout) :: this
       integer(4)              , intent(in)   :: istep
 
-      call write_vtkAVG_binary(meshIsPeriodic,istep,numNodesRankPar,numElemsInRank,coordPar,connecVTK, &
+      call write_vtkAVG_binary(isMeshPeriodic,istep,numNodesRankPar,numElemsInRank,coordPar,connecVTK, &
          acuvel,acuve2,acurho,acupre,acumueff,this%acutim,nPerRankPar,masSlaRankPar)
 
    end subroutine CFDSolverPeriodic_saveAverages
@@ -59,7 +59,7 @@ contains
       class(CFDSolverPeriodic), intent(inout) :: this
       integer(4)              , intent(in)   :: istep
 
-      call write_vtk_binary(meshIsPeriodic,istep,numNodesRankPar,numElemsInRank,coordPar,connecVTK, &
+      call write_vtk_binary(isMeshPeriodic,istep,numNodesRankPar,numElemsInRank,coordPar,connecVTK, &
          rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
          gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nPerRankPar,masSlaRankPar)
 

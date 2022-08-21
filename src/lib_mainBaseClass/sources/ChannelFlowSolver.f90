@@ -60,17 +60,19 @@ contains
       write(this%mesh_h5_file_name,*) "channel"
 
       this%isPeriodic = .true.
-      this%loadMesh = .false.
+      !this%loadMesh = .false.
+      this%loadMesh = .true.
 
-      this%nstep = 90000000 
+      !this%nstep = 90000000 
+      this%nstep = 101 
       this%cfl_conv = 2.2_rp
       this%cfl_diff = 2.2_rp
-      this%nsave  = 1  ! First step to save, TODO: input
+      this%nsave  = 101  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
       this%nleap = 20000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 10  ! Saving interval, TODO: input
+      this%nleap2 = 1  ! Saving interval, TODO: input
       this%nleapAVG = 20000
 
       this%Cp = 1004.0_rp
@@ -104,12 +106,12 @@ contains
       integer(4) :: iNodeL,iNodeGSrl
 
       !call read_veloc(this%npoin,this%gmsh_file_path,u(:,:,2))
-      call read_veloc_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniU)
+      !call read_veloc_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniU)
       do iNodeL=1,numNodesRankPar
          iNodeGSrl=globalIdSrl(iNodeL)
-         u(iNodeL,1,2) = iniU(iNodeGSrl,1)
-         u(iNodeL,2,2) = iniU(iNodeGSrl,2)
-         u(iNodeL,3,2) = iniU(iNodeGSrl,3)
+         u(iNodeL,1,2) = 0.!iniU(iNodeGSrl,1)
+         u(iNodeL,2,2) = 0.!iniU(iNodeGSrl,2)
+         u(iNodeL,3,2) = 0.!iniU(iNodeGSrl,3)
       end do
 
       !$acc parallel loop

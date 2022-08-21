@@ -194,7 +194,7 @@ module mod_analysis
 
          implicit none
 
-			integer(4), intent(in)  :: iter, npoin, nbound, surfCode, bound(nbound,npbou), bou_code(nbound,2)
+			integer(4), intent(in)  :: iter, npoin, nbound, surfCode, bound(nbound,npbou), bou_code(nbound)
 			integer(4), intent(in)  :: nelem, connec(nelem,nnode), point2elem(npoin)
 			integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
          real(rp),    intent(in)  :: wgp_b(npbou), bounorm(nbound,ndime*npbou), time
@@ -202,18 +202,19 @@ module mod_analysis
          real(rp),    intent(in)  :: mu_e(nelem,ngaus), mu_sgs(nelem,ngaus), mu_fluid(npoin)
          real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1),coord(npoin,ndime)
 			real(rp),    intent(out) :: surfArea, Fpr(ndime), Ftau(ndime)
+			real(rp)                :: surfArea_l,surfArea_s,Fpr_l(ndime),Ftau_l(ndime)
          integer(4)              :: ibound, idime, igaus, ipbou, ielem, jgaus
          integer(4)              :: numBelem, counter, isoI, isoJ, isoK, ii, jdime, kdime
          integer(4), allocatable :: lelbo(:)
          real(rp)                 :: bnorm(npbou*ndime), nmag, prl(npbou), ul(nnode,ndime), rhol(nnode)
          real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), tau(ndime,ndime), divU
-         real(rp)                :: mu_fgp, mu_egp, mufluidl(nnode),surfAreal,face2centoid(ndime),sig,aux(ndime)
+         real(rp)                :: mu_fgp, mu_egp, mufluidl(nnode),face2centoid(ndime),sig,aux(ndime)
 
 			! Create lelbo for the surface, where lelbo is a list of boundary elements belonging to that surface
 			numBelem = 0
          !$acc parallel loop reduction(+:numBelem)
 			do ibound = 1, nbound
-				if (bou_code(ibound,2) == surfCode) then
+				if (bou_code(ibound) == surfCode) then
 					numBelem = numBelem + 1
 				end if
 			end do
@@ -221,25 +222,28 @@ module mod_analysis
 			counter = 0
 			allocate(lelbo(numBelem))
 			do ibound = 1, nbound
-				if (bou_code(ibound,2) == surfCode) then
+				if (bou_code(ibound) == surfCode) then
 					counter = counter + 1
-					lelbo(counter) = bou_code(ibound,1)
+					lelbo(counter) = ibound!bou_code(ibound,1)
 				end if
 			end do
 
 			! Compute surface information through sum of Gaussian quadratures over all boundary elements
-			surfArea = 0.0_rp
+			surfArea_l = 0.0_rp
+         surfArea = 0.0_rp
          !$acc kernels
+         Fpr_l(:) = 0.0_rp
+         Ftau_l(:) = 0.0_rp
          Fpr(:) = 0.0_rp
          Ftau(:) = 0.0_rp
          !$acc end kernels
-         !$acc parallel loop gang private(bnorm,prl) reduction(+:surfArea)
+         !$acc parallel loop gang private(bnorm,prl) reduction(+:surfArea_l)
 			do ibound = 1, numBelem
 				bnorm(1:npbou*ndime) = bounorm(lelbo(ibound),1:npbou*ndime)
             prl(1:npbou) = pr(bound(lelbo(ibound),1:npbou))
-            surfAreal = 0.0_rp
+            surfArea_s = 0.0_rp
 				! Element area
-            !$acc loop vector private(tau,ul,rhol,mufluidl,gradIsoU,gradU,face2centoid) reduction(+:surfAreal)
+            !$acc loop vector private(tau,ul,rhol,mufluidl,gradIsoU,gradU,face2centoid) reduction(+:surfArea_s)
 				do igaus = 1,npbou
                ielem = point2elem(bound(lelbo(ibound),igaus))
                jgaus = minloc(abs(connec(ielem,:)-bound(lelbo(ibound),igaus)),1)
@@ -303,7 +307,7 @@ module mod_analysis
                !$acc loop seq
 					do idime = 1,ndime
                   !$acc atomic update
-                  Fpr(idime) = Fpr(idime)-wgp_b(igaus)*(prl(igaus)-nscbc_p_inf)*bnorm((igaus-1)*ndime+idime)*sig
+                  Fpr_l(idime) = Fpr_l(idime)-wgp_b(igaus)*(prl(igaus)-nscbc_p_inf)*bnorm((igaus-1)*ndime+idime)*sig
                   !$acc end atomic
 					end do
                !$acc loop seq
@@ -311,16 +315,23 @@ module mod_analysis
                   !$acc loop seq 
                   do jdime = 1,ndime
                      !$acc atomic update
-                     Ftau(idime) = Ftau(idime)+wgp_b(igaus)*tau(idime,jdime)*bnorm((igaus-1)*ndime+jdime)*sig
+                     Ftau_l(idime) = Ftau_l(idime)+wgp_b(igaus)*tau(idime,jdime)*bnorm((igaus-1)*ndime+jdime)*sig
                      !$acc end atomic
                   end do
                end do
-					surfAreal = surfAreal + nmag*wgp_b(igaus)
+					surfArea_s = surfArea_s + nmag*wgp_b(igaus)
 				end do
-            surfArea = surfArea + surfAreal
+            surfArea_l = surfArea_l + surfArea_s
 			end do
          !$acc end parallel loop
 			deallocate(lelbo)
+
+         call MPI_Allreduce(surfArea_l,surfArea,1,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+         call MPI_Allreduce(Fpr_l,Fpr,ndime,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+         call MPI_Allreduce(Ftau_l,Ftau,ndime,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+
+         !write(*,*) '(',mpi_rank,')surfCode',surfCode,'t',time, ",", dble(surfArea), ",", dble(Fpr(1)), ",", dble(Fpr(2)), ",", dble(Fpr(3)), ",", dble(Ftau(1)), ",", dble(Ftau(2)), ",", dble(Ftau(3))
+
          write(888+surfCode,"(I8,1X,A)",ADVANCE="NO") iter, ","
          write(888+surfCode,50) time, ",", dble(surfArea), ",", dble(Fpr(1)), ",", dble(Fpr(2)), ",", dble(Fpr(3)), ",", dble(Ftau(1)), ",", dble(Ftau(2)), ",", dble(Ftau(3)), ""
 !50       format(16(1X,E10.4,1X,A))

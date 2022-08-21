@@ -4,9 +4,10 @@ module mod_arrays
       implicit none
 
       ! main allocatable arrays
-      integer(4), allocatable  :: connec(:,:), connecVTK(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
-      integer(4), allocatable  :: masSla(:,:), connec_orig(:,:), bound_orig(:,:), lelpn(:),point2elem(:)
-      integer(4), allocatable  :: lpoin_w(:), atoIJ(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
+      integer(4), allocatable  :: connecVTK(:,:)!, connec(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
+      !integer(4), allocatable  :: masSla(:,:), connec_orig(:,:), bound_orig(:,:), lpoin_w(:)
+      integer(4), allocatable  :: lelpn(:),point2elem(:)
+      integer(4), allocatable  :: atoIJ(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
 !      real(rp), allocatable    :: coord(:,:), helem(:),helem_l(:,:)
       real(rp), allocatable    :: helem(:),helem_l(:,:)
       real(rp), allocatable    :: xgp(:,:), wgp(:), xgp_b(:,:), wgp_b(:)
@@ -59,8 +60,8 @@ module CFDSolverBase_mod
       ! main integer parameters
       !NOTES @JORDI: -> it would be nice if nelem, npoin, nper... etc dissapear from here!
       integer(4), public         :: nstep, nper, numCodes 
-      integer(4), public         :: nelem, npoin, nboun, nbcodes
-      integer(4), public         :: ndof, nbnodes
+      !integer(4), public         :: nelem, npoin, nboun, nbcodes
+      !integer(4), public         :: ndof, nbnodes
       integer(4), public         :: ppow
       integer(4), public         :: nsave, nleap
       integer(4), public         :: nsave2, nleap2
@@ -88,7 +89,7 @@ module CFDSolverBase_mod
       procedure, public :: initializeSourceTerms => CFDSolverBase_initializeSourceTerms
       procedure, public :: openMesh => CFDSolverBase_openMesh
       procedure, public :: evalCharLength => CFDSolverBase_evalCharLength
-      procedure, public :: splitBoundary => CFDSolverBase_splitBoundary
+      !procedure, public :: splitBoundary => CFDSolverBase_splitBoundary
       procedure, public :: allocateVariables => CFDSolverBase_allocateVariables
       procedure, public :: evalInitialConditions => CFDSolverBase_evalInitialConditions
       procedure, public :: evalInitialViscosity =>CFDSolverBase_evalInitialViscosity
@@ -107,6 +108,9 @@ module CFDSolverBase_mod
       procedure, public :: saveAverages =>CFDSolverBase_saveAverages
       procedure, public :: savePosprocessingFields =>CFDSolverBase_savePosprocessingFields
       procedure, public :: afterDt =>CFDSolverBase_afterDt
+
+      procedure :: open_log_file
+      procedure :: close_log_file
    end type CFDSolverBase
 contains
 
@@ -160,7 +164,7 @@ contains
 #if 1
 !---------------------------------------------------------------------------------------------------------------
       !if(mpi_rank.eq.0) 
-      write(111,*) "--| ALL MESH FILES MUST BE IN ",trim(adjustl(this%gmsh_file_path))," !"
+      !write(111,*) "--| ALL MESH FILES MUST BE IN ",trim(adjustl(this%gmsh_file_path))," !"
       !call read_alya_mesh_files(this%gmsh_file_path,this%gmsh_file_name,this%isPeriodic)
 
       if(this%loadMesh) then
@@ -197,7 +201,7 @@ contains
       call nvtxEndRange
 
    end subroutine CFDSolverBase_openMesh
-
+#if 0
    subroutine CFDSolverBase_splitBoundary(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), allocatable    :: aux1(:)
@@ -270,7 +274,7 @@ contains
          call nvtxEndRange
       end if
    end subroutine CFDSolverBase_splitBoundary
-
+#endif
    subroutine CFDSolverBase_evalCharLength(this)
       class(CFDSolverBase), intent(inout) :: this
       real(rp) :: he_aux
@@ -279,7 +283,7 @@ contains
       call nvtxStartRange("Elem size compute")
       allocate(helem(numElemsInRank))
       do iElem = 1,numElemsInRank
-         call char_length(iElem,numElemsInRank,numNodesRankPar,connecPar,coordPar,he_aux)
+         call char_length(iElem,numElemsInRank,numNodesRankPar,connecParOrig,coordPar,he_aux)
          helem(iElem) = he_aux
       end do
       call nvtxEndRange
@@ -316,6 +320,12 @@ contains
       allocate(ax1(numNodesRankPar))
       allocate(ax2(numNodesRankPar))
       allocate(ax3(numNodesRankPar))
+
+      !boundary
+      if(numBoundCodes .ge. 1) then
+         allocate(Fpr(numBoundCodes,ndime))
+         allocate(Ftau(numBoundCodes,ndime))
+      end if
 
       !*********************************************************************!
       ! Allocate accumulators for averaging process                         !
@@ -374,10 +384,10 @@ contains
       !*********************************************************************!
 
       if (flag_real_diff == 1) then
-         call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecPar,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
+         call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParOrig,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
          write(111,*) "--| TIME STEP SIZE dt := ",this%dt,"s"
       else
-         call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecPar,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
+         call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParOrig,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
          write(111,*) "--| TIME STEP SIZE dt := ",this%dt,"s"
       end if
 
@@ -464,7 +474,7 @@ contains
       do ielem = 1,numElemsInRank
          do inode = (2**ndime)+1,nnode
             do idime = 1,ndime
-               call var_interpolate(aux_1(connecPar(ielem,:),idime),Ngp_l(inode,:),coordPar(connecPar(ielem,inode),idime))
+               call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),coordPar(connecParOrig(ielem,inode),idime))
             end do
          end do
       end do
@@ -472,7 +482,7 @@ contains
       do ielem = 1,numElemsInRank
          do inode = (2**ndime)+1,nnode
             do idime = 1,ndime
-               call var_interpolate(aux_1(connecPar(ielem,:),idime),Ngp_l(inode,:),u(connecPar(ielem,inode),idime,2))
+               call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),u(connecParOrig(ielem,inode),idime,2))
             end do
          end do
       end do
@@ -480,7 +490,7 @@ contains
       do ielem = 1,numElemsInRank
          do inode = (2**ndime)+1,nnode
             do idime = 1,ndime
-               call var_interpolate(aux_1(connecPar(ielem,:),idime),Ngp_l(inode,:),q(connecPar(ielem,inode),idime,2))
+               call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),q(connecParOrig(ielem,inode),idime,2))
             end do
          end do
       end do
@@ -489,49 +499,49 @@ contains
       aux_2(:) = rho(:,2)
       do ielem = 1,numElemsInRank
          do inode = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecPar(ielem,:)),Ngp_l(inode,:),rho(connecPar(ielem,inode),2))
+            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),rho(connecParOrig(ielem,inode),2))
          end do
       end do
       aux_2(:) = pr(:,2)
       do ielem = 1,numElemsInRank
          do inode = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecPar(ielem,:)),Ngp_l(inode,:),pr(connecPar(ielem,inode),2))
+            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),pr(connecParOrig(ielem,inode),2))
          end do
       end do
       aux_2(:) = E(:,2)
       do ielem = 1,numElemsInRank
          do inode = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecPar(ielem,:)),Ngp_l(inode,:),E(connecPar(ielem,inode),2))
+            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),E(connecParOrig(ielem,inode),2))
          end do
       end do
       aux_2(:) = Tem(:,2)
       do ielem = 1,numElemsInRank
          do inode = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecPar(ielem,:)),Ngp_l(inode,:),Tem(connecPar(ielem,inode),2))
+            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),Tem(connecParOrig(ielem,inode),2))
          end do
       end do
       aux_2(:) = e_int(:,2)
       do ielem = 1,numElemsInRank
          do inode = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecPar(ielem,:)),Ngp_l(inode,:),e_int(connecPar(ielem,inode),2))
+            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),e_int(connecParOrig(ielem,inode),2))
          end do
       end do
       aux_2(:) = csound(:)
       do ielem = 1,numElemsInRank
          do inode = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecPar(ielem,:)),Ngp_l(inode,:),csound(connecPar(ielem,inode)))
+            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),csound(connecParOrig(ielem,inode)))
          end do
       end do
       aux_2(:) = machno(:)
       do ielem = 1,numElemsInRank
          do inode = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecPar(ielem,:)),Ngp_l(inode,:),machno(connecPar(ielem,inode)))
+            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),machno(connecParOrig(ielem,inode)))
          end do
       end do
       aux_2(:) = mu_fluid(:)
       do ielem = 1,numElemsInRank
          do inode = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecPar(ielem,:)),Ngp_l(inode,:),mu_fluid(connecPar(ielem,inode)))
+            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),mu_fluid(connecParOrig(ielem,inode)))
          end do
       end do
       deallocate(aux_2)
@@ -551,10 +561,11 @@ contains
       this%leviCivi(3,1,2) =  1.0_rp
       this%leviCivi(1,2,3) =  1.0_rp
       this%leviCivi(2,1,3) = -1.0_rp
-      if (this%nboun .ne. 0) then
+      if (isMeshBoundaries) then
          write(111,*) "--| COMPUTING BOUNDARY ELEMENT NORMALS"
+         allocate(boundNormalPar(numBoundsRankPar,ndime*npbou))
          call nvtxStartRange("Bou normals")
-         call boundary_normals(numNodesRankPar,this%nboun,bound,this%leviCivi,coordPar,dNgp_b,bou_norm)
+         call boundary_normals(numNodesRankPar,numBoundsRankPar,boundPar,this%leviCivi,coordPar,dNgp_b,boundNormalPar)
          call nvtxEndRange
       end if
    end subroutine CFDSolverBase_evalBoundaryNormals
@@ -573,7 +584,7 @@ contains
       call nvtxStartRange("Jacobian info")
       allocate(He(ndime,ndime,ngaus,numElemsInRank))
       allocate(gpvol(1,ngaus,numElemsInRank))
-      call elem_jacobian(numElemsInRank,numNodesRankPar,connecPar,coordPar,dNgp,wgp,gpvol,He)
+      call elem_jacobian(numElemsInRank,numNodesRankPar,connecParOrig,coordPar,dNgp,wgp,gpvol,He) 
       call  nvtxEndRange
 
       vol_rank = 0.0_rp
@@ -594,8 +605,8 @@ contains
 
       allocate(connecVTK(numElemsInRank,nnode))
       allocate(connecLINEAR(numElemsInRank*(porder**ndime),2**ndime))
-      call create_connecVTK(numElemsInRank,connecPar,atoIJK,vtk_atoIJK,connecVTK)
-      call linearMeshOutput(numElemsInRank,connecPar,listHEX08,connecLINEAR)
+      call create_connecVTK(numElemsInRank,connecParOrig,atoIJK,vtk_atoIJK,connecVTK)
+      call linearMeshOutput(numElemsInRank,connecParOrig,listHEX08,connecLINEAR)
 
    end subroutine CFDSolverBase_evalVTKconnectivity
    
@@ -614,7 +625,8 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       !integer(4) ipoin
 
-      call create_working_lists() !located in mod_mpi_mesh, rethink name of the func...
+      !REVISAR FUNCIONS PREVIES SI NO FAIG EL WORKING LIST AQUI! SOBRETOT PERQUE EM CANVIA EL CONNEC!
+      !call create_working_lists() !located in mod_mpi_mesh, rethink name of the func...
 #if 0
       if (this%isPeriodic) then
          if (this%nboun .eq. 0) then
@@ -642,12 +654,11 @@ contains
       allocate(lelpn(numNodesRankPar))
       allocate(point2elem(numNodesRankPar))
       write(111,*) '--| POINT 2 ELEM begin'
-      call elemPerNode(numElemsInRank,numNodesRankPar,connecPar,lelpn,point2elem)
+      call elemPerNode(numElemsInRank,numNodesRankPar,connecParWork,lelpn,point2elem)
 
       write(111,*) '--| POINT 2 ELEM done'
-
-      allocate(lnbn(this%nboun,npbou))
-      call nearBoundaryNode(numElemsInRank,numNodesRankPar,this%nboun,connecPar,coordPar,bound,point2elem,atoIJK,lnbn)
+      allocate(lnbn(numBoundsRankPar,npbou))
+      call nearBoundaryNode(numElemsInRank,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,point2elem,atoIJK,lnbn)
 
    end subroutine CFDSolverBase_evalPeriodic
 
@@ -662,35 +673,31 @@ contains
       write(111,*) '--| COMPUTING LUMPED MASS MATRIX...'
       call nvtxStartRange("Lumped mass compute")
       allocate(Ml(numNodesRankPar))
-      call lumped_mass_spectral(numElemsInRank,numNodesRankPar,connecPar,gpvol,Ml)
+      call lumped_mass_spectral(numElemsInRank,numNodesRankPar,connecParWork,gpvol,Ml)
       call nvtxEndRange
 
       !charecteristic length for spectral elements for the entropy
       !stablisation
       allocate(helem_l(numElemsInRank,nnode))
       do iElem = 1,numElemsInRank
-         call char_length_spectral(iElem,numElemsInRank,numNodesRankPar,connecPar,coordPar,Ml,helem_l)
+         call char_length_spectral(iElem,numElemsInRank,numNodesRankPar,connecParWork,coordPar,Ml,helem_l)
       end do
    end subroutine CFDSolverBase_evalMass
 
    subroutine CFDSolverBase_evalFirstOutput(this)
       class(CFDSolverBase), intent(inout) :: this
-      character(500)             :: tmpname
-      integer(4) :: icode
+      character(500) :: tmpname
+      integer(4) :: iCode
 
       !*********************************************************************!
       ! Compute surface forces and area                                                                !
       !*********************************************************************!
-      if (this%nboun .ne. 0) then
-         do icode = 1,this%numCodes
-            write(tmpname,'("surfcode_",i0,".dat")') icode
-            open(unit=888+icode,form='formatted',file=tmpname,status='replace')
-            write(888+icode,60) "ITER", "TIME", "AREA", "FPRE_X", "FPRE_Y", "FPRE_Z", "FTAU_X", "FTAU_Y", "FTAU_Z"
-            60            format(9(3X,A,5X))
+      if (isMeshBoundaries) then
+         do iCode = 1,numBoundCodes
             call nvtxStartRange("Surface info")
-            call surfInfo(0,0.0_rp,numElemsInRank,numNodesRankPar,this%nboun,icode,connecPar,bound,point2elem, &
-               bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(icode,:),Ftau(icode,:))
+            call surfInfo(0,0.0_rp,numElemsInRank,numNodesRankPar,numBoundsRankPar,iCode,connecParWork,boundPar,point2elem,&
+               bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
+               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(iCode,:),Ftau(iCode,:))
             call nvtxEndRange
          end do
       end if
@@ -703,12 +710,11 @@ contains
       allocate(divU(numNodesRankPar))
       allocate(Qcrit(numNodesRankPar))
 
-      call compute_fieldDerivs(numElemsInRank,numNodesRankPar,connecPar,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
+      call compute_fieldDerivs(numElemsInRank,numNodesRankPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
 
-      open(unit=666,file="analysis.dat",status="replace")
-      call volAvg_EK(numElemsInRank,numNodesRankPar,connecPar,gpvol,Ngp,nscbc_rho_inf,rho(:,2),u(:,:,2),this%EK)
-      call visc_dissipationRate(numElemsInRank,numNodesRankPar,connecPar,this%leviCivi,nscbc_rho_inf,mu_fluid,mu_e,u(:,:,2),this%VolTot,gpvol,He,dNgp,this%eps_S,this%eps_D,this%eps_T)
-      call maxMach(numNodesRankPar,numNodesRankPar_w,workingNodesPar,machno,this%maxmachno)
+      call volAvg_EK(numElemsInRank,numNodesRankPar,connecParWork,gpvol,Ngp,nscbc_rho_inf,rho(:,2),u(:,:,2),this%EK)
+      call visc_dissipationRate(numElemsInRank,numNodesRankPar,connecParWork,this%leviCivi,nscbc_rho_inf,mu_fluid,mu_e,u(:,:,2),this%VolTot,gpvol,He,dNgp,this%eps_S,this%eps_D,this%eps_T)
+      call maxMach(numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,machno,this%maxmachno)
       call write_EK(this%time,this%EK,this%eps_S,this%eps_D,this%eps_T,this%maxmachno)
       write(111,*) "--| time     EK     eps_S     eps_D     eps_T     max(Ma)"
       write(111,20) this%time, this%EK, this%eps_S, this%eps_D, this%eps_T, this%maxmachno
@@ -791,11 +797,11 @@ contains
          call this%callTimeIntegration()
 
          this%time = this%time+this%dt
-         
+
          if (istep == this%nsave2 .and. (this%doGlobalAnalysis)) then
-            call volAvg_EK(numElemsInRank,numNodesRankPar,connecPar,gpvol,Ngp,nscbc_rho_inf,rho(:,2),u(:,:,2),this%EK)
-            call visc_dissipationRate(numElemsInRank,numNodesRankPar,connecPar,this%leviCivi,nscbc_rho_inf,mu_fluid,mu_e,u(:,:,2),this%VolTot,gpvol,He,dNgp,this%eps_S,this%eps_D,this%eps_T)
-            call maxMach(numNodesRankPar,numNodesRankPar_w,workingNodesPar,machno,this%maxmachno)
+            call volAvg_EK(numElemsInRank,numNodesRankPar,connecParWork,gpvol,Ngp,nscbc_rho_inf,rho(:,2),u(:,:,2),this%EK)
+            call visc_dissipationRate(numElemsInRank,numNodesRankPar,connecParWork,this%leviCivi,nscbc_rho_inf,mu_fluid,mu_e,u(:,:,2),this%VolTot,gpvol,He,dNgp,this%eps_S,this%eps_D,this%eps_T)
+            call maxMach(numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,machno,this%maxmachno)
             call write_EK(this%time,this%EK,this%eps_S,this%eps_D,this%eps_T,this%maxmachno)
             write(111,*) "--| time     EK     eps_S     eps_D     eps_T     max(Ma)"
             write(111,20) this%time, this%EK, this%eps_S, this%eps_D, this%eps_T, this%maxmachno
@@ -804,10 +810,10 @@ contains
          end if
 
          if (flag_real_diff == 1) then
-            call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecPar,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
+            call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
             if (istep == this%nsave2)write(111,*) "DT := ",this%dt,"s time := ",this%time,"s"
          else
-            call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecPar,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
+            call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
             if (istep == this%nsave2)write(111,*) "DT := ",this%dt,"s time := ",this%time,"s"
          end if
 
@@ -817,16 +823,16 @@ contains
          ! Update the accumulators for averaging
          !
          call nvtxStartRange("Accumulate"//timeStep,istep)
-         call favre_average(numElemsInRank,numNodesRankPar,numNodesRankPar_w,workingNodesPar,connecPar,this%dt,rho,u,pr, &
+         call favre_average(numElemsInRank,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,this%dt,rho,u,pr, &
             mu_fluid,mu_e,mu_sgs,this%acutim,acurho,acupre,acuvel,acuve2,acumueff)
          call nvtxEndRange
 
          if (istep == this%nsave2) then
-            if (this%nboun .ne. 0) then
-               do icode = 1,this%numCodes
+            if (numBoundaryNodesRankPar .ne. 0) then
+               do icode = 1,numBoundCodes!this%numCodes
                   call nvtxStartRange("Surface info")
-                  call surfInfo(istep,this%time,numElemsInRank,numNodesRankPar,this%nboun,icode,connecPar,bound,point2elem, &
-                     bou_codes,bou_norm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
+                  call surfInfo(istep,this%time,numElemsInRank,numNodesRankPar,numBoundsRankPar,icode,connecParWork,boundPar,point2elem, &
+                     bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
                      mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(icode,:),Ftau(icode,:))
 
                   call nvtxEndRange
@@ -850,7 +856,7 @@ contains
          !
          if (istep == this%nsave) then
             call nvtxStartRange("Output "//timeStep,istep)
-            call compute_fieldDerivs(numElemsInRank,numNodesRankPar,connecPar,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
+            call compute_fieldDerivs(numElemsInRank,numNodesRankPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
             call this%savePosprocessingFields(istep)
             this%nsave = this%nsave+this%nleap
             call nvtxEndRange
@@ -860,7 +866,7 @@ contains
 
          if(istep==this%nsave2) then
             this%nsave2 = this%nsave2+this%nleap2
-            call flush(1)
+            call flush(111)
          end if
 
          counter = counter+1
@@ -869,19 +875,52 @@ contains
       call nvtxEndRange
    end subroutine CFDSolverBase_evalTimeIteration
 
-   subroutine open_log_file()
+   subroutine open_log_file(this)
       implicit none
-      character(len=256) :: filename
+      class(CFDSolverBase), intent(inout) :: this
+      character(len=1024) :: filename,filenameAnalysis,filenameBound,aux_string_mpisize,aux_string_code
+      integer :: iCode
 
-      write(filename,'("sod2d-",i0,".log")'),mpi_size
+      write(aux_string_mpisize,'(I0)') mpi_size
+      
+      filename = 'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
+      !write(filename,'("sod2d_",A,"-",i0,".log")'),,mpi_size
       open(unit=111,file=filename,status="replace")
+
+      if(this%doGlobalAnalysis) then
+         filenameAnalysis = 'analysis_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
+         open(unit=666,file=filenameAnalysis,status="replace")
+      end if
+
+      if (isMeshBoundaries) then
+         do iCode = 1,numBoundCodes
+            write(aux_string_code,'(I0)') iCode
+            filenameBound = 'surf_code_'//trim(aux_string_code)//'-'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
+            open(unit=888+iCode,form='formatted',file=filenameBound,status='replace')
+            write(888+iCode,60) "ITER", "TIME", "AREA", "FPRE_X", "FPRE_Y", "FPRE_Z", "FTAU_X", "FTAU_Y", "FTAU_Z"
+            60 format(9(3X,A,5X))
+         end do
+      end if
 
    end subroutine open_log_file
 
-   subroutine close_log_file()
+   subroutine close_log_file(this)
       implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      integer :: iCode
 
       close(unit=111)
+
+      if(this%doGlobalAnalysis) then
+         close(unit=666)
+      end if
+
+      if (isMeshBoundaries) then
+         do iCode = 1,numBoundCodes
+            close(unit=888+iCode)
+         end do
+      end if
+
    end subroutine close_log_file
 
    subroutine CFDSolverBase_run(this)
@@ -890,8 +929,6 @@ contains
 
       ! Init MPI
       call init_mpi()
-
-      call open_log_file()
 
         ! Main simulation parameters
 
@@ -915,13 +952,16 @@ contains
         this%useDoubleInComms=.false.
         call init_comms(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
 
+         ! Open log file
+         call this%open_log_file()
+
         ! Compute characteristic size of the elements
 
         call this%evalCharLength()
 
         ! Splitting boundary nodes
-
-        call this%splitBoundary()
+        ! now this is done in the parallel mesh!
+        !call this%splitBoundary()
 
         ! Allocate variables
 
@@ -981,7 +1021,7 @@ contains
 
         call this%evalTimeIteration()
 
-      call close_log_file()
+      call this%close_log_file()
 
       call end_comms()
       

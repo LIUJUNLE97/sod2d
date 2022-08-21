@@ -54,7 +54,7 @@ module time_integ
             real(rp),              intent(inout)   :: ax2(npoin)
             real(rp),              intent(inout)   :: ax3(npoin)
             integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(ndof), lbnodes(nbnodes)
-            integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun,2)
+            integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun)
             real(rp),    optional, intent(in)    :: source_term(ndime)
             integer(4)                          :: pos
             integer(4)                          :: istep, ipoin, idime
@@ -66,6 +66,12 @@ module time_integ
             real(rp),    dimension(npoin,ndime)  :: Rmom, Rmom_sum, f_eta
             real(rp)                             :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
             real(rp)                             :: Aemac(npoin,ndime), Femac(npoin), umag
+
+#if 0
+            !!!!$acc enter data create(Rmass(:))
+            !!!!$acc enter data create(Rener(:))
+            !!!!$acc enter data create(Rmom(:,:))
+#endif
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! New version of RK4 using loops                 !
@@ -266,6 +272,48 @@ module time_integ
                Rmom(:,:) = Rmom(:,:) + Rdiff_mom(:,:)
                !$acc end kernels
                call nvtxEndRange
+
+               !TESTING NEW LOCATION FOR MPICOMMS
+               if(mpi_size.ge.2) then
+                  call nvtxStartRange("MPI_comms_tI")
+#if 1
+                  call sendRcv_floatField(Rmass)
+                  call sendRcv_floatField(Rener)
+                  do idime = 1,ndime
+                     call sendRcv_floatField(Rmom(:,idime))
+                  end do
+#endif
+#if 0
+                  call sendRcv_floatField_devel(Rmass)
+                  call sendRcv_floatField_devel(Rener)
+                  do idime = 1,ndime
+                     call sendRcv_floatField_devel(Rmom(:,idime))
+                  end do
+#endif
+#if 0
+                  call sendRcv_floatField_noGPU(Rmass)
+                  call sendRcv_floatField_noGPU(Rener)
+                  do idime = 1,ndime
+                     call sendRcv_floatField_noGPU(Rmom(:,idime))
+                  end do
+#endif
+#if 0
+                  call update_and_comm_floatField(Rmass)
+                  call update_and_comm_floatField(Rener)
+                  do idime = 1,ndime
+                     call update_and_comm_floatField(Rmom(:,idime))
+                  end do
+#endif
+#if 0
+                  call update_and_comm_floatField_all(numNodesRankPar,Rmass,Rener,Rmom(:,1),Rmom(:,2),Rmom(:,3))
+#endif
+#if 0
+                  call sendRcv_floatField_all(numNodesRankPar,Rmass,Rener,Rmom(:,1),Rmom(:,2),Rmom(:,3))
+#endif
+                  call nvtxEndRange
+               end if
+
+
                !
                ! Call lumped mass matrix solver
                !
@@ -426,6 +474,11 @@ module time_integ
                call nvtxEndRange
             end if
 
+#if 0
+           !!!!!!!!!!!!!$acc exit data delete(Rmass(:))
+           !!!!!!!!!!!!!$acc exit data delete(Rener(:))
+           !!!!!!!!!!!!!$acc exit data delete(Rmom(:,:))
+#endif
          end subroutine rk_4_main
 
       end module time_integ

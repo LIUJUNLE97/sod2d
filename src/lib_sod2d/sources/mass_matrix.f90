@@ -187,7 +187,22 @@ module mass_matrix
                  end do
                  !$acc end parallel loop
 
-                 call update_and_comm_floatField(Ml)
+                 if(mpi_size.ge.2) then
+                  call nvtxStartRange("MPI_comms_mass")
+#if 1
+                  call sendRcv_floatField(Ml)
+#endif 
+#if 0
+                  call sendRcv_floatField_devel(Ml)
+#endif 
+#if 0
+                  call sendRcv_floatField_noGPU(Ml)
+#endif 
+#if 0                  
+                  call update_and_comm_floatField(Ml)
+#endif
+                  call nvtxEndRange
+                 end if
 
               end subroutine lumped_mass_spectral
 

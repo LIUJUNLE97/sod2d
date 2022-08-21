@@ -35,10 +35,10 @@ contains
    subroutine CFDSolverPeriodicWithBoundaries_callTimeIntegration(this)
       class(CFDSolverPeriodicWithBoundaries), intent(inout) :: this
 
-      call rk_4_main(0,0,this%nelem,this%nboun,this%npoin,this%npoin_w,point2elem,lnbn,dlxigp_ip,xgp,atoIJK, invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-         1,connec,Ngp,dNgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
-         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
-         this%ndof,this%nbnodes,ldof,lbnodes,bound,bou_codes,source_term) ! Optional args
+      call rk_4_main(0,0,numElemsInRank,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,point2elem,lnbn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         1,connecParWork,Ngp,dNgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
+         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor, &
+         ndofRankPar,numBoundaryNodesRankPar,ldofPar,lbnodesPar,boundPar,bouCodesPar,source_term) ! Optional args
 
    end subroutine CFDSolverPeriodicWithBoundaries_callTimeIntegration
 

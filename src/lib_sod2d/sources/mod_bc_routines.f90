@@ -10,7 +10,7 @@ module mod_bc_routines
 
             implicit none
 
-            integer(4), intent(in)    :: npoin, nboun, bou_codes(nboun,2), bound(nboun,npbou)
+            integer(4), intent(in)    :: npoin, nboun, bou_codes(nboun), bound(nboun,npbou)
             integer(4), intent(in)    :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou)
             real(rp),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             integer(4)                :: iboun, bcode, ipbou
@@ -25,7 +25,7 @@ module mod_bc_routines
                !
                !$acc parallel loop gang
                do iboun = 1,nboun
-                  bcode = bou_codes(iboun,2) ! Boundary element code
+                  bcode = bou_codes(iboun) ! Boundary element code
                   if (bcode == 3) then ! wall
                      !$acc loop vector
                      do ipbou = 1,npbou
@@ -50,7 +50,7 @@ module mod_bc_routines
                !
                !$acc parallel loop gang
                do iboun = 1,nboun
-                  bcode = bou_codes(iboun,2) ! Boundary element code
+                  bcode = bou_codes(iboun) ! Boundary element code
                   if (bcode == 4) then ! inlet just for aligened inlets with x
                      !$acc loop vector
                      do ipbou = 1,npbou

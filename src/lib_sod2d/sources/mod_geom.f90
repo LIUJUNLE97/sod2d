@@ -240,6 +240,7 @@ module mod_geom
                end do
             end do
          end subroutine atioIJKInverse
+
 			subroutine boundary_normals(npoin,nboun,bound,leviCivi,coord,dNgp_b,bounorm)
 				implicit none
 				integer(4), intent(in)  :: npoin, nboun, bound(nboun,npbou)

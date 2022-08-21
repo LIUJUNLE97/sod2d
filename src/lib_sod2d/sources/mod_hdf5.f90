@@ -12,8 +12,10 @@ contains
    subroutine set_hdf5_mesh_file_name(file_path,file_name)
       implicit none
       character(len=*), intent(in) :: file_path,file_name
+      character(len=12) :: aux_mpiSize
 
-      hdf5_mesh_name = trim(adjustl(file_path))//trim(adjustl(file_name))//'.h5'
+      write(aux_mpiSize,'(I0)') mpi_size
+      hdf5_mesh_name = trim(adjustl(file_path))//trim(adjustl(file_name))//'-'//trim(aux_mpiSize)//'.h5'
    end subroutine
 
    subroutine read_alyaMesh_part_and_create_hdf5Mesh(gmsh_file_path,gmsh_file_name,periodic,&
@@ -123,6 +125,16 @@ contains
       !save parallel data
       if(mpi_size.ge.2) then
          call save_parallel_data_hdf5(file_id)
+      end if
+      !--------------------------------------------------------------------------------
+      !save periodic data
+      if(isMeshPeriodic) then
+         call save_periodic_data_hdf5(file_id)
+      end if
+      !--------------------------------------------------------------------------------
+      !save boundary data
+      if(totalNumBoundsSrl.ne.0) then
+         call save_boundary_data_hdf5(file_id)
       end if
       !--------------------------------------------------------------------------------
 
@@ -267,7 +279,22 @@ contains
       !load the parallel data
       if(mpi_size.ge.2) then
          call load_parallel_data_hdf5(file_id)
+      else !only 1 rank
+         numNodesRankPar = totalNumNodesPar
+         numElemsInRank = totalNumElements
+         rankNodeStart = 1
+         rankNodeEnd = numNodesRankPar
+         rankElemStart = 1
+         rankElemEnd = numElemsInRank
       end if
+      !-----------------------------------------------------------------------------------------------
+      !load periodic data
+      call load_periodic_data_hdf5(file_id)
+
+      !-----------------------------------------------------------------------------------------------
+      !load boundary data
+      call load_boundary_data_hdf5(file_id)
+
       !-----------------------------------------------------------------------------------------------
       !load the coordinates
       call load_coordinates_hdf5(file_id)
@@ -503,7 +530,7 @@ contains
       integer(hsize_t), dimension(1) :: ds_dims,ms_dims
       integer(hid_t) :: dtype
       integer :: ds_rank,ms_rank
-      integer :: iElemL,i,m
+      integer :: iElemL,i,m,accumVal
       integer(HSSIZE_T), dimension(1) :: ms_offset 
       integer(4),allocatable :: aux_array(:)
 
@@ -518,24 +545,77 @@ contains
       ms_offset(1) = (rankElemStart-1)*nnode
 
       allocate(aux_array(numElemsInRank*nnode))
-
+      !-----------------------------------------------------------------------------------------------------
+      !  SAVING connecParOrig(:,:)
       i=1
       do iElemL=1,numElemsInRank
          do m=1,nnode
-            aux_array(i)=connecPar(iElemL,m)
+            aux_array(i)=connecParOrig(iElemL,m)
             i=i+1
          end do
       end do
 
-      dsetname = '/Connectivity/connecPar'
+      dsetname = '/Connectivity/connecParOrig'
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+      !-----------------------------------------------------------------------------------------------------
+      !  SAVING connecParWork(:,:)
+      i=1
+      do iElemL=1,numElemsInRank
+         do m=1,nnode
+            aux_array(i)=connecParWork(iElemL,m)
+            i=i+1
+         end do
+      end do
 
+      dsetname = '/Connectivity/connecParWork'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+      !-----------------------------------------------------------------------------------------------------
+      !  SAVING connecParCGNS(:)
       dsetname = '/Connectivity/connecCGNS'
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,connecCGNS)
 
       deallocate(aux_array)
+      !--------------------------------------------------------------------------------------------------------
+      !  SAVING numWorkingNodesRankPar
+      ds_dims(1) = mpi_size
+      ms_dims(1) = 1
+      ms_offset(1) = mpi_rank
+      allocate(aux_array(1))
+
+      dsetname = '/Connectivity/numWorkingNodesRankPar'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      aux_array(1)=numWorkingNodesRankPar
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+      !--------------------------------------------------------------------------------------------------------
+      !  SAVING workingNodesPar(:)
+      deallocate(aux_array)
+      allocate( aux_array(mpi_size) )
+      ms_dims(1) = mpi_size
+      ms_offset(1) = 0
+      !read data set numWorkingNodesRankPar of all ranks
+      dsetname = '/Connectivity/numWorkingNodesRankPar'
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+      accumVal=0
+      do i=1,mpi_size
+         accumVal=accumVal+aux_array(i)
+      end do
+
+      ds_dims(1) = accumVal
+
+      ms_offset(1)=0
+      do i=1,(mpi_rank) !from rank 0 mpi_rank-1
+         ms_offset(1)=ms_offset(1)+aux_array(i)
+      end do
+      ms_dims(1)=numWorkingNodesRankPar
+
+      dsetname = '/Connectivity/workingNodesPar'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,workingNodesPar)
+      !--------------------------------------------------------------------------------------------------------
 
    end subroutine save_connectivity_hdf5
 
@@ -550,8 +630,7 @@ contains
       integer(HSSIZE_T), dimension(1) :: ms_offset 
       integer(4),allocatable :: aux_array(:)
 
-      !-------------------------------------------------------------------------------------------------------
-      allocate( connecPar(numElemsInRank,nnode) )
+      !write(*,*) 'Loading connectivity data hdf5...'
 
       dtype = H5T_NATIVE_INTEGER
       ds_rank = 1
@@ -560,27 +639,81 @@ contains
       ms_dims(1) = numElemsInRank*nnode
       ms_offset(1) = (rankElemStart-1)*nnode
 
+      !-------------------------------------------------------------------------------------------------------
+      allocate( connecParOrig(numElemsInRank,nnode) )
+      allocate( connecParWork(numElemsInRank,nnode) )
+      !-------------------------------------------------------------------------------------------------------
+      !LOADING connecParOrig(:,:)
       allocate(aux_array(numElemsInRank*nnode))
 
-      dsetname = '/Connectivity/connecPar'
+      dsetname = '/Connectivity/connecParOrig'
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
 
       i=1
       do iElemL=1,numElemsInRank
          do m=1,nnode
-            connecPar(iElemL,m)=aux_array(i) !it containts the iNodeL
+            connecParOrig(iElemL,m)=aux_array(i) !it contains the iNodeL
+            i=i+1
+         end do
+      end do
+      !-------------------------------------------------------------------------------------------------------
+      !LOADING connecParWork(:,:)
+      dsetname = '/Connectivity/connecParWork'
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+      i=1
+      do iElemL=1,numElemsInRank
+         do m=1,nnode
+            connecParWork(iElemL,m)=aux_array(i) !it contains the iNodeL
             i=i+1
          end do
       end do
 
       deallocate(aux_array)
       !-------------------------------------------------------------------------------------------------------
+      !LOADING connecCGNS(:)
       allocate( connecCGNS(numElemsInRank*nnode) )
 
       dsetname = '/Connectivity/connecCGNS'
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,connecCGNS)
-      !-------------------------------------------------------------------------------------------------------
 
+      !-------------------------------------------------------------------------------------------------------
+      ds_dims(1) = mpi_size
+      ms_dims(1) = 1
+      ms_offset(1) = mpi_rank
+      allocate(aux_array(1))
+      !-------------------------------------------------------------------------------------------------------
+      !LOADING numWorkingNodesRankPar
+      dsetname = '/Connectivity/numWorkingNodesRankPar'
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+      numWorkingNodesRankPar=aux_array(1)
+
+      deallocate(aux_array)
+      !--------------------------------------------------------------------------------------------------------
+      !LOADING workingNodesPar
+      allocate(workingNodesPar(numWorkingNodesRankPar))
+      allocate(aux_array(mpi_size))
+      ms_dims(1) = mpi_size
+      ms_offset(1) = 0
+      !read data set numWorkingNodesRankPar of all ranks
+      dsetname = '/Connectivity/numWorkingNodesRankPar'
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+      ds_dims(1)=0
+      do i=1,mpi_size
+         ds_dims(1)=ds_dims(1)+aux_array(i)
+      end do
+
+      ms_offset(1)=0
+      do i=1,(mpi_rank) !from rank 0 mpi_rank-1
+         ms_offset(1)=ms_offset(1)+aux_array(i)
+      end do
+      ms_dims(1)=numWorkingNodesRankPar
+
+      dsetname = '/Connectivity/workingNodesPar'
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,workingNodesPar)
+      deallocate(aux_array)
+      !-------------------------------------------------------------------------------------------------------
 
    end subroutine load_connectivity_hdf5
 
@@ -726,8 +859,7 @@ contains
       integer(HSSIZE_T), dimension(1) :: ms_offset 
       integer(4),allocatable :: aux_array(:)
 
-      !groupname = trim('/Parallel_data')
-      !call create_group_hdf5(file_id,groupname)
+      !write(*,*) 'Loading parallel data hdf5...'
 
       dtype = H5T_NATIVE_INTEGER
       ds_rank = 1
@@ -837,6 +969,429 @@ contains
 
    end subroutine load_parallel_data_hdf5
 
+!--------------------------------------------------------------------------------------------------------------------------------
+
+   subroutine save_periodic_data_hdf5(file_id)
+      implicit none
+      integer(hid_t),intent(in) :: file_id
+      character(128) :: groupname,dsetname
+      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
+      integer(hid_t) :: dtype
+      integer :: ds_rank,ms_rank,h5err
+      integer :: i,accumVal,iBound,m
+      integer(HSSIZE_T), dimension(1) :: ms_offset 
+      integer(4),allocatable :: aux_array(:)
+      !PERIODIC SHIT NOT SAVED (NOT NEEDED): masSlaSrl(:,:) nPerSrl
+
+      groupname = trim('/Periodic_data')
+      call create_group_hdf5(file_id,groupname)
+
+      dtype = H5T_NATIVE_INTEGER
+      ds_rank = 1
+      ds_dims(1) = mpi_size
+      ms_rank = 1
+      ms_dims(1) = 1
+      ms_offset(1) = mpi_rank
+      allocate(aux_array(1))
+
+      dsetname = '/Periodic_data/nPerRankPar'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      aux_array(1)=nPerRankPar
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+      deallocate(aux_array)
+      allocate( aux_array(mpi_size) )
+      ms_dims(1) = mpi_size
+      ms_offset(1) = 0
+      !read data set nPerRankPar of all ranks
+      dsetname = '/Periodic_data/nPerRankPar'
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+      accumVal=0
+      do i=1,mpi_size
+         accumVal=accumVal+aux_array(i)
+      end do
+
+      ds_dims(1) = accumVal
+
+      ms_offset(1)=0
+      do i=1,(mpi_rank) !from rank 0 mpi_rank-1
+         ms_offset(1)=ms_offset(1)+aux_array(i)
+      end do
+      ms_dims(1)=nPerRankPar
+
+      dsetname = '/Periodic_data/masSlaRankPar1'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,masSlaRankPar(:,1))
+
+      dsetname = '/Periodic_data/masSlaRankPar2'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,masSlaRankPar(:,2))
+      !--------------------------------------------------------------------------------------------------------
+
+   end subroutine save_periodic_data_hdf5
+
+   subroutine load_periodic_data_hdf5(file_id)
+      implicit none
+      integer(hid_t),intent(in) :: file_id
+      character(128) :: groupname,dsetname
+      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
+      integer(hid_t) :: dtype
+      integer :: ds_rank,ms_rank,h5err
+      integer :: i,accumVal,iBound,m
+      integer(HSSIZE_T), dimension(1) :: ms_offset 
+      integer(4),allocatable :: aux_array(:)
+      logical :: isPeriodicFolder
+
+      !ELS WORKING NODES SON SEMPRE, NO NOMES PERIODIC
+      !PENSAR SI POSAR AQUI EL CONNECORIG!
+      groupname = trim('/Periodic_data')
+
+      call h5lexists_f(file_id,groupname,isPeriodicFolder,h5err)
+
+      if(mpi_rank.eq.0) write(*,*) 'Loading Periodic data hdf5. -> isPeriodic:',isPeriodicFolder
+
+      if(isPeriodicFolder) then
+         isMeshPeriodic = .true.
+
+         dtype = H5T_NATIVE_INTEGER
+         ds_rank = 1
+         ds_dims(1) = mpi_size
+         ms_rank = 1
+         ms_dims(1) = 1
+         ms_offset(1) = mpi_rank
+         allocate(aux_array(1))
+
+         !--------------------------------------------------------------------------------------------------------
+         dsetname = '/Periodic_data/nPerRankPar'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+         nPerRankPar=aux_array(1)
+
+         allocate(masSlaRankPar(nPerRankPar,2))
+         !--------------------------------------------------------------------------------------------------------
+         deallocate(aux_array)
+         allocate(aux_array(mpi_size))
+         ms_dims(1) = mpi_size
+         ms_offset(1) = 0
+         !read data set numBoundsRankPar of all ranks
+         dsetname = '/Periodic_data/nPerRankPar'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+         ds_dims(1)=0
+         do i=1,mpi_size
+            ds_dims(1)=ds_dims(1)+aux_array(i)
+         end do
+
+         ms_offset(1)=0
+         do i=1,(mpi_rank) !from rank 0 mpi_rank-1
+            ms_offset(1)=ms_offset(1)+aux_array(i)
+         end do
+         ms_dims(1)=nPerRankPar
+
+         dsetname = '/Periodic_data/masSlaRankPar1'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,masSlaRankPar(:,1))
+
+         dsetname = '/Periodic_data/masSlaRankPar2'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,masSlaRankPar(:,2))
+         deallocate(aux_array)
+         !-------------------------------------------------------------------------------------------------------
+      else
+         isMeshPeriodic = .false.
+      end if
+
+   end subroutine load_periodic_data_hdf5
+!--------------------------------------------------------------------------------------------------------------------------------
+   subroutine save_boundary_data_hdf5(file_id)
+      implicit none
+      integer(hid_t),intent(in) :: file_id
+      character(128) :: groupname,dsetname
+      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
+      integer(hid_t) :: dtype
+      integer :: ds_rank,ms_rank,h5err
+      integer :: i,accumVal,iBound,m
+      integer(HSSIZE_T), dimension(1) :: ms_offset 
+      integer(4),allocatable :: aux_array(:)
+
+      groupname = trim('/Boundary_data')
+      call create_group_hdf5(file_id,groupname)
+
+      dtype = H5T_NATIVE_INTEGER
+      ds_rank = 1
+      ds_dims(1) = mpi_size
+      ms_rank = 1
+      ms_dims(1) = 1
+      ms_offset(1) = mpi_rank
+      allocate(aux_array(1))
+
+      dsetname = '/Boundary_data/numBoundsRankPar'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      aux_array(1)=numBoundsRankPar
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+      dsetname = '/Boundary_data/numBoundCodes'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      aux_array(1)=numBoundCodes
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+      dsetname = '/Boundary_data/ndofRankPar'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      aux_array(1)=ndofRankPar
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+      dsetname = '/Boundary_data/numBoundaryNodesRankPar'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      aux_array(1)=numBoundaryNodesRankPar
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+      !--------------------------------------------------------------------------------------------------------
+      deallocate(aux_array)
+      allocate( aux_array(mpi_size) )
+      ms_dims(1) = mpi_size
+      ms_offset(1) = 0
+      !read data set numBoundsRankPar of all ranks
+      dsetname = '/Boundary_data/numBoundsRankPar'
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+      accumVal=0
+      do i=1,mpi_size
+         accumVal=accumVal+aux_array(i)
+      end do
+
+      ds_dims(1) = accumVal
+
+      ms_offset(1)=0
+      do i=1,(mpi_rank) !from rank 0 mpi_rank-1
+         ms_offset(1)=ms_offset(1)+aux_array(i)
+      end do
+      ms_dims(1)=numBoundsRankPar
+
+      !write(*,*) 'ms_offset ',ms_offset(1),' ms_dims(1) ',ms_dims(1),' ds_dims ',ds_dims(1)
+
+      dsetname = '/Boundary_data/bouCodesPar'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,bouCodesPar)
+
+      ds_dims(1) = ds_dims(1)*npbou!totalNumBoundsSrl*npbou
+      ms_dims(1) = ms_dims(1)*npbou!numBoundsRankPar*npbou
+      ms_offset(1) = ms_offset(1)*npbou
+
+      deallocate(aux_array)
+      allocate(aux_array(numBoundsRankPar*npbou))
+
+      i=1
+      do iBound=1,numBoundsRankPar
+         do m=1,npbou
+            aux_array(i)=boundPar(iBound,m)
+            i=i+1
+         end do
+      end do
+
+      dsetname = '/Boundary_data/boundPar'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+      deallocate(aux_array)
+      !--------------------------------------------------------------------------------------------------------
+      allocate( aux_array(mpi_size) )
+      ms_dims(1) = mpi_size
+      ms_offset(1) = 0
+      !read data set ndofRankPar of all ranks
+      dsetname = '/Boundary_data/ndofRankPar'
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+      accumVal=0
+      do i=1,mpi_size
+         accumVal=accumVal+aux_array(i)
+      end do
+
+      ds_dims(1) = accumVal
+
+      ms_offset(1)=0
+      do i=1,(mpi_rank) !from rank 0 mpi_rank-1
+         ms_offset(1)=ms_offset(1)+aux_array(i)
+      end do
+      ms_dims(1)=ndofRankPar
+
+      dsetname = '/Boundary_data/ldofPar'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,ldofPar)
+
+      deallocate(aux_array)
+      !--------------------------------------------------------------------------------------------------------
+      allocate( aux_array(mpi_size) )
+      ms_dims(1) = mpi_size
+      ms_offset(1) = 0
+      !read data set numBoundaryNodesRankPar of all ranks
+      dsetname = '/Boundary_data/numBoundaryNodesRankPar'
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+      accumVal=0
+      do i=1,mpi_size
+         accumVal=accumVal+aux_array(i)
+      end do
+
+      ds_dims(1) = accumVal
+
+      ms_offset(1)=0
+      do i=1,(mpi_rank) !from rank 0 mpi_rank-1
+         ms_offset(1)=ms_offset(1)+aux_array(i)
+      end do
+      ms_dims(1)=numBoundaryNodesRankPar
+
+      dsetname = '/Boundary_data/lbnodesPar'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,lbnodesPar)
+
+      deallocate(aux_array)
+      !--------------------------------------------------------------------------------------------------------
+   end subroutine save_boundary_data_hdf5
+
+   subroutine load_boundary_data_hdf5(file_id)
+      implicit none
+      integer(hid_t),intent(in) :: file_id
+      character(128) :: groupname,dsetname
+      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
+      integer(hid_t) :: dtype
+      integer :: ds_rank,ms_rank,h5err
+      integer :: i,accumVal,iBound,m
+      integer(HSSIZE_T), dimension(1) :: ms_offset 
+      integer(4),allocatable :: aux_array(:)
+      logical :: isBoundaryFolder
+
+      groupname = trim('/Boundary_data')
+      !call create_group_hdf5(file_id,groupname)
+
+      call h5lexists_f(file_id,groupname,isBoundaryFolder,h5err)
+
+      isMeshBoundaries = isBoundaryFolder
+
+      if(mpi_rank.eq.0) write(*,*) 'Loading Boundary data hdf5. -> isBoundaryFolder:',isBoundaryFolder
+
+      if(isBoundaryFolder) then
+         dtype = H5T_NATIVE_INTEGER
+         ds_rank = 1
+         ds_dims(1) = mpi_size
+         ms_rank = 1
+         ms_dims(1) = 1
+         ms_offset(1) = mpi_rank
+         allocate(aux_array(1))
+
+         dsetname = '/Boundary_data/numBoundsRankPar'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+         numBoundsRankPar=aux_array(1)
+
+         dsetname = '/Boundary_data/numBoundCodes'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+         numBoundCodes=aux_array(1)
+
+         dsetname = '/Boundary_data/ndofRankPar'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+         ndofRankPar=aux_array(1)
+
+         dsetname = '/Boundary_data/numBoundaryNodesRankPar'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+         numBoundaryNodesRankPar=aux_array(1)
+
+         !--------------------------------------------------------------------------------------------------------
+         allocate(boundPar(numBoundsRankPar,npbou))
+         allocate(bouCodesPar(numBoundsRankPar))
+         allocate(ldofPar(ndofRankPar))
+         allocate(lbnodesPar(numBoundaryNodesRankPar))
+         !--------------------------------------------------------------------------------------------------------
+         deallocate(aux_array)
+         allocate( aux_array(mpi_size) )
+         ms_dims(1) = mpi_size
+         ms_offset(1) = 0
+         !read data set numBoundsRankPar of all ranks
+         dsetname = '/Boundary_data/numBoundsRankPar'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+         !write(*,*) 'rank[',mpi_rank,'] ',aux_array(:)
+
+         !taking advantadge and setting totalNumBoundsSrl
+         totalNumBoundsSrl=0
+         ds_dims(1)=0
+         do i=1,mpi_size
+            ds_dims(1)=ds_dims(1)+aux_array(i)
+            totalNumBoundsSrl=totalNumBoundsSrl+aux_array(i)
+         end do
+
+         ms_offset(1)=0
+         do i=1,(mpi_rank) !from rank 0 mpi_rank-1
+            ms_offset(1)=ms_offset(1)+aux_array(i)
+         end do
+         ms_dims(1)=numBoundsRankPar
+
+         dsetname = '/Boundary_data/bouCodesPar'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,bouCodesPar)
+         deallocate(aux_array)
+         !-------------------------------------------------------------------------------------------------------
+         ds_dims(1) = ds_dims(1)*npbou!totalNumBoundsSrl*npbou
+         ms_dims(1) = ms_dims(1)*npbou!numBoundsRankPar*npbou
+         ms_offset(1) = ms_offset(1)*npbou
+
+         allocate(aux_array(numBoundsRankPar*nnode))
+
+         dsetname = '/Boundary_data/boundPar'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+         i=1
+         do iBound=1,numBoundsRankPar
+            do m=1,npbou
+               boundPar(iBound,m)=aux_array(i)
+               i=i+1
+            end do
+         end do
+
+         deallocate(aux_array)
+         !-------------------------------------------------------------------------------------------------------
+         allocate( aux_array(mpi_size) )
+         ms_dims(1) = mpi_size
+         ms_offset(1) = 0
+         !read data set ndofRankPar of all ranks
+         dsetname = '/Boundary_data/ndofRankPar'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+         ds_dims(1)=0
+         do i=1,mpi_size
+            ds_dims(1)=ds_dims(1)+aux_array(i)
+         end do
+
+         ms_offset(1)=0
+         do i=1,(mpi_rank) !from rank 0 mpi_rank-1
+            ms_offset(1)=ms_offset(1)+aux_array(i)
+         end do
+         ms_dims(1)=ndofRankPar
+
+         dsetname = '/Boundary_data/ldofPar'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,ldofPar)
+         !--------------------------------------------------------------------------------------------------------
+         ms_dims(1) = mpi_size
+         ms_offset(1) = 0
+         !read data set numBoundaryNodesRankPar of all ranks
+         dsetname = '/Boundary_data/numBoundaryNodesRankPar'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+         ds_dims(1)=0
+         do i=1,mpi_size
+            ds_dims(1)=ds_dims(1)+aux_array(i)
+         end do
+
+         ms_offset(1)=0
+         do i=1,(mpi_rank) !from rank 0 mpi_rank-1
+            ms_offset(1)=ms_offset(1)+aux_array(i)
+         end do
+         ms_dims(1)=numBoundaryNodesRankPar
+
+         dsetname = '/Boundary_data/lbnodesPar'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,ldofPar)
+         !--------------------------------------------------------------------------------------------------------
+
+         deallocate(aux_array)
+      end if
+   end subroutine load_boundary_data_hdf5
+
+!--------------------------------------------------------------------------------------------------------------------------------
+
    subroutine load_coordinates_hdf5(file_id)
       implicit none
       integer(hid_t),intent(in) :: file_id
@@ -849,6 +1404,7 @@ contains
       !allocate(coord_x(numNodesRankPar))
       !allocate(coord_y(numNodesRankPar))
       !allocate(coord_z(numNodesRankPar))
+      !write(*,*) 'allocating coordPar ->',numNodesRankPar,ndime
       allocate(coordPar(numNodesRankPar,ndime)) !only works for ndime=3
 
       ds_rank = 1
@@ -868,6 +1424,8 @@ contains
 
       dsetname = '/Coords/Z'
       call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,coordPar(:,3))
+
+      !write(*,*) 'Loading Coordinates hdf5.... -> (10)',coordPar(10,1),coordPar(10,2),coordPar(10,3)
 
    end subroutine load_coordinates_hdf5
 
@@ -918,7 +1476,7 @@ contains
       call MPI_Allreduce(max_iNodeGSrl_l,max_iNodeGSrl_g,1,MPI_INTEGER,MPI_MAX,MPI_COMM_WORLD,mpi_err)
 
       totalNumNodesSrl = max_iNodeGSrl_g
-      write(*,*) 'setting totalNumNodesSrl ',totalNumNodesSrl
+      !write(*,*) 'setting totalNumNodesSrl ',totalNumNodesSrl
       !--------------------------------------------------------------------------------------------------
    end subroutine load_globalIds_hdf5
 

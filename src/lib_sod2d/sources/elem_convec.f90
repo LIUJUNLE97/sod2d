@@ -1074,12 +1074,17 @@ module elem_convec
                     end do
                  end do
                  !$acc end parallel loop
-
-                  call update_and_comm_floatField(Rmass)
-                  call update_and_comm_floatField(Rener)
-                  do idime = 1,ndime
-                     call update_and_comm_floatField(Rmom(:,idime))
-                  end do
+#if 0
+                  if(mpi_size.ge.2) then
+                     call nvtxStartRange("MPI_comms_conv")
+                     call update_and_comm_floatField(Rmass)
+                     call update_and_comm_floatField(Rener)
+                     do idime = 1,ndime
+                        call update_and_comm_floatField(Rmom(:,idime))
+                     end do
+                     call nvtxEndRange
+                  end if
+#endif
 
                  call nvtxEndRange
 

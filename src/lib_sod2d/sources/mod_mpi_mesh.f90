@@ -63,33 +63,37 @@ module mod_mpi_mesh
 ! ----------------- VARS for alya/gmsh file reading ----------------------------------------------
 ! ################################################################################################
 !------  -------------------------
-integer(int_size), allocatable :: connecGMSH(:,:), boundGMSH(:,:)
-real(8), allocatable :: coordGMSH(:,:)
+integer(int_size), allocatable :: connecGMSH(:,:), boundGMSH(:,:), bou_codesGMSH(:,:)
+real(rp), allocatable :: coordGMSH(:,:)
 
 ! ################################################################################################
 ! ----------------- VARS for new Par mesh FORMAT -------------------------------------------------
 ! ################################################################################################
 
-integer(int_size) :: numNodesRankPar, totalNumNodesPar
-integer(int_size) :: totalNumNodesSrl
+integer(int_size) :: numNodesRankPar, totalNumNodesPar, totalNumNodesSrl
 integer(int_size) :: totalNumElements
 integer(int_size) :: numElemsInRank, rankElemStart, rankElemEnd
 integer(int_size) :: rankNodeStart, rankNodeEnd
 
 integer(int_size), allocatable :: globalIdSrl(:), globalIdPar(:), elemGid(:)
 
-!real(4), allocatable :: coord_x(:), coord_y(:), coord_z(:)
-real(4), allocatable :: coordPar(:,:)
+real(rp), allocatable :: coordPar(:,:)
 
 integer(int_size), allocatable :: connecCGNS(:)
-integer(int_size), allocatable :: connecPar(:,:),connecParOrig(:,:)
+integer(int_size), allocatable :: connecParOrig(:,:),connecParWork(:,:)
 
 integer(int_size), allocatable :: workingNodesPar(:)
-integer(int_size) :: numNodesRankPar_w
+integer(int_size) :: numWorkingNodesRankPar
 
 integer(int_size), allocatable :: masSlaSrl(:,:),masSlaRankPar(:,:)
 integer(int_size) :: nPerSrl,nPerRankPar
-logical :: meshIsPeriodic
+logical :: isMeshPeriodic
+
+integer(int_size) :: numBoundCodes, numBoundsRankPar, totalNumBoundsSrl
+integer(int_size) :: ndofRankPar, numBoundaryNodesRankPar
+integer(int_size), allocatable :: boundPar(:,:), bouCodesPar(:), ldofPar(:), lbnodesPar(:)
+real(rp), allocatable :: boundNormalPar(:,:)
+logical :: isMeshBoundaries
 
 ! ################################################################################################
 ! ------------------------ VARS for MPI COMMS ----------------------------------------------------
@@ -112,11 +116,11 @@ contains
       implicit none     
       character(500), intent(in)  :: file_path, file_name
       logical, optional :: isPeriodic
-      integer(4) :: nelem,npoin,nboun,nbcodes,nper
+      integer(4) :: nelem,npoin,nboun,nper
 
-      meshIsPeriodic = .false.
+      isMeshPeriodic = .false.
       if(present(isPeriodic)) then
-         meshIsPeriodic = isPeriodic
+         isMeshPeriodic = isPeriodic
       end if
 
       call read_dims_file(file_path,file_name,npoin,nelem,nboun)
@@ -124,23 +128,18 @@ contains
       allocate(connecGMSH(nelem,nnode))
       allocate(coordGMSH(npoin,ndime))
 
-      !Reading boundaries revisar a fons
-#if 0
+      isMeshBoundaries = .false.
       if (nboun .ne. 0) then
          allocate(boundGMSH(nboun,npbou))
-         allocate(bou_codes(nboun,2))
-         allocate(bou_norm(nboun,ndime*npbou))
-         call read_fixbou_file(file_path,file_name,nboun,nbcodes,bou_codes)
-         numCodes = maxval(bou_codes(:,2))
-         allocate(Fpr(numCodes,ndime))
-         allocate(Ftau(numCodes,ndime))
-         write(1,*) "--| TOTAL BOUNDARY CODES :", numCodes
+         allocate(bou_codesGMSH(nboun,2))
+
+         isMeshBoundaries = .true.
+         call read_fixbou_file(file_path,file_name,nboun,numBoundCodes,bou_codesGMSH)
       end if
-#endif
 
       call read_geo_dat_file(file_path,file_name,npoin,nelem,nboun)
  
-      if(meshIsPeriodic) then 
+      if(isMeshPeriodic) then 
          call read_periodic_file(file_path,file_name,nper,masSlaSrl)
 
          !allocate some shit...
@@ -154,6 +153,7 @@ contains
 
       totalNumElements = nelem
       totalNumNodesSrl = npoin
+      totalNumBoundsSrl = nboun
       nPerSrl = nper
 
    end subroutine read_alya_mesh_files
@@ -282,8 +282,8 @@ contains
       implicit none
 
       character(500), intent(in)  :: file_path, file_name
-      integer(4)    , intent(in)  :: nboun
-      integer(4)    , intent(inout) :: nbcodes, bou_codes(nboun,2)
+      integer(4), intent(in)      :: nboun
+      integer(4), intent(inout)   :: nbcodes, bou_codes(nboun,2)
       integer(4)                  :: iboun, ii
       character(500)              :: file_type, line
       
@@ -312,6 +312,18 @@ contains
       call do_element_partitioning_gempa()
 
       call do_node_partitioning_and_connectivity()
+
+      call create_nodesCoordinates()
+
+      if(isMeshPeriodic) then
+         call create_masSla_parallel()
+      end if
+
+      call create_working_lists() !pot anar aqui no? Si, pero oju que potser em canvien altres merdes!
+
+      if(totalNumBoundsSrl.ne.0) then
+         call splitBoundary_inPar()
+      end if
 
    end subroutine do_mesh_partitioning
 
@@ -379,7 +391,7 @@ contains
       character(128) :: file_name, aux_string_rank
 
       !1. obtain the list element 2 part using gempa
-      if(meshIsPeriodic) then
+      if(isMeshPeriodic) then
          call get_listElems2Par_Periodic(listElems2Par,weightElems2Par,linkedElems)
       else
          call get_listElems2Par(listElems2Par,weightElems2Par)
@@ -437,7 +449,7 @@ contains
       ! if parallel, now we have to put the rank to the 'slave' elements who were not included in the partitioning process
       ! since they were linked to a 'master' element
 
-      if(meshIsPeriodic) then
+      if(isMeshPeriodic) then
          numAdditionalElemsInRank=0
          allocate(unfoldedElems(totalNumElements))
          unfoldedElems(:)=-1
@@ -816,19 +828,16 @@ contains
 
       call define_mpi_boundaries_inPar(boundaryNodes,vecSharedBN_full)
 
+      deallocate(boundaryNodes)
+
       call reorder_nodes_in_proc(iNodeStartPar)
 
       !aixo ho podria ficar en un altre modul... crec que quedaria mes 'endreçat'
       call generate_mpi_comm_scheme(vecSharedBN_full)
 
-      call create_nodesCoordinates()
-
-      if(meshIsPeriodic) then
-         call create_masSla_parallel()
-      end if
-
-      deallocate(boundaryNodes)
       deallocate(vecSharedBN_full)
+
+
 
    end subroutine do_node_partitioning_and_connectivity
 
@@ -893,25 +902,27 @@ contains
       integer :: iNodeL_Per,iNodeL_Per_Pair
       integer, allocatable :: aux_workingNodesPar(:)
 
-      if(meshIsPeriodic) then !do all stuff in case mesh is periodic
+      allocate( connecParWork(numElemsInRank,nnode) )
+      connecParWork(:,:) = connecParOrig(:,:)
+
+      if(isMeshPeriodic) then !do all stuff in case mesh is periodic
 
          !----------------------------------------------------------------
          !-------------  CONNEC   ----------------------------------------
 
-         !THIS 'ORIG CONTINERS ARE REQUIRED?'
-         allocate( connecParOrig(numElemsInRank,nnode) )
-         connecParOrig(:,:) = connecPar(:,:)
+        !allocate( connecParOrig(numElemsInRank,nnode) )
+        !connecParOrig(:,:) = connecPar(:,:)
 
          do iElem = 1,numElemsInRank
             do iAux = 1,nnode
-               iNodeL = connecPar(iElem,iAux)
+               iNodeL = connecParWork(iElem,iAux)
                !iNodeG = globalIdSrl(iNodeL)
                do iPer = 1,nPerRankPar
                   iNodeL_Per = masSlaRankPar(iPer,2)
                   if (iNodeL .eq. iNodeL_Per) then
                      iNodeL_Per_Pair = masSlaRankPar(iPer,1)
                      !iNodeL_Per_Pair = gidSrl_to_lid(iNodeG_Per_Pair)
-                     connecPar(iElem,iAux) = iNodeL_Per_Pair
+                     connecParWork(iElem,iAux) = iNodeL_Per_Pair
                   end if
                end do
             end do
@@ -939,10 +950,10 @@ contains
          !   !$acc end parallel loop
          !end if
 
-         numNodesRankPar_w = numNodesRankPar - nPerRankPar
+         numWorkingNodesRankPar = numNodesRankPar - nPerRankPar
 
          allocate(aux_workingNodesPar(numNodesRankPar))
-         allocate(workingNodesPar(numNodesRankPar_w))
+         allocate(workingNodesPar(numWorkingNodesRankPar))
 
          do iNodeL = 1,numNodesRankPar
             aux_workingNodesPar(iNodeL) = iNodeL
@@ -972,10 +983,10 @@ contains
          deallocate(aux_workingNodesPar)
       else !non-periodic meshes
 
-         numNodesRankPar_w = numNodesRankPar
-         allocate(workingNodesPar(numNodesRankPar_w))
+         numWorkingNodesRankPar = numNodesRankPar
+         allocate(workingNodesPar(numWorkingNodesRankPar))
 
-         do iNodeL = 1,numNodesRankPar_w
+         do iNodeL = 1,numWorkingNodesRankPar
             workingNodesPar(iNodeL) = iNodeL
          end do
 
@@ -1516,7 +1527,7 @@ contains
       allocate(globalIdPar(numNodesRankPar))
 
       allocate( connecCGNS(numElemsInRank*nnode) )
-      allocate( connecPar(numElemsInRank,nnode) )
+      allocate( connecParOrig(numElemsInRank,nnode) )
 
       isNodeAdded=-1
       iPos = 1
@@ -1570,7 +1581,7 @@ contains
                iNodeGPar = globalIdPar(iNodeL)
             endif
 
-            connecPar(iElemL,m) = iNodeL
+            connecParOrig(iElemL,m) = iNodeL
 
             indexCGNS = auxCGNSorder(m)
             indConn = (iElemL-1)*nnode + indexCGNS
@@ -1579,7 +1590,7 @@ contains
 
          end do
 
-         !write(*,*) '[',mpi_rank,']iElemG ',iElemG,' connecPar ',connecPar(iElemL,:)
+         !write(*,*) '[',mpi_rank,']iElemG ',iElemG,' connecParOrig ',connecParOrig(iElemL,:)
 
       end do
    end subroutine reorder_nodes_in_proc
@@ -1771,6 +1782,124 @@ contains
 
    end subroutine generate_mpi_comm_scheme
 !----------------------------------------------------------------------------------------------------------
+
+   subroutine splitBoundary_inPar()
+      integer(4), allocatable    :: aux1(:)
+      integer(4) :: ii,iNodeL,iNodeGSrl,iNodeGSrl_bound,iBound,iBoundL,ipbou,idof,ibnodes
+      integer(4) :: auxBoundCnt,aux_sum_NBRP
+      integer(4) :: aux_boundList(totalNumBoundsSrl)
+
+      if(mpi_rank.eq.0)write(*,*) "--| SPLITTING BOUNDARY NODES FROM DOFs..."
+
+      !first, generate boundPar(:,:) & bouCodesPar(:,:)
+
+      !1. how many boundaries my rank have?
+      numBoundsRankPar = 0
+      aux_boundList(:) = 0
+
+      loopBound: do iBound = 1,totalNumBoundsSrl
+         auxBoundCnt = 0
+         loopIp: do ipbou = 1,npbou
+            iNodeGSrl_bound = boundGMSH(iBound,ipbou)
+            loopG: do iNodeL = 1,numNodesRankPar
+               iNodeGSrl = globalIdSrl(iNodeL)
+               if(iNodeGSrl .eq. iNodeGSrl_bound) then
+                  auxBoundCnt=auxBoundCnt+1
+                  exit loopG
+               end if
+            end do loopG
+            if(auxBoundCnt .eq. npbou) then
+               !write(*,*) '[',mpi_rank,']iBound',iBound,'auxBoundCnt',auxBoundCnt
+               aux_boundList(iBound) = 1
+               numBoundsRankPar = numBoundsRankPar + 1
+               exit loopIp
+            end if
+         end do loopIp
+      end do loopBound
+
+      write(*,*) '[',mpi_rank,']numBoundsRankPar',numBoundsRankPar,'totalNumBoundsSrl',totalNumBoundsSrl
+      
+      call MPI_Allreduce(numBoundsRankPar,aux_sum_NBRP,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+
+      if(aux_sum_NBRP.ne.totalNumBoundsSrl) then
+         write(*,*) 'ERROR IN splitBoundary_inPar()->aux_sum_NBRP',aux_sum_NBRP,' not equal to totalNumBoundsSrl',totalNumBoundsSrl
+         call MPI_Abort(MPI_COMM_WORLD, -1, mpi_err)
+      end if
+
+      allocate(boundPar(numBoundsRankPar,npbou))
+      allocate(bouCodesPar(numBoundsRankPar))
+      
+      ii=0
+      do iBound = 1,totalNumBoundsSrl
+         if(aux_boundList(iBound).eq.1) then
+            ii=ii+1
+            do ipbou = 1,npbou
+               iNodeGSrl_bound = boundGMSH(iBound,ipbou)
+               iNodeL = gidSrl_to_lid(iNodeGSrl_bound)
+               boundPar(ii,ipbou) = iNodeL
+            end do
+            bouCodesPar(ii) = bou_codesGMSH(iBound,2)
+         !write(*,*) '[',mpi_rank,']boundPar(',ii,')',boundPar(ii,:)
+         end if
+      end do
+
+      !------------------------------------------------------------------------
+      ! Fill aux1 with all nodes in order
+      allocate(aux1(numNodesRankPar))
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         aux1(iNodeL) = iNodeL
+      end do
+      !$acc end parallel loop
+
+      ! If node is on boundary, zero corresponding aux1 entry
+      !$acc parallel loop gang 
+      do iBound = 1,numBoundsRankPar
+         !$acc loop vector
+         do ipbou = 1,npbou
+            aux1(boundPar(iBound,ipbou)) = 0
+         end do
+      end do
+      !$acc end parallel loop
+
+      
+      ! Determine how many nodes are boundary nodes
+      !
+      numBoundaryNodesRankPar=0
+      ndofRankPar = 0
+      do iNodeL = 1,numNodesRankPar
+         if (aux1(iNodeL) .eq. 0) then
+            numBoundaryNodesRankPar = numBoundaryNodesRankPar+1
+         end if
+      end do
+
+      !this%nbnodes = this%ndof    ! Nodes on boundaries
+      !this%ndof = this%npoin-this%ndof ! Free nodes
+      ndofRankPar = numNodesRankPar - numBoundaryNodesRankPar
+      write(*,*) '[',mpi_rank,'] ndof',ndofRankPar,'nbnodes',numBoundaryNodesRankPar
+
+      !-------------------------------------------------------------------------------------
+      ! Split aux1 into the 2 lists
+      allocate(ldofPar(ndofRankPar))
+      allocate(lbnodesPar(numBoundaryNodesRankPar))
+
+      idof = 0    ! Counter for free nodes
+      ibnodes = 0 ! Counter for boundary nodes
+      !$acc parallel loop reduction(+:idof,ibnodes)
+      do iNodeL = 1,numNodesRankPar
+         if (aux1(iNodeL) .eq. 0) then
+            ibnodes = ibnodes+1
+            lbnodesPar(ibnodes) = iNodeL
+         else
+            idof = idof+1
+            ldofPar(idof) = aux1(iNodeL)
+         end if
+      end do
+      !$acc end parallel loop
+
+      deallocate(aux1)
+
+   end subroutine splitBoundary_inPar
 
 ! ################################################################################################
 ! ----------------------------------- AUXILIAR FUNCS ---------------------------------------------

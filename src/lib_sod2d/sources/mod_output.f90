@@ -62,7 +62,7 @@ module mod_output
          !
          ! Open file with ascii input
          !
-         call set_vtk_filename(filename,istep)
+         call set_vtk_filename(filename,'results',istep)
          !write(filename,'("vtkTstep_",i0,".vtk")') istep
          open(unit=ivtk,file=filename,status='replace') ! Binary file access with stream
          
@@ -262,7 +262,8 @@ module mod_output
          !
          ! Open file with ascii input
          !
-         call set_vtk_filename(filename,istep)
+         call set_vtk_filename(filename,'results',istep)
+         !call set_vtk_filename(filename,istep)
          !write(filename,'("vtkTstep_",i0,"-",i0,".vtk")'),istep,mpi_rank
          open(unit=ivtk,file=filename,status='replace',access='stream',convert='BIG_ENDIAN') ! Binary file access with stream
          
@@ -512,7 +513,8 @@ module mod_output
          !
          ! Open file with ascii input
          !
-         write(filename,'("vtkAVG_step_",i0,".vtk")') istep
+         call set_vtk_filename(filename,'resAVG',istep)
+         !write(filename,'("vtkAVG_step_",i0,".vtk")') istep
          open(unit=ivtk,file=filename,status='replace',access='stream',convert='BIG_ENDIAN') ! Binary file access with stream
 
          !
@@ -700,7 +702,8 @@ module mod_output
          !
          ! Open file with ascii input
          !
-         call set_vtk_filename(filename,istep)
+         call set_vtk_filename(filename,'results',istep)
+         !call set_vtk_filename(filename,istep)
          !write(filename,'("vtkTstep_",i0,".vtk")') istep
          open(unit=ivtk,file=filename,status='replace',access='stream',convert='BIG_ENDIAN') ! Binary file access with stream
          
@@ -836,12 +839,13 @@ module mod_output
          character(500)                                    :: filename
 
          write(1,*) " begining the reading of the vtk binary "
-         call flush(1)
+         call flush(111)
 
          !
          ! Open file with ascii input
          !
-         call set_vtk_filename(filename,istep)
+         call set_vtk_filename(filename,'results',istep)
+         !call set_vtk_filename(filename,istep)
          !write(filename,'("vtkTstep_",i0,".vtk")') istep
          open(unit=ivtk,file=filename,status='old',access='stream',convert='BIG_ENDIAN',action='read') ! Binary file access with stream
          
@@ -953,7 +957,7 @@ module mod_output
          end do
 
          write(1,*) " end the reading of the vtk binary "
-         call flush(1)
+         call flush(111)
          
          close(ivtk)
       
@@ -973,14 +977,18 @@ module mod_output
          end do
       end subroutine skip_line
 
-      subroutine set_vtk_filename(filename,istep)
+      subroutine set_vtk_filename(filename,prefix,istep)
          implicit none
          character(len=*), intent(out) :: filename
+         character(len=*), intent(in) :: prefix
          integer, intent(in) :: istep
 
-         write(filename,'("vtkTstep_",i0,"_mpi",i0,"-",i0,".vtk")'),istep,mpi_rank,mpi_size
+         write(filename,'(A,"_step_",i0,"_s",i0,"-r",i0,".vtk")'),prefix,istep,mpi_size,mpi_rank
          !write(filename,'("vtkTstep_",i0,".vtk")') istep         !old, for serial output
 
       end subroutine set_vtk_filename
+
+
+
 
 end module mod_output

@@ -42,26 +42,26 @@ contains
       class(TGVSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%gmsh_file_path,*) "./mesh_cube/"
+      write(this%gmsh_file_path,*) "./mesh_cube60/"
       write(this%gmsh_file_name,*) "cube" 
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube"
+      write(this%mesh_h5_file_name,*) "cube60"
 
       this%isPeriodic = .true.
 !      this%isPeriodic = .false.
       this%doGlobalAnalysis = .true.
-      this%loadMesh = .false.
-      !this%loadMesh = .true.
+      !this%loadMesh = .false.
+      this%loadMesh = .true.
 
       !this%nstep = 10000 
-      this%nstep = 2000 
+      this%nstep = 50001
       this%cfl_conv = 0.95_rp
       this%cfl_diff = 0.95_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
-      this%nsaveAVG = 1
-      this%nleap = 500 ! Saving interval, TODO: input
+      this%nsaveAVG = 1000000
+      this%nleap = 5000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 50  ! Saving interval, TODO: input
       this%nleapAVG = 2000000000
@@ -89,8 +89,12 @@ contains
    subroutine TGVSolver_evalInitialConditions(this)
       class(TGVSolver), intent(inout) :: this
       real(4) :: iniU(totalNumNodesSrl,ndime), iniRho(totalNumNodesSrl), iniP(totalNumNodesSrl)
+      real(4) :: V0,L
+      real(4) :: x,y,z
       integer(4) :: iNodeL,iNodeGSrl
 
+
+#if 0
       call read_veloc_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniU)
       call read_densi_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniRho)
       call read_press_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniP)
@@ -103,6 +107,27 @@ contains
          rho(iNodeL,2) = iniRho(iNodeGSrl)
          pr(iNodeL,2)  = iniP(iNodeGSrl)
       end do
+#endif
+
+      if(mpi_rank.eq.0) write(*,*) "--| TGV - Setting Initial Conditions..."
+
+      V0 = 1.0_rp
+      L  = 1.0_rp
+
+      !acc parallel loop
+      do iNodeL=1,numNodesRankPar
+         x = coordPar(iNodeL,1)
+         y = coordPar(iNodeL,2)
+         z = coordPar(iNodeL,3)
+
+         u(iNodeL,1,2) =  V0*sin(x/(L))*cos(y/(L))*cos(z/(L))
+         u(iNodeL,2,2) = -V0*cos(x/(L))*sin(y/(L))*cos(z/(L))
+         u(iNodeL,3,2) = 0.0
+
+         pr(iNodeL,2)  = this%po+((1.0_rp*V0*V0)/(16.0_rp))*(cos(2.0_rp*x/L)+cos(2.0_rp*y/L))*(cos(2.0_rp*z/L)+2.0_rp)
+         rho(iNodeL,2) = pr(iNodeL,2)/this%Rgas/this%to
+      end do
+      !acc end parallel loop
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar

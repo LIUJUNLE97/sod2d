@@ -1,6 +1,7 @@
 module mod_postpro
 
    use mod_constants
+   use mod_nvtx
    use mod_mpi
    use mod_mpi_mesh
    use mod_hdf5
@@ -95,10 +96,34 @@ contains
       end do
       !$acc end parallel loop
 
-      call update_and_comm_floatField(Qcrit)
-      do idime = 1,ndime
-         call update_and_comm_floatField(curlU(:,idime))
-      end do
+      if(mpi_size.ge.2) then
+         call nvtxStartRange("MPI_comms_post")
+#if 1
+         call sendRcv_floatField(Qcrit)
+         do idime = 1,ndime
+            call sendRcv_floatField(curlU(:,idime))
+         end do
+#endif
+#if 0
+         call sendRcv_floatField_devel(Qcrit)
+         do idime = 1,ndime
+            call sendRcv_floatField_devel(curlU(:,idime))
+         end do
+#endif
+#if 0
+         call sendRcv_floatField_noGPU(Qcrit)
+         do idime = 1,ndime
+            call sendRcv_floatField_noGPU(curlU(:,idime))
+         end do
+#endif
+#if 0         
+         call update_and_comm_floatField(Qcrit)
+         do idime = 1,ndime
+            call update_and_comm_floatField(curlU(:,idime))
+         end do
+#endif
+         call nvtxEndRange
+      end if
 
       !$acc parallel loop
       do ipoin = 1,npoin
