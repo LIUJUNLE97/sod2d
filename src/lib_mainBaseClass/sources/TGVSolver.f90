@@ -42,11 +42,11 @@ contains
       class(TGVSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%gmsh_file_path,*) "./mesh_cube60/"
+      write(this%gmsh_file_path,*) "./mesh/"
       write(this%gmsh_file_name,*) "cube" 
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube60"
+      write(this%mesh_h5_file_name,*) "cubeFine"
 
       this%isPeriodic = .true.
 !      this%isPeriodic = .false.
@@ -61,7 +61,7 @@ contains
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1000000
-      this%nleap = 5000 ! Saving interval, TODO: input
+      this%nleap = 2000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 50  ! Saving interval, TODO: input
       this%nleapAVG = 2000000000

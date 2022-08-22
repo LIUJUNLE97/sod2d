@@ -573,7 +573,7 @@ contains
    subroutine CFDSolverBase_evalJacobians(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4) :: ielem, igaus,iElemG
-      real(rp) :: vol_rank
+      real(8) :: vol_rank, vol_tot_d
 
       !*********************************************************************!
       ! Generate Jacobian related information                               !
@@ -587,15 +587,18 @@ contains
       call elem_jacobian(numElemsInRank,numNodesRankPar,connecParOrig,coordPar,dNgp,wgp,gpvol,He) 
       call  nvtxEndRange
 
-      vol_rank = 0.0_rp
-      this%VolTot = 0.0_rp
+      vol_rank  = 0.0
+      vol_tot_d = 0.0
       do ielem = 1,numElemsInRank
          do igaus = 1,ngaus
             vol_rank = vol_rank+gpvol(1,igaus,ielem)
          end do
       end do
 
-      call MPI_Allreduce(vol_rank,this%VolTot,1,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(vol_rank,vol_tot_d,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+
+      this%VolTot = real(vol_tot_d,rp) 
+
       write(111,*) '--| DOMAIN VOLUME := ',this%VolTot
 
    end subroutine CFDSolverBase_evalJacobians

@@ -513,9 +513,17 @@ contains
 
                 !$acc atomic update
                 fmass(iNodeL) = fmass(iNodeL) + aux_floatField_5r(newMemPos+i)
+                !$acc end atomic
+                !$acc atomic update
                 fener(iNodeL) = fener(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*1)
+                !$acc end atomic
+                !$acc atomic update
                 fmomx(iNodeL) = fmomx(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*2)
+                !$acc end atomic
+                !$acc atomic update
                 fmomy(iNodeL) = fmomy(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*3)
+                !$acc end atomic
+                !$acc atomic update
                 fmomz(iNodeL) = fmomz(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*4)
                 !$acc end atomic
             end do 
@@ -523,6 +531,47 @@ contains
         !$acc end parallel loop
 
     end subroutine sendRcv_floatField_all
+
+    subroutine sendRcv_intField(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer :: i,iNodeL,ngbRank,tagComm
+        integer :: memPos_l,memSize
+ 
+        !$acc data present(aux_intField_s(:),aux_intField_r(:))
+        !$acc parallel loop 
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            aux_intField_s(i) = intField(iNodeL)
+        end do
+        !$acc end parallel loop
+        !$acc kernels
+        aux_intField_r(:)=0.
+        !$acc end kernels
+
+        do i=1,numRanksWithComms
+            ngbRank=ranksToComm(i)
+            tagComm=0
+            memPos_l  = commsMemPosInLoc(i)
+            memSize = commsMemSize(i)
+          !$acc host_data use_device (aux_floatField_s,aux_floatField_r)
+            call MPI_Sendrecv(aux_intField_s(mempos_l), memSize, MPI_INTEGER, ngbRank, tagComm, &
+                              aux_intField_r(mempos_l), memSize, MPI_INTEGER, ngbRank, tagComm, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+          !$acc end host_data
+        end do
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            !$acc atomic update
+            intField(iNodeL) = intField(iNodeL) + aux_intField_r(i)
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+        !$acc end data
+
+    end subroutine sendRcv_intField
 
     subroutine update_and_comm_intField(intField)
         implicit none
