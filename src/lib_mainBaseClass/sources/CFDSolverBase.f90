@@ -67,13 +67,15 @@ module CFDSolverBase_mod
       integer(4), public         :: nsave2, nleap2
       integer(4), public         :: nsaveAVG, nleapAVG
       integer(4), public         :: counter, npoin_w
-      logical, public            :: isPeriodic=.false.,loadMesh=.false.,doGlobalAnalysis=.false.
+      integer(4), public         :: load_step, initial_istep
+      logical, public            :: isPeriodic=.false.,loadMesh=.false.,loadResults=.false.,continue_oldLogs=.false.,doGlobalAnalysis=.false.
       logical, public            :: useIntInComms=.false.,useFloatInComms=.false.,useDoubleInComms=.false.
 
       ! main char variables
-      character(500) :: log_file_name
-      character(500) :: gmsh_file_path,gmsh_file_name
-      character(500) :: mesh_h5_file_path,mesh_h5_file_name
+      character(512) :: log_file_name
+      character(512) :: gmsh_file_path,gmsh_file_name
+      character(512) :: mesh_h5_file_path,mesh_h5_file_name
+      character(512) :: results_h5_file_path,results_h5_file_name
 
       ! main real parameters
       real(rp) , public                   :: cfl_conv, cfl_diff, acutim
@@ -91,6 +93,7 @@ module CFDSolverBase_mod
       procedure, public :: evalCharLength => CFDSolverBase_evalCharLength
       !procedure, public :: splitBoundary => CFDSolverBase_splitBoundary
       procedure, public :: allocateVariables => CFDSolverBase_allocateVariables
+      procedure, public :: evalOrLoadInitialConditions => CFDSolverBase_evalOrLoadInitialConditions
       procedure, public :: evalInitialConditions => CFDSolverBase_evalInitialConditions
       procedure, public :: evalInitialViscosity =>CFDSolverBase_evalInitialViscosity
       procedure, public :: evalInitialDt =>CFDSolverBase_evalInitialDt
@@ -111,6 +114,7 @@ module CFDSolverBase_mod
 
       procedure :: open_log_file
       procedure :: close_log_file
+      procedure :: eval_vars_after_load_hdf5_resultsFile
    end type CFDSolverBase
 contains
 
@@ -143,10 +147,19 @@ contains
       write(this%gmsh_file_name,*) "meshName" 
 
       write(this%mesh_h5_file_path,*) "./"
-      write(this%mesh_h5_file_name,*) "h5_file" ! Nsys
+      write(this%mesh_h5_file_name,*) "meshFile"
+
+      write(this%results_h5_file_path,*) "./"
+      write(this%results_h5_file_name,*) "resultsFile"
+
+      this%time = 0.0_rp
+      this%load_step = 0
+      this%initial_istep = 1
 
       this%isPeriodic = .false.
       this%loadMesh = .false.
+      this%loadResults = .false.
+      this%continue_oldLogs= .false.
       this%doGlobalAnalysis = .false.
       !@JORDI: discuss which other parameters can be set as default....
 
@@ -349,6 +362,20 @@ contains
       call nvtxEndRange
 
    end subroutine CFDSolverBase_allocateVariables
+
+   subroutine CFDSolverBase_evalOrLoadInitialConditions(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      if(this%loadResults) then
+         !load results h5 file
+         call load_hdf5_resultsFile(this%load_step,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2))
+         call this%eval_vars_after_load_hdf5_resultsFile()
+      else
+         call this%evalInitialConditions()
+      end if
+
+
+   end subroutine CFDSolverBase_evalOrLoadInitialConditions
 
    subroutine CFDSolverBase_evalInitialConditions(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -756,9 +783,8 @@ contains
 
    subroutine CFDSolverBase_evalTimeIteration(this)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: icode, counter,istep, ppow=1, flag_emac, flag_predic
+      integer(4) :: icode,counter,istep,ppow=1,flag_emac,flag_predic
       character(4) :: timeStep
-
 
       counter = 1
       flag_emac = 0
@@ -767,7 +793,7 @@ contains
       call nvtxStartRange("Start RK4")
 
       ! periodic with boundaries
-      do istep = 1,this%nstep
+      do istep = this%initial_istep,this%nstep
          if (istep == this%nsave)write(111,*) '   --| STEP: ', istep
          !
          ! Prediction
@@ -884,19 +910,31 @@ contains
       write(aux_string_mpisize,'(I0)') mpi_size
       
       filename = 'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
-      !write(filename,'("sod2d_",A,"-",i0,".log")'),,mpi_size
-      open(unit=111,file=filename,status="replace")
+      if(this%continue_oldLogs) then
+         open(unit=111,file=filename,status='old',position='append')
+      else
+         open(unit=111,file=filename,status='replace')
+      end if
+
 
       if(this%doGlobalAnalysis) then
          filenameAnalysis = 'analysis_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
-         open(unit=666,file=filenameAnalysis,status="replace")
+         if(this%continue_oldLogs) then
+            open(unit=666,file=filenameAnalysis,status='old',position='append')
+         else
+            open(unit=666,file=filenameAnalysis,status='replace')
+         end if
       end if
 
       if (isMeshBoundaries) then
          do iCode = 1,numBoundCodes
             write(aux_string_code,'(I0)') iCode
             filenameBound = 'surf_code_'//trim(aux_string_code)//'-'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
-            open(unit=888+iCode,form='formatted',file=filenameBound,status='replace')
+            if(this%continue_oldLogs) then
+               open(unit=888+iCode,form='formatted',file=filenameBound,status='old',position='append')
+            else
+               open(unit=888+iCode,form='formatted',file=filenameBound,status='replace')
+            end if
             write(888+iCode,60) "ITER", "TIME", "AREA", "FPRE_X", "FPRE_Y", "FPRE_Z", "FTAU_X", "FTAU_Y", "FTAU_Z"
             60 format(9(3X,A,5X))
          end do
@@ -923,6 +961,55 @@ contains
 
    end subroutine close_log_file
 
+   subroutine eval_vars_after_load_hdf5_resultsFile(this)
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      integer :: iNodeL,idime
+      real(rp) :: umag
+
+      !values loaded -> rho,u,pr,E
+
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
+         e_int(iNodeL,2) = E(iNodeL,2)/rho(iNodeL,2) - 0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))
+         !e_int(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp))
+         Tem(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*this%Rgas)
+         csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
+
+         eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
+
+      end do
+      !$acc end parallel loop
+
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         umag = 0.0_rp
+         !$acc loop seq
+         do idime = 1,ndime
+            umag = umag + u(iNodeL,idime,2)**2
+         end do
+         umag = sqrt(umag)
+         machno(iNodeL) = umag/csound(iNodeL)
+         machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
+         mu_factor(iNodeL) = flag_mu_factor
+      end do
+      !$acc end parallel loop
+
+      !$acc kernels
+      mu_e(:,:) = 0.0_rp ! Element syabilization viscosity
+      mu_sgs(:,:) = 0.0_rp
+      kres(:) = 0.0_rp
+      etot(:) = 0.0_rp
+      ax1(:) = 0.0_rp
+      ax2(:) = 0.0_rp
+      ax3(:) = 0.0_rp
+      au(:,:) = 0.0_rp
+      !$acc end kernels
+
+   end subroutine eval_vars_after_load_hdf5_resultsFile
+
+
    subroutine CFDSolverBase_run(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
@@ -943,10 +1030,15 @@ contains
         
         call define_veclen()
 
-        ! Read the mesh
+      ! init hdf5
+
+      call init_hdf5_interface(this%mesh_h5_file_path,this%mesh_h5_file_name,this%results_h5_file_path,this%results_h5_file_name)
+
+      ! read the mesh
 
         call this%openMesh()
 
+        ! init comms
         this%useIntInComms=.true.
         this%useFloatInComms=.true.
         this%useDoubleInComms=.false.
@@ -967,9 +1059,10 @@ contains
 
         call this%allocateVariables()
 
-        ! Eval initial conditions
+        ! Eval or load initial conditions
 
-        call this%evalInitialConditions()
+        call this%evalOrLoadInitialConditions()
+        !call this%evalInitialConditions()
 
         ! Eval initial viscosty
 
@@ -1011,7 +1104,7 @@ contains
 
         call this%evalMass()
 
-        this%time = 0.0_rp
+
 
         ! Eval first output
 
@@ -1023,8 +1116,13 @@ contains
 
       call this%close_log_file()
 
+      ! End hdf5 interface
+      call end_hdf5_interface()
+
+      ! End comms
       call end_comms()
-      
+
+      ! End MPI      
       call end_mpi()
 
    end subroutine CFDSolverBase_run

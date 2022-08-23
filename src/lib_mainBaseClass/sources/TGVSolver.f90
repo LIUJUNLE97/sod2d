@@ -42,28 +42,36 @@ contains
       class(TGVSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%gmsh_file_path,*) "./mesh_cube60/"
+      write(this%gmsh_file_path,*) "./mesh_cube10/"
       write(this%gmsh_file_name,*) "cube" 
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube60"
+      write(this%mesh_h5_file_name,*) "cube10"
+
+      write(this%results_h5_file_path,*) ""
+      write(this%results_h5_file_name,*) "results"
 
       this%isPeriodic = .true.
-!      this%isPeriodic = .false.
+      !this%isPeriodic = .false.
       this%doGlobalAnalysis = .true.
       !this%loadMesh = .false.
       this%loadMesh = .true.
 
+      !this%loadResults = .false.
+      this%loadResults = .true.
+      this%continue_oldLogs = .true.
+      this%load_step = 101
+
       !this%nstep = 10000 
-      this%nstep = 50001
+      this%nstep = 51
       this%cfl_conv = 0.95_rp
       this%cfl_diff = 0.95_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1000000
-      this%nleap = 5000 ! Saving interval, TODO: input
+      this%nleap = 50 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 50  ! Saving interval, TODO: input
+      this%nleap2 = 1  ! Saving interval, TODO: input
       this%nleapAVG = 2000000000
 
       this%Cp = 1004.0_rp

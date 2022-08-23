@@ -63,6 +63,8 @@ contains
          rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
          gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nPerRankPar,masSlaRankPar)
 
+      call save_hdf5_resultsFile(istep,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs)
+
    end subroutine CFDSolverPeriodic_savePosprocessingFields
 
 end module CFDSolverPeriodic_mod

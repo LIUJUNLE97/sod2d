@@ -163,7 +163,6 @@ contains
     end subroutine close_window_doubleField
 !-------------------------------------------------------------------------------------
 
-
     subroutine update_and_comm_doubleField(doubleField)
         implicit none
         real(8), intent(inout) :: doubleField(:)
@@ -212,8 +211,9 @@ contains
 
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
-            !doubleField(iNodeL) = aux_doubleField_r(i) + aux_doubleField_s(i)
+            !$acc atomic update
             doubleField(iNodeL) = doubleField(iNodeL) + aux_doubleField_r(i) 
+            !$acc end atomic
         end do
 
         !call timer_d1%stop_timer()
@@ -283,7 +283,7 @@ contains
         
         numFields=5
 
-        !$acc parallel loop
+        !$acc kernels
         do iRank=1,numRanksWithComms
             ngbRank=ranksToComm(iRank)
             
@@ -301,8 +301,7 @@ contains
                 aux_floatField_5s(newMemPos+i+memSize*4) = fmomz(iNodeL)
             end do 
         end do
-        !$acc end parallel loop
-        !$acc kernels
+
         aux_floatField_5r(:)=0.
         !$acc end kernels
 
@@ -321,7 +320,7 @@ contains
         !! Wait for the MPI_Get issued to complete before going any further
         call MPI_Win_fence(0,window_id_float5,mpi_err)
 
-        !$acc parallel loop
+        !$acc kernels
         do iRank=1,numRanksWithComms
             origMemPos = commsMemPosInLoc(iRank)-1
             newMemPos  = (commsMemPosInLoc(iRank)-1)*numFields
@@ -329,15 +328,24 @@ contains
 
             do i=1,memSize
                 iNodeL = matrixCommScheme(origMemPos+i,1)
-
+                !$acc atomic update
                 fmass(iNodeL) = fmass(iNodeL) + aux_floatField_5r(newMemPos+i)
+                !$acc end atomic
+                !$acc atomic update
                 fener(iNodeL) = fener(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*1)
+                !$acc end atomic
+                !$acc atomic update
                 fmomx(iNodeL) = fmomx(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*2)
+                !$acc end atomic
+                !$acc atomic update
                 fmomy(iNodeL) = fmomy(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*3)
+                !$acc end atomic
+                !$acc atomic update
                 fmomz(iNodeL) = fmomz(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*4)
+                !$acc end atomic
             end do 
         end do
-        !$acc end parallel loop
+        !$acc end kernels
 
     end subroutine update_and_comm_floatField_all
 
@@ -468,7 +476,7 @@ contains
  
         numFields=5
 
-        !$acc parallel loop
+        !$acc kernels
         do iRank=1,numRanksWithComms
             ngbRank=ranksToComm(iRank)
             
@@ -486,8 +494,7 @@ contains
                 aux_floatField_5s(newMemPos+i+memSize*4) = fmomz(iNodeL)
             end do 
         end do
-        !$acc end parallel loop
-        !$acc kernels
+
         aux_floatField_5r(:)=0.
         !$acc end kernels
 
@@ -502,7 +509,7 @@ contains
                               MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
         end do
 
-        !$acc parallel loop
+        !$acc kernels
         do iRank=1,numRanksWithComms
             origMemPos = commsMemPosInLoc(iRank)-1
             newMemPos  = (commsMemPosInLoc(iRank)-1)*numFields
@@ -510,17 +517,24 @@ contains
 
             do i=1,memSize
                 iNodeL = matrixCommScheme(origMemPos+i,1)
-
                 !$acc atomic update
                 fmass(iNodeL) = fmass(iNodeL) + aux_floatField_5r(newMemPos+i)
+                !$acc end atomic
+                !$acc atomic update
                 fener(iNodeL) = fener(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*1)
+                !$acc end atomic
+                !$acc atomic update
                 fmomx(iNodeL) = fmomx(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*2)
+                !$acc end atomic
+                !$acc atomic update
                 fmomy(iNodeL) = fmomy(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*3)
+                !$acc end atomic
+                !$acc atomic update
                 fmomz(iNodeL) = fmomz(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*4)
                 !$acc end atomic
             end do 
         end do
-        !$acc end parallel loop
+        !$acc end kernels
 
     end subroutine sendRcv_floatField_all
 
