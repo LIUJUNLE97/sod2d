@@ -51,8 +51,8 @@ contains
       this%isPeriodic = .true.
 !      this%isPeriodic = .false.
       this%doGlobalAnalysis = .true.
-      !this%loadMesh = .false.
-      this%loadMesh = .true.
+      this%loadMesh = .false.
+      !this%loadMesh = .true.
 
       !this%nstep = 10000 
       this%nstep = 50001

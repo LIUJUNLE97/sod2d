@@ -16,10 +16,11 @@ module mod_analysis
          real(rp),    intent(in)  :: rho0, rho(npoin), u(npoin,ndime)
          real(rp),    intent(out) :: EK
          integer(4)               :: ielem, igaus, inode
-         real(rp)                 :: R1, EK_l
+         real(rp)                 :: R1
+         real(8)                  :: EK_l, EK_d
 
          call nvtxStartRange("Compute EK")
-         EK_l = 0.0_rp
+         EK_l = 0.0
          !$acc parallel loop gang reduction(+:EK_l) vector_length(vecLength)
          do ielem = 1,nelem
             R1 = 0.0_rp
@@ -30,12 +31,13 @@ module mod_analysis
                      dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))
                end do
             end do
-            EK_l = EK_l+R1
+            EK_l = EK_l+real(R1,8)
          end do
          !$acc end parallel loop
-         EK_l = EK_l/(rho0*((2.0_rp*3.14159_rp)**3.0_rp))
+         EK_l = EK_l/real(rho0*((2.0_rp*3.14159_rp)**3.0_rp),8)
 
-         call MPI_Allreduce(EK_l,EK,1,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+         call MPI_Allreduce(EK_l,EK_d,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+         EK = real(EK_d, rp)
 
          call nvtxEndRange
 
@@ -52,15 +54,15 @@ module mod_analysis
          integer(4)               :: ielem, igaus, inode, idime, jdime, kdime
          real(rp)                 :: R1, R2, div2U, curl2U, alpha, aux,aux2
          real(rp)                 :: gpcar(ndime,nnode), gradU(ndime,ndime)
-         real(rp)                 :: eps_S_l, eps_D_l
+         real(8)                  :: eps_S_l, eps_D_l, eps_S_d, eps_D_d
 
          if (flag_spectralElem .ne. 1) then
             write(1,*) "--| THIS ONLY WORKS WITH SPECTRAL ELEMENTS FOR NOW!"
             error stop
          end if
 
-         eps_S_l = 0.0_rp
-         eps_D_l = 0.0_rp
+         eps_S_l = 0.0
+         eps_D_l = 0.0
          eps_T = 0.0_rp
 
          call nvtxStartRange("Compute visc_dissipationRate")
@@ -129,19 +131,21 @@ module mod_analysis
                !
                R2 = R2+gpvol(1,igaus,ielem)*mu_fluid(connec(ielem,igaus))*div2U
             end do
-            eps_S_l = eps_S_l+R1
-            eps_D_l = eps_D_l+R2
+            eps_S_l = eps_S_l+real(R1,8)
+            eps_D_l = eps_D_l+real(R2,8)
          end do
          !!$acc end parallel loop
          call nvtxEndRange
 
-         call MPI_Allreduce(eps_S_l,eps_S,1,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
-         call MPI_Allreduce(eps_D_l,eps_D,1,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+         call MPI_Allreduce(eps_S_l,eps_S_d,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+         call MPI_Allreduce(eps_D_l,eps_D_d,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
          alpha = 1.0_rp/(rho0*volT)
-         eps_S = eps_S*alpha
-         eps_D = (4.0_rp/3.0_rp)*eps_D*alpha
-         eps_T = eps_S+eps_D
+         eps_S_d = eps_S_d*real(alpha,8)
+         eps_D_d = (4.0/3.0)*eps_D_d*real(alpha,8)
+         eps_T = real(eps_S_d+eps_D_d, rp)
+         eps_S = real(eps_S_d, rp)
+         eps_D = real(eps_D_d, rp)
 
       end subroutine visc_dissipationRate
 
