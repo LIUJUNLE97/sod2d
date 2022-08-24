@@ -28,7 +28,7 @@ contains
       real(rp),    intent(out) :: mu_sgs(nelem,ngaus)
       real(rp),    intent(in) :: mu_fluid(npoin),mue(nelem,ngaus)
       real(rp),    intent(inout) :: kres(npoin),etot(npoin),au(npoin,ndime),ax1(npoin),ax2(npoin),ax3(npoin)
-      integer(4)              :: ielem, inode, igaus, kdime, idime, jdime,ipoin,kdime,isoI, isoJ, isoK , ii
+      integer(4)              :: ielem, inode, igaus, idime, jdime,ipoin,kdime,isoI, isoJ, isoK , ii
       real(rp)                 :: gpcar(ndime,nnode), aux,aux2,mueff(nnode),ul(nnode,ndime),kresl(nnode),etotl(nnode)
       real(rp)                 :: gradU(ndime,ndime), gradUf(ndime,ndime),eliti,ave,strain(ndime,ndime),strain_m,strainf(ndime,ndime),uf(nnode,ndime)
       real(rp)                 :: gpkres,ax1l(nnode),ax2l(nnode),ax3l(nnode),gpax1,gpax2,gpax3,c_k,a,b,c,d,gprij(ndime,ndime),gplest,gpepst,aul(nnode,ndime),aux3(nnode)

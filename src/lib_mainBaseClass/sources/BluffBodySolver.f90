@@ -1,7 +1,9 @@
 module BluffBodySolver_mod
    use mod_arrays
    use mod_nvtx
+#ifndef NOACC
    use cudafor
+#endif
    use mod_veclen
 
    use elem_qua

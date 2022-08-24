@@ -53,7 +53,7 @@ module time_integ
             real(rp),              intent(inout)   :: ax1(npoin)
             real(rp),              intent(inout)   :: ax2(npoin)
             real(rp),              intent(inout)   :: ax3(npoin)
-            integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(ndof), lbnodes(nbnodes)
+            integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*)
             integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun)
             real(rp),    optional, intent(in)    :: source_term(ndime)
             integer(4)                          :: pos

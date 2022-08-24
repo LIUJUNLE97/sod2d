@@ -3,7 +3,9 @@ module mod_comms_peformance
    use mod_mpi_mesh
    use mod_comms
    use mod_parTimer
+#ifndef NOACC
    use openacc
+#endif
    use mod_nvtx
    implicit none
 
