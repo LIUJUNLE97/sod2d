@@ -62,23 +62,27 @@ contains
                end do
             end do
 
-            gradRho(connec(ielem,igaus),:) = 0.0_rp
+            !gradRho(connec(ielem,igaus),:) = 0.0_rp
             gradu_e(:,:) = 0.0_rp
             !$acc loop seq
             do idime=1, ndime
                !$acc loop seq
                do jdime=1, ndime
+                  !$acc atomic update
                   gradRho(connec(ielem,igaus),idime) = gradRho(connec(ielem,igaus),idime) + He(idime,jdime,igaus,ielem) * gradIsoRho(jdime)
+                  !$acc end atomic
                   !$acc loop seq
                   do kdime=1,ndime
                      gradu_e(idime,jdime) = gradu_e(idime,jdime) + He(jdime,kdime,igaus,ielem) * gradIsoU(idime,kdime)
                   end do
                end do
             end do
-            divU(connec(ielem,igaus)) = gradu_e(1,1)+gradu_e(2,2)+gradu_e(3,3)
 
             !$acc loop seq
             do idime = 1,ndime
+               !$acc atomic update
+               divU(connec(ielem,igaus)) = divU(connec(ielem,igaus))+gradu_e(idime,idime)
+               !$acc end atomic
                !$acc loop seq
                do jdime = 1,ndime
                   !$acc loop seq
@@ -100,8 +104,10 @@ contains
          call nvtxStartRange("MPI_comms_post")
 #if 1
          call sendRcv_floatField(Qcrit)
+         call sendRcv_floatField(divU)
          do idime = 1,ndime
             call sendRcv_floatField(curlU(:,idime))
+            call sendRcv_floatField(gradRho(:,idime))
          end do
 #endif
 #if 0

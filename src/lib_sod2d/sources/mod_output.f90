@@ -214,7 +214,6 @@ module mod_output
                rho(masSla(iper,2)) = rho(masSla(iper,1))
                pr(masSla(iper,2)) = pr(masSla(iper,1))
                E(masSla(iper,2)) = E(masSla(iper,1))
-               E(masSla(iper,2)) = E(masSla(iper,1))
                csound(masSla(iper,2)) = csound(masSla(iper,1))
                machno(masSla(iper,2)) = machno(masSla(iper,1))
                mu_fluid(masSla(iper,2)) = mu_fluid(masSla(iper,1))

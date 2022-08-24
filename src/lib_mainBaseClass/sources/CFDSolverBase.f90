@@ -367,13 +367,11 @@ contains
       class(CFDSolverBase), intent(inout) :: this
 
       if(this%loadResults) then
-         !load results h5 file
-         call load_hdf5_resultsFile(this%load_step,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2))
+         call load_hdf5_resultsFile(this%load_step,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs)
          call this%eval_vars_after_load_hdf5_resultsFile()
       else
          call this%evalInitialConditions()
       end if
-
 
    end subroutine CFDSolverBase_evalOrLoadInitialConditions
 
@@ -505,73 +503,75 @@ contains
             end do
          end do
       end do
-      aux_1(:,:) = u(:,:,2)
-      do ielem = 1,numElemsInRank
-         do inode = (2**ndime)+1,nnode
-            do idime = 1,ndime
-               call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),u(connecParOrig(ielem,inode),idime,2))
+      if(not(this%loadResults)) then
+         aux_1(:,:) = u(:,:,2)
+         do ielem = 1,numElemsInRank
+            do inode = (2**ndime)+1,nnode
+               do idime = 1,ndime
+                  call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),u(connecParOrig(ielem,inode),idime,2))
+               end do
             end do
          end do
-      end do
-      aux_1(:,:) = q(:,:,2)
-      do ielem = 1,numElemsInRank
-         do inode = (2**ndime)+1,nnode
-            do idime = 1,ndime
-               call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),q(connecParOrig(ielem,inode),idime,2))
+         aux_1(:,:) = q(:,:,2)
+         do ielem = 1,numElemsInRank
+            do inode = (2**ndime)+1,nnode
+               do idime = 1,ndime
+                  call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),q(connecParOrig(ielem,inode),idime,2))
+               end do
             end do
          end do
-      end do
+         allocate(aux_2(numNodesRankPar))
+         aux_2(:) = rho(:,2)
+         do ielem = 1,numElemsInRank
+            do inode = (2**ndime)+1,nnode
+               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),rho(connecParOrig(ielem,inode),2))
+            end do
+         end do
+         aux_2(:) = pr(:,2)
+         do ielem = 1,numElemsInRank
+            do inode = (2**ndime)+1,nnode
+               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),pr(connecParOrig(ielem,inode),2))
+            end do
+         end do
+         aux_2(:) = E(:,2)
+         do ielem = 1,numElemsInRank
+            do inode = (2**ndime)+1,nnode
+               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),E(connecParOrig(ielem,inode),2))
+            end do
+         end do
+         aux_2(:) = Tem(:,2)
+         do ielem = 1,numElemsInRank
+            do inode = (2**ndime)+1,nnode
+               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),Tem(connecParOrig(ielem,inode),2))
+            end do
+         end do
+         aux_2(:) = e_int(:,2)
+         do ielem = 1,numElemsInRank
+            do inode = (2**ndime)+1,nnode
+               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),e_int(connecParOrig(ielem,inode),2))
+            end do
+         end do
+         aux_2(:) = csound(:)
+         do ielem = 1,numElemsInRank
+            do inode = (2**ndime)+1,nnode
+               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),csound(connecParOrig(ielem,inode)))
+            end do
+         end do
+         aux_2(:) = machno(:)
+         do ielem = 1,numElemsInRank
+            do inode = (2**ndime)+1,nnode
+               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),machno(connecParOrig(ielem,inode)))
+            end do
+         end do
+         aux_2(:) = mu_fluid(:)
+         do ielem = 1,numElemsInRank
+            do inode = (2**ndime)+1,nnode
+               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),mu_fluid(connecParOrig(ielem,inode)))
+            end do
+         end do
+         deallocate(aux_2)
+      end if
       deallocate(aux_1)
-      allocate(aux_2(numNodesRankPar))
-      aux_2(:) = rho(:,2)
-      do ielem = 1,numElemsInRank
-         do inode = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),rho(connecParOrig(ielem,inode),2))
-         end do
-      end do
-      aux_2(:) = pr(:,2)
-      do ielem = 1,numElemsInRank
-         do inode = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),pr(connecParOrig(ielem,inode),2))
-         end do
-      end do
-      aux_2(:) = E(:,2)
-      do ielem = 1,numElemsInRank
-         do inode = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),E(connecParOrig(ielem,inode),2))
-         end do
-      end do
-      aux_2(:) = Tem(:,2)
-      do ielem = 1,numElemsInRank
-         do inode = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),Tem(connecParOrig(ielem,inode),2))
-         end do
-      end do
-      aux_2(:) = e_int(:,2)
-      do ielem = 1,numElemsInRank
-         do inode = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),e_int(connecParOrig(ielem,inode),2))
-         end do
-      end do
-      aux_2(:) = csound(:)
-      do ielem = 1,numElemsInRank
-         do inode = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),csound(connecParOrig(ielem,inode)))
-         end do
-      end do
-      aux_2(:) = machno(:)
-      do ielem = 1,numElemsInRank
-         do inode = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),machno(connecParOrig(ielem,inode)))
-         end do
-      end do
-      aux_2(:) = mu_fluid(:)
-      do ielem = 1,numElemsInRank
-         do inode = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),mu_fluid(connecParOrig(ielem,inode)))
-         end do
-      end do
-      deallocate(aux_2)
 
    end subroutine CFDSolverBase_interpolateInitialConditions
 
@@ -600,7 +600,7 @@ contains
    subroutine CFDSolverBase_evalJacobians(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4) :: ielem, igaus,iElemG
-      real(rp) :: vol_rank
+      real(8) :: vol_rank, vol_tot_d
 
       !*********************************************************************!
       ! Generate Jacobian related information                               !
@@ -614,15 +614,18 @@ contains
       call elem_jacobian(numElemsInRank,numNodesRankPar,connecParOrig,coordPar,dNgp,wgp,gpvol,He) 
       call  nvtxEndRange
 
-      vol_rank = 0.0_rp
-      this%VolTot = 0.0_rp
+      vol_rank  = 0.0
+      vol_tot_d = 0.0
       do ielem = 1,numElemsInRank
          do igaus = 1,ngaus
             vol_rank = vol_rank+gpvol(1,igaus,ielem)
          end do
       end do
 
-      call MPI_Allreduce(vol_rank,this%VolTot,1,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(vol_rank,vol_tot_d,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+
+      this%VolTot = real(vol_tot_d,rp) 
+
       write(111,*) '--| DOMAIN VOLUME := ',this%VolTot
 
    end subroutine CFDSolverBase_evalJacobians
@@ -976,9 +979,7 @@ contains
          !e_int(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp))
          Tem(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*this%Rgas)
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
-
          eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
-
       end do
       !$acc end parallel loop
 
@@ -991,14 +992,14 @@ contains
          end do
          umag = sqrt(umag)
          machno(iNodeL) = umag/csound(iNodeL)
-         machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
+         !machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
          mu_factor(iNodeL) = flag_mu_factor
       end do
       !$acc end parallel loop
 
       !$acc kernels
-      mu_e(:,:) = 0.0_rp ! Element syabilization viscosity
-      mu_sgs(:,:) = 0.0_rp
+      !mu_e(:,:) = 0.0_rp ! Element syabilization viscosity
+      !mu_sgs(:,:) = 0.0_rp
       kres(:) = 0.0_rp
       etot(:) = 0.0_rp
       ax1(:) = 0.0_rp
@@ -1008,7 +1009,6 @@ contains
       !$acc end kernels
 
    end subroutine eval_vars_after_load_hdf5_resultsFile
-
 
    subroutine CFDSolverBase_run(this)
       implicit none

@@ -34,6 +34,9 @@ module mod_constants
       integer(4), parameter :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
       integer(4), parameter :: flag_normalise_entropy=1
 
+      logical, parameter :: save_vtk = .true.
+      logical, parameter :: save_hdf5 = .true.
+
       !
       ! Solver params
       !

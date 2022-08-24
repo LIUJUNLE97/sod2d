@@ -106,12 +106,12 @@ contains
       integer(4) :: iNodeL,iNodeGSrl
 
       !call read_veloc(this%npoin,this%gmsh_file_path,u(:,:,2))
-      !call read_veloc_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniU)
+      call read_veloc_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniU)
       do iNodeL=1,numNodesRankPar
          iNodeGSrl=globalIdSrl(iNodeL)
-         u(iNodeL,1,2) = 0.!iniU(iNodeGSrl,1)
-         u(iNodeL,2,2) = 0.!iniU(iNodeGSrl,2)
-         u(iNodeL,3,2) = 0.!iniU(iNodeGSrl,3)
+         u(iNodeL,1,2) = iniU(iNodeGSrl,1)
+         u(iNodeL,2,2) = iniU(iNodeGSrl,2)
+         u(iNodeL,3,2) = iniU(iNodeGSrl,3)
       end do
 
       !$acc parallel loop

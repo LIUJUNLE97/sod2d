@@ -170,6 +170,9 @@ module mod_geom
                end do
             end do
             !$acc end parallel loop
+#if 1
+            call sendRcv_intField(lelpn)
+#endif
 
          end subroutine elemPerNode
 

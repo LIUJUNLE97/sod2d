@@ -50,8 +50,10 @@ contains
       class(CFDSolverPeriodic), intent(inout) :: this
       integer(4)              , intent(in)   :: istep
 
-      call write_vtkAVG_binary(isMeshPeriodic,istep,numNodesRankPar,numElemsInRank,coordPar,connecVTK, &
-         acuvel,acuve2,acurho,acupre,acumueff,this%acutim,nPerRankPar,masSlaRankPar)
+      if(save_vtk) then
+         call write_vtkAVG_binary(isMeshPeriodic,istep,numNodesRankPar,numElemsInRank,coordPar,connecVTK, &
+            acuvel,acuve2,acurho,acupre,acumueff,this%acutim,nPerRankPar,masSlaRankPar)
+      end if
 
    end subroutine CFDSolverPeriodic_saveAverages
 
@@ -59,11 +61,15 @@ contains
       class(CFDSolverPeriodic), intent(inout) :: this
       integer(4)              , intent(in)   :: istep
 
-      call write_vtk_binary(isMeshPeriodic,istep,numNodesRankPar,numElemsInRank,coordPar,connecVTK, &
-         rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
-         gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nPerRankPar,masSlaRankPar)
+      if(save_vtk) then
+         call write_vtk_binary(isMeshPeriodic,istep,numNodesRankPar,numElemsInRank,coordPar,connecVTK, &
+            rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
+            gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nPerRankPar,masSlaRankPar)
+      end if
 
-      call save_hdf5_resultsFile(istep,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno,gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs)
+      if(save_hdf5) then
+         call save_hdf5_resultsFile(istep,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),eta(:,2),csound,machno,gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs)
+      end if
 
    end subroutine CFDSolverPeriodic_savePosprocessingFields
 
