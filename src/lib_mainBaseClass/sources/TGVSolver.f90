@@ -1,7 +1,9 @@
 module TGVSolver_mod
    use mod_arrays
    use mod_nvtx
+#ifndef NOACC
    use cudafor
+#endif   
    use mod_veclen
 
    use elem_qua
@@ -51,11 +53,11 @@ contains
       this%isPeriodic = .true.
 !      this%isPeriodic = .false.
       this%doGlobalAnalysis = .true.
-      this%loadMesh = .false.
-      !this%loadMesh = .true.
+      !this%loadMesh = .false.
+      this%loadMesh = .true.
 
       !this%nstep = 10000 
-      this%nstep = 50001
+      this%nstep = 100001
       this%cfl_conv = 0.95_rp
       this%cfl_diff = 0.95_rp
       this%nsave  = 1  ! First step to save, TODO: input

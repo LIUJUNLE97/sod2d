@@ -1,6 +1,8 @@
 module mod_mpi
    use mpi
+#ifndef NOACC
    use openacc
+#endif
    implicit none
 
    integer :: mpi_rank, mpi_size, mpi_err   
@@ -32,7 +34,7 @@ module mod_mpi
 
       call mpi_comm_rank(smNode_comm, smNode_rank, mpi_err)
       call mpi_comm_size(smNode_comm, smNode_size, mpi_err)
-
+#ifndef NOACC
       num_devices = acc_get_num_devices(acc_device_nvidia);
       if(num_devices.ge.1) then
          id_device   = mod(smNode_rank,num_devices)
@@ -42,6 +44,10 @@ module mod_mpi
          id_device = 0
          write(*,*) 'NO GPU FOUND IN THIS NODE!'
       end if
+#else
+      num_devices = 0
+      id_device = 0
+#endif
 
     end subroutine init_sharedMemoryNode_comm
 

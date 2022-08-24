@@ -1,3 +1,4 @@
+#ifndef NOACC
 module mod_nvtx
    use iso_c_binding
    use cudafor
@@ -97,3 +98,31 @@ contains
    end subroutine nvtxEndRangeAsync
 
 end module mod_nvtx
+
+#else
+
+
+
+module mod_nvtx
+   use iso_c_binding
+   implicit none
+contains
+
+   subroutine nvtxStartRange(name, id)
+      character(kind=c_char, len=*) :: name
+      integer, optional :: id
+   end subroutine nvtxStartRange
+
+   subroutine nvtxEndRange
+   end subroutine nvtxEndRange
+
+   subroutine nvtxStartRangeAsync(name, id)
+      character(kind=c_char, len=*) :: name
+      integer, optional :: id
+   end subroutine nvtxStartRangeAsync
+
+   subroutine nvtxEndRangeAsync
+   end subroutine nvtxEndRangeAsync
+
+end module mod_nvtx
+#endif
