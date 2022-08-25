@@ -4,7 +4,7 @@ module mod_hdf5
    use mod_mpi_mesh
    implicit none
 
-   character(256) :: meshFile_h5_name,base_resultsFile_h5_name
+   character(256) :: meshFile_h5_name,base_resultsFile_h5_name,base_avgResultsFile_h5_name
    integer(hid_t) :: meshFile_h5_id,resultsFile_h5_id
 
 contains
@@ -46,6 +46,7 @@ contains
 
       write(aux_mpiSize,'(I0)') mpi_size
       base_resultsFile_h5_name = trim(adjustl(res_filePath))//trim(adjustl(res_fileName))//'_'//trim(adjustl(mesh_fileName))//'-'//trim(aux_mpiSize)//'_'
+      base_avgResultsFile_h5_name = trim(adjustl(res_filePath))//trim(adjustl(res_fileName))//'_AVG_'//trim(adjustl(mesh_fileName))//'-'//trim(aux_mpiSize)//'_'
 
    end subroutine set_hdf5_baseResultsFile_name
 
@@ -1864,6 +1865,92 @@ contains
       call h5fclose_f(file_id,h5err)
 
    end subroutine load_hdf5_resultsFile
+
+   subroutine set_hdf5_avgResultsFile_name(iStep,full_fileName)
+      implicit none
+      integer, intent(in) :: iStep
+      character(len=*), intent(out) :: full_fileName
+      character(len=12) :: aux_step
+
+      write(aux_step,'(I0)') iStep
+      full_fileName = trim(adjustl(base_avgResultsFile_h5_name))//trim(aux_step)//'.h5'
+   end subroutine set_hdf5_avgResultsFile_name
+
+   subroutine save_hdf5_avgResultsFile(iStep,avvel,avve2,avrho,avpre,avmueff)
+      implicit none
+      integer, intent(in) :: iStep
+      real(rp), intent(in), dimension(numNodesRankPar)       :: avrho, avpre, avmueff
+      real(rp), intent(in), dimension(numNodesRankPar,ndime) :: avvel, avve2
+
+      integer(hid_t) :: file_id,plist_id
+      integer(hid_t) :: dtype
+      integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
+      integer(HSSIZE_T), dimension(1) :: ms_offset 
+      integer :: ds_rank,ms_rank,h5err
+      character(512) :: full_fileName,groupname,dsetname
+      real(rp) :: aux_array(1)
+
+      !------------------------------------------------------------------------------------
+      ! Writing HDF5 Files
+
+      call set_hdf5_avgResultsFile_name(iStep,full_fileName)
+
+      ! Setup file access property list with parallel I/O access.
+      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
+      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+
+      ! create file collectively
+      call h5fcreate_f(full_fileName,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
+      call h5pclose_f(plist_id, h5err)
+
+      ds_rank = 1
+      ds_dims(1) = totalNumNodesPar
+      ms_rank = 1
+      ms_dims(1) = numNodesRankPar
+      ms_offset(1) = rankNodeStart-1
+      dtype = H5T_NATIVE_REAL
+
+      dsetname = 'avrho'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avrho)
+
+      dsetname = 'avpre'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avpre)
+
+      dsetname = 'avmueff'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avmueff)
+
+      dsetname = 'avvel_x'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avvel(:,1))
+
+      dsetname = 'avvel_y'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avvel(:,2))
+
+      dsetname = 'avvel_z'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avvel(:,3))
+
+      dsetname = 'avve2_x'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avve2(:,1))
+
+      dsetname = 'avve2_y'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avve2(:,2))
+
+      dsetname = 'avve2_z'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avve2(:,3))
+
+      !close the file.
+      call h5fclose_f(file_id,h5err)
+
+   end subroutine save_hdf5_avgResultsFile
+
 
    subroutine close_hdf5_resultsfile()
       implicit none

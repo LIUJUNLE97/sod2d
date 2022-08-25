@@ -52,9 +52,15 @@ contains
       class(CFDSolverPeriodic), intent(inout) :: this
       integer(4)              , intent(in)   :: istep
 
+      call eval_average_window(isMeshPeriodic,numNodesRankPar,numElemsInRank,acuvel,acuve2,acurho,acupre,acumueff,this%acutim,&
+											avvel,avve2,avrho,avpre,avmueff,nPerRankPar,masSlaRankPar)
+
       if(save_vtk) then
-         call write_vtkAVG_binary(isMeshPeriodic,istep,numNodesRankPar,numElemsInRank,coordPar,connecVTK, &
-            acuvel,acuve2,acurho,acupre,acumueff,this%acutim,nPerRankPar,masSlaRankPar)
+         call write_vtkAVG_binary(istep,numNodesRankPar,numElemsInRank,coordPar,connecVTK,avvel,avve2,avrho,avpre,avmueff)
+      end if
+
+      if(save_hdf5) then
+         call save_hdf5_avgResultsFile(istep,avvel,avve2,avrho,avpre,avmueff)
       end if
 
    end subroutine CFDSolverPeriodic_saveAverages

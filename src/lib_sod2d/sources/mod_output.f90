@@ -396,28 +396,21 @@ module mod_output
 
       end subroutine write_vtk_binary
 
-      subroutine write_vtkAVG_binary(isPeriodic,istep,npoin,nelem,coord,connec, &
-                                 acuvel,acuve2,acurho,acupre,acumueff,acutim,nper,masSla)
-
+      subroutine write_vtkAVG_binary(istep,npoin,nelem,coord,connec,&
+                                 avvel,avve2,avrho,avpre,avmueff)
          implicit none
-         logical, intent(in)                                 :: isPeriodic
-         integer(4), intent(in)                              :: nper, istep, npoin, nelem
-         integer(4), intent(in)                              :: connec(nelem,nnode)
-         integer(4), intent(in), optional                    :: masSla(nper,2)
-         real(rp)   , intent(in)                              :: coord(npoin,ndime)
-         real(rp)   , intent(inout)                           :: acutim
-         real(rp)   , intent(inout), dimension(npoin)         :: acurho, acupre, acumueff
-         real(rp)   , intent(inout), dimension(npoin,ndime)   :: acuvel, acuve2
-         integer(4)                                          :: i, j, iper, ivtk=9, idime, ipoin
-         integer(4)               , dimension(nelem,nnode+1) :: cells
-         integer(4)               , dimension(nelem)         :: cellTypes
-         real(rp)                  , dimension(npoin)         :: avrho, avpre, avmueff
-         real(rp)                  , dimension(npoin,ndime)   :: avvel, avve2
-         real(rp)                  , dimension(npoin,3)       :: points, u3d
-         character(500)                                      :: filename
-         character(80)                                       :: buffer
-         character(8)                                        :: str1, str2
-         character(1)                                        :: lf
+         integer(4), intent(in)                          :: istep, npoin, nelem
+         integer(4), intent(in)                          :: connec(nelem,nnode)
+         real(rp), intent(in)                            :: coord(npoin,ndime)
+         real(rp), intent(inout), dimension(npoin)       :: avrho, avpre, avmueff
+         real(rp), intent(inout), dimension(npoin,ndime) :: avvel,avve2
+         integer(4)                                      :: i, ivtk=9
+         integer(4), dimension(nelem,nnode+1)            :: cells
+         integer(4), dimension(nelem)                    :: cellTypes
+         real(rp), dimension(npoin,3)                    :: points
+         character(500)                                  :: filename
+         character(8)                                    :: str1, str2
+         character(1)                                    :: lf
 
          lf = achar(10)
 
@@ -428,61 +421,6 @@ module mod_output
          points(:,:) = 0.0_rp
          points(:,1:ndime) = coord(:,1:ndime)
          !$acc end kernels
-
-         !
-         ! If case is periodic, adjust slave nodes
-         !
-         if (isPeriodic .and. present(masSla)) then
-            !$acc parallel loop
-            do iper = 1,nper
-               acuvel(masSla(iper,2),1) = acuvel(masSla(iper,1),1)
-               acuvel(masSla(iper,2),2) = acuvel(masSla(iper,1),2)
-               acuvel(masSla(iper,2),3) = acuvel(masSla(iper,1),3)
-               acuve2(masSla(iper,2),1) = acuve2(masSla(iper,1),1)
-               acuve2(masSla(iper,2),2) = acuve2(masSla(iper,1),2)
-               acuve2(masSla(iper,2),3) = acuve2(masSla(iper,1),3)
-               acurho(masSla(iper,2)) = acurho(masSla(iper,1))
-               acupre(masSla(iper,2)) = acupre(masSla(iper,1))
-               acumueff(masSla(iper,2)) = acumueff(masSla(iper,1))
-            end do
-            !$acc end parallel loop
-         end if
-
-         !
-         ! Divide accumulated vars by the accumulated time
-         !
-         !$acc kernels
-         avrho(:) = acurho(:) / acutim
-         avpre(:) = acupre(:) / acutim
-         avmueff(:) = acumueff(:) / acutim
-         avvel(:,:) = acuvel(:,:) / acutim
-         avve2(:,:) = acuve2(:,:) / acutim
-         !$acc end kernels
-
-         !
-         ! Favre average the rho*phi reynolds-averagedd variables
-         !
-         !$acc parallel loop
-         do ipoin = 1,npoin
-            !$acc loop seq
-            do idime = 1,ndime
-               avvel(ipoin,idime) = avvel(ipoin,idime)!/avrho(ipoin)
-               avve2(ipoin,idime) = avve2(ipoin,idime)!/avrho(ipoin)
-            end do
-         end do
-         !$acc end parallel loop
-
-         !
-         ! Reset the accumulated variables
-         !
-         !$acc kernels
-         acurho(:) = 0.0_rp
-         acupre(:) = 0.0_rp
-         acumueff(:) = 0.0_rp
-         acuvel(:,:) = 0.0_rp
-         acuve2(:,:) = 0.0_rp
-         !$acc end kernels
-         acutim = 0.0_rp
 
          !
          ! Pass cell list to VTK format
@@ -837,8 +775,8 @@ module mod_output
          real(rp)               , dimension(npoin,3)        :: points
          character(500)                                    :: filename
 
-         write(1,*) " begining the reading of the vtk binary "
-         call flush(111)
+         if(mpi_rank.eq.0) write(1,*) " begining the reading of the vtk binary "
+         if(mpi_rank.eq.0) call flush(111)
 
          !
          ! Open file with ascii input
