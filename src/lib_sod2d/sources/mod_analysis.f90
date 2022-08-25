@@ -178,8 +178,10 @@ module mod_analysis
 
          real(rp), intent(in) :: time, EK, eps_S, eps_D, eps_T, maxmachno
 
-         write(666,10) time, EK, eps_S, eps_D, eps_T, maxmachno
-10       format(6(F12.8,2X))
+         if(mpi_rank.eq.0) then
+            write(666,10) time, EK, eps_S, eps_D, eps_T, maxmachno
+            10 format(6(F12.8,2X))
+         end if
 
       end subroutine write_EK
 
@@ -335,11 +337,13 @@ module mod_analysis
          call MPI_Allreduce(Ftau_l,Ftau,ndime,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
          !write(*,*) '(',mpi_rank,')surfCode',surfCode,'t',time, ",", dble(surfArea), ",", dble(Fpr(1)), ",", dble(Fpr(2)), ",", dble(Fpr(3)), ",", dble(Ftau(1)), ",", dble(Ftau(2)), ",", dble(Ftau(3))
-
-         write(888+surfCode,"(I8,1X,A)",ADVANCE="NO") iter, ","
-         write(888+surfCode,50) time, ",", dble(surfArea), ",", dble(Fpr(1)), ",", dble(Fpr(2)), ",", dble(Fpr(3)), ",", dble(Ftau(1)), ",", dble(Ftau(2)), ",", dble(Ftau(3)), ""
-!50       format(16(1X,E10.4,1X,A))
-50       format(16(1X,F16.8,1X,A))
+         
+         if(mpi_rank.eq.0) then
+            write(888+surfCode,"(I8,1X,A)",ADVANCE="NO") iter, ","
+            write(888+surfCode,50) time, ",", dble(surfArea), ",", dble(Fpr(1)), ",", dble(Fpr(2)), ",", dble(Fpr(3)), ",", dble(Ftau(1)), ",", dble(Ftau(2)), ",", dble(Ftau(3)), ""
+            !50 format(16(1X,E10.4,1X,A))
+            50 format(16(1X,F16.8,1X,A))
+         end if
       end subroutine surfInfo
 
 end module mod_analysis

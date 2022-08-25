@@ -56,20 +56,22 @@ contains
       this%isPeriodic = .true.
       !this%isPeriodic = .false.
       this%doGlobalAnalysis = .true.
-      !this%loadMesh = .false.
-      this%loadMesh = .true.
+      this%loadMesh = .false.
+      !this%loadMesh = .true.
 
       this%loadResults = .false.
       !this%loadResults = .true.
       !this%continue_oldLogs = .true.
-      this%load_step = 101
+      !this%load_step = 101
 
       !this%nstep = 100000 
       this%nstep = 100
+
       this%cfl_conv = 0.95_rp
       this%cfl_diff = 0.95_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
+
       this%nsaveAVG = 1000000
       this%nleap = 2000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input

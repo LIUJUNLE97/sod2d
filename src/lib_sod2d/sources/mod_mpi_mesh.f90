@@ -110,6 +110,42 @@ integer(int_size) :: numNodesToComm,numRanksWithComms
 contains
 
 ! ################################################################################################
+! ----------------------------------- AUXILIAR FUNCS ---------------------------------------------
+! ################################################################################################
+
+   integer function gidSrl_to_lid(gidSrl) result(lid)
+      implicit none
+      integer, intent(in) :: gidSrl
+      integer :: i
+
+      lid = -1
+      do i=1,numNodesRankPar
+         if(gidSrl .eq. globalIdSrl(i)) then
+            lid = i
+            exit
+         endif
+      end do
+
+   end function gidSrl_to_lid
+
+   integer function gidPar_to_lid(gidPar) result(lid)
+      implicit none
+      integer, intent(in) :: gidPar
+      integer :: i
+
+      lid = -1
+      do i=1,numNodesRankPar
+         if(gidPar .eq. globalIdPar(i)) then
+            lid = i
+            exit
+         endif
+      end do
+
+   end function gidPar_to_lid
+
+!----------------------------------------------------------------------------------------------------------
+
+! ################################################################################################
 ! --------------------------- FOR READING ALYA MESH ----------------------------------------------
 ! ################################################################################################
    subroutine read_alya_mesh_files(file_path,file_name,isPeriodic)
@@ -390,6 +426,8 @@ contains
 
       character(128) :: file_name, aux_string_rank
 
+      if(mpi_rank.eq.0) write(*,*) ' # Doing element partitioning GEMPA...'
+
       !1. obtain the list element 2 part using gempa
       if(isMeshPeriodic) then
          call get_listElems2Par_Periodic(listElems2Par,weightElems2Par,linkedElems)
@@ -504,18 +542,24 @@ contains
          !we need to add it to the elemPart matrix(:,2)!!!
          !write(*,*) 'numAdditional ',numAdditionalElemsInRank
          allocate(elemPartAux(iElemsInRank,2))
+         !$acc kernels
          elemPartAux(:,1)=elemPart(:,1)
          elemPartAux(:,2)=elemPart(:,2)
+         !$acc end kernels
 
          deallocate(elemPart)
          iElemsInRank = iElemsInRank + numAdditionalElemsInRank
          allocate(elemPart(iElemsInRank,2))
 
          i=1
+         !!!$acc kernels
          do j=1,size(elemPartAux(:,1))
-           elemPart(i,:)=elemPartAux(i,:)
-           i=i+1
+            elemPart(i,:)=elemPartAux(i,:)
+            !!!$acc atomic update
+            i=i+1
+            !!!$acc end atomic
          end do
+         !!!$acc end kernels
 
          do iElemG=1,size(unfoldedElems)
             iRank = unfoldedElems(iElemG)
@@ -536,10 +580,14 @@ contains
       ! since we have done the partitioning in paralel...
 
       vecNumElemsRank(:)=0
-      do i=1,iElemsInRank!numElemsInRank_srl
+      !!!$acc parallel loop
+      do i=1,iElemsInRank
          iRank = elemPart(i,2)-1 !elemPart came with rank=1:mpi_size
+         !!!$acc atomic update
          vecNumElemsRank(iRank) = vecNumElemsRank(iRank) + 1
+         !!!$acc end atomic
       end do
+      !!!$acc end parallel loop
 
 #if _CHECK_
       write(aux_string_rank,'(I0)') mpi_rank
@@ -650,7 +698,6 @@ contains
             vecNumElemsRank(i)=vecNumElemsRank(i)+matNumElemsRank(i,j)
          end do
       end do
-
       !write(*,*) 'vecNumElemsRank[',mpi_rank,'] ',vecNumElemsRank(:)
 
       numElemsInRank = numElemsInRank_par
@@ -699,10 +746,12 @@ contains
 
       allocate(listElems2Par(totalNumElements))
       allocate(weightElems2Par(totalNumElements))
+      !$acc parallel loop
       do iElem=1,totalNumElements
          listElems2Par(iElem) = iElem
-         weightElems2Par(iElem) = 1.
+         weightElems2Par(iElem) = 1
       end do
+      !$acc end parallel loop
 
    end subroutine get_listElems2Par
 
@@ -717,8 +766,10 @@ contains
       integer :: iNode1,iNode2,iElem1,iElem2
 
       allocate(linkerNodesAll(totalNumNodesSrl))
-      
+
+      !$acc kernels
       linkerNodesAll(:) = -1
+      !$acc end kernels
 
       numLinkerNodes=0
       do iElem=1,totalNumElements
@@ -742,7 +793,9 @@ contains
 
       allocate(linkedElems(numLinkedElems,2))
       allocate(listAllElems(totalNumElements))
+      !$acc kernels
       listAllElems(:)=1
+      !$acc end kernels
       numElems2Par=totalNumElements
       numElems2NotPar=0
 
@@ -773,8 +826,10 @@ contains
       allocate(weightElems2Par(numElems2Par))
       allocate(listElems2NotPar(numElems2NotPar))
 
+      !$acc kernels
       listElems2Par(:)=-1
       listElems2NotPar(:)=-1
+      !$acc end kernels
       i=1
       j=1
       do iElem=1,totalNumElements
@@ -819,8 +874,7 @@ contains
       integer, allocatable :: boundaryNodes(:)
       integer, allocatable :: vecSharedBN_full(:)
 
-      !allocate(iNodeStartPar(0:mpi_size-1))
-      !allocate(iNodeEndPar(0:mpi_size-1))
+      if(mpi_rank.eq.0) write(*,*) ' # Doing node partitioning...'
 
       call get_rankPartitionBoundaryNodes(boundaryNodes)
 
@@ -837,20 +891,18 @@ contains
 
       deallocate(vecSharedBN_full)
 
-
-
    end subroutine do_node_partitioning_and_connectivity
 
    subroutine create_nodesCoordinates()
       implicit none
       integer :: iNodeL,iNodeGsrl
+
+      if(mpi_rank.eq.0) write(*,*) ' # Creating nodes coordinates...'
       !------------------------------------------------------
-      !allocate(coord_x(numNodesRankPar))
-      !allocate(coord_y(numNodesRankPar))
-      !allocate(coord_z(numNodesRankPar))
       allocate(coordPar(numNodesRankPar,ndime)) !only works for ndime=3
 
       !- create the coordinate data for this process
+      !$acc parallel loop
       do iNodeL=1,numNodesRankPar
           iNodeGSrl=globalIdSrl(iNodeL)
           !write (*,*) 'iL ', iNodeL, ' iG ', iNodeG,' [', coord(iNodeG,1),']',' [', coord(iNodeG,2),']'
@@ -858,6 +910,7 @@ contains
           coordPar(iNodeL,2) = coordGMSH(iNodeGSrl,2)
           coordPar(iNodeL,3) = coordGMSH(iNodeGSrl,3)
       end do
+      !$acc end parallel loop
 
    end subroutine create_nodesCoordinates
 
@@ -865,16 +918,22 @@ contains
       implicit none
       integer :: iNodeL,iNodeL1,iNodeL2,iNodeG,iPer,iPerPar
 
+      if(mpi_rank.eq.0) write(*,*) ' # Creting master-slave rels in parallel...'
+
       nPerRankPar=0
+      !$acc parallel loop reduction(+:nPerRankPar)
       do iNodeL = 1,numNodesRankPar
          iNodeG = globalIdSrl(iNodeL)
+         !$acc looop vector
          do iPer = 1,nPerSrl
             if (iNodeG .eq. masSlaSrl(iPer,2)) then
                nPerRankPar=nPerRankPar+1
             end if
          end do
       end do
+      !$acc end parallel loop
 
+      !TRY TO ACC THIS PART OF THE CODE: MAIN ISSUE WITH gidSrl_to_lid func in device!!
       allocate(masSlaRankPar(nPerRankPar,2))
       iPerPar=0
       do iNodeL = 1,numNodesRankPar
@@ -902,8 +961,12 @@ contains
       integer :: iNodeL_Per,iNodeL_Per_Pair
       integer, allocatable :: aux_workingNodesPar(:)
 
+      if(mpi_rank.eq.0) write(*,*) ' # Creating working lists...'
+
       allocate( connecParWork(numElemsInRank,nnode) )
+      !$acc kernels
       connecParWork(:,:) = connecParOrig(:,:)
+      !$acc end kernels
 
       if(isMeshPeriodic) then !do all stuff in case mesh is periodic
 
@@ -913,6 +976,7 @@ contains
         !allocate( connecParOrig(numElemsInRank,nnode) )
         !connecParOrig(:,:) = connecPar(:,:)
 
+         !$acc kernels
          do iElem = 1,numElemsInRank
             do iAux = 1,nnode
                iNodeL = connecParWork(iElem,iAux)
@@ -927,19 +991,20 @@ contains
                end do
             end do
          end do
+         !$acc end kernels
 
          !if(present(bound) .and. present(bound_orig)) then
-         !   !$acc kernels
+         !   !!!$acc kernels
          !   bound_orig(:,:) = bound(:,:)
-         !   !$acc end kernels
+         !   !!!$acc end kernels
          !end if
 
          !if(present(bound)) then
-         !   !$acc parallel loop gang vector_length(vecLength)
+         !   !!!$acc parallel loop gang vector_length(vecLength)
          !   do iboun = 1,nboun
-         !      !$acc loop vector
+         !      !!!$acc loop vector
          !      do ipbou = 1,npbou
-         !         !$acc loop seq
+         !         !!!$acc loop seq
          !         do iper = 1,nper
          !            if (bound(iboun,ipbou) .eq. masSla(iper,2)) then
          !               bound(iboun,ipbou) = masSla(iper,1)
@@ -947,7 +1012,7 @@ contains
          !         end do
          !      end do
          !   end do
-         !   !$acc end parallel loop
+         !   !!!$acc end parallel loop
          !end if
 
          numWorkingNodesRankPar = numNodesRankPar - nPerRankPar
@@ -955,9 +1020,11 @@ contains
          allocate(aux_workingNodesPar(numNodesRankPar))
          allocate(workingNodesPar(numWorkingNodesRankPar))
 
+         !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             aux_workingNodesPar(iNodeL) = iNodeL
          end do
+         !$acc end parallel loop
 
          do iPer = 1,nPerRankPar
             iNodeL_Per = masSlaRankPar(iPer,2)
@@ -970,6 +1037,7 @@ contains
             end do
          end do
 
+         !TODO: GPU-PARALLELIZE THIS LOOP
          iAux = 0
          do iNodeL = 1,numNodesRankPar
             if (aux_workingNodesPar(iNodeL) .ne. 0) then
@@ -979,16 +1047,17 @@ contains
             end if
          end do
 
-
          deallocate(aux_workingNodesPar)
       else !non-periodic meshes
 
          numWorkingNodesRankPar = numNodesRankPar
          allocate(workingNodesPar(numWorkingNodesRankPar))
 
+         !$acc parallel loop
          do iNodeL = 1,numWorkingNodesRankPar
             workingNodesPar(iNodeL) = iNodeL
          end do
+         !$acc end parallel loop
 
       end if
 
@@ -1205,13 +1274,17 @@ contains
       allocate(vectorBN(totalNumNodesSrl))
       allocate(matrixBN(numNodesRankSrl,0:mpi_size-1))
 
+      !$acc kernels
       vectorBN(:) = 0
       matrixBN(:,:) = 0
+      !$acc end kernels
 
+      !!!$acc parallel loop
       do i=1,size(boundaryNodes)
          iNodeGSrl = boundaryNodes(i)
          vectorBN(iNodeGSrl) = 1
       end do
+      !!!$acc end parallel loop
 
       !---------------------------------------------------------------
       ! TO CHECK
@@ -1300,7 +1373,9 @@ contains
       !if(mpi_rank.eq.0) write(*,*) 'vecAuxCnt ', vecAuxCnt(:)
 
       allocate(vecSharedBN_part(auxCnt))
+      !$acc kernels
       vecSharedBN_part(:) = -1
+      !$acc end kernels
 
       auxCnt=0
       do i=1,numNodesRankSrl
@@ -1600,6 +1675,7 @@ contains
       integer,intent(out) :: auxNewOrderIndex(:),auxCGNSorder(:)
       integer :: i,j,k,indexIJK,indexNew,indexCGNS
 
+      !!!$acc kernels
       do k = 0,porder
          do i = 0,porder
             do j = 0,porder
@@ -1615,6 +1691,7 @@ contains
             end do
          end do
       end do
+      !!!$acc end kernels
    end subroutine generate_new_nodeOrder_and_connectivity
 
    subroutine generate_mpi_comm_scheme(vecSharedBN_full)
@@ -1789,7 +1866,7 @@ contains
       integer(4) :: auxBoundCnt,aux_sum_NBRP
       integer(4) :: aux_boundList(totalNumBoundsSrl)
 
-      if(mpi_rank.eq.0)write(*,*) "--| SPLITTING BOUNDARY NODES FROM DOFs..."
+      if(mpi_rank.eq.0) write(*,*) ' # Splitting boundary nodes from DoFs in parallel...'
 
       !first, generate boundPar(:,:) & bouCodesPar(:,:)
 
@@ -1901,41 +1978,7 @@ contains
 
    end subroutine splitBoundary_inPar
 
-! ################################################################################################
-! ----------------------------------- AUXILIAR FUNCS ---------------------------------------------
-! ################################################################################################
 
-   integer function gidSrl_to_lid(gidSrl) result(lid)
-      implicit none
-      integer, intent(in) :: gidSrl
-      integer :: i
-
-      lid = -1
-      do i=1,numNodesRankPar
-         if(gidSrl .eq. globalIdSrl(i)) then
-            lid = i
-            exit
-         endif
-      end do
-
-   end function gidSrl_to_lid
-
-   integer function gidPar_to_lid(gidPar) result(lid)
-      implicit none
-      integer, intent(in) :: gidPar
-      integer :: i
-
-      lid = -1
-      do i=1,numNodesRankPar
-         if(gidPar .eq. globalIdPar(i)) then
-            lid = i
-            exit
-         endif
-      end do
-
-   end function gidPar_to_lid
-
-!----------------------------------------------------------------------------------------------------------
 
 ! ################################################################################################
 ! ----------------------------------- PLOTTING FUNCS ---------------------------------------------

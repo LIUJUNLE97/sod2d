@@ -20,6 +20,7 @@ module mod_arrays
       real(rp), allocatable    :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:),mu_factor(:)
       real(rp), allocatable    :: source_term(:)
       real(rp), allocatable    :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:)
+      real(rp), allocatable    :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:)
       real(rp), allocatable    :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable    :: Fpr(:,:), Ftau(:,:)
 
@@ -309,7 +310,7 @@ contains
    subroutine CFDSolverBase_allocateVariables(this)
       class(CFDSolverBase), intent(inout) :: this
 
-      write(111,*) "--| ALLOCATING MAIN VARIABLES"
+      if(mpi_rank.eq.0) write(111,*) "--| ALLOCATING MAIN VARIABLES"
       call nvtxStartRange("Allocate main vars")
       !
       ! Last rank is for prediction-advance related to entropy viscosity,
@@ -351,6 +352,11 @@ contains
       allocate(acumueff(numNodesRankPar))
       allocate(acuvel(numNodesRankPar,ndime))
       allocate(acuve2(numNodesRankPar,ndime))
+      allocate(avrho(numNodesRankPar))
+      allocate(avpre(numNodesRankPar))
+      allocate(avmueff(numNodesRankPar))
+      allocate(avvel(numNodesRankPar,ndime))
+      allocate(avve2(numNodesRankPar,ndime))
 
       !$acc kernels
       acurho(:) = 0.0_rp
@@ -359,6 +365,12 @@ contains
       acuvel(:,:) = 0.00_rp
       acuve2(:,:) = 0.00_rp
       acumueff(:) = 0.00_rp
+      avrho(:) = 0.0_rp
+      avpre(:) = 0.0_rp
+      avmueff(:) = 0.0_rp
+      avvel(:,:) = 0.00_rp
+      avve2(:,:) = 0.00_rp
+      avmueff(:) = 0.00_rp
       !$acc end kernels
       this%acutim = 0.0_rp
 
@@ -398,7 +410,7 @@ contains
            mu_fluid(:) = 0.0_rp
            !$acc end kernels
         else
-           write(111,*) "--| DIFFUSION FLAG MUST BE EITHER 0 OR 1, NOT: ",flag_real_diff
+           if(mpi_rank.eq.0) write(111,*) "--| DIFFUSION FLAG MUST BE EITHER 0 OR 1, NOT: ",flag_real_diff
            STOP(1)
         end if
 
@@ -413,10 +425,10 @@ contains
 
       if (flag_real_diff == 1) then
          call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParOrig,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
-         write(111,*) "--| TIME STEP SIZE dt := ",this%dt,"s"
+         if(mpi_rank.eq.0) write(111,*) "--| TIME STEP SIZE dt := ",this%dt,"s"
       else
          call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParOrig,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
-         write(111,*) "--| TIME STEP SIZE dt := ",this%dt,"s"
+         if(mpi_rank.eq.0) write(111,*) "--| TIME STEP SIZE dt := ",this%dt,"s"
       end if
 
    end subroutine CFDSolverBase_evalInitialDt
@@ -429,7 +441,7 @@ contains
       !*********************************************************************!
       ! Generate GLL table                                                  !
       !*********************************************************************!
-      write(111,*) "--| GENERATING GAUSSIAN QUADRATURE TABLE..."
+      if(mpi_rank.eq.0) write(111,*) "--| GENERATING GAUSSIAN QUADRATURE TABLE..."
       call nvtxStartRange("Gaussian Quadrature")
 
       !*********************************************************
@@ -453,7 +465,7 @@ contains
       call set_hex64_lists(atoIJK,vtk_atoIJK,listHEX08)
       call set_qua16_lists(atoIJ)
 
-      write(111,*) "  --| GENERATING CHEBYSHEV TABLE..."
+      if(mpi_rank.eq.0) write(111,*) "  --| GENERATING CHEBYSHEV TABLE..."
       call chebyshev_hex(atoIJK,xgp,wgp)
       call chebyshev_qua(atoIJ,xgp_b,wgp_b)
 
@@ -465,7 +477,7 @@ contains
 
       ! TODO: Allow for more element types
 
-      write(111,*) "--| GENERATING SHAPE FUNCTIONS AND ISOPAR. DERIVATIVES..."
+      if(mpi_rank.eq.0) write(111,*) "--| GENERATING SHAPE FUNCTIONS AND ISOPAR. DERIVATIVES..."
       call nvtxStartRange("N and dN")
 
       do igaus = 1,ngaus
@@ -592,7 +604,7 @@ contains
       this%leviCivi(1,2,3) =  1.0_rp
       this%leviCivi(2,1,3) = -1.0_rp
       if (isMeshBoundaries) then
-         write(111,*) "--| COMPUTING BOUNDARY ELEMENT NORMALS"
+         if(mpi_rank.eq.0) write(111,*) "--| COMPUTING BOUNDARY ELEMENT NORMALS"
          allocate(boundNormalPar(numBoundsRankPar,ndime*npbou))
          call nvtxStartRange("Bou normals")
          call boundary_normals(numNodesRankPar,numBoundsRankPar,boundPar,this%leviCivi,coordPar,dNgp_b,boundNormalPar)
@@ -609,7 +621,7 @@ contains
       ! Generate Jacobian related information                               !
       !*********************************************************************!
 
-      write(111,*) "--| GENERATING JACOBIAN RELATED INFORMATION..."
+      if(mpi_rank.eq.0) write(111,*) "--| GENERATING JACOBIAN RELATED INFORMATION..."
 
       call nvtxStartRange("Jacobian info")
       allocate(He(ndime,ndime,ngaus,numElemsInRank))
@@ -629,7 +641,7 @@ contains
 
       this%VolTot = real(vol_tot_d,rp) 
 
-      write(111,*) '--| DOMAIN VOLUME := ',this%VolTot
+      if(mpi_rank.eq.0) write(111,*) '--| DOMAIN VOLUME := ',this%VolTot
 
    end subroutine CFDSolverBase_evalJacobians
 
@@ -686,10 +698,10 @@ contains
       !not the best place Oriol!
       allocate(lelpn(numNodesRankPar))
       allocate(point2elem(numNodesRankPar))
-      write(111,*) '--| POINT 2 ELEM begin'
+      if(mpi_rank.eq.0) write(111,*) '--| POINT 2 ELEM begin'
       call elemPerNode(numElemsInRank,numNodesRankPar,connecParWork,lelpn,point2elem)
 
-      write(111,*) '--| POINT 2 ELEM done'
+      if(mpi_rank.eq.0) write(111,*) '--| POINT 2 ELEM done'
       allocate(lnbn(numBoundsRankPar,npbou))
       call nearBoundaryNode(numElemsInRank,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,point2elem,atoIJK,lnbn)
 
@@ -703,7 +715,7 @@ contains
       ! Compute mass matrix (Lumped and Consistent) and set solver type     !
       !*********************************************************************!
 
-      write(111,*) '--| COMPUTING LUMPED MASS MATRIX...'
+      if(mpi_rank.eq.0) write(111,*) '--| COMPUTING LUMPED MASS MATRIX...'
       call nvtxStartRange("Lumped mass compute")
       allocate(Ml(numNodesRankPar))
       call lumped_mass_spectral(numElemsInRank,numNodesRankPar,connecParWork,gpvol,Ml)
@@ -749,16 +761,17 @@ contains
       call visc_dissipationRate(numElemsInRank,numNodesRankPar,connecParWork,this%leviCivi,nscbc_rho_inf,mu_fluid,mu_e,u(:,:,2),this%VolTot,gpvol,He,dNgp,this%eps_S,this%eps_D,this%eps_T)
       call maxMach(numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,machno,this%maxmachno)
       call write_EK(this%time,this%EK,this%eps_S,this%eps_D,this%eps_T,this%maxmachno)
-      write(111,*) "--| time     EK     eps_S     eps_D     eps_T     max(Ma)"
-      write(111,20) this%time, this%EK, this%eps_S, this%eps_D, this%eps_T, this%maxmachno
-20      format(6(F16.8,2X))
+      if(mpi_rank.eq.0) then
+         write(111,*) "--| time     EK     eps_S     eps_D     eps_T     max(Ma)"
+         write(111,20) this%time, this%EK, this%eps_S, this%eps_D, this%eps_T, this%maxmachno
+         20 format(6(F16.8,2X))
+      end if
 
    end subroutine CFDSolverBase_evalFirstOutput
 
    subroutine CFDSolverBase_callTimeIntegration(this)
       class(CFDSolverBase), intent(inout) :: this
-
-      write(111,*) " Time integration should be overwritted"
+      if(mpi_rank.eq.0) write(111,*) " Time integration should be overwritted"
       STOP(1)
 
    end subroutine CFDSolverBase_callTimeIntegration
@@ -766,8 +779,7 @@ contains
    subroutine CFDSolverBase_saveAverages(this,istep)
       class(CFDSolverBase), intent(inout) :: this
       integer(4)              , intent(in)   :: istep
-
-      write(111,*) " Save Averages should be overwritted"
+      if(mpi_rank.eq.0) write(111,*) " Save Averages should be overwritted"
       STOP(1)
 
    end subroutine CFDSolverBase_saveAverages
@@ -782,7 +794,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4)              , intent(in)   :: istep
 
-      write(111,*) " Save Posprocessing Fields should be overwritted"
+      if(mpi_rank.eq.0) write(111,*) " Save Posprocessing Fields should be overwritted"
       STOP(1)
 
    end subroutine CFDSolverBase_savePosprocessingFields
@@ -800,7 +812,7 @@ contains
 
       ! periodic with boundaries
       do istep = this%initial_istep,this%nstep
-         if (istep == this%nsave)write(111,*) '   --| STEP: ', istep
+         if (istep==this%nsave.and.mpi_rank.eq.0) write(111,*) '   --| STEP: ', istep
          !
          ! Prediction
          !
@@ -835,18 +847,20 @@ contains
             call visc_dissipationRate(numElemsInRank,numNodesRankPar,connecParWork,this%leviCivi,nscbc_rho_inf,mu_fluid,mu_e,u(:,:,2),this%VolTot,gpvol,He,dNgp,this%eps_S,this%eps_D,this%eps_T)
             call maxMach(numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,machno,this%maxmachno)
             call write_EK(this%time,this%EK,this%eps_S,this%eps_D,this%eps_T,this%maxmachno)
-            write(111,*) "--| time     EK     eps_S     eps_D     eps_T     max(Ma)"
-            write(111,20) this%time, this%EK, this%eps_S, this%eps_D, this%eps_T, this%maxmachno
-20      format(6(F16.8,2X))
-            call flush(666)
+            if(mpi_rank.eq.0) then
+               write(111,*) "--| time     EK     eps_S     eps_D     eps_T     max(Ma)"
+               write(111,20) this%time, this%EK, this%eps_S, this%eps_D, this%eps_T, this%maxmachno
+               20 format(6(F16.8,2X))
+               call flush(666)
+            end if
          end if
 
          if (flag_real_diff == 1) then
             call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
-            if (istep == this%nsave2)write(111,*) "DT := ",this%dt,"s time := ",this%time,"s"
+            if(istep==this%nsave2.and.mpi_rank.eq.0) write(111,*) "DT := ",this%dt,"s time := ",this%time,"s"
          else
             call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
-            if (istep == this%nsave2)write(111,*) "DT := ",this%dt,"s time := ",this%time,"s"
+            if(istep==this%nsave2.and.mpi_rank.eq.0) write(111,*) "DT := ",this%dt,"s time := ",this%time,"s"
          end if
 
          call nvtxEndRange
@@ -868,7 +882,7 @@ contains
                      mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(icode,:),Ftau(icode,:))
 
                   call nvtxEndRange
-                  call flush(888+icode)
+                  if(mpi_rank.eq.0) call flush(888+icode)
                end do
             end if
          end if
@@ -898,7 +912,7 @@ contains
 
          if(istep==this%nsave2) then
             this%nsave2 = this%nsave2+this%nleap2
-            call flush(111)
+            if(mpi_rank.eq.0) call flush(111)
          end if
 
          counter = counter+1
@@ -913,37 +927,38 @@ contains
       character(len=1024) :: filename,filenameAnalysis,filenameBound,aux_string_mpisize,aux_string_code
       integer :: iCode
 
-      write(aux_string_mpisize,'(I0)') mpi_size
-      
-      filename = 'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
-      if(this%continue_oldLogs) then
-         open(unit=111,file=filename,status='old',position='append')
-      else
-         open(unit=111,file=filename,status='replace')
-      end if
+      if(mpi_rank.eq.0) then
+         write(aux_string_mpisize,'(I0)') mpi_size
 
-
-      if(this%doGlobalAnalysis) then
-         filenameAnalysis = 'analysis_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
+         filename = 'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
          if(this%continue_oldLogs) then
-            open(unit=666,file=filenameAnalysis,status='old',position='append')
+            open(unit=111,file=filename,status='old',position='append')
          else
-            open(unit=666,file=filenameAnalysis,status='replace')
+            open(unit=111,file=filename,status='replace')
          end if
-      end if
 
-      if (isMeshBoundaries) then
-         do iCode = 1,numBoundCodes
-            write(aux_string_code,'(I0)') iCode
-            filenameBound = 'surf_code_'//trim(aux_string_code)//'-'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
+         if(this%doGlobalAnalysis) then
+            filenameAnalysis = 'analysis_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
             if(this%continue_oldLogs) then
-               open(unit=888+iCode,form='formatted',file=filenameBound,status='old',position='append')
+               open(unit=666,file=filenameAnalysis,status='old',position='append')
             else
-               open(unit=888+iCode,form='formatted',file=filenameBound,status='replace')
+               open(unit=666,file=filenameAnalysis,status='replace')
             end if
-            write(888+iCode,60) "ITER", "TIME", "AREA", "FPRE_X", "FPRE_Y", "FPRE_Z", "FTAU_X", "FTAU_Y", "FTAU_Z"
-            60 format(9(3X,A,5X))
-         end do
+         end if
+
+         if (isMeshBoundaries) then
+            do iCode = 1,numBoundCodes
+               write(aux_string_code,'(I0)') iCode
+               filenameBound = 'surf_code_'//trim(aux_string_code)//'-'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
+               if(this%continue_oldLogs) then
+                  open(unit=888+iCode,form='formatted',file=filenameBound,status='old',position='append')
+               else
+                  open(unit=888+iCode,form='formatted',file=filenameBound,status='replace')
+               end if
+               write(888+iCode,60) "ITER", "TIME", "AREA", "FPRE_X", "FPRE_Y", "FPRE_Z", "FTAU_X", "FTAU_Y", "FTAU_Z"
+               60 format(9(3X,A,5X))
+            end do
+         end if
       end if
 
    end subroutine open_log_file
@@ -953,16 +968,18 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer :: iCode
 
-      close(unit=111)
+      if(mpi_rank.eq.0) then
+         close(unit=111)
 
-      if(this%doGlobalAnalysis) then
-         close(unit=666)
-      end if
+         if(this%doGlobalAnalysis) then
+            close(unit=666)
+         end if
 
-      if (isMeshBoundaries) then
-         do iCode = 1,numBoundCodes
-            close(unit=888+iCode)
-         end do
+         if (isMeshBoundaries) then
+            do iCode = 1,numBoundCodes
+               close(unit=888+iCode)
+            end do
+         end if
       end if
 
    end subroutine close_log_file
