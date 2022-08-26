@@ -56,8 +56,8 @@ contains
       this%isPeriodic = .true.
       !this%isPeriodic = .false.
       this%doGlobalAnalysis = .true.
-      this%loadMesh = .false.
-      !this%loadMesh = .true.
+      !this%loadMesh = .false.
+      this%loadMesh = .true.
 
       this%loadResults = .false.
       !this%loadResults = .true.

@@ -196,14 +196,30 @@ contains
       class(ThermalChannelFlowSolver), intent(inout) :: this
       integer(4)              , intent(in)   :: istep
       integer(4) :: codeH, codeC
-      real(rp) :: area,tw
+      real(rp) :: area,tw,RetauC,RetauH,Retau,rhoC,rhoH,muH,muC,twH,twC,utauH,utauC
 
       if(istep == this%nsave2) then
          codeH = 6
          codeC = 7
          area = this%delta*2.0*v_pi*this%delta*v_pi
-         tw = 0.5_rp*((Ftau(codeH,1)/area)+(Ftau(codeC,1)/area))
-         if(tw .le. this%tauw) then 
+         twH = Ftau(codeH,1)/area
+         twC = Ftau(codeC,1)/area
+
+         rhoH=this%po/(this%Rgas*this%tH)
+         rhoC=this%po/(this%Rgas*this%tC)
+
+         utauH = sqrt(twH/rhoH)
+         utauC = sqrt(twC/rhoC)
+
+         muH = 0.000001458_rp*(this%tH**1.50_rp)/(this%tH+110.40_rp)
+         muC = 0.000001458_rp*(this%tC**1.50_rp)/(this%tC+110.40_rp)
+
+         RetauH = this%delta*utauH*rhoH/muH
+         RetauC = this%delta*utauC*rhoC/muC
+
+         Retau = 0.5_rp*(RetauH+RetauC)
+
+         if(Retau .le. this%Retau) then 
             source_term(1) = source_term(1)*1.05_rp
          else  
             source_term(1) = source_term(1)*0.95_rp
