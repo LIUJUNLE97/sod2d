@@ -45,8 +45,10 @@ contains
       character(len=12) :: aux_mpiSize
 
       write(aux_mpiSize,'(I0)') mpi_size
-      base_resultsFile_h5_name = trim(adjustl(res_filePath))//trim(adjustl(res_fileName))//'_'//trim(adjustl(mesh_fileName))//'-'//trim(aux_mpiSize)//'_'
-      base_avgResultsFile_h5_name = trim(adjustl(res_filePath))//trim(adjustl(res_fileName))//'_AVG_'//trim(adjustl(mesh_fileName))//'-'//trim(aux_mpiSize)//'_'
+      base_resultsFile_h5_name = trim(adjustl(res_filePath))//trim(adjustl(res_fileName))//'_'&
+         //trim(adjustl(mesh_fileName))//'-'//trim(aux_mpiSize)//'_'
+      base_avgResultsFile_h5_name = trim(adjustl(res_filePath))//trim(adjustl(res_fileName))//'_AVG_'&
+         //trim(adjustl(mesh_fileName))//'-'//trim(aux_mpiSize)//'_'
 
    end subroutine set_hdf5_baseResultsFile_name
 
@@ -67,22 +69,18 @@ contains
       call do_mesh_partitioning()
 
       !----- Create HDF5 File
-      call create_hdf5_meshFile(mesh_h5_file_path,mesh_h5_file_name)
+      call create_hdf5_meshFile()
 
    end subroutine read_alyaMesh_part_and_create_hdf5Mesh
 
-   subroutine create_hdf5_meshFile(file_path,file_name)
+   subroutine create_hdf5_meshFile()
       implicit none
-      character(len=*), intent(in) :: file_path,file_name
       integer(hid_t) :: file_id,plist_id,dset_id,dspace_id,mspace_id,group_id
       integer(hid_t) :: dtype
       integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
       integer(HSSIZE_T), dimension(1) :: ms_offset 
       integer :: ds_rank,ms_rank,h5err
       character(256) :: groupname,dsetname
-
-      !.init h5 interface
-      !call h5open_f(h5err)
 
       ! Setup file access property list with parallel I/O access.
       call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
@@ -624,6 +622,47 @@ contains
       call h5sclose_f(fspace_id,h5err)
       call h5dclose_f(dset_id,h5err)
    end subroutine read_dataspace_fp64_hyperslab_parallel
+
+   subroutine overwrite_coordinates_hdf5()
+      implicit none
+      integer(hid_t) :: file_id,plist_id,dtype
+      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
+      integer(hssize_t), dimension(1) :: ms_offset 
+      integer :: ds_rank,ms_rank,h5err
+      character(128) :: dsetname
+
+      !---------------------------------------------------------------------------------------
+      ! Setup file access property list with parallel I/O access.
+      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
+      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+
+      ! open file collectively
+      call h5fopen_f(meshFile_h5_name, H5F_ACC_RDWR_F,file_id,h5err,access_prp=plist_id)
+      call h5pclose_f(plist_id, h5err)
+
+      !-------------------------------------------
+      dtype = H5T_NATIVE_REAL
+      ds_rank = 1
+      ds_dims(1) = totalNumNodesPar
+      ms_rank = 1
+      ms_dims(1) = numNodesRankPar
+      ms_offset(1) = rankNodeStart-1
+      !-------------------------------------------
+
+      dsetname = '/Coords/X'
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,coordPar(:,1))
+
+      dsetname = '/Coords/Y'
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,coordPar(:,2))
+
+      dsetname = '/Coords/Z'
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,coordPar(:,3))
+
+
+      !close the file.
+      call h5fclose_f(file_id,h5err)
+
+   end subroutine overwrite_coordinates_hdf5
 
    subroutine save_connectivity_hdf5(file_id)
       implicit none
@@ -1603,10 +1642,9 @@ contains
       real(rp), intent(in) :: time
       real(rp), intent(inout), dimension(numNodesRankPar)       :: rho,pr,E,eta,csound,machno,mu_fluid,divU,Qcrit
       real(rp), intent(inout), dimension(numNodesRankPar,ndime) :: u
-      real(rp), intent(inout), dimension(numElemsInRank,ngaus)  :: mu_e
-      real(rp), intent(inout), dimension(numElemsInRank,ngaus)  :: mu_sgs
-      real(rp), intent(inout), dimension(numNodesRankPar,ndime) :: gradRho, curlU
-      real(rp)               , dimension(numNodesRankPar)       :: envit, mut
+      real(rp), intent(inout), dimension(numElemsInRank,ngaus)  :: mu_e,mu_sgs
+      real(rp), intent(inout), dimension(numNodesRankPar,ndime) :: gradRho,curlU
+      real(rp)               , dimension(numNodesRankPar)       :: envit,mut
       
       integer(hid_t) :: file_id,plist_id,dset_id,dspace_id,mspace_id,group_id
       integer(hid_t) :: dtype
@@ -1865,6 +1903,122 @@ contains
       call h5fclose_f(file_id,h5err)
 
    end subroutine load_hdf5_resultsFile
+
+   subroutine load_hdf5_resultsFile_allArrays(load_step,time,rho,u,pr,E,eta,csound,machno,gradRho,&
+                                              curlU,divU,Qcrit,mu_fluid,envit,mut)
+      implicit none
+      integer, intent(in) :: load_step
+      real(rp), intent(inout) :: time
+      real(rp), intent(inout), dimension(numNodesRankPar)       :: rho,pr,E,eta,csound,machno,mu_fluid,divU,Qcrit
+      real(rp), intent(inout), dimension(numNodesRankPar,ndime) :: u
+      real(rp), intent(inout), dimension(numNodesRankPar,ndime) :: gradRho,curlU
+      real(rp), intent(inout), dimension(numNodesRankPar)       :: envit,mut
+      !real(rp), intent(inout), dimension(numElemsInRank,ngaus)  :: mu_e,mu_sgs
+
+      character(512) :: full_loadFileName
+      integer(hid_t) :: file_id,plist_id
+      integer(hid_t) :: dtype
+      integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
+      integer(HSSIZE_T), dimension(1) :: ms_offset 
+      integer :: ds_rank,ms_rank,h5err
+      character(128) :: dsetname
+      real(rp) :: aux_array(1)
+      integer :: i,j
+      
+      call set_hdf5_resultsFile_name(load_step,full_loadFileName)
+      if(mpi_rank.eq.0) write(*,*) '# Loading results file: ',full_loadFileName
+
+      ! Setup file access property list with parallel I/O access.
+      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
+      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+
+      call h5fopen_f(full_loadFileName, H5F_ACC_RDWR_F,file_id,h5err,access_prp=plist_id)
+      call h5pclose_f(plist_id, h5err)
+
+      ms_rank = 1
+      ds_rank = 1
+      dtype = H5T_NATIVE_REAL
+
+      ! ----  read time  -----
+      ds_dims = 1
+      ms_offset(1) = 0
+      ms_dims(1) = 1
+
+      dsetname = 'time'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+      time = aux_array(1)
+
+      if(mpi_rank.eq.0) write(*,*) ' - load_step',load_step,'time',time
+
+      ! ----  read arrays  -----
+
+      ds_dims(1) = totalNumNodesPar
+      ms_dims(1) = numNodesRankPar
+      ms_offset(1) = rankNodeStart-1
+
+      dsetname = 'rho'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,rho)
+
+      dsetname = 'u_x'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,u(:,1))
+
+      dsetname = 'u_y'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,u(:,2))
+
+      dsetname = 'u_z'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,u(:,3))
+
+      dsetname = 'envit'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,envit)
+
+      dsetname = 'mut'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,mut)
+
+      dsetname = 'pr'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,pr)
+
+      dsetname = 'E'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,E)
+
+      dsetname = 'eta'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,eta)
+
+      dsetname = 'csound'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,csound)
+
+      dsetname = 'machno'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,machno)
+
+      dsetname = 'gradRho_x'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,gradRho(:,1))
+
+      dsetname = 'gradRho_y'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,gradRho(:,2))
+
+      dsetname = 'gradRho_z'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,gradRho(:,3))
+
+      dsetname = 'curlU_x'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,curlU(:,1))
+
+      dsetname = 'curlU_y'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,curlU(:,2))
+
+      dsetname = 'curlU_z'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,curlU(:,3))
+
+      dsetname = 'mu_fluid'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,mu_fluid)
+
+      dsetname = 'divU'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,divU)
+
+      dsetname = 'Qcrit'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,Qcrit)
+
+      call h5fclose_f(file_id,h5err)
+
+   end subroutine load_hdf5_resultsFile_allArrays
 
    subroutine set_hdf5_avgResultsFile_name(iStep,full_fileName)
       implicit none

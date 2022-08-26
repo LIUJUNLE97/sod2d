@@ -509,7 +509,11 @@ contains
       ! element type being used                                             !
       !*********************************************************************!
 
+      if(mpi_rank.eq.0) write(*,*) "--| Doing Interpolation of Initial Conditions..."
+
       allocate(aux_1(numNodesRankPar,ndime))
+      !----------------------------------------------------------------------------
+      !     COORDS
       aux_1(:,:) = coordPar(:,:)
       do ielem = 1,numElemsInRank
          do inode = (2**ndime)+1,nnode
@@ -518,75 +522,76 @@ contains
             end do
          end do
       end do
-      if(not(this%loadResults)) then
-         aux_1(:,:) = u(:,:,2)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               do idime = 1,ndime
-                  call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),u(connecParOrig(ielem,inode),idime,2))
-               end do
+
+      call overwrite_coordinates_hdf5()
+      !----------------------------------------------------------------------------
+      aux_1(:,:) = u(:,:,2)
+      do ielem = 1,numElemsInRank
+         do inode = (2**ndime)+1,nnode
+            do idime = 1,ndime
+               call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),u(connecParOrig(ielem,inode),idime,2))
             end do
          end do
-         aux_1(:,:) = q(:,:,2)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               do idime = 1,ndime
-                  call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),q(connecParOrig(ielem,inode),idime,2))
-               end do
+      end do
+      aux_1(:,:) = q(:,:,2)
+      do ielem = 1,numElemsInRank
+         do inode = (2**ndime)+1,nnode
+            do idime = 1,ndime
+               call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),q(connecParOrig(ielem,inode),idime,2))
             end do
          end do
-         allocate(aux_2(numNodesRankPar))
-         aux_2(:) = rho(:,2)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),rho(connecParOrig(ielem,inode),2))
-            end do
-         end do
-         aux_2(:) = pr(:,2)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),pr(connecParOrig(ielem,inode),2))
-            end do
-         end do
-         aux_2(:) = E(:,2)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),E(connecParOrig(ielem,inode),2))
-            end do
-         end do
-         aux_2(:) = Tem(:,2)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),Tem(connecParOrig(ielem,inode),2))
-            end do
-         end do
-         aux_2(:) = e_int(:,2)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),e_int(connecParOrig(ielem,inode),2))
-            end do
-         end do
-         aux_2(:) = csound(:)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),csound(connecParOrig(ielem,inode)))
-            end do
-         end do
-         aux_2(:) = machno(:)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),machno(connecParOrig(ielem,inode)))
-            end do
-         end do
-         aux_2(:) = mu_fluid(:)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),mu_fluid(connecParOrig(ielem,inode)))
-            end do
-         end do
-         deallocate(aux_2)
-      end if
+      end do
       deallocate(aux_1)
+      allocate(aux_2(numNodesRankPar))
+      aux_2(:) = rho(:,2)
+      do ielem = 1,numElemsInRank
+         do inode = (2**ndime)+1,nnode
+            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),rho(connecParOrig(ielem,inode),2))
+         end do
+      end do
+      aux_2(:) = pr(:,2)
+      do ielem = 1,numElemsInRank
+         do inode = (2**ndime)+1,nnode
+            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),pr(connecParOrig(ielem,inode),2))
+         end do
+      end do
+      aux_2(:) = E(:,2)
+      do ielem = 1,numElemsInRank
+         do inode = (2**ndime)+1,nnode
+            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),E(connecParOrig(ielem,inode),2))
+         end do
+      end do
+      aux_2(:) = Tem(:,2)
+      do ielem = 1,numElemsInRank
+         do inode = (2**ndime)+1,nnode
+            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),Tem(connecParOrig(ielem,inode),2))
+         end do
+      end do
+      aux_2(:) = e_int(:,2)
+      do ielem = 1,numElemsInRank
+         do inode = (2**ndime)+1,nnode
+            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),e_int(connecParOrig(ielem,inode),2))
+         end do
+      end do
+      aux_2(:) = csound(:)
+      do ielem = 1,numElemsInRank
+         do inode = (2**ndime)+1,nnode
+            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),csound(connecParOrig(ielem,inode)))
+         end do
+      end do
+      aux_2(:) = machno(:)
+      do ielem = 1,numElemsInRank
+         do inode = (2**ndime)+1,nnode
+            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),machno(connecParOrig(ielem,inode)))
+         end do
+      end do
+      aux_2(:) = mu_fluid(:)
+      do ielem = 1,numElemsInRank
+         do inode = (2**ndime)+1,nnode
+            call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),mu_fluid(connecParOrig(ielem,inode)))
+         end do
+      end do
+      deallocate(aux_2)
 
    end subroutine CFDSolverBase_interpolateInitialConditions
 
@@ -1098,7 +1103,9 @@ contains
 
         ! Interpolate initial conditions
 
-        call this%interpolateInitialConditions()
+         if(not(this%loadResults)) then
+            call this%interpolateInitialConditions()
+         end if
 
         ! Eval boundary element normal
 

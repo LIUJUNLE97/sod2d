@@ -8,6 +8,7 @@ module mod_mpi_mesh
 #define _CHECK_ 0
 #define int_size 4
 !-----------------------------------   
+#ifndef GEMPAINTERFACE
    interface
       subroutine gempa_do_partition(numElemsInRank,numRanksToPart,x,y,z,weights,part) bind(c)
         import c_int, c_double
@@ -20,6 +21,7 @@ module mod_mpi_mesh
         integer(kind=c_int), intent(out) :: part(numElemsInRank)
       end subroutine gempa_do_partition
    end interface
+#endif
 !-----------------------------------   
    character(*), parameter :: fmt_csv = '(1x,*(g0,","))'
    ! Dimensions -----------------------------
@@ -479,10 +481,11 @@ contains
       !       'assosiacio' ficticia i posarlos on toca
       !----------------------------------------------------------------------------------
 
-
+#ifndef GEMPAINTERFACE
       !---- CALLING GEMPA in PARALLEL-----------------------
       call gempa_do_partition(iElemsInRank,mpi_size,x,y,z,elemPart(:,3),elemPart(:,2))
       !---------------------------------------------------------------------
+#endif
 
       ! if parallel, now we have to put the rank to the 'slave' elements who were not included in the partitioning process
       ! since they were linked to a 'master' element
