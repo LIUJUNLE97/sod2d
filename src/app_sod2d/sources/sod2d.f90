@@ -10,8 +10,8 @@ program main
    use TGVSolver_mod
 #endif
 #if _channel_
-   use ChannelFlowSolver_mod
-   !use ThermalChannelFlowSolver_mod
+   !use ChannelFlowSolver_mod
+   use ThermalChannelFlowSolver_mod
 #endif
 #if _bluff_
    use BluffBodySolver_mod
@@ -23,8 +23,8 @@ program main
    call tgv%run()
 #endif
 #if _channel_
-   !type(ThermalChannelFlowSolver) :: thermalchannel
-   type(ChannelFlowSolver)  :: channel
+   type(ThermalChannelFlowSolver) :: channel
+   !type(ChannelFlowSolver)  :: channel
    call channel%run()
 #endif
 #if _bluff_

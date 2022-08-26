@@ -56,14 +56,15 @@ contains
    subroutine ThermalChannelFlowSolver_initializeParameters(this)
       class(ThermalChannelFlowSolver), intent(inout) :: this
 
-      write(this%gmsh_file_path,*) "./mesh_channel/"
+      write(this%gmsh_file_path,*) "./mesh/"
       write(this%gmsh_file_name,*) "channel_sem" 
 
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "channel_sem" ! Nsys
 
       this%isPeriodic = .true.
-      this%loadMesh = .false.
+      this%loadMesh = .true.
+      this%loadResults = .false.
 
       this%nstep = 90000000
       this%cfl_conv = 1.5_rp
@@ -71,10 +72,10 @@ contains
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 20000 ! Saving interval, TODO: input
+      this%nleap = 40000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 20000
+      this%nleap2 = 50  ! Saving interval, TODO: input
+      this%nleapAVG = 40000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -96,7 +97,7 @@ contains
       this%tauw = this%rho*this%utau*this%utau
 
       flag_mu_factor = 1.0_rp
-      write(1,*) " Gp ", this%tauw/this%delta
+      write(111,*) " Gp ", this%tauw/this%delta
       nscbc_p_inf = this%po
       nscbc_Rgas_inf = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
@@ -105,7 +106,7 @@ contains
 
    subroutine ThermalChannelFlowSolver_evalInitialConditions(this)
       class(ThermalChannelFlowSolver), intent(inout) :: this
-      real(4) :: iniU(totalNumNodesSrl,ndime), iniRho(totalNumNodesSrl), iniP(totalNumNodesSrl)
+      real(rp) :: iniU(totalNumNodesSrl,ndime), iniRho(totalNumNodesSrl), iniT(totalNumNodesSrl)
       integer(4) :: iNodeL,iNodeGSrl
       logical :: readFiles
       real(rp) :: velo, ti(3), yp
@@ -118,7 +119,7 @@ contains
          !call read_temper(this%npoin,this%gmsh_file_path,Tem(:,2))
          call read_veloc_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniU)
          call read_densi_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniRho)
-         call read_press_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniP)
+         call read_temper_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniT)
 
          do iNodeL=1,numNodesRankPar
             iNodeGSrl=globalIdSrl(iNodeL)
@@ -126,7 +127,7 @@ contains
             u(iNodeL,2,2) = iniU(iNodeGSrl,2)
             u(iNodeL,3,2) = iniU(iNodeGSrl,3)
             rho(iNodeL,2) = iniRho(iNodeGSrl)
-            pr(iNodeL,2)  = iniP(iNodeGSrl)
+            Tem(iNodeL,2)  = iniT(iNodeGSrl)
          end do
 
          !!$acc parallel loop
