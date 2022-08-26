@@ -39,16 +39,8 @@ contains
 ! ------------------------------ CREATE CGNS MESH FILE -------------------------------------------
 ! ################################################################################################
 
-   subroutine create_CGNSmesh_par(file_path,file_name)
-      implicit none     
-      character(500), intent(in) :: file_path,file_name
-
-      cgns_pathfile_name = trim(adjustl(file_path))//trim(adjustl(file_name))//'.cgns'
-
-      if(mpi_rank.eq.0) write(*,*) ' # Creating cgns file: ', cgns_pathfile_name
-
-      call cgp_open_f(cgns_pathfile_name, CG_MODE_WRITE,index_file,cg_err)
-      if (cg_err .ne. CG_OK) call cgp_error_exit_f
+   subroutine init_CGNSmesh_arrays()
+      implicit none
 
       !--------------------------------------------------------------------------
       !copying integers in required cgns format
@@ -62,6 +54,35 @@ contains
       allocate(connecCGNS_int8(numElemsInRank_int8*nnode) )
       connecCGNS_int8(:) = connecCGNS(:)
       !-------------------------------------------------------------------------
+
+   end subroutine init_CGNSmesh_arrays
+
+   subroutine end_CGNSmesh_arrays()
+      implicit none
+
+      !--------------------------------------------------------------------------
+      !copying integers in required cgns format
+      totalNumElements_int8 = 0
+      numElemsInRank_int8   = 0
+      rankElemStart_int8    = 0
+      rankElemEnd_int8      = 0
+      rankNodeStart_int8    = 0
+      rankNodeEnd_int8      = 0
+
+      deallocate(connecCGNS_int8)
+      !-------------------------------------------------------------------------
+
+   end subroutine end_CGNSmesh_arrays
+
+   subroutine create_CGNSmesh_par(full_fileName)
+      implicit none     
+      character(len=*), intent(in) :: full_fileName
+
+      !cgns_pathfile_name = trim(adjustl(file_path))//trim(adjustl(file_name))//'.cgns'
+      if(mpi_rank.eq.0) write(*,*) ' # Creating cgns file:',full_fileName
+
+      call cgp_open_f(full_fileName,CG_MODE_WRITE,index_file,cg_err)
+      if (cg_err .ne. CG_OK) call cgp_error_exit_f
 
       !### Creating base ###
       basename = 'Base'
@@ -99,6 +120,26 @@ contains
 #endif
 
    end subroutine create_CGNSmesh_par
+
+   subroutine close_CGNSmesh_par()
+      implicit none
+
+      call cgp_close_f(index_file,cg_err)
+   end subroutine close_CGNSmesh_par
+
+   subroutine set_CGNS_full_fileName(full_fileName,file_path,file_name,res_string,iStep)
+      implicit none
+      character(len=*), intent(in) :: file_path,file_name,res_string
+      integer, intent(in) :: iStep
+      character(len=*), intent(out) :: full_fileName
+      character(len=12) :: aux_step,aux_mpiSize
+
+      write(aux_step,'(I0)') iStep
+      write(aux_mpiSize,'(I0)') mpi_size
+      full_fileName = trim(adjustl(file_path))//trim(adjustl(res_string))//'_'//trim(adjustl(file_name))//'-'&
+         //trim(aux_mpiSize)//'_'//trim(aux_step)//'.cgns'
+
+   end subroutine set_CGNS_full_fileName
 
    subroutine create_CGNSmesh_base(basename_in, baseId)
       implicit none
@@ -640,12 +681,7 @@ subroutine open_CGNSmesh_par(file_path,file_name)
 
 end subroutine open_CGNSmesh_par
 
-subroutine close_CGNSmesh_par()
-   implicit none
 
-   call cgp_close_f(index_file,cg_err)
-
-end subroutine close_CGNSmesh_par
 
 #endif
 !------------------------------------------------------------------------------------------------------------------------------
