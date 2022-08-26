@@ -1,6 +1,7 @@
 #Ignore build directory
 /build*
 /generated-docs
+/tool_postProc/build*
 
 # Ignore weird files
 *.swp

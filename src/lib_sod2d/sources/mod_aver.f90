@@ -82,7 +82,8 @@ module mod_aver
       implicit none
       logical, intent(in)                             :: isPeriodic
       integer(4), intent(in)                          :: npoin,nelem
-		integer(4), intent(in), optional						:: nper
+      !integer(4), intent(in), optional						:: nper  
+		integer(4), intent(in)          						:: nper   ! Oriol not good this is just for Itel compilation
       integer(4), intent(in), optional                :: masSla(nper,2)
       real(rp), intent(inout)                         :: acutim
       real(rp), intent(inout), dimension(npoin)       :: acurho, acupre, acumueff
@@ -94,7 +95,8 @@ module mod_aver
       !
       ! If case is periodic, adjust slave nodes
       !
-      if (isPeriodic .and. present(masSla) .and. present(nper)) then
+      if (isPeriodic .and. present(masSla)) then
+      !if (isPeriodic .and. present(masSla) .and. present(nper)) then
          !$acc parallel loop
          do iper = 1,nper
             acuvel(masSla(iper,2),1) = acuvel(masSla(iper,1),1)

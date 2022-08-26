@@ -276,7 +276,7 @@ module time_integ
                !TESTING NEW LOCATION FOR MPICOMMS
                if(mpi_size.ge.2) then
                   call nvtxStartRange("MPI_comms_tI")
-#if 1
+#if 0
                   call sendRcv_floatField(Rmass)
                   call sendRcv_floatField(Rener)
                   do idime = 1,ndime
@@ -297,7 +297,7 @@ module time_integ
                      call sendRcv_floatField_noGPU(Rmom(:,idime))
                   end do
 #endif
-#if 0
+#if 1
                   call update_and_comm_floatField(Rmass)
                   call update_and_comm_floatField(Rener)
                   do idime = 1,ndime
