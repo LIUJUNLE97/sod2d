@@ -21,19 +21,19 @@ program tool_hdf5_to_cgns
 !------------------------------------------------------------------------------------------------------
 
     write(mesh_h5_file_path,*) ""
-    write(mesh_h5_file_name,*) "cube10"
+    write(mesh_h5_file_name,*) "channel_sem"
 
     write(cgns_file_path,*) ""
-    write(cgns_file_name,*) "cube10"
+    write(cgns_file_name,*) "channel_sem"
 
     write(results_h5_file_path,*) ""
-    write(results_h5_file_name,*) "results"
+    write(results_h5_file_name,*) "resultsFile"
 
-    write(res_string,*) "results"
+    write(res_string,*) "resultsFile"
 
-    first_step = 1
-    last_step  = 1001
-    nstep      = 250
+    first_step = 1920001
+    last_step  = 1920001
+    nstep      = 1
 
 !------------------------------------------------------------------------------------------------------
     call init_mpi()
@@ -80,6 +80,7 @@ program tool_hdf5_to_cgns
         call add_write_floatField_CGNSmesh_vertexSolution('VelocityY',u(:,2))
         call add_write_floatField_CGNSmesh_vertexSolution('VelocityZ',u(:,3))
         call add_write_floatField_CGNSmesh_vertexSolution('E',E)
+        call add_write_floatField_CGNSmesh_vertexSolution('pr',pr)
         call add_write_floatField_CGNSmesh_vertexSolution('eta',eta)
         call add_write_floatField_CGNSmesh_vertexSolution('csound',csound)
         call add_write_floatField_CGNSmesh_vertexSolution('machno',machno)
