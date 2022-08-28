@@ -1,3 +1,5 @@
+#define average 1
+
 program tool_hdf5_to_cgns
     use mod_mpi
     use mod_mpi_mesh
@@ -14,9 +16,15 @@ program tool_hdf5_to_cgns
 
     integer :: first_step,last_step,nstep,iStep
     real(rp) :: time
+#if(average)
+    real(rp), allocatable :: avrho(:),avpre(:),avmueff(:)
+    real(rp), allocatable :: avvel(:,:),avve2(:,:)
+
+#else
     real(rp), allocatable :: rho(:),pr(:),E(:),eta(:),csound(:),machno(:),divU(:),Qcrit(:)
     real(rp), allocatable :: envit(:),mut(:),mu_fluid(:)
     real(rp), allocatable :: u(:,:),gradRho(:,:),curlU(:,:)
+#endif
 
 !------------------------------------------------------------------------------------------------------
 
@@ -26,13 +34,20 @@ program tool_hdf5_to_cgns
     write(cgns_file_path,*) ""
     write(cgns_file_name,*) "channel_sem"
 
+#if(average)
+    write(results_h5_file_path,*) ""
+    write(results_h5_file_name,*) "resultsFile"
+
+    write(res_string,*) "resultsFile_AVG"
+#else
     write(results_h5_file_path,*) ""
     write(results_h5_file_name,*) "resultsFile"
 
     write(res_string,*) "resultsFile"
+#endif
 
-    first_step = 1920001
-    last_step  = 1920001
+    first_step = 2760001
+    last_step  = 2760001
     nstep      = 1
 
 !------------------------------------------------------------------------------------------------------
@@ -45,6 +60,13 @@ program tool_hdf5_to_cgns
     if(mpi_rank.eq.0) write(*,*) '## LOADING HDF5 MESH FILE... ##'
     call load_hdf5_meshfile(mesh_h5_file_path,mesh_h5_file_name)
 
+#if(average)
+    allocate(avrho(numNodesRankPar))
+    allocate(avpre(numNodesRankPar))
+    allocate(avmueff(numNodesRankPar))
+    allocate(avvel(numNodesRankPar,ndime))
+    allocate(avve2(numNodesRankPar,ndime))
+#else
     allocate(rho(numNodesRankPar))
     allocate(pr(numNodesRankPar))
     allocate(E(numNodesRankPar))
@@ -59,6 +81,7 @@ program tool_hdf5_to_cgns
     allocate(u(numNodesRankPar,ndime))
     allocate(gradRho(numNodesRankPar,ndime))
     allocate(curlU(numNodesRankPar,ndime))
+#endif
 
     call init_CGNSmesh_arrays()
 
@@ -70,11 +93,25 @@ program tool_hdf5_to_cgns
 
         if(mpi_rank.eq.0) write(*,*) '## LOADING HDF5 RESULTS FILE... ##'
 
+#if(average)
+        call load_hdf5_avgResultsFile(iStep,avvel,avve2,avrho,avpre,avmueff)
+#else
         call load_hdf5_resultsFile_allArrays(iStep,time,rho,u,pr,E,eta,csound,machno,gradRho,curlU,divU,Qcrit,mu_fluid,envit,mut)
+#endif
 
         if(mpi_rank.eq.0) write(*,*) '## CREATING CGNS FILE... ##'
         call create_CGNSmesh_par(full_fileName)
-
+#if(average)
+        call add_write_floatField_CGNSmesh_vertexSolution('avrho',avrho)
+        call add_write_floatField_CGNSmesh_vertexSolution('avpre',avpre)
+        call add_write_floatField_CGNSmesh_vertexSolution('avmueff',avmueff)
+        call add_write_floatField_CGNSmesh_vertexSolution('avvelX',avvel(:,1))
+        call add_write_floatField_CGNSmesh_vertexSolution('avvelY',avvel(:,2))
+        call add_write_floatField_CGNSmesh_vertexSolution('avvelZ',avvel(:,3))
+        call add_write_floatField_CGNSmesh_vertexSolution('avve2X',avve2(:,1))
+        call add_write_floatField_CGNSmesh_vertexSolution('avve2Y',avve2(:,2))
+        call add_write_floatField_CGNSmesh_vertexSolution('avve2Z',avve2(:,3))
+#else
         call add_write_floatField_CGNSmesh_vertexSolution('rho',rho)
         call add_write_floatField_CGNSmesh_vertexSolution('VelocityX',u(:,1))
         call add_write_floatField_CGNSmesh_vertexSolution('VelocityY',u(:,2))
@@ -95,6 +132,7 @@ program tool_hdf5_to_cgns
         call add_write_floatField_CGNSmesh_vertexSolution('mu_fluid',mu_fluid)
         call add_write_floatField_CGNSmesh_vertexSolution('envit',envit)
         call add_write_floatField_CGNSmesh_vertexSolution('mut',mut)
+#endif
 
         call close_CGNSmesh_par()
     end do
