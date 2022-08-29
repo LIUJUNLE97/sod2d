@@ -1,4 +1,4 @@
-#define average 1
+#define average 0
 
 program tool_hdf5_to_cgns
     use mod_mpi
@@ -46,8 +46,8 @@ program tool_hdf5_to_cgns
     write(res_string,*) "results"
 #endif
 
-    first_step = 2760001
-    last_step  = 3880001
+    first_step = 3960001
+    last_step  = 3960001
     nstep      = 40000
 
 !------------------------------------------------------------------------------------------------------
@@ -160,11 +160,11 @@ program tool_hdf5_to_cgns
         
     if(mpi_rank.eq.0) write(*,*) '## Doing final Avg... ##'
 
-    favrho(:)   = favrho(:)   / numAvgSteps
-    favpre(:)   = favpre(:)   / numAvgSteps
-    favmueff(:) = favmueff(:) / numAvgSteps
-    favvel(:,:) = favvel(:,:) / numAvgSteps
-    favve2(:,:) = favve2(:,:) / numAvgSteps
+    favrho(:)   = favrho(:)   / real(numAvgSteps, rp)
+    favpre(:)   = favpre(:)   / real(numAvgSteps, rp)
+    favmueff(:) = favmueff(:) / real(numAvgSteps, rp)
+    favvel(:,:) = favvel(:,:) / real(numAvgSteps, rp)
+    favve2(:,:) = favve2(:,:) / real(numAvgSteps, rp)
     
     write(res_string,*) "results_finalAVG"
     call set_CGNS_full_fileName(full_fileName,cgns_file_path,cgns_file_name,res_string,iStep)
