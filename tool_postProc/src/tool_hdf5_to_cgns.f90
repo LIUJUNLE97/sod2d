@@ -12,14 +12,14 @@ program tool_hdf5_to_cgns
     character(512) :: results_h5_file_path,results_h5_file_name
     character(128) :: res_string
     character(999) :: full_fileName
-    !logical :: periodic,loadMesh
 
-    integer :: first_step,last_step,nstep,iStep
+    integer :: first_step,last_step,nstep,iStep,numAvgSteps
     real(rp) :: time
 #if(average)
     real(rp), allocatable :: avrho(:),avpre(:),avmueff(:)
     real(rp), allocatable :: avvel(:,:),avve2(:,:)
-
+    real(rp), allocatable :: favrho(:),favpre(:),favmueff(:)
+    real(rp), allocatable :: favvel(:,:),favve2(:,:)
 #else
     real(rp), allocatable :: rho(:),pr(:),E(:),eta(:),csound(:),machno(:),divU(:),Qcrit(:)
     real(rp), allocatable :: envit(:),mut(:),mu_fluid(:)
@@ -29,26 +29,26 @@ program tool_hdf5_to_cgns
 !------------------------------------------------------------------------------------------------------
 
     write(mesh_h5_file_path,*) ""
-    write(mesh_h5_file_name,*) "channel_sem"
+    write(mesh_h5_file_name,*) "cube10"!"channel_sem"
 
     write(cgns_file_path,*) ""
-    write(cgns_file_name,*) "channel_sem"
+    write(cgns_file_name,*) "cube10"!"channel_sem"
 
 #if(average)
     write(results_h5_file_path,*) ""
-    write(results_h5_file_name,*) "resultsFile"
+    write(results_h5_file_name,*) "results"
 
-    write(res_string,*) "resultsFile_AVG"
+    write(res_string,*) "results_AVG"
 #else
     write(results_h5_file_path,*) ""
-    write(results_h5_file_name,*) "resultsFile"
+    write(results_h5_file_name,*) "results"
 
-    write(res_string,*) "resultsFile"
+    write(res_string,*) "results"
 #endif
 
-    first_step = 2760001
-    last_step  = 2760001
-    nstep      = 1
+    first_step = 1
+    last_step  = 2001
+    nstep      = 250
 
 !------------------------------------------------------------------------------------------------------
     call init_mpi()
@@ -61,11 +61,17 @@ program tool_hdf5_to_cgns
     call load_hdf5_meshfile(mesh_h5_file_path,mesh_h5_file_name)
 
 #if(average)
+    numAvgSteps = 0
     allocate(avrho(numNodesRankPar))
     allocate(avpre(numNodesRankPar))
     allocate(avmueff(numNodesRankPar))
     allocate(avvel(numNodesRankPar,ndime))
     allocate(avve2(numNodesRankPar,ndime))
+    allocate(favrho(numNodesRankPar))
+    allocate(favpre(numNodesRankPar))
+    allocate(favmueff(numNodesRankPar))
+    allocate(favvel(numNodesRankPar,ndime))
+    allocate(favve2(numNodesRankPar,ndime))
 #else
     allocate(rho(numNodesRankPar))
     allocate(pr(numNodesRankPar))
@@ -94,6 +100,7 @@ program tool_hdf5_to_cgns
         if(mpi_rank.eq.0) write(*,*) '## LOADING HDF5 RESULTS FILE... ##'
 
 #if(average)
+        numAvgSteps = numAvgSteps + 1
         call load_hdf5_avgResultsFile(iStep,avvel,avve2,avrho,avpre,avmueff)
 #else
         call load_hdf5_resultsFile_allArrays(iStep,time,rho,u,pr,E,eta,csound,machno,gradRho,curlU,divU,Qcrit,mu_fluid,envit,mut)
@@ -111,6 +118,18 @@ program tool_hdf5_to_cgns
         call add_write_floatField_CGNSmesh_vertexSolution('avve2X',avve2(:,1))
         call add_write_floatField_CGNSmesh_vertexSolution('avve2Y',avve2(:,2))
         call add_write_floatField_CGNSmesh_vertexSolution('avve2Z',avve2(:,3))
+
+        favrho(:)   = favrho(:)   + avrho(:)
+        favpre(:)   = favpre(:)   + avpre(:)
+        favmueff(:) = favmueff(:) + avmueff(:)
+        favvel(:,:) = favvel(:,:) + avvel(:,:)
+        favve2(:,:) = favve2(:,:) + avve2(:,:)
+        !favvel(:,1) = favvel(:,1) + avvel(:,1)
+        !favvel(:,2) = favvel(:,2) + avvel(:,2)
+        !favvel(:,3) = favvel(:,3) + avvel(:,3)
+        !favve2(:,1) = favve2(:,1) + avve2(:,1)
+        !favve2(:,2) = favve2(:,2) + avve2(:,2)
+        !favve2(:,3) = favve2(:,3) + avve2(:,3)
 #else
         call add_write_floatField_CGNSmesh_vertexSolution('rho',rho)
         call add_write_floatField_CGNSmesh_vertexSolution('VelocityX',u(:,1))
@@ -136,6 +155,35 @@ program tool_hdf5_to_cgns
 
         call close_CGNSmesh_par()
     end do
+
+#if(average)
+        
+    if(mpi_rank.eq.0) write(*,*) '## Doing final Avg... ##'
+
+    favrho(:)   = favrho(:)   / numAvgSteps
+    favpre(:)   = favpre(:)   / numAvgSteps
+    favmueff(:) = favmueff(:) / numAvgSteps
+    favvel(:,:) = favvel(:,:) / numAvgSteps
+    favve2(:,:) = favve2(:,:) / numAvgSteps
+    
+    write(res_string,*) "results_finalAVG"
+    call set_CGNS_full_fileName(full_fileName,cgns_file_path,cgns_file_name,res_string,iStep)
+
+    call create_CGNSmesh_par(full_fileName)
+
+    call add_write_floatField_CGNSmesh_vertexSolution('favrho',favrho)
+    call add_write_floatField_CGNSmesh_vertexSolution('favpre',favpre)
+    call add_write_floatField_CGNSmesh_vertexSolution('favmueff',favmueff)
+    call add_write_floatField_CGNSmesh_vertexSolution('favvelX',favvel(:,1))
+    call add_write_floatField_CGNSmesh_vertexSolution('favvelY',favvel(:,2))
+    call add_write_floatField_CGNSmesh_vertexSolution('favvelZ',favvel(:,3))
+    call add_write_floatField_CGNSmesh_vertexSolution('favve2X',favve2(:,1))
+    call add_write_floatField_CGNSmesh_vertexSolution('favve2Y',favve2(:,2))
+    call add_write_floatField_CGNSmesh_vertexSolution('favve2Z',favve2(:,3))
+
+    call close_CGNSmesh_par()
+
+#endif
 
     call end_CGNSmesh_arrays()
 

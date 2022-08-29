@@ -97,15 +97,7 @@ contains
       readFiles = .false.
 
       if(readFiles) then
-         !$acc parallel loop
-         do iNodeL = 1,numNodesRankPar
-              u(iNodeL,1,2) = 1.0_rp
-              u(iNodeL,2,2) = 0.0_rp
-              u(iNodeL,3,2) = 0.0_rp
-         end do
-         !$acc end parallel loop
-      else
-         !call read_veloc(this%npoin,this%gmsh_file_path,u(:,:,2))
+         this%interpInitialResults = .true.
          call read_veloc_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniU)
          do iNodeL=1,numNodesRankPar
             iNodeGSrl=globalIdSrl(iNodeL)
@@ -113,8 +105,16 @@ contains
             u(iNodeL,2,2) = iniU(iNodeGSrl,2)
             u(iNodeL,3,2) = iniU(iNodeGSrl,3)
          end do
-
+      else
+         !$acc parallel loop
+         do iNodeL = 1,numNodesRankPar
+              u(iNodeL,1,2) = 1.0_rp
+              u(iNodeL,2,2) = 0.0_rp
+              u(iNodeL,3,2) = 0.0_rp
+         end do
+         !$acc end parallel loop
       end if
+
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          pr(iNodeL,2) = this%po

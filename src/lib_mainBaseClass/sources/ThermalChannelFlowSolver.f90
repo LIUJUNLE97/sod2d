@@ -114,9 +114,7 @@ contains
       readFiles = .true.
 
       if(readFiles) then
-         !call read_veloc(this%npoin,this%gmsh_file_path,u(:,:,2))
-         !call read_densi(this%npoin,this%gmsh_file_path,rho(:,2))
-         !call read_temper(this%npoin,this%gmsh_file_path,Tem(:,2))
+         this%interpInitialResults = .true.
          call read_veloc_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniU)
          call read_densi_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniRho)
          call read_temper_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniT)

@@ -90,9 +90,7 @@ contains
       real(4) :: iniU(totalNumNodesSrl,ndime), iniRho(totalNumNodesSrl), iniP(totalNumNodesSrl)
       integer(4) :: iNodeL,iNodeGSrl
 
-      !call read_veloc(this%npoin,this%gmsh_file_path,u(:,:,2))
-      !call read_densi(this%npoin,this%gmsh_file_path,rho(:,2))
-      !call read_press(this%npoin,this%gmsh_file_path,pr(:,2))
+      this%interpInitialResults = .true.
       call read_veloc_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniU)
       call read_densi_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniRho)
       call read_press_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniP)
