@@ -47,8 +47,8 @@ program tool_hdf5_to_cgns
 #endif
 
     first_step = 2760001
-    last_step  = 2760001
-    nstep      = 1
+    last_step  = 3880001
+    nstep      = 40000
 
 !------------------------------------------------------------------------------------------------------
     call init_mpi()
