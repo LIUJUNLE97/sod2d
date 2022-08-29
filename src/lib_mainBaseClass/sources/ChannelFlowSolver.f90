@@ -107,7 +107,7 @@ contains
       real(4) :: iniU(totalNumNodesSrl,ndime)
       integer(4) :: iNodeL,iNodeGSrl
 
-      !call read_veloc(this%npoin,this%gmsh_file_path,u(:,:,2))
+      this%interpInitialResults = .true.
       call read_veloc_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniU)
       do iNodeL=1,numNodesRankPar
          iNodeGSrl=globalIdSrl(iNodeL)
