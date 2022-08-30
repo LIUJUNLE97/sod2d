@@ -79,7 +79,7 @@ contains
       character(len=*), intent(in) :: full_fileName
 
       !cgns_pathfile_name = trim(adjustl(file_path))//trim(adjustl(file_name))//'.cgns'
-      if(mpi_rank.eq.0) write(*,*) ' # Creating cgns file:',full_fileName
+      if(mpi_rank.eq.0) write(*,*) ' # Creating cgns file: ',trim(adjustl(full_fileName))
 
       call cgp_open_f(full_fileName,CG_MODE_WRITE,index_file,cg_err)
       if (cg_err .ne. CG_OK) call cgp_error_exit_f
@@ -743,7 +743,7 @@ end subroutine open_CGNSmesh_par
 
       fieldNamesV(fieldId) = trim(fieldName_in)
       num_fields_V = fieldId
-      if(mpi_rank.eq.0) write(*,*) 'Added Integer Field (V) ',fieldName_in,' with id ',fieldId
+      if(mpi_rank.eq.0) write(*,*) ' - Added Integer Field (V) ',fieldName_in,' with id ',fieldId
       if(present(fieldId_out)) fieldId_out = fieldId
 
    end subroutine add_integerField_CGNSmesh_vertexSolution
@@ -803,7 +803,7 @@ end subroutine open_CGNSmesh_par
 
       fieldNamesV(fieldId) = trim(fieldName_in)
       num_fields_V = fieldId
-      if(mpi_rank.eq.0) write(*,*) 'Added float Field (V) ',fieldName_in,' with id ',fieldId
+      if(mpi_rank.eq.0) write(*,*) ' - Added float Field (V) ',fieldName_in,' with id ',fieldId
       if(present(fieldId_out)) fieldId_out = fieldId
 
    end subroutine add_floatField_CGNSmesh_vertexSolution
@@ -847,7 +847,7 @@ end subroutine open_CGNSmesh_par
 
       fieldNamesV(fieldId) = trim(fieldName_in)
       num_fields_V = fieldId
-      if(mpi_rank.eq.0) write(*,*) 'Added Double Field (V) ',fieldName_in,' with id ',fieldId
+      if(mpi_rank.eq.0) write(*,*) ' - Added Double Field (V) ',fieldName_in,' with id ',fieldId
       if(present(fieldId_out)) fieldId_out = fieldId
 
    end subroutine add_doubleField_CGNSmesh_vertexSolution
@@ -889,7 +889,7 @@ end subroutine open_CGNSmesh_par
 
       fieldNamesCC(fieldId) = trim(fieldName_in)
       num_fields_CC = fieldId
-      if(mpi_rank.eq.0) write(*,*) 'Added Integer Field (CC) ',fieldName_in,' with id ',fieldId
+      if(mpi_rank.eq.0) write(*,*) ' - Added Integer Field (CC) ',fieldName_in,' with id ',fieldId
       if(present(fieldId_out)) fieldId_out = fieldId
 
    end subroutine add_integerField_CGNSmesh_cellCenterSolution
@@ -952,7 +952,7 @@ end subroutine open_CGNSmesh_par
 
       fieldNamesCC(fieldId) = trim(fieldName_in)
       num_fields_CC = fieldId
-      if(mpi_rank.eq.0) write(*,*) 'Added Double Field (CC) ',fieldName_in,' with id ',fieldId
+      if(mpi_rank.eq.0) write(*,*) ' - Added Double Field (CC) ',fieldName_in,' with id ',fieldId
       if(present(fieldId_out)) fieldId_out = fieldId
 
    end subroutine add_doubleField_CGNSmesh_cellCenterSolution
