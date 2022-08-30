@@ -399,6 +399,7 @@ contains
          if(this%continue_oldLogs) then
             this%initial_istep = this%load_step
             this%nsave = this%load_step+this%nleap
+            this%nsaveAVG = this%load_step+this%nleapAVG
             this%nsave2 = this%load_step+this%nleap2
             this%isFreshStart = .false.
          end if
