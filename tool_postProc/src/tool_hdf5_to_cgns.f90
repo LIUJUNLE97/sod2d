@@ -1,4 +1,4 @@
-#define average 1
+#define average 0
 
 module str2int_mod
 contains 
@@ -319,12 +319,12 @@ program tool_hdf5_to_cgns
     if(do_averages) then
         if(mpi_rank.eq.0) write(*,*) '# Doing final Avg...'
 
-        favrho(:)   = favrho(:)   / numAvgSteps
-        favpre(:)   = favpre(:)   / numAvgSteps
-        favmueff(:) = favmueff(:) / numAvgSteps
-        favvel(:,:) = favvel(:,:) / numAvgSteps
-        favve2(:,:) = favve2(:,:) / numAvgSteps
-
+        favrho(:)   = favrho(:)   / real(numAvgSteps, rp)
+        favpre(:)   = favpre(:)   / real(numAvgSteps, rp)
+        favmueff(:) = favmueff(:) / real(numAvgSteps, rp)
+        favvel(:,:) = favvel(:,:) / real(numAvgSteps, rp)
+        favve2(:,:) = favve2(:,:) / real(numAvgSteps, rp)
+    
         write(output_cgns_fileName,*) "results_finalAVG"
         iStep = 0
         call set_CGNS_full_fileName(full_fileName,cgns_filePath,cgns_fileName,output_cgns_fileName,iStep)

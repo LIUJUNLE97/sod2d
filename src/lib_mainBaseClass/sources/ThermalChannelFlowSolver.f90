@@ -64,7 +64,10 @@ contains
 
       this%isPeriodic = .true.
       this%loadMesh = .true.
-      this%loadResults = .false.
+      this%loadResults = .true.
+      this%continue_oldLogs = .true.
+      this%load_step = 3880001
+      this%initial_istep=3880001
 
       this%nstep = 90000000
       this%cfl_conv = 1.5_rp
