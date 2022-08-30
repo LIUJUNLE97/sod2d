@@ -63,11 +63,10 @@ contains
       write(this%mesh_h5_file_name,*) "channel_sem" ! Nsys
 
       this%isPeriodic = .true.
-      this%loadMesh = .true.
-      this%loadResults = .true.
-      this%continue_oldLogs = .true.
-      this%load_step = 3880001
-      this%initial_istep=3880001
+      this%loadMesh = .false.
+      this%loadResults = .false.
+      !this%continue_oldLogs = .true.
+      !this%load_step = 3880001
 
       this%nstep = 90000000
       this%cfl_conv = 1.5_rp
@@ -75,15 +74,15 @@ contains
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 40000 ! Saving interval, TODO: input
+      this%nleap = 50000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 50  ! Saving interval, TODO: input
-      this%nleapAVG = 40000
+      this%nleapAVG = 50000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
       this%tC = 293.0_rp
-      this%tH = 586.0_rp
+      this%tH = this%tC*5.0_rp
       this%delta  = 0.0015_rp*2.0_rp
       this%gamma_gas = 1.40_rp
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas

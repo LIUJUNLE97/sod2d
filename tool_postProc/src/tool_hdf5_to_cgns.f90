@@ -29,19 +29,19 @@ program tool_hdf5_to_cgns
 !------------------------------------------------------------------------------------------------------
 
     write(mesh_h5_file_path,*) ""
-    write(mesh_h5_file_name,*) "cube10"!"channel_sem"
+    write(mesh_h5_file_name,*) "channel_sem"
 
     write(cgns_file_path,*) ""
-    write(cgns_file_name,*) "cube10"!"channel_sem"
+    write(cgns_file_name,*) "channel_sem"
 
 #if(average)
     write(results_h5_file_path,*) ""
-    write(results_h5_file_name,*) "results"
+    write(results_h5_file_name,*) "resultsFile"
 
     write(res_string,*) "results_AVG"
 #else
     write(results_h5_file_path,*) ""
-    write(results_h5_file_name,*) "results"
+    write(results_h5_file_name,*) "resultsFile"
 
     write(res_string,*) "results"
 #endif
