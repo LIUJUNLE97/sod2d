@@ -1,0 +1,3 @@
+[submodule "external/gempa"]
+	path = external/gempa
+	url = https://gitlab.com/rickbp/gempa.git
