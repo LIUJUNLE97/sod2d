@@ -29,7 +29,7 @@ program tool_hdf5_to_cgns
     character(999) :: full_fileName,input_file,read_sec,read_val
     logical :: do_averages=.false.
 
-    integer :: first_step,last_step,nstep,iStep,numAvgSteps,stat,aux_int
+    integer :: first_step,last_step,nstep,iStep,numAvgSteps,stat,aux_int, i, j
     real(rp) :: time
 
     !---------------------- ARRAYS -------------------------
@@ -236,6 +236,15 @@ program tool_hdf5_to_cgns
         allocate(favmueff(numNodesRankPar))
         allocate(favvel(numNodesRankPar,ndime))
         allocate(favve2(numNodesRankPar,ndime))
+        do i = 1, numNodesRankPar 
+           favrho(i)   = 0.0_rp
+           favpre(i)   = 0.0_rp
+           favmueff(i) = 0.0_rp
+           do j = 1, ndime
+              favvel(i,j) = 0.0_rp
+              favve2(i,j) = 0.0_rp
+           end do
+        end do
     else
         allocate(rho(numNodesRankPar))
         allocate(pr(numNodesRankPar))
@@ -288,8 +297,8 @@ program tool_hdf5_to_cgns
             favrho(:)   = favrho(:)   + avrho(:)
             favpre(:)   = favpre(:)   + avpre(:)
             favmueff(:) = favmueff(:) + avmueff(:)
-            favvel(:,:) = favvel(:,:) + avvel(:,:)
-            favve2(:,:) = favve2(:,:) + avve2(:,:)
+            favvel(:,1:3) = favvel(:,1:3) + avvel(:,1:3)
+            favve2(:,1:3) = favve2(:,1:3) + avve2(:,1:3)
         else
             call add_write_floatField_CGNSmesh_vertexSolution('rho',rho)
             call add_write_floatField_CGNSmesh_vertexSolution('VelocityX',u(:,1))
@@ -319,11 +328,15 @@ program tool_hdf5_to_cgns
     if(do_averages) then
         if(mpi_rank.eq.0) write(*,*) '# Doing final Avg...'
 
-        favrho(:)   = favrho(:)   / real(numAvgSteps, rp)
-        favpre(:)   = favpre(:)   / real(numAvgSteps, rp)
-        favmueff(:) = favmueff(:) / real(numAvgSteps, rp)
-        favvel(:,:) = favvel(:,:) / real(numAvgSteps, rp)
-        favve2(:,:) = favve2(:,:) / real(numAvgSteps, rp)
+        do i = 1, numNodesRankPar 
+           favrho(i)   = favrho(i)   / real(numAvgSteps, rp)
+           favpre(i)   = favpre(i)   / real(numAvgSteps, rp)
+           favmueff(i) = favmueff(i) / real(numAvgSteps, rp)
+           do j = 1, ndime
+              favvel(i,j) = favvel(i,j) / real(numAvgSteps, rp)
+              favve2(i,j) = favve2(i,j) / real(numAvgSteps, rp)
+           end do
+        end do
     
         write(output_cgns_fileName,*) "results_finalAVG"
         iStep = 0
