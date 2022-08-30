@@ -170,7 +170,7 @@ module mod_bc_routines
                         aux_u(bound(iboun,ipbou),2) = 0.0_rp
                         aux_u(bound(iboun,ipbou),3) = 0.0_rp
 
-                        aux_rho(bound(iboun,ipbou)) = nscbc_p_inf/nscbc_Rgas_inf/586.0_rp
+                        aux_rho(bound(iboun,ipbou)) = nscbc_p_inf/nscbc_Rgas_inf/nscbc_T_H
                         aux_p(bound(iboun,ipbou)) = nscbc_p_inf
                         aux_E(bound(iboun,ipbou)) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
                      end do
@@ -185,7 +185,7 @@ module mod_bc_routines
                         aux_u(bound(iboun,ipbou),2) = 0.0_rp
                         aux_u(bound(iboun,ipbou),3) = 0.0_rp
 
-                        aux_rho(bound(iboun,ipbou)) = nscbc_p_inf/nscbc_Rgas_inf/293.0_rp
+                        aux_rho(bound(iboun,ipbou)) = nscbc_p_inf/nscbc_Rgas_inf/nscbc_T_C
                         aux_p(bound(iboun,ipbou)) = nscbc_p_inf
                         aux_E(bound(iboun,ipbou)) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
                     end do
