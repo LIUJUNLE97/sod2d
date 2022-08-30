@@ -1837,7 +1837,7 @@ contains
       !real(8) :: aux_double_array(numNodesRankPar)
       
       call set_hdf5_resultsFile_name(load_step,full_loadFileName)
-      if(mpi_rank.eq.0) write(*,*) '# Loading results file: ',full_loadFileName
+      if(mpi_rank.eq.0) write(*,*) '# Loading results file: ',trim(adjustl(full_loadFileName))
 
       ! Setup file access property list with parallel I/O access.
       call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
@@ -2123,7 +2123,7 @@ contains
       ! Writing HDF5 Files
 
       call set_hdf5_avgResultsFile_name(iStep,full_fileName)
-      if(mpi_rank.eq.0) write(*,*) '# Loading results file: ',full_fileName
+      if(mpi_rank.eq.0) write(*,*) '# Loading results file: ',trim(adjustl(full_fileName))
 
       ! Setup file access property list with parallel I/O access.
       call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
