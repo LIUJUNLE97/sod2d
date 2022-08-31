@@ -66,7 +66,7 @@ contains
       write(this%results_h5_file_name,*) "results"
 
       this%isPeriodic = .true.
-      this%loadMesh = .false.
+      this%loadMesh = .true.
       this%loadResults = .false.
       !this%continue_oldLogs = .true.
       !this%load_step = 3880001
@@ -85,7 +85,7 @@ contains
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
       this%tC = 293.0_rp
-      this%tH = this%tC*5.0_rp
+      this%tH = this%tC*2.0_rp
       this%delta  = 0.0015_rp*2.0_rp
       this%gamma_gas = 1.40_rp
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
@@ -106,6 +106,8 @@ contains
       nscbc_p_inf = this%po
       nscbc_Rgas_inf = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
+      nscbc_T_C = this%tC
+      nscbc_T_H = this%tH
 
    end subroutine ThermalChannelFlowSolver_initializeParameters
 

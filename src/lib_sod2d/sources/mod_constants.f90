@@ -67,5 +67,7 @@ module mod_constants
       real(rp) :: nscbc_c_inf = 1.0_rp
       real(rp) :: nscbc_rho_inf   = 1.0_rp
       real(rp) :: nscbc_Rgas_inf   = 1.0_rp
+      real(rp) :: nscbc_T_H   = 293.0_rp
+      real(rp) :: nscbc_T_C   = 293.0_rp
 
 end module mod_constants
