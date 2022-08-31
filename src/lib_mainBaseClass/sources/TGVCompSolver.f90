@@ -87,22 +87,14 @@ contains
 
    subroutine TGVCompSolver_evalInitialConditions(this)
       class(TGVCompSolver), intent(inout) :: this
-      real(4) :: iniU(totalNumNodesSrl,ndime), iniRho(totalNumNodesSrl), iniP(totalNumNodesSrl)
-      integer(4) :: iNodeL,iNodeGSrl
+      integer(rp) :: matGidSrlOrdered(numNodesRankPar,2)
+      integer(4) :: iNodeL
 
       this%interpInitialResults = .true.
-      call read_veloc_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniU)
-      call read_densi_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniRho)
-      call read_press_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniP)
-
-      do iNodeL=1,numNodesRankPar
-         iNodeGSrl=globalIdSrl(iNodeL)
-         u(iNodeL,1,2) = iniU(iNodeGSrl,1)
-         u(iNodeL,2,2) = iniU(iNodeGSrl,2)
-         u(iNodeL,3,2) = iniU(iNodeGSrl,3)
-         rho(iNodeL,2) = iniRho(iNodeGSrl)
-         pr(iNodeL,2)  = iniP(iNodeGSrl)
-      end do
+      call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
+      call read_veloc_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),matGidSrlOrdered)
+      call read_densi_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,rho(:,2),matGidSrlOrdered)
+      call read_press_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,pr(:,2),matGidSrlOrdered)
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar

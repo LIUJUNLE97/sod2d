@@ -1,6 +1,7 @@
 module inicond_reader
 
       use mod_constants
+      use mod_utils
       use mod_mpi
 
       contains
@@ -118,5 +119,161 @@ module inicond_reader
                       close(99)
 
               end subroutine read_temper_from_file_Srl
+
+   subroutine order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
+      implicit none
+      integer, intent(in)  :: numNodesRankPar
+      integer, intent(in)  :: globalIdSrl(numNodesRankPar)
+      integer, intent(out) :: matGidSrlOrdered(numNodesRankPar,2)
+      integer :: iNodeL
+
+      do iNodeL=1,numNodesRankPar
+         matGidSrlOrdered(iNodeL,1) = iNodeL
+         matGidSrlOrdered(iNodeL,2) = globalIdSrl(iNodeL)
+      end do
+
+      call quicksort_matrix_int(matGidSrlOrdered,2)
+
+   end subroutine order_matrix_globalIdSrl
+
+   subroutine read_densi_from_file_Par(numNodesRankPar,totalNumNodesSrl,file_path,rho,matGidSrlOrdered)
+      implicit none
+      character(500), intent(in) :: file_path
+      integer(4), intent(in)     :: numNodesRankPar,totalNumNodesSrl
+      real(rp), intent(out)      :: rho(numNodesRankPar)
+      integer, intent(in)        :: matGidSrlOrdered(numNodesRankPar,2)
+      character(500)             :: file_type, file_name
+      integer(4)                 :: iLine,iNodeL,iNodeGSrl,auxCnt,readInd
+      real(8)                    :: readValue
+
+      write(file_type,*) ".alya"
+      write(file_name,*) "DENSI"
+      if(mpi_rank.eq.0) write(*,*) "--| Reading file DENSI.alya in parallel..."
+
+      open(99,file=trim(adjustl(file_path))//trim(adjustl(file_name))//trim(adjustl(file_type)),status="old")
+      
+      auxCnt = 1
+      do iLine = 1,totalNumNodesSrl
+         read(99,*) readInd, readValue
+         if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
+            iNodeL = matGidSrlOrdered(auxCnt,1)
+            auxCnt=auxCnt+1
+            if(rp.eq.4) then
+               rho(iNodeL) = real(readValue,rp)
+            else
+               rho(iNodeL) = readValue
+            end if
+         end if         
+      end do
+      
+      close(99)
+
+   end subroutine read_densi_from_file_Par
+
+   subroutine read_veloc_from_file_Par(numNodesRankPar,totalNumNodesSrl,file_path,u,matGidSrlOrdered)
+      implicit none
+      character(500), intent(in) :: file_path
+      integer(4), intent(in)     :: numNodesRankPar,totalNumNodesSrl
+      real(rp), intent(out)      :: u(numNodesRankPar,ndime)
+      integer, intent(in)        :: matGidSrlOrdered(numNodesRankPar,2)
+      character(500)             :: file_type, file_name
+      integer(4)                 :: iLine,iNodeL,iNodeGSrl,auxCnt,readInd
+      real(8)                    :: readValue_ux,readValue_uy,readValue_uz
+
+      write(file_type,*) ".alya"
+      write(file_name,*) "VELOC"
+      if(mpi_rank.eq.0) write(*,*) "--| Reading file VELOC.alya in parallel..."
+
+      open(99,file=trim(adjustl(file_path))//trim(adjustl(file_name))//trim(adjustl(file_type)),status="old")
+      
+      auxCnt = 1
+      do iLine = 1,totalNumNodesSrl
+         read(99,*) readInd, readValue_ux, readValue_uy, readValue_uz
+         if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
+            iNodeL = matGidSrlOrdered(auxCnt,1)
+            auxCnt=auxCnt+1
+            if(rp.eq.4) then
+               u(iNodeL,1)=real(readValue_ux,rp)
+               u(iNodeL,2)=real(readValue_uy,rp)
+               u(iNodeL,3)=real(readValue_uz,rp)
+            else
+               u(iNodeL,1)=readValue_ux
+               u(iNodeL,2)=readValue_uy
+               u(iNodeL,3)=readValue_uz
+            end if
+         end if         
+      end do
+      
+      close(99)
+
+   end subroutine read_veloc_from_file_Par
+
+   subroutine read_press_from_file_Par(numNodesRankPar,totalNumNodesSrl,file_path,pr,matGidSrlOrdered)
+      implicit none
+      character(500), intent(in) :: file_path
+      integer(4), intent(in)     :: numNodesRankPar,totalNumNodesSrl
+      real(rp), intent(out)      :: pr(numNodesRankPar)
+      integer, intent(in)        :: matGidSrlOrdered(numNodesRankPar,2)
+      character(500)             :: file_type, file_name
+      integer(4)                 :: iLine,iNodeL,iNodeGSrl,auxCnt,readInd
+      real(8)                    :: readValue
+
+      write(file_type,*) ".alya"
+      write(file_name,*) "PRESS"
+      if(mpi_rank.eq.0) write(*,*) "--| Reading file PRESS.alya in parallel..."
+
+      open(99,file=trim(adjustl(file_path))//trim(adjustl(file_name))//trim(adjustl(file_type)),status="old")
+      
+      auxCnt = 1
+      do iLine = 1,totalNumNodesSrl
+         read(99,*) readInd, readValue
+         if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
+            iNodeL = matGidSrlOrdered(auxCnt,1)
+            auxCnt=auxCnt+1
+            if(rp.eq.4) then
+               pr(iNodeL) = real(readValue,rp)
+            else
+               pr(iNodeL) = readValue
+            end if
+         end if         
+      end do
+      
+      close(99)
+
+   end subroutine read_press_from_file_Par
+
+   subroutine read_temper_from_file_Par(numNodesRankPar,totalNumNodesSrl,file_path,temp,matGidSrlOrdered)
+      implicit none
+      character(500), intent(in) :: file_path
+      integer(4), intent(in)     :: numNodesRankPar,totalNumNodesSrl
+      real(rp), intent(out)      :: temp(numNodesRankPar)
+      integer, intent(in)        :: matGidSrlOrdered(numNodesRankPar,2)
+      character(500)             :: file_type, file_name
+      integer(4)                 :: iLine,iNodeL,iNodeGSrl,auxCnt,readInd
+      real(8)                    :: readValue
+
+      write(file_type,*) ".alya"
+      write(file_name,*) "TEMPE"
+      if(mpi_rank.eq.0) write(*,*) "--| Reading file TEMPE.alya in parallel..."
+
+      open(99,file=trim(adjustl(file_path))//trim(adjustl(file_name))//trim(adjustl(file_type)),status="old")
+      
+      auxCnt = 1
+      do iLine = 1,totalNumNodesSrl
+         read(99,*) readInd, readValue
+         if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
+            iNodeL = matGidSrlOrdered(auxCnt,1)
+            auxCnt=auxCnt+1
+            if(rp.eq.4) then
+               temp(iNodeL) = real(readValue,rp)
+            else
+               temp(iNodeL) = readValue
+            end if
+         end if         
+      end do
+      
+      close(99)
+
+   end subroutine read_temper_from_file_Par
 
 end module inicond_reader

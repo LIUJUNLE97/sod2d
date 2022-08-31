@@ -895,7 +895,7 @@ contains
          call nvtxEndRange
 
          if (istep == this%nsave2) then
-            if (numBoundaryNodesRankPar .ne. 0) then
+            if (isMeshBoundaries) then
                do icode = 1,numBoundCodes!this%numCodes
                   call nvtxStartRange("Surface info")
                   call surfInfo(istep,this%time,numElemsInRank,numNodesRankPar,numBoundsRankPar,icode,connecParWork,boundPar,point2elem, &

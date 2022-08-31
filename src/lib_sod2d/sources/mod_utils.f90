@@ -152,6 +152,103 @@ subroutine quicksort_matrix_int(int_matrix,sort_col,firstrow,lastrow)
 
    enddo
 end subroutine quicksort_matrix_int
+
+subroutine quicksort_array_int(int_array,firstrow,lastrow)
+   integer, intent(inout)::int_array(:)
+   !integer, intent(in) :: sort_col
+   integer, intent(in),optional::firstrow,lastrow
+   integer :: temp
+   integer :: i,j,left,right,low,high,pivot
+   ! If your compiler lacks storage_size(), replace
+   ! storage_size(i) by 64
+   integer :: stack(2,storage_size(i)),stack_ptr
+
+   if(present(firstrow)) then
+      low=firstrow
+   else
+      low=1
+   endif
+   if(present(lastrow)) then
+      high =lastrow
+   else
+      high=size(int_array(:))
+   end if
+   stack_ptr=1
+
+   do
+      if (high-low.lt.50) then ! use insertion sort on small int_arrays
+         do i=low+1,high
+            temp=int_array(i)
+            do j=i-1,low,-1
+               if (int_array(j).le.temp) exit
+               int_array(j+1)=int_array(j)
+            enddo
+            int_array(j+1)=temp
+         enddo
+         ! now pop from stack
+         if (stack_ptr.eq.1) return
+         stack_ptr=stack_ptr-1
+         low=stack(1,stack_ptr)
+         high=stack(2,stack_ptr)
+         cycle
+      endif
+
+      ! find median of three pivot
+      ! and place sentinels at first and last elements
+      temp=int_array((low+high)/2)
+      int_array((low+high)/2)=int_array(low+1)
+      if (temp.gt.int_array(high)) then
+         int_array(low+1)=int_array(high)
+         int_array(high)=temp
+      else
+         int_array(low+1)=temp
+      endif
+      if (int_array(low).gt.int_array(high)) then
+         temp=int_array(low)
+         int_array(low)=int_array(high)
+         int_array(high)=temp
+      endif
+      if (int_array(low).gt.int_array(low+1)) then
+         temp=int_array(low)
+         int_array(low)=int_array(low+1)
+         int_array(low+1)=temp
+      endif
+      pivot=int_array(low+1)
+
+      left=low+2
+      right=high-1
+      do
+         do while(int_array(left).lt.pivot)
+            left=left+1
+         enddo
+         do while(int_array(right).gt.pivot)
+            right=right-1
+         enddo
+         if (left.ge.right) exit
+         temp=int_array(left)
+         int_array(left)=int_array(right)
+         int_array(right)=temp
+         left=left+1
+         right=right-1
+      enddo
+      if (left.eq.right) left=left+1
+      !          call quicksort(int_array(1:left-1))
+      !          call quicksort(int_array(left:))
+      if (left.lt.(low+high)/2) then
+         stack(1,stack_ptr)=left
+         stack(2,stack_ptr)=high
+         stack_ptr=stack_ptr+1
+         high=left-1
+      else
+         stack(1,stack_ptr)=low
+         stack(2,stack_ptr)=left-1
+         stack_ptr=stack_ptr+1
+         low=left
+      endif
+   enddo
+end subroutine quicksort_array_int
+
+
 !########################################################################
 
 

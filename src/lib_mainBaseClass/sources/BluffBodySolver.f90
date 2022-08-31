@@ -90,21 +90,16 @@ contains
 
    subroutine BluffBodySolver_evalInitialConditions(this)
       class(BluffBodySolver), intent(inout) :: this
-      real(4) :: iniU(totalNumNodesSrl,ndime)
-      integer(4) :: iNodeL,iNodeGSrl
+      integer(rp) :: matGidSrlOrdered(numNodesRankPar,2)
+      integer(4) :: iNodeL
       logical :: readFiles
 
       readFiles = .false.
 
       if(readFiles) then
          this%interpInitialResults = .true.
-         call read_veloc_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniU)
-         do iNodeL=1,numNodesRankPar
-            iNodeGSrl=globalIdSrl(iNodeL)
-            u(iNodeL,1,2) = iniU(iNodeGSrl,1)
-            u(iNodeL,2,2) = iniU(iNodeGSrl,2)
-            u(iNodeL,3,2) = iniU(iNodeGSrl,3)
-         end do
+         call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
+         call read_veloc_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),matGidSrlOrdered)
       else
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar

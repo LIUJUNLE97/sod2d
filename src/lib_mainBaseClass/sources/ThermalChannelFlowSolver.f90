@@ -56,11 +56,14 @@ contains
    subroutine ThermalChannelFlowSolver_initializeParameters(this)
       class(ThermalChannelFlowSolver), intent(inout) :: this
 
-      write(this%gmsh_file_path,*) "./mesh/"
-      write(this%gmsh_file_name,*) "channel_sem" 
+      write(this%gmsh_file_path,*) "./mesh_channel/"
+      write(this%gmsh_file_name,*) "channel"
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "channel_sem" ! Nsys
+      write(this%mesh_h5_file_name,*) "channel"
+
+      write(this%results_h5_file_path,*) "./"
+      write(this%results_h5_file_name,*) "results"
 
       this%isPeriodic = .true.
       this%loadMesh = .false.
@@ -68,15 +71,15 @@ contains
       !this%continue_oldLogs = .true.
       !this%load_step = 3880001
 
-      this%nstep = 90000000
+      this%nstep = 11
       this%cfl_conv = 1.5_rp
       this%cfl_diff = 1.5_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 50000 ! Saving interval, TODO: input
+      this%nleap = 10 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 50  ! Saving interval, TODO: input
+      this%nleap2 = 1  ! Saving interval, TODO: input
       this%nleapAVG = 50000
 
       this%Cp = 1004.0_rp
@@ -108,8 +111,8 @@ contains
 
    subroutine ThermalChannelFlowSolver_evalInitialConditions(this)
       class(ThermalChannelFlowSolver), intent(inout) :: this
-      real(rp) :: iniU(totalNumNodesSrl,ndime), iniRho(totalNumNodesSrl), iniT(totalNumNodesSrl)
-      integer(4) :: iNodeL,iNodeGSrl
+      integer(rp) :: matGidSrlOrdered(numNodesRankPar,2)
+      integer :: iNodeL
       logical :: readFiles
       real(rp) :: velo, ti(3), yp
 
@@ -117,18 +120,13 @@ contains
 
       if(readFiles) then
          this%interpInitialResults = .true.
-         call read_veloc_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniU)
-         call read_densi_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniRho)
-         call read_temper_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniT)
-
-         do iNodeL=1,numNodesRankPar
-            iNodeGSrl=globalIdSrl(iNodeL)
-            u(iNodeL,1,2) = iniU(iNodeGSrl,1)
-            u(iNodeL,2,2) = iniU(iNodeGSrl,2)
-            u(iNodeL,3,2) = iniU(iNodeGSrl,3)
-            rho(iNodeL,2) = iniRho(iNodeGSrl)
-            Tem(iNodeL,2)  = iniT(iNodeGSrl)
-         end do
+         call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
+         call read_densi_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,rho(:,2),matGidSrlOrdered)
+         call read_veloc_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),matGidSrlOrdered)
+         call read_temper_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,Tem(:,2),matGidSrlOrdered)
+         !do iNodeL=1,numNodesRankPar
+         !   Tem(iNodeL,2) = 300.!iniT(iNodeGSrl)
+         !end do
 
          !!$acc parallel loop
          do iNodeL = 1,numNodesRankPar
