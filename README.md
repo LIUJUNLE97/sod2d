@@ -6,7 +6,7 @@ A SEM code for computing scale-resolving simulations of compressible fluid flow.
 
 This code implements a numerical solution for the equations governing compressible fluid flow in three dimensions. The code is based on the spectral element method (SEM) and is designed to be used for scale-resolving simulations (LES and DNS).
 
-It is written in Fortran, and uses MPI and OpenACC to provide parallelism at both coarse and fine-grained levels. The mesh is partitioned using the GEMPA library developed by Ricard Borrell at the Barcelona Supercomputing Center, which is included as a submodule in this repository. It also uses HDF5 for I/O, which must be installed appropriately according to the desired platform (see DEPENDENCIES section).
+It is written in Fortran, and uses MPI and OpenACC to provide parallelism at both coarse and fine-grained levels. The mesh is partitioned using the GEMPA library (https://gitlab.com/rickbp/gempa), which is included as a submodule in this repository. It also uses HDF5 for I/O, which must be installed appropriately according to the desired platform (see DEPENDENCIES section).
 
 ## Dependencies
 
@@ -44,3 +44,10 @@ At a minimum, some form of OpenMPI must be installed in the system. The code wil
 ## Running
 
 The code is run using the `sod2d` executable, found in the `build` directory. The executable takes no arguments. Configuration is done using the implemented classes, found inside the `src/classes` directory. The `src/main.f90` file contains the main program, which is responsible for initializing the classes and running the simulation.
+
+## Acknowledgements
+
+The research leading to these software has received funding from the European High-Performance Computing Joint Undertaking (JU) under grant agreement No 956104. The JU receives support from the European Union’s Horizon 2020 research and innovation programme and Spain, France, Germany.
+O. Lehmkuhl work is financed by a Ramón y Cajal postdoctoral contract by the Ministerio de Economía y Competitividad, Secretaría de Estado de Investigación, Desarrollo e Innovación, Spain (RYC2018-025949-I)).
+
+
