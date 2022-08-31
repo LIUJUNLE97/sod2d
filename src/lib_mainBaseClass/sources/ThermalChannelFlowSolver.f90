@@ -56,11 +56,11 @@ contains
    subroutine ThermalChannelFlowSolver_initializeParameters(this)
       class(ThermalChannelFlowSolver), intent(inout) :: this
 
-      write(this%gmsh_file_path,*) "./mesh_channel/"
-      write(this%gmsh_file_name,*) "channel"
+      write(this%gmsh_file_path,*) "./mesh/"
+      write(this%gmsh_file_name,*) "channel_sem"
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "channel"
+      write(this%mesh_h5_file_name,*) "channel_sem"
 
       write(this%results_h5_file_path,*) "./"
       write(this%results_h5_file_name,*) "results"
@@ -71,21 +71,21 @@ contains
       !this%continue_oldLogs = .true.
       !this%load_step = 3880001
 
-      this%nstep = 11
+      this%nstep = 9000000
       this%cfl_conv = 1.5_rp
       this%cfl_diff = 1.5_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 10 ! Saving interval, TODO: input
+      this%nleap = 100000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 1  ! Saving interval, TODO: input
-      this%nleapAVG = 50000
+      this%nleap2 = 50  ! Saving interval, TODO: input
+      this%nleapAVG = 100000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
       this%tC = 293.0_rp
-      this%tH = this%tC*2.0_rp
+      this%tH = this%tC*5.0_rp
       this%delta  = 0.0015_rp*2.0_rp
       this%gamma_gas = 1.40_rp
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
@@ -123,7 +123,7 @@ contains
       if(readFiles) then
          this%interpInitialResults = .true.
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
-         call read_densi_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,rho(:,2),matGidSrlOrdered)
+         !call read_densi_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,rho(:,2),matGidSrlOrdered)
          call read_veloc_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),matGidSrlOrdered)
          call read_temper_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,Tem(:,2),matGidSrlOrdered)
          !do iNodeL=1,numNodesRankPar
@@ -132,6 +132,7 @@ contains
 
          !!$acc parallel loop
          do iNodeL = 1,numNodesRankPar
+            rho(iNodeL,2) = this%po/(this%Rgas*Tem(iNodeL,2))
             pr(iNodeL,2) = Tem(iNodeL,2)*this%Rgas*rho(iNodeL,2)
             e_int(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp))
             E(iNodeL,2) = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))+e_int(iNodeL,2))
