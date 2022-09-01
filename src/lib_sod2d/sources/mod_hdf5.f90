@@ -68,6 +68,9 @@ contains
       !----- Do mesh partitioning!
       call do_mesh_partitioning()
 
+      !----- Deallocate alya/gmsh arrays
+      call deallocate_read_alya_mesh_arrays()
+
       !----- Create HDF5 File
       call create_hdf5_meshFile()
 
