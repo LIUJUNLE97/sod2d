@@ -68,6 +68,9 @@ contains
       !----- Do mesh partitioning!
       call do_mesh_partitioning()
 
+      !----- Deallocate alya/gmsh arrays
+      call deallocate_read_alya_mesh_arrays()
+
       !----- Create HDF5 File
       call create_hdf5_meshFile()
 
@@ -88,6 +91,10 @@ contains
 
       ! create file collectively
       call h5fcreate_f(meshFile_h5_name,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot create meshfile ',trim(adjustl(meshFile_h5_name))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
       call h5pclose_f(plist_id, h5err)
       !call h5pget_driver_f(fapl_id, driver_id, hdferror)
       !call check("h5pget_driver_f", hdferror, nerrors)
@@ -253,6 +260,10 @@ contains
       if(mpi_rank.eq.0) write(*,*) '# Loading hdf5 mesh: ',meshFile_h5_name
 
       call h5fopen_f(meshFile_h5_name, H5F_ACC_RDWR_F,file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot load meshfile ',trim(adjustl(meshFile_h5_name))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
       call h5pclose_f(plist_id, h5err)
 
       !-----------------------------------------------------------------------------------------------
@@ -638,6 +649,10 @@ contains
 
       ! open file collectively
       call h5fopen_f(meshFile_h5_name, H5F_ACC_RDWR_F,file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot open meshfile ',trim(adjustl(meshFile_h5_name))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
       call h5pclose_f(plist_id, h5err)
 
       !-------------------------------------------
@@ -1709,6 +1724,10 @@ contains
 
       ! create file collectively
       call h5fcreate_f(full_fileName,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot create results file ',trim(adjustl(full_fileName))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
       call h5pclose_f(plist_id, h5err)
 
       ds_rank = 1
@@ -1844,6 +1863,10 @@ contains
       call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
 
       call h5fopen_f(full_loadFileName, H5F_ACC_RDWR_F,file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot load results file ',trim(adjustl(full_loadFileName))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
       call h5pclose_f(plist_id, h5err)
 
       ms_rank = 1
@@ -1933,6 +1956,10 @@ contains
       call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
 
       call h5fopen_f(full_loadFileName, H5F_ACC_RDWR_F,file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot load results file ',trim(adjustl(full_loadFileName))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
       call h5pclose_f(plist_id, h5err)
 
       ms_rank = 1
@@ -2055,6 +2082,10 @@ contains
 
       ! create file collectively
       call h5fcreate_f(full_fileName,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot create avg results file ',trim(adjustl(full_fileName))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
       call h5pclose_f(plist_id, h5err)
 
       ds_rank = 1
@@ -2130,6 +2161,10 @@ contains
       call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
 
       call h5fopen_f(full_fileName, H5F_ACC_RDWR_F,file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot load results avg file ',trim(adjustl(full_fileName))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
       call h5pclose_f(plist_id, h5err)
 
       ds_rank = 1

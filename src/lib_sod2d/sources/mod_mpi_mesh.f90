@@ -127,7 +127,6 @@ contains
             exit
          endif
       end do
-
    end function gidSrl_to_lid
 
    integer function gidPar_to_lid(gidPar) result(lid)
@@ -142,7 +141,6 @@ contains
             exit
          endif
       end do
-
    end function gidPar_to_lid
 
 !----------------------------------------------------------------------------------------------------------
@@ -179,14 +177,6 @@ contains
  
       if(isMeshPeriodic) then 
          call read_periodic_file(file_path,file_name,nper,masSlaSrl)
-
-         !allocate some shit...
-         !maybe we can do it in the func periodic_ops of mod_period, it would make sense...
-         !allocate(connec_orig(this%nelem,nnode))
-         !if (this%nboun .ne. 0) then
-         !   allocate(bound_orig(this%nboun,npbou))
-         !end if
-
       end if
 
       totalNumElements = nelem
@@ -195,6 +185,17 @@ contains
       nPerSrl = nper
 
    end subroutine read_alya_mesh_files
+
+   subroutine deallocate_read_alya_mesh_arrays()
+      implicit none
+
+      deallocate(connecGMSH)
+      deallocate(coordGMSH)
+      if(isMeshBoundaries) then
+         deallocate(boundGMSH)
+         deallocate(bou_codesGMSH)
+      end if
+   end subroutine deallocate_read_alya_mesh_arrays
 
    subroutine read_dims_file(file_path,file_name,npoin,nelem,nboun)
       implicit none     
@@ -920,14 +921,16 @@ contains
    subroutine create_masSla_parallel()
       implicit none
       integer :: iNodeL,iNodeL1,iNodeL2,iNodeG,iPer,iPerPar
+      integer :: i,iGidSrl1,iGidSrl2
 
       if(mpi_rank.eq.0) write(*,*) ' # Creting master-slave rels in parallel...'
+      if(mpi_rank.eq.0) write(*,*) ' #  1. Calc nPerRankPar...'
 
       nPerRankPar=0
       !$acc parallel loop reduction(+:nPerRankPar)
       do iNodeL = 1,numNodesRankPar
          iNodeG = globalIdSrl(iNodeL)
-         !$acc looop vector
+         !$acc loop seq
          do iPer = 1,nPerSrl
             if (iNodeG .eq. masSlaSrl(iPer,2)) then
                nPerRankPar=nPerRankPar+1
@@ -936,9 +939,11 @@ contains
       end do
       !$acc end parallel loop
 
+      if(mpi_rank.eq.0) write(*,*) ' #  2. Generating masSlaRankParl...'
       !TRY TO ACC THIS PART OF THE CODE: MAIN ISSUE WITH gidSrl_to_lid func in device!!
       allocate(masSlaRankPar(nPerRankPar,2))
       iPerPar=0
+#if 1
       do iNodeL = 1,numNodesRankPar
          iNodeG = globalIdSrl(iNodeL)
          do iPer = 1,nPerSrl
@@ -953,6 +958,40 @@ contains
             end if
          end do
       end do
+#else
+      !$acc kernels copyin(globalIdSrl,masSlaSrl) copyout(masSlaRankPar)
+      do iNodeL = 1,numNodesRankPar
+         iNodeG = globalIdSrl(iNodeL)
+         do iPer = 1,nPerSrl
+            iGidSrl1 = masSlaSrl(iPer,1)
+            iGidSrl2 = masSlaSrl(iPer,2)
+            if (iNodeG .eq. iGidSrl2) then
+               !$acc atomic update
+               iPerPar=iPerPar+1
+               !$acc end atomic
+
+               !iNodeL1 = gidSrl_to_lid_GPU(masSlaSrl(iPer,1),numNodesRankPar,globalIdSrl)
+               iNodeL1=-1
+               do i=1,numNodesRankPar
+                  if(iGidSrl1 .eq. globalIdSrl(i)) then
+                     iNodeL1 = i
+                  endif
+               end do
+
+               !iNodeL2 = gidSrl_to_lid_GPU(masSlaSrl(iPer,2),numNodesRankPar,globalIdSrl)
+               iNodeL2=-1
+               do i=1,numNodesRankPar
+                  if(iGidSrl2 .eq. globalIdSrl(i)) then
+                     iNodeL2 = i
+                  endif
+               end do
+               masSlaRankPar(iPerPar,1) = iNodeL1
+               masSlaRankPar(iPerPar,2) = iNodeL2
+            end if
+         end do
+      end do
+      !$acc end kernels
+#endif
 
       write(*,*) '[',mpi_rank,']nPerSrl',nPerSrl,'nPerRankPar',nPerRankPar,'iPerPar',iPerPar
 
