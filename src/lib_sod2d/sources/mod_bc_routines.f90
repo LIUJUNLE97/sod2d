@@ -99,7 +99,36 @@ module mod_bc_routines
                           0.5_rp*dot_product(aux_u(bound(iboun,ipbou),:),aux_u(bound(iboun,ipbou),:)))
 
                      end do
-                  else if (bcode == 5) then ! inlet just for aligened inlets with x
+                  else if (bcode == 5) then ! outlet just for aligened with x
+                     !$acc loop vector
+                     do ipbou = 1,npbou
+
+                       sl = min(nscbc_u_inf-nscbc_c_inf, aux_u(lnbn(iboun,ipbou),1) - sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou))))
+                       sr =  max(aux_u(lnbn(iboun,ipbou),1) + sqrt(nscbc_gamma_inf*aux_p(lnbn(iboun,ipbou))/aux_rho(lnbn(iboun,ipbou))), nscbc_u_inf+nscbc_c_inf)
+
+                       E_inf = (nscbc_rho_inf*0.5_rp*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0_rp))
+
+                       rho_hll = (sr*aux_rho(lnbn(iboun,ipbou))-sl*nscbc_rho_inf+nscbc_rho_inf*nscbc_u_inf-aux_q(lnbn(iboun,ipbou),1))/(sr-sl)
+                       q_hll   = (sr*aux_q(lnbn(iboun,ipbou),1)-sl*nscbc_rho_inf*nscbc_u_inf+nscbc_rho_inf*nscbc_u_inf**2-aux_u(lnbn(iboun,ipbou),1)*aux_q(lnbn(iboun,ipbou),1))/(sr-sl)
+                       E_hll   = (sr*aux_E(lnbn(iboun,ipbou))-sl*E_inf+nscbc_u_inf*(E_inf+nscbc_p_inf)-aux_u(lnbn(iboun,ipbou),1)*(aux_E(lnbn(iboun,ipbou))+aux_p(lnbn(iboun,ipbou))))/(sr-sl)
+
+
+                       aux_q(bound(iboun,ipbou),1) = q_hll
+                       aux_q(bound(iboun,ipbou),2) = 0.0_rp
+                       aux_q(bound(iboun,ipbou),3) = 0.0_rp
+
+                       aux_rho(bound(iboun,ipbou)) = rho_hll
+                       aux_E(bound(iboun,ipbou)) = E_hll
+
+                       aux_u(bound(iboun,ipbou),1) = aux_q(bound(iboun,ipbou),1)/aux_rho(bound(iboun,ipbou))
+                       aux_u(bound(iboun,ipbou),2) = aux_q(bound(iboun,ipbou),2)/aux_rho(bound(iboun,ipbou))
+                       aux_u(bound(iboun,ipbou),3) = aux_q(bound(iboun,ipbou),3)/aux_rho(bound(iboun,ipbou))
+
+                       aux_p(bound(iboun,ipbou)) = aux_rho(bound(iboun,ipbou))*(nscbc_gamma_inf-1.0_rp)*((aux_E(bound(iboun,ipbou))/aux_rho(bound(iboun,ipbou)))- &
+                          0.5_rp*dot_product(aux_u(bound(iboun,ipbou),:),aux_u(bound(iboun,ipbou),:)))
+
+                     end do
+                  else if (bcode == 8) then ! outlet just for aligened with y
                      !$acc loop vector
                      do ipbou = 1,npbou
 
@@ -145,8 +174,16 @@ module mod_bc_routines
                   else if (bcode == 2) then
                      !$acc loop vector
                      do ipbou = 1,npbou
+                        aux_q(bound(iboun,ipbou),1) = nscbc_rho_inf*nscbc_u_inf
+                        aux_u(bound(iboun,ipbou),1) = nscbc_u_inf
+                        aux_q(bound(iboun,ipbou),2) = 0.0_rp
+                        aux_u(bound(iboun,ipbou),2) = 0.0_rp
                         aux_q(bound(iboun,ipbou),3) = 0.0_rp
                         aux_u(bound(iboun,ipbou),3) = 0.0_rp
+
+                        aux_p(bound(iboun,ipbou)) = nscbc_p_inf
+                        aux_rho(bound(iboun,ipbou)) = nscbc_rho_inf
+                        aux_E(bound(iboun,ipbou)) = nscbc_rho_inf*0.5_rp*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
                      end do
                   else if (bcode == 3) then ! non_slip wall
                      !$acc loop vector

@@ -1,3 +1,27 @@
+#define AR2 1
+
+subroutine avg_randomField_in_sharedNodes_Par(floatField)
+   use mod_constants
+   use mod_comms
+      implicit none
+      real(rp), intent(inout) :: floatField(numNodesRankPar)
+      integer :: numRanksNodeCnt(numNodesRankPar)
+      integer :: i,iNodeL
+
+      numRanksNodeCnt(:)=1
+
+      do i= 1,numNodesToComm
+         iNodeL = matrixCommScheme(i,1)
+         numRanksNodeCnt(iNodeL) = numRanksNodeCnt(iNodeL) + 1
+      end do 
+
+      call update_and_comm_floatField(floatField)
+
+      do iNodeL = 1,numNodesRankPar
+         floatField(iNodeL) = floatField(iNodeL) / real(numRanksNodeCnt(iNodeL),rp)
+      end do
+
+end subroutine
 
 module ThermalChannelFlowSolver_mod
    use mod_arrays
@@ -66,14 +90,29 @@ contains
       write(this%results_h5_file_name,*) "results"
 
       this%isPeriodic = .true.
+
+#if AR2
       this%loadMesh = .true.
+      this%loadResults = .true.
+
+      this%continue_oldLogs = .true.
+      this%load_step = 600001
+#else
+      this%loadMesh = .false.
       this%loadResults = .false.
-      !this%continue_oldLogs = .true.
-      !this%load_step = 3880001
+
+    !  this%continue_oldLogs = .true.
+    !  this%load_step = 100001
+#endif
 
       this%nstep = 9000000
+#if AR2
       this%cfl_conv = 1.5_rp
       this%cfl_diff = 1.5_rp
+#else
+      this%cfl_conv = 1.0_rp
+      this%cfl_diff = 1.0_rp
+#endif
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
@@ -85,8 +124,13 @@ contains
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
       this%tC = 293.0_rp
-      this%tH = this%tC*5.0_rp
+#if AR2
+      this%tH = this%tC*2.0_rp
       this%delta  = 0.0015_rp*2.0_rp
+#else
+      this%tH = this%tC*5.0_rp
+      this%delta  = 0.0015_rp*8.0_rp
+#endif
       this%gamma_gas = 1.40_rp
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
       this%to = 0.5_rp*(this%tC+this%tH)
@@ -117,22 +161,19 @@ contains
       integer :: iNodeL
       logical :: readFiles
       real(rp) :: velo, ti(3), yp
+      integer(4)  :: iLine,iNodeGSrl,auxCnt,idime
 
-      readFiles = .true.
+      readFiles = .false.
 
       if(readFiles) then
          this%interpInitialResults = .true.
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
-         !call read_densi_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,rho(:,2),matGidSrlOrdered)
+         call read_densi_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,rho(:,2),matGidSrlOrdered)
          call read_veloc_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),matGidSrlOrdered)
          call read_temper_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,Tem(:,2),matGidSrlOrdered)
-         !do iNodeL=1,numNodesRankPar
-         !   Tem(iNodeL,2) = 300.!iniT(iNodeGSrl)
-         !end do
 
          !!$acc parallel loop
          do iNodeL = 1,numNodesRankPar
-            rho(iNodeL,2) = this%po/(this%Rgas*Tem(iNodeL,2))
             pr(iNodeL,2) = Tem(iNodeL,2)*this%Rgas*rho(iNodeL,2)
             e_int(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp))
             E(iNodeL,2) = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))+e_int(iNodeL,2))
@@ -141,6 +182,29 @@ contains
          end do
          !!$acc end parallel loop
       else
+        !call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
+        !auxCnt = 1
+        !!!$acc parallel loop
+        !do iLine = 1,totalNumNodesSrl
+        !  call random_number(ti)
+        !  if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
+        !     iNodeL = matGidSrlOrdered(auxCnt,1)
+        !     auxCnt=auxCnt+1
+        !     if(coordPar(iNodeL,2)<this%delta) then
+        !        yp = coordPar(iNodeL,2)*this%utau*this%rho/this%mu
+        !     else
+        !        yp = abs(coordPar(iNodeL,2)-2.0_rp*this%delta)*this%utau*this%rho/this%mu
+        !     end if
+
+        !     velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
+
+        !     u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(ti(1) -0.5_rp))
+        !     u(iNodeL,2,2) = velo*(0.1_rp*(ti(2) -0.5_rp))
+        !     u(iNodeL,3,2) = velo*(0.1_rp*(ti(3) -0.5_rp))
+        !  end if
+        !end do
+        !!!$acc end parallel loop
+
          !!$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             if(coordPar(iNodeL,2)<this%delta) then
@@ -150,13 +214,12 @@ contains
             end if
 
             velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
-
             call random_number(ti)
-
 
             u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(ti(1) -0.5_rp))
             u(iNodeL,2,2) = velo*(0.1_rp*(ti(2) -0.5_rp))
             u(iNodeL,3,2) = velo*(0.1_rp*(ti(3) -0.5_rp))
+            
             pr(iNodeL,2) = this%po
             rho(iNodeL,2) = this%rho
             e_int(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp))
@@ -168,6 +231,9 @@ contains
          !!$acc end parallel loop
       end if
 
+      do idime = 1,ndime
+         call avg_randomField_in_sharedNodes_Par(u(:,idime,2))
+      end do
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar

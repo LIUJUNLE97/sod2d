@@ -1,8 +1,9 @@
 ! main.f90
 
 #define _tgv_ 0
-#define _channel_ 1
+#define _channel_ 0
 #define _bluff_ 0
+#define _bluff3d_ 1
 
 program main
    use mod_constants
@@ -15,6 +16,9 @@ program main
 #endif
 #if _bluff_
    use BluffBodySolver_mod
+#endif
+#if _bluff3d_
+   use BluffBody3DSolver_mod
 #endif
    implicit none
 
@@ -29,6 +33,10 @@ program main
 #endif
 #if _bluff_
    type(BluffBodySolver)  :: bluff
+   call bluff%run()
+#endif
+#if _bluff3d_
+   type(BluffBody3DSolver)  :: bluff
    call bluff%run()
 #endif
 
