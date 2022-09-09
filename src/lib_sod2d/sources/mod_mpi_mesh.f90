@@ -44,6 +44,17 @@ module mod_mpi_mesh
                13,23,41,44,17,21,45,46,37,50,57,60,38,49,58,59,&
                14,24,42,43,18,22,48,47,40,51,61,64,39,52,62,63]
 
+   integer(int_size),parameter :: vtk2ijk(nnode) = [1,4,15,16,2,3,11,12,9,13,49,51,10,14,50,52, &
+              5,8,23,24,6,7,19,20,17,21,53,55,18,22,54,56, &
+              25,31,33,34,27,29,37,38,41,45,57,59,42,46,58,60,&
+              26,32,35,36,28,30,39,40,43,47,61,63,44,48,62,64]
+
+   !the one from lucas old code
+   !integer(int_size),parameter :: vtk2ijk(nnode) = [1,4,15,16,2,3,11,12,9,13,49,51,10,14,50,52, &
+   !           5,8,23,24,6,7,19,20,17,21,53,55,18,22,54,56, &
+   !           25,29,33,34,27,31,37,38,41,45,57,59,42,46,58,60,&
+   !           26,30,35,36,28,32,39,40,43,47,61,63,44,48,62,64]
+
    integer(int_size),parameter :: cgns2ijk(nnode)= [1,4,16,15,2,3,11,12,9,14,33,36,10,13,34,35,&
                  5,8,32,31,6,7,27,28,25,30,53,56,26,29,54,55,&
                  17,21,50,49,19,23,41,42,37,46,57,60,38,45,58,59,&
@@ -82,6 +93,7 @@ integer(int_size), allocatable :: globalIdSrl(:), globalIdPar(:), elemGid(:)
 real(rp), allocatable :: coordPar(:,:)
 
 integer(int_size), allocatable :: connecCGNS(:)
+integer(int_size), allocatable :: connecVTK(:)
 integer(int_size), allocatable :: connecParOrig(:,:),connecParWork(:,:)
 
 integer(int_size), allocatable :: workingNodesPar(:)
@@ -959,6 +971,10 @@ contains
          end do
       end do
 #else
+      !IDEA:
+      !if we create a matrix (numNodesToRank,2) ordneant les global id podem fer un algoritme cerca
+      ! rapid i associar cada row a la iNodeL
+      !
       !$acc kernels copyin(globalIdSrl,masSlaSrl) copyout(masSlaRankPar)
       do iNodeL = 1,numNodesRankPar
          iNodeG = globalIdSrl(iNodeL)
@@ -1475,7 +1491,8 @@ contains
 
       !if(mpi_rank.eq.0) write(*,*) vecSharedBN_full(:)
 
-#if _CHECK_
+#if 1
+      write(aux_string_rank,'(I0)') mpi_rank
       file_name = 'vecSharedBN_full_rank'// trim(aux_string_rank)//'.csv'
       open(1, file=file_name)
       i=0
@@ -1634,17 +1651,18 @@ contains
 
    subroutine reorder_nodes_in_proc(iNodeStartPar)
       integer,dimension(0:mpi_size-1),intent(in) :: iNodeStartPar
-      integer :: iPos,m,indConn,indexIJK,indexCGNS,indexGMSH,indexNew
+      integer :: iPos,m,indConn,indexIJK,indexVTK,indexCGNS,indexGMSH,indexNew
       integer :: iNodeL,iNodeGpar,iNodeGsrl,iElemL,iElemG
 
-      integer,dimension(nnode) :: auxNodeNewOrderInElem,auxNewOrderIndex,auxCGNSorder
+      integer,dimension(nnode) :: auxNodeNewOrderInElem,auxNewOrderIndex,auxVTKorder,auxCGNSorder
       integer,dimension(totalNumNodesSrl) :: isNodeAdded
 
       allocate(globalIdSrl(numNodesRankPar))
       allocate(globalIdPar(numNodesRankPar))
 
-      allocate( connecCGNS(numElemsInRank*nnode) )
-      allocate( connecParOrig(numElemsInRank,nnode) )
+      allocate(connecCGNS(numElemsInRank*nnode))
+      allocate(connecVTK(numElemsInRank*nnode))
+      allocate(connecParOrig(numElemsInRank,nnode))
 
       isNodeAdded=-1
       iPos = 1
@@ -1659,7 +1677,7 @@ contains
       ! first do a first migration of the code and once it work, think how to allow different node ordering
       ! BUT FIX IT!!!!!!
 
-      call generate_new_nodeOrder_and_connectivity(gmsh2ijk,auxNewOrderIndex,auxCGNSorder)
+      call generate_new_nodeOrder_and_connectivity(gmsh2ijk,auxNewOrderIndex,auxVTKorder,auxCGNSorder)
       !call generate_new_nodeOrder_and_connectivity(cgns2ijk,auxNewOrderIndex,auxCGNSorder)
       !call generate_new_nodeOrder_and_connectivity(dummy2ijk,auxNewOrderIndex,auxCGNSorder)
 
@@ -1702,8 +1720,11 @@ contains
 
             indexCGNS = auxCGNSorder(m)
             indConn = (iElemL-1)*nnode + indexCGNS
-            
             connecCGNS(indConn) = iNodeGPar
+
+            indexVTK = auxVTKorder(m)
+            indConn = (iElemL-1)*nnode + indexVTK
+            connecVTK(indConn) = iNodeL!connec(ielem,indGmsh)
 
          end do
 
@@ -1712,10 +1733,10 @@ contains
       end do
    end subroutine reorder_nodes_in_proc
 
-   subroutine generate_new_nodeOrder_and_connectivity(newOrderIJK,auxNewOrderIndex,auxCGNSorder)
+   subroutine generate_new_nodeOrder_and_connectivity(newOrderIJK,auxNewOrderIndex,auxVTKorder,auxCGNSorder)
       integer,intent(in)  :: newOrderIJK(:)
-      integer,intent(out) :: auxNewOrderIndex(:),auxCGNSorder(:)
-      integer :: i,j,k,indexIJK,indexNew,indexCGNS
+      integer,intent(out) :: auxNewOrderIndex(:),auxVTKorder(:),auxCGNSorder(:)
+      integer :: i,j,k,indexIJK,indexNew,indexVTK,indexCGNS
 
       !!!$acc kernels
       do k = 0,porder
@@ -1724,9 +1745,11 @@ contains
                indexIJK = ((porder+1)**2)*k+(porder+1)*i+j+1
 
                indexNew = newOrderIJK(indexIJK)
+               indexVTK = vtk2ijk(indexIJK)
                indexCGNS = cgns2ijk(indexIJK) !posicio requerida en el connec de cgns
 
                auxNewOrderIndex(indexIJK) = indexNew
+               auxVTKorder(indexNew) = indexVTK
                auxCGNSorder(indexNew) = indexCGNS
 
                !write(*,*) 'test->indexIJK ', indexIJK, ' iNew ', indexNew,' aux ', auxCGNSorder(indexNew)

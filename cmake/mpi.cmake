@@ -1,7 +1,7 @@
 message("-- Configuring MPI, if appropriate...")
 if (USE_MPI)
     find_package(MPI REQUIRED)
-    if (NOT MPI_CXX_FOUND)
+    if (NOT MPI_FOUND)
         #do nothing
         message(FATAL_ERROR "MPI not found!")
     endif()

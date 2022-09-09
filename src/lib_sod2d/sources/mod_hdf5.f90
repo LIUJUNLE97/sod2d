@@ -392,6 +392,32 @@ contains
       call h5dclose_f(dset_id,h5err)
    end subroutine create_dataspace_hdf5
 
+   subroutine create_chunked_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,chunk_dims,dtype)
+      implicit none
+      integer(hid_t),intent(in) :: file_id
+      character(len=*),intent(in) :: dsetname
+      integer,intent(in) :: ds_rank
+      integer(hsize_t),intent(in) :: ds_dims(ds_rank),chunk_dims(ds_rank)
+      integer(hid_t),intent(in) :: dtype
+      integer(hid_t) :: dset_id,dspace_id,plist_id
+      integer :: h5err
+
+      ! Create the data space for the  dataset. 
+      call h5screate_simple_f(ds_rank,ds_dims,dspace_id,h5err)
+
+   call h5pcreate_f(H5P_DATASET_CREATE_F,plist_id,h5err)
+   call h5pset_chunk_f(plist_id,ds_rank,chunk_dims,h5err)
+   call h5dcreate_f(file_id, dsetname,dtype,dspace_id,dset_id, h5err,plist_id)
+
+      ! Create the dataset with default properties.
+      !call h5dcreate_f(file_id,dsetname,dtype,dspace_id,dset_id,h5err)
+
+      !write(*,*) 'create dsetname ',dsetname, ' dset_id ',dset_id,' dspace_id ',dspace_id
+   call h5pclose_f(plist_id,h5err)
+      call h5sclose_f(dspace_id,h5err)
+      call h5dclose_f(dset_id,h5err)
+   end subroutine create_chunked_dataspace_hdf5
+
    subroutine write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
@@ -473,6 +499,87 @@ contains
       call h5dclose_f(dset_id,h5err)
    end subroutine write_dataspace_fp64_hyperslab_parallel
 
+   subroutine write_dataspace_int1_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
+      integer(hid_t),intent(in) :: file_id
+      character(len=*),intent(in) :: dsetname
+      integer,intent(in) :: ms_rank !assuming ms_rank=fs_rank
+      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
+      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
+      integer(1),intent(in) :: data(:)
+      integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
+      integer :: h5err
+      integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
+      integer(hid_t) :: dtype
+      dtype = H5T_STD_U8LE
+
+      call h5dopen_f(file_id, dsetname, dset_id, h5err)
+
+      !get filespace of the dataset
+      call h5dget_space_f(dset_id, fspace_id, h5err)
+
+      !get dimensions of the filespace
+      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
+
+      ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) 
+
+      ! Select hyperslab in the file.
+      call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
+
+      ! Create property list for collective dataset write
+      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) 
+      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+
+      call h5dwrite_f(dset_id,dtype,data,fs_dims,h5err,&
+                      file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+
+      call h5pclose_f(plist_id,h5err)
+      call h5sclose_f(mspace_id,h5err)
+      call h5sclose_f(fspace_id,h5err)
+      call h5dclose_f(dset_id,h5err)
+   end subroutine write_dataspace_int1_hyperslab_parallel
+
+   subroutine read_dataspace_int1_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
+      integer(hid_t),intent(in) :: file_id
+      character(len=*),intent(in) :: dsetname
+      integer,intent(in) :: ms_rank !assuming ms_rank=fs_rank
+      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
+      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
+      integer(1),intent(out) :: data(:)
+      integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
+      integer :: h5err
+      integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
+      integer(hid_t) :: dtype
+      dtype = H5T_STD_I8LE
+
+      call h5dopen_f(file_id, dsetname, dset_id, h5err)
+
+      !get filespace of the dataset
+      call h5dget_space_f(dset_id, fspace_id, h5err)
+
+      !get dimensions of the filespace
+      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
+
+      ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) 
+
+      ! Select hyperslab in the file.
+      call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
+
+      ! Create property list for collective dataset write
+      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) 
+      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+
+      call h5dread_f(dset_id,dtype,data,fs_dims,h5err,&
+                     file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+
+      call h5pclose_f(plist_id,h5err)
+      call h5sclose_f(mspace_id,h5err)
+      call h5sclose_f(fspace_id,h5err)
+      call h5dclose_f(dset_id,h5err)
+
+   end subroutine read_dataspace_int1_hyperslab_parallel
+
    subroutine write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
@@ -553,6 +660,87 @@ contains
       call h5dclose_f(dset_id,h5err)
 
    end subroutine read_dataspace_int4_hyperslab_parallel
+
+   subroutine write_dataspace_int8_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
+      integer(hid_t),intent(in) :: file_id
+      character(len=*),intent(in) :: dsetname
+      integer,intent(in) :: ms_rank !assuming ms_rank=fs_rank
+      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
+      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
+      integer(8),intent(in) :: data(:)
+      integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
+      integer :: h5err
+      integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
+      integer(hid_t) :: dtype
+      dtype = H5T_STD_I64LE
+
+      call h5dopen_f(file_id, dsetname, dset_id, h5err)
+
+      !get filespace of the dataset
+      call h5dget_space_f(dset_id, fspace_id, h5err)
+
+      !get dimensions of the filespace
+      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
+
+      ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) 
+
+      ! Select hyperslab in the file.
+      call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
+
+      ! Create property list for collective dataset write
+      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) 
+      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+
+      call h5dwrite_f(dset_id,dtype,data,fs_dims,h5err,&
+                      file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+
+      call h5pclose_f(plist_id,h5err)
+      call h5sclose_f(mspace_id,h5err)
+      call h5sclose_f(fspace_id,h5err)
+      call h5dclose_f(dset_id,h5err)
+   end subroutine write_dataspace_int8_hyperslab_parallel
+
+   subroutine read_dataspace_int8_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
+      integer(hid_t),intent(in) :: file_id
+      character(len=*),intent(in) :: dsetname
+      integer,intent(in) :: ms_rank !assuming ms_rank=fs_rank
+      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
+      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
+      integer(8),intent(out) :: data(:)
+      integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
+      integer :: h5err
+      integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
+      integer(hid_t) :: dtype
+      dtype = H5T_STD_I64LE
+
+      call h5dopen_f(file_id, dsetname, dset_id, h5err)
+
+      !get filespace of the dataset
+      call h5dget_space_f(dset_id, fspace_id, h5err)
+
+      !get dimensions of the filespace
+      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
+
+      ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) 
+
+      ! Select hyperslab in the file.
+      call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
+
+      ! Create property list for collective dataset write
+      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) 
+      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+
+      call h5dread_f(dset_id,dtype,data,fs_dims,h5err,&
+                     file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+
+      call h5pclose_f(plist_id,h5err)
+      call h5sclose_f(mspace_id,h5err)
+      call h5sclose_f(fspace_id,h5err)
+      call h5dclose_f(dset_id,h5err)
+
+   end subroutine read_dataspace_int8_hyperslab_parallel
 
    subroutine read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
       integer(hid_t),intent(in) :: file_id
@@ -728,6 +916,11 @@ contains
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
       !-----------------------------------------------------------------------------------------------------
+      !  SAVING connecParVTK(:)
+      dsetname = '/Connectivity/connecVTK'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,connecVTK)
+      !-----------------------------------------------------------------------------------------------------
       !  SAVING connecParCGNS(:)
       dsetname = '/Connectivity/connecCGNS'
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
@@ -827,9 +1020,13 @@ contains
 
       deallocate(aux_array)
       !-------------------------------------------------------------------------------------------------------
+      !LOADING connecVTK(:)
+      allocate( connecVTK(numElemsInRank*nnode) )
+      dsetname = '/Connectivity/connecVTK'
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,connecVTK)
+      !-------------------------------------------------------------------------------------------------------
       !LOADING connecCGNS(:)
       allocate( connecCGNS(numElemsInRank*nnode) )
-
       dsetname = '/Connectivity/connecCGNS'
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,connecCGNS)
 
@@ -2214,6 +2411,448 @@ contains
       call h5fclose_f(resultsFile_h5_id,h5err)
 
    end subroutine close_hdf5_resultsfile
+
+!---------------------------------------------------------------------------------------------------------
+!---------------------------------------------------------------------------------------------------------
+!        VTKHDF5 FILE
+!---------------------------------------------------------------------------------------------------------
+
+   subroutine set_vtkhdf_resultsFile_name(iStep,full_fileName)
+      implicit none
+      integer, intent(in) :: iStep
+      character(len=*), intent(out) :: full_fileName
+      character(len=12) :: aux_step
+
+      write(aux_step,'(I0)') iStep
+      full_fileName = trim(adjustl(base_resultsFile_h5_name))//trim(aux_step)//'-vtk.hdf'
+   end subroutine set_vtkhdf_resultsFile_name
+
+   subroutine create_vtkhdf_resultsFile(file_id)
+      implicit none
+      integer(hid_t),intent(in) :: file_id
+      integer(hid_t) :: plist_id,dset_id,dspace_id,mspace_id,group_id,aspace_id,attr_id
+      integer(hid_t) :: dtype,atype
+      integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims,a_dims
+      integer(HSIZE_T), dimension(2) :: ds_dims2d,ms_dims2d
+      integer(HSSIZE_T), dimension(1) :: ms_offset 
+      integer(HSSIZE_T), dimension(2) :: ms_offset2d
+      integer(SIZE_T) :: attr_length
+      integer :: ds_rank,ms_rank,a_rank,h5err
+      character(512) :: full_fileName,groupname,dsetname
+      character(16) :: attr_value
+      integer :: ii,iNodeL,iElemL
+      integer(1),allocatable :: aux_array_i8(:)
+      integer(4),allocatable :: aux_array_i32(:)
+      integer(8),allocatable :: aux_array_i64(:)
+      real(8),allocatable :: aux_array_r64(:)
+
+      !------------------------------------------------------------------------------------
+      !call set_vtkhdf_resultsFile_name(iStep,full_fileName)
+
+      !! Setup file access property list with parallel I/O access.
+      !call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
+      !call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+
+      !! create file collectively
+      !call h5fcreate_f(full_fileName,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
+      !if(h5err .ne. 0) then
+      !   write(*,*) 'FATAL ERROR! Cannot create VTKHDF ',trim(adjustl(full_fileName))
+      !   call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      !end if
+      !call h5pclose_f(plist_id, h5err)
+
+!--------------------------------------------------------------------------------
+      groupname = '/VTKHDF'
+      !call create_group_hdf5(file_id,groupname)
+      call h5gcreate_f(file_id,groupname,group_id,h5err)
+!--------------------------------------------------------------------------------
+!--------------------------------------------------------------------------------
+      ! Attribute 'Type'
+      call h5screate_f(H5S_SCALAR_F,aspace_id,h5err)
+      
+      attr_value = "UnstructuredGrid"
+      attr_length = len_trim(attr_value)
+
+      a_dims(1) = 1
+      call h5tcopy_f(H5T_C_S1,atype,h5err)
+      call h5tset_size_f(atype, attr_length,h5err)
+      call h5tset_strpad_f(atype,H5T_STR_NULLPAD_F,h5err)
+
+      call h5acreate_f(group_id,'Type',atype,aspace_id,attr_id,h5err)
+
+      call h5awrite_f(attr_id,atype,attr_value,a_dims, h5err)
+      call h5tclose_f(atype,h5err)
+
+      call h5aclose_f(attr_id, h5err)
+      
+      call h5sclose_f(aspace_id, h5err)
+!--------------------------------------------------------------------------------
+      ! Attribute 'Version'
+      a_rank = 1
+      a_dims(1) = 2
+      call h5screate_simple_f(a_rank,a_dims,aspace_id,h5err)
+
+      call h5acreate_f(group_id,'Version',H5T_NATIVE_INTEGER,aspace_id,attr_id,h5err)
+
+      allocate(aux_array_i32(2))
+      aux_array_i32(1) = 1
+      aux_array_i32(2) = 0
+      call h5awrite_f(attr_id,H5T_NATIVE_INTEGER,aux_array_i32,a_dims,h5err)
+      deallocate(aux_array_i32)   
+
+      call h5aclose_f(attr_id,h5err)
+
+      call h5sclose_f(aspace_id,h5err)
+
+      call h5gclose_f(group_id, h5err)
+!--------------------------------------------------------------------------------
+      groupname = '/VTKHDF/CellData'
+      call create_group_hdf5(file_id,groupname)
+
+      groupname = '/VTKHDF/FieldData'
+      call create_group_hdf5(file_id,groupname)
+
+      groupname = '/VTKHDF/PointData'
+      call create_group_hdf5(file_id,groupname)
+      !--------------------------------------------------------------------------------
+!--------------------------------------------------------------------------------
+      !--------------------------------------------------------------------------------
+      dtype = H5T_NATIVE_DOUBLE
+      ds_rank = 2
+      ms_rank = 2
+      ds_dims2d(1) = 3
+      ms_dims2d(1) = 1
+      ds_dims2d(2) = totalNumNodesPar
+      ms_dims2d(2) = numNodesRankPar
+      ms_offset2d(2) = rankNodeStart-1
+!--------------------------------------------------------------------------------
+      allocate(aux_array_r64(numNodesRankPar))
+
+      dsetname = '/VTKHDF/Points'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims2d,dtype)
+      
+!-------------------------------------------------------------------------------- 
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(coordPar(iNodeL,1),8)
+      end do
+      ms_offset2d(1) = 0
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r64)
+!-------------------------------------------------------------------------------- 
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(coordPar(iNodeL,2),8)
+      end do
+      ms_offset2d(1) = 1
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r64)
+!-------------------------------------------------------------------------------- 
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(coordPar(iNodeL,3),8)
+      end do
+      ms_offset2d(1) = 2
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r64)
+
+      deallocate(aux_array_r64)
+      !-----------------------------------------------------------------------------
+      ds_rank = 1
+      ds_dims(1) = mpi_size
+      ms_rank = 1
+      ms_dims(1) = 1
+      ms_offset(1) = mpi_rank
+      dtype = H5T_STD_I64LE
+      allocate(aux_array_i64(1))
+
+      dsetname = '/VTKHDF/NumberOfPoints'
+      aux_array_i64(1) = numNodesRankPar
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int8_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_i64)
+
+      dsetname = '/VTKHDF/NumberOfCells'
+      aux_array_i64(1) = numElemsInRank
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int8_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_i64)
+
+      dsetname = '/VTKHDF/NumberOfConnectivityIds'
+      aux_array_i64(1) = numElemsInRank*nnode
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int8_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_i64)
+
+      !-----------------------------------------------------------------------------
+      deallocate(aux_array_i64)
+      allocate(aux_array_i64(numElemsInRank+1))
+
+      ds_dims(1) = totalNumElements+mpi_size
+      ms_dims(1) = numElemsInRank+1
+      ms_offset(1) = rankElemStart-1+mpi_rank
+
+      dsetname = '/VTKHDF/Offsets'
+      aux_array_i64(1) = 0
+      do iElemL = 2,(numElemsInRank+1)
+         aux_array_i64(iElemL) = aux_array_i64(iElemL-1)+nnode
+      end do
+
+      !call create_chunked_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,ms_dims,dtype)
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int8_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_i64)
+      deallocate(aux_array_i64)
+      !-----------------------------------------------------------------------------
+      !  SAVING connecParVTK(:)
+      !dtype = H5T_STD_I64LE
+      allocate(aux_array_i64(numElemsInRank*nnode))
+
+      ds_dims(1) = totalNumElements*nnode
+      ms_dims(1) = numElemsInRank*nnode
+      ms_offset(1) = (rankElemStart-1)*nnode
+
+      do ii = 1,numElemsInRank*nnode
+         aux_array_i64(ii) = connecVTK(ii)-1
+      end do
+
+      dsetname = '/VTKHDF/Connectivity'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int8_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_i64)
+      deallocate(aux_array_i64)
+      !-----------------------------------------------------------------------------
+      allocate(aux_array_i8(numElemsInRank))
+      dtype = H5T_STD_U8LE
+      dsetname = '/VTKHDF/Types'
+      !$acc kernels
+      aux_array_i8(:) = 72
+      !$acc end kernels
+
+      ds_dims(1) = totalNumElements
+      ms_dims(1) = numElemsInRank
+      ms_offset(1) = rankElemStart-1
+
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      !call create_chunked_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,ms_dims,dtype)
+      call write_dataspace_int1_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_i8)
+
+      deallocate(aux_array_i8)
+
+      !close the file.
+      !call h5fclose_f(file_id,h5err)
+
+   end subroutine create_vtkhdf_resultsFile
+            
+   subroutine save_vtkhdf_instResultsFile(iStep,rho,pr,E,eta,csound,machno,divU,Qcrit,envit,mut,mu_fluid,u,gradRho,curlU)
+      implicit none
+      integer, intent(in) :: iStep
+      real(rp),dimension(numNodesRankPar),intent(in) :: rho,pr,E,eta,csound,machno,divU,Qcrit
+      real(rp),dimension(numNodesRankPar),intent(in) :: envit,mut,mu_fluid
+      real(rp),dimension(numNodesRankPar,2),intent(in) :: u,gradRho,curlU
+
+      character(512) :: full_fileName,groupname,dsetname
+      integer(hid_t) :: file_id,plist_id,dset_id,fspace_id
+      integer(hid_t) :: dtype,atype
+      integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims,a_dims
+      integer(HSIZE_T), dimension(2) :: ds_dims2d,ms_dims2d
+      integer(HSSIZE_T), dimension(1) :: ms_offset 
+      integer(HSSIZE_T), dimension(2) :: ms_offset2d
+      integer :: ds_rank,ms_rank,h5err
+
+      integer :: ii,iNodeL,iElemL
+      integer(1),allocatable :: aux_array_i8(:)
+      integer(4),allocatable :: aux_array_i32(:)
+      integer(8),allocatable :: aux_array_i64(:)
+      real(8),allocatable :: aux_array_r64(:)
+
+      !------------------------------------------------------------------------------------
+      call set_vtkhdf_resultsFile_name(iStep,full_fileName)
+      if(mpi_rank.eq.0) write(*,*) '# Saving VTKHDF inst results file: ',trim(adjustl(full_fileName))
+
+      ! Setup file access property list with parallel I/O access.
+      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
+      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+
+      ! create file collectively
+      call h5fcreate_f(full_fileName,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot create VTKHDF ',trim(adjustl(full_fileName))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
+      call h5pclose_f(plist_id, h5err)
+
+      call create_vtkhdf_resultsFile(file_id)
+
+      allocate(aux_array_r64(numNodesRankPar))
+      !------------------------------------------------------------------------------------------------------
+      dtype = H5T_NATIVE_DOUBLE
+      ds_rank = 1
+      ms_rank = 1
+      ds_dims(1) = totalNumNodesPar
+      ms_dims(1) = numNodesRankPar
+      ms_offset(1) = rankNodeStart-1
+
+      ! ## RHO ##
+      dsetname = '/VTKHDF/PointData/rho'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(rho(iNodeL),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_r64)
+
+      ! ## PR ##
+      dsetname = '/VTKHDF/PointData/pr'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(pr(iNodeL),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_r64)
+
+      ! ## Ener ##
+      dsetname = '/VTKHDF/PointData/Ener'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(E(iNodeL),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_r64)
+      
+      ! ## eta ##
+      dsetname = '/VTKHDF/PointData/eta'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(eta(iNodeL),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_r64)
+
+      ! ## csound ##
+      dsetname = '/VTKHDF/PointData/csound'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(csound(iNodeL),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_r64)
+
+      ! ## machno ##
+      dsetname = '/VTKHDF/PointData/machno'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(machno(iNodeL),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_r64)
+
+      ! ## divU ##
+      dsetname = '/VTKHDF/PointData/divU'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(divU(iNodeL),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_r64)
+
+      ! ## Qcrit ##
+      dsetname = '/VTKHDF/PointData/Qcrit'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(Qcrit(iNodeL),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_r64)
+
+      ! ## envit ##
+      dsetname = '/VTKHDF/PointData/envit'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(envit(iNodeL),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_r64)
+
+      ! ## mut ##
+      dsetname = '/VTKHDF/PointData/mut'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(mut(iNodeL),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_r64)
+
+      ! ## mu_fluid ##
+      dsetname = '/VTKHDF/PointData/mu_fluid'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(mu_fluid(iNodeL),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_r64)
+
+      !-------------------------------------------------------------------------------------------------------
+      ds_rank = 2
+      ms_rank = 2
+      ds_dims2d(1) = 3
+      ms_dims2d(1) = 1
+      ds_dims2d(2) = totalNumNodesPar
+      ms_dims2d(2) = numNodesRankPar
+      ms_offset2d(2) = rankNodeStart-1
+      !-------------------------------------------------------------------------------- 
+      dsetname = '/VTKHDF/PointData/Velocity'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims2d,dtype)
+      !-------------------------------------------------------------------------------- 
+      ms_offset2d(1) = 0
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(u(iNodeL,1),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r64)
+      !call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,u(:,1))
+      !-------------------------------------------------------------------------------- 
+      ms_offset2d(1) = 1
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(u(iNodeL,2),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r64)
+      !call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,u(:,2))
+      !-------------------------------------------------------------------------------- 
+      ms_offset2d(1) = 2
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(u(iNodeL,3),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r64)
+      !-------------------------------------------------------------------------------- 
+      dsetname = '/VTKHDF/PointData/gradRho'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims2d,dtype)
+      !-------------------------------------------------------------------------------- 
+      ms_offset2d(1) = 0
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(gradRho(iNodeL,1),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r64)
+      !-------------------------------------------------------------------------------- 
+      ms_offset2d(1) = 1
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(gradRho(iNodeL,2),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r64)
+      !-------------------------------------------------------------------------------- 
+      ms_offset2d(1) = 2
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(gradRho(iNodeL,3),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r64)
+      !-------------------------------------------------------------------------------- 
+      dsetname = '/VTKHDF/PointData/curlU'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims2d,dtype)
+      !-------------------------------------------------------------------------------- 
+      ms_offset2d(1) = 0
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(curlU(iNodeL,1),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r64)
+      !-------------------------------------------------------------------------------- 
+      ms_offset2d(1) = 1
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(curlU(iNodeL,2),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r64)
+      !-------------------------------------------------------------------------------- 
+      ms_offset2d(1) = 2
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(curlU(iNodeL,3),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r64)
+      !-------------------------------------------------------------------------------- 
+
+      deallocate(aux_array_r64)
+
+      !-------------------------------------------------------------------------------------------------------
+
+      !close the file.
+      call h5fclose_f(file_id,h5err)
+
+   end subroutine save_vtkhdf_instResultsFile
 
 !---------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------

@@ -19,7 +19,7 @@ program tool_hdf5_to_cgns
     use mod_mpi
     use mod_mpi_mesh
     use mod_hdf5
-    use mod_cgns_mesh
+    !use mod_cgns_mesh
     implicit none
 
     character(512) :: mesh_h5_filePath,mesh_h5_fileName
@@ -47,7 +47,7 @@ program tool_hdf5_to_cgns
 
     call init_mpi()
 
-    if(mpi_rank.eq.0) write(*,*) '## CONVERSION TOOL HDF5 -> CGNS ##'
+    if(mpi_rank.eq.0) write(*,*) '## CONVERSION TOOL HDF5 -> VTKHDF ##'
 
     !------------------------------------------------------------------------------
     ! Reading input file
@@ -56,7 +56,7 @@ program tool_hdf5_to_cgns
         !read(cnsteps,'(i)') numNodesSrl
         if(mpi_rank.eq.0) write(*,*) 'Reading input file: ',trim(adjustl(input_file))
     else
-        stop 0
+        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
     endif
     !------------------------------------------------------------------------------
     ! Reading the parameters
@@ -69,7 +69,7 @@ program tool_hdf5_to_cgns
         if(mpi_rank.eq.0) write(*,*) 'mesh_h5_filePath: ',trim(adjustl(read_val))
     else
         if(mpi_rank.eq.0) write(*,*) 'Error! Line 1 must be mesh_h5_filePath value'
-        stop 0
+        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
     endif
 
     !mesh_h5_fileName--------------------------------------------------------------
@@ -79,7 +79,7 @@ program tool_hdf5_to_cgns
         if(mpi_rank.eq.0) write(*,*) 'mesh_h5_fileName: ',trim(adjustl(read_val))
     else
         if(mpi_rank.eq.0) write(*,*) 'Error! Line 2 must be mesh_h5_fileName value'
-        stop 0
+        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
     endif
 
     !cgns_filePath--------------------------------------------------------------
@@ -89,7 +89,7 @@ program tool_hdf5_to_cgns
         if(mpi_rank.eq.0) write(*,*) 'cgns_filePath: ',trim(adjustl(read_val))
     else
         if(mpi_rank.eq.0) write(*,*) 'Error! Line 3 must be cgns_filePath value'
-        stop 0
+        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
     endif
 
     !cgns_fileName--------------------------------------------------------------
@@ -99,7 +99,7 @@ program tool_hdf5_to_cgns
         if(mpi_rank.eq.0) write(*,*) 'cgns_fileName: ',trim(adjustl(read_val))
     else
         if(mpi_rank.eq.0) write(*,*) 'Error! Line 4 must be cgns_fileName value'
-        stop 0
+        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
     endif
 
     !results_h5_filePath--------------------------------------------------------------
@@ -109,7 +109,7 @@ program tool_hdf5_to_cgns
         if(mpi_rank.eq.0) write(*,*) 'results_h5_filePath: ',trim(adjustl(read_val))
     else
         if(mpi_rank.eq.0) write(*,*) 'Error! Line 5 must be results_h5_filePath value'
-        stop 0
+        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
     endif
 
     !results_h5_fileName--------------------------------------------------------------
@@ -119,7 +119,7 @@ program tool_hdf5_to_cgns
         if(mpi_rank.eq.0) write(*,*) 'results_h5_fileName: ',trim(adjustl(read_val))
     else
         if(mpi_rank.eq.0) write(*,*) 'Error! Line 6 must be results_h5_fileName value'
-        stop 0
+        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
     endif
 
     !output_cgns_fileName--------------------------------------------------------------
@@ -129,7 +129,7 @@ program tool_hdf5_to_cgns
         if(mpi_rank.eq.0) write(*,*) 'output_cgns_fileName: ',trim(adjustl(read_val))
     else
         if(mpi_rank.eq.0) write(*,*) 'Error! Line 7 must be output_cgns_fileName value'
-        stop 0
+        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
     endif
 
     !do_averages--------------------------------------------------------------------------
@@ -145,14 +145,14 @@ program tool_hdf5_to_cgns
                 if(mpi_rank.eq.0) then
                     write(*,*) 'ERROR! do_averages must be 0(false)/1(true)',&
                                ' | wrong value ',trim(adjustl(read_val))
-                    stop 0
+                    call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
                 end if
             end if
         else
             if(mpi_rank.eq.0) then
                 write(*,*) 'ERROR! do_averages must be 0(false)/1(true)',&
                            ' | wrong value ',trim(adjustl(read_val))
-                stop 0
+                call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
             end if
         end if
         if(mpi_rank.eq.0) write(*,*) 'do_averages: ',do_averages
@@ -170,7 +170,7 @@ program tool_hdf5_to_cgns
             if(mpi_rank.eq.0) then
                 write(*,*) 'ERROR! first_step must be 0(false)/1(true)',&
                            ' | wrong value ',trim(adjustl(read_val))
-                stop 0
+                call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
             end if
         end if
         if(mpi_rank.eq.0) write(*,*) 'first_step: ',first_step
@@ -188,7 +188,7 @@ program tool_hdf5_to_cgns
             if(mpi_rank.eq.0) then
                 write(*,*) 'ERROR! last_step must be 0(false)/1(true)',&
                            ' | wrong value ',trim(adjustl(read_val))
-                stop 0
+                call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
             end if
         end if
         if(mpi_rank.eq.0) write(*,*) 'last_step: ',last_step
@@ -206,7 +206,7 @@ program tool_hdf5_to_cgns
             if(mpi_rank.eq.0) then
                 write(*,*) 'ERROR! nstep must be 0(false)/1(true)',&
                            ' | wrong value ',read_val
-                stop 0
+                call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
             end if
         end if
         if(mpi_rank.eq.0) write(*,*) 'nstep: ',nstep
@@ -262,13 +262,13 @@ program tool_hdf5_to_cgns
         allocate(curlU(numNodesRankPar,ndime))
     end if
 
-    call init_CGNSmesh_arrays()
+    !call init_CGNSmesh_arrays()
 
     !here the loop!
     do iStep=first_step,last_step,nstep
         if(mpi_rank.eq.0) write(*,*) '## Doing iStep',iStep   
 
-        call set_CGNS_full_fileName(full_fileName,cgns_filePath,cgns_fileName,output_cgns_fileName,iStep)
+!        call set_CGNS_full_fileName(full_fileName,cgns_filePath,cgns_fileName,output_cgns_fileName,iStep)
 
         if(mpi_rank.eq.0) write(*,*) '# Loading HDF5 Results file...'
 
@@ -280,19 +280,23 @@ program tool_hdf5_to_cgns
                                 machno,gradRho,curlU,divU,Qcrit,mu_fluid,envit,mut)
         end if
 
-        if(mpi_rank.eq.0) write(*,*) '# Creating CGNS file...'
-        call create_CGNSmesh_par(full_fileName)
+        if(mpi_rank.eq.0) write(*,*) '# Creating VTKHDF file...'
+
+        !call create_CGNSmesh_par(full_fileName)
 
         if(do_averages) then
-            call add_write_floatField_CGNSmesh_vertexSolution('avrho',avrho)
-            call add_write_floatField_CGNSmesh_vertexSolution('avpre',avpre)
-            call add_write_floatField_CGNSmesh_vertexSolution('avmueff',avmueff)
-            call add_write_floatField_CGNSmesh_vertexSolution('avvelX',avvel(:,1))
-            call add_write_floatField_CGNSmesh_vertexSolution('avvelY',avvel(:,2))
-            call add_write_floatField_CGNSmesh_vertexSolution('avvelZ',avvel(:,3))
-            call add_write_floatField_CGNSmesh_vertexSolution('avve2X',avve2(:,1))
-            call add_write_floatField_CGNSmesh_vertexSolution('avve2Y',avve2(:,2))
-            call add_write_floatField_CGNSmesh_vertexSolution('avve2Z',avve2(:,3))
+
+            call save_vtkhdf_avgResultsFile(iStep,avrho,avpre,avmueff,avvel,avve2)
+
+           !call add_write_floatField_CGNSmesh_vertexSolution('avrho',avrho)
+           !call add_write_floatField_CGNSmesh_vertexSolution('avpre',avpre)
+           !call add_write_floatField_CGNSmesh_vertexSolution('avmueff',avmueff)
+           !call add_write_floatField_CGNSmesh_vertexSolution('avvelX',avvel(:,1))
+           !call add_write_floatField_CGNSmesh_vertexSolution('avvelY',avvel(:,2))
+           !call add_write_floatField_CGNSmesh_vertexSolution('avvelZ',avvel(:,3))
+           !call add_write_floatField_CGNSmesh_vertexSolution('avve2X',avve2(:,1))
+           !call add_write_floatField_CGNSmesh_vertexSolution('avve2Y',avve2(:,2))
+           !call add_write_floatField_CGNSmesh_vertexSolution('avve2Z',avve2(:,3))
 
             favrho(:)   = favrho(:)   + avrho(:)
             favpre(:)   = favpre(:)   + avpre(:)
@@ -300,29 +304,32 @@ program tool_hdf5_to_cgns
             favvel(:,1:3) = favvel(:,1:3) + avvel(:,1:3)
             favve2(:,1:3) = favve2(:,1:3) + avve2(:,1:3)
         else
-            call add_write_floatField_CGNSmesh_vertexSolution('rho',rho)
-            call add_write_floatField_CGNSmesh_vertexSolution('VelocityX',u(:,1))
-            call add_write_floatField_CGNSmesh_vertexSolution('VelocityY',u(:,2))
-            call add_write_floatField_CGNSmesh_vertexSolution('VelocityZ',u(:,3))
-            call add_write_floatField_CGNSmesh_vertexSolution('E',E)
-            call add_write_floatField_CGNSmesh_vertexSolution('pr',pr)
-            call add_write_floatField_CGNSmesh_vertexSolution('eta',eta)
-            call add_write_floatField_CGNSmesh_vertexSolution('csound',csound)
-            call add_write_floatField_CGNSmesh_vertexSolution('machno',machno)
-            call add_write_floatField_CGNSmesh_vertexSolution('gradRhoX',gradRho(:,1))
-            call add_write_floatField_CGNSmesh_vertexSolution('gradRhoY',gradRho(:,2))
-            call add_write_floatField_CGNSmesh_vertexSolution('gradRhoZ',gradRho(:,3))
-            call add_write_floatField_CGNSmesh_vertexSolution('curlUX',curlU(:,1))
-            call add_write_floatField_CGNSmesh_vertexSolution('curlUY',curlU(:,2))
-            call add_write_floatField_CGNSmesh_vertexSolution('curlUZ',curlU(:,3))
-            call add_write_floatField_CGNSmesh_vertexSolution('divU',divU)
-            call add_write_floatField_CGNSmesh_vertexSolution('Qcrit',Qcrit)
-            call add_write_floatField_CGNSmesh_vertexSolution('mu_fluid',mu_fluid)
-            call add_write_floatField_CGNSmesh_vertexSolution('envit',envit)
-            call add_write_floatField_CGNSmesh_vertexSolution('mut',mut)
+
+            call save_vtkhdf_instResultsFile(iStep,rho,pr,E,eta,csound,machno,divU,Qcrit,&
+                                            envit,mut,mu_fluid,u,gradRho,curlU)
+           !call add_write_floatField_CGNSmesh_vertexSolution('rho',rho)
+           !call add_write_floatField_CGNSmesh_vertexSolution('VelocityX',u(:,1))
+           !call add_write_floatField_CGNSmesh_vertexSolution('VelocityY',u(:,2))
+           !call add_write_floatField_CGNSmesh_vertexSolution('VelocityZ',u(:,3))
+           !call add_write_floatField_CGNSmesh_vertexSolution('E',E)
+           !call add_write_floatField_CGNSmesh_vertexSolution('pr',pr)
+           !call add_write_floatField_CGNSmesh_vertexSolution('eta',eta)
+           !call add_write_floatField_CGNSmesh_vertexSolution('csound',csound)
+           !call add_write_floatField_CGNSmesh_vertexSolution('machno',machno)
+           !call add_write_floatField_CGNSmesh_vertexSolution('gradRhoX',gradRho(:,1))
+           !call add_write_floatField_CGNSmesh_vertexSolution('gradRhoY',gradRho(:,2))
+           !call add_write_floatField_CGNSmesh_vertexSolution('gradRhoZ',gradRho(:,3))
+           !call add_write_floatField_CGNSmesh_vertexSolution('curlUX',curlU(:,1))
+           !call add_write_floatField_CGNSmesh_vertexSolution('curlUY',curlU(:,2))
+           !call add_write_floatField_CGNSmesh_vertexSolution('curlUZ',curlU(:,3))
+           !call add_write_floatField_CGNSmesh_vertexSolution('divU',divU)
+           !call add_write_floatField_CGNSmesh_vertexSolution('Qcrit',Qcrit)
+           !call add_write_floatField_CGNSmesh_vertexSolution('mu_fluid',mu_fluid)
+           !call add_write_floatField_CGNSmesh_vertexSolution('envit',envit)
+           !call add_write_floatField_CGNSmesh_vertexSolution('mut',mut)
         endif
 
-        call close_CGNSmesh_par()
+!        call close_CGNSmesh_par()
     end do
 
     if(do_averages) then
@@ -337,7 +344,7 @@ program tool_hdf5_to_cgns
               favve2(i,j) = favve2(i,j) / real(numAvgSteps, rp)
            end do
         end do
-    
+#if 0    
         write(output_cgns_fileName,*) "results_finalAVG"
         iStep = 0
         call set_CGNS_full_fileName(full_fileName,cgns_filePath,cgns_fileName,output_cgns_fileName,iStep)
@@ -355,9 +362,10 @@ program tool_hdf5_to_cgns
         call add_write_floatField_CGNSmesh_vertexSolution('favve2Z',favve2(:,3))
 
         call close_CGNSmesh_par()
+#endif
     end if
 
-    call end_CGNSmesh_arrays()
+    !call end_CGNSmesh_arrays()
 
     call end_hdf5_interface()
 

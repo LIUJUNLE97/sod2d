@@ -4,10 +4,11 @@ module mod_arrays
       implicit none
 
       ! main allocatable arrays
-      integer(4), allocatable  :: connecVTK(:,:)!, connec(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
+      !integer(4), allocatable  :: connecVTK(:,:)!, connec(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
       !integer(4), allocatable  :: masSla(:,:), connec_orig(:,:), bound_orig(:,:), lpoin_w(:)
       integer(4), allocatable  :: lelpn(:),point2elem(:)
-      integer(4), allocatable  :: atoIJ(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
+      integer(4), allocatable  :: atoIJ(:),atoIJK(:),listHEX08(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
+!      integer(4), allocatable  :: atoIJ(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
 !      real(rp), allocatable    :: coord(:,:), helem(:),helem_l(:,:)
       real(rp), allocatable    :: helem(:),helem_l(:,:)
       real(rp), allocatable    :: xgp(:,:), wgp(:), xgp_b(:,:), wgp_b(:)
@@ -106,7 +107,7 @@ module CFDSolverBase_mod
       procedure, public :: interpolateInitialConditions =>CFDSolverBase_interpolateInitialConditions
       procedure, public :: evalBoundaryNormals =>CFDSolverBase_evalBoundaryNormals
       procedure, public :: evalJacobians =>CFDSolverBase_evalJacobians
-      procedure, public :: evalVTKconnectivity =>CFDSolverBase_evalVTKconnectivity
+      !procedure, public :: evalVTKconnectivity =>CFDSolverBase_evalVTKconnectivity
       procedure, public :: evalAtoIJKInverse =>CFDSolverBase_evalAtoIJKInverse
       procedure, public :: evalPeriodic =>CFDSolverBase_evalPeriodic
       procedure, public :: evalMass=>CFDSolverBase_evalMass
@@ -467,7 +468,7 @@ contains
       !           Allocating required arrays!
       allocate(atoIJ(16))
       allocate(atoIJK(64))
-      allocate(vtk_atoIJK(64))
+      !allocate(vtk_atoIJK(64))
       allocate(listHEX08((porder**ndime),2**ndime))
 
       allocate(xgp(ngaus,ndime))
@@ -481,7 +482,7 @@ contains
       allocate(dlxigp_ip(ngaus,ndime,porder+1))
       !*********************************************************
 
-      call set_hex64_lists(atoIJK,vtk_atoIJK,listHEX08)
+      call set_hex64_lists(atoIJK,listHEX08)
       call set_qua16_lists(atoIJ)
 
       if(mpi_rank.eq.0) write(111,*) "  --| GENERATING CHEBYSHEV TABLE..."
@@ -677,10 +678,10 @@ contains
    subroutine CFDSolverBase_evalVTKconnectivity(this)
       class(CFDSolverBase), intent(inout) :: this
 
-      allocate(connecVTK(numElemsInRank,nnode))
-      allocate(connecLINEAR(numElemsInRank*(porder**ndime),2**ndime))
-      call create_connecVTK(numElemsInRank,connecParOrig,atoIJK,vtk_atoIJK,connecVTK)
-      call linearMeshOutput(numElemsInRank,connecParOrig,listHEX08,connecLINEAR)
+      !allocate(connecVTK(numElemsInRank,nnode))
+      !allocate(connecLINEAR(numElemsInRank*(porder**ndime),2**ndime))
+      !call create_connecVTK(numElemsInRank,connecParOrig,atoIJK,vtk_atoIJK,connecVTK)
+      !call linearMeshOutput(numElemsInRank,connecParOrig,listHEX08,connecLINEAR)
 
    end subroutine CFDSolverBase_evalVTKconnectivity
    
@@ -1133,7 +1134,7 @@ contains
 
         ! Eval vtk connectivity
 
-        call this%evalVTKconnectivity()
+        !call this%evalVTKconnectivity()
 
         ! Eval AtoIJK inverse
 
