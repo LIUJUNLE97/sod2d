@@ -53,25 +53,26 @@ contains
       this%isPeriodic = .false.
       this%loadMesh = .false.
 
-      this%nstep = 90000000 
-      this%cfl_conv = 1.5_rp
-      this%cfl_diff = 1.5_rp
+      this%nstep = 2000
+      this%cfl_conv = 0.85_rp
+      this%cfl_diff = 0.85_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 5000 ! Saving interval, TODO: input
+      this%nleap = 250 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 10  ! Saving interval, TODO: input
+      this%nleap2 = 5  ! Saving interval, TODO: input
       this%nleapAVG = 2000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
       this%vo = 1.0_rp
       this%M  = 0.2_rp
-      this%delta  = 1000.0_rp
+      this%delta  = 1.0_rp
       this%rho0   = 1.0_rp
       this%gamma_gas = 1.40_rp
-      this%Re     =  2.9e6
+      this%Re     =  2900.0_rp
+      !this%Re     =  2900000.0_rp
 
       mul    = (this%rho0*this%delta*this%vo)/this%Re
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
@@ -144,17 +145,17 @@ contains
       ! remember that the mu_factor field has to we filled at least with the
       ! flag_mu_factor
 
-     !$acc parallel loop
-     do iNodeL = 1,numNodesRankPar
-        mu_factor(iNodeL) = flag_mu_factor
-        if(coordPar(iNodeL,1)<-4000.0_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         mu_factor(iNodeL) = flag_mu_factor
+        if(coordPar(iNodeL,1)<-4.0_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*100.0_rp
         end if
-        if(coordPar(iNodeL,1)>5000.0_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
+        if(coordPar(iNodeL,1)>5.0_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*100.0_rp
         end if
-     end do
-     !$acc end parallel loop
+      end do
+      !$acc end parallel loop
    end subroutine BluffBody3DSolver_evalInitialConditions
 
 end module BluffBody3DSolver_mod

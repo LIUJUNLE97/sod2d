@@ -157,7 +157,7 @@ contains
 
    subroutine ThermalChannelFlowSolver_evalInitialConditions(this)
       class(ThermalChannelFlowSolver), intent(inout) :: this
-      integer(rp) :: matGidSrlOrdered(numNodesRankPar,2)
+      integer(4) :: matGidSrlOrdered(numNodesRankPar,2)
       integer :: iNodeL
       logical :: readFiles
       real(rp) :: velo, ti(3), yp
