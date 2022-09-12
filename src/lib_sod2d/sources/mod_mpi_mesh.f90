@@ -44,6 +44,17 @@ module mod_mpi_mesh
                13,23,41,44,17,21,45,46,37,50,57,60,38,49,58,59,&
                14,24,42,43,18,22,48,47,40,51,61,64,39,52,62,63]
 
+   integer(int_size),parameter :: vtk2ijk(nnode) = [1,4,15,16,2,3,11,12,9,13,49,51,10,14,50,52, &
+              5,8,23,24,6,7,19,20,17,21,53,55,18,22,54,56, &
+              25,31,33,34,27,29,37,38,41,45,57,59,42,46,58,60,&
+              26,32,35,36,28,30,39,40,43,47,61,63,44,48,62,64]
+
+   !the one from lucas old code
+   !integer(int_size),parameter :: vtk2ijk(nnode) = [1,4,15,16,2,3,11,12,9,13,49,51,10,14,50,52, &
+   !           5,8,23,24,6,7,19,20,17,21,53,55,18,22,54,56, &
+   !           25,29,33,34,27,31,37,38,41,45,57,59,42,46,58,60,&
+   !           26,30,35,36,28,32,39,40,43,47,61,63,44,48,62,64]
+
    integer(int_size),parameter :: cgns2ijk(nnode)= [1,4,16,15,2,3,11,12,9,14,33,36,10,13,34,35,&
                  5,8,32,31,6,7,27,28,25,30,53,56,26,29,54,55,&
                  17,21,50,49,19,23,41,42,37,46,57,60,38,45,58,59,&
@@ -82,6 +93,7 @@ integer(int_size), allocatable :: globalIdSrl(:), globalIdPar(:), elemGid(:)
 real(rp), allocatable :: coordPar(:,:)
 
 integer(int_size), allocatable :: connecCGNS(:)
+integer(int_size), allocatable :: connecVTK(:)
 integer(int_size), allocatable :: connecParOrig(:,:),connecParWork(:,:)
 
 integer(int_size), allocatable :: workingNodesPar(:)
@@ -959,6 +971,10 @@ contains
          end do
       end do
 #else
+      !IDEA:
+      !if we create a matrix (numNodesToRank,2) ordneant les global id podem fer un algoritme cerca
+      ! rapid i associar cada row a la iNodeL
+      !
       !$acc kernels copyin(globalIdSrl,masSlaSrl) copyout(masSlaRankPar)
       do iNodeL = 1,numNodesRankPar
          iNodeG = globalIdSrl(iNodeL)
@@ -1108,6 +1124,152 @@ contains
    subroutine get_rankPartitionBoundaryNodes(boundaryNodes)
       implicit none
       integer, allocatable, intent(out) :: boundaryNodes(:)
+      integer, allocatable :: nodeOwned(:),nodeInBoundary(:)
+      integer :: i,ind,ind_f,iElemL,iElemG,iNodeG,iNodeG_inFace,checkFacePos
+      integer :: numBNodesRankPar, numINodesRankPar
+
+      character(128) :: file_name, aux_string_rank !for debug
+
+      integer, parameter :: faceFront(16)  = [1,9,13,5,33,41,45,37,49,57,61,53,17,25,29,21]
+      integer, parameter :: faceLeft(16)   = [2,4,3,1,34,36,35,33,50,52,51,49,18,20,19,17]
+      integer, parameter :: faceTop(16)    = [17,25,29,21,19,27,31,23,20,28,32,24,18,26,30,22]
+      integer, parameter :: faceBack(16)   = [2,10,14,6,34,42,46,38,50,58,62,54,18,26,30,22]
+      integer, parameter :: faceRight(16)  = [6,8,7,5,38,40,39,37,54,56,55,53,22,24,23,21]
+      integer, parameter :: faceBottom(16) = [1,9,13,5,3,11,15,7,4,12,16,8,2,10,14,6]
+
+      allocate(nodeOwned(totalNumNodesSrl))
+      allocate(nodeInBoundary(totalNumNodesSrl))
+
+      !$acc kernels
+      nodeOwned(:)=0
+      nodeInBoundary(:)=0
+      !$acc end kernels
+
+      do iElemL=1,numElemsInRank
+         iElemG = elemGid(iElemL)
+         do ind = 1,nnode
+            iNodeG = connecGMSH(iElemG,gmsh2ijk(ind))
+            nodeOwned(iNodeG) = nodeOwned(iNodeG) + 1
+         end do
+      end do
+
+      !check if face is in boundary
+      checkFacePos = 6
+      do iElemL=1,numElemsInRank
+         iElemG = elemGid(iElemL)
+         !# 1.Front ------------------------------------------------------
+         ind = faceFront(checkFacePos)
+         iNodeG_inFace = connecGMSH(iElemG,gmsh2ijk(ind))
+         if(nodeOwned(iNodeG_inFace).eq.1) then !this face is boundary
+            do i=1,16
+               ind_f = gmsh2ijk(faceFront(i))
+               iNodeG = connecGMSH(iElemG,ind_f)
+               nodeInBoundary(iNodeG) = 1
+            end do
+         end if
+         !#--------------------------------------------------------------
+         !# 2.Left ------------------------------------------------------
+         ind = faceLeft(checkFacePos)
+         iNodeG_inFace = connecGMSH(iElemG,gmsh2ijk(ind))
+         if(nodeOwned(iNodeG_inFace).eq.1) then !this face is boundary
+            do i=1,16
+               ind_f = gmsh2ijk(faceLeft(i))
+               iNodeG = connecGMSH(iElemG,ind_f)
+               nodeInBoundary(iNodeG) = 1
+            end do
+         end if
+         !#-------------------------------------------------------------- 
+         !# 3.Top ------------------------------------------------------
+         ind = faceTop(checkFacePos)
+         iNodeG_inFace = connecGMSH(iElemG,gmsh2ijk(ind))
+         if(nodeOwned(iNodeG_inFace).eq.1) then !this face is boundary
+            do i=1,16
+               ind_f = gmsh2ijk(faceTop(i))
+               iNodeG = connecGMSH(iElemG,ind_f)
+               nodeInBoundary(iNodeG) = 1
+            end do
+         end if
+         !#-------------------------------------------------------------- 
+         !# 4.Back ------------------------------------------------------
+         ind = faceBack(checkFacePos)
+         iNodeG_inFace = connecGMSH(iElemG,gmsh2ijk(ind))
+         if(nodeOwned(iNodeG_inFace).eq.1) then !this face is boundary
+            do i=1,16
+               ind_f = gmsh2ijk(faceBack(i))
+               iNodeG = connecGMSH(iElemG,ind_f)
+               nodeInBoundary(iNodeG) = 1
+            end do
+         end if
+         !#--------------------------------------------------------------
+         !# 5.Right ------------------------------------------------------
+         ind = faceRight(checkFacePos)
+         iNodeG_inFace = connecGMSH(iElemG,gmsh2ijk(ind))
+         if(nodeOwned(iNodeG_inFace).eq.1) then !this face is boundary
+            do i=1,16
+               ind_f = gmsh2ijk(faceRight(i))
+               iNodeG = connecGMSH(iElemG,ind_f)
+               nodeInBoundary(iNodeG) = 1
+            end do
+         end if
+         !#-------------------------------------------------------------- 
+         !# 6.Bottom ------------------------------------------------------
+         ind = faceBottom(checkFacePos)
+         iNodeG_inFace = connecGMSH(iElemG,gmsh2ijk(ind))
+         if(nodeOwned(iNodeG_inFace).eq.1) then !this face is boundary
+            do i=1,16
+               ind_f = gmsh2ijk(faceBottom(i))
+               iNodeG = connecGMSH(iElemG,ind_f)
+               nodeInBoundary(iNodeG) = 1
+            end do
+         end if
+         !#-------------------------------------------------------------- 
+      end do
+
+      numNodesRankPar=0
+      numBNodesRankPar=0
+      numINodesRankPar=0
+
+      do iNodeG=1,totalNumNodesSrl
+         if(nodeOwned(iNodeG).ne.0) then !node is in rank
+            numNodesRankPar = numNodesRankPar+1
+            if(nodeInBoundary(iNodeG).eq.1) then !node is boundary
+               numBNodesRankPar=numBNodesRankPar+1
+            else !node is inner
+               numINodesRankPar=numINodesRankPar+1
+            end if
+         end if
+      end do
+
+      !write(*,*) '#rank[',mpi_rank,']  nodesInRank ',numNodesRankPar, " bN ", numBNodesRankPar, " iN ",numINodesRankPar
+      allocate(boundaryNodes(numBNodesRankPar))
+
+      i=0
+      do iNodeG=1,totalNumNodesSrl
+         if(nodeInBoundary(iNodeG).eq.1) then !node is boundary
+            i=i+1
+            boundaryNodes(i) = iNodeG
+         end if
+      end do
+      !write(*,*) '#rank[',mpi_rank,']  nodesInRank ',numNodesRankPar, " bN ", numBNodesRankPar, " iN ",numINodesRankPar,'i',i
+
+      deallocate(nodeOwned)
+      deallocate(nodeInBoundary)
+
+#if _CHECK_
+      write(aux_string_rank,'(I0)') mpi_rank
+      file_name = 'boundaryNodes_rank'// trim(aux_string_rank)//'.csv'
+      open(1, file=file_name)
+      do i=1,numBNodesRankPar
+         iNodeG=boundaryNodes(i)
+         write(1,fmt_csv) coordGMSH(iNodeG,1),coordGMSH(iNodeG,2),coordGMSH(iNodeG,3),iNodeG
+      end do
+      close(1)
+#endif
+   end subroutine get_rankPartitionBoundaryNodes
+
+   subroutine get_rankPartitionBoundaryNodes_structured(boundaryNodes)
+      implicit none
+      integer, allocatable, intent(out) :: boundaryNodes(:)
 
       integer, allocatable :: nodeType(:), nodeOwned(:)
 
@@ -1119,8 +1281,10 @@ contains
       allocate(nodeOwned(totalNumNodesSrl))
       allocate(nodeType(totalNumNodesSrl))
 
-      nodeOwned=0
-      nodeType=0
+      !$acc kernels
+      nodeOwned(:)=0
+      nodeType(:)=0
+      !$acc end kernels
 
       do iElemL=1,numElemsInRank
          !iElemG = (iElemL-1) + rankElemStart
@@ -1179,7 +1343,6 @@ contains
       end do
 
       !write(*,*) '#rank[',mpi_rank,']  nodesInRank ',numNodesRankPar, " bN ", numBNodesRankPar, " iN ",numINodesRankPar
-     
       allocate(boundaryNodes(numBNodesRankPar))
 
       i=1
@@ -1216,7 +1379,7 @@ contains
       end do
       close(1)
 #endif
-   end subroutine get_rankPartitionBoundaryNodes
+   end subroutine get_rankPartitionBoundaryNodes_structured
 
    subroutine get_serialNodePartitioning(numNodesRankSrl,iNodeStartSrl,iNodeEndSrl)
       integer, intent(out) :: numNodesRankSrl
@@ -1476,6 +1639,7 @@ contains
       !if(mpi_rank.eq.0) write(*,*) vecSharedBN_full(:)
 
 #if _CHECK_
+      write(aux_string_rank,'(I0)') mpi_rank
       file_name = 'vecSharedBN_full_rank'// trim(aux_string_rank)//'.csv'
       open(1, file=file_name)
       i=0
@@ -1634,17 +1798,18 @@ contains
 
    subroutine reorder_nodes_in_proc(iNodeStartPar)
       integer,dimension(0:mpi_size-1),intent(in) :: iNodeStartPar
-      integer :: iPos,m,indConn,indexIJK,indexCGNS,indexGMSH,indexNew
+      integer :: iPos,m,indConn,indexIJK,indexVTK,indexCGNS,indexGMSH,indexNew
       integer :: iNodeL,iNodeGpar,iNodeGsrl,iElemL,iElemG
 
-      integer,dimension(nnode) :: auxNodeNewOrderInElem,auxNewOrderIndex,auxCGNSorder
+      integer,dimension(nnode) :: auxNodeNewOrderInElem,auxNewOrderIndex,auxVTKorder,auxCGNSorder
       integer,dimension(totalNumNodesSrl) :: isNodeAdded
 
       allocate(globalIdSrl(numNodesRankPar))
       allocate(globalIdPar(numNodesRankPar))
 
-      allocate( connecCGNS(numElemsInRank*nnode) )
-      allocate( connecParOrig(numElemsInRank,nnode) )
+      allocate(connecCGNS(numElemsInRank*nnode))
+      allocate(connecVTK(numElemsInRank*nnode))
+      allocate(connecParOrig(numElemsInRank,nnode))
 
       isNodeAdded=-1
       iPos = 1
@@ -1659,7 +1824,7 @@ contains
       ! first do a first migration of the code and once it work, think how to allow different node ordering
       ! BUT FIX IT!!!!!!
 
-      call generate_new_nodeOrder_and_connectivity(gmsh2ijk,auxNewOrderIndex,auxCGNSorder)
+      call generate_new_nodeOrder_and_connectivity(gmsh2ijk,auxNewOrderIndex,auxVTKorder,auxCGNSorder)
       !call generate_new_nodeOrder_and_connectivity(cgns2ijk,auxNewOrderIndex,auxCGNSorder)
       !call generate_new_nodeOrder_and_connectivity(dummy2ijk,auxNewOrderIndex,auxCGNSorder)
 
@@ -1702,8 +1867,11 @@ contains
 
             indexCGNS = auxCGNSorder(m)
             indConn = (iElemL-1)*nnode + indexCGNS
-            
             connecCGNS(indConn) = iNodeGPar
+
+            indexVTK = auxVTKorder(m)
+            indConn = (iElemL-1)*nnode + indexVTK
+            connecVTK(indConn) = iNodeL!connec(ielem,indGmsh)
 
          end do
 
@@ -1712,10 +1880,10 @@ contains
       end do
    end subroutine reorder_nodes_in_proc
 
-   subroutine generate_new_nodeOrder_and_connectivity(newOrderIJK,auxNewOrderIndex,auxCGNSorder)
+   subroutine generate_new_nodeOrder_and_connectivity(newOrderIJK,auxNewOrderIndex,auxVTKorder,auxCGNSorder)
       integer,intent(in)  :: newOrderIJK(:)
-      integer,intent(out) :: auxNewOrderIndex(:),auxCGNSorder(:)
-      integer :: i,j,k,indexIJK,indexNew,indexCGNS
+      integer,intent(out) :: auxNewOrderIndex(:),auxVTKorder(:),auxCGNSorder(:)
+      integer :: i,j,k,indexIJK,indexNew,indexVTK,indexCGNS
 
       !!!$acc kernels
       do k = 0,porder
@@ -1724,9 +1892,11 @@ contains
                indexIJK = ((porder+1)**2)*k+(porder+1)*i+j+1
 
                indexNew = newOrderIJK(indexIJK)
+               indexVTK = vtk2ijk(indexIJK)
                indexCGNS = cgns2ijk(indexIJK) !posicio requerida en el connec de cgns
 
                auxNewOrderIndex(indexIJK) = indexNew
+               auxVTKorder(indexNew) = indexVTK
                auxCGNSorder(indexNew) = indexCGNS
 
                !write(*,*) 'test->indexIJK ', indexIJK, ' iNew ', indexNew,' aux ', auxCGNSorder(indexNew)

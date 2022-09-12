@@ -3,6 +3,9 @@ module mod_entropy_viscosity
    use mod_constants
    use mod_nvtx
    use mod_veclen
+   use mod_mpi
+   use mod_mpi_mesh
+   use mod_comms
 
       ! TODO: Finish module and create unit tests
 
@@ -212,36 +215,42 @@ module mod_entropy_viscosity
               
                       implicit none
 
-                      integer(4), intent(in)  :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
+                      integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
                       real(rp),    intent(in)  :: Reta(npoin), Rrho(npoin), Ngp(ngaus,nnode),gamma_gas
                       real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime), Tem(npoin), eta(npoin),helem(nelem,nnode),helem_k(nelem),Ml(npoin)
                       real(rp),    intent(out) :: mu_e(nelem,ngaus)
-                      integer(4)              :: ielem, inode,igaus,ipoin
+                      integer(4)               :: ielem, inode,igaus,ipoin,npoin_w_g
                       real(rp)                 :: R1, R2, Ve
                       real(rp)                 :: betae,mu,vol,vol2
                       real(rp)                 :: L3, aux1, aux2, aux3
-                      real(rp)                 ::  maxEta, maxRho, norm, Rgas
+                      real(rp)                 :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas
 
                       !Rgas = 1.0_rp*1.0_rp/(1.4_rp*1.0_rp*1.25_rp*1.25_rp)
                       Rgas = nscbc_Rgas_inf
 
-                      norm = 1.0_rp
+                      norm_r = 1.0_rp
 
                       if(flag_normalise_entropy .eq. 1) then
-                         maxEta = 0.0_rp
-                         !$acc parallel loop reduction(+:maxEta)
+                         maxEta_r = 0.0_rp
+                         !$acc parallel loop reduction(+:maxEta_r)
                          do ipoin = 1,npoin_w
-                            maxEta = maxEta + eta(lpoin_w(ipoin))
+                            maxEta_r = maxEta_r + eta(lpoin_w(ipoin))
                          end do
                          !$acc end parallel loop
-                         maxEta = maxEta/dble(npoin_w)
 
-                         norm = 0.0_rp
+                        call MPI_Allreduce(maxEta_r,maxEta,1,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                        call MPI_Allreduce(npoin_w,npoin_w_g,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+
+                         maxEta = maxEta/dble(npoin_w_g)
+
+                         norm_r = 0.0_rp
                          !$acc parallel loop reduction(max:norm)
                          do ipoin = 1,npoin_w
-                            norm = max(norm, abs(eta(lpoin_w(ipoin))-maxEta))
+                            norm_r = max(norm_r, abs(eta(lpoin_w(ipoin))-maxEta))
                          end do
                          !$acc end parallel loop
+
+                        call MPI_Allreduce(norm_r,norm,1,MPI_FLOAT,MPI_MAX,MPI_COMM_WORLD,mpi_err)
                       end if
 
                       !$acc parallel loop gang vector_length(vecLength)
