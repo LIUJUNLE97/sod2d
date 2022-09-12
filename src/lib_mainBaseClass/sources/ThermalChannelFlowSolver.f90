@@ -1,4 +1,4 @@
-#define AR2 1
+#define AR2 0
 
 subroutine avg_randomField_in_sharedNodes_Par(floatField)
    use mod_constants
@@ -96,13 +96,13 @@ contains
       this%loadResults = .true.
 
       this%continue_oldLogs = .true.
-      this%load_step = 600001
+      this%load_step = 1200001
 #else
-      this%loadMesh = .false.
+      this%loadMesh = .true.
       this%loadResults = .false.
 
-    !  this%continue_oldLogs = .true.
-    !  this%load_step = 100001
+      !this%continue_oldLogs = .true.
+      !this%load_step = 400001
 #endif
 
       this%nstep = 9000000
@@ -157,13 +157,14 @@ contains
 
    subroutine ThermalChannelFlowSolver_evalInitialConditions(this)
       class(ThermalChannelFlowSolver), intent(inout) :: this
-      integer(4) :: matGidSrlOrdered(numNodesRankPar,2)
+      integer(rp) :: matGidSrlOrdered(numNodesRankPar,2)
       integer :: iNodeL
       logical :: readFiles
       real(rp) :: velo, ti(3), yp
       integer(4)  :: iLine,iNodeGSrl,auxCnt,idime
 
       readFiles = .false.
+      this%interpInitialResults = .true.
 
       if(readFiles) then
          this%interpInitialResults = .true.
@@ -182,43 +183,43 @@ contains
          end do
          !!$acc end parallel loop
       else
-        !call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
-        !auxCnt = 1
-        !!!$acc parallel loop
-        !do iLine = 1,totalNumNodesSrl
-        !  call random_number(ti)
-        !  if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
-        !     iNodeL = matGidSrlOrdered(auxCnt,1)
-        !     auxCnt=auxCnt+1
-        !     if(coordPar(iNodeL,2)<this%delta) then
-        !        yp = coordPar(iNodeL,2)*this%utau*this%rho/this%mu
-        !     else
-        !        yp = abs(coordPar(iNodeL,2)-2.0_rp*this%delta)*this%utau*this%rho/this%mu
-        !     end if
+        call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
+        auxCnt = 1
+        !!$acc parallel loop
+        do iLine = 1,totalNumNodesSrl
+          call random_number(ti)
+          if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
+             iNodeL = matGidSrlOrdered(auxCnt,1)
+             auxCnt=auxCnt+1
+             if(coordPar(iNodeL,2)<this%delta) then
+                yp = coordPar(iNodeL,2)*this%utau*this%rho/this%mu
+             else
+                yp = abs(coordPar(iNodeL,2)-2.0_rp*this%delta)*this%utau*this%rho/this%mu
+             end if
 
-        !     velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
+             velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
 
-        !     u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(ti(1) -0.5_rp))
-        !     u(iNodeL,2,2) = velo*(0.1_rp*(ti(2) -0.5_rp))
-        !     u(iNodeL,3,2) = velo*(0.1_rp*(ti(3) -0.5_rp))
-        !  end if
-        !end do
-        !!!$acc end parallel loop
+             u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(ti(1) -0.5_rp))
+             u(iNodeL,2,2) = velo*(0.1_rp*(ti(2) -0.5_rp))
+             u(iNodeL,3,2) = velo*(0.1_rp*(ti(3) -0.5_rp))
+          end if
+        end do
+        !!$acc end parallel loop
 
          !!$acc parallel loop
          do iNodeL = 1,numNodesRankPar
-            if(coordPar(iNodeL,2)<this%delta) then
-               yp = coordPar(iNodeL,2)*this%utau*this%rho/this%mu
-            else
-               yp = abs(coordPar(iNodeL,2)-2.0_rp*this%delta)*this%utau*this%rho/this%mu
-            end if
+           !if(coordPar(iNodeL,2)<this%delta) then
+           !   yp = coordPar(iNodeL,2)*this%utau*this%rho/this%mu
+           !else
+           !   yp = abs(coordPar(iNodeL,2)-2.0_rp*this%delta)*this%utau*this%rho/this%mu
+           !end if
 
-            velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
-            call random_number(ti)
+           !velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
+           !call random_number(ti)
 
-            u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(ti(1) -0.5_rp))
-            u(iNodeL,2,2) = velo*(0.1_rp*(ti(2) -0.5_rp))
-            u(iNodeL,3,2) = velo*(0.1_rp*(ti(3) -0.5_rp))
+           !u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(ti(1) -0.5_rp))
+           !u(iNodeL,2,2) = velo*(0.1_rp*(ti(2) -0.5_rp))
+           !u(iNodeL,3,2) = velo*(0.1_rp*(ti(3) -0.5_rp))
             
             pr(iNodeL,2) = this%po
             rho(iNodeL,2) = this%rho
@@ -231,9 +232,9 @@ contains
          !!$acc end parallel loop
       end if
 
-      do idime = 1,ndime
-         call avg_randomField_in_sharedNodes_Par(u(:,idime,2))
-      end do
+      !do idime = 1,ndime
+      !   call avg_randomField_in_sharedNodes_Par(u(:,idime,2))
+      !end do
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
