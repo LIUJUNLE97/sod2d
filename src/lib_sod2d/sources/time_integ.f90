@@ -388,6 +388,8 @@ module time_integ
             !$acc end parallel loop
             call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
                gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
+
+            call update_and_comm_floatField(Reta)
             !$acc parallel loop
             do ipoin = 1,npoin_w
                umag = 0.0_rp

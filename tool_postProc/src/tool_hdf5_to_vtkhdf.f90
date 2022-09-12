@@ -23,9 +23,7 @@ program tool_hdf5_to_cgns
     implicit none
 
     character(512) :: mesh_h5_filePath,mesh_h5_fileName
-    character(512) :: cgns_filePath,cgns_fileName
     character(512) :: results_h5_filePath,results_h5_fileName
-    character(128) :: output_cgns_fileName
     character(999) :: full_fileName,input_file,read_sec,read_val
     logical :: do_averages=.false.
 
@@ -53,16 +51,16 @@ program tool_hdf5_to_cgns
     ! Reading input file
     if(command_argument_count() .eq. 1) then
         call get_command_argument(1, input_file)
-        !read(cnsteps,'(i)') numNodesSrl
         if(mpi_rank.eq.0) write(*,*) 'Reading input file: ',trim(adjustl(input_file))
     else
+        if(mpi_rank.eq.0) write(*,*) 'You must call this amazing tool with an input file!!!'
         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
     endif
     !------------------------------------------------------------------------------
     ! Reading the parameters
     open(99,file=input_file,status="old")
 
-    !mesh_h5_filePath--------------------------------------------------------------
+    !1. mesh_h5_filePath--------------------------------------------------------------
     read(99,*) read_sec,read_val! Section header
     if(read_sec.eq.'mesh_h5_filePath') then
         mesh_h5_filePath = read_val
@@ -72,7 +70,7 @@ program tool_hdf5_to_cgns
         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
     endif
 
-    !mesh_h5_fileName--------------------------------------------------------------
+    !2. mesh_h5_fileName--------------------------------------------------------------
     read(99,*) read_sec,read_val! Section header
     if(read_sec.eq.'mesh_h5_fileName') then
         mesh_h5_fileName = read_val
@@ -82,57 +80,27 @@ program tool_hdf5_to_cgns
         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
     endif
 
-    !cgns_filePath--------------------------------------------------------------
-    read(99,*) read_sec,read_val! Section header
-    if(read_sec.eq.'cgns_filePath') then
-        cgns_filePath = read_val
-        if(mpi_rank.eq.0) write(*,*) 'cgns_filePath: ',trim(adjustl(read_val))
-    else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 3 must be cgns_filePath value'
-        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-    endif
-
-    !cgns_fileName--------------------------------------------------------------
-    read(99,*) read_sec,read_val! Section header
-    if(read_sec.eq.'cgns_fileName') then
-        cgns_fileName = read_val
-        if(mpi_rank.eq.0) write(*,*) 'cgns_fileName: ',trim(adjustl(read_val))
-    else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 4 must be cgns_fileName value'
-        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-    endif
-
-    !results_h5_filePath--------------------------------------------------------------
+    !3. results_h5_filePath--------------------------------------------------------------
     read(99,*) read_sec,read_val! Section header
     if(read_sec.eq.'results_h5_filePath') then
         results_h5_filePath = read_val
         if(mpi_rank.eq.0) write(*,*) 'results_h5_filePath: ',trim(adjustl(read_val))
     else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 5 must be results_h5_filePath value'
+        if(mpi_rank.eq.0) write(*,*) 'Error! Line 3 must be results_h5_filePath value'
         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
     endif
 
-    !results_h5_fileName--------------------------------------------------------------
+    !4. results_h5_fileName--------------------------------------------------------------
     read(99,*) read_sec,read_val! Section header
     if(read_sec.eq.'results_h5_fileName') then
         results_h5_fileName = read_val
         if(mpi_rank.eq.0) write(*,*) 'results_h5_fileName: ',trim(adjustl(read_val))
     else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 6 must be results_h5_fileName value'
+        if(mpi_rank.eq.0) write(*,*) 'Error! Line 4 must be results_h5_fileName value'
         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
     endif
 
-    !output_cgns_fileName--------------------------------------------------------------
-    read(99,*) read_sec,read_val! Section header
-    if(read_sec.eq.'output_cgns_fileName') then
-        output_cgns_fileName = read_val
-        if(mpi_rank.eq.0) write(*,*) 'output_cgns_fileName: ',trim(adjustl(read_val))
-    else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 7 must be output_cgns_fileName value'
-        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-    endif
-
-    !do_averages--------------------------------------------------------------------------
+    !5. do_averages--------------------------------------------------------------------------
     read(99,*) read_sec,read_val! Section header
     if(read_sec.eq.'do_averages') then
         call str2int(read_val,aux_int,stat)
@@ -157,10 +125,10 @@ program tool_hdf5_to_cgns
         end if
         if(mpi_rank.eq.0) write(*,*) 'do_averages: ',do_averages
     else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 8 must be do_averages 0/1'
+        if(mpi_rank.eq.0) write(*,*) 'Error! Line 5 must be do_averages 0/1'
     endif
 
-    !first_step--------------------------------------------------------------------------
+    !6. first_step--------------------------------------------------------------------------
     read(99,*) read_sec,read_val! Section header
     if(read_sec.eq.'first_step') then
         call str2int(read_val,aux_int,stat)
@@ -168,17 +136,17 @@ program tool_hdf5_to_cgns
             first_step = aux_int
         else
             if(mpi_rank.eq.0) then
-                write(*,*) 'ERROR! first_step must be 0(false)/1(true)',&
+                write(*,*) 'ERROR! first_step must be an integer',&
                            ' | wrong value ',trim(adjustl(read_val))
                 call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
             end if
         end if
         if(mpi_rank.eq.0) write(*,*) 'first_step: ',first_step
     else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 9 must be first_step value'
+        if(mpi_rank.eq.0) write(*,*) 'Error! Line 6 must be first_step value'
     endif
 
-    !last_step--------------------------------------------------------------------------
+    !7. last_step--------------------------------------------------------------------------
     read(99,*) read_sec,read_val! Section header
     if(read_sec.eq.'last_step') then
         call str2int(read_val,aux_int,stat)
@@ -186,17 +154,17 @@ program tool_hdf5_to_cgns
             last_step = aux_int
         else
             if(mpi_rank.eq.0) then
-                write(*,*) 'ERROR! last_step must be 0(false)/1(true)',&
+                write(*,*) 'ERROR! last_step must be an integer',&
                            ' | wrong value ',trim(adjustl(read_val))
                 call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
             end if
         end if
         if(mpi_rank.eq.0) write(*,*) 'last_step: ',last_step
     else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 10 must be last_step value'
+        if(mpi_rank.eq.0) write(*,*) 'Error! Line 7 must be last_step value'
     endif
 
-    !nstep--------------------------------------------------------------------------
+    !8. nstep--------------------------------------------------------------------------
     read(99,*) read_sec,read_val! Section header
     if(read_sec.eq.'nstep') then
         call str2int(read_val,aux_int,stat)
@@ -204,14 +172,14 @@ program tool_hdf5_to_cgns
             nstep = aux_int
         else
             if(mpi_rank.eq.0) then
-                write(*,*) 'ERROR! nstep must be 0(false)/1(true)',&
+                write(*,*) 'ERROR! nstep must be an integer',&
                            ' | wrong value ',read_val
                 call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
             end if
         end if
         if(mpi_rank.eq.0) write(*,*) 'nstep: ',nstep
     else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 11 must be nstep value'
+        if(mpi_rank.eq.0) write(*,*) 'Error! Line 8 must be nstep value'
     endif
 
     close(99)
@@ -262,13 +230,8 @@ program tool_hdf5_to_cgns
         allocate(curlU(numNodesRankPar,ndime))
     end if
 
-    !call init_CGNSmesh_arrays()
-
-    !here the loop!
     do iStep=first_step,last_step,nstep
         if(mpi_rank.eq.0) write(*,*) '## Doing iStep',iStep   
-
-!        call set_CGNS_full_fileName(full_fileName,cgns_filePath,cgns_fileName,output_cgns_fileName,iStep)
 
         if(mpi_rank.eq.0) write(*,*) '# Loading HDF5 Results file...'
 
@@ -282,21 +245,9 @@ program tool_hdf5_to_cgns
 
         if(mpi_rank.eq.0) write(*,*) '# Creating VTKHDF file...'
 
-        !call create_CGNSmesh_par(full_fileName)
-
         if(do_averages) then
 
             call save_vtkhdf_avgResultsFile(iStep,avrho,avpre,avmueff,avvel,avve2)
-
-           !call add_write_floatField_CGNSmesh_vertexSolution('avrho',avrho)
-           !call add_write_floatField_CGNSmesh_vertexSolution('avpre',avpre)
-           !call add_write_floatField_CGNSmesh_vertexSolution('avmueff',avmueff)
-           !call add_write_floatField_CGNSmesh_vertexSolution('avvelX',avvel(:,1))
-           !call add_write_floatField_CGNSmesh_vertexSolution('avvelY',avvel(:,2))
-           !call add_write_floatField_CGNSmesh_vertexSolution('avvelZ',avvel(:,3))
-           !call add_write_floatField_CGNSmesh_vertexSolution('avve2X',avve2(:,1))
-           !call add_write_floatField_CGNSmesh_vertexSolution('avve2Y',avve2(:,2))
-           !call add_write_floatField_CGNSmesh_vertexSolution('avve2Z',avve2(:,3))
 
             favrho(:)   = favrho(:)   + avrho(:)
             favpre(:)   = favpre(:)   + avpre(:)
@@ -304,32 +255,9 @@ program tool_hdf5_to_cgns
             favvel(:,1:3) = favvel(:,1:3) + avvel(:,1:3)
             favve2(:,1:3) = favve2(:,1:3) + avve2(:,1:3)
         else
-
             call save_vtkhdf_instResultsFile(iStep,rho,pr,E,eta,csound,machno,divU,Qcrit,&
                                             envit,mut,mu_fluid,u,gradRho,curlU)
-           !call add_write_floatField_CGNSmesh_vertexSolution('rho',rho)
-           !call add_write_floatField_CGNSmesh_vertexSolution('VelocityX',u(:,1))
-           !call add_write_floatField_CGNSmesh_vertexSolution('VelocityY',u(:,2))
-           !call add_write_floatField_CGNSmesh_vertexSolution('VelocityZ',u(:,3))
-           !call add_write_floatField_CGNSmesh_vertexSolution('E',E)
-           !call add_write_floatField_CGNSmesh_vertexSolution('pr',pr)
-           !call add_write_floatField_CGNSmesh_vertexSolution('eta',eta)
-           !call add_write_floatField_CGNSmesh_vertexSolution('csound',csound)
-           !call add_write_floatField_CGNSmesh_vertexSolution('machno',machno)
-           !call add_write_floatField_CGNSmesh_vertexSolution('gradRhoX',gradRho(:,1))
-           !call add_write_floatField_CGNSmesh_vertexSolution('gradRhoY',gradRho(:,2))
-           !call add_write_floatField_CGNSmesh_vertexSolution('gradRhoZ',gradRho(:,3))
-           !call add_write_floatField_CGNSmesh_vertexSolution('curlUX',curlU(:,1))
-           !call add_write_floatField_CGNSmesh_vertexSolution('curlUY',curlU(:,2))
-           !call add_write_floatField_CGNSmesh_vertexSolution('curlUZ',curlU(:,3))
-           !call add_write_floatField_CGNSmesh_vertexSolution('divU',divU)
-           !call add_write_floatField_CGNSmesh_vertexSolution('Qcrit',Qcrit)
-           !call add_write_floatField_CGNSmesh_vertexSolution('mu_fluid',mu_fluid)
-           !call add_write_floatField_CGNSmesh_vertexSolution('envit',envit)
-           !call add_write_floatField_CGNSmesh_vertexSolution('mut',mut)
         endif
-
-!        call close_CGNSmesh_par()
     end do
 
     if(do_averages) then
@@ -344,28 +272,9 @@ program tool_hdf5_to_cgns
               favve2(i,j) = favve2(i,j) / real(numAvgSteps, rp)
            end do
         end do
-#if 0    
-        write(output_cgns_fileName,*) "results_finalAVG"
-        iStep = 0
-        call set_CGNS_full_fileName(full_fileName,cgns_filePath,cgns_fileName,output_cgns_fileName,iStep)
 
-        call create_CGNSmesh_par(full_fileName)
-
-        call add_write_floatField_CGNSmesh_vertexSolution('favrho',favrho)
-        call add_write_floatField_CGNSmesh_vertexSolution('favpre',favpre)
-        call add_write_floatField_CGNSmesh_vertexSolution('favmueff',favmueff)
-        call add_write_floatField_CGNSmesh_vertexSolution('favvelX',favvel(:,1))
-        call add_write_floatField_CGNSmesh_vertexSolution('favvelY',favvel(:,2))
-        call add_write_floatField_CGNSmesh_vertexSolution('favvelZ',favvel(:,3))
-        call add_write_floatField_CGNSmesh_vertexSolution('favve2X',favve2(:,1))
-        call add_write_floatField_CGNSmesh_vertexSolution('favve2Y',favve2(:,2))
-        call add_write_floatField_CGNSmesh_vertexSolution('favve2Z',favve2(:,3))
-
-        call close_CGNSmesh_par()
-#endif
+        call save_vtkhdf_finalAvgResultsFile(favrho,favpre,favmueff,favvel,favve2)
     end if
-
-    !call end_CGNSmesh_arrays()
 
     call end_hdf5_interface()
 
