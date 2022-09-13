@@ -3,11 +3,11 @@ module inicond_reader
       use mod_constants
       use mod_utils
       use mod_mpi
+      use mod_comms
 
       contains
 
               subroutine read_veloc_from_file_Srl(npoin,file_path,u)
-
                       implicit none
 
                       character(500), intent(in)  :: file_path
@@ -135,6 +135,27 @@ module inicond_reader
       call quicksort_matrix_int(matGidSrlOrdered,2)
 
    end subroutine order_matrix_globalIdSrl
+
+   subroutine avg_randomField_in_sharedNodes_Par(numNodesRankPar,floatField)
+      implicit none
+      integer, intent(in) :: numNodesRankPar
+      real(rp), intent(inout) :: floatField(numNodesRankPar)
+      integer :: numRanksNodeCnt(numNodesRankPar)
+      integer :: i,iNodeL
+
+      numRanksNodeCnt(:)=1
+
+      do i= 1,numNodesToComm
+         iNodeL = matrixCommScheme(i,1)
+         numRanksNodeCnt(iNodeL) = numRanksNodeCnt(iNodeL) + 1
+      end do 
+
+      call update_and_comm_floatField(floatField)
+
+      do iNodeL = 1,numNodesRankPar
+         floatField(iNodeL) = floatField(iNodeL) / real(numRanksNodeCnt(iNodeL),rp)
+      end do
+   end subroutine avg_randomField_in_sharedNodes_Par
 
    subroutine read_densi_from_file_Par(numNodesRankPar,totalNumNodesSrl,file_path,rho,matGidSrlOrdered)
       implicit none

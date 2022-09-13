@@ -407,6 +407,11 @@ contains
             this%time = 0.0_rp
          end if
       else
+         if(this%loadMesh) then
+            this%interpInitialResults = .false.
+         else
+            this%interpInitialResults = .true.
+         end if
          call this%evalInitialConditions()
       end if
 

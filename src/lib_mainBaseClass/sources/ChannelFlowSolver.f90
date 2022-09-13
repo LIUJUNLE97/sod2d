@@ -1,26 +1,3 @@
-subroutine avg_randomField_in_sharedNodes_Par2(floatField)
-   use mod_constants
-   use mod_comms
-      implicit none
-      real(rp), intent(inout) :: floatField(numNodesRankPar)
-      integer :: numRanksNodeCnt(numNodesRankPar)
-      integer :: i,iNodeL
-
-      numRanksNodeCnt(:)=1
-
-      do i= 1,numNodesToComm
-         iNodeL = matrixCommScheme(i,1)
-         numRanksNodeCnt(iNodeL) = numRanksNodeCnt(iNodeL) + 1
-      end do 
-
-      call update_and_comm_floatField(floatField)
-
-      do iNodeL = 1,numNodesRankPar
-         floatField(iNodeL) = floatField(iNodeL) / real(numRanksNodeCnt(iNodeL),rp)
-      end do
-
-end subroutine
-
 module ChannelFlowSolver_mod
    use mod_arrays
    use mod_nvtx
@@ -78,18 +55,21 @@ contains
       class(ChannelFlowSolver), intent(inout) :: this
       real(rp) :: mur
 
-      write(this%gmsh_file_path,*) "./mesh/"
-      write(this%gmsh_file_name,*) "channel_sem" 
+      write(this%gmsh_file_path,*) "./mesh_channel/"
+      write(this%gmsh_file_name,*) "channel"
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "results"
+      write(this%mesh_h5_file_name,*) "channel"
+
+      write(this%results_h5_file_path,*) ""
+      write(this%results_h5_file_name,*) "results"
 
       this%isPeriodic = .true.
       this%loadMesh = .true.
 
       this%nstep = 90000000 
-      this%cfl_conv = 2.2_rp
-      this%cfl_diff = 2.2_rp
+      this%cfl_conv = 1.5_rp
+      this%cfl_diff = 1.5_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
@@ -133,10 +113,7 @@ contains
 
       readFiles = .false.
 
-      !this%interpInitialResults = .true.
-
       if(readFiles) then
-         this%interpInitialResults = .true.
          this%interpInitialResults = .true.
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
          call read_veloc_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),matGidSrlOrdered)
@@ -153,6 +130,7 @@ contains
          end do
          !$acc end parallel loop
       else
+#if 1
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
          auxCnt = 1
          !!$acc parallel loop
@@ -175,7 +153,26 @@ contains
             end if
          end do
          !!$acc end parallel loop
+#else
+         do iNodeL = 1,numNodesRankPar
+            if(coordPar(iNodeL,2)<this%delta) then
+               yp = coordPar(iNodeL,2)*this%utau*this%rho0/this%mu
+            else
+               yp = abs(coordPar(iNodeL,2)-2.0_rp*this%delta)*this%utau*this%rho0/this%mu
+            end if
 
+            velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
+            call random_number(ti)
+
+            u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(ti(1) -0.5_rp))
+            u(iNodeL,2,2) = velo*(0.1_rp*(ti(2) -0.5_rp))
+            u(iNodeL,3,2) = velo*(0.1_rp*(ti(3) -0.5_rp))
+         end do
+
+         do idime = 1,ndime
+            call avg_randomField_in_sharedNodes_Par(numNodesRankPar,u(:,idime,2))
+         end do
+#endif
          !!$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             pr(iNodeL,2) = this%po
@@ -188,10 +185,6 @@ contains
          end do
          !!$acc end parallel loop
       end if
-
-      !do idime = 1,ndime
-      !   call avg_randomField_in_sharedNodes_Par2(u(:,idime,2))
-      !end do
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
