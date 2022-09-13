@@ -403,6 +403,8 @@ contains
             this%nsaveAVG = this%load_step+this%nleapAVG
             this%nsave2 = this%load_step+this%nleap2
             this%isFreshStart = .false.
+         else
+            this%time = 0.0_rp
          end if
       else
          call this%evalInitialConditions()
