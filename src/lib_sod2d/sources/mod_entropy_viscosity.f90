@@ -225,10 +225,7 @@ module mod_entropy_viscosity
                       real(rp)                 :: L3, aux1, aux2, aux3
                       real(rp)                 :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas
 
-                      !Rgas = 1.0_rp*1.0_rp/(1.4_rp*1.0_rp*1.25_rp*1.25_rp)
                       Rgas = nscbc_Rgas_inf
-
-                      norm_r = 1.0_rp
 
                       if(flag_normalise_entropy .eq. 1) then
                          maxEta_r = 0.0_rp
@@ -238,19 +235,21 @@ module mod_entropy_viscosity
                          end do
                          !$acc end parallel loop
 
-                        call MPI_Allreduce(maxEta_r,maxEta,1,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
-                        call MPI_Allreduce(npoin_w,npoin_w_g,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                         call MPI_Allreduce(maxEta_r,maxEta,1,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                         call MPI_Allreduce(npoin_w,npoin_w_g,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
-                         maxEta = maxEta/dble(npoin_w_g)
+                         maxEta = maxEta/real(npoin_w_g,rp)
 
                          norm_r = 0.0_rp
-                         !$acc parallel loop reduction(max:norm)
+                         !$acc parallel loop reduction(max:norm_r)
                          do ipoin = 1,npoin_w
                             norm_r = max(norm_r, abs(eta(lpoin_w(ipoin))-maxEta))
                          end do
                          !$acc end parallel loop
 
-                        call MPI_Allreduce(norm_r,norm,1,MPI_FLOAT,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+                         call MPI_Allreduce(norm_r,norm,1,MPI_FLOAT,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+                      else
+                         norm = 1.0_rp
                       end if
 
                       !$acc parallel loop gang vector_length(vecLength)
