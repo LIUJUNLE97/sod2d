@@ -1114,9 +1114,6 @@ contains
 
         call this%evalInitialViscosity()
 
-        ! Eval initial time step
-
-        call this%evalInitialDt()
 
         ! Eval shape Functions
 
@@ -1145,6 +1142,10 @@ contains
         ! Eval periodic
 
         call this%evalPeriodic()
+
+        ! Eval initial time step
+
+        call this%evalInitialDt()
 
         ! Eval mass 
 

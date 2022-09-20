@@ -86,17 +86,20 @@ contains
 
       this%isPeriodic = .true.
       this%loadMesh = .true.
+      this%loadResults = .true.
+      this%continue_oldLogs = .false.
+      this%load_step = 400001
 
       this%nstep = 90000000 
-      this%cfl_conv = 2.2_rp
-      this%cfl_diff = 2.2_rp
+      this%cfl_conv = 1.5_rp
+      this%cfl_diff = 1.5_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 50000 ! Saving interval, TODO: input
+      this%nleap = 100000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 50  ! Saving interval, TODO: input
-      this%nleapAVG = 50000
+      this%nleapAVG = 100000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -133,11 +136,9 @@ contains
 
       readFiles = .false.
 
-      !this%interpInitialResults = .true.
+      this%interpInitialResults = .true.
 
       if(readFiles) then
-         this%interpInitialResults = .true.
-         this%interpInitialResults = .true.
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
          call read_veloc_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),matGidSrlOrdered)
 

@@ -51,18 +51,18 @@ contains
       write(this%mesh_h5_file_name,*) "auto"
 
       this%isPeriodic = .false.
-      this%loadMesh = .false.
+      this%loadMesh = .true.
 
-      this%nstep = 2000
-      this%cfl_conv = 0.85_rp
-      this%cfl_diff = 0.85_rp
+      this%nstep = 1000000
+      this%cfl_conv = 0.5_rp
+      this%cfl_diff = 0.5_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 250 ! Saving interval, TODO: input
+      this%nleap = 20000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 5  ! Saving interval, TODO: input
-      this%nleapAVG = 2000
+      this%nleapAVG = 20000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -71,8 +71,8 @@ contains
       this%delta  = 1.0_rp
       this%rho0   = 1.0_rp
       this%gamma_gas = 1.40_rp
-      this%Re     =  2900.0_rp
-      !this%Re     =  2900000.0_rp
+      !this%Re     =  200.0_rp
+      this%Re     =  2900000.0_rp
 
       mul    = (this%rho0*this%delta*this%vo)/this%Re
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
@@ -96,6 +96,7 @@ contains
       logical :: readFiles
 
       readFiles = .false.
+      this%interpInitialResults = .true.
 
       if(readFiles) then
          this%interpInitialResults = .true.
@@ -149,10 +150,22 @@ contains
       do iNodeL = 1,numNodesRankPar
          mu_factor(iNodeL) = flag_mu_factor
         if(coordPar(iNodeL,1)<-4.0_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*100.0_rp
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
         end if
         if(coordPar(iNodeL,1)>5.0_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*100.0_rp
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+        end if
+        if(coordPar(iNodeL,2)<-0.7_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+        end if
+        if(coordPar(iNodeL,2)>0.7_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+        end if
+        !if(coordPar(iNodeL,3)<-8.0_rp) then
+        !   mu_factor(iNodeL) = flag_mu_factor*10.0_rp
+        !end if
+        if(coordPar(iNodeL,3)>1.0_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
         end if
       end do
       !$acc end parallel loop
