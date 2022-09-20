@@ -105,22 +105,6 @@ contains
       real(4) :: x,y,z
       integer(4) :: iNodeL,iNodeGSrl
 
-
-#if 0
-      call read_veloc_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniU)
-      call read_densi_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniRho)
-      call read_press_from_file_Srl(totalNumNodesSrl,this%gmsh_file_path,iniP)
-
-      do iNodeL=1,numNodesRankPar
-         iNodeGSrl=globalIdSrl(iNodeL)
-         u(iNodeL,1,2) = iniU(iNodeGSrl,1)
-         u(iNodeL,2,2) = iniU(iNodeGSrl,2)
-         u(iNodeL,3,2) = iniU(iNodeGSrl,3)
-         rho(iNodeL,2) = iniRho(iNodeGSrl)
-         pr(iNodeL,2)  = iniP(iNodeGSrl)
-      end do
-#endif
-
       if(mpi_rank.eq.0) write(*,*) "--| TGV - Setting Initial Conditions..."
 
       V0 = 1.0_rp

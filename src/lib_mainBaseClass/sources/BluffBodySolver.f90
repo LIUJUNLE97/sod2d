@@ -50,6 +50,9 @@ contains
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "cylin"
 
+      write(this%results_h5_file_path,*) ""
+      write(this%results_h5_file_name,*) "results"
+
       this%isPeriodic = .true.
       this%loadMesh = .false.
 
