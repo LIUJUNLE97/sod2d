@@ -427,11 +427,19 @@ contains
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
+#define _ISENDIRCV_ 1
+#define _PUTFENCE_ 0
+
     subroutine mpi_halo_atomic_update_int(intField)
         implicit none
         integer, intent(inout) :: intField(:)
 
+#if _ISENDIRCV_
         call mpi_halo_atomic_update_int_iSendiRcv(intField)
+#endif
+#if _PUTFENCE_
+        call mpi_halo_atomic_update_int_put_fence(intField)
+#endif
 
     end subroutine mpi_halo_atomic_update_int
 
@@ -439,7 +447,12 @@ contains
         implicit none
         real(4), intent(inout) :: floatField(:)
 
+#if _ISENDIRCV_
         call mpi_halo_atomic_update_float_iSendiRcv(floatField)
+#endif
+#if _PUTFENCE_
+        call mpi_halo_atomic_update_float_put_fence(floatField)
+#endif
 
     end subroutine mpi_halo_atomic_update_float
 
@@ -447,7 +460,12 @@ contains
         implicit none
         real(8), intent(inout) :: doubleField(:)
 
+#if _ISENDIRCV_
         call mpi_halo_atomic_update_double_iSendiRcv(doubleField)
+#endif
+#if _PUTFENCE_
+        call mpi_halo_atomic_update_double_put_fence(doubleField)
+#endif
 
     end subroutine mpi_halo_atomic_update_double
 !-----------------------------------------------------------------------------------------------------------------------

@@ -1066,9 +1066,7 @@ contains
          ! Open log file
          call this%open_log_file()
 
-        ! Compute characteristic size of the elements
 
-        call this%evalCharLength()
 
         ! Splitting boundary nodes
         ! now this is done in the parallel mesh!
@@ -1095,6 +1093,10 @@ contains
         ! Interpolate initial conditions
 
         call this%interpolateInitialConditions()
+
+        ! Compute characteristic size of the elements
+
+        call this%evalCharLength()
 
         ! Eval boundary element normal
 
