@@ -11,8 +11,8 @@ program main
    use TGVSolver_mod
 #endif
 #if _channel_
-   use ThermalChannelFlowSolver_mod
    !use ChannelFlowSolver_mod
+   use ThermalChannelFlowSolver_mod
 #endif
 #if _bluff_
    use BluffBodySolver_mod

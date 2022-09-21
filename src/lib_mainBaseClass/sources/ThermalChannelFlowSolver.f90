@@ -35,7 +35,7 @@ module ThermalChannelFlowSolver_mod
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: ThermalChannelFlowSolver
 
       real(rp) , public  ::  delta, rho, Retau, utau, tC,tH, po,to, mu,tauw
-
+      integer(4), public :: do_control
    contains
       procedure, public :: initializeParameters  => ThermalChannelFlowSolver_initializeParameters
       procedure, public :: initializeSourceTerms => ThermalChannelFlowSolver_initializeSourceTerms
@@ -48,7 +48,12 @@ contains
       class(ThermalChannelFlowSolver), intent(inout) :: this
 
         allocate(source_term(ndime))
-        source_term(1) = this%tauw/this%delta
+        
+#if AR2
+        source_term(1) = 1.637569999999e+03
+#else
+        source_term(1) = 4.839800000060e+03
+#endif
         source_term(2) = 0.00_rp
         source_term(3) = 0.00_rp
 
@@ -73,13 +78,15 @@ contains
       this%loadResults = .true.
 
       this%continue_oldLogs = .true.
-      this%load_step = 1200001
+      this%load_step = 5700001
+      this%do_control = 0
 #else
       this%loadMesh = .true.
-      this%loadResults = .false.
+      this%loadResults = .true.
 
-      !this%continue_oldLogs = .true.
-      !this%load_step = 400001
+      this%continue_oldLogs = .false.
+      this%load_step = 6600001
+      this%do_control = 0
 #endif
 
       this%nstep = 9000000
@@ -87,8 +94,8 @@ contains
       this%cfl_conv = 1.5_rp
       this%cfl_diff = 1.5_rp
 #else
-      this%cfl_conv = 1.0_rp
-      this%cfl_diff = 1.0_rp
+      this%cfl_conv = 1.5_rp
+      this%cfl_diff = 1.5_rp
 #endif
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
@@ -102,15 +109,20 @@ contains
       this%Prt = 0.71_rp
       this%tC = 293.0_rp
 #if AR2
-      this%tH = this%tC*2.0_rp
+      this%tH = this%tC*1.01_rp
+      !this%tH = this%tC*2.0_rp
       this%delta  = 0.0015_rp*2.0_rp
 #else
       this%tH = this%tC*5.0_rp
-      this%delta  = 0.0015_rp*8.0_rp
+      this%delta  = 0.0015_rp*2.0_rp
 #endif
       this%gamma_gas = 1.40_rp
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
+#if AR2
       this%to = 0.5_rp*(this%tC+this%tH)
+#else
+      this%to = 0.3_rp*(this%tC+this%tH)
+#endif
       this%po  = 101325.0_rp 
       this%rho = this%po/(this%Rgas*this%to)
 
@@ -140,10 +152,10 @@ contains
       real(rp) :: velo, ti(3), yp
       integer(4)  :: iLine,iNodeGSrl,auxCnt,idime
 
-      readFiles = .false.
+      readFiles = .true.
+      this%interpInitialResults = .true.
 
       if(readFiles) then
-         this%interpInitialResults = .true.
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
          call read_densi_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,rho(:,2),matGidSrlOrdered)
          call read_veloc_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),matGidSrlOrdered)
@@ -246,7 +258,7 @@ contains
       integer(4) :: codeH, codeC
       real(rp) :: area,tw,RetauC,RetauH,Retau,rhoC,rhoH,muH,muC,twH,twC,utauH,utauC
 
-      if(istep == this%nsave2) then
+      if(istep == this%nsave2 .and. this%do_control == 1) then
          codeH = 6
          codeC = 7
          area = this%delta*2.0*v_pi*this%delta*v_pi

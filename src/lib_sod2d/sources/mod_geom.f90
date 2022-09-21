@@ -17,7 +17,9 @@ module mod_geom
             real(rp),   intent(in)  :: coord(npoin,ndime)
             real(rp),   intent(out) :: he
             integer(4)              :: iedge, ncorner, nedge
-            real(rp)                :: dist(12,ndime), dist2, aux
+                 integer(4)              :: inode, jnode,idime
+            !real(rp)                :: dist(12,ndime), dist2, aux
+                 real(rp)                :: aux,dist(ndime),dist2
 
                  !
                  ! Compute r = x2-x1 for all element edges
@@ -45,16 +47,27 @@ module mod_geom
                     write(*,*) "BY SIGMAR NO!"
                  end if
 #endif
-                 call hexa_edges(iElem,nelem,npoin,connec,coord,ncorner,nedge,dist(1:12,1:ndime))
+                 !call hexa_edges(iElem,nelem,npoin,connec,coord,ncorner,nedge,dist(1:12,1:ndime))
                  !
                  ! Obtain ||dist||_2 for all edges and select minimum size as elem. characteristic size
                  !
-                 dist2 = 1000000000000.0_rp
-                 do iedge = 1,nedge
-                    aux = sqrt(dot_product(dist(iedge,:),dist(iedge,:)))
-                    dist2 = min(dist2,aux)
+                 !dist2 = 1000000000000.0_rp
+                 !do iedge = 1,nedge
+                 !   aux = sqrt(dot_product(dist(iedge,:),dist(iedge,:)))
+                 !   dist2 = min(dist2,aux)
+                 !end do
+                 !he = dist2
+                 aux = 1000000000000.0_rp
+                 do inode = 1,nnode
+                    do jnode = 1,nnode
+                       if(inode .ne. jnode) then 
+                          dist = coord(connec(ielem,inode),:)-coord(connec(ielem,jnode),:)
+                          dist2 = sqrt(dot_product(dist(:),dist(:)))
+                          aux = min(dist2,aux)
+                       end if
+                    end do
                  end do
-                 he = dist2
+                 he = aux
 
          end subroutine char_length
 
@@ -74,8 +87,7 @@ module mod_geom
                  !
                  ! Obtain ||dist||_2 for all edges and select minimum size as elem. characteristic size
                  !
-                 !aux = 0.0_rp
-                 !aux = 1000000000000000000000000000000000000000000000000000000000000000000000.0_rp
+                 !aux = 1000000000000.0_rp
                  !do inode = 1,nnode
                  !   do jnode = 1,nnode
                  !      if(inode .ne. jnode) then 
@@ -84,6 +96,9 @@ module mod_geom
                  !         aux = min(dist2,aux)
                  !      end if
                  !   end do
+                 !end do
+                 !do inode = 1,nnode
+                 !   he_l(ielem,inode) = aux
                  !end do
                  do inode = 1,nnode
                     he_l(ielem,inode) = Ml(connec(ielem,inode))**(1.0_rp/real(ndime,rp))

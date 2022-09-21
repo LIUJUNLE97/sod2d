@@ -52,7 +52,7 @@ module mod_constants
       real(rp), parameter :: cglob =1.0_rp
       real(rp), parameter :: c_rho =1.0_rp
       real(rp), parameter :: c_ener = 1.0_rp
-      real(rp), parameter :: c_sgs = 0.1_rp
+      real(rp), parameter :: c_sgs = 0.07_rp
       real(rp), parameter :: stau   = 0.022_rp
       real(rp), parameter :: T_ilsa = 0.001_rp
 
