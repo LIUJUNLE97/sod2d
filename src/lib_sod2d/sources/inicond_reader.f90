@@ -150,7 +150,7 @@ module inicond_reader
          numRanksNodeCnt(iNodeL) = numRanksNodeCnt(iNodeL) + 1
       end do 
 
-      call update_and_comm_floatField(floatField)
+      call mpi_halo_atomic_update_float(floatField)
 
       do iNodeL = 1,numNodesRankPar
          floatField(iNodeL) = floatField(iNodeL) / real(numRanksNodeCnt(iNodeL),rp)

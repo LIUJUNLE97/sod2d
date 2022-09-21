@@ -686,17 +686,6 @@ module elem_diffu
                          end do
                       end do
                       !$acc end parallel loop
-#if 0
-                     if(mpi_size.ge.2) then
-                        call nvtxStartRange("MPI_comms_diff")
-                        call update_and_comm_floatField(Rmass)
-                        call update_and_comm_floatField(Rener)
-                        do idime = 1,ndime
-                           call update_and_comm_floatField(Rmom(:,idime))
-                        end do
-                        call nvtxEndRange
-                     end if
-#endif
                      call nvtxEndRange
               end subroutine full_diffusion_ijk
 

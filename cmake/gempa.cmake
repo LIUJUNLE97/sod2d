@@ -1,11 +1,3 @@
-function(init_gempa)
-  if (USE_SFC)
-    set(ENABLE_TESTS ON CACHE INTERNAL "")
-    set(ENABLE_EXAMPLES ON CACHE INTERNAL "")
-    set(BUILD_STATIC_LIBRARIES OFF CACHE INTERNAL "")
-  endif()
-endfunction()
-
 function(set_gempa)
   if (USE_GEMPA)
     include_directories(${GEMPA_INCLUDE_DIR})

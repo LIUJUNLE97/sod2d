@@ -1126,16 +1126,21 @@ contains
       integer, allocatable, intent(out) :: boundaryNodes(:)
       integer, allocatable :: nodeOwned(:),nodeInBoundary(:)
       integer :: i,ind,ind_f,iElemL,iElemG,iNodeG,iNodeG_inFace,checkFacePos
-      integer :: numBNodesRankPar, numINodesRankPar
-
+      integer :: numBNodesRankPar,numINodesRankPar
+!      integer, allocatable :: boundaryNodesGlobal(:),vectorNumBNodesRankPar(:)
+!      integer :: window_id,iRank,auxPos,numTotalBNodes
+!      integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size
+!      integer(KIND=MPI_ADDRESS_KIND) :: target_displacement
+      !-------------------------------------------
       character(128) :: file_name, aux_string_rank !for debug
-
+      !-------------------------------------------
       integer, parameter :: faceFront(16)  = [1,9,13,5,33,41,45,37,49,57,61,53,17,25,29,21]
       integer, parameter :: faceLeft(16)   = [2,4,3,1,34,36,35,33,50,52,51,49,18,20,19,17]
       integer, parameter :: faceTop(16)    = [17,25,29,21,19,27,31,23,20,28,32,24,18,26,30,22]
       integer, parameter :: faceBack(16)   = [2,10,14,6,34,42,46,38,50,58,62,54,18,26,30,22]
       integer, parameter :: faceRight(16)  = [6,8,7,5,38,40,39,37,54,56,55,53,22,24,23,21]
       integer, parameter :: faceBottom(16) = [1,9,13,5,3,11,15,7,4,12,16,8,2,10,14,6]
+      !-------------------------------------------
 
       allocate(nodeOwned(totalNumNodesSrl))
       allocate(nodeInBoundary(totalNumNodesSrl))
@@ -1240,7 +1245,7 @@ contains
          end if
       end do
 
-      !write(*,*) '#rank[',mpi_rank,']  nodesInRank ',numNodesRankPar, " bN ", numBNodesRankPar, " iN ",numINodesRankPar
+      !write(*,*) '1.#rank[',mpi_rank,']  nodesInRank ',numNodesRankPar, " bN ", numBNodesRankPar, " iN ",numINodesRankPar
       allocate(boundaryNodes(numBNodesRankPar))
 
       i=0
@@ -1251,6 +1256,116 @@ contains
          end if
       end do
       !write(*,*) '#rank[',mpi_rank,']  nodesInRank ',numNodesRankPar, " bN ", numBNodesRankPar, " iN ",numINodesRankPar,'i',i
+
+#if 0
+!AQUI FARIA UN PAS INTERMIG, el vector boundaryNodes sera auxiliar
+!1. faig una finestra per comunicar quants boundaryNodes (numBNodesRankPar) te cada rank
+
+      allocate(vectorNumBNodesRankPar(0:mpi_size-1))
+      vectorNumBNodesRankPar(:)=0
+
+      ! Create the window
+      !--------------------------------------------------------------------------------------
+      window_buffer_size = mpi_integer_size*1
+
+      call MPI_Win_create(numBNodesRankPar,window_buffer_size,mpi_integer_size,&
+                         MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+      call MPI_Win_fence(0, window_id, mpi_err)
+
+      target_displacement=0
+      do iRank=0,mpi_size-1
+         call MPI_Get(vectorNumBNodesRankPar(iRank),1,MPI_INTEGER,iRank,target_displacement,&
+                     1,MPI_INTEGER,window_id,mpi_err)
+      end do
+
+      call MPI_Win_fence(0, window_id, mpi_err)
+      call MPI_Win_free(window_id, mpi_err)
+      !--------------------------------------------------------------------------------------
+
+!2. un cop fet aixo creo un vector amb el numero total de boundary nodes i faig un get de cada procesador
+      numTotalBNodes = 0
+      do iRank=0,mpi_size-1
+         numTotalBNodes = numTotalBNodes + vectorNumBNodesRankPar(iRank)
+      end do
+
+      write(*,*) '[',mpi_rank,']numTotalBNodes: ',numTotalBNodes
+
+!3. tots els procs tindran tots els boundary nodes
+      allocate(boundaryNodesGlobal(numTotalBNodes))
+
+      ! Create the window
+      !-------------------------------------------------------------------------------------------------
+      window_buffer_size = mpi_integer_size*numBNodesRankPar
+ 
+      call MPI_Win_create(boundaryNodes,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+      call MPI_Win_fence(0, window_id, mpi_err)
+
+      target_displacement = 0
+      auxPos = 1
+      do iRank=0,mpi_size-1
+         call MPI_Get(boundaryNodesGlobal(auxPos),vectorNumBNodesRankPar(iRank),MPI_INTEGER,iRank,target_displacement,&
+                                                  vectorNumBNodesRankPar(iRank),MPI_INTEGER,window_id,mpi_err)
+      !write(*,*) '[',mpi_rank,'][',iRank,']auxPos: ',auxPos,' numBNodes:',vectorNumBNodesRankPar(iRank)
+         auxPos = auxPos + vectorNumBNodesRankPar(iRank)
+      end do
+    
+      call MPI_Win_fence(0, window_id, mpi_err)
+      call MPI_Win_free(window_id, mpi_err)
+      !--------------------------------------------------------------------------------------------------
+
+!4. corro per aquest vector "nou" i creo/omplo de nou el vector nodeInBoundary
+
+      !if(mpi_rank.eq.1) then
+      !   do i = 1,numTotalBNodes
+      !      iNodeG = boundaryNodesGlobal(i)
+      !      write(*,*) i,',',iNodeG
+      !      !nodeInBoundary(iNodeG) = 1
+      !   end do
+      !end if
+
+      !$acc kernels
+      nodeInBoundary(:) = 0
+      !$acc end kernels
+      do i = 1,numTotalBNodes
+         iNodeG = boundaryNodesGlobal(i)
+         nodeInBoundary(iNodeG) = 1
+      end do
+
+!5. torno a fer com el proces anterior, ara tindre tmb nodes que no sabia que eren boundaries al meu rank
+      numNodesRankPar=0
+      numBNodesRankPar=0
+      numINodesRankPar=0
+
+      do iNodeG=1,totalNumNodesSrl
+         if(nodeOwned(iNodeG).ne.0) then !node is in rank
+            numNodesRankPar = numNodesRankPar+1
+            if(nodeInBoundary(iNodeG).eq.1) then !node is boundary
+               numBNodesRankPar=numBNodesRankPar+1
+            else !node is inner
+               numINodesRankPar=numINodesRankPar+1
+            end if
+         end if
+      end do
+
+      write(*,*) '2.#rank[',mpi_rank,']  nodesInRank ',numNodesRankPar, " bN ", numBNodesRankPar, " iN ",numINodesRankPar
+
+      deallocate(boundaryNodes)
+
+      allocate(boundaryNodes(numBNodesRankPar))
+
+      i=0
+      do iNodeG=1,totalNumNodesSrl
+         if((nodeOwned(iNodeG).ne.0).and.(nodeInBoundary(iNodeG).eq.1)) then !node is in rank
+            i=i+1
+            boundaryNodes(i) = iNodeG
+            write(*,*) ' #rank[',mpi_rank,'] ',i,',',iNodeG
+         end if
+      end do
+
+      deallocate(boundaryNodesGlobal)
+      deallocate(vectorNumBNodesRankPar)
+!6. solved!? NO! this is not the problem :'
+#endif
 
       deallocate(nodeOwned)
       deallocate(nodeInBoundary)

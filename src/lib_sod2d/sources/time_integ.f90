@@ -276,40 +276,13 @@ module time_integ
                !TESTING NEW LOCATION FOR MPICOMMS
                if(mpi_size.ge.2) then
                   call nvtxStartRange("MPI_comms_tI")
-#if 0
-                  call sendRcv_floatField(Rmass)
-                  call sendRcv_floatField(Rener)
+
+                  call mpi_halo_atomic_update_float(Rmass)
+                  call mpi_halo_atomic_update_float(Rener)
                   do idime = 1,ndime
-                     call sendRcv_floatField(Rmom(:,idime))
+                     call mpi_halo_atomic_update_float(Rmom(:,idime))
                   end do
-#endif
-#if 0
-                  call sendRcv_floatField_devel(Rmass)
-                  call sendRcv_floatField_devel(Rener)
-                  do idime = 1,ndime
-                     call sendRcv_floatField_devel(Rmom(:,idime))
-                  end do
-#endif
-#if 0
-                  call sendRcv_floatField_noGPU(Rmass)
-                  call sendRcv_floatField_noGPU(Rener)
-                  do idime = 1,ndime
-                     call sendRcv_floatField_noGPU(Rmom(:,idime))
-                  end do
-#endif
-#if 1
-                  call update_and_comm_floatField(Rmass)
-                  call update_and_comm_floatField(Rener)
-                  do idime = 1,ndime
-                     call update_and_comm_floatField(Rmom(:,idime))
-                  end do
-#endif
-#if 0
-                  call update_and_comm_floatField_all(numNodesRankPar,Rmass,Rener,Rmom(:,1),Rmom(:,2),Rmom(:,3))
-#endif
-#if 0
-                  call sendRcv_floatField_all(numNodesRankPar,Rmass,Rener,Rmom(:,1),Rmom(:,2),Rmom(:,3))
-#endif
+
                   call nvtxEndRange
                end if
 
@@ -389,7 +362,12 @@ module time_integ
             call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
                gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
 
-            call update_and_comm_floatField(Reta)
+            if(mpi_size.ge.2) then
+               call nvtxStartRange("MPI_comms_tI")
+               call mpi_halo_atomic_update_float(Reta)
+               call nvtxEndRange
+            end if
+
             !$acc parallel loop
             do ipoin = 1,npoin_w
                umag = 0.0_rp

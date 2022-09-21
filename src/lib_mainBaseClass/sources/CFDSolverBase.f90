@@ -182,43 +182,15 @@ contains
       class(CFDSolverBase), intent(inout) :: this
 
       call nvtxStartRange("Open mesh")
-#if 1
-!---------------------------------------------------------------------------------------------------------------
-      !if(mpi_rank.eq.0) 
-      !write(111,*) "--| ALL MESH FILES MUST BE IN ",trim(adjustl(this%gmsh_file_path))," !"
-      !call read_alya_mesh_files(this%gmsh_file_path,this%gmsh_file_name,this%isPeriodic)
+      ! init hdf5
+      call init_hdf5_interface(this%mesh_h5_file_path,this%mesh_h5_file_name,this%results_h5_file_path,this%results_h5_file_name)
 
       if(this%loadMesh) then
-         call load_hdf5_meshfile(this%mesh_h5_file_path,this%mesh_h5_file_name)
+         call load_hdf5_meshfile()
       else
-         call read_alyaMesh_part_and_create_hdf5Mesh(this%gmsh_file_path,this%gmsh_file_name,this%isPeriodic,&
-                                                    this%mesh_h5_file_path,this%mesh_h5_file_name)
+         call read_alyaMesh_part_and_create_hdf5Mesh(this%gmsh_file_path,this%gmsh_file_name,this%isPeriodic)
       end if
-!---------------------------------------------------------------------------------------------------------------
-#else
-      call read_dims(this%file_path,this%file_name,this%npoin,this%nelem,this%nboun)
-      allocate(connec(this%nelem,nnode))
-      if (this%nboun .ne. 0) then
-         allocate(bound(this%nboun,npbou))
-         allocate(bou_codes(this%nboun,2))
-         allocate(bou_norm(this%nboun,ndime*npbou))
-         call read_fixbou(this%file_path,this%file_name,this%nboun,this%nbcodes,bou_codes)
-         this%numCodes = maxval(bou_codes(:,2))
-         allocate(Fpr(this%numCodes,ndime))
-         allocate(Ftau(this%numCodes,ndime))
-         write(111,*) "--| TOTAL BOUNDARY CODES :", this%numCodes
-      end if
-      allocate(coord(this%npoin,ndime))
-      call read_geo_dat(this%file_path,this%file_name,this%npoin,this%nelem,this%nboun,connec,bound,coord)
-      if (this%isPeriodic == 1) then
-         allocate(masSla(this%nper,2))
-         allocate(connec_orig(this%nelem,nnode))
-         if (this%nboun .ne. 0) then
-            allocate(bound_orig(this%nboun,npbou))
-         end if
-         call read_periodic(this%file_path,this%file_name,this%nper,masSla)
-      end if
-#endif
+
       call nvtxEndRange
 
    end subroutine CFDSolverBase_openMesh
@@ -1080,10 +1052,6 @@ contains
         ! Define vector length to be used 
         
         call define_veclen()
-
-      ! init hdf5
-
-      call init_hdf5_interface(this%mesh_h5_file_path,this%mesh_h5_file_name,this%results_h5_file_path,this%results_h5_file_name)
 
       ! read the mesh
 

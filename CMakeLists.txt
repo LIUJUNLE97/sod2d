@@ -78,9 +78,6 @@ endif("${isSystemDir}" STREQUAL "-1")
 
 # Enable GEMPA if requested
 include(gempa)
-if (USE_GEMPA)
-  init_gempa()
-endif()
 
 add_subdirectory(external)
 add_subdirectory(src)

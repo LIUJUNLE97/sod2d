@@ -86,15 +86,6 @@ contains
       end if
       call nvtxEndRange
 
-#if 0
-      if(mpi_size.ge.2) then
-         call nvtxStartRange("MPI_comms_source")
-         call update_and_comm_floatField(Rmom(:,1))
-         call update_and_comm_floatField(Rmom(:,2))
-         call update_and_comm_floatField(Rmom(:,3))
-         call nvtxEndRange
-      end if
-#endif
    end subroutine mom_source_const_vect
 
 end module elem_source

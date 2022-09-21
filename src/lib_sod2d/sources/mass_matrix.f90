@@ -189,18 +189,7 @@ module mass_matrix
 
                  if(mpi_size.ge.2) then
                   call nvtxStartRange("MPI_comms_mass")
-#if 1
-                  call sendRcv_floatField(Ml)
-#endif 
-#if 0
-                  call sendRcv_floatField_devel(Ml)
-#endif 
-#if 0
-                  call sendRcv_floatField_noGPU(Ml)
-#endif 
-#if 0                  
-                  call update_and_comm_floatField(Ml)
-#endif
+                  call mpi_halo_atomic_update_float(Ml)
                   call nvtxEndRange
                  end if
 

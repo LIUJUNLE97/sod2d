@@ -102,34 +102,12 @@ contains
 
       if(mpi_size.ge.2) then
          call nvtxStartRange("MPI_comms_post")
-#if 0
-         call sendRcv_floatField(Qcrit)
-         call sendRcv_floatField(divU)
+         call mpi_halo_atomic_update_float(Qcrit)
+         call mpi_halo_atomic_update_float(divU)
          do idime = 1,ndime
-            call sendRcv_floatField(curlU(:,idime))
-            call sendRcv_floatField(gradRho(:,idime))
+            call mpi_halo_atomic_update_float(curlU(:,idime))
+            call mpi_halo_atomic_update_float(gradRho(:,idime))
          end do
-#endif
-#if 0
-         call sendRcv_floatField_devel(Qcrit)
-         do idime = 1,ndime
-            call sendRcv_floatField_devel(curlU(:,idime))
-         end do
-#endif
-#if 0
-         call sendRcv_floatField_noGPU(Qcrit)
-         do idime = 1,ndime
-            call sendRcv_floatField_noGPU(curlU(:,idime))
-         end do
-#endif
-#if 1         
-         call update_and_comm_floatField(Qcrit)
-         call update_and_comm_floatField(divU)
-         do idime = 1,ndime
-            call update_and_comm_floatField(curlU(:,idime))
-            call update_and_comm_floatField(gradRho(:,idime))
-         end do
-#endif
          call nvtxEndRange
       end if
 

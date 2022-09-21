@@ -1,41 +1,45 @@
 module mod_comms
     use mod_mpi_mesh
-    use mod_parTimer
     implicit none
 
     !---- for the comms---
     integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size
     integer(KIND=MPI_ADDRESS_KIND) :: memPos_t
+    integer :: worldGroup,commGroup
 
     integer(4), dimension(:), allocatable :: aux_intField_s, aux_intField_r
     real(4), dimension(:), allocatable :: aux_floatField_s, aux_floatField_r
     real(8), dimension(:), allocatable :: aux_doubleField_s, aux_doubleField_r
     real(4), dimension(:), allocatable :: aux_floatField_5s, aux_floatField_5r
+    !using two buffers because if we use only one maybe we send the info after other proc has added something in me!
+    !then i'll duplicate the info :S
 
     integer :: window_id_int,window_id_float,window_id_double
     integer :: window_id_float5
     integer :: window_id_sm
+    integer :: beginFence=0,endFence=0
+    integer :: startAssert=0,postAssert=0
 
-    logical :: isInt,isFloat,isDouble
-
-    type(parTimer) :: timer_d1,timer_d2,timer_d3
-    type(parTimer) :: timer_f1,timer_f2,timer_f3
-    type(parTimer) :: timer_sm1,timer_sm2,timer_sm3
+    logical :: isInt,isFloat,isDouble,isFloat5
+    logical :: isLockBarrier,isPSCWBarrier
 
     !integer :: ms_rank,ms_size,ms_newComm
     type(c_ptr) :: c_ms_ptr
 
 contains
 
+!-----------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------
     subroutine init_comms(useInt,useFloat,useDouble)
         implicit none
-        logical, intent(in) :: useInt, useFloat, useDouble
-        !using two buffers because if we use only one maybe we send the info after other proc has added something in me!
-        !then i'll duplicate the info :S
+        logical, intent(in) :: useInt,useFloat,useDouble
+        logical :: useFenceFlags,useAssertNoCheckFlags,useLockBarrier
+        logical :: useFloat5=.false. !i think that will dissapear... but...
 
         isInt=.false.
         isFloat=.false.
         isDouble=.false.
+        isFloat5=.false. !i think that will dissapear... but...
 
         if(useInt) then
             isInt = .true.
@@ -56,11 +60,6 @@ contains
             !$acc enter data create(aux_floatField_s(:))
             !$acc enter data create(aux_floatField_r(:))
 
-            allocate(aux_floatField_5s(5*numNodesToComm))
-            allocate(aux_floatField_5r(5*numNodesToComm))
-            !$acc enter data create(aux_floatField_5s(:))
-            !$acc enter data create(aux_floatField_5r(:))
-
             call init_window_floatField()
         end if
 
@@ -75,6 +74,27 @@ contains
             call init_window_doubleField()
         end if
 
+        if(useFloat5) then
+            isFloat5 = .true.
+
+            allocate(aux_floatField_5s(5*numNodesToComm))
+            allocate(aux_floatField_5r(5*numNodesToComm))
+            !$acc enter data create(aux_floatField_5s(:))
+            !$acc enter data create(aux_floatField_5r(:))
+
+            call init_window_floatField5()
+        end if
+
+        call MPI_Comm_group(MPI_COMM_WORLD,worldGroup,mpi_err)
+	    call MPI_Group_incl(worldGroup,numRanksWithComms,ranksToComm,commGroup,mpi_err);
+
+        useFenceFlags=.false. !by default
+        useAssertNoCheckFlags=.true. !by default
+        isPSCWBarrier=.true.!si faig molts loops amb aquesta opció a false la comm queda bloquejada
+        useLockBarrier=.true.!.false. with false it fails!
+        call setFenceFlags(useFenceFlags) 
+        call setPSCWAssertNoCheckFlags(useAssertNoCheckFlags)
+        call setLockBarrier(useLockBarrier)
 
     end subroutine init_comms
 
@@ -96,11 +116,6 @@ contains
             deallocate(aux_floatField_s)
             deallocate(aux_floatField_r)
 
-           !$acc exit data delete(aux_floatField_5s(:))
-           !$acc exit data delete(aux_floatField_5r(:))
-            deallocate(aux_floatField_5s)
-            deallocate(aux_floatField_5r)
-
             call close_window_floatField()
         end if
 
@@ -113,8 +128,52 @@ contains
             call close_window_doubleField()
         end if
 
-    end subroutine end_comms
+        if(isFloat5) then
+           !$acc exit data delete(aux_floatField_5s(:))
+           !$acc exit data delete(aux_floatField_5r(:))
+            deallocate(aux_floatField_5s)
+            deallocate(aux_floatField_5r)
 
+            call close_window_floatField5()
+        end if
+
+    end subroutine end_comms
+    
+    subroutine setFenceFlags(useFenceFlags)
+        implicit none
+        logical,intent(in) :: useFenceFlags
+
+        if(useFenceFlags) then
+            beginFence = MPI_MODE_NOPRECEDE
+	        endFence   = IOR(MPI_MODE_NOSTORE,IOR(MPI_MODE_NOPUT,MPI_MODE_NOSUCCEED))
+	        !endFence   = IOR(MPI_MODE_NOSTORE,MPI_MODE_NOPUT)
+        else
+            beginFence = 0
+	        endFence   = 0
+        end if
+    end subroutine
+
+    subroutine setPSCWAssertNoCheckFlags(useAssertNoCheckFlags)
+        implicit none
+        logical,intent(in) :: useAssertNoCheckFlags
+
+        if(useAssertNoCheckFlags) then
+	        postAssert  = MPI_MODE_NOCHECK
+	        startAssert = MPI_MODE_NOCHECK
+        else
+	        postAssert  = 0
+	        startAssert = 0
+        endif
+    end subroutine
+
+    subroutine setLockBarrier(useLockBarrier)
+        implicit none
+        logical,intent(in) :: useLockBarrier
+
+        isLockBarrier = useLockBarrier
+    end subroutine
+!-----------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
     subroutine init_window_intField()
         implicit none
@@ -135,17 +194,12 @@ contains
 
         window_buffer_size = mpi_float_size*numNodesToComm
         call MPI_Win_create(aux_floatField_r,window_buffer_size,mpi_float_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_float,mpi_err)
-
-        window_buffer_size = 5*mpi_float_size*numNodesToComm
-        call MPI_Win_create(aux_floatField_5r,window_buffer_size,mpi_float_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_float5,mpi_err)
     end subroutine init_window_floatField
 
     subroutine close_window_floatField()
         implicit none
         
         call MPI_Win_free(window_id_float,mpi_err)
-
-        call MPI_Win_free(window_id_float5,mpi_err)
     end subroutine close_window_floatField
 !-------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
@@ -162,14 +216,894 @@ contains
         call MPI_Win_free(window_id_double,mpi_err)
     end subroutine close_window_doubleField
 !-------------------------------------------------------------------------------------
+!-------------------------------------------------------------------------------------
+    subroutine init_window_floatField5()
+        implicit none
 
+        window_buffer_size = 5*mpi_float_size*numNodesToComm
+        call MPI_Win_create(aux_floatField_5r,window_buffer_size,mpi_float_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_float5,mpi_err)
+    end subroutine init_window_floatField5
+
+    subroutine close_window_floatField5()
+        implicit none
+        
+        call MPI_Win_free(window_id_float5,mpi_err)
+    end subroutine close_window_floatField5
+!-------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------
+!    SUBROUTINES COPY/FROM SEND/RCV BUFFERS
+!-----------------------------------------------------------------------------------------------------------------------
+    subroutine fill_sendBuffer_int(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            aux_intField_s(i) = intField(iNodeL)
+        end do
+        !$acc end parallel loop
+        !$acc kernels
+        aux_intField_r(:)=0.
+        !$acc end kernels
+    end subroutine fill_sendBuffer_int
+!-------------------------------------------------------------------------
+
+    subroutine fill_sendBuffer_float(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            aux_floatField_s(i) = floatField(iNodeL)
+        end do
+        !$acc end parallel loop
+        !$acc kernels
+        aux_floatField_r(:)=0.
+        !$acc end kernels
+    end subroutine fill_sendBuffer_float
+!-------------------------------------------------------------------------
+!-------------------------------------------------------------------------
+    subroutine fill_sendBuffer_double(doubleField)
+        implicit none
+        real(8), intent(inout) :: doubleField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            aux_doubleField_s(i) = doubleField(iNodeL)
+        end do
+        !$acc end parallel loop
+        !$acc kernels
+        aux_doubleField_r(:)=0.
+        !$acc end kernels
+    end subroutine fill_sendBuffer_double
+!-------------------------------------------------------------------------
+!-------------------------------------------------------------------------
+    subroutine fill_sendBuffer_get_int(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            aux_intField_r(i) = intField(iNodeL)
+        end do
+        !$acc end parallel loop
+        !$acc kernels
+        aux_intField_s(:)=0.
+        !$acc end kernels
+    end subroutine fill_sendBuffer_get_int
+!-------------------------------------------------------------------------
+    subroutine fill_sendBuffer_get_float(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            aux_floatField_r(i) = floatField(iNodeL)
+        end do
+        !$acc end parallel loop
+        !$acc kernels
+        aux_floatField_s(:)=0.
+        !$acc end kernels
+    end subroutine fill_sendBuffer_get_float
+!-------------------------------------------------------------------------
+    subroutine fill_sendBuffer_get_double(doubleField)
+        implicit none
+        real(8), intent(inout) :: doubleField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            aux_doubleField_r(i) = doubleField(iNodeL)
+        end do
+        !$acc end parallel loop
+        !$acc kernels
+        aux_doubleField_s(:)=0.
+        !$acc end kernels
+    end subroutine fill_sendBuffer_get_double
+!-------------------------------------------------------------------------
+!-------------------------------------------------------------------------
+    subroutine copy_from_rcvBuffer_int(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            !$acc atomic update
+            intField(iNodeL) = intField(iNodeL) + aux_intField_r(i)
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_rcvBuffer_int
+!-------------------------------------------------------------------------
+    subroutine copy_from_rcvBuffer_float(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            !$acc atomic update
+            floatField(iNodeL) = floatField(iNodeL) + aux_floatField_r(i)
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_rcvBuffer_float
+!-------------------------------------------------------------------------
+    subroutine copy_from_rcvBuffer_double(doubleField)
+        implicit none
+        real(8), intent(inout) :: doubleField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            !$acc atomic update
+            doubleField(iNodeL) = doubleField(iNodeL) + aux_doubleField_r(i)
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_rcvBuffer_double
+!-------------------------------------------------------------------------
+!-------------------------------------------------------------------------
+    subroutine copy_from_rcvBuffer_get_int(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            !$acc atomic update
+            intField(iNodeL) = intField(iNodeL) + aux_intField_s(i)
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_rcvBuffer_get_int
+!-------------------------------------------------------------------------
+    subroutine copy_from_rcvBuffer_get_float(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            !$acc atomic update
+            floatField(iNodeL) = floatField(iNodeL) + aux_floatField_s(i)
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_rcvBuffer_get_float
+!-------------------------------------------------------------------------
+    subroutine copy_from_rcvBuffer_get_double(doubleField)
+        implicit none
+        real(8), intent(inout) :: doubleField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            !$acc atomic update
+            doubleField(iNodeL) = doubleField(iNodeL) + aux_doubleField_s(i)
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_rcvBuffer_get_double
+!-----------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------
+    subroutine mpi_halo_atomic_update_int(intField)
+        implicit none
+        integer, intent(inout) :: intField(:)
+
+        call mpi_halo_atomic_update_int_iSendiRcv(intField)
+
+    end subroutine mpi_halo_atomic_update_int
+
+    subroutine mpi_halo_atomic_update_float(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+
+        call mpi_halo_atomic_update_float_iSendiRcv(floatField)
+
+    end subroutine mpi_halo_atomic_update_float
+
+    subroutine mpi_halo_atomic_update_double(doubleField)
+        implicit none
+        real(8), intent(inout) :: doubleField(:)
+
+        call mpi_halo_atomic_update_double_iSendiRcv(doubleField)
+
+    end subroutine mpi_halo_atomic_update_double
+!-----------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------
+!------------- SEND/RECV -------------------------------------------
+    ! INTEGER ---------------------------------------------------
+    subroutine mpi_halo_atomic_update_int_sendRcv(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer :: i,ngbRank,tagComm
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_int(intField)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            call MPI_Sendrecv(aux_intfield_s(mempos_l), memSize, MPI_INTEGER, ngbRank, tagComm, &
+                              aux_intfield_r(mempos_l), memSize, MPI_INTEGER, ngbRank, tagComm, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+        end do
+
+        call copy_from_rcvBuffer_int(intField)
+    end subroutine mpi_halo_atomic_update_int_sendRcv
+    ! FLOAT ---------------------------------------------------
+    subroutine mpi_halo_atomic_update_float_sendRcv(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,ngbRank,tagComm
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_float(floatField)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            call MPI_Sendrecv(aux_floatfield_s(mempos_l), memSize, MPI_FLOAT, ngbRank, tagComm, &
+                              aux_floatfield_r(mempos_l), memSize, MPI_FLOAT, ngbRank, tagComm, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+        end do
+
+        call copy_from_rcvBuffer_float(floatField)
+    end subroutine mpi_halo_atomic_update_float_sendRcv
+    ! DOUBLE ---------------------------------------------------
+    subroutine mpi_halo_atomic_update_double_sendRcv(doubleField)
+        implicit none
+        real(8), intent(inout) :: doubleField(:)
+        integer :: i,ngbRank,tagComm
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_double(doubleField)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            call MPI_Sendrecv(aux_doublefield_s(mempos_l), memSize, MPI_DOUBLE, ngbRank, tagComm, &
+                              aux_doublefield_r(mempos_l), memSize, MPI_DOUBLE, ngbRank, tagComm, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+        end do
+
+        call copy_from_rcvBuffer_double(doubleField)
+    end subroutine mpi_halo_atomic_update_double_sendRcv
+!------------- ISEND/IRECV -------------------------------------------
+    !INTEGER ---------------------------------------------------------
+    subroutine mpi_halo_atomic_update_int_iSendiRcv(intField)
+        implicit none
+        integer, intent(inout) :: intField(:)
+        integer :: i,ireq,ngbRank,tagComm
+        integer :: memPos_l,memSize
+        integer :: requests(2*numRanksWithComms)
+
+        call fill_sendBuffer_int(intField)
+
+        ireq=0
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_intfield_r(mempos_l),memSize,MPI_INTEGER,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_intfield_s(mempos_l),memSize,MPI_INTEGER,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+        end do
+
+        call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+        call copy_from_rcvBuffer_int(intField)
+    end subroutine mpi_halo_atomic_update_int_iSendiRcv
+    !FLOAT ---------------------------------------------------------
+    subroutine mpi_halo_atomic_update_float_iSendiRcv(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,ireq,ngbRank,tagComm
+        integer :: memPos_l,memSize
+        integer :: requests(2*numRanksWithComms)
+
+        call fill_sendBuffer_float(floatField)
+
+        ireq=0
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_floatfield_r(mempos_l),memSize,MPI_FLOAT,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_floatfield_s(mempos_l),memSize,MPI_FLOAT,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+        end do
+
+        call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+        call copy_from_rcvBuffer_float(floatField)
+    end subroutine mpi_halo_atomic_update_float_iSendiRcv
+    !DOUBLE ---------------------------------------------------------
+    subroutine mpi_halo_atomic_update_double_iSendiRcv(doubleField)
+        implicit none
+        real(8), intent(inout) :: doubleField(:)
+        integer :: i,ireq,ngbRank,tagComm
+        integer :: memPos_l,memSize
+        integer :: requests(2*numRanksWithComms)
+
+        call fill_sendBuffer_double(doubleField)
+
+        ireq=0
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_doublefield_r(mempos_l),memSize,MPI_DOUBLE,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_doublefield_s(mempos_l),memSize,MPI_DOUBLE,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+        end do
+
+        call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+        call copy_from_rcvBuffer_double(doubleField)
+    end subroutine mpi_halo_atomic_update_double_iSendiRcv
+!------------- PUT FENCE -------------------------------------------
+    !INT
+    subroutine mpi_halo_atomic_update_int_put_fence(intField)
+        implicit none
+        integer, intent(inout) :: intField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_int(intField)
+
+        call MPI_Win_fence(beginFence,window_id_int,mpi_err)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+
+            call MPI_Put(aux_intField_s(memPos_l),memSize,MPI_INTEGER,ngbRank,memPos_t,memSize,MPI_INTEGER,window_id_int,mpi_err)
+        end do
+
+        call MPI_Win_fence(endFence,window_id_int,mpi_err)
+
+        call copy_from_rcvBuffer_int(intField)
+    end subroutine mpi_halo_atomic_update_int_put_fence
+    !FLOAT
+    subroutine mpi_halo_atomic_update_float_put_fence(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_float(floatField)
+
+        call MPI_Win_fence(beginFence,window_id_float,mpi_err)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+
+            call MPI_Put(aux_floatField_s(memPos_l),memSize,MPI_FLOAT,ngbRank,memPos_t,memSize,MPI_FLOAT,window_id_float,mpi_err)
+        end do
+
+        call MPI_Win_fence(endFence,window_id_float,mpi_err)
+
+        call copy_from_rcvBuffer_float(floatField)
+    end subroutine mpi_halo_atomic_update_float_put_fence
+    !DOUBLE
+    subroutine mpi_halo_atomic_update_double_put_fence(doubleField)
+        implicit none
+        real(8), intent(inout) :: doubleField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_double(doubleField)
+
+        call MPI_Win_fence(beginFence,window_id_double,mpi_err)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+
+            call MPI_Put(aux_doubleField_s(memPos_l),memSize,MPI_DOUBLE,ngbRank,memPos_t,memSize,MPI_DOUBLE,window_id_double,mpi_err)
+        end do
+
+        call MPI_Win_fence(endFence,window_id_double,mpi_err)
+
+        call copy_from_rcvBuffer_double(doubleField)
+    end subroutine mpi_halo_atomic_update_double_put_fence
+!------------- PUT PSCW -------------------------------------------
+    !INTEGER--------------------------------------------------
+    subroutine mpi_halo_atomic_update_int_put_pscw(intField)
+        implicit none
+        integer, intent(inout) :: intField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_int(intField)
+
+        if(isPSCWBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+	    call MPI_Win_post(commGroup,postAssert,window_id_int,mpi_err);
+	    call MPI_Win_start(commGroup,startAssert,window_id_int,mpi_err);
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+
+            call MPI_Put(aux_intField_s(memPos_l),memSize,MPI_INTEGER,ngbRank,memPos_t,memSize,MPI_INTEGER,window_id_int,mpi_err)
+        end do
+
+	    call MPI_Win_complete(window_id_int,mpi_err);
+	    call MPI_Win_wait(window_id_int,mpi_err);
+
+        call copy_from_rcvBuffer_int(intField)
+    end subroutine mpi_halo_atomic_update_int_put_pscw
+    !FLOAT-------------------------------------------------------
+    subroutine mpi_halo_atomic_update_float_put_pscw(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_float(floatField)
+
+        if(isPSCWBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+	    call MPI_Win_post(commGroup,postAssert,window_id_float,mpi_err);
+	    call MPI_Win_start(commGroup,startAssert,window_id_float,mpi_err);
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+
+            call MPI_Put(aux_floatField_s(memPos_l),memSize,MPI_FLOAT,ngbRank,memPos_t,memSize,MPI_FLOAT,window_id_float,mpi_err)
+        end do
+
+	    call MPI_Win_complete(window_id_float,mpi_err);
+	    call MPI_Win_wait(window_id_float,mpi_err);
+
+        call copy_from_rcvBuffer_float(floatField)
+    end subroutine mpi_halo_atomic_update_float_put_pscw
+    !DOUBLE-------------------------------------------------------
+    subroutine mpi_halo_atomic_update_double_put_pscw(doubleField)
+        implicit none
+        real(8), intent(inout) :: doubleField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_double(doubleField)
+
+        if(isPSCWBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+	    call MPI_Win_post(commGroup,postAssert,window_id_double,mpi_err);
+	    call MPI_Win_start(commGroup,startAssert,window_id_double,mpi_err);
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+
+            call MPI_Put(aux_doubleField_s(memPos_l),memSize,MPI_DOUBLE,ngbRank,memPos_t,memSize,MPI_DOUBLE,window_id_double,mpi_err)
+        end do
+
+	    call MPI_Win_complete(window_id_double,mpi_err);
+	    call MPI_Win_wait(window_id_double,mpi_err);
+
+        call copy_from_rcvBuffer_double(doubleField)
+    end subroutine mpi_halo_atomic_update_double_put_pscw
+!------------- PUT LOCK -------------------------------------------
+    !INTEGER-------------------------------------------------------
+    subroutine mpi_halo_atomic_update_int_put_lock(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_int(intField)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+		
+            call MPI_Win_lock(MPI_LOCK_SHARED,ngbRank,0,window_id_int,mpi_err); !May we can try MPI_LOCK_EXCLSUIVE
+            call MPI_Put(aux_intField_s(memPos_l),memSize,MPI_INTEGER,ngbRank,memPos_t,memSize,MPI_INTEGER,window_id_int,mpi_err)
+            call MPI_Win_unlock(ngbRank,window_id_int,mpi_err)
+        end do
+
+        if(isLockBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+
+        call copy_from_rcvBuffer_int(intField)
+    end subroutine mpi_halo_atomic_update_int_put_lock
+    !FLOAT-------------------------------------------------------
+    subroutine mpi_halo_atomic_update_float_put_lock(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_float(floatField)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+		
+            call MPI_Win_lock(MPI_LOCK_SHARED,ngbRank,0,window_id_float,mpi_err); !May we can try MPI_LOCK_EXCLSUIVE
+            call MPI_Put(aux_floatField_s(memPos_l),memSize,MPI_FLOAT,ngbRank,memPos_t,memSize,MPI_FLOAT,window_id_float,mpi_err)
+            call MPI_Win_unlock(ngbRank,window_id_float,mpi_err)
+        end do
+
+        if(isLockBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+
+        call copy_from_rcvBuffer_float(floatField)
+    end subroutine mpi_halo_atomic_update_float_put_lock
+    !DOUBLE-------------------------------------------------------
+    subroutine mpi_halo_atomic_update_double_put_lock(doubleField)
+        implicit none
+        real(8), intent(inout) :: doubleField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_double(doubleField)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+		
+            call MPI_Win_lock(MPI_LOCK_SHARED,ngbRank,0,window_id_double,mpi_err); !May we can try MPI_LOCK_EXCLSUIVE
+            call MPI_Put(aux_doubleField_s(memPos_l),memSize,MPI_DOUBLE,ngbRank,memPos_t,memSize,MPI_DOUBLE,window_id_double,mpi_err)
+            call MPI_Win_unlock(ngbRank,window_id_double,mpi_err)
+        end do
+
+        if(isLockBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+
+        call copy_from_rcvBuffer_double(doubleField)
+    end subroutine mpi_halo_atomic_update_double_put_lock
+!------------- GET FENCE -------------------------------------------
+    !INTEGER-------------------------------------------------------
+    subroutine mpi_halo_atomic_update_int_get_fence(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_get_int(intField)
+
+        call MPI_Win_fence(beginFence,window_id_int,mpi_err)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+
+            call MPI_Get(aux_intField_s(memPos_l),memSize,MPI_INTEGER,ngbRank,memPos_t,memSize,MPI_INTEGER,window_id_int,mpi_err)
+        end do
+
+        call MPI_Win_fence(endFence,window_id_int,mpi_err)
+
+        call copy_from_rcvBuffer_get_int(intField)
+    end subroutine mpi_halo_atomic_update_int_get_fence
+    !FLOAT-------------------------------------------------------
+    subroutine mpi_halo_atomic_update_float_get_fence(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_get_float(floatField)
+
+        call MPI_Win_fence(beginFence,window_id_float,mpi_err)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+
+            call MPI_Get(aux_floatField_s(memPos_l),memSize,MPI_FLOAT,ngbRank,memPos_t,memSize,MPI_FLOAT,window_id_float,mpi_err)
+        end do
+
+        call MPI_Win_fence(endFence,window_id_float,mpi_err)
+
+        call copy_from_rcvBuffer_get_float(floatField)
+    end subroutine mpi_halo_atomic_update_float_get_fence
+    !DOUBLE-------------------------------------------------------
+    subroutine mpi_halo_atomic_update_double_get_fence(doubleField)
+        implicit none
+        real(8), intent(inout) :: doubleField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_get_double(doubleField)
+
+        call MPI_Win_fence(beginFence,window_id_double,mpi_err)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+
+            call MPI_Get(aux_doubleField_s(memPos_l),memSize,MPI_DOUBLE,ngbRank,memPos_t,memSize,MPI_DOUBLE,window_id_double,mpi_err)
+        end do
+
+        call MPI_Win_fence(endFence,window_id_double,mpi_err)
+
+        call copy_from_rcvBuffer_get_double(doubleField)
+    end subroutine mpi_halo_atomic_update_double_get_fence
+!------------- GET PSCW -------------------------------------------
+    !INTEGER-------------------------------------------------------
+    subroutine mpi_halo_atomic_update_int_get_pscw(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_get_int(intField)
+
+        if(isPSCWBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+	    call MPI_Win_post(commGroup,postAssert,window_id_int,mpi_err);
+	    call MPI_Win_start(commGroup,startAssert,window_id_int,mpi_err);
+
+        do i=1,numRanksWithComms
+            ngbRank   = ranksToComm(i)
+            memPos_l  = commsMemPosInLoc(i)
+            memPos_t  = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize   = commsMemSize(i)
+
+            call MPI_Get(aux_intField_s(memPos_l),memSize,MPI_INTEGER,ngbRank,memPos_t,memSize,MPI_INTEGER,window_id_int,mpi_err)
+        end do
+
+	    call MPI_Win_complete(window_id_int,mpi_err);
+	    call MPI_Win_wait(window_id_int,mpi_err);
+
+        call copy_from_rcvBuffer_get_int(intField)
+    end subroutine mpi_halo_atomic_update_int_get_pscw
+    !FLOAT-------------------------------------------------------
+    subroutine mpi_halo_atomic_update_float_get_pscw(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_get_float(floatField)
+
+        if(isPSCWBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+	    call MPI_Win_post(commGroup,postAssert,window_id_float,mpi_err);
+	    call MPI_Win_start(commGroup,startAssert,window_id_float,mpi_err);
+
+        do i=1,numRanksWithComms
+            ngbRank   = ranksToComm(i)
+            memPos_l  = commsMemPosInLoc(i)
+            memPos_t  = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize   = commsMemSize(i)
+
+            call MPI_Get(aux_floatField_s(memPos_l),memSize,MPI_FLOAT,ngbRank,memPos_t,memSize,MPI_FLOAT,window_id_float,mpi_err)
+        end do
+
+	    call MPI_Win_complete(window_id_float,mpi_err);
+	    call MPI_Win_wait(window_id_float,mpi_err);
+
+        call copy_from_rcvBuffer_get_float(floatField)
+    end subroutine mpi_halo_atomic_update_float_get_pscw
+    !DOUBLE-------------------------------------------------------
+    subroutine mpi_halo_atomic_update_double_get_pscw(doubleField)
+        implicit none
+        real(8), intent(inout) :: doubleField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_get_double(doubleField)
+
+        if(isPSCWBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+	    call MPI_Win_post(commGroup,postAssert,window_id_double,mpi_err);
+	    call MPI_Win_start(commGroup,startAssert,window_id_double,mpi_err);
+
+        do i=1,numRanksWithComms
+            ngbRank   = ranksToComm(i)
+            memPos_l  = commsMemPosInLoc(i)
+            memPos_t  = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize   = commsMemSize(i)
+
+            call MPI_Get(aux_doubleField_s(memPos_l),memSize,MPI_DOUBLE,ngbRank,memPos_t,memSize,MPI_DOUBLE,window_id_double,mpi_err)
+        end do
+
+	    call MPI_Win_complete(window_id_double,mpi_err);
+	    call MPI_Win_wait(window_id_double,mpi_err);
+
+        call copy_from_rcvBuffer_get_double(doubleField)
+    end subroutine mpi_halo_atomic_update_double_get_pscw
+!------------- GET LOCK -------------------------------------------
+    !INTEGER-------------------------------------------------------
+    subroutine mpi_halo_atomic_update_int_get_lock(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_get_int(intField)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+		
+            call MPI_Win_lock(MPI_LOCK_SHARED,ngbRank,0,window_id_int,mpi_err); !May we can try MPI_LOCK_EXCLSUIVE
+            call MPI_Get(aux_intField_s(memPos_l),memSize,MPI_INTEGER,ngbRank,memPos_t,memSize,MPI_INTEGER,window_id_int,mpi_err)
+            call MPI_Win_unlock(ngbRank,window_id_int,mpi_err)
+        end do
+
+        if(isLockBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+
+        call copy_from_rcvBuffer_get_int(intField)
+    end subroutine mpi_halo_atomic_update_int_get_lock
+    !FLOAT-------------------------------------------------------
+    subroutine mpi_halo_atomic_update_float_get_lock(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_get_float(floatField)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+		
+            call MPI_Win_lock(MPI_LOCK_SHARED,ngbRank,0,window_id_float,mpi_err); !May we can try MPI_LOCK_EXCLSUIVE
+            call MPI_Get(aux_floatField_s(memPos_l),memSize,MPI_FLOAT,ngbRank,memPos_t,memSize,MPI_FLOAT,window_id_float,mpi_err)
+            call MPI_Win_unlock(ngbRank,window_id_float,mpi_err)
+        end do
+
+        if(isLockBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+
+        call copy_from_rcvBuffer_get_float(floatField)
+    end subroutine mpi_halo_atomic_update_float_get_lock
+    !DOUBLE-------------------------------------------------------
+    subroutine mpi_halo_atomic_update_double_get_lock(doubleField)
+        implicit none
+        real(8), intent(inout) :: doubleField(:)
+        integer :: i,ngbRank
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_get_double(doubleField)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+		
+            call MPI_Win_lock(MPI_LOCK_SHARED,ngbRank,0,window_id_double,mpi_err); !May we can try MPI_LOCK_EXCLSUIVE
+            call MPI_Get(aux_doubleField_s(memPos_l),memSize,MPI_DOUBLE,ngbRank,memPos_t,memSize,MPI_DOUBLE,window_id_double,mpi_err)
+            call MPI_Win_unlock(ngbRank,window_id_double,mpi_err)
+        end do
+
+        if(isLockBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+
+        call copy_from_rcvBuffer_get_double(doubleField)
+    end subroutine mpi_halo_atomic_update_double_get_lock
+!------------- ONLY BUFFERS -------------------------------------------
+!for testing and devel stuff
+    !INTEGER ---------------------------------------------------------
+    subroutine mpi_halo_atomic_update_int_onlybuffers(intfield) 
+        implicit none
+        integer(4), intent(inout) :: intfield(:)
+        integer :: i,ngbrank,tagcomm
+        integer :: mempos_l,memsize
+
+        call fill_sendbuffer_int(intfield)
+        call copy_from_rcvbuffer_int(intfield)
+
+    end subroutine mpi_halo_atomic_update_int_onlybuffers
+    !FLOAT ---------------------------------------------------------
+    subroutine mpi_halo_atomic_update_float_onlybuffers(floatfield) 
+        implicit none
+        real(4), intent(inout) :: floatfield(:)
+        integer :: i,ngbrank,tagcomm
+        integer :: mempos_l,memsize
+
+        call fill_sendbuffer_float(floatfield)
+        call copy_from_rcvbuffer_float(floatfield)
+
+    end subroutine mpi_halo_atomic_update_float_onlybuffers
+
+    !DOUBLE ---------------------------------------------------------
+    subroutine mpi_halo_atomic_update_double_onlybuffers(doublefield) 
+        implicit none
+        real(8), intent(inout) :: doublefield(:)
+        integer :: i,ngbrank,tagcomm
+        integer :: mempos_l,memsize
+
+        call fill_sendbuffer_double(doublefield)
+        call copy_from_rcvbuffer_double(doublefield)
+
+    end subroutine mpi_halo_atomic_update_double_onlybuffers
+!-----------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------
+
+!-----------------------------------------------------------------------------------------------------------------------
+!------------- OLD FUNCTIONS & DEPRECATED - TO BE DELETED --------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------
     subroutine update_and_comm_doubleField(doubleField)
         implicit none
         real(8), intent(inout) :: doubleField(:)
         integer :: i,iNodeL,iRank
         integer :: memPos_l,memSize
-
-        !call timer_d1%start_timer()
 
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
@@ -177,13 +1111,9 @@ contains
         end do
         aux_doubleField_r(:)=0.
 
-        !call timer_d2%start_timer()
-
         !window_buffer_size = mpi_double_size*numNodesToComm
         !call MPI_Win_create(aux_doubleField_r,window_buffer_size,mpi_double_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_double,mpi_err)
         call MPI_Win_fence(0,window_id_double,mpi_err)
-
-        call timer_d3%start_timer()
 
         do i=1,numRanksWithComms
             iRank=ranksToComm(i)
@@ -201,13 +1131,9 @@ contains
                                 iRank,memPos_t,memSize,MPI_DOUBLE,MPI_SUM,window_id_double,mpi_err)
         end do
 
-        !call timer_d3%stop_timer()
-
         !! Wait for the MPI_Get issued to complete before going any further
         call MPI_Win_fence(0,window_id_double,mpi_err)
         !call MPI_Win_free(window_id_double,mpi_err)
-
-        !call timer_d2%stop_timer()
 
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
@@ -216,7 +1142,6 @@ contains
             !$acc end atomic
         end do
 
-        !call timer_d1%stop_timer()
     end subroutine update_and_comm_doubleField
 
     subroutine update_and_comm_floatField(floatField)
@@ -650,8 +1575,6 @@ contains
 
         size_p = numNodesToComm*mpi_size
 
-        !call timer_sm1%start_timer()
- 
         call MPI_Win_shared_query(window_id_sm,mpi_rank,ssize,memDisp,c_ms_ptr,mpi_err)
         call c_f_pointer(c_ms_ptr, f_ms_ptr, SHAPE = [size_p])
 
@@ -661,11 +1584,7 @@ contains
             f_ms_ptr(i) = 0.
         end do
 
-        !call timer_sm2%start_timer()
-
         call MPI_Win_fence(0,window_id_sm,mpi_err)
-
-        !call timer_sm3%start_timer()
 
         do i=1,numRanksWithComms
             iRank=ranksToComm(i)
@@ -673,7 +1592,6 @@ contains
             memPos_t  = commsMemPosInNgb(i) !- 1 !the -1 is because this value is the target displacement
 
             memSize = commsMemSize(i)
-
 
             call MPI_Win_shared_query(window_id_sm,iRank,ssize,memDisp,c_ms_ptr,mpi_err)
             !call MPI_Win_shared_query(window_id_sm,0,ssize,memDisp,c_ms_ptr,mpi_err)
@@ -687,12 +1605,8 @@ contains
             end do
         end do
 
-        !call timer_sm3%stop_timer()
-
         !! Wait for the MPI_Get issued to complete before going any further
         call MPI_Win_fence(0,window_id_sm,mpi_err)
-
-        !call timer_sm2%stop_timer()
 
         call MPI_Win_shared_query(window_id_sm,mpi_rank,ssize,memDisp,c_ms_ptr,mpi_err)
         call c_f_pointer(c_ms_ptr, f_ms_ptr, SHAPE = [size_p])
@@ -702,67 +1616,7 @@ contains
             floatField(iNodeL) = floatField(iNodeL) + f_ms_ptr(i)
         end do
 
-        !call timer_sm1%stop_timer()
-
     end subroutine update_and_comm_shared_mem_floatField
-
-!-------------------------------------------------------------------------------
-! ####       TIMERS      -------------------------------------------------------
-
-    subroutine print_dtimers()
-        real(8) :: time_t1,time_t2,time_t3
-
-        time_t1 = timer_d1%get_totalTime()
-        time_t2 = timer_d2%get_totalTime()
-        time_t3 = timer_d3%get_totalTime()
-
-        write(*,*) 'd: t1 ',time_t1,' t2 ',time_t2,' t3 ',time_t3
-    end subroutine print_dtimers
-
-    subroutine print_ftimers()
-        real(8) :: time_t1,time_t2,time_t3
-
-        time_t1 = timer_f1%get_totalTime()
-        time_t2 = timer_f2%get_totalTime()
-        time_t3 = timer_f3%get_totalTime()
-
-        write(*,*) 'f: t1 ',time_t1,' t2 ',time_t2,' t3 ',time_t3
-    end subroutine print_ftimers
-
-    subroutine print_smtimers()
-        real(8) :: time_t1,time_t2,time_t3
-
-        time_t1 = timer_sm1%get_totalTime()
-        time_t2 = timer_sm2%get_totalTime()
-        time_t3 = timer_sm3%get_totalTime()
-
-        write(*,*) 'sm: t1 ',time_t1,' t2 ',time_t2,' t3 ',time_t3
-    end subroutine print_smtimers
-
-    subroutine init_dtimers()
-        implicit none
-
-        call timer_d1%init_timer()
-        call timer_d2%init_timer()
-        call timer_d3%init_timer()
-    end subroutine init_dtimers
-
-    subroutine init_ftimers()
-        implicit none
-
-        call timer_f1%init_timer()
-        call timer_f2%init_timer()
-        call timer_f3%init_timer()
-    end subroutine init_ftimers
-
-    subroutine init_smtimers()
-        implicit none
-
-        call timer_sm1%init_timer()
-        call timer_sm2%init_timer()
-        call timer_sm3%init_timer()
-    end subroutine init_smtimers
-
 
 
 !-------------------------------------------------------------------------------

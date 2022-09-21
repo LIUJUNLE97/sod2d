@@ -55,12 +55,10 @@ contains
 !---------------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------------
 
-   subroutine read_alyaMesh_part_and_create_hdf5Mesh(gmsh_file_path,gmsh_file_name,periodic,&
-         mesh_h5_file_path,mesh_h5_file_name)
+   subroutine read_alyaMesh_part_and_create_hdf5Mesh(gmsh_file_path,gmsh_file_name,periodic)
       implicit none     
       character(len=*), intent(in) :: gmsh_file_path,gmsh_file_name
       logical, intent(in) :: periodic
-      character(len=*), intent(in) :: mesh_h5_file_path,mesh_h5_file_name
 
       !-- read the alya mesh fesh files in GMSH/ALYA FORMAT
       call read_alya_mesh_files(gmsh_file_path,gmsh_file_name,periodic)
@@ -242,9 +240,8 @@ contains
 
    end subroutine create_hdf5_meshFile
 
-   subroutine load_hdf5_meshFile(file_path,file_name)
+   subroutine load_hdf5_meshFile()
       implicit none     
-      character(len=*), intent(in) :: file_path,file_name
       character(256) :: groupname,dsetname
       integer(hid_t) :: file_id,plist_id,dset_id,fspace_id
       integer :: h5err
@@ -3035,6 +3032,81 @@ contains
 
    end subroutine write_vtkhdf_avgResultsFile
 
+   subroutine write_vtkhdf_floatFieldFile(full_fileName,floatField)
+      implicit none
+      character(512),intent(in) :: full_fileName
+      real(rp),dimension(numNodesRankPar),intent(in) :: floatField
+
+      character(512) :: groupname,dsetname
+      integer(hid_t) :: file_id,plist_id,dset_id
+      integer(hid_t) :: dtype
+      integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
+      integer(HSSIZE_T), dimension(1) :: ms_offset 
+      integer :: ds_rank,ms_rank,h5err
+
+      integer :: ii,iNodeL,iElemL
+      integer(1),allocatable :: aux_array_i8(:)
+      real(8),allocatable :: aux_array_r64(:)
+
+      !------------------------------------------------------------------------------------
+      ! Setup file access property list with parallel I/O access.
+      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
+      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+
+      ! create file collectively
+      call h5fcreate_f(full_fileName,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot create VTKHDF ',trim(adjustl(full_fileName))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
+      call h5pclose_f(plist_id, h5err)
+
+      call create_vtkhdf_resultsFile(file_id)
+
+      allocate(aux_array_r64(numNodesRankPar))
+      !------------------------------------------------------------------------------------------------------
+      dtype = H5T_NATIVE_DOUBLE
+      ds_rank = 1
+      ms_rank = 1
+      ds_dims(1) = totalNumNodesPar
+      ms_dims(1) = numNodesRankPar
+      ms_offset(1) = rankNodeStart-1
+
+      ! ## floatField ##
+      dsetname = '/VTKHDF/PointData/floatField'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(floatField(iNodeL),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_r64)
+
+      !-------------------------------------------------------------------------------------------------------
+      allocate(aux_array_i8(numNodesRankPar))
+      !------------------------------------------------------------------------------------------------------
+      dtype = H5T_STD_U8LE
+      ds_rank = 1
+      ms_rank = 1
+      ds_dims(1) = totalNumElements
+      ms_dims(1) = numElemsInRank
+      ms_offset(1) = rankElemStart-1
+
+      ! ## mpi_rank ##
+      dsetname = '/VTKHDF/CellData/mpi_rank'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      do iElemL = 1,numElemsInRank
+         aux_array_i8(iElemL) = mpi_rank
+      end do
+      call write_dataspace_int1_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_i8)
+
+      deallocate(aux_array_i8)
+
+      !close the file.
+      call h5fclose_f(file_id,h5err)
+
+   end subroutine write_vtkhdf_floatFieldFile
+
+!-----------------------------------------------------------------------------------------------------------------------------
+
    subroutine save_vtkhdf_instResultsFile(iStep,rho,pr,E,eta,csound,machno,divU,Qcrit,envit,mut,mu_fluid,u,gradRho,curlU)
       implicit none
       integer, intent(in) :: iStep
@@ -3077,6 +3149,21 @@ contains
       call write_vtkhdf_avgResultsFile(full_fileName,favrho,favpre,favmueff,favvel,favve2)
 
    end subroutine save_vtkhdf_finalAvgResultsFile
+
+   subroutine save_vtkhdf_flotFieldFile(floatField)
+      implicit none
+      !integer, intent(in) :: iStep
+      real(rp),dimension(numNodesRankPar),intent(in) :: floatField
+      character(512) :: full_fileName
+
+      !------------------------------------------------------------------------------------
+      call set_vtkhdf_resultsFile_name(0,full_fileName)
+      if(mpi_rank.eq.0) write(*,*) '# Saving VTKHDF floatField file: ',trim(adjustl(full_fileName))
+
+      call write_vtkhdf_floatFieldFile(full_fileName,floatField)
+
+   end subroutine save_vtkhdf_flotFieldFile
+
 !---------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------
 

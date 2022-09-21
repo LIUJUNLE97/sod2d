@@ -170,9 +170,10 @@ module mod_geom
                end do
             end do
             !$acc end parallel loop
-#if 1
-            call sendRcv_intField(lelpn)
-#endif
+
+            if(mpi_size.ge.2) then
+               call mpi_halo_atomic_update_int(lelpn)
+            end if
 
          end subroutine elemPerNode
 
