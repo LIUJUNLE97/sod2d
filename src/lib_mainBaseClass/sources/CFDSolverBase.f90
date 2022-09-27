@@ -98,6 +98,7 @@ module CFDSolverBase_mod
       procedure, public :: openMesh => CFDSolverBase_openMesh
       procedure, public :: evalCharLength => CFDSolverBase_evalCharLength
       !procedure, public :: splitBoundary => CFDSolverBase_splitBoundary
+      procedure, public :: boundaryFacesToNodes => CFDSolverBase_boundaryFacesToNodes
       procedure, public :: allocateVariables => CFDSolverBase_allocateVariables
       procedure, public :: evalOrLoadInitialConditions => CFDSolverBase_evalOrLoadInitialConditions
       procedure, public :: evalInitialConditions => CFDSolverBase_evalInitialConditions
@@ -269,6 +270,45 @@ contains
       end if
    end subroutine CFDSolverBase_splitBoundary
 #endif
+   
+   subroutine CFDSolverBase_boundaryFacesToNodes(this)
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4), allocatable    :: aux1(:)
+      integer(4) :: iNodeL,iBound,iboun,ipbou
+
+      allocate(bouCodesNodesPar(numBoundaryNodesRankPar))
+      allocate(aux1(numNodesRankPar))
+
+      !$acc kernels
+      aux1(:) = 10000000
+      !$acc end kernels
+
+      !$acc parallel loop gang 
+      do iBound = 1,numBoundsRankPar
+         !$acc loop vector
+         do ipbou = 1,npbou
+            aux1(boundPar(iBound,ipbou)) = min(aux1(boundPar(iBound,ipbou)),bouCodesPar(iBound))
+         end do
+      end do
+      !$acc end parallel loop
+
+      if(mpi_size.ge.2) then
+         call mpi_halo_min_update_int_sendRcv(aux1)
+      end if
+
+      !$acc parallel loop gang 
+      do iBound = 1,numBoundsRankPar
+         !$acc loop vector
+         do ipbou = 1,npbou
+            bouCodesNodesPar(boundPar(iBound,ipbou)) = aux1(boundPar(iBound,ipbou))
+         end do
+      end do
+      !$acc end parallel loop
+
+      deallocate(aux1)
+
+   end subroutine CFDSolverBase_boundaryFacesToNodes
+
    subroutine CFDSolverBase_evalCharLength(this)
       class(CFDSolverBase), intent(inout) :: this
       real(rp) :: he_aux
@@ -1138,6 +1178,10 @@ contains
         ! Eval periodic
 
         call this%evalPeriodic()
+
+        ! Eval BoundaryFacesToNodes
+
+        call  this%boundaryFacesToNodes()
 
         ! Eval initial time step
 

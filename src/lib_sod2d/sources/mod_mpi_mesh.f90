@@ -105,7 +105,7 @@ logical :: isMeshPeriodic
 
 integer(int_size) :: numBoundCodes, numBoundsRankPar, totalNumBoundsSrl
 integer(int_size) :: ndofRankPar, numBoundaryNodesRankPar
-integer(int_size), allocatable :: boundPar(:,:), bouCodesPar(:), ldofPar(:), lbnodesPar(:)
+integer(int_size), allocatable :: boundPar(:,:), bouCodesPar(:), ldofPar(:), lbnodesPar(:), bouCodesNodesPar(:)
 real(rp), allocatable :: boundNormalPar(:,:)
 logical :: isMeshBoundaries
 

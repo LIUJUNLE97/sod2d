@@ -349,6 +349,19 @@ contains
         !$acc end parallel loop
     end subroutine copy_from_rcvBuffer_int
 !-------------------------------------------------------------------------
+    subroutine copy_from_min_rcvBuffer_int(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            intField(iNodeL) = min(intField(iNodeL),aux_intField_r(i))
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_min_rcvBuffer_int
+!-------------------------------------------------------------------------
     subroutine copy_from_rcvBuffer_float(floatField)
         implicit none
         real(4), intent(inout) :: floatField(:)
@@ -468,6 +481,29 @@ contains
 #endif
 
     end subroutine mpi_halo_atomic_update_double
+!------------- min SEND/RECV -------------------------------------------
+    ! INTEGER ---------------------------------------------------
+    subroutine mpi_halo_min_update_int_sendRcv(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer :: i,ngbRank,tagComm
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_int(intField)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            call MPI_Sendrecv(aux_intfield_s(mempos_l), memSize, MPI_INTEGER, ngbRank, tagComm, &
+                              aux_intfield_r(mempos_l), memSize, MPI_INTEGER, ngbRank, tagComm, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+        end do
+
+        call copy_from_min_rcvBuffer_int(intField)
+    end subroutine mpi_halo_min_update_int_sendRcv
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
 !------------- SEND/RECV -------------------------------------------
