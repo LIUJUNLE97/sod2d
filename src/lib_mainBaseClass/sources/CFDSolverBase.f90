@@ -102,6 +102,7 @@ module CFDSolverBase_mod
       procedure, public :: evalOrLoadInitialConditions => CFDSolverBase_evalOrLoadInitialConditions
       procedure, public :: evalInitialConditions => CFDSolverBase_evalInitialConditions
       procedure, public :: evalInitialViscosity =>CFDSolverBase_evalInitialViscosity
+      procedure, public :: evalViscosityFactor=>CFDSolverBase_evalViscosityFactor
       procedure, public :: evalInitialDt =>CFDSolverBase_evalInitialDt
       procedure, public :: evalShapeFunctions =>CFDSolverBase_evalShapeFunctions
       procedure, public :: interpolateInitialConditions =>CFDSolverBase_interpolateInitialConditions
@@ -414,6 +415,22 @@ contains
         end if
 
    end subroutine CFDSolverBase_evalInitialViscosity
+
+   subroutine CFDSolverBase_evalViscosityFactor(this)
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4) :: iNodeL
+
+      ! set out of the buffer zone
+      ! remember that the mu_factor field has to we filled at least with the
+      ! flag_mu_factor
+
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         mu_factor(iNodeL) = flag_mu_factor
+      end do
+      !$acc end parallel loop
+
+   end subroutine CFDSolverBase_evalViscosityFactor
 
    subroutine CFDSolverBase_evalInitialDt(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -1084,6 +1101,10 @@ contains
         ! Eval initial viscosty
 
         call this%evalInitialViscosity()
+
+        ! Eval  viscosty factor
+
+        call this%evalViscosityFactor()
 
 
         ! Eval shape Functions

@@ -1,4 +1,4 @@
-#define AR2 0
+#define AR2 1
 
 module ThermalChannelFlowSolver_mod
    use mod_arrays
@@ -66,7 +66,7 @@ contains
       write(this%gmsh_file_name,*) "channel"
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "channel"
+      write(this%mesh_h5_file_name,*) "channel_sem"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -77,19 +77,19 @@ contains
       this%loadMesh = .true.
       this%loadResults = .true.
 
-      this%continue_oldLogs = .true.
-      this%load_step = 5700001
+      this%continue_oldLogs = .false.
+      this%load_step = 8100001
       this%do_control = 0
 #else
       this%loadMesh = .true.
       this%loadResults = .true.
 
       this%continue_oldLogs = .false.
-      this%load_step = 6600001
+      this%load_step = 8100001
       this%do_control = 0
 #endif
 
-      this%nstep = 9000000
+      this%nstep = 90000000
 #if AR2
       this%cfl_conv = 1.5_rp
       this%cfl_diff = 1.5_rp
