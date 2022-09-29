@@ -193,13 +193,14 @@ module mod_geom
 
          end subroutine elemPerNode
 
-         subroutine nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,atoIJK,lnbn)
+         subroutine nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,bouCodesNodes,point2elem,atoIJK,lnbn,lnbnNodes)
 
             implicit none
 
-            integer(4), intent(in)  :: nelem,npoin,nboun,connec(nelem,nnode),bound(nboun,npbou),point2elem(npoin),atoIJK(nnode)
+            integer(4), intent(in)  :: nelem,npoin,nboun,connec(nelem,nnode),bound(nboun,npbou),bouCodesNodes(npoin),point2elem(npoin),atoIJK(nnode)
             real(rp), intent(in) :: coord(npoin,ndime)
             integer(4), intent(out) :: lnbn(nboun,npbou)
+            integer(4), intent(out) :: lnbnNodes(npoin)
             integer(4)              :: ipoin, inode,ielem,bnode,ipbou,iboun,rnode,c,i,j,k,innode
             integer(4)              :: aux1, aux2
 
@@ -233,6 +234,15 @@ module mod_geom
                   !lnbn(iboun,ipbou) = connec(ielem,atoIJK(aux2+8))
                   lnbn(iboun,ipbou) = connec(ielem,atoIJK(64))
                end do
+            end do
+            !$acc end parallel loop
+
+            !$acc parallel loop  
+            do inode = 1,npoin
+               if(bouCodesNodes(inode) .lt. max_num_bou_codes) then
+                  ielem = point2elem(inode)
+                  lnbnNodes(inode) = connec(ielem,atoIJK(64))
+               end if
             end do
             !$acc end parallel loop
 

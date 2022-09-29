@@ -55,7 +55,7 @@ contains
       class(ChannelFlowSolver), intent(inout) :: this
       real(rp) :: mur
 
-      write(this%gmsh_file_path,*) "./mesh_channel/"
+      write(this%gmsh_file_path,*) "./mesh/"
       write(this%gmsh_file_name,*) "channel"
 
       write(this%mesh_h5_file_path,*) ""
@@ -66,20 +66,20 @@ contains
 
       this%isPeriodic = .true.
       this%loadMesh = .true.
-      this%loadResults = .true.
-      this%continue_oldLogs = .false.
-      this%load_step = 400001
+
+      this%loadResults = .false.
+      !this%continue_oldLogs = .false.
+      !this%load_step = 400001
 
       this%nstep = 90000000 
-      this%cfl_conv = 1.5_rp
-      this%cfl_diff = 1.5_rp
+      this%cfl_conv = 1.0_rp
+      this%cfl_diff = 1.0_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 100000 ! Saving interval, TODO: input
-      this%tleap = 0.5_rp ! Saving interval, TODO: input
+      this%nleap = 10000 ! Saving interval, TODO: input
       this%nleap2 = 50  ! Saving interval, TODO: input
-      this%nleapAVG = 100000
+      this%nleapAVG = 10000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -88,7 +88,7 @@ contains
       this%delta  = 1.0_rp
       this%U0     = 1.0_rp
       this%rho0   = 1.0_rp
-      this%Retau  = 400.0_rp
+      this%Retau  = 950.0_rp
       this%gamma_gas = 1.40_rp
 
       this%Re     = exp((1.0_rp/0.88_rp)*log(this%Retau/0.09_rp))

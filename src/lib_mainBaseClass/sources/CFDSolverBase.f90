@@ -7,7 +7,7 @@ module mod_arrays
       !integer(4), allocatable  :: connecVTK(:,:)!, connec(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
       !integer(4), allocatable  :: masSla(:,:), connec_orig(:,:), bound_orig(:,:), lpoin_w(:)
       integer(4), allocatable  :: lelpn(:),point2elem(:)
-      integer(4), allocatable  :: atoIJ(:),atoIJK(:),listHEX08(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
+      integer(4), allocatable  :: atoIJ(:),atoIJK(:),listHEX08(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
 !      integer(4), allocatable  :: atoIJ(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
 !      real(rp), allocatable    :: coord(:,:), helem(:),helem_l(:,:)
       real(rp), allocatable    :: helem(:),helem_l(:,:)
@@ -276,11 +276,11 @@ contains
       integer(4), allocatable    :: aux1(:)
       integer(4) :: iNodeL,iBound,iboun,ipbou
 
-      allocate(bouCodesNodesPar(numBoundaryNodesRankPar))
+      allocate(bouCodesNodesPar(numNodesRankPar))
       allocate(aux1(numNodesRankPar))
 
       !$acc kernels
-      aux1(:) = 10000000
+      aux1(:) = max_num_bou_codes
       !$acc end kernels
 
       !$acc parallel loop gang 
@@ -296,12 +296,11 @@ contains
          call mpi_halo_min_update_int_sendRcv(aux1)
       end if
 
-      !$acc parallel loop gang 
-      do iBound = 1,numBoundsRankPar
-         !$acc loop vector
-         do ipbou = 1,npbou
-            bouCodesNodesPar(boundPar(iBound,ipbou)) = aux1(boundPar(iBound,ipbou))
-         end do
+      !$acc parallel loop  
+      do iNodeL = 1,numNodesRankPar
+         if(aux1(iNodeL) .lt. max_num_bou_codes) then
+            bouCodesNodesPar(iNodeL) = aux1(iNodeL)
+         end if
       end do
       !$acc end parallel loop
 
@@ -769,7 +768,8 @@ contains
 
       if(mpi_rank.eq.0) write(111,*) '--| POINT 2 ELEM done'
       allocate(lnbn(numBoundsRankPar,npbou))
-      call nearBoundaryNode(numElemsInRank,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,point2elem,atoIJK,lnbn)
+      allocate(lnbnNodes(numNodesRankPar))
+      call nearBoundaryNode(numElemsInRank,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
 
    end subroutine CFDSolverBase_evalPeriodic
 
@@ -1175,13 +1175,14 @@ contains
 
         call this%evalAtoIJKInverse()
 
+        ! Eval BoundaryFacesToNodes
+
+        call  this%boundaryFacesToNodes()
+
         ! Eval periodic
 
         call this%evalPeriodic()
 
-        ! Eval BoundaryFacesToNodes
-
-        call  this%boundaryFacesToNodes()
 
         ! Eval initial time step
 

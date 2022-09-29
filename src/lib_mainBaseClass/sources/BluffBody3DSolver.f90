@@ -55,11 +55,11 @@ contains
       write(this%results_h5_file_name,*) "resultsFile"
 
       this%isPeriodic = .false.
-      this%loadMesh = .true.
-      this%loadResults = .true.
+      this%loadMesh = .false.
+      this%loadResults = .false.
 
-      this%continue_oldLogs = .false.
-      this%load_step = 540001
+      !this%continue_oldLogs = .false.
+      !this%load_step = 540001
 
       this%nstep = 1000000
       this%cfl_conv = 1.0_rp
@@ -204,11 +204,11 @@ contains
         if(coordPar(iNodeL,3)>1.2_rp) then
            mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
         end if
-        if(coordPar(iNodeL,1)>5.5_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
-        end if
         if(coordPar(iNodeL,2)<-0.9_rp) then
            mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
+        end if
+        if(coordPar(iNodeL,1)>5.5_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
         end if
       end do
       !$acc end parallel loop
