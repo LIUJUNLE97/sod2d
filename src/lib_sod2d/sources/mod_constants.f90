@@ -72,4 +72,15 @@ module mod_constants
       real(rp) :: nscbc_T_H   = 293.0_rp
       real(rp) :: nscbc_T_C   = 293.0_rp
 
+      !
+      ! Boundary Conditions Types
+      !
+
+      integer(4), parameter :: bc_type_inlet                = 1
+      integer(4), parameter :: bc_type_non_slip_adiabatic   = 2
+      integer(4), parameter :: bc_type_non_slip_hot         = 3
+      integer(4), parameter :: bc_type_non_slip_cold        = 4
+      integer(4), parameter :: bc_type_slip_adiabatic       = 5
+      integer(4), parameter :: bc_type_outlet               = 6
+
 end module mod_constants

@@ -275,7 +275,7 @@ module mod_bc_routines
             do inode = 1,npoin
                if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
                   bcode = bou_codes_nodes(inode) ! Boundary element code
-                  if (bcode == 1) then ! inlet just for aligened inlets with x
+                  if (bcode == bc_type_inlet) then ! inlet just for aligened inlets with x
 
                    sl = min(nscbc_u_inf-nscbc_c_inf, aux_u2(lnbn_nodes(inode),1) - sqrt(nscbc_gamma_inf*aux_p2(lnbn_nodes(inode))/aux_rho2(lnbn_nodes(inode))))
                    sr =  max(aux_u2(lnbn_nodes(inode),1) + sqrt(nscbc_gamma_inf*aux_p2(lnbn_nodes(inode))/aux_rho2(lnbn_nodes(inode))), nscbc_u_inf+nscbc_c_inf)
@@ -310,7 +310,7 @@ module mod_bc_routines
                     aux_p(inode) = aux_rho2(inode)*(nscbc_gamma_inf-1.0_rp)*((aux_E2(inode)/aux_rho2(inode))- &
                        0.5_rp*dot_product(aux_u2(inode,:),aux_u2(inode,:)))
 
-                  else if (bcode == 2) then ! non_slip wall adiabatic
+                  else if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic
                      
                      aux_q(inode,1) = 0.0_rp
                      aux_q(inode,2) = 0.0_rp
@@ -320,7 +320,7 @@ module mod_bc_routines
                      aux_u(inode,2) = 0.0_rp
                      aux_u(inode,3) = 0.0_rp
 
-                  else if (bcode == 3) then ! non_slip wall hot
+                  else if (bcode == bc_type_non_slip_hot) then ! non_slip wall hot
 
                      aux_q(inode,1) = 0.0_rp
                      aux_q(inode,2) = 0.0_rp
@@ -334,7 +334,7 @@ module mod_bc_routines
                      aux_p(inode) = nscbc_p_inf
                      aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
 
-                  else if (bcode == 4) then ! non_slip wall cold
+                  else if (bcode == bc_type_non_slip_cold) then ! non_slip wall cold
 
                      aux_q(inode,1) = 0.0_rp
                      aux_q(inode,2) = 0.0_rp
@@ -348,7 +348,7 @@ module mod_bc_routines
                      aux_p(inode) = nscbc_p_inf
                      aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
 
-                  else if (bcode == 5) then !slip wall in x
+                  else if (bcode == bc_type_slip_adiabatic) then !slip wall in x
 
                      aux_q(inode,1) = nscbc_rho_inf*nscbc_u_inf
                      aux_u(inode,1) = nscbc_u_inf
@@ -361,7 +361,7 @@ module mod_bc_routines
                      aux_rho(inode) = nscbc_rho_inf
                      aux_E(inode) = nscbc_rho_inf*0.5_rp*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
 
-                  else if (bcode == 6) then ! outlet just for aligened with x
+                  else if (bcode == bc_type_outlet) then ! outlet just for aligened with x
 
                      sl = min(nscbc_u_inf-nscbc_c_inf, aux_u2(lnbn_nodes(inode),1) - sqrt(nscbc_gamma_inf*aux_p2(lnbn_nodes(inode))/aux_rho2(lnbn_nodes(inode))))
                      sr =  max(aux_u2(lnbn_nodes(inode),1) + sqrt(nscbc_gamma_inf*aux_p2(lnbn_nodes(inode))/aux_rho2(lnbn_nodes(inode))), nscbc_u_inf+nscbc_c_inf)

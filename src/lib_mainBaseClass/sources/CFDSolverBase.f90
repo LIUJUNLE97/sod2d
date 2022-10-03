@@ -6,7 +6,7 @@ module mod_arrays
       ! main allocatable arrays
       !integer(4), allocatable  :: connecVTK(:,:)!, connec(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
       !integer(4), allocatable  :: masSla(:,:), connec_orig(:,:), bound_orig(:,:), lpoin_w(:)
-      integer(4), allocatable  :: lelpn(:),point2elem(:)
+      integer(4), allocatable  :: lelpn(:),point2elem(:),bouCodes2BCType(:)
       integer(4), allocatable  :: atoIJ(:),atoIJK(:),listHEX08(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
 !      integer(4), allocatable  :: atoIJ(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
 !      real(rp), allocatable    :: coord(:,:), helem(:),helem_l(:,:)
@@ -99,6 +99,7 @@ module CFDSolverBase_mod
       procedure, public :: evalCharLength => CFDSolverBase_evalCharLength
       !procedure, public :: splitBoundary => CFDSolverBase_splitBoundary
       procedure, public :: boundaryFacesToNodes => CFDSolverBase_boundaryFacesToNodes
+      procedure, public :: fillBCTypes => CFDSolverBase_fill_BC_Types
       procedure, public :: allocateVariables => CFDSolverBase_allocateVariables
       procedure, public :: evalOrLoadInitialConditions => CFDSolverBase_evalOrLoadInitialConditions
       procedure, public :: evalInitialConditions => CFDSolverBase_evalInitialConditions
@@ -270,7 +271,12 @@ contains
       end if
    end subroutine CFDSolverBase_splitBoundary
 #endif
+
+   subroutine CFDSolverBase_fill_BC_Types(this)
+      class(CFDSolverBase), intent(inout) :: this
    
+   end subroutine CFDSolverBase_fill_BC_Types
+
    subroutine CFDSolverBase_boundaryFacesToNodes(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), allocatable    :: aux1(:)
@@ -278,6 +284,9 @@ contains
 
       allocate(bouCodesNodesPar(numNodesRankPar))
       allocate(aux1(numNodesRankPar))
+      allocate(bouCodes2BCType(numBoundCodes))
+
+      call this%fillBCTypes()
 
       !$acc kernels
       aux1(:) = max_num_bou_codes
@@ -287,7 +296,7 @@ contains
       do iBound = 1,numBoundsRankPar
          !$acc loop vector
          do ipbou = 1,npbou
-            aux1(boundPar(iBound,ipbou)) = min(aux1(boundPar(iBound,ipbou)),bouCodesPar(iBound))
+            aux1(boundPar(iBound,ipbou)) = min(aux1(boundPar(iBound,ipbou)),bouCodes2BCType(bouCodesPar(iBound)))
          end do
       end do
       !$acc end parallel loop

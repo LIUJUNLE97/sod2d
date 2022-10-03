@@ -35,11 +35,23 @@ module BluffBody3DSolver_mod
       real(rp) , public  :: vo, M, delta, rho0, Re, to, po
 
    contains
+      procedure, public :: fillBCTypes           =>BluffBody3DSolver_fill_BC_Types
       procedure, public :: initializeParameters  => BluffBody3DSolver_initializeParameters
       procedure, public :: evalInitialConditions => BluffBody3DSolver_evalInitialConditions
       procedure, public :: evalViscosityFactor=>BluffBody3DSolver_evalViscosityFactor
    end type BluffBody3DSolver
 contains
+
+   subroutine BluffBody3DSolver_fill_BC_Types(this)
+      class(BluffBody3DSolver), intent(inout) :: this
+
+      bouCodes2BCType(1) = bc_type_inlet
+      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(3) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(4) = bc_type_slip_adiabatic
+      bouCodes2BCType(5) = bc_type_outlet
+
+   end subroutine BluffBody3DSolver_fill_BC_Types
 
    subroutine BluffBody3DSolver_initializeParameters(this)
       class(BluffBody3DSolver), intent(inout) :: this
@@ -56,7 +68,7 @@ contains
 
       this%isPeriodic = .false.
       this%loadMesh = .true.
-      this%loadResults = .true.
+      this%loadResults = .false.
 
       this%continue_oldLogs = .false.
       this%load_step = 980001

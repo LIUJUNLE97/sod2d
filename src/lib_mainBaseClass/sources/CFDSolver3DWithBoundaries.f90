@@ -30,11 +30,19 @@ module CFDSolver3DWithBoundaries_mod
    type, public, extends(CFDSolverBase) :: CFDSolver3DWithBoundaries
 
    contains
+      procedure, public :: fillBCTypes             =>CFDSolver3DWithBoundaries_fill_BC_Types
       procedure, public :: callTimeIntegration     =>CFDSolver3DWithBoundaries_callTimeIntegration
       procedure, public :: saveAverages            =>CFDSolver3DWithBoundaries_saveAverages
       procedure, public :: savePosprocessingFields =>CFDSolver3DWithBoundaries_savePosprocessingFields
    end type CFDSolver3DWithBoundaries
 contains
+
+   subroutine CFDSolver3DWithBoundaries_fill_BC_Types(this)
+      class(CFDSolver3DWithBoundaries), intent(inout) :: this
+   
+      if(mpi_rank.eq.0) write(111,*) "--| Boundary types must be defined "
+      STOP(1)
+   end subroutine CFDSolver3DWithBoundaries_fill_BC_Types
 
    subroutine CFDSolver3DWithBoundaries_callTimeIntegration(this)
       class(CFDSolver3DWithBoundaries), intent(inout) :: this
