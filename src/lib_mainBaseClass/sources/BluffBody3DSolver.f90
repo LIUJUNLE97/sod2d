@@ -55,15 +55,15 @@ contains
       write(this%results_h5_file_name,*) "resultsFile"
 
       this%isPeriodic = .false.
-      this%loadMesh = .false.
-      this%loadResults = .false.
+      this%loadMesh = .true.
+      this%loadResults = .true.
 
-      !this%continue_oldLogs = .false.
-      !this%load_step = 540001
+      this%continue_oldLogs = .false.
+      this%load_step = 980001
 
-      this%nstep = 1000000
-      this%cfl_conv = 1.0_rp
-      this%cfl_diff = 1.0_rp
+      this%nstep = 10000000
+      this%cfl_conv = 0.75_rp
+      this%cfl_diff = 0.75_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
@@ -151,34 +151,6 @@ contains
       !$acc end kernels
       call nvtxEndRange
 
-      ! set out of the buffer zone
-      ! remember that the mu_factor field has to we filled at least with the
-      ! flag_mu_factor
-
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
-         mu_factor(iNodeL) = flag_mu_factor
-        if(coordPar(iNodeL,1)<-4.5_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
-        end if
-        if(coordPar(iNodeL,1)>5.5_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
-        end if
-        if(coordPar(iNodeL,2)<-0.9_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
-        end if
-        if(coordPar(iNodeL,2)>0.9_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
-        end if
-        !if(coordPar(iNodeL,3)<-8.0_rp) then
-        !   mu_factor(iNodeL) = flag_mu_factor*10.0_rp
-        !end if
-        if(coordPar(iNodeL,3)>1.2_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
-        end if
-      end do
-      !$acc end parallel loop
-
    end subroutine BluffBody3DSolver_evalInitialConditions
 
    subroutine BluffBody3DSolver_evalViscosityFactor(this)
@@ -193,19 +165,19 @@ contains
       do iNodeL = 1,numNodesRankPar
          mu_factor(iNodeL) = flag_mu_factor
         if(coordPar(iNodeL,1)<-4.5_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
         end if
         if(coordPar(iNodeL,2)>0.9_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
         end if
         !if(coordPar(iNodeL,3)<-8.0_rp) then
         !   mu_factor(iNodeL) = flag_mu_factor*10.0_rp
         !end if
         if(coordPar(iNodeL,3)>1.2_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
         end if
         if(coordPar(iNodeL,2)<-0.9_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
         end if
         if(coordPar(iNodeL,1)>5.5_rp) then
            mu_factor(iNodeL) = flag_mu_factor*10000.0_rp

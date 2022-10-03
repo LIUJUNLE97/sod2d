@@ -177,11 +177,11 @@ module time_integ
                !
                ! Impose boundary conditions
                !
-               if (nboun .ne. 0) then
-                  call nvtxStartRange("Boundary conditions")
-                  call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,aux_rho,aux_q,aux_u,aux_pr,aux_E)
-                  call nvtxEndRange
-               end if
+               !if (nboun .ne. 0) then
+               !   call nvtxStartRange("Boundary conditions")
+               !   call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,aux_rho,aux_q,aux_u,aux_pr,aux_E)
+               !   call nvtxEndRange
+               !end if
                !$acc parallel loop
                do ipoin = 1,npoin_w
                   aux_Tem(lpoin_w(ipoin)) = aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))*Rgas)
@@ -342,11 +342,11 @@ module time_integ
             !
             ! Apply bcs after update
             !
-            if (nboun .ne. 0) then
+            !if (nboun .ne. 0) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
                call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos))
                call nvtxEndRange
-            end if
+            !end if
             !$acc parallel loop
             do ipoin = 1,npoin_w
                Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
