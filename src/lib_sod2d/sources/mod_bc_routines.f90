@@ -395,6 +395,9 @@ module mod_bc_routines
 
                      aux_p(inode) = aux_rho2(inode)*(nscbc_gamma_inf-1.0_rp)*((aux_E2(inode)/aux_rho2(inode))- &
                         0.5_rp*dot_product(aux_u2(inode,:),aux_u2(inode,:)))
+                  else if (bcode == bc_type_slip_wall_model) then ! slip wall model
+                     aux_q(inode,2) = 0.0_rp
+                     aux_u(inode,2) = 0.0_rp
                   end if
                end if
             end do

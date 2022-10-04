@@ -33,6 +33,8 @@ module mod_constants
       integer(4), parameter :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
       integer(4), parameter :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
       integer(4), parameter :: flag_normalise_entropy=1
+      integer(4), parameter :: flag_activate_wall_model=1
+
 
       logical, parameter :: save_vtk = .false.
       logical, parameter :: save_hdf5 = .true.
@@ -55,10 +57,11 @@ module mod_constants
       real(rp), parameter :: c_sgs = 0.07_rp
       real(rp), parameter :: stau   = 0.022_rp
       real(rp), parameter :: T_ilsa = 0.001_rp
+      real(rp), parameter :: T_wmles = 1.0_rp
 
       integer(4), parameter :: max_num_bou_codes = 100
 
-      real(rp) :: flag_mu_factor=1.0_rp
+      real(rp) :: flag_mu_factor=200.0_rp
 
       !
       ! NSCBC parameters
@@ -82,5 +85,6 @@ module mod_constants
       integer(4), parameter :: bc_type_non_slip_cold        = 4
       integer(4), parameter :: bc_type_slip_adiabatic       = 5
       integer(4), parameter :: bc_type_outlet               = 6
+      integer(4), parameter :: bc_type_slip_wall_model      = 7
 
 end module mod_constants

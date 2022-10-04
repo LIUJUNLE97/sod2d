@@ -35,11 +35,22 @@ module ChannelFlowSolver_mod
       real(rp) , public  :: vo, M, delta, U0, rho0, Retau, Re, utau, to, po, mu
 
    contains
+      procedure, public :: fillBCTypes           => ChannelFlowSolver_fill_BC_Types
       procedure, public :: initializeParameters  => ChannelFlowSolver_initializeParameters
       procedure, public :: initializeSourceTerms => ChannelFlowSolver_initializeSourceTerms
       procedure, public :: evalInitialConditions => ChannelFlowSolver_evalInitialConditions
    end type ChannelFlowSolver
 contains
+
+   subroutine ChannelFlowSolver_fill_BC_Types(this)
+      class(ChannelFlowSolver), intent(inout) :: this
+
+      bouCodes2BCType(1) = bc_type_non_slip_adiabatic
+      !bouCodes2BCType(1) = bc_type_slip_wall_model
+
+      bouCodes2WallModel(1) = 1
+
+   end subroutine ChannelFlowSolver_fill_BC_Types
 
    subroutine ChannelFlowSolver_initializeSourceTerms(this)
       class(ChannelFlowSolver), intent(inout) :: this
@@ -77,7 +88,7 @@ contains
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 10000 ! Saving interval, TODO: input
+      this%nleap = 50000 ! Saving interval, TODO: input
       this%nleap2 = 50  ! Saving interval, TODO: input
       this%nleapAVG = 10000
 

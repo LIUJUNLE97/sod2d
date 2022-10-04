@@ -6,7 +6,7 @@ module mod_arrays
       ! main allocatable arrays
       !integer(4), allocatable  :: connecVTK(:,:)!, connec(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
       !integer(4), allocatable  :: masSla(:,:), connec_orig(:,:), bound_orig(:,:), lpoin_w(:)
-      integer(4), allocatable  :: lelpn(:),point2elem(:),bouCodes2BCType(:)
+      integer(4), allocatable  :: lelpn(:),point2elem(:),bouCodes2BCType(:),bouCodes2WallModel(:)
       integer(4), allocatable  :: atoIJ(:),atoIJK(:),listHEX08(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
 !      integer(4), allocatable  :: atoIJ(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
 !      real(rp), allocatable    :: coord(:,:), helem(:),helem_l(:,:)
@@ -16,7 +16,7 @@ module mod_arrays
       real(rp), allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
       real(rp), allocatable    :: Je(:,:), He(:,:,:,:), bou_norm(:,:)
       real(rp) , allocatable   :: gpvol(:,:,:), gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
-      real(rp), allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:), machno(:)
+      real(rp), allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:), machno(:),u_wall(:,:)
       real(rp), allocatable    :: Ml(:)
       real(rp), allocatable    :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:),mu_factor(:)
       real(rp), allocatable    :: source_term(:)
@@ -285,6 +285,7 @@ contains
       allocate(bouCodesNodesPar(numNodesRankPar))
       allocate(aux1(numNodesRankPar))
       allocate(bouCodes2BCType(numBoundCodes))
+      allocate(bouCodes2WallModel(numBoundCodes))
 
       call this%fillBCTypes()
 
@@ -355,6 +356,7 @@ contains
       allocate(mu_factor(numNodesRankPar))  ! Fluid viscosity
       allocate(mu_e(numElemsInRank,ngaus))  ! Elemental viscosity
       allocate(mu_sgs(numElemsInRank,ngaus))! SGS viscosity
+      allocate(u_wall(numNodesRankPar,ndime))  ! Velocity for the wall model
       !ilsa
       allocate(kres(numNodesRankPar))
       allocate(etot(numNodesRankPar))

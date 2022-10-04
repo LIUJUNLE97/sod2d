@@ -51,6 +51,12 @@ contains
       bouCodes2BCType(4) = bc_type_slip_adiabatic
       bouCodes2BCType(5) = bc_type_outlet
 
+      bouCodes2WallModel(1) = 0
+      bouCodes2WallModel(2) = 1
+      bouCodes2WallModel(3) = 1
+      bouCodes2WallModel(4) = 0
+      bouCodes2WallModel(5) = 0
+
    end subroutine BluffBody3DSolver_fill_BC_Types
 
    subroutine BluffBody3DSolver_initializeParameters(this)
