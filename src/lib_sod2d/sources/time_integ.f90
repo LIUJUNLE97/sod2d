@@ -340,6 +340,7 @@ module time_integ
 
 
             !$acc parallel loop
+            !WE NEED TO ADVANCE THIS FOR THE RIEMMAN LIKE CONDITIONS
             do ipoin = 1,npoin_w
                umag = 0.0_rp
                !$acc loop seq
@@ -365,6 +366,12 @@ module time_integ
             
             !$acc parallel loop
             do ipoin = 1,npoin_w
+               umag = 0.0_rp
+               !$acc loop seq
+               do idime = 1,ndime
+                  umag = umag + u(lpoin_w(ipoin),idime,pos)**2
+               end do
+               umag = sqrt(umag)
                Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
                csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
                machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))

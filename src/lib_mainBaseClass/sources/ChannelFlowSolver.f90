@@ -76,11 +76,11 @@ contains
       write(this%results_h5_file_name,*) "results"
 
       this%isPeriodic = .true.
-      this%loadMesh = .false.
+      this%loadMesh = .true.
 
-      this%loadResults = .false.
-      !this%continue_oldLogs = .false.
-      !this%load_step = 250001
+      this%loadResults = .true.
+      this%continue_oldLogs = .false.
+      this%load_step = 50001
 
       this%nstep = 9000000 
       this%cfl_conv = 1.0_rp
