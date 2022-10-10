@@ -17,7 +17,7 @@ module time_integ
 
          subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                          ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                         rho,u,u_wall,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
+                         rho,u,u_wall,rho_wall,mu_wall,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,numBoundCodes,wgp_b, bounorm,bouCodes2WallModel,coord,source_term) ! Optional arg
 
             implicit none
@@ -37,7 +37,7 @@ module time_integ
             real(rp),              intent(in)    :: Rgas, gamma_gas, Cp, Prt
             real(rp),              intent(inout) :: rho(npoin,2)
             real(rp),              intent(inout) :: u(npoin,ndime,2)
-            real(rp),              intent(inout) :: u_wall(npoin,ndime)
+            real(rp),              intent(inout) :: u_wall(npoin,ndime),rho_wall(npoin),mu_wall(npoin)
             real(rp),              intent(inout) :: q(npoin,ndime,2)
             real(rp),              intent(inout) :: pr(npoin,2)
             real(rp),              intent(inout) :: E(npoin,2)
@@ -67,7 +67,7 @@ module time_integ
             real(rp),    dimension(npoin)        :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
             real(rp),    dimension(npoin)        :: Rmass, Rener, Rmass_sum, Rener_sum, alpha,Reta_sum
             real(rp),    dimension(npoin,ndime)  :: Rmom, Rmom_sum, f_eta
-            real(rp)                             :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
+            real(rp)                             :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin),Rdiff_mom_wall(npoin,ndime)
             real(rp)                             :: Aemac(npoin,ndime), Femac(npoin), umag
 
 #if 0
@@ -131,6 +131,7 @@ module time_integ
             aux_eta(1:npoin) = 0.0_rp
             Rdiff_mass(1:npoin) = 0.0_rp
             Rdiff_mom(1:npoin,1:ndime) = 0.0_rp
+            Rdiff_mom_wall(1:npoin,1:ndime) = 0.0_rp
             Rdiff_ener(1:npoin) = 0.0_rp
             Rmass(1:npoin) = 0.0_rp
             Rmom(1:npoin,1:ndime) = 0.0_rp
@@ -141,14 +142,18 @@ module time_integ
             Reta_sum(1:npoin) = 0.0_rp
             Rmom_sum(1:npoin,1:ndime) = 0.0_rp
             !$acc end kernels
-            !$acc parallel loop
-            do ipoin = 1,npoin
-               !$acc loop seq
-               do idime = 1,ndime
-                  u_wall(ipoin,idime) = (1.0_rp-dt/T_wmles)*u_wall(ipoin,idime)+(dt/T_wmles)*u(ipoin,idime,pos)
+            if((flag_activate_wall_model==1)) then
+               !$acc parallel loop
+               do ipoin = 1,npoin
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     u_wall(ipoin,idime) = (1.0_rp-dt/T_wmles)*u_wall(ipoin,idime)+(dt/T_wmles)*u(ipoin,idime,pos)
+                  end do
+                  mu_wall(ipoin) = (mu_fluid(ipoin)+mu_e(point2elem(ipoin),1)+rho(ipoin,pos)*mu_sgs(point2elem(ipoin),1))
                end do
-            end do
-            !$acc end parallel loop
+               !$acc end parallel loop
+            end if
+
             call nvtxEndRange
             !
             ! Loop over all RK steps
@@ -228,10 +233,13 @@ module time_integ
                ! Evaluate wall models
 
                if((flag_activate_wall_model==1) .and. (nboun .ne. 0)) then
+                  !$acc kernels
+                  Rdiff_mom_wall(1:npoin,1:ndime) = 0.0_rp
+                  !$acc end kernels
                   do icode = 1,numBoundCodes
                      if(bouCodes2WallModel(icode) == 1) then
                         call evalWallModel(iCode,nelem,npoin,nboun,connec,bound,point2elem,atoIJK, bou_codes, &
-                           bounorm,wgp_b,coord,gpvol, mu_fluid,aux_rho,u_wall,Rdiff_mom)
+                           bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,mu_wall,aux_rho,u_wall,aux_u(:,:),Rdiff_mom_wall)
                      end if
                   end do
                end if
@@ -249,7 +257,7 @@ module time_integ
                !$acc kernels
                Rmass(:) = Rmass(:) + Rdiff_mass(:)
                Rener(:) = Rener(:) + Rdiff_ener(:)
-               Rmom(:,:) = Rmom(:,:) + Rdiff_mom(:,:)
+               Rmom(:,:) = Rmom(:,:) + Rdiff_mom(:,:) + Rdiff_mom_wall(:,:)
                !$acc end kernels
                call nvtxEndRange
 
@@ -330,6 +338,7 @@ module time_integ
                call nvtxEndRange
             end if
 
+
             !$acc parallel loop
             do ipoin = 1,npoin_w
                umag = 0.0_rp
@@ -342,10 +351,9 @@ module time_integ
                e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &
                   0.5_rp*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
                pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0_rp)*e_int(lpoin_w(ipoin),pos)
-               csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
-               machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
             end do
             !$acc end parallel loop
+
             !
             ! Apply bcs after update
             !
@@ -354,9 +362,12 @@ module time_integ
                call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos))
                call nvtxEndRange
             !end if
+            
             !$acc parallel loop
             do ipoin = 1,npoin_w
                Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
+               csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
+               machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
                eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0_rp))* &
                   log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
             end do

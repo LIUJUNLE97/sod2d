@@ -16,7 +16,7 @@ module mod_arrays
       real(rp), allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
       real(rp), allocatable    :: Je(:,:), He(:,:,:,:), bou_norm(:,:)
       real(rp) , allocatable   :: gpvol(:,:,:), gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
-      real(rp), allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:), machno(:),u_wall(:,:)
+      real(rp), allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:), machno(:),u_wall(:,:), rho_wall(:),mu_wall(:)
       real(rp), allocatable    :: Ml(:)
       real(rp), allocatable    :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:),mu_factor(:)
       real(rp), allocatable    :: source_term(:)
@@ -287,6 +287,9 @@ contains
       allocate(bouCodes2BCType(numBoundCodes))
       allocate(bouCodes2WallModel(numBoundCodes))
 
+      bouCodes2BCType(:) = 0
+      bouCodes2WallModel(:) = 0
+
       call this%fillBCTypes()
 
       !$acc kernels
@@ -357,6 +360,8 @@ contains
       allocate(mu_e(numElemsInRank,ngaus))  ! Elemental viscosity
       allocate(mu_sgs(numElemsInRank,ngaus))! SGS viscosity
       allocate(u_wall(numNodesRankPar,ndime))  ! Velocity for the wall model
+      allocate(mu_wall(numNodesRankPar))  ! Velocity for the wall model
+      allocate(rho_wall(numNodesRankPar))  ! Velocity for the wall model
       !ilsa
       allocate(kres(numNodesRankPar))
       allocate(etot(numNodesRankPar))

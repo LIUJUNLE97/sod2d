@@ -320,6 +320,8 @@ module mod_bc_routines
                      aux_u(inode,2) = 0.0_rp
                      aux_u(inode,3) = 0.0_rp
 
+                     aux_rho(inode) = nscbc_rho_inf
+                     aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
                   else if (bcode == bc_type_non_slip_hot) then ! non_slip wall hot
 
                      aux_q(inode,1) = 0.0_rp
@@ -331,7 +333,7 @@ module mod_bc_routines
                      aux_u(inode,3) = 0.0_rp
 
                      aux_rho(inode) = nscbc_p_inf/nscbc_Rgas_inf/nscbc_T_H
-                     aux_p(inode) = nscbc_p_inf
+                     !aux_p(inode) = nscbc_p_inf
                      aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
 
                   else if (bcode == bc_type_non_slip_cold) then ! non_slip wall cold
@@ -345,7 +347,7 @@ module mod_bc_routines
                      aux_u(inode,3) = 0.0_rp
 
                      aux_rho(inode) = nscbc_p_inf/nscbc_Rgas_inf/nscbc_T_C
-                     aux_p(inode) = nscbc_p_inf
+                     !aux_p(inode) = nscbc_p_inf
                      aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
 
                   else if (bcode == bc_type_slip_adiabatic) then !slip wall in x
@@ -398,6 +400,8 @@ module mod_bc_routines
                   else if (bcode == bc_type_slip_wall_model) then ! slip wall model
                      aux_q(inode,2) = 0.0_rp
                      aux_u(inode,2) = 0.0_rp
+                     aux_rho(inode) = nscbc_rho_inf
+                     !aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
                   end if
                end if
             end do

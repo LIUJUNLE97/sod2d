@@ -74,7 +74,7 @@ contains
 
       this%isPeriodic = .false.
       this%loadMesh = .true.
-      this%loadResults = .false.
+      this%loadResults = .true.
 
       this%continue_oldLogs = .false.
       this%load_step = 980001
