@@ -332,11 +332,14 @@ module time_integ
             call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
                gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
 
+
             if(mpi_size.ge.2) then
                call nvtxStartRange("MPI_comms_tI")
                call mpi_halo_atomic_update_float(Reta)
                call nvtxEndRange
             end if
+
+            call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Reta)
 
             !
             ! Apply bcs after update
