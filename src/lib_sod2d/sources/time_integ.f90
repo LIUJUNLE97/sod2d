@@ -338,23 +338,6 @@ module time_integ
                call nvtxEndRange
             end if
 
-
-            !$acc parallel loop
-            !WE NEED TO ADVANCE THIS FOR THE RIEMMAN LIKE CONDITIONS
-            do ipoin = 1,npoin_w
-               umag = 0.0_rp
-               !$acc loop seq
-               do idime = 1,ndime
-                  u(lpoin_w(ipoin),idime,pos) = q(lpoin_w(ipoin),idime,pos)/rho(lpoin_w(ipoin),pos)
-                  umag = umag + u(lpoin_w(ipoin),idime,pos)**2
-               end do
-               umag = sqrt(umag)
-               e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &
-                  0.5_rp*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
-               pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0_rp)*e_int(lpoin_w(ipoin),pos)
-            end do
-            !$acc end parallel loop
-
             !
             ! Apply bcs after update
             !
@@ -369,9 +352,13 @@ module time_integ
                umag = 0.0_rp
                !$acc loop seq
                do idime = 1,ndime
+                  u(lpoin_w(ipoin),idime,pos) = q(lpoin_w(ipoin),idime,pos)/rho(lpoin_w(ipoin),pos)
                   umag = umag + u(lpoin_w(ipoin),idime,pos)**2
                end do
                umag = sqrt(umag)
+               e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &
+                  0.5_rp*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
+               pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0_rp)*e_int(lpoin_w(ipoin),pos)
                Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
                csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
                machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))

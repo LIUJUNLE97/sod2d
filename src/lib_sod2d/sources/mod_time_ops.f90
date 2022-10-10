@@ -37,8 +37,8 @@ module mod_time_ops
                aux1 = umag+csound(connec(ielem,inode))
                L3 = max(L3,aux1)
             end do
-            aux2 = cfl_conv*(helem(ielem))/L3
-            !aux2 = cfl_conv*(helem(ielem)/real(2.0_rp*porder+1,rp))/L3
+            !aux2 = cfl_conv*(helem(ielem))/L3
+            aux2 = cfl_conv*(helem(ielem)/real(2.0_rp*porder+1,rp))/L3
            ! aux2 = cfl_conv*(helem(ielem)/real(porder**2,rp))/L3
             dt_conv = min(dt_conv,aux2)
             if(present(cfl_diff) .and. present(mu_fluid) .and. present(mu_sgs)  .and.  present(rho)) then
@@ -47,9 +47,9 @@ module mod_time_ops
                do inode = 1,nnode
                   max_MU = max(max_MU,mu_sgs(ielem,inode)+mu_fluid(connec(ielem,inode))/rho(connec(ielem,inode)))
                end do
-               aux4 = cfl_diff*((helem(ielem))**2)/max_MU
+               !aux4 = cfl_diff*((helem(ielem))**2)/max_MU
                !aux4 = cfl_diff*((helem(ielem)/real(porder**2,rp))**2)/max_MU
-               !aux4 = cfl_diff*((helem(ielem)/real(2.0_rp*porder+1,rp))**2)/max_MU
+               aux4 = cfl_diff*((helem(ielem)/real(2.0_rp*porder+1,rp))**2)/max_MU
                dt_diff = min(dt_diff,aux4)
             end if
             dt_l = min(dt_conv,dt_diff)
