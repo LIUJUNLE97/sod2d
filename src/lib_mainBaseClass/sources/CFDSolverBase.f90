@@ -328,9 +328,15 @@ contains
       do iBound = 1,numBoundsRankPar
          !$acc loop vector
          do ipbou = 1,npbou
-            normalsAtNodes(boundPar(iBound,ipbou),1) = normalsAtNodes(boundPar(iBound,ipbou),1)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)+1)
-            normalsAtNodes(boundPar(iBound,ipbou),2) = normalsAtNodes(boundPar(iBound,ipbou),1)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)+2)
-            normalsAtNodes(boundPar(iBound,ipbou),3) = normalsAtNodes(boundPar(iBound,ipbou),1)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)+3)
+            if(abs(boundNormalPar(iBound,(ipbou-1)*ndime+1)) .gt. 0.0_rp) then
+               normalsAtNodes(boundPar(iBound,ipbou),1) = normalsAtNodes(boundPar(iBound,ipbou),1)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)*ndime+1)
+            end if
+            if(abs(boundNormalPar(iBound,(ipbou-1)*ndime+2)) .gt. 0.0_rp) then
+               normalsAtNodes(boundPar(iBound,ipbou),2) = normalsAtNodes(boundPar(iBound,ipbou),2)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)*ndime+2)
+            end if
+            if(abs(boundNormalPar(iBound,(ipbou-1)*ndime+3)) .gt. 0.0_rp) then
+               normalsAtNodes(boundPar(iBound,ipbou),3) = normalsAtNodes(boundPar(iBound,ipbou),3)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)*ndime+3)
+            end if
          end do
       end do
       !$acc end parallel loop
@@ -349,9 +355,11 @@ contains
 
          normaux = sqrt(dot_product(aux,aux))
 
-         normalsAtNodes(iNodeL,1) = aux(1)/normaux
-         normalsAtNodes(iNodeL,2) = aux(2)/normaux
-         normalsAtNodes(iNodeL,3) = aux(3)/normaux
+         if(normaux .gt. 1e-10) then
+            normalsAtNodes(iNodeL,1) = aux(1)/normaux
+            normalsAtNodes(iNodeL,2) = aux(2)/normaux
+            normalsAtNodes(iNodeL,3) = aux(3)/normaux
+         end if
       end do
       !$acc end parallel loop
 

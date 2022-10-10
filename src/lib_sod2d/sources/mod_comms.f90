@@ -384,7 +384,7 @@ contains
         !$acc parallel loop
         do i=1,numNodesToComm
            iNodeL = matrixCommScheme(i,1)
-           if(floatField(iNodeL).gt. cond) then 
+           if(abs(floatField(iNodeL)).gt. cond) then 
             floatField(iNodeL) = 0.5*floatField(iNodeL)+aux_floatField_r(i)*0.5
            end if
         end do
