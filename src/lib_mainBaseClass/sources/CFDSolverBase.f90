@@ -7,6 +7,7 @@ module mod_arrays
       !integer(4), allocatable  :: connecVTK(:,:)!, connec(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
       !integer(4), allocatable  :: masSla(:,:), connec_orig(:,:), bound_orig(:,:), lpoin_w(:)
       integer(4), allocatable  :: lelpn(:),point2elem(:),bouCodes2BCType(:),bouCodes2WallModel(:)
+      real(rp), allocatable  :: normalsAtNodes(:,:)
       integer(4), allocatable  :: atoIJ(:),atoIJK(:),listHEX08(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
 !      integer(4), allocatable  :: atoIJ(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
 !      real(rp), allocatable    :: coord(:,:), helem(:),helem_l(:,:)
@@ -281,6 +282,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), allocatable    :: aux1(:)
       integer(4) :: iNodeL,iBound,iboun,ipbou
+      real(rp) :: aux(3), normaux
 
       allocate(bouCodesNodesPar(numNodesRankPar))
       allocate(aux1(numNodesRankPar))
@@ -316,6 +318,43 @@ contains
          end if
       end do
       !$acc end parallel loop
+
+      allocate(normalsAtNodes(numNodesRankPar,ndime))
+
+      !$acc kernels
+      normalsAtNodes(:,:) = 0.0_rp
+      !$acc end kernels
+      !$acc parallel loop gang 
+      do iBound = 1,numBoundsRankPar
+         !$acc loop vector
+         do ipbou = 1,npbou
+            normalsAtNodes(boundPar(iBound,ipbou),1) = normalsAtNodes(boundPar(iBound,ipbou),1)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)+1)
+            normalsAtNodes(boundPar(iBound,ipbou),2) = normalsAtNodes(boundPar(iBound,ipbou),1)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)+2)
+            normalsAtNodes(boundPar(iBound,ipbou),3) = normalsAtNodes(boundPar(iBound,ipbou),1)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)+3)
+         end do
+      end do
+      !$acc end parallel loop
+
+      if(mpi_size.ge.2) then
+         call mpi_halo_conditional_ave_update_float_sendRcv(0.0_rp,normalsAtNodes(:,1))
+         call mpi_halo_conditional_ave_update_float_sendRcv(0.0_rp,normalsAtNodes(:,2))
+         call mpi_halo_conditional_ave_update_float_sendRcv(0.0_rp,normalsAtNodes(:,3))
+      end if
+
+      !$acc parallel loop  private(aux)
+      do iNodeL = 1,numNodesRankPar
+         aux(1) = normalsAtNodes(iNodeL,1)
+         aux(2) = normalsAtNodes(iNodeL,2)
+         aux(3) = normalsAtNodes(iNodeL,3)
+
+         normaux = sqrt(dot_product(aux,aux))
+
+         normalsAtNodes(iNodeL,1) = aux(1)/normaux
+         normalsAtNodes(iNodeL,2) = aux(2)/normaux
+         normalsAtNodes(iNodeL,3) = aux(3)/normaux
+      end do
+      !$acc end parallel loop
+
 
       deallocate(aux1)
 

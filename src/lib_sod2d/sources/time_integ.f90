@@ -18,7 +18,7 @@ module time_integ
          subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                          ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,u_wall,rho_wall,mu_wall,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
-                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,numBoundCodes,wgp_b, bounorm,bouCodes2WallModel,coord,source_term) ! Optional arg
+                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,numBoundCodes,wgp_b, bounorm,bouCodes2WallModel,coord,normalsAtNodes,source_term) ! Optional arg
 
             implicit none
 
@@ -57,7 +57,7 @@ module time_integ
             real(rp),              intent(inout)   :: ax3(npoin)
             integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*)
             integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun), bou_codes_nodes(npoin),numBoundCodes,bouCodes2WallModel(*)
-            real(rp), optional, intent(in)    :: wgp_b(npbou), bounorm(nboun,ndime*npbou),coord(npoin,ndime)
+            real(rp), optional, intent(in)    :: wgp_b(npbou), bounorm(nboun,ndime*npbou),coord(npoin,ndime),normalsAtNodes(npoin,ndime)
             real(rp),    optional, intent(in)    :: source_term(ndime)
             integer(4)                          :: pos
             integer(4)                          :: istep, ipoin, idime,icode
@@ -359,7 +359,7 @@ module time_integ
             !
             !if (nboun .ne. 0) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos))
+               call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos))
                call nvtxEndRange
             !end if
             

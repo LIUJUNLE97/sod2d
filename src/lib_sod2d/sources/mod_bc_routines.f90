@@ -9,17 +9,18 @@ module mod_bc_routines
 
       contains
 
-         subroutine temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,aux_rho,aux_q,aux_u,aux_p,aux_E)
+         subroutine temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,aux_rho,aux_q,aux_u,aux_p,aux_E)
 
             implicit none
 
             integer(4), intent(in)     :: npoin, nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
             integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou),lnbn_nodes(npoin)
+            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
             real(rp),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             real(rp)                   :: aux_rho2(npoin),aux_q2(npoin,ndime),aux_u2(npoin,ndime),aux_p2(npoin),aux_E2(npoin)
-            integer(4)                 :: iboun, bcode, ipbou,inode
+            integer(4)                 :: iboun, bcode, ipbou,inode,idime
             real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
-            real(rp)                   :: q_hll,rho_hll,E_hll, E_inf
+            real(rp)                   :: q_hll,rho_hll,E_hll, E_inf,norm
 
 #if 0
             if (ndime == 3) then
@@ -398,10 +399,16 @@ module mod_bc_routines
                      aux_p(inode) = aux_rho2(inode)*(nscbc_gamma_inf-1.0_rp)*((aux_E2(inode)/aux_rho2(inode))- &
                         0.5_rp*dot_product(aux_u2(inode,:),aux_u2(inode,:)))
                   else if (bcode == bc_type_slip_wall_model) then ! slip wall model
-                     aux_q(inode,2) = 0.0_rp
-                     aux_u(inode,2) = 0.0_rp
+                     norm = dot_product(normalsAtNodes(inode,:),aux_q(inode,:))
+                     !$acc loop seq
+                     do idime = 1,ndime     
+                        aux_q(inode,idime) = aux_q(inode,idime) - norm*normalsAtNodes(inode,idime)
+                     end do
                      aux_rho(inode) = nscbc_rho_inf
-                     !aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
+
+                     aux_u(inode,1) = aux_q(inode,1)/aux_rho(inode)
+                     aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
+                     aux_u(inode,3) = aux_q(inode,3)/aux_rho(inode)
                   end if
                end if
             end do
