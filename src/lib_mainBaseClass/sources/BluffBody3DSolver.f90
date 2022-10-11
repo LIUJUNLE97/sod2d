@@ -73,15 +73,15 @@ contains
       write(this%results_h5_file_name,*) "resultsFile"
 
       this%isPeriodic = .false.
-      this%loadMesh = .true.
-      this%loadResults = .true.
+      this%loadMesh = .false.
+      !this%loadResults = .true.
 
-      this%continue_oldLogs = .false.
-      this%load_step = 980001
+      !this%continue_oldLogs = .false.
+      !this%load_step = 980001
 
       this%nstep = 10000000
-      this%cfl_conv = 0.75_rp
-      this%cfl_diff = 0.75_rp
+      this%cfl_conv = 0.5_rp
+      this%cfl_diff = 0.5_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1

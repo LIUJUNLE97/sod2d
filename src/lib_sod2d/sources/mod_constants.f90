@@ -28,7 +28,7 @@ module mod_constants
       integer(4), parameter :: flag_real_diff=1
       integer(4), parameter :: flag_diff_suth=1
       integer(4), parameter :: flag_rk_order=4
-      integer(4), parameter :: flag_les=1
+      integer(4), parameter :: flag_les=0
       integer(4), parameter :: flag_les_ilsa=0
       integer(4), parameter :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
       integer(4), parameter :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
@@ -49,7 +49,7 @@ module mod_constants
       ! Other constants
       !
       real(rp), parameter :: v_pi = 2.0_rp*asin(1.0_rp) ! Value of Pi
-      real(rp), parameter :: ce = 1.0_rp   
+      real(rp), parameter :: ce = 0.1_rp   
       real(rp), parameter :: cmax = 0.5_rp 
       real(rp), parameter :: cglob =1.0_rp
       real(rp), parameter :: c_rho =1.0_rp
