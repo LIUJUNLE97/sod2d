@@ -83,8 +83,8 @@ contains
 !      this%load_step = 400001
 
       this%nstep = 9000000 
-      this%cfl_conv = 1.0_rp
-      this%cfl_diff = 1.0_rp
+      this%cfl_conv = 0.75_rp
+      this%cfl_diff = 0.75_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
