@@ -113,7 +113,7 @@ contains
                   uistar = 0.0_rp
                end if
 
-#if 1
+#if 0
                auxvn = dot_product(aux,uex)
                !$acc loop seq
                do idime = 1,ndime     
@@ -162,7 +162,7 @@ contains
                end if
 #else 
 
-               if( y*ustar/nul < 5.0_rp ) then
+               if( y*uistar/nul < 5.0_rp ) then
                   tmag  = rhol*nul/y 
                else
                   tmag = rhol*uistar*uistar/ul

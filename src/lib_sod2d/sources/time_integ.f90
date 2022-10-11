@@ -329,6 +329,7 @@ module time_integ
                end do
             end do
             !$acc end parallel loop
+
             call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
                gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
 
@@ -339,7 +340,7 @@ module time_integ
                call nvtxEndRange
             end if
 
-            call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Reta)
+            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
 
             !
             ! Apply bcs after update
@@ -362,9 +363,9 @@ module time_integ
                e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &
                   0.5_rp*dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
                pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0_rp)*e_int(lpoin_w(ipoin),pos)
-               Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
                csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
                machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
+               Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
                eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0_rp))* &
                   log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
             end do
@@ -384,6 +385,7 @@ module time_integ
             do ipoin = 1,npoin_w
                Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
             end do
+            !$acc end parallel loop
             !
             ! Compute entropy viscosity
             !
