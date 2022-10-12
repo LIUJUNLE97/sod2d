@@ -46,14 +46,16 @@ contains
       class(BluffBody3DSolver), intent(inout) :: this
 
       bouCodes2BCType(1) = bc_type_inlet
-      bouCodes2BCType(2) = bc_type_slip_wall_model
-      bouCodes2BCType(3) = bc_type_slip_wall_model
+      !bouCodes2BCType(2) = bc_type_slip_wall_model
+      !bouCodes2BCType(3) = bc_type_slip_wall_model
       bouCodes2BCType(4) = bc_type_slip_adiabatic
       bouCodes2BCType(5) = bc_type_outlet
+      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(3) = bc_type_non_slip_adiabatic
 
       bouCodes2WallModel(1) = 0
-      bouCodes2WallModel(2) = 1
-      bouCodes2WallModel(3) = 1
+      bouCodes2WallModel(2) = 0
+      bouCodes2WallModel(3) = 0
       bouCodes2WallModel(4) = 0
       bouCodes2WallModel(5) = 0
 
@@ -73,7 +75,7 @@ contains
       write(this%results_h5_file_name,*) "resultsFile"
 
       this%isPeriodic = .false.
-      this%loadMesh = .false.
+      this%loadMesh = .true.
       !this%loadResults = .true.
 
       !this%continue_oldLogs = .false.
