@@ -46,16 +46,16 @@ contains
       class(BluffBody3DSolver), intent(inout) :: this
 
       bouCodes2BCType(1) = bc_type_inlet
-      !bouCodes2BCType(2) = bc_type_slip_wall_model
-      !bouCodes2BCType(3) = bc_type_slip_wall_model
+      bouCodes2BCType(2) = bc_type_slip_wall_model
+      bouCodes2BCType(3) = bc_type_slip_wall_model
       bouCodes2BCType(4) = bc_type_slip_adiabatic
       bouCodes2BCType(5) = bc_type_outlet
-      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
-      bouCodes2BCType(3) = bc_type_non_slip_adiabatic
+      !bouCodes2BCType(2) = bc_type_non_slip_adiabatic
+      !bouCodes2BCType(3) = bc_type_non_slip_adiabatic
 
       bouCodes2WallModel(1) = 0
-      bouCodes2WallModel(2) = 0
-      bouCodes2WallModel(3) = 0
+      bouCodes2WallModel(2) = 1
+      bouCodes2WallModel(3) = 1
       bouCodes2WallModel(4) = 0
       bouCodes2WallModel(5) = 0
 
@@ -82,8 +82,8 @@ contains
       !this%load_step = 980001
 
       this%nstep = 10000000
-      this%cfl_conv = 0.5_rp
-      this%cfl_diff = 0.5_rp
+      this%cfl_conv = 0.75_rp
+      this%cfl_diff = 0.75_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
@@ -150,6 +150,7 @@ contains
          E(iNodeL,2) = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))+e_int(iNodeL,2))
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
+         eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
       end do
       !$acc end parallel loop
 
