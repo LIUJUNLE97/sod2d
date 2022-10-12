@@ -322,7 +322,7 @@ module mod_bc_routines
                      aux_u(inode,3) = 0.0_rp
 
                      aux_rho(inode) = nscbc_rho_inf
-                     aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
+                     !aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
                   else if (bcode == bc_type_non_slip_hot) then ! non_slip wall hot
 
                      aux_q(inode,1) = 0.0_rp
@@ -410,8 +410,8 @@ module mod_bc_routines
                      aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
                      aux_u(inode,3) = aux_q(inode,3)/aux_rho(inode)
 
-                     aux_E(inode) = aux_p(inode)/(nscbc_gamma_inf-1.0_rp)+ &
-                                    nscbc_rho_inf*0.5_rp*dot_product(aux_u(inode,:),aux_u(inode,:))
+                     !aux_E(inode) = aux_p(inode)/(nscbc_gamma_inf-1.0_rp)+ &
+                     !               nscbc_rho_inf*0.5_rp*dot_product(aux_u(inode,:),aux_u(inode,:))
                   end if
                end if
             end do
