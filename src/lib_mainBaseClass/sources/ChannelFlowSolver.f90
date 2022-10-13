@@ -115,6 +115,7 @@ contains
       nscbc_p_inf = this%po
       nscbc_Rgas_inf = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
+      nscbc_T_C = this%to
 
    end subroutine ChannelFlowSolver_initializeParameters
 

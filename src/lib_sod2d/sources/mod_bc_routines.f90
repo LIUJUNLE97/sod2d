@@ -410,8 +410,9 @@ module mod_bc_routines
                      aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
                      aux_u(inode,3) = aux_q(inode,3)/aux_rho(inode)
 
-                     !aux_E(inode) = aux_p(inode)/(nscbc_gamma_inf-1.0_rp)+ &
-                     !               nscbc_rho_inf*0.5_rp*dot_product(aux_u(inode,:),aux_u(inode,:))
+                     aux_E(inode) = aux_p(inode)/(nscbc_gamma_inf-1.0_rp)+ &
+                                    aux_rho(inode)*0.5_rp*dot_product(aux_u(inode,:),aux_u(inode,:))
+
                   end if
                end if
             end do
