@@ -30,17 +30,25 @@ module CFDSolverPeriodicWithBoundaries_mod
    type, public, extends(CFDSolverPeriodic) :: CFDSolverPeriodicWithBoundaries
 
    contains
+      procedure, public :: fillBCTypes             =>CFDSolverPeriodicWithBoundaries_fill_BC_Types
       procedure, public :: callTimeIntegration     =>CFDSolverPeriodicWithBoundaries_callTimeIntegration
    end type CFDSolverPeriodicWithBoundaries
 contains
 
+   subroutine CFDSolverPeriodicWithBoundaries_fill_BC_Types(this)
+      class(CFDSolverPeriodicWithBoundaries), intent(inout) :: this
+   
+      if(mpi_rank.eq.0) write(111,*) "--| Boundary types must be defined "
+      STOP(1)
+   end subroutine CFDSolverPeriodicWithBoundaries_fill_BC_Types
+
    subroutine CFDSolverPeriodicWithBoundaries_callTimeIntegration(this)
       class(CFDSolverPeriodicWithBoundaries), intent(inout) :: this
 
-      call rk_4_main(0,0,numElemsInRank,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,point2elem,lnbn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+      call rk_4_main(0,0,numElemsInRank,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,point2elem,lnbn,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
          1,connecParWork,Ngp,dNgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
-         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor, &
-         ndofRankPar,numBoundaryNodesRankPar,ldofPar,lbnodesPar,boundPar,bouCodesPar,source_term) ! Optional args
+         rho,u,u_wall,rho_wall,mu_wall,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor, &
+         ndofRankPar,numBoundaryNodesRankPar,ldofPar,lbnodesPar,boundPar,bouCodesPar,bouCodesNodesPar,numBoundCodes,wgp_b,boundNormalPar,bouCodes2WallModel,coordPar,normalsAtNodes,source_term) ! Optional args
 
    end subroutine CFDSolverPeriodicWithBoundaries_callTimeIntegration
 

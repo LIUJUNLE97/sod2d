@@ -349,6 +349,48 @@ contains
         !$acc end parallel loop
     end subroutine copy_from_rcvBuffer_int
 !-------------------------------------------------------------------------
+    subroutine copy_from_min_rcvBuffer_int(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            intField(iNodeL) = min(intField(iNodeL),aux_intField_r(i))
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_min_rcvBuffer_int
+!-------------------------------------------------------------------------
+    subroutine copy_from_max_rcvBuffer_float(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = matrixCommScheme(i,1)
+            floatField(iNodeL) = max(floatField(iNodeL),aux_floatField_r(i))
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_max_rcvBuffer_float
+!-------------------------------------------------------------------------
+    subroutine copy_from_conditional_ave_rcvBuffer_float(cond,floatField)
+        implicit none
+        real(4), intent(in) :: cond
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+           iNodeL = matrixCommScheme(i,1)
+           if(abs(floatField(iNodeL)).gt. cond) then 
+            floatField(iNodeL) = 0.5*floatField(iNodeL)+aux_floatField_r(i)*0.5
+           end if
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_conditional_ave_rcvBuffer_float
+!-------------------------------------------------------------------------
     subroutine copy_from_rcvBuffer_float(floatField)
         implicit none
         real(4), intent(inout) :: floatField(:)
@@ -468,6 +510,87 @@ contains
 #endif
 
     end subroutine mpi_halo_atomic_update_double
+!------------- min SEND/RECV -------------------------------------------
+    ! INTEGER ---------------------------------------------------
+    subroutine mpi_halo_min_update_int_sendRcv(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer :: i,ngbRank,tagComm
+        integer :: memPos_l,memSize
+
+        call fill_sendBuffer_int(intField)
+
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            call MPI_Sendrecv(aux_intfield_s(mempos_l), memSize, MPI_INTEGER, ngbRank, tagComm, &
+                              aux_intfield_r(mempos_l), memSize, MPI_INTEGER, ngbRank, tagComm, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+        end do
+
+        call copy_from_min_rcvBuffer_int(intField)
+    end subroutine mpi_halo_min_update_int_sendRcv
+!------------- max SEND/RECV -------------------------------------------
+    ! FLOAT ---------------------------------------------------
+    subroutine mpi_halo_max_update_float_sendRcv(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,ireq,ngbRank,tagComm
+        integer :: memPos_l,memSize
+        integer :: requests(2*numRanksWithComms)
+
+        call fill_sendBuffer_float(floatField)
+
+        ireq=0
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_floatfield_r(mempos_l),memSize,MPI_FLOAT,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_floatfield_s(mempos_l),memSize,MPI_FLOAT,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+        end do
+
+        call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+        call copy_from_max_rcvBuffer_float(floatField)
+    end subroutine mpi_halo_max_update_float_sendRcv
+!------------- conditional average SEND/RECV -------------------------------------------
+    ! FLOAT ---------------------------------------------------
+    subroutine mpi_halo_conditional_ave_update_float_sendRcv(cond,floatField)
+        implicit none
+        real(4), intent(in) :: cond
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,ireq,ngbRank,tagComm
+        integer :: memPos_l,memSize
+        integer :: requests(2*numRanksWithComms)
+
+        call fill_sendBuffer_float(floatField)
+
+        ireq=0
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_floatfield_r(mempos_l),memSize,MPI_FLOAT,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_floatfield_s(mempos_l),memSize,MPI_FLOAT,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+        end do
+
+        call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+        call copy_from_conditional_ave_rcvBuffer_float(cond,floatField)
+    end subroutine mpi_halo_conditional_ave_update_float_sendRcv
+!-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
 !------------- SEND/RECV -------------------------------------------

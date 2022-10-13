@@ -1,10 +1,7 @@
 mesh_h5_filePath ""
 mesh_h5_fileName "meshname"
-cgns_filePath ""
-cgns_fileName "meshname"
 results_h5_filePath ""
 results_h5_fileName "results"
-output_cgns_fileName "results_AVG"
 do_averages 1
 first_step 1
 last_step 2001

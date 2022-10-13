@@ -268,6 +268,7 @@ module mod_entropy_viscosity
                          do inode = 1,nnode
                             R1 = rho(connec(ielem,inode))*abs(Reta(connec(ielem,inode)))/norm
                             Ve = ce*R1*(helem(ielem,inode))**2
+                            !mu_e(ielem,inode) = cglob*min(Ve,betae)
                             mu = mu + cglob*min(Ve,betae)
                          end do
                          mu = mu/real(nnode,rp)

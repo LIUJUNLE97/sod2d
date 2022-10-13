@@ -19,7 +19,7 @@ module mod_geom
             integer(4)              :: iedge, ncorner, nedge
                  integer(4)              :: inode, jnode,idime
             !real(rp)                :: dist(12,ndime), dist2, aux
-                 real(rp)                :: aux,dist(ndime),dist2
+               real(rp)                :: aux,dist(ndime),dist2
 
                  !
                  ! Compute r = x2-x1 for all element edges
@@ -47,27 +47,27 @@ module mod_geom
                     write(*,*) "BY SIGMAR NO!"
                  end if
 #endif
-                 !call hexa_edges(iElem,nelem,npoin,connec,coord,ncorner,nedge,dist(1:12,1:ndime))
+           !      call hexa_edges(iElem,nelem,npoin,connec,coord,ncorner,nedge,dist(1:12,1:ndime))
                  !
                  ! Obtain ||dist||_2 for all edges and select minimum size as elem. characteristic size
                  !
-                 !dist2 = 1000000000000.0_rp
-                 !do iedge = 1,nedge
-                 !   aux = sqrt(dot_product(dist(iedge,:),dist(iedge,:)))
-                 !   dist2 = min(dist2,aux)
-                 !end do
-                 !he = dist2
-                 aux = 1000000000000.0_rp
-                 do inode = 1,nnode
-                    do jnode = 1,nnode
-                       if(inode .ne. jnode) then 
-                          dist = coord(connec(ielem,inode),:)-coord(connec(ielem,jnode),:)
-                          dist2 = sqrt(dot_product(dist(:),dist(:)))
-                          aux = min(dist2,aux)
-                       end if
-                    end do
-                 end do
-                 he = aux
+            !     dist2 = 1000000000000.0_rp
+            !     do iedge = 1,nedge
+            !        aux = sqrt(dot_product(dist(iedge,:),dist(iedge,:)))
+            !        dist2 = min(dist2,aux)
+            !     end do
+            !     he = dist2
+              aux = 1000000000000.0_rp
+               do inode = 1,nnode
+                  do jnode = 1,nnode
+                     if(inode .ne. jnode) then 
+                        dist = coord(connec(ielem,inode),:)-coord(connec(ielem,jnode),:)
+                        dist2 = sqrt(dot_product(dist(:),dist(:)))
+                        aux = min(dist2,aux)
+                     end if
+                  end do
+               end do
+               he = aux
 
          end subroutine char_length
 
@@ -193,13 +193,14 @@ module mod_geom
 
          end subroutine elemPerNode
 
-         subroutine nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,point2elem,atoIJK,lnbn)
+         subroutine nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,bouCodesNodes,point2elem,atoIJK,lnbn,lnbnNodes)
 
             implicit none
 
-            integer(4), intent(in)  :: nelem,npoin,nboun,connec(nelem,nnode),bound(nboun,npbou),point2elem(npoin),atoIJK(nnode)
+            integer(4), intent(in)  :: nelem,npoin,nboun,connec(nelem,nnode),bound(nboun,npbou),bouCodesNodes(npoin),point2elem(npoin),atoIJK(nnode)
             real(rp), intent(in) :: coord(npoin,ndime)
             integer(4), intent(out) :: lnbn(nboun,npbou)
+            integer(4), intent(out) :: lnbnNodes(npoin)
             integer(4)              :: ipoin, inode,ielem,bnode,ipbou,iboun,rnode,c,i,j,k,innode
             integer(4)              :: aux1, aux2
 
@@ -233,6 +234,15 @@ module mod_geom
                   !lnbn(iboun,ipbou) = connec(ielem,atoIJK(aux2+8))
                   lnbn(iboun,ipbou) = connec(ielem,atoIJK(64))
                end do
+            end do
+            !$acc end parallel loop
+
+            !$acc parallel loop  
+            do inode = 1,npoin
+               if(bouCodesNodes(inode) .lt. max_num_bou_codes) then
+                  ielem = point2elem(inode)
+                  lnbnNodes(inode) = connec(ielem,atoIJK(64))
+               end if
             end do
             !$acc end parallel loop
 

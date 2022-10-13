@@ -35,11 +35,31 @@ module BluffBody3DSolver_mod
       real(rp) , public  :: vo, M, delta, rho0, Re, to, po
 
    contains
+      procedure, public :: fillBCTypes           =>BluffBody3DSolver_fill_BC_Types
       procedure, public :: initializeParameters  => BluffBody3DSolver_initializeParameters
       procedure, public :: evalInitialConditions => BluffBody3DSolver_evalInitialConditions
       procedure, public :: evalViscosityFactor=>BluffBody3DSolver_evalViscosityFactor
    end type BluffBody3DSolver
 contains
+
+   subroutine BluffBody3DSolver_fill_BC_Types(this)
+      class(BluffBody3DSolver), intent(inout) :: this
+
+      bouCodes2BCType(1) = bc_type_inlet
+      bouCodes2BCType(2) = bc_type_slip_wall_model
+      bouCodes2BCType(3) = bc_type_slip_wall_model
+      bouCodes2BCType(4) = bc_type_slip_adiabatic
+      bouCodes2BCType(5) = bc_type_outlet
+      !bouCodes2BCType(2) = bc_type_non_slip_adiabatic
+      !bouCodes2BCType(3) = bc_type_non_slip_adiabatic
+
+      bouCodes2WallModel(1) = 0
+      bouCodes2WallModel(2) = 1
+      bouCodes2WallModel(3) = 1
+      bouCodes2WallModel(4) = 0
+      bouCodes2WallModel(5) = 0
+
+   end subroutine BluffBody3DSolver_fill_BC_Types
 
    subroutine BluffBody3DSolver_initializeParameters(this)
       class(BluffBody3DSolver), intent(inout) :: this
@@ -56,14 +76,14 @@ contains
 
       this%isPeriodic = .false.
       this%loadMesh = .true.
-      this%loadResults = .true.
+      !this%loadResults = .true.
 
-      this%continue_oldLogs = .false.
-      this%load_step = 540001
+      !this%continue_oldLogs = .false.
+      !this%load_step = 20001
 
-      this%nstep = 1000000
-      this%cfl_conv = 1.0_rp
-      this%cfl_diff = 1.0_rp
+      this%nstep = 10000000
+      this%cfl_conv = 0.5_rp
+      this%cfl_diff = 0.5_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
@@ -130,6 +150,7 @@ contains
          E(iNodeL,2) = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))+e_int(iNodeL,2))
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
+         eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
       end do
       !$acc end parallel loop
 
@@ -151,34 +172,6 @@ contains
       !$acc end kernels
       call nvtxEndRange
 
-      ! set out of the buffer zone
-      ! remember that the mu_factor field has to we filled at least with the
-      ! flag_mu_factor
-
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
-         mu_factor(iNodeL) = flag_mu_factor
-        if(coordPar(iNodeL,1)<-4.5_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
-        end if
-        if(coordPar(iNodeL,1)>5.5_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
-        end if
-        if(coordPar(iNodeL,2)<-0.9_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
-        end if
-        if(coordPar(iNodeL,2)>0.9_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
-        end if
-        !if(coordPar(iNodeL,3)<-8.0_rp) then
-        !   mu_factor(iNodeL) = flag_mu_factor*10.0_rp
-        !end if
-        if(coordPar(iNodeL,3)>1.2_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
-        end if
-      end do
-      !$acc end parallel loop
-
    end subroutine BluffBody3DSolver_evalInitialConditions
 
    subroutine BluffBody3DSolver_evalViscosityFactor(this)
@@ -193,22 +186,22 @@ contains
       do iNodeL = 1,numNodesRankPar
          mu_factor(iNodeL) = flag_mu_factor
         if(coordPar(iNodeL,1)<-4.5_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
         end if
         if(coordPar(iNodeL,2)>0.9_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
         end if
         !if(coordPar(iNodeL,3)<-8.0_rp) then
         !   mu_factor(iNodeL) = flag_mu_factor*10.0_rp
         !end if
         if(coordPar(iNodeL,3)>1.2_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
-        end if
-        if(coordPar(iNodeL,1)>5.5_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
         end if
         if(coordPar(iNodeL,2)<-0.9_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+        end if
+        if(coordPar(iNodeL,1)>5.5_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
         end if
       end do
       !$acc end parallel loop

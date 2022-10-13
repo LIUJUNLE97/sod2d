@@ -30,19 +30,27 @@ module CFDSolver3DWithBoundaries_mod
    type, public, extends(CFDSolverBase) :: CFDSolver3DWithBoundaries
 
    contains
+      procedure, public :: fillBCTypes             =>CFDSolver3DWithBoundaries_fill_BC_Types
       procedure, public :: callTimeIntegration     =>CFDSolver3DWithBoundaries_callTimeIntegration
       procedure, public :: saveAverages            =>CFDSolver3DWithBoundaries_saveAverages
       procedure, public :: savePosprocessingFields =>CFDSolver3DWithBoundaries_savePosprocessingFields
    end type CFDSolver3DWithBoundaries
 contains
 
+   subroutine CFDSolver3DWithBoundaries_fill_BC_Types(this)
+      class(CFDSolver3DWithBoundaries), intent(inout) :: this
+   
+      if(mpi_rank.eq.0) write(111,*) "--| Boundary types must be defined "
+      STOP(1)
+   end subroutine CFDSolver3DWithBoundaries_fill_BC_Types
+
    subroutine CFDSolver3DWithBoundaries_callTimeIntegration(this)
       class(CFDSolver3DWithBoundaries), intent(inout) :: this
 
-      call rk_4_main(0,0,numElemsInRank,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,point2elem,lnbn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+      call rk_4_main(0,0,numElemsInRank,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,point2elem,lnbn,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
          1,connecParWork,Ngp,dNgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
-         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor, &
-         ndofRankPar,numBoundaryNodesRankPar,ldofPar,lbnodesPar,boundPar,bouCodesPar) ! Optional args
+         rho,u,u_wall,rho_wall,mu_wall,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor, &
+         ndofRankPar,numBoundaryNodesRankPar,ldofPar,lbnodesPar,boundPar,bouCodesPar,bouCodesNodesPar,numBoundCodes,wgp_b,boundNormalPar,bouCodes2WallModel,coordPar,normalsAtNodes) ! Optional args
 
    end subroutine CFDSolver3DWithBoundaries_callTimeIntegration
 

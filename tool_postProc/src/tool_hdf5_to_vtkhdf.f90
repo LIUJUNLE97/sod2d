@@ -190,7 +190,8 @@ program tool_hdf5_to_cgns
     call init_hdf5_interface(mesh_h5_filePath,mesh_h5_fileName,results_h5_filePath,results_h5_fileName)
 
     if(mpi_rank.eq.0) write(*,*) '# Loading HDF5 mesh file...'
-    call load_hdf5_meshfile(mesh_h5_filePath,mesh_h5_fileName)
+    !call load_hdf5_meshfile(mesh_h5_filePath,mesh_h5_fileName)
+    call load_hdf5_meshfile()
 
     if(do_averages) then
         numAvgSteps = 0

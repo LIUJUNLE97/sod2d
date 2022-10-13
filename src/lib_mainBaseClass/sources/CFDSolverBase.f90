@@ -6,8 +6,9 @@ module mod_arrays
       ! main allocatable arrays
       !integer(4), allocatable  :: connecVTK(:,:)!, connec(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
       !integer(4), allocatable  :: masSla(:,:), connec_orig(:,:), bound_orig(:,:), lpoin_w(:)
-      integer(4), allocatable  :: lelpn(:),point2elem(:)
-      integer(4), allocatable  :: atoIJ(:),atoIJK(:),listHEX08(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
+      integer(4), allocatable  :: lelpn(:),point2elem(:),bouCodes2BCType(:),bouCodes2WallModel(:)
+      real(rp), allocatable  :: normalsAtNodes(:,:)
+      integer(4), allocatable  :: atoIJ(:),atoIJK(:),listHEX08(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
 !      integer(4), allocatable  :: atoIJ(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
 !      real(rp), allocatable    :: coord(:,:), helem(:),helem_l(:,:)
       real(rp), allocatable    :: helem(:),helem_l(:,:)
@@ -16,7 +17,7 @@ module mod_arrays
       real(rp), allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
       real(rp), allocatable    :: Je(:,:), He(:,:,:,:), bou_norm(:,:)
       real(rp) , allocatable   :: gpvol(:,:,:), gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
-      real(rp), allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:), machno(:)
+      real(rp), allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:), machno(:),u_wall(:,:), rho_wall(:),mu_wall(:)
       real(rp), allocatable    :: Ml(:)
       real(rp), allocatable    :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:),mu_factor(:)
       real(rp), allocatable    :: source_term(:)
@@ -98,6 +99,8 @@ module CFDSolverBase_mod
       procedure, public :: openMesh => CFDSolverBase_openMesh
       procedure, public :: evalCharLength => CFDSolverBase_evalCharLength
       !procedure, public :: splitBoundary => CFDSolverBase_splitBoundary
+      procedure, public :: boundaryFacesToNodes => CFDSolverBase_boundaryFacesToNodes
+      procedure, public :: fillBCTypes => CFDSolverBase_fill_BC_Types
       procedure, public :: allocateVariables => CFDSolverBase_allocateVariables
       procedure, public :: evalOrLoadInitialConditions => CFDSolverBase_evalOrLoadInitialConditions
       procedure, public :: evalInitialConditions => CFDSolverBase_evalInitialConditions
@@ -269,6 +272,102 @@ contains
       end if
    end subroutine CFDSolverBase_splitBoundary
 #endif
+
+   subroutine CFDSolverBase_fill_BC_Types(this)
+      class(CFDSolverBase), intent(inout) :: this
+   
+   end subroutine CFDSolverBase_fill_BC_Types
+
+   subroutine CFDSolverBase_boundaryFacesToNodes(this)
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4), allocatable    :: aux1(:)
+      integer(4) :: iNodeL,iBound,iboun,ipbou
+      real(rp) :: aux(3), normaux
+
+      allocate(bouCodesNodesPar(numNodesRankPar))
+      allocate(aux1(numNodesRankPar))
+      allocate(bouCodes2BCType(numBoundCodes))
+      allocate(bouCodes2WallModel(numBoundCodes))
+
+      bouCodes2BCType(:) = 0
+      bouCodes2WallModel(:) = 0
+
+      call this%fillBCTypes()
+
+      !$acc kernels
+      aux1(:) = max_num_bou_codes
+      !$acc end kernels
+
+      !$acc parallel loop gang 
+      do iBound = 1,numBoundsRankPar
+         !$acc loop vector
+         do ipbou = 1,npbou
+            aux1(boundPar(iBound,ipbou)) = min(aux1(boundPar(iBound,ipbou)),bouCodes2BCType(bouCodesPar(iBound)))
+         end do
+      end do
+      !$acc end parallel loop
+
+      if(mpi_size.ge.2) then
+         call mpi_halo_min_update_int_sendRcv(aux1)
+      end if
+
+      !$acc parallel loop  
+      do iNodeL = 1,numNodesRankPar
+         if(aux1(iNodeL) .lt. max_num_bou_codes) then
+            bouCodesNodesPar(iNodeL) = aux1(iNodeL)
+         end if
+      end do
+      !$acc end parallel loop
+
+      allocate(normalsAtNodes(numNodesRankPar,ndime))
+
+      !$acc kernels
+      normalsAtNodes(:,:) = 0.0_rp
+      !$acc end kernels
+      !$acc parallel loop gang 
+      do iBound = 1,numBoundsRankPar
+         !$acc loop vector
+         do ipbou = 1,npbou
+            if(abs(boundNormalPar(iBound,(ipbou-1)*ndime+1)) .gt. 0.0_rp) then
+               normalsAtNodes(boundPar(iBound,ipbou),1) = normalsAtNodes(boundPar(iBound,ipbou),1)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)*ndime+1)
+            end if
+            if(abs(boundNormalPar(iBound,(ipbou-1)*ndime+2)) .gt. 0.0_rp) then
+               normalsAtNodes(boundPar(iBound,ipbou),2) = normalsAtNodes(boundPar(iBound,ipbou),2)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)*ndime+2)
+            end if
+            if(abs(boundNormalPar(iBound,(ipbou-1)*ndime+3)) .gt. 0.0_rp) then
+               normalsAtNodes(boundPar(iBound,ipbou),3) = normalsAtNodes(boundPar(iBound,ipbou),3)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)*ndime+3)
+            end if
+         end do
+      end do
+      !$acc end parallel loop
+
+      if(mpi_size.ge.2) then
+         call mpi_halo_conditional_ave_update_float_sendRcv(0.0_rp,normalsAtNodes(:,1))
+         call mpi_halo_conditional_ave_update_float_sendRcv(0.0_rp,normalsAtNodes(:,2))
+         call mpi_halo_conditional_ave_update_float_sendRcv(0.0_rp,normalsAtNodes(:,3))
+      end if
+
+      !$acc parallel loop  private(aux)
+      do iNodeL = 1,numNodesRankPar
+         aux(1) = normalsAtNodes(iNodeL,1)
+         aux(2) = normalsAtNodes(iNodeL,2)
+         aux(3) = normalsAtNodes(iNodeL,3)
+
+         normaux = sqrt(dot_product(aux,aux))
+
+         if(normaux .gt. 1e-10) then
+            normalsAtNodes(iNodeL,1) = aux(1)/normaux
+            normalsAtNodes(iNodeL,2) = aux(2)/normaux
+            normalsAtNodes(iNodeL,3) = aux(3)/normaux
+         end if
+      end do
+      !$acc end parallel loop
+
+
+      deallocate(aux1)
+
+   end subroutine CFDSolverBase_boundaryFacesToNodes
+
    subroutine CFDSolverBase_evalCharLength(this)
       class(CFDSolverBase), intent(inout) :: this
       real(rp) :: he_aux
@@ -307,6 +406,9 @@ contains
       allocate(mu_factor(numNodesRankPar))  ! Fluid viscosity
       allocate(mu_e(numElemsInRank,ngaus))  ! Elemental viscosity
       allocate(mu_sgs(numElemsInRank,ngaus))! SGS viscosity
+      allocate(u_wall(numNodesRankPar,ndime))  ! Velocity for the wall model
+      allocate(mu_wall(numNodesRankPar))  ! Velocity for the wall model
+      allocate(rho_wall(numNodesRankPar))  ! Velocity for the wall model
       !ilsa
       allocate(kres(numNodesRankPar))
       allocate(etot(numNodesRankPar))
@@ -729,7 +831,8 @@ contains
 
       if(mpi_rank.eq.0) write(111,*) '--| POINT 2 ELEM done'
       allocate(lnbn(numBoundsRankPar,npbou))
-      call nearBoundaryNode(numElemsInRank,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,point2elem,atoIJK,lnbn)
+      allocate(lnbnNodes(numNodesRankPar))
+      call nearBoundaryNode(numElemsInRank,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
 
    end subroutine CFDSolverBase_evalPeriodic
 
@@ -1135,9 +1238,14 @@ contains
 
         call this%evalAtoIJKInverse()
 
+        ! Eval BoundaryFacesToNodes
+
+        call  this%boundaryFacesToNodes()
+
         ! Eval periodic
 
         call this%evalPeriodic()
+
 
         ! Eval initial time step
 
