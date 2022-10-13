@@ -41,7 +41,7 @@ contains
       class(CFDSolver3DWithBoundaries), intent(inout) :: this
    
       if(mpi_rank.eq.0) write(111,*) "--| Boundary types must be defined "
-      STOP(1)
+      stop 1
    end subroutine CFDSolver3DWithBoundaries_fill_BC_Types
 
    subroutine CFDSolver3DWithBoundaries_callTimeIntegration(this)
