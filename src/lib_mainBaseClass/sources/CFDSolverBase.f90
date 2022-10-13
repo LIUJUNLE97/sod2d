@@ -646,7 +646,7 @@ contains
 
       !----------------------------------------------------------------------------
       !     COORDS
-      if(not(this%loadMesh)) then
+      if(this%loadMesh .eqv. .false.) then
          if(mpi_rank.eq.0) write(*,*) "--| Interpolating nodes coordinates..."
          allocate(aux_1(numNodesRankPar,ndime))
          aux_1(:,:) = coordPar(:,:)
