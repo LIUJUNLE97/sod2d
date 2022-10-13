@@ -100,6 +100,7 @@ module CFDSolverBase_mod
       procedure, public :: evalCharLength => CFDSolverBase_evalCharLength
       !procedure, public :: splitBoundary => CFDSolverBase_splitBoundary
       procedure, public :: boundaryFacesToNodes => CFDSolverBase_boundaryFacesToNodes
+      procedure, public :: normalFacesToNodes => CFDSolverBase_normalFacesToNodes
       procedure, public :: fillBCTypes => CFDSolverBase_fill_BC_Types
       procedure, public :: allocateVariables => CFDSolverBase_allocateVariables
       procedure, public :: evalOrLoadInitialConditions => CFDSolverBase_evalOrLoadInitialConditions
@@ -278,11 +279,72 @@ contains
    
    end subroutine CFDSolverBase_fill_BC_Types
 
+   subroutine CFDSolverBase_normalFacesToNodes(this)
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4), allocatable    :: aux1(:)
+      integer(4) :: iNodeL,iBound,ipbou,ielem,jgaus,kgaus,idime
+      real(rp) :: aux(3), normaux,sig
+
+      allocate(normalsAtNodes(numNodesRankPar,ndime))
+
+      !$acc kernels
+      normalsAtNodes(:,:) = 0.0_rp
+      !$acc end kernels
+      !$acc parallel loop gang 
+      do iBound = 1,numBoundsRankPar
+         ielem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
+         jgaus = connecParWork(ielem,nnode)         ! internal node
+         !$acc loop vector private(aux)
+         do ipbou = 1,npbou
+               kgaus = boundPar(iBound,ipbou) ! node at the boundary
+               sig=1.0_rp
+               aux(1) = boundNormalPar(iBound,(ipbou-1)*ndime+1)
+               aux(2) = boundNormalPar(iBound,(ipbou-1)*ndime+2)
+               aux(3) = boundNormalPar(iBound,(ipbou-1)*ndime+3)
+               if(dot_product(coordPar(jgaus,:)-coordPar(kgaus,:), aux(:)) .lt. 0.0_rp ) then
+                  sig=-1.0_rp
+               end if
+               !$acc loop seq
+               do idime = 1,ndime     
+                  aux(idime) = aux(idime)*sig
+               end do
+               normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1)*0.5 + 0.5*aux(1)
+               normalsAtNodes(kgaus,2) = normalsAtNodes(kgaus,2)*0.5 + 0.5*aux(2)
+               normalsAtNodes(kgaus,3) = normalsAtNodes(kgaus,3)*0.5 + 0.5*aux(3)
+         end do
+      end do
+      !$acc end parallel loop
+
+      if(mpi_size.ge.2) then
+         call mpi_halo_conditional_ave_update_float_sendRcv(0.0_rp,normalsAtNodes(:,1))
+         call mpi_halo_conditional_ave_update_float_sendRcv(0.0_rp,normalsAtNodes(:,2))
+         call mpi_halo_conditional_ave_update_float_sendRcv(0.0_rp,normalsAtNodes(:,3))
+      end if
+
+      !$acc parallel loop  private(aux)
+      do iNodeL = 1,numNodesRankPar
+         aux(1) = normalsAtNodes(iNodeL,1)
+         aux(2) = normalsAtNodes(iNodeL,2)
+         aux(3) = normalsAtNodes(iNodeL,3)
+
+         normaux = sqrt(dot_product(aux,aux))
+
+         if(normaux .gt. 1e-10) then
+            normalsAtNodes(iNodeL,1) = aux(1)/normaux
+            normalsAtNodes(iNodeL,2) = aux(2)/normaux
+            normalsAtNodes(iNodeL,3) = aux(3)/normaux
+         end if
+      end do
+      !$acc end parallel loop
+
+
+   end subroutine CFDSolverBase_normalFacesToNodes
+
    subroutine CFDSolverBase_boundaryFacesToNodes(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), allocatable    :: aux1(:)
-      integer(4) :: iNodeL,iBound,iboun,ipbou
-      real(rp) :: aux(3), normaux
+      integer(4) :: iNodeL,iBound,ipbou,ielem,jgaus,kgaus,idime
+      real(rp) :: aux(3), normaux,sig
 
       allocate(bouCodesNodesPar(numNodesRankPar))
       allocate(aux1(numNodesRankPar))
@@ -318,51 +380,6 @@ contains
          end if
       end do
       !$acc end parallel loop
-
-      allocate(normalsAtNodes(numNodesRankPar,ndime))
-
-      !$acc kernels
-      normalsAtNodes(:,:) = 0.0_rp
-      !$acc end kernels
-      !$acc parallel loop gang 
-      do iBound = 1,numBoundsRankPar
-         !$acc loop vector
-         do ipbou = 1,npbou
-            if(abs(boundNormalPar(iBound,(ipbou-1)*ndime+1)) .gt. 0.0_rp) then
-               normalsAtNodes(boundPar(iBound,ipbou),1) = normalsAtNodes(boundPar(iBound,ipbou),1)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)*ndime+1)
-            end if
-            if(abs(boundNormalPar(iBound,(ipbou-1)*ndime+2)) .gt. 0.0_rp) then
-               normalsAtNodes(boundPar(iBound,ipbou),2) = normalsAtNodes(boundPar(iBound,ipbou),2)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)*ndime+2)
-            end if
-            if(abs(boundNormalPar(iBound,(ipbou-1)*ndime+3)) .gt. 0.0_rp) then
-               normalsAtNodes(boundPar(iBound,ipbou),3) = normalsAtNodes(boundPar(iBound,ipbou),3)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)*ndime+3)
-            end if
-         end do
-      end do
-      !$acc end parallel loop
-
-      if(mpi_size.ge.2) then
-         call mpi_halo_conditional_ave_update_float_sendRcv(0.0_rp,normalsAtNodes(:,1))
-         call mpi_halo_conditional_ave_update_float_sendRcv(0.0_rp,normalsAtNodes(:,2))
-         call mpi_halo_conditional_ave_update_float_sendRcv(0.0_rp,normalsAtNodes(:,3))
-      end if
-
-      !$acc parallel loop  private(aux)
-      do iNodeL = 1,numNodesRankPar
-         aux(1) = normalsAtNodes(iNodeL,1)
-         aux(2) = normalsAtNodes(iNodeL,2)
-         aux(3) = normalsAtNodes(iNodeL,3)
-
-         normaux = sqrt(dot_product(aux,aux))
-
-         if(normaux .gt. 1e-10) then
-            normalsAtNodes(iNodeL,1) = aux(1)/normaux
-            normalsAtNodes(iNodeL,2) = aux(2)/normaux
-            normalsAtNodes(iNodeL,3) = aux(3)/normaux
-         end if
-      end do
-      !$acc end parallel loop
-
 
       deallocate(aux1)
 
@@ -1209,7 +1226,6 @@ contains
 
         call this%evalViscosityFactor()
 
-
         ! Eval shape Functions
 
         call this%evalShapeFunctions()
@@ -1246,6 +1262,10 @@ contains
 
         call this%evalPeriodic()
 
+        ! Eval BoundaryFacesToNodes
+
+        call  this%normalFacesToNodes()
+
 
         ! Eval initial time step
 
@@ -1257,6 +1277,7 @@ contains
 
         ! Eval first output
         if(this%isFreshStart) call this%evalFirstOutput()
+
 
         ! Do the time iteration
 
