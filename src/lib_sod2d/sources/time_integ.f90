@@ -340,6 +340,11 @@ module time_integ
                call nvtxEndRange
             end if
 
+            if(mpi_size.ge.2) then
+               call nvtxStartRange("MPI_comms_tI")
+               call mpi_halo_atomic_update_float(Reta)
+               call nvtxEndRange
+            end if
             call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
 
             !

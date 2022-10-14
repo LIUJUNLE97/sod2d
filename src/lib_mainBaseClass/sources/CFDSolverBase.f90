@@ -292,10 +292,11 @@ contains
       !$acc end kernels
       !$acc parallel loop gang 
       do iBound = 1,numBoundsRankPar
-         ielem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
-         jgaus = connecParWork(ielem,nnode)         ! internal node
-         !$acc loop vector private(aux)
-         do ipbou = 1,npbou
+         if(bouCodes2WallModel(bouCodesPar(iBound)) == 1) then
+            ielem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
+            jgaus = connecParWork(ielem,nnode)         ! internal node
+            !$acc loop vector private(aux)
+            do ipbou = 1,npbou
                kgaus = boundPar(iBound,ipbou) ! node at the boundary
                sig=1.0_rp
                aux(1) = boundNormalPar(iBound,(ipbou-1)*ndime+1)
@@ -311,7 +312,8 @@ contains
                normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1)*0.5 + 0.5*aux(1)
                normalsAtNodes(kgaus,2) = normalsAtNodes(kgaus,2)*0.5 + 0.5*aux(2)
                normalsAtNodes(kgaus,3) = normalsAtNodes(kgaus,3)*0.5 + 0.5*aux(3)
-         end do
+            end do
+         end if
       end do
       !$acc end parallel loop
 
