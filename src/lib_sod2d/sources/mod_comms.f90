@@ -384,8 +384,12 @@ contains
         !$acc parallel loop
         do i=1,numNodesToComm
            iNodeL = matrixCommScheme(i,1)
-           if(abs(floatField(iNodeL)).gt. cond) then 
-            floatField(iNodeL) = 0.5*floatField(iNodeL)+aux_floatField_r(i)*0.5
+           if(abs(aux_floatField_r(i)).gt. cond) then 
+              if(abs(floatField(iNodeL)).gt. cond) then 
+                 floatField(iNodeL) = 0.5*floatField(iNodeL)+aux_floatField_r(i)*0.5
+              else
+                 floatField(iNodeL) = aux_floatField_r(i)
+              end if
            end if
         end do
         !$acc end parallel loop

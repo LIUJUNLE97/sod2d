@@ -328,7 +328,6 @@ contains
          aux(1) = normalsAtNodes(iNodeL,1)
          aux(2) = normalsAtNodes(iNodeL,2)
          aux(3) = normalsAtNodes(iNodeL,3)
-
          normaux = sqrt(dot_product(aux,aux))
 
          if(normaux .gt. 1e-10) then
