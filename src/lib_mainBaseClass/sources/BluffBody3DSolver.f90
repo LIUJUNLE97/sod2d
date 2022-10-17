@@ -46,7 +46,7 @@ contains
       class(BluffBody3DSolver), intent(inout) :: this
 
       bouCodes2BCType(1) = bc_type_inlet
-      bouCodes2BCType(2) = bc_type_slip_wall_model
+      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
       bouCodes2BCType(3) = bc_type_non_slip_adiabatic
       bouCodes2BCType(4) = bc_type_slip_wall_model
       bouCodes2BCType(5) = bc_type_slip_adiabatic
@@ -55,7 +55,7 @@ contains
       bouCodes2WallModel(1) = 0
       bouCodes2WallModel(2) = 1
       bouCodes2WallModel(3) = 0
-      bouCodes2WallModel(4) = 1
+      bouCodes2WallModel(4) = 0
       bouCodes2WallModel(5) = 0
       bouCodes2WallModel(6) = 0
 
@@ -81,13 +81,13 @@ contains
       !this%continue_oldLogs = .false.
       !this%load_step = 60001
 
-      this%nstep = 9000000
-      this%cfl_conv = 0.3_rp
-      this%cfl_diff = 0.3_rp
+      this%nstep = 2501
+      this%cfl_conv = 0.5_rp
+      this%cfl_diff = 0.5_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 20000 ! Saving interval, TODO: input
+      this%nleap = 2500 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 5  ! Saving interval, TODO: input
       this%nleapAVG = 20000

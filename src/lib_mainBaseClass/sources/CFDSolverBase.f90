@@ -88,6 +88,7 @@ module CFDSolverBase_mod
       real(rp) , public                   :: cfl_conv, cfl_diff, acutim
       real(rp) , public                   :: leviCivi(3,3,3), surfArea, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
       real(rp) , public                   :: dt, Cp, Rgas, gamma_gas,Prt,tleap,time
+      logical  , public                   :: noBoundaries
 
    contains
       procedure, public :: printDt => CFDSolverBase_printDt
@@ -309,9 +310,21 @@ contains
                do idime = 1,ndime     
                   aux(idime) = aux(idime)*sig
                end do
-               normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1)*0.5 + 0.5*aux(1)
-               normalsAtNodes(kgaus,2) = normalsAtNodes(kgaus,2)*0.5 + 0.5*aux(2)
-               normalsAtNodes(kgaus,3) = normalsAtNodes(kgaus,3)*0.5 + 0.5*aux(3)
+               if(abs(normalsAtNodes(kgaus,1)).gt. 0.0_rp) then 
+                  normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1)*0.5 + 0.5*aux(1)
+               else
+                  normalsAtNodes(kgaus,1) = aux(1)
+               endif
+               if(abs(normalsAtNodes(kgaus,2)).gt. 0.0_rp) then 
+                  normalsAtNodes(kgaus,2) = normalsAtNodes(kgaus,2)*0.5 + 0.5*aux(2)
+               else
+                  normalsAtNodes(kgaus,2) = aux(2)
+               endif
+               if(abs(normalsAtNodes(kgaus,3)).gt. 0.0_rp) then 
+                  normalsAtNodes(kgaus,3) = normalsAtNodes(kgaus,3)*0.5 + 0.5*aux(3)
+               else
+                  normalsAtNodes(kgaus,3) = aux(3)
+               endif
             end do
          end if
       end do
@@ -1263,9 +1276,6 @@ contains
 
         call this%evalPeriodic()
 
-        ! Eval BoundaryFacesToNodes
-
-        call  this%normalFacesToNodes()
 
 
         ! Eval initial time step
@@ -1279,6 +1289,9 @@ contains
         ! Eval first output
         if(this%isFreshStart) call this%evalFirstOutput()
 
+        ! Eval BoundaryFacesToNodes
+
+        call  this%normalFacesToNodes()
 
         ! Do the time iteration
 
