@@ -57,6 +57,7 @@ module CFDSolverBase_mod
       use mod_mpi_mesh
       use mod_hdf5
       use mod_comms
+      use mod_comms_boundaries
    implicit none
    private
 
@@ -188,10 +189,39 @@ contains
       ! init hdf5
       call init_hdf5_interface(this%mesh_h5_file_path,this%mesh_h5_file_name,this%results_h5_file_path,this%results_h5_file_name)
 
+      this%useIntInComms=.true.
+      this%useFloatInComms=.true.
+      this%useDoubleInComms=.false.
+
       if(this%loadMesh) then
          call load_hdf5_meshfile()
+         ! init comms
+         call init_comms(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
+         if(isMeshBoundaries) then
+            !call splitBoundary_inPar()
+            !call generate_boundary_mpi_comm_scheme()
+            !----- init comms boundaries
+            call init_comms_bnd(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
+         end if
       else
-         call read_alyaMesh_part_and_create_hdf5Mesh(this%gmsh_file_path,this%gmsh_file_name,this%isPeriodic)
+         !call read_alyaMesh_part_and_create_hdf5Mesh(this%gmsh_file_path,this%gmsh_file_name,this%isPeriodic)
+         !-- read the alya mesh fesh files in GMSH/ALYA FORMAT
+         call read_alya_mesh_files(this%gmsh_file_path,this%gmsh_file_name,this%isPeriodic)
+         !----- Do mesh partitioning!
+         call do_mesh_partitioning()
+         !----- init comms
+         call init_comms(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
+         !----- for boundaries
+         if(isMeshBoundaries) then
+            call splitBoundary_inPar()
+            call generate_boundary_mpi_comm_scheme()
+            !----- init comms boundaries
+            call init_comms_bnd(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
+         end if
+         !----- Deallocate alya/gmsh arrays
+         call deallocate_read_alya_mesh_arrays()
+         !----- Create HDF5 File
+         call create_hdf5_meshFile()
       end if
 
       call nvtxEndRange
@@ -303,7 +333,7 @@ contains
       !$acc end parallel loop
 
       if(mpi_size.ge.2) then
-         call mpi_halo_min_update_int_sendRcv(aux1)
+         call mpi_halo_min_boundary_update_int_iSendiRcv(aux1)
       end if
 
       !$acc parallel loop  
@@ -488,7 +518,7 @@ contains
       !*********************************************************************!
       ! Compute initial time-step size                                      !
       !*********************************************************************!
-
+      if(mpi_rank.eq.0) write(*,*) "--| Evaluating initial dt..."
       if (flag_real_diff == 1) then
          call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParOrig,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
          if(mpi_rank.eq.0) write(111,*) "--| TIME STEP SIZE dt := ",this%dt,"s"
@@ -721,15 +751,13 @@ contains
 
    end subroutine CFDSolverBase_evalJacobians
 
-   subroutine CFDSolverBase_evalVTKconnectivity(this)
-      class(CFDSolverBase), intent(inout) :: this
-
+   !subroutine CFDSolverBase_evalVTKconnectivity(this)
+   !  class(CFDSolverBase), intent(inout) :: this
       !allocate(connecVTK(numElemsInRank,nnode))
       !allocate(connecLINEAR(numElemsInRank*(porder**ndime),2**ndime))
       !call create_connecVTK(numElemsInRank,connecParOrig,atoIJK,vtk_atoIJK,connecVTK)
       !call linearMeshOutput(numElemsInRank,connecParOrig,listHEX08,connecLINEAR)
-
-   end subroutine CFDSolverBase_evalVTKconnectivity
+   !end subroutine CFDSolverBase_evalVTKconnectivity
    
    subroutine CFDSolverBase_evalAtoIJKInverse(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -772,6 +800,7 @@ contains
       !*********************************************************************!
       ! evaluate near boundaries for the inlets and outlets
       !not the best place Oriol!
+      if(mpi_rank.eq.0) write(*,*) "--| Doing near boundary calculations..."
       allocate(lelpn(numNodesRankPar))
       allocate(point2elem(numNodesRankPar))
       if(mpi_rank.eq.0) write(111,*) '--| POINT 2 ELEM begin'
@@ -1126,10 +1155,10 @@ contains
         call this%openMesh()
 
         ! init comms
-        this%useIntInComms=.true.
-        this%useFloatInComms=.true.
-        this%useDoubleInComms=.false.
-        call init_comms(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
+        !this%useIntInComms=.true.
+        !this%useFloatInComms=.true.
+        !this%useDoubleInComms=.false.
+        !call init_comms(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
 
          ! Open log file
          call this%open_log_file()
@@ -1194,7 +1223,6 @@ contains
 
         call this%evalPeriodic()
 
-
         ! Eval initial time step
 
         call this%evalInitialDt()
@@ -1217,7 +1245,9 @@ contains
 
       ! End comms
       call end_comms()
-
+      if(isMeshBoundaries) then
+         call end_comms_bnd()
+      end if
       ! End MPI      
       call end_mpi()
 

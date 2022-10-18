@@ -117,6 +117,10 @@ integer(int_size), allocatable :: matrixCommScheme(:,:),ranksToComm(:)
 integer(int_size), allocatable :: commsMemPosInLoc(:),commsMemSize(:),commsMemPosInNgb(:)
 integer(int_size) :: numNodesToComm,numRanksWithComms
 
+integer(int_size), allocatable :: bnd_matrixCommScheme(:,:),bnd_ranksToComm(:)
+integer(int_size), allocatable :: bnd_commsMemPosInLoc(:),bnd_commsMemSize(:),bnd_commsMemPosInNgb(:)
+integer(int_size) :: bnd_numNodesToComm,bnd_numRanksWithComms
+
 ! ################################################################################################
 ! --------------------------------- END VARS  ----------------------------------------------------
 ! ################################################################################################
@@ -372,9 +376,11 @@ contains
 
       call create_working_lists() !pot anar aqui no? Si, pero oju que potser em canvien altres merdes!
 
-      if(totalNumBoundsSrl.ne.0) then
-         call splitBoundary_inPar()
-      end if
+      !if(totalNumBoundsSrl.ne.0) then
+      !   call splitBoundary_inPar()
+      !   !crear communicador per nomes nodes boundaries
+      !   call generate_boundary_mpi_comm_scheme()
+      !end if
 
    end subroutine do_mesh_partitioning
 
@@ -2037,6 +2043,8 @@ contains
 
       character(128) :: file_name, aux_string_rank
 
+      if(mpi_rank.eq.0) write(*,*) ' # Generating MPI Comm scheme...'
+
       i=0
       numNodesToComm=0
       do while(i<size(vecSharedBN_full))
@@ -2186,126 +2194,6 @@ contains
 
    end subroutine generate_mpi_comm_scheme
 !----------------------------------------------------------------------------------------------------------
-
-   subroutine splitBoundary_inPar()
-      integer(4), allocatable    :: aux1(:)
-      integer(4) :: ii,iNodeL,iNodeGSrl,iNodeGSrl_bound,iBound,iBoundL,ipbou,idof,ibnodes
-      integer(4) :: auxBoundCnt,aux_sum_NBRP
-      integer(4) :: aux_boundList(totalNumBoundsSrl)
-
-      if(mpi_rank.eq.0) write(*,*) ' # Splitting boundary nodes from DoFs in parallel...'
-
-      !first, generate boundPar(:,:) & bouCodesPar(:,:)
-
-      !1. how many boundaries my rank have?
-      numBoundsRankPar = 0
-      aux_boundList(:) = 0
-
-      loopBound: do iBound = 1,totalNumBoundsSrl
-         auxBoundCnt = 0
-         loopIp: do ipbou = 1,npbou
-            iNodeGSrl_bound = boundGMSH(iBound,ipbou)
-            loopG: do iNodeL = 1,numNodesRankPar
-               iNodeGSrl = globalIdSrl(iNodeL)
-               if(iNodeGSrl .eq. iNodeGSrl_bound) then
-                  auxBoundCnt=auxBoundCnt+1
-                  exit loopG
-               end if
-            end do loopG
-            if(auxBoundCnt .eq. npbou) then
-               !write(*,*) '[',mpi_rank,']iBound',iBound,'auxBoundCnt',auxBoundCnt
-               aux_boundList(iBound) = 1
-               numBoundsRankPar = numBoundsRankPar + 1
-               exit loopIp
-            end if
-         end do loopIp
-      end do loopBound
-
-      write(*,*) '[',mpi_rank,']numBoundsRankPar',numBoundsRankPar,'totalNumBoundsSrl',totalNumBoundsSrl
-      
-      call MPI_Allreduce(numBoundsRankPar,aux_sum_NBRP,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
-
-      if(aux_sum_NBRP.ne.totalNumBoundsSrl) then
-         write(*,*) 'ERROR IN splitBoundary_inPar()->aux_sum_NBRP',aux_sum_NBRP,' not equal to totalNumBoundsSrl',totalNumBoundsSrl
-         call MPI_Abort(MPI_COMM_WORLD, -1, mpi_err)
-      end if
-
-      allocate(boundPar(numBoundsRankPar,npbou))
-      allocate(bouCodesPar(numBoundsRankPar))
-      
-      ii=0
-      do iBound = 1,totalNumBoundsSrl
-         if(aux_boundList(iBound).eq.1) then
-            ii=ii+1
-            do ipbou = 1,npbou
-               iNodeGSrl_bound = boundGMSH(iBound,ipbou)
-               iNodeL = gidSrl_to_lid(iNodeGSrl_bound)
-               boundPar(ii,ipbou) = iNodeL
-            end do
-            bouCodesPar(ii) = bou_codesGMSH(iBound,2)
-         !write(*,*) '[',mpi_rank,']boundPar(',ii,')',boundPar(ii,:)
-         end if
-      end do
-
-      !------------------------------------------------------------------------
-      ! Fill aux1 with all nodes in order
-      allocate(aux1(numNodesRankPar))
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
-         aux1(iNodeL) = iNodeL
-      end do
-      !$acc end parallel loop
-
-      ! If node is on boundary, zero corresponding aux1 entry
-      !$acc parallel loop gang 
-      do iBound = 1,numBoundsRankPar
-         !$acc loop vector
-         do ipbou = 1,npbou
-            aux1(boundPar(iBound,ipbou)) = 0
-         end do
-      end do
-      !$acc end parallel loop
-
-      
-      ! Determine how many nodes are boundary nodes
-      !
-      numBoundaryNodesRankPar=0
-      ndofRankPar = 0
-      do iNodeL = 1,numNodesRankPar
-         if (aux1(iNodeL) .eq. 0) then
-            numBoundaryNodesRankPar = numBoundaryNodesRankPar+1
-         end if
-      end do
-
-      !this%nbnodes = this%ndof    ! Nodes on boundaries
-      !this%ndof = this%npoin-this%ndof ! Free nodes
-      ndofRankPar = numNodesRankPar - numBoundaryNodesRankPar
-      write(*,*) '[',mpi_rank,'] ndof',ndofRankPar,'nbnodes',numBoundaryNodesRankPar
-
-      !-------------------------------------------------------------------------------------
-      ! Split aux1 into the 2 lists
-      allocate(ldofPar(ndofRankPar))
-      allocate(lbnodesPar(numBoundaryNodesRankPar))
-
-      idof = 0    ! Counter for free nodes
-      ibnodes = 0 ! Counter for boundary nodes
-      !$acc parallel loop reduction(+:idof,ibnodes)
-      do iNodeL = 1,numNodesRankPar
-         if (aux1(iNodeL) .eq. 0) then
-            ibnodes = ibnodes+1
-            lbnodesPar(ibnodes) = iNodeL
-         else
-            idof = idof+1
-            ldofPar(idof) = aux1(iNodeL)
-         end if
-      end do
-      !$acc end parallel loop
-
-      deallocate(aux1)
-
-   end subroutine splitBoundary_inPar
-
-
 
 ! ################################################################################################
 ! ----------------------------------- PLOTTING FUNCS ---------------------------------------------

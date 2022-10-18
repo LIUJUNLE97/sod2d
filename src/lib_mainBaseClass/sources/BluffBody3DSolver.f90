@@ -63,29 +63,30 @@ contains
       class(BluffBody3DSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%gmsh_file_path,*) "./mesh/"
+      write(this%gmsh_file_path,*) "./mesh_car/"
       write(this%gmsh_file_name,*) "auto" 
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "auto"
+      write(this%mesh_h5_file_name,*) "carCoarse"!"auto"
 
       write(this%results_h5_file_path,*) ""
-      write(this%results_h5_file_name,*) "resultsFile"
+      write(this%results_h5_file_name,*) "results"
 
       this%isPeriodic = .false.
+      !this%loadMesh = .false.
       this%loadMesh = .true.
       this%loadResults = .false.
 
       this%continue_oldLogs = .false.
       this%load_step = 980001
 
-      this%nstep = 10000000
-      this%cfl_conv = 0.75_rp
-      this%cfl_diff = 0.75_rp
+      this%nstep = 25001
+      this%cfl_conv = 0.25_rp!0.75_rp
+      this%cfl_diff = 0.25_rp!0.75_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 20000 ! Saving interval, TODO: input
+      this%nleap = 1000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 5  ! Saving interval, TODO: input
       this%nleapAVG = 20000
@@ -123,7 +124,7 @@ contains
       logical :: readFiles
 
       readFiles = .false.
-      this%interpInitialResults = .true.
+      !this%interpInitialResults = .true.
 
       if(readFiles) then
          this%interpInitialResults = .true.

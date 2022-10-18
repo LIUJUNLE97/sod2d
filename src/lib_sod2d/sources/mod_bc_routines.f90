@@ -1,9 +1,10 @@
 module mod_bc_routines
 
+   use mod_mpi
    use mod_constants
    use mod_comms
+   use mod_comms_boundaries
    use mod_nvtx
-   use mod_mpi
 
    implicit none
 
@@ -250,11 +251,11 @@ module mod_bc_routines
 
             if(mpi_size.ge.2) then
                call nvtxStartRange("MPI_comms_tI")
-               call mpi_halo_max_update_float_sendRcv(aux_q2(:,1))
-               call mpi_halo_max_update_float_sendRcv(aux_q2(:,2))
-               call mpi_halo_max_update_float_sendRcv(aux_q2(:,3))
-               call mpi_halo_max_update_float_sendRcv(aux_rho2(:))
-               call mpi_halo_max_update_float_sendRcv(aux_E2(:))
+               call mpi_halo_max_boundary_update_float_iSendiRcv(aux_q2(:,1))
+               call mpi_halo_max_boundary_update_float_iSendiRcv(aux_q2(:,2))
+               call mpi_halo_max_boundary_update_float_iSendiRcv(aux_q2(:,3))
+               call mpi_halo_max_boundary_update_float_iSendiRcv(aux_rho2(:))
+               call mpi_halo_max_boundary_update_float_iSendiRcv(aux_E2(:))
                call nvtxEndRange
             end if
 
