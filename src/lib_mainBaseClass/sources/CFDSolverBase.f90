@@ -88,6 +88,7 @@ module CFDSolverBase_mod
       real(rp) , public                   :: cfl_conv, cfl_diff, acutim
       real(rp) , public                   :: leviCivi(3,3,3), surfArea, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
       real(rp) , public                   :: dt, Cp, Rgas, gamma_gas,Prt,tleap,time
+      logical  , public                   :: noBoundaries
 
    contains
       procedure, public :: printDt => CFDSolverBase_printDt
@@ -292,10 +293,11 @@ contains
       !$acc end kernels
       !$acc parallel loop gang 
       do iBound = 1,numBoundsRankPar
-         ielem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
-         jgaus = connecParWork(ielem,nnode)         ! internal node
-         !$acc loop vector private(aux)
-         do ipbou = 1,npbou
+         if(bouCodes2WallModel(bouCodesPar(iBound)) == 1) then
+            ielem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
+            jgaus = connecParWork(ielem,nnode)         ! internal node
+            !$acc loop vector private(aux)
+            do ipbou = 1,npbou
                kgaus = boundPar(iBound,ipbou) ! node at the boundary
                sig=1.0_rp
                aux(1) = boundNormalPar(iBound,(ipbou-1)*ndime+1)
@@ -308,10 +310,23 @@ contains
                do idime = 1,ndime     
                   aux(idime) = aux(idime)*sig
                end do
-               normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1)*0.5 + 0.5*aux(1)
-               normalsAtNodes(kgaus,2) = normalsAtNodes(kgaus,2)*0.5 + 0.5*aux(2)
-               normalsAtNodes(kgaus,3) = normalsAtNodes(kgaus,3)*0.5 + 0.5*aux(3)
-         end do
+               if(abs(normalsAtNodes(kgaus,1)).gt. 0.0_rp) then 
+                  normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1)*0.5 + 0.5*aux(1)
+               else
+                  normalsAtNodes(kgaus,1) = aux(1)
+               endif
+               if(abs(normalsAtNodes(kgaus,2)).gt. 0.0_rp) then 
+                  normalsAtNodes(kgaus,2) = normalsAtNodes(kgaus,2)*0.5 + 0.5*aux(2)
+               else
+                  normalsAtNodes(kgaus,2) = aux(2)
+               endif
+               if(abs(normalsAtNodes(kgaus,3)).gt. 0.0_rp) then 
+                  normalsAtNodes(kgaus,3) = normalsAtNodes(kgaus,3)*0.5 + 0.5*aux(3)
+               else
+                  normalsAtNodes(kgaus,3) = aux(3)
+               endif
+            end do
+         end if
       end do
       !$acc end parallel loop
 
@@ -326,7 +341,6 @@ contains
          aux(1) = normalsAtNodes(iNodeL,1)
          aux(2) = normalsAtNodes(iNodeL,2)
          aux(3) = normalsAtNodes(iNodeL,3)
-
          normaux = sqrt(dot_product(aux,aux))
 
          if(normaux .gt. 1e-10) then
@@ -1262,9 +1276,6 @@ contains
 
         call this%evalPeriodic()
 
-        ! Eval BoundaryFacesToNodes
-
-        call  this%normalFacesToNodes()
 
 
         ! Eval initial time step
@@ -1278,6 +1289,9 @@ contains
         ! Eval first output
         if(this%isFreshStart) call this%evalFirstOutput()
 
+        ! Eval BoundaryFacesToNodes
+
+        call  this%normalFacesToNodes()
 
         ! Do the time iteration
 

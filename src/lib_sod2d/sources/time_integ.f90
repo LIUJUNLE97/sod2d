@@ -15,13 +15,14 @@ module time_integ
 
       contains
 
-         subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         subroutine rk_4_main(noBoundaries,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                          ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,u_wall,rho_wall,mu_wall,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,numBoundCodes,wgp_b, bounorm,bouCodes2WallModel,coord,normalsAtNodes,source_term) ! Optional arg
 
             implicit none
 
+            logical,              intent(in)   :: noBoundaries
             integer(4),           intent(in)    :: flag_predic, flag_emac
             integer(4),           intent(in)    :: nelem, nboun, npoin
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou),lnbn_nodes(npoin)
@@ -340,16 +341,21 @@ module time_integ
                call nvtxEndRange
             end if
 
+            if(mpi_size.ge.2) then
+               call nvtxStartRange("MPI_comms_tI")
+               call mpi_halo_atomic_update_float(Reta)
+               call nvtxEndRange
+            end if
             call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
 
             !
             ! Apply bcs after update
             !
-            !if (nboun .ne. 0) then
+            if (noBoundaries .eqv. .false.) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
                call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos))
                call nvtxEndRange
-            !end if
+            end if
             
             !$acc parallel loop
             do ipoin = 1,npoin_w

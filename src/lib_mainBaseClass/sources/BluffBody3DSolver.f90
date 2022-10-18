@@ -46,18 +46,18 @@ contains
       class(BluffBody3DSolver), intent(inout) :: this
 
       bouCodes2BCType(1) = bc_type_inlet
-      bouCodes2BCType(2) = bc_type_slip_wall_model
-      bouCodes2BCType(3) = bc_type_slip_wall_model
-      bouCodes2BCType(4) = bc_type_slip_adiabatic
-      bouCodes2BCType(5) = bc_type_outlet
-      !bouCodes2BCType(2) = bc_type_non_slip_adiabatic
-      !bouCodes2BCType(3) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(3) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(4) = bc_type_slip_wall_model
+      bouCodes2BCType(5) = bc_type_slip_adiabatic
+      bouCodes2BCType(6) = bc_type_outlet
 
       bouCodes2WallModel(1) = 0
       bouCodes2WallModel(2) = 1
-      bouCodes2WallModel(3) = 1
+      bouCodes2WallModel(3) = 0
       bouCodes2WallModel(4) = 0
       bouCodes2WallModel(5) = 0
+      bouCodes2WallModel(6) = 0
 
    end subroutine BluffBody3DSolver_fill_BC_Types
 
@@ -76,18 +76,18 @@ contains
 
       this%isPeriodic = .false.
       this%loadMesh = .true.
-      !this%loadResults = .true.
+      this%loadResults = .false.
 
       !this%continue_oldLogs = .false.
-      !this%load_step = 20001
+      !this%load_step = 60001
 
-      this%nstep = 10000000
+      this%nstep = 2501
       this%cfl_conv = 0.5_rp
       this%cfl_diff = 0.5_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 20000 ! Saving interval, TODO: input
+      this%nleap = 2500 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 5  ! Saving interval, TODO: input
       this%nleapAVG = 20000
