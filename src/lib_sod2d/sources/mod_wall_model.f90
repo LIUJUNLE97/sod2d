@@ -41,6 +41,7 @@ contains
             bnorm(1:npbou*ndime) = bounorm(ibound,1:npbou*ndime)
             ielem = point2elem(bound(ibound,npbou)) ! I use an internal face node to be sure is the correct element
             
+#if 0
             point(1:ndime) = 0.0_rp
             uiex(1:ndime) = 0.0_rp
             !$acc loop vector reduction(+:point,uiex)
@@ -57,6 +58,10 @@ contains
             uiex(1) = uiex(1)/real(nnode,rp)
             uiex(2) = uiex(2)/real(nnode,rp)
             uiex(3) = uiex(3)/real(nnode,rp)
+#else
+            point(1:ndime) =coord(connec(ielem,nnode),1:ndime)
+            uiex(1:ndime) = ui(connec(ielem,nnode),1:ndime)
+#endif            
 
             !$acc loop vector private(aux)
             do igaus = 1,npbou
