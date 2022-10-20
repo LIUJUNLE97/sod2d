@@ -45,9 +45,8 @@ contains
    subroutine ChannelFlowSolver_fill_BC_Types(this)
       class(ChannelFlowSolver), intent(inout) :: this
 
-   !  bouCodes2BCType(1) = bc_type_non_slip_adiabatic
-   bouCodes2BCType(1) = bc_type_slip_wall_model
-
+      !bouCodes2BCType(1) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(1) = bc_type_slip_wall_model
       bouCodes2WallModel(1) = 1
 
    end subroutine ChannelFlowSolver_fill_BC_Types
@@ -83,8 +82,8 @@ contains
 !      this%load_step = 400001
 
       this%nstep = 9000000 
-      this%cfl_conv = 0.75_rp
-      this%cfl_diff = 0.75_rp
+      this%cfl_conv = 1.5_rp
+      this%cfl_diff = 1.5_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1

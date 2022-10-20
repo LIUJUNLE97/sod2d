@@ -303,37 +303,33 @@ contains
                aux(1) = boundNormalPar(iBound,(ipbou-1)*ndime+1)
                aux(2) = boundNormalPar(iBound,(ipbou-1)*ndime+2)
                aux(3) = boundNormalPar(iBound,(ipbou-1)*ndime+3)
+               normaux = sqrt(dot_product(aux,aux))
                if(dot_product(coordPar(jgaus,:)-coordPar(kgaus,:), aux(:)) .lt. 0.0_rp ) then
                   sig=-1.0_rp
                end if
                !$acc loop seq
                do idime = 1,ndime     
-                  aux(idime) = aux(idime)*sig
+                  aux(idime) = aux(idime)*sig/normaux
                end do
-               if(abs(normalsAtNodes(kgaus,1)).gt. 0.0_rp) then 
-                  normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1)*0.5 + 0.5*aux(1)
-               else
+               normaux = sqrt(dot_product(aux,aux))
+               if(normaux .gt. 1e-8) then
+                  normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1) + aux(1)
+                  normalsAtNodes(kgaus,2) = normalsAtNodes(kgaus,2) + aux(2)
+                  normalsAtNodes(kgaus,3) = normalsAtNodes(kgaus,3) + aux(3)
+               else  
                   normalsAtNodes(kgaus,1) = aux(1)
-               endif
-               if(abs(normalsAtNodes(kgaus,2)).gt. 0.0_rp) then 
-                  normalsAtNodes(kgaus,2) = normalsAtNodes(kgaus,2)*0.5 + 0.5*aux(2)
-               else
                   normalsAtNodes(kgaus,2) = aux(2)
-               endif
-               if(abs(normalsAtNodes(kgaus,3)).gt. 0.0_rp) then 
-                  normalsAtNodes(kgaus,3) = normalsAtNodes(kgaus,3)*0.5 + 0.5*aux(3)
-               else
                   normalsAtNodes(kgaus,3) = aux(3)
-               endif
+               end if
             end do
          end if
       end do
       !$acc end parallel loop
 
       if(mpi_size.ge.2) then
-         call mpi_halo_conditional_ave_update_float_sendRcv(0.0_rp,normalsAtNodes(:,1))
-         call mpi_halo_conditional_ave_update_float_sendRcv(0.0_rp,normalsAtNodes(:,2))
-         call mpi_halo_conditional_ave_update_float_sendRcv(0.0_rp,normalsAtNodes(:,3))
+         call mpi_halo_conditional_ave_update_float_sendRcv(1e-8,normalsAtNodes(:,1))
+         call mpi_halo_conditional_ave_update_float_sendRcv(1e-8,normalsAtNodes(:,2))
+         call mpi_halo_conditional_ave_update_float_sendRcv(1e-8,normalsAtNodes(:,3))
       end if
 
       !$acc parallel loop  private(aux)
