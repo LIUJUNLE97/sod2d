@@ -30,7 +30,7 @@ module quadrature_rules
          if (porder == 3) then
             w1d(1:4) = [1.0d0/9.0d0, 8.0d0/9.0d00, 8.0d0/9.0d0, 1.0d0/9.0d0]
          else
-            STOP(1)
+            stop 1
          end if
          inode = 0
          do k = 1,porder+1
@@ -70,7 +70,7 @@ module quadrature_rules
          if (porder == 3) then
             w1d(1:4) = [1.0d0/4.0d0, 3.0d0/4.0d00, 3.0d0/4.0d0, 1.0d0/4.0d0]
          else
-            STOP(1)
+            stop 1
          end if
          inode = 0
          do k = 1,porder+1

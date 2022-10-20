@@ -179,7 +179,7 @@ module quadrature_rules
 				w1d(1:4) = [1.0_rp/6.0_rp, 5.0_rp/6.0_rp, 5.0_rp/6.0_rp, 1.0_rp/6.0_rp]
 			else
 				write(1,*) "--| WEIGHTING FUNCTION NOT CODED YET"
-				STOP(1)
+				stop 1
 			end if
 			inode = 0
 			do i = 1,porder+1
@@ -229,7 +229,7 @@ module quadrature_rules
                       !w1d(1:4) = [1.0_rp/9.0_rp, 8.0_rp/9.0_rp, 8.0_rp/9.0_rp, 1.0_rp/9.0_rp]
                       w1d(1:4) = [1.0_rp/6.0_rp, 5.0_rp/6.0_rp, 5.0_rp/6.0_rp, 1.0_rp/6.0_rp]
                    else
-                      STOP(1)
+                      stop 1
                    end if
 
                    inode = 0

@@ -198,7 +198,7 @@ program sod2d
            write(1,*) "--| RUNNING WITH CONSERV CONVECTION"
         else
            write(1,*) "--| FLAG_EMAC MUST BE EITHER 0 OR 1!"
-           STOP(1)
+           stop 1
         end if
 
 #ifdef CHANNEL
@@ -546,7 +546,7 @@ program sod2d
            !$acc end kernels
         else
            write(1,*) "--| DIFFUSION FLAG MUST BE EITHER 0 OR 1, NOT: ",flag_real_diff
-           STOP(1)
+           stop 1
         end if
 
         !*********************************************************************!
@@ -649,7 +649,7 @@ program sod2d
                  end if
               else
                  write(1,*) '--| NOT CODED YET!'
-                 STOP(1)
+                 stop 1
               end if
            end if
         end do
@@ -1050,7 +1050,7 @@ program sod2d
         if (isPeriodic .eq. 0) then ! Case is not periodic
            if (nboun .eq. 0) then ! Case has no boundaries
               write(1,*) '--| ERROR: CASE MUST HAVE BOUNDARIES!'
-              STOP(1)
+              stop 1
            else ! Case has boundaries
               write(1,*) '--| NON-PERIODIC CASE WITH BOUNDARIES'
               do istep = 1,nstep

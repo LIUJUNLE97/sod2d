@@ -273,7 +273,7 @@ module mod_solver
                  if (iter == maxIter) then
                     write(1,*) "--| TOO MANY ITERATIONS!"
                     call nvtxEndRange
-                    STOP(1)
+                    stop 1
                  end if
                  !$acc kernels
                  R(:) = x(:)
@@ -382,7 +382,7 @@ module mod_solver
                     if (iter == maxIter) then
                        write(1,*) "--| TOO MANY ITERATIONS!"
                        call nvtxEndRange
-                       STOP(1)
+                       stop 1
                     end if
                     !$acc parallel loop
                     do ipoin = 1,npoin

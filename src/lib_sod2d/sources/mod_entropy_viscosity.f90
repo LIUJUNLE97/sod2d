@@ -82,7 +82,7 @@ module mod_entropy_viscosity
                           call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Reta)
                        else
                           write(1,*) "--| SOLVER NOT CODED!"
-                          STOP(1)
+                          stop 1
                        end if
                        !
                        ! Update Reta
@@ -104,7 +104,7 @@ module mod_entropy_viscosity
                       !else if (flag_solver_type == 1) then
                       !   !call wlmass_times_vector()
                       !   !write(1,*) "--| NOT CODED YET!"
-                      !   !STOP(1)
+                      !   !stop 1
                       !end if
                       !!
                       !! Compute weighted mass convec
@@ -133,7 +133,7 @@ module mod_entropy_viscosity
                       !   call conjGrad_scalar(nelem,npoin,npoin_w,connec,lpoin_w,gpvol,Ngp,Rrho)
                       !else
                       !   write(1,*) "--| SOLVER NOT CODED!"
-                      !   STOP(1)
+                      !   stop 1
                       !end if
                       !call nvtxEndRange
 

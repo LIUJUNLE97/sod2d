@@ -39,7 +39,7 @@ contains
       class(CFDSolverPeriodicWithBoundaries), intent(inout) :: this
    
       if(mpi_rank.eq.0) write(111,*) "--| Boundary types must be defined "
-      STOP(1)
+      stop 1
    end subroutine CFDSolverPeriodicWithBoundaries_fill_BC_Types
 
    subroutine CFDSolverPeriodicWithBoundaries_callTimeIntegration(this)
