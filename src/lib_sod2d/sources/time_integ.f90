@@ -95,14 +95,14 @@ module time_integ
                b_i = [0.5_rp, 0.5_rp, 0.0_rp, 0.0_rp]
             else if (flag_rk_order == 3) then
                write(1,*) "--| NOT CODED FOR RK3 YET!"
-               STOP(1)
+               stop 1
             else if (flag_rk_order == 4) then
                a_i = [0.0_rp, 0.5_rp, 0.5_rp, 1.0_rp]
                c_i = [0.0_rp, 0.5_rp, 0.5_rp, 1.0_rp]
                b_i = [1.0_rp/6.0_rp, 1.0_rp/3.0_rp, 1.0_rp/3.0_rp, 1.0_rp/6.0_rp]
             else
                write(1,*) "--| NOT CODED FOR RK > 4 YET!"
-               STOP(1)
+               stop 1
             end if
             call nvtxEndRange
             !
