@@ -46,7 +46,7 @@ contains
       class(BluffBody3DSolver), intent(inout) :: this
 
       bouCodes2BCType(1) = bc_type_inlet
-      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(2) = bc_type_slip_wall_model
       bouCodes2BCType(3) = bc_type_non_slip_adiabatic
       bouCodes2BCType(4) = bc_type_slip_wall_model
       bouCodes2BCType(5) = bc_type_slip_adiabatic
@@ -55,7 +55,7 @@ contains
       bouCodes2WallModel(1) = 0
       bouCodes2WallModel(2) = 1
       bouCodes2WallModel(3) = 0
-      bouCodes2WallModel(4) = 0
+      bouCodes2WallModel(4) = 1
       bouCodes2WallModel(5) = 0
       bouCodes2WallModel(6) = 0
 
@@ -76,18 +76,18 @@ contains
 
       this%isPeriodic = .false.
       this%loadMesh = .true.
-      this%loadResults = .false.
+      this%loadResults = .true.
 
-      !this%continue_oldLogs = .false.
-      !this%load_step = 60001
+      this%continue_oldLogs = .false.
+      this%load_step = 300001
 
-      this%nstep = 2501
+      this%nstep = 9000001
       this%cfl_conv = 0.5_rp
       this%cfl_diff = 0.5_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 2500 ! Saving interval, TODO: input
+      this%nleap = 20000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 5  ! Saving interval, TODO: input
       this%nleapAVG = 20000
@@ -188,18 +188,18 @@ contains
         if(coordPar(iNodeL,1)<-4.5_rp) then
            mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
         end if
-        if(coordPar(iNodeL,2)>0.9_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
-        end if
+        !if(coordPar(iNodeL,2)>0.9_rp) then
+        !   mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+        !end if
         !if(coordPar(iNodeL,3)<-8.0_rp) then
         !   mu_factor(iNodeL) = flag_mu_factor*10.0_rp
         !end if
-        if(coordPar(iNodeL,3)>1.2_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
-        end if
-        if(coordPar(iNodeL,2)<-0.9_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
-        end if
+        !if(coordPar(iNodeL,3)>1.2_rp) then
+        !   mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+        !end if
+        !if(coordPar(iNodeL,2)<-0.9_rp) then
+        !   mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+        !end if
         if(coordPar(iNodeL,1)>5.5_rp) then
            mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
         end if

@@ -386,7 +386,7 @@ contains
            iNodeL = matrixCommScheme(i,1)
            if(abs(aux_floatField_r(i)).gt. cond) then 
               if(abs(floatField(iNodeL)).gt. cond) then 
-                 floatField(iNodeL) = 0.5*floatField(iNodeL)+aux_floatField_r(i)*0.5
+                 floatField(iNodeL) = floatField(iNodeL)+aux_floatField_r(i)
               else
                  floatField(iNodeL) = aux_floatField_r(i)
               end if
