@@ -540,7 +540,7 @@ contains
            !$acc end kernels
         else
            if(mpi_rank.eq.0) write(111,*) "--| DIFFUSION FLAG MUST BE EITHER 0 OR 1, NOT: ",flag_real_diff
-           STOP(1)
+           stop 1
         end if
 
    end subroutine CFDSolverBase_evalInitialViscosity
@@ -656,7 +656,7 @@ contains
 
       !----------------------------------------------------------------------------
       !     COORDS
-      if(not(this%loadMesh)) then
+      if(this%loadMesh .eqv. .false.) then
          if(mpi_rank.eq.0) write(*,*) "--| Interpolating nodes coordinates..."
          allocate(aux_1(numNodesRankPar,ndime))
          aux_1(:,:) = coordPar(:,:)
@@ -920,7 +920,7 @@ contains
    subroutine CFDSolverBase_callTimeIntegration(this)
       class(CFDSolverBase), intent(inout) :: this
       if(mpi_rank.eq.0) write(111,*) " Time integration should be overwritted"
-      STOP(1)
+      stop 1
 
    end subroutine CFDSolverBase_callTimeIntegration
 
@@ -928,7 +928,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4)              , intent(in)   :: istep
       if(mpi_rank.eq.0) write(111,*) " Save Averages should be overwritted"
-      STOP(1)
+      stop 1
 
    end subroutine CFDSolverBase_saveAverages
 
@@ -943,7 +943,7 @@ contains
       integer(4)              , intent(in)   :: istep
 
       if(mpi_rank.eq.0) write(111,*) " Save Posprocessing Fields should be overwritted"
-      STOP(1)
+      stop 1
 
    end subroutine CFDSolverBase_savePosprocessingFields
 
