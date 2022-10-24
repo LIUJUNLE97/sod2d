@@ -81,6 +81,7 @@ include(gempa)
 
 add_subdirectory(external)
 add_subdirectory(src)
+add_subdirectory(tool_postProc)
 
 #enable folder unitt
 #add_subdirectory(unitt)
