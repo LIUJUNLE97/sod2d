@@ -23,11 +23,12 @@ option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
 # Folder with files configuring extra CMake options
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
-# Configure compiler options
-include(compilerOps)
 
 # Set project name, version and languages
 project(sod2d LANGUAGES C CXX Fortran)
+
+# Configure compiler options
+include(compilerOps)
 
 # Configure MPI module
 include(mpi)
