@@ -386,7 +386,9 @@ contains
            iNodeL = matrixCommScheme(i,1)
            if(abs(aux_floatField_r(i)).gt. cond) then 
               if(abs(floatField(iNodeL)).gt. cond) then 
+                 !$acc atomic update
                  floatField(iNodeL) = floatField(iNodeL)+aux_floatField_r(i)
+                 !$acc end atomic
               else
                  floatField(iNodeL) = aux_floatField_r(i)
               end if

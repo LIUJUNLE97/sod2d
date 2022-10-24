@@ -79,7 +79,7 @@ contains
       this%loadResults = .true.
 
       this%continue_oldLogs = .false.
-      this%load_step = 300001
+      this%load_step = 400001
 
       this%nstep = 9000001
       this%cfl_conv = 0.5_rp

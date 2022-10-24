@@ -68,7 +68,7 @@ module time_integ
             real(rp),    dimension(npoin)        :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
             real(rp),    dimension(npoin)        :: Rmass, Rener, Rmass_sum, Rener_sum, alpha,Reta_sum
             real(rp),    dimension(npoin,ndime)  :: Rmom, Rmom_sum, f_eta
-            real(rp)                             :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin),Rdiff_mom_wall(npoin,ndime)
+            real(rp)                             :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
             real(rp)                             :: Aemac(npoin,ndime), Femac(npoin), umag
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -326,7 +326,7 @@ module time_integ
 
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+               Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))!-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
             end do
             !$acc end parallel loop
 
@@ -340,11 +340,13 @@ module time_integ
                call nvtxEndRange
             end if
 
+            call nvtxStartRange("Entropy viscosity evaluation")
             !
             ! Compute entropy viscosity
             !
             call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp, &
                gamma_gas,rho(:,pos),u(:,:,pos),Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e)
+            call nvtxEndRange
             !
             ! Compute subgrid viscosity if active
             !

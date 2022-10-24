@@ -33,37 +33,45 @@ contains
       real(rp)                 :: vkinv,diffd,parco,yplus,onovu,yplu2
       real(rp)                 :: ypele,expye,expyt,oneoe,firsl,ypel2
       real(rp)                 :: pplus,densi,gradp,grpr2,py,sq,inv,ln4,uplus,vol
+      real(rp)                :: ux,uy,uz,px,pz
 
-      !$acc parallel loop gang private(bnorm,uiex)
+      !$acc parallel loop gang private(bnorm,uiex,point)
       do ibound = 1, nboun
          icode=bou_code(ibound)
+         bnorm(1:npbou*ndime) = bounorm(ibound,1:npbou*ndime)
+         point(1:ndime) = 0.0_rp
+         uiex(1:ndime) = 0.0_rp
          if (bouCodes2WallModel(icode) == 1) then
-            bnorm(1:npbou*ndime) = bounorm(ibound,1:npbou*ndime)
             ielem = point2elem(bound(ibound,npbou)) ! I use an internal face node to be sure is the correct element
             
-#if 0
-            point(1:ndime) = 0.0_rp
-            uiex(1:ndime) = 0.0_rp
-            !$acc loop vector reduction(+:point,uiex)
+#if 1
+            px = 0.0_rp
+            py = 0.0_rp
+            pz = 0.0_rp
+            ux = 0.0_rp
+            uy = 0.0_rp
+            uz = 0.0_rp
+            !$acc loop vector reduction(+:px,py,pz,ux,uy,uz)
             do igaus = 1,nnode
-               !acc loop seq
-               do idime=1,ndime
-                 point(idime) = point(idime) + coord(connec(ielem,igaus),idime)
-                 uiex(idime) = uiex(idime) + ui(connec(ielem,igaus),idime)
-               end do
+               px = px + coord(connec(ielem,igaus),1)
+               py = py + coord(connec(ielem,igaus),2)
+               pz = pz + coord(connec(ielem,igaus),3)
+               ux = ux + ui(connec(ielem,igaus),1)
+               uy = uy + ui(connec(ielem,igaus),2)
+               uz = uz + ui(connec(ielem,igaus),3)
             end do
-            point(1) = point(1)/real(nnode,rp)
-            point(2) = point(2)/real(nnode,rp)
-            point(3) = point(3)/real(nnode,rp)
-            uiex(1) = uiex(1)/real(nnode,rp)
-            uiex(2) = uiex(2)/real(nnode,rp)
-            uiex(3) = uiex(3)/real(nnode,rp)
+            point(1) = px/real(nnode,rp)
+            point(2) = py/real(nnode,rp)
+            point(3) = pz/real(nnode,rp)
+            uiex(1) = ux/real(nnode,rp)
+            uiex(2) = uy/real(nnode,rp)
+            uiex(3) = uz/real(nnode,rp)
 #else
             point(1:ndime) =coord(connec(ielem,nnode),1:ndime)
             uiex(1:ndime) = ui(connec(ielem,nnode),1:ndime)
 #endif            
 
-            !$acc loop vector private(aux)
+            !$acc loop vector private(aux,pointF,normalF,tvelo)
             do igaus = 1,npbou
 
                pointF(1:ndime) = 0.0_rp
@@ -148,7 +156,6 @@ contains
          end if
       end do
       !$acc end parallel loop
-
 
    end subroutine evalWallModel
 

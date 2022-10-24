@@ -126,6 +126,7 @@ module CFDSolverBase_mod
 
       procedure :: open_log_file
       procedure :: close_log_file
+      procedure :: flush_log_file
       procedure :: eval_vars_after_load_hdf5_resultsFile
    end type CFDSolverBase
 contains
@@ -569,10 +570,10 @@ contains
       !*********************************************************************!
 
       if (flag_real_diff == 1) then
-         call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParOrig,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
+         call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
          if(mpi_rank.eq.0) write(111,*) "--| TIME STEP SIZE dt := ",this%dt,"s"
       else
-         call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParOrig,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
+         call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
          if(mpi_rank.eq.0) write(111,*) "--| TIME STEP SIZE dt := ",this%dt,"s"
       end if
 
@@ -1132,6 +1133,27 @@ contains
 
    end subroutine close_log_file
 
+   subroutine flush_log_file(this)
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      integer :: iCode
+
+      if(mpi_rank.eq.0) then
+         flush(unit=111)
+
+         if(this%doGlobalAnalysis) then
+            flush(unit=666)
+         end if
+
+         if (isMeshBoundaries) then
+            do iCode = 1,numBoundCodes
+               flush(unit=888+iCode)
+            end do
+         end if
+      end if
+
+   end subroutine flush_log_file
+
    subroutine eval_vars_after_load_hdf5_resultsFile(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
@@ -1272,12 +1294,6 @@ contains
 
         call this%evalPeriodic()
 
-
-
-        ! Eval initial time step
-
-        call this%evalInitialDt()
-
         ! Eval mass 
 
         call this%evalMass()
@@ -1285,9 +1301,17 @@ contains
         ! Eval first output
         if(this%isFreshStart) call this%evalFirstOutput()
 
+        call this%flush_log_file()
+
         ! Eval BoundaryFacesToNodes
 
         call  this%normalFacesToNodes()
+
+        ! Eval initial time step
+
+        call this%evalInitialDt()
+
+        call this%flush_log_file()
 
         ! Do the time iteration
 
