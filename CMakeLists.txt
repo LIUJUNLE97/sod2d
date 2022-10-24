@@ -8,7 +8,7 @@ set(TEST_VERSION_PATCH "0")
 set(TEST_VERSION "${TEST_VERSION_MAJOR}.${TEST_VERSION_MINOR}.${TEST_VERSION_PATCH}")
 
 # Options
-#option(UNIT_TESTING "Enable unit tests" ON)
+option(UNIT_TESTING "Enable unit tests" OFF)
 option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
 option(USE_GEMPA "Compile using GEMPA" ON)
