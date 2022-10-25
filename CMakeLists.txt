@@ -17,8 +17,8 @@ option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
 option(USE_PCPOWER "Compiling in PC-POWER" OFF)
 option(USE_MN "Compiling in MareNostrum" OFF)
 
-option(USE_GPU "Compile using GPU" OFF)
-option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
+option(USE_GPU "Compile using GPU" ON)
+option(USE_MEM_MANAGED "Compile using Mem managed" ON)
 
 # Folder with files configuring extra CMake options
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
@@ -27,11 +27,11 @@ set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 # Set project name, version and languages
 project(sod2d LANGUAGES C CXX Fortran)
 
-# Configure compiler options
-include(compilerOps)
-
 # Configure MPI module
 include(mpi)
+
+# Configure compiler options
+include(compilerOps)
 
 # Configure HDF5 module
 include(hdf5)
