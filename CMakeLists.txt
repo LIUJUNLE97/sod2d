@@ -39,27 +39,6 @@ include(hdf5)
 # Include external projects
 include(ExternalProject)
 
-# Set library types to be shared
-set(LIBRARY_TYPE SHARED)
-#set(LIBRARY_TYPE STATIC)
-
-# Set a default build type
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
-endif()
-
-# TODO: move thiss section to compilerOps
-# Set compilation config for certain compilers
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wsign-conversion -Wold-style-cast")
-    set(CMAKE_CXX_FLAGS_DEBUG "-g")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3")
-endif()
-
-# Set C/C++ standard
-set(CMAKE_CXX_STANDARD 11)
-# endTODO
-
 # use, i.e. don't skip the full RPATH for the build tree
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
 
