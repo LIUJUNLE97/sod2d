@@ -1,28 +1,35 @@
 message("-- Selecting compiler Ops...")
 
-# Define common compiler flags
+# Define common C compiler flags
 set(CMAKE_C_FLAGS "-DNOPRED")
 set(CMAKE_C_FLAGS_DEBUG "-g -O0")
 set(CMAKE_C_FLAGS_RELEASE "-O3")
+
+# Define common CXX compiler flags
 set(CMAKE_CXX_FLAGS "-DNOPRED")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+
+# Define common Fortran compiler flags
 set(CMAKE_Fortran_FLAGS "-DNOPRED")
 set(CMAKE_Fortran_FLAGS_DEBUG "-g -O0")
 set(CMAKE_Fortran_FLAGS_RELEASE "-O3")
 
-# Define specific flags
+# Define specific compiler flags
 if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
 	message("-- GNU compiler detected")
 	if (USE_GPU)
 		message(FATAL_ERROR "GPU not supported with GNU compiler")
 	endif()
+	# Common GNNU+MPI flags
 	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-lmpi_cxx -DNOACC")
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-lmpi_cxx -DNOACC")
 	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-lmpi_cxx -DNOACC -ffree-line-length-512")
+	# Debug
 	set(CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS_DEBUG} "-Wall -Wextra -Wpedantic")
 	set(CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG} "-Wall -Wextra -Wpedantic")
 	set(CMAKE_Fortran_FLAGS_DEBUG ${CMAKE_Fortran_FLAGS_DEBUG} "-Wall -Wextra -Wpedantic -fbacktrace -Wconversion-extra -ftrapv -fcheck=all -ffpe-trap=invalid,zero,overflow,underflow")
+	# Release
 	set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "-march=native")
 	set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} "-march=native")
 	set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "-march=native")
@@ -31,12 +38,15 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "Intel")
 	if (USE_GPU)
 		message(FATAL_ERROR "GPU not supported with Intel compiler")
 	endif()
+	# Common Intel+MPI flags
 	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-lmpi_cxx -DNOACC")
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-lmpi_cxx -DNOACC")
 	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-lmpi_cxx -DNOACC")
+	# Debug
 	set(CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS_DEBUG} "-Werror -traceback -check all -ftrapuv -debug all")
 	set(CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG} "-Werror -traceback -check all -ftrapuv -debug all")
 	set(CMAKE_Fortran_FLAGS_DEBUG ${CMAKE_Fortran_FLAGS_DEBUG} "-Werror -traceback -check all -ftrapuv -debug all -fpe3 -fpe-all=3")
+	# Release
 	set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "-ipo -no-prec-div -no-prec-sqrt -fp-model fast=2 -qopt-report=5 -qopt-report-phase=vec -qopt-report-phase=par -qopt-report-phase=ipo")
 	set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} "-ipo -no-prec-div -no-prec-sqrt -fp-model fast=2 -qopt-report=5 -qopt-report-phase=vec -qopt-report-phase=par -qopt-report-phase=ipo")
 	set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "-ipo -no-prec-div -no-prec-sqrt -fp-model fast=2 -qopt-report=5 -qopt-report-phase=vec -qopt-report-phase=par -qopt-report-phase=ipo")
@@ -52,15 +62,19 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "Intel")
 	endif()
 elseif(CMAKE_C_COMPILER_ID STREQUAL "NVHPC")
 	message("-- NVHPC compiler detected")
+	# Common NVHPC+MPI flags
 	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-cpp -lstdc++ -lmpi_cxx -fast -D_USE_NVTX -lnvToolsExt -Minfo=accel")
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-cpp -lstdc++ -lmpi_cxx -fast -D_USE_NVTX -lnvToolsExt -Minfo=accel")
 	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-cpp -lstdc++ -lmpi_cxx -fast -D_USE_NVTX -lnvToolsExt -Minfo=accel")
+	# Debug
 	set(CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS_DEBUG} "-Mdclchk -Minform=inform -C -Mbounds -Mchkptr -Mchkstk -traceback -Ktrap=fp,unf")
 	set(CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG} "-Mdclchk -Minform=inform -C -Mbounds -Mchkptr -Mchkstk -traceback -Ktrap=fp,unf")
 	set(CMAKE_Fortran_FLAGS_DEBUG ${CMAKE_Fortran_FLAGS_DEBUG} "-Mdclchk -Minform=inform -C -Mbounds -Mchkptr -Mchkstk -traceback -Ktrap=fp,unf")
+	# Release
 	set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "")
 	set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "")
 	set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "")
+	# GPU options
 	if(USE_GPU AND USE_MEM_MANAGED)
 		message("Setting up ACC flags with managed memory")
 		if(USE_PCPOWER)
