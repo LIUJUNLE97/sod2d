@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.15)
 
 #----------------OPTIONS------------------------------------------------------------------
 
+message("Verify that machine selection is identical to the one in the main CMakeLists.txt file!")
 option(USE_PCPOWER "Compiling in PC-POWER" OFF)
 option(USE_MN "Compiling in MareNostrum" OFF)
 option(USE_PREDEFINED_COMPILERS "Use predefined compilers" ON)
@@ -10,7 +11,7 @@ option(USE_PREDEFINED_COMPILERS "Use predefined compilers" ON)
 option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
 
-set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/../cmake")
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 # Configure compiler options
 message("-- Selecting compiler Ops...")
