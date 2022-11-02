@@ -357,7 +357,9 @@ contains
         !$acc parallel loop
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
+            !$acc atomic update
             intField(iNodeL) = min(intField(iNodeL),aux_intField_r(i))
+            !$acc end atomic
         end do
         !$acc end parallel loop
     end subroutine copy_from_min_rcvBuffer_int
@@ -370,7 +372,9 @@ contains
         !$acc parallel loop
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
+            !$acc atomic update
             floatField(iNodeL) = max(floatField(iNodeL),aux_floatField_r(i))
+            !$acc end atomic
         end do
         !$acc end parallel loop
     end subroutine copy_from_max_rcvBuffer_float
