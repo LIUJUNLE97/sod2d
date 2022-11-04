@@ -7,8 +7,8 @@ module mod_mesh_boundaries
 contains
 
    subroutine splitBoundary_inPar()
-      integer(4), allocatable    :: aux1(:)
-      integer(4) :: ii,iNodeL,iNodeGSrl,iNodeGSrl_bound,iBound,iBoundL,ipbou,idof,ibnodes
+      integer(4), allocatable    :: aux1(:),aux_ndof(:),aux_nbnodes(:)
+      integer(4) :: ii,iNodeL,iNodeGSrl,iNodeGSrl_bound,iBound,iBoundL,ipbou
       integer(4) :: auxBoundCnt,aux_sum_NBRP
       integer(4) :: aux_boundList(totalNumBoundsSrl)
 
@@ -40,7 +40,7 @@ contains
          end do loopIp
       end do loopBound
 
-      !write(*,*) '[',mpi_rank,']numBoundsRankPar',numBoundsRankPar,'totalNumBoundsSrl',totalNumBoundsSrl
+      write(*,*) '[',mpi_rank,']numBoundsRankPar',numBoundsRankPar,'totalNumBoundsSrl',totalNumBoundsSrl
       
       call MPI_Allreduce(numBoundsRankPar,aux_sum_NBRP,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
@@ -72,8 +72,12 @@ contains
       !ojo! crec que aqui ho podem fer diferent per tenir tots els nodes boundary reals!
 !NEW METHOD
 #if 1
+      allocate(aux_ndof(numNodesRankPar))
+      allocate(aux_nbnodes(numNodesRankPar))
       !$acc kernels
       aux1(:) = 0
+      aux_ndof(:) = 0
+      aux_nbnodes(:) = 0
       !$acc end kernels
 
       !possar tots els boundaries locals a 1
@@ -96,32 +100,46 @@ contains
       do iNodeL = 1,numNodesRankPar
          if (aux1(iNodeL) .ne. 0) then
             numBoundaryNodesRankPar = numBoundaryNodesRankPar+1
+            aux_nbnodes(numBoundaryNodesRankPar) = iNodeL
+         else
+            ndofRankPar = ndofRankPar+1
+            aux_ndof(ndofRankPar) = iNodeL
          end if
       end do
 
-      ndofRankPar = numNodesRankPar - numBoundaryNodesRankPar
-      !write(*,*) '[',mpi_rank,'] ndof',ndofRankPar,'nbnodes',numBoundaryNodesRankPar
+      if(ndofRankPar .ne. (numNodesRankPar - numBoundaryNodesRankPar)) then
+         write(*,*) 'ERROR IN splitBoundary_inPar()-> ndofRankPar',ndofRankPar,' not equal to (nNRP-nBNRP) ',(numNodesRankPar - numBoundaryNodesRankPar)
+         call MPI_Abort(MPI_COMM_WORLD, -1, mpi_err)
+      end if
+
+      !ndofRankPar = numNodesRankPar - numBoundaryNodesRankPar
+      write(*,*) '[',mpi_rank,'] ndof',ndofRankPar,'nbnodes',numBoundaryNodesRankPar
 
       !-------------------------------------------------------------------------------------
       ! Split aux1 into the 2 lists
       allocate(ldofPar(ndofRankPar))
       allocate(lbnodesPar(numBoundaryNodesRankPar))
 
-      idof = 0    ! Counter for free nodes
-      ibnodes = 0 ! Counter for boundary nodes
-      !$acc parallel loop reduction(+:idof,ibnodes)
-      do iNodeL = 1,numNodesRankPar
-         if (aux1(iNodeL) .ne. 0) then
-            ibnodes = ibnodes+1
-            lbnodesPar(ibnodes) = iNodeL
-         else
-            idof = idof+1
-            ldofPar(idof) = iNodeL
-         end if
+      !$acc kernels copyout(lbnodesPar,ldofPar,aux2)
+      ldofPar(:) = 0
+      lbnodesPar(:) = 0
+      !$acc end kernels
+
+      !$acc parallel loop copyin(aux_nbnodes) copyout(lbnodesPar)
+      do iNodeL = 1,numBoundaryNodesRankPar
+         lbnodesPar(iNodeL) = aux_nbnodes(iNodeL)! iNodeL
       end do
       !$acc end parallel loop
 
-      !write(*,*) '[',mpi_rank,'] ibnodes',ibnodes,'idof',idof
+      !$acc parallel loop copyin(aux_ndof) copyout(ldofPar)
+      do iNodeL = 1,ndofRankPar
+         ldofPar(iNodeL) = aux_ndof(iNodeL)! iNodeL
+      end do
+      !$acc end parallel loop
+
+      deallocate(aux_nbnodes)
+      deallocate(aux_ndof)
+
 #else
 !OLD METHOD
       ! Fill aux1 with all nodes in order

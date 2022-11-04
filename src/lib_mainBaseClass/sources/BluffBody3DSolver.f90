@@ -46,10 +46,12 @@ contains
       class(BluffBody3DSolver), intent(inout) :: this
 
       bouCodes2BCType(1) = bc_type_inlet
-      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
-      bouCodes2BCType(3) = bc_type_non_slip_adiabatic
+      !bouCodes2BCType(2) = bc_type_slip_wall_model
+      !bouCodes2BCType(3) = bc_type_slip_wall_model
       bouCodes2BCType(4) = bc_type_slip_adiabatic
       bouCodes2BCType(5) = bc_type_outlet
+      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(3) = bc_type_non_slip_adiabatic
 
       bouCodes2WallModel(1) = 0
       bouCodes2WallModel(2) = 1
@@ -67,29 +69,29 @@ contains
       write(this%gmsh_file_name,*) "auto" 
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "carCoarse"!"auto"
+      write(this%mesh_h5_file_name,*) "carCoarse"!"auto"!"semi"!
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
       this%isPeriodic = .false.
-      !this%loadMesh = .false.
-      this%loadMesh = .true.
+      this%loadMesh = .false.
+      !this%loadMesh = .true.
       this%loadResults = .false.
+      !this%loadResults = .true.
+      !this%continue_oldLogs = .false.
+      !this%load_step = 24001
 
-      this%continue_oldLogs = .false.
-      this%load_step = 980001
-
-      this%nstep = 25001
-      this%cfl_conv = 0.25_rp!0.75_rp
-      this%cfl_diff = 0.25_rp!0.75_rp
-      this%nsave  = 1  ! First step to save, TODO: input
+      this%nstep = 250001
+      this%cfl_conv = 0.1_rp!0.25_rp
+      this%cfl_diff = 0.1_rp!0.25_rp
+      this%nsave  = 1 !27211 ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 1000 ! Saving interval, TODO: input
+      this%nleap = 25000!25 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 5  ! Saving interval, TODO: input
-      this%nleapAVG = 20000
+      this%nleap2 = 50  ! Saving interval, TODO: input
+      this%nleapAVG = 150000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -98,8 +100,8 @@ contains
       this%delta  = 1.0_rp
       this%rho0   = 1.0_rp
       this%gamma_gas = 1.40_rp
-      !this%Re     =  200.0_rp
-      this%Re     =  2900000.0_rp
+      this%Re     =  10000.0_rp!200.0_rp
+      !this%Re     =  2900000.0_rp
 
       mul    = (this%rho0*this%delta*this%vo)/this%Re
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
@@ -149,6 +151,7 @@ contains
          E(iNodeL,2) = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))+e_int(iNodeL,2))
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
+         eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
       end do
       !$acc end parallel loop
 
@@ -180,6 +183,7 @@ contains
       ! remember that the mu_factor field has to we filled at least with the
       ! flag_mu_factor
 
+#if 1
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          mu_factor(iNodeL) = flag_mu_factor
@@ -203,6 +207,35 @@ contains
         end if
       end do
       !$acc end parallel loop
+#endif
+
+#if 0
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         mu_factor(iNodeL) = flag_mu_factor
+        if(coordPar(iNodeL,1)<-4.0_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+        end if
+        if(coordPar(iNodeL,1)>5.0_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+        end if
+        if(coordPar(iNodeL,2)<-0.7_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+        end if
+        if(coordPar(iNodeL,2)>0.7_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+        end if
+        !if(coordPar(iNodeL,3)<-8.0_rp) then
+        !   mu_factor(iNodeL) = flag_mu_factor*10.0_rp
+        !end if
+        if(coordPar(iNodeL,3)>1.0_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+        end if
+      end do
+      !$acc end parallel loop
+#endif
+
+
 
    end subroutine BluffBody3DSolver_evalViscosityFactor
 end module BluffBody3DSolver_mod

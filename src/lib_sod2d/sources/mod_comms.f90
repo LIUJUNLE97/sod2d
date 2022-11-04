@@ -423,6 +423,23 @@ contains
         !$acc end parallel loop
     end subroutine copy_from_rcvBuffer_get_double
 !-----------------------------------------------------------------------------------------------------------------------
+    subroutine copy_from_conditional_ave_rcvBuffer_float(cond,floatField)
+        implicit none
+        real(4), intent(in) :: cond
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,iNodeL
+
+        !!!$acc parallel loop
+        do i=1,numNodesToComm
+           iNodeL = matrixCommScheme(i,1)
+           if(abs(floatField(iNodeL)).gt.cond) then 
+            !!!$acc atomic update 
+            floatField(iNodeL) = 0.5*floatField(iNodeL)+aux_floatField_r(i)*0.5
+            !!!$acc end atomic
+           end if
+        end do
+        !!!$acc end parallel loop
+    end subroutine copy_from_conditional_ave_rcvBuffer_float
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
 #define _ISENDIRCV_ 1
@@ -617,6 +634,35 @@ contains
 
         call copy_from_rcvBuffer_double(doubleField)
     end subroutine mpi_halo_atomic_update_double_iSendiRcv
+!------------- conditional average ISEND/IRECV -------------------------------------------
+    ! FLOAT ---------------------------------------------------
+    subroutine mpi_halo_conditional_ave_update_float_iSendiRcv(cond,floatField)
+        implicit none
+        real(4), intent(in) :: cond
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,ireq,ngbRank,tagComm
+        integer :: memPos_l,memSize
+        integer :: requests(2*numRanksWithComms)
+
+        call fill_sendBuffer_float(floatField)
+
+        ireq=0
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_floatfield_r(mempos_l),memSize,MPI_FLOAT,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_floatfield_s(mempos_l),memSize,MPI_FLOAT,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+        end do
+
+        call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+        call copy_from_conditional_ave_rcvBuffer_float(cond,floatField)
+    end subroutine mpi_halo_conditional_ave_update_float_iSendiRcv
 !------------- PUT FENCE -------------------------------------------
     !INT
     subroutine mpi_halo_atomic_update_int_put_fence(intField)

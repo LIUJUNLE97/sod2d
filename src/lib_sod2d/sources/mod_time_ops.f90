@@ -45,7 +45,7 @@ module mod_time_ops
                max_MU = 0.0_rp
                !$acc loop vector reduction(max:max_MU)
                do inode = 1,nnode
-                  max_MU = max(max_MU,mu_sgs(ielem,inode)+mu_fluid(connec(ielem,inode))/rho(connec(ielem,inode)))
+                  max_MU = max(max_MU,rho(connec(ielem,inode))*mu_sgs(ielem,inode)+mu_fluid(connec(ielem,inode))/rho(connec(ielem,inode)))
                end do
                aux4 = cfl_diff*((helem(ielem))**2)/max_MU
                !aux4 = cfl_diff*((helem(ielem)/real(porder**2,rp))**2)/max_MU

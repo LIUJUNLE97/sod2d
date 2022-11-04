@@ -94,6 +94,7 @@ contains
                - gradV2(1,2)*gradV2(1,2) - gradV2(1,3)*gradV2(1,3) - gradV2(2,3)*gradV2(2,3)
             if(alpha > 1.0e-10) then
                aux2 = aux2 + c_sgs*sqrt(max(Bbeta,1.0e-10)/alpha)
+               !mu_sgs(ielem,igaus) = c_sgs*sqrt(max(Bbeta,1.0e-10)/alpha)
             end if
          end do
          aux2 = aux2/real(nnode,rp)

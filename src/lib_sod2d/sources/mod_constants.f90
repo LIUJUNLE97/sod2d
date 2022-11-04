@@ -49,19 +49,19 @@ module mod_constants
       ! Other constants
       !
       real(rp), parameter :: v_pi = 2.0_rp*asin(1.0_rp) ! Value of Pi
-      real(rp), parameter :: ce = 1.0_rp   
-      real(rp), parameter :: cmax = 0.5_rp ! for FEM 0.5 for SEM 0.05/p
+      real(rp), parameter :: ce = 0.1_rp   
+      real(rp), parameter :: cmax = 0.5_rp 
       real(rp), parameter :: cglob =1.0_rp
       real(rp), parameter :: c_rho =1.0_rp
       real(rp), parameter :: c_ener = 1.0_rp
       real(rp), parameter :: c_sgs = 0.07_rp
       real(rp), parameter :: stau   = 0.022_rp
-      real(rp), parameter :: T_ilsa = 0.001_rp
-      real(rp), parameter :: T_wmles = 1.0_rp
+      real(rp), parameter :: T_ilsa = 20.0_rp
+      real(rp), parameter :: T_wmles = 0.01_rp
 
-      integer(4), parameter :: max_num_bou_codes = 100
+      integer(4), parameter :: max_num_bou_codes = 10
 
-      real(rp) :: flag_mu_factor=200.0_rp
+      real(rp) :: flag_mu_factor=1.0_rp
 
       !
       ! NSCBC parameters
@@ -84,7 +84,7 @@ module mod_constants
       integer(4), parameter :: bc_type_non_slip_hot         = 3
       integer(4), parameter :: bc_type_non_slip_cold        = 4
       integer(4), parameter :: bc_type_slip_adiabatic       = 5
-      integer(4), parameter :: bc_type_outlet               = 6
-      integer(4), parameter :: bc_type_slip_wall_model      = 7
+      integer(4), parameter :: bc_type_slip_wall_model      = 6
+      integer(4), parameter :: bc_type_outlet               = 7
 
 end module mod_constants
