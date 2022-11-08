@@ -46,18 +46,35 @@ contains
       class(BluffBody3DSolver), intent(inout) :: this
 
       bouCodes2BCType(1) = bc_type_inlet
-      bouCodes2BCType(2) = bc_type_slip_wall_model
+#if 0 
+      !For carCoarse case-----------------------------------------------------
+      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
       bouCodes2BCType(3) = bc_type_non_slip_adiabatic
-      bouCodes2BCType(4) = bc_type_slip_wall_model
+      !bouCodes2BCType(2) = bc_type_slip_wall_model
+      !bouCodes2BCType(3) = bc_type_slip_wall_model
+      bouCodes2BCType(4) = bc_type_slip_adiabatic
+      bouCodes2BCType(5) = bc_type_outlet
+
+      bouCodes2WallModel(1) = 0
+      bouCodes2WallModel(2) = 0
+      bouCodes2WallModel(3) = 0
+      bouCodes2WallModel(4) = 0
+      bouCodes2WallModel(5) = 0
+#else
+      !For auto case---------------------------------------------------------
+      bouCodes2BCType(2) = bc_type_non_slip_adiabatic!bc_type_slip_wall_model
+      bouCodes2BCType(3) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(4) = bc_type_non_slip_adiabatic!bc_type_slip_wall_model
       bouCodes2BCType(5) = bc_type_slip_adiabatic
       bouCodes2BCType(6) = bc_type_outlet
 
       bouCodes2WallModel(1) = 0
-      bouCodes2WallModel(2) = 1
+      bouCodes2WallModel(2) = 0!1
       bouCodes2WallModel(3) = 0
-      bouCodes2WallModel(4) = 1
+      bouCodes2WallModel(4) = 0!1
       bouCodes2WallModel(5) = 0
       bouCodes2WallModel(6) = 0
+#endif
 
    end subroutine BluffBody3DSolver_fill_BC_Types
 
@@ -65,32 +82,34 @@ contains
       class(BluffBody3DSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%gmsh_file_path,*) "./mesh/"
+      write(this%gmsh_file_path,*) "./mesh/"!"./mesh_car/"!
       write(this%gmsh_file_name,*) "auto" 
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "auto"
+      write(this%mesh_h5_file_name,*) "auto"!"carCoarse"!
 
       write(this%results_h5_file_path,*) ""
-      write(this%results_h5_file_name,*) "resultsFile"
+      write(this%results_h5_file_name,*) "results"
 
       this%isPeriodic = .false.
+
       this%loadMesh = .true.
-      this%loadResults = .true.
+      this%loadResults = .false.
 
       this%continue_oldLogs = .false.
-      this%load_step = 400001
+      this%load_step = 1
 
-      this%nstep = 9000001
-      this%cfl_conv = 0.5_rp
-      this%cfl_diff = 0.5_rp
+      this%nstep = 9000001 !250001
+      this%cfl_conv = 0.5_rp !0.1_rp
+      this%cfl_diff = 0.5_rp !0.1_rp
+
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 20000 ! Saving interval, TODO: input
+      this%nleap = 10000!25 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 5  ! Saving interval, TODO: input
-      this%nleapAVG = 20000
+      this%nleap2 = 1  ! Saving interval, TODO: input
+      this%nleapAVG = 150000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -99,7 +118,7 @@ contains
       this%delta  = 1.0_rp
       this%rho0   = 1.0_rp
       this%gamma_gas = 1.40_rp
-      !this%Re     =  200.0_rp
+      !this%Re     =  10000.0_rp!200.0_rp
       this%Re     =  2900000.0_rp
 
       mul    = (this%rho0*this%delta*this%vo)/this%Re
@@ -115,7 +134,6 @@ contains
       nscbc_gamma_inf = this%gamma_gas
       nscbc_c_inf = sqrt(this%gamma_gas*this%po/this%rho0)
 
-
    end subroutine BluffBody3DSolver_initializeParameters
 
    subroutine BluffBody3DSolver_evalInitialConditions(this)
@@ -125,7 +143,7 @@ contains
       logical :: readFiles
 
       readFiles = .false.
-      this%interpInitialResults = .true.
+      !this%interpInitialResults = .true.
 
       if(readFiles) then
          this%interpInitialResults = .true.

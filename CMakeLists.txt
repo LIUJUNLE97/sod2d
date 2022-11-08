@@ -13,7 +13,7 @@ option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
 option(USE_GEMPA "Compile using GEMPA" ON)
 
-option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
+option(USE_PREDEFINED_COMPILERS "Use predefined compilers" ON)
 option(USE_PCPOWER "Compiling in PC-POWER" OFF)
 option(USE_MN "Compiling in MareNostrum" OFF)
 
