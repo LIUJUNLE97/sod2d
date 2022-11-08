@@ -18,8 +18,11 @@ contains
 
       !1. how many boundaries my rank have?
       numBoundsRankPar = 0
+      !$acc kernels
       aux_boundList(:) = 0
+      !$acc end kernels
 
+      !TODO: if possible this loop must be speedup using GPUS 
       loopBound: do iBound = 1,totalNumBoundsSrl
          auxBoundCnt = 0
          loopIp: do ipbou = 1,npbou
@@ -39,6 +42,7 @@ contains
             end if
          end do loopIp
       end do loopBound
+      !-----------------------------------------------------------------
 
       write(*,*) '[',mpi_rank,']numBoundsRankPar',numBoundsRankPar,'totalNumBoundsSrl',totalNumBoundsSrl
       
@@ -53,6 +57,7 @@ contains
       allocate(bouCodesPar(numBoundsRankPar))
       
       ii=0
+      !TODO: if possible this loop must be speedup using GPUS 
       do iBound = 1,totalNumBoundsSrl
          if(aux_boundList(iBound).eq.1) then
             ii=ii+1
@@ -65,6 +70,7 @@ contains
          !write(*,*) '[',mpi_rank,']boundPar(',ii,')',boundPar(ii,:)
          end if
       end do
+      !-----------------------------------------------------------------
 
       !------------------------------------------------------------------------
       allocate(aux1(numNodesRankPar))
@@ -141,6 +147,7 @@ contains
       deallocate(aux_ndof)
 
 #else
+TODO: DELETE IF EVERYTHING IS OK
 !OLD METHOD
       ! Fill aux1 with all nodes in order
       !$acc parallel loop

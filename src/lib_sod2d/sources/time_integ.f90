@@ -15,13 +15,14 @@ module time_integ
 
       contains
 
-         subroutine rk_4_main(flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         subroutine rk_4_main(noBoundaries,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                          ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,u_wall,rho_wall,mu_wall,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,numBoundCodes,wgp_b, bounorm,bouCodes2WallModel,coord,normalsAtNodes,source_term) ! Optional arg
 
             implicit none
 
+            logical,              intent(in)   :: noBoundaries
             integer(4),           intent(in)    :: flag_predic, flag_emac
             integer(4),           intent(in)    :: nelem, nboun, npoin
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou),lnbn_nodes(npoin)
@@ -67,14 +68,8 @@ module time_integ
             real(rp),    dimension(npoin)        :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
             real(rp),    dimension(npoin)        :: Rmass, Rener, Rmass_sum, Rener_sum, alpha,Reta_sum
             real(rp),    dimension(npoin,ndime)  :: Rmom, Rmom_sum, f_eta
-            real(rp)                             :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin),Rdiff_mom_wall(npoin,ndime)
+            real(rp)                             :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
             real(rp)                             :: Aemac(npoin,ndime), Femac(npoin), umag
-
-#if 0
-            !!!!$acc enter data create(Rmass(:))
-            !!!!$acc enter data create(Rener(:))
-            !!!!$acc enter data create(Rmom(:,:))
-#endif
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! New version of RK4 using loops                 !
@@ -90,31 +85,25 @@ module time_integ
             ! Butcher tableau
             !
             call nvtxStartRange("Create tableau")
-            !if(flag_predic ==1) then
-            !      a_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
-            !      c_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
-            !      b_i = [1.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
-            !else
-               if (flag_rk_order == 1) then
-                  a_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
-                  c_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
-                  b_i = [1.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
-               else if (flag_rk_order == 2) then
-                  a_i = [0.0_rp, 1.0_rp, 0.0_rp, 0.0_rp]
-                  c_i = [0.0_rp, 1.0_rp, 0.0_rp, 0.0_rp]
-                  b_i = [0.5_rp, 0.5_rp, 0.0_rp, 0.0_rp]
-               else if (flag_rk_order == 3) then
-                  write(1,*) "--| NOT CODED FOR RK3 YET!"
-                  STOP(1)
-               else if (flag_rk_order == 4) then
-                  a_i = [0.0_rp, 0.5_rp, 0.5_rp, 1.0_rp]
-                  c_i = [0.0_rp, 0.5_rp, 0.5_rp, 1.0_rp]
-                  b_i = [1.0_rp/6.0_rp, 1.0_rp/3.0_rp, 1.0_rp/3.0_rp, 1.0_rp/6.0_rp]
-               else
-                  write(1,*) "--| NOT CODED FOR RK > 4 YET!"
-                  STOP(1)
-               end if
-            !end if
+            if (flag_rk_order == 1) then
+               a_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
+               c_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
+               b_i = [1.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
+            else if (flag_rk_order == 2) then
+               a_i = [0.0_rp, 1.0_rp, 0.0_rp, 0.0_rp]
+               c_i = [0.0_rp, 1.0_rp, 0.0_rp, 0.0_rp]
+               b_i = [0.5_rp, 0.5_rp, 0.0_rp, 0.0_rp]
+            else if (flag_rk_order == 3) then
+               write(1,*) "--| NOT CODED FOR RK3 YET!"
+               stop 1
+            else if (flag_rk_order == 4) then
+               a_i = [0.0_rp, 0.5_rp, 0.5_rp, 1.0_rp]
+               c_i = [0.0_rp, 0.5_rp, 0.5_rp, 1.0_rp]
+               b_i = [1.0_rp/6.0_rp, 1.0_rp/3.0_rp, 1.0_rp/3.0_rp, 1.0_rp/6.0_rp]
+            else
+               write(1,*) "--| NOT CODED FOR RK > 4 YET!"
+               stop 1
+            end if
             call nvtxEndRange
             !
             ! Initialize variables to zero
@@ -131,7 +120,6 @@ module time_integ
             aux_eta(1:npoin) = 0.0_rp
             Rdiff_mass(1:npoin) = 0.0_rp
             Rdiff_mom(1:npoin,1:ndime) = 0.0_rp
-            Rdiff_mom_wall(1:npoin,1:ndime) = 0.0_rp
             Rdiff_ener(1:npoin) = 0.0_rp
             Rmass(1:npoin) = 0.0_rp
             Rmom(1:npoin,1:ndime) = 0.0_rp
@@ -142,23 +130,13 @@ module time_integ
             Reta_sum(1:npoin) = 0.0_rp
             Rmom_sum(1:npoin,1:ndime) = 0.0_rp
             !$acc end kernels
-            if((flag_activate_wall_model==1)) then
-               !$acc parallel loop
-               do ipoin = 1,npoin
-                  !$acc loop seq
-                  do idime = 1,ndime
-                     u_wall(ipoin,idime) = (1.0_rp-dt/T_wmles)*u_wall(ipoin,idime)+(dt/T_wmles)*u(ipoin,idime,pos)
-                  end do
-                  mu_wall(ipoin) = (mu_fluid(ipoin)+mu_e(point2elem(ipoin),1)+rho(ipoin,pos)*mu_sgs(point2elem(ipoin),1))
-               end do
-               !$acc end parallel loop
-            end if
 
             call nvtxEndRange
             !
             ! Loop over all RK steps
             !
             call nvtxStartRange("Loop over RK steps")
+
             do istep = 1,flag_rk_order
                !
                ! Compute variable at substep (y_i = y_n+dt*A_ij*R_j)
@@ -188,19 +166,7 @@ module time_integ
                   aux_e_int(lpoin_w(ipoin)) = (aux_E(lpoin_w(ipoin))/aux_rho(lpoin_w(ipoin)))- &
                      0.5_rp*dot_product(aux_u(lpoin_w(ipoin),:),aux_u(lpoin_w(ipoin),:))
                   aux_pr(lpoin_w(ipoin)) = aux_rho(lpoin_w(ipoin))*(gamma_gas-1.0_rp)*aux_e_int(lpoin_w(ipoin))
-               end do
-               !$acc end parallel loop
-
-               !$acc parallel loop
-               do ipoin = 1,npoin_w
                   aux_Tem(lpoin_w(ipoin)) = aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))*Rgas)
-                  aux_eta(lpoin_w(ipoin)) = (aux_rho(lpoin_w(ipoin))/(gamma_gas-1.0_rp))* &
-                     log(aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))**gamma_gas))
-                  !$acc loop seq
-                  do idime = 1,ndime
-                     f_eta(lpoin_w(ipoin),idime) = aux_u(lpoin_w(ipoin),idime)*aux_eta(lpoin_w(ipoin))
-                  end do
-                  Reta(ipoin) = (-eta(lpoin_w(ipoin),1) + aux_eta(lpoin_w(ipoin)))/dt   - a_i(istep)*Rener(lpoin_w(ipoin))
                end do
                !$acc end parallel loop
 
@@ -231,17 +197,10 @@ module time_integ
                end if
                !
                ! Evaluate wall models
-
+     
                if((flag_activate_wall_model==1) .and. (nboun .ne. 0)) then
-                  !$acc kernels
-                  Rdiff_mom_wall(1:npoin,1:ndime) = 0.0_rp
-                  !$acc end kernels
-                  do icode = 1,numBoundCodes
-                     if(bouCodes2WallModel(icode) == 1) then
-                        call evalWallModel(iCode,nelem,npoin,nboun,connec,bound,point2elem,atoIJK, bou_codes, &
-                           bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,mu_wall,aux_rho,u_wall,aux_u(:,:),Rdiff_mom_wall)
-                     end if
-                  end do
+                  call evalWallModel(bouCodes2WallModel,nelem,npoin,nboun,numBoundCodes,connec,bound,point2elem,atoIJK, bou_codes, &
+                     bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),aux_u(:,:),Rdiff_mom)
                end if
                !
                !
@@ -257,7 +216,7 @@ module time_integ
                !$acc kernels
                Rmass(:) = Rmass(:) + Rdiff_mass(:)
                Rener(:) = Rener(:) + Rdiff_ener(:)
-               Rmom(:,:) = Rmom(:,:) + Rdiff_mom(:,:) + Rdiff_mom_wall(:,:)
+               Rmom(:,:) = Rmom(:,:) + Rdiff_mom(:,:)
                !$acc end kernels
                call nvtxEndRange
 
@@ -294,7 +253,6 @@ module time_integ
                   do idime = 1,ndime
                      Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)
                   end do
-                  Reta_sum(ipoin) = Reta_sum(ipoin) + b_i(istep)*Reta(ipoin)
                end do
                !$acc end parallel loop
                call nvtxEndRange
@@ -317,39 +275,18 @@ module time_integ
             call nvtxEndRange
 
             !
-            ! Update velocity and equations of state
-            !
-            call nvtxStartRange("Update u and EOS")
-
-            !$acc parallel loop
-            do ipoin = 1,npoin_w
-               !$acc loop seq
-               do idime = 1,ndime
-                  f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,pos)*eta(lpoin_w(ipoin),pos)
-               end do
-            end do
-            !$acc end parallel loop
-
-            call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-               gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
-
-
-            if(mpi_size.ge.2) then
-               call nvtxStartRange("MPI_comms_tI")
-               call mpi_halo_atomic_update_float(Reta)
-               call nvtxEndRange
-            end if
-
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
-
-            !
             ! Apply bcs after update
             !
-            !if (nboun .ne. 0) then
+            if (noBoundaries .eqv. .false.) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
                call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos))
                call nvtxEndRange
-            !end if
+            end if
+
+            !
+            ! Update velocity and equations of state
+            !
+            call nvtxStartRange("Update u and EOS")
             
             !$acc parallel loop
             do ipoin = 1,npoin_w
@@ -368,6 +305,28 @@ module time_integ
                Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
                eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0_rp))* &
                   log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
+               !$acc loop seq
+               do idime = 1,ndime
+                  f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
+               end do
+            end do
+            !$acc end parallel loop
+
+            call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+               gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta,alpha)
+
+
+            if(mpi_size.ge.2) then
+               call nvtxStartRange("MPI_comms_tI")
+               call mpi_halo_atomic_update_float(Reta)
+               call nvtxEndRange
+            end if
+
+            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
+
+            !$acc parallel loop
+            do ipoin = 1,npoin_w
+               Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))!-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
             end do
             !$acc end parallel loop
 
@@ -381,22 +340,19 @@ module time_integ
                call nvtxEndRange
             end if
 
-            !$acc parallel loop
-            do ipoin = 1,npoin_w
-               Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
-            end do
-            !$acc end parallel loop
+            call nvtxStartRange("Entropy viscosity evaluation")
             !
             ! Compute entropy viscosity
             !
             call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp, &
                gamma_gas,rho(:,pos),u(:,:,pos),Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e)
+            call nvtxEndRange
             !
             ! Compute subgrid viscosity if active
             !
             if(flag_les == 1) then
                call nvtxStartRange("MU_SGS")
-               if(flag_les_ilsa) then
+               if(flag_les_ilsa == 1) then
                   call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,rho(:,pos),u(:,:,pos),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
                else
                   call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,pos),u(:,:,pos),Ml,mu_sgs)
@@ -404,11 +360,6 @@ module time_integ
                call nvtxEndRange
             end if
 
-#if 0
-           !!!!!!!!!!!!!$acc exit data delete(Rmass(:))
-           !!!!!!!!!!!!!$acc exit data delete(Rener(:))
-           !!!!!!!!!!!!!$acc exit data delete(Rmom(:,:))
-#endif
          end subroutine rk_4_main
 
       end module time_integ

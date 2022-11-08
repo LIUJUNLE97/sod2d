@@ -429,16 +429,22 @@ contains
         real(4), intent(inout) :: floatField(:)
         integer :: i,iNodeL
 
-        !!!$acc parallel loop
+        !$acc parallel loop
         do i=1,numNodesToComm
            iNodeL = matrixCommScheme(i,1)
-           if(abs(floatField(iNodeL)).gt.cond) then 
-            !!!$acc atomic update 
-            floatField(iNodeL) = 0.5*floatField(iNodeL)+aux_floatField_r(i)*0.5
-            !!!$acc end atomic
+           if(abs(aux_floatField_r(i)).gt. cond) then 
+              if(abs(floatField(iNodeL)).gt. cond) then 
+                 !$acc atomic update
+                 floatField(iNodeL) = floatField(iNodeL)+aux_floatField_r(i)
+                 !$acc end atomic
+              else
+                 !$acc atomic write
+                 floatField(iNodeL) = aux_floatField_r(i)
+                 !$acc end atomic
+              end if
            end if
         end do
-        !!!$acc end parallel loop
+        !$acc end parallel loop
     end subroutine copy_from_conditional_ave_rcvBuffer_float
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------

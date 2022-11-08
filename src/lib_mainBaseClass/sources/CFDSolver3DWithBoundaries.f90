@@ -41,13 +41,15 @@ contains
       class(CFDSolver3DWithBoundaries), intent(inout) :: this
    
       if(mpi_rank.eq.0) write(111,*) "--| Boundary types must be defined "
-      STOP(1)
+      stop 1
    end subroutine CFDSolver3DWithBoundaries_fill_BC_Types
 
    subroutine CFDSolver3DWithBoundaries_callTimeIntegration(this)
       class(CFDSolver3DWithBoundaries), intent(inout) :: this
 
-      call rk_4_main(0,0,numElemsInRank,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,point2elem,lnbn,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+      this%noBoundaries = .false.
+
+      call rk_4_main(this%noBoundaries,0,0,numElemsInRank,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,point2elem,lnbn,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
          1,connecParWork,Ngp,dNgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
          rho,u,u_wall,rho_wall,mu_wall,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor, &
          ndofRankPar,numBoundaryNodesRankPar,ldofPar,lbnodesPar,boundPar,bouCodesPar,bouCodesNodesPar,numBoundCodes,wgp_b,boundNormalPar,bouCodes2WallModel,coordPar,normalsAtNodes) ! Optional args

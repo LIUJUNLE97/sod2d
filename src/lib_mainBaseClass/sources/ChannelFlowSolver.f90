@@ -45,9 +45,8 @@ contains
    subroutine ChannelFlowSolver_fill_BC_Types(this)
       class(ChannelFlowSolver), intent(inout) :: this
 
-   !  bouCodes2BCType(1) = bc_type_non_slip_adiabatic
-   bouCodes2BCType(1) = bc_type_slip_wall_model
-
+      !bouCodes2BCType(1) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(1) = bc_type_slip_wall_model
       bouCodes2WallModel(1) = 1
 
    end subroutine ChannelFlowSolver_fill_BC_Types

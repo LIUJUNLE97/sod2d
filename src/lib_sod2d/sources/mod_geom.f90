@@ -47,16 +47,16 @@ module mod_geom
                     write(*,*) "BY SIGMAR NO!"
                  end if
 #endif
-           !      call hexa_edges(iElem,nelem,npoin,connec,coord,ncorner,nedge,dist(1:12,1:ndime))
+            !     call hexa_edges(iElem,nelem,npoin,connec,coord,ncorner,nedge,dist(1:12,1:ndime))
                  !
                  ! Obtain ||dist||_2 for all edges and select minimum size as elem. characteristic size
                  !
-            !     dist2 = 1000000000000.0_rp
-            !     do iedge = 1,nedge
-            !        aux = sqrt(dot_product(dist(iedge,:),dist(iedge,:)))
-            !        dist2 = min(dist2,aux)
-            !     end do
-            !     he = dist2
+             !    dist2 = 1000000000000.0_rp
+             !    do iedge = 1,nedge
+             !       aux = sqrt(dot_product(dist(iedge,:),dist(iedge,:)))
+             !       dist2 = min(dist2,aux)
+              !   end do
+              !   he = dist2
               aux = 1000000000000.0_rp
                do inode = 1,nnode
                   do jnode = 1,nnode

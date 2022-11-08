@@ -7,21 +7,19 @@ module mod_wall_model
 
 contains
 
-   subroutine evalWallModel(surfCode,nelem,npoin,nboun,connec,bound,point2elem,atoIJK, bou_code, &
-         bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,mu_wallex,rho,u,ui,Rdiff)
+   subroutine evalWallModel(bouCodes2WallModel,nelem,npoin,nboun,numBoundCodes,connec,bound,point2elem,atoIJK, bou_code, &
+         bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,ui,Rdiff)
 
       implicit none
 
-      integer(4), intent(in)  :: surfCode,npoin, nboun, bound(nboun,npbou), bou_code(nboun)
+      integer(4), intent(in)  :: bouCodes2WallModel(numBoundCodes),npoin, nboun,numBoundCodes, bound(nboun,npbou), bou_code(nboun)
       integer(4), intent(in)  :: nelem, connec(nelem,nnode),point2elem(npoin),atoIJK(nnode)
-      real(rp),    intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou)
+      real(rp),    intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
       integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
       real(rp),    intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)
-      real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime),ui(npoin,ndime),mu_fluid(npoin), mu_wallex(npoin)
+      real(rp),    intent(in)  :: rho(npoin), ui(npoin,ndime),mu_fluid(npoin)
       real(rp),    intent(in)  :: coord(npoin,ndime), gpvol(1,ngaus,nelem)
       real(rp),    intent(inout) :: Rdiff(npoin,ndime)
-      real(rp)                :: Ftau_l(ndime)
-      real(rp)                :: Ftau_real(ndime)
       real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), tau(ndime,ndime), divU
       integer(4)              :: ibound, idime, igaus, ipbou, ielem,jgaus,kgaus,jjgaus
       integer(4)              :: numBelem, counter, ii, jdime, kdime,iFace
@@ -29,53 +27,69 @@ contains
       real(rp)                 :: bnorm(npbou*ndime), nmag,  rhol,tmag
       real(rp)                :: sig,aux(ndime),aux2(ndime)
       ! wall law stuff
-      real(rp)  :: ulocal(nnode,ndime), y, ul, nul, k, ustar,uistar,tvelo(ndime),uex(ndime),uiex(ndime),auxmag,auxvn
-      integer(4)              :: itera,ldime
-      real(rp)                 :: xmuit,fdvfr,devfr
+      real(rp)  ::  y, ul, nul,uistar,tvelo(ndime),uiex(ndime),auxmag,auxvn,surf
+      integer(4)              :: itera,ldime,icode
+      real(rp)                 :: xmuit,fdvfr,devfr,point(ndime),pointF(ndime),normalF(ndime)
       real(rp)                 :: vkinv,diffd,parco,yplus,onovu,yplu2
       real(rp)                 :: ypele,expye,expyt,oneoe,firsl,ypel2
-      real(rp)                 :: pplus,densi,gradp,grpr2,py,sq,inv,ln4,uplus,vol,surf
-      integer(4) :: atoIJ(16) ! no esta be fer ho aqui
+      real(rp)                 :: pplus,densi,gradp,grpr2,py,sq,inv,ln4,uplus,vol
+      real(rp)                :: ux,uy,uz,px,pz
 
-      atoIJ = [1,4,12,11,2,3,7,8,5,10,13,16,6,9,14,15]
-
-
-      !$acc parallel loop gang private(bnorm,uex,uiex)
+      !$acc parallel loop gang private(bnorm,uiex,point)
       do ibound = 1, nboun
-         if (bou_code(ibound) == surfCode) then
-            bnorm(1:npbou*ndime) = bounorm(ibound,1:npbou*ndime)
-            Ftau_l(1:ndime) = 0.0_rp
+         icode=bou_code(ibound)
+         bnorm(1:npbou*ndime) = bounorm(ibound,1:npbou*ndime)
+         point(1:ndime) = 0.0_rp
+         uiex(1:ndime) = 0.0_rp
+         if (bouCodes2WallModel(icode) == 1) then
             ielem = point2elem(bound(ibound,npbou)) ! I use an internal face node to be sure is the correct element
-            jgaus = connec(ielem,nnode)              ! exchange location
-            uex(1:ndime) = u(jgaus,1:ndime)
-            uiex(1:ndime) = ui(jgaus,1:ndime)
+            
+#if 1
+            px = 0.0_rp
+            py = 0.0_rp
+            pz = 0.0_rp
+            ux = 0.0_rp
+            uy = 0.0_rp
+            uz = 0.0_rp
+            !$acc loop vector reduction(+:px,py,pz,ux,uy,uz)
+            do igaus = 1,nnode
+               px = px + coord(connec(ielem,igaus),1)
+               py = py + coord(connec(ielem,igaus),2)
+               pz = pz + coord(connec(ielem,igaus),3)
+               ux = ux + ui(connec(ielem,igaus),1)
+               uy = uy + ui(connec(ielem,igaus),2)
+               uz = uz + ui(connec(ielem,igaus),3)
+            end do
+            point(1) = px/real(nnode,rp)
+            point(2) = py/real(nnode,rp)
+            point(3) = pz/real(nnode,rp)
+            uiex(1) = ux/real(nnode,rp)
+            uiex(2) = uy/real(nnode,rp)
+            uiex(3) = uz/real(nnode,rp)
+#else
+            point(1:ndime) =coord(connec(ielem,nnode),1:ndime)
+            uiex(1:ndime) = ui(connec(ielem,nnode),1:ndime)
+#endif            
 
-            !$acc loop vector private(Ftau_l,aux)
+            !$acc loop vector private(aux,pointF,normalF,tvelo)
             do igaus = 1,npbou
-               kgaus = bound(ibound,igaus) ! node at the boundary
-               rhol = rho(kgaus)
-               nul = mu_fluid(kgaus)/rhol
-               !nul = mu_wallex(kgaus)/rhol
 
-               sig=1.0_rp
-               aux(1) = bnorm((igaus-1)*ndime+1)
-               aux(2) = bnorm((igaus-1)*ndime+2)
-               aux(3) = bnorm((igaus-1)*ndime+3)
-               auxmag = sqrt(dot_product(aux(:),aux(:)))
-               if(dot_product(coord(jgaus,:)-coord(kgaus,:), aux(:)) .lt. 0.0_rp ) then
-                  sig=-1.0_rp
-               end if
-               !$acc loop seq
-               do idime = 1,ndime     
-                  aux(idime) = aux(idime)*sig/auxmag
+               pointF(1:ndime) = 0.0_rp
+               normalF(1:ndime) = 0.0_rp
+               rhol = rho(bound(ibound,igaus))
+               nul = mu_fluid(bound(ibound,igaus))/rhol
+               !acc loop seq
+               do idime=1,ndime
+                  pointF(idime) = coord(bound(ibound,igaus),idime)
+                  normalF(idime) = normalsAtNodes(bound(ibound,igaus),idime)
                end do
 
-               y = abs(dot_product(aux,coord(jgaus,:)-coord(kgaus,:)))
+               y = abs(dot_product(normalF,point(:)-pointF(:)))
 
-               auxvn = dot_product(aux,uiex)
+               auxvn = dot_product(normalF,uiex)
                !$acc loop seq
                do idime = 1,ndime     
-                  tvelo(idime) = uiex(idime) - auxvn*aux(idime)
+                  tvelo(idime) = uiex(idime) - auxvn*normalF(idime)
                end do
 
                ul = sqrt(dot_product(tvelo(:),tvelo(:)))
@@ -113,78 +127,35 @@ contains
                   uistar = 0.0_rp
                end if
 
-#if 0
-               auxvn = dot_product(aux,uex)
-               !$acc loop seq
-               do idime = 1,ndime     
-                  tvelo(idime) = uex(idime) - auxvn*aux(idime)
-               end do
-
-               ul = sqrt(dot_product(tvelo(:),tvelo(:)))
-
-               if( y > 0.0_rp .and. ul > 1.0e-10 ) then            
-                  ustar = sqrt( ul * nul / y )
-                  if( ustar * y / nul > 5.0_rp ) then
-                     vkinv = 1.0_rp / 0.41_rp
-                     onovu = 1.0_rp / ul
-                     xmuit = y / nul
-                     itera = 0
-                     parco = 1.0_rp
-                     oneoe = 1.0_rp/11.0_rp
-                     do while( parco >= 1.0e-6_rp .and. itera < 100 )
-                        itera = itera + 1
-                        ustar = max(ustar,0.0_rp)
-                        yplus = ustar * xmuit
-                        ypele = yplus * oneoe
-                        ypel2 = min(ypele,20.0_rp)
-                        expye = exp(-ypel2)
-                        yplu2 = min(yplus,70.0_rp)
-                        expyt = exp(-yplu2 * 0.33_rp) 
-                        firsl = vkinv*log(1.0_rp + 0.4_rp*yplus)
-                        fdvfr = ustar*(firsl+7.8_rp*(1.0_rp-expye-ypele*expyt))-ul
-                        diffd = firsl + vkinv*0.4_rp*yplus/(1.0_rp+0.4_rp*yplus)&
-                           & + 7.8_rp*(1.0_rp-expye*(1.0_rp-ypele)&
-                           &  - ypele*expyt*(2.0_rp-yplus*0.33_rp))               
-                        devfr = -fdvfr/diffd
-                        parco = abs(devfr*onovu)
-
-                        ustar= ustar + devfr
-                     end do
-                  end if
-               else
-                  ustar = 0.0_rp
-               end if               
-
-               if( y*ustar/nul < 5.0_rp ) then
-                  tmag  = rhol*nul/y 
-               else
-                  tmag = rhol*uistar*ustar/ul
-               end if
-#else 
-
                if( y*uistar/nul < 5.0_rp ) then
                   tmag  = rhol*nul/y 
                else
                   tmag = rhol*uistar*uistar/ul
                end if
-#endif               
 
-               !$acc loop seq 
-               do idime = 1,ndime
-                  Ftau_l(idime) = -tmag*tvelo(idime)
-               end do
-
+               aux(1) = bnorm((igaus-1)*ndime+1)
+               aux(2) = bnorm((igaus-1)*ndime+2)
+               aux(3) = bnorm((igaus-1)*ndime+3)
+               auxmag = sqrt(dot_product(aux(:),aux(:)))
                !$acc loop seq
                do idime = 1,ndime
                   !$acc atomic update
-                  Rdiff(bound(ibound,igaus),idime) = Rdiff(bound(ibound,igaus),idime)-auxmag*wgp_b(igaus)*Ftau_l(idime)
+                  Rdiff(bound(ibound,igaus),idime) = Rdiff(bound(ibound,igaus),idime)+auxmag*wgp_b(igaus)*tmag*tvelo(idime)
                   !$acc end atomic
                end do
             end do
+            !!$acc loop vector 
+            ! do igaus = 1,nnode
+            !    !$acc loop seq
+            !    do idime = 1,ndime
+            !       !$acc atomic update
+            !       Rdiff(connec(ielem,igaus),idime) = Rdiff(connec(ielem,igaus),idime)+gpvol(1,igaus,ielem)*tmag*tvelo(idime)*(surf/vol)
+            !       !$acc end atomic
+            !    end do
+            ! end do
          end if
       end do
       !$acc end parallel loop
-
 
    end subroutine evalWallModel
 

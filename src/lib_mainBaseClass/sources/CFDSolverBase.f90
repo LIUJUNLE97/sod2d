@@ -89,6 +89,7 @@ module CFDSolverBase_mod
       real(rp) , public                   :: cfl_conv, cfl_diff, acutim
       real(rp) , public                   :: leviCivi(3,3,3), surfArea, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
       real(rp) , public                   :: dt, Cp, Rgas, gamma_gas,Prt,tleap,time
+      logical  , public                   :: noBoundaries
 
    contains
       procedure, public :: printDt => CFDSolverBase_printDt
@@ -101,6 +102,7 @@ module CFDSolverBase_mod
       procedure, public :: evalCharLength => CFDSolverBase_evalCharLength
       !procedure, public :: splitBoundary => CFDSolverBase_splitBoundary
       procedure, public :: boundaryFacesToNodes => CFDSolverBase_boundaryFacesToNodes
+      procedure, public :: normalFacesToNodes => CFDSolverBase_normalFacesToNodes
       procedure, public :: fillBCTypes => CFDSolverBase_fill_BC_Types
       procedure, public :: allocateVariables => CFDSolverBase_allocateVariables
       procedure, public :: evalOrLoadInitialConditions => CFDSolverBase_evalOrLoadInitialConditions
@@ -125,6 +127,7 @@ module CFDSolverBase_mod
 
       procedure :: open_log_file
       procedure :: close_log_file
+      procedure :: flush_log_file
       procedure :: eval_vars_after_load_hdf5_resultsFile
    end type CFDSolverBase
 contains
@@ -229,6 +232,7 @@ contains
 
    end subroutine CFDSolverBase_openMesh
 #if 0
+   TODO: DELETE THIS, DOUBLE CHECK BUT REMOVE
    subroutine CFDSolverBase_splitBoundary(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), allocatable    :: aux1(:)
@@ -308,11 +312,81 @@ contains
    
    end subroutine CFDSolverBase_fill_BC_Types
 
+   subroutine CFDSolverBase_normalFacesToNodes(this)
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4), allocatable    :: aux1(:)
+      integer(4) :: iNodeL,iBound,ipbou,ielem,jgaus,kgaus,idime
+      real(rp) :: aux(3), normaux,sig
+
+      allocate(normalsAtNodes(numNodesRankPar,ndime))
+
+      !$acc kernels
+      normalsAtNodes(:,:) = 0.0_rp
+      !$acc end kernels
+      !$acc parallel loop gang 
+      do iBound = 1,numBoundsRankPar
+         if(bouCodes2WallModel(bouCodesPar(iBound)) == 1) then
+            ielem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
+            jgaus = connecParWork(ielem,nnode)         ! internal node
+            !$acc loop vector private(aux)
+            do ipbou = 1,npbou
+               kgaus = boundPar(iBound,ipbou) ! node at the boundary
+               sig=1.0_rp
+               aux(1) = boundNormalPar(iBound,(ipbou-1)*ndime+1)
+               aux(2) = boundNormalPar(iBound,(ipbou-1)*ndime+2)
+               aux(3) = boundNormalPar(iBound,(ipbou-1)*ndime+3)
+               normaux = sqrt(dot_product(aux,aux))
+               if(dot_product(coordPar(jgaus,:)-coordPar(kgaus,:), aux(:)) .lt. 0.0_rp ) then
+                  sig=-1.0_rp
+               end if
+               !$acc loop seq
+               do idime = 1,ndime     
+                  aux(idime) = aux(idime)*sig/normaux
+               end do
+               normaux = sqrt(dot_product(aux,aux))
+               if(normaux .gt. 1e-8) then
+                  normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1) + aux(1)
+                  normalsAtNodes(kgaus,2) = normalsAtNodes(kgaus,2) + aux(2)
+                  normalsAtNodes(kgaus,3) = normalsAtNodes(kgaus,3) + aux(3)
+               else  
+                  normalsAtNodes(kgaus,1) = aux(1)
+                  normalsAtNodes(kgaus,2) = aux(2)
+                  normalsAtNodes(kgaus,3) = aux(3)
+               end if
+            end do
+         end if
+      end do
+      !$acc end parallel loop
+
+      if(mpi_size.ge.2) then
+         call mpi_halo_conditional_ave_update_float_iSendiRcv(1e-8,normalsAtNodes(:,1))
+         call mpi_halo_conditional_ave_update_float_iSendiRcv(1e-8,normalsAtNodes(:,2))
+         call mpi_halo_conditional_ave_update_float_iSendiRcv(1e-8,normalsAtNodes(:,3))
+      end if
+
+      !$acc parallel loop  private(aux)
+      do iNodeL = 1,numNodesRankPar
+         aux(1) = normalsAtNodes(iNodeL,1)
+         aux(2) = normalsAtNodes(iNodeL,2)
+         aux(3) = normalsAtNodes(iNodeL,3)
+         normaux = sqrt(dot_product(aux,aux))
+
+         if(normaux .gt. 1e-10) then
+            normalsAtNodes(iNodeL,1) = aux(1)/normaux
+            normalsAtNodes(iNodeL,2) = aux(2)/normaux
+            normalsAtNodes(iNodeL,3) = aux(3)/normaux
+         end if
+      end do
+      !$acc end parallel loop
+
+
+   end subroutine CFDSolverBase_normalFacesToNodes
+
    subroutine CFDSolverBase_boundaryFacesToNodes(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), allocatable    :: aux1(:)
-      integer(4) :: iNodeL,iBound,iboun,ipbou
-      real(rp) :: aux(3), normaux
+      integer(4) :: iNodeL,iBound,ipbou,ielem,jgaus,kgaus,idime
+      real(rp) :: aux(3), normaux,sig
 
       allocate(bouCodesNodesPar(numNodesRankPar))
       allocate(aux1(numNodesRankPar))
@@ -348,51 +422,6 @@ contains
          end if
       end do
       !$acc end parallel loop
-
-      allocate(normalsAtNodes(numNodesRankPar,ndime))
-
-      !$acc kernels
-      normalsAtNodes(:,:) = 0.0_rp
-      !$acc end kernels
-      !$acc parallel loop gang 
-      do iBound = 1,numBoundsRankPar
-         !$acc loop vector
-         do ipbou = 1,npbou
-            if(abs(boundNormalPar(iBound,(ipbou-1)*ndime+1)) .gt. 0.0_rp) then
-               normalsAtNodes(boundPar(iBound,ipbou),1) = normalsAtNodes(boundPar(iBound,ipbou),1)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)*ndime+1)
-            end if
-            if(abs(boundNormalPar(iBound,(ipbou-1)*ndime+2)) .gt. 0.0_rp) then
-               normalsAtNodes(boundPar(iBound,ipbou),2) = normalsAtNodes(boundPar(iBound,ipbou),2)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)*ndime+2)
-            end if
-            if(abs(boundNormalPar(iBound,(ipbou-1)*ndime+3)) .gt. 0.0_rp) then
-               normalsAtNodes(boundPar(iBound,ipbou),3) = normalsAtNodes(boundPar(iBound,ipbou),3)*0.5 + 0.5*boundNormalPar(iBound,(ipbou-1)*ndime+3)
-            end if
-         end do
-      end do
-      !$acc end parallel loop
-
-      if(mpi_size.ge.2) then
-         call mpi_halo_conditional_ave_update_float_iSendiRcv(0.0_rp,normalsAtNodes(:,1))
-         call mpi_halo_conditional_ave_update_float_iSendiRcv(0.0_rp,normalsAtNodes(:,2))
-         call mpi_halo_conditional_ave_update_float_iSendiRcv(0.0_rp,normalsAtNodes(:,3))
-      end if
-
-      !$acc parallel loop  private(aux)
-      do iNodeL = 1,numNodesRankPar
-         aux(1) = normalsAtNodes(iNodeL,1)
-         aux(2) = normalsAtNodes(iNodeL,2)
-         aux(3) = normalsAtNodes(iNodeL,3)
-
-         normaux = sqrt(dot_product(aux,aux))
-
-         if(normaux .gt. 1e-10) then
-            normalsAtNodes(iNodeL,1) = aux(1)/normaux
-            normalsAtNodes(iNodeL,2) = aux(2)/normaux
-            normalsAtNodes(iNodeL,3) = aux(3)/normaux
-         end if
-      end do
-      !$acc end parallel loop
-
 
       deallocate(aux1)
 
@@ -543,7 +572,7 @@ contains
            !$acc end kernels
         else
            if(mpi_rank.eq.0) write(111,*) "--| DIFFUSION FLAG MUST BE EITHER 0 OR 1, NOT: ",flag_real_diff
-           STOP(1)
+           stop 1
         end if
 
    end subroutine CFDSolverBase_evalInitialViscosity
@@ -572,10 +601,10 @@ contains
       !*********************************************************************!
       if(mpi_rank.eq.0) write(*,*) "--| Evaluating initial dt..."
       if (flag_real_diff == 1) then
-         call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParOrig,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
+         call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
          if(mpi_rank.eq.0) write(111,*) "--| TIME STEP SIZE dt := ",this%dt,"s"
       else
-         call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParOrig,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
+         call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
          if(mpi_rank.eq.0) write(111,*) "--| TIME STEP SIZE dt := ",this%dt,"s"
       end if
 
@@ -659,7 +688,7 @@ contains
 
       !----------------------------------------------------------------------------
       !     COORDS
-      if(not(this%loadMesh)) then
+      if(this%loadMesh .eqv. .false.) then
          if(mpi_rank.eq.0) write(*,*) "--| Interpolating nodes coordinates..."
          allocate(aux_1(numNodesRankPar,ndime))
          aux_1(:,:) = coordPar(:,:)
@@ -826,6 +855,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       !integer(4) ipoin
 
+      !TODO: REVIEW THIS SHIT
       !REVISAR FUNCIONS PREVIES SI NO FAIG EL WORKING LIST AQUI! SOBRETOT PERQUE EM CANVIA EL CONNEC!
       !call create_working_lists() !located in mod_mpi_mesh, rethink name of the func...
 #if 0
@@ -922,7 +952,7 @@ contains
    subroutine CFDSolverBase_callTimeIntegration(this)
       class(CFDSolverBase), intent(inout) :: this
       if(mpi_rank.eq.0) write(111,*) " Time integration should be overwritted"
-      STOP(1)
+      stop 1
 
    end subroutine CFDSolverBase_callTimeIntegration
 
@@ -930,7 +960,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4)              , intent(in)   :: istep
       if(mpi_rank.eq.0) write(111,*) " Save Averages should be overwritted"
-      STOP(1)
+      stop 1
 
    end subroutine CFDSolverBase_saveAverages
 
@@ -945,7 +975,7 @@ contains
       integer(4)              , intent(in)   :: istep
 
       if(mpi_rank.eq.0) write(111,*) " Save Posprocessing Fields should be overwritted"
-      STOP(1)
+      stop 1
 
    end subroutine CFDSolverBase_savePosprocessingFields
 
@@ -1134,6 +1164,27 @@ contains
 
    end subroutine close_log_file
 
+   subroutine flush_log_file(this)
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      integer :: iCode
+
+      if(mpi_rank.eq.0) then
+         flush(unit=111)
+
+         if(this%doGlobalAnalysis) then
+            flush(unit=666)
+         end if
+
+         if (isMeshBoundaries) then
+            do iCode = 1,numBoundCodes
+               flush(unit=888+iCode)
+            end do
+         end if
+      end if
+
+   end subroutine flush_log_file
+
    subroutine eval_vars_after_load_hdf5_resultsFile(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
@@ -1238,7 +1289,6 @@ contains
 
         call this%evalViscosityFactor()
 
-
         ! Eval shape Functions
 
         call this%evalShapeFunctions()
@@ -1275,16 +1325,33 @@ contains
 
         call this%evalPeriodic()
 
+#if 0
+   !en la nova versio el eval initial dt es fa mes endavant
+   abans es feia aqui, deixar comentat de moment
+   testejar i fer volar!
         ! Eval initial time step
 
         call this%evalInitialDt()
 
+#endif
         ! Eval mass 
 
         call this%evalMass()
 
         ! Eval first output
         if(this%isFreshStart) call this%evalFirstOutput()
+
+        call this%flush_log_file()
+
+        ! Eval BoundaryFacesToNodes
+
+        call  this%normalFacesToNodes()
+
+        ! Eval initial time step
+
+        call this%evalInitialDt()
+
+        call this%flush_log_file()
 
         ! Do the time iteration
 
