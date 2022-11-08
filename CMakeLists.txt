@@ -8,7 +8,7 @@ set(TEST_VERSION_PATCH "0")
 set(TEST_VERSION "${TEST_VERSION_MAJOR}.${TEST_VERSION_MINOR}.${TEST_VERSION_PATCH}")
 
 # Options
-#option(UNIT_TESTING "Enable unit tests" ON)
+option(UNIT_TESTING "Enable unit tests" OFF)
 option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
 option(USE_GEMPA "Compile using GEMPA" ON)
@@ -17,14 +17,12 @@ option(USE_PREDEFINED_COMPILERS "Use predefined compilers" ON)
 option(USE_PCPOWER "Compiling in PC-POWER" OFF)
 option(USE_MN "Compiling in MareNostrum" OFF)
 
-option(USE_GPU "Compile using GPU" OFF)
-option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
+option(USE_GPU "Compile using GPU" ON)
+option(USE_MEM_MANAGED "Compile using Mem managed" ON)
 
 # Folder with files configuring extra CMake options
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
-# Configure compiler options
-include(compilerOps)
 
 # Set project name, version and languages
 project(sod2d LANGUAGES C CXX Fortran)
@@ -32,30 +30,14 @@ project(sod2d LANGUAGES C CXX Fortran)
 # Configure MPI module
 include(mpi)
 
+# Configure compiler options
+include(compilerOps)
+
 # Configure HDF5 module
 include(hdf5)
 
 # Include external projects
 include(ExternalProject)
-
-# Set library types to be shared
-set(LIBRARY_TYPE SHARED)
-#set(LIBRARY_TYPE STATIC)
-
-# Set a default build type
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Release)
-endif()
-
-# Set compilation config for certain compilers
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wsign-conversion -Wold-style-cast")
-    set(CMAKE_CXX_FLAGS_DEBUG "-g")
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3")
-endif()
-
-# Set C/C++ standard
-set(CMAKE_CXX_STANDARD 11)
 
 # use, i.e. don't skip the full RPATH for the build tree
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
@@ -87,7 +69,7 @@ add_subdirectory(tool_postProc)
 #add_subdirectory(unitt)
 
 # Enable testing
-#if(UNIT_TESTING)
-#    enable_testing()
-#    add_subdirectory(tests)
-#endif()
+if(UNIT_TESTING)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
