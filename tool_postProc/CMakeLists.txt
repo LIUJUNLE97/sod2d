@@ -66,8 +66,5 @@ set (CMAKE_INSTALL_PREFIX ${default_prefix} CACHE STRING
 # FFLAGS depend on the compiler
 get_filename_component (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
 
-set(CMAKE_Fortran_FLAGS         "-cpp -lstdc++ -DGEMPAINTERFACE -DNOACC")
-set(CMAKE_Fortran_FLAGS_RELEASE "-cpp -lstdc++ -DGEMPAINTERFACE -DNOACC")
-set(CMAKE_Fortran_FLAGS_DEBUG   "-cpp -lstdc++ -DGEMPAINTERFACE -DNOACC")
-
-
+set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-DGEMPAINTERFACE")
+string(REPLACE ";" " " CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}")

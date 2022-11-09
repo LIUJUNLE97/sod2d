@@ -13,12 +13,12 @@ option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
 option(USE_GEMPA "Compile using GEMPA" ON)
 
-option(USE_PREDEFINED_COMPILERS "Use predefined compilers" ON)
+option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
 option(USE_PCPOWER "Compiling in PC-POWER" OFF)
 option(USE_MN "Compiling in MareNostrum" OFF)
 
-option(USE_GPU "Compile using GPU" ON)
-option(USE_MEM_MANAGED "Compile using Mem managed" ON)
+option(USE_GPU "Compile using GPU" OFF)
+option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
 
 # Folder with files configuring extra CMake options
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
