@@ -599,7 +599,7 @@ contains
       !*********************************************************************!
       ! Compute initial time-step size                                      !
       !*********************************************************************!
-
+#if 0
       if(flag_les == 1) then
          call nvtxStartRange("MU_SGS")
          if(flag_les_ilsa == 1) then
@@ -610,7 +610,7 @@ contains
          end if
          call nvtxEndRange
       end if
-
+#endif
       if(mpi_rank.eq.0) write(111,*) "--| Evaluating initial dt..."
       if (flag_real_diff == 1) then
          call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
