@@ -71,7 +71,7 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "Intel" OR CMAKE_C_COMPILER_ID STREQUAL "Int
 		set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} "-xCORE-AVX2 -mtune=native")
 		set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "-xCORE-AVX2 -mtune=native")
 	endif()
-elseif(CMAKE_C_COMPILER_ID STREQUAL "NVHPC")
+elseif(CMAKE_C_COMPILER_ID STREQUAL "NVHPC" OR CMAKE_C_COMPILER_ID STREQUAL "PGI")
 	message("-- NVHPC compiler detected")
 	# Common NVHPC+MPI flags
 	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-cpp -lstdc++ -lmpi_cxx -D_USE_NVTX -lnvToolsExt -cuda -Minfo=accel")
@@ -114,6 +114,7 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "NVHPC")
 		endif()
 	endif()
 else()
+	message("this shit: " ${CMAKE_C_COMPILER_ID})
 	message(FATAL_ERROR "Unknown compiler")
 endif()
 

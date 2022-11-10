@@ -599,14 +599,25 @@ contains
       !*********************************************************************!
       ! Compute initial time-step size                                      !
       !*********************************************************************!
-      if(mpi_rank.eq.0) write(*,*) "--| Evaluating initial dt..."
+
+      if(flag_les == 1) then
+         call nvtxStartRange("MU_SGS")
+         if(flag_les_ilsa == 1) then
+            this%dt = 1.0_rp !To avoid 0.0 division inside sgs_ilsa_visc calc
+            call sgs_ilsa_visc(numElemsInRank,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
+         else
+            call sgs_visc(numElemsInRank,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
+         end if
+         call nvtxEndRange
+      end if
+
+      if(mpi_rank.eq.0) write(111,*) "--| Evaluating initial dt..."
       if (flag_real_diff == 1) then
          call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
-         if(mpi_rank.eq.0) write(111,*) "--| TIME STEP SIZE dt := ",this%dt,"s"
       else
          call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
-         if(mpi_rank.eq.0) write(111,*) "--| TIME STEP SIZE dt := ",this%dt,"s"
       end if
+      if(mpi_rank.eq.0) write(111,*) "--| Initial time-step dt := ",this%dt,"s"
 
    end subroutine CFDSolverBase_evalInitialDt
 
