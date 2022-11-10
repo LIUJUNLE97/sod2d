@@ -33,9 +33,9 @@ if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
 		message(FATAL_ERROR "GPU not supported with GNU compiler")
 	endif()
 	# Common GNNU+MPI flags
-	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-DNOACC")
-	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-DNOACC")
-	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-DNOACC -ffree-line-length-512")
+	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-cpp -DNOACC")
+	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-cpp -DNOACC")
+	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-cpp -DNOACC -ffree-line-length-none")
 	# Debug
 	set(CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS_DEBUG} "-Wall -Wextra -Wpedantic")
 	set(CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG} "-Wall -Wextra -Wpedantic")
@@ -84,7 +84,7 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "NVHPC" OR CMAKE_C_COMPILER_ID STREQUAL "PGI
 	# Release
 	set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "-fast")
 	set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} "-fast")
-	set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortrran_FLAGS_RELEASE} "-fast")
+	set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "-fast")
 	# GPU options
 	if(USE_GPU AND USE_MEM_MANAGED)
 		message("Setting up ACC flags with managed memory")
