@@ -46,7 +46,8 @@ contains
       class(BluffBody3DSolver), intent(inout) :: this
 
       bouCodes2BCType(1) = bc_type_inlet
-#if 0 
+#if 1
+      if(mpi_rank.eq.0) write(111,*) "--| BOCOS for carCoarse..."
       !For carCoarse case-----------------------------------------------------
       bouCodes2BCType(2) = bc_type_non_slip_adiabatic
       bouCodes2BCType(3) = bc_type_non_slip_adiabatic
@@ -62,6 +63,7 @@ contains
       bouCodes2WallModel(5) = 0
 #else
       !For auto case---------------------------------------------------------
+      if(mpi_rank.eq.0) write(111,*) "--| BOCOS for auto case.."
       bouCodes2BCType(2) = bc_type_non_slip_adiabatic!bc_type_slip_wall_model
       bouCodes2BCType(3) = bc_type_non_slip_adiabatic
       bouCodes2BCType(4) = bc_type_non_slip_adiabatic!bc_type_slip_wall_model
@@ -82,11 +84,13 @@ contains
       class(BluffBody3DSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%gmsh_file_path,*) "./mesh/"!"./mesh_car/"!
+      write(this%gmsh_file_path,*) "./mesh_car/"
+      !write(this%gmsh_file_path,*) "./mesh/"
       write(this%gmsh_file_name,*) "auto" 
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "auto"!"carCoarse"!
+      !write(this%mesh_h5_file_name,*) "auto"
+      write(this%mesh_h5_file_name,*) "carCoarse"!
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -94,21 +98,22 @@ contains
       this%isPeriodic = .false.
 
       this%loadMesh = .true.
+      !this%loadMesh = .false.
       this%loadResults = .false.
 
       this%continue_oldLogs = .false.
       this%load_step = 1
 
-      this%nstep = 9000001 !250001
+      this%nstep = 50001 !250001
       this%cfl_conv = 0.5_rp !0.1_rp
       this%cfl_diff = 0.5_rp !0.1_rp
 
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 10000!25 ! Saving interval, TODO: input
+      this%nleap = 25000!25 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 1  ! Saving interval, TODO: input
+      this%nleap2 = 25  ! Saving interval, TODO: input
       this%nleapAVG = 150000
 
       this%Cp = 1004.0_rp
@@ -143,12 +148,10 @@ contains
       logical :: readFiles
 
       readFiles = .false.
-      !this%interpInitialResults = .true.
 
       if(readFiles) then
-         this%interpInitialResults = .true.
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
-         call read_veloc_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),matGidSrlOrdered)
+         call read_veloc_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
       else
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
@@ -203,24 +206,24 @@ contains
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          mu_factor(iNodeL) = flag_mu_factor
-        if(coordPar(iNodeL,1)<-4.5_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
-        end if
-        !if(coordPar(iNodeL,2)>0.9_rp) then
-        !   mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
-        !end if
-        !if(coordPar(iNodeL,3)<-8.0_rp) then
-        !   mu_factor(iNodeL) = flag_mu_factor*10.0_rp
-        !end if
-        !if(coordPar(iNodeL,3)>1.2_rp) then
-        !   mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
-        !end if
-        !if(coordPar(iNodeL,2)<-0.9_rp) then
-        !   mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
-        !end if
-        if(coordPar(iNodeL,1)>5.5_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
-        end if
+         if(coordPar(iNodeL,1)<-4.5_rp) then
+            mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+         end if
+         !if(coordPar(iNodeL,2)>0.9_rp) then
+         !   mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+         !end if
+         !if(coordPar(iNodeL,3)<-8.0_rp) then
+         !   mu_factor(iNodeL) = flag_mu_factor*10.0_rp
+         !end if
+         !if(coordPar(iNodeL,3)>1.2_rp) then
+         !   mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+         !end if
+         !if(coordPar(iNodeL,2)<-0.9_rp) then
+         !   mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+         !end if
+         if(coordPar(iNodeL,1)>5.5_rp) then
+            mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+         end if
       end do
       !$acc end parallel loop
 

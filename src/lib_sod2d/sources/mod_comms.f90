@@ -1,5 +1,10 @@
 module mod_comms
     use mod_mpi_mesh
+
+#define _SENDRCV_ 0
+#define _ISENDIRCV_ 1
+#define _PUTFENCE_ 0
+
     implicit none
 
     !---- for the comms---
@@ -35,6 +40,16 @@ contains
         logical, intent(in) :: useInt,useFloat,useDouble
         logical :: useFenceFlags,useAssertNoCheckFlags,useLockBarrier
         logical :: useFloat5=.false. !i think that will dissapear... but...
+
+#if _SENDRCV_
+        write(111,*) "--| Comm. scheme: Send-Recv"
+#endif
+#if _ISENDIRCV_
+        write(111,*) "--| Comm. scheme: iSend-iRecv"
+#endif
+#if _PUTFENCE_
+        write(111,*) "--| Comm. scheme: Put(Fence)"
+#endif
 
         isInt=.false.
         isFloat=.false.
@@ -448,26 +463,28 @@ contains
     end subroutine copy_from_conditional_ave_rcvBuffer_float
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
-#define _ISENDIRCV_ 1
-#define _PUTFENCE_ 0
 
     subroutine mpi_halo_atomic_update_int(intField)
         implicit none
         integer, intent(inout) :: intField(:)
-
+#if _SENDRCV_
+        call mpi_halo_atomic_update_int_sendRcv(intField)
+#endif
 #if _ISENDIRCV_
         call mpi_halo_atomic_update_int_iSendiRcv(intField)
 #endif
 #if _PUTFENCE_
         call mpi_halo_atomic_update_int_put_fence(intField)
 #endif
-
     end subroutine mpi_halo_atomic_update_int
 
     subroutine mpi_halo_atomic_update_float(floatField)
         implicit none
         real(4), intent(inout) :: floatField(:)
 
+#if _SENDRCV_
+        call mpi_halo_atomic_update_float_sendRcv(floatField)
+#endif
 #if _ISENDIRCV_
         call mpi_halo_atomic_update_float_iSendiRcv(floatField)
 #endif
@@ -481,6 +498,9 @@ contains
         implicit none
         real(8), intent(inout) :: doubleField(:)
 
+#if _SENDRCV_
+        call mpi_halo_atomic_update_double_sendRcv(doubleField)
+#endif
 #if _ISENDIRCV_
         call mpi_halo_atomic_update_double_iSendiRcv(doubleField)
 #endif

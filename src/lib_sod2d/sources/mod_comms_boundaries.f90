@@ -81,7 +81,7 @@ contains
             deallocate(aux_bnd_intField_s)
             deallocate(aux_bnd_intField_r)
 
-            call close_window_intField_bnd()            
+            !call close_window_intField_bnd()            
         end if
 
         if(bnd_isFloat) then
@@ -90,7 +90,7 @@ contains
             deallocate(aux_bnd_floatField_s)
             deallocate(aux_bnd_floatField_r)
 
-            call close_window_floatField_bnd()
+            !call close_window_floatField_bnd()
         end if
 
         if(bnd_isDouble) then
@@ -99,7 +99,7 @@ contains
             deallocate(aux_bnd_doubleField_s)
             deallocate(aux_bnd_doubleField_r)
 
-            call close_window_doubleField_bnd()
+            !call close_window_doubleField_bnd()
         end if
 
     end subroutine end_comms_bnd

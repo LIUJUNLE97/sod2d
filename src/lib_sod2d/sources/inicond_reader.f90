@@ -2,6 +2,7 @@ module inicond_reader
 
       use mod_constants
       use mod_utils
+      use mod_maths
       use mod_mpi
       use mod_comms
 
@@ -157,15 +158,18 @@ module inicond_reader
       end do
    end subroutine avg_randomField_in_sharedNodes_Par
 
-   subroutine read_densi_from_file_Par(numNodesRankPar,totalNumNodesSrl,file_path,rho,matGidSrlOrdered)
+   subroutine read_densi_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,file_path,rho,connecParOrig,Ngp_l,matGidSrlOrdered)
       implicit none
       character(500), intent(in) :: file_path
-      integer(4), intent(in)     :: numNodesRankPar,totalNumNodesSrl
+      integer(4), intent(in)     :: numElemsInRank,numNodesRankPar,totalNumNodesSrl
       real(rp), intent(out)      :: rho(numNodesRankPar)
+      integer(4), intent(in)     :: connecParOrig(numElemsInRank,nnode)
+      real(rp), intent(in)       :: Ngp_l(ngaus,nnode)
       integer, intent(in)        :: matGidSrlOrdered(numNodesRankPar,2)
       character(500)             :: file_type, file_name
-      integer(4)                 :: iLine,iNodeL,iNodeGSrl,auxCnt,readInd
+      integer(4)                 :: iLine,iNodeL,iElem,iNodeGSrl,igp,idime,auxCnt,readInd
       real(8)                    :: readValue
+      real(rp)                   :: aux_2(numNodesRankPar)
 
       write(file_type,*) ".alya"
       write(file_name,*) "DENSI"
@@ -186,20 +190,31 @@ module inicond_reader
             end if
          end if         
       end do
-      
+
       close(99)
+
+      if(mpi_rank.eq.0) write(*,*) "--| Interpolating density from file coords to new mesh coords..."
+      aux_2(:) = rho(:)
+      do iElem = 1,numElemsInRank
+         do igp = (2**ndime)+1,nnode
+            call var_interpolate(aux_2(connecParOrig(iElem,:)),Ngp_l(igp,:),rho(connecParOrig(iElem,igp)))
+         end do
+      end do
 
    end subroutine read_densi_from_file_Par
 
-   subroutine read_veloc_from_file_Par(numNodesRankPar,totalNumNodesSrl,file_path,u,matGidSrlOrdered)
+   subroutine read_veloc_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,file_path,u,connecParOrig,Ngp_l,matGidSrlOrdered)
       implicit none
       character(500), intent(in) :: file_path
-      integer(4), intent(in)     :: numNodesRankPar,totalNumNodesSrl
+      integer(4), intent(in)     :: numElemsInRank,numNodesRankPar,totalNumNodesSrl
       real(rp), intent(out)      :: u(numNodesRankPar,ndime)
+      integer(4), intent(in)     :: connecParOrig(numElemsInRank,nnode)
+      real(rp), intent(in)       :: Ngp_l(ngaus,nnode)
       integer, intent(in)        :: matGidSrlOrdered(numNodesRankPar,2)
       character(500)             :: file_type, file_name
-      integer(4)                 :: iLine,iNodeL,iNodeGSrl,auxCnt,readInd
+      integer(4)                 :: iLine,iNodeL,iElem,iNodeGSrl,igp,idime,auxCnt,readInd
       real(8)                    :: readValue_ux,readValue_uy,readValue_uz
+      real(rp)                   :: aux_1(numNodesRankPar,ndime)
 
       write(file_type,*) ".alya"
       write(file_name,*) "VELOC"
@@ -227,17 +242,30 @@ module inicond_reader
       
       close(99)
 
+      if(mpi_rank.eq.0) write(*,*) "--| Interpolating velocity from file coords to new mesh coords..."
+      aux_1(:,:) = u(:,:)
+      do iElem = 1,numElemsInRank
+         do igp = (2**ndime)+1,nnode
+            do idime = 1,ndime
+               call var_interpolate(aux_1(connecParOrig(iElem,:),idime),Ngp_l(igp,:),u(connecParOrig(iElem,igp),idime))
+            end do
+         end do
+      end do
+
    end subroutine read_veloc_from_file_Par
 
-   subroutine read_press_from_file_Par(numNodesRankPar,totalNumNodesSrl,file_path,pr,matGidSrlOrdered)
+   subroutine read_press_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,file_path,pr,connecParOrig,Ngp_l,matGidSrlOrdered)
       implicit none
       character(500), intent(in) :: file_path
-      integer(4), intent(in)     :: numNodesRankPar,totalNumNodesSrl
+      integer(4), intent(in)     :: numElemsInRank,numNodesRankPar,totalNumNodesSrl
       real(rp), intent(out)      :: pr(numNodesRankPar)
+      integer(4), intent(in)     :: connecParOrig(numElemsInRank,nnode)
+      real(rp), intent(in)       :: Ngp_l(ngaus,nnode)
       integer, intent(in)        :: matGidSrlOrdered(numNodesRankPar,2)
       character(500)             :: file_type, file_name
-      integer(4)                 :: iLine,iNodeL,iNodeGSrl,auxCnt,readInd
+      integer(4)                 :: iLine,iNodeL,iElem,iNodeGSrl,igp,idime,auxCnt,readInd
       real(8)                    :: readValue
+      real(rp)                   :: aux_2(numNodesRankPar)
 
       write(file_type,*) ".alya"
       write(file_name,*) "PRESS"
@@ -261,17 +289,28 @@ module inicond_reader
       
       close(99)
 
+      if(mpi_rank.eq.0) write(*,*) "--| Interpolating pressure from file coords to new mesh coords..."
+      aux_2(:) = pr(:)
+      do iElem = 1,numElemsInRank
+         do igp = (2**ndime)+1,nnode
+            call var_interpolate(aux_2(connecParOrig(iElem,:)),Ngp_l(igp,:),pr(connecParOrig(iElem,igp)))
+         end do
+      end do
+
    end subroutine read_press_from_file_Par
 
-   subroutine read_temper_from_file_Par(numNodesRankPar,totalNumNodesSrl,file_path,temp,matGidSrlOrdered)
+   subroutine read_temper_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,file_path,temp,connecParOrig,Ngp_l,matGidSrlOrdered)
       implicit none
       character(500), intent(in) :: file_path
-      integer(4), intent(in)     :: numNodesRankPar,totalNumNodesSrl
+      integer(4), intent(in)     :: numElemsInRank,numNodesRankPar,totalNumNodesSrl
       real(rp), intent(out)      :: temp(numNodesRankPar)
+      integer(4), intent(in)     :: connecParOrig(numElemsInRank,nnode)
+      real(rp), intent(in)       :: Ngp_l(ngaus,nnode)
       integer, intent(in)        :: matGidSrlOrdered(numNodesRankPar,2)
       character(500)             :: file_type, file_name
-      integer(4)                 :: iLine,iNodeL,iNodeGSrl,auxCnt,readInd
+      integer(4)                 :: iLine,iNodeL,iElem,iNodeGSrl,igp,idime,auxCnt,readInd
       real(8)                    :: readValue
+      real(rp)                   :: aux_2(numNodesRankPar)
 
       write(file_type,*) ".alya"
       write(file_name,*) "TEMPE"
@@ -294,6 +333,14 @@ module inicond_reader
       end do
       
       close(99)
+
+      if(mpi_rank.eq.0) write(*,*) "--| Interpolating temperature from file coords to new mesh coords..."
+      aux_2(:) = temp(:)
+      do iElem = 1,numElemsInRank
+         do igp = (2**ndime)+1,nnode
+            call var_interpolate(aux_2(connecParOrig(iElem,:)),Ngp_l(igp,:),temp(connecParOrig(iElem,igp)))
+         end do
+      end do
 
    end subroutine read_temper_from_file_Par
 

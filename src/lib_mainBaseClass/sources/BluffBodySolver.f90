@@ -100,9 +100,8 @@ contains
       readFiles = .false.
 
       if(readFiles) then
-         this%interpInitialResults = .true.
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
-         call read_veloc_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),matGidSrlOrdered)
+         call read_veloc_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
       else
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar

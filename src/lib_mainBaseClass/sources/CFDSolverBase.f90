@@ -76,7 +76,7 @@ module CFDSolverBase_mod
       integer(4), public :: counter, npoin_w
       integer(4), public :: load_step, initial_istep
       logical, public    :: isPeriodic=.false.,loadMesh=.false.,doGlobalAnalysis=.false.,isFreshStart=.true.
-      logical, public    :: loadResults=.false.,continue_oldLogs=.false.,interpInitialResults=.false. 
+      logical, public    :: loadResults=.false.,continue_oldLogs=.false.
       logical, public    :: useIntInComms=.false.,useFloatInComms=.false.,useDoubleInComms=.false.
 
       ! main char variables
@@ -100,7 +100,6 @@ module CFDSolverBase_mod
       procedure, public :: initializeSourceTerms => CFDSolverBase_initializeSourceTerms
       procedure, public :: openMesh => CFDSolverBase_openMesh
       procedure, public :: evalCharLength => CFDSolverBase_evalCharLength
-      !procedure, public :: splitBoundary => CFDSolverBase_splitBoundary
       procedure, public :: boundaryFacesToNodes => CFDSolverBase_boundaryFacesToNodes
       procedure, public :: normalFacesToNodes => CFDSolverBase_normalFacesToNodes
       procedure, public :: fillBCTypes => CFDSolverBase_fill_BC_Types
@@ -111,7 +110,8 @@ module CFDSolverBase_mod
       procedure, public :: evalViscosityFactor=>CFDSolverBase_evalViscosityFactor
       procedure, public :: evalInitialDt =>CFDSolverBase_evalInitialDt
       procedure, public :: evalShapeFunctions =>CFDSolverBase_evalShapeFunctions
-      procedure, public :: interpolateInitialConditions =>CFDSolverBase_interpolateInitialConditions
+      procedure, public :: interpolateOriginalCoordinates => CFDSolverBase_interpolateOriginalCoordinates
+      !procedure, public :: interpolateInitialConditions =>CFDSolverBase_interpolateInitialConditions
       procedure, public :: evalBoundaryNormals =>CFDSolverBase_evalBoundaryNormals
       procedure, public :: evalJacobians =>CFDSolverBase_evalJacobians
       !procedure, public :: evalVTKconnectivity =>CFDSolverBase_evalVTKconnectivity
@@ -127,8 +127,11 @@ module CFDSolverBase_mod
 
       procedure :: open_log_file
       procedure :: close_log_file
+      procedure :: open_analysis_files
+      procedure :: close_analysis_files
       procedure :: flush_log_file
       procedure :: eval_vars_after_load_hdf5_resultsFile
+      procedure :: eval_initial_mu_sgs
    end type CFDSolverBase
 contains
 
@@ -175,7 +178,6 @@ contains
       this%loadResults = .false.
       this%continue_oldLogs= .false.
       this%doGlobalAnalysis = .false.
-      this%interpInitialResults = .false.
       this%isFreshStart=.true.
       !@JORDI: discuss which other parameters can be set as default....
 
@@ -202,8 +204,6 @@ contains
          ! init comms
          call init_comms(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
          if(isMeshBoundaries) then
-            !call splitBoundary_inPar()
-            !call generate_boundary_mpi_comm_scheme()
             !----- init comms boundaries
             call init_comms_bnd(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
          end if
@@ -231,81 +231,6 @@ contains
       call nvtxEndRange
 
    end subroutine CFDSolverBase_openMesh
-#if 0
-   TODO: DELETE THIS, DOUBLE CHECK BUT REMOVE
-   subroutine CFDSolverBase_splitBoundary(this)
-      class(CFDSolverBase), intent(inout) :: this
-      integer(4), allocatable    :: aux1(:)
-      integer(4) :: iNodeL,iboun,ipbou,idof,ibnodes
-
-      !@TODO: REVIEW FUNC
-      !NOT REQUIRED FOR FULL PERIODIC
-      if (this%nboun .ne. 0) then
-         write(111,*) "--| SPLITTING BOUNDARY NODES FROM DOFs..."
-         call nvtxStartRange("Bnodes split")
-         allocate(aux1(numNodesRankPar))
-
-         !
-         ! Fill aux1 with all nodes in order
-         !
-         !$acc parallel loop
-         do iNodeL = 1,numNodesRankPar
-            aux1(iNodeL) = iNodeL
-         end do
-         !$acc end parallel loop
-
-         !
-         ! If node is on boundary, zero corresponding aux1 entry
-         !
-         !$acc parallel loop gang 
-         do iboun = 1,this%nboun
-            !$acc loop vector
-            do ipbou = 1,npbou
-               aux1(bound(iboun,ipbou)) = 0
-            end do
-         end do
-         !$acc end parallel loop
-
-         !
-         ! Determine how many nodes are boundary nodes
-         !
-         this%ndof = 0
-         do iNodeL = 1,numNodesRankPar
-            if (aux1(iNodeL) == 0) then
-               this%ndof = this%ndof+1
-            end if
-         end do
-
-         this%nbnodes = this%ndof    ! Nodes on boundaries
-         this%ndof = this%npoin-this%ndof ! Free nodes
-         write(111,*) '--| TOTAL FREE NODES := ',this%ndof
-         write(111,*) '--| TOTAL BOUNDARY NODES := ',this%nbnodes
-
-         allocate(ldof(this%ndof))
-         allocate(lbnodes(this%nbnodes))
-
-         !
-         ! Split aux1 into the 2 lists
-         !
-         idof = 0    ! Counter for free nodes
-         ibnodes = 0 ! Counter for boundary nodes
-         !$acc parallel loop reduction(+:idof,ibnodes)
-         do iNodeL = 1,numNodesRankPar
-            if (aux1(iNodeL) == 0) then
-               ibnodes = ibnodes+1
-               lbnodes(ibnodes) = iNodeL
-            else
-               idof = idof+1
-               ldof(idof) = aux1(iNodeL)
-            end if
-         end do
-         !$acc end parallel loop
-
-         deallocate(aux1)
-         call nvtxEndRange
-      end if
-   end subroutine CFDSolverBase_splitBoundary
-#endif
 
    subroutine CFDSolverBase_fill_BC_Types(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -400,6 +325,7 @@ contains
 
       !$acc kernels
       aux1(:) = max_num_bou_codes
+      bouCodesNodesPar(:) =  max_num_bou_codes
       !$acc end kernels
 
       !$acc parallel loop gang 
@@ -468,6 +394,26 @@ contains
       allocate(u_wall(numNodesRankPar,ndime))  ! Velocity for the wall model
       allocate(mu_wall(numNodesRankPar))  ! Velocity for the wall model
       allocate(rho_wall(numNodesRankPar))  ! Velocity for the wall model
+      !$acc kernels
+      u(:,:,:) = 0.0_rp
+      q(:,:,:) = 0.0_rp
+      rho(:,:) = 0.0_rp
+      pr(:,:) = 0.0_rp 
+      E(:,:) = 0.0_rp  
+      Tem(:,:) = 0.0_rp
+      e_int(:,:) = 0.0_rp
+      eta(:,:) = 0.0_rp
+      csound(:) = 0.0_rp
+      machno(:) = 0.0_rp
+      mu_fluid(:) = 0.0_rp
+      mu_factor(:) = 1.0_rp
+      mu_e(:,:) = 0.0_rp
+      mu_sgs(:,:) = 0.0_rp
+      u_wall(:,:) = 0.0_rp
+      mu_wall(:) = 0.0_rp
+      rho_wall(:) = 0.0_rp
+      !$acc end kernels
+
       !ilsa
       allocate(kres(numNodesRankPar))
       allocate(etot(numNodesRankPar))
@@ -475,12 +421,39 @@ contains
       allocate(ax1(numNodesRankPar))
       allocate(ax2(numNodesRankPar))
       allocate(ax3(numNodesRankPar))
+      !$acc kernels
+      kres(:) = 0.0_rp
+      etot(:) = 0.0_rp
+      au(:,:) = 0.0_rp
+      ax1(:) = 0.0_rp
+      ax2(:) = 0.0_rp
+      ax3(:) = 0.0_rp
+      !$acc end kernels
 
       !boundary
       if(numBoundCodes .ge. 1) then
          allocate(Fpr(numBoundCodes,ndime))
          allocate(Ftau(numBoundCodes,ndime))
+         !$acc kernels
+         Fpr(:,:) = 0.0_rp
+         Ftau(:,:) = 0.0_rp
+         !$acc end kernels
       end if
+
+      !*********************************************************************!
+      ! Derivative-related fields                                           !
+      !*********************************************************************!
+      allocate(gradRho(numNodesRankPar,ndime))
+      allocate(curlU(numNodesRankPar,ndime))
+      allocate(divU(numNodesRankPar))
+      allocate(Qcrit(numNodesRankPar))
+
+      !$acc kernels
+      gradRho(:,:) = 0.0_rp
+      curlU(:,:) = 0.0_rp
+      divU(:) = 0.0_rp
+      Qcrit(:) = 0.0_rp
+      !$acc end kernels
 
       !*********************************************************************!
       ! Allocate accumulators for averaging process                         !
@@ -496,27 +469,17 @@ contains
       allocate(avvel(numNodesRankPar,ndime))
       allocate(avve2(numNodesRankPar,ndime))
 
-      !*********************************************************************!
-      ! Derivative-related fields                                           !
-      !*********************************************************************!
-      allocate(gradRho(numNodesRankPar,ndime))
-      allocate(curlU(numNodesRankPar,ndime))
-      allocate(divU(numNodesRankPar))
-      allocate(Qcrit(numNodesRankPar))
-
       !$acc kernels
       acurho(:) = 0.0_rp
       acupre(:) = 0.0_rp
       acumueff(:) = 0.0_rp
-      acuvel(:,:) = 0.00_rp
-      acuve2(:,:) = 0.00_rp
-      acumueff(:) = 0.00_rp
+      acuvel(:,:) = 0.0_rp
+      acuve2(:,:) = 0.0_rp
       avrho(:) = 0.0_rp
       avpre(:) = 0.0_rp
       avmueff(:) = 0.0_rp
-      avvel(:,:) = 0.00_rp
-      avve2(:,:) = 0.00_rp
-      avmueff(:) = 0.00_rp
+      avvel(:,:) = 0.0_rp
+      avve2(:,:) = 0.0_rp
       !$acc end kernels
       this%acutim = 0.0_rp
 
@@ -541,11 +504,6 @@ contains
             this%time = 0.0_rp
          end if
       else
-         if(this%loadMesh) then
-            this%interpInitialResults = .false.
-         else
-            this%interpInitialResults = .true.
-         end if
          call this%evalInitialConditions()
       end if
 
@@ -593,6 +551,22 @@ contains
 
    end subroutine CFDSolverBase_evalViscosityFactor
 
+   subroutine eval_initial_mu_sgs(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      if(mpi_rank.eq.0) write(111,*) "--| Evaluating initial mu_sgs..."
+
+      call nvtxStartRange("MU_SGS")
+      if(flag_les_ilsa == 1) then
+         this%dt = 1.0_rp !To avoid 0.0 division inside sgs_ilsa_visc calc
+         call sgs_ilsa_visc(numElemsInRank,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
+      else
+         call sgs_visc(numElemsInRank,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
+      end if
+      call nvtxEndRange
+
+   end subroutine eval_initial_mu_sgs
+
    subroutine CFDSolverBase_evalInitialDt(this)
       class(CFDSolverBase), intent(inout) :: this
 
@@ -600,15 +574,9 @@ contains
       ! Compute initial time-step size                                      !
       !*********************************************************************!
 #if 0
-      if(flag_les == 1) then
-         call nvtxStartRange("MU_SGS")
-         if(flag_les_ilsa == 1) then
-            this%dt = 1.0_rp !To avoid 0.0 division inside sgs_ilsa_visc calc
-            call sgs_ilsa_visc(numElemsInRank,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
-         else
-            call sgs_visc(numElemsInRank,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
-         end if
-         call nvtxEndRange
+      if((this%loadResults .eqv. .false.).and.(flag_les == 1)) then
+         !if not loading results and the case is turbulent, an initial mu_sgs is calculated to properly eval first time-step dt
+         call this%eval_initial_mu_sgs()
       end if
 #endif
       if(mpi_rank.eq.0) write(111,*) "--| Evaluating initial dt..."
@@ -687,6 +655,29 @@ contains
 
    end subroutine CFDSolverBase_evalShapeFunctions
 
+   subroutine CFDSolverBase_interpolateOriginalCoordinates(this)
+      class(CFDSolverBase), intent(inout) :: this
+      real(rp), allocatable :: aux_1(:,:)
+      integer(4) :: ielem,inode,idime
+
+      if(this%loadMesh .eqv. .false.) then
+         if(mpi_rank.eq.0) write(*,*) "--| Interpolating nodes coordinates..."
+         allocate(aux_1(numNodesRankPar,ndime))
+         aux_1(:,:) = coordPar(:,:)
+         do ielem = 1,numElemsInRank
+            do inode = (2**ndime)+1,nnode
+               do idime = 1,ndime
+                  call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),coordPar(connecParOrig(ielem,inode),idime))
+               end do
+            end do
+         end do
+         deallocate(aux_1)
+         call overwrite_coordinates_hdf5()
+      end if
+
+   end subroutine CFDSolverBase_interpolateOriginalCoordinates
+
+#if 0
    subroutine CFDSolverBase_interpolateInitialConditions(this)
       class(CFDSolverBase), intent(inout) :: this
       real(rp),    allocatable    :: aux_1(:,:), aux_2(:)
@@ -787,7 +778,7 @@ contains
       end if
 
    end subroutine CFDSolverBase_interpolateInitialConditions
-
+#endif
    subroutine CFDSolverBase_evalBoundaryNormals(this)
       class(CFDSolverBase), intent(inout) :: this
 
@@ -932,6 +923,11 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       character(500) :: tmpname
       integer(4) :: iCode
+
+      !FOR DEBUG!
+      if(save_hdf5) then
+         call save_hdf5_resultsFile(0,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),eta(:,2),csound,machno,gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs)
+      end if
 
       !*********************************************************************!
       ! Compute surface forces and area                                                                !
@@ -1127,6 +1123,42 @@ contains
          else
             open(unit=111,file=filename,status='replace')
          end if
+      end if
+
+      if(mpi_rank.eq.0) then
+         write(111,*) "--| Flags defined in the current case:"
+         write(111,*) "    flag_real_diff: ",           flag_real_diff
+         write(111,*) "    flag_diff_suth: ",           flag_diff_suth
+         write(111,*) "    flag_rk_order: ",            flag_rk_order
+         write(111,*) "    flag_les: ",                 flag_les
+         write(111,*) "    flag_les_ilsa: ",            flag_les_ilsa
+         write(111,*) "    flag_solver_type: ",         flag_solver_type
+         write(111,*) "    flag_spectralElem: ",        flag_spectralElem
+         write(111,*) "    flag_normalise_entropy: ",   flag_normalise_entropy
+         write(111,*) "    flag_activate_wall_model: ", flag_activate_wall_model
+         write(111,*) "--------------------------------------"
+         write(111,*) "    ce: ",      ce
+         write(111,*) "    cmax: ",    cmax
+         write(111,*) "    c_sgs: ",   c_sgs
+         write(111,*) "    cglob: ",   cglob
+         write(111,*) "    c_rho: ",   c_rho
+         write(111,*) "    c_ener: ",  c_ener
+         write(111,*) "    stau: ",    stau
+         write(111,*) "    T_ilsa: ",  T_ilsa
+         write(111,*) "    T_wmles: ", T_wmles
+         write(111,*) "--------------------------------------"
+      end if
+
+   end subroutine open_log_file
+
+   subroutine open_analysis_files(this)
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      character(len=1024) :: filename,filenameAnalysis,filenameBound,aux_string_mpisize,aux_string_code
+      integer :: iCode
+
+      if(mpi_rank.eq.0) then
+         write(aux_string_mpisize,'(I0)') mpi_size
 
          if(this%doGlobalAnalysis) then
             filenameAnalysis = 'analysis_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
@@ -1152,7 +1184,7 @@ contains
          end if
       end if
 
-   end subroutine open_log_file
+   end subroutine open_analysis_files
 
    subroutine close_log_file(this)
       implicit none
@@ -1161,7 +1193,15 @@ contains
 
       if(mpi_rank.eq.0) then
          close(unit=111)
+      end if
+   end subroutine close_log_file
 
+   subroutine close_analysis_files(this)
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      integer :: iCode
+
+      if(mpi_rank.eq.0) then
          if(this%doGlobalAnalysis) then
             close(unit=666)
          end if
@@ -1172,8 +1212,7 @@ contains
             end do
          end if
       end if
-
-   end subroutine close_log_file
+   end subroutine close_analysis_files
 
    subroutine flush_log_file(this)
       implicit none
@@ -1202,7 +1241,7 @@ contains
       integer :: iNodeL,idime
       real(rp) :: umag
 
-      !values loaded -> rho,u,pr,E
+      !values loaded -> rho,u,pr,E,mu_e,mu_sgs
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
@@ -1230,8 +1269,6 @@ contains
       !$acc end parallel loop
 
       !$acc kernels
-      !mu_e(:,:) = 0.0_rp ! Element syabilization viscosity
-      !mu_sgs(:,:) = 0.0_rp
       kres(:) = 0.0_rp
       etot(:) = 0.0_rp
       ax1(:) = 0.0_rp
@@ -1239,8 +1276,6 @@ contains
       ax3(:) = 0.0_rp
       au(:,:) = 0.0_rp
       !$acc end kernels
-
-      this%interpInitialResults = .false.
 
    end subroutine eval_vars_after_load_hdf5_resultsFile
 
@@ -1264,24 +1299,22 @@ contains
         
         call define_veclen()
 
+      ! Open log file
+
+      call this%open_log_file()
+
       ! read the mesh
 
-        call this%openMesh()
+      call this%openMesh()
 
-        ! init comms
-        !this%useIntInComms=.true.
-        !this%useFloatInComms=.true.
-        !this%useDoubleInComms=.false.
-        !call init_comms(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
+      ! Open analysis files
+      call this%open_analysis_files
 
-         ! Open log file
-         call this%open_log_file()
+      ! Eval shape Functions
 
+      call this%evalShapeFunctions()
 
-
-        ! Splitting boundary nodes
-        ! now this is done in the parallel mesh!
-        !call this%splitBoundary()
+      call this%interpolateOriginalCoordinates()
 
         ! Allocate variables
 
@@ -1290,23 +1323,18 @@ contains
         ! Eval or load initial conditions
 
         call this%evalOrLoadInitialConditions()
-        !call this%evalInitialConditions()
-
-        ! Eval initial viscosty
-
-        call this%evalInitialViscosity()
 
         ! Eval  viscosty factor
 
         call this%evalViscosityFactor()
 
-        ! Eval shape Functions
+        ! Eval initial viscosty
 
-        call this%evalShapeFunctions()
+        call this%evalInitialViscosity()
 
         ! Interpolate initial conditions
 
-        call this%interpolateInitialConditions()
+        !call this%interpolateInitialConditions()
 
         ! Compute characteristic size of the elements
 
@@ -1336,15 +1364,6 @@ contains
 
         call this%evalPeriodic()
 
-#if 0
-   !en la nova versio el eval initial dt es fa mes endavant
-   abans es feia aqui, deixar comentat de moment
-   testejar i fer volar!
-        ! Eval initial time step
-
-        call this%evalInitialDt()
-
-#endif
         ! Eval mass 
 
         call this%evalMass()
@@ -1369,6 +1388,7 @@ contains
         call this%evalTimeIteration()
 
       call this%close_log_file()
+      call this%close_analysis_files()
 
       ! End hdf5 interface
       call end_hdf5_interface()

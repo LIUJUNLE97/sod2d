@@ -44,7 +44,7 @@ contains
       end do loopBound
       !-----------------------------------------------------------------
 
-      write(*,*) '[',mpi_rank,']numBoundsRankPar',numBoundsRankPar,'totalNumBoundsSrl',totalNumBoundsSrl
+      !write(*,*) '[',mpi_rank,']numBoundsRankPar',numBoundsRankPar,'totalNumBoundsSrl',totalNumBoundsSrl
       
       call MPI_Allreduce(numBoundsRankPar,aux_sum_NBRP,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
@@ -119,7 +119,7 @@ contains
       end if
 
       !ndofRankPar = numNodesRankPar - numBoundaryNodesRankPar
-      write(*,*) '[',mpi_rank,'] ndof',ndofRankPar,'nbnodes',numBoundaryNodesRankPar
+      !write(*,*) '[',mpi_rank,'] ndof',ndofRankPar,'nbnodes',numBoundaryNodesRankPar
 
       !-------------------------------------------------------------------------------------
       ! Split aux1 into the 2 lists

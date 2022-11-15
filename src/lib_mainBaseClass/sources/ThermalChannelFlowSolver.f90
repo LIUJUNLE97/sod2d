@@ -153,13 +153,12 @@ contains
       integer(4)  :: iLine,iNodeGSrl,auxCnt,idime
 
       readFiles = .true.
-      this%interpInitialResults = .true.
 
       if(readFiles) then
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
-         call read_densi_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,rho(:,2),matGidSrlOrdered)
-         call read_veloc_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),matGidSrlOrdered)
-         call read_temper_from_file_Par(numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,Tem(:,2),matGidSrlOrdered)
+         call read_densi_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,rho(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+         call read_veloc_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+         call read_temper_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,Tem(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
 
          !!$acc parallel loop
          do iNodeL = 1,numNodesRankPar
