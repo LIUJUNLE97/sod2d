@@ -35,20 +35,38 @@ module BluffBodySolver_mod
       real(rp) , public  :: vo, M, delta, rho0, Re, to, po
 
    contains
+      procedure, public :: fillBCTypes           =>BluffBodySolver_fill_BC_Types
       procedure, public :: initializeParameters  => BluffBodySolver_initializeParameters
       procedure, public :: evalInitialConditions => BluffBodySolver_evalInitialConditions
+      procedure, public :: evalViscosityFactor=>BluffBodySolver_evalViscosityFactor
    end type BluffBodySolver
 contains
+
+   subroutine BluffBodySolver_fill_BC_Types(this)
+      class(BluffBodySolver), intent(inout) :: this
+
+      bouCodes2BCType(1) = bc_type_inlet
+      bouCodes2BCType(2) = bc_type_outlet
+      bouCodes2BCType(3) = bc_type_slip_adiabatic
+      bouCodes2BCType(4) = bc_type_slip_adiabatic
+      bouCodes2BCType(5) = bc_type_non_slip_adiabatic
+
+      bouCodes2WallModel(1) = 0
+      bouCodes2WallModel(2) = 0
+      bouCodes2WallModel(3) = 0
+      bouCodes2WallModel(4) = 0
+      bouCodes2WallModel(5) = 0
+   end subroutine BluffBodySolver_fill_BC_Types
 
    subroutine BluffBodySolver_initializeParameters(this)
       class(BluffBodySolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%gmsh_file_path,*) "./mesh_cylin/"
-      write(this%gmsh_file_name,*) "cylin" 
+      write(this%gmsh_file_path,*) "./mesh_nacaCoarseNew/"
+      write(this%gmsh_file_name,*) "naca" 
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cylin"
+      write(this%mesh_h5_file_name,*) "nacaCoarse"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -56,15 +74,16 @@ contains
       this%isPeriodic = .true.
       this%loadMesh = .false.
 
-      this%nstep = 90000000 
-      this%cfl_conv = 1.5_rp
-      this%cfl_diff = 1.5_rp
+      this%nstep = 250001
+      this%cfl_conv = 0.25_rp !0.1_rp
+      this%cfl_diff = 0.25_rp !0.1_rp
+
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 20000 ! Saving interval, TODO: input
+      this%nleap = 1000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 10  ! Saving interval, TODO: input
+      this%nleap2 = 1  ! Saving interval, TODO: input
       this%nleapAVG = 20000
 
       this%Cp = 1004.0_rp
@@ -74,9 +93,9 @@ contains
       this%delta  = 1.0_rp
       this%rho0   = 1.0_rp
       this%gamma_gas = 1.40_rp
-      this%Re     =  3900.0_rp
+      this%Re     =  100000.0_rp
 
-      mul    = (this%rho0*1.0_rp*this%vo)/this%Re
+      mul    = (this%rho0*this%delta*this%vo)/this%Re
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
       this%to = this%vo*this%vo/(this%gamma_gas*this%Rgas*this%M*this%M)
       this%po = this%rho0*this%Rgas*this%to
@@ -97,20 +116,13 @@ contains
       integer(4) :: iNodeL
       logical :: readFiles
 
-      readFiles = .false.
-
-      if(readFiles) then
-         call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
-         call read_veloc_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
-      else
-         !$acc parallel loop
-         do iNodeL = 1,numNodesRankPar
-              u(iNodeL,1,2) = 1.0_rp
-              u(iNodeL,2,2) = 0.0_rp
-              u(iNodeL,3,2) = 0.0_rp
-         end do
-         !$acc end parallel loop
-      end if
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         u(iNodeL,1,2) = 1.0_rp
+         u(iNodeL,2,2) = 0.0_rp
+         u(iNodeL,3,2) = 0.0_rp
+      end do
+      !$acc end parallel loop
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
@@ -121,11 +133,7 @@ contains
          E(iNodeL,2) = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))+e_int(iNodeL,2))
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
-      end do
-      !$acc end parallel loop
-
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
+         eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
          machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
       end do
       !$acc end parallel loop
@@ -142,27 +150,34 @@ contains
       !$acc end kernels
       call nvtxEndRange
 
+   end subroutine BluffBodySolver_evalInitialConditions
+
+   subroutine BluffBodySolver_evalViscosityFactor(this)
+      class(BluffBodySolver), intent(inout) :: this
+      integer(4) :: iNodeL
+
       ! set out of the buffer zone
-      ! remember that the mu_factor field has to we filled at least with the
+      ! remember that the mu_factor field has to be filled at least with the
       ! flag_mu_factor
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          mu_factor(iNodeL) = flag_mu_factor
-         if(coordPar(iNodeL,1)<-13.0_rp) then
-            mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
-         end if
-         if(coordPar(iNodeL,1)>13.0_rp) then
-            mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
-         end if
-         if(coordPar(iNodeL,2)<-13.0_rp) then
-            mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
-         end if
-         if(coordPar(iNodeL,2)>13.0_rp) then
-            mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
-         end if
+        if(coordPar(iNodeL,1)<-5.0_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*10.0_rp
+        end if
+        if(coordPar(iNodeL,1)>7.0_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*10.0_rp
+        end if
+        if(coordPar(iNodeL,2)<-6.0_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*10.0_rp
+        end if
+        if(coordPar(iNodeL,2)>6.0_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*10.0_rp
+        end if
       end do
       !$acc end parallel loop
-   end subroutine BluffBodySolver_evalInitialConditions
+
+   end subroutine BluffBodySolver_evalViscosityFactor
 
 end module BluffBodySolver_mod

@@ -19,7 +19,7 @@ module mod_bc_routines
             real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
             real(rp),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             real(rp)                   :: aux_rho2(npoin),aux_q2(npoin,ndime),aux_u2(npoin,ndime),aux_p2(npoin),aux_E2(npoin)
-            integer(4)                 :: iboun, bcode, ipbou,inode,idime
+            integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
             real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
             real(rp)                   :: q_hll,rho_hll,E_hll, E_inf,norm
 

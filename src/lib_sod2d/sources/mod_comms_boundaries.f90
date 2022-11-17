@@ -1,5 +1,9 @@
 module mod_comms_boundaries
     use mod_mpi_mesh
+
+!-- Select type of communication for mpi_boundary_atomic_updates
+#define _ISENDIRCV_ 1
+
     implicit none
 
     !---- for the comms---
@@ -21,6 +25,10 @@ contains
         implicit none
         logical, intent(in) :: useInt,useFloat,useDouble
         logical :: useFenceFlags,useAssertNoCheckFlags,useLockBarrier
+
+#if _ISENDIRCV_
+        write(111,*) "--| Boundary Comm. scheme: iSend-iRecv"
+#endif
 
         bnd_isInt=.false.
         bnd_isFloat=.false.
@@ -148,8 +156,9 @@ contains
     end subroutine close_window_doubleField_bnd
 !-------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
- 
-!-----------------------------------------------------------------------------------------------------------------------
+!-------------------------------------------------------------------------------------
+!   Standard fill boundary buffers
+!-------------------------------------------------------------------------------------
     subroutine fill_boundary_sendBuffer_int(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
@@ -165,7 +174,7 @@ contains
         aux_bnd_intField_r(:)=0.
         !$acc end kernels
     end subroutine fill_boundary_sendBuffer_int
-!-------------------------------------------------------------------------
+!-------------------------------------------------------------------------------------
     subroutine fill_boundary_sendBuffer_float(floatField)
         implicit none
         real(4), intent(inout) :: floatField(:)
@@ -181,7 +190,7 @@ contains
         aux_bnd_floatField_r(:)=0.
         !$acc end kernels
     end subroutine fill_boundary_sendBuffer_float
-!-------------------------------------------------------------------------
+!-------------------------------------------------------------------------------------
     subroutine fill_boundary_sendBuffer_double(doubleField)
         implicit none
         real(8), intent(inout) :: doubleField(:)
@@ -197,9 +206,60 @@ contains
         aux_bnd_doubleField_r(:)=0.
         !$acc end kernels
     end subroutine fill_boundary_sendBuffer_double
-!-------------------------------------------------------------------------
+!-------------------------------------------------------------------------------------
+!-------------------------------------------------------------------------------------
+!   Standard copy boundary buffers
+!-------------------------------------------------------------------------------------
+!-------------------------------------------------------------------------------------
+    subroutine copy_from_boundary_rcvBuffer_int(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer :: i,iNodeL
 
+        !$acc parallel loop
+        do i=1,bnd_numNodesToComm
+            iNodeL = bnd_matrixCommScheme(i,1)
+            !$acc atomic update
+            intField(iNodeL) = intField(iNodeL) + aux_bnd_intField_r(i)
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_boundary_rcvBuffer_int
 !-------------------------------------------------------------------------
+    subroutine copy_from_boundary_rcvBuffer_float(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,bnd_numNodesToComm
+            iNodeL = bnd_matrixCommScheme(i,1)
+            !$acc atomic update
+            floatField(iNodeL) = floatField(iNodeL) + aux_bnd_floatField_r(i)
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_boundary_rcvBuffer_float
+!-------------------------------------------------------------------------
+    subroutine copy_from_boundary_rcvBuffer_double(doubleField)
+        implicit none
+        real(8), intent(inout) :: doubleField(:)
+        integer :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,bnd_numNodesToComm
+            iNodeL = bnd_matrixCommScheme(i,1)
+            !$acc atomic update
+            doubleField(iNodeL) = doubleField(iNodeL) + aux_bnd_doubleField_r(i)
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_boundary_rcvBuffer_double
+!-------------------------------------------------------------------------------------
+!-------------------------------------------------------------------------------------
+!   Specialized copy boundary buffers
+!-------------------------------------------------------------------------------------
+!-------------------------------------------------------------------------------------
     subroutine copy_from_min_boundary_rcvBuffer_int(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
@@ -229,8 +289,126 @@ contains
         end do
         !$acc end parallel loop
     end subroutine copy_from_max_boundary_rcvBuffer_float
+!-----------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------
 
-!------------- min SEND/RECV -------------------------------------------
+    subroutine mpi_halo_boundary_atomic_update_int(intField)
+        implicit none
+        integer, intent(inout) :: intField(:)
+
+#if _ISENDIRCV_
+        call mpi_halo_boundary_atomic_update_int_iSendiRcv(intField)
+#endif
+
+    end subroutine mpi_halo_boundary_atomic_update_int
+
+    subroutine mpi_halo_boundary_atomic_update_float(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+
+#if _ISENDIRCV_
+        call mpi_halo_boundary_atomic_update_float_iSendiRcv(floatField)
+#endif
+
+    end subroutine mpi_halo_boundary_atomic_update_float
+
+    subroutine mpi_halo_boundary_atomic_update_double(doubleField)
+        implicit none
+        real(8), intent(inout) :: doubleField(:)
+
+#if _ISENDIRCV_
+        call mpi_halo_boundary_atomic_update_double_iSendiRcv(doubleField)
+#endif
+
+    end subroutine mpi_halo_boundary_atomic_update_double
+
+!-----------------------------------------------------------------------------------------------------------------------
+!-----------------------------------------------------------------------------------------------------------------------
+
+!------------- ISEND/IRECV -------------------------------------------
+    !INTEGER ---------------------------------------------------------
+    subroutine mpi_halo_boundary_atomic_update_int_iSendiRcv(intField)
+        implicit none
+        integer, intent(inout) :: intField(:)
+        integer :: i,ireq,ngbRank,tagComm
+        integer :: memPos_l,memSize
+        integer :: requests(2*bnd_numRanksWithComms)
+
+        call fill_boundary_sendBuffer_int(intField)
+
+        ireq=0
+        do i=1,bnd_numRanksWithComms
+            ngbRank  = bnd_ranksToComm(i)
+            tagComm  = 0
+            memPos_l = bnd_commsMemPosInLoc(i)
+            memSize  = bnd_commsMemSize(i)
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_bnd_intfield_r(mempos_l),memSize,MPI_INTEGER,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_bnd_intfield_s(mempos_l),memSize,MPI_INTEGER,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+        end do
+
+        call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+        call copy_from_boundary_rcvBuffer_int(intField)
+    end subroutine mpi_halo_boundary_atomic_update_int_iSendiRcv
+    !FLOAT ---------------------------------------------------------
+    subroutine mpi_halo_boundary_atomic_update_float_iSendiRcv(floatField)
+        implicit none
+        real(4), intent(inout) :: floatField(:)
+        integer :: i,ireq,ngbRank,tagComm
+        integer :: memPos_l,memSize
+        integer :: requests(2*numRanksWithComms)
+
+        call fill_boundary_sendBuffer_float(floatField)
+
+        ireq=0
+        do i=1,bnd_numRanksWithComms
+            ngbRank  = bnd_ranksToComm(i)
+            tagComm  = 0
+            memPos_l = bnd_commsMemPosInLoc(i)
+            memSize  = bnd_commsMemSize(i)
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_bnd_floatfield_r(mempos_l),memSize,MPI_FLOAT,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_bnd_floatfield_s(mempos_l),memSize,MPI_FLOAT,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+        end do
+
+        call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+        call copy_from_boundary_rcvBuffer_float(floatField)
+    end subroutine mpi_halo_boundary_atomic_update_float_iSendiRcv
+    !DOUBLE ---------------------------------------------------------
+    subroutine mpi_halo_boundary_atomic_update_double_iSendiRcv(doubleField)
+        implicit none
+        real(8), intent(inout) :: doubleField(:)
+        integer :: i,ireq,ngbRank,tagComm
+        integer :: memPos_l,memSize
+        integer :: requests(2*numRanksWithComms)
+
+        call fill_boundary_sendBuffer_double(doubleField)
+
+        ireq=0
+        do i=1,bnd_numRanksWithComms
+            ngbRank  = bnd_ranksToComm(i)
+            tagComm  = 0
+            memPos_l = bnd_commsMemPosInLoc(i)
+            memSize  = bnd_commsMemSize(i)
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_bnd_doublefield_r(mempos_l),memSize,MPI_DOUBLE,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_bnd_doublefield_s(mempos_l),memSize,MPI_DOUBLE,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+        end do
+
+        call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+        call copy_from_boundary_rcvBuffer_double(doubleField)
+    end subroutine mpi_halo_boundary_atomic_update_double_iSendiRcv
+
+!------------- MIN iSENDiRECV -------------------------------------------
     ! INTEGER ---------------------------------------------------
     subroutine mpi_halo_min_boundary_update_int_iSendiRcv(intField)
         implicit none
@@ -258,7 +436,7 @@ contains
 
         call copy_from_min_boundary_rcvBuffer_int(intField)
     end subroutine mpi_halo_min_boundary_update_int_iSendiRcv
-!------------- max SEND/RECV -------------------------------------------
+!------------- MAX iSENDiRECV -------------------------------------------
     ! FLOAT ---------------------------------------------------
     subroutine mpi_halo_max_boundary_update_float_iSendiRcv(floatField)
         implicit none

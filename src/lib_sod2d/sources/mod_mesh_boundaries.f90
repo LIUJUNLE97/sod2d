@@ -75,9 +75,8 @@ contains
       !------------------------------------------------------------------------
       allocate(aux1(numNodesRankPar))
 
-      !ojo! crec que aqui ho podem fer diferent per tenir tots els nodes boundary reals!
-!NEW METHOD
-#if 1
+      !NEW METHOD
+      !------------------------------------------------------------------------
       allocate(aux_ndof(numNodesRankPar))
       allocate(aux_nbnodes(numNodesRankPar))
       !$acc kernels
@@ -145,63 +144,8 @@ contains
 
       deallocate(aux_nbnodes)
       deallocate(aux_ndof)
-
-#else
-TODO: DELETE IF EVERYTHING IS OK
-!OLD METHOD
-      ! Fill aux1 with all nodes in order
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
-         aux1(iNodeL) = iNodeL
-      end do
-      !$acc end parallel loop
-
-      ! If node is on boundary, zero corresponding aux1 entry
-      !$acc parallel loop gang 
-      do iBound = 1,numBoundsRankPar
-         !$acc loop vector
-         do ipbou = 1,npbou
-            aux1(boundPar(iBound,ipbou)) = 0
-         end do
-      end do
-      !$acc end parallel loop
-
-      
-      ! Determine how many nodes are boundary nodes
-      !
-      numBoundaryNodesRankPar=0
-      ndofRankPar = 0
-      do iNodeL = 1,numNodesRankPar
-         if (aux1(iNodeL) .eq. 0) then
-            numBoundaryNodesRankPar = numBoundaryNodesRankPar+1
-         end if
-      end do
-
-      !this%nbnodes = this%ndof    ! Nodes on boundaries
-      !this%ndof = this%npoin-this%ndof ! Free nodes
-      ndofRankPar = numNodesRankPar - numBoundaryNodesRankPar
-      write(*,*) '[',mpi_rank,'] ndof',ndofRankPar,'nbnodes',numBoundaryNodesRankPar
-
-      !-------------------------------------------------------------------------------------
-      ! Split aux1 into the 2 lists
-      allocate(ldofPar(ndofRankPar))
-      allocate(lbnodesPar(numBoundaryNodesRankPar))
-
-      idof = 0    ! Counter for free nodes
-      ibnodes = 0 ! Counter for boundary nodes
-      !$acc parallel loop reduction(+:idof,ibnodes)
-      do iNodeL = 1,numNodesRankPar
-         if (aux1(iNodeL) .eq. 0) then
-            ibnodes = ibnodes+1
-            lbnodesPar(ibnodes) = iNodeL
-         else
-            idof = idof+1
-            ldofPar(idof) = aux1(iNodeL)
-         end if
-      end do
-      !$acc end parallel loop
-#endif
       deallocate(aux1)
+      !------------------------------------------------------------------------
 
    end subroutine splitBoundary_inPar
 

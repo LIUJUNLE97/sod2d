@@ -1,6 +1,7 @@
 module mod_comms
     use mod_mpi_mesh
 
+!-- Select type of communication for mpi_atomic_updates
 #define _SENDRCV_ 0
 #define _ISENDIRCV_ 1
 #define _PUTFENCE_ 0

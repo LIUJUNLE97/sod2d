@@ -67,8 +67,6 @@ module CFDSolverBase_mod
       ! main integer parameters
       !NOTES @JORDI: -> it would be nice if nelem, npoin, nper... etc dissapear from here!
       integer(4), public :: nstep, nper, numCodes 
-      !integer(4), public  :: nelem, npoin, nboun, nbcodes
-      !integer(4), public  :: ndof, nbnodes
       integer(4), public :: ppow
       integer(4), public :: nsave, nleap
       integer(4), public :: nsave2, nleap2
@@ -76,7 +74,7 @@ module CFDSolverBase_mod
       integer(4), public :: counter, npoin_w
       integer(4), public :: load_step, initial_istep
       logical, public    :: isPeriodic=.false.,loadMesh=.false.,doGlobalAnalysis=.false.,isFreshStart=.true.
-      logical, public    :: loadResults=.false.,continue_oldLogs=.false.
+      logical, public    :: loadResults=.false.,continue_oldLogs=.false.,saveInitialField=.true.
       logical, public    :: useIntInComms=.false.,useFloatInComms=.false.,useDoubleInComms=.false.
 
       ! main char variables
@@ -116,7 +114,7 @@ module CFDSolverBase_mod
       procedure, public :: evalJacobians =>CFDSolverBase_evalJacobians
       !procedure, public :: evalVTKconnectivity =>CFDSolverBase_evalVTKconnectivity
       procedure, public :: evalAtoIJKInverse =>CFDSolverBase_evalAtoIJKInverse
-      procedure, public :: evalPeriodic =>CFDSolverBase_evalPeriodic
+      procedure, public :: eval_elemPerNode_and_nearBoundaryNode =>CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode
       procedure, public :: evalMass=>CFDSolverBase_evalMass
       procedure, public :: evalFirstOutput =>CFDSolverBase_evalFirstOutput
       procedure, public :: evalTimeIteration =>CFDSolverBase_evalTimeIteration
@@ -179,6 +177,7 @@ contains
       this%continue_oldLogs= .false.
       this%doGlobalAnalysis = .false.
       this%isFreshStart=.true.
+      this%saveInitialField=.true.
       !@JORDI: discuss which other parameters can be set as default....
 
    end subroutine CFDSolverBase_initializeDefaultParameters
@@ -268,25 +267,18 @@ contains
                do idime = 1,ndime     
                   aux(idime) = aux(idime)*sig/normaux
                end do
-               normaux = sqrt(dot_product(aux,aux))
-               if(normaux .gt. 1e-8) then
-                  normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1) + aux(1)
-                  normalsAtNodes(kgaus,2) = normalsAtNodes(kgaus,2) + aux(2)
-                  normalsAtNodes(kgaus,3) = normalsAtNodes(kgaus,3) + aux(3)
-               else  
-                  normalsAtNodes(kgaus,1) = aux(1)
-                  normalsAtNodes(kgaus,2) = aux(2)
-                  normalsAtNodes(kgaus,3) = aux(3)
-               end if
+               normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1) + aux(1)
+               normalsAtNodes(kgaus,2) = normalsAtNodes(kgaus,2) + aux(2)
+               normalsAtNodes(kgaus,3) = normalsAtNodes(kgaus,3) + aux(3)
             end do
          end if
       end do
       !$acc end parallel loop
 
       if(mpi_size.ge.2) then
-         call mpi_halo_conditional_ave_update_float_iSendiRcv(1e-8,normalsAtNodes(:,1))
-         call mpi_halo_conditional_ave_update_float_iSendiRcv(1e-8,normalsAtNodes(:,2))
-         call mpi_halo_conditional_ave_update_float_iSendiRcv(1e-8,normalsAtNodes(:,3))
+         call mpi_halo_boundary_atomic_update_float(normalsAtNodes(:,1))
+         call mpi_halo_boundary_atomic_update_float(normalsAtNodes(:,2))
+         call mpi_halo_boundary_atomic_update_float(normalsAtNodes(:,3))
       end if
 
       !$acc parallel loop  private(aux)
@@ -303,7 +295,6 @@ contains
          end if
       end do
       !$acc end parallel loop
-
 
    end subroutine CFDSolverBase_normalFacesToNodes
 
@@ -653,6 +644,17 @@ contains
 
       call nvtxEndRange
 
+      !
+      ! Compute Levi-Civita tensor
+      !
+      this%leviCivi = 0.0_rp
+      this%leviCivi(2,3,1) =  1.0_rp
+      this%leviCivi(3,2,1) = -1.0_rp
+      this%leviCivi(1,3,2) = -1.0_rp
+      this%leviCivi(3,1,2) =  1.0_rp
+      this%leviCivi(1,2,3) =  1.0_rp
+      this%leviCivi(2,1,3) = -1.0_rp
+
    end subroutine CFDSolverBase_evalShapeFunctions
 
    subroutine CFDSolverBase_interpolateOriginalCoordinates(this)
@@ -677,121 +679,9 @@ contains
 
    end subroutine CFDSolverBase_interpolateOriginalCoordinates
 
-#if 0
-   subroutine CFDSolverBase_interpolateInitialConditions(this)
-      class(CFDSolverBase), intent(inout) :: this
-      real(rp),    allocatable    :: aux_1(:,:), aux_2(:)
-      integer(4) :: ielem,inode,igaus,idime
-
-      !*********************************************************************!
-      ! Adjust element nodes and variables if spectral 
-      ! element type being used                                             !
-      !*********************************************************************!
-
-      !----------------------------------------------------------------------------
-      !     COORDS
-      if(this%loadMesh .eqv. .false.) then
-         if(mpi_rank.eq.0) write(*,*) "--| Interpolating nodes coordinates..."
-         allocate(aux_1(numNodesRankPar,ndime))
-         aux_1(:,:) = coordPar(:,:)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               do idime = 1,ndime
-                  call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),coordPar(connecParOrig(ielem,inode),idime))
-               end do
-            end do
-         end do
-         deallocate(aux_1)
-         call overwrite_coordinates_hdf5()
-      end if
-      !----------------------------------------------------------------------------
-      if(this%interpInitialResults) then
-         if(mpi_rank.eq.0) write(*,*) "--| Interpolating initial results..."
-         allocate(aux_1(numNodesRankPar,ndime))
-         aux_1(:,:) = u(:,:,2)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               do idime = 1,ndime
-                  call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),u(connecParOrig(ielem,inode),idime,2))
-               end do
-            end do
-         end do
-         aux_1(:,:) = q(:,:,2)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               do idime = 1,ndime
-                  call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),q(connecParOrig(ielem,inode),idime,2))
-               end do
-            end do
-         end do
-         deallocate(aux_1)
-         allocate(aux_2(numNodesRankPar))
-         aux_2(:) = rho(:,2)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),rho(connecParOrig(ielem,inode),2))
-            end do
-         end do
-         aux_2(:) = pr(:,2)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),pr(connecParOrig(ielem,inode),2))
-            end do
-         end do
-         aux_2(:) = E(:,2)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),E(connecParOrig(ielem,inode),2))
-            end do
-         end do
-         aux_2(:) = Tem(:,2)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),Tem(connecParOrig(ielem,inode),2))
-            end do
-         end do
-         aux_2(:) = e_int(:,2)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),e_int(connecParOrig(ielem,inode),2))
-            end do
-         end do
-         aux_2(:) = csound(:)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),csound(connecParOrig(ielem,inode)))
-            end do
-         end do
-         aux_2(:) = machno(:)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),machno(connecParOrig(ielem,inode)))
-            end do
-         end do
-         aux_2(:) = mu_fluid(:)
-         do ielem = 1,numElemsInRank
-            do inode = (2**ndime)+1,nnode
-               call var_interpolate(aux_2(connecParOrig(ielem,:)),Ngp_l(inode,:),mu_fluid(connecParOrig(ielem,inode)))
-            end do
-         end do
-         deallocate(aux_2)
-      end if
-
-   end subroutine CFDSolverBase_interpolateInitialConditions
-#endif
    subroutine CFDSolverBase_evalBoundaryNormals(this)
       class(CFDSolverBase), intent(inout) :: this
 
-      !
-      ! Compute Levi-Civita tensor
-      !
-      this%leviCivi = 0.0_rp
-      this%leviCivi(2,3,1) =  1.0_rp
-      this%leviCivi(3,2,1) = -1.0_rp
-      this%leviCivi(1,3,2) = -1.0_rp
-      this%leviCivi(3,1,2) =  1.0_rp
-      this%leviCivi(1,2,3) =  1.0_rp
-      this%leviCivi(2,1,3) = -1.0_rp
       if (isMeshBoundaries) then
          if(mpi_rank.eq.0) write(111,*) "--| COMPUTING BOUNDARY ELEMENT NORMALS"
          allocate(boundNormalPar(numBoundsRankPar,ndime*npbou))
@@ -833,14 +723,6 @@ contains
       if(mpi_rank.eq.0) write(111,*) '--| DOMAIN VOLUME := ',this%VolTot
 
    end subroutine CFDSolverBase_evalJacobians
-
-   !subroutine CFDSolverBase_evalVTKconnectivity(this)
-   !  class(CFDSolverBase), intent(inout) :: this
-      !allocate(connecVTK(numElemsInRank,nnode))
-      !allocate(connecLINEAR(numElemsInRank*(porder**ndime),2**ndime))
-      !call create_connecVTK(numElemsInRank,connecParOrig,atoIJK,vtk_atoIJK,connecVTK)
-      !call linearMeshOutput(numElemsInRank,connecParOrig,listHEX08,connecLINEAR)
-   !end subroutine CFDSolverBase_evalVTKconnectivity
    
    subroutine CFDSolverBase_evalAtoIJKInverse(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -853,32 +735,9 @@ contains
 
    end subroutine CFDSolverBase_evalAtoIJKInverse
 
-   subroutine CFDSolverBase_evalPeriodic(this)
+   subroutine CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode(this)
       class(CFDSolverBase), intent(inout) :: this
-      !integer(4) ipoin
 
-      !TODO: REVIEW THIS SHIT
-      !REVISAR FUNCIONS PREVIES SI NO FAIG EL WORKING LIST AQUI! SOBRETOT PERQUE EM CANVIA EL CONNEC!
-      !call create_working_lists() !located in mod_mpi_mesh, rethink name of the func...
-#if 0
-      if (this%isPeriodic) then
-         if (this%nboun .eq. 0) then
-            call periodic_ops(numElemsInRank,numNodesRankPar,this%nboun,this%npoin_w,this%nper, &
-               lpoin_w,connecPar,connecParOrig,masSla)
-         else
-            call periodic_ops(numElemsInRank,numNodesRankPar,this%nboun,this%npoin_w,this%nper, &
-               lpoin_w,connecPar,connecParOrig,masSla,bound,bound_orig)
-         end if
-      else
-         this%npoin_w = this%npoin
-         allocate(lpoin_w(this%npoin_w)) ! All nodes are working nodes
-         !$acc parallel loop
-         do ipoin = 1,this%npoin_w
-            lpoin_w(ipoin) = ipoin
-         end do
-         !$acc end parallel loop
-      end if
-#endif
       !*********************************************************************!
       ! Compute list of elements per node (connectivity index)              !
       !*********************************************************************!
@@ -895,7 +754,7 @@ contains
       allocate(lnbnNodes(numNodesRankPar))
       call nearBoundaryNode(numElemsInRank,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
 
-   end subroutine CFDSolverBase_evalPeriodic
+   end subroutine CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode
 
    subroutine CFDSolverBase_evalMass(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -924,9 +783,8 @@ contains
       character(500) :: tmpname
       integer(4) :: iCode
 
-      !FOR DEBUG!
-      if(save_hdf5) then
-         call save_hdf5_resultsFile(0,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),eta(:,2),csound,machno,gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs)
+      if(this%saveInitialField) then
+         call this%savePosprocessingFields(0)
       end if
 
       !*********************************************************************!
@@ -996,10 +854,13 @@ contains
       flag_predic=0
 
       call nvtxStartRange("Start RK4")
-      if(mpi_rank.eq.0) write(*,*) ' Doing evalTimeItarion. Ini step:',this%initial_istep,'| end step:',this%nstep
+      if(mpi_rank.eq.0) then
+         write(*,*) 'Strarting evalTimeItarion! All info will be written in the log file: ',this%log_file_name
+         write(111,*) 'Doing evalTimeItarion. Ini step:',this%initial_istep,'| End step:',this%nstep
+      end if
       ! periodic with boundaries
       do istep = this%initial_istep,this%nstep
-         if (istep==this%nsave.and.mpi_rank.eq.0) write(111,*) '   --| STEP: ', istep
+         !if (istep==this%nsave.and.mpi_rank.eq.0) write(111,*) '   --| STEP: ', istep
          !
          ! Prediction
          !
@@ -1044,10 +905,8 @@ contains
 
          if (flag_real_diff == 1) then
             call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
-            if(istep==this%nsave2.and.mpi_rank.eq.0) write(111,*) "DT := ",this%dt,"s time := ",this%time,"s"
          else
             call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
-            if(istep==this%nsave2.and.mpi_rank.eq.0) write(111,*) "DT := ",this%dt,"s time := ",this%time,"s"
          end if
 
          call nvtxEndRange
@@ -1061,6 +920,8 @@ contains
          call nvtxEndRange
 
          if (istep == this%nsave2) then
+            if(istep==this%nsave2.and.mpi_rank.eq.0) write(111,*) "step",istep,"time:",this%time,"s (dt",this%dt,"s)"
+
             if (isMeshBoundaries) then
                do icode = 1,numBoundCodes!this%numCodes
                   call nvtxStartRange("Surface info")
@@ -1088,6 +949,7 @@ contains
          ! Call VTK output
          !
          if (istep == this%nsave) then
+            if (mpi_rank.eq.0) write(111,*) ' -Saving file step: ',istep
             call nvtxStartRange("Output "//timeStep,istep)
             call compute_fieldDerivs(numElemsInRank,numNodesRankPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
             call this%savePosprocessingFields(istep)
@@ -1111,17 +973,17 @@ contains
    subroutine open_log_file(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      character(len=1024) :: filename,filenameAnalysis,filenameBound,aux_string_mpisize,aux_string_code
+      character(len=1024) :: aux_string_mpisize
       integer :: iCode
 
       if(mpi_rank.eq.0) then
          write(aux_string_mpisize,'(I0)') mpi_size
 
-         filename = 'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
+         this%log_file_name = 'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
          if(this%continue_oldLogs) then
-            open(unit=111,file=filename,status='old',position='append')
+            open(unit=111,file=this%log_file_name,status='old',position='append')
          else
-            open(unit=111,file=filename,status='replace')
+            open(unit=111,file=this%log_file_name,status='replace')
          end if
       end if
 
@@ -1154,7 +1016,7 @@ contains
    subroutine open_analysis_files(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      character(len=1024) :: filename,filenameAnalysis,filenameBound,aux_string_mpisize,aux_string_code
+      character(len=1024) :: filenameAnalysis,filenameBound,aux_string_mpisize,aux_string_code
       integer :: iCode
 
       if(mpi_rank.eq.0) then
@@ -1332,10 +1194,6 @@ contains
 
         call this%evalInitialViscosity()
 
-        ! Interpolate initial conditions
-
-        !call this%interpolateInitialConditions()
-
         ! Compute characteristic size of the elements
 
         call this%evalCharLength()
@@ -1348,10 +1206,6 @@ contains
 
         call this%evalJacobians()
 
-        ! Eval vtk connectivity
-
-        !call this%evalVTKconnectivity()
-
         ! Eval AtoIJK inverse
 
         call this%evalAtoIJKInverse()
@@ -1360,9 +1214,9 @@ contains
 
         call  this%boundaryFacesToNodes()
 
-        ! Eval periodic
+      ! Eval list Elems per Node and Near Boundary Node
 
-        call this%evalPeriodic()
+      call this%eval_elemPerNode_and_nearBoundaryNode()
 
         ! Eval mass 
 
