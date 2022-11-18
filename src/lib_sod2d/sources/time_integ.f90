@@ -15,61 +15,62 @@ module time_integ
 
       contains
 
-         subroutine rk_4_main(noBoundaries,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         subroutine rk_4_main(noBoundaries,isWallModelOn,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                          ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                         rho,u,u_wall,rho_wall,mu_wall,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
-                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,numBoundCodes,wgp_b,bounorm,bouCodes2WallModel,coord,normalsAtNodes,source_term) ! Optional arg
+                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
+                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
+                         numBoundsWM,listBoundsWM,wgp_b,bounorm,coord,normalsAtNodes,source_term)  ! Optional args
 
             implicit none
 
-            logical,              intent(in)   :: noBoundaries
+            logical,              intent(in)   :: noBoundaries,isWallModelOn
             integer(4),           intent(in)    :: flag_predic, flag_emac
             integer(4),           intent(in)    :: nelem, nboun, npoin
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou),lnbn_nodes(npoin)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             integer(4),           intent(in)    :: ppow
-            real(rp),              intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
-            real(rp),              intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
-            real(rp),              intent(in)    :: gpvol(1,ngaus,nelem)
-            real(rp),              intent(in)    :: dt, helem(nelem) !helem_l(npoin) TO REVIEW I THINK IS BUG!
-            real(rp),              intent(in)    :: helem_l(nelem,nnode)
-            real(rp),              intent(in)    :: Ml(npoin)
-            real(rp),              intent(in)    :: mu_factor(npoin)
-            real(rp),              intent(in)    :: Rgas, gamma_gas, Cp, Prt
-            real(rp),              intent(inout) :: rho(npoin,2)
-            real(rp),              intent(inout) :: u(npoin,ndime,2)
-            real(rp),              intent(inout) :: u_wall(npoin,ndime),rho_wall(npoin),mu_wall(npoin)
-            real(rp),              intent(inout) :: q(npoin,ndime,2)
-            real(rp),              intent(inout) :: pr(npoin,2)
-            real(rp),              intent(inout) :: E(npoin,2)
-            real(rp),              intent(inout) :: Tem(npoin,2)
-            real(rp),              intent(inout) :: e_int(npoin,2)
-            real(rp),              intent(inout) :: eta(npoin,2)
-            real(rp),              intent(inout) :: mu_fluid(npoin)
-            real(rp),              intent(inout)   :: csound(npoin)
-            real(rp),              intent(inout)   :: machno(npoin)
-            real(rp),              intent(inout)   :: mu_e(nelem,ngaus)
-            real(rp),              intent(inout)   :: mu_sgs(nelem,ngaus)
-            real(rp),              intent(inout)   :: kres(npoin)
-            real(rp),              intent(inout)   :: etot(npoin)
-            real(rp),              intent(inout)   :: au(npoin,ndime)
-            real(rp),              intent(inout)   :: ax1(npoin)
-            real(rp),              intent(inout)   :: ax2(npoin)
-            real(rp),              intent(inout)   :: ax3(npoin)
+            real(rp),             intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
+            real(rp),             intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
+            real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
+            real(rp),             intent(in)    :: dt, helem(nelem) !helem_l(npoin) TO REVIEW I THINK IS BUG!
+            real(rp),             intent(in)    :: helem_l(nelem,nnode)
+            real(rp),             intent(in)    :: Ml(npoin)
+            real(rp),             intent(in)    :: mu_factor(npoin)
+            real(rp),             intent(in)    :: Rgas, gamma_gas, Cp, Prt
+            real(rp),             intent(inout) :: rho(npoin,2)
+            real(rp),             intent(inout) :: u(npoin,ndime,2)
+            real(rp),             intent(inout) :: q(npoin,ndime,2)
+            real(rp),             intent(inout) :: pr(npoin,2)
+            real(rp),             intent(inout) :: E(npoin,2)
+            real(rp),             intent(inout) :: Tem(npoin,2)
+            real(rp),             intent(inout) :: e_int(npoin,2)
+            real(rp),             intent(inout) :: eta(npoin,2)
+            real(rp),             intent(inout) :: mu_fluid(npoin)
+            real(rp),             intent(inout) :: csound(npoin)
+            real(rp),             intent(inout) :: machno(npoin)
+            real(rp),             intent(inout) :: mu_e(nelem,ngaus)
+            real(rp),             intent(inout) :: mu_sgs(nelem,ngaus)
+            real(rp),             intent(inout) :: kres(npoin)
+            real(rp),             intent(inout) :: etot(npoin)
+            real(rp),             intent(inout) :: au(npoin,ndime)
+            real(rp),             intent(inout) :: ax1(npoin)
+            real(rp),             intent(inout) :: ax2(npoin)
+            real(rp),             intent(inout) :: ax3(npoin)
             integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*)
-            integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun), bou_codes_nodes(npoin),numBoundCodes,bouCodes2WallModel(*)
-            real(rp), optional, intent(in)    :: wgp_b(npbou), bounorm(nboun,ndime*npbou),coord(npoin,ndime),normalsAtNodes(npoin,ndime)
-            real(rp),    optional, intent(in)    :: source_term(ndime)
+            integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun), bou_codes_nodes(npoin)
+            integer(4), optional, intent(in)    :: numBoundsWM,listBoundsWM(*)
+            real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),coord(npoin,ndime),normalsAtNodes(npoin,ndime)
+            real(rp), optional, intent(in)      :: source_term(ndime)
             integer(4)                          :: pos
             integer(4)                          :: istep, ipoin, idime,icode
-            real(rp),    dimension(npoin)        :: Reta, Rrho
-            real(rp),    dimension(4)            :: a_i, b_i, c_i
-            real(rp),    dimension(npoin,ndime)  :: aux_u, aux_q,aux_u_wall
-            real(rp),    dimension(npoin)        :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
-            real(rp),    dimension(npoin)        :: Rmass, Rener, Rmass_sum, Rener_sum, alpha,Reta_sum
-            real(rp),    dimension(npoin,ndime)  :: Rmom, Rmom_sum, f_eta
-            real(rp)                             :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
-            real(rp)                             :: Aemac(npoin,ndime), Femac(npoin), umag
+            real(rp),    dimension(npoin)       :: Reta, Rrho
+            real(rp),    dimension(4)           :: a_i, b_i, c_i
+            real(rp),    dimension(npoin,ndime) :: aux_u, aux_q,aux_u_wall
+            real(rp),    dimension(npoin)       :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
+            real(rp),    dimension(npoin)       :: Rmass, Rener, Rmass_sum, Rener_sum, alpha,Reta_sum
+            real(rp),    dimension(npoin,ndime) :: Rmom, Rmom_sum, f_eta
+            real(rp)                            :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
+            real(rp)                            :: Aemac(npoin,ndime), Femac(npoin), umag
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! New version of RK4 using loops                 !
@@ -198,8 +199,8 @@ module time_integ
                !
                ! Evaluate wall models
      
-               if((flag_activate_wall_model==1) .and. (nboun .ne. 0)) then
-                  call evalWallModel(bouCodes2WallModel,nelem,npoin,nboun,numBoundCodes,connec,bound,point2elem,atoIJK, bou_codes, &
+               if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
+                  call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK,bou_codes,&
                      bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),aux_u(:,:),Rdiff_mom)
                end if
                !

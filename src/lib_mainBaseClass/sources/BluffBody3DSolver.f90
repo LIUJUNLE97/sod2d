@@ -55,12 +55,6 @@ contains
       bouCodes2BCType(3) = bc_type_slip_wall_model
       bouCodes2BCType(4) = bc_type_slip_adiabatic
       bouCodes2BCType(5) = bc_type_outlet
-
-      bouCodes2WallModel(1) = 0
-      bouCodes2WallModel(2) = 1
-      bouCodes2WallModel(3) = 1
-      bouCodes2WallModel(4) = 0
-      bouCodes2WallModel(5) = 0
 #else
       !For auto case---------------------------------------------------------
       if(mpi_rank.eq.0) write(111,*) "--| BOCOS for auto case.."
@@ -69,13 +63,6 @@ contains
       bouCodes2BCType(4) = bc_type_non_slip_adiabatic!bc_type_slip_wall_model
       bouCodes2BCType(5) = bc_type_slip_adiabatic
       bouCodes2BCType(6) = bc_type_outlet
-
-      bouCodes2WallModel(1) = 0
-      bouCodes2WallModel(2) = 0!1
-      bouCodes2WallModel(3) = 0
-      bouCodes2WallModel(4) = 0!1
-      bouCodes2WallModel(5) = 0
-      bouCodes2WallModel(6) = 0
 #endif
 
    end subroutine BluffBody3DSolver_fill_BC_Types

@@ -1,30 +1,29 @@
 module mod_arrays
-        use mod_constants
+      use mod_constants
 
       implicit none
 
       ! main allocatable arrays
-      !integer(4), allocatable  :: connecVTK(:,:)!, connec(:,:), bound(:,:), ldof(:), lbnodes(:), bou_codes(:,:)
-      !integer(4), allocatable  :: masSla(:,:), connec_orig(:,:), bound_orig(:,:), lpoin_w(:)
-      integer(4), allocatable  :: lelpn(:),point2elem(:),bouCodes2BCType(:),bouCodes2WallModel(:)
-      real(rp), allocatable  :: normalsAtNodes(:,:)
-      integer(4), allocatable  :: atoIJ(:),atoIJK(:),listHEX08(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
-!      integer(4), allocatable  :: atoIJ(:), atoIJK(:), vtk_atoIJK(:), listHEX08(:,:), connecLINEAR(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:)
-!      real(rp), allocatable    :: coord(:,:), helem(:),helem_l(:,:)
-      real(rp), allocatable    :: helem(:),helem_l(:,:)
-      real(rp), allocatable    :: xgp(:,:), wgp(:), xgp_b(:,:), wgp_b(:)
-      real(rp), allocatable    :: Ngp(:,:), dNgp(:,:,:), Ngp_b(:,:), dNgp_b(:,:,:)
-      real(rp), allocatable    :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
-      real(rp), allocatable    :: Je(:,:), He(:,:,:,:), bou_norm(:,:)
-      real(rp) , allocatable   :: gpvol(:,:,:), gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
-      real(rp), allocatable    :: u(:,:,:), q(:,:,:), rho(:,:), pr(:,:), E(:,:), Tem(:,:), e_int(:,:), csound(:), eta(:,:), machno(:),u_wall(:,:), rho_wall(:),mu_wall(:)
-      real(rp), allocatable    :: Ml(:)
-      real(rp), allocatable    :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:),mu_factor(:)
-      real(rp), allocatable    :: source_term(:)
-      real(rp), allocatable    :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:)
-      real(rp), allocatable    :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:)
-      real(rp), allocatable    :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
-      real(rp), allocatable    :: Fpr(:,:), Ftau(:,:)
+      ! integer ---------------------------------------------------
+      integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
+      integer(4), allocatable :: atoIJ(:),atoIJK(:),listHEX08(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
+
+      ! real ------------------------------------------------------
+      real(rp), allocatable :: normalsAtNodes(:,:)
+      real(rp), allocatable :: helem(:),helem_l(:,:)
+      real(rp), allocatable :: xgp(:,:), wgp(:), xgp_b(:,:), wgp_b(:)
+      real(rp), allocatable :: Ngp(:,:), dNgp(:,:,:), Ngp_b(:,:), dNgp_b(:,:,:)
+      real(rp), allocatable :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
+      real(rp), allocatable :: Je(:,:), He(:,:,:,:), bou_norm(:,:)
+      real(rp), allocatable :: gpvol(:,:,:), gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
+      real(rp), allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:)
+      real(rp), allocatable :: Ml(:)
+      real(rp), allocatable :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:),mu_factor(:)
+      real(rp), allocatable :: source_term(:)
+      real(rp), allocatable :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:)
+      real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:)
+      real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
+      real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
 
 end module mod_arrays
 
@@ -67,14 +66,15 @@ module CFDSolverBase_mod
       ! main integer parameters
       !NOTES @JORDI: -> it would be nice if nelem, npoin, nper... etc dissapear from here!
       integer(4), public :: nstep, nper, numCodes 
-      integer(4), public :: ppow
       integer(4), public :: nsave, nleap
       integer(4), public :: nsave2, nleap2
       integer(4), public :: nsaveAVG, nleapAVG
       integer(4), public :: counter, npoin_w
       integer(4), public :: load_step, initial_istep
+
+      ! main logical parameters
       logical, public    :: isPeriodic=.false.,loadMesh=.false.,doGlobalAnalysis=.false.,isFreshStart=.true.
-      logical, public    :: loadResults=.false.,continue_oldLogs=.false.,saveInitialField=.true.
+      logical, public    :: loadResults=.false.,continue_oldLogs=.false.,saveInitialField=.true.,isWallModelOn=.false.
       logical, public    :: useIntInComms=.false.,useFloatInComms=.false.,useDoubleInComms=.false.
 
       ! main char variables
@@ -130,6 +130,7 @@ module CFDSolverBase_mod
       procedure :: flush_log_file
       procedure :: eval_vars_after_load_hdf5_resultsFile
       procedure :: eval_initial_mu_sgs
+      procedure :: checkIfWallModelOn
    end type CFDSolverBase
 contains
 
@@ -178,6 +179,7 @@ contains
       this%doGlobalAnalysis = .false.
       this%isFreshStart=.true.
       this%saveInitialField=.true.
+      this%isWallModelOn=.false.
       !@JORDI: discuss which other parameters can be set as default....
 
    end subroutine CFDSolverBase_initializeDefaultParameters
@@ -236,42 +238,77 @@ contains
    
    end subroutine CFDSolverBase_fill_BC_Types
 
+   subroutine checkIfWallModelOn(this)
+      class(CFDSolverBase), intent(inout) :: this
+      integer :: iBound,bcCode,auxBoundCnt
+
+      this%isWallModelOn = .false.
+      do iBound = 1,numBoundCodes
+         if(bouCodes2BCType(iBound) .eq. bc_type_slip_wall_model) then
+            this%isWallModelOn = .true.
+            if(mpi_rank.eq.0) write(111,*) "--| Wall-Model activated in Boundary id",iBound
+         end if
+      end do
+
+      numBoundsWMRankPar = 0
+      do iBound = 1,numBoundsRankPar
+         bcCode = bouCodes2BCType(bouCodesPar(iBound))
+         if(bcCode .eq. bc_type_slip_wall_model) then
+            numBoundsWMRankPar = numBoundsWMRankPar + 1
+         end if
+      end do
+      !write(*,*) '[',mpi_rank,'] numBoundsWMRankPar',numBoundsWMRankPar
+
+      allocate(listBoundsWM(numBoundsWMRankPar))
+      auxBoundCnt = 0
+      do iBound = 1,numBoundsRankPar
+         bcCode = bouCodes2BCType(bouCodesPar(iBound))
+         if(bcCode .eq. bc_type_slip_wall_model) then
+            auxBoundCnt = auxBoundCnt + 1 
+            listBoundsWM(auxBoundCnt) = iBound
+         end if
+      end do
+
+   end subroutine checkIfWallModelOn
+
    subroutine CFDSolverBase_normalFacesToNodes(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), allocatable    :: aux1(:)
-      integer(4) :: iNodeL,iBound,ipbou,ielem,jgaus,kgaus,idime
+      integer(4) :: iNodeL,iBound,ipbou,iElem,jgaus,kgaus,idime,iAux
       real(rp) :: aux(3), normaux,sig
+
+      if(mpi_rank.eq.0) write(111,*) "--| Evaluating Normals at Nodes for Wall-Model"
 
       allocate(normalsAtNodes(numNodesRankPar,ndime))
 
       !$acc kernels
       normalsAtNodes(:,:) = 0.0_rp
       !$acc end kernels
+
       !$acc parallel loop gang 
-      do iBound = 1,numBoundsRankPar
-         if(bouCodes2WallModel(bouCodesPar(iBound)) == 1) then
-            ielem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
-            jgaus = connecParWork(ielem,nnode)         ! internal node
-            !$acc loop vector private(aux)
-            do ipbou = 1,npbou
-               kgaus = boundPar(iBound,ipbou) ! node at the boundary
-               sig=1.0_rp
-               aux(1) = boundNormalPar(iBound,(ipbou-1)*ndime+1)
-               aux(2) = boundNormalPar(iBound,(ipbou-1)*ndime+2)
-               aux(3) = boundNormalPar(iBound,(ipbou-1)*ndime+3)
-               normaux = sqrt(dot_product(aux,aux))
-               if(dot_product(coordPar(jgaus,:)-coordPar(kgaus,:), aux(:)) .lt. 0.0_rp ) then
-                  sig=-1.0_rp
-               end if
-               !$acc loop seq
-               do idime = 1,ndime     
-                  aux(idime) = aux(idime)*sig/normaux
-               end do
-               normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1) + aux(1)
-               normalsAtNodes(kgaus,2) = normalsAtNodes(kgaus,2) + aux(2)
-               normalsAtNodes(kgaus,3) = normalsAtNodes(kgaus,3) + aux(3)
+      do iAux = 1,numBoundsWMRankPar
+         iBound = listBoundsWM(iAux)
+         iElem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
+         jgaus = connecParWork(iElem,nnode)         ! internal node
+         !$acc loop vector private(aux)
+         do ipbou = 1,npbou
+            kgaus = boundPar(iBound,ipbou) ! node at the boundary
+            sig=1.0_rp
+            aux(1) = boundNormalPar(iBound,(ipbou-1)*ndime+1)
+            aux(2) = boundNormalPar(iBound,(ipbou-1)*ndime+2)
+            aux(3) = boundNormalPar(iBound,(ipbou-1)*ndime+3)
+            normaux = sqrt(dot_product(aux,aux))
+            if(dot_product(coordPar(jgaus,:)-coordPar(kgaus,:), aux(:)) .lt. 0.0_rp ) then
+               sig=-1.0_rp
+            end if
+            !$acc loop seq
+            do idime = 1,ndime     
+               aux(idime) = aux(idime)*sig/normaux
             end do
-         end if
+            normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1) + aux(1)
+            normalsAtNodes(kgaus,2) = normalsAtNodes(kgaus,2) + aux(2)
+            normalsAtNodes(kgaus,3) = normalsAtNodes(kgaus,3) + aux(3)
+         end do
       end do
       !$acc end parallel loop
 
@@ -307,10 +344,8 @@ contains
       allocate(bouCodesNodesPar(numNodesRankPar))
       allocate(aux1(numNodesRankPar))
       allocate(bouCodes2BCType(numBoundCodes))
-      allocate(bouCodes2WallModel(numBoundCodes))
 
       bouCodes2BCType(:) = 0
-      bouCodes2WallModel(:) = 0
 
       call this%fillBCTypes()
 
@@ -339,6 +374,8 @@ contains
          end if
       end do
       !$acc end parallel loop
+
+      call this%checkIfWallModelOn()
 
       deallocate(aux1)
 
@@ -382,9 +419,6 @@ contains
       allocate(mu_factor(numNodesRankPar))  ! Fluid viscosity
       allocate(mu_e(numElemsInRank,ngaus))  ! Elemental viscosity
       allocate(mu_sgs(numElemsInRank,ngaus))! SGS viscosity
-      allocate(u_wall(numNodesRankPar,ndime))  ! Velocity for the wall model
-      allocate(mu_wall(numNodesRankPar))  ! Velocity for the wall model
-      allocate(rho_wall(numNodesRankPar))  ! Velocity for the wall model
       !$acc kernels
       u(:,:,:) = 0.0_rp
       q(:,:,:) = 0.0_rp
@@ -400,9 +434,6 @@ contains
       mu_factor(:) = 1.0_rp
       mu_e(:,:) = 0.0_rp
       mu_sgs(:,:) = 0.0_rp
-      u_wall(:,:) = 0.0_rp
-      mu_wall(:) = 0.0_rp
-      rho_wall(:) = 0.0_rp
       !$acc end kernels
 
       !ilsa
@@ -482,7 +513,9 @@ contains
       class(CFDSolverBase), intent(inout) :: this
 
       if(this%loadResults) then
+         if(mpi_rank.eq.0) write(111,*) "--| Loading results load_step ",this%load_step
          call load_hdf5_resultsFile(this%load_step,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs)
+         if(mpi_rank.eq.0) write(111,*) "   --| Loaded results for load_step",this%load_step,"time",this%time
          call this%eval_vars_after_load_hdf5_resultsFile()
 
          if(this%continue_oldLogs) then
@@ -743,13 +776,13 @@ contains
       !*********************************************************************!
       ! evaluate near boundaries for the inlets and outlets
       !not the best place Oriol!
-      if(mpi_rank.eq.0) write(*,*) "--| Doing near boundary calculations..."
+      if(mpi_rank.eq.0) write(111,*) "--| Doing near boundary calculations..."
       allocate(lelpn(numNodesRankPar))
       allocate(point2elem(numNodesRankPar))
-      if(mpi_rank.eq.0) write(111,*) '--| POINT 2 ELEM begin'
+      if(mpi_rank.eq.0) write(111,*) '  --| Evaluating point2elem array...'
       call elemPerNode(numElemsInRank,numNodesRankPar,connecParWork,lelpn,point2elem)
 
-      if(mpi_rank.eq.0) write(111,*) '--| POINT 2 ELEM done'
+      if(mpi_rank.eq.0) write(111,*) '  --| Evaluating lnbn & lnbnNodes arrays...'
       allocate(lnbn(numBoundsRankPar,npbou))
       allocate(lnbnNodes(numNodesRankPar))
       call nearBoundaryNode(numElemsInRank,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
@@ -846,7 +879,7 @@ contains
 
    subroutine CFDSolverBase_evalTimeIteration(this)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: icode,counter,istep,ppow=1,flag_emac,flag_predic
+      integer(4) :: icode,counter,istep,flag_emac,flag_predic
       character(4) :: timeStep
 
       counter = 1
@@ -997,7 +1030,6 @@ contains
          write(111,*) "    flag_solver_type: ",         flag_solver_type
          write(111,*) "    flag_spectralElem: ",        flag_spectralElem
          write(111,*) "    flag_normalise_entropy: ",   flag_normalise_entropy
-         write(111,*) "    flag_activate_wall_model: ", flag_activate_wall_model
          write(111,*) "--------------------------------------"
          write(111,*) "    ce: ",      ce
          write(111,*) "    cmax: ",    cmax
@@ -1229,7 +1261,7 @@ contains
 
         ! Eval BoundaryFacesToNodes
 
-        call  this%normalFacesToNodes()
+      if(this%isWallModelOn) call  this%normalFacesToNodes()
 
         ! Eval initial time step
 

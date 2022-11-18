@@ -2089,7 +2089,6 @@ contains
       character(512) :: full_fileName,groupname,dsetname
       integer :: iPer,i,j
       real(rp) :: aux_array(1)
-      !real(8) :: aux_double_array(numNodesRankPar)
 
       !------------------------------------------------------------------------------------
       !-------------------------------------------
@@ -2274,7 +2273,6 @@ contains
       real(rp) :: aux_array(1)
       real(rp), dimension(numNodesRankPar) :: envit, mut
       integer :: i,j
-      !real(8) :: aux_double_array(numNodesRankPar)
       
       call set_hdf5_resultsFile_name(load_step,full_loadFileName)
       if(mpi_rank.eq.0) write(*,*) '# Loading results file: ',trim(adjustl(full_loadFileName))

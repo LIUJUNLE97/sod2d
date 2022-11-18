@@ -109,6 +109,10 @@ integer(int_size), allocatable :: boundPar(:,:), bouCodesPar(:), ldofPar(:), lbn
 real(rp), allocatable :: boundNormalPar(:,:)
 logical :: isMeshBoundaries
 
+!For WallModels
+integer(int_size) :: numBoundsWMRankPar
+integer(int_size), allocatable :: listBoundsWM(:)
+
 ! ################################################################################################
 ! ------------------------ VARS for MPI COMMS ----------------------------------------------------
 ! ################################################################################################
