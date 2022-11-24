@@ -20,6 +20,8 @@ option(USE_MN "Compiling in MareNostrum" OFF)
 option(USE_GPU "Compile using GPU" OFF)
 option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
 
+option(DEBUG_MODE "Set debug mode" OFF)
+
 # Folder with files configuring extra CMake options
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
@@ -42,6 +44,12 @@ include(hdf5)
 
 # Include external projects
 include(ExternalProject)
+
+if(DEBUG_MODE)
+    set(CMAKE_BUILD_TYPE Debug)
+else()
+    set(CMAKE_BUILD_TYPE Release)
+endif()
 
 # use, i.e. don't skip the full RPATH for the build tree
 set(CMAKE_SKIP_BUILD_RPATH FALSE)

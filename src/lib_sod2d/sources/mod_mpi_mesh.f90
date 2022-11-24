@@ -649,7 +649,8 @@ contains
       ! Create the window
       !--------------------------------------------------------------------------------------
       window_buffer_size = mpi_integer_size*mpi_size
-
+      !write(*,*) '1. wbs ',window_buffer_size
+      !write(*,*) '1. size vecNumElemsRank',size(vecNumElemsRank)
       call MPI_Win_create(vecNumElemsRank,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
 
@@ -663,7 +664,7 @@ contains
       call MPI_Win_fence(0,window_id,mpi_err)
       call MPI_Win_free(window_id,mpi_err)
       !--------------------------------------------------------------------------------------
-
+      !write(*,*) 'post1. wbs ',window_buffer_size
       numElemsInRank_par=0
 
       do iRank=0,mpi_size-1
@@ -689,7 +690,7 @@ contains
       ! Create the window
       !--------------------------------------------------------------------------------------
       window_buffer_size = mpi_integer_size*iElemsInRank ! numElemsInRank_srl
-
+      !write(*,*) '2. wbs ',window_buffer_size
       call MPI_Win_create(elemPart(:,1),window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
 
@@ -1542,7 +1543,7 @@ contains
       ! Create the window
       !--------------------------------------------------------------------------------------
       window_buffer_size = mpi_integer_size*1
-
+      !write(*,*) '3. wbs ',window_buffer_size
       call MPI_Win_create(numNodesRankPar, window_buffer_size, mpi_integer_size,&
                          MPI_INFO_NULL, MPI_COMM_WORLD, window_id, mpi_err)
       call MPI_Win_fence(0, window_id, mpi_err)
@@ -1632,7 +1633,7 @@ contains
       ! Create the window
       !--------------------------------------------------------------------------------------
       window_buffer_size = mpi_integer_size*totalNumNodesSrl
- 
+      !write(*,*) '4. wbs ',window_buffer_size
       call MPI_Win_create(vectorBN, window_buffer_size, mpi_integer_size, MPI_INFO_NULL, MPI_COMM_WORLD, window_id, mpi_err)
       call MPI_Win_fence(0, window_id, mpi_err)
 
@@ -1684,6 +1685,7 @@ contains
       vecAuxCnt(mpi_rank) = auxCnt 
 
       window_buffer_size = mpi_integer_size*1
+      !write(*,*) '5. wbs ',window_buffer_size
       call MPI_Win_create(vecAuxCnt(mpi_rank),window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
    
@@ -1744,6 +1746,7 @@ contains
       !lets share between all the ranks the shared nodes/vertex!
 
       window_buffer_size = mpi_integer_size*vecAuxCnt(mpi_rank)
+      !write(*,*) '6. wbs ',window_buffer_size
       call MPI_Win_create(vecSharedBN_part(1),window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
    
@@ -2157,6 +2160,7 @@ contains
       !--------------------------------------------------------------------------------------
 
       window_buffer_size = mpi_integer_size*(mpi_size*2)
+      !write(*,*) '7. wbs ',window_buffer_size
       call MPI_Win_create(commSchemeStartEndNodes,window_buffer_size,mpi_integer_size,&
                          MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)

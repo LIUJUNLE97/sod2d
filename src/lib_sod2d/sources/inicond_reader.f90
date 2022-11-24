@@ -223,7 +223,7 @@ module inicond_reader
       open(99,file=trim(adjustl(file_path))//trim(adjustl(file_name))//trim(adjustl(file_type)),status="old")
       
       auxCnt = 1
-      do iLine = 1,totalNumNodesSrl
+      serialLoop: do iLine = 1,totalNumNodesSrl
          read(99,*) readInd, readValue_ux, readValue_uy, readValue_uz
          if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
             iNodeL = matGidSrlOrdered(auxCnt,1)
@@ -238,7 +238,10 @@ module inicond_reader
                u(iNodeL,3)=readValue_uz
             end if
          end if         
-      end do
+         if(auxCnt.gt.numNodesRankPar) then
+            exit serialLoop
+         end if
+      end do serialLoop
       
       close(99)
 

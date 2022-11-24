@@ -72,6 +72,20 @@ contains
       end do
       !-----------------------------------------------------------------
 
+      !$acc parallel loop gang vector_length(vecLength)
+      do iBound = 1,numBoundsRankPar
+         !$acc loop vector
+         do ipbou = 1,npbou
+            !$acc loop seq
+            do iper = 1,nPerRankPar
+               if (boundPar(iBound,ipbou) .eq. masSlaRankPar(iper,2)) then
+                  boundPar(iBound,ipbou) = masSlaRankPar(iper,1)
+               end if
+            end do
+         end do
+      end do
+      !$acc end parallel loop
+
       !------------------------------------------------------------------------
       allocate(aux1(numNodesRankPar))
 

@@ -9,21 +9,21 @@ module mod_postpro
 
 contains
 
-   subroutine compute_fieldDerivs(nelem,npoin,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho,u,gradRho,curlU,divU,Qcrit)
+   subroutine compute_fieldDerivs(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho,u,gradRho,curlU,divU,Qcrit)
 
       implicit none
 
-      integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode), lelpn(npoin)
-      real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dNgp(ndime,nnode,ngaus)
-      real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime)
-      real(rp),    intent(in)  :: leviCivi(ndime,ndime,ndime)
-      real(rp),    intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1)
+      integer(4), intent(in)  :: nelem, npoin, npoin_w, lpoin_w(npoin), connec(nelem,nnode), lelpn(npoin)
+      real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem), dNgp(ndime,nnode,ngaus)
+      real(rp),   intent(in)  :: rho(npoin), u(npoin,ndime)
+      real(rp),   intent(in)  :: leviCivi(ndime,ndime,ndime)
+      real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1)
       integer(4), intent(in)  :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-      real(rp),    intent(out) :: gradRho(npoin,ndime), curlU(npoin,ndime), divU(npoin), Qcrit(npoin)
-      integer(4)              :: ielem, idime, inode, igaus, ipoin, jdime,kdime,isoI, isoJ, isoK , ii
-      real(rp)                 :: gpcar(ndime,nnode), rho_e(nnode), u_e(nnode,ndime), aux1, aux2
-      real(rp)                 :: gradu_e(ndime,ndime)
-      real(rp)                 :: gradIsoRho(ndime),gradIsoU(ndime,ndime)
+      real(rp),   intent(out) :: gradRho(npoin,ndime), curlU(npoin,ndime), divU(npoin), Qcrit(npoin)
+      integer(4)              :: iNodeL, ielem, idime, inode, igaus, ipoin, jdime,kdime,isoI, isoJ, isoK , ii
+      real(rp)                :: gpcar(ndime,nnode), rho_e(nnode), u_e(nnode,ndime), aux1, aux2
+      real(rp)                :: gradu_e(ndime,ndime)
+      real(rp)                :: gradIsoRho(ndime),gradIsoU(ndime,ndime)
 
       !$acc kernels
       divU(:) = 0.0_rp
@@ -112,14 +112,15 @@ contains
       end if
 
       !$acc parallel loop
-      do ipoin = 1,npoin
+      do ipoin = 1,npoin_w
+         iNodeL=lpoin_w(ipoin)
          !$acc loop seq
          do idime = 1,ndime
-            gradRho(ipoin,idime) = gradRho(ipoin,idime)/real(lelpn(ipoin),rp)
-            curlU(ipoin,idime) = curlU(ipoin,idime)/real(lelpn(ipoin),rp)
+            gradRho(iNodeL,idime) = gradRho(iNodeL,idime)/real(lelpn(iNodeL),rp)
+            curlU(iNodeL,idime) = curlU(iNodeL,idime)/real(lelpn(iNodeL),rp)
          end do
-         divU(ipoin) = divU(ipoin)/real(lelpn(ipoin),rp)
-         Qcrit(ipoin) = Qcrit(ipoin)/real(lelpn(ipoin),rp)
+         divU(iNodeL) = divU(iNodeL)/real(lelpn(iNodeL),rp)
+         Qcrit(iNodeL) = Qcrit(iNodeL)/real(lelpn(iNodeL),rp)
       end do
       !$acc end parallel loop
 

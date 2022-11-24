@@ -45,8 +45,8 @@ contains
    subroutine ChannelFlowSolver_fill_BC_Types(this)
       class(ChannelFlowSolver), intent(inout) :: this
 
-      !bouCodes2BCType(1) = bc_type_non_slip_adiabatic
-      bouCodes2BCType(1) = bc_type_slip_wall_model
+      bouCodes2BCType(1) = bc_type_non_slip_adiabatic
+      !bouCodes2BCType(1) = bc_type_slip_wall_model
 
    end subroutine ChannelFlowSolver_fill_BC_Types
 
@@ -64,7 +64,7 @@ contains
       class(ChannelFlowSolver), intent(inout) :: this
       real(rp) :: mur
 
-      write(this%gmsh_file_path,*) "./mesh/"
+      write(this%gmsh_file_path,*) "./mesh_channel/"
       write(this%gmsh_file_name,*) "channel"
 
       write(this%mesh_h5_file_path,*) ""
@@ -74,20 +74,20 @@ contains
       write(this%results_h5_file_name,*) "results"
 
       this%isPeriodic = .true.
-      this%loadMesh = .true.
+      this%loadMesh = .false.
 
 !      this%loadResults = .true.
 !      this%continue_oldLogs = .false.
 !      this%load_step = 400001
 
       this%nstep = 9000000 
-      this%cfl_conv = 0.75_rp
-      this%cfl_diff = 0.75_rp
+      this%cfl_conv = 0.25_rp
+      this%cfl_diff = 0.25_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
       this%nleap = 50000 ! Saving interval, TODO: input
-      this%nleap2 = 50  ! Saving interval, TODO: input
+      this%nleap2 = 1  ! Saving interval, TODO: input
       this%nleapAVG = 50000
 
       this%Cp = 1004.0_rp
@@ -121,11 +121,11 @@ contains
       class(ChannelFlowSolver), intent(inout) :: this
       integer(4) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL, idime
-      real(rp) :: velo, ti(3), yp
+      real(rp) :: velo, ti(3), yp,velo_aux1
       integer(4)   :: iLine,iNodeGSrl,auxCnt
       logical :: readFiles
 
-      readFiles = .true.
+      readFiles = .false.
 
       if(readFiles) then
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
@@ -147,7 +147,7 @@ contains
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
          auxCnt = 1
          !!$acc parallel loop
-         do iLine = 1,totalNumNodesSrl
+         serialLoop : do iLine = 1,totalNumNodesSrl
             call random_number(ti)
             if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
                iNodeL = matGidSrlOrdered(auxCnt,1)
@@ -158,13 +158,18 @@ contains
                   yp = abs(coordPar(iNodeL,2)-2.0_rp*this%delta)*this%utau*this%rho0/this%mu
                end if
 
+               !velo_aux1=(1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))
+               !velo = this%utau*velo_aux1
                velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
 
                u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(ti(1) -0.5_rp))
                u(iNodeL,2,2) = velo*(0.1_rp*(ti(2) -0.5_rp))
                u(iNodeL,3,2) = velo*(0.1_rp*(ti(3) -0.5_rp))
             end if
-         end do
+            if(auxCnt.gt.numNodesRankPar) then
+               exit serialLoop
+            end if
+         end do serialLoop
          !!$acc end parallel loop
          !!$acc parallel loop
          do iNodeL = 1,numNodesRankPar
