@@ -1,8 +1,8 @@
 ! main.f90
 
 #define _tgv_ 0
-#define _channel_ 1
-#define _bluff_ 0
+#define _channel_ 0
+#define _bluff_ 1
 #define _bluff3d_ 0
 
 program main
@@ -36,8 +36,8 @@ program main
    call bluff%run()
 #endif
 #if _bluff3d_
-   type(BluffBody3DSolver)  :: bluff
-   call bluff%run()
+   type(BluffBody3DSolver)  :: bluff3d
+   call bluff3d%run()
 #endif
 
 
