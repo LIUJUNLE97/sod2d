@@ -454,8 +454,8 @@ contains
 
       !boundary
       if(numBoundCodes .ge. 1) then
-         allocate(Fpr(numBoundCodes,ndime))
-         allocate(Ftau(numBoundCodes,ndime))
+         allocate(Fpr(ndime,numBoundCodes))
+         allocate(Ftau(ndime,numBoundCodes))
          !$acc kernels
          Fpr(:,:) = 0.0_rp
          Ftau(:,:) = 0.0_rp
@@ -528,6 +528,7 @@ contains
             this%time = 0.0_rp
          end if
       else
+         if(mpi_rank.eq.0) write(111,*) "--| Evaluating Initial Conditions..."
          call this%evalInitialConditions()
       end if
 
@@ -708,6 +709,7 @@ contains
          end do
          deallocate(aux_1)
          call overwrite_coordinates_hdf5()
+         if(mpi_rank.eq.0) write(*,*) "--| End of Interpolating nodes coordinates!"
       end if
 
    end subroutine CFDSolverBase_interpolateOriginalCoordinates
@@ -828,7 +830,7 @@ contains
             call nvtxStartRange("Surface info")
             call surfInfo(0,0.0_rp,numElemsInRank,numNodesRankPar,numBoundsRankPar,iCode,connecParWork,boundPar,point2elem,&
                bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(iCode,:),Ftau(iCode,:))
+               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode))
             call nvtxEndRange
          end do
       end if
@@ -960,7 +962,7 @@ contains
                   call nvtxStartRange("Surface info")
                   call surfInfo(istep,this%time,numElemsInRank,numNodesRankPar,numBoundsRankPar,icode,connecParWork,boundPar,point2elem, &
                      bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(icode,:),Ftau(icode,:))
+                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode))
 
                   call nvtxEndRange
                   if(mpi_rank.eq.0) call flush(888+icode)

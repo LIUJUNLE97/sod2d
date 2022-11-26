@@ -56,7 +56,11 @@ contains
       class(BluffBodySolver), intent(inout) :: this
       real(rp) :: mul, mur
 
+<<<<<<< HEAD
       write(this%gmsh_file_path,*) "./mesh/"
+=======
+      write(this%gmsh_file_path,*) "./mesh_nacaCoarse/"
+>>>>>>> fa6f1723014298390eb3fa478bc2fc994e2c297b
       write(this%gmsh_file_name,*) "naca" 
 
       write(this%mesh_h5_file_path,*) ""
@@ -79,6 +83,7 @@ contains
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
+
       this%nleap = 20000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 5  ! Saving interval, TODO: input

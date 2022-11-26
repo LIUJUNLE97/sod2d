@@ -36,8 +36,8 @@ program main
    call bluff%run()
 #endif
 #if _bluff3d_
-   type(BluffBody3DSolver)  :: bluff
-   call bluff%run()
+   type(BluffBody3DSolver)  :: bluff3d
+   call bluff3d%run()
 #endif
 
 
