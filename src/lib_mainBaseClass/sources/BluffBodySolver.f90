@@ -56,11 +56,7 @@ contains
       class(BluffBodySolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-<<<<<<< HEAD
       write(this%gmsh_file_path,*) "./mesh/"
-=======
-      write(this%gmsh_file_path,*) "./mesh_nacaCoarse/"
->>>>>>> fa6f1723014298390eb3fa478bc2fc994e2c297b
       write(this%gmsh_file_name,*) "naca" 
 
       write(this%mesh_h5_file_path,*) ""

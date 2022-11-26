@@ -1754,6 +1754,7 @@ contains
       deallocate(aux_array)
       allocate(aux_array(numBoundsRankPar*npbou))
 
+      !boundPar
       i=1
       do iBound=1,numBoundsRankPar
          do m=1,npbou
@@ -1763,6 +1764,19 @@ contains
       end do
 
       dsetname = '/Boundary_data/boundPar'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+      !boundParOrig
+      i=1
+      do iBound=1,numBoundsRankPar
+         do m=1,npbou
+            aux_array(i)=boundParOrig(iBound,m)
+            i=i+1
+         end do
+      end do
+
+      dsetname = '/Boundary_data/boundParOrig'
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
 
@@ -1870,6 +1884,7 @@ contains
 
          !--------------------------------------------------------------------------------------------------------
          allocate(boundPar(numBoundsRankPar,npbou))
+         allocate(boundParOrig(numBoundsRankPar,npbou))
          allocate(bouCodesPar(numBoundsRankPar))
          allocate(ldofPar(ndofRankPar))
          allocate(lbnodesPar(numBoundaryNodesRankPar))
@@ -1907,6 +1922,7 @@ contains
 
          allocate(aux_array(numBoundsRankPar*nnode))
 
+         !boundPar
          dsetname = '/Boundary_data/boundPar'
          call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
 
@@ -1914,6 +1930,18 @@ contains
          do iBound=1,numBoundsRankPar
             do m=1,npbou
                boundPar(iBound,m)=aux_array(i)
+               i=i+1
+            end do
+         end do
+
+         !boundParOrig
+         dsetname = '/Boundary_data/boundParOrig'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+         i=1
+         do iBound=1,numBoundsRankPar
+            do m=1,npbou
+               boundParOrig(iBound,m)=aux_array(i)
                i=i+1
             end do
          end do
