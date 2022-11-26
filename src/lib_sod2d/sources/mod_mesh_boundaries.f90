@@ -54,6 +54,7 @@ contains
       end if
 
       allocate(boundPar(numBoundsRankPar,npbou))
+      allocate(boundParOrig(numBoundsRankPar,npbou))
       allocate(bouCodesPar(numBoundsRankPar))
       
       ii=0
@@ -65,6 +66,7 @@ contains
                iNodeGSrl_bound = boundGMSH(iBound,ipbou)
                iNodeL = gidSrl_to_lid(iNodeGSrl_bound)
                boundPar(ii,ipbou) = iNodeL
+               boundParOrig(ii,ipbou) = iNodeL
             end do
             bouCodesPar(ii) = bou_codesGMSH(iBound,2)
          !write(*,*) '[',mpi_rank,']boundPar(',ii,')',boundPar(ii,:)

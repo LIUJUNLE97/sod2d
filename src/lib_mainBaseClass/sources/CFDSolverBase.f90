@@ -719,7 +719,7 @@ contains
          if(mpi_rank.eq.0) write(111,*) "--| COMPUTING BOUNDARY ELEMENT NORMALS"
          allocate(boundNormalPar(numBoundsRankPar,ndime*npbou))
          call nvtxStartRange("Bou normals")
-         call boundary_normals(numNodesRankPar,numBoundsRankPar,boundPar,this%leviCivi,coordPar,dNgp_b,boundNormalPar)
+         call boundary_normals(numNodesRankPar,numBoundsRankPar,boundParOrig,this%leviCivi,coordPar,dNgp_b,boundNormalPar)
          call nvtxEndRange
       end if
    end subroutine CFDSolverBase_evalBoundaryNormals
