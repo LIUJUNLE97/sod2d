@@ -44,11 +44,11 @@ contains
       class(TGVSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%gmsh_file_path,*) "./mesh_cube30/"!"./mesh_cubeFine/"
+      write(this%gmsh_file_path,*) "./mesh/"!"./mesh_cubeFine/"
       write(this%gmsh_file_name,*) "cube" 
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube60"!"cubeFine"
+      write(this%mesh_h5_file_name,*) "cube"!"cubeFine"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"

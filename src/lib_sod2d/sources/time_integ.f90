@@ -15,11 +15,11 @@ module time_integ
 
       contains
 
-         subroutine rk_4_main(noBoundaries,isWallModelOn,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         subroutine rk_4_main(noBoundaries,isWallModelOn,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                          ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
-                         numBoundsWM,listBoundsWM,wgp_b,bounorm,coord,normalsAtNodes,source_term)  ! Optional args
+                         listBoundsWM,wgp_b,bounorm,coord,normalsAtNodes,source_term)  ! Optional args
 
             implicit none
 
@@ -56,9 +56,10 @@ module time_integ
             real(rp),             intent(inout) :: ax1(npoin)
             real(rp),             intent(inout) :: ax2(npoin)
             real(rp),             intent(inout) :: ax3(npoin)
+            integer(4),            intent(in)    :: numBoundsWM
             integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*)
             integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun), bou_codes_nodes(npoin)
-            integer(4), optional, intent(in)    :: numBoundsWM,listBoundsWM(*)
+            integer(4), optional, intent(in)    :: listBoundsWM(*)
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),coord(npoin,ndime),normalsAtNodes(npoin,ndime)
             real(rp), optional, intent(in)      :: source_term(ndime)
             integer(4)                          :: pos
