@@ -67,14 +67,14 @@ contains
 
       this%isPeriodic = .true.
       this%loadMesh = .false.
-      this%loadResults = .false.
+      this%loadResults = .true.
 
       this%continue_oldLogs = .false.
-      this%load_step = 100001
+      this%load_step = 280001
 
       this%nstep = 9000001 !250001
-      this%cfl_conv = 0.75_rp !0.1_rp
-      this%cfl_diff = 0.75_rp !0.1_rp
+      this%cfl_conv = 0.95_rp !0.1_rp
+      this%cfl_diff = 0.95_rp !0.1_rp
 
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
