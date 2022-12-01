@@ -10,6 +10,11 @@ module mod_constants
       integer(4), parameter :: ndime=3
       
       !
+      ! Number of witness points
+      !
+      integer(4), parameter :: nwit=1
+      
+      !
       ! Element characteristics
       !
       integer(4), parameter :: nnode=64

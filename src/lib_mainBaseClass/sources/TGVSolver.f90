@@ -44,7 +44,7 @@ contains
       class(TGVSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%gmsh_file_path,*) "./mesh/"!"./mesh_cubeFine/"
+      write(this%gmsh_file_path,*) "./mesh_cube20/"!"./mesh_cubeFine/"
       write(this%gmsh_file_name,*) "cube" 
 
       write(this%mesh_h5_file_path,*) ""
@@ -64,7 +64,7 @@ contains
       !this%continue_oldLogs = .true.
       !this%load_step = 2001
 
-      this%nstep = 1001
+      this%nstep = 2001
 
       this%cfl_conv = 1.0_rp
       this%cfl_diff = 1.0_rp
@@ -72,7 +72,7 @@ contains
       this%nsave2 = 1   ! First step to save, TODO: input
 
       this%nsaveAVG = 1!1000000
-      this%nleap = 500 ! Saving interval, TODO: input
+      this%nleap = 200 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 25  ! Saving interval, TODO: input
       this%nleapAVG = 2000000000
@@ -94,6 +94,11 @@ contains
       nscbc_p_inf = this%po
       nscbc_Rgas_inf = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
+
+      !Witness points parameters
+      this%have_witness = .true.
+      this%witness_inp_file_name = "witness.txt"
+      this%witness_h5_file_name = "resultwit.txt"
 
    end subroutine TGVSolver_initializeParameters
 

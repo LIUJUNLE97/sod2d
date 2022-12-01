@@ -24,6 +24,8 @@ module mod_arrays
       real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
+      ! Witness arrays
+      real(rp), allocatable :: witxyz(:,:)
 
 end module mod_arrays
 
@@ -58,6 +60,7 @@ module CFDSolverBase_mod
       use mod_hdf5
       use mod_comms
       use mod_comms_boundaries
+      use mod_witness_points
    implicit none
    private
 
@@ -71,22 +74,25 @@ module CFDSolverBase_mod
       integer(4), public :: nsaveAVG, nleapAVG
       integer(4), public :: counter, npoin_w
       integer(4), public :: load_step, initial_istep
+      integer(4), public :: witel(nwit)
 
       ! main logical parameters
       logical, public    :: isPeriodic=.false.,loadMesh=.false.,doGlobalAnalysis=.false.,isFreshStart=.true.
       logical, public    :: loadResults=.false.,continue_oldLogs=.false.,saveInitialField=.true.,isWallModelOn=.false.
-      logical, public    :: useIntInComms=.false.,useFloatInComms=.false.,useDoubleInComms=.false.
+      logical, public    :: useIntInComms=.false.,useFloatInComms=.false.,useDoubleInComms=.false., have_witness=.false.
 
       ! main char variables
       character(512) :: log_file_name
       character(512) :: gmsh_file_path,gmsh_file_name
       character(512) :: mesh_h5_file_path,mesh_h5_file_name
       character(512) :: results_h5_file_path,results_h5_file_name
+      character(512) :: witness_inp_file_name,witness_h5_file_name
 
       ! main real parameters
       real(rp) , public                   :: cfl_conv, cfl_diff, acutim
       real(rp) , public                   :: leviCivi(3,3,3), surfArea, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
       real(rp) , public                   :: dt, Cp, Rgas, gamma_gas,Prt,tleap,time
+      real(rp), public :: witxi(nwit,ndime)
       logical  , public                   :: noBoundaries
 
    contains
@@ -122,6 +128,7 @@ module CFDSolverBase_mod
       procedure, public :: saveAverages =>CFDSolverBase_saveAverages
       procedure, public :: savePosprocessingFields =>CFDSolverBase_savePosprocessingFields
       procedure, public :: afterDt =>CFDSolverBase_afterDt
+      procedure, public :: preprocWitnessPoints =>CFDSolverBase_preprocWitnessPoints
 
       procedure :: open_log_file
       procedure :: close_log_file
@@ -505,6 +512,12 @@ contains
       !$acc end kernels
       this%acutim = 0.0_rp
 
+      !!!Witness arrays
+      if (this%have_witness) then
+         allocate(witxyz(ndime,nwit))
+         witxyz(:,:) = 0.0_rp
+      end if
+
       call nvtxEndRange
 
    end subroutine CFDSolverBase_allocateVariables
@@ -742,7 +755,6 @@ contains
       allocate(gpvol(1,ngaus,numElemsInRank))
       call elem_jacobian(numElemsInRank,numNodesRankPar,connecParOrig,coordPar,dNgp,wgp,gpvol,He) 
       call  nvtxEndRange
-
       vol_rank  = 0.0
       vol_tot_d = 0.0
       do ielem = 1,numElemsInRank
@@ -821,7 +833,6 @@ contains
       if(this%saveInitialField) then
          call this%savePosprocessingFields(0)
       end if
-
       !*********************************************************************!
       ! Compute surface forces and area                                                                !
       !*********************************************************************!
@@ -836,7 +847,6 @@ contains
       end if
 
       call compute_fieldDerivs(numElemsInRank,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
-
       call volAvg_EK(numElemsInRank,numNodesRankPar,connecParWork,gpvol,Ngp,nscbc_rho_inf,rho(:,2),u(:,:,2),this%EK)
       call visc_dissipationRate(numElemsInRank,numNodesRankPar,connecParWork,this%leviCivi,nscbc_rho_inf,mu_fluid,mu_e,u(:,:,2),this%VolTot,gpvol,He,dNgp,this%eps_S,this%eps_D,this%eps_T)
       call maxMach(numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,machno,this%maxmachno)
@@ -881,8 +891,9 @@ contains
 
    subroutine CFDSolverBase_evalTimeIteration(this)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: icode,counter,istep,flag_emac,flag_predic
+      integer(4) :: icode,counter,istep,flag_emac,flag_predic,iwit
       character(4) :: timeStep
+      real(rp) :: witval
 
       counter = 1
       flag_emac = 0
@@ -1001,9 +1012,40 @@ contains
 
          counter = counter+1
 
+         !!! Witness points interpolation !!!
+         if(this%have_witness) then
+            open(98, file = this%witness_h5_file_name, action = 'write', position='append')
+            do iwit = 1,nwit
+               call wit_interpolation(this%witxi(iwit,:), u(connecParOrig(this%witel(iwit),:),1,2), witval)  !!Ojo en malles periòdiques: connecParWork
+               write (98,*) witval
+            end do
+            close(98)
+         end if
+
       end do
       call nvtxEndRange
    end subroutine CFDSolverBase_evalTimeIteration
+
+   subroutine CFDSolverBase_preprocWitnessPoints(this)
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4)                          :: iwit, iel, ifound
+      real(rp)                            :: xi(ndime)   
+      
+      ifound = 0
+      call read_points(this%witness_inp_file_name, nwit, witxyz)
+      do iwit = 1, nwit
+         do iel = 1, numElemsInRank
+            call isocoords(coordPar(connecParOrig(iel,:),:), witxyz(:,iwit), xi)
+            if ((abs(xi(1)) < 1) .AND. (abs(xi(2)) < 1) .AND. (abs(xi(3)) < 1)) then
+               ifound = ifound+1
+               this%witel(ifound)   = iel
+               this%witxi(ifound,:) = xi(:)
+               exit
+            end if 
+         end do
+      end do   
+   end subroutine CFDSolverBase_preprocWitnessPoints
 
    subroutine open_log_file(this)
       implicit none
@@ -1177,7 +1219,7 @@ contains
 
    subroutine CFDSolverBase_run(this)
       implicit none
-      class(CFDSolverBase), intent(inout) :: this
+      class(CFDSolverBase), intent(inout) :: this       
 
       ! Init MPI
       call init_mpi()
@@ -1212,7 +1254,7 @@ contains
 
       call this%interpolateOriginalCoordinates()
 
-        ! Allocate variables
+      ! Allocate variables
 
         call this%allocateVariables()
 
@@ -1220,11 +1262,11 @@ contains
 
         call this%evalOrLoadInitialConditions()
 
-        ! Eval  viscosty factor
+        ! Eval  viscosty factor 
 
         call this%evalViscosityFactor()
 
-        ! Eval initial viscosty
+        ! Eval initial viscosty :: VA
 
         call this%evalInitialViscosity()
 
@@ -1255,6 +1297,10 @@ contains
         ! Eval mass 
 
         call this%evalMass()
+
+      ! Read witness points and preprocess them
+
+      if (this%have_witness) call this%preprocWitnessPoints()
 
         ! Eval first output
         if(this%isFreshStart) call this%evalFirstOutput()
