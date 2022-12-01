@@ -4,9 +4,16 @@
 /tool_postProc/build*
 /tool_commsPerformance/build*
 
+# Temporary ignores
+/mesh_*
+
 # Ignore weird files
 *.swp
 *.mod
+*.h5
+*.log
+*.txt
+*.dat
 
 # Ignore VSCODE estensions and configs
 .trunk
