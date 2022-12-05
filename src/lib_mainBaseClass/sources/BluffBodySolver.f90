@@ -46,7 +46,7 @@ contains
       class(BluffBodySolver), intent(inout) :: this
 
       bouCodes2BCType(1) = bc_type_inlet
-      bouCodes2BCType(2) = bc_type_outlet
+      bouCodes2BCType(2) = bc_type_inlet
       bouCodes2BCType(3) = bc_type_inlet
       bouCodes2BCType(4) = bc_type_inlet
       bouCodes2BCType(5) = bc_type_non_slip_adiabatic
@@ -66,15 +66,15 @@ contains
       write(this%results_h5_file_name,*) "results"
 
       this%isPeriodic = .true.
-      this%loadMesh = .false.
+      this%loadMesh = .true.
       this%loadResults = .true.
 
       this%continue_oldLogs = .false.
-      this%load_step = 280001
+      this%load_step = 900001
 
       this%nstep = 9000001 !250001
-      this%cfl_conv = 0.95_rp !0.1_rp
-      this%cfl_diff = 0.95_rp !0.1_rp
+      this%cfl_conv = 2.2_rp !0.1_rp
+      this%cfl_diff = 2.2_rp !0.1_rp
 
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
@@ -162,6 +162,18 @@ contains
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          mu_factor(iNodeL) = flag_mu_factor
+        if(coordPar(iNodeL,1)<-8.0_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
+        end if
+        if(coordPar(iNodeL,1)>10_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
+        end if
+        if(coordPar(iNodeL,2)<-10.0_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
+        end if
+        if(coordPar(iNodeL,2)>10.0_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
+        end if
       end do
       !$acc end parallel loop
 

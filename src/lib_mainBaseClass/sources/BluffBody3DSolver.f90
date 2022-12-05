@@ -46,24 +46,11 @@ contains
       class(BluffBody3DSolver), intent(inout) :: this
 
       bouCodes2BCType(1) = bc_type_inlet
-#if 1
-      if(mpi_rank.eq.0) write(111,*) "--| BOCOS for carCoarse..."
-      !For carCoarse case-----------------------------------------------------
-      !bouCodes2BCType(2) = bc_type_non_slip_adiabatic
-      !bouCodes2BCType(3) = bc_type_non_slip_adiabatic
-      bouCodes2BCType(2) = bc_type_slip_wall_model
-      bouCodes2BCType(3) = bc_type_slip_wall_model
-      bouCodes2BCType(4) = bc_type_slip_adiabatic
-      bouCodes2BCType(5) = bc_type_outlet
-#else
-      !For auto case---------------------------------------------------------
-      if(mpi_rank.eq.0) write(111,*) "--| BOCOS for auto case.."
       bouCodes2BCType(2) = bc_type_non_slip_adiabatic!bc_type_slip_wall_model
       bouCodes2BCType(3) = bc_type_non_slip_adiabatic
       bouCodes2BCType(4) = bc_type_non_slip_adiabatic!bc_type_slip_wall_model
       bouCodes2BCType(5) = bc_type_slip_adiabatic
       bouCodes2BCType(6) = bc_type_outlet
-#endif
 
    end subroutine BluffBody3DSolver_fill_BC_Types
 
@@ -71,28 +58,24 @@ contains
       class(BluffBody3DSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%gmsh_file_path,*) "./mesh_car/"
-      !write(this%gmsh_file_path,*) "./mesh/"
+      write(this%gmsh_file_path,*) "./mesh/"
       write(this%gmsh_file_name,*) "auto" 
 
       write(this%mesh_h5_file_path,*) ""
-      !write(this%mesh_h5_file_name,*) "auto"
-      write(this%mesh_h5_file_name,*) "carCoarse"!
+      write(this%mesh_h5_file_name,*) "auto"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
       this%isPeriodic = .false.
 
-      this%loadMesh = .true.
-      !this%loadMesh = .false.
-      this%loadResults = .true.
-      !this%loadResults = .false.
+      this%loadMesh = .false.
+      this%loadResults = .false.
 
       this%continue_oldLogs = .false.
-      this%load_step = 50001
+      this%load_step = 100001
 
-      this%nstep = 80001 !250001
+      this%nstep = 800000001 !250001
       this%cfl_conv = 0.5_rp !0.1_rp
       this%cfl_diff = 0.5_rp !0.1_rp
 
@@ -102,7 +85,7 @@ contains
       this%nleap = 20000!25 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 25  ! Saving interval, TODO: input
-      this%nleapAVG = 150000
+      this%nleapAVG = 20000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

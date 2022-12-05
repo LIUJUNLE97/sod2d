@@ -208,7 +208,7 @@ module mod_entropy_viscosity
 
               end subroutine smart_visc
 
-              subroutine smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp, &
+              subroutine smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
                                     gamma_gas,rho,u,Tem,eta,helem,helem_k,Ml,mu_e)
               
                       ! TODO: Compute element size h
@@ -219,11 +219,14 @@ module mod_entropy_viscosity
                       real(rp),    intent(in)  :: Reta(npoin), Rrho(npoin), Ngp(ngaus,nnode),gamma_gas
                       real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime), Tem(npoin), eta(npoin),helem(nelem,nnode),helem_k(nelem),Ml(npoin)
                       real(rp),    intent(out) :: mu_e(nelem,ngaus)
-                      integer(4)               :: ielem, inode,igaus,ipoin,npoin_w_g
+                      real(rp),   intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
+                      real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
+                      integer(4)               :: ielem, inode,igaus,ipoin,npoin_w_g,idime,jdime
                       real(rp)                 :: R1, R2, Ve
                       real(rp)                 :: betae,mu,vol,vol2
                       real(rp)                 :: L3, aux1, aux2, aux3
                       real(rp)                 :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas
+                      real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe
 
                       Rgas = nscbc_Rgas_inf
 
@@ -254,6 +257,15 @@ module mod_entropy_viscosity
 
                       !$acc parallel loop gang vector_length(vecLength)
                       do ielem = 1,nelem
+                         maxJe=0.0_rp
+                         minJe=1000000.0_rp
+                         !$acc loop seq
+                         do igaus = 1,ngaus
+                            minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
+                            maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
+                         end do
+                         ced = max(1.0_rp-(minJe/maxJe)**2,ce)
+
                          mu = 0.0_rp
                          betae = 0.0_rp
                          !$acc loop vector reduction(max:betae)
@@ -267,8 +279,7 @@ module mod_entropy_viscosity
                          !$acc loop vector reduction(+:mu)
                          do inode = 1,nnode
                             R1 = rho(connec(ielem,inode))*abs(Reta(connec(ielem,inode)))/norm
-                            Ve = ce*R1*(helem(ielem,inode))**2
-                            !mu_e(ielem,inode) = cglob*min(Ve,betae)
+                            Ve = ced*R1*(helem(ielem,inode))**2
                             mu = mu + cglob*min(Ve,betae)
                          end do
                          mu = mu/real(nnode,rp)
