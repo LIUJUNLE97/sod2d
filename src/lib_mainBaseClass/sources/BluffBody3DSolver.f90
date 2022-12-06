@@ -1,3 +1,5 @@
+#define ABL 0
+
 module BluffBody3DSolver_mod
    use mod_arrays
    use mod_nvtx
@@ -45,12 +47,20 @@ contains
    subroutine BluffBody3DSolver_fill_BC_Types(this)
       class(BluffBody3DSolver), intent(inout) :: this
 
+#if ABL
       bouCodes2BCType(1) = bc_type_inlet
-      bouCodes2BCType(2) = bc_type_non_slip_adiabatic!bc_type_slip_wall_model
+      bouCodes2BCType(2) = bc_type_outlet
+      bouCodes2BCType(3) = bc_type_inlet
+      bouCodes2BCType(4) = bc_type_slip_wall_model
+      bouCodes2BCType(5) = bc_type_slip_wall_model
+#else
+      bouCodes2BCType(1) = bc_type_inlet
+      bouCodes2BCType(2) = bc_type_slip_wall_model
       bouCodes2BCType(3) = bc_type_non_slip_adiabatic
-      bouCodes2BCType(4) = bc_type_non_slip_adiabatic!bc_type_slip_wall_model
+      bouCodes2BCType(4) = bc_type_slip_wall_model
       bouCodes2BCType(5) = bc_type_slip_adiabatic
       bouCodes2BCType(6) = bc_type_outlet
+#endif
 
    end subroutine BluffBody3DSolver_fill_BC_Types
 
@@ -69,15 +79,20 @@ contains
 
       this%isPeriodic = .false.
 
-      this%loadMesh = .false.
-      this%loadResults = .false.
+      this%loadMesh = .true.
+      this%loadResults = .true.
 
       this%continue_oldLogs = .false.
-      this%load_step = 100001
+      this%load_step = 140001
 
       this%nstep = 800000001 !250001
-      this%cfl_conv = 0.5_rp !0.1_rp
-      this%cfl_diff = 0.5_rp !0.1_rp
+#if ABL
+      this%cfl_conv = 1.5_rp !0.1_rp
+      this%cfl_diff = 1.5_rp !0.1_rp
+#else
+      this%cfl_conv = 0.95_rp !0.1_rp
+      this%cfl_diff = 0.95_rp !0.1_rp
+#endif
 
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
@@ -94,8 +109,11 @@ contains
       this%delta  = 1.0_rp
       this%rho0   = 1.0_rp
       this%gamma_gas = 1.40_rp
-      !this%Re     =  10000.0_rp!200.0_rp
+#if ABL
+      this%Re     =  37250.0_rp
+#else
       this%Re     =  2900000.0_rp
+#endif      
 
       mul    = (this%rho0*this%delta*this%vo)/this%Re
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
@@ -173,7 +191,16 @@ contains
       ! set out of the buffer zone
       ! remember that the mu_factor field has to we filled at least with the
       ! flag_mu_factor
-
+#if ABL
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         mu_factor(iNodeL) = flag_mu_factor
+         if(coordPar(iNodeL,1)>15.0_rp) then
+            mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+         end if
+      end do
+      !$acc end parallel loop
+#else
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          mu_factor(iNodeL) = flag_mu_factor
@@ -197,6 +224,7 @@ contains
          end if
       end do
       !$acc end parallel loop
+#endif      
 
    end subroutine BluffBody3DSolver_evalViscosityFactor
 end module BluffBody3DSolver_mod
