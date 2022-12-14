@@ -14,6 +14,8 @@
 *.log
 *.txt
 *.dat
+*.py
+*.hdf
 
 # Ignore VSCODE estensions and configs
 .trunk
