@@ -66,8 +66,8 @@ contains
 
       this%nstep = 2000
 
-      this%cfl_conv = 1.0_rp
-      this%cfl_diff = 1.0_rp
+      this%cfl_conv = 0.5_rp
+      this%cfl_diff = 0.5_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
 
