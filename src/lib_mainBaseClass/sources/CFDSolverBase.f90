@@ -75,11 +75,13 @@ module CFDSolverBase_mod
       integer(4), public :: counter, npoin_w
       integer(4), public :: load_step, initial_istep
       integer(4), public :: witel(nwit)
+      integer(4), public :: nitewit
 
       ! main logical parameters
       logical, public    :: isPeriodic=.false.,loadMesh=.false.,doGlobalAnalysis=.false.,isFreshStart=.true.
       logical, public    :: loadResults=.false.,continue_oldLogs=.false.,saveInitialField=.true.,isWallModelOn=.false.
-      logical, public    :: useIntInComms=.false.,useFloatInComms=.false.,useDoubleInComms=.false., have_witness=.false.
+      logical, public    :: useIntInComms=.false.,useFloatInComms=.false.,useDoubleInComms=.false. 
+      logical, public    :: have_witness=.false.,wit_save_u_i=.false.,wit_save_pr=.false.,wit_save_rho=.false.
 
       ! main char variables
       character(512) :: log_file_name
@@ -92,7 +94,8 @@ module CFDSolverBase_mod
       real(rp) , public                   :: cfl_conv, cfl_diff, acutim
       real(rp) , public                   :: leviCivi(3,3,3), surfArea, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
       real(rp) , public                   :: dt, Cp, Rgas, gamma_gas,Prt,tleap,time
-      real(rp), public :: witxi(nwit,ndime)
+      real(rp) , public                   :: witxi(nwit,ndime)
+      real(rp) , public                   :: witglob(nwit)
       logical  , public                   :: noBoundaries
 
    contains
@@ -891,9 +894,11 @@ contains
 
    subroutine CFDSolverBase_evalTimeIteration(this)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: icode,counter,istep,flag_emac,flag_predic,iwit
+      integer(4) :: icode,counter,istep,flag_emac,flag_predic,iwit, iwitglobal, itewit
       character(4) :: timeStep
-      real(rp) :: witval
+      character(256) :: witvar2save
+      real(rp) :: witval(nwit,nvarwit) ! u_x | u_y | u_z | pr | rho
+      witval(:,:) = 0.0_rp
 
       counter = 1
       flag_emac = 0
@@ -1014,12 +1019,23 @@ contains
 
          !!! Witness points interpolation !!!
          if(this%have_witness) then
-            open(98, file = this%witness_h5_file_name, action = 'write', position='append')
-            do iwit = 1,nwit
-               call wit_interpolation(this%witxi(iwit,:), u(connecParOrig(this%witel(iwit),:),1,2), witval)  !!Ojo en malles periòdiques: connecParWork
-               write (98,*) witval
-            end do
-            close(98)
+            if (mod(istep,leapwit)==0) then
+               itewit = istep/leapwit
+               do iwit = 1,nwit
+                  if (this%wit_save_u_i) then
+                     call wit_interpolation(this%witxi(iwit,:), u(connecParOrig(this%witel(iwit),:),1,2), witval(iwit, 1))  !!Ojo en malles periòdiques: connecParWork
+                     call wit_interpolation(this%witxi(iwit,:), u(connecParOrig(this%witel(iwit),:),2,2), witval(iwit, 2))  
+                     call wit_interpolation(this%witxi(iwit,:), u(connecParOrig(this%witel(iwit),:),3,2), witval(iwit, 3))  
+                  end if
+                  if (this%wit_save_pr) then
+                     call wit_interpolation(this%witxi(iwit,:), pr(connecParOrig(this%witel(iwit),:),2), witval(iwit, 4))  
+                  end if
+                  if (this%wit_save_rho) then
+                     call wit_interpolation(this%witxi(iwit,:), rho(connecParOrig(this%witel(iwit),:),2), witval(iwit, 5))  
+                  end if
+               end do
+               call update_witness_hdf5(this%nitewit, itewit, witval, this%witness_h5_file_name, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+            end if
          end if
 
       end do
@@ -1029,22 +1045,27 @@ contains
    subroutine CFDSolverBase_preprocWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)                          :: iwit, iel, ifound
-      real(rp)                            :: xi(ndime)   
+      integer(4)                          :: iwit, iel, ifound, nwitPar
+      real(rp)                            :: xi(ndime)
+      real(rp), parameter                 :: wittol=1e-10       
       
       ifound = 0
       call read_points(this%witness_inp_file_name, nwit, witxyz)
       do iwit = 1, nwit
          do iel = 1, numElemsInRank
             call isocoords(coordPar(connecParOrig(iel,:),:), witxyz(:,iwit), xi)
-            if ((abs(xi(1)) < 1) .AND. (abs(xi(2)) < 1) .AND. (abs(xi(3)) < 1)) then
+            if ((abs(xi(1)) < 1.0_rp+wittol) .AND. (abs(xi(2)) < 1.0_rp+wittol) .AND. (abs(xi(3)) < 1.0_rp+wittol)) then
                ifound = ifound+1
                this%witel(ifound)   = iel
                this%witxi(ifound,:) = xi(:)
+               this%witglob(ifound) = iwit
                exit
             end if 
          end do
-      end do   
+         write(*,*) iwit, iel, xi
+      end do
+      nwitPar = ifound
+      call create_witness_hdf5(this%witness_h5_file_name, this%nitewit, witxyz, nwitPar, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
    end subroutine CFDSolverBase_preprocWitnessPoints
 
    subroutine open_log_file(this)
@@ -1299,7 +1320,7 @@ contains
         call this%evalMass()
 
       ! Read witness points and preprocess them
-
+      write(*,*) " problem in witness "
       if (this%have_witness) call this%preprocWitnessPoints()
 
         ! Eval first output

@@ -64,7 +64,7 @@ contains
       !this%continue_oldLogs = .true.
       !this%load_step = 2001
 
-      this%nstep = 2001
+      this%nstep = 2000
 
       this%cfl_conv = 1.0_rp
       this%cfl_diff = 1.0_rp
@@ -98,7 +98,11 @@ contains
       !Witness points parameters
       this%have_witness = .true.
       this%witness_inp_file_name = "witness.txt"
-      this%witness_h5_file_name = "resultwit.txt"
+      this%witness_h5_file_name = "resultwit.h5"
+      this%nitewit = this%nstep/leapwit
+      this%wit_save_u_i = .true.
+      this%wit_save_pr  = .true.
+      this%wit_save_rho = .false.
 
    end subroutine TGVSolver_initializeParameters
 

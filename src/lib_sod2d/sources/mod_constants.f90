@@ -12,8 +12,19 @@ module mod_constants
       !
       ! Number of witness points
       !
-      integer(4), parameter :: nwit=1
+      integer(4), parameter :: nwit=10
+
+      !
+      ! Number of variables saved in witness points
+      !
+      integer(4), parameter :: nvarwit=5 ! velocities, pressure and density
+
+      !
+      ! Saving ingerbal of the witness points
+      !
       
+      integer(4), parameter :: leapwit = 100
+
       !
       ! Element characteristics
       !

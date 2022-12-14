@@ -3419,5 +3419,154 @@ contains
 !---------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------
 
+!-------------------------------WITNESS POINTS-------------------------------!
+   subroutine create_witness_hdf5(full_fileName, nitewit, xyz, nwitPar, save_u_i, save_pr, save_rho)
+      implicit none
+      character(512), intent(in) :: full_fileName
+      integer(rp), intent(in)    :: nitewit, nwitPar
+      real(rp), intent(in)       :: xyz(:,:)
+      logical, intent(in)        :: save_u_i, save_pr, save_rho
+      integer(rp) :: aux(1)
+      integer(hid_t) :: file_id,plist_id,dset_id,dspace_id,group_id
+      integer(hid_t) :: dtype
+      integer(HSIZE_T), dimension(2) :: ds_dims, ms_dims
+      integer(HSSIZE_T), dimension(2) :: ms_offset
+      integer :: ds_rank, ms_rank, h5err
+      character(256) :: groupname,dsetname
+
+      ! Setup file access property list with parallel I/O access.
+      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
+      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+
+      ! create file collectively
+      call h5fcreate_f(full_fileName,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot create results file ',trim(adjustl(full_fileName))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
+      call h5pclose_f(plist_id, h5err)
+
+      dtype = H5T_NATIVE_REAL
+
+      !Create dataspece for nwitPar and save it!
+      ds_rank      = 1
+      dsetname     = 'nwitPar'
+      ds_dims(1)   = 1
+      ds_dims(2)   = mpi_size
+      ms_rank      = 1
+      ms_dims(1)   = 1
+      ms_offset(1) = mpi_rank
+      aux(1)       = nwitPar
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux)
+      
+      !Create dataspece for global numeration and save it!
+      !dsetname     = 'global'
+      !ds_dims(1)   = 1
+      !ds_dims(2)   = nwit
+      !ms_rank      = 2
+      !ms_dims(1)   = 1
+      !ms_dims(2)   = nwitPar
+      !ms_offset(1) = 0
+      !ms_offset(2) = 0
+      !call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      !call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,xyz(1,:))
+      
+      !Create dataspace for witness coordinates and save them!
+      ds_rank      = 2
+      dsetname     = 'xyz'
+      ds_dims(1)   = ndime
+      ds_dims(2)   = nwit
+      ms_rank      = 2
+      ms_dims(1)   = 1
+      ms_dims(2)   = nwitPar
+      ms_offset(1) = 0
+      ms_offset(2) = 0
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,xyz(1,:))
+      ms_offset(1) = 1
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,xyz(2,:))
+      ms_offset(1) = 2
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,xyz(3,:))
+
+      !Create time dataset!
+
+      !Create dataspaces for the magnitudes to save!
+      ds_dims(1) = nitewit
+      ds_dims(2) = nwit
+      if (save_u_i) then
+         dsetname = 'u_x'
+         call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+         
+         dsetname = 'u_y'
+         call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+
+         dsetname = 'u_z'
+         call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      end if
+
+      if (save_pr) then
+         dsetname = 'pr'
+         call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      end if
+
+      if (save_rho) then
+         dsetname = 'rho'
+         call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      end if
+
+      call h5fclose_f(file_id,h5err)
+
+   end subroutine create_witness_hdf5
+
+   subroutine update_witness_hdf5(nitewit,itewit, witval, full_fileName, save_u_i, save_pr, save_rho)
+      integer(4), intent(in) :: nitewit, itewit
+      real(rp), intent(in) :: witval(nwit, nvarwit)
+      logical, intent(in)        :: save_u_i, save_pr, save_rho
+      character(512), intent(in) :: full_fileName
+      character(256):: dsetname
+      integer(HSSIZE_T), dimension(2) :: ms_offset
+      integer :: ms_rank,h5err
+      integer(HSIZE_T), dimension(2) :: ms_dims
+      integer(hid_t) :: file_id,plist_id
+      integer(hid_t) :: dtype
+
+      ms_rank = 2
+      ms_dims(1)   = 1
+      ms_dims(2)   = nwit
+      ms_offset(1) = itewit - 1
+      ms_offset(2) = 0
+      
+      ! Setup file access property list with parallel I/O access.
+      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
+      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+
+      call h5fopen_f(full_fileName, H5F_ACC_RDWR_F,file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot load results file ',trim(adjustl(full_fileName))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
+      call h5pclose_f(plist_id, h5err)
+
+      if (save_u_i) then
+         dsetname = 'u_x'
+         call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witval(:,1))
+         dsetname = 'u_y'
+         call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witval(:,2))
+         dsetname = 'u_z'
+         call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witval(:,3))
+      end if
+      if (save_pr) then
+         dsetname = 'pr'
+         call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witval(:,4))
+      end if
+      if (save_rho) then
+         dsetname = 'rho'
+         call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witval(:,5))
+      end if
+
+      call h5fclose_f(file_id,h5err)
+   
+   end subroutine update_witness_hdf5
 
 end module mod_hdf5
