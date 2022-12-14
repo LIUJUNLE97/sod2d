@@ -802,7 +802,7 @@ contains
       if(mpi_rank.eq.0) write(111,*) '  --| Evaluating lnbn & lnbnNodes arrays...'
       allocate(lnbn(numBoundsRankPar,npbou))
       allocate(lnbnNodes(numNodesRankPar))
-      call nearBoundaryNode(numElemsInRank,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
+      if(isMeshBoundaries) call nearBoundaryNode(numElemsInRank,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
 
    end subroutine CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode
 
@@ -1309,7 +1309,7 @@ contains
 
         ! Eval BoundaryFacesToNodes
 
-        call  this%boundaryFacesToNodes()
+        if(isMeshBoundaries) call  this%boundaryFacesToNodes()
 
       ! Eval list Elems per Node and Near Boundary Node
 
