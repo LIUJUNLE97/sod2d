@@ -12,7 +12,7 @@ module mod_constants
       !
       ! Number of witness points
       !
-      integer(4), parameter :: nwit=10
+      integer(4), parameter :: nwit=1
 
       !
       ! Number of variables saved in witness points
@@ -23,7 +23,7 @@ module mod_constants
       ! Saving ingerbal of the witness points
       !
       
-      integer(4), parameter :: leapwit = 100
+      integer(4), parameter :: leapwit = 1
 
       !
       ! Element characteristics

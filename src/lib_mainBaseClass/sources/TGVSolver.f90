@@ -64,7 +64,7 @@ contains
       !this%continue_oldLogs = .true.
       !this%load_step = 2001
 
-      this%nstep = 2000
+      this%nstep = 100
 
       this%cfl_conv = 0.5_rp
       this%cfl_diff = 0.5_rp
@@ -101,7 +101,7 @@ contains
       this%witness_h5_file_name = "resultwit.h5"
       this%nitewit = this%nstep/leapwit
       this%wit_save_u_i = .true.
-      this%wit_save_pr  = .true.
+      this%wit_save_pr  = .false.
       this%wit_save_rho = .false.
 
    end subroutine TGVSolver_initializeParameters
