@@ -3420,19 +3420,21 @@ contains
 !---------------------------------------------------------------------------------------------------------
 
 !-------------------------------WITNESS POINTS-------------------------------!
-   subroutine create_witness_hdf5(full_fileName, nitewit, xyz, nwitPar, save_u_i, save_pr, save_rho)
+   subroutine create_witness_hdf5(full_fileName, nitewit, xyz, nwitPar, witGlob, save_u_i, save_pr, save_rho)
       implicit none
       character(512), intent(in) :: full_fileName
-      integer(rp), intent(in)    :: nitewit, nwitPar
-      real(rp), intent(in)       :: xyz(:,:)
-      logical, intent(in)        :: save_u_i, save_pr, save_rho
-      integer(rp) :: aux(1)
-      integer(hid_t) :: file_id,plist_id,dset_id,dspace_id,group_id
-      integer(hid_t) :: dtype
-      integer(HSIZE_T), dimension(2) :: ds_dims, ms_dims
-      integer(HSSIZE_T), dimension(2) :: ms_offset
-      integer :: ds_rank, ms_rank, h5err
-      character(256) :: groupname,dsetname
+      integer(rp),    intent(in) :: nitewit, nwitPar
+      integer(rp),    intent(in) :: witGlob(nwit)
+      real(rp),       intent(in) :: xyz(nwit,ndime)
+      logical,        intent(in) :: save_u_i, save_pr, save_rho
+      integer(rp)                :: aux(1), nwitParAllRanks(mpi_size), nwitOffset=0
+      integer(hid_t)             :: file_id,plist_id,dset_id,dspace_id,group_id, dtype
+      integer(HSIZE_T)           :: ds_dims(2), ms_dims(2)
+      integer(HSSIZE_T)          :: ms_offset(2)
+      integer                    :: ds_rank, ms_rank, h5err, irank, iwit
+      character(256)             :: groupname,dsetname
+      integer(rp)                :: auxwitGlob(nwitPar) 
+      real(rp)                   :: auxwitxyz(nwitPar, ndime) 
 
       ! Setup file access property list with parallel I/O access.
       call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
@@ -3451,26 +3453,47 @@ contains
       !Create dataspece for nwitPar and save it!
       ds_rank      = 1
       dsetname     = 'nwitPar'
-      ds_dims(1)   = 1
-      ds_dims(2)   = mpi_size
+      ds_dims(1)   = mpi_size
       ms_rank      = 1
       ms_dims(1)   = 1
       ms_offset(1) = mpi_rank
       aux(1)       = nwitPar
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux)
-      
+      call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+
+      !Compute sum of nwitPar until that rank and save it on its dataspace!
+      ms_rank      = 1
+      ms_dims(1)   = mpi_size
+      ms_offset(1) = 0
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,nwitParAllRanks)
+      do irank = 0, mpi_rank
+         nwitOffset = nwitOffset + nwitParAllRanks(irank)
+      end do             
+      ds_rank      = 1
+      dsetname     = 'nwitOffset'
+      ds_dims(1)   = mpi_size
+      ms_rank      = 1
+      ms_dims(1)   = 1
+      ms_offset(1) = mpi_rank
+      aux(1)       = nwitOffset
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux)
+      call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+
       !Create dataspece for global numeration and save it!
-      !dsetname     = 'global'
-      !ds_dims(1)   = 1
-      !ds_dims(2)   = nwit
-      !ms_rank      = 2
-      !ms_dims(1)   = 1
-      !ms_dims(2)   = nwitPar
-      !ms_offset(1) = 0
-      !ms_offset(2) = 0
-      !call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      !call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,xyz(1,:))
+      dsetname     = 'global'
+      ds_rank      = 1
+      ds_dims(1)   = nwit
+      ms_rank      = 1
+      ms_dims(1)   = nwitPar
+      ms_offset(1) = nwitOffset
+      do iwit = 1, nwitPar
+         auxwitGlob(iwit)  = witGlob(iwit)
+         auxwitxyz(iwit,:) = xyz(iwit,:)
+      end do
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwitGlob)
       
       !Create dataspace for witness coordinates and save them!
       ds_rank      = 2
@@ -3481,13 +3504,13 @@ contains
       ms_dims(1)   = 1
       ms_dims(2)   = nwitPar
       ms_offset(1) = 0
-      ms_offset(2) = 0
+      ms_offset(2) = nwitOffset
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,xyz(1,:))
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwitxyz(:,1))
       ms_offset(1) = 1
-      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,xyz(2,:))
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwitxyz(:,2))
       ms_offset(1) = 2
-      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,xyz(3,:))
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwitxyz(:,3))
 
       !Create time dataset!
 
@@ -3519,24 +3542,18 @@ contains
 
    end subroutine create_witness_hdf5
 
-   subroutine update_witness_hdf5(nitewit,itewit, witval, full_fileName, save_u_i, save_pr, save_rho)
-      integer(4), intent(in) :: nitewit, itewit
-      real(rp), intent(in) :: witval(nwit, nvarwit)
+   subroutine update_witness_hdf5(nitewit,itewit, witval, nwitPar, full_fileName, save_u_i, save_pr, save_rho)
+      integer(4), intent(in)     :: nitewit, itewit
+      real(rp), intent(in)       :: witval(nwitPar, nvarwit)
       logical, intent(in)        :: save_u_i, save_pr, save_rho
       character(512), intent(in) :: full_fileName
-      character(256):: dsetname
-      integer(HSSIZE_T), dimension(2) :: ms_offset
-      integer :: ms_rank,h5err
-      integer(HSIZE_T), dimension(2) :: ms_dims
-      integer(hid_t) :: file_id,plist_id
-      integer(hid_t) :: dtype
+      character(256)             :: dsetname
+      integer(HSSIZE_T)          :: ms_offset(2)
+      integer                    :: ms_rank,h5err, iwit
+      integer(4)                 :: nwitPar, nwitOffset, auxread(1)
+      integer(HSIZE_T)           :: ms_dims(2)
+      integer(hid_t)             :: file_id,plist_id, dtype
 
-      ms_rank = 2
-      ms_dims(1)   = 1
-      ms_dims(2)   = nwit
-      ms_offset(1) = itewit - 1
-      ms_offset(2) = 0
-      
       ! Setup file access property list with parallel I/O access.
       call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
       call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
@@ -3547,6 +3564,21 @@ contains
          call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
       end if
       call h5pclose_f(plist_id, h5err)
+
+      !Read nwitOffset!
+      dsetname     = 'nwitOffset'
+      ms_rank      = 1
+      ms_dims(1)   = 1
+      ms_offset(1) = mpi_rank
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxread)
+      nwitOffset = auxread(1)
+
+      !Save variables!
+      ms_rank      = 2
+      ms_dims(1)   = 1
+      ms_dims(2)   = nwitPar
+      ms_offset(1) = itewit - 1
+      ms_offset(2) = nwitOffset    
 
       if (save_u_i) then
          dsetname = 'u_x'

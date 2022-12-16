@@ -20,20 +20,20 @@ module mod_witness_points
          ! First row of the file contains the number of points and the rest the coordinates of the wintess points as of: X Y Z
          !
          implicit none
-         character(512), intent(in)  :: fname    ! Input 1: path to the witness points file   
-         integer(rp),    intent(in)  :: np       ! Output 1: number of witness points
-         real(rp),       intent(out) :: xyz(:,:) ! Output 2: coordinates of the witness points in a 1D array as xyz = [x1, y1, z1, ..., xn, yn, zn]
+         character(512), intent(in)  :: fname           ! Input 1: path to the witness points file   
+         integer(rp),    intent(in)  :: np              ! Output 1: number of witness points
+         real(rp),       intent(out) :: xyz(nwit,ndime) ! Output 2: coordinates of the witness points in a 1D array as xyz = [x1, y1, z1, ..., xn, yn, zn]
          integer(rp)                 :: ii
 
          open(unit=99, file=fname, status='old', action='read')
 
          do ii = 1, np
-            read(99,*) xyz(:,ii)
+            read(99,*) xyz(ii, :)
          end do
          close(99)
       end subroutine read_points
 
-      subroutine isocoords(elpoints, wit, xi)
+      subroutine isocoords(elpoints, wit, xi, isinside)
          !
          ! Subroutine which computes the isoparametric coordinates of a point in an HEX64 element.
          ! If any of them is outside the bounds of -1 and 1 it means that the point is outside of the element.
@@ -42,6 +42,7 @@ module mod_witness_points
          real(rp), intent(in)   :: elpoints(nnode, ndime)   ! Input 1: coordinates of the element nodes following the gmesh ordering
          real(rp), intent(in)   :: wit(ndime)               ! Input 2: coordinates of the point we are looking the isoparametric coordinates from
          real(rp), intent(out)  :: xi(ndime)                ! Output 1: isoparametric coordinates of the point
+         logical,  intent(out)  :: isinside
          real(rp)               :: xi_0(ndime), xi_n(ndime)
          real(rp)               :: N(nnode), N_lagrange(nnode) 
          integer(4)             :: atoIJK(nnode)
@@ -53,12 +54,13 @@ module mod_witness_points
          real(rp)               :: j(ndime, ndime), k(ndime, ndime)
          real(rp)               :: detJ
          integer(rp)            :: ii, ip
-         real(rp), parameter    :: tol = 1e-15, alpha = 1
+         real(rp), parameter    :: tol = 1e-10, alpha = 1
          integer(rp), parameter :: maxite = 50
 
          xi_0(:) = 0
          xi(:)   = xi_0(:)
          call set_hex64_lists(atoIJK, listHEX08)
+         isinside = .false.
 
          do ii = 1, maxite
             call hex64(xi(1), xi(2), xi(3), atoIJK, N, dN, N_lagrange, dN_lagrange, dlxigp_ip)
@@ -135,6 +137,7 @@ module mod_witness_points
             xi_n(:) = xi(:) - alpha*matmul(k, f)
             xi(:)   = xi_n(:)
             if (dot_product(f, f) < tol) then
+               isinside = .true.
                exit
             end if
          end do
