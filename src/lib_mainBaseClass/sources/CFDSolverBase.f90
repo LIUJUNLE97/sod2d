@@ -194,12 +194,23 @@ contains
 
       call nvtxStartRange("Open mesh")
       ! init hdf5
-      call init_hdf5_interface(this%mesh_h5_file_path,this%mesh_h5_file_name,this%results_h5_file_path,this%results_h5_file_name)
+      !call init_hdf5_interface(this%mesh_h5_file_path,this%mesh_h5_file_name,this%results_h5_file_path,this%results_h5_file_name)
+      call set_hdf5_meshFile_name(this%mesh_h5_file_path,this%mesh_h5_file_name)
+      call set_hdf5_baseResultsFile_name(this%results_h5_file_path,this%results_h5_file_name,this%mesh_h5_file_name)
 
       this%useIntInComms=.true.
       this%useFloatInComms=.true.
       this%useDoubleInComms=.false.
 
+      call load_hdf5_meshfile()
+      ! init comms
+      call init_comms(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
+      if(isMeshBoundaries) then
+         !----- init comms boundaries
+         call init_comms_bnd(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
+      end if
+
+      #if 0
       if(this%loadMesh) then
          call load_hdf5_meshfile()
          ! init comms
@@ -228,7 +239,7 @@ contains
          !----- Create HDF5 File
          call create_hdf5_meshFile()
       end if
-
+#endif
       call nvtxEndRange
 
    end subroutine CFDSolverBase_openMesh
@@ -695,6 +706,7 @@ contains
       real(rp), allocatable :: aux_1(:,:)
       integer(4) :: ielem,inode,idime
 
+      !TODO: CAL VEURE SI AIXO HO FEM A LA TOOL O Que.....
       if(this%loadMesh .eqv. .false.) then
          if(mpi_rank.eq.0) write(*,*) "--| Interpolating nodes coordinates..."
          allocate(aux_1(numNodesRankPar,ndime))
@@ -1179,6 +1191,10 @@ contains
 
       ! Init MPI
       call init_mpi()
+
+      ! Init HDF5 interface
+
+      call init_hdf5_interface()
 
         ! Main simulation parameters
 

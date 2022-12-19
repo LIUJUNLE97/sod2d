@@ -1,22 +1,7 @@
-#define average 0
-
-module str2int_mod
-contains 
-
-  elemental subroutine str2int(str,int,stat)
-    implicit none
-    character(len=*),intent(in) :: str
-    integer,intent(out)         :: int
-    integer,intent(out)         :: stat
-
-    read(str,*,iostat=stat)  int
-  end subroutine str2int
-
-end module
 
 program tool_hdf5_to_cgns
-    use str2int_mod
     use mod_mpi
+    use mod_read_inputFile
     use mod_mpi_mesh
     use mod_hdf5
     !use mod_cgns_mesh
@@ -25,8 +10,10 @@ program tool_hdf5_to_cgns
     character(512) :: mesh_h5_filePath,mesh_h5_fileName
     character(512) :: results_h5_filePath,results_h5_fileName
     character(999) :: full_fileName,input_file,read_sec,read_val
-    logical :: do_averages=.false.
+    character(256) :: parameter2read
+    integer :: lineCnt
 
+    logical :: do_averages=.false.
     integer :: first_step,last_step,nstep,iStep,numAvgSteps,stat,aux_int, i, j
     real(rp) :: time
 
@@ -57,137 +44,51 @@ program tool_hdf5_to_cgns
         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
     endif
     !------------------------------------------------------------------------------
+    !------------------------------------------------------------------------------
     ! Reading the parameters
-    open(99,file=input_file,status="old")
+    call open_inputFile(input_file)
+    lineCnt = 1
 
     !1. mesh_h5_filePath--------------------------------------------------------------
-    read(99,*) read_sec,read_val! Section header
-    if(read_sec.eq.'mesh_h5_filePath') then
-        mesh_h5_filePath = read_val
-        if(mpi_rank.eq.0) write(*,*) 'mesh_h5_filePath: ',trim(adjustl(read_val))
-    else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 1 must be mesh_h5_filePath value'
-        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-    endif
+    parameter2read = 'mesh_h5_filePath'
+    call read_inputFile_string(lineCnt,parameter2read,mesh_h5_filePath)
 
     !2. mesh_h5_fileName--------------------------------------------------------------
-    read(99,*) read_sec,read_val! Section header
-    if(read_sec.eq.'mesh_h5_fileName') then
-        mesh_h5_fileName = read_val
-        if(mpi_rank.eq.0) write(*,*) 'mesh_h5_fileName: ',trim(adjustl(read_val))
-    else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 2 must be mesh_h5_fileName value'
-        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-    endif
+    parameter2read = 'mesh_h5_fileName'
+    call read_inputFile_string(lineCnt,parameter2read,mesh_h5_fileName)
 
     !3. results_h5_filePath--------------------------------------------------------------
-    read(99,*) read_sec,read_val! Section header
-    if(read_sec.eq.'results_h5_filePath') then
-        results_h5_filePath = read_val
-        if(mpi_rank.eq.0) write(*,*) 'results_h5_filePath: ',trim(adjustl(read_val))
-    else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 3 must be results_h5_filePath value'
-        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-    endif
+    parameter2read = 'results_h5_filePath'
+    call read_inputFile_string(lineCnt,parameter2read,results_h5_filePath)
 
     !4. results_h5_fileName--------------------------------------------------------------
-    read(99,*) read_sec,read_val! Section header
-    if(read_sec.eq.'results_h5_fileName') then
-        results_h5_fileName = read_val
-        if(mpi_rank.eq.0) write(*,*) 'results_h5_fileName: ',trim(adjustl(read_val))
-    else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 4 must be results_h5_fileName value'
-        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-    endif
+    parameter2read = 'results_h5_fileName'
+    call read_inputFile_string(lineCnt,parameter2read,results_h5_fileName)
 
     !5. do_averages--------------------------------------------------------------------------
-    read(99,*) read_sec,read_val! Section header
-    if(read_sec.eq.'do_averages') then
-        call str2int(read_val,aux_int,stat)
-        if(stat.eq.0) then
-            if(aux_int.eq.0) then
-                do_averages = .false.
-            elseif(aux_int .eq. 1) then
-                do_averages = .true.
-            else
-                if(mpi_rank.eq.0) then
-                    write(*,*) 'ERROR! do_averages must be 0(false)/1(true)',&
-                               ' | wrong value ',trim(adjustl(read_val))
-                    call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-                end if
-            end if
-        else
-            if(mpi_rank.eq.0) then
-                write(*,*) 'ERROR! do_averages must be 0(false)/1(true)',&
-                           ' | wrong value ',trim(adjustl(read_val))
-                call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-            end if
-        end if
-        if(mpi_rank.eq.0) write(*,*) 'do_averages: ',do_averages
-    else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 5 must be do_averages 0/1'
-    endif
+    parameter2read = 'do_averages'
+    call read_inputFile_logical(lineCnt,parameter2read,do_averages)
 
     !6. first_step--------------------------------------------------------------------------
-    read(99,*) read_sec,read_val! Section header
-    if(read_sec.eq.'first_step') then
-        call str2int(read_val,aux_int,stat)
-        if(stat.eq.0) then
-            first_step = aux_int
-        else
-            if(mpi_rank.eq.0) then
-                write(*,*) 'ERROR! first_step must be an integer',&
-                           ' | wrong value ',trim(adjustl(read_val))
-                call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-            end if
-        end if
-        if(mpi_rank.eq.0) write(*,*) 'first_step: ',first_step
-    else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 6 must be first_step value'
-    endif
+    parameter2read = 'first_step'
+    call read_inputFile_integer(lineCnt,parameter2read,first_step)
 
     !7. last_step--------------------------------------------------------------------------
-    read(99,*) read_sec,read_val! Section header
-    if(read_sec.eq.'last_step') then
-        call str2int(read_val,aux_int,stat)
-        if(stat.eq.0) then
-            last_step = aux_int
-        else
-            if(mpi_rank.eq.0) then
-                write(*,*) 'ERROR! last_step must be an integer',&
-                           ' | wrong value ',trim(adjustl(read_val))
-                call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-            end if
-        end if
-        if(mpi_rank.eq.0) write(*,*) 'last_step: ',last_step
-    else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 7 must be last_step value'
-    endif
+    parameter2read = 'last_step'
+    call read_inputFile_integer(lineCnt,parameter2read,last_step)
 
     !8. nstep--------------------------------------------------------------------------
-    read(99,*) read_sec,read_val! Section header
-    if(read_sec.eq.'nstep') then
-        call str2int(read_val,aux_int,stat)
-        if(stat.eq.0) then
-            nstep = aux_int
-        else
-            if(mpi_rank.eq.0) then
-                write(*,*) 'ERROR! nstep must be an integer',&
-                           ' | wrong value ',read_val
-                call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-            end if
-        end if
-        if(mpi_rank.eq.0) write(*,*) 'nstep: ',nstep
-    else
-        if(mpi_rank.eq.0) write(*,*) 'Error! Line 8 must be nstep value'
-    endif
+    parameter2read = 'nstep'
+    call read_inputFile_integer(lineCnt,parameter2read,nstep)
 
     close(99)
     if(mpi_rank.eq.0) write(*,*) '## End of Reading input file: ',trim(adjustl(input_file))
 
 !---------------------------------------------------------------------------------------------------------
 
-    call init_hdf5_interface(mesh_h5_filePath,mesh_h5_fileName,results_h5_filePath,results_h5_fileName)
+    call init_hdf5_interface()
+    call set_hdf5_meshFile_name(mesh_h5_filePath,mesh_h5_fileName)
+    call set_hdf5_baseResultsFile_name(results_h5_filePath,results_h5_fileName,mesh_h5_fileName)
 
     if(mpi_rank.eq.0) write(*,*) '# Loading HDF5 mesh file...'
     !call load_hdf5_meshfile(mesh_h5_filePath,mesh_h5_fileName)

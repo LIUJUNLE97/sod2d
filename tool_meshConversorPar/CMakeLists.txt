@@ -24,7 +24,7 @@ else()
 endif()
 
 # Set project name, version and languages
-project(tool_postProc LANGUAGES C CXX Fortran)
+project(tool_meshConversorPar LANGUAGES C CXX Fortran)
 
 # Configure MPI module
 include(mpi)
@@ -48,13 +48,17 @@ file(GLOB SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_const
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_mesh_boundaries.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_comms_boundaries.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_hdf5.f90
-   ${CMAKE_CURRENT_LIST_DIR}/src/tool_hdf5_to_vtkhdf.f90) 
+   ${CMAKE_CURRENT_LIST_DIR}/src/mod_meshConversorTool.f90
+   ${CMAKE_CURRENT_LIST_DIR}/src/tool_meshConversorPar.f90) 
 
 add_executable(${PROJECT_NAME} ${SRC_FILES})   # Build executable from listed sources
 set_property(TARGET ${PROJECT_NAME} PROPERTY LINKER_LANGUAGE Fortran)
 
 set_mpi()
+set_gempa()
 set_hdf5()
+
+target_link_libraries(${PROJECT_NAME} lib_gempaInterface)
 
 #-----------------------------------------------------------------------------------
 
@@ -67,5 +71,5 @@ set (CMAKE_INSTALL_PREFIX ${default_prefix} CACHE STRING
 # FFLAGS depend on the compiler
 get_filename_component (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
 
-set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-DGEMPAINTERFACE")
-string(REPLACE ";" " " CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}")
+#set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-DGEMPAINTERFACE")
+#string(REPLACE ";" " " CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}")

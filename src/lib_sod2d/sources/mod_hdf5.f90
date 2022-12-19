@@ -12,17 +12,15 @@ module mod_hdf5
 
 contains
 
-   subroutine init_hdf5_interface(mesh_filePath,mesh_fileName,results_filePath,results_fileName)
+   subroutine init_hdf5_interface()
       implicit none
-      character(len=*), intent(in) :: mesh_filePath,mesh_fileName
-      character(len=*), intent(in) :: results_filePath,results_fileName
       integer :: h5err
 
       !.init h5 interface
       call h5open_f(h5err)
 
-      call set_hdf5_meshFile_name(mesh_filePath,mesh_fileName)
-      call set_hdf5_baseResultsFile_name(results_filePath,results_fileName,mesh_fileName)
+      !call set_hdf5_meshFile_name(mesh_filePath,mesh_fileName)
+      !call set_hdf5_baseResultsFile_name(results_filePath,results_fileName,mesh_fileName)
    end subroutine init_hdf5_interface
 
    subroutine end_hdf5_interface()
@@ -189,68 +187,116 @@ contains
       !close the file.
       call h5fclose_f(file_id,h5err)
 
-      !close h5 interface
-      !call h5close_f(h5err)
-
-      !--------------------------------------------------------------------------------
-
-
-      ! Create the data space for the  dataset. 
-      !call h5screate_simple_f(ds_rank,ds_dims,dspace_id,h5err)
-      ! Create the dataset with default properties.
-
-      !call h5dcreate_f(file_id,dsetname,H5T_NATIVE_REAL,dspace_id,dset_id,h5err)
-
-      !call h5sclose_f(dspace_id,h5err)
-      !call h5dclose_f(dset_id,h5err)
-
-      ! Create the data space for the  dataset. 
-      !call h5screate_simple_f(ds_rank,ds_dims,dspace_id,h5err)
-      ! Create the dataset with default properties.
-
-      !call h5dcreate_f(file_id,dsetname,H5T_NATIVE_REAL,dspace_id,dset_id,h5err)
-
-      !call h5sclose_f(dspace_id,h5err)
-      !call h5dclose_f(dset_id,h5err)
-
-      ! Create the data space for the  dataset. 
-      !call h5screate_simple_f(ds_rank,ds_dims,dspace_id,h5err)
-      ! Create the dataset with default properties.
-
-      !call h5dcreate_f(file_id,dsetname,H5T_NATIVE_REAL,dspace_id,dset_id,h5err)
-
-      !call h5sclose_f(dspace_id,h5err)
-      !call h5dclose_f(dset_id,h5err)
-
-      !--------------------------------------------------------------------------------
-#if 0
-      ms_dims(1) = numNodesRankPar! ds_dims(1)/mpi_size
-      ms_offset(1) = rankNodeStart-1! ms_dims(1)*mpi_rank
-      write(*,*) 'writing -> ',totalNumNodesPar,ms_dims(1),ms_offset(1)
-      CALL h5screate_simple_f(ds_rank,ms_dims,mspace_id,h5err) 
-
-      ! Select hyperslab in the file.
-      CALL h5dget_space_f(dset_id,dspace_id,h5err)
-      CALL h5sselect_hyperslab_f(dspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
-
-      ! Create property list for collective dataset write
-      CALL h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) 
-      CALL h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
-
-      ! Write the dataset collectively. 
-      CALL h5dwrite_f(dset_id,H5T_NATIVE_REAL,coord_x,ds_dims,h5err, &
-                      file_space_id = dspace_id, mem_space_id = mspace_id, xfer_prp = plist_id)
-
-     ! Write the dataset collectively. 
-     !CALL h5dwrite_f(dset_id,H5T_NATIVE_REAL,dset,ds_dims,h5err,xfer_prp=plist_id)
-     !
-     CALL h5sclose_f(dspace_id,h5err)
-     call h5sclose_f(mspace_id,h5err)
-     CALL h5dclose_f(dset_id,h5err)
-      call h5pclose_f(plist_id,h5err)
-#endif
-
    end subroutine create_hdf5_meshFile
+
+   subroutine create_hdf5_meshFile_from_tool()
+      implicit none
+      integer(hid_t) :: file_id,plist_id,dset_id,dspace_id,mspace_id,group_id
+      integer(hid_t) :: dtype
+      integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
+      integer(HSSIZE_T), dimension(1) :: ms_offset 
+      integer :: ds_rank,ms_rank,h5err
+      character(256) :: groupname,dsetname
+#if 0
+      ! Setup file access property list with parallel I/O access.
+      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
+      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+
+      ! create file collectively
+      call h5fcreate_f(meshFile_h5_name,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot create meshfile ',trim(adjustl(meshFile_h5_name))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
+      call h5pclose_f(plist_id, h5err)
+      !call h5pget_driver_f(fapl_id, driver_id, hdferror)
+      !call check("h5pget_driver_f", hdferror, nerrors)
+      !--------------------------------------------------------------------------------
+      groupname = '/Coords'
+      call create_group_hdf5(file_id,groupname)
+      !call h5gcreate_f(file_id,groupname,group_id,h5err)
+      !call h5gclose_f(group_id, h5err)
+
+      ds_rank = 1
+      ds_dims(1) = totalNumNodesPar
+
+      ms_rank = 1
+      ms_dims(1) = numNodesRankPar
+      ms_offset(1) = rankNodeStart-1
+
+      dtype = H5T_NATIVE_REAL
+
+      dsetname = '/Coords/X'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      !call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,coord_x)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,coordPar(:,1))
+
+      dsetname = '/Coords/Y'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,coordPar(:,2))
+
+      dsetname = '/Coords/Z'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,coordPar(:,3))
+
+      !--------------------------------------------------------------------------------
+      groupname = '/globalIds'
+      call create_group_hdf5(file_id,groupname)
+
+      ds_rank = 1
+      ds_dims(1) = totalNumNodesPar
+
+      ms_rank = 1
+      ms_dims(1) = numNodesRankPar
+      ms_offset(1) = rankNodeStart-1
+
+      dtype = H5T_NATIVE_INTEGER
+
+      dsetname = '/globalIds/globalIdSrl'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,globalIdSrl)
+
+      dsetname = '/globalIds/globalIdPar'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,globalIdPar)
+
+      ds_dims(1) = totalNumElements
+      ms_dims(1) = numElemsInRank
+      ms_offset(1) = rankElemStart-1
+
+      dsetname = '/globalIds/elemGid'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,elemGid)
+
+      !--------------------------------------------------------------------------------
+      !save connectivity
+      call save_connectivity_hdf5(file_id)
+
+      !--------------------------------------------------------------------------------
+      !save parallel data
+      if(mpi_size.ge.2) then
+         call save_parallel_data_hdf5(file_id)
+      end if
+      !--------------------------------------------------------------------------------
+      !save periodic data
+      if(isMeshPeriodic) then
+         call save_periodic_data_hdf5(file_id)
+      end if
+      !--------------------------------------------------------------------------------
+      !save boundary data
+      if(isMeshBoundaries) then
+         call save_boundary_data_hdf5(file_id)
+         if(mpi_size.ge.2) then
+            call save_parallel_data_boundary_hdf5(file_id)
+         end if
+      end if
+      !--------------------------------------------------------------------------------
+
+      !close the file.
+      call h5fclose_f(file_id,h5err)
+#endif
+   end subroutine create_hdf5_meshFile_from_tool
+
 
    subroutine load_hdf5_meshFile()
       implicit none     

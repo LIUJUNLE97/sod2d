@@ -128,6 +128,7 @@ end module mod_read_inputFile
 ! # MODULE FOR UTILS
 !-----------------------------------------------------------------------------------------
 module mod_utils
+   use mod_mpi
     implicit none
 
 contains
@@ -329,6 +330,75 @@ contains
    end subroutine quicksort_array_int
 
    !########################################################################
+
+   recursive function binarySearch_int_r(a, value) result(bsresult)
+      implicit none
+      integer,intent(in) :: a(:), value
+      integer            :: bsresult, mid
+
+      mid = size(a)/2 + 1
+      if (size(a) == 0) then
+         bsresult = 0        ! not found
+      else if (a(mid) > value) then
+         bsresult= binarySearch_int_r(a(:mid-1), value)
+      else if (a(mid) < value) then
+         bsresult = binarySearch_int_r(a(mid+1:), value)
+         if (bsresult /= 0) then
+            bsresult = mid + bsresult
+         end if
+      else
+         bsresult = mid      ! SUCCESS!!
+      end if
+   end function binarySearch_int_r
+
+   function binarySearch_int_i(a, value)
+      implicit none
+      integer, intent(in), target :: a(:)
+      integer, intent(in)         :: value
+      integer, pointer            :: p(:)
+      integer                     :: binarySearch_int_i
+      integer                     :: mid, offset
+
+      p => a
+      binarySearch_int_i = 0
+      offset = 0
+      do while (size(p) > 0)
+         mid = size(p)/2 + 1
+         if (p(mid) > value) then
+            p => p(:mid-1)
+         else if (p(mid) < value) then
+            offset = offset + mid
+            p => p(mid+1:)
+         else
+            binarySearch_int_i = offset + mid    ! SUCCESS!!
+            return
+         end if
+      end do
+   end function binarySearch_int_i
+
+   subroutine distribution_algorithm(elems2dist,num2div,finalElemDist)
+      implicit none
+      integer,intent(in) :: elems2dist,num2div
+      integer,intent(out) :: finalElemDist(num2div)
+      integer :: ii,auxDiv,remainingE2D,elems2me
+
+      remainingE2D = elems2dist
+      do ii = 1,num2div
+         auxDiv = num2div-(ii - 1)
+         elems2me = remainingE2D / auxDiv 
+         finalElemDist(ii) = elems2me
+         remainingE2D = remainingE2D - elems2me
+         !write(*,*) 'ii',ii,'auxD',auxDiv,'e2m',elems2me,'rE2D',remainingE2D
+      end do
+
+      if(remainingE2D.ne.0) then
+         write(*,*) 'MASSIVE ERROR IN distribution_algorithm in mod_utils.f90! Check!'
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
+      !write(*,*) 'elems2dist',elems2dist,'num2div',num2div,'finalElemD',finalElemDist(:)
+
+   end subroutine distribution_algorithm
+
 
 end module mod_utils
 

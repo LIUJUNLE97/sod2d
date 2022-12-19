@@ -86,20 +86,20 @@ contains
 
       this%loadMesh = .true.
       !this%loadMesh = .false.
-      this%loadResults = .true.
-      !this%loadResults = .false.
+      !this%loadResults = .true.
+      this%loadResults = .false.
 
       this%continue_oldLogs = .false.
       this%load_step = 50001
 
-      this%nstep = 80001 !250001
+      this%nstep = 501 !250001
       this%cfl_conv = 0.5_rp !0.1_rp
       this%cfl_diff = 0.5_rp !0.1_rp
 
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 20000!25 ! Saving interval, TODO: input
+      this%nleap = 500!25 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 25  ! Saving interval, TODO: input
       this%nleapAVG = 150000
