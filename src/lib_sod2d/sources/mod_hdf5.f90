@@ -3420,10 +3420,10 @@ contains
 !---------------------------------------------------------------------------------------------------------
 
 !-------------------------------WITNESS POINTS-------------------------------!
-   subroutine create_witness_hdf5(full_fileName, nitewit, xyz, nwitPar, witGlob, save_u_i, save_pr, save_rho)
+   subroutine create_witness_hdf5(full_fileName, nitewit, xyz, nwitPar, witGlob, ntwit, save_u_i, save_pr, save_rho)
       implicit none
       character(512), intent(in) :: full_fileName
-      integer(rp),    intent(in) :: nitewit, nwitPar
+      integer(rp),    intent(in) :: nitewit, nwitPar, ntwit
       integer(rp),    intent(in) :: witGlob(nwit)
       real(rp),       intent(in) :: xyz(nwit,ndime)
       logical,        intent(in) :: save_u_i, save_pr, save_rho
@@ -3513,8 +3513,13 @@ contains
       call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwitxyz(:,3))
 
       !Create time dataset!
+      ds_rank      = 1
+      dsetname     = 'time'
+      ds_dims(1)   = ntwit
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
 
       !Create dataspaces for the magnitudes to save!
+      ds_rank    = 2
       ds_dims(1) = nitewit
       ds_dims(2) = nwit
       if (save_u_i) then
@@ -3542,12 +3547,13 @@ contains
 
    end subroutine create_witness_hdf5
 
-   subroutine update_witness_hdf5(nitewit,itewit, witval, nwitPar, full_fileName, save_u_i, save_pr, save_rho)
+   subroutine update_witness_hdf5(nitewit,itewit, witval, nwitPar, full_fileName, t, save_u_i, save_pr, save_rho)
       integer(4), intent(in)     :: nitewit, itewit
-      real(rp), intent(in)       :: witval(nwitPar, nvarwit)
+      real(rp), intent(in)       :: witval(nwitPar, nvarwit), t
       logical, intent(in)        :: save_u_i, save_pr, save_rho
       character(512), intent(in) :: full_fileName
       character(256)             :: dsetname
+      real(rp)                   :: auxt(1)
       integer(HSSIZE_T)          :: ms_offset(2)
       integer                    :: ms_rank,h5err, iwit
       integer(4)                 :: nwitPar, nwitOffset, auxread(1)
@@ -3596,6 +3602,14 @@ contains
          dsetname = 'rho'
          call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witval(:,5))
       end if
+
+      !Save time!
+      dsetname = 'time'
+      ms_rank      = 1
+      ms_dims(1)   = 1
+      ms_offset(1) = itewit - 1
+      auxt(1)      = t
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxt)
 
       call h5fclose_f(file_id,h5err)
    

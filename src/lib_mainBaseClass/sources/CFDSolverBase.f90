@@ -1026,8 +1026,7 @@ contains
                      call wit_interpolation(this%witxi(iwit,:), rho(connecParOrig(this%witel(iwit),:),2), witval(iwit, 5))  
                   end if
                end do
-               write(*,*) itewit, witval
-               call update_witness_hdf5(this%nitewit, itewit, witval, this%nwitPar, this%witness_h5_file_name, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+               call update_witness_hdf5(this%nitewit, itewit, witval, this%nwitPar, this%witness_h5_file_name, this%time, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
             end if
          end if
 
@@ -1063,7 +1062,7 @@ contains
          end do
       end do
       this%nwitPar = ifound
-      call create_witness_hdf5(this%witness_h5_file_name, this%nitewit, witxyzPar, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      call create_witness_hdf5(this%witness_h5_file_name, this%nitewit, witxyzPar, this%nwitPar, witGlob, this%nitewit, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
    end subroutine CFDSolverBase_preprocWitnessPoints
 
    subroutine open_log_file(this)
