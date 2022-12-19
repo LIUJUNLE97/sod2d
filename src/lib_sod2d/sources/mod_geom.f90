@@ -129,12 +129,12 @@ module mod_geom
 
          end subroutine linearMeshOutput
 
-         subroutine create_connecVTK(nelem,connec,atoIJK,vtk_atoIJK,connecVTK)
+         subroutine create_connecVTK(nelem,connec,atoIJK,vtk_atoIJK,connecVTKout)
 
             implicit none
 
             integer(4), intent(in)  :: nelem, connec(nelem,nnode), atoIJK(nnode), vtk_atoIJK(nnode)
-            integer(4), intent(out) :: connecVTK(nelem,nnode)
+            integer(4), intent(out) :: connecVTKout(nelem,nnode)
             integer(4)              :: i, j, k, ielem, indGmsh, indVTK
 
             !$acc parallel loop gang
@@ -145,7 +145,7 @@ module mod_geom
                      do j = 0,porder
                         indGmsh = atoIJK(((porder+1)**2)*k+(porder+1)*i+j+1)
                         indVTK = vtk_atoIJK(((porder+1)**2)*k+(porder+1)*i+j+1)
-                        connecVTK(ielem,indVTK) = connec(ielem,indGmsh)
+                        connecVTKout(ielem,indVTK) = connec(ielem,indGmsh)
                      end do
                   end do
                end do

@@ -10,15 +10,15 @@ module mod_mpi_mesh
 !-----------------------------------   
 #ifndef GEMPAINTERFACE
    interface
-      subroutine gempa_do_partition(numElemsInRank,numRanksToPart,x,y,z,weights,part) bind(c)
+      subroutine gempa_do_partition(numElemsToPart,numRanksToPart,x,y,z,weights,part) bind(c)
         import c_int, c_double
-        integer(kind=c_int), intent(in), value :: numElemsInRank
+        integer(kind=c_int), intent(in), value :: numElemsToPart
         integer(kind=c_int), intent(in), value :: numRanksToPart
-        real(kind=c_double), intent(in) :: x(numElemsInRank)
-        real(kind=c_double), intent(in) :: y(numElemsInRank)
-        real(kind=c_double), intent(in) :: z(numElemsInRank)
-        integer(kind=c_int), intent(in) :: weights(numElemsInRank)
-        integer(kind=c_int), intent(out) :: part(numElemsInRank)
+        real(kind=c_double), intent(in) :: x(numElemsToPart)
+        real(kind=c_double), intent(in) :: y(numElemsToPart)
+        real(kind=c_double), intent(in) :: z(numElemsToPart)
+        integer(kind=c_int), intent(in) :: weights(numElemsToPart)
+        integer(kind=c_int), intent(out) :: part(numElemsToPart)
       end subroutine gempa_do_partition
    end interface
 #endif
@@ -111,7 +111,7 @@ logical :: isMeshBoundaries
 
 !For WallModels
 integer(int_size) :: numBoundsWMRankPar
-integer(int_size), allocatable :: listBoundsWM(:)
+integer(int_size), allocatable :: listBoundsWallModel(:)
 
 ! ################################################################################################
 ! ------------------------ VARS for MPI COMMS ----------------------------------------------------

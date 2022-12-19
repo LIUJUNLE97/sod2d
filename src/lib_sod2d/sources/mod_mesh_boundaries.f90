@@ -175,7 +175,7 @@ contains
       integer :: i,j,k,iNodeL,bnd_iNodeL,iNodeGsrl,iRank,numRanksCnt
       integer :: window_id
       
-      integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size
+      integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size_bnd
       integer(KIND=MPI_ADDRESS_KIND) :: target_displacement
 
       character(128) :: file_name, aux_string_rank
@@ -271,8 +271,8 @@ contains
 
       !--------------------------------------------------------------------------------------
 
-      window_buffer_size = mpi_integer_size*(mpi_size*2)
-      call MPI_Win_create(bnd_commSchemeStartEndNodes,window_buffer_size,mpi_integer_size,&
+      window_buffer_size_bnd = mpi_integer_size*(mpi_size*2)
+      call MPI_Win_create(bnd_commSchemeStartEndNodes,window_buffer_size_bnd,mpi_integer_size,&
                          MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
    
