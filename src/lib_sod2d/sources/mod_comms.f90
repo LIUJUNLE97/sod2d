@@ -262,7 +262,7 @@ contains
         end do
         !$acc end parallel loop
         !$acc kernels
-        aux_intField_r(:)=0.
+        aux_intField_r(:)=0
         !$acc end kernels
     end subroutine fill_sendBuffer_int
 !-------------------------------------------------------------------------
@@ -311,7 +311,7 @@ contains
         end do
         !$acc end parallel loop
         !$acc kernels
-        aux_intField_s(:)=0.
+        aux_intField_s(:)=0
         !$acc end kernels
     end subroutine fill_sendBuffer_get_int
 !-------------------------------------------------------------------------
@@ -1282,16 +1282,16 @@ contains
 
     end subroutine update_and_comm_floatField
 
-    subroutine update_and_comm_floatField_all(numNodesRankPar,fmass,fener,fmomx,fmomy,fmomz)
+    subroutine update_and_comm_floatField_all(numNodesInRank,fmass,fener,fmomx,fmomy,fmomz)
     !TESTEJAR FER LA COMUNICACIO DE TOTS ELS FIELDS AQUI A LA VEGADA, AMB UN SOL PUT
     !I NO FER 6 COMUNICACIONS DIFERENTS
     !POT SER ALGO HARDCODEJAT PERO POT VALER LA PENA...
     !MIRAR BE PERQUE AIXO TE MIGA SI ES VOL FER ELS 5 ARRAYS DE COP!
     !CREC QUE NO ES TAN STRAIGHTFORWARD....
         implicit none
-        integer :: numNodesRankPar
-        real(4), intent(inout) :: fmass(numNodesRankPar),fener(numNodesRankPar)
-        real(4), intent(inout) :: fmomx(numNodesRankPar),fmomy(numNodesRankPar),fmomz(numNodesRankPar)
+        integer :: numNodesInRank
+        real(4), intent(inout) :: fmass(numNodesInRank),fener(numNodesInRank)
+        real(4), intent(inout) :: fmomx(numNodesInRank),fmomy(numNodesInRank),fmomz(numNodesInRank)
         integer :: i,iRank,iNodeL,ngbRank,tagComm
         integer :: memPos_l,memSize,numFields,origMemPos,newMemPos
         
@@ -1480,11 +1480,11 @@ contains
         !$acc end parallel loop
     end subroutine sendRcv_floatField_devel
 
-    subroutine sendRcv_floatField_all(numNodesRankPar,fmass,fener,fmomx,fmomy,fmomz)
+    subroutine sendRcv_floatField_all(numNodesInRank,fmass,fener,fmomx,fmomy,fmomz)
         implicit none
-        integer :: numNodesRankPar
-        real(4), intent(inout) :: fmass(numNodesRankPar),fener(numNodesRankPar)
-        real(4), intent(inout) :: fmomx(numNodesRankPar),fmomy(numNodesRankPar),fmomz(numNodesRankPar)
+        integer :: numNodesInRank
+        real(4), intent(inout) :: fmass(numNodesInRank),fener(numNodesInRank)
+        real(4), intent(inout) :: fmomx(numNodesInRank),fmomy(numNodesInRank),fmomz(numNodesInRank)
         integer :: i,iRank,iNodeL,ngbRank,tagComm
         integer :: memPos_l,memSize,numFields,origMemPos,newMemPos
  
@@ -1603,7 +1603,7 @@ contains
             iNodeL = matrixCommScheme(i,1)
             aux_intField_s(i) = intField(iNodeL)
         end do
-        aux_intField_r(:)=0.
+        aux_intField_r(:)=0
 
         call MPI_Win_fence(0,window_id_int,mpi_err)
 

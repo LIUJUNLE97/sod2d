@@ -171,7 +171,7 @@ contains
         end do
         !$acc end parallel loop
         !$acc kernels
-        aux_bnd_intField_r(:)=0.
+        aux_bnd_intField_r(:)=0
         !$acc end kernels
     end subroutine fill_boundary_sendBuffer_int
 !-------------------------------------------------------------------------------------

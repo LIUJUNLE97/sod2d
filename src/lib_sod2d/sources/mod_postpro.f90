@@ -43,7 +43,7 @@ contains
             ru_e(inode,2) = rho(connec(ielem,inode))*u(connec(ielem,inode),2)
             ru_e(inode,3) = rho(connec(ielem,inode))*u(connec(ielem,inode),3)
          end do
-         !$acc loop vector private(gpcar,gradu_e,gradIsoRho,gradIsoU)
+         !$acc loop vector private(gpcar,gradu_e,gradIsoRho,gradIsoU,gradIsoRU)
          do igaus = 1,ngaus
             isoI = gmshAtoI(igaus) 
             isoJ = gmshAtoJ(igaus) 

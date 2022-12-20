@@ -212,10 +212,8 @@ contains
          call load_hdf5_meshfile()
          ! init comms
          call init_comms(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
-         if(isMeshBoundaries) then
-            !----- init comms boundaries
-            call init_comms_bnd(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
-         end if
+         !----- init comms boundaries
+         call init_comms_bnd(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
       else
          !call read_alyaMesh_part_and_create_hdf5Mesh(this%gmsh_file_path,this%gmsh_file_name,this%isPeriodic)
          !-- read the alya mesh fesh files in GMSH/ALYA FORMAT
@@ -225,12 +223,10 @@ contains
          !----- init comms
          call init_comms(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
          !----- for boundaries
-         if(isMeshBoundaries) then
-            call splitBoundary_inPar()
-            call generate_boundary_mpi_comm_scheme()
-            !----- init comms boundaries
-            call init_comms_bnd(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
-         end if
+         call splitBoundary_inPar()
+         call generate_boundary_mpi_comm_scheme()
+         !----- init comms boundaries
+         call init_comms_bnd(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
          !----- Deallocate alya/gmsh arrays
          call deallocate_read_alya_mesh_arrays()
          !----- Create HDF5 File
@@ -267,13 +263,13 @@ contains
       end do
       !write(*,*) '[',mpi_rank,'] numBoundsWMRankPar',numBoundsWMRankPar
 
-      allocate(listBoundsWM(numBoundsWMRankPar))
+      allocate(listBoundsWallModel(numBoundsWMRankPar))
       auxBoundCnt = 0
       do iBound = 1,numBoundsRankPar
          bcCode = bouCodes2BCType(bouCodesPar(iBound))
          if(bcCode .eq. bc_type_slip_wall_model) then
             auxBoundCnt = auxBoundCnt + 1 
-            listBoundsWM(auxBoundCnt) = iBound
+            listBoundsWallModel(auxBoundCnt) = iBound
          end if
       end do
 
@@ -295,7 +291,7 @@ contains
 
       !$acc parallel loop gang 
       do iAux = 1,numBoundsWMRankPar
-         iBound = listBoundsWM(iAux)
+         iBound = listBoundsWallModel(iAux)
          iElem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
          jgaus = connecParWork(iElem,nnode)         ! internal node
          !$acc loop vector private(aux)
@@ -371,7 +367,7 @@ contains
       end do
       !$acc end parallel loop
 
-      if(mpi_size.ge.2) then
+      if((isMeshBoundaries).and.(mpi_size.ge.2)) then
          call mpi_halo_min_boundary_update_int_iSendiRcv(aux1)
       end if
 
@@ -816,7 +812,7 @@ contains
       !stablisation
       allocate(helem_l(numElemsInRank,nnode))
       do iElem = 1,numElemsInRank
-         call char_length_spectral(iElem,numElemsInRank,numNodesRankPar,connecParWork,coordPar,Ml,helem_l)
+         call char_length_spectral(iElem,numElemsInRank,numNodesRankPar,connecParOrig,coordPar,Ml,helem_l)
       end do
    end subroutine CFDSolverBase_evalMass
 
@@ -1346,9 +1342,7 @@ contains
 
       ! End comms
       call end_comms()
-      if(isMeshBoundaries) then
-         call end_comms_bnd()
-      end if
+      call end_comms_bnd()
       ! End MPI      
       call end_mpi()
 
