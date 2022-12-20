@@ -404,6 +404,45 @@ contains
       call h5dclose_f(dset_id,h5err)
    end subroutine create_dataspace_hdf5
 
+   !subroutine create_dataspace_maxdims_hdf5(file_id,dsetname,ds_rank,ds_dims,max_dims,dtype)
+   !   implicit none
+   !   integer(hid_t),intent(in) :: file_id
+   !   character(len=*),intent(in) :: dsetname
+   !   integer,intent(in) :: ds_rank
+   !   integer(hsize_t),intent(in) :: ds_dims(ds_rank),max_dims(ds_rank)
+   !   integer(hid_t),intent(in) :: dtype
+   !   integer(hid_t) :: dset_id,dspace_id
+   !   integer :: h5err
+!
+   !   ! Create the data space for the  dataset. 
+   !   call h5screate_simple_f(ds_rank,ds_dims,dspace_id,h5err,max_dims)
+   !   ! Create the dataset with default properties.
+   !   call h5dcreate_f(file_id,dsetname,dtype,dspace_id,dset_id,h5err)
+   !   
+   !   !write(*,*) 'create dsetname ',dsetname, ' dset_id ',dset_id,' dspace_id ',dspace_id
+!
+   !   call h5sclose_f(dspace_id,h5err)
+   !   call h5dclose_f(dset_id,h5err)
+   !end subroutine create_dataspace_maxdims_hdf5
+!
+   !subroutine extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims,)
+   !   implicit none
+   !   integer(hid_t),intent(in) :: file_id
+   !   character(len=*),intent(in) :: dsetname
+   !   integer,intent(in) :: ds_rank
+   !   integer(hsize_t),intent(in) :: ds_dims(ds_rank)
+!
+   !   ! Create the data space for the  dataset. 
+   !   call h5dset_extent_f(dset_id,ds_dims,h5err)
+   !   ! Create the dataset with default properties.
+   !   call h5dcreate_f(file_id,dsetname,dtype,dspace_id,dset_id,h5err)
+   !   
+   !   !write(*,*) 'create dsetname ',dsetname, ' dset_id ',dset_id,' dspace_id ',dspace_id
+!
+   !   call h5sclose_f(dspace_id,h5err)
+   !   call h5dclose_f(dset_id,h5err)
+   !end subroutine create_dataspace_maxdims_hdf5
+
    subroutine create_chunked_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,chunk_dims,dtype)
       implicit none
       integer(hid_t),intent(in) :: file_id
