@@ -76,7 +76,7 @@ program tool_meshConversorPar
 
     !-- read the alya mesh fesh files in GMSH/ALYA FORMAT
     !-- & do the partitioning
-    call read_gmsh_files_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,isPeriodic,num_partitions)
+    call read_gmsh_files_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName,isPeriodic,num_partitions)
 
 #if 0
 

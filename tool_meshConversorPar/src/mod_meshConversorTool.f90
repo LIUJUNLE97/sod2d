@@ -3,6 +3,9 @@ module mod_meshConversorTool
    use mod_mpi
    use mod_utils
    use mod_gmsh_indices
+   use elem_hex
+   use quadrature_rules
+   use mod_hdf5
    use iso_c_binding
    implicit none
 
@@ -12,15 +15,15 @@ module mod_meshConversorTool
 !-----------------------------------   
 #ifndef GEMPAINTERFACE
    interface
-      subroutine gempa_do_partition(numElemsInRank,numRanksToPart,x,y,z,weights,part) bind(c)
+      subroutine gempa_do_partition(numElemsMpiRankToPart,numMshRanksToPart,x,y,z,weights,part) bind(c)
         import c_int, c_double
-        integer(kind=c_int), intent(in), value :: numElemsInRank
-        integer(kind=c_int), intent(in), value :: numRanksToPart
-        real(kind=c_double), intent(in) :: x(numElemsInRank)
-        real(kind=c_double), intent(in) :: y(numElemsInRank)
-        real(kind=c_double), intent(in) :: z(numElemsInRank)
-        integer(kind=c_int), intent(in) :: weights(numElemsInRank)
-        integer(kind=c_int), intent(out) :: part(numElemsInRank)
+        integer(kind=c_int), intent(in), value :: numElemsMpiRankToPart
+        integer(kind=c_int), intent(in), value :: numMshRanksToPart
+        real(kind=c_double), intent(in) :: x(numElemsMpiRankToPart)
+        real(kind=c_double), intent(in) :: y(numElemsMpiRankToPart)
+        real(kind=c_double), intent(in) :: z(numElemsMpiRankToPart)
+        integer(kind=c_int), intent(in) :: weights(numElemsMpiRankToPart)
+        integer(kind=c_int), intent(out) :: part(numElemsMpiRankToPart)
       end subroutine gempa_do_partition
    end interface
 #endif
@@ -58,81 +61,95 @@ type :: jagged_matrix_rp
    type(matrix_rp),dimension(:), allocatable :: matrix
 end type jagged_matrix_rp
 
+#if 0
+
 ! ################################################################################################
 ! ----------------- VARS for new Par mesh FORMAT -------------------------------------------------
 ! ################################################################################################
 
-integer(int_size) :: totalNumElements,totalNumNodesPar,totalNumNodesSrl,totalNumBoundsSrl
-integer(int_size), allocatable :: numElemsRankPar(:), rankElemStart(:), rankElemEnd(:)
-integer(int_size), allocatable :: rankNodeStart(:), rankNodeEnd(:),numNodesRankPar(:)
-integer(int_size), allocatable :: numBoundsRankPar(:)
 
-type(jagged_vector_int) :: elemGid_jv, globalIdSrl_jv, globalIdPar_jv
-
-type(jagged_vector_int) :: connecVTK_jv
-type(jagged_matrix_int) :: connecParOrig_jm,connecParWork_jm
-
-type(jagged_matrix_rp) :: coordPar_jm
-
-type(jagged_vector_int) :: workingNodesPar_jv
-integer(int_size),allocatable :: numWorkingNodesRankPar(:)
-
-type(jagged_vector_int) :: masSlaRankPar_jv
-integer(int_size),allocatable :: nPerRankPar(:)
-
-integer(int_size) :: numBoundCodes
-type(jagged_vector_int) :: bouCodesPar
-type(jagged_matrix_int) :: bouPar
-
-integer(int_size) :: mshRankInMpiRankStart,mshRankInMpiRankEnd,numMshRanksInMpiRank
-integer(int_size), allocatable :: mshRanksInMpiRank(:),mapMshRankToMpiRank(:)
 
 ! ################################################################################################
 ! ------------------------ VARS for MPI COMMS ----------------------------------------------------
 ! ################################################################################################
 
-type(jagged_matrix_int) :: matrixCommScheme_jm
-type(jagged_vector_int) :: commsMemPosInLoc_jv,commsMemSize_jv,commsMemPosInNgb_jv,ranksToComm_jv
-integer(int_size),allocatable :: numNodesToComm(:),numRanksWithComms(:)
-
-
-
-
+#endif
 ! ################################################################################################
 integer, parameter :: fileId_geo = 99, fileId_bou = 98, fileId_dims = 97
 ! ################################################################################################
 !     FOR DEBUG
 character(128) :: file_name_deb,aux_string_mpirank_deb,aux_string_mshrank_deb
-character(*), parameter :: fmt_csv = '(1x,*(g0,","))'
+character(*), parameter :: fmt_csv_deb = '(1x,*(g0,","))'
 ! ################################################################################################
 
 contains
 
-   subroutine read_gmsh_files_and_do_partitioning_in_parallel(file_path,file_name,isPeriodic,numMshRanks2Part)
+   subroutine read_gmsh_files_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName,isPeriodic,numMshRanks2Part)
       implicit none
-      character(500), intent(in)  :: file_path, file_name
+      character(500), intent(in)  :: gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName
       logical, intent(in) :: isPeriodic
       integer(4),intent(in) :: numMshRanks2Part
-      integer(4) :: numElemsGmsh,numNodesGmsh,numBoundFacesGmsh,numPerNodes
+
       integer(4) :: numElemsMpiRank,numNodesMpiRank,numBoundsMpiRank
       integer, allocatable :: listElemsMpiRank(:),listNodesMpiRank(:),listElemsBoundsMpiRank(:,:),connecMpiRank(:,:),boundFacesMpiRank(:,:)
       real(rp), allocatable :: coordNodesMpiRank(:,:)
       integer,allocatable :: numBoundaryNodes(:),numMpiBoundaryNodes(:),numMshBoundaryNodes(:),numInnerNodes(:)
 
       type(jagged_vector_int) :: listNodesMshRank_jv,listBoundFacesMshRank_jv,boundFacesCodesMshRank_jv,boundaryNodes_jv,mshBoundaryNodes_jv,mpiBoundaryNodes_jv
-      type(jagged_matrix_int) :: connecMshRank_jm,listElemsBoundsMshRank_jm,boundFacesMshRank_jm
+      type(jagged_matrix_int) :: connecMshRank_jm,listElemsBoundsMshRank_jm,boundFacesMshRank_jm,globalIdSrlOrdered_jm
       type(jagged_matrix_rp) :: coordMshRank_jm
       integer,dimension(0:numMshRanks2Part-1) :: iNodeStartPar
-
+      integer,dimension(0:numMshRanks2Part-1) :: vecNumWorkingNodes,vecNumNodesToCommMshRank,vecNumMshRanksWithComms
+      real(rp) :: Ngp_l(ngaus,nnode)
+      logical :: isBoundaries=.false.
       integer(4) :: iMshRank,mshRank
+      integer(hid_t) :: hdf5_file_id
 
-      call read_dims_file(file_path,file_name,numElemsGmsh,numNodesGmsh,numBoundFacesGmsh)
+      ! ################################################################################################
+      ! ----------------- VARS for new Par mesh FORMAT -------------------------------------------------
+      ! ################################################################################################
 
-      !totalNumElements  = numElems
-      !totalNumNodesSrl  = numNodes
-      !totalNumBoundsSrl = numBoundFaces
+      integer(int_size) :: numElemsGmsh,numNodesGmsh,numBoundFacesGmsh,numNodesParTotal!,numPerNodes
+      integer(int_size), allocatable :: numElemsMshRank(:),mshRankElemStart(:),mshRankElemEnd(:)
+      integer(int_size), allocatable :: mshRankNodeStart(:), mshRankNodeEnd(:),numNodesMshRank(:)
+      integer(int_size), allocatable :: numBoundFacesMshRank(:)
 
-      call read_geo_dat_file_in_parallel(file_path,file_name,isPeriodic,numElemsGmsh,numNodesGmsh,numBoundFacesGmsh,&
+      type(jagged_vector_int) :: elemGidMshRank_jv,globalIdSrl_jv,globalIdPar_jv
+
+      type(jagged_vector_int) :: connecVTK_jv
+      type(jagged_matrix_int) :: connecParOrig_jm,connecParWork_jm
+
+      type(jagged_matrix_rp) :: coordPar_jm
+
+      type(jagged_vector_int) :: workingNodesPar_jv
+      integer(int_size),allocatable :: numWorkingNodesMshRank(:)
+
+      type(jagged_vector_int) :: masSlaRankPar_jv
+      integer(int_size),allocatable :: nPerMshRank(:)
+
+      !integer(int_size) :: numBoundFacesCodes!old numBoundCodes
+      !type(jagged_vector_int) :: bouCodesPar_jv
+      type(jagged_matrix_int) :: bouPar
+
+      integer(int_size) :: mshRankInMpiRankStart,mshRankInMpiRankEnd,numMshRanksInMpiRank
+      integer(int_size), allocatable :: mshRanksInMpiRank(:),mapMshRankToMpiRank(:)
+
+! ################################################################################################
+! ------------------------ VARS for MPI COMMS ----------------------------------------------------
+! ################################################################################################
+
+      type(jagged_matrix_int) :: matrixCommScheme_jm
+      type(jagged_vector_int) :: commsMemPosInLoc_jv,commsMemSize_jv,commsMemPosInNgb_jv,ranksToComm_jv
+      integer(int_size),allocatable :: numNodesToCommMshRank(:),numMshRanksWithComms(:)
+
+! ################################################################################################
+! ################################################################################################
+
+      call read_dims_file(gmsh_filePath,gmsh_fileName,numElemsGmsh,numNodesGmsh,numBoundFacesGmsh)
+
+      if(numBoundFacesGmsh.ne.0) isBoundaries = .true.
+
+      call read_geo_dat_file_in_parallel(gmsh_filePath,gmsh_fileName,isPeriodic,numElemsGmsh,numNodesGmsh,numBoundFacesGmsh,&
                         numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,listNodesMpiRank,&
                         numBoundsMpiRank,listElemsBoundsMpiRank,boundFacesMpiRank,connecMpiRank,coordNodesMpiRank)
 
@@ -144,9 +161,9 @@ contains
 
       call distribute_ranks2Part_in_mpiRank(numMshRanks2Part,mshRankInMpiRankStart,mshRankInMpiRankEnd,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank)
 
-      call do_element_partitioning_gempa_in_parallel(file_path,file_name,isPeriodic,numElemsGmsh,numNodesGmsh,numBoundFacesGmsh,numMshRanks2Part,&
-                        numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,listNodesMpiRank,connecMpiRank,coordNodesMpiRank,&
-                        listNodesMshRank_jv,connecMshRank_jm,listElemsBoundsMshRank_jm,listBoundFacesMshRank_jv,boundFacesCodesMshRank_jv,boundFacesMshRank_jm,coordMshRank_jm)
+      call do_element_partitioning_gempa_in_parallel(gmsh_filePath,gmsh_fileName,isPeriodic,numElemsGmsh,numNodesGmsh,numBoundFacesGmsh,numMshRanks2Part,&
+                        numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,listNodesMpiRank,connecMpiRank,coordNodesMpiRank,&
+                        numElemsMshRank,mshRankElemStart,mshRankElemEnd,numNodesMshRank,numBoundFacesMshRank,elemGidMshRank_jv,listNodesMshRank_jv,connecMshRank_jm,listElemsBoundsMshRank_jm,listBoundFacesMshRank_jv,boundFacesCodesMshRank_jv,boundFacesMshRank_jm,coordMshRank_jm)
 
       !-----------------------------------------------------------------------
       allocate(boundaryNodes_jv%vector(numMshRanksInMpiRank))
@@ -157,48 +174,55 @@ contains
       allocate(numMpiBoundaryNodes(numMshRanksInMpiRank))
       allocate(numMshBoundaryNodes(numMshRanksInMpiRank))
       allocate(numInnerNodes(numMshRanksInMpiRank))
+
+      allocate(mshRankNodeStart(numMshRanksInMpiRank))
+      allocate(mshRankNodeEnd(numMshRanksInMpiRank))
       !-----------------------------------------------------------------------
 
       do iMshRank=1,numMshRanksInMpiRank
          mshRank = mshRanksInMpiRank(iMshRank) 
 
-         call get_rankPartitionBoundaryNodes_in_parallel(mshRank,numElemsRankPar(iMshRank),numNodesRankPar(iMshRank),numBoundsRankPar(iMshRank),&
-                  elemGid_jv%vector(iMshRank)%elems,listNodesMshRank_jv%vector(iMshRank)%elems,connecMshRank_jm%matrix(iMshRank)%elems,&
+         call get_rankPartitionBoundaryNodes_in_parallel(mshRank,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),&
+                  elemGidMshRank_jv%vector(iMshRank)%elems,listNodesMshRank_jv%vector(iMshRank)%elems,connecMshRank_jm%matrix(iMshRank)%elems,&
                   coordMshRank_jm%matrix(iMshRank)%elems,listElemsBoundsMshRank_jm%matrix(iMshRank)%elems,listBoundFacesMshRank_jv%vector(iMshRank)%elems,&
                   boundFacesMshRank_jm%matrix(iMshRank)%elems,numBoundaryNodes(iMshRank),numMshBoundaryNodes(iMshRank),numMpiBoundaryNodes(iMshRank),&
                   numInnerNodes(iMshRank),boundaryNodes_jv%vector(iMshRank)%elems,mpiBoundaryNodes_jv%vector(iMshRank)%elems,mshBoundaryNodes_jv%vector(iMshRank)%elems)
       end do
 
-      call define_parallelNodePartitioning(numMshRanks2Part,iNodeStartPar)
+      call define_parallelNodePartitioning(numMshRanks2Part,numMshRanksInMpiRank,numNodesMshRank,mshRanksInMpiRank,mapMshRankToMpiRank,mshRankNodeStart,mshRankNodeEnd,iNodeStartPar,numNodesParTotal)
 
       !--------------------------------------------------------------------------------------
+      call evalShapeFunctions_Ngp_l(Ngp_l)
 
       allocate(globalIdSrl_jv%vector(numMshRanksInMpiRank))
+      allocate(globalIdSrlOrdered_jm%matrix(numMshRanksInMpiRank))
       allocate(globalIdPar_jv%vector(numMshRanksInMpiRank))
       allocate(connecVTK_jv%vector(numMshRanksInMpiRank))
       allocate(connecParOrig_jm%matrix(numMshRanksInMpiRank))
       allocate(connecParWork_jm%matrix(numMshRanksInMpiRank))
       allocate(coordPar_jm%matrix(numMshRanksInMpiRank))
-      allocate(numWorkingNodesRankPar(numMshRanksInMpiRank))
+      allocate(numWorkingNodesMshRank(numMshRanksInMpiRank))
       allocate(workingNodesPar_jv%vector(numMshRanksInMpiRank))
 
-      allocate(nPerRankPar(numMshRanksInMpiRank))
+      allocate(nPerMshRank(numMshRanksInMpiRank))
       allocate(masSlaRankPar_jv%vector(numMshRanksInMpiRank))
 
       do iMshRank=1,numMshRanksInMpiRank
          mshRank = mshRanksInMpiRank(iMshRank)
 
-         allocate(globalIdSrl_jv%vector(iMshRank)%elems(numNodesRankPar(iMshRank)))
-         allocate(globalIdPar_jv%vector(iMshRank)%elems(numNodesRankPar(iMshRank)))
+         allocate(globalIdSrl_jv%vector(iMshRank)%elems(numNodesMshRank(iMshRank)))
+         allocate(globalIdSrlOrdered_jm%matrix(iMshRank)%elems(numNodesMshRank(iMshRank),2))
+         allocate(globalIdPar_jv%vector(iMshRank)%elems(numNodesMshRank(iMshRank)))
 
-         allocate(connecVTK_jv%vector(iMshRank)%elems(numElemsRankPar(iMshRank)*nnode))
-         allocate(connecParOrig_jm%matrix(iMshRank)%elems(numElemsRankPar(iMshRank),nnode))
-         allocate(connecParWork_jm%matrix(iMshRank)%elems(numElemsRankPar(iMshRank),nnode))
+         allocate(connecVTK_jv%vector(iMshRank)%elems(numElemsMshRank(iMshRank)*nnode))
+         allocate(connecParOrig_jm%matrix(iMshRank)%elems(numElemsMshRank(iMshRank),nnode))
+         allocate(connecParWork_jm%matrix(iMshRank)%elems(numElemsMshRank(iMshRank),nnode))
 
-         allocate(coordPar_jm%matrix(iMshRank)%elems(numNodesRankPar(iMshRank),3))
+         allocate(coordPar_jm%matrix(iMshRank)%elems(numNodesMshRank(iMshRank),3))
 
          !$acc kernels
          globalIdSrl_jv%vector(iMshRank)%elems(:) = -1
+         globalIdSrlOrdered_jm%matrix(iMshRank)%elems(:,:) = -1
          globalIdPar_jv%vector(iMshRank)%elems(:) = -1
          connecVTK_jv%vector(iMshRank)%elems(:) = 0
          connecParOrig_jm%matrix(iMshRank)%elems(:,:) = 0
@@ -207,43 +231,36 @@ contains
          !$acc end kernels
 
          !reordering nodes
-         call reorder_nodes_in_mshRank(mshRank,numMshRanks2Part,numElemsRankPar(iMshRank),numNodesRankPar(iMshRank),numBoundsRankPar(iMshRank),&
-                           elemGid_jv%vector(iMshRank)%elems,listNodesMshRank_jv%vector(iMshRank)%elems,connecMshRank_jm%matrix(iMshRank)%elems,iNodeStartPar,&
-                           globalIdSrl_jv%vector(iMshRank)%elems,globalIdPar_jv%vector(iMshRank)%elems,&
+         call reorder_nodes_in_mshRank(mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),&
+                           elemGidMshRank_jv%vector(iMshRank)%elems,listNodesMshRank_jv%vector(iMshRank)%elems,connecMshRank_jm%matrix(iMshRank)%elems,iNodeStartPar,&
+                           globalIdSrl_jv%vector(iMshRank)%elems,globalIdSrlOrdered_jm%matrix(iMshRank)%elems,globalIdPar_jv%vector(iMshRank)%elems,&
                            connecVTK_jv%vector(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems,&
                            boundFacesMshRank_jm%matrix(iMshRank)%elems)
 
-         call set_nodesCoordinates(mshRank,numElemsRankPar(iMshRank),numNodesRankPar(iMshRank),globalIdSrl_jv%vector(iMshRank)%elems,&
-            listNodesMshRank_jv%vector(iMshRank)%elems,connecMshRank_jm%matrix(iMshRank)%elems,coordMshRank_jm%matrix(iMshRank)%elems,&
+         call set_nodesCoordinates(mshRank,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),globalIdSrl_jv%vector(iMshRank)%elems,&
+            listNodesMshRank_jv%vector(iMshRank)%elems,coordMshRank_jm%matrix(iMshRank)%elems,Ngp_l,connecParOrig_jm%matrix(iMshRank)%elems,&
             coordPar_jm%matrix(iMshRank)%elems)
 
          if(isPeriodic) then
             write(*,*) 'TODO line 219 for isPeriodic -> create_masSla? maybe can be done before now, but must be done before calling create_working_lists_parallel'
             !call create_masSla_parallel()
          else
-            nPerRankPar(iMshRank) = 0
-            allocate(masSlaRankPar_jv%vector(numMshRanksInMpiRank)%elems(nPerRankPar(iMshRank)))
+            nPerMshRank(iMshRank) = 0
+            allocate(masSlaRankPar_jv%vector(iMshRank)%elems(nPerMshRank(iMshRank)))
          end if
-#if 1 
-         call create_working_lists_parallel(isPeriodic,mshRank,numElemsRankPar(iMshRank),numNodesRankPar(iMshRank),globalIdSrl_jv%vector(iMshRank)%elems,&
-               connecParOrig_jm%matrix(iMshRank)%elems,nPerRankPar(iMshRank),masSlaRankPar_jv%vector(iMshRank)%elems,&
-               connecParWork_jm%matrix(iMshRank)%elems,numWorkingNodesRankPar(iMshRank),workingNodesPar_jv%vector(iMshRank)%elems)
-#endif
 
+         call create_working_lists_parallel(isPeriodic,mshRank,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),globalIdSrl_jv%vector(iMshRank)%elems,&
+               connecParOrig_jm%matrix(iMshRank)%elems,nPerMshRank(iMshRank),masSlaRankPar_jv%vector(iMshRank)%elems,&
+               connecParWork_jm%matrix(iMshRank)%elems,numWorkingNodesMshRank(iMshRank),workingNodesPar_jv%vector(iMshRank)%elems)
       end do
 
-
-      call generate_mpi_comm_scheme_parallel(numMshRanks2Part,numMpiBoundaryNodes,mpiBoundaryNodes_jv)
+      call generate_mpi_comm_scheme_parallel(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numMpiBoundaryNodes,mpiBoundaryNodes_jv,globalIdSrl_jv,globalIdSrlOrdered_jm,&
+                                    matrixCommScheme_jm,commsMemPosInLoc_jv,commsMemSize_jv,commsMemPosInNgb_jv,ranksToComm_jv,numNodesToCommMshRank,numMshRanksWithComms)
 
       !remaining things to do
       !-------------------------------------------------------------------------------------------
 
       !call define_boundPar_and_boundCodesPar_parallel()
-
-
-
-
-
 
       !call define_numDoFRankPar_and_numBoundaryNodesRankPar()
       !integer(int_size) :: ndofRankPar, numBoundaryNodesRankPar
@@ -257,30 +274,38 @@ contains
       deallocate(connecMpiRank)
       deallocate(coordNodesMpiRank)
 
+      !----------------------------------------------------------------------------------------------
+      call get_vector_with_mshRank_values_for_numMshRanks2Part(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numWorkingNodesMshRank,vecNumWorkingNodes)
+      call get_vector_with_mshRank_values_for_numMshRanks2Part(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numNodesToCommMshRank,vecNumNodesToCommMshRank)
+      call get_vector_with_mshRank_values_for_numMshRanks2Part(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numMshRanksWithComms,vecNumMshRanksWithComms)
 
-      !call do_node_partitioning_and_connectivity()
-      !!--------------
-      !INSIDE do_node_partitioning-----------------------------------------
-      !call get_rankPartitionBoundaryNodes(boundaryNodes)
-      !call define_parallelNodePartitioning(iNodeStartPar,iNodeEndPar)
-      !call define_mpi_boundaries_inPar(boundaryNodes,vecSharedBN_full)
-      !deallocate(boundaryNodes)
-      !call reorder_nodes_in_proc(iNodeStartPar)
-      !call generate_mpi_comm_scheme(vecSharedBN_full)
-      !deallocate(vecSharedBN_full)
-      !INSIDE do_node_partitioning-----------------------------------------
+      write(*,*) 'test[',mpi_rank,']',vecNumWorkingNodes(:),'vnntcmr',vecNumNodesToCommMshRank(:)
 
-      !!------------------------------------------------
+      !----------------------------------------------------------------------------------------------
 
-      !call create_nodesCoordinates()
+      call init_hdf5_interface()
+      
+      call set_hdf5_meshFile_name(mesh_h5_filePath,mesh_h5_fileName,numMshRanks2Part)
 
-      !if(isMeshPeriodic) then
-      !   call create_masSla_parallel()
-      !end if
+      call create_hdf5_meshFile_from_tool(hdf5_file_id)
+      call create_hdf5_groups_datasets_in_meshFile_from_tool(hdf5_file_id,isPeriodic,isBoundaries,numMshRanks2Part,numElemsGmsh,numNodesParTotal,&
+               vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank)
 
-      !call create_working_lists()
+      do iMshRank=1,numMshRanksInMpiRank
+         mshRank = mshRanksInMpiRank(iMshRank)
+         call write_mshRank_data_in_hdf5_meshFile_from_tool(hdf5_file_id,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,numElemsGmsh,numNodesGmsh,numBoundFacesGmsh,numNodesParTotal,&
+            numElemsMshRank(iMshRank),mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart(iMshRank),&
+            mshRankNodeEnd(iMshRank),numNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),&
+            elemGidMshRank_jv%vector(iMshRank)%elems,globalIdSrl_jv%vector(iMshRank)%elems,globalIdPar_jv%vector(iMshRank)%elems,&
+            connecVTK_jv%vector(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems,connecParWork_jm%matrix(iMshRank)%elems,coordPar_jm%matrix(iMshRank)%elems,numWorkingNodesMshRank(iMshRank),&
+            numNodesToCommMshRank(iMshRank),numMshRanksWithComms(iMshRank),matrixCommScheme_jm%matrix(iMshRank)%elems,commsMemPosInLoc_jv%vector(iMshRank)%elems,&
+            commsMemSize_jv%vector(iMshRank)%elems,commsMemPosInNgb_jv%vector(iMshRank)%elems,ranksToComm_jv%vector(iMshRank)%elems,&
+            vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank) 
+      end do
 
-      !call create_hdf5_meshFile_from_tool()
+      call close_hdf5_meshFile_from_tool(hdf5_file_id)
+      
+      call end_hdf5_interface()
 
    end subroutine read_gmsh_files_and_do_partitioning_in_parallel
 !---------------------------------------------------------------------------------------------------------------------------
@@ -467,6 +492,8 @@ contains
       end do
       read(fileId_geo,*) ! Section ender
 
+      deallocate(rawNodeListRank)
+
    end subroutine read_elem_connec_and_nodes_coords_from_geo_file
 
    subroutine read_boundaries(numBoundFacesSrl,numElemsInRank,listElemsInRank,connecInRank,numBoundsInRank,listElemsBoundsInRank,listBoundFacesInRank,boundFacesCodesInRank,boundFacesInRank)
@@ -642,76 +669,6 @@ contains
       call read_element_section_geo_file(numElemsSrl)
       call read_elem_connec_and_nodes_coords_from_geo_file(numElemsSrl,numNodesSrl,numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,connecMpiRank,listNodesMpiRank,coordNodesMpiRank)
 
-#if 0
-      if(mpi_rank.eq.0)write(*,*) "--| Reading element table..."
-      read(fileId_geo,*) ! Section header
-      do iline = 1,(iElemProcStart-1)
-         read(fileId_geo,*)
-      end do
-      auxCnt=0
-      do iline = iElemProcStart,iElemProcEnd
-         read(fileId_geo,'(a)') line
-         read(line,*) (aux(inode), inode=1,nnode+1)
-         auxCnt=auxCnt+1
-         listElemsMpiRank(auxCnt) = iline
-         connecMpiRank(auxCnt,1:nnode) = aux(2:nnode+1)
-         !if(mpi_rank.eq.2) write(*,*) 'connecMpiRank(',auxCnt,'): ', connecMpiRank(auxCnt,:)
-      end do
-      do iline = (iElemProcEnd+1),numElemsSrl
-         read(fileId_geo,*)
-      end do
-      read(fileId_geo,*) ! Section ender
-      !------------------------------------------------------------------------------------------
-
-      allocate(isNodeMpiRank(numNodesSrl))
-      !$acc kernels
-      isNodeMpiRank(:) = .false.
-      !$acc end kernels
-
-      nodeCnt=0
-      do iAux = 1,numElemsMpiRank
-         do jAux = 1,nnode
-            iNode = connecMpiRank(iAux,jAux)
-            if(not(isNodeMpiRank(iNode))) then
-               isNodeMpiRank(iNode) = .true.
-               nodeCnt=nodeCnt+1
-            end if
-         end do
-      end do
-      numNodesMpiRank = nodeCnt
-      !write(*,*) '1.[',mpi_rank,'] nodeCnt ',nodeCnt
-
-      ! Nodal coordinates section
-      !------------------------------------------------------------------------------------------
-      if(mpi_rank.eq.0)write(*,*) "--| Reading coordinates..."
-      if (ndime .ne. 3) then
-         write(*,*) 'Crashing in read_geo_dat_file_in_parallel! ndime is not 3! EXIT!'
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-      end if
-
-      allocate(listNodesMpiRank(numNodesMpiRank))
-      allocate(coordNodesMpiRank(numNodesMpiRank,ndime))
-
-      !$acc kernels
-      coordNodesMpiRank(:,:) = 0
-      listNodesMpiRank(:) = 0
-      !$acc end kernels
-
-      auxCnt=0
-      read(fileId_geo,*) ! Section header
-      do iline =1,numNodesSrl
-         read(fileId_geo,*) iNode,x,y,z !iline is equal to iNode (or should be!)
-         if(isNodeMpiRank(iNode)) then
-               auxCnt=auxCnt+1
-               listNodesMpiRank(auxCnt) = iNode
-               coordNodesMpiRank(auxCnt,1)=real(x,rp)
-               coordNodesMpiRank(auxCnt,2)=real(y,rp) 
-               coordNodesMpiRank(auxCnt,3)=real(z,rp)
-               !if(mpi_rank.eq.2) write(*,*) '2.[',mpi_rank,'] lNiR(',auxCnt,')',iNode
-         end if
-      end do
-      read(fileId_geo,*) ! Section ender
-#endif
       ! Boundary nodes section
       !------------------------------------------------------------------------------------------
 
@@ -721,115 +678,6 @@ contains
          call MPI_Abort(MPI_COMM_WORLD, -1, mpi_err)
          !call open_fix_bou_file(file_path,file_name)
          !call read_boundaries(numBoundFacesSrl,numElemsMpiRank,listElemsMpiRank,connecMpiRank,numBoundsMpiRank,listElemsBoundsMpiRank,boundFacesMpiRank)
-
-#if 0
-      read(fileId_geo,*) line! Section header
-      read(fileId_bou,*) line! Section header
-
-      allocate(auxBoundFacesMpiRank(numBoundFacesSrl,2+npbou))
-      auxBoundFacesMpiRank(:,:) = 0
-      allocate(listElemsBoundsMpiRank(numElemsMpiRank,maxBoundsPerElem))
-      listElemsBoundsMpiRank(:,:) = 0
-
-      numBoundsMpiRank=0
-      do iline = 1,numBoundFacesSrl
-         !reading boundary nodes-------------------------------
-         read(fileId_geo,'(a)') line
-         read(line,*) (bou_aux(inode), inode=1,npbou+1)
-         iBound = bou_aux(1) 
-         iBoundNodes = bou_aux(2:npbou+1)
-         !-----------------------------------------------------
-
-         !reading boundary code--------------------------------
-         read(fileId_bou,'(a)') line
-         read(line,*) iBoundBou,bou_code_aux
-         !-----------------------------------------------------
-
-         if(iBound.ne.iBoundBou) then
-            write(*,*) 'Error in read_geo_dat_file_in_parallel: iBound',iBound,' not equal to iBoundBou',iBoundBou
-            call MPI_Abort(MPI_COMM_WORLD, -1, mpi_err)
-         end if
-         !write(*,*) 'iBound',iBound,'iBoundBou',iBoundBou,'bouCode',bou_code_aux,'iBoundNodes',iBoundNodes
-
-         !fill the corners of the face to check
-         do iAux=1,4
-            ind_gmsh = gmsh2ij(posFaceVertices(iAux))
-            f_iNodeG(iAux) = iBoundNodes(ind_gmsh)
-         end do
-         !write(*,*) '[',mpi_rank,']iBound',iBound,' -> f_iNodeG ',f_iNodeG(:)
-
-         !Search to which element this face belongs
-         do iElem=1,numElemsMpiRank
-            nodeCnt=0
-            iElemG=listElemsMpiRank(iElem)
-            !fill the corners of the element 
-            do iAux=1,8
-               ind_gmsh = gmsh2ijk(posElemVertices(iAux))
-               e_iNodeG(iAux) = connecMpiRank(iElem,ind_gmsh)
-            end do
-
-            !isBoundInElem=.false.
-            fLoop: do iAux=1,4
-               vertexFound=.false.
-               iNodeG_inFace = f_iNodeG(iAux)
-               eLoop: do jAux=1,8
-                  iNodeG_inElem = e_iNodeG(jAux)
-                  if(iNodeG_inFace .eq. iNodeG_inElem) then
-                     nodeCnt=nodeCnt+1
-                     vertexFound=.true.
-                     exit eLoop
-                  end if
-               end do eLoop              
-               if(not(vertexFound)) exit fLoop
-            end do fLoop     
-            if(nodeCnt.ge.4) then
-               !isBoundInElem=.true.
-               numBoundsMpiRank=numBoundsMpiRank+1
-               !write(*,*) '[',mpi_rank,']iBound',iBound,' -> elem ',iElemG
-               auxBoundFacesMpiRank(numBoundsMpiRank,1)=iBound
-               auxBoundFacesMpiRank(numBoundsMpiRank,2)=iElemG
-               auxBoundFacesMpiRank(numBoundsMpiRank,3:npbou+2)=iBoundNodes(1:npbou)
-
-               addLoop : do iAux = 1,maxBoundsPerElem
-                  if(listElemsBoundsMpiRank(iElem,iAux).eq.0) then
-                     !write(*,*) '[',mpi_rank,'] adding iBound',iBound,'to elem',iElemG
-                     listElemsBoundsMpiRank(iElem,iAux) = iBound
-
-                     exit addLoop
-                  end if
-               end do addLoop
-            end if
-
-         end do
-         !boundGMSH(iline,1:npbou) = bou_aux(2:npbou+1)
-      end do
-
-      read(fileId_geo,*) ! Section ender
-      read(fileId_bou,*) ! Section ender
-
-      write(*,*) '[',mpi_rank,'] numBoundsMpiRank',numBoundsMpiRank
-      !do iElem=1,numElemsMpiRank
-      !   if(listElemsBoundsMpiRank(iElem,1).ne.0) then
-      !      write(*,*) 'i',iElem,'iG',listElemsMpiRank(iElem),'bounds',listElemsBoundsMpiRank(iElem,:)
-      !   end if
-      !end do
-
-      call MPI_Allreduce(numBoundsMpiRank,aux_sum_NBP,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
-
-      if(aux_sum_NBP.ne.numBoundFacesSrl) then
-         write(*,*) 'Error in read_geo_dat_file_in_parallel: aux_sum_NBP',aux_sum_NBP,' not equal to numBoundFacesSrl',numBoundFacesSrl
-         call MPI_Abort(MPI_COMM_WORLD, -1, mpi_err)
-      end if
-
-      allocate(boundFacesMpiRank(numBoundsMpiRank,2+npbou))
-
-      do iBound=1,numBoundsMpiRank
-         boundFacesMpiRank(iBound,:)=auxBoundFacesMpiRank(iBound,:)
-         !write(*,*) '[',mpi_rank,']bfmpirank(',iBound,')',boundFacesMpiRank(iBound,:)
-      end do
-
-      deallocate(auxBoundFacesMpiRank)
-#endif
 
          !call close_fix_bou_file()
       end if
@@ -844,16 +692,19 @@ contains
    end subroutine read_geo_dat_file_in_parallel
 
    subroutine do_element_partitioning_gempa_in_parallel(file_path,file_name,isPeriodic,numElemsSrl,numNodesSrl,numBoundFacesSrl,&
-                  numMshRanks2Part,numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,listNodesMpiRank,connecMpiRank,coordNodesMpiRank,&
-                  listNodesMshRank_jv,connecMshRank_jm,listElemsBoundsMshRank_jm,listBoundFacesMshRank_jv,boundFacesCodesMshRank_jv,boundFacesMshRank_jm,coordMshRank_jm)
+                  numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numElemsMpiRank,listElemsMpiRank,&
+                  numNodesMpiRank,listNodesMpiRank,connecMpiRank,coordNodesMpiRank,numElemsRankPar,rankElemStart,rankElemEnd,numNodesMshRank,numBoundFacesMshRank,&
+                  elemGid_jv,listNodesMshRank_jv,connecMshRank_jm,listElemsBoundsMshRank_jm,listBoundFacesMshRank_jv,boundFacesCodesMshRank_jv,boundFacesMshRank_jm,coordMshRank_jm)
       implicit none
       character(500), intent(in) :: file_path, file_name
       logical,intent(in) :: isPeriodic
       integer(4),intent(in) :: numElemsSrl,numNodesSrl,numBoundFacesSrl
       integer(4),intent(in) :: numElemsMpiRank,numNodesMpiRank,numMshRanks2Part
+      integer(4),intent(in) :: numMshRanksInMpiRank,mshRanksInMpiRank(numMshRanksInMpiRank),mapMshRankToMpiRank(numMshRanksInMpiRank)
       integer,intent(in) :: listElemsMpiRank(numElemsMpiRank),listNodesMpiRank(numNodesMpiRank),connecMpiRank(numElemsMpiRank,nnode)
       real(rp),intent(in) :: coordNodesMpiRank(numNodesMpiRank,ndime)
-      type(jagged_vector_int),intent(out) :: listNodesMshRank_jv,listBoundFacesMshRank_jv,boundFacesCodesMshRank_jv
+      integer(4),intent(out),allocatable :: numElemsRankPar(:),rankElemStart(:),rankElemEnd(:),numNodesMshRank(:),numBoundFacesMshRank(:)
+      type(jagged_vector_int),intent(out) :: elemGid_jv,listNodesMshRank_jv,listBoundFacesMshRank_jv,boundFacesCodesMshRank_jv
       type(jagged_matrix_int),intent(out) :: connecMshRank_jm,listElemsBoundsMshRank_jm,boundFacesMshRank_jm
       type(jagged_matrix_rp),intent(out) :: coordMshRank_jm
 
@@ -871,7 +722,6 @@ contains
 
       integer :: window_id
       integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size,target_displacement
-      !logical, allocatable :: auxMatrixNumNodesInMpiRank(:,:)
 
       if(mpi_rank.eq.0) write(*,*) '--| Doing element partitioning GEMPA in parallel...'
 
@@ -944,35 +794,6 @@ contains
 
       !write(*,*) 'numElems2mshRankInMpiRank[',mpi_rank,'] ',numElems2mshRankInMpiRank(:)
 
-#if 0
-      allocate(auxMatrixNumNodesInMpiRank(numNodesMpiRank,0:numMshRanks2Part-1))
-      auxMatrixNumNodesInMpiRank = .false.
-
-      do iElem=1,numElems2Part
-         iElemG   = elemPart(iElem,1)
-         mshRank = elemPart(iElem,2)-1 !elemPart came with rank=1:mpi_size
-
-         do ii=1,nnode
-            iNodeG = connecMpiRank(iElem,ii)
-            iPos = binarySearch_int_i(listNodesMpiRank,iNodeG)
-            auxMatrixNumNodesInMpiRank(iPos,iMshRank) = .true.
-         end do
-
-      end do
-
-      numNodes2mshRankInMpiRank(:)=0
-      do iMshRank=0,numMshRanks2Part-1
-         do iNode=1,numNodesMpiRank
-            if(auxMatrixNumNodesInMpiRank(iNode,iMshRank)) then
-               numNodes2mshRankInMpiRank(iMshRank) = numNodes2mshRankInMpiRank(iMshRank) + 1
-            end if
-         end do
-      end do
-
-      write(*,*) '[',mpi_rank,']numNodes2mshRankInMpiRank',numNodes2mshRankInMpiRank(:)
-
-      deallocate(auxMatrixNumNodesInMpiRank)
-#endif
 #if _CHECK_
       write(aux_string_mpirank_deb,'(I0)') mpi_rank
       file_name_deb = 'elemPartition_mpiRank'// trim(aux_string_mpirank_deb)//'.csv'
@@ -1000,7 +821,7 @@ contains
          y_a = y_a/8.d0
          z_a = z_a/8.d0
 
-         write(1,fmt_csv) x_a,y_a,z_a,iElemG,mshRank,iElem
+         write(1,fmt_csv_deb) x_a,y_a,z_a,iElemG,mshRank,iElem
       end do
       close(1)
 #endif
@@ -1062,7 +883,7 @@ contains
          y_a = y_a/8.d0
          z_a = z_a/8.d0
 
-         write(1,fmt_csv) x_a,y_a,z_a,iElemG,mshRank,iElem
+         write(1,fmt_csv_deb) x_a,y_a,z_a,iElemG,mshRank,iElem
       end do
       close(1)
 #endif
@@ -1080,26 +901,6 @@ contains
             numElemsInMshRank(mshRank) = numElemsInMshRank(mshRank) + matNumElems2mshRankInMpiRank(mshRank,mpiRank)
          end do
       end do
-
-      !write(*,*) 'numElemsInMshRank[',mpi_rank,'] ',numElemsInMshRank(:)
-      !if(mpi_rank.eq.0) then
-      !   do mshRank=0,numMshRanks2Part-1
-      !      write(*,*) 'mshRank',mshRank,'numElemsInRankP',numElemsInMshRank(mshRank)
-      !   end do
-      !end if
-
-      !call distribute_ranks2Part_in_mpiRank(numMshRanks2Part,iMshRankInMpiRankStart,iMshRankInMpiRankEnd,numMshRanksInMpiRank,mshRanksInMpiRank)
-
-      !maxNumElemsInMpiRank = 0
-      !do iMshRank=1,numMshRanks2Part
-      !   maxNumElemsInMpiRank=max(numElemsInMshRank(iMshRank),maxNumElemsInMpiRank)
-      !end do
-      !write(*,*) '[',mpi_rank,']numMshRanksInMpiRank',numMshRanksInMpiRank,'maxNumElemsInRank',maxNumElemsInRank
-
-      !allocate(elemGid(maxNumElemsInMpiRank,numMshRanksInMpiRank))
-      !$acc kernels
-      !elemGid(:,:) = -1
-      !$acc end kernels
 
       allocate(elemGid_jv%vector(numMshRanksInMpiRank))
       do iMshRank=1,numMshRanksInMpiRank
@@ -1156,8 +957,8 @@ contains
          file_name_deb = 'elemGid_mpiRank'//trim(aux_string_mpirank_deb)//'_mshRank_'//trim(aux_string_mshrank_deb)//'.csv'
          open(1,file=file_name_deb)
          do iElem=1,numElemsInMshRank(iMshRank)
-            !write(1,fmt_csv) iElem,elemGid(iElem,iMshRank)
-            write(1,fmt_csv) iElem,elemGid_jv%vector(iMshRank)%elems(iElem)
+            !write(1,fmt_csv_deb) iElem,elemGid(iElem,iMshRank)
+            write(1,fmt_csv_deb) iElem,elemGid_jv%vector(iMshRank)%elems(iElem)
          end do
          close(1)
       end do
@@ -1186,8 +987,8 @@ contains
 
 !------------------------------------------------------------------------------
 
-      allocate(numNodesRankPar(numMshRanksInMpiRank))
-      allocate(numBoundsRankPar(numMshRanksInMpiRank))
+      allocate(numNodesMshRank(numMshRanksInMpiRank))
+      allocate(numBoundFacesMshRank(numMshRanksInMpiRank))
       allocate(listNodesMshRank_jv%vector(numMshRanksInMpiRank))
       allocate(connecMshRank_jm%matrix(numMshRanksInMpiRank))!,boundMshRank_jm,bou_codesMshRank_jm
       allocate(coordMshRank_jm%matrix(numMshRanksInMpiRank))
@@ -1201,8 +1002,8 @@ contains
          allocate(boundFacesMshRank_jm%matrix(numMshRanksInMpiRank))
       end if
 
-      numNodesRankPar(:)  = 0
-      numBoundsRankPar(:) = 0
+      numNodesMshRank(:)  = 0
+      numBoundFacesMshRank(:) = 0
 
       !ara puc aplicar la nova idea!
       do iMshRank=1,numMshRanksInMpiRank
@@ -1214,7 +1015,7 @@ contains
 
          call open_geo_dat_file(file_path,file_name)
          call read_element_section_geo_file(numElemsSrl)
-         call read_elem_connec_and_nodes_coords_from_geo_file(numElemsSrl,numNodesSrl,aux_numElemsMshRank,elemGid_jv%vector(iMshRank)%elems,numNodesRankPar(iMshRank),&
+         call read_elem_connec_and_nodes_coords_from_geo_file(numElemsSrl,numNodesSrl,aux_numElemsMshRank,elemGid_jv%vector(iMshRank)%elems,numNodesMshRank(iMshRank),&
          connecMshRank_jm%matrix(iMshRank)%elems,listNodesMshRank_jv%vector(iMshRank)%elems,coordMshRank_jm%matrix(iMshRank)%elems)
          
          if(numBoundFacesSrl.ne.0) then
@@ -1224,7 +1025,7 @@ contains
 
             call open_fix_bou_file(file_path,file_name)
             call read_boundaries(numBoundFacesSrl,aux_numElemsMshRank,elemGid_jv%vector(iMshRank)%elems,connecMshRank_jm%matrix(iMshRank)%elems,&
-               numBoundsRankPar(iMshRank),listElemsBoundsMshRank_jm%matrix(iMshRank)%elems,&
+               numBoundFacesMshRank(iMshRank),listElemsBoundsMshRank_jm%matrix(iMshRank)%elems,&
                listBoundFacesMshRank_jv%vector(iMshRank)%elems,boundFacesCodesMshRank_jv%vector(iMshRank)%elems,boundFacesMshRank_jm%matrix(iMshRank)%elems)
 
             call close_fix_bou_file()
@@ -1238,7 +1039,7 @@ contains
       if(numBoundFacesSrl.ne.0) then
          aux_sum_NB_mpiRank=0
          do iMshRank=1,numMshRanksInMpiRank
-            aux_sum_NB_mpiRank = aux_sum_NB_mpiRank + numBoundsRankPar(iMshRank)
+            aux_sum_NB_mpiRank = aux_sum_NB_mpiRank + numBoundFacesMshRank(iMshRank)
          end do
 
          call MPI_Allreduce(aux_sum_NB_mpiRank,aux_sum_NBP,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
@@ -1333,7 +1134,7 @@ contains
          file_name_deb = 'connec_mpiRank'//trim(aux_string_mpirank_deb)//'_mshRank_'//trim(aux_string_mshrank_deb)//'.csv'
          open(1,file=file_name_deb)
          do iElem=1,numElemsInMshRank(iMshRank)
-            write(1,fmt_csv) elemGid(iElem,ii),connecMshRank(iElem,:,ii)
+            write(1,fmt_csv_deb) elemGid(iElem,ii),connecMshRank(iElem,:,ii)
          end do
          close(1)
       end do
@@ -1412,7 +1213,7 @@ contains
          file_name_deb = 'listElemsBounds_mpiRank'//trim(aux_string_mpirank_deb)//'_mshRank_'//trim(aux_string_mshrank_deb)//'.csv'
          open(1,file=file_name_deb)
          do iElem=1,numElemsInMshRank(iMshRank)
-            write(1,fmt_csv) elemGid(iElem,ii),listElemsBoundsMshRank(iElem,:,ii)
+            write(1,fmt_csv_deb) elemGid(iElem,ii),listElemsBoundsMshRank(iElem,:,ii)
          end do
          close(1)
       end do
@@ -1620,7 +1421,7 @@ contains
      !      boundaryNodes(i) = iNodeG
      !   end if
      !end do
-      !write(*,*) '#rank[',mpi_rank,']  nodesInRank ',numNodesRankPar, " bN ", numBNodesRankPar, " iN ",numINodesRankPar,'i',i
+      !write(*,*) '#rank[',mpi_rank,']  nodesInRank ',numNodesMshRank, " bN ", numBNodesRankPar, " iN ",numINodesRankPar,'i',i
 
       !deallocate(nodeOwned)
       !deallocate(nodeInBoundary)
@@ -1635,7 +1436,7 @@ contains
          iNodeG=boundaryNodes(iNode)
          indexNode = binarySearch_int_i(listNodesInRank,iNodeG)
          
-         write(1,fmt_csv) coordInRank(indexNode,1),coordInRank(indexNode,2),coordInRank(indexNode,3),iNodeG
+         write(1,fmt_csv_deb) coordInRank(indexNode,1),coordInRank(indexNode,2),coordInRank(indexNode,3),iNodeG
       end do
       close(1)
 
@@ -1646,7 +1447,7 @@ contains
          iNodeG=mpiBoundaryNodes(iNode)
          indexNode = binarySearch_int_i(listNodesInRank,iNodeG)
          
-         write(1,fmt_csv) coordInRank(indexNode,1),coordInRank(indexNode,2),coordInRank(indexNode,3),iNodeG
+         write(1,fmt_csv_deb) coordInRank(indexNode,1),coordInRank(indexNode,2),coordInRank(indexNode,3),iNodeG
       end do
       close(1)
 
@@ -1657,7 +1458,7 @@ contains
          iNodeG=mshBoundaryNodes(iNode)
          indexNode = binarySearch_int_i(listNodesInRank,iNodeG)
          
-         write(1,fmt_csv) coordInRank(indexNode,1),coordInRank(indexNode,2),coordInRank(indexNode,3),iNodeG
+         write(1,fmt_csv_deb) coordInRank(indexNode,1),coordInRank(indexNode,2),coordInRank(indexNode,3),iNodeG
       end do
       close(1)
 
@@ -1714,14 +1515,19 @@ contains
 
    end subroutine new_subroutine_without_name
 
-   subroutine define_parallelNodePartitioning(numMshRanks2Part,iNodeStartPar)
+   subroutine define_parallelNodePartitioning(numMshRanks2Part,numMshRanksInMpiRank,numNodesMshRank,mshRanksInMpiRank,mapMshRankToMpiRank,mshRankNodeStart,mshRankNodeEnd,iNodeStartPar,numNodesParTotal)
       implicit none
       integer,intent(in) :: numMshRanks2Part
+      integer,intent(in) :: numMshRanksInMpiRank,numNodesMshRank(numMshRanksInMpiRank),mshRanksInMpiRank(numMshRanksInMpiRank),mapMshRankToMpiRank(numMshRanksInMpiRank)
+      integer,intent(out) :: mshRankNodeStart(numMshRanksInMpiRank),mshRankNodeEnd(numMshRanksInMpiRank)
       integer,dimension(0:numMshRanks2Part-1),intent(out) :: iNodeStartPar
-      integer,dimension(0:numMshRanks2Part-1) :: iNodeEndPar,vectorNumNodesRankPar2send,vectorNumNodesRankPar2rcv
+      integer,intent(out) :: numNodesParTotal
+      !integer,dimension(0:numMshRanks2Part-1) :: iNodeEndPar,vectorNumNodesRankPar2send,vectorNumNodesRankPar2rcv
+      integer,dimension(0:numMshRanks2Part-1) :: iNodeEndPar,vecNumNodesMshRank
       integer :: window_id
       integer :: iMshRank,mshRank,mpiRank,auxNodeCnt
 
+#if 0
       integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size
       integer(KIND=MPI_ADDRESS_KIND) :: target_displacement
 
@@ -1730,7 +1536,7 @@ contains
       vectorNumNodesRankPar2send(:)=0
       do iMshRank=1,numMshRanksInMpiRank
          mshRank=mshRanksInMpiRank(iMshRank)
-         vectorNumNodesRankPar2send(mshRank) = numNodesRankPar(iMshRank)
+         vectorNumNodesRankPar2send(mshRank) = numNodesMshRank(iMshRank)
       end do
 
       ! Create the window
@@ -1755,34 +1561,32 @@ contains
       call MPI_Win_fence(0, window_id, mpi_err)
       call MPI_Win_free(window_id, mpi_err)
       !--------------------------------------------------------------------------------------
-
-      !write(*,*) 'rank[',mpi_rank,']vNNR2s', vectorNumNodesRankPar2send(:),'vNNR2r',vectorNumNodesRankPar2rcv(:),'nNrp',numNodesRankPar(:)
+#endif
+      call get_vector_with_mshRank_values_for_numMshRanks2Part(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numNodesMshRank,vecNumNodesMshRank)
+      !write(*,*) 'rank[',mpi_rank,']vNNR2s', vectorNumNodesRankPar2send(:),'vNNR2r',vectorNumNodesRankPar2rcv(:),'nNrp',numNodesMshRank(:)
 
       auxNodeCnt = 1
       do iMshRank=0,numMshRanks2Part-1
       !do iRank=0,mpi_size-1
          iNodeStartPar(iMshRank) = auxNodeCnt
-         iNodeEndPar(iMshRank)   = iNodeStartPar(iMshRank) + vectorNumNodesRankPar2rcv(iMshRank) - 1
+         iNodeEndPar(iMshRank)   = iNodeStartPar(iMshRank) + vecNumNodesMshRank(iMshRank) - 1
          auxNodeCnt = iNodeEndPar(iMshRank) + 1
       end do
 
-      totalNumNodesPar = iNodeEndPar(numMshRanks2Part-1)
-
-      allocate(rankNodeStart(numMshRanksInMpiRank))
-      allocate(rankNodeEnd(numMshRanksInMpiRank))
+      numNodesParTotal = iNodeEndPar(numMshRanks2Part-1)
 
       do iMshRank=1,numMshRanksInMpiRank
          mshRank=mshRanksInMpiRank(iMshRank)
-         !vectorNumNodesRankPar(mshRank) = numNodesRankPar(iMshRank)
-         rankNodeStart(iMshRank) = iNodeStartPar(mshRank)
-         rankNodeEnd(iMshRank)   = iNodeEndPar(mshRank)
-         write(*,*) 'mshrank',mshrank,'[',mpi_rank,']nodesInRank',numNodesRankPar(iMshRank),'iNodeS',rankNodeStart(iMshRank),'iNodeE',rankNodeEnd(iMshRank)
-         !write(*,*) 'mshrank',mshrank,'[',mpi_rank,']start',iNodeStartPar(:),'end',iNodeEndPar(:),'tNNP',totalNumNodesPar
+         !vectorNumNodesRankPar(mshRank) = numNodesMshRank(iMshRank)
+         mshRankNodeStart(iMshRank) = iNodeStartPar(mshRank)
+         mshRankNodeEnd(iMshRank)   = iNodeEndPar(mshRank)
+         write(*,*) 'mshrank',mshrank,'[',mpi_rank,']nodesInRank',numNodesMshRank(iMshRank),'iNodeS',mshRankNodeStart(iMshRank),'iNodeE',mshRankNodeEnd(iMshRank)
+         !write(*,*) 'mshrank',mshrank,'[',mpi_rank,']start',iNodeStartPar(:),'end',iNodeEndPar(:),'tNNP',numNodesParTotal
       end do
    end subroutine define_parallelNodePartitioning
 
    subroutine reorder_nodes_in_mshRank(mshRank,numMshRanks2Part,numElemsInRank,numNodesInRank,numBoundsInRank,elemGid,listNodesInRank,connecInRank,iNodeStartPar,&
-               globalIdSrl,globalIdPar,connecVTK,connecParOrig,boundFacesInRank)
+               globalIdSrl,globalIdSrlOrdered,globalIdPar,connecVTK,connecParOrig,boundFacesInRank)
       implicit none
       integer,intent(in) :: mshRank,numMshRanks2Part,numElemsInRank,numNodesInRank,numBoundsInRank
       integer,intent(in) :: elemGid(numElemsInRank),listNodesInRank(numNodesInRank),connecInRank(numElemsInRank,nnode)
@@ -1790,6 +1594,7 @@ contains
 
       integer,intent(out) :: globalIdSrl(numNodesInRank),globalIdPar(numNodesInRank),connecVTK(numElemsInRank*nnode),connecParOrig(numElemsInRank,nnode)
       integer,intent(inout) :: boundFacesInRank(numBoundsInRank,npbou)
+      integer,intent(out),dimension(numNodesInRank,2) :: globalIdSrlOrdered
 
       integer :: m,indConn,indexIJK,indexVTK,indexGMSH,indexNew,nodeIndexCnt,indPosListNodes
       integer :: iNodeL,iNodeGpar,iNodeGsrl,iElemL,iElemG,iNode,iBound
@@ -1797,7 +1602,7 @@ contains
       integer,dimension(nnode) :: auxNodeNewOrderInElem,auxNewOrderIndex,auxVTKorder,auxCGNSorder
       integer,dimension(numNodesInRank) :: isNodeAdded
       integer,dimension(npbou) :: aux_ibound_GtoL
-      integer,dimension(numNodesInRank,2) :: globalIdSrlOrdered
+
 
       !$acc kernels
       isNodeAdded(:)=-1
@@ -1845,7 +1650,7 @@ contains
 
                isNodeAdded(indPosListNodes)  = iNodeL
 
-               iNodeGPar = iNodeL + iNodeStartPar(mpi_rank) - 1
+               iNodeGPar = iNodeL + iNodeStartPar(mshRank) - 1
 
                globalIdSrl(iNodeL) = iNodeGsrl
                globalIdPar(iNodeL) = iNodeGPar
@@ -1912,16 +1717,22 @@ contains
       !!!$acc end kernels
    end subroutine generate_new_nodeOrder_and_connectivity
 
-   subroutine generate_mpi_comm_scheme_parallel(numMshRanks2Part,numMpiBoundaryNodes,mpiBoundaryNodes_jv)
+   subroutine generate_mpi_comm_scheme_parallel(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numMpiBoundaryNodes,mpiBoundaryNodes_jv,globalIdSrl_jv,globalIdSrlOrdered_jm,&
+               matrixCommScheme_jm,commsMemPosInLoc_jv,commsMemSize_jv,commsMemPosInNgb_jv,ranksToComm_jv,numNodesToCommMshRank,numMshRanksWithComms)
       !generate a matrix with the comm schemes for shared nodes between procs
-      integer,intent(in)  :: numMshRanks2Part,numMpiBoundaryNodes(numMshRanksInMpiRank)
-      type(jagged_vector_int),intent(in) :: mpiBoundaryNodes_jv
+      integer,intent(in) :: numMshRanks2Part,numMpiBoundaryNodes(numMshRanksInMpiRank)
+      integer,intent(in) :: numMshRanksInMpiRank,mshRanksInMpiRank(numMshRanksInMpiRank),mapMshRankToMpiRank(numMshRanksInMpiRank)
+      type(jagged_vector_int),intent(in) :: mpiBoundaryNodes_jv,globalIdSrl_jv
+      type(jagged_matrix_int),intent(in) :: globalIdSrlOrdered_jm
+      type(jagged_matrix_int),intent(out) :: matrixCommScheme_jm
+      type(jagged_vector_int),intent(out) :: commsMemPosInLoc_jv,commsMemSize_jv,commsMemPosInNgb_jv,ranksToComm_jv
+      integer(int_size),allocatable,intent(out) :: numNodesToCommMshRank(:),numMshRanksWithComms(:)
       type(jagged_vector_int) :: mpiBoundaryNodesAll_jv
       integer, allocatable :: mpiBoundaryNodesAll(:)
       integer :: iMshRank,mshRank,iMshRankTrgt,mpiRank,iAux,memPos,memSize,memDisp
       integer :: totalNumMpiBoundaryNodes
       integer :: mshRankOrig,mshRankTrgt,numBNOrig,numBNTrgt
-      integer :: iNode,iPos,iNodeL,iNodeGSrl
+      integer :: iNode,iPos,iNodeL,iNodeGSrl,iNodeLPos
       integer, dimension(numMshRanks2Part) :: numMpiBoundaryNodesAll,memDispMpiBN
       integer, dimension(0:numMshRanks2Part-1) :: auxCommSchemeNumNodes
       integer,allocatable :: auxCommSchemeMemPos(:,:),auxCommSchemeMemPosAll(:)
@@ -2029,8 +1840,8 @@ contains
 
       !---------------------------------------------------------------------------------------------------------
 
-      allocate(numNodesToComm(numMshRanksInMpiRank))
-      allocate(numRanksWithComms(numMshRanksInMpiRank))
+      allocate(numNodesToCommMshRank(numMshRanksInMpiRank))
+      allocate(numMshRanksWithComms(numMshRanksInMpiRank))
       allocate(matrixCommScheme_jm%matrix(numMshRanksInMpiRank))
       allocate(ranksToComm_jv%vector(numMshRanksInMpiRank))
       allocate(commsMemSize_jv%vector(numMshRanksInMpiRank))
@@ -2045,7 +1856,7 @@ contains
          mshRankOrig = mshRanksInMpiRank(iMshRank)
          numBNOrig = numMpiBoundaryNodes(iMshRank)
 
-         numNodesToComm(iMshRank)=0
+         numNodesToCommMshRank(iMshRank)=0
          auxCommSchemeNumNodes(:)=0
          auxCommSchemeMemPos(iMshRank,:)=0
 
@@ -2058,7 +1869,7 @@ contains
                if(mshRankTrgt.ne.mshRankOrig) then
                   iPos = binarySearch_int_i(mpiBoundaryNodesAll_jv%vector(iMshRankTrgt)%elems,iNodeGSrl)
                   if(iPos.ne.0) then
-                     numNodesToComm(iMshRank) = numNodesToComm(iMshRank) + 1
+                     numNodesToCommMshRank(iMshRank) = numNodesToCommMshRank(iMshRank) + 1
                      auxCommSchemeNumNodes(mshRankTrgt) = auxCommSchemeNumNodes(mshRankTrgt)+1
 
                      !write(*,*) 'rank[',mpi_rank,']mshRankO',mshRankOrig,'numBNO',numBNOrig,'mshRankT',mshRankTrgt,'memPos',memPos,'numBNT',numBNTrgt
@@ -2071,18 +1882,18 @@ contains
          end do
          
          ! setting numRanksWithsComms
-         numRanksWithComms(iMshRank) = 0
+         numMshRanksWithComms(iMshRank) = 0
          do iMshRankTrgt=1,numMshRanks2Part
             mshRankTrgt = iMshRankTrgt-1
             if(auxCommSchemeNumNodes(mshRankTrgt).ne.0) then
-               numRanksWithComms(iMshRank) = numRanksWithComms(iMshRank) + 1
+               numMshRanksWithComms(iMshRank) = numMshRanksWithComms(iMshRank) + 1
             end if
          end do
 
-         allocate(ranksToComm_jv%vector(iMshRank)%elems(numRanksWithComms(iMshRank)))
-         allocate(commsMemSize_jv%vector(iMshRank)%elems(numRanksWithComms(iMshRank)))
-         allocate(commsMemPosInLoc_jv%vector(iMshRank)%elems(numRanksWithComms(iMshRank)))
-         allocate(commsMemPosInNgb_jv%vector(iMshRank)%elems(numRanksWithComms(iMshRank)))
+         allocate(ranksToComm_jv%vector(iMshRank)%elems(numMshRanksWithComms(iMshRank)))
+         allocate(commsMemSize_jv%vector(iMshRank)%elems(numMshRanksWithComms(iMshRank)))
+         allocate(commsMemPosInLoc_jv%vector(iMshRank)%elems(numMshRanksWithComms(iMshRank)))
+         allocate(commsMemPosInNgb_jv%vector(iMshRank)%elems(numMshRanksWithComms(iMshRank)))
 
          iAux=0
          memPos=1
@@ -2101,35 +1912,39 @@ contains
          end do
 
          !write(*,*) '[',mpi_rank,']mshRank',mashRankOrig,'csStartEnd->',commSchemeStartEndNodes(:)
-         write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'csNumNodes->',auxCommSchemeNumNodes(:)
-         write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'numRanksWC->',numRanksWithComms(iMshRank)
-         write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'ranksToComm->',ranksToComm_jv%vector(iMshRank)%elems(:)
-         write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'commsMemPosInLoc->',commsMemPosInLoc_jv%vector(iMshRank)%elems(:)
-         write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'commsMemSize->',commsMemSize_jv%vector(iMshRank)%elems(:)
+         !write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'csNumNodes->',auxCommSchemeNumNodes(:)
+         !write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'numRanksWC->',numMshRanksWithComms(iMshRank)
+         !write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'ranksToComm->',ranksToComm_jv%vector(iMshRank)%elems(:)
+         !write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'commsMemPosInLoc->',commsMemPosInLoc_jv%vector(iMshRank)%elems(:)
+         !write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'commsMemSize->',commsMemSize_jv%vector(iMshRank)%elems(:)
 
-         !write(*,*) 'rank[',mpi_rank,']mshRankOrig',mshRankOrig,'numNodesToComm',numNodesToComm(iMshRank),'numBNOrig',numBNOrig,'cSNN',auxCommSchemeNumNodes(:),&
-         !          'numRanksWithComms',numRanksWithComms(iMshRank),'r2C',ranksToComm_jv%vector(iMshRank)%elems(:)
+         !write(*,*) 'rank[',mpi_rank,']mshRankOrig',mshRankOrig,'numNodesToCommMshRank',numNodesToCommMshRank(iMshRank),'numBNOrig',numBNOrig,'cSNN',auxCommSchemeNumNodes(:),&
+         !          'numMshRanksWithComms',numMshRanksWithComms(iMshRank),'r2C',ranksToComm_jv%vector(iMshRank)%elems(:)
 
-         allocate(matrixCommScheme_jm%matrix(iMshRank)%elems(numNodesToComm(iMshRank),3))
+         allocate(matrixCommScheme_jm%matrix(iMshRank)%elems(numNodesToCommMshRank(iMshRank),3))
          iAux=0
-         do iNode=1,numBNOrig
-            iNodeGSrl = mpiBoundaryNodes_jv%vector(iMshRank)%elems(iNode)
+         do iMshRankTrgt=1,numMshRanks2Part
+            mshRankTrgt = iMshRankTrgt-1
 
-            do iMshRankTrgt=1,numMshRanks2Part
-               mshRankTrgt = iMshRankTrgt-1
-               
-               if(mshRankTrgt.ne.mshRankOrig) then
+            if(mshRankTrgt.ne.mshRankOrig) then
+            do iNode=1,numBNOrig
+               iNodeGSrl = mpiBoundaryNodes_jv%vector(iMshRank)%elems(iNode)
+              
+
                   iPos = binarySearch_int_i(mpiBoundaryNodesAll_jv%vector(iMshRankTrgt)%elems,iNodeGSrl)
                   if(iPos.ne.0) then
                      iAux=iAux+1
                      
-                     iNodeL = binarySearch_int_i(globalIdSrl_jv%vector(iMshRank)%elems,iNodeGSrl)
+                     iNodeLPos = binarySearch_int_i(globalIdSrlOrdered_jm%matrix(iMshRank)%elems(:,1),iNodeGSrl)
+                     iNodeL = globalIdSrlOrdered_jm%matrix(iMshRank)%elems(iNodeLPos,2)
+                     !write(*,*) 'iNodeL',iNodeL,'iNodeG',iNodeGSrl,'mshRank',mshRankTrgt
                      matrixCommScheme_jm%matrix(iMshRank)%elems(iAux,1) = iNodeL
                      matrixCommScheme_jm%matrix(iMshRank)%elems(iAux,2) = iNodeGSrl
                      matrixCommScheme_jm%matrix(iMshRank)%elems(iAux,3) = mshRankTrgt
                   end if
-               end if
+
             end do
+            end if
          end do
       end do
 
@@ -2170,13 +1985,13 @@ contains
 
       do iMshRank=1,numMshRanksInMpiRank
          mshRankOrig = mshRanksInMpiRank(iMshRank)
-         do iMshRankTrgt=1,numRanksWithComms(iMshRank)
+         do iMshRankTrgt=1,numMshRanksWithComms(iMshRank)
             mshRankTrgt=ranksToComm_jv%vector(iMshRank)%elems(iMshRankTrgt)
             iPos = mshRankTrgt*numMshRanks2Part+mshRankOrig+1
             commsMemPosInNgb_jv%vector(iMshRank)%elems(iMshRankTrgt) = auxCommSchemeMemPosAll(iPos)
             !write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'iMRT',iMshRankTrgt,'mRT',mshRankTrgt,'iPos',iPos
          end do
-         write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'commsMemPosInNgb->',commsMemPosInNgb_jv%vector(iMshRank)%elems(:)
+         !write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'commsMemPosInNgb->',commsMemPosInNgb_jv%vector(iMshRank)%elems(:)
       end do
 
       deallocate(auxCommSchemeMemPos)
@@ -2184,11 +1999,11 @@ contains
 
    end subroutine generate_mpi_comm_scheme_parallel
 
-   subroutine set_nodesCoordinates(mshRank,numElemsInRank,numNodesInRank,globalIdSrl,listNodesInRank,connecInRank,coordInRank,coordPar)
+   subroutine set_nodesCoordinates(mshRank,numElemsInRank,numNodesInRank,globalIdSrl,listNodesInRank,coordInRank,Ngp_l,connecParOrigMshRank,coordParMshRank)
       implicit none
-      integer, intent(in) :: mshRank,numElemsInRank,numNodesInRank,globalIdSrl(numNodesInRank),listNodesInRank(numNodesInRank),connecInRank(numElemsInRank,nnode)
-      real(rp),intent(in) :: coordInRank(numNodesInRank,3)
-      real(rp),intent(out) :: coordPar(numNodesInRank,3)
+      integer, intent(in) :: mshRank,numElemsInRank,numNodesInRank,globalIdSrl(numNodesInRank),listNodesInRank(numNodesInRank),connecParOrigMshRank(numElemsInRank,nnode)
+      real(rp),intent(in) :: coordInRank(numNodesInRank,3),Ngp_l(ngaus,nnode)
+      real(rp),intent(out) :: coordParMshRank(numNodesInRank,3)
       integer :: iPos,iNodeL,iNodeGsrl
 
       if(mpi_rank.eq.0) write(*,*) ' # Creating nodes coordinates...'
@@ -2200,30 +2015,31 @@ contains
          iNodeGSrl=globalIdSrl(iNodeL)
          iPos = binarySearch_int_i(listNodesInRank,iNodeGSrl)
          !write (*,*) 'mshRank',mshRank,'iL', iNodeL,'iG', iNodeGSrl,'iPos',iPos,'[',coordInRank(iPos,1),']','[',coordInRank(iPos,2),']'
-         coordPar(iNodeL,1) = coordInRank(iPos,1)
-         coordPar(iNodeL,2) = coordInRank(iPos,2)
-         coordPar(iNodeL,3) = coordInRank(iPos,3)
+         coordParMshRank(iNodeL,1) = coordInRank(iPos,1)
+         coordParMshRank(iNodeL,2) = coordInRank(iPos,2)
+         coordParMshRank(iNodeL,3) = coordInRank(iPos,3)
       end do
       !!!$acc end parallel loop
 
-      call interpolateOriginalCoordinates(numElemsInRank,numNodesInRank,coordPar)
+      call interpolateOriginalCoordinates(numElemsInRank,numNodesInRank,Ngp_l,connecParOrigMshRank,coordParMshRank)
 
    end subroutine set_nodesCoordinates
 
-   subroutine interpolateOriginalCoordinates(numElemsInRank,numNodesInRank,coordPar)
-      integer,intent(in) :: numElemsInRank,numNodesInRank
-      real(rp),intent(inout) :: coordPar(numNodesInRank,3)
+   subroutine interpolateOriginalCoordinates(numElemsInRank,numNodesInRank,Ngp_l,connecParOrigMshRank,coordParMshRank)
+      integer,intent(in) :: numElemsInRank,numNodesInRank,connecParOrigMshRank(numElemsInRank,nnode)
+      real(rp),intent(in) :: Ngp_l(ngaus,nnode)
+      real(rp),intent(inout) :: coordParMshRank(numNodesInRank,3)
       real(rp), allocatable :: aux_1(:,:)
       integer(4) :: iElem,iNode,idime
       
       write(*,*) 'REMEMBER TO FULLY IMPLEMENT THIS FUNC! NEED TO DEFINE THE Ngp_l'
       if(mpi_rank.eq.0) write(*,*) "--| Interpolating nodes coordinates..."
       allocate(aux_1(numNodesInRank,ndime))
-      aux_1(:,:) = coordPar(:,:)
+      aux_1(:,:) = coordParMshRank(:,:)
       do ielem = 1,numElemsInRank
          do inode = (2**ndime)+1,nnode
             do idime = 1,ndime
-               !call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),coordPar(connecParOrig(ielem,inode),idime))
+               call var_interpolate(aux_1(connecParOrigMshRank(ielem,:),idime),Ngp_l(inode,:),coordParMshRank(connecParOrigMshRank(ielem,inode),idime))
             end do
          end do
       end do
@@ -2318,5 +2134,75 @@ contains
       end if
 
    end subroutine create_working_lists_parallel
+
+   subroutine get_vector_with_mshRank_values_for_numMshRanks2Part(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,int2comm,vectorOut)
+      implicit none
+      integer,intent(in) :: numMshRanks2Part
+      integer,intent(in) :: numMshRanksInMpiRank,mshRanksInMpiRank(numMshRanksInMpiRank),mapMshRankToMpiRank(numMshRanksInMpiRank),int2comm(numMshRanksInMpiRank)
+      integer,dimension(0:numMshRanks2Part-1),intent(out) :: vectorOut
+
+      integer,dimension(0:numMshRanks2Part-1) :: auxVector2send
+      integer :: window_id
+      integer :: iMshRank,mshRank,mpiRank,auxNodeCnt
+
+      integer(KIND=MPI_ADDRESS_KIND) :: win_buffer_size
+      integer(KIND=MPI_ADDRESS_KIND) :: target_displacement
+
+      auxVector2send(:)=0
+      vectorOut(:)=0
+      do iMshRank=1,numMshRanksInMpiRank
+         mshRank=mshRanksInMpiRank(iMshRank)
+         auxVector2send(mshRank) = int2comm(iMshRank)
+      end do
+
+      ! Create the window
+      !--------------------------------------------------------------------------------------
+      win_buffer_size = mpi_integer_size*numMshRanks2Part
+
+      call MPI_Win_create(auxVector2send(0),win_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+      call MPI_Win_fence(0,window_id,mpi_err)
+
+      target_displacement=0
+
+      do iMshRank=1,numMshRanks2Part
+         mshRank = iMshRank-1
+         mpiRank = mapMshRankToMpiRank(iMshRank)
+         target_displacement = mshRank
+
+         call MPI_Get(vectorOut(mshRank),1,MPI_INTEGER,mpiRank,target_displacement,1,MPI_INTEGER,window_id,mpi_err)
+      end do
+
+      ! Wait for the MPI_Get issued to complete before going any further
+      call MPI_Win_fence(0, window_id, mpi_err)
+      call MPI_Win_free(window_id, mpi_err)
+      !--------------------------------------------------------------------------------------
+
+
+   end subroutine get_vector_with_mshRank_values_for_numMshRanks2Part
+
+   subroutine evalShapeFunctions_Ngp_l(Ngp_l)
+      real(rp),intent(out) :: Ngp_l(ngaus,nnode)
+      real(rp) :: s, t, z
+      integer(4) :: igaus
+      integer(4) :: atoIJK(nnode)
+      integer(4) :: listHEX08((porder**ndime),2**ndime)
+      real(rp) :: xgp(ngaus,ndime), wgp(ngaus)
+      real(rp) :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1),dNgp_l(ndime,nnode,ngaus)
+
+      !*********************************************************
+
+      call set_hex64_lists(atoIJK,listHEX08)
+      call chebyshev_hex(atoIJK,xgp,wgp)
+
+      do igaus = 1,ngaus
+         s = xgp(igaus,1)
+         t = xgp(igaus,2)
+         z = xgp(igaus,3)
+         call hex64(s,t,z,atoIJK,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
+      end do
+
+   end subroutine evalShapeFunctions_Ngp_l
+
+
 
 end module mod_meshConversorTool

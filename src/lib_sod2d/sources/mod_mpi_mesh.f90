@@ -9,21 +9,6 @@ module mod_mpi_mesh
 #define _CHECK_ 1
 #define int_size 4
 !-----------------------------------   
-#ifndef GEMPAINTERFACE
-   interface
-      subroutine gempa_do_partition(numElemsRankToPart,numRanksToPart,x,y,z,weights,part) bind(c)
-        import c_int, c_double
-        integer(kind=c_int), intent(in), value :: numElemsRankToPart
-        integer(kind=c_int), intent(in), value :: numRanksToPart
-        real(kind=c_double), intent(in) :: x(numElemsInRank)
-        real(kind=c_double), intent(in) :: y(numElemsInRank)
-        real(kind=c_double), intent(in) :: z(numElemsInRank)
-        integer(kind=c_int), intent(in) :: weights(numElemsInRank)
-        integer(kind=c_int), intent(out) :: part(numElemsInRank)
-      end subroutine gempa_do_partition
-   end interface
-#endif
-!-----------------------------------   
 
 ! ################################################################################################
 ! ----------------- VARS for alya/gmsh file reading ----------------------------------------------
@@ -84,8 +69,8 @@ integer(int_size) :: bnd_numNodesToComm,bnd_numRanksWithComms
 ! ################################################################################################
 
 !FOR DEBUG
-character(128) :: file_name_deb, aux_string_rank_deb
-character(*), parameter :: fmt_csv = '(1x,*(g0,","))'
+character(128) :: file_name_deb_TBD, aux_string_rank_deb_TBD
+character(*), parameter :: fmt_csv_TBD = '(1x,*(g0,","))'
 
 contains
 
@@ -137,7 +122,7 @@ contains
          isMeshPeriodic = isPeriodic
       end if
 
-      call read_dims_file(file_path,file_name,npoin,nelem,nboun)
+      !call read_dims_file_TBD(file_path,file_name,npoin,nelem,nboun)
 
       allocate(connecGMSH(nelem,nnode))
       allocate(coordGMSH(npoin,ndime))
@@ -174,8 +159,8 @@ contains
          deallocate(bou_codesGMSH)
       end if
    end subroutine deallocate_read_alya_mesh_arrays
-
-   subroutine read_dims_file(file_path,file_name,numNodes,numElems,numBounds)
+#if 0
+   subroutine read_dims_file_TBD(file_path,file_name,numNodes,numElems,numBounds)
       implicit none     
       character(500), intent(in)  :: file_path, file_name
       integer(4)    , intent(out) :: numNodes, numElems, numBounds
@@ -194,8 +179,8 @@ contains
       if(mpi_rank.eq.0)write(*,*) "--| End of DIMS file!"
       close(99)
     
-   end subroutine read_dims_file
-
+   end subroutine read_dims_file_TBD
+#endif
    subroutine read_geo_dat_file(file_path,file_name,npoin,nelem,nboun)
       implicit none
       character(500), intent(in) :: file_path, file_name
@@ -326,7 +311,7 @@ contains
    subroutine do_mesh_partitioning()
       implicit none
 
-      call do_element_partitioning_gempa()
+      !call do_element_partitioning_gempa()
 
       call do_node_partitioning_and_connectivity()
 
@@ -345,7 +330,7 @@ contains
       !end if
 
    end subroutine do_mesh_partitioning
-
+#if 0
    subroutine do_element_partitioning_serial(numElems2Par,iElemStart,iElemEnd,iElemsInRank)
       implicit none
       integer, intent(in) :: numElems2Par
@@ -363,7 +348,7 @@ contains
       !write(*,*) '#rank ',mpi_rank,' iElemsInRank ',iElemsInRank,' iElemS ',iElemStart,' iElemE ',iElemEnd
 
    end subroutine do_element_partitioning_serial
-
+#endif
    recursive subroutine find_linked_elems(iRank,linkedElems,iElemG,unfoldedElems,numAddElemsInRank)
       implicit none
       integer, intent(in) :: iRank,linkedElems(:,:),iElemG
@@ -390,7 +375,7 @@ contains
       numLinkedElems = size(linkedElems(:,1))
 
    end subroutine find_linked_elems
-
+#if 0
    subroutine do_element_partitioning_gempa()
       implicit none
       integer, parameter :: nodesToAvg(8) = [1,2,5,6,17,18,21,22]
@@ -576,9 +561,9 @@ contains
       !!!$acc end parallel loop
 
 #if _CHECK_
-      write(aux_string_rank_deb,'(I0)') mpi_rank
-      file_name_deb = 'elemPartition_rank'// trim(aux_string_rank_deb)//'.csv'
-      open(1, file=file_name_deb)
+      write(aux_string_rank_deb_TBD,'(I0)') mpi_rank
+      file_name_deb_TBD = 'elemPartition_rank'// trim(aux_string_rank_deb_TBD)//'.csv'
+      open(1, file=file_name_deb_TBD)
       write(1,*) 'X,Y,Z,iElemG,rank'
       do i=1,iElemsInRank ! numElemsInRank_srl
          iElemG=elemPart(i,1)
@@ -596,8 +581,8 @@ contains
          y_a = y_a/8.d0
          z_a = z_a/8.d0
 
-         !write(1,fmt_csv) x(i),y(i),z(i),elemPart(i,1),elemPart(i,2)
-         write(1,fmt_csv) x_a,y_a,z_a,iElemG,elemPart(i,2)
+         !write(1,fmt_csv_TBD) x(i),y(i),z(i),elemPart(i,1),elemPart(i,2)
+         write(1,fmt_csv_TBD) x_a,y_a,z_a,iElemG,elemPart(i,2)
       end do
       close(1)
 #endif
@@ -713,10 +698,10 @@ contains
       !end do
 
 #if _CHECK_
-      file_name_deb = 'elemGid_rank'// trim(aux_string_rank_deb)//'.csv'
-      open(1, file=file_name_deb)
+      file_name_deb_TBD = 'elemGid_rank'// trim(aux_string_rank_deb_TBD)//'.csv'
+      open(1, file=file_name_deb_TBD)
       do i=1,numElemsInRank_par
-         write(1,fmt_csv) i,',',elemGid(i)
+         write(1,fmt_csv_TBD) i,',',elemGid(i)
       end do
       close(1)
 
@@ -724,7 +709,7 @@ contains
 !------------------------------------------------------------------------------
 
    end subroutine do_element_partitioning_gempa
-
+#endif
    subroutine get_listElems2Par(listElems2Par,weightElems2Par)
       implicit none
       integer, allocatable, intent(out) :: listElems2Par(:),weightElems2Par(:)
@@ -864,7 +849,7 @@ contains
 
       call get_rankPartitionBoundaryNodes(boundaryNodes)
 
-      call define_parallelNodePartitioning(iNodeStartPar,iNodeEndPar)
+      !call define_parallelNodePartitioning(iNodeStartPar,iNodeEndPar)
 
       call define_mpi_boundaries_inPar(boundaryNodes,vecSharedBN_full)
 
@@ -1329,12 +1314,12 @@ contains
       deallocate(nodeInBoundary)
 
 #if _CHECK_
-      write(aux_string_rank_deb,'(I0)') mpi_rank
-      file_name_deb = 'boundaryNodes_rank'// trim(aux_string_rank_deb)//'.csv'
-      open(1, file=file_name_deb)
+      write(aux_string_rank_deb_TBD,'(I0)') mpi_rank
+      file_name_deb_TBD = 'boundaryNodes_rank'// trim(aux_string_rank_deb_TBD)//'.csv'
+      open(1, file=file_name_deb_TBD)
       do i=1,numBNodesRankPar
          iNodeG=boundaryNodes(i)
-         write(1,fmt_csv) coordGMSH(iNodeG,1),coordGMSH(iNodeG,2),coordGMSH(iNodeG,3),iNodeG
+         write(1,fmt_csv_TBD) coordGMSH(iNodeG,1),coordGMSH(iNodeG,2),coordGMSH(iNodeG,3),iNodeG
       end do
       close(1)
 #endif
@@ -1441,12 +1426,12 @@ contains
       end do
 
 #if _CHECK_
-      write(aux_string_rank_deb,'(I0)') mpi_rank
-      file_name_deb = 'boundaryNodes_rank'// trim(aux_string_rank_deb)//'.csv'
-      open(1, file=file_name_deb)
+      write(aux_string_rank_deb_TBD,'(I0)') mpi_rank
+      file_name_deb_TBD = 'boundaryNodes_rank'// trim(aux_string_rank_deb_TBD)//'.csv'
+      open(1, file=file_name_deb_TBD)
       do i=1,numBNodesRankPar
          iNodeG=boundaryNodes(i)
-         write(1,fmt_csv) coordGMSH(iNodeG,1),coordGMSH(iNodeG,2),coordGMSH(iNodeG,3),iNodeG
+         write(1,fmt_csv_TBD) coordGMSH(iNodeG,1),coordGMSH(iNodeG,2),coordGMSH(iNodeG,3),iNodeG
       end do
       close(1)
 #endif
@@ -1471,7 +1456,7 @@ contains
 
    end subroutine get_serialNodePartitioning
 
-   subroutine define_parallelNodePartitioning(iNodeStartPar,iNodeEndPar)
+   subroutine get_parallelNode_partitioning(iNodeStartPar,iNodeEndPar)
       integer,dimension(0:mpi_size-1),intent(out) :: iNodeStartPar, iNodeEndPar
       integer, allocatable :: vectorNumNodesRankPar(:)
 
@@ -1520,8 +1505,7 @@ contains
       !write(*,*) '#rank ', mpi_rank, ' nodesInRank ', numNodesRankPar, ' iNodeS ', rankNodeStart, ' iNodeE ', rankNodeEnd
       !write(*,*) 'rank[',mpi_rank,'] -> start ',iNodeStartPar(:),' end ', iNodeEndPar(:), 'tNNP ', totalNumNodesPar
 
-   end subroutine define_parallelNodePartitioning
-
+   end subroutine get_parallelNode_partitioning
 
    subroutine define_mpi_boundaries_inPar(boundaryNodes,vecSharedBN_full)
       implicit none
@@ -1563,11 +1547,11 @@ contains
       !---------------------------------------------------------------
       ! TO CHECK
 #if _CHECK_
-      write(aux_string_rank_deb,'(I0)') mpi_rank
-      file_name_deb = 'boundaryNodes_rank'// trim(aux_string_rank_deb)//'.csv'
-      open(1, file=file_name_deb)
+      write(aux_string_rank_deb_TBD,'(I0)') mpi_rank
+      file_name_deb_TBD = 'boundaryNodes_rank'// trim(aux_string_rank_deb_TBD)//'.csv'
+      open(1, file=file_name_deb_TBD)
       do iNodeGSrl=1,size(vectorBN)
-           write(1,fmt_csv) iNodeGSrl,vectorBN(iNodeGSrl)
+           write(1,fmt_csv_TBD) iNodeGSrl,vectorBN(iNodeGSrl)
       end do
       close(1)
 #endif
@@ -1595,11 +1579,11 @@ contains
       !---------------------------------------------------------------
       ! TO CHECK
 #if _CHECK_
-      file_name_deb = 'matrixBN_rank'// trim(aux_string_rank_deb)//'.csv'
-      open(1, file=file_name_deb)
+      file_name_deb_TBD = 'matrixBN_rank'// trim(aux_string_rank_deb_TBD)//'.csv'
+      open(1, file=file_name_deb_TBD)
       do i=1,numNodesRankSrl
            iNodeGSrl = iNodeStartSrl(mpi_rank)-1 + i
-           write(1,fmt_csv) i,iNodeGSrl,matrixBN(i,0),matrixBN(i,1)
+           write(1,fmt_csv_TBD) i,iNodeGSrl,matrixBN(i,0),matrixBN(i,1)
       end do
       close(1)
 #endif
@@ -1708,9 +1692,9 @@ contains
       !if(mpi_rank.eq.0) write(*,*) vecSharedBN_full(:)
 
 #if _CHECK_
-      write(aux_string_rank_deb,'(I0)') mpi_rank
-      file_name_deb = 'vecSharedBN_full_rank'// trim(aux_string_rank_deb)//'.csv'
-      open(1, file=file_name_deb)
+      write(aux_string_rank_deb_TBD,'(I0)') mpi_rank
+      file_name_deb_TBD = 'vecSharedBN_full_rank'// trim(aux_string_rank_deb_TBD)//'.csv'
+      open(1, file=file_name_deb_TBD)
       i=0
       do while(i<size(vecSharedBN_full))
          i=i+1
@@ -1723,7 +1707,7 @@ contains
             auxVecDebug(j)=vecSharedBN_full(i)
          end do
 
-         write(1,fmt_csv)iNodeGSrl,coordGMSH(iNodeGSrl,1),coordGMSH(iNodeGSrl,2),coordGMSH(iNodeGSrl,3),&
+         write(1,fmt_csv_TBD)iNodeGSrl,coordGMSH(iNodeGSrl,1),coordGMSH(iNodeGSrl,2),coordGMSH(iNodeGSrl,3),&
                auxVecDebug(:)
 
          !write(1,'(*(G0.7,:,","))')iNodeGSrl,coordGMSH(iNodeGSrl,1),coordGMSH(iNodeGSrl,2),coordGMSH(iNodeGSrl,3),&
@@ -1893,9 +1877,9 @@ contains
       ! first do a first migration of the code and once it work, think how to allow different node ordering
       ! BUT FIX IT!!!!!!
 
-      call generate_new_nodeOrder_and_connectivity(gmsh2ijk,auxNewOrderIndex,auxVTKorder,auxCGNSorder)
-      !call generate_new_nodeOrder_and_connectivity(cgns2ijk,auxNewOrderIndex,auxCGNSorder)
-      !call generate_new_nodeOrder_and_connectivity(dummy2ijk,auxNewOrderIndex,auxCGNSorder)
+      !call generate_new_nodeOrder_and_connectivity(gmsh2ijk,auxNewOrderIndex,auxVTKorder,auxCGNSorder)
+      !!call generate_new_nodeOrder_and_connectivity(cgns2ijk,auxNewOrderIndex,auxCGNSorder)
+      !!call generate_new_nodeOrder_and_connectivity(dummy2ijk,auxNewOrderIndex,auxCGNSorder)
 
       !----------------------------------------------------------------------------------------------------------
 
@@ -1948,7 +1932,7 @@ contains
 
       end do
    end subroutine reorder_nodes_in_proc
-
+#if 0
    subroutine generate_new_nodeOrder_and_connectivity(newOrderIJK,auxNewOrderIndex,auxVTKorder,auxCGNSorder)
       integer,intent(in)  :: newOrderIJK(:)
       integer,intent(out) :: auxNewOrderIndex(:),auxVTKorder(:),auxCGNSorder(:)
@@ -1974,7 +1958,7 @@ contains
       end do
       !!!$acc end kernels
    end subroutine generate_new_nodeOrder_and_connectivity
-
+#endif
    subroutine generate_mpi_comm_scheme(vecSharedBN_full)
       !generate a matrix with the comm schemes for shared nodes between procs
       integer, intent(in)  :: vecSharedBN_full(:)
@@ -2129,11 +2113,11 @@ contains
       !ara podria obtenir els ranks locals de les altres cpus... pero cal?
 
 #if _CHECK_
-      write(aux_string_rank_deb,'(I0)') mpi_rank
-      file_name_deb = 'matrixCommScheme_rank'// trim(aux_string_rank_deb)//'.csv'
-      open(1, file=file_name_deb)
+      write(aux_string_rank_deb_TBD,'(I0)') mpi_rank
+      file_name_deb_TBD = 'matrixCommScheme_rank'// trim(aux_string_rank_deb_TBD)//'.csv'
+      open(1, file=file_name_deb_TBD)
          do i=1,numNodesToComm
-             write(1,fmt_csv) matrixCommScheme(i,:)
+             write(1,fmt_csv_TBD) matrixCommScheme(i,:)
          end do
       close(1)
 #endif
@@ -2158,8 +2142,8 @@ contains
 
       write(1,*) 'X,Y,Z,d_field'
       do iNodeL=1,numNodesRankPar
-         !write(1,fmt_csv) coord_x(iNodeL),coord_y(iNodeL),coord_z(iNodeL),dfield(iNodeL)
-         write(1,fmt_csv) coordPar(iNodeL,1),coordPar(iNodeL,2),coordPar(iNodeL,3),dfield(iNodeL)
+         !write(1,fmt_csv_TBD) coord_x(iNodeL),coord_y(iNodeL),coord_z(iNodeL),dfield(iNodeL)
+         write(1,fmt_csv_TBD) coordPar(iNodeL,1),coordPar(iNodeL,2),coordPar(iNodeL,3),dfield(iNodeL)
       end do
 
       close(1)
@@ -2179,7 +2163,7 @@ contains
 
       write(1,*) 'X,Y,Z,ffield'
       do iNodeL=1,numNodesRankPar
-         write(1,fmt_csv) coordPar(iNodeL,1),coordPar(iNodeL,2),coordPar(iNodeL,3),ffield(iNodeL)
+         write(1,fmt_csv_TBD) coordPar(iNodeL,1),coordPar(iNodeL,2),coordPar(iNodeL,3),ffield(iNodeL)
       end do
 
       close(1)

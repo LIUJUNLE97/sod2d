@@ -107,7 +107,7 @@ contains
         !write(*,*) '#rank ', mpi_rank, ' nodesInRank ', nodesInRank(:)
 
         !3. fer el particionament dels nodes
-        call define_parallelNodePartitioning(iNodeStartPar,iNodeEndPar)
+        call get_parallelNode_partitioning(iNodeStartPar,iNodeEndPar)
 
         write(*,*) '#rank ', mpi_rank, ' nodesInRank ', numNodesRankPar, ' iNodeS ', rankNodeStart, ' iNodeE ', rankNodeEnd
         !write(*,*) 'rank[',mpi_rank,'] -> start ',iNodeStartPar(:),' end ', iNodeEndPar(:), 'tNNP ', totalNumNodesPar

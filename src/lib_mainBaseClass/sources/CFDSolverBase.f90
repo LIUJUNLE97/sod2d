@@ -195,8 +195,8 @@ contains
       call nvtxStartRange("Open mesh")
       ! init hdf5
       !call init_hdf5_interface(this%mesh_h5_file_path,this%mesh_h5_file_name,this%results_h5_file_path,this%results_h5_file_name)
-      call set_hdf5_meshFile_name(this%mesh_h5_file_path,this%mesh_h5_file_name)
-      call set_hdf5_baseResultsFile_name(this%results_h5_file_path,this%results_h5_file_name,this%mesh_h5_file_name)
+      call set_hdf5_meshFile_name(this%mesh_h5_file_path,this%mesh_h5_file_name,mpi_rank)
+      call set_hdf5_baseResultsFile_name(this%results_h5_file_path,this%results_h5_file_name,this%mesh_h5_file_name,mpi_rank)
 
       this%useIntInComms=.true.
       this%useFloatInComms=.true.
