@@ -22,7 +22,7 @@ module mod_witness_points
          implicit none
          character(512), intent(in)  :: fname           ! Input 1: path to the witness points file   
          integer(rp),    intent(in)  :: np              ! Output 1: number of witness points
-         real(rp),       intent(out) :: xyz(nwit,ndime) ! Output 2: coordinates of the witness points in a 1D array as xyz = [x1, y1, z1, ..., xn, yn, zn]
+         real(rp),       intent(out) :: xyz(np,ndime) ! Output 2: coordinates of the witness points in a 1D array as xyz = [x1, y1, z1, ..., xn, yn, zn]
          integer(rp)                 :: ii
 
          open(unit=99, file=fname, status='old', action='read')

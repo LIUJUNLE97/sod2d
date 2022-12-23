@@ -421,44 +421,46 @@ contains
       call h5dclose_f(dset_id,h5err)
    end subroutine create_dataspace_hdf5
 
-   !subroutine create_dataspace_maxdims_hdf5(file_id,dsetname,ds_rank,ds_dims,max_dims,dtype)
-   !   implicit none
-   !   integer(hid_t),intent(in) :: file_id
-   !   character(len=*),intent(in) :: dsetname
-   !   integer,intent(in) :: ds_rank
-   !   integer(hsize_t),intent(in) :: ds_dims(ds_rank),max_dims(ds_rank)
-   !   integer(hid_t),intent(in) :: dtype
-   !   integer(hid_t) :: dset_id,dspace_id
-   !   integer :: h5err
-!
-   !   ! Create the data space for the  dataset. 
-   !   call h5screate_simple_f(ds_rank,ds_dims,dspace_id,h5err,max_dims)
-   !   ! Create the dataset with default properties.
-   !   call h5dcreate_f(file_id,dsetname,dtype,dspace_id,dset_id,h5err)
-   !   
-   !   !write(*,*) 'create dsetname ',dsetname, ' dset_id ',dset_id,' dspace_id ',dspace_id
-!
-   !   call h5sclose_f(dspace_id,h5err)
-   !   call h5dclose_f(dset_id,h5err)
-   !end subroutine create_dataspace_maxdims_hdf5
-!
-   !subroutine extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims,)
-   !   implicit none
-   !   integer(hid_t),intent(in) :: file_id
-   !   character(len=*),intent(in) :: dsetname
-   !   integer,intent(in) :: ds_rank
-   !   integer(hsize_t),intent(in) :: ds_dims(ds_rank)
-!
-   !   ! Create the data space for the  dataset. 
-   !   call h5dset_extent_f(dset_id,ds_dims,h5err)
-   !   ! Create the dataset with default properties.
-   !   call h5dcreate_f(file_id,dsetname,dtype,dspace_id,dset_id,h5err)
-   !   
-   !   !write(*,*) 'create dsetname ',dsetname, ' dset_id ',dset_id,' dspace_id ',dspace_id
-!
-   !   call h5sclose_f(dspace_id,h5err)
-   !   call h5dclose_f(dset_id,h5err)
-   !end subroutine create_dataspace_maxdims_hdf5
+   subroutine create_dataspace_maxdims_hdf5(file_id,dsetname,ds_rank,ds_dims,max_dims, chunk_dims, dtype)
+      implicit none
+      integer(hid_t),intent(in) :: file_id
+      character(len=*),intent(in) :: dsetname
+      integer,intent(in) :: ds_rank
+      integer(hsize_t),intent(in) :: ds_dims(ds_rank),max_dims(ds_rank), chunk_dims(ds_rank)
+      integer(hid_t),intent(in) :: dtype
+      integer(hid_t) :: dset_id,dspace_id,plist_id
+      integer :: h5err
+
+      ! Create the data space for the  dataset. 
+      call h5screate_simple_f(ds_rank,ds_dims,dspace_id,h5err,max_dims)
+
+      ! Create the dataset with default properties.
+      call h5pcreate_f(H5P_DATASET_CREATE_F,plist_id,h5err)
+      call h5pset_chunk_f(plist_id,ds_rank,chunk_dims,h5err)
+      call h5dcreate_f(file_id, dsetname,dtype,dspace_id,dset_id, h5err,plist_id)
+   
+      !write(*,*) 'create dsetname ',dsetname, ' dset_id ',dset_id,' dspace_id ',dspace_id
+      call h5pclose_f(plist_id,h5err)
+      call h5sclose_f(dspace_id,h5err)
+      call h5dclose_f(dset_id,h5err)
+   end subroutine create_dataspace_maxdims_hdf5
+
+   subroutine extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
+      implicit none
+      integer(hid_t),intent(in) :: file_id
+      character(len=*),intent(in) :: dsetname
+      integer,intent(in) :: ds_rank
+      integer(hsize_t),intent(in) :: ds_dims(ds_rank)
+      integer(hid_t) :: dset_id
+      integer :: h5err
+
+      ! Open dataset
+      call h5dopen_f(file_id, dsetname,dset_id,h5err)
+      ! Extend the dataset to ds_dims. 
+      call h5dextend_f(dset_id,ds_dims,h5err)
+      
+      call h5dclose_f(dset_id,h5err)
+   end subroutine extend_dataset_hdf5
 
    subroutine create_chunked_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,chunk_dims,dtype)
       implicit none
@@ -3488,16 +3490,16 @@ contains
 !---------------------------------------------------------------------------------------------------------
 
 !-------------------------------WITNESS POINTS-------------------------------!
-   subroutine create_witness_hdf5(full_fileName, nitewit, xyz, nwitPar, witGlob, ntwit, save_u_i, save_pr, save_rho)
+   subroutine create_witness_hdf5(full_fileName, xyz, nwit, nwitPar, witGlob, save_u_i, save_pr, save_rho)
       implicit none
       character(512), intent(in) :: full_fileName
-      integer(rp),    intent(in) :: nitewit, nwitPar, ntwit
+      integer(rp),    intent(in) :: nwit, nwitPar
       integer(rp),    intent(in) :: witGlob(nwit)
       real(rp),       intent(in) :: xyz(nwit,ndime)
       logical,        intent(in) :: save_u_i, save_pr, save_rho
       integer(rp)                :: aux(1), nwitParAllRanks(mpi_size), nwitOffset=0
       integer(hid_t)             :: file_id,plist_id,dset_id,dspace_id,group_id, dtype
-      integer(HSIZE_T)           :: ds_dims(2), ms_dims(2)
+      integer(HSIZE_T)           :: ds_dims(2), ms_dims(2), max_dims(2), chunk_dims(2)
       integer(HSSIZE_T)          :: ms_offset(2)
       integer                    :: ds_rank, ms_rank, h5err, irank, iwit
       character(256)             :: groupname,dsetname
@@ -3581,51 +3583,57 @@ contains
       call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwitxyz(:,3))
 
       !Create time dataset!
-      ds_rank      = 1
-      dsetname     = 'time'
-      ds_dims(1)   = ntwit
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      ds_rank       = 1
+      dsetname      = 'time'
+      ds_dims(1)    = 1
+      max_dims(1)   = H5S_UNLIMITED_F
+      chunk_dims(1) = 1
+      call create_dataspace_maxdims_hdf5(file_id,dsetname,ds_rank,ds_dims,max_dims,chunk_dims,dtype)
 
       !Create dataspaces for the magnitudes to save!
-      ds_rank    = 2
-      ds_dims(1) = nitewit
-      ds_dims(2) = nwit
+      ds_rank       = 2
+      ds_dims(1)    = 1
+      ds_dims(2)    = nwit
+      max_dims(1)   = H5S_UNLIMITED_F
+      max_dims(2)   = nwit
+      chunk_dims(1) = 1
+      chunk_dims(2) = nwit
       if (save_u_i) then
          dsetname = 'u_x'
-         call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+         call create_dataspace_maxdims_hdf5(file_id,dsetname,ds_rank,ds_dims,max_dims,chunk_dims,dtype)
          
          dsetname = 'u_y'
-         call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+         call create_dataspace_maxdims_hdf5(file_id,dsetname,ds_rank,ds_dims,max_dims,chunk_dims,dtype)
 
          dsetname = 'u_z'
-         call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+         call create_dataspace_maxdims_hdf5(file_id,dsetname,ds_rank,ds_dims,max_dims,chunk_dims,dtype)
       end if
 
       if (save_pr) then
          dsetname = 'pr'
-         call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+         call create_dataspace_maxdims_hdf5(file_id,dsetname,ds_rank,ds_dims,max_dims,chunk_dims,dtype)
       end if
 
       if (save_rho) then
          dsetname = 'rho'
-         call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+         call create_dataspace_maxdims_hdf5(file_id,dsetname,ds_rank,ds_dims,max_dims,chunk_dims,dtype)
       end if
 
       call h5fclose_f(file_id,h5err)
 
    end subroutine create_witness_hdf5
 
-   subroutine update_witness_hdf5(nitewit,itewit, witval, nwitPar, full_fileName, t, save_u_i, save_pr, save_rho)
-      integer(4), intent(in)     :: nitewit, itewit
+   subroutine update_witness_hdf5(itewit, witval, nwit, nwitPar, nvarwit, full_fileName, t, save_u_i, save_pr, save_rho)
+      integer(4), intent(in)     :: itewit, nwit, nwitPar, nvarwit
       real(rp), intent(in)       :: witval(nwitPar, nvarwit), t
       logical, intent(in)        :: save_u_i, save_pr, save_rho
       character(512), intent(in) :: full_fileName
       character(256)             :: dsetname
       real(rp)                   :: auxt(1)
       integer(HSSIZE_T)          :: ms_offset(2)
-      integer                    :: ms_rank,h5err, iwit
-      integer(4)                 :: nwitPar, nwitOffset, auxread(1)
-      integer(HSIZE_T)           :: ms_dims(2)
+      integer                    :: ms_rank,h5err, iwit, ds_rank
+      integer(4)                 :: nwitOffset, auxread(1)
+      integer(HSIZE_T)           :: ms_dims(2), ds_dims(2)
       integer(hid_t)             :: file_id,plist_id, dtype
 
       ! Setup file access property list with parallel I/O access.
@@ -3651,23 +3659,31 @@ contains
       ms_rank      = 2
       ms_dims(1)   = 1
       ms_dims(2)   = nwitPar
+      ds_rank      = 2
+      ds_dims(1)   = itewit
+      ds_dims(2)   = nwit
       ms_offset(1) = itewit - 1
       ms_offset(2) = nwitOffset    
 
       if (save_u_i) then
          dsetname = 'u_x'
+         call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
          call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witval(:,1))
          dsetname = 'u_y'
+         call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
          call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witval(:,2))
          dsetname = 'u_z'
+         call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
          call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witval(:,3))
       end if
       if (save_pr) then
          dsetname = 'pr'
+         call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
          call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witval(:,4))
       end if
       if (save_rho) then
          dsetname = 'rho'
+         call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
          call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witval(:,5))
       end if
 
@@ -3676,7 +3692,10 @@ contains
       ms_rank      = 1
       ms_dims(1)   = 1
       ms_offset(1) = itewit - 1
+      ds_rank      = 1
+      ds_dims(1)   = itewit
       auxt(1)      = t
+      call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
       call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxt)
 
       call h5fclose_f(file_id,h5err)

@@ -7,6 +7,7 @@ module mod_arrays
       ! integer ---------------------------------------------------
       integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
       integer(4), allocatable :: atoIJ(:),atoIJK(:),listHEX08(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
+      integer(4), allocatable :: witel(:)
 
       ! real ------------------------------------------------------
       real(rp), allocatable :: normalsAtNodes(:,:)
@@ -24,6 +25,7 @@ module mod_arrays
       real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
+      real(rp), allocatable :: witxi(:,:) 
       
 end module mod_arrays
 
@@ -72,9 +74,10 @@ module CFDSolverBase_mod
       integer(4), public :: nsaveAVG, nleapAVG
       integer(4), public :: counter, npoin_w
       integer(4), public :: load_step, initial_istep
-      integer(4), public :: witel(nwit)
-      integer(4), public :: nitewit
+      integer(4), public :: nwit
       integer(4), public :: nwitPar
+      integer(4), public :: leapwit
+      integer(4), public :: nvarwit=5 !Default value, only to be substituted if function update_witness is modified to
 
       ! main logical parameters
       logical, public    :: isPeriodic=.false.,loadMesh=.false.,doGlobalAnalysis=.false.,isFreshStart=.true.
@@ -93,7 +96,6 @@ module CFDSolverBase_mod
       real(rp) , public                   :: cfl_conv, cfl_diff, acutim
       real(rp) , public                   :: leviCivi(3,3,3), surfArea, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
       real(rp) , public                   :: dt, Cp, Rgas, gamma_gas,Prt,tleap,time
-      real(rp) , public                   :: witxi(nwit,ndime)
       logical  , public                   :: noBoundaries
 
    contains
@@ -129,6 +131,7 @@ module CFDSolverBase_mod
       procedure, public :: saveAverages =>CFDSolverBase_saveAverages
       procedure, public :: savePosprocessingFields =>CFDSolverBase_savePosprocessingFields
       procedure, public :: afterDt =>CFDSolverBase_afterDt
+      procedure, public :: update_witness =>CFDSolverBase_update_witness
       procedure, public :: preprocWitnessPoints =>CFDSolverBase_preprocWitnessPoints
 
       procedure :: open_log_file
@@ -509,6 +512,11 @@ contains
       !$acc end kernels
       this%acutim = 0.0_rp
 
+      if (this%have_witness) then
+         allocate(witel(this%nwit))
+         allocate(witxi(this%nwit,ndime))
+      end if
+
       call nvtxEndRange
 
    end subroutine CFDSolverBase_allocateVariables
@@ -882,11 +890,8 @@ contains
 
    subroutine CFDSolverBase_evalTimeIteration(this)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: icode,counter,istep,flag_emac,flag_predic,iwit, iwitglobal, itewit
+      integer(4) :: icode,counter,istep,flag_emac,flag_predic
       character(4) :: timeStep
-      character(256) :: witvar2save
-      real(rp) :: witval(this%nwitPar,nvarwit) ! u_x | u_y | u_z | pr | rho
-      witval(:,:) = 0.0_rp
 
       counter = 1
       flag_emac = 0
@@ -1007,50 +1012,60 @@ contains
 
          !!! Witness points interpolation !!!
          if(this%have_witness) then
-            if (mod(istep,leapwit)==0) then
-               itewit = istep/leapwit
-               do iwit = 1,this%nwitPar
-                  if (this%wit_save_u_i) then
-                     call wit_interpolation(this%witxi(iwit,:), u(connecParOrig(this%witel(iwit),:),1,2), witval(iwit, 1))  !!Ojo en malles periòdiques: connecParWork
-                     call wit_interpolation(this%witxi(iwit,:), u(connecParOrig(this%witel(iwit),:),2,2), witval(iwit, 2))
-                     call wit_interpolation(this%witxi(iwit,:), u(connecParOrig(this%witel(iwit),:),3,2), witval(iwit, 3))  
-                  end if
-                  if (this%wit_save_pr) then
-                     call wit_interpolation(this%witxi(iwit,:), pr(connecParOrig(this%witel(iwit),:),2), witval(iwit, 4))  
-                  end if
-                  if (this%wit_save_rho) then
-                     call wit_interpolation(this%witxi(iwit,:), rho(connecParOrig(this%witel(iwit),:),2), witval(iwit, 5))  
-                  end if
-               end do
-               call update_witness_hdf5(this%nitewit, itewit, witval, this%nwitPar, this%witness_h5_file_name, this%time, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+            if (mod(istep,this%leapwit)==0) then
+               call this%update_witness(istep)
             end if
          end if
-
       end do
       call nvtxEndRange
    end subroutine CFDSolverBase_evalTimeIteration
+
+   subroutine CFDSolverBase_update_witness(this, istep)
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4), intent(in)              :: istep
+      integer(4)                          :: iwit, iwitglobal, itewit
+      character(256)                      :: witvar2save
+      real(rp)                            :: witval(this%nwitPar,this%nvarwit) ! u_x | u_y | u_z | pr | rho
+      
+      witval(:,:) = 0.0_rp
+      itewit = istep/this%leapwit
+      do iwit = 1,this%nwitPar
+         if (this%wit_save_u_i) then
+            call wit_interpolation(witxi(iwit,:), u(connecParOrig(witel(iwit),:),1,2), witval(iwit, 1))  !!Ojo en malles periòdiques: connecParWork
+            call wit_interpolation(witxi(iwit,:), u(connecParOrig(witel(iwit),:),2,2), witval(iwit, 2))
+            call wit_interpolation(witxi(iwit,:), u(connecParOrig(witel(iwit),:),3,2), witval(iwit, 3))  
+         end if
+         if (this%wit_save_pr) then
+            call wit_interpolation(witxi(iwit,:), pr(connecParOrig(witel(iwit),:),2), witval(iwit, 4))  
+         end if
+         if (this%wit_save_rho) then
+            call wit_interpolation(witxi(iwit,:), rho(connecParOrig(witel(iwit),:),2), witval(iwit, 5))  
+         end if
+      end do
+      call update_witness_hdf5(itewit, witval, this%nwit, this%nwitPar, this%nvarwit, this%witness_h5_file_name, this%time, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+   end subroutine CFDSolverBase_update_witness
 
    subroutine CFDSolverBase_preprocWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       integer(4)                          :: iwit, iel, ifound, nwitPar
-      integer(rp)                         :: witGlob(nwit)
+      integer(rp)                         :: witGlob(this%nwit)
       real(rp)                            :: xi(ndime)
       real(rp), parameter                 :: wittol=1e-10
-      real(rp)                            :: witxyz(nwit,ndime), witxyzPar(nwit,ndime)
+      real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime)
       logical                             :: isinside       
       
       witGlob(:) = 0
       witxyzPar(:,:) = 0.0_rp
       ifound = 0
-      call read_points(this%witness_inp_file_name, nwit, witxyz)
-      do iwit = 1, nwit
+      call read_points(this%witness_inp_file_name, this%nwit, witxyz)
+      do iwit = 1, this%nwit
          do iel = 1, numElemsInRank
             call isocoords(coordPar(connecParOrig(iel,:),:), witxyz(iwit,:), xi, isinside)
             if (isinside .AND. (abs(xi(1)) < 1.0_rp+wittol) .AND. (abs(xi(2)) < 1.0_rp+wittol) .AND. (abs(xi(3)) < 1.0_rp+wittol)) then
                ifound = ifound+1
-               this%witel(ifound)   = iel
-               this%witxi(ifound,:) = xi(:)
+               witel(ifound)   = iel
+               witxi(ifound,:) = xi(:)
                witxyzPar(ifound,:)  = witxyz(iwit, :)
                witGlob(ifound) = iwit
                exit
@@ -1058,7 +1073,7 @@ contains
          end do
       end do
       this%nwitPar = ifound
-      call create_witness_hdf5(this%witness_h5_file_name, this%nitewit, witxyzPar, this%nwitPar, witGlob, this%nitewit, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
    end subroutine CFDSolverBase_preprocWitnessPoints
 
    subroutine open_log_file(this)
