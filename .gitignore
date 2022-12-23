@@ -16,6 +16,9 @@
 *.dat
 *.py
 *.hdf
+*.sh
+*.err
+*.out
 
 # Ignore VSCODE estensions and configs
 .trunk
