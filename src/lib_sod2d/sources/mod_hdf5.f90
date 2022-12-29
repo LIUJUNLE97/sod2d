@@ -3490,11 +3490,12 @@ contains
 !---------------------------------------------------------------------------------------------------------
 
 !-------------------------------WITNESS POINTS-------------------------------!
-   subroutine create_witness_hdf5(full_fileName, xyz, nwit, nwitPar, witGlob, save_u_i, save_pr, save_rho)
+   subroutine create_witness_hdf5(full_fileName, xyz, witel, witxi, nwit, nwitPar, witGlob, save_u_i, save_pr, save_rho)
       implicit none
       character(512), intent(in) :: full_fileName
       integer(rp),    intent(in) :: nwit, nwitPar
-      integer(rp),    intent(in) :: witGlob(nwit)
+      integer(rp),    intent(in) :: witel(nwit), witGlob(nwit)
+      real(rp),       intent(in) :: witxi(nwit, ndime)
       real(rp),       intent(in) :: xyz(nwit,ndime)
       logical,        intent(in) :: save_u_i, save_pr, save_rho
       integer(rp)                :: aux(1), nwitParAllRanks(mpi_size), nwitOffset=0
@@ -3503,8 +3504,8 @@ contains
       integer(HSSIZE_T)          :: ms_offset(2)
       integer                    :: ds_rank, ms_rank, h5err, irank, iwit
       character(256)             :: groupname,dsetname
-      integer(rp)                :: auxwitGlob(nwitPar) 
-      real(rp)                   :: auxwitxyz(nwitPar, ndime) 
+      integer(rp)                :: auxwitGlob(nwitPar), auxwitel(nwitPar)  
+      real(rp)                   :: auxwitxyz(nwitPar, ndime), auxwitxi(nwitPar, ndime) 
 
       ! Setup file access property list with parallel I/O access.
       call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
@@ -3560,10 +3561,22 @@ contains
       ms_offset(1) = nwitOffset
       do iwit = 1, nwitPar
          auxwitGlob(iwit)  = witGlob(iwit)
+         auxwitel(iwit)    = witel(iwit)
+         auxwitxi(iwit,:)  = witxi(iwit,:)
          auxwitxyz(iwit,:) = xyz(iwit,:)
       end do
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwitGlob)
+
+      !Create dataspece for element containing the witness and save it!
+      dsetname     = 'element'
+      ds_rank      = 1
+      ds_dims(1)   = nwit
+      ms_rank      = 1
+      ms_dims(1)   = nwitPar
+      ms_offset(1) = nwitOffset
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwitel)
       
       !Create dataspace for witness coordinates and save them!
       ds_rank      = 2
@@ -3581,6 +3594,23 @@ contains
       call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwitxyz(:,2))
       ms_offset(1) = 2
       call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwitxyz(:,3))
+
+      !Create dataspace for witness isoparametric coordinates and save them!
+      ds_rank      = 2
+      dsetname     = 'witxi'
+      ds_dims(1)   = ndime
+      ds_dims(2)   = nwit
+      ms_rank      = 2
+      ms_dims(1)   = 1
+      ms_dims(2)   = nwitPar
+      ms_offset(1) = 0
+      ms_offset(2) = nwitOffset
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwitxi(:,1))
+      ms_offset(1) = 1
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwitxi(:,2))
+      ms_offset(1) = 2
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwitxi(:,3))
 
       !Create time dataset!
       ds_rank       = 1
@@ -3622,6 +3652,75 @@ contains
       call h5fclose_f(file_id,h5err)
 
    end subroutine create_witness_hdf5
+
+   subroutine load_witness_hdf5(full_fileName, nwit, nwitPar, witel, witxi) !TODO: Check that the number of witness is the same and that the variables to save are also the same
+      implicit none
+      character(512), intent(in)  :: full_fileName
+      integer(rp),    intent(in)  :: nwit
+      integer(rp),    intent(out) :: witel(nwit)
+      real(rp),       intent(out) :: witxi(nwit, ndime)
+      integer(rp),    intent(out) :: nwitPar
+      integer(hid_t)              :: file_id,plist_id,dset_id,dspace_id,group_id, dtype
+      integer(HSIZE_T)            :: ms_dims(2), max_dims(2)
+      integer(HSSIZE_T)           :: ms_offset(2)
+      integer                     :: ms_rank, h5err, iwit
+      character(256)              :: groupname,dsetname
+      integer(rp)                 :: nwitOffset, auxread(1)
+
+      witel(:)   = 0
+      witxi(:,:) = 0.0_rp
+      ! Setup file access property list with parallel I/O access.
+      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
+      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+
+      call h5fopen_f(full_fileName, H5F_ACC_RDWR_F,file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot load results file ',trim(adjustl(full_fileName))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
+      call h5pclose_f(plist_id, h5err)
+
+      dtype = H5T_NATIVE_REAL
+
+      !Read nwitPar!
+      dsetname     = 'nwitPar'
+      ms_rank      = 1
+      ms_dims(1)   = 1
+      ms_offset(1) = mpi_rank
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxread)
+      nwitPar = auxread(1)
+
+      !Read nwitOffset!
+      dsetname     = 'nwitOffset'
+      ms_rank      = 1
+      ms_dims(1)   = 1
+      ms_offset(1) = mpi_rank
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxread)
+      nwitOffset = auxread(1)
+
+      !Read elements containing the witness points
+      dsetname     = 'element'
+      ms_rank      = 1
+      ms_dims(1)   = nwitPar
+      ms_offset(1) = nwitOffset
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witel)
+      
+      !Create dataspace for witness isoparametric coordinates and save them!
+      dsetname     = 'witxi'
+      ms_rank      = 2
+      ms_dims(1)   = 1
+      ms_dims(2)   = nwitPar
+      ms_offset(1) = 0
+      ms_offset(2) = nwitOffset
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witxi(:,1))
+      ms_offset(1) = 1
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witxi(:,2))
+      ms_offset(1) = 2
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witxi(:,3))
+
+      call h5fclose_f(file_id,h5err)
+
+   end subroutine load_witness_hdf5
 
    subroutine update_witness_hdf5(itewit, witval, nwit, nwitPar, nvarwit, full_fileName, t, save_u_i, save_pr, save_rho)
       integer(4), intent(in)     :: itewit, nwit, nwitPar, nvarwit

@@ -133,6 +133,7 @@ module CFDSolverBase_mod
       procedure, public :: afterDt =>CFDSolverBase_afterDt
       procedure, public :: update_witness =>CFDSolverBase_update_witness
       procedure, public :: preprocWitnessPoints =>CFDSolverBase_preprocWitnessPoints
+      procedure, public :: loadWitnessPoints =>CFDSolverBase_loadWitnessPoints
 
       procedure :: open_log_file
       procedure :: close_log_file
@@ -1073,8 +1074,15 @@ contains
          end do
       end do
       this%nwitPar = ifound
-      call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
    end subroutine CFDSolverBase_preprocWitnessPoints
+
+   subroutine CFDSolverBase_loadWitnessPoints(this)
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      
+      call load_witness_hdf5(this%witness_h5_file_name, this%nwit, this%nwitPar, witel, witxi)
+   end subroutine CFDSolverBase_loadWitnessPoints
 
    subroutine open_log_file(this)
       implicit none
@@ -1327,11 +1335,13 @@ contains
 
         call this%evalMass()
 
-      ! Read witness points and preprocess them
-      if (this%have_witness) call this%preprocWitnessPoints()
-
         ! Eval first output
-        if(this%isFreshStart) call this%evalFirstOutput()
+        if(this%isFreshStart) then
+            call this%evalFirstOutput()
+            if (this%have_witness) call this%preprocWitnessPoints() ! Read witness points and preprocess them
+        else
+            if (this%have_witness) call this%loadWitnessPoints() ! Load witness points and continue them
+        end if 
 
         call this%flush_log_file()
 

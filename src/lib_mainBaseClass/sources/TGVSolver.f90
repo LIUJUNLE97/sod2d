@@ -54,17 +54,14 @@ contains
       write(this%results_h5_file_name,*) "results"
 
       this%isPeriodic = .true.
-      !this%isPeriodic = .false.
       this%doGlobalAnalysis = .true.
-      !this%loadMesh = .false.
-      this%loadMesh = .false.
+      this%loadMesh = .true.
 
-      this%loadResults = .false.
-      !this%loadResults = .true.
-      !this%continue_oldLogs = .true.
-      !this%load_step = 2001
+      this%loadResults = .true.
+      this%continue_oldLogs = .true.
+      this%load_step = 1001
 
-      this%nstep = 2000
+      this%nstep = 2001
 
       this%cfl_conv = 0.5_rp
       this%cfl_diff = 0.5_rp
