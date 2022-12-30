@@ -66,37 +66,8 @@ program tool_meshConversorPar
 
 !---------------------------------------------------------------------------------------------------------
 
-    !call init_hdf5_interface()
-    !call set_hdf5_meshFile_name(mesh_h5_filePath,mesh_h5_fileName)
-
-    !vars to be read by chunks
-
-
-
-
-    !-- read the alya mesh fesh files in GMSH/ALYA FORMAT
-    !-- & do the partitioning
     call read_gmsh_files_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName,isPeriodic,num_partitions)
 
-#if 0
-
-    !----- init comms
-    call init_comms(useIntInComms,useFloatInComms,useDoubleInComms)
-
-    !----- for boundaries
-    if(isMeshBoundaries) then
-       call splitBoundary_inPar()
-       call generate_boundary_mpi_comm_scheme()
-       !----- init comms boundaries
-       call init_comms_bnd(useIntInComms,useFloatInComms,useDoubleInComms)
-    end if
-    !----- Deallocate alya/gmsh arrays
-    call deallocate_read_alya_mesh_arrays()
-    !----- Create HDF5 File
-    call create_hdf5_meshFile()
-#endif
-
-    !call end_hdf5_interface()
 !---------------------------------------------------------------------------------------------------------
 
     call end_mpi()

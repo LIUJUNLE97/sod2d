@@ -1103,15 +1103,23 @@ contains
       implicit none
       integer, intent(in) :: numElems2Par
       integer, intent(out) :: iElemStart,iElemEnd,iElemsInRank
+      integer, dimension(0:mpi_size-1) :: vecElemsInMpiRank
+      integer :: iMpiRank
 
-      !TODO REVISAR EL PARTICIONAMENT DELS ELEMENTS PERQUE LA DISTRIBUCIO QUE FAIG
-      !Al iElemsInRank pot donar problemes quan es un valor molt petit!
-      !---- number of elements and range this process will write
-      iElemsInRank = (numElems2Par + mpi_size - 1) / mpi_size
-      iElemStart = iElemsInRank * mpi_rank + 1
-      iElemEnd   = iElemsInRank * (mpi_rank + 1)
-      if (iElemEnd .gt. numElems2Par) iElemEnd = numElems2Par
-      iElemsInRank = iElemEnd - iElemStart + 1
+      if(numElems2Par.lt.mpi_size) then
+         write(*,*) 'ERROR! The total number of elements to par:',numElems2Par,'is bigger than the number of cpus used to do the partition',mpi_size,&
+                     'this is CRAZY BRO! The tool is going to crash! Use a reasonable number of CPUs (smaller than num of elements)'
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
+
+      call distribution_algorithm(numElems2Par,mpi_size,vecElemsInMpiRank)
+
+      iElemsInRank = vecElemsInMpiRank(mpi_rank)
+      iElemStart=1
+      do iMpiRank=0,(mpi_rank-1) !find the iElemStart
+         iElemStart = iElemStart + vecElemsInMpiRank(iMpiRank)
+      end do
+      iElemEnd = iElemStart + (iElemsInRank - 1)
 
       !write(*,*) '#rank ',mpi_rank,' iElemsInRank ',iElemsInRank,' iElemS ',iElemStart,' iElemE ',iElemEnd
 
