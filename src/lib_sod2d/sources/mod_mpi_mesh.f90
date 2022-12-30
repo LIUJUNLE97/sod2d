@@ -24,7 +24,7 @@ real(rp), allocatable :: coordGMSH(:,:)
 
 integer(int_size) :: numNodesRankPar, totalNumNodesPar, totalNumNodesSrl
 integer(int_size) :: totalNumElements
-integer(int_size) :: numElemsInRank, rankElemStart, rankElemEnd
+integer(int_size) :: numElemsRankPar, rankElemStart, rankElemEnd
 integer(int_size) :: rankNodeStart, rankNodeEnd
 
 integer(int_size), allocatable :: globalIdSrl(:), globalIdPar(:), elemGid(:)
@@ -385,7 +385,7 @@ contains
       integer, allocatable :: linkedElems(:,:),elemPart(:,:),elemPartAux(:,:)
 
       integer :: i,j,k,m,iElem,iElemG,iEL1,iEL2,iEL2rep,iEL3,iNodeG,iRank,iPos
-      integer :: numElemsInRank_par,numElems2get
+      integer :: numElemsRankPar_par,numElems2get
       integer :: iElemStart,iElemEnd,iElemsInRank,numElems2Par,numLinkedElems,numAdditionalElemsInRank
       real(8) :: x_a,y_a,z_a
       integer,dimension(0:mpi_size-1) :: vecNumElemsRank
@@ -412,7 +412,7 @@ contains
       allocate(y(iElemsInRank))
       allocate(z(iElemsInRank))
 
-      !numElemsInRank_srl = numElemsInRank
+      !numElemsRankPar_srl = numElemsRankPar
 
       i=1
       do iElem=iElemStart,iElemEnd
@@ -437,7 +437,7 @@ contains
          i=i+1
       end do
 
-      !numCoords=iElemsInRank !numElemsInRank_srl
+      !numCoords=iElemsInRank !numElemsRankPar_srl
 
       !----------------------------------------------------------------------------------
       !@TODO: en el cas de malles periodiques, aqui haurem de fer un trucu del almendrucu
@@ -565,7 +565,7 @@ contains
       file_name_deb_TBD = 'elemPartition_rank'// trim(aux_string_rank_deb_TBD)//'.csv'
       open(1, file=file_name_deb_TBD)
       write(1,*) 'X,Y,Z,iElemG,rank'
-      do i=1,iElemsInRank ! numElemsInRank_srl
+      do i=1,iElemsInRank ! numElemsRankPar_srl
          iElemG=elemPart(i,1)
          x_a=0.
          y_a=0.
@@ -609,13 +609,13 @@ contains
       call MPI_Win_free(window_id,mpi_err)
       !--------------------------------------------------------------------------------------
 
-      numElemsInRank_par=0
+      numElemsRankPar_par=0
 
       do iRank=0,mpi_size-1
-            numElemsInRank_par = numElemsInRank_par + matNumElemsRank(mpi_rank,iRank)
+            numElemsRankPar_par = numElemsRankPar_par + matNumElemsRank(mpi_rank,iRank)
       end do
 
-      !write(*,*) 'numElemsInRankP(,',mpi_rank,')->',numElemsInRank_par!,' srl ',numElemsInRank_srl
+      !write(*,*) 'numElemsRankParP(,',mpi_rank,')->',numElemsRankPar_par!,' srl ',numElemsRankPar_srl
 
       call quicksort_matrix_int(elemPart,2)
 
@@ -629,11 +629,11 @@ contains
          endif
       end do
 
-      allocate(elemGid(numElemsInRank_par))
+      allocate(elemGid(numElemsRankPar_par))
 
       ! Create the window
       !--------------------------------------------------------------------------------------
-      window_buffer_size = mpi_integer_size*iElemsInRank ! numElemsInRank_srl
+      window_buffer_size = mpi_integer_size*iElemsInRank ! numElemsRankPar_srl
 
       call MPI_Win_create(elemPart(:,1),window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
@@ -671,7 +671,7 @@ contains
       end do
       !write(*,*) 'vecNumElemsRank[',mpi_rank,'] ',vecNumElemsRank(:)
 
-      numElemsInRank = numElemsInRank_par
+      numElemsRankPar = numElemsRankPar_par
 
       rankElemStart=1
       do iRank=0,mpi_rank-1
@@ -693,14 +693,14 @@ contains
       !   i=i+1
       !end do
 
-      !do i=1,numElemsInRank_par
+      !do i=1,numElemsRankPar_par
       !   write(*,*) '[',mpi_rank,']i[',i,'] iElemG:',elemGid(i)
       !end do
 
 #if _CHECK_
       file_name_deb_TBD = 'elemGid_rank'// trim(aux_string_rank_deb_TBD)//'.csv'
       open(1, file=file_name_deb_TBD)
-      do i=1,numElemsInRank_par
+      do i=1,numElemsRankPar_par
          write(1,fmt_csv_TBD) i,',',elemGid(i)
       end do
       close(1)
@@ -976,7 +976,7 @@ contains
 
       if(mpi_rank.eq.0) write(*,*) ' # Creating working lists...'
 
-      allocate( connecParWork(numElemsInRank,nnode) )
+      allocate( connecParWork(numElemsRankPar,nnode) )
       !$acc kernels
       connecParWork(:,:) = connecParOrig(:,:)
       !$acc end kernels
@@ -986,11 +986,11 @@ contains
          !----------------------------------------------------------------
          !-------------  CONNEC   ----------------------------------------
 
-        !allocate( connecParOrig(numElemsInRank,nnode) )
+        !allocate( connecParOrig(numElemsRankPar,nnode) )
         !connecParOrig(:,:) = connecPar(:,:)
 
          !$acc kernels
-         do iElem = 1,numElemsInRank
+         do iElem = 1,numElemsRankPar
             do iAux = 1,nnode
                iNodeL = connecParWork(iElem,iAux)
                !iNodeG = globalIdSrl(iNodeL)
@@ -1093,7 +1093,7 @@ contains
       nodeInBoundary(:)=0
       !$acc end kernels
 
-      do iElemL=1,numElemsInRank
+      do iElemL=1,numElemsRankPar
          iElemG = elemGid(iElemL)
          do ind = 1,nnode
             iNodeG = connecGMSH(iElemG,gmsh2ijk(ind))
@@ -1103,7 +1103,7 @@ contains
 
       !check if face is in boundary
       checkFacePos = 6
-      do iElemL=1,numElemsInRank
+      do iElemL=1,numElemsRankPar
          iElemG = elemGid(iElemL)
          !# 1.Front ------------------------------------------------------
          ind = faceFront2ijk(checkFacePos)
@@ -1342,7 +1342,7 @@ contains
       nodeType(:)=0
       !$acc end kernels
 
-      do iElemL=1,numElemsInRank
+      do iElemL=1,numElemsRankPar
          !iElemG = (iElemL-1) + rankElemStart
          iElemG = elemGid(iElemL)
          do k = 0,porder
@@ -1860,9 +1860,9 @@ contains
       allocate(globalIdSrl(numNodesRankPar))
       allocate(globalIdPar(numNodesRankPar))
 
-      allocate(connecCGNS(numElemsInRank*nnode))
-      allocate(connecVTK(numElemsInRank*nnode))
-      allocate(connecParOrig(numElemsInRank,nnode))
+      allocate(connecCGNS(numElemsRankPar*nnode))
+      allocate(connecVTK(numElemsRankPar*nnode))
+      allocate(connecParOrig(numElemsRankPar,nnode))
 
       isNodeAdded=-1
       iPos = 1
@@ -1883,7 +1883,7 @@ contains
 
       !----------------------------------------------------------------------------------------------------------
 
-      do iElemL=1,numElemsInRank
+      do iElemL=1,numElemsRankPar
          !iElemG = (iElemL-1) + rankElemStart
          iElemG = elemGid(iElemL)
          auxNodeNewOrderInElem(:)=0

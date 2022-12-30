@@ -91,9 +91,9 @@ contains
       integer(4) :: iNodeL
 
       call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
-      call read_veloc_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
-      call read_densi_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,rho(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
-      call read_press_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,pr(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+      call read_veloc_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+      call read_densi_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,rho(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+      call read_press_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,pr(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar

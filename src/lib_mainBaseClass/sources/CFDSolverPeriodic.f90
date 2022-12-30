@@ -43,7 +43,7 @@ contains
       class(CFDSolverPeriodic), intent(inout) :: this
 
       this%noBoundaries = .true.
-      call rk_4_main(this%noBoundaries,this%isWallModelOn,0,0,numElemsInRank,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,point2elem,lnbn,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+      call rk_4_main(this%noBoundaries,this%isWallModelOn,0,0,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,point2elem,lnbn,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
          1,connecParWork,Ngp,dNgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor)
 
@@ -53,11 +53,11 @@ contains
       class(CFDSolverPeriodic), intent(inout) :: this
       integer(4)              , intent(in)   :: istep
 
-      call eval_average_window(isMeshPeriodic,numNodesRankPar,numElemsInRank,acuvel,acuve2,acurho,acupre,acumueff,this%acutim,&
+      call eval_average_window(isMeshPeriodic,numNodesRankPar,numElemsRankPar,acuvel,acuve2,acurho,acupre,acumueff,this%acutim,&
 											avvel,avve2,avrho,avpre,avmueff,nPerRankPar,masSlaRankPar)
 
       if(save_vtk) then
-         call write_vtkAVG_binary(istep,numNodesRankPar,numElemsInRank,coordPar,connecVTK,avvel,avve2,avrho,avpre,avmueff)
+         call write_vtkAVG_binary(istep,numNodesRankPar,numElemsRankPar,coordPar,connecVTK,avvel,avve2,avrho,avpre,avmueff)
       end if
 
       if(save_hdf5) then
@@ -71,7 +71,7 @@ contains
       integer(4)              , intent(in)   :: istep
 
       if(save_vtk) then
-         call write_vtk_binary(isMeshPeriodic,istep,numNodesRankPar,numElemsInRank,coordPar,connecVTK, &
+         call write_vtk_binary(isMeshPeriodic,istep,numNodesRankPar,numElemsRankPar,coordPar,connecVTK, &
             rho(:,2),u(:,:,2),pr(:,2),E(:,2),csound,machno, &
             gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs,nPerRankPar,masSlaRankPar)
       end if

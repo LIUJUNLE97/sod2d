@@ -210,7 +210,7 @@ contains
          call init_comms_bnd(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
       end if
 
-      #if 0
+#if 0
       if(this%loadMesh) then
          call load_hdf5_meshfile()
          ! init comms
@@ -398,9 +398,9 @@ contains
       integer(4) :: iElem
 
       call nvtxStartRange("Elem size compute")
-      allocate(helem(numElemsInRank))
-      do iElem = 1,numElemsInRank
-         call char_length(iElem,numElemsInRank,numNodesRankPar,connecParOrig,coordPar,he_aux)
+      allocate(helem(numElemsRankPar))
+      do iElem = 1,numElemsRankPar
+         call char_length(iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,he_aux)
          helem(iElem) = he_aux
       end do
       call nvtxEndRange
@@ -428,8 +428,8 @@ contains
       allocate(machno(numNodesRankPar))     ! Speed of sound
       allocate(mu_fluid(numNodesRankPar))   ! Fluid viscosity
       allocate(mu_factor(numNodesRankPar))  ! Fluid viscosity
-      allocate(mu_e(numElemsInRank,ngaus))  ! Elemental viscosity
-      allocate(mu_sgs(numElemsInRank,ngaus))! SGS viscosity
+      allocate(mu_e(numElemsRankPar,ngaus))  ! Elemental viscosity
+      allocate(mu_sgs(numElemsRankPar,ngaus))! SGS viscosity
       !$acc kernels
       u(:,:,:) = 0.0_rp
       q(:,:,:) = 0.0_rp
@@ -594,9 +594,9 @@ contains
       call nvtxStartRange("MU_SGS")
       if(flag_les_ilsa == 1) then
          this%dt = 1.0_rp !To avoid 0.0 division inside sgs_ilsa_visc calc
-         call sgs_ilsa_visc(numElemsInRank,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
+         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
       else
-         call sgs_visc(numElemsInRank,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
+         call sgs_visc(numElemsRankPar,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
       end if
       call nvtxEndRange
 
@@ -616,9 +616,9 @@ contains
 #endif
       if(mpi_rank.eq.0) write(111,*) "--| Evaluating initial dt..."
       if (flag_real_diff == 1) then
-         call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
+         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
       else
-         call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
+         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
       end if
       if(mpi_rank.eq.0) write(111,*) "--| Initial time-step dt := ",this%dt,"s"
 
@@ -711,7 +711,7 @@ contains
          if(mpi_rank.eq.0) write(*,*) "--| Interpolating nodes coordinates..."
          allocate(aux_1(numNodesRankPar,ndime))
          aux_1(:,:) = coordPar(:,:)
-         do ielem = 1,numElemsInRank
+         do ielem = 1,numElemsRankPar
             do inode = (2**ndime)+1,nnode
                do idime = 1,ndime
                   call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),coordPar(connecParOrig(ielem,inode),idime))
@@ -748,14 +748,14 @@ contains
       if(mpi_rank.eq.0) write(111,*) "--| GENERATING JACOBIAN RELATED INFORMATION..."
 
       call nvtxStartRange("Jacobian info")
-      allocate(He(ndime,ndime,ngaus,numElemsInRank))
-      allocate(gpvol(1,ngaus,numElemsInRank))
-      call elem_jacobian(numElemsInRank,numNodesRankPar,connecParOrig,coordPar,dNgp,wgp,gpvol,He) 
+      allocate(He(ndime,ndime,ngaus,numElemsRankPar))
+      allocate(gpvol(1,ngaus,numElemsRankPar))
+      call elem_jacobian(numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,dNgp,wgp,gpvol,He) 
       call  nvtxEndRange
 
       vol_rank  = 0.0
       vol_tot_d = 0.0
-      do ielem = 1,numElemsInRank
+      do ielem = 1,numElemsRankPar
          do igaus = 1,ngaus
             vol_rank = vol_rank+gpvol(1,igaus,ielem)
          end do
@@ -792,12 +792,12 @@ contains
       allocate(lelpn(numNodesRankPar))
       allocate(point2elem(numNodesRankPar))
       if(mpi_rank.eq.0) write(111,*) '  --| Evaluating point2elem array...'
-      call elemPerNode(numElemsInRank,numNodesRankPar,connecParWork,lelpn,point2elem)
+      call elemPerNode(numElemsRankPar,numNodesRankPar,connecParWork,lelpn,point2elem)
 
       if(mpi_rank.eq.0) write(111,*) '  --| Evaluating lnbn & lnbnNodes arrays...'
       allocate(lnbn(numBoundsRankPar,npbou))
       allocate(lnbnNodes(numNodesRankPar))
-      call nearBoundaryNode(numElemsInRank,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
+      call nearBoundaryNode(numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
 
    end subroutine CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode
 
@@ -812,14 +812,14 @@ contains
       if(mpi_rank.eq.0) write(111,*) '--| COMPUTING LUMPED MASS MATRIX...'
       call nvtxStartRange("Lumped mass compute")
       allocate(Ml(numNodesRankPar))
-      call lumped_mass_spectral(numElemsInRank,numNodesRankPar,connecParWork,gpvol,Ml)
+      call lumped_mass_spectral(numElemsRankPar,numNodesRankPar,connecParWork,gpvol,Ml)
       call nvtxEndRange
 
       !charecteristic length for spectral elements for the entropy
       !stablisation
-      allocate(helem_l(numElemsInRank,nnode))
-      do iElem = 1,numElemsInRank
-         call char_length_spectral(iElem,numElemsInRank,numNodesRankPar,connecParWork,coordPar,Ml,helem_l)
+      allocate(helem_l(numElemsRankPar,nnode))
+      do iElem = 1,numElemsRankPar
+         call char_length_spectral(iElem,numElemsRankPar,numNodesRankPar,connecParWork,coordPar,Ml,helem_l)
       end do
    end subroutine CFDSolverBase_evalMass
 
@@ -838,17 +838,17 @@ contains
       if (isMeshBoundaries) then
          do iCode = 1,numBoundCodes
             call nvtxStartRange("Surface info")
-            call surfInfo(0,0.0_rp,numElemsInRank,numNodesRankPar,numBoundsRankPar,iCode,connecParWork,boundPar,point2elem,&
+            call surfInfo(0,0.0_rp,numElemsRankPar,numNodesRankPar,numBoundsRankPar,iCode,connecParWork,boundPar,point2elem,&
                bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
                mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(iCode,:),Ftau(iCode,:))
             call nvtxEndRange
          end do
       end if
 
-      call compute_fieldDerivs(numElemsInRank,numNodesRankPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
+      call compute_fieldDerivs(numElemsRankPar,numNodesRankPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
 
-      call volAvg_EK(numElemsInRank,numNodesRankPar,connecParWork,gpvol,Ngp,nscbc_rho_inf,rho(:,2),u(:,:,2),this%EK)
-      call visc_dissipationRate(numElemsInRank,numNodesRankPar,connecParWork,this%leviCivi,nscbc_rho_inf,mu_fluid,mu_e,u(:,:,2),this%VolTot,gpvol,He,dNgp,this%eps_S,this%eps_D,this%eps_T)
+      call volAvg_EK(numElemsRankPar,numNodesRankPar,connecParWork,gpvol,Ngp,nscbc_rho_inf,rho(:,2),u(:,:,2),this%EK)
+      call visc_dissipationRate(numElemsRankPar,numNodesRankPar,connecParWork,this%leviCivi,nscbc_rho_inf,mu_fluid,mu_e,u(:,:,2),this%VolTot,gpvol,He,dNgp,this%eps_S,this%eps_D,this%eps_T)
       call maxMach(numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,machno,this%maxmachno)
       call write_EK(this%time,this%EK,this%eps_S,this%eps_D,this%eps_T,this%maxmachno)
       if(mpi_rank.eq.0) then
@@ -936,8 +936,8 @@ contains
          this%time = this%time+this%dt
 
          if (istep == this%nsave2 .and. (this%doGlobalAnalysis)) then
-            call volAvg_EK(numElemsInRank,numNodesRankPar,connecParWork,gpvol,Ngp,nscbc_rho_inf,rho(:,2),u(:,:,2),this%EK)
-            call visc_dissipationRate(numElemsInRank,numNodesRankPar,connecParWork,this%leviCivi,nscbc_rho_inf,mu_fluid,mu_e,u(:,:,2),this%VolTot,gpvol,He,dNgp,this%eps_S,this%eps_D,this%eps_T)
+            call volAvg_EK(numElemsRankPar,numNodesRankPar,connecParWork,gpvol,Ngp,nscbc_rho_inf,rho(:,2),u(:,:,2),this%EK)
+            call visc_dissipationRate(numElemsRankPar,numNodesRankPar,connecParWork,this%leviCivi,nscbc_rho_inf,mu_fluid,mu_e,u(:,:,2),this%VolTot,gpvol,He,dNgp,this%eps_S,this%eps_D,this%eps_T)
             call maxMach(numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,machno,this%maxmachno)
             call write_EK(this%time,this%EK,this%eps_S,this%eps_D,this%eps_T,this%maxmachno)
             if(mpi_rank.eq.0) then
@@ -949,9 +949,9 @@ contains
          end if
 
          if (flag_real_diff == 1) then
-            call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
+            call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
          else
-            call adapt_dt_cfl(numElemsInRank,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
+            call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
          end if
 
          call nvtxEndRange
@@ -960,7 +960,7 @@ contains
          ! Update the accumulators for averaging
          !
          call nvtxStartRange("Accumulate"//timeStep,istep)
-         call favre_average(numElemsInRank,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,this%dt,rho,u,pr, &
+         call favre_average(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,this%dt,rho,u,pr, &
             mu_fluid,mu_e,mu_sgs,this%acutim,acurho,acupre,acuvel,acuve2,acumueff)
          call nvtxEndRange
 
@@ -970,7 +970,7 @@ contains
             if (isMeshBoundaries) then
                do icode = 1,numBoundCodes!this%numCodes
                   call nvtxStartRange("Surface info")
-                  call surfInfo(istep,this%time,numElemsInRank,numNodesRankPar,numBoundsRankPar,icode,connecParWork,boundPar,point2elem, &
+                  call surfInfo(istep,this%time,numElemsRankPar,numNodesRankPar,numBoundsRankPar,icode,connecParWork,boundPar,point2elem, &
                      bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
                      mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(icode,:),Ftau(icode,:))
 
@@ -996,7 +996,7 @@ contains
          if (istep == this%nsave) then
             if (mpi_rank.eq.0) write(111,*) ' -Saving file step: ',istep
             call nvtxStartRange("Output "//timeStep,istep)
-            call compute_fieldDerivs(numElemsInRank,numNodesRankPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
+            call compute_fieldDerivs(numElemsRankPar,numNodesRankPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
             call this%savePosprocessingFields(istep)
             this%nsave = this%nsave+this%nleap
             call nvtxEndRange
