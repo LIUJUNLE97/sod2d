@@ -19,7 +19,7 @@ module time_integ
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
-                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,source_term)  ! Optional args
+                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,rho_buffer,q_buffer,E_buffer,source_term)  ! Optional args
 
             implicit none
 
@@ -63,6 +63,7 @@ module time_integ
             integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun), bou_codes_nodes(npoin)
             integer(4), optional, intent(in)    :: listBoundsWM(*)
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
+            real(rp), optional,   intent(in)    :: rho_buffer(npoin), q_buffer(npoin,ndime), E_buffer(npoin)
             real(rp), optional, intent(in)      :: source_term(ndime)
             integer(4)                          :: pos
             integer(4)                          :: istep, ipoin, idime,icode
@@ -157,6 +158,9 @@ module time_integ
                end do
                !$acc end parallel loop
                call nvtxEndRange
+
+               call updateBuffer(npoin,coord,aux_rho,aux_q,aux_E,rho_buffer,q_buffer,E_buffer)
+
                !
                ! Update velocity and equations of state
                !
@@ -278,6 +282,8 @@ module time_integ
             !$acc end parallel loop
             call nvtxEndRange
 
+            call updateBuffer(npoin,coord,rho(:,pos),q(:,:,pos),E(:,pos),rho_buffer,q_buffer,E_buffer)
+
             !
             ! Apply bcs after update
             !
@@ -365,5 +371,40 @@ module time_integ
             end if
 
          end subroutine rk_4_main
+
+         subroutine updateBuffer(npoin,coord,rho,q,E,rho_buffer,q_buffer,E_buffer)
+            integer(4),           intent(in)    :: npoin
+            real(rp),             intent(in)    :: coord(npoin,ndime)
+            real(rp),             intent(inout) :: rho(npoin)
+            real(rp),             intent(inout) :: q(npoin,ndime)
+            real(rp),             intent(inout) :: E(npoin)
+            real(rp),             intent(in) :: rho_buffer(npoin)
+            real(rp),             intent(in) :: q_buffer(npoin,ndime)
+            real(rp),             intent(in) :: E_buffer(npoin)
+            integer(4) :: inode
+            real(rp)   :: xs,xb,xi,c1,c2
+
+            c1 = 0.05_rp
+            c2 = 20.0_rp
+
+            !$acc parallel loop
+            do inode = 1,npoin
+               xs = coord(inode,1)
+               xb = (xs-flag_buffer_x_min)/(flag_buffer_x_max-flag_buffer_x_min)
+
+               if(xb>0.0_rp) then
+
+                  xi = (1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))) 
+
+                  q(inode,1) = q_buffer(inode,1) + xi*(q(inode,1)-q_buffer(inode,1))
+                  q(inode,2) = q_buffer(inode,2) + xi*(q(inode,2)-q_buffer(inode,2))
+                  q(inode,3) = q_buffer(inode,3) + xi*(q(inode,3)-q_buffer(inode,3))
+
+                  rho(inode) = rho_buffer(inode) + xi*(rho(inode)-rho_buffer(inode))
+                  E(inode)   = E_buffer(inode)   + xi*(E(inode)-E_buffer(inode))
+               end if
+            end do
+            !$acc end parallel loop
+         end subroutine updateBuffer
 
       end module time_integ

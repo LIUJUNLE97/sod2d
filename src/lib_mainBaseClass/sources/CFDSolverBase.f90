@@ -24,6 +24,7 @@ module mod_arrays
       real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
+      real(rp), allocatable :: q_buffer(:,:), rho_buffer(:), E_buffer(:)
 
 end module mod_arrays
 
@@ -122,6 +123,8 @@ module CFDSolverBase_mod
       procedure, public :: saveAverages =>CFDSolverBase_saveAverages
       procedure, public :: savePosprocessingFields =>CFDSolverBase_savePosprocessingFields
       procedure, public :: afterDt =>CFDSolverBase_afterDt
+
+      procedure, public :: initialBuffer =>CFDSolverBase_initialBuffer
 
       procedure :: open_log_file
       procedure :: close_log_file
@@ -415,6 +418,12 @@ contains
       allocate(mu_factor(numNodesRankPar))  ! Fluid viscosity
       allocate(mu_e(numElemsInRank,ngaus))  ! Elemental viscosity
       allocate(mu_sgs(numElemsInRank,ngaus))! SGS viscosity
+
+      allocate(q_buffer(numNodesRankPar,ndime))  ! momentum at the buffer
+      allocate(rho_buffer(numNodesRankPar))      ! Density at the buffer
+      allocate(E_buffer(numNodesRankPar))        ! Total Energy at the buffer
+
+
       !$acc kernels
       u(:,:,:) = 0.0_rp
       q(:,:,:) = 0.0_rp
@@ -430,6 +439,10 @@ contains
       mu_factor(:) = 1.0_rp
       mu_e(:,:) = 0.0_rp
       mu_sgs(:,:) = 0.0_rp
+
+      q_buffer(:,:) = 0.0_rp
+      rho_buffer(:) = 0.0_rp
+      E_buffer(:) = 0.0_rp  
       !$acc end kernels
 
       !ilsa
@@ -875,6 +888,17 @@ contains
 
    end subroutine CFDSolverBase_savePosprocessingFields
 
+   subroutine CFDSolverBase_initialBuffer(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      !$acc kernels
+      rho_buffer(:) = nscbc_rho_inf
+      q_buffer(:,1) = nscbc_rho_inf*nscbc_u_inf
+      E_buffer(:) = nscbc_rho_inf*(0.5_rp*nscbc_u_inf*nscbc_u_inf+nscbc_p_inf/(nscbc_rho_inf*(nscbc_gamma_inf-1.0_rp)))
+      !$acc end kernels
+
+   end subroutine CFDSolverBase_initialBuffer
+
    subroutine CFDSolverBase_evalTimeIteration(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4) :: icode,counter,istep,flag_emac,flag_predic
@@ -1264,6 +1288,8 @@ contains
         ! Eval initial time step
 
         call this%evalInitialDt()
+
+        if(flag_buffer_on .eq. .true.) call this%initialBuffer()
 
         call this%flush_log_file()
 

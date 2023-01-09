@@ -86,4 +86,12 @@ module mod_constants
       integer(4), parameter :: bc_type_slip_wall_model      = 6
       integer(4), parameter :: bc_type_outlet               = 7
 
+      !
+      ! Penalisation buffer zone
+      !
+
+      logical :: flag_buffer_on = .false.
+      real(4) :: flag_buffer_x_min = 0.0_rp
+      real(4) :: flag_buffer_x_max = 0.0_rp
+
 end module mod_constants
