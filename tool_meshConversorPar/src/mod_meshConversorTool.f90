@@ -1042,6 +1042,7 @@ contains
       numNodesMshRank(:)  = 0
       numBoundFacesMshRank(:) = 0
 
+      maxBoundCodeMshRank = 0
       maxBoundCodeMpiRank = 0
       maxBoundCode=0
 
@@ -1149,7 +1150,7 @@ contains
       implicit none
       integer, intent(in) :: numMshRanks2Part
       integer, intent(out) :: iMshRankStart,iMshRankEnd,numRanksMpiRank
-      integer, allocatable, intent(out) :: ranksMpiRank(:),mapRanksToMpiRank(:)
+      integer, allocatable, intent(inout) :: ranksMpiRank(:),mapRanksToMpiRank(:)
       integer, dimension(0:mpi_size-1) :: vecRanksMpiRank
       integer :: iMpiRank,iMshRankCnt,ii
 
@@ -1179,10 +1180,38 @@ contains
          end do
 
       else
-         write(*,*) 'numMshRanks2Part<mpi_size ... haig de pensar en aquest cas...'
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-      end if
+         !possible first approach...
+         !to use ONLY the number of CPUs=numMshRanks2Part and the others do nothing...
+         !lets try
 
+         if(mpi_rank.eq.0) then
+            write(*,*) 'Tool not optimized for this case numMshRanks2Part<mpi_size -> ',numMshRanks2Part,'<',mpi_size
+            write(*,*) 'Maybe it is better to run it with numMshRanks2Part=mpi_size... just suggesting'
+         end if
+
+         if(mpi_rank.lt.numMshRanks2Part) then
+            numRanksMpiRank = 1
+            iMshRankStart   = mpi_rank
+            iMshRankEnd     = mpi_rank
+
+            allocate(ranksMpiRank(numRanksMpiRank))
+            ranksMpiRank(1) = mpi_rank
+         else
+            numRanksMpiRank = 0
+            iMshRankStart   = 0
+            iMshRankEnd     = 0
+
+            allocate(ranksMpiRank(numRanksMpiRank))
+         endif
+
+         allocate(mapRanksToMpiRank(numMshRanks2Part))
+         do iMpiRank=0,(numMshRanks2Part-1)
+            mapRanksToMpiRank(iMpiRank+1)=iMpiRank
+         end do
+
+         !write(*,*) 'numMshRanks2Part<mpi_size ... haig de pensar en aquest cas...'
+         !call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
       !write(*,*) '#rank',mpi_rank,'numRanksMpiRank',numRanksMpiRank,'ranksInP',ranksMpiRank(:),'mapRanksToMpiRank',mapRanksToMpiRank(:)
 
    end subroutine distribute_ranks2Part_in_mpiRank
@@ -1607,7 +1636,7 @@ contains
          totalNumMpiBoundaryNodes = totalNumMpiBoundaryNodes + numMpiBoundaryNodesAll(iMshRank)
          if(iMshRank.gt.1) memDispMpiBN(iMshRank)=memDispMpiBN(iMshRank-1)+numMpiBoundaryNodesAll(iMshRank-1)
       end do
-      !write(*,*) 'rank[',mpi_rank,']numMBNA', numMpiBoundaryNodesAll(:),'total',totalNumMpiBoundaryNodes,'memDisp',memDispMpiBN(:)
+      !write(*,*) '2.rank[',mpi_rank,']numMBNA', numMpiBoundaryNodesAll(:),'total',totalNumMpiBoundaryNodes,'memDisp',memDispMpiBN(:)
 
       ! fill my own mpi boundary nodes
       allocate(mpiBoundaryNodesAll(totalNumMpiBoundaryNodes))

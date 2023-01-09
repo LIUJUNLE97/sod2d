@@ -31,7 +31,7 @@ integer(int_size), allocatable :: globalIdSrl(:), globalIdPar(:), elemGid(:)
 
 real(rp), allocatable :: coordPar(:,:)
 
-integer(int_size), allocatable :: connecCGNS(:)
+!integer(int_size), allocatable :: connecCGNS(:)
 integer(int_size), allocatable :: connecVTK(:)
 integer(int_size), allocatable :: connecParOrig(:,:),connecParWork(:,:)
 
@@ -1860,7 +1860,7 @@ contains
       allocate(globalIdSrl(numNodesRankPar))
       allocate(globalIdPar(numNodesRankPar))
 
-      allocate(connecCGNS(numElemsRankPar*nnode))
+      !allocate(connecCGNS(numElemsRankPar*nnode))
       allocate(connecVTK(numElemsRankPar*nnode))
       allocate(connecParOrig(numElemsRankPar,nnode))
 
@@ -1920,7 +1920,7 @@ contains
 
             indexCGNS = auxCGNSorder(m)
             indConn = (iElemL-1)*nnode + indexCGNS
-            connecCGNS(indConn) = iNodeGPar
+            !connecCGNS(indConn) = iNodeGPar
 
             indexVTK = auxVTKorder(m)
             indConn = (iElemL-1)*nnode + indexVTK

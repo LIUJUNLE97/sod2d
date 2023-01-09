@@ -49,10 +49,10 @@ contains
 #if 1
       if(mpi_rank.eq.0) write(111,*) "--| BOCOS for carCoarse..."
       !For carCoarse case-----------------------------------------------------
-      !bouCodes2BCType(2) = bc_type_non_slip_adiabatic
-      !bouCodes2BCType(3) = bc_type_non_slip_adiabatic
-      bouCodes2BCType(2) = bc_type_slip_wall_model
-      bouCodes2BCType(3) = bc_type_slip_wall_model
+      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(3) = bc_type_non_slip_adiabatic
+      !bouCodes2BCType(2) = bc_type_slip_wall_model
+      !bouCodes2BCType(3) = bc_type_slip_wall_model
       bouCodes2BCType(4) = bc_type_slip_adiabatic
       bouCodes2BCType(5) = bc_type_outlet
 #else
@@ -77,7 +77,7 @@ contains
 
       write(this%mesh_h5_file_path,*) ""
       !write(this%mesh_h5_file_name,*) "auto"
-      write(this%mesh_h5_file_name,*) "carCoarse"!
+      write(this%mesh_h5_file_name,*) "carCoarseTool4"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -93,15 +93,15 @@ contains
       this%load_step = 50001
 
       this%nstep = 501 !250001
-      this%cfl_conv = 0.5_rp !0.1_rp
-      this%cfl_diff = 0.5_rp !0.1_rp
+      this%cfl_conv = 0.1_rp !0.1_rp
+      this%cfl_diff = 0.1_rp !0.1_rp
 
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
       this%nleap = 500!25 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 25  ! Saving interval, TODO: input
+      this%nleap2 = 1!25  ! Saving interval, TODO: input
       this%nleapAVG = 150000
 
       this%Cp = 1004.0_rp

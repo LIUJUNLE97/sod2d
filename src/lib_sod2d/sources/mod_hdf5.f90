@@ -1681,9 +1681,9 @@ contains
       call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,connecVTK)
       !-----------------------------------------------------------------------------------------------------
       !  SAVING connecParCGNS(:)
-      dsetname = '/Connectivity/connecCGNS'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,connecCGNS)
+      !dsetname = '/Connectivity/connecCGNS'
+      !call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      !call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,connecCGNS)
 
       deallocate(aux_array)
       !--------------------------------------------------------------------------------------------------------
@@ -1785,9 +1785,9 @@ contains
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,connecVTK)
       !-------------------------------------------------------------------------------------------------------
       !LOADING connecCGNS(:)
-      allocate( connecCGNS(numElemsRankPar*nnode) )
-      dsetname = '/Connectivity/connecCGNS'
-      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,connecCGNS)
+      !allocate( connecCGNS(numElemsRankPar*nnode) )
+      !dsetname = '/Connectivity/connecCGNS'
+      !call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,connecCGNS)
 
       !-------------------------------------------------------------------------------------------------------
       ds_dims(1) = mpi_size
@@ -2596,16 +2596,18 @@ contains
          ds_dims(1) = mpi_size
          ms_rank = 1
          ms_dims(1) = 1
-         ms_offset(1) = mpi_rank
+         ms_offset(1) = 0
          allocate(aux_array(1))
-
-         dsetname = '/Boundary_data/numBoundsRankPar'
-         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
-         numBoundsRankPar=aux_array(1)
 
          dsetname = '/Boundary_data/numBoundCodes'
          call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
          numBoundCodes=aux_array(1)
+
+         ms_offset(1) = mpi_rank
+
+         dsetname = '/Boundary_data/numBoundsRankPar'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+         numBoundsRankPar=aux_array(1)
 
          dsetname = '/Boundary_data/ndofRankPar'
          call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
