@@ -73,7 +73,7 @@ module CFDSolverBase_mod
       integer(4), public :: load_step, initial_istep
 
       ! main logical parameters
-      logical, public    :: isPeriodic=.false.,loadMesh=.false.,doGlobalAnalysis=.false.,isFreshStart=.true.
+      logical, public    :: isPeriodic=.false.,doGlobalAnalysis=.false.,isFreshStart=.true.
       logical, public    :: loadResults=.false.,continue_oldLogs=.false.,saveInitialField=.true.,isWallModelOn=.false.
       logical, public    :: useIntInComms=.false.,useFloatInComms=.false.,useDoubleInComms=.false.
 
@@ -108,7 +108,6 @@ module CFDSolverBase_mod
       procedure, public :: evalViscosityFactor=>CFDSolverBase_evalViscosityFactor
       procedure, public :: evalInitialDt =>CFDSolverBase_evalInitialDt
       procedure, public :: evalShapeFunctions =>CFDSolverBase_evalShapeFunctions
-      procedure, public :: interpolateOriginalCoordinates => CFDSolverBase_interpolateOriginalCoordinates
       !procedure, public :: interpolateInitialConditions =>CFDSolverBase_interpolateInitialConditions
       procedure, public :: evalBoundaryNormals =>CFDSolverBase_evalBoundaryNormals
       procedure, public :: evalJacobians =>CFDSolverBase_evalJacobians
@@ -173,7 +172,6 @@ contains
       this%initial_istep = 1
 
       this%isPeriodic = .false.
-      this%loadMesh = .false.
       this%loadResults = .false.
       this%continue_oldLogs= .false.
       this%doGlobalAnalysis = .false.
@@ -205,41 +203,9 @@ contains
       call load_hdf5_meshfile()
       ! init comms
       call init_comms(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
-      if(isMeshBoundaries) then
-         !----- init comms boundaries
-         call init_comms_bnd(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
-      end if
+      !----- init comms boundaries
+      call init_comms_bnd(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
 
-#if 0
-      if(this%loadMesh) then
-         call load_hdf5_meshfile()
-         ! init comms
-         call init_comms(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
-         if(isMeshBoundaries) then
-            !----- init comms boundaries
-            call init_comms_bnd(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
-         end if
-      else
-         !call read_alyaMesh_part_and_create_hdf5Mesh(this%gmsh_file_path,this%gmsh_file_name,this%isPeriodic)
-         !-- read the alya mesh fesh files in GMSH/ALYA FORMAT
-         call read_alya_mesh_files(this%gmsh_file_path,this%gmsh_file_name,this%isPeriodic)
-         !----- Do mesh partitioning!
-         call do_mesh_partitioning()
-         !----- init comms
-         call init_comms(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
-         !----- for boundaries
-         if(isMeshBoundaries) then
-            call splitBoundary_inPar()
-            call generate_boundary_mpi_comm_scheme()
-            !----- init comms boundaries
-            call init_comms_bnd(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
-         end if
-         !----- Deallocate alya/gmsh arrays
-         call deallocate_read_alya_mesh_arrays()
-         !----- Create HDF5 File
-         call create_hdf5_meshFile()
-      end if
-#endif
       call nvtxEndRange
 
    end subroutine CFDSolverBase_openMesh
@@ -270,13 +236,13 @@ contains
       end do
       !write(*,*) '[',mpi_rank,'] numBoundsWMRankPar',numBoundsWMRankPar
 
-      allocate(listBoundsWM(numBoundsWMRankPar))
+      allocate(listBoundsWallModel(numBoundsWMRankPar))
       auxBoundCnt = 0
       do iBound = 1,numBoundsRankPar
          bcCode = bouCodes2BCType(bouCodesPar(iBound))
          if(bcCode .eq. bc_type_slip_wall_model) then
             auxBoundCnt = auxBoundCnt + 1 
-            listBoundsWM(auxBoundCnt) = iBound
+            listBoundsWallModel(auxBoundCnt) = iBound
          end if
       end do
 
@@ -298,7 +264,7 @@ contains
 
       !$acc parallel loop gang 
       do iAux = 1,numBoundsWMRankPar
-         iBound = listBoundsWM(iAux)
+         iBound = listBoundsWallModel(iAux)
          iElem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
          jgaus = connecParWork(iElem,nnode)         ! internal node
          !$acc loop vector private(aux)
@@ -374,7 +340,7 @@ contains
       end do
       !$acc end parallel loop
 
-      if(mpi_size.ge.2) then
+      if((isMeshBoundaries).and.(mpi_size.ge.2)) then
          call mpi_halo_min_boundary_update_int_iSendiRcv(aux1)
       end if
 
@@ -465,8 +431,8 @@ contains
 
       !boundary
       if(numBoundCodes .ge. 1) then
-         allocate(Fpr(numBoundCodes,ndime))
-         allocate(Ftau(numBoundCodes,ndime))
+         allocate(Fpr(ndime,numBoundCodes))
+         allocate(Ftau(ndime,numBoundCodes))
          !$acc kernels
          Fpr(:,:) = 0.0_rp
          Ftau(:,:) = 0.0_rp
@@ -539,6 +505,7 @@ contains
             this%time = 0.0_rp
          end if
       else
+         if(mpi_rank.eq.0) write(111,*) "--| Evaluating Initial Conditions..."
          call this%evalInitialConditions()
       end if
 
@@ -701,29 +668,6 @@ contains
 
    end subroutine CFDSolverBase_evalShapeFunctions
 
-   subroutine CFDSolverBase_interpolateOriginalCoordinates(this)
-      class(CFDSolverBase), intent(inout) :: this
-      real(rp), allocatable :: aux_1(:,:)
-      integer(4) :: ielem,inode,idime
-
-      !TODO: CAL VEURE SI AIXO HO FEM A LA TOOL O Que.....
-      if(this%loadMesh .eqv. .false.) then
-         if(mpi_rank.eq.0) write(*,*) "--| Interpolating nodes coordinates..."
-         allocate(aux_1(numNodesRankPar,ndime))
-         aux_1(:,:) = coordPar(:,:)
-         do ielem = 1,numElemsRankPar
-            do inode = (2**ndime)+1,nnode
-               do idime = 1,ndime
-                  call var_interpolate(aux_1(connecParOrig(ielem,:),idime),Ngp_l(inode,:),coordPar(connecParOrig(ielem,inode),idime))
-               end do
-            end do
-         end do
-         deallocate(aux_1)
-         call overwrite_coordinates_hdf5()
-      end if
-
-   end subroutine CFDSolverBase_interpolateOriginalCoordinates
-
    subroutine CFDSolverBase_evalBoundaryNormals(this)
       class(CFDSolverBase), intent(inout) :: this
 
@@ -731,7 +675,7 @@ contains
          if(mpi_rank.eq.0) write(111,*) "--| COMPUTING BOUNDARY ELEMENT NORMALS"
          allocate(boundNormalPar(numBoundsRankPar,ndime*npbou))
          call nvtxStartRange("Bou normals")
-         call boundary_normals(numNodesRankPar,numBoundsRankPar,boundPar,this%leviCivi,coordPar,dNgp_b,boundNormalPar)
+         call boundary_normals(numNodesRankPar,numBoundsRankPar,boundParOrig,this%leviCivi,coordPar,dNgp_b,boundNormalPar)
          call nvtxEndRange
       end if
    end subroutine CFDSolverBase_evalBoundaryNormals
@@ -819,7 +763,7 @@ contains
       !stablisation
       allocate(helem_l(numElemsRankPar,nnode))
       do iElem = 1,numElemsRankPar
-         call char_length_spectral(iElem,numElemsRankPar,numNodesRankPar,connecParWork,coordPar,Ml,helem_l)
+         call char_length_spectral(iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,Ml,helem_l)
       end do
    end subroutine CFDSolverBase_evalMass
 
@@ -840,12 +784,12 @@ contains
             call nvtxStartRange("Surface info")
             call surfInfo(0,0.0_rp,numElemsRankPar,numNodesRankPar,numBoundsRankPar,iCode,connecParWork,boundPar,point2elem,&
                bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(iCode,:),Ftau(iCode,:))
+               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode))
             call nvtxEndRange
          end do
       end if
 
-      call compute_fieldDerivs(numElemsRankPar,numNodesRankPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
+      call compute_fieldDerivs(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
 
       call volAvg_EK(numElemsRankPar,numNodesRankPar,connecParWork,gpvol,Ngp,nscbc_rho_inf,rho(:,2),u(:,:,2),this%EK)
       call visc_dissipationRate(numElemsRankPar,numNodesRankPar,connecParWork,this%leviCivi,nscbc_rho_inf,mu_fluid,mu_e,u(:,:,2),this%VolTot,gpvol,He,dNgp,this%eps_S,this%eps_D,this%eps_T)
@@ -972,7 +916,7 @@ contains
                   call nvtxStartRange("Surface info")
                   call surfInfo(istep,this%time,numElemsRankPar,numNodesRankPar,numBoundsRankPar,icode,connecParWork,boundPar,point2elem, &
                      bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(icode,:),Ftau(icode,:))
+                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode))
 
                   call nvtxEndRange
                   if(mpi_rank.eq.0) call flush(888+icode)
@@ -996,7 +940,7 @@ contains
          if (istep == this%nsave) then
             if (mpi_rank.eq.0) write(111,*) ' -Saving file step: ',istep
             call nvtxStartRange("Output "//timeStep,istep)
-            call compute_fieldDerivs(numElemsRankPar,numNodesRankPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
+            call compute_fieldDerivs(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
             call this%savePosprocessingFields(istep)
             this%nsave = this%nsave+this%nleap
             call nvtxEndRange
@@ -1224,8 +1168,6 @@ contains
 
       call this%evalShapeFunctions()
 
-      call this%interpolateOriginalCoordinates()
-
         ! Allocate variables
 
         call this%allocateVariables()
@@ -1297,9 +1239,7 @@ contains
 
       ! End comms
       call end_comms()
-      if(isMeshBoundaries) then
-         call end_comms_bnd()
-      end if
+      call end_comms_bnd()
       ! End MPI      
       call end_mpi()
 

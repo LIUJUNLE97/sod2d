@@ -121,27 +121,27 @@ module inicond_reader
 
               end subroutine read_temper_from_file_Srl
 
-   subroutine order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
+   subroutine order_matrix_globalIdSrl(numNodesInRank,globalIdsArray,matGidSrlOrdered)
       implicit none
-      integer, intent(in)  :: numNodesRankPar
-      integer, intent(in)  :: globalIdSrl(numNodesRankPar)
-      integer, intent(out) :: matGidSrlOrdered(numNodesRankPar,2)
+      integer, intent(in)  :: numNodesInRank
+      integer, intent(in)  :: globalIdsArray(numNodesInRank)
+      integer, intent(out) :: matGidSrlOrdered(numNodesInRank,2)
       integer :: iNodeL
 
-      do iNodeL=1,numNodesRankPar
+      do iNodeL=1,numNodesInRank
          matGidSrlOrdered(iNodeL,1) = iNodeL
-         matGidSrlOrdered(iNodeL,2) = globalIdSrl(iNodeL)
+         matGidSrlOrdered(iNodeL,2) = globalIdsArray(iNodeL)
       end do
 
       call quicksort_matrix_int(matGidSrlOrdered,2)
 
    end subroutine order_matrix_globalIdSrl
 
-   subroutine avg_randomField_in_sharedNodes_Par(numNodesRankPar,floatField)
+   subroutine avg_randomField_in_sharedNodes_Par(numNodesInRank,floatField)
       implicit none
-      integer, intent(in) :: numNodesRankPar
-      real(rp), intent(inout) :: floatField(numNodesRankPar)
-      integer :: numRanksNodeCnt(numNodesRankPar)
+      integer, intent(in) :: numNodesInRank
+      real(rp), intent(inout) :: floatField(numNodesInRank)
+      integer :: numRanksNodeCnt(numNodesInRank)
       integer :: i,iNodeL
 
       numRanksNodeCnt(:)=1
@@ -153,23 +153,23 @@ module inicond_reader
 
       call mpi_halo_atomic_update_float(floatField)
 
-      do iNodeL = 1,numNodesRankPar
+      do iNodeL = 1,numNodesInRank
          floatField(iNodeL) = floatField(iNodeL) / real(numRanksNodeCnt(iNodeL),rp)
       end do
    end subroutine avg_randomField_in_sharedNodes_Par
 
-   subroutine read_densi_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,file_path,rho,connecParOrig,Ngp_l,matGidSrlOrdered)
+   subroutine read_densi_from_file_Par(numElemsRank,numNodesRank,totalNumNodesInSerial,file_path,rho,connecPar,Ngp_l,matGidSrlOrdered)
       implicit none
       character(500), intent(in) :: file_path
-      integer(4), intent(in)     :: numElemsInRank,numNodesRankPar,totalNumNodesSrl
-      real(rp), intent(out)      :: rho(numNodesRankPar)
-      integer(4), intent(in)     :: connecParOrig(numElemsInRank,nnode)
+      integer(4), intent(in)     :: numElemsRank,numNodesRank,totalNumNodesInSerial
+      real(rp), intent(out)      :: rho(numNodesRank)
+      integer(4), intent(in)     :: connecPar(numElemsRank,nnode)
       real(rp), intent(in)       :: Ngp_l(ngaus,nnode)
-      integer, intent(in)        :: matGidSrlOrdered(numNodesRankPar,2)
+      integer, intent(in)        :: matGidSrlOrdered(numNodesRank,2)
       character(500)             :: file_type, file_name
       integer(4)                 :: iLine,iNodeL,iElem,iNodeGSrl,igp,idime,auxCnt,readInd
       real(8)                    :: readValue
-      real(rp)                   :: aux_2(numNodesRankPar)
+      real(rp)                   :: aux_2(numNodesRank)
 
       write(file_type,*) ".alya"
       write(file_name,*) "DENSI"
@@ -178,7 +178,7 @@ module inicond_reader
       open(99,file=trim(adjustl(file_path))//trim(adjustl(file_name))//trim(adjustl(file_type)),status="old")
       
       auxCnt = 1
-      do iLine = 1,totalNumNodesSrl
+      do iLine = 1,totalNumNodesInSerial
          read(99,*) readInd, readValue
          if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
             iNodeL = matGidSrlOrdered(auxCnt,1)
@@ -195,26 +195,26 @@ module inicond_reader
 
       if(mpi_rank.eq.0) write(*,*) "--| Interpolating density from file coords to new mesh coords..."
       aux_2(:) = rho(:)
-      do iElem = 1,numElemsInRank
+      do iElem = 1,numElemsRank
          do igp = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecParOrig(iElem,:)),Ngp_l(igp,:),rho(connecParOrig(iElem,igp)))
+            call var_interpolate(aux_2(connecPar(iElem,:)),Ngp_l(igp,:),rho(connecPar(iElem,igp)))
          end do
       end do
 
    end subroutine read_densi_from_file_Par
 
-   subroutine read_veloc_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,file_path,u,connecParOrig,Ngp_l,matGidSrlOrdered)
+   subroutine read_veloc_from_file_Par(numElemsRank,numNodesRank,totalNumNodesInSerial,file_path,u,connecPar,Ngp_l,matGidSrlOrdered)
       implicit none
       character(500), intent(in) :: file_path
-      integer(4), intent(in)     :: numElemsInRank,numNodesRankPar,totalNumNodesSrl
-      real(rp), intent(out)      :: u(numNodesRankPar,ndime)
-      integer(4), intent(in)     :: connecParOrig(numElemsInRank,nnode)
+      integer(4), intent(in)     :: numElemsRank,numNodesRank,totalNumNodesInSerial
+      real(rp), intent(out)      :: u(numNodesRank,ndime)
+      integer(4), intent(in)     :: connecPar(numElemsRank,nnode)
       real(rp), intent(in)       :: Ngp_l(ngaus,nnode)
-      integer, intent(in)        :: matGidSrlOrdered(numNodesRankPar,2)
+      integer, intent(in)        :: matGidSrlOrdered(numNodesRank,2)
       character(500)             :: file_type, file_name
       integer(4)                 :: iLine,iNodeL,iElem,iNodeGSrl,igp,idime,auxCnt,readInd
       real(8)                    :: readValue_ux,readValue_uy,readValue_uz
-      real(rp)                   :: aux_1(numNodesRankPar,ndime)
+      real(rp)                   :: aux_1(numNodesRank,ndime)
 
       write(file_type,*) ".alya"
       write(file_name,*) "VELOC"
@@ -223,7 +223,7 @@ module inicond_reader
       open(99,file=trim(adjustl(file_path))//trim(adjustl(file_name))//trim(adjustl(file_type)),status="old")
       
       auxCnt = 1
-      do iLine = 1,totalNumNodesSrl
+      serialLoop: do iLine = 1,totalNumNodesInSerial
          read(99,*) readInd, readValue_ux, readValue_uy, readValue_uz
          if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
             iNodeL = matGidSrlOrdered(auxCnt,1)
@@ -238,34 +238,37 @@ module inicond_reader
                u(iNodeL,3)=readValue_uz
             end if
          end if         
-      end do
+         if(auxCnt.gt.numNodesRank) then
+            exit serialLoop
+         end if
+      end do serialLoop
       
       close(99)
 
       if(mpi_rank.eq.0) write(*,*) "--| Interpolating velocity from file coords to new mesh coords..."
       aux_1(:,:) = u(:,:)
-      do iElem = 1,numElemsInRank
+      do iElem = 1,numElemsRank
          do igp = (2**ndime)+1,nnode
             do idime = 1,ndime
-               call var_interpolate(aux_1(connecParOrig(iElem,:),idime),Ngp_l(igp,:),u(connecParOrig(iElem,igp),idime))
+               call var_interpolate(aux_1(connecPar(iElem,:),idime),Ngp_l(igp,:),u(connecPar(iElem,igp),idime))
             end do
          end do
       end do
 
    end subroutine read_veloc_from_file_Par
 
-   subroutine read_press_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,file_path,pr,connecParOrig,Ngp_l,matGidSrlOrdered)
+   subroutine read_press_from_file_Par(numElemsRank,numNodesRank,totalNumNodesInSerial,file_path,pr,connecPar,Ngp_l,matGidSrlOrdered)
       implicit none
       character(500), intent(in) :: file_path
-      integer(4), intent(in)     :: numElemsInRank,numNodesRankPar,totalNumNodesSrl
-      real(rp), intent(out)      :: pr(numNodesRankPar)
-      integer(4), intent(in)     :: connecParOrig(numElemsInRank,nnode)
+      integer(4), intent(in)     :: numElemsRank,numNodesRank,totalNumNodesInSerial
+      real(rp), intent(out)      :: pr(numNodesRank)
+      integer(4), intent(in)     :: connecPar(numElemsRank,nnode)
       real(rp), intent(in)       :: Ngp_l(ngaus,nnode)
-      integer, intent(in)        :: matGidSrlOrdered(numNodesRankPar,2)
+      integer, intent(in)        :: matGidSrlOrdered(numNodesRank,2)
       character(500)             :: file_type, file_name
       integer(4)                 :: iLine,iNodeL,iElem,iNodeGSrl,igp,idime,auxCnt,readInd
       real(8)                    :: readValue
-      real(rp)                   :: aux_2(numNodesRankPar)
+      real(rp)                   :: aux_2(numNodesRank)
 
       write(file_type,*) ".alya"
       write(file_name,*) "PRESS"
@@ -274,7 +277,7 @@ module inicond_reader
       open(99,file=trim(adjustl(file_path))//trim(adjustl(file_name))//trim(adjustl(file_type)),status="old")
       
       auxCnt = 1
-      do iLine = 1,totalNumNodesSrl
+      do iLine = 1,totalNumNodesInSerial
          read(99,*) readInd, readValue
          if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
             iNodeL = matGidSrlOrdered(auxCnt,1)
@@ -291,26 +294,26 @@ module inicond_reader
 
       if(mpi_rank.eq.0) write(*,*) "--| Interpolating pressure from file coords to new mesh coords..."
       aux_2(:) = pr(:)
-      do iElem = 1,numElemsInRank
+      do iElem = 1,numElemsRank
          do igp = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecParOrig(iElem,:)),Ngp_l(igp,:),pr(connecParOrig(iElem,igp)))
+            call var_interpolate(aux_2(connecPar(iElem,:)),Ngp_l(igp,:),pr(connecPar(iElem,igp)))
          end do
       end do
 
    end subroutine read_press_from_file_Par
 
-   subroutine read_temper_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,file_path,temp,connecParOrig,Ngp_l,matGidSrlOrdered)
+   subroutine read_temper_from_file_Par(numElemsRank,numNodesRank,totalNumNodesInSerial,file_path,temp,connecPar,Ngp_l,matGidSrlOrdered)
       implicit none
       character(500), intent(in) :: file_path
-      integer(4), intent(in)     :: numElemsInRank,numNodesRankPar,totalNumNodesSrl
-      real(rp), intent(out)      :: temp(numNodesRankPar)
-      integer(4), intent(in)     :: connecParOrig(numElemsInRank,nnode)
+      integer(4), intent(in)     :: numElemsRank,numNodesRank,totalNumNodesInSerial
+      real(rp), intent(out)      :: temp(numNodesRank)
+      integer(4), intent(in)     :: connecPar(numElemsRank,nnode)
       real(rp), intent(in)       :: Ngp_l(ngaus,nnode)
-      integer, intent(in)        :: matGidSrlOrdered(numNodesRankPar,2)
+      integer, intent(in)        :: matGidSrlOrdered(numNodesRank,2)
       character(500)             :: file_type, file_name
       integer(4)                 :: iLine,iNodeL,iElem,iNodeGSrl,igp,idime,auxCnt,readInd
       real(8)                    :: readValue
-      real(rp)                   :: aux_2(numNodesRankPar)
+      real(rp)                   :: aux_2(numNodesRank)
 
       write(file_type,*) ".alya"
       write(file_name,*) "TEMPE"
@@ -319,7 +322,7 @@ module inicond_reader
       open(99,file=trim(adjustl(file_path))//trim(adjustl(file_name))//trim(adjustl(file_type)),status="old")
       
       auxCnt = 1
-      do iLine = 1,totalNumNodesSrl
+      do iLine = 1,totalNumNodesInSerial
          read(99,*) readInd, readValue
          if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
             iNodeL = matGidSrlOrdered(auxCnt,1)
@@ -336,9 +339,9 @@ module inicond_reader
 
       if(mpi_rank.eq.0) write(*,*) "--| Interpolating temperature from file coords to new mesh coords..."
       aux_2(:) = temp(:)
-      do iElem = 1,numElemsInRank
+      do iElem = 1,numElemsRank
          do igp = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecParOrig(iElem,:)),Ngp_l(igp,:),temp(connecParOrig(iElem,igp)))
+            call var_interpolate(aux_2(connecPar(iElem,:)),Ngp_l(igp,:),temp(connecPar(iElem,igp)))
          end do
       end do
 

@@ -54,6 +54,7 @@ contains
       end if
 
       allocate(boundPar(numBoundsRankPar,npbou))
+      allocate(boundParOrig(numBoundsRankPar,npbou))
       allocate(bouCodesPar(numBoundsRankPar))
       
       ii=0
@@ -65,12 +66,27 @@ contains
                iNodeGSrl_bound = boundGMSH(iBound,ipbou)
                iNodeL = gidSrl_to_lid(iNodeGSrl_bound)
                boundPar(ii,ipbou) = iNodeL
+               boundParOrig(ii,ipbou) = iNodeL
             end do
             bouCodesPar(ii) = bou_codesGMSH(iBound,2)
          !write(*,*) '[',mpi_rank,']boundPar(',ii,')',boundPar(ii,:)
          end if
       end do
       !-----------------------------------------------------------------
+
+      !$acc parallel loop gang vector_length(vecLength)
+      do iBound = 1,numBoundsRankPar
+         !$acc loop vector
+         do ipbou = 1,npbou
+            !$acc loop seq
+            do iper = 1,nPerRankPar
+               if (boundPar(iBound,ipbou) .eq. masSlaRankPar(iper,2)) then
+                  boundPar(iBound,ipbou) = masSlaRankPar(iper,1)
+               end if
+            end do
+         end do
+      end do
+      !$acc end parallel loop
 
       !------------------------------------------------------------------------
       allocate(aux1(numNodesRankPar))
@@ -159,7 +175,7 @@ contains
       integer :: i,j,k,iNodeL,bnd_iNodeL,iNodeGsrl,iRank,numRanksCnt
       integer :: window_id
       
-      integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size_bmcs
+      integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size_bnd
       integer(KIND=MPI_ADDRESS_KIND) :: target_displacement
 
       character(128) :: file_name, aux_string_rank
@@ -255,8 +271,8 @@ contains
 
       !--------------------------------------------------------------------------------------
 
-      window_buffer_size_bmcs = mpi_integer_size*(mpi_size*2)
-      call MPI_Win_create(bnd_commSchemeStartEndNodes,window_buffer_size,mpi_integer_size,&
+      window_buffer_size_bnd = mpi_integer_size*(mpi_size*2)
+      call MPI_Win_create(bnd_commSchemeStartEndNodes,window_buffer_size_bnd,mpi_integer_size,&
                          MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
    

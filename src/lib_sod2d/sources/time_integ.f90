@@ -15,11 +15,11 @@ module time_integ
 
       contains
 
-         subroutine rk_4_main(noBoundaries,isWallModelOn,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-                         ppow,connec,Ngp,dNgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+         subroutine rk_4_main(noBoundaries,isWallModelOn,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+                         ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
-                         numBoundsWM,listBoundsWM,wgp_b,bounorm,coord,normalsAtNodes,source_term)  ! Optional args
+                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,source_term)  ! Optional args
 
             implicit none
 
@@ -56,10 +56,13 @@ module time_integ
             real(rp),             intent(inout) :: ax1(npoin)
             real(rp),             intent(inout) :: ax2(npoin)
             real(rp),             intent(inout) :: ax3(npoin)
+            real(rp),             intent(in)    :: coord(npoin,ndime)
+            real(rp),             intent(in)  ::  wgp(ngaus)
+            integer(4),            intent(in)    :: numBoundsWM
             integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*)
             integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun), bou_codes_nodes(npoin)
-            integer(4), optional, intent(in)    :: numBoundsWM,listBoundsWM(*)
-            real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),coord(npoin,ndime),normalsAtNodes(npoin,ndime)
+            integer(4), optional, intent(in)    :: listBoundsWM(*)
+            real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional, intent(in)      :: source_term(ndime)
             integer(4)                          :: pos
             integer(4)                          :: istep, ipoin, idime,icode
@@ -345,7 +348,7 @@ module time_integ
             !
             ! Compute entropy viscosity
             !
-            call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp, &
+            call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
                gamma_gas,rho(:,pos),u(:,:,pos),Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e)
             call nvtxEndRange
             !

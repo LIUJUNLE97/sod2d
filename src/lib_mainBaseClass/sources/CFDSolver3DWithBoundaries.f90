@@ -49,11 +49,11 @@ contains
 
       this%noBoundaries = .false.
 
-      call rk_4_main(this%noBoundaries,this%isWallModelOn,0,0,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,point2elem,lnbn,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-         1,connecParWork,Ngp,dNgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
+      call rk_4_main(this%noBoundaries,this%isWallModelOn,0,0,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbn,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor, &
          ndofRankPar,numBoundaryNodesRankPar,ldofPar,lbnodesPar,boundPar,bouCodesPar,bouCodesNodesPar, & ! Optional args
-         numBoundsWMRankPar,listBoundsWM,wgp_b,boundNormalPar,coordPar,normalsAtNodes)                   ! Optional args
+         listBoundsWallModel,wgp_b,boundNormalPar,normalsAtNodes)                   ! Optional args
 
    end subroutine CFDSolver3DWithBoundaries_callTimeIntegration
 

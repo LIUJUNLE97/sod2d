@@ -52,7 +52,6 @@ contains
 
       this%isPeriodic = .true.
       this%doGlobalAnalysis = .true.
-      this%loadMesh = .false.
 
       this%nstep = 10000 
       this%cfl_conv = 0.95_rp

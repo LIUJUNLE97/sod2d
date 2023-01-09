@@ -6,7 +6,7 @@ module mod_mpi_mesh
    use iso_c_binding
    implicit none
 !-----------------------------------   
-#define _CHECK_ 1
+#define _CHECK_ 0
 #define int_size 4
 !-----------------------------------   
 
@@ -44,13 +44,13 @@ logical :: isMeshPeriodic
 
 integer(int_size) :: numBoundCodes, numBoundsRankPar, totalNumBoundsSrl
 integer(int_size) :: ndofRankPar, numBoundaryNodesRankPar
-integer(int_size), allocatable :: boundPar(:,:), bouCodesPar(:), ldofPar(:), lbnodesPar(:), bouCodesNodesPar(:)
+integer(int_size), allocatable :: boundPar(:,:), boundParOrig(:,:),bouCodesPar(:), ldofPar(:), lbnodesPar(:), bouCodesNodesPar(:)
 real(rp), allocatable :: boundNormalPar(:,:)
 logical :: isMeshBoundaries
 
 !For WallModels
 integer(int_size) :: numBoundsWMRankPar
-integer(int_size), allocatable :: listBoundsWM(:)
+integer(int_size), allocatable :: listBoundsWallModel(:)
 
 ! ################################################################################################
 ! ------------------------ VARS for MPI COMMS ----------------------------------------------------
@@ -906,7 +906,7 @@ contains
       end do
       !$acc end parallel loop
 
-      if(mpi_rank.eq.0) write(*,*) ' #  2. Generating masSlaRankParl...'
+      if(mpi_rank.eq.0) write(*,*) ' #  2. Generating masSlaRankPar...'
       !TRY TO ACC THIS PART OF THE CODE: MAIN ISSUE WITH gidSrl_to_lid func in device!!
       allocate(masSlaRankPar(nPerRankPar,2))
       iPerPar=0
@@ -964,7 +964,7 @@ contains
       !$acc end kernels
 #endif
 
-      write(*,*) '[',mpi_rank,']nPerSrl',nPerSrl,'nPerRankPar',nPerRankPar,'iPerPar',iPerPar
+      !write(*,*) '[',mpi_rank,']nPerSrl',nPerSrl,'nPerRankPar',nPerRankPar,'iPerPar',iPerPar
 
    end subroutine create_masSla_parallel
 
@@ -1560,7 +1560,7 @@ contains
       ! Create the window
       !--------------------------------------------------------------------------------------
       window_buffer_size = mpi_integer_size*totalNumNodesSrl
- 
+
       call MPI_Win_create(vectorBN, window_buffer_size, mpi_integer_size, MPI_INFO_NULL, MPI_COMM_WORLD, window_id, mpi_err)
       call MPI_Win_fence(0, window_id, mpi_err)
 
@@ -1612,6 +1612,7 @@ contains
       vecAuxCnt(mpi_rank) = auxCnt 
 
       window_buffer_size = mpi_integer_size*1
+
       call MPI_Win_create(vecAuxCnt(mpi_rank),window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
    
@@ -1666,29 +1667,31 @@ contains
          auxCnt=auxCnt+vecAuxCnt(iRank)
       end do
       
-      allocate(vecSharedBN_full(auxCnt)) !dummy allocation for the moment to avoid crash
+      allocate(vecSharedBN_full(auxCnt))
+      if(auxCnt.gt.0) then
+         !--------------------------------------------------------------------------------------
+         !lets share between all the ranks the shared nodes/vertex!
 
-      !--------------------------------------------------------------------------------------
-      !lets share between all the ranks the shared nodes/vertex!
+         window_buffer_size = mpi_integer_size*vecAuxCnt(mpi_rank)
 
-      window_buffer_size = mpi_integer_size*vecAuxCnt(mpi_rank)
-      call MPI_Win_create(vecSharedBN_part(1),window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
-      call MPI_Win_fence(0,window_id,mpi_err)
+         call MPI_Win_create(vecSharedBN_part,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+         !call MPI_Win_create(vecSharedBN_part(1),window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+         call MPI_Win_fence(0,window_id,mpi_err)
    
-      auxCnt=1
-      do iRank=0,mpi_size-1
-         target_displacement = 0
+         auxCnt=1
+         do iRank=0,mpi_size-1
+            target_displacement = 0
 
-         call MPI_Get(vecSharedBN_full(auxCnt),vecAuxCnt(iRank),MPI_INTEGER,iRank,target_displacement,&
-                     vecAuxCnt(iRank),MPI_INTEGER,window_id,mpi_err)
-         auxCnt=auxCnt+vecAuxCnt(iRank)
-      end do
+            call MPI_Get(vecSharedBN_full(auxCnt),vecAuxCnt(iRank),MPI_INTEGER,iRank,target_displacement,&
+                        vecAuxCnt(iRank),MPI_INTEGER,window_id,mpi_err)
+            auxCnt=auxCnt+vecAuxCnt(iRank)
+         end do
    
-      !! Wait for the MPI_Get issued to complete before going any further
-      call MPI_Win_fence(0,window_id,mpi_err)
-      call MPI_Win_free(window_id,mpi_err)
+         !! Wait for the MPI_Get issued to complete before going any further
+         call MPI_Win_fence(0,window_id,mpi_err)
+         call MPI_Win_free(window_id,mpi_err)
       !--------------------------------------------------------------------------------------
-
+      end if
       !if(mpi_rank.eq.0) write(*,*) vecSharedBN_full(:)
 
 #if _CHECK_
@@ -2083,6 +2086,7 @@ contains
       !--------------------------------------------------------------------------------------
 
       window_buffer_size = mpi_integer_size*(mpi_size*2)
+
       call MPI_Win_create(commSchemeStartEndNodes,window_buffer_size,mpi_integer_size,&
                          MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)

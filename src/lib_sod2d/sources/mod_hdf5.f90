@@ -1081,6 +1081,15 @@ contains
          rankNodeEnd = numNodesRankPar
          rankElemStart = 1
          rankElemEnd = numElemsRankPar
+
+         numNodesToComm=0
+         numRanksWithComms=0
+         allocate(matrixCommScheme(numNodesToComm,3))
+         allocate(ranksToComm(numRanksWithComms))
+         allocate(commsMemPosInLoc(numRanksWithComms))
+         allocate(commsMemPosInNgb(numRanksWithComms))
+         allocate(commsMemSize(numRanksWithComms))
+
       end if
       !-----------------------------------------------------------------------------------------------
       !load periodic data
@@ -1091,6 +1100,14 @@ contains
       call load_boundary_data_hdf5(file_id)
       if((isMeshBoundaries).and.(mpi_size.ge.2)) then
          call load_parallel_data_boundary_hdf5(file_id)
+      else
+         bnd_numNodesToComm=0
+         bnd_numRanksWithComms=0
+         allocate(bnd_matrixCommScheme(bnd_numNodesToComm,3))
+         allocate(bnd_ranksToComm(bnd_numRanksWithComms))
+         allocate(bnd_commsMemPosInLoc(bnd_numRanksWithComms))
+         allocate(bnd_commsMemPosInNgb(bnd_numRanksWithComms))
+         allocate(bnd_commsMemSize(bnd_numRanksWithComms))
       end if
 
       !-----------------------------------------------------------------------------------------------
@@ -2501,6 +2518,7 @@ contains
       deallocate(aux_array)
       allocate(aux_array(numBoundsRankPar*npbou))
 
+      !boundPar
       i=1
       do iBound=1,numBoundsRankPar
          do m=1,npbou
@@ -2510,6 +2528,19 @@ contains
       end do
 
       dsetname = '/Boundary_data/boundPar'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+      !boundParOrig
+      i=1
+      do iBound=1,numBoundsRankPar
+         do m=1,npbou
+            aux_array(i)=boundParOrig(iBound,m)
+            i=i+1
+         end do
+      end do
+
+      dsetname = '/Boundary_data/boundParOrig'
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
 
@@ -2576,7 +2607,7 @@ contains
       integer(hsize_t), dimension(1) :: ds_dims,ms_dims
       integer(hid_t) :: dtype
       integer :: ds_rank,ms_rank,h5err
-      integer :: i,accumVal,iBound,m
+      integer :: i,accumVal,iBound,m,iNodeL
       integer(HSSIZE_T), dimension(1) :: ms_offset 
       integer(4),allocatable :: aux_array(:)
       logical :: isBoundaryFolder
@@ -2619,6 +2650,7 @@ contains
 
          !--------------------------------------------------------------------------------------------------------
          allocate(boundPar(numBoundsRankPar,npbou))
+         allocate(boundParOrig(numBoundsRankPar,npbou))
          allocate(bouCodesPar(numBoundsRankPar))
          allocate(ldofPar(ndofRankPar))
          allocate(lbnodesPar(numBoundaryNodesRankPar))
@@ -2656,6 +2688,7 @@ contains
 
          allocate(aux_array(numBoundsRankPar*nnode))
 
+         !boundPar
          dsetname = '/Boundary_data/boundPar'
          call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
 
@@ -2663,6 +2696,18 @@ contains
          do iBound=1,numBoundsRankPar
             do m=1,npbou
                boundPar(iBound,m)=aux_array(i)
+               i=i+1
+            end do
+         end do
+
+         !boundParOrig
+         dsetname = '/Boundary_data/boundParOrig'
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
+
+         i=1
+         do iBound=1,numBoundsRankPar
+            do m=1,npbou
+               boundParOrig(iBound,m)=aux_array(i)
                i=i+1
             end do
          end do
@@ -2708,10 +2753,22 @@ contains
          ms_dims(1)=numBoundaryNodesRankPar
 
          dsetname = '/Boundary_data/lbnodesPar'
-         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,ldofPar)
+         call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,lbnodesPar)
          !--------------------------------------------------------------------------------------------------------
-
          deallocate(aux_array)
+      else 
+         numBoundsRankPar=0
+         allocate(boundPar(numBoundsRankPar,npbou))
+         allocate(boundParOrig(numBoundsRankPar,npbou))
+         allocate(bouCodesPar(numBoundsRankPar))
+
+         numBoundaryNodesRankPar=0
+         ndofRankPar = numNodesRankPar
+         allocate(ldofPar(ndofRankPar))
+         allocate(lbnodesPar(numBoundaryNodesRankPar))
+         do iNodeL = 1,ndofRankPar
+            ldofPar(iNodeL) = iNodeL
+         end do
       end if
    end subroutine load_boundary_data_hdf5
 

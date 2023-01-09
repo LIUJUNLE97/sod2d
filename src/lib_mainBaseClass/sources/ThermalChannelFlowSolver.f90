@@ -74,14 +74,12 @@ contains
       this%isPeriodic = .true.
 
 #if AR2
-      this%loadMesh = .true.
       this%loadResults = .true.
 
       this%continue_oldLogs = .false.
       this%load_step = 8100001
       this%do_control = 0
 #else
-      this%loadMesh = .true.
       this%loadResults = .true.
 
       this%continue_oldLogs = .false.
@@ -149,7 +147,7 @@ contains
       integer(rp) :: matGidSrlOrdered(numNodesRankPar,2)
       integer :: iNodeL
       logical :: readFiles
-      real(rp) :: velo, ti(3), yp
+      real(rp) :: velo, rti(3), yp
       integer(4)  :: iLine,iNodeGSrl,auxCnt,idime
 
       readFiles = .true.
@@ -175,7 +173,7 @@ contains
         auxCnt = 1
         !!$acc parallel loop
         do iLine = 1,totalNumNodesSrl
-          call random_number(ti)
+          call random_number(rti)
           if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
              iNodeL = matGidSrlOrdered(auxCnt,1)
              auxCnt=auxCnt+1
@@ -187,9 +185,9 @@ contains
 
              velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
 
-             u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(ti(1) -0.5_rp))
-             u(iNodeL,2,2) = velo*(0.1_rp*(ti(2) -0.5_rp))
-             u(iNodeL,3,2) = velo*(0.1_rp*(ti(3) -0.5_rp))
+             u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(rti(1) -0.5_rp))
+             u(iNodeL,2,2) = velo*(0.1_rp*(rti(2) -0.5_rp))
+             u(iNodeL,3,2) = velo*(0.1_rp*(rti(3) -0.5_rp))
           end if
         end do
         !!$acc end parallel loop
@@ -202,11 +200,11 @@ contains
             end if
 
             velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
-            call random_number(ti)
+            call random_number(rti)
 
-            u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(ti(1) -0.5_rp))
-            u(iNodeL,2,2) = velo*(0.1_rp*(ti(2) -0.5_rp))
-            u(iNodeL,3,2) = velo*(0.1_rp*(ti(3) -0.5_rp))
+            u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(rti(1) -0.5_rp))
+            u(iNodeL,2,2) = velo*(0.1_rp*(rti(2) -0.5_rp))
+            u(iNodeL,3,2) = velo*(0.1_rp*(rti(3) -0.5_rp))
          end do
 
          do idime = 1,ndime

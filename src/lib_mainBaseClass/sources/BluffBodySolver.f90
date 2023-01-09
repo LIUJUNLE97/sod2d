@@ -46,39 +46,42 @@ contains
       class(BluffBodySolver), intent(inout) :: this
 
       bouCodes2BCType(1) = bc_type_inlet
-      bouCodes2BCType(2) = bc_type_outlet
-      bouCodes2BCType(3) = bc_type_slip_adiabatic
-      bouCodes2BCType(4) = bc_type_slip_adiabatic
+      bouCodes2BCType(2) = bc_type_inlet
+      bouCodes2BCType(3) = bc_type_inlet
+      bouCodes2BCType(4) = bc_type_inlet
       bouCodes2BCType(5) = bc_type_non_slip_adiabatic
-
    end subroutine BluffBodySolver_fill_BC_Types
 
    subroutine BluffBodySolver_initializeParameters(this)
       class(BluffBodySolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%gmsh_file_path,*) "./mesh_nacaCoarseNew/"
+      write(this%gmsh_file_path,*) "./mesh/"
       write(this%gmsh_file_name,*) "naca" 
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "nacaCoarse"
+      write(this%mesh_h5_file_name,*) "naca"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
       this%isPeriodic = .true.
-      this%loadMesh = .false.
+      this%loadResults = .false.
 
-      this%nstep = 250001
-      this%cfl_conv = 0.25_rp !0.1_rp
-      this%cfl_diff = 0.25_rp !0.1_rp
+      this%continue_oldLogs = .false.
+      this%load_step = 900001
+
+      this%nstep = 9000001 !250001
+      this%cfl_conv = 2.2_rp !0.1_rp
+      this%cfl_diff = 2.2_rp !0.1_rp
 
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 1000 ! Saving interval, TODO: input
+
+      this%nleap = 20000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 1  ! Saving interval, TODO: input
+      this%nleap2 = 5  ! Saving interval, TODO: input
       this%nleapAVG = 20000
 
       this%Cp = 1004.0_rp
@@ -158,17 +161,17 @@ contains
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          mu_factor(iNodeL) = flag_mu_factor
-        if(coordPar(iNodeL,1)<-5.0_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*10.0_rp
+        if(coordPar(iNodeL,1)<-8.0_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
         end if
-        if(coordPar(iNodeL,1)>7.0_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*10.0_rp
+        if(coordPar(iNodeL,1)>10_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
         end if
-        if(coordPar(iNodeL,2)<-6.0_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*10.0_rp
+        if(coordPar(iNodeL,2)<-10.0_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
         end if
-        if(coordPar(iNodeL,2)>6.0_rp) then
-           mu_factor(iNodeL) = flag_mu_factor*10.0_rp
+        if(coordPar(iNodeL,2)>10.0_rp) then
+           mu_factor(iNodeL) = flag_mu_factor*1000.0_rp
         end if
       end do
       !$acc end parallel loop
