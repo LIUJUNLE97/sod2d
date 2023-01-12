@@ -24,7 +24,7 @@ module mod_arrays
       real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
-      real(rp), allocatable :: q_buffer(:,:), rho_buffer(:), E_buffer(:)
+      real(rp), allocatable :: u_buffer(:,:)
 
 end module mod_arrays
 
@@ -419,9 +419,7 @@ contains
       allocate(mu_e(numElemsInRank,ngaus))  ! Elemental viscosity
       allocate(mu_sgs(numElemsInRank,ngaus))! SGS viscosity
 
-      allocate(q_buffer(numNodesRankPar,ndime))  ! momentum at the buffer
-      allocate(rho_buffer(numNodesRankPar))      ! Density at the buffer
-      allocate(E_buffer(numNodesRankPar))        ! Total Energy at the buffer
+      allocate(u_buffer(numNodesRankPar,ndime))  ! momentum at the buffer
 
 
       !$acc kernels
@@ -440,9 +438,7 @@ contains
       mu_e(:,:) = 0.0_rp
       mu_sgs(:,:) = 0.0_rp
 
-      q_buffer(:,:) = 0.0_rp
-      rho_buffer(:) = 0.0_rp
-      E_buffer(:) = 0.0_rp  
+      u_buffer(:,:) = 0.0_rp
       !$acc end kernels
 
       !ilsa
@@ -892,10 +888,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
 
       !$acc kernels
-      rho_buffer(:) = nscbc_rho_inf
-      q_buffer(:,1) = nscbc_u_inf
-      !q_buffer(:,1) = nscbc_rho_inf*nscbc_u_inf
-      E_buffer(:) = nscbc_rho_inf*(0.5_rp*nscbc_u_inf*nscbc_u_inf+nscbc_p_inf/(nscbc_rho_inf*(nscbc_gamma_inf-1.0_rp)))
+      u_buffer(:,1) = nscbc_u_inf
       !$acc end kernels
 
    end subroutine CFDSolverBase_initialBuffer

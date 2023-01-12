@@ -51,8 +51,6 @@ contains
       bouCodes2BCType(4) = bc_type_inlet
       bouCodes2BCType(5) = bc_type_non_slip_adiabatic
 
-     ! bouCodes2BCType(1) = bc_type_non_slip_adiabatic
-     ! bouCodes2BCType(2) = bc_type_inlet
    end subroutine BluffBodySolver_fill_BC_Types
 
    subroutine BluffBodySolver_initializeParameters(this)
@@ -80,6 +78,8 @@ contains
       this%nstep = 90000001 !250001
       this%cfl_conv = 1.95_rp !0.1_rp
       this%cfl_diff = 1.95_rp !0.1_rp
+      !this%cfl_conv = 0.5_rp !0.1_rp
+      !this%cfl_diff = 0.5_rp !0.1_rp
 
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input

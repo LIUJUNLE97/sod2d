@@ -95,6 +95,8 @@ module mod_constants
       logical :: flag_buffer_on_west = .false.
       logical :: flag_buffer_on_north = .false.
       logical :: flag_buffer_on_south = .false.
+      logical :: flag_buffer_on_top = .false.
+      logical :: flag_buffer_on_bottom = .false.
 
       real(4) :: flag_buffer_e_min = 0.0_rp
       real(4) :: flag_buffer_e_size= 0.0_rp
@@ -105,5 +107,10 @@ module mod_constants
       real(4) :: flag_buffer_n_size = 0.0_rp
       real(4) :: flag_buffer_s_min = 0.0_rp
       real(4) :: flag_buffer_s_size = 0.0_rp
+
+      real(4) :: flag_buffer_t_min = 0.0_rp
+      real(4) :: flag_buffer_t_size = 0.0_rp
+      real(4) :: flag_buffer_b_min = 0.0_rp
+      real(4) :: flag_buffer_b_size = 0.0_rp
 
 end module mod_constants
