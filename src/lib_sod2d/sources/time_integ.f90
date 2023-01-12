@@ -159,7 +159,7 @@ module time_integ
                !$acc end parallel loop
                call nvtxEndRange
 
-               call updateBuffer(npoin,coord,aux_rho,aux_q,aux_E,rho_buffer,q_buffer,E_buffer)
+               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,coord,aux_rho,aux_q,aux_E,rho_buffer,q_buffer,E_buffer)
 
                !
                ! Update velocity and equations of state
@@ -282,7 +282,7 @@ module time_integ
             !$acc end parallel loop
             call nvtxEndRange
 
-            call updateBuffer(npoin,coord,rho(:,pos),q(:,:,pos),E(:,pos),rho_buffer,q_buffer,E_buffer)
+            if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,coord,rho(:,pos),q(:,:,pos),E(:,pos),rho_buffer,q_buffer,E_buffer)
 
             !
             ! Apply bcs after update
@@ -384,25 +384,57 @@ module time_integ
             integer(4) :: inode
             real(rp)   :: xs,xb,xi,c1,c2
 
-            c1 = 0.05_rp
-            c2 = 20.0_rp
+            c1 = 0.01_rp
+            c2 = 10.0_rp
 
             !$acc parallel loop
             do inode = 1,npoin
-               xs = coord(inode,1)
-               xb = (xs-flag_buffer_x_min)/(flag_buffer_x_max-flag_buffer_x_min)
-
-               if(xb>0.0_rp) then
-
-                  xi = (1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))) 
-
-                  q(inode,1) = q_buffer(inode,1) + xi*(q(inode,1)-q_buffer(inode,1))
-                  q(inode,2) = q_buffer(inode,2) + xi*(q(inode,2)-q_buffer(inode,2))
-                  q(inode,3) = q_buffer(inode,3) + xi*(q(inode,3)-q_buffer(inode,3))
-
-                  rho(inode) = rho_buffer(inode) + xi*(rho(inode)-rho_buffer(inode))
-                  E(inode)   = E_buffer(inode)   + xi*(E(inode)-E_buffer(inode))
+               xi = 1.0_rp
+               !east 
+               if(flag_buffer_on_east .eqv. .true.) then
+                  xs = coord(inode,1)
+                  if(xs>flag_buffer_e_min) then
+                     xb = (xs-flag_buffer_e_min)/flag_buffer_e_size
+                     xi = (1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))) 
+                  end if
                end if
+               !west 
+               if(flag_buffer_on_west .eqv. .true.) then
+                  xs = coord(inode,1)
+                  if(xs<flag_buffer_w_min) then
+                     xb = (flag_buffer_w_min-xs)/flag_buffer_w_size
+                     xi = (1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))) 
+                  end if
+               end if
+               !north 
+               if(flag_buffer_on_north .eqv. .true.) then
+                  xs = coord(inode,2)
+                  if(xs>flag_buffer_n_min) then
+                     xb = (xs-flag_buffer_n_min)/flag_buffer_n_size
+                     xi = (1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))) 
+                  end if
+               end if
+               !south
+               if(flag_buffer_on_south .eqv. .true.) then
+                  xs = coord(inode,2)
+                  if(xs<flag_buffer_s_min) then
+                     xb = (flag_buffer_s_min-xs)/flag_buffer_s_size
+                     xi = (1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))) 
+                  end if
+
+               end if
+
+               q(inode,1) = q_buffer(inode,1)*rho(inode) + xi*(q(inode,1)-q_buffer(inode,1)*rho(inode))
+               q(inode,2) = q_buffer(inode,2)*rho(inode) + xi*(q(inode,2)-q_buffer(inode,2)*rho(inode))
+               q(inode,3) = q_buffer(inode,3)*rho(inode) + xi*(q(inode,3)-q_buffer(inode,3)*rho(inode))
+
+               !q(inode,1) = q_buffer(inode,1) + xi*(q(inode,1)-q_buffer(inode,1))
+               !q(inode,2) = q_buffer(inode,2) + xi*(q(inode,2)-q_buffer(inode,2))
+               !q(inode,3) = q_buffer(inode,3) + xi*(q(inode,3)-q_buffer(inode,3))
+
+               !rho(inode) = rho_buffer(inode) + xi*(rho(inode)-rho_buffer(inode))
+               !E(inode)   = E_buffer(inode)   + xi*(E(inode)-E_buffer(inode))
+
             end do
             !$acc end parallel loop
          end subroutine updateBuffer

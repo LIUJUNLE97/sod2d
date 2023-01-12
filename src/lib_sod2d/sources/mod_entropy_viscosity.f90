@@ -265,6 +265,7 @@ module mod_entropy_viscosity
                             maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
                          end do
                          ced = max(1.0_rp-(minJe/maxJe)**2,ce)
+                         !ced = 1.0_rp
 
                          mu = 0.0_rp
                          betae = 0.0_rp

@@ -893,7 +893,8 @@ contains
 
       !$acc kernels
       rho_buffer(:) = nscbc_rho_inf
-      q_buffer(:,1) = nscbc_rho_inf*nscbc_u_inf
+      q_buffer(:,1) = nscbc_u_inf
+      !q_buffer(:,1) = nscbc_rho_inf*nscbc_u_inf
       E_buffer(:) = nscbc_rho_inf*(0.5_rp*nscbc_u_inf*nscbc_u_inf+nscbc_p_inf/(nscbc_rho_inf*(nscbc_gamma_inf-1.0_rp)))
       !$acc end kernels
 
@@ -1289,7 +1290,7 @@ contains
 
         call this%evalInitialDt()
 
-        if(flag_buffer_on .eq. .true.) call this%initialBuffer()
+        if(flag_buffer_on .eqv. .true.) call this%initialBuffer()
 
         call this%flush_log_file()
 

@@ -636,7 +636,7 @@ module elem_diffu
                             nu_e = c_rho*mu_e(ielem,igaus)/rhol(igaus)
                             mu_fgp = mufluidl(igaus)+rhol(igaus)*mu_sgs(ielem,igaus)
                             mu_egp = mu_e(ielem,igaus)
-                            kappa_e =mufluidl(igaus)*Cp/Pr+c_ener*mu_e(ielem,igaus)/0.4_rp + rhol(igaus)*mu_sgs(ielem,igaus)/0.9_rp
+                            kappa_e =mufluidl(igaus)*Cp/Pr+c_ener*mu_e(ielem,igaus)*Cp/Pr + Cp*rhol(igaus)*mu_sgs(ielem,igaus)/0.9_rp
 
                             isoI = gmshAtoI(igaus) 
                             isoJ = gmshAtoJ(igaus) 

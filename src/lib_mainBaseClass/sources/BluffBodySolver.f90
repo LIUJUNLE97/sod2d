@@ -45,14 +45,14 @@ contains
    subroutine BluffBodySolver_fill_BC_Types(this)
       class(BluffBodySolver), intent(inout) :: this
 
-      !bouCodes2BCType(1) = bc_type_inlet
-      !bouCodes2BCType(2) = bc_type_inlet
-      !bouCodes2BCType(3) = bc_type_inlet
-      !bouCodes2BCType(4) = bc_type_inlet
-      !bouCodes2BCType(5) = bc_type_non_slip_adiabatic
-
-      bouCodes2BCType(1) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(1) = bc_type_inlet
       bouCodes2BCType(2) = bc_type_inlet
+      bouCodes2BCType(3) = bc_type_inlet
+      bouCodes2BCType(4) = bc_type_inlet
+      bouCodes2BCType(5) = bc_type_non_slip_adiabatic
+
+     ! bouCodes2BCType(1) = bc_type_non_slip_adiabatic
+     ! bouCodes2BCType(2) = bc_type_inlet
    end subroutine BluffBodySolver_fill_BC_Types
 
    subroutine BluffBodySolver_initializeParameters(this)
@@ -60,11 +60,11 @@ contains
       real(rp) :: mul, mur
 
       write(this%gmsh_file_path,*) "./mesh/"
-      write(this%gmsh_file_name,*) "cylin" 
+      write(this%gmsh_file_name,*) "cyl" 
       !write(this%gmsh_file_name,*) "naca" 
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cylin"
+      write(this%mesh_h5_file_name,*) "cyl"
       !write(this%mesh_h5_file_name,*) "naca"
 
       write(this%results_h5_file_path,*) ""
@@ -75,11 +75,11 @@ contains
       this%loadResults = .true.
 
       this%continue_oldLogs = .false.
-      this%load_step = 50001
+      this%load_step = 20001
 
-      this%nstep = 9000001 !250001
-      this%cfl_conv = 2.0_rp !0.1_rp
-      this%cfl_diff = 2.0_rp !0.1_rp
+      this%nstep = 90000001 !250001
+      this%cfl_conv = 1.95_rp !0.1_rp
+      this%cfl_diff = 1.95_rp !0.1_rp
 
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
@@ -98,6 +98,7 @@ contains
       this%rho0   = 1.0_rp
       this%gamma_gas = 1.40_rp
       this%Re     =  10000.0_rp
+      !this%Re     =  100000.0_rp
 
       mul    = (this%rho0*this%delta*this%vo)/this%Re
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
@@ -114,8 +115,39 @@ contains
       nscbc_Rgas_inf = this%Rgas
 
       flag_buffer_on = .true.
-      flag_buffer_x_min = 12.0_rp
-      flag_buffer_x_max = 16.0_rp 
+      !cylinder
+     flag_buffer_on_east = .true.
+     flag_buffer_e_min = 70.0_rp
+     flag_buffer_e_size = 10.0_rp 
+
+     flag_buffer_on_west = .true.
+     flag_buffer_w_min = -15.0_rp
+     flag_buffer_w_size = 5.0_rp 
+     
+     flag_buffer_on_north = .true.
+     flag_buffer_n_min = 10.0_rp
+     flag_buffer_n_size = 5.0_rp 
+     
+     flag_buffer_on_south = .true.
+     flag_buffer_s_min = -10.0_rp
+     flag_buffer_s_size = 5.0_rp 
+
+      !naca
+     !flag_buffer_on_east = .true.
+     !flag_buffer_e_min = 10.0_rp
+     !flag_buffer_e_size = 5.0_rp 
+
+     !flag_buffer_on_west = .true.
+     !flag_buffer_w_min = -10.0_rp
+     !flag_buffer_w_size = 2.5_rp 
+     
+     !flag_buffer_on_north = .true.
+     !flag_buffer_n_min = 10.0_rp
+     !flag_buffer_n_size = 2.5_rp 
+     
+     !flag_buffer_on_south = .true.
+     !flag_buffer_s_min = -10.0_rp
+     !flag_buffer_s_size = 2.5_rp 
 
    end subroutine BluffBodySolver_initializeParameters
 
@@ -172,22 +204,7 @@ contains
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          mu_factor(iNodeL) = flag_mu_factor
-   !     if(coordPar(iNodeL,1)<-12.0_rp) then
-        !if(coordPar(iNodeL,1)<-8.0_rp) then
-   !        mu_factor(iNodeL) = flag_mu_factor*100.0_rp
-   !     end if
-   !     if(coordPar(iNodeL,1)>12_rp) then
-        !if(coordPar(iNodeL,1)>10_rp) then
-   !        mu_factor(iNodeL) = flag_mu_factor*100.0_rp
-   !     end if
-   !     if(coordPar(iNodeL,2)<-12.0_rp) then
-        !if(coordPar(iNodeL,2)<-10.0_rp) then
-   !        mu_factor(iNodeL) = flag_mu_factor*100.0_rp
-   !     end if
-   !     if(coordPar(iNodeL,2)>12.0_rp) then
-        !if(coordPar(iNodeL,2)>10.0_rp) then
-   !        mu_factor(iNodeL) = flag_mu_factor*100.0_rp
-   !     end if
+
       end do
       !$acc end parallel loop
 
