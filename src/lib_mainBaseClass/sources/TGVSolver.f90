@@ -101,6 +101,7 @@ contains
       this%wit_save_u_i          = .true.
       this%wit_save_pr           = .false.
       this%wit_save_rho          = .false.
+      this%continue_witness      = .true.
 
    end subroutine TGVSolver_initializeParameters
 

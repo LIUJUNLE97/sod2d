@@ -83,7 +83,7 @@ module CFDSolverBase_mod
       logical, public    :: isPeriodic=.false.,loadMesh=.false.,doGlobalAnalysis=.false.,isFreshStart=.true.
       logical, public    :: loadResults=.false.,continue_oldLogs=.false.,saveInitialField=.true.,isWallModelOn=.false.
       logical, public    :: useIntInComms=.false.,useFloatInComms=.false.,useDoubleInComms=.false. 
-      logical, public    :: have_witness=.false.,wit_save_u_i=.false.,wit_save_pr=.false.,wit_save_rho=.false.
+      logical, public    :: have_witness=.false.,wit_save_u_i=.false.,wit_save_pr=.false.,wit_save_rho=.false., continue_witness=.false.
 
       ! main char variables
       character(512) :: log_file_name
@@ -1340,7 +1340,13 @@ contains
             call this%evalFirstOutput()
             if (this%have_witness) call this%preprocWitnessPoints() ! Read witness points and preprocess them
         else
-            if (this%have_witness) call this%loadWitnessPoints() ! Load witness points and continue them
+            if (this%have_witness) then
+               if (this%continue_witness) then 
+                  call this%loadWitnessPoints() ! Load witness points and continue them
+               else
+                  call this%preprocWitnessPoints()
+               end if
+            end if
         end if 
 
         call this%flush_log_file()
