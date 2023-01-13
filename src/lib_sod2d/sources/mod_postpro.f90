@@ -22,7 +22,7 @@ contains
       real(rp),   intent(out) :: gradRho(npoin,ndime), curlU(npoin,ndime), divU(npoin), Qcrit(npoin)
       integer(4)              :: iNodeL, ielem, idime, inode, igaus, ipoin, jdime,kdime,isoI, isoJ, isoK , ii
       real(rp)                :: gpcar(ndime,nnode), rho_e(nnode), u_e(nnode,ndime), ru_e(nnode,ndime), aux1, aux2
-      real(rp)                :: gradu_e(ndime,ndime), gradru_e(ndime,ndime)
+      real(rp)                :: gradu_e(ndime,ndime),gradru_e(ndime,ndime),divul,divql
       real(rp)                :: gradIsoRho(ndime),gradIsoU(ndime,ndime),gradIsoRU(ndime,ndime)
 
       !$acc kernels
@@ -31,7 +31,7 @@ contains
       curlU(:,:) = 0.0_rp
       Qcrit(:) = 0.0_rp
       !$acc end kernels
-      !$acc parallel loop gang private(rho_e,u_e)
+      !$acc parallel loop gang private(rho_e,u_e,ru_e)
       do ielem = 1,nelem
          !$acc loop vector
          do inode = 1,nnode
@@ -43,7 +43,7 @@ contains
             ru_e(inode,2) = rho(connec(ielem,inode))*u(connec(ielem,inode),2)
             ru_e(inode,3) = rho(connec(ielem,inode))*u(connec(ielem,inode),3)
          end do
-         !$acc loop vector private(gpcar,gradu_e,gradIsoRho,gradIsoU,gradIsoRU)
+         !$acc loop vector private(gpcar,gradu_e,gradIsoRho,gradIsoU,gradIsoRU,gradru_e)
          do igaus = 1,ngaus
             isoI = gmshAtoI(igaus) 
             isoJ = gmshAtoJ(igaus) 
@@ -72,7 +72,7 @@ contains
 
             !gradRho(connec(ielem,igaus),:) = 0.0_rp
             gradu_e(:,:) = 0.0_rp
-            gradru_e(:,:) = 0.0_rp
+            divql = 0.0_rp
             !$acc loop seq
             do idime=1, ndime
                !$acc loop seq
@@ -80,19 +80,21 @@ contains
                   !$acc atomic update
                   gradRho(connec(ielem,igaus),idime) = gradRho(connec(ielem,igaus),idime) + He(idime,jdime,igaus,ielem) * gradIsoRho(jdime)
                   !$acc end atomic
+                  divql = divql + He(idime,jdime,igaus,ielem) * gradIsoRU(idime,jdime)
                   !$acc loop seq
                   do kdime=1,ndime
                      gradu_e(idime,jdime) = gradu_e(idime,jdime) + He(jdime,kdime,igaus,ielem) * gradIsoU(idime,kdime)
-                     gradru_e(idime,jdime) = gradru_e(idime,jdime) + He(jdime,kdime,igaus,ielem) * gradIsoRU(idime,kdime)
                   end do
                end do
             end do
+            divul  = gradu_e(1,1)  + gradu_e(2,2)  + gradu_e(3,3) 
+
+            !$acc atomic update
+            divU(connec(ielem,igaus)) = divU(connec(ielem,igaus))+0.5_rp*(divql+rho(connec(ielem,igaus))*divul)
+            !$acc end atomic
 
             !$acc loop seq
             do idime = 1,ndime
-               !$acc atomic update
-               divU(connec(ielem,igaus)) = divU(connec(ielem,igaus))+gradru_e(idime,idime)
-               !$acc end atomic
                !$acc loop seq
                do jdime = 1,ndime
                   !$acc loop seq

@@ -28,7 +28,7 @@ module mod_constants
       integer(4), parameter :: flag_real_diff=1
       integer(4), parameter :: flag_diff_suth=1
       integer(4), parameter :: flag_rk_order=4
-      integer(4), parameter :: flag_les=0
+      integer(4), parameter :: flag_les=1
       integer(4), parameter :: flag_les_ilsa=0
       integer(4), parameter :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
       integer(4), parameter :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
@@ -85,5 +85,32 @@ module mod_constants
       integer(4), parameter :: bc_type_slip_adiabatic       = 5
       integer(4), parameter :: bc_type_slip_wall_model      = 6
       integer(4), parameter :: bc_type_outlet               = 7
+
+      !
+      ! Penalisation buffer zone
+      !
+
+      logical :: flag_buffer_on = .false.
+      logical :: flag_buffer_on_east = .false.
+      logical :: flag_buffer_on_west = .false.
+      logical :: flag_buffer_on_north = .false.
+      logical :: flag_buffer_on_south = .false.
+      logical :: flag_buffer_on_top = .false.
+      logical :: flag_buffer_on_bottom = .false.
+
+      real(4) :: flag_buffer_e_min = 0.0_rp
+      real(4) :: flag_buffer_e_size= 0.0_rp
+      real(4) :: flag_buffer_w_min = 0.0_rp
+      real(4) :: flag_buffer_w_size = 0.0_rp
+
+      real(4) :: flag_buffer_n_min = 0.0_rp
+      real(4) :: flag_buffer_n_size = 0.0_rp
+      real(4) :: flag_buffer_s_min = 0.0_rp
+      real(4) :: flag_buffer_s_size = 0.0_rp
+
+      real(4) :: flag_buffer_t_min = 0.0_rp
+      real(4) :: flag_buffer_t_size = 0.0_rp
+      real(4) :: flag_buffer_b_min = 0.0_rp
+      real(4) :: flag_buffer_b_size = 0.0_rp
 
 end module mod_constants

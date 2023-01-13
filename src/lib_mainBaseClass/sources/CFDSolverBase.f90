@@ -27,6 +27,8 @@ module mod_arrays
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
       real(rp), allocatable :: witxi(:,:) 
       
+      real(rp), allocatable :: u_buffer(:,:)
+
 end module mod_arrays
 
 module CFDSolverBase_mod
@@ -134,6 +136,8 @@ module CFDSolverBase_mod
       procedure, public :: update_witness =>CFDSolverBase_update_witness
       procedure, public :: preprocWitnessPoints =>CFDSolverBase_preprocWitnessPoints
       procedure, public :: loadWitnessPoints =>CFDSolverBase_loadWitnessPoints
+
+      procedure, public :: initialBuffer =>CFDSolverBase_initialBuffer
 
       procedure :: open_log_file
       procedure :: close_log_file
@@ -427,6 +431,10 @@ contains
       allocate(mu_factor(numNodesRankPar))  ! Fluid viscosity
       allocate(mu_e(numElemsInRank,ngaus))  ! Elemental viscosity
       allocate(mu_sgs(numElemsInRank,ngaus))! SGS viscosity
+
+      allocate(u_buffer(numNodesRankPar,ndime))  ! momentum at the buffer
+
+
       !$acc kernels
       u(:,:,:) = 0.0_rp
       q(:,:,:) = 0.0_rp
@@ -442,6 +450,8 @@ contains
       mu_factor(:) = 1.0_rp
       mu_e(:,:) = 0.0_rp
       mu_sgs(:,:) = 0.0_rp
+
+      u_buffer(:,:) = 0.0_rp
       !$acc end kernels
 
       !ilsa
@@ -888,6 +898,15 @@ contains
       stop 1
 
    end subroutine CFDSolverBase_savePosprocessingFields
+
+   subroutine CFDSolverBase_initialBuffer(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      !$acc kernels
+      u_buffer(:,1) = nscbc_u_inf
+      !$acc end kernels
+
+   end subroutine CFDSolverBase_initialBuffer
 
    subroutine CFDSolverBase_evalTimeIteration(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -1358,6 +1377,8 @@ contains
         ! Eval initial time step
 
         call this%evalInitialDt()
+
+        if(flag_buffer_on .eqv. .true.) call this%initialBuffer()
 
         call this%flush_log_file()
 
