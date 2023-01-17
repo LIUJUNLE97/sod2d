@@ -39,8 +39,34 @@ module BLFlowSolver_mod
       procedure, public :: initializeParameters  => BLFlowSolver_initializeParameters
       procedure, public :: evalInitialConditions => BLFlowSolver_evalInitialConditions
       procedure, public :: initialBuffer => BLFlowSolver_initialBuffer
+      procedure, public :: afterDt => BLFlowSolver_afterDt
    end type BLFlowSolver
 contains
+
+   subroutine BLFlowSolver_afterDt(this,istep)
+      class(BLFlowSolver), intent(inout) :: this
+      integer(4)              , intent(in)   :: istep
+      integer(4) :: iNodeL 
+      real(rp) :: cd, lx, ly, xmin, xmax
+
+      cd = 1.0_rp
+      lx = this%d0*50.0_rp
+      ly = this%d0*10.0_rp
+      xmin = 50.0_rp*this%d0
+      xmax = xmin+ly
+
+      !$acc parallel loop  
+      do iNodeL = 1,numNodesRankPar
+         if(coordPar(iNodeL,2) < ly) then
+            if((coordPar(iNodeL,1)<xmax)  .and. (coordPar(iNodeL,1)>xmin)) then
+               source_term(iNodeL,1) = -0.5_rp*rho(iNodeL,2)*cd*u(iNodeL,1,2)*abs(u(iNodeL,1,2))/lx
+               source_term(iNodeL,2) = 0.00_rp
+               source_term(iNodeL,3) = 0.00_rp
+            end if
+         end if
+      end do
+      !$acc end parallel loop
+   end subroutine BLFlowSolver_afterDt
 
    subroutine BLFlowSolver_fill_BC_Types(this)
       class(BLFlowSolver), intent(inout) :: this

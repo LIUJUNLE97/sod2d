@@ -154,13 +154,9 @@ contains
       integer(4) :: iNodeL 
 
       allocate(source_term(numNodesRankPar,ndime))
-      !$acc parallel loop  
-      do iNodeL = 1,numNodesRankPar
-         source_term(iNodeL,1) = 0.00_rp
-         source_term(iNodeL,2) = 0.00_rp
-         source_term(iNodeL,3) = 0.00_rp
-      end do
-      !$acc end parallel loop
+      !$acc kernels
+      source_term(:,:) = 0.00_rp
+      !$acc end kernels
 
    end subroutine CFDSolverBase_initializeSourceTerms
 
@@ -1206,9 +1202,6 @@ contains
         call this%initializeDefaultParameters()         
         call this%initializeParameters()
 
-        ! Init of the source terms
-
-        call this%initializeSourceTerms()
 
         ! Define vector length to be used 
         
@@ -1238,6 +1231,10 @@ contains
         ! Eval or load initial conditions
 
         call this%evalOrLoadInitialConditions()
+
+        ! Init of the source terms
+
+        call this%initializeSourceTerms()
 
         ! Eval  viscosty factor
 
