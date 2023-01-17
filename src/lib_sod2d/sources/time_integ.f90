@@ -159,7 +159,7 @@ module time_integ
                !$acc end parallel loop
                call nvtxEndRange
 
-               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,coord,aux_rho,aux_q,u_buffer)
+               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,aux_rho,aux_q,u_buffer)
 
                !
                ! Update velocity and equations of state
@@ -282,7 +282,7 @@ module time_integ
             !$acc end parallel loop
             call nvtxEndRange
 
-            if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,coord,rho(:,pos),q(:,:,pos),u_buffer)
+            if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,rho(:,pos),q(:,:,pos),u_buffer)
 
             !
             ! Apply bcs after update
@@ -372,24 +372,26 @@ module time_integ
 
          end subroutine rk_4_main
 
-         subroutine updateBuffer(npoin,coord,rho,q,u_buffer)
+         subroutine updateBuffer(npoin,npoin_w,coord,lpoin_w,rho,q,u_buffer)
             integer(4),           intent(in)    :: npoin
+            integer(4),           intent(in)    :: npoin_w
             real(rp),             intent(in)    :: coord(npoin,ndime)
+            integer(4),           intent(in)    :: lpoin_w(npoin_w)
             real(rp),             intent(inout) :: rho(npoin)
             real(rp),             intent(inout) :: q(npoin,ndime)
             real(rp),             intent(in) :: u_buffer(npoin,ndime)
-            integer(4) :: inode
+            integer(4) :: ipoin
             real(rp)   :: xs,xb,xi,c1,c2
 
             c1 = 0.01_rp
             c2 = 10.0_rp
 
             !$acc parallel loop
-            do inode = 1,npoin
+            do ipoin = 1,npoin_w
                xi = 1.0_rp
                !east 
                if(flag_buffer_on_east .eqv. .true.) then
-                  xs = coord(inode,1)
+                  xs = coord(lpoin_w(ipoin),1)
                   if(xs>flag_buffer_e_min) then
                      xb = (xs-flag_buffer_e_min)/flag_buffer_e_size
                      xi = (1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))) 
@@ -397,7 +399,7 @@ module time_integ
                end if
                !west 
                if(flag_buffer_on_west .eqv. .true.) then
-                  xs = coord(inode,1)
+                  xs = coord(lpoin_w(ipoin),1)
                   if(xs<flag_buffer_w_min) then
                      xb = (flag_buffer_w_min-xs)/flag_buffer_w_size
                      xi = (1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))) 
@@ -405,7 +407,7 @@ module time_integ
                end if
                !north 
                if(flag_buffer_on_north .eqv. .true.) then
-                  xs = coord(inode,2)
+                  xs = coord(lpoin_w(ipoin),2)
                   if(xs>flag_buffer_n_min) then
                      xb = (xs-flag_buffer_n_min)/flag_buffer_n_size
                      xi = (1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))) 
@@ -413,7 +415,7 @@ module time_integ
                end if
                !south
                if(flag_buffer_on_south .eqv. .true.) then
-                  xs = coord(inode,2)
+                  xs = coord(lpoin_w(ipoin),2)
                   if(xs<flag_buffer_s_min) then
                      xb = (flag_buffer_s_min-xs)/flag_buffer_s_size
                      xi = (1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))) 
@@ -421,7 +423,7 @@ module time_integ
                end if
                !north 
                if(flag_buffer_on_top .eqv. .true.) then
-                  xs = coord(inode,3)
+                  xs = coord(lpoin_w(ipoin),3)
                   if(xs>flag_buffer_t_min) then
                      xb = (xs-flag_buffer_t_min)/flag_buffer_t_size
                      xi = (1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))) 
@@ -429,16 +431,16 @@ module time_integ
                end if
                !bottom
                if(flag_buffer_on_bottom .eqv. .true.) then
-                  xs = coord(inode,3)
+                  xs = coord(lpoin_w(ipoin),3)
                   if(xs<flag_buffer_b_min) then
                      xb = (flag_buffer_b_min-xs)/flag_buffer_b_size
                      xi = (1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))) 
                   end if
                end if
 
-               q(inode,1) = u_buffer(inode,1)*rho(inode) + xi*(q(inode,1)-u_buffer(inode,1)*rho(inode))
-               q(inode,2) = u_buffer(inode,2)*rho(inode) + xi*(q(inode,2)-u_buffer(inode,2)*rho(inode))
-               q(inode,3) = u_buffer(inode,3)*rho(inode) + xi*(q(inode,3)-u_buffer(inode,3)*rho(inode))
+               q(lpoin_w(ipoin),1) = u_buffer(lpoin_w(ipoin),1)*rho(lpoin_w(ipoin)) + xi*(q(lpoin_w(ipoin),1)-u_buffer(lpoin_w(ipoin),1)*rho(lpoin_w(ipoin)))
+               q(lpoin_w(ipoin),2) = u_buffer(lpoin_w(ipoin),2)*rho(lpoin_w(ipoin)) + xi*(q(lpoin_w(ipoin),2)-u_buffer(lpoin_w(ipoin),2)*rho(lpoin_w(ipoin)))
+               q(lpoin_w(ipoin),3) = u_buffer(lpoin_w(ipoin),3)*rho(lpoin_w(ipoin)) + xi*(q(lpoin_w(ipoin),3)-u_buffer(lpoin_w(ipoin),3)*rho(lpoin_w(ipoin)))
 
             end do
             !$acc end parallel loop

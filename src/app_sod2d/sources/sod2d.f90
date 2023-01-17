@@ -2,8 +2,9 @@
 
 #define _tgv_ 0
 #define _channel_ 0
-#define _bluff_ 1
+#define _bluff_ 0
 #define _bluff3d_ 0
+#define _bl_ 1
 
 program main
    use mod_constants
@@ -19,6 +20,9 @@ program main
 #endif
 #if _bluff3d_
    use BluffBody3DSolver_mod
+#endif
+#if _bl_
+   use BLFlowSolver_mod
 #endif
    implicit none
 
@@ -40,6 +44,10 @@ program main
    call bluff3d%run()
 #endif
 
+#if _bl_
+   type(BLFlowSolver)  :: blflow
+   call blflow%run()
+#endif
 
 
 
