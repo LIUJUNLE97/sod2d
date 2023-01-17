@@ -19,7 +19,7 @@ module mod_arrays
       real(rp), allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:)
       real(rp), allocatable :: Ml(:)
       real(rp), allocatable :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:),mu_factor(:)
-      real(rp), allocatable :: source_term(:)
+      real(rp), allocatable :: source_term(:,:)
       real(rp), allocatable :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:)
       real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
@@ -151,11 +151,16 @@ contains
 
    subroutine CFDSolverBase_initializeSourceTerms(this)
       class(CFDSolverBase), intent(inout) :: this
+      integer(4) :: iNodeL 
 
-        allocate(source_term(ndime))
-        source_term(1) = 0.00_rp
-        source_term(2) = 0.00_rp
-        source_term(3) = 0.00_rp
+      allocate(source_term(numNodesRankPar,ndime))
+      !$acc parallel loop  
+      do iNodeL = 1,numNodesRankPar
+         source_term(iNodeL,1) = 0.00_rp
+         source_term(iNodeL,2) = 0.00_rp
+         source_term(iNodeL,3) = 0.00_rp
+      end do
+      !$acc end parallel loop
 
    end subroutine CFDSolverBase_initializeSourceTerms
 

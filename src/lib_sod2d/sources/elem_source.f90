@@ -28,7 +28,7 @@ contains
       real(rp),    intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
       real(rp),    intent(in)    :: He(ndime,ndime,ngaus,nelem)
       real(rp),    intent(in)    :: gpvol(1,ngaus,nelem)
-      real(rp),    intent(in)    :: s(ndime), u(npoin,ndime)
+      real(rp),    intent(in)    :: s(npoin,ndime), u(npoin,ndime)
       real(rp),    intent(inout) :: Rmom(npoin,ndime)
       integer(4)                :: ielem, igaus, idime, inode
       real(rp)                   :: Re(nnode,ndime)
@@ -52,9 +52,9 @@ contains
             do igaus = 1,ngaus
                !$acc loop vector
                do inode = 1,nnode
-                  Re(inode,1) = Re(inode,1)+gpvol(1,igaus,ielem)*s(1)
-                  Re(inode,2) = Re(inode,2)+gpvol(1,igaus,ielem)*s(2)
-                  Re(inode,3) = Re(inode,3)+gpvol(1,igaus,ielem)*s(3)
+                  Re(inode,1) = Re(inode,1)+gpvol(1,igaus,ielem)*s(connec(ielem,inode),1)
+                  Re(inode,2) = Re(inode,2)+gpvol(1,igaus,ielem)*s(connec(ielem,inode),2)
+                  Re(inode,3) = Re(inode,3)+gpvol(1,igaus,ielem)*s(connec(ielem,inode),3)
                end do
             end do
             !
@@ -71,13 +71,13 @@ contains
          end do
          !$acc end parallel loop
       else
-         !$acc parallel loop gang private(Re) vector_length(vecLength)
+         !$acc parallel loop gang private(Re) 
          do ielem = 1,nelem
             !$acc loop vector collapse(2)
             do idime = 1,ndime
                do inode = 1,nnode
                   !$acc atomic update
-                  Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)-gpvol(1,inode,ielem)*s(idime)
+                  Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)-gpvol(1,inode,ielem)*s(connec(ielem,inode),idime)
                   !$acc end atomic
                end do
             end do
