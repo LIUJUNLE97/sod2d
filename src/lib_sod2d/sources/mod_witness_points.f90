@@ -54,7 +54,7 @@ module mod_witness_points
          real(rp)               :: j(ndime, ndime), k(ndime, ndime)
          real(rp)               :: detJ
          integer(rp)            :: ii, ip
-         real(rp), parameter    :: tol = 1e-10, alpha = 1
+         real(rp), parameter    :: tol = 1e-10, alpha = 1, div = 100
          integer(rp), parameter :: maxite = 50
 
          xi_0(:) = 0
@@ -138,6 +138,9 @@ module mod_witness_points
             xi(:)   = xi_n(:)
             if (dot_product(f, f) < tol) then
                isinside = .true.
+               exit
+            end if
+            if (dot_product(f, f) > div) then
                exit
             end if
          end do

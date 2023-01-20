@@ -1068,32 +1068,52 @@ contains
    subroutine CFDSolverBase_preprocWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)                          :: iwit, iel, ifound, nwitPar
-      integer(rp)                         :: witGlob(this%nwit)
+      integer(4)                          :: iwit, iel, ifound, nwitParCand, icand
+      integer(rp)                         :: witGlobCand(this%nwit), witGlob(this%nwit) 
       real(rp)                            :: xi(ndime)
       real(rp), parameter                 :: wittol=1e-10
-      real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime)
-      logical                             :: isinside       
+      real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
+      logical                             :: isinside   
+      real                                :: start, finish   
       
+      if(mpi_rank.eq.0) then
+         write(*,*) "--| Preprocessing witness points"
+      end if
+      witGlobCand(:) = 0
       witGlob(:) = 0
       witxyzPar(:,:) = 0.0_rp
       ifound = 0
+      icand  = 0
       call read_points(this%witness_inp_file_name, this%nwit, witxyz)
+      call CPU_TIME(start)
       do iwit = 1, this%nwit
+         if ((abs(witxyz(iwit,1)) < maxval(abs(coordPar(:,1)))+wittol) .AND. (abs(witxyz(iwit,2)) < maxval(abs(coordPar(:,2)))+wittol) .AND. (abs(witxyz(iwit,3)) < maxval(abs(coordPar(:,3)))+wittol)) then
+            icand = icand + 1
+            witGlobCand(icand) = iwit
+            witxyzParCand(icand,:) = witxyz(iwit,:)
+         end if
+      end do
+      nwitParCand = icand
+      do iwit = 1, nwitParCand
          do iel = 1, numElemsInRank
-            call isocoords(coordPar(connecParOrig(iel,:),:), witxyz(iwit,:), xi, isinside)
+            call isocoords(coordPar(connecParOrig(iel,:),:), witxyzParCand(iwit,:), xi, isinside)
             if (isinside .AND. (abs(xi(1)) < 1.0_rp+wittol) .AND. (abs(xi(2)) < 1.0_rp+wittol) .AND. (abs(xi(3)) < 1.0_rp+wittol)) then
                ifound = ifound+1
                witel(ifound)   = iel
                witxi(ifound,:) = xi(:)
-               witxyzPar(ifound,:)  = witxyz(iwit, :)
-               witGlob(ifound) = iwit
+               witxyzPar(ifound,:)  = witxyzParCand(iwit, :)
+               witGlob(ifound) = witGlobCand(iwit)
                exit
             end if 
          end do
       end do
+      call CPU_TIME(finish)
       this%nwitPar = ifound
+      write(*,*) mpi_rank, nwitParCand, this%nwitPar, "Time = ", finish-start
       call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      if(mpi_rank.eq.0) then
+         write(*,*) "--| End of preprocessing witness points"
+      end if
    end subroutine CFDSolverBase_preprocWitnessPoints
 
    subroutine CFDSolverBase_loadWitnessPoints(this)

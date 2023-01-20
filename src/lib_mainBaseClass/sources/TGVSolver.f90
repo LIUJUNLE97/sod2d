@@ -55,10 +55,10 @@ contains
 
       this%isPeriodic = .true.
       this%doGlobalAnalysis = .true.
-      this%loadMesh = .true.
+      this%loadMesh = .false.
 
-      this%loadResults = .true.
-      this%continue_oldLogs = .true.
+      this%loadResults = .false.
+      this%continue_oldLogs = .false.
       this%load_step = 1001
 
       this%nstep = 2001
@@ -101,7 +101,7 @@ contains
       this%wit_save_u_i          = .true.
       this%wit_save_pr           = .false.
       this%wit_save_rho          = .false.
-      this%continue_witness      = .true.
+      this%continue_witness      = .false.
 
    end subroutine TGVSolver_initializeParameters
 
