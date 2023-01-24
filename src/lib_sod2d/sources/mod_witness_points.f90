@@ -70,7 +70,6 @@ module mod_witness_points
             f(:)   = wit(:)
             j(:,:) = 0
             !$acc end kernels
-            !$acc parallel loop
             do ip = 1, nnode
                f(:)   = f(:)   - N(ip)*elpoints(ip,:)
                j(1,1) = j(1,1) - dN(1,ip)*elpoints(ip,1)
@@ -83,7 +82,6 @@ module mod_witness_points
                j(3,2) = j(3,2) - dN(2,ip)*elpoints(ip,3)
                j(3,3) = j(3,3) - dN(3,ip)*elpoints(ip,3)
             end do
-            !$acc end parallel loop
             detJ = j(1,1)*j(2,2)*j(3,3)+j(1,2)*j(2,3)*j(3,1)+j(1,3)*j(2,1)*j(3,2)-j(3,1)*j(2,2)*j(1,3)&
             -j(3,2)*j(2,3)*j(1,1)-j(3,3)*j(2,1)*j(1,2)
             !
@@ -110,11 +108,9 @@ module mod_witness_points
             !
             ! Transpose a into b
             !
-            !$acc parallel loop
             do ip = 1,9
                b(ip) = a(ip)
             end do
-            !$acc end parallel loop
             b(2) = a(4)
             b(3) = a(7)
             b(4) = a(2)
@@ -124,11 +120,9 @@ module mod_witness_points
             !
             ! Divide by detj
             !
-            !$acc parallel loop
             do ip = 1,9
                b(ip) = 1.0_rp/detJ*b(ip)
             end do
-            !$acc end parallel loop
             !
             ! Organize into inverse
             !
