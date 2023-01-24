@@ -1068,9 +1068,9 @@ contains
    subroutine CFDSolverBase_preprocWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)                          :: iwit, iel, ifound, nwitParCand, icand
-      integer(rp)                         :: witGlobCand(this%nwit), witGlob(this%nwit) 
-      real(rp)                            :: xi(ndime)
+      integer(4)                          :: iwit, iel, ifound, nwitParCand, icand, numElemsCand, ielcand
+      integer(rp)                         :: witGlobCand(this%nwit), witGlob(this%nwit), elcand(numElemsInRank)
+      real(rp)                            :: xi(ndime), xmin, xmax, ymin, ymax, zmin, zmax, maxL, minelx, minely, minelz, maxelx, maxely, maxelz
       real(rp), parameter                 :: wittol=1e-10
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
       logical                             :: isinside   
@@ -1081,9 +1081,10 @@ contains
       end if
       witGlobCand(:) = 0
       witGlob(:) = 0
+      elcand(:) = 0
       witxyzPar(:,:) = 0.0_rp
-      ifound = 0
-      icand  = 0
+      ifound  = 0
+      icand   = 0
       call read_points(this%witness_inp_file_name, this%nwit, witxyz)
       call CPU_TIME(start)
       do iwit = 1, this%nwit
@@ -1094,12 +1095,33 @@ contains
          end if
       end do
       nwitParCand = icand
+      maxL = maxval(helem)
       do iwit = 1, nwitParCand
+         xmin = witxyzParCand(iwit, 1) - maxL
+         ymin = witxyzParCand(iwit, 2) - maxL
+         zmin = witxyzParCand(iwit, 3) - maxL
+         xmax = witxyzParCand(iwit, 1) + maxL
+         ymax = witxyzParCand(iwit, 2) + maxL
+         zmax = witxyzParCand(iwit, 3) + maxL
+         ielcand = 0
          do iel = 1, numElemsInRank
-            call isocoords(coordPar(connecParOrig(iel,:),:), witxyzParCand(iwit,:), xi, isinside)
+            minelx = maxval(coordPar(connecParOrig(iel,:),1)) 
+            minely = maxval(coordPar(connecParOrig(iel,:),2))
+            minelz = maxval(coordPar(connecParOrig(iel,:),3))
+            maxelx = minval(coordPar(connecParOrig(iel,:),1))
+            maxely = minval(coordPar(connecParOrig(iel,:),2))
+            maxelz = minval(coordPar(connecParOrig(iel,:),3))
+            if ((minelx>xmin).AND.(minely>ymin).AND.(minelz>zmin).AND.(maxelx<xmax).AND.(maxely<ymax).AND.(maxelz<zmax)) then
+               ielcand = ielcand + 1
+               elcand(ielcand) = iel
+            end if
+         end do
+         numElemsCand = ielcand
+         do iel = 1, numElemsCand
+            call isocoords(coordPar(connecParOrig(elcand(iel),:),:), witxyzParCand(iwit,:), xi, isinside)
             if (isinside .AND. (abs(xi(1)) < 1.0_rp+wittol) .AND. (abs(xi(2)) < 1.0_rp+wittol) .AND. (abs(xi(3)) < 1.0_rp+wittol)) then
                ifound = ifound+1
-               witel(ifound)   = iel
+               witel(ifound)   = elcand(iel)
                witxi(ifound,:) = xi(:)
                witxyzPar(ifound,:)  = witxyzParCand(iwit, :)
                witGlob(ifound) = witGlobCand(iwit)
@@ -1109,7 +1131,7 @@ contains
       end do
       call CPU_TIME(finish)
       this%nwitPar = ifound
-      write(*,*) mpi_rank, nwitParCand, this%nwitPar, "Time = ", finish-start
+      write(*,*) mpi_rank, "Time = ", finish-start
       call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
       if(mpi_rank.eq.0) then
          write(*,*) "--| End of preprocessing witness points"
