@@ -63,7 +63,7 @@ contains
 
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "cyl"
-      !write(this%mesh_h5_file_name,*) "cyl"
+      !write(this%mesh_h5_file_name,*) "naca"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -72,8 +72,8 @@ contains
       this%loadMesh = .true.
       this%loadResults = .true.
 
-      this%continue_oldLogs = .false.
-      this%load_step = 20001
+      this%continue_oldLogs = .true.
+      this%load_step = 1880001
 
       this%nstep = 90000001 !250001
       this%cfl_conv = 1.95_rp !0.1_rp
@@ -85,10 +85,10 @@ contains
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
 
-      this%nleap = 20000 ! Saving interval, TODO: input
+      this%nleap = 60000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 50  ! Saving interval, TODO: input
-      this%nleapAVG = 20000
+      this%nleapAVG = 60000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -97,7 +97,6 @@ contains
       this%delta  = 1.0_rp
       this%rho0   = 1.0_rp
       this%gamma_gas = 1.40_rp
-      this%Re     =  10000.0_rp
       this%Re     =  10000.0_rp
       !this%Re     =  100000.0_rp
 
@@ -114,33 +113,35 @@ contains
       nscbc_gamma_inf = this%gamma_gas
       nscbc_c_inf = sqrt(this%gamma_gas*this%po/this%rho0)
       nscbc_Rgas_inf = this%Rgas
- 
+
+      !Witness points parameters
       this%have_witness          = .true.
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
-      this%leapwit               = 20
-      this%nwit                  = 658
+      this%leapwit               = 1
+      this%nwit                  = 17986
       this%wit_save_u_i          = .true.
-      this%wit_save_pr           = .false.
-      this%wit_save_rho          = .false.
-
-      flag_buffer_on = .true.
+      this%wit_save_pr           = .true.
+      this%wit_save_rho          = .true.
+      this%continue_witness      = .false.     
+ 
+     flag_buffer_on = .true.
       !cylinder
      flag_buffer_on_east = .true.
-     flag_buffer_e_min = 70.0_rp
+     flag_buffer_e_min = 40.0_rp
      flag_buffer_e_size = 10.0_rp 
 
      flag_buffer_on_west = .true.
-     flag_buffer_w_min = -15.0_rp
-     flag_buffer_w_size = 5.0_rp 
+     flag_buffer_w_min = -20.0_rp
+     flag_buffer_w_size = 10.0_rp 
      
      flag_buffer_on_north = .true.
-     flag_buffer_n_min = 10.0_rp
-     flag_buffer_n_size = 5.0_rp 
+     flag_buffer_n_min = 20.0_rp
+     flag_buffer_n_size = 10.0_rp 
      
      flag_buffer_on_south = .true.
-     flag_buffer_s_min = -10.0_rp
-     flag_buffer_s_size = 5.0_rp 
+     flag_buffer_s_min = -20.0_rp
+     flag_buffer_s_size = 10.0_rp 
 
       !naca
      !flag_buffer_on_east = .true.
