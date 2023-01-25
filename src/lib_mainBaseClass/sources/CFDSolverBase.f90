@@ -1079,10 +1079,12 @@ contains
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
       end if
+      !$acc kernels
       witGlobCand(:) = 0
       witGlob(:) = 0
       elcand(:) = 0
       witxyzPar(:,:) = 0.0_rp
+      !$acc end kernels
       ifound  = 0
       icand   = 0
       call read_points(this%witness_inp_file_name, this%nwit, witxyz)
@@ -1104,6 +1106,7 @@ contains
          ymax = witxyzParCand(iwit, 2) + maxL
          zmax = witxyzParCand(iwit, 3) + maxL
          ielcand = 0
+         !$acc parallel loop reduction(+:ielcand)
          do iel = 1, numElemsInRank
             minelx = maxval(coordPar(connecParOrig(iel,:),1)) 
             minely = maxval(coordPar(connecParOrig(iel,:),2))
@@ -1116,6 +1119,7 @@ contains
                elcand(ielcand) = iel
             end if
          end do
+         !$acc end parallel loop
          numElemsCand = ielcand
          do iel = 1, numElemsCand
             call isocoords(coordPar(connecParOrig(elcand(iel),:),:), witxyzParCand(iwit,:), xi, isinside)
