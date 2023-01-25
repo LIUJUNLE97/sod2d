@@ -48,7 +48,7 @@ contains
       write(this%gmsh_file_name,*) "cube" 
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube"!"cubeFine"
+      write(this%mesh_h5_file_name,*) "cube_per20_p4"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -62,7 +62,7 @@ contains
       !this%continue_oldLogs = .true.
       !this%load_step = 2001
 
-      this%nstep = 100001
+      this%nstep = 20001
 
       this%cfl_conv = 0.5_rp
       this%cfl_diff = 0.5_rp
@@ -70,9 +70,9 @@ contains
       this%nsave2 = 1   ! First step to save, TODO: input
 
       this%nsaveAVG = 1!1000000
-      this%nleap = 2000 ! Saving interval, TODO: input
+      this%nleap = 500 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 25  ! Saving interval, TODO: input
+      this%nleap2 = 10  ! Saving interval, TODO: input
       this%nleapAVG = 2000000000
 
       this%Cp = 1004.0_rp

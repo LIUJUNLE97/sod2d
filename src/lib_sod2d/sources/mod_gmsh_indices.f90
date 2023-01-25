@@ -54,6 +54,7 @@ module mod_gmsh_indices
 
    integer,parameter :: maxBoundsPerElem = 4
    integer,parameter :: posFaceVertices(4) = [1,2,5,6]
+   integer,parameter :: posFaceInnerNodes(4) = [11,12,15,16]
    integer,parameter :: posElemVertices(8) = [1,2,5,6,17,18,21,22]
 
 end module mod_gmsh_indices

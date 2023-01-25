@@ -14,8 +14,6 @@ program tool_meshConversorPar
     integer :: lineCnt
 
     integer :: num_partitions
-    logical :: isPeriodic=.false.
-    logical :: useIntInComms=.true.,useFloatInComms=.true.,useDoubleInComms=.false.
 
 !------------------------------------------------------------------------------------------------------
 
@@ -66,7 +64,7 @@ program tool_meshConversorPar
 
 !---------------------------------------------------------------------------------------------------------
 
-    call read_gmsh_files_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName,isPeriodic,num_partitions)
+    call read_gmsh_h5_file_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName,num_partitions)
 
 !---------------------------------------------------------------------------------------------------------
 
