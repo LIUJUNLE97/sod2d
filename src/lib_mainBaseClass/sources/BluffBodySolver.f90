@@ -72,7 +72,7 @@ contains
       this%loadMesh = .true.
       this%loadResults = .true.
 
-      this%continue_oldLogs = .true.
+      this%continue_oldLogs = .false.
       this%load_step = 1880001
 
       this%nstep = 90000001 !250001
