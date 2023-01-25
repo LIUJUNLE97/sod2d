@@ -89,15 +89,15 @@ contains
       this%loadResults = .false.
 
       this%continue_oldLogs = .false.
-      this%load_step = 140001
+      this%load_step = 1240001
 
       this%nstep = 800000001 !250001
 #if ABL
       this%cfl_conv = 1.5_rp !0.1_rp
       this%cfl_diff = 1.5_rp !0.1_rp
 #else
-      this%cfl_conv = 0.1_rp!0.95_rp!
-      this%cfl_diff = 0.1_rp!0.95_rp!
+      this%cfl_conv = 0.5_rp !0.1_rp
+      this%cfl_diff = 0.5_rp !0.1_rp
 #endif
 
       this%nsave  = 1  ! First step to save, TODO: input
@@ -133,6 +133,18 @@ contains
       nscbc_rho_inf = this%rho0
       nscbc_gamma_inf = this%gamma_gas
       nscbc_c_inf = sqrt(this%gamma_gas*this%po/this%rho0)
+      nscbc_Rgas_inf = this%Rgas
+
+      flag_buffer_on = .true.
+      !windsor
+      flag_buffer_on_east = .true.
+      flag_buffer_e_min = 5.5_rp
+      flag_buffer_e_size = 0.5_rp 
+
+      flag_buffer_on_west = .true.
+      flag_buffer_w_min = -4.5_rp
+      flag_buffer_w_size = 0.5_rp 
+      
 
    end subroutine BluffBody3DSolver_initializeParameters
 
@@ -210,9 +222,9 @@ contains
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          mu_factor(iNodeL) = flag_mu_factor
-         if(coordPar(iNodeL,1)<-4.5_rp) then
-            mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
-         end if
+        ! if(coordPar(iNodeL,1)<-4.5_rp) then
+        !    mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+        ! end if
          !if(coordPar(iNodeL,2)>0.9_rp) then
          !   mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
          !end if
@@ -225,9 +237,9 @@ contains
          !if(coordPar(iNodeL,2)<-0.9_rp) then
          !   mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
          !end if
-         if(coordPar(iNodeL,1)>5.5_rp) then
-            mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
-         end if
+         !if(coordPar(iNodeL,1)>5.5_rp) then
+         !   mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
+         !end if
       end do
       !$acc end parallel loop
 #endif      

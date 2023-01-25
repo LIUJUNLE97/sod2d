@@ -52,11 +52,16 @@ contains
 
    subroutine ChannelFlowSolver_initializeSourceTerms(this)
       class(ChannelFlowSolver), intent(inout) :: this
+      integer(4) :: iNodeL
 
-        allocate(source_term(ndime))
-        source_term(1) = (this%utau*this%utau*this%rho0/this%delta)
-        source_term(2) = 0.00_rp
-        source_term(3) = 0.00_rp
+      allocate(source_term(numNodesRankPar,ndime))
+      !$acc parallel loop  
+      do iNodeL = 1,numNodesRankPar
+         source_term(iNodeL,1) = (this%utau*this%utau*this%rho0/this%delta)
+         source_term(iNodeL,2) = 0.00_rp
+         source_term(iNodeL,3) = 0.00_rp
+      end do
+      !$acc end parallel loop
 
    end subroutine ChannelFlowSolver_initializeSourceTerms
 

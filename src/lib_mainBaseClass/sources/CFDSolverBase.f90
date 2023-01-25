@@ -19,11 +19,12 @@ module mod_arrays
       real(rp), allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:)
       real(rp), allocatable :: Ml(:)
       real(rp), allocatable :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:),mu_factor(:)
-      real(rp), allocatable :: source_term(:)
+      real(rp), allocatable :: source_term(:,:)
       real(rp), allocatable :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:)
       real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
+      real(rp), allocatable :: u_buffer(:,:)
 
 end module mod_arrays
 
@@ -122,6 +123,8 @@ module CFDSolverBase_mod
       procedure, public :: savePosprocessingFields =>CFDSolverBase_savePosprocessingFields
       procedure, public :: afterDt =>CFDSolverBase_afterDt
 
+      procedure, public :: initialBuffer =>CFDSolverBase_initialBuffer
+
       procedure :: open_log_file
       procedure :: close_log_file
       procedure :: open_analysis_files
@@ -147,11 +150,12 @@ contains
 
    subroutine CFDSolverBase_initializeSourceTerms(this)
       class(CFDSolverBase), intent(inout) :: this
+      integer(4) :: iNodeL 
 
-        allocate(source_term(ndime))
-        source_term(1) = 0.00_rp
-        source_term(2) = 0.00_rp
-        source_term(3) = 0.00_rp
+      allocate(source_term(numNodesRankPar,ndime))
+      !$acc kernels
+      source_term(:,:) = 0.00_rp
+      !$acc end kernels
 
    end subroutine CFDSolverBase_initializeSourceTerms
 
@@ -396,6 +400,8 @@ contains
       allocate(mu_factor(numNodesRankPar))  ! Fluid viscosity
       allocate(mu_e(numElemsRankPar,ngaus))  ! Elemental viscosity
       allocate(mu_sgs(numElemsRankPar,ngaus))! SGS viscosity
+      allocate(u_buffer(numNodesRankPar,ndime))  ! momentum at the buffer
+
       !$acc kernels
       u(:,:,:) = 0.0_rp
       q(:,:,:) = 0.0_rp
@@ -411,6 +417,8 @@ contains
       mu_factor(:) = 1.0_rp
       mu_e(:,:) = 0.0_rp
       mu_sgs(:,:) = 0.0_rp
+
+      u_buffer(:,:) = 0.0_rp
       !$acc end kernels
 
       !ilsa
@@ -833,6 +841,15 @@ contains
 
    end subroutine CFDSolverBase_savePosprocessingFields
 
+   subroutine CFDSolverBase_initialBuffer(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      !$acc kernels
+      u_buffer(:,1) = nscbc_u_inf
+      !$acc end kernels
+
+   end subroutine CFDSolverBase_initialBuffer
+
    subroutine CFDSolverBase_evalTimeIteration(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4) :: icode,counter,istep,flag_emac,flag_predic
@@ -1145,9 +1162,6 @@ contains
         call this%initializeDefaultParameters()         
         call this%initializeParameters()
 
-        ! Init of the source terms
-
-        call this%initializeSourceTerms()
 
         ! Define vector length to be used 
         
@@ -1175,6 +1189,10 @@ contains
         ! Eval or load initial conditions
 
         call this%evalOrLoadInitialConditions()
+
+        ! Init of the source terms
+
+        call this%initializeSourceTerms()
 
         ! Eval  viscosty factor
 
@@ -1224,6 +1242,8 @@ contains
         ! Eval initial time step
 
         call this%evalInitialDt()
+
+        if(flag_buffer_on .eqv. .true.) call this%initialBuffer()
 
         call this%flush_log_file()
 

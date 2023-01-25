@@ -48,7 +48,7 @@ contains
       write(this%gmsh_file_name,*) "cube" 
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube_per20_p4"
+      write(this%mesh_h5_file_name,*) "cube_per10_p4"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
