@@ -1068,9 +1068,9 @@ contains
    subroutine CFDSolverBase_preprocWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)                          :: iwit, iel, ifound, nwitParCand, icand, numElemsCand, ielcand
-      integer(rp)                         :: witGlobCand(this%nwit), witGlob(this%nwit), elcand(numElemsInRank)
-      real(rp)                            :: xi(ndime), xmin, xmax, ymin, ymax, zmin, zmax, maxL, minelx, minely, minelz, maxelx, maxely, maxelz
+      integer(4)                          :: iwit, iel, ifound, nwitParCand, icand
+      integer(rp)                         :: witGlobCand(this%nwit), witGlob(this%nwit)
+      real(rp)                            :: xi(ndime), radwit(numNodesRankPar), maxL
       real(rp), parameter                 :: wittol=1e-10
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
       logical                             :: isinside   
@@ -1082,7 +1082,6 @@ contains
       !$acc kernels
       witGlobCand(:) = 0
       witGlob(:) = 0
-      elcand(:) = 0
       witxyzPar(:,:) = 0.0_rp
       !$acc end kernels
       ifound  = 0
@@ -1097,40 +1096,25 @@ contains
          end if
       end do
       nwitParCand = icand
-      maxL = maxval(helem)
+      !$acc kernels
+      maxL = 2*maxval(helem) !TO DO: Correct one
+      !$acc end kernels
       do iwit = 1, nwitParCand
-         xmin = witxyzParCand(iwit, 1) - maxL
-         ymin = witxyzParCand(iwit, 2) - maxL
-         zmin = witxyzParCand(iwit, 3) - maxL
-         xmax = witxyzParCand(iwit, 1) + maxL
-         ymax = witxyzParCand(iwit, 2) + maxL
-         zmax = witxyzParCand(iwit, 3) + maxL
-         ielcand = 0
-         !$acc parallel loop reduction(+:ielcand)
+         !$acc kernels
+         radwit(:) = ((witxyzParCand(iwit, 1)-coordPar(:,1))*(witxyzParCand(iwit, 1)-coordPar(:,1))+(witxyzParCand(iwit, 2)-coordPar(:,2))*(witxyzParCand(iwit, 2)-coordPar(:,2))+(witxyzParCand(iwit, 3)-coordPar(:,3))*(witxyzParCand(iwit, 3)-coordPar(:,3)))-maxL*maxL
+         !$acc end kernels
          do iel = 1, numElemsInRank
-            minelx = maxval(coordPar(connecParOrig(iel,:),1)) 
-            minely = maxval(coordPar(connecParOrig(iel,:),2))
-            minelz = maxval(coordPar(connecParOrig(iel,:),3))
-            maxelx = minval(coordPar(connecParOrig(iel,:),1))
-            maxely = minval(coordPar(connecParOrig(iel,:),2))
-            maxelz = minval(coordPar(connecParOrig(iel,:),3))
-            if ((minelx>xmin).AND.(minely>ymin).AND.(minelz>zmin).AND.(maxelx<xmax).AND.(maxely<ymax).AND.(maxelz<zmax)) then
-               ielcand = ielcand + 1
-               elcand(ielcand) = iel
+            if (minval(radwit(connecParOrig(iel,:))) < 0) then
+               call isocoords(coordPar(connecParOrig(iel,:),:), witxyzParCand(iwit,:), xi, isinside)
+               if (isinside .AND. (abs(xi(1)) < 1.0_rp+wittol) .AND. (abs(xi(2)) < 1.0_rp+wittol) .AND. (abs(xi(3)) < 1.0_rp+wittol)) then
+                  ifound = ifound+1
+                  witel(ifound)   = iel
+                  witxi(ifound,:) = xi(:)
+                  witxyzPar(ifound,:)  = witxyzParCand(iwit, :)
+                  witGlob(ifound) = witGlobCand(iwit)
+                  exit
+               end if              
             end if
-         end do
-         !$acc end parallel loop
-         numElemsCand = ielcand
-         do iel = 1, numElemsCand
-            call isocoords(coordPar(connecParOrig(elcand(iel),:),:), witxyzParCand(iwit,:), xi, isinside)
-            if (isinside .AND. (abs(xi(1)) < 1.0_rp+wittol) .AND. (abs(xi(2)) < 1.0_rp+wittol) .AND. (abs(xi(3)) < 1.0_rp+wittol)) then
-               ifound = ifound+1
-               witel(ifound)   = elcand(iel)
-               witxi(ifound,:) = xi(:)
-               witxyzPar(ifound,:)  = witxyzParCand(iwit, :)
-               witGlob(ifound) = witGlobCand(iwit)
-               exit
-            end if 
          end do
       end do
       call CPU_TIME(finish)
