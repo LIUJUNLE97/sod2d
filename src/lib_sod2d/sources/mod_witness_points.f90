@@ -57,19 +57,15 @@ module mod_witness_points
          real(rp), parameter    :: tol = 1e-10, alpha = 1, div = 100
          integer(rp), parameter :: maxite = 50
 
-         !$acc kernels
          xi_0(:) = 0
          xi(:)   = xi_0(:)
-         !$acc end kernels
          call set_hex64_lists(atoIJK, listHEX08)
          isinside = .false.
 
          do ii = 1, maxite
             call hex64(xi(1), xi(2), xi(3), atoIJK, N, dN, N_lagrange, dN_lagrange, dlxigp_ip)
-            !$acc kernels
             f(:)   = wit(:)
             j(:,:) = 0
-            !$acc end kernels
             do ip = 1, nnode
                f(:)   = f(:)   - N(ip)*elpoints(ip,:)
                j(1,1) = j(1,1) - dN(1,ip)*elpoints(ip,1)
@@ -138,10 +134,8 @@ module mod_witness_points
             !
             ! Newton-Raphson method to find the new xi values
             !
-            !$acc kernels
             xi_n(:) = xi(:) - alpha*matmul(k, f)
             xi(:)   = xi_n(:)
-            !$acc end kernels
             if (dot_product(f, f) < tol) then
                isinside = .true.
                exit
