@@ -1070,7 +1070,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4)                          :: iwit, iel, ifound, nwitParCand, icand
       integer(rp)                         :: witGlobCand(this%nwit), witGlob(this%nwit)
-      real(rp)                            :: xi(ndime), radwit(numNodesRankPar), maxL
+      real(rp)                            :: xi(ndime), radwit(numElemsInRank), maxL, center(ndime)
       real(rp), parameter                 :: wittol=1e-10
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
       logical                             :: isinside   
@@ -1097,14 +1097,19 @@ contains
       end do
       nwitParCand = icand
       !$acc kernels
-      maxL = 2*maxval(helem) !TO DO: Correct one
+      maxL = 0.7*maxval(helem)
       !$acc end kernels
       do iwit = 1, nwitParCand
          !$acc kernels
-         radwit(:) = ((witxyzParCand(iwit, 1)-coordPar(:,1))*(witxyzParCand(iwit, 1)-coordPar(:,1))+(witxyzParCand(iwit, 2)-coordPar(:,2))*(witxyzParCand(iwit, 2)-coordPar(:,2))+(witxyzParCand(iwit, 3)-coordPar(:,3))*(witxyzParCand(iwit, 3)-coordPar(:,3)))-maxL*maxL
+         do iel = 1, numElemsInRank
+            center(1)   = sum(coordPar(connecParOrig(iel,:), 1))/nnode
+            center(2)   = sum(coordPar(connecParOrig(iel,:), 2))/nnode
+            center(3)   = sum(coordPar(connecParOrig(iel,:), 3))/nnode
+            radwit(iel) = ((witxyzParCand(iwit, 1)-center(1))*(witxyzParCand(iwit, 1)-center(1))+(witxyzParCand(iwit, 2)-center(2))*(witxyzParCand(iwit, 2)-center(2))+(witxyzParCand(iwit, 3)-center(3))*(witxyzParCand(iwit, 3)-center(3)))-maxL*maxL
+         end do
          !$acc end kernels
          do iel = 1, numElemsInRank
-            if (minval(radwit(connecParOrig(iel,:))) < 0) then
+            if (radwit(iel) < 0) then
                call isocoords(coordPar(connecParOrig(iel,:),:), witxyzParCand(iwit,:), xi, isinside)
                if (isinside .AND. (abs(xi(1)) < 1.0_rp+wittol) .AND. (abs(xi(2)) < 1.0_rp+wittol) .AND. (abs(xi(3)) < 1.0_rp+wittol)) then
                   ifound = ifound+1
