@@ -1070,7 +1070,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4)                          :: iwit, ielem, inode, ifound, nwitParCand, icand
       integer(rp)                         :: witGlobCand(this%nwit), witGlob(this%nwit)
-      real(rp)                            :: xi(ndime), radwit(numElemsInRank), maxL, center(ndime), aux1, aux2, aux3
+      real(rp)                            :: xi(ndime), radwit(numElemsInRank), maxL, center(numElemsInRank,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsInRank)
       real(rp), parameter                 :: wittol=1e-10
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
       logical                             :: isinside   
@@ -1079,6 +1079,7 @@ contains
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
       end if
+      call CPU_TIME(start)
       !$acc kernels
       witGlobCand(:) = 0
       witGlob(:) = 0
@@ -1095,25 +1096,31 @@ contains
          end if
       end do
       nwitParCand = icand
-      maxL = 0.7*maxval(helem)
-      do iwit = 1, nwitParCand
-         !$acc parallel loop gang private(center)
-         do ielem = 1, numElemsInRank
-            aux1 = 0.0_rp
-            aux2 = 0.0_rp
-            aux3 = 0.0_rp
-            !$acc loop vector reduction(+:aux1, aux2, aux3)
-            do inode = 1, nnode
-               aux1 = aux1 + coordPar(connecParOrig(ielem,inode),1) 
-               aux2 = aux2 + coordPar(connecParOrig(ielem,inode),2) 
-               aux3 = aux3 + coordPar(connecParOrig(ielem,inode),3) 
-            end do
-            center(1) = aux1/nnode
-            center(2) = aux2/nnode
-            center(3) = aux3/nnode
-            radwit(ielem) = ((witxyzParCand(iwit, 1)-center(1))*(witxyzParCand(iwit, 1)-center(1))+(witxyzParCand(iwit, 2)-center(2))*(witxyzParCand(iwit, 2)-center(2))+(witxyzParCand(iwit, 3)-center(3))*(witxyzParCand(iwit, 3)-center(3)))-maxL*maxL
+      !$acc parallel loop gang
+      do ielem = 1, numElemsInRank
+         aux1   = 0.0_rp
+         aux2   = 0.0_rp
+         aux3   = 0.0_rp
+         auxvol = 0.0_rp
+         !$acc loop vector reduction(+:aux1, aux2, aux3, auxvol)
+         do inode = 1, nnode
+            aux1   = aux1 + coordPar(connecParOrig(ielem,inode),1) 
+            aux2   = aux2 + coordPar(connecParOrig(ielem,inode),2) 
+            aux3   = aux3 + coordPar(connecParOrig(ielem,inode),3) 
+            auxvol = auxvol+gpvol(1,inode,ielem) !nnode = ngaus
          end do
-         !$acc end loop
+         center(ielem,1) = aux1/nnode
+         center(ielem,2) = aux2/nnode
+         center(ielem,3) = aux3/nnode
+         helemmax(ielem) = auxvol**(1.0/3.0)
+      end do
+      !$acc end loop
+      maxL = maxval(helemmax)
+      write(*,*) maxL
+      do iwit = 1, nwitParCand
+         !$acc kernels
+         radwit(:) = ((witxyzParCand(iwit, 1)-center(:,1))*(witxyzParCand(iwit, 1)-center(:,1))+(witxyzParCand(iwit, 2)-center(:,2))*(witxyzParCand(iwit, 2)-center(:,2))+(witxyzParCand(iwit, 3)-center(:,3))*(witxyzParCand(iwit, 3)-center(:,3)))-maxL*maxL
+         !$acc end kernels
          do ielem = 1, numElemsInRank
             if (radwit(ielem) < 0) then
                call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzParCand(iwit,:), xi, isinside)
@@ -1128,6 +1135,8 @@ contains
             end if
          end do
       end do
+      call CPU_TIME(finish)
+      write(*,*) mpi_rank, finish-start
       this%nwitPar = ifound
       call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
       if(mpi_rank.eq.0) then
