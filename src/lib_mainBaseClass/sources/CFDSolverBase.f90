@@ -1068,9 +1068,9 @@ contains
    subroutine CFDSolverBase_preprocWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)                          :: iwit, iel, ifound, nwitParCand, icand
+      integer(4)                          :: iwit, ielem, inode, ifound, nwitParCand, icand
       integer(rp)                         :: witGlobCand(this%nwit), witGlob(this%nwit)
-      real(rp)                            :: xi(ndime), radwit(numElemsInRank), maxL, center(ndime)
+      real(rp)                            :: xi(ndime), radwit(numElemsInRank), maxL, center(ndime), aux1, aux2, aux3
       real(rp), parameter                 :: wittol=1e-10
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
       logical                             :: isinside   
@@ -1087,7 +1087,6 @@ contains
       ifound  = 0
       icand   = 0
       call read_points(this%witness_inp_file_name, this%nwit, witxyz)
-      call CPU_TIME(start)
       do iwit = 1, this%nwit
          if ((abs(witxyz(iwit,1)) < maxval(abs(coordPar(:,1)))+wittol) .AND. (abs(witxyz(iwit,2)) < maxval(abs(coordPar(:,2)))+wittol) .AND. (abs(witxyz(iwit,3)) < maxval(abs(coordPar(:,3)))+wittol)) then
             icand = icand + 1
@@ -1096,24 +1095,31 @@ contains
          end if
       end do
       nwitParCand = icand
-      !$acc kernels
       maxL = 0.7*maxval(helem)
-      !$acc end kernels
       do iwit = 1, nwitParCand
-         !$acc kernels
-         do iel = 1, numElemsInRank
-            center(1)   = sum(coordPar(connecParOrig(iel,:), 1))/nnode
-            center(2)   = sum(coordPar(connecParOrig(iel,:), 2))/nnode
-            center(3)   = sum(coordPar(connecParOrig(iel,:), 3))/nnode
-            radwit(iel) = ((witxyzParCand(iwit, 1)-center(1))*(witxyzParCand(iwit, 1)-center(1))+(witxyzParCand(iwit, 2)-center(2))*(witxyzParCand(iwit, 2)-center(2))+(witxyzParCand(iwit, 3)-center(3))*(witxyzParCand(iwit, 3)-center(3)))-maxL*maxL
+         !$acc parallel loop gang private(center)
+         do ielem = 1, numElemsInRank
+            aux1 = 0.0_rp
+            aux2 = 0.0_rp
+            aux3 = 0.0_rp
+            !$acc loop vector reduction(+:aux1, aux2, aux3)
+            do inode = 1, nnode
+               aux1 = aux1 + coordPar(connecParOrig(ielem,inode),1) 
+               aux2 = aux2 + coordPar(connecParOrig(ielem,inode),2) 
+               aux3 = aux3 + coordPar(connecParOrig(ielem,inode),3) 
+            end do
+            center(1) = aux1/nnode
+            center(2) = aux2/nnode
+            center(3) = aux3/nnode
+            radwit(ielem) = ((witxyzParCand(iwit, 1)-center(1))*(witxyzParCand(iwit, 1)-center(1))+(witxyzParCand(iwit, 2)-center(2))*(witxyzParCand(iwit, 2)-center(2))+(witxyzParCand(iwit, 3)-center(3))*(witxyzParCand(iwit, 3)-center(3)))-maxL*maxL
          end do
-         !$acc end kernels
-         do iel = 1, numElemsInRank
-            if (radwit(iel) < 0) then
-               call isocoords(coordPar(connecParOrig(iel,:),:), witxyzParCand(iwit,:), xi, isinside)
+         !$acc end loop
+         do ielem = 1, numElemsInRank
+            if (radwit(ielem) < 0) then
+               call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzParCand(iwit,:), xi, isinside)
                if (isinside .AND. (abs(xi(1)) < 1.0_rp+wittol) .AND. (abs(xi(2)) < 1.0_rp+wittol) .AND. (abs(xi(3)) < 1.0_rp+wittol)) then
                   ifound = ifound+1
-                  witel(ifound)   = iel
+                  witel(ifound)   = ielem
                   witxi(ifound,:) = xi(:)
                   witxyzPar(ifound,:)  = witxyzParCand(iwit, :)
                   witGlob(ifound) = witGlobCand(iwit)
@@ -1122,9 +1128,7 @@ contains
             end if
          end do
       end do
-      call CPU_TIME(finish)
       this%nwitPar = ifound
-      write(*,*) mpi_rank, "Time = ", finish-start
       call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
       if(mpi_rank.eq.0) then
          write(*,*) "--| End of preprocessing witness points"
