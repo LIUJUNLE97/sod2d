@@ -3538,9 +3538,12 @@ contains
       ms_dims(1)   = mpi_size
       ms_offset(1) = 0
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,nwitParAllRanks)
-      do irank = 0, mpi_rank
-         nwitOffset = nwitOffset + nwitParAllRanks(irank)
-      end do             
+      if (mpi_rank > 0) then
+         do irank = 1, mpi_rank+1
+            nwitOffset = nwitOffset + nwitParAllRanks(irank)
+         end do 
+      end if
+      write(*,*) mpi_rank, nwitOffset            
       ds_rank      = 1
       dsetname     = 'nwitOffset'
       ds_dims(1)   = mpi_size
