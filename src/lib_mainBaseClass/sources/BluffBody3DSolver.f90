@@ -83,15 +83,15 @@ contains
       this%loadResults = .true.
 
       this%continue_oldLogs = .false.
-      this%load_step = 1240001
+      this%load_step = 1780001
 
       this%nstep = 800000001 !250001
 #if ABL
       this%cfl_conv = 1.5_rp !0.1_rp
       this%cfl_diff = 1.5_rp !0.1_rp
 #else
-      this%cfl_conv = 0.5_rp !0.1_rp
-      this%cfl_diff = 0.5_rp !0.1_rp
+      this%cfl_conv = 0.95_rp !0.1_rp
+      this%cfl_diff = 0.95_rp !0.1_rp
 #endif
 
       this%nsave  = 1  ! First step to save, TODO: input
@@ -138,6 +138,18 @@ contains
       flag_buffer_on_west = .true.
       flag_buffer_w_min = -4.5_rp
       flag_buffer_w_size = 0.5_rp 
+
+      flag_buffer_on_north = .true.
+      flag_buffer_n_min = 0.87_rp
+      flag_buffer_n_size = 0.1_rp 
+
+      flag_buffer_on_south = .true.
+      flag_buffer_s_min = -0.87_rp
+      flag_buffer_s_size = 0.1_rp 
+      
+      flag_buffer_on_top = .true.
+      flag_buffer_t_min = 1.2_rp
+      flag_buffer_t_size = 0.3_rp 
       
 
    end subroutine BluffBody3DSolver_initializeParameters

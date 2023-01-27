@@ -52,13 +52,10 @@ contains
       real(rp) :: cd, lx, ly, xmin, xmax
 
       cd = 1.0_rp
-      lx = this%d0*10.0_rp
+      lx = this%d0*5.0_rp
       ly = this%d0*5.0_rp
       xmin = 20.0_rp*this%d0
-      !lx = this%d0*10.0_rp
-      !ly = this%d0*5.0_rp
-      !xmin = 20.0_rp*this%d0
-      xmax = xmin+ly
+      xmax = xmin+lx
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
@@ -239,10 +236,11 @@ contains
       write(this%results_h5_file_name,*) "results"
 
       this%isPeriodic = .true.
-      this%loadMesh = .false.
+      this%loadMesh = .true.
+      this%loadResults = .true.
 
       this%continue_oldLogs = .false.
-      this%load_step = 20001
+      this%load_step = 850001
 
       this%nstep = 9000000 
       this%cfl_conv = 0.95_rp
