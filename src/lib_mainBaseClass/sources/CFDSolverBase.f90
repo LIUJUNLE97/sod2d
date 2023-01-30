@@ -25,7 +25,7 @@ module mod_arrays
       real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
-      real(rp), allocatable :: witxi(:,:) 
+      real(rp), allocatable :: witxi(:,:), Nwit(:,:)!, buffwit(:,:,:), bufftime(:) 
       
       real(rp), allocatable :: u_buffer(:,:)
 
@@ -79,6 +79,7 @@ module CFDSolverBase_mod
       integer(4), public :: nwit
       integer(4), public :: nwitPar
       integer(4), public :: leapwit
+      integer(4), public :: leapwitsave
       integer(4), public :: nvarwit=5 !Default value, only to be substituted if function update_witness is modified to
 
       ! main logical parameters
@@ -136,6 +137,7 @@ module CFDSolverBase_mod
       procedure, public :: update_witness =>CFDSolverBase_update_witness
       procedure, public :: preprocWitnessPoints =>CFDSolverBase_preprocWitnessPoints
       procedure, public :: loadWitnessPoints =>CFDSolverBase_loadWitnessPoints
+      procedure, public :: save_witness =>CFDSolverBase_save_witness
 
       procedure, public :: initialBuffer =>CFDSolverBase_initialBuffer
 
@@ -526,6 +528,7 @@ contains
       if (this%have_witness) then
          allocate(witel(this%nwit))
          allocate(witxi(this%nwit,ndime))
+         allocate(Nwit(this%nwit,nnode))
       end if
 
       call nvtxEndRange
@@ -910,7 +913,7 @@ contains
 
    subroutine CFDSolverBase_evalTimeIteration(this)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: icode,counter,istep,flag_emac,flag_predic
+      integer(4) :: icode,counter,istep,flag_emac,flag_predic, iwitstep
       character(4) :: timeStep
 
       counter = 1
@@ -1031,46 +1034,73 @@ contains
          counter = counter+1
 
          !!! Witness points interpolation !!!
-         if(this%have_witness) then
-            if (mod(istep,this%leapwit)==0) then
-               call this%update_witness(istep)
-            end if
-         end if
+         !if(this%have_witness) then
+         !   if (mod(istep,this%leapwit)==0) then
+         !      iwitstep = iwitstep+1
+         !      call this%update_witness(istep, iwitstep)
+         !   end if
+         !   if (mod(istep,ths%leapwit*this%leapwitsave)==0) then
+         !      call this%save_witness(istep)
+         !      iwitstep = 0
+         !   end if
+         !end if
       end do
       call nvtxEndRange
    end subroutine CFDSolverBase_evalTimeIteration
 
-   subroutine CFDSolverBase_update_witness(this, istep)
+   subroutine CFDSolverBase_update_witness(this, istep, iwitstep)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4), intent(in)              :: istep
-      integer(4)                          :: iwit, iwitglobal, itewit
-      character(256)                      :: witvar2save
+      integer(4), intent(in)              :: istep, iwitstep
+      integer(4)                          :: iwit, iwitglobal, itewit, inode
       real(rp)                            :: witval(this%nwitPar,this%nvarwit) ! u_x | u_y | u_z | pr | rho
+      real(rp)                            :: start, finish, nodvals(this%nvarwit), auxval
       
+      call cpu_time(start)
+      !$acc kernels
       witval(:,:) = 0.0_rp
-      itewit = istep/this%leapwit
+      !$acc end kernels
+      !$acc parallel loop gang
       do iwit = 1,this%nwitPar
-         if (this%wit_save_u_i) then
-            call wit_interpolation(witxi(iwit,:), u(connecParOrig(witel(iwit),:),1,2), witval(iwit, 1))  !!Ojo en malles periòdiques: connecParWork
-            call wit_interpolation(witxi(iwit,:), u(connecParOrig(witel(iwit),:),2,2), witval(iwit, 2))
-            call wit_interpolation(witxi(iwit,:), u(connecParOrig(witel(iwit),:),3,2), witval(iwit, 3))  
-         end if
-         if (this%wit_save_pr) then
-            call wit_interpolation(witxi(iwit,:), pr(connecParOrig(witel(iwit),:),2), witval(iwit, 4))  
-         end if
-         if (this%wit_save_rho) then
-            call wit_interpolation(witxi(iwit,:), rho(connecParOrig(witel(iwit),:),2), witval(iwit, 5))  
-         end if
+         auxval = 0.0_rp
+         !$acc loop vector reduction(+:auxval)
+         do inode = 1,nnode
+            nodvals(1) = u(connecParOrig(witel(iwit),inode),1,2)
+            nodvals(2) = u(connecParOrig(witel(iwit),inode),2,2)
+            nodvals(3) = u(connecParOrig(witel(iwit),inode),3,2)
+            nodvals(4) = pr(connecParOrig(witel(iwit),inode),2)
+            nodvals(5) = rho(connecParOrig(witel(iwit),inode),2)
+            auxval     = auxval + Nwit(iwit,inode)*nodvals(inode)
+         end do
+         witval(iwit,:) = auxval
       end do
-      call update_witness_hdf5(itewit, witval, this%nwit, this%nwitPar, this%nvarwit, this%witness_h5_file_name, this%time, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      !$acc end loop
+      !$acc kernels
+      !buffwit(iwitstep,:,:) = witval(:,:)
+      !$acc end kernels
+      !bufftime(iwitstep) = this%time
+      call cpu_time(finish)
+      write(*,*) "Interpolate", finish-start
    end subroutine CFDSolverBase_update_witness
+
+   subroutine CFDSolverBase_save_witness(this, istep)
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4)                          :: istep
+      integer(4)                          :: iwit, iwitglobal, itewit
+      real(rp)                            :: start, finish
+      
+      call cpu_time(start)
+      itewit = istep/(this%leapwit)*this%leapwitsave
+      !call update_witness_hdf5(itewit, this%leapwitsave, buffwit, this%nwit, this%nwitPar, this%nvarwit, this%witness_h5_file_name, bufftime, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      call cpu_time(start)
+      write(*,*) "Save", finish-start
+   end subroutine CFDSolverBase_save_witness
 
    subroutine CFDSolverBase_preprocWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       integer(4)                          :: iwit, ielem, inode, ifound, nwitParCand, icand
       integer(rp)                         :: witGlobCand(this%nwit), witGlob(this%nwit)
-      real(rp)                            :: xi(ndime), radwit(numElemsInRank), maxL, center(numElemsInRank,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsInRank)
+      real(rp)                            :: xi(ndime), radwit(numElemsInRank), maxL, center(numElemsInRank,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsInRank), Niwit(nnode)
       real(rp), parameter                 :: wittol=1e-10
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
       logical                             :: isinside   
@@ -1116,20 +1146,20 @@ contains
       end do
       !$acc end loop
       maxL = maxval(helemmax)
-      write(*,*) maxL
       do iwit = 1, nwitParCand
          !$acc kernels
          radwit(:) = ((witxyzParCand(iwit, 1)-center(:,1))*(witxyzParCand(iwit, 1)-center(:,1))+(witxyzParCand(iwit, 2)-center(:,2))*(witxyzParCand(iwit, 2)-center(:,2))+(witxyzParCand(iwit, 3)-center(:,3))*(witxyzParCand(iwit, 3)-center(:,3)))-maxL*maxL
          !$acc end kernels
          do ielem = 1, numElemsInRank
             if (radwit(ielem) < 0) then
-               call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzParCand(iwit,:), xi, isinside)
+               call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzParCand(iwit,:), xi, isinside, Niwit)
                if (isinside .AND. (abs(xi(1)) < 1.0_rp+wittol) .AND. (abs(xi(2)) < 1.0_rp+wittol) .AND. (abs(xi(3)) < 1.0_rp+wittol)) then
                   ifound = ifound+1
                   witel(ifound)   = ielem
                   witxi(ifound,:) = xi(:)
                   witxyzPar(ifound,:)  = witxyzParCand(iwit, :)
                   witGlob(ifound) = witGlobCand(iwit)
+                  Nwit(iwit,:) = Niwit(:)
                   exit
                end if              
             end if
@@ -1138,6 +1168,8 @@ contains
       call CPU_TIME(finish)
       write(*,*) mpi_rank, finish-start
       this%nwitPar = ifound
+      !allocate(buffwit(this%leapwitsave,this%nwitPar,this%nvarwit))
+      !allocate(bufftime(this%leapwitsave))
       call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
       if(mpi_rank.eq.0) then
          write(*,*) "--| End of preprocessing witness points"

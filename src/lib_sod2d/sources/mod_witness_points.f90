@@ -33,7 +33,7 @@ module mod_witness_points
          close(99)
       end subroutine read_points
 
-      subroutine isocoords(elpoints, wit, xi, isinside)
+      subroutine isocoords(elpoints, wit, xi, isinside, Niwit)
          !
          ! Subroutine which computes the isoparametric coordinates of a point in an HEX64 element.
          ! If any of them is outside the bounds of -1 and 1 it means that the point is outside of the element.
@@ -43,6 +43,7 @@ module mod_witness_points
          real(rp), intent(in)   :: wit(ndime)               ! Input 2: coordinates of the point we are looking the isoparametric coordinates from
          real(rp), intent(out)  :: xi(ndime)                ! Output 1: isoparametric coordinates of the point
          logical,  intent(out)  :: isinside
+         real(rp), intent(out)  :: Niwit(nnode) 
          real(rp)               :: xi_0(ndime), xi_n(ndime)
          real(rp)               :: N(nnode), N_lagrange(nnode) 
          integer(4)             :: atoIJK(nnode)
@@ -138,6 +139,7 @@ module mod_witness_points
             xi(:)   = xi_n(:)
             if (dot_product(f, f) < tol) then
                isinside = .true.
+               Niwit    = N
                exit
             end if
             if (dot_product(f, f) > div) then
