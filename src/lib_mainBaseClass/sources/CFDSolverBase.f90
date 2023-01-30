@@ -1053,14 +1053,11 @@ contains
       integer(4), intent(in)              :: istep, iwitstep
       integer(4)                          :: iwit, iwitglobal, itewit, inode
       real(rp)                            :: witval(this%nwitPar,this%nvarwit) ! u_x | u_y | u_z | pr | rho
-      real(rp)                            :: start, finish, nodvals(this%nvarwit), auxval
+      real(rp)                            :: start, finish, nodvals(this%nvarwit), auxval(this%nvarwit)
       
-      !$acc kernels
-      witval(:,:) = 0.0_rp
-      !$acc end kernels
       !$acc parallel loop gang
       do iwit = 1,this%nwitPar
-         auxval = 0.0_rp
+         auxval(:) = 0.0_rp
          !$acc loop vector reduction(+:auxval)
          do inode = 1,nnode
             nodvals(1) = u(connecParOrig(witel(iwit),inode),1,2)
@@ -1068,14 +1065,11 @@ contains
             nodvals(3) = u(connecParOrig(witel(iwit),inode),3,2)
             nodvals(4) = pr(connecParOrig(witel(iwit),inode),2)
             nodvals(5) = rho(connecParOrig(witel(iwit),inode),2)
-            auxval     = auxval + Nwit(iwit,inode)*nodvals(inode)
+            auxval(:)  = auxval(:) + Nwit(iwit,inode)*nodvals(:)
          end do
-         witval(iwit,:) = auxval
+         buffwit(iwitstep,iwit,:) = auxval(:)
       end do
       !$acc end loop
-      !$acc kernels
-      buffwit(iwitstep,:,:) = witval(:,:)
-      !$acc end kernels
       bufftime(iwitstep) = this%time
    end subroutine CFDSolverBase_update_witness
 
@@ -1098,12 +1092,10 @@ contains
       real(rp), parameter                 :: wittol=1e-10
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
       logical                             :: isinside   
-      real                                :: start, finish   
       
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
       end if
-      call CPU_TIME(start)
       !$acc kernels
       witGlobCand(:) = 0
       witGlob(:) = 0
@@ -1159,8 +1151,6 @@ contains
             end if
          end do
       end do
-      call CPU_TIME(finish)
-      write(*,*) mpi_rank, finish-start
       this%nwitPar = ifound
       allocate(buffwit(this%leapwitsave,this%nwitPar,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
