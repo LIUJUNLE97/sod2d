@@ -325,16 +325,18 @@ for ibatch in range(int(np.ceil(nnodes/args.size))):
     #if pyAlya.utils.is_rank_or_serial():
         #for idim in range(dim_id):
             #data[:,idim] *= args.scale[idim]
-	# Store into MPIO file
-	#pyAlya.io.AlyaMPIO_writeByChunk_serial(fname,data,header,nread,ibatch*args.size,rank=0)
-	sizedata = len(nodes_data)
-	#print('size data <%d>'%sizedata,flush=True)
+	if ibatch == 0:
+		nodes_dset = h5file.create_dataset('coords',(nread,dim_id),dtype='f8',data=nodes_data,chunks=True,maxshape=(nnodes,dim_id))
+	else:
+		h5file['coords'].resize((h5file['coords'].shape[0] + nodes_data.shape[0]), axis=0)
+		h5file['coords'][-nodes_data.shape[0]:] = nodes_data
+
 	print('done!')
  
 print('--|',flush=True)
 
 #nodes_xyz = h5file.create_group('nodes_xyz')
-nodes_dset = h5file.create_dataset('coords',(nread,dim_id),dtype='f8',data=nodes_data)
+#nodes_dset = h5file.create_dataset('coords',(nread,dim_id),dtype='f8',data=nodes_data)
 
 del nodes_data
 #del fname, header
@@ -424,44 +426,57 @@ for ibatch in range(int(np.ceil(nelems/args.size))):
 	eltyp   = eltyp[to_keep]
 	lnodp   = lnodp[to_keep,:]
 	#codep   = codep[to_keep]
-	# Store batch numpy arrays if given a size, assuming they cannot fit in memory
-	if not default_size:
-		if not np.all(eltyi == -1):
-			np.savez('interior_%d.npz'%(nbatchi+1),eltyi=eltyi,lnods=lnods)
-			nbatchi += 1 
-		if not np.all(eltyb == -1):
-			np.savez('boundary_%d.npz'%(nbatchb+1),eltyb=eltyb,lnodb=lnodb,codeb=codeb)
-			nbatchb += 1
-            
+	lnods_len=len(lnods)
+	lnodb_len=len(lnodb)
+	lnodp_len=len(lnodp)
+	lcode_len=len(codeb)
+	print('--| lnods_len <%d> lnodb_len <%d> londp_len <%d> lcode_len<%d>'%(lnods_len,lnodb_len,lnodp_len,lcode_len),flush=True)
+	if ibatch == 0:
+		connec_dset = h5file.create_dataset('connec',(nel_interior,lnods_ndim),dtype='i4',data=lnods,chunks=True,maxshape=(None,lnods_ndim))
+		bounds_dset = h5file.create_dataset('boundFaces',(nel_boundary,lnodb_ndim),dtype='i4',data=lnodb,chunks=True,maxshape=(None,lnodb_ndim))
+		per_dset = h5file.create_dataset('periodicFaces',(nel_periodic,lnodp_ndim),dtype='i4',data=lnodp,chunks=True,maxshape=(None,lnodp_ndim))
+		boundId_dset = h5file.create_dataset('boundFacesId',(nel_boundary,),dtype='i4',data=codeb,chunks=True,maxshape=(None))
+	else:
+		if lnods_len != 0:
+			h5file['connec'].resize((h5file['connec'].shape[0] + lnods.shape[0]), axis=0)
+			h5file['connec'][-lnods.shape[0]:] = lnods
+		if lnodb_len != 0:
+			h5file['boundFaces'].resize((h5file['boundFaces'].shape[0] + lnodb.shape[0]), axis=0)
+			h5file['boundFaces'][-lnodb.shape[0]:] = lnodb
+		if lnodp_len != 0:
+			h5file['periodicFaces'].resize((h5file['periodicFaces'].shape[0] + lnodp.shape[0]), axis=0)
+			h5file['periodicFaces'][-lnodp.shape[0]:] = lnodp
+		if lcode_len != 0:
+			h5file['boundFacesId'].resize((h5file['boundFacesId'].shape[0] + codeb.shape[0]), axis=0)
+			h5file['boundFacesId'][-codeb.shape[0]:] = codeb
+
+
 print('done!')
-
 print('--|',flush=True)
-print('--| Found <%d> elements, <%d> boundary elements, <%d> per elems'%(nel_interior,nel_boundary,nel_periodic),flush=True)
+print('--| Found %d inner elements, %d boundary elements, %d per elems'%(nel_interior,nel_boundary,nel_periodic),flush=True)
 
-lnods_len=len(lnods)
-lnodb_len=len(lnodb)
-lnodp_len=len(lnodp)
-
-print('--| lnods_len <%d> lnodb_len <%d> londp_len <%d>'%(lnods_len,lnodb_len,lnodp_len),flush=True)
+#lnods_len=len(lnods)
+#lnodb_len=len(lnodb)
+#lnodp_len=len(lnodp)
+#print('--| lnods_len <%d> lnodb_len <%d> londp_len <%d>'%(lnods_len,lnodb_len,lnodp_len),flush=True)
 
 elems_dset = dims_group.create_dataset('numElements',(1,),dtype='i',data=nel_interior)
 bound_dset = dims_group.create_dataset('numBoundaryFaces',(1,),dtype='i',data=nel_boundary)
 per_dset   = dims_group.create_dataset('numPeriodicFaces',(1,),dtype='i',data=nel_periodic)
 
 #connec_group = h5file.create_group('connectivity')
-connec_dset = h5file.create_dataset('connec',(nel_interior,lnods_ndim),dtype='i4',data=lnods)
-bounds_dset = h5file.create_dataset('boundFaces',(nel_boundary,lnodb_ndim),dtype='i4',data=lnodb)
-per_dset = h5file.create_dataset('periodicFaces',(nel_periodic,lnodp_ndim),dtype='i4',data=lnodp)
-
-boundId_dset = h5file.create_dataset('boundFacesId',(nel_boundary,),dtype='i4',data=codeb)
+#connec_dset = h5file.create_dataset('connec',(nel_interior,lnods_ndim),dtype='i4',data=lnods)
+#bounds_dset = h5file.create_dataset('boundFaces',(nel_boundary,lnodb_ndim),dtype='i4',data=lnodb)
+#per_dset = h5file.create_dataset('periodicFaces',(nel_periodic,lnodp_ndim),dtype='i4',data=lnodp)
+#boundId_dset = h5file.create_dataset('boundFacesId',(nel_boundary,),dtype='i4',data=codeb)
 
 del lnods
 del lnodb
 del lnodp
 del codeb
 
-max_num_per = nel_periodic*16 #de moment hardcodejat 16
-lnodp = np.zeros((max_num_per,2),np.int32) 
+#max_num_per = nel_periodic*16 #de moment hardcodejat 16
+dummy_lnodp = np.zeros((0,2),np.int32) 
 #---- implemented by me from scratch ----- #
 num_bounds_per = 0
 if(len(args.periodic) != 0):
@@ -469,26 +484,35 @@ if(len(args.periodic) != 0):
 print('--| num bounds periodic: %d'%(num_bounds_per))
 npernodes=0
 for iper in range(num_bounds_per):
-	print('--|   Reading per bound %d... '%(iper+1),flush=True)
+	print('--| Reading per bound %d... '%(iper+1),flush=True)
 	linestr = mshFile.readline()
 	linestr = mshFile.readline()
 	nperlinks = np.genfromtxt(mshFile,dtype=('i8'),comments='$',max_rows=1)
+	if default_size: args.size = nperlinks
+	print('--| Per bound <%d> per links: %d'%(iper+1,nperlinks),flush=True)
+	# Read the number of elements in batches 
+	print('--| Reading Per bounds in batches of %d: '%args.size,flush=True)
+	for ibatch in range(int(np.ceil(nperlinks/args.size))):
+		print('--|   Batch %d... '%(ibatch+1),end='',flush=True)	
+		# Read from text file
+		nread = min(args.size,nperlinks-ibatch*args.size)
 
-	print('--|   Per bound <%d> per links: %d'%(iper+1,nperlinks),flush=True)
-	data_per = np.genfromtxt(mshFile,comments='$',dtype=('i8'),max_rows=nperlinks)
-	lnodp[npernodes:npernodes+nperlinks,:] = data_per
+		#data_per = np.genfromtxt(mshFile,comments='$',max_rows=nread)[:,1:dim_id+1]
+		data_per = np.genfromtxt(mshFile,comments='$',dtype=('i8'),max_rows=nread)
+		if ibatch == 0 and iper == 0:
+			nes_dset = h5file.create_dataset('periodicLinks',(nread,2),dtype='i4',data=data_per,chunks=True,maxshape=(None,2))
+		else:
+			h5file['periodicLinks'].resize((h5file['periodicLinks'].shape[0] + data_per.shape[0]), axis=0)
+			h5file['periodicLinks'][-data_per.shape[0]:] = data_per
+		del data_per
+		print('done!')
+	
 	npernodes += nperlinks
-#print(np.matrix(data))
-	del data_per
 
 print('--|',flush=True)
 #---- en section implemented by me ------- #
 
 dset = dims_group.create_dataset('numPeriodicLinks',(1,),dtype='i',data=npernodes)
-
-lnodp = lnodp[0:npernodes,:]
-
-per_dset = h5file.create_dataset('periodicLinks',(npernodes,2),dtype='i4',data=lnodp)
 
 h5file.close()
 mshFile.close()

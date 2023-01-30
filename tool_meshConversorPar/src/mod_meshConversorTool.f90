@@ -119,7 +119,7 @@ contains
       type(jagged_matrix_int) :: masSlaRankPar_jm
       integer(int_size),allocatable :: numPerNodesMshRank(:)
 
-      integer(int_size) :: mshRankInMpiRankStart,mshRankInMpiRankEnd,numMshRanksInMpiRank
+      integer(int_size) :: mshRankInMpiRankStart,mshRankInMpiRankEnd,numMshRanksInMpiRank,maxNumMshRanks
       integer(int_size), allocatable :: mshRanksInMpiRank(:),mapMshRankToMpiRank(:)
 
 ! ################################################################################################
@@ -156,11 +156,11 @@ contains
       end_time(2) = MPI_Wtime()
       elapsed_time_r(2) = end_time(2) - start_time(2)
                      
-      call distribute_ranks2Part_in_mpiRank(numMshRanks2Part,mshRankInMpiRankStart,mshRankInMpiRankEnd,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank)
+      call distribute_ranks2Part_in_mpiRank(numMshRanks2Part,mshRankInMpiRankStart,mshRankInMpiRankEnd,numMshRanksInMpiRank,maxNumMshRanks,mshRanksInMpiRank,mapMshRankToMpiRank)
 
       start_time(3) = MPI_Wtime()
       call do_element_partitioning_gempa_in_parallel(gmsh_h5_fileId,isPeriodic,numElemsGmsh,numNodesGmsh,numBoundFacesGmsh,&
-                     numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numElemsMpiRank,listElemsMpiRank,&
+                     numMshRanks2Part,numMshRanksInMpiRank,maxNumMshRanks,mshRanksInMpiRank,mapMshRankToMpiRank,numElemsMpiRank,listElemsMpiRank,&
                      numNodesMpiRank,listNodesMpiRank,connecMpiRank,coordNodesMpiRank,&
                      numLinkedPerElemsSrl,linkedPerElemsSrl,numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl,&
                      numElemsMshRank,mshRankElemStart,mshRankElemEnd,numNodesMshRank,numBoundFacesMshRank,numPerNodesMshRank,maxBoundCode,&
@@ -330,7 +330,7 @@ contains
       call create_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId)
       call create_hdf5_groups_datasets_in_meshFile_from_tool(sod2dmsh_h5_fileId,isPeriodic,isBoundaries,numMshRanks2Part,numElemsGmsh,numNodesParTotal,&
                vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank)
-#if 1
+
       do iMshRank=1,numMshRanksInMpiRank
          mshRank = mshRanksInMpiRank(iMshRank)
          call write_mshRank_data_in_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,numElemsGmsh,numNodesGmsh,numBoundFacesGmsh,numNodesParTotal,&
@@ -346,7 +346,13 @@ contains
             bnd_commsMemSize_jv%vector(iMshRank)%elems,bnd_commsMemPosInNgb_jv%vector(iMshRank)%elems,bnd_ranksToComm_jv%vector(iMshRank)%elems,&
             vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank) 
       end do
-#endif
+
+      do iMshRank=(numMshRanksInMpiRank+1),maxNumMshRanks
+         write(*,*) 'FAKE-rank[',mpi_rank,']doing',iMshRank,'max',maxNumMshRanks
+         call dummy_write_mshRank_data_in_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId,numMshRanks2Part,isPeriodic,isBoundaries)
+      end do
+
+
       call close_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId)
 
       end_time(8) = mpi_wtime()
@@ -450,131 +456,52 @@ contains
    end subroutine read_dims_gmsh_h5_file
 
 
-   subroutine read_elem_connec_and_nodes_coords_from_gmsh_h5_file(gmsh_h5_fileId,numElemsInRank,listElemsRank,numNodesInRank,connecRank,listNodesRank,coordNodesRank)
+   subroutine read_elem_connec_and_nodes_coords_from_gmsh_h5_file(gmsh_h5_fileId,numElemsSrl,numNodesSrl,numElemsInRank,listElemsRank,numNodesInRank,connecRank,listNodesRank,coordNodesRank)
       implicit none
       integer(hid_t), intent(in) :: gmsh_h5_fileId
-      integer,intent(in) :: numElemsInRank,listElemsRank(numElemsInRank)
+      integer,intent(in) :: numElemsSrl,numNodesSrl,numElemsInRank,listElemsRank(numElemsInRank)
       integer,intent(out) :: numNodesInRank,connecRank(numElemsInRank,nnode)
       integer,allocatable,intent(inout) :: listNodesRank(:)
       real(rp),allocatable,intent(inout) :: coordNodesRank(:,:)
-      integer(4) :: auxConnec(nnode)
-      integer(4),allocatable :: auxConnec2(:,:)
       integer(4) :: iElem,iNode,iNodeG,prevNodeG,nodeCnt,iAux,jAux,iDim
-      real(8) :: auxCoords(ndime)
-      real(8),allocatable :: auxCoords2(:,:)
       integer(4) :: elemToRead,nodeToRead
-
       !-----------------------------------------------------------
       character(128) :: dsetname
-      integer,parameter :: ms_rank=2,ds_rank=2
-      integer(hsize_t), dimension(ms_rank) :: ms_dims
-      integer(hssize_t), dimension(ms_rank) :: ms_offset
-      integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
+      integer,parameter :: ds_rank=2
+      integer(hid_t) :: dset_id,fspace_id,plist_id
       integer(hsize_t),dimension(ds_rank) :: fs_dims,fs_maxdims
       integer :: h5err
-      integer(hsize_t) :: ms_numElems
-      integer(hid_t) :: dtype
-      integer(hsize_t),allocatable :: ms_coords(:,:)
       !------------------------------------------------------------
-
       integer,allocatable :: rawNodeListRank(:)
+      real(8), dimension(5) :: start_time,end_time,elapsed_time,elapsed_time_m
 
       !if(mpi_rank.eq.0)write(*,*) "--| Reading element table..."
+      if(mpi_rank.eq.0) write(*,*) ' -numElems2read',numElemsInRank
+      start_time(1) = MPI_Wtime()
 
-      ms_dims(1) = nnode
-      ms_dims(2) = 1
-      ms_offset(1) = 0
-      ms_offset(2) = 0
-      dtype = H5T_NATIVE_INTEGER
       dsetname = '/connec'
-#if 0
-      do iElem=1,numElemsInRank
-         elemToRead=listElemsRank(iElem)
-         ms_offset(2) = elemToRead-1
-
-         call read_dataspace_int4_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_rank,ms_dims,ms_offset,auxConnec)
-
-         connecRank(iElem,1:nnode) = auxConnec(:)
-         !if(mpi_rank.eq.0)write(*,*) 'iElem',iElem,'e2r',elemToRead,'auxConnec',auxConnec(:)
-         !if(mpi_rank.eq.0)write(*,*) 'connecRank',connecRank(iElem,:)
-      end do
-#endif
-      !call read_dataspace_int4_lynebyline_parallel(gmsh_h5_fileId,dsetname,ms_rank,ms_dims,listElemsRank,numElemsInRank,nnode,connecRank)
-#if 0
       call h5dopen_f(gmsh_h5_fileId,dsetname,dset_id,h5err)
       call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
       call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      !call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
+      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
+      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
 
-      do iElem=1,numElemsInRank
-         elemToRead=listElemsRank(iElem)
-         ms_offset(2) = elemToRead-1
-         call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
-         !call h5dread_f(dset_id,dtype,connecRank(iElem,:),ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
-         call h5dread_f(dset_id,dtype,connecRank(iElem,:),ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id)
+      !haig de jugar amb el ratio fs_dims i ms_dims
 
-         !connecRank(iElem,1:nnode) = auxConnec(:)
-         !if(mpi_rank.eq.0)write(*,*) 'iElem',iElem,'e2r',elemToRead,'auxConnec',auxConnec(:)
-         !if(mpi_rank.eq.0)write(*,*) 'connecRank',connecRank(iElem,:)
-      end do
+      !call read_elem_connec_by_coords_selection(dset_id,fspace_id,plist_id,numElemsInRank,listElemsRank,connecRank)
+      call read_elem_connec_by_chunks(dset_id,fspace_id,plist_id,numElemsSrl,numElemsInRank,listElemsRank,connecRank)
 
-      !call h5pclose_f(plist_id,h5err)
-      call h5sclose_f(mspace_id,h5err)
+      call h5pclose_f(plist_id,h5err)
       call h5sclose_f(fspace_id,h5err)
       call h5dclose_f(dset_id,h5err)
-#endif
-      !---------------------------------------------------------------
-      !TEST ZONE FOR ELEMENT SELECTION!
-      ms_dims(1) = nnode
-      ms_dims(2) = numElemsInRank
 
-      ms_numElems = nnode*numElemsInRank
-      allocate(ms_coords(ms_rank,nnode*numElemsInRank))
-      allocate(auxConnec2(nnode,numElemsInRank))
+      end_time(1) = MPI_Wtime()
+      elapsed_time(1) = end_time(1) - start_time(1)
 
-      call h5dopen_f(gmsh_h5_fileId,dsetname,dset_id,h5err)
-      call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
-      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      !call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
-
-      !default
-      ms_coords(1,:) = 1
-      ms_coords(2,:) = 1
-
-      iAux=0
-      do iElem=1,numElemsInRank
-         elemToRead=listElemsRank(iElem)
-         do iNode=1,nnode
-            iAux=iAux+1
-            ms_coords(1,iAux) = iNode
-            ms_coords(2,iAux) = elemToRead
-         end do
-      end do
-
-      call h5sselect_elements_f(fspace_id,H5S_SELECT_SET_F,ms_rank,ms_numElems,ms_coords,h5err) 
-      call h5dread_f(dset_id,dtype,auxConnec2,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id)
-      !do iElem=1,2
-      !write(*,*) 'auxConnec2()',auxConnec2(:,:)
-      !end do
-
-      do iElem=1,numElemsInRank
-         connecRank(iElem,:) = auxConnec2(:,iElem)
-      end do
-
-      deallocate(auxConnec2)
-      deallocate(ms_coords)
-      !write(*,*) 'fs_dims',fs_dims(:),'max_dims',fs_maxdims(:)
-
-      !call h5pclose_f(plist_id,h5err)
-      call h5sclose_f(mspace_id,h5err)
-      call h5sclose_f(fspace_id,h5err)
-      call h5dclose_f(dset_id,h5err)
-      !END TEST ZONE FOR ELEMENT SELECTION!
-      !---------------------------------------------------------------
-
-      !------------------------------------------------------------------------------------------
+      !----------------------------------------------------------------------------------------------------------
+      start_time(2) = MPI_Wtime()
+      !----------------------------------------------------------------------------------------------------------
+      ! REORDERING NODE LIST
 
       allocate(rawNodeListRank(numElemsInRank*nnode))
       !$acc kernels
@@ -625,64 +552,260 @@ contains
 
       deallocate(rawNodeListRank)
 
+      end_time(2) = MPI_Wtime()
+      elapsed_time(2) = end_time(2) - start_time(2)
+
+      start_time(3) = MPI_Wtime()
       ! Nodal coordinates section
       !------------------------------------------------------------------------------------------
       !if(mpi_rank.eq.0)write(*,*) "--| Reading coordinates..."
+
+      dsetname = '/coords'
+
+      call h5dopen_f(gmsh_h5_fileId,dsetname,dset_id,h5err)
+      call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
+      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
+      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
+      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+
+      call read_nodes_coords_by_coords_selection(dset_id,fspace_id,plist_id,numNodesInRank,listNodesRank,coordNodesRank)
+      !call read_nodes_coords_by_chunks(dset_id,fspace_id,plist_id,numNodesSrl,numNodesInRank,listNodesRank,coordNodesRank)
+
+      call h5pclose_f(plist_id,h5err)
+      call h5sclose_f(fspace_id,h5err)
+      call h5dclose_f(dset_id,h5err)
+
+      end_time(3) = MPI_Wtime()
+      elapsed_time(3) = end_time(3) - start_time(3)
+
+      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),3,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD,h5err)
+
+      if(mpi_rank.eq.0) then
+         write(*,*) '   1.Read Elems',elapsed_time_m(1)
+         write(*,*) '   2.Sort Nodes',elapsed_time_m(2)
+         write(*,*) '   3.Read Coord',elapsed_time_m(3)
+      end if
+
+   end subroutine read_elem_connec_and_nodes_coords_from_gmsh_h5_file
+!-------------------------------------------------------------------------------------------------------------------------------------------
+   subroutine read_elem_connec_by_chunks(dset_id,fspace_id,plist_id,numElemsSrl,numElemsInRank,listElemsRank,connecRank)
+      implicit none
+      integer(hid_t),intent(in) :: dset_id,fspace_id,plist_id
+      integer,intent(in) :: numElemsSrl,numElemsInRank,listElemsRank(numElemsInRank)
+      integer,intent(out) :: connecRank(numElemsInRank,nnode)
+      integer(4) :: nextElemToRead,elemCnt,iElem,iElemG
+      integer :: maxRows2read,numChunks,iChunk
+      !-----------------------------------------------------------
+      integer,parameter :: ms_rank=2
+      integer(hsize_t), dimension(ms_rank) :: ms_dims
+      integer(hssize_t), dimension(ms_rank) :: ms_offset
+      integer(hid_t) :: mspace_id
+      integer :: h5err
+      integer(hid_t) :: dtype
+      integer, allocatable :: vecChunks(:),auxConnec(:,:)
+      !----------------------------------------------------------------------------------------------------------
+      !TESTING ZONE READ ELEMENTS BY CHUNKS!
+      maxRows2read = 50000
+
+      numChunks = ceiling(real(numElemsSrl)/real(maxRows2read))
+      if(mpi_rank.eq.0) write(*,*) ' -Reading elems by chunks | numChunks',numChunks,'maxRows2read',maxRows2read
+
+      ms_dims(1) = nnode
+      ms_dims(2) = 1
+      ms_offset(1) = 0
+      ms_offset(2) = 0
+      dtype = H5T_NATIVE_INTEGER
+
+      allocate(vecChunks(numChunks))
+      call distribution_algorithm(numElemsSrl,numChunks,vecChunks)
+
+      elemCnt=0
+      iElemG=0
+      nextElemToRead=listElemsRank(elemCnt+1)
+      ms_offset(2) = 0
+      do iChunk=1,numChunks
+         ms_dims(1) = nnode
+         ms_dims(2) = vecChunks(iChunk)
+         allocate(auxConnec(ms_dims(1),ms_dims(2)))
+         !write(*,*) 'iChunk',iChunk,'ms_dims',ms_dims,'ms_offset',ms_offset(2),'+',ms_offset(2) + ms_dims(2),'fsdims',fs_dims
+
+         call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+         call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
+         call h5dread_f(dset_id,dtype,auxConnec,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+         call h5sclose_f(mspace_id,h5err)
+
+         do iElem=1,ms_dims(2)
+            iElemG=iElemG+1
+            if(iElemG.eq.nextElemToRead) then
+               elemCnt=elemCnt+1
+               connecRank(elemCnt,1:nnode) = auxConnec(:,iElem)
+               !write(*,*) 'connecRank[',mpi_rank,'](',elemCnt,')',connecRank(elemCnt,:)
+               if(elemCnt.lt.numElemsInRank) nextElemToRead=listElemsRank(elemCnt+1)
+            end if
+         end do
+
+         deallocate(auxConnec)
+         ms_offset(2) = ms_offset(2) + ms_dims(2)
+      end do
+      !write(*,*) 'elemCnt',elemCnt,'numElemsRank',numElemsInRank
+
+      deallocate(vecChunks)
+      !----------------------------------------------------------------------------------------------------------
+
+   end subroutine read_elem_connec_by_chunks
+!-------------------------------------------------------------------------------------------------------------------------------------------
+   subroutine read_elem_connec_by_coords_selection(dset_id,fspace_id,plist_id,numElemsInRank,listElemsRank,connecRank)
+      implicit none
+      integer(hid_t),intent(in) :: dset_id,fspace_id,plist_id
+      integer,intent(in) :: numElemsInRank,listElemsRank(numElemsInRank)
+      integer,intent(out) :: connecRank(numElemsInRank,nnode)
+      !-----------------------------------------------------------------------
+      integer, allocatable :: auxConnec(:,:)
+      integer :: iAux,iElem,iNode,elemToRead
+      !-----------------------------------------------------------------------
+      integer,parameter :: ms_rank=2
+      integer(hsize_t), dimension(ms_rank) :: ms_dims
+      integer(hid_t) :: mspace_id
+      integer :: h5err
+      integer(hid_t) :: dtype
+      integer(hsize_t) :: ms_numElems
+      integer(hsize_t),allocatable :: ms_coords(:,:)
+      !-----------------------------------------------------------------------
+
+      dtype = H5T_NATIVE_INTEGER
+
+      ms_dims(1) = nnode
+      ms_dims(2) = numElemsInRank
+      ms_numElems = nnode*numElemsInRank
+      !write(*,*) 'ms_numElems(',mpi_rank,')',ms_numElems
+      allocate(ms_coords(ms_rank,nnode*numElemsInRank))
+      allocate(auxConnec(nnode,numElemsInRank))
+
+      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+
+      !default
+      ms_coords(1,:) = 1
+      ms_coords(2,:) = 1
+
+      iAux=0
+      do iElem=1,numElemsInRank
+         elemToRead=listElemsRank(iElem)
+         do iNode=1,nnode
+            iAux=iAux+1
+            ms_coords(1,iAux) = iNode
+            ms_coords(2,iAux) = elemToRead
+         end do
+      end do
+
+      call h5sselect_elements_f(fspace_id,H5S_SELECT_SET_F,ms_rank,ms_numElems,ms_coords,h5err) 
+      call h5dread_f(dset_id,dtype,auxConnec,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+
+      do iElem=1,numElemsInRank
+         connecRank(iElem,:) = auxConnec(:,iElem)
+      end do
+
+      deallocate(auxConnec)
+      deallocate(ms_coords)
+
+      call h5sclose_f(mspace_id,h5err)
+
+   end subroutine read_elem_connec_by_coords_selection
+!-------------------------------------------------------------------------------------------------------------------------------------------
+   subroutine read_nodes_coords_by_chunks(dset_id,fspace_id,plist_id,numNodesSrl,numNodesInRank,listNodesRank,coordNodesRank)
+      implicit none
+      integer(hid_t),intent(in) :: dset_id,fspace_id,plist_id
+      integer,intent(in) :: numNodesSrl,numNodesInRank,listNodesRank(numNodesInRank)
+      real(rp),intent(inout) :: coordNodesRank(:,:)
+      !-----------------------------------------------------------------------
+      real(8),allocatable :: auxCoords(:,:)
+      integer(4) :: nextNodeToRead,nodeCnt,iNode,iNodeG
+      !-----------------------------------------------------------------------
+      integer,parameter :: ms_rank=2
+      integer(hsize_t), dimension(ms_rank) :: ms_dims
+      integer(hssize_t), dimension(ms_rank) :: ms_offset
+      integer(hid_t) :: mspace_id
+      integer :: h5err
+      integer(hid_t) :: dtype
+      integer, allocatable :: vecChunks(:),auxConnec(:,:)
+      !----------------------------------------------------------------------------------------------------------
+      integer :: maxRows2read,numChunks,iChunk
+
+      maxRows2read = 1000000
+
+      numChunks = ceiling(real(numNodesSrl)/real(maxRows2read))
+      if(mpi_rank.eq.0) write(*,*) ' -Reading nodescoords by chunks | numChunks',numChunks,'maxRows2read',maxRows2read
 
       ms_dims(1) = ndime
       ms_dims(2) = 1
       ms_offset(1) = 0
       ms_offset(2) = 0
       dtype = H5T_NATIVE_DOUBLE
-      dsetname = '/coords'
-#if 0
-      do iNode=1,numNodesInRank
-         nodeToRead=listNodesRank(iNode)
-         ms_offset(2) = nodeToRead-1
 
-         call read_dataspace_fp64_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_rank,ms_dims,ms_offset,auxCoords)
+      allocate(vecChunks(numChunks))
+      call distribution_algorithm(numNodesSrl,numChunks,vecChunks)
 
-         coordNodesRank(iNode,:) = auxCoords(:)
-         !if(mpi_rank.eq.0)write(*,*) 'n2r',nodeToRead,'coords',coordNodesRank(iNode,:)
-      end do
-#endif
-      !call read_dataspace_fp64_lynebyline_parallel(gmsh_h5_fileId,dsetname,ms_rank,ms_dims,listNodesRank,numNodesInRank,ndime,coordNodesRank)
-#if 0
-      call h5dopen_f(gmsh_h5_fileId,dsetname,dset_id,h5err)
-      call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
-      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      !call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
+      nodeCnt=0
+      iNodeG=0
+      nextNodeToRead=listNodesRank(nodeCnt+1)
+      ms_offset(2) = 0
+      do iChunk=1,numChunks
+         ms_dims(1) = ndime
+         ms_dims(2) = vecChunks(iChunk)
+         allocate(auxCoords(ms_dims(1),ms_dims(2)))
+         !write(*,*) 'iChunk',iChunk,'ms_dims',ms_dims,'ms_offset',ms_offset(2),'+',ms_offset(2) + ms_dims(2),'fsdims',fs_dims
 
-      do iNode=1,numNodesInRank
-         nodeToRead=listNodesRank(iNode)
-         ms_offset(2) = nodeToRead-1
+         call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err)
          call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
-         !call h5dread_f(dset_id,dtype,auxCoords,fs_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
-         call h5dread_f(dset_id,dtype,auxCoords,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id)
-         coordNodesRank(iNode,:) = auxCoords(:)
-         !if(mpi_rank.eq.0)write(*,*) 'n2r',nodeToRead,'coords',coordNodesRank(iNode,:)
+         call h5dread_f(dset_id,dtype,auxCoords,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+         call h5sclose_f(mspace_id,h5err)
+
+         do iNode=1,ms_dims(2)
+            iNodeG=iNodeG+1
+            if(iNodeG.eq.nextNodeToRead) then
+               nodeCnt=nodeCnt+1
+               coordNodesRank(nodeCnt,1:ndime) = auxCoords(:,iNode)
+
+               if(nodeCnt.lt.numNodesInRank) nextNodeToRead=listNodesRank(nodeCnt+1)
+            end if
+         end do
+
+         deallocate(auxCoords)
+         ms_offset(2) = ms_offset(2) + ms_dims(2)
       end do
 
-      !call h5pclose_f(plist_id,h5err)
-      call h5sclose_f(mspace_id,h5err)
-      call h5sclose_f(fspace_id,h5err)
-      call h5dclose_f(dset_id,h5err)
-#endif
-      !---------------------------------------------------------------
-      !TEST ZONE FOR ELEMENT SELECTION!
+      deallocate(vecChunks)
+      !----------------------------------------------------------------------------------------------------------
+
+   end subroutine read_nodes_coords_by_chunks
+!-------------------------------------------------------------------------------------------------------------------------------------------
+   subroutine read_nodes_coords_by_coords_selection(dset_id,fspace_id,plist_id,numNodesInRank,listNodesRank,coordNodesRank)
+      implicit none
+      integer(hid_t),intent(in) :: dset_id,fspace_id,plist_id
+      integer,intent(in) :: numNodesInRank,listNodesRank(numNodesInRank)
+      real(rp),intent(inout) :: coordNodesRank(:,:)
+      !-----------------------------------------------------------------------
+      real(8),allocatable :: auxCoords(:,:)
+      integer :: iAux,iElem,iNode,iDim,nodeToRead
+      !-----------------------------------------------------------------------
+      integer,parameter :: ms_rank=2
+      integer(hsize_t), dimension(ms_rank) :: ms_dims
+      integer(hid_t) :: mspace_id
+      integer :: h5err
+      integer(hid_t) :: dtype
+      integer(hsize_t) :: ms_numElems
+      integer(hsize_t),allocatable :: ms_coords(:,:)
+      !-----------------------------------------------------------------------
+      
+      dtype = H5T_NATIVE_DOUBLE
+
       ms_dims(1) = ndime
       ms_dims(2) = numNodesInRank
 
       ms_numElems = ms_dims(1)*ms_dims(2)
       allocate(ms_coords(ms_rank,ms_dims(1)*ms_dims(2)))
-      allocate(auxCoords2(ms_dims(1),ms_dims(2)))
+      allocate(auxCoords(ms_dims(1),ms_dims(2)))
 
-      call h5dopen_f(gmsh_h5_fileId,dsetname,dset_id,h5err)
-      call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
-      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
       call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      !call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
 
       !default
       ms_coords(1,:) = 1
@@ -699,26 +822,19 @@ contains
       end do
 
       call h5sselect_elements_f(fspace_id,H5S_SELECT_SET_F,ms_rank,ms_numElems,ms_coords,h5err) 
-      call h5dread_f(dset_id,dtype,auxCoords2,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id)
+      call h5dread_f(dset_id,dtype,auxCoords,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
       do iNode=1,numNodesInRank
-         coordNodesRank(iNode,:) = auxCoords2(:,iNode)
+         coordNodesRank(iNode,:) = auxCoords(:,iNode)
       end do
 
-      deallocate(auxCoords2)
+      deallocate(auxCoords)
       deallocate(ms_coords)
-      !write(*,*) 'fs_dims',fs_dims(:),'max_dims',fs_maxdims(:)
 
-      !call h5pclose_f(plist_id,h5err)
       call h5sclose_f(mspace_id,h5err)
-      call h5sclose_f(fspace_id,h5err)
-      call h5dclose_f(dset_id,h5err)
-      !END TEST ZONE FOR ELEMENT SELECTION!
-      !---------------------------------------------------------------
 
-
-
-   end subroutine read_elem_connec_and_nodes_coords_from_gmsh_h5_file
+   end subroutine read_nodes_coords_by_coords_selection
+!-------------------------------------------------------------------------------------------------------------------------------------------
 
    subroutine read_periodic_faces_and_links_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,listElemsInRank,connecInRank,&
                         numLinkedPerElemsSrl,linkedPerElemsSrl,numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl)
@@ -727,12 +843,12 @@ contains
       integer(4),intent(in) :: numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,listElemsInRank(numElemsInRank),connecInRank(numElemsInRank,nnode)
       integer(4),intent(out) :: numLinkedPerElemsSrl,numPerElemsSrl,numMasSlaNodesSrl
       integer(4),allocatable,intent(inout) :: linkedPerElemsSrl(:,:),listPerElemsSrl(:),masSlaNodesSrl(:,:)     
-      integer :: numPerFacesInRank
+      integer :: numPerFacesInRank,h5err
       integer(4),allocatable :: listElemsPerFacesInRank(:,:),listPerFacesInRank(:),connecPerFacesInRank(:,:)
 
       character(128) :: dsetname2read
 
-      real(8), dimension(2) :: start_time,end_time,elapsed_time
+      real(8), dimension(2) :: start_time,end_time,elapsed_time,elapsed_time_m
 
       if(mpi_rank.eq.0) write(*,*) "--| Reading periodic boundaries..."
 
@@ -743,7 +859,7 @@ contains
       end_time(1) = MPI_Wtime()
       elapsed_time(1) = end_time(1) - start_time(1)
 
-      if(mpi_rank.eq.0)write(*,*) "--| Reading periodic links..."
+      if(mpi_rank.eq.0) write(*,*) "--| Reading periodic links..."
 
       start_time(2) = MPI_Wtime()
       call read_periodic_links_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,numPerFacesInRank,&
@@ -752,8 +868,10 @@ contains
       end_time(2) = MPI_Wtime()
       elapsed_time(2) = end_time(2) - start_time(2)
 
+      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),2,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD,h5err)
+
       if(mpi_rank.eq.0) then
-         write(*,*) 'Time ReadBounds',elapsed_time(1)
+         write(*,*) 'Time ReadPerBounds',elapsed_time(1)
          write(*,*) 'Time ReadPerLinks',elapsed_time(2)
       end if
       !-----------------------------------------------
@@ -783,7 +901,7 @@ contains
       integer(hssize_t), dimension(ms_rank) :: ms_offset
       integer(hid_t) :: dtype
 
-      real(8), dimension(3) :: start_time,end_time,elapsed_time
+      real(8), dimension(3) :: start_time,end_time,elapsed_time,elapsed_time_m
 
       !for the moment I will use this auxiliar array, but if we see that is allocating too much memory
       !maybe we can try another strategy, without allocating an array of numBoundFaceSrl
@@ -821,13 +939,14 @@ contains
       call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
       call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
       call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      !call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
+      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
+      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
 
       call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
-      !call h5dread_f(dset_id,dtype,connecRank(iElem,:),ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
-      call h5dread_f(dset_id,dtype,auxFacesInRank(1:npbou,1:faces2readInChunk),ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id)
+      !call h5dread_f(dset_id,dtype,connecRank(iElem,:),ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id)
+      call h5dread_f(dset_id,dtype,auxFacesInRank(1:npbou,1:faces2readInChunk),ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
-      !call h5pclose_f(plist_id,h5err)
+      call h5pclose_f(plist_id,h5err)
       call h5sclose_f(mspace_id,h5err)
       call h5sclose_f(fspace_id,h5err)
       call h5dclose_f(dset_id,h5err)
@@ -925,10 +1044,12 @@ contains
 
       deallocate(auxFacesInRank)
 
+      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),3,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD,h5err)
+
       if(mpi_rank.eq.0) then
-         write(*,*) 'ReadBounds(1)',elapsed_time(1)
-         write(*,*) 'ReadBounds(2)',elapsed_time(2)
-         write(*,*) 'ReadBounds(3)',elapsed_time(3)
+         write(*,*) ' 1.Bounds(readHDF5)',elapsed_time_m(1)
+         write(*,*) ' 2.Bounds(linkElemAndFace)',elapsed_time_m(2)
+         write(*,*) ' 3.Bounds(genListAndConn)',elapsed_time_m(3)
       end if
 
 
@@ -972,7 +1093,8 @@ contains
       call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
       call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
       call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      !call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
+      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
+      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
 
       !default
       ms_coords(1,:) = 1
@@ -982,7 +1104,7 @@ contains
       end do
 
       call h5sselect_elements_f(fspace_id,H5S_SELECT_SET_F,ms_rank,ms_numElems,ms_coords,h5err) 
-      call h5dread_f(dset_id,dtype,boundFacesCodesInRank,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id)
+      call h5dread_f(dset_id,dtype,boundFacesCodesInRank,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
       !do iNode=1,numNodesInRank
       !   coordNodesRank(iNode,:) = auxCoords2(:,iNode)
@@ -991,7 +1113,7 @@ contains
       deallocate(ms_coords)
       !write(*,*) 'fs_dims',fs_dims(:),'max_dims',fs_maxdims(:)
 
-      !call h5pclose_f(plist_id,h5err)
+      call h5pclose_f(plist_id,h5err)
       call h5sclose_f(mspace_id,h5err)
       call h5sclose_f(fspace_id,h5err)
       call h5dclose_f(dset_id,h5err)
@@ -1050,6 +1172,7 @@ contains
       integer(4) :: memPos,memSize,window_id1,window_id2,mpiRankTrgt,iMpiRank
       integer(KIND=MPI_ADDRESS_KIND) :: win_buffer_size1,win_buffer_size2,trgt_disp
 
+      real(8), dimension(8) :: start_time,end_time,elapsed_time,elapsed_time_m
       !----------------------------------------------------------------------------------------------------------
       !  0. Allocate vectors
 
@@ -1067,7 +1190,7 @@ contains
 
       !----------------------------------------------------------------------------------------------------------
       !  1. Share the mpi rank owning each periodic face
-
+      start_time(1) = MPI_Wtime()
       !--------------------------------------------------------------------------------------------------------------------
       win_buffer_size1 = mpi_integer_size*numPerFacesSrl
       call MPI_Win_create(mpiRankPerFacesAll,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
@@ -1086,10 +1209,13 @@ contains
       call MPI_Win_free(window_id1,mpi_err)
       !write(*,*) '[',mpi_rank,']',mpiRankPerFacesAll(:)
       !--------------------------------------------------------------------------------------------------------------------
+      end_time(1) = MPI_Wtime()
+      elapsed_time(1) = end_time(1) - start_time(1)
 
       !----------------------------------------------------------------------------------------------------------
       !  2. Second read the periodic links from h5 file
-
+      if(mpi_rank.eq.0) write(*,*) "  |-> Reading periodic links from h5 file..."
+      start_time(2) = MPI_Wtime()
       !IMPORTANT: for the moment I will this auxiliar matrix with the full size numPerLinkedNodesSrl for performance reasons
       !if in a future this can be a memory bound problem (which should not be, since the numPerLinkedNodes should not be very big compared with the inner nodes)
       !rethink the method, maybe do the reading line by line of the hdf5 for all the faces or do the method by chunks
@@ -1110,13 +1236,14 @@ contains
       call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
       call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
       call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      !call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
+      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
+      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
 
       call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
       !call h5dread_f(dset_id,dtype,connecRank(iElem,:),ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
-      call h5dread_f(dset_id,dtype,matPerLinkNodesT(1:2,1:numPerLinkedNodesSrl),ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id)
+      call h5dread_f(dset_id,dtype,matPerLinkNodesT(1:2,1:numPerLinkedNodesSrl),ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
-      !call h5pclose_f(plist_id,h5err)
+      call h5pclose_f(plist_id,h5err)
       call h5sclose_f(mspace_id,h5err)
       call h5sclose_f(fspace_id,h5err)
       call h5dclose_f(dset_id,h5err)
@@ -1126,6 +1253,7 @@ contains
       end do
 
       deallocate(matPerLinkNodesT)
+
 
 #if 0
       !TODO THIS ONE! AJA!!
@@ -1140,9 +1268,13 @@ contains
       !  fill the other
       !  first find in the 'master column'
 
+      end_time(2) = MPI_Wtime()
+      elapsed_time(2) = end_time(2) - start_time(2)
+
       !----------------------------------------------------------------------------------------------------------
       !  3. Fill the refNodesPerFacesAll matrix
-
+      if(mpi_rank.eq.0) write(*,*) "  |-> Filling refNodesPerFacesAll..."
+      start_time(3) = MPI_Wtime()
       call quicksort_matrix_int(matPerLinkNodes,1)
 
       do iPerFace=1,numPerFacesInRank
@@ -1183,6 +1315,10 @@ contains
             end do
          end if
       end do
+      end_time(3) = MPI_Wtime()
+      elapsed_time(3) = end_time(3) - start_time(3)
+      if(mpi_rank.eq.0) write(*,*) "  |-> Looking for and setting the periodic master nodes..."
+      start_time(4) = MPI_Wtime()
 
       !do iPerFace=1,numPerFacesInRank
       !   write(*,*) '[',mpi_rank,']perFace(',listPerFacesInRank(iPerFace),'own',ownedPerFacesInRank(iPerFace,:),'oth',otherPerFacesInRank(iPerFace,:),'M/S',masterPerFacesInRank(iPerFace)
@@ -1239,6 +1375,10 @@ contains
 
       !-----------------------------------------------------------------------------------------------------------
       ! X. fill the vector perFaceElemAll with the local elems
+      end_time(4) = MPI_Wtime()
+      elapsed_time(4) = end_time(4) - start_time(4)
+      if(mpi_rank.eq.0) write(*,*) "  |-> Filling vector perFaceElemAll with local Elems..."
+      start_time(5) = MPI_Wtime()
 
       numPerElemsInRank=0
       do iElem=1,numElemsInRank
@@ -1262,9 +1402,17 @@ contains
       end do
       !write(*,*) '[',mpi_rank,']nPEiR',numPerElemsInRank,'nPES',numPerElemsSrl
 
+      end_time(5) = MPI_Wtime()
+      elapsed_time(5) = end_time(5) - start_time(5)
+      if(mpi_rank.eq.0) write(*,*) "  |-> Filling vectors listPerElems (Rank & All)..."
+      start_time(6) = MPI_Wtime()
+      !TODO: NEED TO IMPROVE THESE PART OF COMMS FOR LARGE DATA ANT LARGE NUM OF PROCS
+      !NOT EFFICIENT AT ALL --> IS A BOTTLENECK!
+      !--------------------------------------------------------------------------------
+
       allocate(listPerElemsInRank(numPerElemsInRank))
       allocate(listPerElemsAll(numPerElemsSrl))
-
+      if(mpi_rank.eq.0) write(*,*) "  |---> Loop1..."
       iAux=0
       do iElem=1,numElemsInRank
          if(listElemsPerFacesInRank(iElem,1).ne.0) then
@@ -1274,7 +1422,7 @@ contains
          end if
       end do
       !write(*,*) '[',mpi_rank,']lPEiR',listPerElemsInRank(:)
-
+      if(mpi_rank.eq.0) write(*,*) "  |---> Comm2..."
       !---------------------------------------------------------------------------------------------------------------------------------------
       win_buffer_size1 = mpi_integer_size*numPerElemsInRank
       call MPI_Win_create(listPerElemsInRank,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
@@ -1295,13 +1443,13 @@ contains
       call MPI_Win_free(window_id1,mpi_err)
 
       deallocate(listPerElemsInRank)
-
+      if(mpi_rank.eq.0) write(*,*) "  |---> Loop3..."
       call quicksort_array_int(listPerElemsAll) !i think is not necessary... but just in case
       !write(*,*) '[',mpi_rank,']lPESrl',listPerElemsAll(:)
 
       !---------------------------------------------------------------------------------------------------------------------------------------
       !---------------------------------------------------------------------------------------------------------------------------------------
-
+      if(mpi_rank.eq.0) write(*,*) "  |---> Comm4..."
       !---------------------------------------------------------------------------------------------------------------------------------------
       win_buffer_size1 = mpi_integer_size*(numPerFacesSrl*numVert)
       call MPI_Win_create(refNodesPerFacesAll,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
@@ -1327,11 +1475,11 @@ contains
       call MPI_Win_free(window_id1,mpi_err)
 
       !---------------------------------------------------------------------------------------------------------------------------------------
-
+      if(mpi_rank.eq.0) write(*,*) "  |---> Comm5.a.."
       win_buffer_size1 = mpi_integer_size*(numPerFacesSrl)
       call MPI_Win_create(perFaceElemAll,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
       call MPI_Win_fence(0,window_id1,mpi_err)
-
+      if(mpi_rank.eq.0) write(*,*) "  |---> Comm5.b.."
       win_buffer_size2 = mpi_integer_size*(numPerFacesSrl)
       call MPI_Win_create(masterPerFacesAll,win_buffer_size2,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id2,mpi_err)
       call MPI_Win_fence(0,window_id2,mpi_err)
@@ -1355,14 +1503,20 @@ contains
       call MPI_Win_fence(0,window_id2,mpi_err)
       call MPI_Win_free(window_id2,mpi_err)
 
+      !TODO: TILL HERE TO IMPROVE THIS PART
+      !-------------------------------------------------
+      !--------------------------------------------------------------------------------
       !--------------------------------------------------------------------------------------
       !if(mpi_rank.eq.0) write(*,*) '2.refNodesPerFacesAll',refNodesPerFacesAll(:)
       !if(mpi_rank.eq.0) write(*,*) '2.masterPerFacesAll',masterPerFacesAll(:)
       !if(mpi_rank.eq.0) write(*,*) '2.perFaceElemAll',perFaceElemAll(:)
 
+      end_time(6) = MPI_Wtime()
+      elapsed_time(6) = end_time(6) - start_time(6)
+      if(mpi_rank.eq.0) write(*,*) "  |-> Finding the matches: the linked periodic faces!..."
+      start_time(7) = MPI_Wtime()
       !------------------------------------------------------------------------------------------
       ! finding the 'matches', ie the linked periodic faces!
-
       numLinkedPerElemsSrl = numPerFacesSrl/2
       !allocate(linkedPerFacesAll(numLinkedPerElemsSrl,2))
       allocate(linkedPerElemsAll(numLinkedPerElemsSrl,2))
@@ -1422,11 +1576,30 @@ contains
       !end if
 
       !----------------------------------------------------------------------------------------------------------
+      end_time(7) = MPI_Wtime()
+      elapsed_time(7) = end_time(7) - start_time(7)
+      if(mpi_rank.eq.0) write(*,*) "  |-> Done periodic links stuff!!..."
 
       deallocate(refNodesPerFacesAll)
       deallocate(mpiRankPerFacesAll)
       deallocate(perFaceElemAll)
       deallocate(masterPerFacesAll)
+
+      elapsed_time(1) = end_time(1) - start_time(1)
+      elapsed_time(2) = end_time(2) - start_time(2)
+      elapsed_time(3) = end_time(3) - start_time(3)
+      elapsed_time(4) = end_time(4) - start_time(4)
+      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),7,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD,h5err)
+
+      if(mpi_rank.eq.0) then
+         write(*,*) ' 1.PerLinks(s1)',elapsed_time_m(1)
+         write(*,*) ' 2.PerLinks(readHDF5)',elapsed_time_m(2)
+         write(*,*) ' 3.refNodesPerFacesAll',elapsed_time_m(3)
+         write(*,*) ' 4.Doing PerMaster',elapsed_time_m(4)
+         write(*,*) ' 5.Vecs.perFaceElemAll',elapsed_time_m(5)
+         write(*,*) ' 6.Vecs.listPerElems',elapsed_time_m(6)
+         write(*,*) ' 7.FindingMatches',elapsed_time_m(7)
+      end if
 
    end subroutine read_periodic_links_from_gmsh_h5_file_in_parallel
 
@@ -1588,8 +1761,27 @@ contains
       real(rp), allocatable, intent(inout) :: coordNodesMpiRank(:,:)
 
       integer(4)                 :: iElemMpiRankStart,iElemMpiRankEnd
-      integer(4)                 :: auxCnt,iElem
-      real(8),dimension(3) :: start_time,end_time,elapsed_time
+      integer(4)                 :: auxCnt,iElem,h5err
+
+      real(8),dimension(5) :: start_time,end_time,elapsed_time,elapsed_time_m
+
+
+      !-----------------------------------------------------------
+      !TESTING STUFF!!!
+      real(4),allocatable :: rand_r(:)
+      integer(4) :: iniRand,endRand
+      character(128) :: dsetname
+      integer,parameter :: ms_rank=2,ds_rank=2
+      integer(hsize_t), dimension(ms_rank) :: ms_dims
+      integer(hssize_t), dimension(ms_rank) :: ms_offset
+      integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
+      integer(hsize_t),dimension(ds_rank) :: fs_dims,fs_maxdims
+      integer(hsize_t) :: ms_numElems
+      integer(hid_t) :: dtype
+      integer, allocatable :: vecChunks(:),auxConnec(:,:)
+      integer :: maxRows2read,numChunks,iChunk
+      !------------------------------------------------------------
+
       !----------------------------------------------------------------------------------------------
 
       call do_element_partitioning_serial(numElemsSrl,iElemMpiRankStart,iElemMpiRankEnd,numElemsMpiRank)
@@ -1612,11 +1804,69 @@ contains
          listElemsMpiRank(auxCnt) = iElem
       end do
 
+      call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
       start_time(1) = MPI_Wtime()
       if(mpi_rank.eq.0)write(*,*) "--| Reading element table and coordinates for Mpi Ranks"
-      call read_elem_connec_and_nodes_coords_from_gmsh_h5_file(gmsh_h5_fileId,numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,connecMpiRank,listNodesMpiRank,coordNodesMpiRank)
+      call read_elem_connec_and_nodes_coords_from_gmsh_h5_file(gmsh_h5_fileId,numElemsSrl,numNodesSrl,numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,connecMpiRank,listNodesMpiRank,coordNodesMpiRank)
       end_time(1) = MPI_Wtime()
+
+      !FOR TESTING!!!!
+#if 0
+
+      deallocate(listNodesMpiRank)
+      deallocate(coordNodesMpiRank)
+
+      allocate(rand_r(numElemsMpiRank))
+
+      call random_number(rand_r)
+      iniRand = 1
+      endRand = numElemsSrl
+      listElemsMpiRank(:) = iniRand + floor((endRand+1-iniRand)*rand_r(:))  ! We want to choose one from m-n+1 integers
+
+      call quicksort_array_int(listElemsMpiRank)
+
+      call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+      start_time(3) = MPI_Wtime()
+      if(mpi_rank.eq.0)write(*,*) "--| Testing 2... "
+      call read_elem_connec_and_nodes_coords_from_gmsh_h5_file(gmsh_h5_fileId,numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,connecMpiRank,listNodesMpiRank,coordNodesMpiRank)
+      end_time(3) = MPI_Wtime()
+
+      deallocate(rand_r(numElemsMpiRank))
+      deallocate(listNodesMpiRank)
+      deallocate(coordNodesMpiRank)
+
+      auxCnt=0
+      do iElem = iElemMpiRankStart,iElemMpiRankEnd
+         auxCnt=auxCnt+1
+         listElemsMpiRank(auxCnt) = iElem
+      end do
+
+      call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+      start_time(4) = MPI_Wtime()
+      if(mpi_rank.eq.0)write(*,*) "--| Testing 3... "
+      call read_elem_connec_and_nodes_coords_from_gmsh_h5_file(gmsh_h5_fileId,numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,connecMpiRank,listNodesMpiRank,coordNodesMpiRank)
+      end_time(4) = MPI_Wtime()
+
+
+
+
       elapsed_time(1) = end_time(1) - start_time(1)
+      elapsed_time(3) = end_time(3) - start_time(3)
+      elapsed_time(4) = end_time(4) - start_time(4)
+      elapsed_time(5) = end_time(5) - start_time(5)
+      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),5,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD,h5err)
+
+      if(mpi_rank.eq.0) then
+         write(*,*) '#OFst ReadElemNode',elapsed_time_m(1)
+         write(*,*) '#Rand ReadElemNode',elapsed_time_m(3)
+         write(*,*) '#OSnd ReadElemNode',elapsed_time_m(4)
+         write(*,*) '#Chnk ReadElemNode',elapsed_time_m(5)
+      end if
+
+
+#endif
+
+
 
       !------------------------------------------------------------------------------------------
       ! Periodic faces
@@ -1627,18 +1877,21 @@ contains
                      numLinkedPerElemsSrl,linkedPerElemsSrl,numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl)
       end if
       end_time(2) = MPI_Wtime()
+
+      elapsed_time(1) = end_time(1) - start_time(1)
       elapsed_time(2) = end_time(2) - start_time(2)
+      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),2,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD,h5err)
 
       if(mpi_rank.eq.0) then
-         write(*,*) 'Time ElemNode',elapsed_time(1)
-         write(*,*) 'Time Periodic',elapsed_time(2)
+         write(*,*) '#Time ReadElemNode',elapsed_time_m(1)
+         write(*,*) '#Time ReadPeriodic',elapsed_time_m(2)
       end if
 
    end subroutine read_elems_nodes_gmsh_h5_file_in_parallel
 
 
    subroutine do_element_partitioning_gempa_in_parallel(gmsh_h5_fileId,isPeriodic,numElemsSrl,numNodesSrl,numBoundFacesSrl,&
-                  numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numElemsMpiRank,listElemsMpiRank,&
+                  numMshRanks2Part,numMshRanksInMpiRank,maxNumMshRanks,mshRanksInMpiRank,mapMshRankToMpiRank,numElemsMpiRank,listElemsMpiRank,&
                   numNodesMpiRank,listNodesMpiRank,connecMpiRank,coordNodesMpiRank,&
                   numLinkedPerElemsSrl,linkedPerElemsSrl,numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl,&
                   numElemsMshRank,mshRankElemStart,mshRankElemEnd,numNodesMshRank,numBoundFacesMshRank,numPerNodesMshRank,maxBoundCode,&
@@ -1649,7 +1902,7 @@ contains
       logical,intent(in) :: isPeriodic
       integer(4),intent(in) :: numElemsSrl,numNodesSrl,numBoundFacesSrl
       integer(4),intent(in) :: numElemsMpiRank,numNodesMpiRank,numMshRanks2Part,numLinkedPerElemsSrl,numPerElemsSrl,numMasSlaNodesSrl
-      integer(4),intent(in) :: numMshRanksInMpiRank,mshRanksInMpiRank(numMshRanksInMpiRank),mapMshRankToMpiRank(numMshRanksInMpiRank)
+      integer(4),intent(in) :: numMshRanksInMpiRank,maxNumMshRanks,mshRanksInMpiRank(numMshRanksInMpiRank),mapMshRankToMpiRank(numMshRanksInMpiRank)
       integer(4),intent(in) :: listElemsMpiRank(numElemsMpiRank),listNodesMpiRank(numNodesMpiRank),connecMpiRank(numElemsMpiRank,nnode)
       integer(4),intent(in) :: linkedPerElemsSrl(numLinkedPerElemsSrl,2),listPerElemsSrl(numPerElemsSrl),masSlaNodesSrl(numMasSlaNodesSrl,2)
       real(rp),intent(in) :: coordNodesMpiRank(numNodesMpiRank,ndime)
@@ -1658,6 +1911,11 @@ contains
       type(jagged_vector_int),intent(out) :: elemGid_jv,listNodesMshRank_jv,listBoundFacesMshRank_jv,boundFacesCodesMshRank_jv
       type(jagged_matrix_int),intent(out) :: connecMshRank_jm,listElemsBoundsMshRank_jm,connecBoundFacesMshRank_jm,masSlaRankPar_jm
       type(jagged_matrix_rp),intent(out) :: coordMshRank_jm
+
+      integer(4),allocatable :: dummyListElems(:),dummyListNodes(:),dummyListBoundFaces(:),dummyBoundFacesCodes(:)
+      integer(4),allocatable :: dummyConnec(:,:),dummyListElemsBounds(:,:),dummyConnecBoundFaces(:,:)
+      real(rp),allocatable :: dummyCoordNodes(:,:)
+      integer(4) :: dummyNumNodes,dummyNumBoundFaces
 
       real(8), allocatable, dimension(:) :: x,y,z
       integer, allocatable :: listElems2Part(:),weightElems2Part(:),unfoldedElems(:)
@@ -1967,24 +2225,20 @@ contains
       maxBoundCode=0
 
       do iMshRank=1,numMshRanksInMpiRank
+         write(*,*) 'REAL-rank[',mpi_rank,']doing',iMshRank,'max',maxNumMshRanks
          aux_numElemsMshRank=numElemsMshRank(iMshRank)
          mshRank= mshRanksInMpiRank(iMshRank)
          !write(*,*) '#Reading stuff for mshRank',mshRank,'in mpi_rank',mpi_rank,'(iMshRank',iMshRank,')','aux_numElemsMshRank',aux_numElemsMshRank
 
          allocate(connecMshRank_jm%matrix(iMshRank)%elems(aux_numElemsMshRank,nnode))
 
-         call read_elem_connec_and_nodes_coords_from_gmsh_h5_file(gmsh_h5_fileId,aux_numElemsMshRank,elemGid_jv%vector(iMshRank)%elems,numNodesMshRank(iMshRank),&
+         call quicksort_array_int(elemGid_jv%vector(iMshRank)%elems)
+
+         call read_elem_connec_and_nodes_coords_from_gmsh_h5_file(gmsh_h5_fileId,numElemsSrl,numNodesSrl,aux_numElemsMshRank,elemGid_jv%vector(iMshRank)%elems,numNodesMshRank(iMshRank),&
                                           connecMshRank_jm%matrix(iMshRank)%elems,listNodesMshRank_jv%vector(iMshRank)%elems,coordMshRank_jm%matrix(iMshRank)%elems)
 
-         !call open_geo_dat_file(file_path,file_name)
-         !call read_element_section_geo_file(numElemsSrl)
-         !call read_elem_connec_and_nodes_coords_from_geo_file(numElemsSrl,numNodesSrl,aux_numElemsMshRank,elemGid_jv%vector(iMshRank)%elems,numNodesMshRank(iMshRank),&
-         !connecMshRank_jm%matrix(iMshRank)%elems,listNodesMshRank_jv%vector(iMshRank)%elems,coordMshRank_jm%matrix(iMshRank)%elems)
 
          if(numBoundFacesSrl.ne.0) then
-            !ull, aixo potser canviarho si ara TOTES son periodiques...
-            !quan implementi el periodic tenirho en compte ja que potser no tinc cap boundary com a tal
-            !si no que totes son periodiques... de moment ho deixo
 
             dsetname2read = '/boundFaces'
             call read_boundaries_for_elemsInRank_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,dsetname2read,numBoundFacesSrl,aux_numElemsMshRank,&
@@ -1995,14 +2249,7 @@ contains
             call read_boundaries_boundCodes_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,dsetname2read,numBoundFacesMshRank(iMshRank),&
                      listBoundFacesMshRank_jv%vector(iMshRank)%elems,boundFacesCodesMshRank_jv%vector(iMshRank)%elems,maxBoundCodeMshRank)
 
-
-            !call open_fix_bou_file(file_path,file_name)
-            !call read_boundaries(numBoundFacesSrl,aux_numElemsMshRank,elemGid_jv%vector(iMshRank)%elems,connecMshRank_jm%matrix(iMshRank)%elems,&
-            !   numBoundFacesMshRank(iMshRank),maxBoundCodeMshRank,listElemsBoundsMshRank_jm%matrix(iMshRank)%elems,&
-            !   listBoundFacesMshRank_jv%vector(iMshRank)%elems,boundFacesCodesMshRank_jv%vector(iMshRank)%elems,connecBoundFacesMshRank_jm%matrix(iMshRank)%elems)
-
             maxBoundCodeMpiRank = max(maxBoundCodeMpiRank,maxBoundCodeMshRank)
-            !call close_fix_bou_file()
          else
             allocate(listBoundFacesMshRank_jv%vector(iMshRank)%elems(numBoundFacesMshRank(iMshRank)))
             allocate(boundFacesCodesMshRank_jv%vector(iMshRank)%elems(numBoundFacesMshRank(iMshRank)))
@@ -2010,9 +2257,41 @@ contains
             allocate(listElemsBoundsMshRank_jm%matrix(iMshRank)%elems(numElemsMshRank(iMshRank),maxBoundsPerElem))
             listElemsBoundsMshRank_jm%matrix(iMshRank)%elems(:,:) = 0
          end if
-         !call close_geo_dat_file()
 
       end do
+
+      aux_numElemsMshRank=1
+      allocate(dummyListElems(1))
+      dummyListElems(1)=1
+      allocate(dummyConnec(1,nnode))
+
+      do iMshRank=(numMshRanksInMpiRank+1),maxNumMshRanks
+         write(*,*) 'FAKE-rank[',mpi_rank,']doing',iMshRank,'max',maxNumMshRanks
+
+         call read_elem_connec_and_nodes_coords_from_gmsh_h5_file(gmsh_h5_fileId,numElemsSrl,numNodesSrl,aux_numElemsMshRank,dummyListElems,dummyNumNodes,&
+                                          dummyConnec,dummyListNodes,dummyCoordNodes)
+
+         if(numBoundFacesSrl.ne.0) then
+            dsetname2read = '/boundFaces'
+            call read_boundaries_for_elemsInRank_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,dsetname2read,numBoundFacesSrl,aux_numElemsMshRank,&
+                     dummyListElems,dummyConnec,dummyNumBoundFaces,dummyListElemsBounds,dummyListBoundFaces,dummyConnecBoundFaces)
+
+            dsetname2read = '/boundFacesId'
+            call read_boundaries_boundCodes_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,dsetname2read,dummyNumBoundFaces,&
+                     dummyListBoundFaces,dummyBoundFacesCodes,maxBoundCodeMshRank)
+
+            deallocate(dummyListElemsBounds)
+            deallocate(dummyListBoundFaces)
+            deallocate(dummyConnecBoundFaces)
+            deallocate(dummyBoundFacesCodes)
+         end if
+
+         deallocate(dummyListNodes)
+         deallocate(dummyCoordNodes)
+
+      end do
+      deallocate(dummyListElems)
+      deallocate(dummyConnec)
 
       call MPI_Allreduce(maxBoundCodeMpiRank,maxBoundCode,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD,mpi_err)
 
@@ -2214,14 +2493,15 @@ contains
 
    end subroutine get_listElems2Par_periodic_in_parallel
 
-   subroutine distribute_ranks2Part_in_mpiRank(numMshRanks2Part,iMshRankStart,iMshRankEnd,numRanksMpiRank,ranksMpiRank,mapRanksToMpiRank)
+   subroutine distribute_ranks2Part_in_mpiRank(numMshRanks2Part,iMshRankStart,iMshRankEnd,numRanksMpiRank,maxNumRanksMpiRank,ranksMpiRank,mapRanksToMpiRank)
       implicit none
       integer, intent(in) :: numMshRanks2Part
-      integer, intent(out) :: iMshRankStart,iMshRankEnd,numRanksMpiRank
+      integer, intent(out) :: iMshRankStart,iMshRankEnd,numRanksMpiRank,maxNumRanksMpiRank
       integer, allocatable, intent(inout) :: ranksMpiRank(:),mapRanksToMpiRank(:)
       integer, dimension(0:mpi_size-1) :: vecRanksMpiRank
       integer :: iMpiRank,iMshRankCnt,ii
 
+      maxNumRanksMpiRank=1
       if(numMshRanks2Part.ge.mpi_size) then
          !---- number of elements and range this process will write
          call distribution_algorithm(numMshRanks2Part,mpi_size,vecRanksMpiRank)
@@ -2229,7 +2509,7 @@ contains
          numRanksMpiRank = vecRanksMpiRank(mpi_rank)
          iMshRankStart=0
          do iMpiRank=0,(mpi_rank-1) !find the iMshRankStart
-            iMshRankStart = iMshRankStart + vecRanksMpiRank(iMpiRank)
+            iMshRankStart = iMshRankStart + vecRanksMpiRank(iMpiRank)           
          end do
          iMshRankEnd = iMshRankStart + (numRanksMpiRank - 1)
 
@@ -2245,6 +2525,7 @@ contains
                iMshRankCnt=iMshRankCnt+1
                mapRanksToMpiRank(iMshRankCnt)=iMpiRank
             end do
+            maxNumRanksMpiRank = max(maxNumRanksMpiRank,vecRanksMpiRank(iMpiRank))
          end do
 
       else
@@ -3676,6 +3957,63 @@ contains
 !---------------------------------------------------------------------------------------------------------------------------
 !-------------------------DEPRECATED CODE SECTION---------------------------------------------------------------------------
 #if 0
+
+#if 0
+BEGIN WHEN READING LINE BY LINE.. FUCKING SLOW
+      !----------------------------------------------------------------------------------------------------------
+      call h5dopen_f(gmsh_h5_fileId,dsetname,dset_id,h5err)
+      call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
+      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
+      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+      !call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
+
+      do iElem=1,numElemsInRank
+         elemToRead=listElemsRank(iElem)
+         ms_offset(2) = elemToRead-1
+         call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
+         !call h5dread_f(dset_id,dtype,connecRank(iElem,:),ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+         call h5dread_f(dset_id,dtype,connecRank(iElem,:),ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id)
+
+         !connecRank(iElem,1:nnode) = auxConnec(:)
+         !if(mpi_rank.eq.0)write(*,*) 'iElem',iElem,'e2r',elemToRead,'auxConnec',auxConnec(:)
+         !if(mpi_rank.eq.0)write(*,*) 'connecRank',connecRank(iElem,:)
+      end do
+
+      !call h5pclose_f(plist_id,h5err)
+      call h5sclose_f(mspace_id,h5err)
+      call h5sclose_f(fspace_id,h5err)
+      call h5dclose_f(dset_id,h5err)
+      !----------------------------------------------------------------------------------------------------------
+END WHEN READING LINE BY LINE.. FUCKING SLOW
+#endif
+
+#if 0
+BEGIN WHEN READING LINE BY LINE.. FUCKING SLOW
+      call h5dopen_f(gmsh_h5_fileId,dsetname,dset_id,h5err)
+      call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
+      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
+      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+      !call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
+
+      do iNode=1,numNodesInRank
+         nodeToRead=listNodesRank(iNode)
+         ms_offset(2) = nodeToRead-1
+         call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
+         !call h5dread_f(dset_id,dtype,auxCoords,fs_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+         call h5dread_f(dset_id,dtype,auxCoords,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id)
+         coordNodesRank(iNode,:) = auxCoords(:)
+         !if(mpi_rank.eq.0)write(*,*) 'n2r',nodeToRead,'coords',coordNodesRank(iNode,:)
+      end do
+
+      !call h5pclose_f(plist_id,h5err)
+      call h5sclose_f(mspace_id,h5err)
+      call h5sclose_f(fspace_id,h5err)
+      call h5dclose_f(dset_id,h5err)
+END WHEN READING LINE BY LINE.. FUCKING SLOW
+#endif
+
+
+
    subroutine read_dims_file(file_path,file_name,numElems,numNodes,numBounds)
       implicit none     
       character(500), intent(in) :: file_path, file_name
