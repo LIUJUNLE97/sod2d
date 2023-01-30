@@ -96,8 +96,8 @@ contains
       this%have_witness          = .true.
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
-      this%leapwit               = 1
-      this%leapwitsave           = 1
+      this%leapwit               = 10
+      this%leapwitsave           = 20
       this%nwit                  = 10
       this%wit_save_u_i          = .true.
       this%wit_save_pr           = .true.

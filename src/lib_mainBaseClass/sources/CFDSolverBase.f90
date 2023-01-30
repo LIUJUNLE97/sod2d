@@ -913,7 +913,7 @@ contains
 
    subroutine CFDSolverBase_evalTimeIteration(this)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: icode,counter,istep,flag_emac,flag_predic, iwitstep
+      integer(4) :: icode,counter,istep,flag_emac,flag_predic, iwitstep=0
       character(4) :: timeStep
 
       counter = 1
@@ -1034,16 +1034,16 @@ contains
          counter = counter+1
 
          !!! Witness points interpolation !!!
-         !if(this%have_witness) then
-         !   if (mod(istep,this%leapwit)==0) then
-         !      iwitstep = iwitstep+1
-         !      call this%update_witness(istep, iwitstep)
-         !   end if
-         !   if (mod(istep,ths%leapwit*this%leapwitsave)==0) then
-         !      call this%save_witness(istep)
-         !      iwitstep = 0
-         !   end if
-         !end if
+         if(this%have_witness) then
+            if (mod(istep,this%leapwit)==0) then
+               iwitstep = iwitstep+1
+               call this%update_witness(istep, iwitstep)
+            end if
+            if (mod(istep,this%leapwit*this%leapwitsave)==0) then
+               call this%save_witness(istep)
+               iwitstep = 0
+            end if
+         end if
       end do
       call nvtxEndRange
    end subroutine CFDSolverBase_evalTimeIteration
@@ -1055,7 +1055,6 @@ contains
       real(rp)                            :: witval(this%nwitPar,this%nvarwit) ! u_x | u_y | u_z | pr | rho
       real(rp)                            :: start, finish, nodvals(this%nvarwit), auxval
       
-      call cpu_time(start)
       !$acc kernels
       witval(:,:) = 0.0_rp
       !$acc end kernels
@@ -1075,11 +1074,9 @@ contains
       end do
       !$acc end loop
       !$acc kernels
-      !buffwit(iwitstep,:,:) = witval(:,:)
+      buffwit(iwitstep,:,:) = witval(:,:)
       !$acc end kernels
-      !bufftime(iwitstep) = this%time
-      call cpu_time(finish)
-      write(*,*) "Interpolate", finish-start
+      bufftime(iwitstep) = this%time
    end subroutine CFDSolverBase_update_witness
 
    subroutine CFDSolverBase_save_witness(this, istep)
@@ -1088,11 +1085,8 @@ contains
       integer(4)                          :: iwit, iwitglobal, itewit
       real(rp)                            :: start, finish
       
-      call cpu_time(start)
-      itewit = istep/(this%leapwit)*this%leapwitsave
-      !call update_witness_hdf5(itewit, this%leapwitsave, buffwit, this%nwit, this%nwitPar, this%nvarwit, this%witness_h5_file_name, bufftime, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
-      call cpu_time(start)
-      write(*,*) "Save", finish-start
+      itewit = istep/(this%leapwit)
+      call update_witness_hdf5(itewit, this%leapwitsave, buffwit, this%nwit, this%nwitPar, this%nvarwit, this%witness_h5_file_name, bufftime, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
    end subroutine CFDSolverBase_save_witness
 
    subroutine CFDSolverBase_preprocWitnessPoints(this)
