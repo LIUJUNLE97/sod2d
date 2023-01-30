@@ -25,7 +25,7 @@ module mod_arrays
       real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
-      real(rp), allocatable :: witxi(:,:), Nwit(:,:)!, buffwit(:,:,:), bufftime(:) 
+      real(rp), allocatable :: witxi(:,:), Nwit(:,:), buffwit(:,:,:), bufftime(:) 
       
       real(rp), allocatable :: u_buffer(:,:)
 
@@ -1159,7 +1159,7 @@ contains
                   witxi(ifound,:) = xi(:)
                   witxyzPar(ifound,:)  = witxyzParCand(iwit, :)
                   witGlob(ifound) = witGlobCand(iwit)
-                  Nwit(iwit,:) = Niwit(:)
+                  Nwit(ifound,:) = Niwit(:)
                   exit
                end if              
             end if
@@ -1168,9 +1168,9 @@ contains
       call CPU_TIME(finish)
       write(*,*) mpi_rank, finish-start
       this%nwitPar = ifound
-      !allocate(buffwit(this%leapwitsave,this%nwitPar,this%nvarwit))
-      !allocate(bufftime(this%leapwitsave))
-      call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      allocate(buffwit(this%leapwitsave,this%nwitPar,this%nvarwit))
+      allocate(bufftime(this%leapwitsave))
+      call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
       if(mpi_rank.eq.0) then
          write(*,*) "--| End of preprocessing witness points"
       end if
