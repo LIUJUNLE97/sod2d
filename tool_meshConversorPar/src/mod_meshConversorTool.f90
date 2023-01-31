@@ -348,7 +348,7 @@ contains
       end do
 
       do iMshRank=(numMshRanksInMpiRank+1),maxNumMshRanks
-         write(*,*) 'FAKE-rank[',mpi_rank,']doing',iMshRank,'max',maxNumMshRanks
+         !write(*,*) 'FAKE-rank[',mpi_rank,']doing',iMshRank,'max',maxNumMshRanks
          call dummy_write_mshRank_data_in_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId,numMshRanks2Part,isPeriodic,isBoundaries)
       end do
 
@@ -549,6 +549,7 @@ contains
             prevNodeG = rawNodeListRank(iAux)
          end if
       end do
+      !if(mpi_rank.eq.0) write(*,*) 'listNodesRank',listNodesRank(:)
 
       deallocate(rawNodeListRank)
 
@@ -627,7 +628,7 @@ contains
          ms_dims(1) = nnode
          ms_dims(2) = vecChunks(iChunk)
          allocate(auxConnec(ms_dims(1),ms_dims(2)))
-         !write(*,*) 'iChunk',iChunk,'ms_dims',ms_dims,'ms_offset',ms_offset(2),'+',ms_offset(2) + ms_dims(2),'fsdims',fs_dims
+         !write(*,*) 'iChunk',iChunk,'ms_dims',ms_dims,'ms_offset',ms_offset(2),'+',ms_offset(2) + ms_dims(2)!,'fsdims',fs_dims
 
          call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
          call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
@@ -1146,12 +1147,13 @@ contains
 
       integer(4), parameter :: numVert = 4
       character(128) :: dsetname
-      integer(4), allocatable :: refNodesPerFacesAll(:),mpiRankPerFacesAll(:),perFaceElemAll(:)
-      logical, allocatable :: masterPerFacesAll(:)
+      integer(4), allocatable :: refNodesPerFacesInRank(:),perFaceElemInRank(:),refNodesPerFacesAll(:),perFaceElemAll(:),listPerFacesAll(:)!,mpiRankPerFacesAll(:)
+      logical, allocatable :: masterPerFacesInRank(:),masterPerFacesAll(:)
       integer(4), dimension(0:mpi_size-1) :: vecNumPerFacesInRank,vecNumPerElemsInRank
 
-      integer(4) :: iLink,iElem,iPerFace,ind_gmsh,iElemG,iPos
-      integer(4) :: perFaceId,perFaceIdM,perFaceIdS,iNodeGM,iNodeGS,elemGidPerFaceM,elemGidPerFaceS
+      integer(4) :: iLink,iElem,iPerFace,iFaceG,iBound,ind_gmsh,iElemG,iPos,iPosFace
+      !integer(4) :: perFaceId,perFaceIdM,perFaceIdS
+      integer(4) :: iFaceMaster,iFaceSlave,iFaceGmstr,iFaceGslv,iNodeGM,iNodeGS,elemGidPerFaceM,elemGidPerFaceS
       integer(4) :: iAux,jAux,iVert,jVert
       integer(4) :: iNodeG,vertNodeCnt,linkedPerElemsCnt,numPerElemsInRank,iNodeGtoReplace
       logical :: vertNodeFound
@@ -1176,41 +1178,32 @@ contains
       !----------------------------------------------------------------------------------------------------------
       !  0. Allocate vectors
 
+      allocate(refNodesPerFacesInRank(numPerFacesInRank*numVert))
+      allocate(perFaceElemInRank(numPerFacesInRank))
+      allocate(masterPerFacesInRank(numPerFacesInRank))
       allocate(refNodesPerFacesAll(numPerFacesSrl*numVert))
-      allocate(mpiRankPerFacesAll(numPerFacesSrl))
       allocate(perFaceElemAll(numPerFacesSrl))
       allocate(masterPerFacesAll(numPerFacesSrl))
+      allocate(listPerFacesAll(numPerFacesSrl))
+      !allocate(mpiRankPerFacesAll(numPerFacesSrl))
 
       !$acc kernels
+      refNodesPerFacesInRank(:) = -1
       refNodesPerFacesAll(:) = -1
-      mpiRankPerFacesAll(:) = -1
+      perFaceElemInRank(:) = -1
       perFaceElemAll(:) = -1
+      masterPerFacesInRank(:) = .true.
       masterPerFacesAll(:) = .true.
+      !mpiRankPerFacesAll(:) = -1
       !$acc end kernels
 
       !----------------------------------------------------------------------------------------------------------
-      !  1. Share the mpi rank owning each periodic face
-      start_time(1) = MPI_Wtime()
-      !--------------------------------------------------------------------------------------------------------------------
-      win_buffer_size1 = mpi_integer_size*numPerFacesSrl
-      call MPI_Win_create(mpiRankPerFacesAll,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
-      call MPI_Win_fence(0,window_id1,mpi_err)
 
-      do mpiRankTrgt=0,mpi_size-1
-         do iPerFace=1,numPerFacesInRank
-            perFaceId = listPerFacesInRank(iPerFace)
-            trgt_disp = perFaceId-1
-
-            call MPI_Put(mpi_rank,1,MPI_INTEGER,mpiRankTrgt,trgt_disp,1,MPI_INTEGER,window_id1,mpi_err)
-         end do
-      end do
-
-      call MPI_Win_fence(0,window_id1,mpi_err)
-      call MPI_Win_free(window_id1,mpi_err)
-      !write(*,*) '[',mpi_rank,']',mpiRankPerFacesAll(:)
-      !--------------------------------------------------------------------------------------------------------------------
-      end_time(1) = MPI_Wtime()
-      elapsed_time(1) = end_time(1) - start_time(1)
+      call MPI_Allgather(numPerFacesInRank,1,MPI_INTEGER,vecNumPerFacesInRank,1,MPI_INTEGER,MPI_COMM_WORLD,mpi_err)
+      !write(*,*) '2.vecNumPerFaces',vecNumPerFacesInRank(:)
+      !write(*,*) '[',mpi_rank,']',listPerFacesInRank(:)
+      !if(mpi_rank.eq.0) write(*,*) '1.refNodesPerFacesAll',refNodesPerFacesAll(:)
+      !if(mpi_rank.eq.0) write(*,*) '1.masterPerFacesAll',masterPerFacesAll(:)
 
       !----------------------------------------------------------------------------------------------------------
       !  2. Second read the periodic links from h5 file
@@ -1230,7 +1223,6 @@ contains
       ms_dims(2) = numPerLinkedNodesSrl
       ms_offset(1) = 0
       ms_offset(2) = 0
-
 
       call h5dopen_f(gmsh_h5_fileId,dsetname,dset_id,h5err)
       call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
@@ -1254,20 +1246,6 @@ contains
 
       deallocate(matPerLinkNodesT)
 
-
-#if 0
-      !TODO THIS ONE! AJA!!
-      do iLink = 1,numPerLinkedNodesSrl
-         ms_offset(2) = iLink-1
-         call read_dataspace_int4_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_rank,ms_dims,ms_offset,pairPerLinkNodes)
-         matPerLinkNodes(iLink,:) = pairPerLinkNodes(:)
-         !if(mpi_rank.eq.0) write(*,*) 'iLink',iLink,'pair',pairPerLinkNodes(:)
-      end do
-#endif
-      !----------------------------------------------------------------------------------------------------------
-      !  fill the other
-      !  first find in the 'master column'
-
       end_time(2) = MPI_Wtime()
       elapsed_time(2) = end_time(2) - start_time(2)
 
@@ -1278,40 +1256,36 @@ contains
       call quicksort_matrix_int(matPerLinkNodes,1)
 
       do iPerFace=1,numPerFacesInRank
-         perFaceId = listPerFacesInRank(iPerFace)
+         !perFaceId = listPerFacesInRank(iPerFace)
          perFaceLoop : do iVert=1,numVert
             ind_gmsh = gmsh2ij(posFaceInnerNodes(iVert))
-            iAux = (perFaceId-1)*numVert + iVert
             iNodeG = connecPerFacesInRank(iPerFace,ind_gmsh)
+            iAux = (iPerFace-1)*numVert + iVert
             iPos = binarySearch_int_i(matPerLinkNodes(:,1),iNodeG)
-            !iNodeG = ownedPerFacesAll(iAux)
             !write(*,*) 'ipf',iPerFace,'iAux',iAux,'iNodeG',iNodeG,'iPos',iPos
             if(iPos.ne.0) then !found
-               refNodesPerFacesAll(iAux) = iNodeG
+               refNodesPerFacesInRank(iAux) = iNodeG
             else
-               masterPerFacesAll(perFaceId) = .false.
+               masterPerFacesInRank(iPerFace) = .false.
                exit perFaceLoop
             end if
          end do perFaceLoop
       end do 
 
       !write(*,*) '[',mpi_rank,']list',listPerFacesInRank(:),'masterPerFace',masterPerFacesInRank(:)
-      !call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
       !then, the one not founds in master, must be in the 'slave column'
 
       call quicksort_matrix_int(matPerLinkNodes,2)
 
       do iPerFace=1,numPerFacesInRank
-         perFaceId = listPerFacesInRank(iPerFace)
-         if(not(masterPerFacesAll(perFaceId))) then
+         !perFaceId = listPerFacesInRank(iPerFace)
+         if(not(masterPerFacesInRank(iPerFace))) then
             do iVert=1,numVert
                ind_gmsh = gmsh2ij(posFaceInnerNodes(iVert))
-               iAux = (perFaceId-1)*numVert + iVert
                iNodeG = connecPerFacesInRank(iPerFace,ind_gmsh)
+               iAux = (iPerFace-1)*numVert + iVert
                iPos = binarySearch_int_i(matPerLinkNodes(:,2),iNodeG)
-               refNodesPerFacesAll(iAux) = matPerLinkNodes(iPos,1)
-               !otherPerFacesInRank(iPerFace,iVert) = matPerLinkNodes(iPos,1)
-               !otherPerFacesAll(iAux) = matPerLinkNodes(iPos,1)
+               refNodesPerFacesInRank(iAux) = matPerLinkNodes(iPos,1)
             end do
          end if
       end do
@@ -1320,12 +1294,35 @@ contains
       if(mpi_rank.eq.0) write(*,*) "  |-> Looking for and setting the periodic master nodes..."
       start_time(4) = MPI_Wtime()
 
+#if 0
+      !----------------------------------------------------------------------------------------------------------
+      !  1. Share the mpi rank owning each periodic face
+      start_time(1) = MPI_Wtime()
+      !--------------------------------------------------------------------------------------------------------------------
+      win_buffer_size1 = mpi_integer_size*numPerFacesSrl
+      call MPI_Win_create(mpiRankPerFacesAll,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
+      call MPI_Win_fence(0,window_id1,mpi_err)
+
+      do mpiRankTrgt=0,mpi_size-1
+         do iPerFace=1,numPerFacesInRank
+            perFaceId = listPerFacesInRank(iPerFace)
+            trgt_disp = perFaceId-1
+
+            call MPI_Put(mpi_rank,1,MPI_INTEGER,mpiRankTrgt,trgt_disp,1,MPI_INTEGER,window_id1,mpi_err)
+         end do
+      end do
+
+      call MPI_Win_fence(0,window_id1,mpi_err)
+      call MPI_Win_free(window_id1,mpi_err)
+      !write(*,*) '[',mpi_rank,']',mpiRankPerFacesAll(:)
+      !--------------------------------------------------------------------------------------------------------------------
+      end_time(1) = MPI_Wtime()
+      elapsed_time(1) = end_time(1) - start_time(1)
+#endif
+
       !do iPerFace=1,numPerFacesInRank
       !   write(*,*) '[',mpi_rank,']perFace(',listPerFacesInRank(iPerFace),'own',ownedPerFacesInRank(iPerFace,:),'oth',otherPerFacesInRank(iPerFace,:),'M/S',masterPerFacesInRank(iPerFace)
       !end do
-
-      !allocate(matPerLinkNodesC(numPerLinkedNodesSrl,2))
-      !matPerLinkNodesC(:,:) = matPerLinkNodes(:,:)
 
       do iLink=1,numPerLinkedNodesSrl
          iNodeG = matPerLinkNodes(iLink,1)
@@ -1365,28 +1362,22 @@ contains
       deallocate(matPerLinkNodes)
       !deallocate(matPerLinkNodesC)
 
-      !----------------------------------------------------------------------------------------------------------
-
-      call MPI_Allgather(numPerFacesInRank,1,MPI_INTEGER,vecNumPerFacesInRank,1,MPI_INTEGER,MPI_COMM_WORLD,mpi_err)
-      !write(*,*) '2.vecNumPerFaces',vecNumPerFacesInRank(:)
-      !write(*,*) '[',mpi_rank,']',listPerFacesInRank(:)
-      !if(mpi_rank.eq.0) write(*,*) '1.refNodesPerFacesAll',refNodesPerFacesAll(:)
-      !if(mpi_rank.eq.0) write(*,*) '1.masterPerFacesAll',masterPerFacesAll(:)
-
       !-----------------------------------------------------------------------------------------------------------
-      ! X. fill the vector perFaceElemAll with the local elems
+      ! X. fill the vector perFaceElemInRank with the local elems
       end_time(4) = MPI_Wtime()
       elapsed_time(4) = end_time(4) - start_time(4)
-      if(mpi_rank.eq.0) write(*,*) "  |-> Filling vector perFaceElemAll with local Elems..."
+      if(mpi_rank.eq.0) write(*,*) "  |-> Filling vector perFaceElemInRank with local Elems..."
       start_time(5) = MPI_Wtime()
 
       numPerElemsInRank=0
       do iElem=1,numElemsInRank
-         do iPerFace=1,maxBoundsPerElem
+         do iBound=1,maxBoundsPerElem
             iElemG = listElemsInRank(iElem)
-            perFaceId = listElemsPerFacesInRank(iElem,iPerFace)
-            if(perFaceId.ne.0) then
-               perFaceElemAll(perFaceId) = iElemG
+            iFaceG = listElemsPerFacesInRank(iElem,iBound)
+            iPosFace = binarySearch_int_i(listPerFacesInRank,iFaceG)
+            if(iFaceG.ne.0) then
+               perFaceElemInRank(iPosFace) = iElemG
+               !perFaceElemAll(perFaceId) = iElemG
             end if
          end do
          if(listElemsPerFacesInRank(iElem,1).ne.0) then
@@ -1400,7 +1391,23 @@ contains
       do iMpiRank=0,mpi_size-1
          numPerElemsSrl=numPerElemsSrl+vecNumPerElemsInRank(iMpiRank)
       end do
-      !write(*,*) '[',mpi_rank,']nPEiR',numPerElemsInRank,'nPES',numPerElemsSrl
+
+#if 0
+      write(*,*) '[',mpi_rank,']nPFiR',numPerFacesInRank,'nPFS',numPerFacesSrl
+      write(*,*) '[',mpi_rank,']nPEiR',numPerElemsInRank,'nPES',numPerElemsSrl
+      call MPI_Barrier(MPI_COMM_WORLD,h5err)
+      if(mpi_rank.eq.0) then
+         write(*,*) 'list(:)',listPerFacesInRank
+         write(*,*) 'perFaceElemInRank(:)',perFaceElemInRank
+      end if
+      call MPI_Barrier(MPI_COMM_WORLD,h5err)
+      if(mpi_rank.eq.3) then
+         write(*,*) 'list(:)',listPerFacesInRank
+         write(*,*) 'perFaceElemInRank(:)',perFaceElemInRank
+      end if
+      call MPI_Barrier(MPI_COMM_WORLD,h5err)
+      call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+#endif
 
       end_time(5) = MPI_Wtime()
       elapsed_time(5) = end_time(5) - start_time(5)
@@ -1432,15 +1439,14 @@ contains
       trgt_disp = 0
       do iMpiRank=0,mpi_size-1
          memSize   = vecNumPerElemsInRank(iMpiRank)
-
          call MPI_Get(listPerElemsAll(memPos),memSize,MPI_INTEGER,iMpiRank,trgt_disp,memSize,MPI_INTEGER,window_id1,mpi_err)
-
          memPos = memPos + memSize
       end do
 
       ! Wait for the MPI_Get issued to complete before going any further
       call MPI_Win_fence(0,window_id1,mpi_err)
       call MPI_Win_free(window_id1,mpi_err)
+      !---------------------------------------------------------------------------------------------------------------------------------------
 
       deallocate(listPerElemsInRank)
       if(mpi_rank.eq.0) write(*,*) "  |---> Loop3..."
@@ -1451,6 +1457,24 @@ contains
       !---------------------------------------------------------------------------------------------------------------------------------------
       if(mpi_rank.eq.0) write(*,*) "  |---> Comm4..."
       !---------------------------------------------------------------------------------------------------------------------------------------
+      !---------------------------------------------------------------------------------------------------------------------------------------
+      win_buffer_size1 = mpi_integer_size*(numPerFacesInRank*numVert)
+      call MPI_Win_create(refNodesPerFacesInRank,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
+      call MPI_Win_fence(0,window_id1,mpi_err)
+
+      memPos = 1
+      trgt_disp = 0
+      do iMpiRank=0,mpi_size-1
+         memSize   = vecNumPerFacesInRank(iMpiRank)*numVert
+         call MPI_Get(refNodesPerFacesAll(memPos),memSize,MPI_INTEGER,iMpiRank,trgt_disp,memSize,MPI_INTEGER,window_id1,mpi_err)
+         memPos = memPos + memSize
+      end do
+
+      ! Wait for the MPI_Get issued to complete before going any further
+      call MPI_Win_fence(0,window_id1,mpi_err)
+      call MPI_Win_free(window_id1,mpi_err)
+      !---------------------------------------------------------------------------------------------------------------------------------------
+#if 0
       win_buffer_size1 = mpi_integer_size*(numPerFacesSrl*numVert)
       call MPI_Win_create(refNodesPerFacesAll,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
       call MPI_Win_fence(0,window_id1,mpi_err)
@@ -1473,9 +1497,73 @@ contains
       ! Wait for the MPI_Get issued to complete before going any further
       call MPI_Win_fence(0,window_id1,mpi_err)
       call MPI_Win_free(window_id1,mpi_err)
+#endif
+      !---------------------------------------------------------------------------------------------------------------------------------------
+      if(mpi_rank.eq.0) write(*,*) "  |---> Comm5..."
+      !---------------------------------------------------------------------------------------------------------------------------------------
+      !---------------------------------------------------------------------------------------------------------------------------------------
+      win_buffer_size1 = mpi_integer_size*numPerFacesInRank
+      call MPI_Win_create(perFaceElemInRank,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
+      call MPI_Win_fence(0,window_id1,mpi_err)
+
+      memPos = 1
+      trgt_disp = 0
+      do iMpiRank=0,mpi_size-1
+         memSize   = vecNumPerFacesInRank(iMpiRank)
+         call MPI_Get(perFaceElemAll(memPos),memSize,MPI_INTEGER,iMpiRank,trgt_disp,memSize,MPI_INTEGER,window_id1,mpi_err)
+         memPos = memPos + memSize
+      end do
+
+      ! Wait for the MPI_Get issued to complete before going any further
+      call MPI_Win_fence(0,window_id1,mpi_err)
+      call MPI_Win_free(window_id1,mpi_err)
+      !---------------------------------------------------------------------------------------------------------------------------------------
+      !if(mpi_rank.eq.0) write(*,*) 'perFaceElemAll',perFaceElemAll
+      !---------------------------------------------------------------------------------------------------------------------------------------
+      if(mpi_rank.eq.0) write(*,*) "  |---> Comm6..."
+      !---------------------------------------------------------------------------------------------------------------------------------------
+      !---------------------------------------------------------------------------------------------------------------------------------------
+      win_buffer_size1 = mpi_integer_size*numPerFacesInRank
+      call MPI_Win_create(masterPerFacesInRank,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
+      call MPI_Win_fence(0,window_id1,mpi_err)
+
+      memPos = 1
+      trgt_disp = 0
+      do iMpiRank=0,mpi_size-1
+         memSize   = vecNumPerFacesInRank(iMpiRank)
+         call MPI_Get(masterPerFacesAll(memPos),memSize,MPI_INTEGER,iMpiRank,trgt_disp,memSize,MPI_INTEGER,window_id1,mpi_err)
+         memPos = memPos + memSize
+      end do
+
+      ! Wait for the MPI_Get issued to complete before going any further
+      call MPI_Win_fence(0,window_id1,mpi_err)
+      call MPI_Win_free(window_id1,mpi_err)
+      !---------------------------------------------------------------------------------------------------------------------------------------
+      !if(mpi_rank.eq.0) write(*,*) 'masterPerFacesAll',masterPerFacesAll
 
       !---------------------------------------------------------------------------------------------------------------------------------------
-      if(mpi_rank.eq.0) write(*,*) "  |---> Comm5.a.."
+      if(mpi_rank.eq.0) write(*,*) "  |---> Comm7..."
+      !---------------------------------------------------------------------------------------------------------------------------------------
+      !---------------------------------------------------------------------------------------------------------------------------------------
+      win_buffer_size1 = mpi_integer_size*numPerFacesInRank
+      call MPI_Win_create(listPerFacesInRank,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
+      call MPI_Win_fence(0,window_id1,mpi_err)
+
+      memPos = 1
+      trgt_disp = 0
+      do iMpiRank=0,mpi_size-1
+         memSize   = vecNumPerFacesInRank(iMpiRank)
+         call MPI_Get(listPerFacesAll(memPos),memSize,MPI_INTEGER,iMpiRank,trgt_disp,memSize,MPI_INTEGER,window_id1,mpi_err)
+         memPos = memPos + memSize
+      end do
+
+      ! Wait for the MPI_Get issued to complete before going any further
+      call MPI_Win_fence(0,window_id1,mpi_err)
+      call MPI_Win_free(window_id1,mpi_err)
+      !---------------------------------------------------------------------------------------------------------------------------------------
+      !if(mpi_rank.eq.0) write(*,*) 'listPerFacesAll',listPerFacesAll
+
+#if 0
       win_buffer_size1 = mpi_integer_size*(numPerFacesSrl)
       call MPI_Win_create(perFaceElemAll,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
       call MPI_Win_fence(0,window_id1,mpi_err)
@@ -1502,7 +1590,7 @@ contains
       call MPI_Win_free(window_id1,mpi_err)
       call MPI_Win_fence(0,window_id2,mpi_err)
       call MPI_Win_free(window_id2,mpi_err)
-
+#endif
       !TODO: TILL HERE TO IMPROVE THIS PART
       !-------------------------------------------------
       !--------------------------------------------------------------------------------
@@ -1522,19 +1610,17 @@ contains
       allocate(linkedPerElemsAll(numLinkedPerElemsSrl,2))
 
       linkedPerElemsCnt=0
-      do perFaceIdM=1,numPerFacesSrl
-         if(masterPerFacesAll(perFaceIdM)) then 
-            id2loop: do perFaceIdS=1,numPerFacesSrl
-               !if(mpi_rank.eq.0) write(*,*) 'comparing perFaceIdM',perFaceIdM,'perFaceIdS',perFaceIdS
-               if(not(masterPerFacesAll(perFaceIdS))) then
+      do iFaceMaster=1,numPerFacesSrl
+         if(masterPerFacesAll(iFaceMaster)) then 
+            id2loop: do iFaceSlave=1,numPerFacesSrl
+               if(not(masterPerFacesAll(iFaceSlave))) then
                   vertNodeCnt=0
                   iVertLoop: do iVert=1,numVert
-                     iAux = (perFaceIdM-1)*numVert + iVert
+                     iAux = (iFaceMaster-1)*numVert + iVert
                      vertNodeFound = .false.
                      iNodeGM = refNodesPerFacesAll(iAux)
                      jVertLoop: do jVert=1,numVert
-                        jAux = (perFaceIdS-1)*numVert + jVert
-                        !iNodeGS = otherPerFacesAll(jAux)
+                        jAux = (iFaceSlave-1)*numVert + jVert
                         iNodeGS = refNodesPerFacesAll(jAux)
                         if(iNodeGM.eq.iNodeGS) then
                            vertNodeFound = .true.
@@ -1549,9 +1635,12 @@ contains
                      linkedPerElemsCnt=linkedPerElemsCnt+1
                      !linkedPerFacesAll(linkedPerElemsCnt,1) = perFaceIdM
                      !linkedPerFacesAll(linkedPerElemsCnt,2) = perFaceIdS
+                     iFaceGmstr = listPerFacesAll(iFaceMaster)
+                     iFaceGslv  = listPerFacesAll(iFaceSlave)
+                     !if(mpi_rank.eq.0) write(*,*) 'matching iFaceGmstr',iFaceGmstr,'iFaceGslv',iFaceGslv
 
-                     linkedPerElemsAll(linkedPerElemsCnt,1) = perFaceElemAll(perFaceIdM)!elemGidPerFaceM
-                     linkedPerElemsAll(linkedPerElemsCnt,2) = perFaceElemAll(perFaceIdS)!elemGidPerFaceS
+                     linkedPerElemsAll(linkedPerElemsCnt,1) = perFaceElemAll(iFaceMaster)!elemGidPerFaceM
+                     linkedPerElemsAll(linkedPerElemsCnt,2) = perFaceElemAll(iFaceSlave)!elemGidPerFaceS
 
                      exit id2loop
                   end if
@@ -1568,12 +1657,21 @@ contains
 
       call quicksort_matrix_int(linkedPerElemsAll,1)
 
-      !if(mpi_rank.eq.0) then
-      !   do iPos=1,numLinkedPerElemsSrl
-      !      !write(*,*) 'lPFS',linkedPerFacesAll(auxCnt,:)
-      !      write(*,*) 'lPES',linkedPerElemsAll(iPos,:)
-      !   end do
-      !end if
+#if 0
+      if(mpi_rank.eq.0) then
+         do iPos=1,numLinkedPerElemsSrl
+            !write(*,*) 'lPFS',linkedPerFacesAll(auxCnt,:)
+            write(*,*) '0.lPES',linkedPerElemsAll(iPos,:)
+         end do
+      end if
+      call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+      if(mpi_rank.eq.1) then
+         do iPos=1,numLinkedPerElemsSrl
+            !write(*,*) 'lPFS',linkedPerFacesAll(auxCnt,:)
+            write(*,*) '1.lPES',linkedPerElemsAll(iPos,:)
+         end do
+      end if
+#endif
 
       !----------------------------------------------------------------------------------------------------------
       end_time(7) = MPI_Wtime()
@@ -1581,7 +1679,7 @@ contains
       if(mpi_rank.eq.0) write(*,*) "  |-> Done periodic links stuff!!..."
 
       deallocate(refNodesPerFacesAll)
-      deallocate(mpiRankPerFacesAll)
+      deallocate(listPerFacesAll)
       deallocate(perFaceElemAll)
       deallocate(masterPerFacesAll)
 
@@ -2224,8 +2322,13 @@ contains
       maxBoundCodeMpiRank = 0
       maxBoundCode=0
 
+      if(mpi_rank.eq.0) then
+         write(*,*) '--| Reading element table and coordinates for Msh Ranks | numMshRanks(0)',numMshRanksInMpiRank,'max',maxNumMshRanks
+         write(*,*) '  |-> numMshRanks(rank=0)',numMshRanksInMpiRank,'max',maxNumMshRanks
+      end if
+
       do iMshRank=1,numMshRanksInMpiRank
-         write(*,*) 'REAL-rank[',mpi_rank,']doing',iMshRank,'max',maxNumMshRanks
+         !write(*,*) 'REAL-rank[',mpi_rank,']doing',iMshRank,'max',maxNumMshRanks
          aux_numElemsMshRank=numElemsMshRank(iMshRank)
          mshRank= mshRanksInMpiRank(iMshRank)
          !write(*,*) '#Reading stuff for mshRank',mshRank,'in mpi_rank',mpi_rank,'(iMshRank',iMshRank,')','aux_numElemsMshRank',aux_numElemsMshRank
@@ -2236,6 +2339,7 @@ contains
 
          call read_elem_connec_and_nodes_coords_from_gmsh_h5_file(gmsh_h5_fileId,numElemsSrl,numNodesSrl,aux_numElemsMshRank,elemGid_jv%vector(iMshRank)%elems,numNodesMshRank(iMshRank),&
                                           connecMshRank_jm%matrix(iMshRank)%elems,listNodesMshRank_jv%vector(iMshRank)%elems,coordMshRank_jm%matrix(iMshRank)%elems)
+
 
 
          if(numBoundFacesSrl.ne.0) then
@@ -2266,7 +2370,7 @@ contains
       allocate(dummyConnec(1,nnode))
 
       do iMshRank=(numMshRanksInMpiRank+1),maxNumMshRanks
-         write(*,*) 'FAKE-rank[',mpi_rank,']doing',iMshRank,'max',maxNumMshRanks
+         !write(*,*) 'FAKE-rank[',mpi_rank,']doing',iMshRank,'max',maxNumMshRanks
 
          call read_elem_connec_and_nodes_coords_from_gmsh_h5_file(gmsh_h5_fileId,numElemsSrl,numNodesSrl,aux_numElemsMshRank,dummyListElems,dummyNumNodes,&
                                           dummyConnec,dummyListNodes,dummyCoordNodes)
@@ -3018,6 +3122,7 @@ contains
          if(iMshRank.gt.1) memDispMpiBN(iMshRank)=memDispMpiBN(iMshRank-1)+numMpiBoundaryNodesAll(iMshRank-1)
       end do
       !write(*,*) '2.rank[',mpi_rank,']numMBNA', numMpiBoundaryNodesAll(:),'total',totalNumMpiBoundaryNodes,'memDisp',memDispMpiBN(:)
+      if(mpi_rank.eq.0) write(*,*) '  |2.totalNumMpiBoundaryNodes',totalNumMpiBoundaryNodes
 
       ! fill my own mpi boundary nodes
       allocate(mpiBoundaryNodesAll(totalNumMpiBoundaryNodes))
@@ -3032,6 +3137,7 @@ contains
          end do
       end do
 
+      if(mpi_rank.eq.0) write(*,*) '  |3.commWindowsTotalNumMpiBoundaryNodes'
       ! Create the window
       !--------------------------------------------------------------------------------------
       win_buffer_size = mpi_integer_size*totalNumMpiBoundaryNodes
@@ -3056,6 +3162,7 @@ contains
       call MPI_Win_fence(0, window_id, mpi_err)
       call MPI_Win_free(window_id, mpi_err)
       !---------------------------------------------------------------------------------------------------------
+      if(mpi_rank.eq.0) write(*,*) '  |4.allocating mpiBoundaryNodesAll_jv'
 
       allocate(mpiBoundaryNodesAll_jv%vector(numMshRanks2Part))
       do iMshRank=1,numMshRanks2Part
@@ -3073,6 +3180,7 @@ contains
       deallocate(mpiBoundaryNodesAll)
 
       !---------------------------------------------------------------------------------------------------------
+      if(mpi_rank.eq.0) write(*,*) '  |5.allocating all mpirank vecs'
 
       allocate(numNodesToCommMshRank(numMshRanksInMpiRank))
       allocate(numMshRanksWithComms(numMshRanksInMpiRank))
@@ -3085,6 +3193,7 @@ contains
       allocate(auxCommSchemeMemPos(numMshRanksInMpiRank,numMshRanks2Part))
       allocate(auxCommSchemeMemPosAll(numMshRanks2Part**2))
 
+      if(mpi_rank.eq.0) write(*,*) '  |6.allocated all mpirank vecs'
 
       do iMshRank=1,numMshRanksInMpiRank
          mshRankOrig = mshRanksInMpiRank(iMshRank)
@@ -3182,6 +3291,8 @@ contains
          end do
       end do
 
+      if(mpi_rank.eq.0) write(*,*) '  |7.allocated and calc all mpirank vecs'
+
       auxCommSchemeMemPosAll(:)=0
       do iMshRank=1,numMshRanksInMpiRank
          mshRank=mshRanksInMpiRank(iMshRank)
@@ -3227,6 +3338,8 @@ contains
          end do
          !write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'commsMemPosInNgb->',commsMemPosInNgb_jv%vector(iMshRank)%elems(:)
       end do
+
+      if(mpi_rank.eq.0) write(*,*) '  |8.Done everything MPI Comm scheme'
 
       deallocate(auxCommSchemeMemPos)
       deallocate(auxCommSchemeMemPosAll)

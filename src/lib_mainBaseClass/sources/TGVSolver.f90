@@ -48,7 +48,7 @@ contains
       write(this%gmsh_file_name,*) "cube" 
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube_per10_p4"
+      write(this%mesh_h5_file_name,*) "cube_per200"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -57,12 +57,12 @@ contains
       !this%isPeriodic = .false.
       this%doGlobalAnalysis = .true.
 
-      this%loadResults = .false.
-      !this%loadResults = .true.
-      !this%continue_oldLogs = .true.
-      !this%load_step = 2001
+      !this%loadResults = .false.
+      this%loadResults = .true.
+      this%continue_oldLogs = .true.
+      this%load_step = 8001
 
-      this%nstep = 20001
+      this%nstep = 1000001
 
       this%cfl_conv = 0.5_rp
       this%cfl_diff = 0.5_rp
@@ -70,9 +70,9 @@ contains
       this%nsave2 = 1   ! First step to save, TODO: input
 
       this%nsaveAVG = 1!1000000
-      this%nleap = 500 ! Saving interval, TODO: input
+      this%nleap = 5000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 10  ! Saving interval, TODO: input
+      this%nleap2 = 5  ! Saving interval, TODO: input
       this%nleapAVG = 2000000000
 
       this%Cp = 1004.0_rp

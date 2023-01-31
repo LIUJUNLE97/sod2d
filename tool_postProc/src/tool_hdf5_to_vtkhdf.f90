@@ -87,8 +87,8 @@ program tool_hdf5_to_cgns
 !---------------------------------------------------------------------------------------------------------
 
     call init_hdf5_interface()
-    call set_hdf5_meshFile_name(mesh_h5_filePath,mesh_h5_fileName,mpi_rank)
-    call set_hdf5_baseResultsFile_name(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,mpi_rank)
+    call set_hdf5_meshFile_name(mesh_h5_filePath,mesh_h5_fileName,mpi_size)
+    call set_hdf5_baseResultsFile_name(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,mpi_size)
 
     if(mpi_rank.eq.0) write(*,*) '# Loading HDF5 mesh file...'
     !call load_hdf5_meshfile(mesh_h5_filePath,mesh_h5_fileName)
