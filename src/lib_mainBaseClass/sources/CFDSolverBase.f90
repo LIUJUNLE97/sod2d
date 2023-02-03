@@ -1053,21 +1053,28 @@ contains
       integer(4), intent(in)              :: istep, iwitstep
       integer(4)                          :: iwit, iwitglobal, itewit, inode
       real(rp)                            :: witval(this%nwitPar,this%nvarwit) ! u_x | u_y | u_z | pr | rho
-      real(rp)                            :: start, finish, nodvals(this%nvarwit), auxval(this%nvarwit)
+      real(rp)                            :: start, finish, auxux, auxuy, auxuz, auxpr, auxrho
       
       !$acc parallel loop gang
       do iwit = 1,this%nwitPar
-         auxval(:) = 0.0_rp
-         !$acc loop vector reduction(+:auxval)
+         auxux  = 0.0_rp
+         auxuy  = 0.0_rp
+         auxuz  = 0.0_rp
+         auxpr  = 0.0_rp
+         auxrho = 0.0_rp
+         !$acc loop vector reduction(+:auxux,auxuy,auxuz,auxpr,auxrho)
          do inode = 1,nnode
-            nodvals(1) = u(connecParOrig(witel(iwit),inode),1,2)
-            nodvals(2) = u(connecParOrig(witel(iwit),inode),2,2)
-            nodvals(3) = u(connecParOrig(witel(iwit),inode),3,2)
-            nodvals(4) = pr(connecParOrig(witel(iwit),inode),2)
-            nodvals(5) = rho(connecParOrig(witel(iwit),inode),2)
-            auxval(:)  = auxval(:) + Nwit(iwit,inode)*nodvals(:)
+            auxux  = auxux + Nwit(iwit,inode)*u(connecParOrig(witel(iwit),inode),1,2)
+            auxuy  = auxuy + Nwit(iwit,inode)*u(connecParOrig(witel(iwit),inode),2,2)
+            auxuz  = auxuz + Nwit(iwit,inode)*u(connecParOrig(witel(iwit),inode),3,2)
+            auxpr  = auxpr + Nwit(iwit,inode)*pr(connecParOrig(witel(iwit),inode),2)
+            auxrho = auxrho + Nwit(iwit,inode)*rho(connecParOrig(witel(iwit),inode),2)
          end do
-         buffwit(iwitstep,iwit,:) = auxval(:)
+         buffwit(iwitstep,iwit,1) = auxux
+         buffwit(iwitstep,iwit,2) = auxuz
+         buffwit(iwitstep,iwit,3) = auxuy
+         buffwit(iwitstep,iwit,4) = auxpr
+         buffwit(iwitstep,iwit,5) = auxrho
       end do
       !$acc end loop
       bufftime(iwitstep) = this%time
@@ -1089,7 +1096,7 @@ contains
       integer(4)                          :: iwit, ielem, inode, ifound, nwitParCand, icand
       integer(rp)                         :: witGlobCand(this%nwit), witGlob(this%nwit)
       real(rp)                            :: xi(ndime), radwit(numElemsInRank), maxL, center(numElemsInRank,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsInRank), Niwit(nnode)
-      real(rp), parameter                 :: wittol=1e-10
+      real(rp), parameter                 :: wittol=1e-7
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
       logical                             :: isinside   
       
