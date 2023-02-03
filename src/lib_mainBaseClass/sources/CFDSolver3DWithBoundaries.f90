@@ -71,11 +71,11 @@ contains
       class(CFDSolver3DWithBoundaries), intent(inout) :: this
       integer(4)              , intent(in)   :: istep
 
-      call eval_average_window(isMeshPeriodic,numNodesRankPar,numElemsInRank,acuvel,acuve2,acurho,acupre,acumueff,this%acutim,&
-											avvel,avve2,avrho,avpre,avmueff,nPerRankPar,masSlaRankPar)
+      call eval_average_window(isMeshPeriodic,numNodesRankPar,numElemsInRank,acuvel,acuve2,acuvex,acurho,acupre,acumueff,this%acutim,&
+											avvel,avve2,avvex,avrho,avpre,avmueff,nPerRankPar,masSlaRankPar)
 
       if(save_hdf5) then
-         call save_hdf5_avgResultsFile(istep,avvel,avve2,avrho,avpre,avmueff)
+         call save_hdf5_avgResultsFile(istep,avvel,avve2,avvex,avrho,avpre,avmueff)
       end if
 
    end subroutine CFDSolver3DWithBoundaries_saveAverages

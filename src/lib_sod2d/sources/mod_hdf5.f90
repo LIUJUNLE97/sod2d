@@ -2654,11 +2654,11 @@ contains
       full_fileName = trim(adjustl(base_avgResultsFile_h5_name))//trim(aux_step)//'.h5'
    end subroutine set_hdf5_avgResultsFile_name
 
-   subroutine save_hdf5_avgResultsFile(iStep,avvel,avve2,avrho,avpre,avmueff)
+   subroutine save_hdf5_avgResultsFile(iStep,avvel,avve2,avvex,avrho,avpre,avmueff)
       implicit none
       integer, intent(in) :: iStep
       real(rp), intent(in), dimension(numNodesRankPar)       :: avrho, avpre, avmueff
-      real(rp), intent(in), dimension(numNodesRankPar,ndime) :: avvel, avve2
+      real(rp), intent(in), dimension(numNodesRankPar,ndime) :: avvel, avve2, avvex
 
       integer(hid_t) :: file_id,plist_id
       integer(hid_t) :: dtype
@@ -2728,16 +2728,28 @@ contains
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avve2(:,3))
 
+      dsetname = 'avvex_x'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avvex(:,1))
+
+      dsetname = 'avvex_y'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avvex(:,2))
+
+      dsetname = 'avvex_z'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avvex(:,3))
+
       !close the file.
       call h5fclose_f(file_id,h5err)
 
    end subroutine save_hdf5_avgResultsFile
 
-   subroutine load_hdf5_avgResultsFile(iStep,avvel,avve2,avrho,avpre,avmueff)
+   subroutine load_hdf5_avgResultsFile(iStep,avvel,avve2,avvex,avrho,avpre,avmueff)
       implicit none
       integer, intent(in) :: iStep
       real(rp), intent(inout), dimension(numNodesRankPar)       :: avrho, avpre, avmueff
-      real(rp), intent(inout), dimension(numNodesRankPar,ndime) :: avvel, avve2
+      real(rp), intent(inout), dimension(numNodesRankPar,ndime) :: avvel, avve2, avvex
 
       integer(hid_t) :: file_id,plist_id
       integer(hid_t) :: dtype
@@ -2797,6 +2809,15 @@ contains
 
       dsetname = 'avve2_z'
       call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avve2(:,3))
+
+      dsetname = 'avvex_x'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avvex(:,1))
+
+      dsetname = 'avvex_y'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avvex(:,2))
+
+      dsetname = 'avvex_z'
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,avvex(:,3))
 
       !close the file.
       call h5fclose_f(file_id,h5err)
@@ -3287,11 +3308,11 @@ contains
 
    end subroutine write_vtkhdf_instResultsFile
 
-   subroutine write_vtkhdf_avgResultsFile(full_fileName,avrho,avpre,avmueff,avvel,avve2)
+   subroutine write_vtkhdf_avgResultsFile(full_fileName,avrho,avpre,avmueff,avvel,avve2,avvex)
       implicit none
       character(512),intent(in) :: full_fileName
       real(rp),dimension(numNodesRankPar),intent(in) :: avrho,avpre,avmueff
-      real(rp),dimension(numNodesRankPar,ndime),intent(in) :: avvel,avve2
+      real(rp),dimension(numNodesRankPar,ndime),intent(in) :: avvel,avve2,avvex
 
       character(512) :: groupname,dsetname
       integer(hid_t) :: file_id,plist_id,dset_id
@@ -3404,6 +3425,28 @@ contains
       ms_offset2d(1) = 2
       do iNodeL = 1,numNodesRankPar
          aux_array_r64(iNodeL) = real(avve2(iNodeL,3),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r64)
+      !-------------------------------------------------------------------------------- 
+      !-------------------------------------------------------------------------------- 
+      dsetname = '/VTKHDF/PointData/avvex'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims2d,dtype)
+      !-------------------------------------------------------------------------------- 
+      ms_offset2d(1) = 0
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(avvex(iNodeL,1),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r64)
+      !-------------------------------------------------------------------------------- 
+      ms_offset2d(1) = 1
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(avvex(iNodeL,2),8)
+      end do
+      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r64)
+      !-------------------------------------------------------------------------------- 
+      ms_offset2d(1) = 2
+      do iNodeL = 1,numNodesRankPar
+         aux_array_r64(iNodeL) = real(avvex(iNodeL,3),8)
       end do
       call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r64)
       !-------------------------------------------------------------------------------- 
@@ -3525,30 +3568,30 @@ contains
 
    end subroutine save_vtkhdf_instResultsFile
 
-   subroutine save_vtkhdf_avgResultsFile(iStep,avrho,avpre,avmueff,avvel,avve2)
+   subroutine save_vtkhdf_avgResultsFile(iStep,avrho,avpre,avmueff,avvel,avve2,avvex)
       implicit none
       integer, intent(in) :: iStep
       real(rp),dimension(numNodesRankPar),intent(in) :: avrho,avpre,avmueff
-      real(rp),dimension(numNodesRankPar,ndime),intent(in) :: avvel,avve2
+      real(rp),dimension(numNodesRankPar,ndime),intent(in) :: avvel,avve2,avvex
       character(512) :: full_fileName
 
       call set_vtkhdf_avgResultsFile_name(iStep,full_fileName)
       if(mpi_rank.eq.0) write(*,*) '# Saving VTKHDF avg results file: ',trim(adjustl(full_fileName))
 
-      call write_vtkhdf_avgResultsFile(full_fileName,avrho,avpre,avmueff,avvel,avve2)
+      call write_vtkhdf_avgResultsFile(full_fileName,avrho,avpre,avmueff,avvel,avve2,avvex)
 
    end subroutine save_vtkhdf_avgResultsFile
 
-   subroutine save_vtkhdf_finalAvgResultsFile(favrho,favpre,favmueff,favvel,favve2)
+   subroutine save_vtkhdf_finalAvgResultsFile(favrho,favpre,favmueff,favvel,favve2,favvex)
       implicit none
       real(rp),dimension(numNodesRankPar),intent(in) :: favrho,favpre,favmueff
-      real(rp),dimension(numNodesRankPar,ndime),intent(in) :: favvel,favve2
+      real(rp),dimension(numNodesRankPar,ndime),intent(in) :: favvel,favve2,favvex
       character(512) :: full_fileName
 
       call set_vtkhdf_finalAvgResultsFile_name(full_fileName)
       if(mpi_rank.eq.0) write(*,*) '# Saving VTKHDF final avg results file: ',trim(adjustl(full_fileName))
 
-      call write_vtkhdf_avgResultsFile(full_fileName,favrho,favpre,favmueff,favvel,favve2)
+      call write_vtkhdf_avgResultsFile(full_fileName,favrho,favpre,favmueff,favvel,favve2,favvex)
 
    end subroutine save_vtkhdf_finalAvgResultsFile
 

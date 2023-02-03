@@ -20,6 +20,9 @@ program main
 #if _bluff3d_
    use BluffBody3DSolver_mod
 #endif
+#if _bl_
+   use BLFlowSolver_mod
+#endif
    implicit none
 
 #if _tgv_
@@ -40,6 +43,10 @@ program main
    call bluff3d%run()
 #endif
 
+#if _bl_
+   type(BLFlowSolver)  :: blflow
+   call blflow%run()
+#endif
 
 
 
