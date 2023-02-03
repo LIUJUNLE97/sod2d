@@ -892,6 +892,46 @@ contains
       call h5dclose_f(dset_id,h5err)
    end subroutine read_dataspace_fp32_hyperslab_parallel
 
+   subroutine read_dataspace_2d_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
+      integer(hid_t),intent(in) :: file_id
+      character(len=*),intent(in) :: dsetname
+      integer,intent(in) :: ms_rank !assuming ms_rank=fs_rank
+      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
+      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
+      real(4),intent(out) :: data(ms_dims(1), ms_dims(2))
+      integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
+      integer :: h5err
+      integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
+      integer(hid_t) :: dtype
+      dtype = H5T_NATIVE_REAL
+
+      call h5dopen_f(file_id, dsetname, dset_id, h5err)
+
+      !get filespace of the dataset
+      call h5dget_space_f(dset_id, fspace_id, h5err)
+
+      !get dimensions of the filespace
+      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
+
+      ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) 
+
+      ! Select hyperslab in the file.
+      call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
+
+      ! Create property list for collective dataset write
+      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) 
+      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+
+      call h5dread_f(dset_id,dtype,data,fs_dims,h5err,&
+                     file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+
+      call h5pclose_f(plist_id,h5err)
+      call h5sclose_f(mspace_id,h5err)
+      call h5sclose_f(fspace_id,h5err)
+      call h5dclose_f(dset_id,h5err)
+   end subroutine read_dataspace_2d_fp32_hyperslab_parallel
+
    subroutine read_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
@@ -3700,12 +3740,12 @@ contains
 
    end subroutine create_witness_hdf5
 
-   subroutine load_witness_hdf5(full_fileName, nwit, nwitPar, witel, witxi) !TODO: Check that the number of witness is the same and that the variables to save are also the same
+   subroutine load_witness_hdf5(full_fileName, nwit, loadstep, nwitPar, witel, witxi, shapefunc, t) 
       implicit none
       character(512), intent(in)  :: full_fileName
-      integer(rp),    intent(in)  :: nwit
+      integer(rp),    intent(in)  :: nwit, loadstep
       integer(rp),    intent(out) :: witel(nwit)
-      real(rp),       intent(out) :: witxi(nwit, ndime)
+      real(rp),       intent(out) :: witxi(nwit,ndime), shapefunc(nwit,nnode), t
       integer(rp),    intent(out) :: nwitPar
       integer(hid_t)              :: file_id,plist_id,dset_id,dspace_id,group_id, dtype
       integer(HSIZE_T)            :: ms_dims(2), max_dims(2)
@@ -3713,6 +3753,7 @@ contains
       integer                     :: ms_rank, h5err, iwit
       character(256)              :: groupname,dsetname
       integer(rp)                 :: nwitOffset, auxread(1)
+      real(rp)                    :: auxwitxi(ndime,nwit), auxshapefunc(nnode, nwit), auxt(1)
 
       witel(:)   = 0
       witxi(:,:) = 0.0_rp
@@ -3752,18 +3793,48 @@ contains
       ms_offset(1) = nwitOffset
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witel)
       
-      !Create dataspace for witness isoparametric coordinates and save them!
+      !Read witness isoparametric coordinates!
       dsetname     = 'witxi'
       ms_rank      = 2
-      ms_dims(1)   = 1
+      ms_dims(1)   = ndime
       ms_dims(2)   = nwitPar
       ms_offset(1) = 0
       ms_offset(2) = nwitOffset
-      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witxi(:,1))
-      ms_offset(1) = 1
-      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witxi(:,2))
-      ms_offset(1) = 2
-      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,witxi(:,3))
+      call read_dataspace_2d_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwitxi)
+
+      !Read the shape functions coordinates!
+      dsetname     = 'shape_functions'
+      ms_rank      = 2
+      ms_dims(1)   = nnode
+      ms_dims(2)   = nwitPar
+      ms_offset(1) = 0
+      ms_offset(2) = nwitOffset
+      call read_dataspace_2d_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxshapefunc)
+      do iwit =1,nwitPar
+         witxi(iwit,:) = auxwitxi(:,iwit)
+         shapefunc(iwit,:) = auxshapefunc(:,iwit)
+      end do
+
+      !Read the shape functions coordinates!
+      dsetname     = 'shape_functions'
+      ms_rank      = 2
+      ms_dims(1)   = nnode
+      ms_dims(2)   = nwitPar
+      ms_offset(1) = 0
+      ms_offset(2) = nwitOffset
+      call read_dataspace_2d_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxshapefunc)
+      do iwit =1,nwitPar
+         witxi(iwit,:) = auxwitxi(:,iwit)
+         shapefunc(iwit,:) = auxshapefunc(:,iwit)
+      end do
+
+      !Read the last time!
+      dsetname     = 'time'
+      ms_rank      = 1
+      ms_dims(1)   = 1
+      ms_offset(1) = loadstep-1
+      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxt)
+      t = auxt(1)
 
       call h5fclose_f(file_id,h5err)
 

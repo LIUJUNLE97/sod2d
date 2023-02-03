@@ -98,7 +98,7 @@ module CFDSolverBase_mod
       ! main real parameters
       real(rp) , public                   :: cfl_conv, cfl_diff, acutim
       real(rp) , public                   :: leviCivi(3,3,3), surfArea, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
-      real(rp) , public                   :: dt, Cp, Rgas, gamma_gas,Prt,tleap,time
+      real(rp) , public                   :: dt, Cp, Rgas, gamma_gas,Prt,tleap,time, loadtimewit=0.0_rp
       logical  , public                   :: noBoundaries
 
    contains
@@ -1079,7 +1079,12 @@ contains
       integer(4)                          :: iwit, iwitglobal, itewit
       real(rp)                            :: start, finish
       
-      itewit = istep/(this%leapwit)
+      if ((this%loadResults) .AND. (this%continue_oldLogs .eqv. .false.)) then
+         itewit   = this%load_step + istep/(this%leapwit)
+         bufftime = bufftime + this%loadtimewit 
+      else
+         itewit = istep/(this%leapwit)
+      end if
       call update_witness_hdf5(itewit, this%leapwitsave, buffwit, this%nwit, this%nwitPar, this%nvarwit, this%witness_h5_file_name, bufftime, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
    end subroutine CFDSolverBase_save_witness
 
@@ -1089,7 +1094,7 @@ contains
       integer(4)                          :: iwit, ielem, inode, ifound, nwitParCand, icand
       integer(rp)                         :: witGlobCand(this%nwit), witGlob(this%nwit)
       real(rp)                            :: xi(ndime), radwit(numElemsInRank), maxL, center(numElemsInRank,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsInRank), Niwit(nnode)
-      real(rp), parameter                 :: wittol=1e-10
+      real(rp), parameter                 :: wittol=1e-7
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
       logical                             :: isinside   
       
@@ -1164,7 +1169,9 @@ contains
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       
-      call load_witness_hdf5(this%witness_h5_file_name, this%nwit, this%nwitPar, witel, witxi)
+      call load_witness_hdf5(this%witness_h5_file_name, this%nwit, this%load_step, this%nwitPar, witel, witxi, Nwit, this%loadtimewit)
+      allocate(buffwit(this%leapwitsave,this%nwitPar,this%nvarwit))
+      allocate(bufftime(this%leapwitsave))
    end subroutine CFDSolverBase_loadWitnessPoints
 
    subroutine open_log_file(this)
@@ -1418,18 +1425,18 @@ contains
 
         call this%evalMass()
 
+      ! Preprocess witness points
+      if (this%have_witness) then
+         if (this%continue_witness) then 
+            call this%loadWitnessPoints() ! Load witness points and continue them
+         else
+            call this%preprocWitnessPoints()
+         end if
+      end if
+
         ! Eval first output
         if(this%isFreshStart) then
             call this%evalFirstOutput()
-            if (this%have_witness) call this%preprocWitnessPoints() ! Read witness points and preprocess them
-        else
-            if (this%have_witness) then
-               if (this%continue_witness) then 
-                  call this%loadWitnessPoints() ! Load witness points and continue them
-               else
-                  call this%preprocWitnessPoints()
-               end if
-            end if
         end if 
 
         call this%flush_log_file()
