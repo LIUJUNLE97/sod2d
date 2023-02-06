@@ -82,8 +82,8 @@ contains
       this%loadMesh = .true.
       this%loadResults = .true.
 
-      this%continue_oldLogs = .false.
-      this%load_step = 1780001
+      this%continue_oldLogs = .true.
+      this%load_step = 1060001
 
       this%nstep = 800000001 !250001
 #if ABL

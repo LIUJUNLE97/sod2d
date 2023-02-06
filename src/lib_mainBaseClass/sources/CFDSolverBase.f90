@@ -16,7 +16,7 @@ module mod_arrays
       real(rp), allocatable :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
       real(rp), allocatable :: Je(:,:), He(:,:,:,:), bou_norm(:,:)
       real(rp), allocatable :: gpvol(:,:,:), gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
-      real(rp), allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:)
+      real(rp), allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:),tauw(:,:)
       real(rp), allocatable :: Ml(:)
       real(rp), allocatable :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:),mu_factor(:)
       real(rp), allocatable :: source_term(:,:)
@@ -422,6 +422,8 @@ contains
 
       allocate(u_buffer(numNodesRankPar,ndime))  ! momentum at the buffer
 
+      allocate(tauw(numNodesRankPar,ndime))  ! momentum at the buffer
+
 
       !$acc kernels
       u(:,:,:) = 0.0_rp
@@ -440,6 +442,7 @@ contains
       mu_sgs(:,:) = 0.0_rp
 
       u_buffer(:,:) = 0.0_rp
+      tauw(:,:) = 0.0_rp
       !$acc end kernels
 
       !ilsa
@@ -976,7 +979,7 @@ contains
          !
          call nvtxStartRange("Accumulate"//timeStep,istep)
          call favre_average(numElemsInRank,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,this%dt,rho,u,pr, &
-            mu_fluid,mu_e,mu_sgs,this%acutim,acurho,acupre,acuvel,acuve2,acuvex,acumueff)
+            mu_fluid,mu_e,mu_sgs,tauw,this%acutim,acurho,acupre,acuvel,acuve2,acuvex,acumueff,acutw)
          call nvtxEndRange
 
          if (istep == this%nsave2) then
