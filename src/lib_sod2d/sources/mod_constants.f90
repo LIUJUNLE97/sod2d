@@ -55,7 +55,7 @@ module mod_constants
       real(rp), parameter :: c_ener = 1.0_rp
       real(rp), parameter :: c_sgs = 0.07_rp
       real(rp), parameter :: stau   = 0.022_rp
-      real(rp), parameter :: T_ilsa = 20.0_rp
+      real(rp), parameter :: T_ilsa = 13500.0_rp
       real(rp), parameter :: T_wmles = 0.01_rp
 
       integer(4), parameter :: max_num_bou_codes = 10

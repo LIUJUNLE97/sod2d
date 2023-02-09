@@ -209,7 +209,7 @@ module mod_entropy_viscosity
               end subroutine smart_visc
 
               subroutine smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
-                                    gamma_gas,rho,u,Tem,eta,helem,helem_k,Ml,mu_e)
+                                    gamma_gas,rho,u,csound,Tem,eta,helem,helem_k,Ml,mu_e)
               
                       ! TODO: Compute element size h
               
@@ -217,7 +217,7 @@ module mod_entropy_viscosity
 
                       integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
                       real(rp),    intent(in)  :: Reta(npoin), Rrho(npoin), Ngp(ngaus,nnode),gamma_gas
-                      real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime), Tem(npoin), eta(npoin),helem(nelem,nnode),helem_k(nelem),Ml(npoin)
+                      real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime),csound(npoin), Tem(npoin), eta(npoin),helem(nelem,nnode),helem_k(nelem),Ml(npoin)
                       real(rp),    intent(out) :: mu_e(nelem,ngaus)
                       real(rp),   intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
                       real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
@@ -225,8 +225,8 @@ module mod_entropy_viscosity
                       real(rp)                 :: R1, R2, Ve
                       real(rp)                 :: betae,mu,vol,vol2
                       real(rp)                 :: L3, aux1, aux2, aux3
-                      real(rp)                 :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas
-                      real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe
+                      real(rp)                 :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas, maxV, maxC
+                      real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe, M, ceM
 
                       Rgas = nscbc_Rgas_inf
 
@@ -259,12 +259,19 @@ module mod_entropy_viscosity
                       do ielem = 1,nelem
                          maxJe=0.0_rp
                          minJe=1000000.0_rp
+                         maxV = 0.0_rp
+                         maxC = 0.0_rp
                          !$acc loop seq
                          do igaus = 1,ngaus
                             minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
                             maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
+                            maxV = max(maxV,sqrt(dot_product(u(connec(ielem,igaus),:),u(connec(ielem,igaus),:))))
+                            maxC = max(maxC,csound(connec(ielem,igaus)))
                          end do
+                         M = maxV/maxC
+                         ceM = max( tanh((M**15)*v_pi),ce)
                          ced = max(1.0_rp-(minJe/maxJe)**2,ce)
+                         ced = max(ced,ceM) 
                          !ced = 1.0_rp
 
                          mu = 0.0_rp

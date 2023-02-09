@@ -16,12 +16,12 @@ module mod_arrays
       real(rp), allocatable :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
       real(rp), allocatable :: Je(:,:), He(:,:,:,:), bou_norm(:,:)
       real(rp), allocatable :: gpvol(:,:,:), gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
-      real(rp), allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:)
+      real(rp), allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:),tauw(:,:)
       real(rp), allocatable :: Ml(:)
       real(rp), allocatable :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:),mu_factor(:)
       real(rp), allocatable :: source_term(:,:)
-      real(rp), allocatable :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:)
-      real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:)
+      real(rp), allocatable :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:),acuvex(:,:),acutw(:,:)
+      real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:),avvex(:,:),avtw(:,:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
       real(rp), allocatable :: u_buffer(:,:)
@@ -406,6 +406,8 @@ contains
       allocate(mu_sgs(numElemsRankPar,ngaus))! SGS viscosity
       allocate(u_buffer(numNodesRankPar,ndime))  ! momentum at the buffer
 
+      allocate(tauw(numNodesRankPar,ndime))  ! momentum at the buffer
+
       !$acc kernels
       u(:,:,:) = 0.0_rp
       q(:,:,:) = 0.0_rp
@@ -423,6 +425,7 @@ contains
       mu_sgs(:,:) = 0.0_rp
 
       u_buffer(:,:) = 0.0_rp
+      tauw(:,:) = 0.0_rp
       !$acc end kernels
 
       !ilsa
@@ -474,11 +477,16 @@ contains
       allocate(acumueff(numNodesRankPar))
       allocate(acuvel(numNodesRankPar,ndime))
       allocate(acuve2(numNodesRankPar,ndime))
+      allocate(acuvex(numNodesRankPar,ndime))
+      allocate(acutw(numNodesRankPar,ndime))
+
       allocate(avrho(numNodesRankPar))
       allocate(avpre(numNodesRankPar))
       allocate(avmueff(numNodesRankPar))
       allocate(avvel(numNodesRankPar,ndime))
       allocate(avve2(numNodesRankPar,ndime))
+      allocate(avvex(numNodesRankPar,ndime))
+      allocate(avtw(numNodesRankPar,ndime))
 
       !$acc kernels
       acurho(:) = 0.0_rp
@@ -486,11 +494,16 @@ contains
       acumueff(:) = 0.0_rp
       acuvel(:,:) = 0.0_rp
       acuve2(:,:) = 0.0_rp
+      acuvex(:,:) = 0.0_rp
+      acutw(:,:) = 0.0_rp
+
       avrho(:) = 0.0_rp
       avpre(:) = 0.0_rp
       avmueff(:) = 0.0_rp
       avvel(:,:) = 0.0_rp
       avve2(:,:) = 0.0_rp
+      avvex(:,:) = 0.0_rp
+      avtw(:,:) = 0.0_rp
       !$acc end kernels
       this%acutim = 0.0_rp
 
@@ -962,7 +975,7 @@ contains
          !
          call nvtxStartRange("Accumulate"//timeStep,istep)
          call favre_average(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,this%dt,rho,u,pr, &
-            mu_fluid,mu_e,mu_sgs,this%acutim,acurho,acupre,acuvel,acuve2,acumueff)
+                            mu_fluid,mu_e,mu_sgs,tauw,this%acutim,acurho,acupre,acuvel,acuve2,acuvex,acumueff,acutw)
          call nvtxEndRange
 
          if (istep == this%nsave2) then
