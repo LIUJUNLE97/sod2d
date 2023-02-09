@@ -55,7 +55,7 @@ module mod_constants
       real(rp), parameter :: c_ener = 1.0_rp
       real(rp), parameter :: c_sgs = 0.07_rp
       real(rp), parameter :: stau   = 0.022_rp
-      real(rp), parameter :: T_ilsa = 13500.0_rp
+      real(rp), parameter :: T_ilsa = 1.0_rp
       real(rp), parameter :: T_wmles = 0.01_rp
 
       integer(4), parameter :: max_num_bou_codes = 10
@@ -78,13 +78,12 @@ module mod_constants
       ! Boundary Conditions Types
       !
 
-      integer(4), parameter :: bc_type_inlet                = 1
+      integer(4), parameter :: bc_type_far_field            = 1
       integer(4), parameter :: bc_type_non_slip_adiabatic   = 2
       integer(4), parameter :: bc_type_non_slip_hot         = 3
       integer(4), parameter :: bc_type_non_slip_cold        = 4
       integer(4), parameter :: bc_type_slip_adiabatic       = 5
       integer(4), parameter :: bc_type_slip_wall_model      = 6
-      integer(4), parameter :: bc_type_outlet               = 7
 
       !
       ! Penalisation buffer zone

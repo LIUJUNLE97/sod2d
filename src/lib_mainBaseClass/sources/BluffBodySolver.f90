@@ -45,10 +45,10 @@ contains
    subroutine BluffBodySolver_fill_BC_Types(this)
       class(BluffBodySolver), intent(inout) :: this
 
-      bouCodes2BCType(1) = bc_type_inlet
-      bouCodes2BCType(2) = bc_type_inlet
-      bouCodes2BCType(3) = bc_type_inlet
-      bouCodes2BCType(4) = bc_type_inlet
+      bouCodes2BCType(1) = bc_type_far_field
+      bouCodes2BCType(2) = bc_type_far_field
+      bouCodes2BCType(3) = bc_type_far_field
+      bouCodes2BCType(4) = bc_type_far_field
       bouCodes2BCType(5) = bc_type_non_slip_adiabatic
 
    end subroutine BluffBodySolver_fill_BC_Types
@@ -73,11 +73,11 @@ contains
       this%loadResults = .true.
 
       this%continue_oldLogs = .false.
-      this%load_step = 20001
+      this%load_step = 150001
 
       this%nstep = 90000001 !250001
-      this%cfl_conv = 1.95_rp !0.1_rp
-      this%cfl_diff = 1.95_rp !0.1_rp
+      this%cfl_conv = 0.5_rp !0.1_rp
+      this%cfl_diff = 0.5_rp !0.1_rp
       !this%cfl_conv = 0.5_rp !0.1_rp
       !this%cfl_diff = 0.5_rp !0.1_rp
 
@@ -85,15 +85,15 @@ contains
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
 
-      this%nleap = 20000 ! Saving interval, TODO: input
+      this%nleap = 50000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 50  ! Saving interval, TODO: input
-      this%nleapAVG = 20000
+      this%nleapAVG = 50000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
-      this%vo = 1.0_rp
-      this%M  = 0.2_rp
+      this%vo = 4.0_rp
+      this%M  = 1.0_rp
       this%delta  = 1.0_rp
       this%rho0   = 1.0_rp
       this%gamma_gas = 1.40_rp
@@ -116,22 +116,21 @@ contains
 
       flag_buffer_on = .true.
       !cylinder
-     flag_buffer_on_east = .true.
-     flag_buffer_e_min = 70.0_rp
-     flag_buffer_e_size = 10.0_rp 
+      flag_buffer_on_east = .true.
+      flag_buffer_e_min = 40.0_rp
+      flag_buffer_e_size = 10.0_rp
 
-     flag_buffer_on_west = .true.
-     flag_buffer_w_min = -15.0_rp
-     flag_buffer_w_size = 5.0_rp 
-     
-     flag_buffer_on_north = .true.
-     flag_buffer_n_min = 10.0_rp
-     flag_buffer_n_size = 5.0_rp 
-     
-     flag_buffer_on_south = .true.
-     flag_buffer_s_min = -10.0_rp
-     flag_buffer_s_size = 5.0_rp 
+      flag_buffer_on_west = .true.
+      flag_buffer_w_min = -20.0_rp
+      flag_buffer_w_size = 10.0_rp
 
+      flag_buffer_on_north = .true.
+      flag_buffer_n_min = 20.0_rp
+      flag_buffer_n_size = 10.0_rp
+
+      flag_buffer_on_south = .true.
+      flag_buffer_s_min = -20.0_rp
+      flag_buffer_s_size = 10.0_rp
       !naca
      !flag_buffer_on_east = .true.
      !flag_buffer_e_min = 10.0_rp
@@ -159,7 +158,7 @@ contains
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-         u(iNodeL,1,2) = 1.0_rp
+         u(iNodeL,1,2) = this%vo
          u(iNodeL,2,2) = 0.0_rp
          u(iNodeL,3,2) = 0.0_rp
       end do
