@@ -57,10 +57,6 @@ contains
       class(BluffBodySolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%gmsh_file_path,*) "./mesh/"
-      write(this%gmsh_file_name,*) "cyl" 
-      !write(this%gmsh_file_name,*) "naca" 
-
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "cyl"
       !write(this%mesh_h5_file_name,*) "naca"
@@ -68,7 +64,6 @@ contains
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
-      this%isPeriodic = .true.
       this%loadResults = .true.
 
       this%continue_oldLogs = .false.

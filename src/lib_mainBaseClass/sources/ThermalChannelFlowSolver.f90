@@ -64,16 +64,11 @@ contains
    subroutine ThermalChannelFlowSolver_initializeParameters(this)
       class(ThermalChannelFlowSolver), intent(inout) :: this
 
-      write(this%gmsh_file_path,*) "./mesh_channel/"
-      write(this%gmsh_file_name,*) "channel"
-
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "channel_sem"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
-
-      this%isPeriodic = .true.
 
 #if AR2
       this%loadResults = .true.
@@ -151,14 +146,16 @@ contains
       logical :: readFiles
       real(rp) :: velo, rti(3), yp
       integer(4)  :: iLine,iNodeGSrl,auxCnt,idime
+      character(512) :: initialField_filePath
 
       readFiles = .true.
 
       if(readFiles) then
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
-         call read_densi_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,rho(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
-         call read_veloc_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
-         call read_temper_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,Tem(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+         write(initialField_filePath,*) ""
+         call read_densi_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,initialField_filePath,rho(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+         call read_veloc_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,initialField_filePath,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+         call read_temper_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,initialField_filePath,Tem(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
 
          !!$acc parallel loop
          do iNodeL = 1,numNodesRankPar

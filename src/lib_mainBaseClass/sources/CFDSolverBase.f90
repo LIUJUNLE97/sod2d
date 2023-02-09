@@ -74,13 +74,12 @@ module CFDSolverBase_mod
       integer(4), public :: load_step, initial_istep
 
       ! main logical parameters
-      logical, public    :: isPeriodic=.false.,doGlobalAnalysis=.false.,isFreshStart=.true.
+      logical, public    :: doGlobalAnalysis=.false.,isFreshStart=.true.,doTimerAnalysis=.false.
       logical, public    :: loadResults=.false.,continue_oldLogs=.false.,saveInitialField=.true.,isWallModelOn=.false.
       logical, public    :: useIntInComms=.false.,useFloatInComms=.false.,useDoubleInComms=.false.
 
       ! main char variables
       character(512) :: log_file_name
-      character(512) :: gmsh_file_path,gmsh_file_name
       character(512) :: mesh_h5_file_path,mesh_h5_file_name
       character(512) :: results_h5_file_path,results_h5_file_name
 
@@ -162,9 +161,6 @@ contains
    subroutine CFDSolverBase_initializeDefaultParameters(this)
       class(CFDSolverBase), intent(inout) :: this
 
-      write(this%gmsh_file_path,*) "./mesh/"
-      write(this%gmsh_file_name,*) "meshName" 
-
       write(this%mesh_h5_file_path,*) "./"
       write(this%mesh_h5_file_name,*) "meshFile"
 
@@ -175,10 +171,10 @@ contains
       this%load_step = 0
       this%initial_istep = 1
 
-      this%isPeriodic = .false.
       this%loadResults = .false.
       this%continue_oldLogs= .false.
       this%doGlobalAnalysis = .false.
+      this%doTimerAnalysis = .false.
       this%isFreshStart=.true.
       this%saveInitialField=.true.
       this%isWallModelOn=.false.
@@ -211,6 +207,8 @@ contains
       call init_comms_bnd(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
 
       call nvtxEndRange
+
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
    end subroutine CFDSolverBase_openMesh
 
@@ -314,6 +312,8 @@ contains
       end do
       !$acc end parallel loop
 
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+
    end subroutine CFDSolverBase_normalFacesToNodes
 
    subroutine CFDSolverBase_boundaryFacesToNodes(this)
@@ -360,6 +360,8 @@ contains
 
       deallocate(aux1)
 
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+
    end subroutine CFDSolverBase_boundaryFacesToNodes
 
    subroutine CFDSolverBase_evalCharLength(this)
@@ -374,6 +376,8 @@ contains
          helem(iElem) = he_aux
       end do
       call nvtxEndRange
+
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
    end subroutine CFDSolverBase_evalCharLength
 
@@ -492,6 +496,8 @@ contains
 
       call nvtxEndRange
 
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+
    end subroutine CFDSolverBase_allocateVariables
 
    subroutine CFDSolverBase_evalOrLoadInitialConditions(this)
@@ -517,6 +523,8 @@ contains
          call this%evalInitialConditions()
       end if
 
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+
    end subroutine CFDSolverBase_evalOrLoadInitialConditions
 
    subroutine CFDSolverBase_evalInitialConditions(this)
@@ -526,7 +534,6 @@ contains
 
    subroutine CFDSolverBase_evalInitialViscosity(this)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: ipoin
 
         if (flag_real_diff == 1) then
            if (flag_diff_suth == 0) then
@@ -542,6 +549,8 @@ contains
            if(mpi_rank.eq.0) write(111,*) "--| DIFFUSION FLAG MUST BE EITHER 0 OR 1, NOT: ",flag_real_diff
            stop 1
         end if
+
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
    end subroutine CFDSolverBase_evalInitialViscosity
 
@@ -596,6 +605,8 @@ contains
          call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
       end if
       if(mpi_rank.eq.0) write(111,*) "--| Initial time-step dt := ",this%dt,"s"
+
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
    end subroutine CFDSolverBase_evalInitialDt
 
@@ -674,6 +685,8 @@ contains
       this%leviCivi(1,2,3) =  1.0_rp
       this%leviCivi(2,1,3) = -1.0_rp
 
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+
    end subroutine CFDSolverBase_evalShapeFunctions
 
    subroutine CFDSolverBase_evalBoundaryNormals(this)
@@ -686,6 +699,9 @@ contains
          call boundary_normals(numNodesRankPar,numBoundsRankPar,boundParOrig,this%leviCivi,coordPar,dNgp_b,boundNormalPar)
          call nvtxEndRange
       end if
+
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+
    end subroutine CFDSolverBase_evalBoundaryNormals
 
    subroutine CFDSolverBase_evalJacobians(this)
@@ -717,6 +733,7 @@ contains
 
       this%VolTot = real(vol_tot_d,rp) 
 
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
       if(mpi_rank.eq.0) write(111,*) '--| DOMAIN VOLUME := ',this%VolTot
 
    end subroutine CFDSolverBase_evalJacobians
@@ -751,6 +768,8 @@ contains
       allocate(lnbnNodes(numNodesRankPar))
       call nearBoundaryNode(numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
 
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+
    end subroutine CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode
 
    subroutine CFDSolverBase_evalMass(this)
@@ -773,6 +792,9 @@ contains
       do iElem = 1,numElemsRankPar
          call char_length_spectral(iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,Ml,helem_l)
       end do
+      
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+
    end subroutine CFDSolverBase_evalMass
 
    subroutine CFDSolverBase_evalFirstOutput(this)
@@ -854,10 +876,14 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4) :: icode,counter,istep,flag_emac,flag_predic
       character(4) :: timeStep
+      real(8) :: iStepTimeRank,iStepTimeMax,iStepEndTime,iStepStartTime,iStepAvgTime
+      real(rp) :: inv_iStep
 
       counter = 1
       flag_emac = 0
       flag_predic=0
+
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
       call nvtxStartRange("Start RK4")
       if(mpi_rank.eq.0) then
@@ -891,8 +917,22 @@ contains
          ! Advance with entropy viscosity
          !
          flag_predic = 0
+         if(this%doTimerAnalysis) iStepStartTime = MPI_Wtime()
 
          call this%callTimeIntegration()
+
+         if(this%doTimerAnalysis) then
+            iStepEndTime = MPI_Wtime()
+            iStepTimeRank = iStepEndTime - iStepStartTime
+            call MPI_Allreduce(iStepTimeRank,iStepTimeMax,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+            inv_iStep = 1.0_rp/real(istep)
+            iStepAvgTime = (iStepAvgTime*(istep-1)+iStepTimeMax)*inv_iStep
+
+            if((mpi_rank.eq.0).and.(istep==this%nsave2)) then
+               write(123,*) istep,iStepTimeMax,iStepAvgTime
+               call flush(123)
+            end if
+         end if
 
          this%time = this%time+this%dt
 
@@ -1021,7 +1061,7 @@ contains
    subroutine open_analysis_files(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      character(len=1024) :: filenameAnalysis,filenameBound,aux_string_mpisize,aux_string_code
+      character(len=1024) :: filenameAnalysis,fileNameTimer,filenameBound,aux_string_mpisize,aux_string_code
       integer :: iCode
 
       if(mpi_rank.eq.0) then
@@ -1036,6 +1076,12 @@ contains
             end if
          end if
 
+         if(this%doTimerAnalysis) then
+            fileNameTimer = 'timer_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
+            open(unit=123,file=fileNameTimer,status='replace')
+            write(123,*) "iter iteTime iteTimeAvg"
+         end if
+
          if (isMeshBoundaries) then
             do iCode = 1,numBoundCodes
                write(aux_string_code,'(I0)') iCode
@@ -1044,9 +1090,9 @@ contains
                   open(unit=888+iCode,form='formatted',file=filenameBound,status='old',position='append')
                else
                   open(unit=888+iCode,form='formatted',file=filenameBound,status='replace')
+                  write(888+iCode,60) "ITER", "TIME", "AREA", "FPRE_X", "FPRE_Y", "FPRE_Z", "FTAU_X", "FTAU_Y", "FTAU_Z"
+                  60 format(9(3X,A,5X))
                end if
-               write(888+iCode,60) "ITER", "TIME", "AREA", "FPRE_X", "FPRE_Y", "FPRE_Z", "FTAU_X", "FTAU_Y", "FTAU_Z"
-               60 format(9(3X,A,5X))
             end do
          end if
       end if
@@ -1069,9 +1115,8 @@ contains
       integer :: iCode
 
       if(mpi_rank.eq.0) then
-         if(this%doGlobalAnalysis) then
-            close(unit=666)
-         end if
+         if(this%doGlobalAnalysis) close(unit=666)
+         if(this%doTimerAnalysis)  close(unit=123)
 
          if (isMeshBoundaries) then
             do iCode = 1,numBoundCodes
@@ -1235,7 +1280,7 @@ contains
 
         call this%flush_log_file()
 
-        ! Eval BoundaryFacesToNodes
+        ! Eval Normal Faces To Nodes
 
       if(this%isWallModelOn) call  this%normalFacesToNodes()
 

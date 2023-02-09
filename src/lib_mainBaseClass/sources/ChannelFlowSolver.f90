@@ -69,19 +69,14 @@ contains
       class(ChannelFlowSolver), intent(inout) :: this
       real(rp) :: mur
 
-      write(this%gmsh_file_path,*) "./mesh_channel/"
-      write(this%gmsh_file_name,*) "channel"
-
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "channel"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
-      this%isPeriodic = .true.
-
-      this%loadResults = .true.
-!      this%continue_oldLogs = .false.
+      this%loadResults = .false.
+      this%continue_oldLogs = .false.
       this%load_step = 0
 
       this%nstep = 1000 
@@ -128,12 +123,14 @@ contains
       real(rp) :: velo, rti(3), yp,velo_aux1
       integer(4)   :: iLine,iNodeGSrl,auxCnt
       logical :: readFiles
+      character(512) :: initialField_filePath
 
       readFiles = .false.
 
       if(readFiles) then
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
-         call read_veloc_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+         write(initialField_filePath,*) ""
+         call read_veloc_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,initialField_filePath,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
 
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar

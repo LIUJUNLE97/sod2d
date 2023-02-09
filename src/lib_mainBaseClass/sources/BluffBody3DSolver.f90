@@ -75,16 +75,11 @@ contains
       class(BluffBody3DSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%gmsh_file_path,*) "./mesh/"
-      write(this%gmsh_file_name,*) "auto" 
-
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "carCoarseTool4"!"auto"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
-
-      this%isPeriodic = .false.
 
       this%loadResults = .false.
 
@@ -153,12 +148,14 @@ contains
       integer(rp) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL
       logical :: readFiles
+      character(512) :: initialField_filePath
 
       readFiles = .false.
 
       if(readFiles) then
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
-         call read_veloc_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+         write(initialField_filePath,*) ""
+         call read_veloc_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,initialField_filePath,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
       else
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
