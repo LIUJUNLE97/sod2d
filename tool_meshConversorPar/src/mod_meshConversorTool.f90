@@ -80,7 +80,6 @@ contains
       integer(4) :: numElemsMpiRank,numNodesMpiRank,numBoundsMpiRank,numLinkedPerElemsSrl,numPerElemsSrl,numMasSlaNodesSrl
       integer(4), allocatable :: listElemsMpiRank(:),listNodesMpiRank(:),connecMpiRank(:,:)
       integer(4), allocatable :: linkedPerElemsSrl(:,:),listPerElemsSrl(:),masSlaNodesSrl(:,:)
-      !integer(4), allocatable :: listElemsBoundsMpiRank(:,:),boundFacesMpiRank(:,:)
       real(rp), allocatable :: coordNodesMpiRank(:,:)
       integer(4),allocatable :: numBoundaryNodesMshRank(:),numMpiBoundaryNodes(:),numMshBoundaryNodes(:),numInnerNodes(:)
       integer(4),allocatable :: numDoFMshRank(:)
@@ -169,9 +168,11 @@ contains
       end_time(3) = MPI_Wtime()
       elapsed_time_r(3) = end_time(3) - start_time(3)
 
-      !since now i have the masSlaRankPar_jm with global nodes ids i can deallocate the serial one
-      deallocate(masSlaNodesSrl)
-      numMasSlaNodesSrl=0
+      if(isPeriodic) then
+         !since now i have the masSlaRankPar_jm with global nodes ids i can deallocate the serial one
+         deallocate(masSlaNodesSrl)
+         numMasSlaNodesSrl=0
+      end if
 
       !-----------------------------------------------------------------------
       allocate(boundaryNodes_jv%vector(numMshRanksInMpiRank))
@@ -872,8 +873,8 @@ contains
       call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),2,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD,h5err)
 
       if(mpi_rank.eq.0) then
-         write(*,*) 'Time ReadPerBounds',elapsed_time(1)
-         write(*,*) 'Time ReadPerLinks',elapsed_time(2)
+         write(*,*) '   1.Time ReadPerBounds',elapsed_time(1)
+         write(*,*) '   2.Time ReadPerLinks',elapsed_time(2)
       end if
       !-----------------------------------------------
 
@@ -1048,9 +1049,9 @@ contains
       call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),3,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD,h5err)
 
       if(mpi_rank.eq.0) then
-         write(*,*) ' 1.Bounds(readHDF5)',elapsed_time_m(1)
-         write(*,*) ' 2.Bounds(linkElemAndFace)',elapsed_time_m(2)
-         write(*,*) ' 3.Bounds(genListAndConn)',elapsed_time_m(3)
+         write(*,*) '     1.Bounds(readHDF5)',elapsed_time_m(1)
+         write(*,*) '     2.Bounds(linkElemAndFace)',elapsed_time_m(2)
+         write(*,*) '     3.Bounds(genListAndConn)',elapsed_time_m(3)
       end if
 
 
@@ -1070,7 +1071,6 @@ contains
       !-----------------------------------------------------------
       integer,parameter :: ms_rank=1,ds_rank=1
       integer(hsize_t), dimension(ms_rank) :: ms_dims
-      integer(hssize_t), dimension(ms_rank) :: ms_offset
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
       integer(hsize_t),dimension(ds_rank) :: fs_dims,fs_maxdims
       integer :: h5err
@@ -1078,24 +1078,20 @@ contains
       integer(hid_t) :: dtype
       integer(hsize_t),allocatable :: ms_coords(:,:)
       !------------------------------------------------------------
-      !integer :: ms_rank,h5err
-      !integer(hsize_t), dimension(1) :: ms_dims
-      !integer(hssize_t), dimension(1) :: ms_offset
 
       allocate(boundFacesCodesInRank(numBoundsInRank))
+      boundFacesCodesInRank(:) = 0
       !---------------------------------------------------------------
       !TEST ZONE FOR ELEMENT SELECTION!
-      ms_dims(1) = numBoundsInRank
+      dtype = H5T_NATIVE_INTEGER
 
+      if(numBoundsInRank.ne.0) then
+         ms_dims(1) = numBoundsInRank
+      else
+         ms_dims(1) = 1 !dummy acces case numBoundsInRank=0
+      end if
       ms_numElems = ms_dims(1)
       allocate(ms_coords(ms_rank,ms_dims(1)))
-
-      call h5dopen_f(gmsh_h5_fileId,dsetname,dset_id,h5err)
-      call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
-      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
-      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
 
       !default
       ms_coords(1,:) = 1
@@ -1104,14 +1100,18 @@ contains
          ms_coords(1,iBound) = listBoundFacesInRank(iBound)
       end do
 
+      call h5dopen_f(gmsh_h5_fileId,dsetname,dset_id,h5err)
+      call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
+      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
+      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
+      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+
       call h5sselect_elements_f(fspace_id,H5S_SELECT_SET_F,ms_rank,ms_numElems,ms_coords,h5err) 
       call h5dread_f(dset_id,dtype,boundFacesCodesInRank,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
-      !do iNode=1,numNodesInRank
-      !   coordNodesRank(iNode,:) = auxCoords2(:,iNode)
-      !end do
-
       deallocate(ms_coords)
+      !deallocate(ms_coords1d)
       !write(*,*) 'fs_dims',fs_dims(:),'max_dims',fs_maxdims(:)
 
       call h5pclose_f(plist_id,h5err)
@@ -1120,15 +1120,12 @@ contains
       call h5dclose_f(dset_id,h5err)
       !END TEST ZONE FOR ELEMENT SELECTION!
       !---------------------------------------------------------------
-
-      !ms_rank = 1
-      !ms_dims(1) = 1
-      !ms_offset(1) = 0
       
       maxBoundCodeInRank = 0
       do iBound = 1,numBoundsInRank
          maxBoundCodeInRank = max(maxBoundCodeInRank,boundFacesCodesInRank(iBound))
       end do
+      !write(*,*) '(',mpi_rank,')maxBC',maxBoundCodeInRank,'numBiR',numBoundsInRank
 
    end subroutine read_boundaries_boundCodes_from_gmsh_h5_file_in_parallel
 
@@ -1419,7 +1416,6 @@ contains
 
       allocate(listPerElemsInRank(numPerElemsInRank))
       allocate(listPerElemsAll(numPerElemsSrl))
-      if(mpi_rank.eq.0) write(*,*) "  |---> Loop1..."
       iAux=0
       do iElem=1,numElemsInRank
          if(listElemsPerFacesInRank(iElem,1).ne.0) then
@@ -1429,7 +1425,6 @@ contains
          end if
       end do
       !write(*,*) '[',mpi_rank,']lPEiR',listPerElemsInRank(:)
-      if(mpi_rank.eq.0) write(*,*) "  |---> Comm2..."
       !---------------------------------------------------------------------------------------------------------------------------------------
       win_buffer_size1 = mpi_integer_size*numPerElemsInRank
       call MPI_Win_create(listPerElemsInRank,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
@@ -1449,13 +1444,11 @@ contains
       !---------------------------------------------------------------------------------------------------------------------------------------
 
       deallocate(listPerElemsInRank)
-      if(mpi_rank.eq.0) write(*,*) "  |---> Loop3..."
       call quicksort_array_int(listPerElemsAll) !i think is not necessary... but just in case
       !write(*,*) '[',mpi_rank,']lPESrl',listPerElemsAll(:)
 
       !---------------------------------------------------------------------------------------------------------------------------------------
       !---------------------------------------------------------------------------------------------------------------------------------------
-      if(mpi_rank.eq.0) write(*,*) "  |---> Comm4..."
       !---------------------------------------------------------------------------------------------------------------------------------------
       !---------------------------------------------------------------------------------------------------------------------------------------
       win_buffer_size1 = mpi_integer_size*(numPerFacesInRank*numVert)
@@ -1499,7 +1492,6 @@ contains
       call MPI_Win_free(window_id1,mpi_err)
 #endif
       !---------------------------------------------------------------------------------------------------------------------------------------
-      if(mpi_rank.eq.0) write(*,*) "  |---> Comm5..."
       !---------------------------------------------------------------------------------------------------------------------------------------
       !---------------------------------------------------------------------------------------------------------------------------------------
       win_buffer_size1 = mpi_integer_size*numPerFacesInRank
@@ -1520,7 +1512,6 @@ contains
       !---------------------------------------------------------------------------------------------------------------------------------------
       !if(mpi_rank.eq.0) write(*,*) 'perFaceElemAll',perFaceElemAll
       !---------------------------------------------------------------------------------------------------------------------------------------
-      if(mpi_rank.eq.0) write(*,*) "  |---> Comm6..."
       !---------------------------------------------------------------------------------------------------------------------------------------
       !---------------------------------------------------------------------------------------------------------------------------------------
       win_buffer_size1 = mpi_integer_size*numPerFacesInRank
@@ -1542,7 +1533,6 @@ contains
       !if(mpi_rank.eq.0) write(*,*) 'masterPerFacesAll',masterPerFacesAll
 
       !---------------------------------------------------------------------------------------------------------------------------------------
-      if(mpi_rank.eq.0) write(*,*) "  |---> Comm7..."
       !---------------------------------------------------------------------------------------------------------------------------------------
       !---------------------------------------------------------------------------------------------------------------------------------------
       win_buffer_size1 = mpi_integer_size*numPerFacesInRank
@@ -1690,13 +1680,13 @@ contains
       call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),7,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD,h5err)
 
       if(mpi_rank.eq.0) then
-         write(*,*) ' 1.PerLinks(s1)',elapsed_time_m(1)
-         write(*,*) ' 2.PerLinks(readHDF5)',elapsed_time_m(2)
-         write(*,*) ' 3.refNodesPerFacesAll',elapsed_time_m(3)
-         write(*,*) ' 4.Doing PerMaster',elapsed_time_m(4)
-         write(*,*) ' 5.Vecs.perFaceElemAll',elapsed_time_m(5)
-         write(*,*) ' 6.Vecs.listPerElems',elapsed_time_m(6)
-         write(*,*) ' 7.FindingMatches',elapsed_time_m(7)
+         write(*,*) '     1.PerLinks(s1)',elapsed_time_m(1)
+         write(*,*) '     2.PerLinks(readHDF5)',elapsed_time_m(2)
+         write(*,*) '     3.refNodesPerFacesAll',elapsed_time_m(3)
+         write(*,*) '     4.Doing PerMaster',elapsed_time_m(4)
+         write(*,*) '     5.Vecs.perFaceElemAll',elapsed_time_m(5)
+         write(*,*) '     6.Vecs.listPerElems',elapsed_time_m(6)
+         write(*,*) '     7.FindingMatches',elapsed_time_m(7)
       end if
 
    end subroutine read_periodic_links_from_gmsh_h5_file_in_parallel
@@ -1981,8 +1971,8 @@ contains
       call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),2,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD,h5err)
 
       if(mpi_rank.eq.0) then
-         write(*,*) '#Time ReadElemNode',elapsed_time_m(1)
-         write(*,*) '#Time ReadPeriodic',elapsed_time_m(2)
+         write(*,*) ' 1.Time ReadElemNode',elapsed_time_m(1)
+         write(*,*) ' 2.Time ReadPeriodic',elapsed_time_m(2)
       end if
 
    end subroutine read_elems_nodes_gmsh_h5_file_in_parallel
@@ -2370,6 +2360,7 @@ contains
                      listBoundFacesMshRank_jv%vector(iMshRank)%elems,boundFacesCodesMshRank_jv%vector(iMshRank)%elems,maxBoundCodeMshRank)
 
             maxBoundCodeMpiRank = max(maxBoundCodeMpiRank,maxBoundCodeMshRank)
+            !if(mpi_rank.eq.0) write(*,*) ' maxBoundCode',maxBoundCodeMpiRank
          else
             allocate(listBoundFacesMshRank_jv%vector(iMshRank)%elems(numBoundFacesMshRank(iMshRank)))
             allocate(boundFacesCodesMshRank_jv%vector(iMshRank)%elems(numBoundFacesMshRank(iMshRank)))
@@ -3164,8 +3155,6 @@ contains
       !if(mpi_rank.eq.0) write(*,*) 'vecNumMpiBN',vecNumMpiBN(:)
       !if(mpi_rank.eq.0) write(*,*) 'vecMemDispMpiBN',vecMemDispMpiBN(:)
 
-      if(mpi_rank.eq.0) write(*,*) '  |5.allocating all mpirank vecs'
-
       allocate(numNodesToCommMshRank(numMshRanksInMpiRank))
       allocate(numMshRanksWithComms(numMshRanksInMpiRank))
       allocate(matrixCommScheme_jm%matrix(numMshRanksInMpiRank))
@@ -3309,7 +3298,6 @@ contains
 
       !---------------------------------------------------------------------
 
-      if(mpi_rank.eq.0) write(*,*) '  |7.allocated and calc all mpirank vecs'
       allocate(auxCommSchemeMemPosAll(numMshRanks2Part**2))
 
       auxCommSchemeMemPosAll(:)=0
@@ -3355,8 +3343,6 @@ contains
          end do
          !write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'commsMemPosInNgb->',commsMemPosInNgb_jv%vector(iMshRank)%elems(:)
       end do
-
-      if(mpi_rank.eq.0) write(*,*) '  |8.Done everything MPI Comm scheme'
 
       deallocate(auxCommSchemeMemPos)
       deallocate(auxCommSchemeMemPosAll)
