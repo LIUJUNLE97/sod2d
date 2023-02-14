@@ -48,25 +48,18 @@ contains
       class(BluffBody3DSolver), intent(inout) :: this
 
 #if ABL
-      bouCodes2BCType(1) = bc_type_inlet
-      bouCodes2BCType(2) = bc_type_outlet
+      bouCodes2BCType(1) = bc_type_far_field
+      bouCodes2BCType(2) = bc_type_far_field
       bouCodes2BCType(3) = bc_type_inlet
       bouCodes2BCType(4) = bc_type_slip_wall_model
       bouCodes2BCType(5) = bc_type_slip_wall_model
 #else
-      !bouCodes2BCType(1) = bc_type_inlet
-      !bouCodes2BCType(2) = bc_type_slip_wall_model
-      !bouCodes2BCType(3) = bc_type_non_slip_adiabatic
-      !bouCodes2BCType(4) = bc_type_slip_wall_model
-      !bouCodes2BCType(5) = bc_type_slip_adiabatic
-      !bouCodes2BCType(6) = bc_type_outlet
-
-      bouCodes2BCType(1) = bc_type_inlet
-      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(1) = bc_type_far_field
+      bouCodes2BCType(2) = bc_type_slip_wall_model
       bouCodes2BCType(3) = bc_type_non_slip_adiabatic
-      bouCodes2BCType(4) = bc_type_slip_adiabatic
-      bouCodes2BCType(5) = bc_type_outlet
-      
+      bouCodes2BCType(4) = bc_type_slip_wall_model
+      bouCodes2BCType(5) = bc_type_slip_adiabatic
+      bouCodes2BCType(6) = bc_type_far_field
 #endif
 
    end subroutine BluffBody3DSolver_fill_BC_Types

@@ -1301,7 +1301,7 @@ contains
 
         call this%evalInitialDt()
 
-        if(flag_buffer_on .eqv. .true.) call this%initialBuffer()
+        call this%initialBuffer()
 
         call this%flush_log_file()
 
