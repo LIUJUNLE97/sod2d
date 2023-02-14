@@ -3254,8 +3254,8 @@ contains
 
          !write(*,*) 'rank[',mpi_rank,']mshRankOrig',mshRankOrig,'numNodesToCommMshRank',numNodesToCommMshRank(iMshRank),'numBNOrig',numBNOrig,'cSNN',auxCommSchemeNumNodes(:),&
          !          'numMshRanksWithComms',numMshRanksWithComms(iMshRank),'r2C',ranksToComm_jv%vector(iMshRank)%elems(:)
-DEBUGAR AQUI, AMB LA MALLA DE 84 i 1472 perque aqui crec podem trobar el problema
-potser ordre???
+!DEBUGAR AQUI, AMB LA MALLA DE 84 i 1472 perque aqui crec podem trobar el problema
+!potser ordre???
          allocate(matrixCommScheme_jm%matrix(iMshRank)%elems(numNodesToCommMshRank(iMshRank),3))
          iAux=0
          do iMshRankTrgt=1,numMshRanks2Part
