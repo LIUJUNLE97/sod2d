@@ -1,4 +1,7 @@
 module mod_mesh_boundaries
+#if 0
+TO BE DEPRECATED
+
    use mod_constants
    use mod_mpi
    use mod_mpi_mesh
@@ -301,5 +304,5 @@ contains
 
    end subroutine generate_boundary_mpi_comm_scheme
 
-
+#endif
 end module mod_mesh_boundaries

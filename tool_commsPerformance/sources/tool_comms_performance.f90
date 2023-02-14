@@ -12,12 +12,10 @@ program tool_commsPerfomance
     integer :: lineCnt
     integer :: numNodesSrl,numNodesB_1r,numIters
     character(256) :: parameter2read
-    character(512) :: gmsh_file_path,gmsh_file_name
     character(512) :: mesh_h5_file_path,mesh_h5_file_name
     character(512) :: results_h5_file_path,results_h5_file_name
 
     logical :: useMesh=.false.
-    logical :: loadMesh=.false.,isPeriodic=.false.
     logical :: useIntInComms=.false.,useFloatInComms=.false.,useDoubleInComms=.false.
 
     call init_mpi()
@@ -57,36 +55,22 @@ program tool_commsPerfomance
     call read_inputFile_logical(lineCnt,parameter2read,useMesh)
 
     if(useMesh) then
-        !6. gmsh_file_path--------------------------------------------------------------
-        parameter2read = 'gmsh_file_path'
-        call read_inputFile_string(lineCnt,parameter2read,gmsh_file_path)
 
-        !7. gmsh_h5_file_path--------------------------------------------------------------
-        parameter2read = 'gmsh_file_name'
-        call read_inputFile_string(lineCnt,parameter2read,gmsh_file_name)
-
-        !8. mesh_h5_file_path--------------------------------------------------------------
+        !6. mesh_h5_file_path--------------------------------------------------------------
         parameter2read = 'mesh_h5_file_path'
         call read_inputFile_string(lineCnt,parameter2read,mesh_h5_file_path)
 
-        !9. mesh_h5_file_name--------------------------------------------------------------
+        !7. mesh_h5_file_name--------------------------------------------------------------
         parameter2read = 'mesh_h5_file_name'
         call read_inputFile_string(lineCnt,parameter2read,mesh_h5_file_name)
 
-        !10. loadMesh --------------------------------------------------------------
-        parameter2read = 'loadMesh'
-        call read_inputFile_logical(lineCnt,parameter2read,loadMesh)
-
-        !11. isPeriodic --------------------------------------------------------------
-        parameter2read = 'isPeriodic'
-        call read_inputFile_logical(lineCnt,parameter2read,isPeriodic)
     else
 
-        !3. numNodesSrl--------------------------------------------------------------------------
+        !6. numNodesSrl--------------------------------------------------------------------------
         parameter2read = 'numNodesSrl'
         call read_inputFile_integer(lineCnt,parameter2read,numNodesSrl)
 
-        !4. numNodesB_1r --------------------------------------------------------------------------
+        !7. numNodesB_1r --------------------------------------------------------------------------
         parameter2read = 'numNodesB_1r'
         call read_inputFile_integer(lineCnt,parameter2read,numNodesB_1r)
 
@@ -98,16 +82,12 @@ program tool_commsPerfomance
 
     if(useMesh) then
 
-        write(results_h5_file_path,*) ""
-        write(results_h5_file_name,*) "dummy"
+        !write(results_h5_file_path,*) ""
+        !write(results_h5_file_name,*) "dummy"
 
-        call init_hdf5_interface(mesh_h5_file_path,mesh_h5_file_name,results_h5_file_path,results_h5_file_name)
-
-        if(loadMesh) then
-           call load_hdf5_meshfile()
-        else
-           call read_alyaMesh_part_and_create_hdf5Mesh(gmsh_file_path,gmsh_file_name,isPeriodic)
-        end if
+        call init_hdf5_interface()
+        call set_hdf5_meshFile_name(mesh_h5_file_path,mesh_h5_file_name,mpi_size)
+        call load_hdf5_meshfile()
     else    
         call create_dummy_1Dmesh(numNodesSrl,numNodesB_1r)
     end if

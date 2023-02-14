@@ -48,7 +48,6 @@ file(GLOB SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_const
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/elem_hex.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_mpi_mesh.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_comms.f90
-   ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_mesh_boundaries.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_comms_boundaries.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_hdf5.f90
    ${CMAKE_CURRENT_LIST_DIR}/src/mod_meshConversorTool.f90

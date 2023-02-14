@@ -77,6 +77,7 @@ add_subdirectory(external)
 add_subdirectory(src)
 add_subdirectory(tool_postProc)
 add_subdirectory(tool_meshConversorPar)
+add_subdirectory(tool_commsPerformance)
 
 #enable folder unitt
 #add_subdirectory(unitt)

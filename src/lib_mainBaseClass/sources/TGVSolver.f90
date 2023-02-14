@@ -45,7 +45,7 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube_per20"
+      write(this%mesh_h5_file_name,*) "cube_per234"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -57,7 +57,7 @@ contains
       this%continue_oldLogs = .false.
       this%load_step = 8001
 
-      this%nstep = 25001
+      this%nstep = 5001
 
       this%cfl_conv = 0.5_rp
       this%cfl_diff = 0.5_rp
@@ -65,9 +65,9 @@ contains
       this%nsave2 = 1   ! First step to save, TODO: input
 
       this%nsaveAVG = 1!1000000
-      this%nleap = 5000 ! Saving interval, TODO: input
+      this%nleap = 10000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 10  ! Saving interval, TODO: input
+      this%nleap2 = 25  ! Saving interval, TODO: input
       this%nleapAVG = 2000000000
 
       this%Cp = 1004.0_rp

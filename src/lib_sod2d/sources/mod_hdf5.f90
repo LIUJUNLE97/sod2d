@@ -3,7 +3,6 @@ module mod_hdf5
    use mod_mpi
    use mod_mpi_mesh
    use mod_comms
-   use mod_mesh_boundaries
    use mod_comms_boundaries
    implicit none
 
@@ -57,7 +56,7 @@ contains
 
 !---------------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------------
-
+#if 0
    subroutine read_alyaMesh_part_and_create_hdf5Mesh(gmsh_file_path,gmsh_file_name,periodic)
       implicit none     
       character(len=*), intent(in) :: gmsh_file_path,gmsh_file_name
@@ -190,7 +189,7 @@ contains
       call h5fclose_f(file_id,h5err)
 
    end subroutine create_hdf5_meshFile
-
+#endif
    subroutine create_hdf5_meshFile_from_tool(hdf5_file_id)
       implicit none
       integer(hid_t),intent(inout) :: hdf5_file_id

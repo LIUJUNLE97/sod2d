@@ -3,7 +3,6 @@ module mod_comms_performance
    use mod_mpi_mesh
    use mod_comms
    use mod_hdf5
-   use inicond_reader
 #ifndef NOACC
    use openacc
    use mod_nvtx
@@ -16,14 +15,14 @@ module mod_comms_performance
 #define _PUTFENCEFLAGON_ 1
 #define _PUTPSCWON_ 0
 #define _PUTPSCWOFF_ 0
-#define _PUTLOCKBON_ 1
-#define _PUTLOCKBOFF_ 1
+#define _PUTLOCKBON_ 0
+#define _PUTLOCKBOFF_ 0
 #define _GETFENCEFLAGOFF_ 1
 #define _GETFENCEFLAGON_ 1
 #define _GETPSCWON_ 0
 #define _GETPSCWOFF_ 0
-#define _GETLOCKBON_ 1
-#define _GETLOCKBOFF_ 1
+#define _GETLOCKBON_ 0
+#define _GETLOCKBOFF_ 0
 
    implicit none
 
@@ -692,11 +691,11 @@ contains
       real(4),intent(in) :: floatField(:)
       logical,intent(inout) :: isOk
       integer :: i,iNodeL
-      real(8) :: value,refValueHi,refValueLo,tol
+      real(8) :: value,refValueHi,refValueLo,rtol
 
-      tol = 1.0e-6
-      refValueHi = real(refValue,8) + tol!real(2**numIters,8) + tol
-      refValueLo = real(refValue,8) - tol!real(2**numIters,8) - tol
+      rtol = 1.0e-6
+      refValueHi = real(refValue,8) + rtol!real(2**numIters,8) + tol
+      refValueLo = real(refValue,8) - rtol!real(2**numIters,8) - tol
 
       isOk = .true.
 

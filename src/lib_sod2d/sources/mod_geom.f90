@@ -162,7 +162,6 @@ module mod_geom
             integer(4), intent(out) :: lelpn(npoin),point2elem(npoin)
             integer(4)              ::  ipoin, inode, ielem, aux
 
-
             !$acc kernels
             lelpn(:) = 0
             point2elem(:) = 0
