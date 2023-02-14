@@ -3109,7 +3109,7 @@ contains
          vecMemDispMpiBN(mshRank) = auxMemDispMpiBN
       end do
       
-      !if(mpi_rank.eq.0) then
+      !if(mpi_rank.eq.7) then
       !   write(*,*) 'numMpiBNInMpiRank',numMpiBNInMpiRank
       !   write(*,*) 'vecNumMpiBN(',mpi_rank,')',vecNumMpiBN(:)
       !   write(*,*) 'vecMemDispMpiBN(',mpi_rank,')',vecMemDispMpiBN(:)
@@ -3125,7 +3125,7 @@ contains
          end do
       end do
 
-      !if(mpi_rank.eq.0) then
+      !if(mpi_rank.eq.7) then
       !   write(*,*) 'arrayMpiBNInMpiRank(',mpi_rank,')',arrayMpiBNInMpiRank(:)
       !endif
 
@@ -3162,8 +3162,8 @@ contains
       call MPI_Win_fence(0, window_id, mpi_err)
       call MPI_Win_free(window_id, mpi_err)
       !--------------------------------------------------------------------------------------------
-      !if(mpi_rank.eq.0) write(*,*) 'vecNumMpiBN',vecNumMpiBN(:)
-      !if(mpi_rank.eq.0) write(*,*) 'vecMemDispMpiBN',vecMemDispMpiBN(:)
+      !if(mpi_rank.eq.7) write(*,*) 'vecNumMpiBN',vecNumMpiBN(:)
+      !if(mpi_rank.eq.7) write(*,*) 'vecMemDispMpiBN',vecMemDispMpiBN(:)
 
       allocate(numNodesToCommMshRank(numMshRanksInMpiRank))
       allocate(numMshRanksWithComms(numMshRanksInMpiRank))
@@ -3206,6 +3206,16 @@ contains
                call MPI_Win_unlock(mpiRankTrgt,window_id,mpi_err)
 
                !if(mpi_rank.eq.0 .and. mshRankTrgt.eq.1) write(*,*) 'memSize',memSize,'td',vecMemDispMpiBN(mshRankTrgt),'auxMpiBN(',mpi_rank,')',auxMpiBNMshRank
+               !if(mshRankOrig.eq.7 .and. mshRankTrgt .eq. 10) then
+               !   write(*,*) 'mshRankOrig 7 & mshRankTrgt 10 (7):'
+               !   do iNode=1,numBNOrig
+               !      write(*,*) iNode,mpiBoundaryNodes_jv%vector(iMshRank)%elems(iNode)
+               !   end do
+               !   write(*,*) 'mshRankOrig 7 & mshRankTrgt 10 (10):'
+               !   do iNode=1,vecNumMpiBN(mshRankTrgt)
+               !      write(*,*) iNode,auxMpiBNMshRank(iNode)
+               !   end do
+               !end if
 
                do iNode=1,numBNOrig
                   iNodeGSrl = mpiBoundaryNodes_jv%vector(iMshRank)%elems(iNode)
@@ -3386,7 +3396,7 @@ contains
       type(jagged_vector_int) :: bndMpiBoundaryNodes_jv
       integer, dimension(0:numMshRanks2Part-1) :: vecNumMshBN,vecMemDispMshBN,vecNumBndMpiBN,vecMemDispBndMpiBN
       integer,allocatable :: arrayMshBNInMpiRank(:),auxMshBNMshRank(:),arrayBndMpiBNInMpiRank(:),auxBndMpiBNMshRank(:)
-      integer :: numMshBNInMpiRank,numBndMpiBNInMpiRank
+      integer :: numMshBNInMpiRank,numBndMpiBNInMpiRank,auxMemDispMshBN,auxMemDispBndMpiBN
 
       integer :: window_id
       integer(KIND=MPI_ADDRESS_KIND) :: win_buffer_size
@@ -3401,11 +3411,14 @@ contains
       vecMemDispMshBN(:) = 0
       numMshBNInMpiRank = 0
 
+      auxMemDispMshBN = 0
       do iMshRank=1,numMshRanksInMpiRank
          mshRank=mshRanksInMpiRank(iMshRank)
          vecNumMshBN(mshRank) = numMshBoundaryNodes(iMshRank)
          numMshBNInMpiRank = numMshBNInMpiRank + numMshBoundaryNodes(iMshRank)
-         if(iMshRank.ne.1) vecMemDispMshBN(mshRank) = vecMemDispMshBN(mshRank) + numMshBoundaryNodes(iMshRank-1)
+         !if(iMshRank.ne.1) vecMemDispMshBN(mshRank) = vecMemDispMshBN(mshRank) + numMshBoundaryNodes(iMshRank-1)
+         if(iMshRank.ne.1) auxMemDispMshBN = auxMemDispMshBN + numMshBoundaryNodes(iMshRank-1)
+         vecMemDispMshBN(mshRank) = auxMemDispMshBN
       end do
       !write(*,*) 'numMshBNInMpiRank',numMshBNInMpiRank
       !write(*,*) 'vecNumMshBN(',mpi_rank,')',vecNumMshBN(:)
@@ -3592,11 +3605,14 @@ contains
       vecMemDispBndMpiBN(:) = 0
       numBndMpiBNInMpiRank = 0
 
+      auxMemDispBndMpiBN=0
       do iMshRank=1,numMshRanksInMpiRank
          mshRank=mshRanksInMpiRank(iMshRank)
          vecNumBndMpiBN(mshRank) = numBndMpiBoundaryNodes(iMshRank)
          numBndMpiBNInMpiRank = numBndMpiBNInMpiRank + numBndMpiBoundaryNodes(iMshRank)
-         if(iMshRank.ne.1) vecMemDispBndMpiBN(mshRank) = vecMemDispBndMpiBN(mshRank) + numBndMpiBoundaryNodes(iMshRank-1)
+         !if(iMshRank.ne.1) vecMemDispBndMpiBN(mshRank) = vecMemDispBndMpiBN(mshRank) + numBndMpiBoundaryNodes(iMshRank-1)
+         if(iMshRank.ne.1) auxMemDispBndMpiBN = auxMemDispBndMpiBN + numBndMpiBoundaryNodes(iMshRank-1)
+         vecMemDispBndMpiBN(mshRank) = auxMemDispBndMpiBN
       end do
       allocate(arrayBndMpiBNInMpiRank(numBndMpiBNInMpiRank))
 
