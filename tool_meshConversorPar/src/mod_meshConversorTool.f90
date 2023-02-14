@@ -3084,7 +3084,7 @@ contains
 
       integer, dimension(0:numMshRanks2Part-1) :: vecNumMpiBN,vecMemDispMpiBN
       integer,allocatable :: arrayMpiBNInMpiRank(:),auxMpiBNMshRank(:)
-      integer :: numMpiBNInMpiRank
+      integer :: numMpiBNInMpiRank,auxMemDispMpiBN
       
       integer :: window_id
       integer(KIND=MPI_ADDRESS_KIND) :: win_buffer_size
@@ -3100,15 +3100,21 @@ contains
       vecMemDispMpiBN(:) = 0
       numMpiBNInMpiRank = 0
 
+      auxMemDispMpiBN = 0
       do iMshRank=1,numMshRanksInMpiRank
          mshRank=mshRanksInMpiRank(iMshRank)
          vecNumMpiBN(mshRank) = numMpiBoundaryNodes(iMshRank)
          numMpiBNInMpiRank = numMpiBNInMpiRank + numMpiBoundaryNodes(iMshRank)
-         if(iMshRank.ne.1) vecMemDispMpiBN(mshRank) = vecMemDispMpiBN(mshRank) + numMpiBoundaryNodes(iMshRank-1)
+         if(iMshRank.ne.1) auxMemDispMpiBN = auxMemDispMpiBN + numMpiBoundaryNodes(iMshRank-1)
+         vecMemDispMpiBN(mshRank) = auxMemDispMpiBN
       end do
-      !write(*,*) 'numMpiBNInMpiRank',numMpiBNInMpiRank
-      !write(*,*) 'vecNumMpiBN(',mpi_rank,')',vecNumMpiBN(:)
-      !write(*,*) 'vecMemDispMpiBN(',mpi_rank,')',vecMemDispMpiBN(:)
+      
+      !if(mpi_rank.eq.0) then
+      !   write(*,*) 'numMpiBNInMpiRank',numMpiBNInMpiRank
+      !   write(*,*) 'vecNumMpiBN(',mpi_rank,')',vecNumMpiBN(:)
+      !   write(*,*) 'vecMemDispMpiBN(',mpi_rank,')',vecMemDispMpiBN(:)
+      !endif
+
       allocate(arrayMpiBNInMpiRank(numMpiBNInMpiRank))
 
       do iMshRank=1,numMshRanksInMpiRank
@@ -3118,6 +3124,10 @@ contains
             arrayMpiBNInMpiRank(memPos) = mpiBoundaryNodes_jv%vector(iMshRank)%elems(iAux)
          end do
       end do
+
+      !if(mpi_rank.eq.0) then
+      !   write(*,*) 'arrayMpiBNInMpiRank(',mpi_rank,')',arrayMpiBNInMpiRank(:)
+      !endif
 
       !--------------------------------------------------------------------------------------
       win_buffer_size = mpi_integer_size*numMshRanks2Part
@@ -3254,8 +3264,6 @@ contains
 
          !write(*,*) 'rank[',mpi_rank,']mshRankOrig',mshRankOrig,'numNodesToCommMshRank',numNodesToCommMshRank(iMshRank),'numBNOrig',numBNOrig,'cSNN',auxCommSchemeNumNodes(:),&
          !          'numMshRanksWithComms',numMshRanksWithComms(iMshRank),'r2C',ranksToComm_jv%vector(iMshRank)%elems(:)
-DEBUGAR AQUI, AMB LA MALLA DE 84 i 1472 perque aqui crec podem trobar el problema
-potser ordre???
          allocate(matrixCommScheme_jm%matrix(iMshRank)%elems(numNodesToCommMshRank(iMshRank),3))
          iAux=0
          do iMshRankTrgt=1,numMshRanks2Part
