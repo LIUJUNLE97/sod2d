@@ -3783,12 +3783,12 @@ contains
 
    end subroutine create_witness_hdf5
 
-   subroutine load_witness_hdf5(full_fileName, nwit, loadstep, nwitPar, witel, witxi, shapefunc, t) 
+   subroutine load_witness_hdf5(full_fileName, nwit, loadstep, nwitPar, witel, witxi, shapefunc) 
       implicit none
       character(512), intent(in)  :: full_fileName
       integer(rp),    intent(in)  :: nwit, loadstep
       integer(rp),    intent(out) :: witel(nwit)
-      real(rp),       intent(out) :: witxi(nwit,ndime), shapefunc(nwit,nnode), t
+      real(rp),       intent(out) :: witxi(nwit,ndime), shapefunc(nwit,nnode)!, t
       integer(rp),    intent(out) :: nwitPar
       integer(hid_t)              :: file_id,plist_id,dset_id,dspace_id,group_id, dtype
       integer(HSIZE_T)            :: ms_dims(2), max_dims(2)
@@ -3796,7 +3796,7 @@ contains
       integer                     :: ms_rank, h5err, iwit
       character(256)              :: groupname,dsetname
       integer(rp)                 :: nwitOffset, auxread(1)
-      real(rp)                    :: auxwitxi(ndime,nwit), auxshapefunc(nnode, nwit), auxt(1)
+      real(rp)                    :: auxwitxi(ndime,nwit), auxshapefunc(nnode, nwit)!, auxt(1)
 
       witel(:)   = 0
       witxi(:,:) = 0.0_rp
@@ -3872,12 +3872,12 @@ contains
       end do
 
       !Read the last time!
-      dsetname     = 'time'
-      ms_rank      = 1
-      ms_dims(1)   = 1
-      ms_offset(1) = loadstep-1
-      call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxt)
-      t = auxt(1)
+      !dsetname     = 'time'
+      !ms_rank      = 1
+      !ms_dims(1)   = 1
+      !ms_offset(1) = loadstep-1
+      !call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxt)
+      !t = auxt(1)
 
       call h5fclose_f(file_id,h5err)
 

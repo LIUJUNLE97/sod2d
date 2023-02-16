@@ -1093,16 +1093,16 @@ contains
 
    subroutine CFDSolverBase_save_witness(this, istep)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)                          :: istep
+      integer(4), intent(in)              :: istep
       integer(4)                          :: iwit, iwitglobal, itewit
       real(rp)                            :: start, finish
       
-      if ((this%loadResults) .AND. (this%continue_oldLogs .eqv. .false.)) then
-         itewit   = this%load_step + istep/(this%leapwit)
-         bufftime = bufftime + this%loadtimewit 
-      else
-         itewit = istep/(this%leapwit)
-      end if
+      !if ((this%loadResults) .AND. (this%continue_oldLogs .eqv. .false.)) then
+      !   itewit   = this%load_step + istep/(this%leapwit)
+      !   bufftime = bufftime + this%loadtimewit 
+      !else
+      itewit = istep/(this%leapwit) !- this%load_step + 1
+      !end if
       call update_witness_hdf5(itewit, this%leapwitsave, buffwit, this%nwit, this%nwitPar, this%nvarwit, this%witness_h5_file_name, bufftime, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
    end subroutine CFDSolverBase_save_witness
 
@@ -1187,7 +1187,7 @@ contains
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       
-      call load_witness_hdf5(this%witness_h5_file_name, this%nwit, this%load_step, this%nwitPar, witel, witxi, Nwit, this%loadtimewit)
+      call load_witness_hdf5(this%witness_h5_file_name, this%nwit, this%load_step, this%nwitPar, witel, witxi, Nwit)
       allocate(buffwit(this%leapwitsave,this%nwitPar,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
    end subroutine CFDSolverBase_loadWitnessPoints

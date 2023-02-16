@@ -59,7 +59,7 @@ contains
 
       this%loadResults = .true.
       this%continue_oldLogs = .true.
-      this%load_step = 2001
+      this%load_step = 401
 
       this%nstep = 4001
 
