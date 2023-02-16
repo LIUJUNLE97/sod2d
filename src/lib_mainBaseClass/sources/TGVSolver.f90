@@ -45,7 +45,7 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube_per234"
+      write(this%mesh_h5_file_name,*) "cube_per333"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"

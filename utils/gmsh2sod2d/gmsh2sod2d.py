@@ -4,7 +4,7 @@
 #
 # Export a mesh from GMSH to Sod2D format.
 #
-# Last rev: 11/01/2022
+# Last rev: 16/02/2023
 from __future__ import print_function, division
 
 # Please do not delete this part otherwise it will not work
@@ -322,9 +322,8 @@ for ibatch in range(int(np.ceil(nnodes/args.size))):
 	nodes_data = np.genfromtxt(mshFile,comments='$',max_rows=nread)[:,1:dim_id+1]
 	#data  = np.genfromtxt(file,comments='$',max_rows=nread)[:,1:dim_id+1] #if pyAlya.utils.is_rank_or_serial() else None
 	# Scale
-    #if pyAlya.utils.is_rank_or_serial():
-        #for idim in range(dim_id):
-            #data[:,idim] *= args.scale[idim]
+	for idim in range(dim_id):
+		nodes_data[:,idim] *= args.scale[idim]
 	if ibatch == 0:
 		nodes_dset = h5file.create_dataset('coords',(nread,dim_id),dtype='f8',data=nodes_data,chunks=True,maxshape=(nnodes,dim_id))
 	else:
