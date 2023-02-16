@@ -1,108 +1,107 @@
 module mod_aver
 
-	use mod_constants
+   use mod_constants
 
-	contains
+contains
 
-	subroutine  favre_average(nelem,npoin,npoin_w,lpoin_w,connec,dt,rho,u,pr, &
-									  mu_fluid,mu_e,mu_sgs,acutim,acurho,acupre,acuvel,acuve2,acuvex,acumueff)
+   subroutine  favre_average(nelem,npoin,npoin_w,lpoin_w,connec,dt,rho,u,pr, &
+         mu_fluid,mu_e,mu_sgs,tauw,acutim,acurho,acupre,acuvel,acuve2,acuvex,acumueff,acutw)
 
-		implicit none
+      implicit none
 
-		integer(4), intent(in)                             :: nelem, npoin, npoin_w, lpoin_w(npoin_w), connec(nelem,nnode)
-		real(rp),    intent(in)                             :: dt
-		real(rp),    intent(in),    dimension(npoin)        :: rho, pr, mu_fluid
-		real(rp),    intent(in),    dimension(npoin,ndime)  :: u
-		real(rp),    intent(in),    dimension(nelem,ngaus)  :: mu_e, mu_sgs
-		real(rp),    intent(inout)                          :: acutim
-		real(rp),    intent(inout), dimension(npoin)        :: acurho, acupre, acumueff
-		real(rp),    intent(inout), dimension(npoin,ndime)  :: acuvel, acuve2, acuvex
-		integer(4)                                         :: ipoin, idime, ielem, inode
-		real(rp)                                            :: envit(npoin), mut(npoin)
+      integer(4), intent(in)                             :: nelem, npoin, npoin_w, lpoin_w(npoin_w), connec(nelem,nnode)
+      real(rp),    intent(in)                             :: dt
+      real(rp),    intent(in),    dimension(npoin)        :: rho, pr, mu_fluid
+      real(rp),    intent(in),    dimension(npoin,ndime)  :: u,tauw
+      real(rp),    intent(in),    dimension(nelem,ngaus)  :: mu_e, mu_sgs
+      real(rp),    intent(inout)                          :: acutim
+      real(rp),    intent(inout), dimension(npoin)        :: acurho, acupre, acumueff
+      real(rp),    intent(inout), dimension(npoin,ndime)  :: acuvel, acuve2, acuvex,acutw
+      integer(4)                                         :: ipoin, idime, ielem, inode
+      real(rp)                                            :: envit(npoin), mut(npoin)
 
-		! Compute accumulated time
-		acutim = acutim+dt
-		! Compute accumulated tally for density times current dt and other variables times density times current dt
-		!$acc parallel loop
-		do ipoin = 1,npoin_w
-			!$acc atomic update
-			acurho(lpoin_w(ipoin)) = acurho(lpoin_w(ipoin))+rho(lpoin_w(ipoin))*dt
-			!$acc end atomic
-		end do
-		!$acc end parallel loop
-		!$acc parallel loop
-		do ipoin = 1,npoin_w
-			!$acc atomic update
-			acupre(lpoin_w(ipoin)) = acupre(lpoin_w(ipoin))+pr(lpoin_w(ipoin))*dt
-			!$acc end atomic
-		end do
-		!$acc end parallel loop
-		!$acc parallel loop collapse(2)
-		do ipoin = 1,npoin_w
-			do idime = 1,ndime
-				!$acc atomic update
-				acuvel(lpoin_w(ipoin),idime) = acuvel(lpoin_w(ipoin),idime)+rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*dt
-				!$acc end atomic
-			end do
-		end do
-		!$acc end parallel loop
-		!$acc parallel loop collapse(2)
-		do ipoin = 1,npoin_w
-			do idime = 1,ndime
-				!$acc atomic update
-				acuve2(lpoin_w(ipoin),idime) = acuve2(lpoin_w(ipoin),idime)+ &
-					rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*u(lpoin_w(ipoin),idime)*dt
-				!$acc end atomic
-			end do
-         acuvex(lpoin_w(ipoin),1) = acuve2(lpoin_w(ipoin),1)+ &
+      ! Compute accumulated time
+      acutim = acutim+dt
+      ! Compute accumulated tally for density times current dt and other variables times density times current dt
+      !$acc parallel loop
+      do ipoin = 1,npoin_w
+         do idime = 1,ndime
+            !$acc atomic update
+            acuvel(lpoin_w(ipoin),idime) = acuvel(lpoin_w(ipoin),idime)+rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*dt
+            !$acc end atomic
+            !$acc atomic update
+            acuve2(lpoin_w(ipoin),idime) = acuve2(lpoin_w(ipoin),idime)+ &
+               rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*u(lpoin_w(ipoin),idime)*dt
+            !$acc end atomic
+            !$acc atomic update
+            acutw(lpoin_w(ipoin),idime) = acutw(lpoin_w(ipoin),idime)+ &
+               tauw(lpoin_w(ipoin),idime)*dt
+            !$acc end atomic
+         end do
+         !$acc atomic update
+         acurho(lpoin_w(ipoin)) = acurho(lpoin_w(ipoin))+rho(lpoin_w(ipoin))*dt
+         !$acc end atomic
+         !$acc atomic update
+         acupre(lpoin_w(ipoin)) = acupre(lpoin_w(ipoin))+pr(lpoin_w(ipoin))*dt
+         !$acc atomic update
+         acuvex(lpoin_w(ipoin),1) = acuvex(lpoin_w(ipoin),1)+ &
             rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),1)*u(lpoin_w(ipoin),2)*dt
-         acuvex(lpoin_w(ipoin),2) = acuve2(lpoin_w(ipoin),2)+ &
+         !$acc end atomic
+         !$acc atomic update
+         acuvex(lpoin_w(ipoin),2) = acuvex(lpoin_w(ipoin),2)+ &
             rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),1)*u(lpoin_w(ipoin),3)*dt
-         acuvex(lpoin_w(ipoin),3) = acuve2(lpoin_w(ipoin),3)+ &
+         !$acc end atomic
+         !$acc atomic update
+         acuvex(lpoin_w(ipoin),3) = acuvex(lpoin_w(ipoin),3)+ &
             rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),2)*u(lpoin_w(ipoin),3)*dt
-		end do
-		!$acc end parallel loop
+         !$acc end atomic
+      end do
+      !$acc end parallel loop
 
-		! Compute accumulated tally for effective viscosity times current dt
-		!$acc parallel loop collapse(2)
-		do ielem = 1,nelem
+      ! Compute accumulated tally for effective viscosity times current dt
+      !$acc parallel loop collapse(2)
+      do ielem = 1,nelem
          do inode = 1, nnode
+            !$acc atomic write
             envit(connec(ielem,inode)) =  mu_e(ielem,inode)
+            !$acc end atomic
+            !$acc atomic write
             mut(connec(ielem,inode))   =  mu_sgs(ielem,inode)
+            !$acc end atomic
          end do
       end do
-		!$acc end parallel loop
-		!$acc parallel loop
-		do ipoin = 1,npoin_w
-			!$acc atomic update
-			acumueff(lpoin_w(ipoin)) = acumueff(lpoin_w(ipoin))+ &
-				(mu_fluid(lpoin_w(ipoin))+envit(lpoin_w(ipoin))+mut(lpoin_w(ipoin)))*dt
-			!$acc end atomic
-		end do
-		!$acc end parallel loop
+      !$acc end parallel loop
+      !$acc parallel loop
+      do ipoin = 1,npoin_w
+         !$acc atomic update
+         acumueff(lpoin_w(ipoin)) = acumueff(lpoin_w(ipoin))+ &
+            (mu_fluid(lpoin_w(ipoin))+envit(lpoin_w(ipoin))+mut(lpoin_w(ipoin)))*dt
+         !$acc end atomic
+      end do
+      !$acc end parallel loop
 
-	end subroutine favre_average
+   end subroutine favre_average
 
-   subroutine eval_average_window(isPeriodic,npoin,nelem,acuvel,acuve2,acuvex,acurho,acupre,acumueff,acutim,&
-											avvel,avve2,avvex,avrho,avpre,avmueff,nper,masSla)
+   subroutine eval_average_window(isPeriodic,npoin,nelem,acuvel,acuve2,acuvex,acurho,acupre,acumueff,acutw,acutim,&
+         avvel,avve2,avvex,avrho,avpre,avmueff,avtw,nper,masSla)
       implicit none
       logical, intent(in)                             :: isPeriodic
       integer(4), intent(in)                          :: npoin,nelem
       !integer(4), intent(in), optional						:: nper  
-		integer(4), intent(in)          						:: nper   ! Oriol not good this is just for Itel compilation
+      integer(4), intent(in)          						:: nper   ! Oriol not good this is just for Itel compilation
       integer(4), intent(in), optional                :: masSla(nper,2)
       real(rp), intent(inout)                         :: acutim
       real(rp), intent(inout), dimension(npoin)       :: acurho, acupre, acumueff
-      real(rp), intent(inout), dimension(npoin,ndime) :: acuvel, acuve2, acuvex
+      real(rp), intent(inout), dimension(npoin,ndime) :: acuvel, acuve2,acuvex,acutw
       real(rp), intent(inout), dimension(npoin)       :: avrho, avpre, avmueff
-      real(rp), intent(inout), dimension(npoin,ndime) :: avvel, avve2, avvex
+      real(rp), intent(inout), dimension(npoin,ndime) :: avvel, avve2,avvex,avtw
       integer(4) :: iper, idime, ipoin
 
       !
       ! If case is periodic, adjust slave nodes
       !
       if (isPeriodic .and. present(masSla)) then
-      !if (isPeriodic .and. present(masSla) .and. present(nper)) then
+         !if (isPeriodic .and. present(masSla) .and. present(nper)) then
          !$acc parallel loop
          do iper = 1,nper
             acuvel(masSla(iper,2),1) = acuvel(masSla(iper,1),1)
@@ -117,6 +116,9 @@ module mod_aver
             acurho(masSla(iper,2)) = acurho(masSla(iper,1))
             acupre(masSla(iper,2)) = acupre(masSla(iper,1))
             acumueff(masSla(iper,2)) = acumueff(masSla(iper,1))
+            acutw(masSla(iper,2),1) = acutw(masSla(iper,1),1)
+            acutw(masSla(iper,2),2) = acutw(masSla(iper,1),2)
+            acutw(masSla(iper,2),3) = acutw(masSla(iper,1),3)
          end do
          !$acc end parallel loop
       end if
@@ -131,20 +133,21 @@ module mod_aver
       avvel(:,:) = acuvel(:,:) / acutim
       avve2(:,:) = acuve2(:,:) / acutim
       avvex(:,:) = acuvex(:,:) / acutim
+      avtw(:,:) = acutw(:,:) / acutim
       !$acc end kernels
 
-     ! !
-     ! ! Favre average the rho*phi reynolds-averagedd variables
-     ! !
-     ! !$acc parallel loop
-     ! do ipoin = 1,npoin
-     !    !$acc loop seq
-     !    do idime = 1,ndime
-     !       avvel(ipoin,idime) = avvel(ipoin,idime)!/avrho(ipoin)
-     !       avve2(ipoin,idime) = avve2(ipoin,idime)!/avrho(ipoin)
-     !    end do
-     ! end do
-     ! !$acc end parallel loop
+      ! !
+      ! ! Favre average the rho*phi reynolds-averagedd variables
+      ! !
+      ! !$acc parallel loop
+      ! do ipoin = 1,npoin
+      !    !$acc loop seq
+      !    do idime = 1,ndime
+      !       avvel(ipoin,idime) = avvel(ipoin,idime)!/avrho(ipoin)
+      !       avve2(ipoin,idime) = avve2(ipoin,idime)!/avrho(ipoin)
+      !    end do
+      ! end do
+      ! !$acc end parallel loop
 
       !
       ! Reset the accumulated variables
@@ -156,6 +159,7 @@ module mod_aver
       acuvel(:,:) = 0.0_rp
       acuve2(:,:) = 0.0_rp
       acuvex(:,:) = 0.0_rp
+      acutw(:,:) = 0.0_rp
       !$acc end kernels
       acutim = 0.0_rp
 

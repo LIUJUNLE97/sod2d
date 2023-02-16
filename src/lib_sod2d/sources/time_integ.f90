@@ -19,7 +19,7 @@ module time_integ
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
-                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,source_term)  ! Optional args
+                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term)  ! Optional args
 
             implicit none
 
@@ -64,6 +64,7 @@ module time_integ
             integer(4), optional, intent(in)    :: listBoundsWM(*)
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime)
+            real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
             real(rp), optional, intent(in)      :: source_term(npoin,ndime)
             integer(4)                          :: pos
             integer(4)                          :: istep, ipoin, idime,icode
@@ -208,7 +209,7 @@ module time_integ
      
                if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
                   call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK,bou_codes,&
-                     bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),aux_u(:,:),Rdiff_mom)
+                     bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),aux_u(:,:),tauw,Rdiff_mom)
                end if
                !
                !
@@ -289,7 +290,7 @@ module time_integ
             !
             if (noBoundaries .eqv. .false.) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos))
+               call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos),u_buffer)
                call nvtxEndRange
             end if
 

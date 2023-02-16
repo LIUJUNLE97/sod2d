@@ -8,7 +8,7 @@ module mod_wall_model
 contains
 
    subroutine evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK, bou_code, &
-         bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,ui,Rdiff)
+         bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,ui,tauw,Rdiff)
 
       implicit none
 
@@ -18,7 +18,8 @@ contains
       real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
       integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
       real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)
-      real(rp),   intent(in)  :: rho(npoin), ui(npoin,ndime),mu_fluid(npoin)
+      real(rp),   intent(in)  :: rho(npoin),ui(npoin,ndime),mu_fluid(npoin)
+      real(rp),   intent(inout) :: tauw(npoin,ndime)
       real(rp),   intent(in)  :: coord(npoin,ndime), gpvol(1,ngaus,nelem)
       real(rp),   intent(inout) :: Rdiff(npoin,ndime)
       real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), tau(ndime,ndime), divU
@@ -138,6 +139,9 @@ contains
             do idime = 1,ndime
                !$acc atomic update
                Rdiff(bound(iBound,igaus),idime) = Rdiff(bound(iBound,igaus),idime)+auxmag*wgp_b(igaus)*tmag*tvelo(idime)
+               !$acc end atomic
+               !$acc atomic write
+               tauw(bound(iBound,igaus),idime) = tmag*tvelo(idime)
                !$acc end atomic
             end do
          end do

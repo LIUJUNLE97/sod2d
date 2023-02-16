@@ -33,9 +33,9 @@ program tool_hdf5_to_cgns
     !---------------------- ARRAYS -------------------------
     !-- For average 
     real(rp), allocatable :: avrho(:),avpre(:),avmueff(:)
-    real(rp), allocatable :: avvel(:,:),avve2(:,:),avvex(:,:)
+    real(rp), allocatable :: avvel(:,:),avve2(:,:),avvex(:,:),avtw(:,:)
     real(rp), allocatable :: favrho(:),favpre(:),favmueff(:)
-    real(rp), allocatable :: favvel(:,:),favve2(:,:),favvex(:,:)
+    real(rp), allocatable :: favvel(:,:),favve2(:,:),favvex(:,:),favtw(:,:)
     !-- For inst 
     real(rp), allocatable :: rho(:),pr(:),E(:),eta(:),csound(:),machno(:),divU(:),Qcrit(:)
     real(rp), allocatable :: envit(:),mut(:),mu_fluid(:)
@@ -201,12 +201,14 @@ program tool_hdf5_to_cgns
         allocate(avvel(numNodesRankPar,ndime))
         allocate(avve2(numNodesRankPar,ndime))
         allocate(avvex(numNodesRankPar,ndime))
+        allocate(avtw(numNodesRankPar,ndime))
         allocate(favrho(numNodesRankPar))
         allocate(favpre(numNodesRankPar))
         allocate(favmueff(numNodesRankPar))
         allocate(favvel(numNodesRankPar,ndime))
         allocate(favve2(numNodesRankPar,ndime))
         allocate(favvex(numNodesRankPar,ndime))
+        allocate(favtw(numNodesRankPar,ndime))
         do i = 1, numNodesRankPar 
            favrho(i)   = 0.0_rp
            favpre(i)   = 0.0_rp
@@ -215,6 +217,7 @@ program tool_hdf5_to_cgns
               favvel(i,j) = 0.0_rp
               favve2(i,j) = 0.0_rp
               favvex(i,j) = 0.0_rp
+              favtw(i,j)  = 0.0_rp
            end do
         end do
     else
@@ -241,7 +244,7 @@ program tool_hdf5_to_cgns
 
         if(do_averages) then
             numAvgSteps = numAvgSteps + 1
-            call load_hdf5_avgResultsFile(iStep,avvel,avve2,avvex,avrho,avpre,avmueff)
+            call load_hdf5_avgResultsFile(iStep,avvel,avve2,avvex,avrho,avpre,avmueff,avtw)
         else
             call load_hdf5_resultsFile_allArrays(iStep,time,rho,u,pr,E,eta,csound,&
                                 machno,gradRho,curlU,divU,Qcrit,mu_fluid,envit,mut)
@@ -251,7 +254,7 @@ program tool_hdf5_to_cgns
 
         if(do_averages) then
 
-            call save_vtkhdf_avgResultsFile(iStep,avrho,avpre,avmueff,avvel,avve2,avvex)
+            call save_vtkhdf_avgResultsFile(iStep,avrho,avpre,avmueff,avvel,avve2,avvex,avtw)
 
             favrho(:)   = favrho(:)   + avrho(:)
             favpre(:)   = favpre(:)   + avpre(:)
@@ -259,6 +262,7 @@ program tool_hdf5_to_cgns
             favvel(:,1:3) = favvel(:,1:3) + avvel(:,1:3)
             favve2(:,1:3) = favve2(:,1:3) + avve2(:,1:3)
             favvex(:,1:3) = favvex(:,1:3) + avvex(:,1:3)
+            favtw(:,1:3)  = favtw(:,1:3)  + avtw(:,1:3)
         else
             call save_vtkhdf_instResultsFile(iStep,rho,pr,E,eta,csound,machno,divU,Qcrit,&
                                             envit,mut,mu_fluid,u,gradRho,curlU)
@@ -276,10 +280,11 @@ program tool_hdf5_to_cgns
               favvel(i,j) = favvel(i,j) / real(numAvgSteps, rp)
               favve2(i,j) = favve2(i,j) / real(numAvgSteps, rp)
               favvex(i,j) = favvex(i,j) / real(numAvgSteps, rp)
+              favtw(i,j)  = favtw(i,j)  / real(numAvgSteps, rp)
            end do
         end do
 
-        call save_vtkhdf_finalAvgResultsFile(favrho,favpre,favmueff,favvel,favve2,favvex)
+        call save_vtkhdf_finalAvgResultsFile(favrho,favpre,favmueff,favvel,favve2,favvex,favtw)
     end if
 
     call end_hdf5_interface()

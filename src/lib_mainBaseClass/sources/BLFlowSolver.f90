@@ -52,8 +52,8 @@ contains
       real(rp) :: cd, lx, ly, xmin, xmax
 
       cd = 1.0_rp
-      lx = this%d0*5.0_rp
-      ly = this%d0*5.0_rp
+      lx = this%d0*2.5_rp
+      ly = this%d0*2.5_rp
       xmin = 20.0_rp*this%d0
       xmax = xmin+lx
 
@@ -73,9 +73,8 @@ contains
    subroutine BLFlowSolver_fill_BC_Types(this)
       class(BLFlowSolver), intent(inout) :: this
 
-      !bouCodes2BCType(1) = bc_type_non_slip_adiabatic
       bouCodes2BCType(1) = bc_type_slip_wall_model
-      bouCodes2BCType(2) = bc_type_outlet
+      bouCodes2BCType(2) = bc_type_far_field
 
    end subroutine BLFlowSolver_fill_BC_Types
 
@@ -240,7 +239,7 @@ contains
       this%loadResults = .true.
 
       this%continue_oldLogs = .false.
-      this%load_step = 850001
+      this%load_step = 800001
 
       this%nstep = 9000000 
       this%cfl_conv = 0.95_rp
@@ -254,7 +253,7 @@ contains
 
       this%Cp   = 1004.0_rp
       this%Prt  = 0.71_rp
-      this%M    = 0.2_rp
+      this%M    = 0.1_rp
       this%d0   = 1.0_rp
       this%U0   = 1.0_rp
       this%rho0 = 1.0_rp
