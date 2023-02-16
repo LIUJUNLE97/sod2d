@@ -1454,9 +1454,7 @@ contains
       end if
 
         ! Eval first output
-        if(this%isFreshStart) then
-            call this%evalFirstOutput()
-        end if 
+        if(this%isFreshStart) call this%evalFirstOutput()
 
         call this%flush_log_file()
 
