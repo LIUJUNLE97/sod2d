@@ -11,7 +11,10 @@ set(TEST_VERSION "${TEST_VERSION_MAJOR}.${TEST_VERSION_MINOR}.${TEST_VERSION_PAT
 option(UNIT_TESTING "Enable unit tests" OFF)
 option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
-option(USE_GEMPA "Compile using GEMPA" ON)
+
+option(TOOL_POSTPROC "Compiles tool PostProc" ON)
+option(TOOL_MESHPART "Compiles tool MeshPart" ON)
+option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
 
 option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
 option(USE_PCPOWER "Compiling in PC-POWER" OFF)
@@ -70,14 +73,21 @@ if("${isSystemDir}" STREQUAL "-1")
     set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 endif("${isSystemDir}" STREQUAL "-1")
 
-# Enable GEMPA if requested
-include(gempa)
-
-add_subdirectory(external)
 add_subdirectory(src)
-add_subdirectory(tool_postProc)
-add_subdirectory(tool_meshConversorPar)
-add_subdirectory(tool_commsPerformance)
+
+if(TOOL_POSTPROC)
+    add_subdirectory(tool_postProc)
+endif()
+
+if(TOOL_MESHPART)
+    include(gempa)
+    add_subdirectory(external)
+    add_subdirectory(tool_meshConversorPar)
+endif()
+
+if(TOOL_COMMPERF)
+    add_subdirectory(tool_commsPerformance)
+endif()
 
 #enable folder unitt
 #add_subdirectory(unitt)

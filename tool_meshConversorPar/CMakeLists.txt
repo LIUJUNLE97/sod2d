@@ -3,25 +3,9 @@ cmake_minimum_required(VERSION 3.15)
 
 #----------------OPTIONS------------------------------------------------------------------
 
-message("Verify that machine selection is identical to the one in the main CMakeLists.txt file!")
-option(USE_PCPOWER "Compiling in PC-POWER" OFF)
-option(USE_MN "Compiling in MareNostrum" OFF)
-option(USE_PREDEFINED_COMPILERS "Use predefined compilers" ON)
-
-option(USE_MPI "Compile using MPI" ON)
-option(USE_HDF5 "Compile using HDF5" ON)
+message(" # Setting CMake Tool Mesh Partitioner")
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
-
-# Configure compiler options
-message("-- Selecting compiler Ops...")
-if(USE_PCPOWER)
-  include(powerpcCompilers)
-elseif(USE_MN)
-  include(marenostrumCompilers)
-else()
-  include(localCompilers)
-endif()
 
 # Set project name, version and languages
 project(tool_meshConversorPar LANGUAGES C CXX Fortran)
@@ -56,6 +40,8 @@ file(GLOB SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_const
 add_executable(${PROJECT_NAME} ${SRC_FILES})   # Build executable from listed sources
 set_property(TARGET ${PROJECT_NAME} PROPERTY LINKER_LANGUAGE Fortran)
 
+add_subdirectory(lib_gempaInterface)
+
 set_mpi()
 set_gempa()
 set_hdf5()
@@ -72,6 +58,3 @@ set (CMAKE_INSTALL_PREFIX ${default_prefix} CACHE STRING
 
 # FFLAGS depend on the compiler
 get_filename_component (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
-
-#set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-DGEMPAINTERFACE")
-#string(REPLACE ";" " " CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS}")

@@ -1,5 +1,4 @@
 #libs
-add_subdirectory(lib_gempaInterface)
 #add_subdirectory(lib_sod2d)
 #add_subdirectory(lib_mainBaseClass)
 
