@@ -75,7 +75,7 @@ module mod_bc_routines
                      sl = min(u_buffer(inode,1)-nscbc_c_inf, aux_u2(inode,1) - sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)))
                      sr =  max(aux_u2(inode,1) + sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)), u_buffer(inode,1)+nscbc_c_inf)
 
-                     rho_hll = (sr*aux_rho2(inode)-sl*nscbc_rho_inf+nscbc_rho_inf*nscbc_u_inf-aux_q2(inode,1))/(sr-sl)
+                     q_hll   = (sr*aux_q2(inode,1)-sl*nscbc_rho_inf*u_buffer(inode,1)+nscbc_rho_inf*u_buffer(inode,1)**2-aux_u2(inode,1)*aux_q2(inode,1))/(sr-sl)
 
                      aux_rho(inode) = rho_hll
                      aux_E(inode) = E_hll
