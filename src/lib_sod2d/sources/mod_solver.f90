@@ -3,6 +3,8 @@ module mod_solver
       use mod_constants
       use mod_nvtx
 
+      implicit none
+
       contains
 
               subroutine lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,R)
@@ -398,6 +400,51 @@ module mod_solver
               subroutine gmres_full()
                   implicit none
 
+                  ! Form the approximate inv(Ml)*J*y for all equations
+                  form_approx_Jy()
+
+                  ! Add the remaining terms
+                  ymass(:) = ymass(:)/gammaRK*dt + Jy_mass(:)
+                  yener(:) = yener(:)/gammaRK*dt + Jy_ener(:)
+                  ymom(:,:) = ymom(:,:)/gammaRK*dt + Jy_mom(:,:)
+
+                  ! Compute each r = b-Ax
+                  Q_Mass(:) = bmass(:) - ymass(:)
+                  Q_Ener(:) = bener(:) - yener(:)
+                  Q_Mom(:,:) = bmom(:,:) - ymom(:,:)
+
+                  ! Normalize each residual
+                  aux = 0.0
+                  do ipoin = 1,npoin
+                     aux = aux + Q_Mass(ipoin,1)**2
+                  end do
+                  Q_Mass(:,1) = Q_Mass(:,1)/sqrt(aux)
+
+                  aux = 0.0
+                  do ipoin = 1,npoin
+                     aux = aux + Q_Ener(ipoin,1)**2
+                  end do
+                  Q_Ener(:) = Q_Ener(:)/sqrt(aux)
+
+                  do idime = 1,ndime
+                     aux = 0.0
+                     do ipoin = 1,npoin
+                        aux = aux + Q_Mom(ipoin,idime,1)**2
+                     end do
+                     Q_Mom(:,idime,1) = Q_Mom(:,idime,1)/sqrt(aux)
+                  end do
+
+              end subroutine gmres_full
+
+              subroutine arnoldi_iter()
+                  implicit none
+              end subroutine arnoldi_iter
+
+              subroutine form_approx_Jy()
+                  use elem_convec
+                  use elem_diffu
+                  implicit none
+
                   ! Form the R(u^n) arrays
                   call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
                                        gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho, pr, E, Rmass, Rmom, Rener)
@@ -423,19 +470,11 @@ module mod_solver
                   Jy_ener(:) = (Rener(:) - Rener_fix(:))/eps
                   Jy_mom(:,:) = (Rmom(:,:) - Rmom_fix(:,:))/eps
 
-              end subroutine gmres_full
+                  ! Multiply residuals by inverse Ml
+                  call lumped_solver_scal(npoin, npoin_w, lpoin_w, Ml, Rmass, Jy_mass)
+                  call lumped_solver_scal(npoin, npoin_w, lpoin_w, Ml, Rmass, Jy_ener)
+                  call lumped_solver_vec(npoin, npoin_w, lpoin_w, Ml, Rmass, Jy_mom)
 
-              subroutine arnoldi_iter()
-                  use elem_convec
-                  use elem_diffu
-                  implicit none
-                  ! Form the approximate Jacobian for all residuals
-                  ! Compute the residual with the small increment
-                  call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                                       gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho, pr, E, Rmass, Rmom, Rener)
-                  call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                                          gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u, Tem, &
-                                          mu_fluid, mu_e, mu_sgs, Ml, Rmass, Rmom, Rener)
-              end subroutine arnoldi_iter
+              end subroutine form_approx_Jy
 
 end module mod_solver
