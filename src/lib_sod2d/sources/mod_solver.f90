@@ -7,12 +7,12 @@ module mod_solver
       !-----------------------------------------------------------------------
       ! Creating variables for the GMRES solver
       !-----------------------------------------------------------------------
-      integer(4), parameter                     :: maxSave=5
+      integer(4), parameter                     :: maxIter=5
       real(rp)  , allocatable, dimension(:)     :: Jy_mass, Jy_ener, ymass, yener
       real(rp)  , allocatable, dimension(:)     :: Rmass_fix, Rener_fix, Dmass, Dener, Rmass, Rener
       real(rp)  , allocatable, dimension(:,:)   :: Jy_mom, ymom, Rmom_fix, Dmom, Rmom
-      real(rp)  , allocatable, dimension(:,:)   :: Q_Mass, Q_Ener
-      real(rp)  , allocatable, dimension(:,:,:) :: Q_Mom
+      real(rp)  , allocatable, dimension(:,:)   :: Q_Mass, Q_Ener, H_mass, H_ener
+      real(rp)  , allocatable, dimension(:,:,:) :: Q_Mom, H_mom
 
       contains
 
@@ -228,7 +228,7 @@ module mod_solver
                  !
                  ! Start iterations
                  !
-                 do iter = 1,maxSave
+                 do iter = 1,maxIter
                     call nvtxStartRange("Iteration")
                     call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,p0,q) ! A*s_k-1
                     Q1 = 0.0_rp
@@ -281,7 +281,7 @@ module mod_solver
                     !$acc end parallel loop
                     call nvtxEndRange
                  end do
-                 if (iter == maxSave) then
+                 if (iter == maxIter) then
                     write(1,*) "--| TOO MANY ITERATIONS!"
                     call nvtxEndRange
                     stop 1
@@ -337,7 +337,7 @@ module mod_solver
                     !
                     ! Start iterations
                     !
-                    do iter = 1,maxSave
+                    do iter = 1,maxIter
                        call nvtxStartRange("Iteration")
                        call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,p0,q) ! A*s_k-1
                        Q1 = 0.0_rp
@@ -390,7 +390,7 @@ module mod_solver
                        !$acc end parallel loop
                        call nvtxEndRange
                     end do
-                    if (iter == maxSave) then
+                    if (iter == maxIter) then
                        write(1,*) "--| TOO MANY ITERATIONS!"
                        call nvtxEndRange
                        stop 1
@@ -418,7 +418,8 @@ module mod_solver
                      allocate(Rmass_fix(npoin), Rmom_fix(npoin,ndime), Rener_fix(npoin))
                      allocate(Rmass(npoin), Rmom(npoin,ndime), Rener(npoin))
                      allocate(Dmass(npoin), Dmom(npoin,ndime), Dener(npoin))
-                     allocate(Q_Mass(npoin,maxSave+1), Q_Mom(npoin,ndime,maxSave+1), Q_Ener(npoin,maxSave+1))
+                     allocate(Q_Mass(npoin,maxIter+1), Q_Mom(npoin,ndime,maxIter+1), Q_Ener(npoin,maxIter+1))
+                     allocate(H_mass(maxIter+1,maxIter), H_mom(maxIter+1,maxIter,ndime), H_ener(maxIter+1,maxIter))
                   end if
 
                   ! Form the approximate inv(Ml)*J*y for all equations
@@ -443,8 +444,50 @@ module mod_solver
               ! Auxiliary routines for the gmres solver
               !-----------------------------------------------------------------------
 
-              subroutine arnoldi_iter()
+              subroutine arnoldi_iter(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                                      atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                                      rho,u,q,pr,E,Tem,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                      gammaRK,dt)
                   implicit none
+                  
+                  ! Compute the new J*Q(:,ik) arrays
+                  zmass(:) = Q_mass(:,ik)
+                  zmom (:,:) = Q_mom(:,:,ik)
+                  zener(:) = Q_ener(:,ik)
+                  flag_gmres_form_fix = .false.
+                  call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                                      atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                                      rho,u,q,pr,E,Tem,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                      zmass,zmom,zener,flag_gmres_form_fix)
+
+                  ! Update Jy with the complement
+                  Q_mass(:,ik+1) = Q_mass(:,ik)/(gammaRK*dt) + Jy_mass(:)
+                  Q_ener(:,ik+1) = Q_ener(:,ik)/(gammaRK*dt) + Jy_ener(:)
+                  Q_mom (:,:,ik+1) = Q_mom(:,:,ik)/(gammaRK*dt) + Jy_mom(:,:)
+
+                  ! Compute the new H matrix
+                  do jk = 1,ik
+                     H_mass(jk,ik) = dot_product(Q_mass(:,jk),Q_mass(:,ik+1))
+                     H_ener(jk,ik) = dot_product(Q_ener(:,jk),Q_ener(:,ik+1))
+                     do idime = 1,ndime
+                        H_mom(jk,ik,idime) = dot_product(Q_mom(:,jk,idime),Q_mom(:,ik+1,idime))
+                     end do
+                  end do
+
+                  ! Fill H(ik+1,ik) with the norms of Q(:,ik+1)
+                  H_mass(ik+1,ik) = sqrt(dot_product(Q_mass(:,ik+1),Q_mass(:,ik+1)))
+                  H_ener(ik+1,ik) = sqrt(dot_product(Q_ener(:,ik+1),Q_ener(:,ik+1)))
+                  do idime = 1,ndime
+                     H_mom(ik+1,ik,idime) = sqrt(dot_product(Q_mom(:,ik+1,idime),Q_mom(:,ik+1,idime)))
+                  end do
+
+                  ! Normalize every Q(:,ik+1)
+                  Q_mass(:,ik+1) = Q_mass(:,ik+1)/H_mass(ik+1,ik)
+                  Q_ener(:,ik+1) = Q_ener(:,ik+1)/H_ener(ik+1,ik)
+                  do idime = 1,ndime
+                     Q_mom(:,ik+1,idime) = Q_mom(:,ik+1,idime)/H_mom(ik+1,ik,idime)
+                  end do
+                  
               end subroutine arnoldi_iter
 
               subroutine form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
@@ -524,9 +567,9 @@ module mod_solver
                   Q_Mom(:,:,:) = 0.0_rp
 
                   ! Add the remaining terms
-                  ymass(:) = ymass(:)/gammaRK*dt + Jy_mass(:)
-                  yener(:) = yener(:)/gammaRK*dt + Jy_ener(:)
-                  ymom(:,:) = ymom(:,:)/gammaRK*dt + Jy_mom(:,:)
+                  ymass(:) = ymass(:)/(gammaRK*dt) + Jy_mass(:)
+                  yener(:) = yener(:)/(gammaRK*dt) + Jy_ener(:)
+                  ymom(:,:) = ymom(:,:)/(gammaRK*dt) + Jy_mom(:,:)
 
                   ! Compute each r = b-Ax
                   Q_Mass(:,1) = bmass(:) - ymass(:)
