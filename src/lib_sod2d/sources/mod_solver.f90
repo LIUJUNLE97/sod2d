@@ -401,46 +401,23 @@ module mod_solver
                   implicit none
 
                   ! Form the approximate inv(Ml)*J*y for all equations
-                  form_approx_Jy()
+                  call form_approx_Jy()
 
-                  ! Add the remaining terms
-                  ymass(:) = ymass(:)/gammaRK*dt + Jy_mass(:)
-                  yener(:) = yener(:)/gammaRK*dt + Jy_ener(:)
-                  ymom(:,:) = ymom(:,:)/gammaRK*dt + Jy_mom(:,:)
-
-                  ! Compute each r = b-Ax
-                  Q_Mass(:) = bmass(:) - ymass(:)
-                  Q_Ener(:) = bener(:) - yener(:)
-                  Q_Mom(:,:) = bmom(:,:) - ymom(:,:)
-
-                  ! Normalize each residual
-                  aux = 0.0
-                  do ipoin = 1,npoin
-                     aux = aux + Q_Mass(ipoin,1)**2
-                  end do
-                  Q_Mass(:,1) = Q_Mass(:,1)/sqrt(aux)
-
-                  aux = 0.0
-                  do ipoin = 1,npoin
-                     aux = aux + Q_Ener(ipoin,1)**2
-                  end do
-                  Q_Ener(:) = Q_Ener(:)/sqrt(aux)
-
-                  do idime = 1,ndime
-                     aux = 0.0
-                     do ipoin = 1,npoin
-                        aux = aux + Q_Mom(ipoin,idime,1)**2
-                     end do
-                     Q_Mom(:,idime,1) = Q_Mom(:,idime,1)/sqrt(aux)
-                  end do
+                  ! Initialize the solver
+                  call init_gmres()
 
               end subroutine gmres_full
+
+              !-----------------------------------------------------------------------
+              ! Auxiliary routines for the gmres solver
+              !-----------------------------------------------------------------------
 
               subroutine arnoldi_iter()
                   implicit none
               end subroutine arnoldi_iter
 
               subroutine form_approx_Jy()
+                  use mod_comms
                   use elem_convec
                   use elem_diffu
                   implicit none
@@ -470,11 +447,55 @@ module mod_solver
                   Jy_ener(:) = (Rener(:) - Rener_fix(:))/eps
                   Jy_mom(:,:) = (Rmom(:,:) - Rmom_fix(:,:))/eps
 
+                  ! Communicate before applying ML
+                  if(mpi_size.ge.2) then
+                     call nvtxStartRange("MPI_comms_tI")
+                     call mpi_halo_atomic_update_float(Jy_mass)
+                     call mpi_halo_atomic_update_float(Jy_ener)
+                     do idime = 1,ndime
+                        call mpi_halo_atomic_update_float(Jy_mom(:,idime))
+                     end do
+                     call nvtxEndRange
+                  end if
+
                   ! Multiply residuals by inverse Ml
                   call lumped_solver_scal(npoin, npoin_w, lpoin_w, Ml, Rmass, Jy_mass)
                   call lumped_solver_scal(npoin, npoin_w, lpoin_w, Ml, Rmass, Jy_ener)
                   call lumped_solver_vec(npoin, npoin_w, lpoin_w, Ml, Rmass, Jy_mom)
 
               end subroutine form_approx_Jy
+
+              subroutine init_gmres()
+                  implicit none
+
+                  ! Add the remaining terms
+                  ymass(:) = ymass(:)/gammaRK*dt + Jy_mass(:)
+                  yener(:) = yener(:)/gammaRK*dt + Jy_ener(:)
+                  ymom(:,:) = ymom(:,:)/gammaRK*dt + Jy_mom(:,:)
+
+                  ! Compute each r = b-Ax
+                  Q_Mass(:) = bmass(:) - ymass(:)
+                  Q_Ener(:) = bener(:) - yener(:)
+                  Q_Mom(:,:) = bmom(:,:) - ymom(:,:)
+
+                  ! Normalize each residual
+                  aux = 0.0
+                  do ipoin = 1,npoin
+                     aux = aux + Q_Mass(ipoin,1)**2
+                  end do
+                  Q_Mass(:,1) = Q_Mass(:,1)/sqrt(aux)
+                  aux = 0.0
+                  do ipoin = 1,npoin
+                     aux = aux + Q_Ener(ipoin,1)**2
+                  end do
+                  Q_Ener(:) = Q_Ener(:)/sqrt(aux)
+                  do idime = 1,ndime
+                     aux = 0.0
+                     do ipoin = 1,npoin
+                        aux = aux + Q_Mom(ipoin,idime,1)**2
+                     end do
+                     Q_Mom(:,idime,1) = Q_Mom(:,idime,1)/sqrt(aux)
+                  end do
+              end subroutine init_gmres
 
 end module mod_solver
