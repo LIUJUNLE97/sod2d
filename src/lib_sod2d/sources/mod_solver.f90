@@ -507,7 +507,7 @@ module mod_solver
                   ! Multiply residuals by inverse Ml
                   call lumped_solver_scal(npoin, npoin_w, lpoin_w, Ml, Jy_mass)
                   call lumped_solver_scal(npoin, npoin_w, lpoin_w, Ml, Jy_ener)
-                  call lumped_solver_vec(npoin, npoin_w, lpoin_w, Ml, Jy_mom)
+                  call lumped_solver_vect(npoin, npoin_w, lpoin_w, Ml, Jy_mom)
 
               end subroutine form_approx_Jy
 
