@@ -395,4 +395,47 @@ module mod_solver
 
               end subroutine conjGrad_vector
 
+              subroutine gmres_full()
+                  implicit none
+
+                  ! Form the R(u^n) arrays
+                  call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                                       gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho, pr, E, Rmass, Rmom, Rener)
+                  call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                                          gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u, Tem, &
+                                          mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dener)
+                  Rmass_fix(:) = Rmass(:) + Dmass(:)
+                  Rener_fix(:) = Rener(:) + Dener(:)
+                  Rmom_fix(:,:) = Rmom(:,:) + Dmom(:,:)
+
+                  ! Form the R(u^n + eps*y0) arrays
+                  call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                                       gmshAtoI, gmshAtoJ, gmshAtoK, u, q+eps*ymom, rho+eps*ymass, pr, E+eps*yener, Rmass, Rmom, Rener)
+                  call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                                          gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u, Tem, &
+                                          mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dener)
+                  Rmass(:) = Rmass(:) + Dmass(:)
+                  Rener(:) = Rener(:) + Dener(:)
+                  Rmom(:,:) = Rmom(:,:) + Dmom(:,:)
+
+                  ! Form the J*y arrays
+                  Jy_mass(:) = (Rmass(:) - Rmass_fix(:))/eps
+                  Jy_ener(:) = (Rener(:) - Rener_fix(:))/eps
+                  Jy_mom(:,:) = (Rmom(:,:) - Rmom_fix(:,:))/eps
+
+              end subroutine gmres_full
+
+              subroutine arnoldi_iter()
+                  use elem_convec
+                  use elem_diffu
+                  implicit none
+                  ! Form the approximate Jacobian for all residuals
+                  ! Compute the residual with the small increment
+                  call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                                       gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho, pr, E, Rmass, Rmom, Rener)
+                  call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                                          gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u, Tem, &
+                                          mu_fluid, mu_e, mu_sgs, Ml, Rmass, Rmom, Rener)
+              end subroutine arnoldi_iter
+
 end module mod_solver
