@@ -4,6 +4,15 @@ module mod_solver
       use mod_nvtx
 
       implicit none
+      !-----------------------------------------------------------------------
+      ! Creating variables for the GMRES solver
+      !-----------------------------------------------------------------------
+      integer(4), parameter                     :: maxSave=5
+      real(rp)  , allocatable, dimension(:)     :: Jy_mass, Jy_ener, ymass, yener
+      real(rp)  , allocatable, dimension(:)     :: Rmass_fix, Rener_fix, Dmass, Dener, Rmass, Rener
+      real(rp)  , allocatable, dimension(:,:)   :: Jy_mom, ymom, Rmom_fix, Dmom, Rmom
+      real(rp)  , allocatable, dimension(:,:)   :: Q_Mass, Q_Ener
+      real(rp)  , allocatable, dimension(:,:,:) :: Q_Mom
 
       contains
 
@@ -219,7 +228,7 @@ module mod_solver
                  !
                  ! Start iterations
                  !
-                 do iter = 1,maxIter
+                 do iter = 1,maxSave
                     call nvtxStartRange("Iteration")
                     call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,p0,q) ! A*s_k-1
                     Q1 = 0.0_rp
@@ -272,7 +281,7 @@ module mod_solver
                     !$acc end parallel loop
                     call nvtxEndRange
                  end do
-                 if (iter == maxIter) then
+                 if (iter == maxSave) then
                     write(1,*) "--| TOO MANY ITERATIONS!"
                     call nvtxEndRange
                     stop 1
@@ -328,7 +337,7 @@ module mod_solver
                     !
                     ! Start iterations
                     !
-                    do iter = 1,maxIter
+                    do iter = 1,maxSave
                        call nvtxStartRange("Iteration")
                        call cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,p0,q) ! A*s_k-1
                        Q1 = 0.0_rp
@@ -381,7 +390,7 @@ module mod_solver
                        !$acc end parallel loop
                        call nvtxEndRange
                     end do
-                    if (iter == maxIter) then
+                    if (iter == maxSave) then
                        write(1,*) "--| TOO MANY ITERATIONS!"
                        call nvtxEndRange
                        stop 1
@@ -397,14 +406,36 @@ module mod_solver
 
               end subroutine conjGrad_vector
 
-              subroutine gmres_full()
+              subroutine gmres_full(npoin, flag_gmres_mem_alloc, flag_gmres_mem_free)
                   implicit none
+                  logical   , intent(in)    :: flag_gmres_mem_alloc, flag_gmres_mem_free
+                  integer(4), intent(in) :: npoin
+
+                  ! Allocate the memory for the gmres solver if not yet allocated
+                  if (flag_gmres_mem_alloc .eqv. .true.) then
+                     allocate(Jy_mass(npoin), Jy_mom(npoin,ndime), Jy_ener(npoin))
+                     allocate(ymass(npoin), ymom(npoin,ndime), yener(npoin))
+                     allocate(Rmass_fix(npoin), Rmom_fix(npoin,ndime), Rener_fix(npoin))
+                     allocate(Rmass(npoin), Rmom(npoin,ndime), Rener(npoin))
+                     allocate(Dmass(npoin), Dmom(npoin,ndime), Dener(npoin))
+                     allocate(Q_Mass(npoin,maxSave+1), Q_Mom(npoin,ndime,maxSave+1), Q_Ener(npoin,maxSave+1))
+                  end if
 
                   ! Form the approximate inv(Ml)*J*y for all equations
-                  call form_approx_Jy()
+                  !call form_approx_Jy()
 
                   ! Initialize the solver
-                  call init_gmres()
+                  !call init_gmres()
+
+                  ! If memory not needed anymore, deallocate arrays
+                  if (flag_gmres_mem_free .eqv. .true.) then
+                     deallocate(Jy_mass, Jy_mom, Jy_ener)
+                     deallocate(ymass, ymom, yener)
+                     deallocate(Rmass_fix, Rmom_fix, Rener_fix)
+                     deallocate(Rmass, Rmom, Rener)
+                     deallocate(Dmass, Dmom, Dener)
+                     deallocate(Q_Mass, Q_Mom, Q_Ener)
+                  end if
 
               end subroutine gmres_full
 
@@ -416,27 +447,42 @@ module mod_solver
                   implicit none
               end subroutine arnoldi_iter
 
-              subroutine form_approx_Jy()
+              subroutine form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                                        atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                                        rho,u,q,pr,E,Tem,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                        zmass,zmom,zener,flag_gmres_form_fix)
                   use mod_comms
                   use elem_convec
                   use elem_diffu
                   implicit none
+                  logical   , intent(in) :: flag_gmres_form_fix
+                  integer(4), intent(in) :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w)
+                  integer(4), intent(in) :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+                  real(rp)  , intent(in) :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus), gpvol(1,ngaus,nelem), xgp(ngaus,ndime)
+                  real(rp)  , intent(in) :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1), Ml(npoin)
+                  real(rp)  , intent(in) :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin), Cp, Prt
+                  real(rp)  , intent(in) :: mu_fluid(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
+                  real(rp)  , intent(in) :: zmass(npoin), zener(npoin), zmom(npoin,ndime)
+                  integer(4)             :: idime
+                  real(rp)  , parameter  :: eps = 1.0e-7
 
-                  ! Form the R(u^n) arrays
-                  call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                                       gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho, pr, E, Rmass, Rmom, Rener)
-                  call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                                          gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u, Tem, &
-                                          mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dener)
-                  Rmass_fix(:) = Rmass(:) + Dmass(:)
-                  Rener_fix(:) = Rener(:) + Dener(:)
-                  Rmom_fix(:,:) = Rmom(:,:) + Dmom(:,:)
+                  ! Form the R(u^n) arrays if not formed already
+                  if (flag_gmres_form_fix .eqv. .true.) then
+                     call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                                          gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho, pr, E, Rmass, Rmom, Rener)
+                     call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                                             gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u, Tem, &
+                                             mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dener)
+                     Rmass_fix(:) = Rmass(:) + Dmass(:)
+                     Rener_fix(:) = Rener(:) + Dener(:)
+                     Rmom_fix(:,:) = Rmom(:,:) + Dmom(:,:)
+                  end if
 
                   ! Form the R(u^n + eps*y0) arrays
                   call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                                       gmshAtoI, gmshAtoJ, gmshAtoK, u, q+eps*ymom, rho+eps*ymass, pr, E+eps*yener, Rmass, Rmom, Rener)
+                                       gmshAtoI, gmshAtoJ, gmshAtoK, u, q+eps*zmom, rho+eps*zmass, pr, E+eps*zener, Rmass, Rmom, Rener)
                   call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                                          gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u, Tem, &
+                                          gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+eps*zmass, u, Tem, &
                                           mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dener)
                   Rmass(:) = Rmass(:) + Dmass(:)
                   Rener(:) = Rener(:) + Dener(:)
@@ -459,19 +505,23 @@ module mod_solver
                   end if
 
                   ! Multiply residuals by inverse Ml
-                  call lumped_solver_scal(npoin, npoin_w, lpoin_w, Ml, Rmass, Jy_mass)
-                  call lumped_solver_scal(npoin, npoin_w, lpoin_w, Ml, Rmass, Jy_ener)
-                  call lumped_solver_vec(npoin, npoin_w, lpoin_w, Ml, Rmass, Jy_mom)
+                  call lumped_solver_scal(npoin, npoin_w, lpoin_w, Ml, Jy_mass)
+                  call lumped_solver_scal(npoin, npoin_w, lpoin_w, Ml, Jy_ener)
+                  call lumped_solver_vec(npoin, npoin_w, lpoin_w, Ml, Jy_mom)
 
               end subroutine form_approx_Jy
 
-              subroutine init_gmres()
+              subroutine init_gmres(npoin, bmass, bmom, bener, dt, gammaRK)
                   implicit none
+                  integer(4), intent(in) :: npoin
+                  real(rp)  , intent(in) :: bmass(npoin), bmom(npoin,ndime), bener(npoin), dt, gammaRK
+                  integer(4)             :: ipoin, idime
+                  real(rp)               :: aux
 
                   ! Zero Q_* arrays
-                  Q_Mass(:,:) = 0.0
-                  Q_Ener(:,:) = 0.0
-                  Q_Mom(:,:,:) = 0.0
+                  Q_Mass(:,:) = 0.0_rp
+                  Q_Ener(:,:) = 0.0_rp
+                  Q_Mom(:,:,:) = 0.0_rp
 
                   ! Add the remaining terms
                   ymass(:) = ymass(:)/gammaRK*dt + Jy_mass(:)
@@ -493,7 +543,7 @@ module mod_solver
                   do ipoin = 1,npoin
                      aux = aux + Q_Ener(ipoin,1)**2
                   end do
-                  Q_Ener(:) = Q_Ener(:)/sqrt(aux)
+                  Q_Ener(:,1) = Q_Ener(:,1)/sqrt(aux)
                   do idime = 1,ndime
                      aux = 0.0
                      do ipoin = 1,npoin
@@ -501,6 +551,7 @@ module mod_solver
                      end do
                      Q_Mom(:,idime,1) = Q_Mom(:,idime,1)/sqrt(aux)
                   end do
+
               end subroutine init_gmres
 
 end module mod_solver
