@@ -468,15 +468,20 @@ module mod_solver
               subroutine init_gmres()
                   implicit none
 
+                  ! Zero Q_* arrays
+                  Q_Mass(:,:) = 0.0
+                  Q_Ener(:,:) = 0.0
+                  Q_Mom(:,:,:) = 0.0
+
                   ! Add the remaining terms
                   ymass(:) = ymass(:)/gammaRK*dt + Jy_mass(:)
                   yener(:) = yener(:)/gammaRK*dt + Jy_ener(:)
                   ymom(:,:) = ymom(:,:)/gammaRK*dt + Jy_mom(:,:)
 
                   ! Compute each r = b-Ax
-                  Q_Mass(:) = bmass(:) - ymass(:)
-                  Q_Ener(:) = bener(:) - yener(:)
-                  Q_Mom(:,:) = bmom(:,:) - ymom(:,:)
+                  Q_Mass(:,1) = bmass(:) - ymass(:)
+                  Q_Ener(:,1) = bener(:) - yener(:)
+                  Q_Mom(:,:,1) = bmom(:,:) - ymom(:,:)
 
                   ! Normalize each residual
                   aux = 0.0
