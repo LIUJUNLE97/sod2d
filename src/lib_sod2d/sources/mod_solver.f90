@@ -468,6 +468,8 @@ module mod_solver
                   ! Initialize the solver
                   call init_gmres(npoin,npoin_w,lpoin_w,bmass,bmom,bener,dt,gammaRK)
 
+
+#if 1
                   ! Start iterations
                   outer:do ik = 1,maxIter
 
@@ -546,7 +548,7 @@ module mod_solver
                         end do
                      end do
                   end do outer
-
+#endif
                   ! If memory not needed anymore, deallocate arrays
                   if (flag_gmres_mem_free .eqv. .true.) then
                      deallocate(Jy_mass, Jy_mom, Jy_ener)
@@ -936,24 +938,23 @@ module mod_solver
 
                   call MPI_Allreduce(aux,aux2,5,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
                   
-                  !$acc parrallel loop
+                  beta_mass(1) = sqrt(aux2(1))*e1_mass(1)
+                  beta_ener(1) = sqrt(aux2(2))*e1_ener(1)
+                  !$acc parallel loop
                   do ipoin = 1,npoin_w
-                     beta_mass(lpoin_w(ipoin)) = sqrt(aux2(1))*e1_mass(lpoin_w(ipoin))
-                     beta_ener(lpoin_w(ipoin)) = sqrt(aux2(2))*e1_ener(lpoin_w(ipoin))
                      Q_Mass(lpoin_w(ipoin),1) = Q_Mass(lpoin_w(ipoin),1)/sqrt(aux2(1))
                      Q_Ener(lpoin_w(ipoin),1) = Q_Ener(lpoin_w(ipoin),1)/sqrt(aux2(2))
                   end do
                   !$acc end parallel loop
 
-                  !$acc paralllel loop collapse(2)
+                  !$acc parallel loop collapse(2)
                   do idime = 1,ndime
+                     beta_mom(1,idime) = sqrt(aux2(idime+2))*e1_mom(1,idime)
                      do ipoin = 1,npoin_w
-                        beta_mom(lpoin_w(ipoin),idime) = sqrt(aux2(idime+2))*e1_mom(lpoin_w(ipoin),idime)
                         Q_Mom(lpoin_w(ipoin),idime,1) = Q_Mom(lpoin_w(ipoin),idime,1)/sqrt(aux2(idime+2))
                      end do
                   end do
                   !$acc end parallel loop
-
               end subroutine init_gmres
 
 end module mod_solver
