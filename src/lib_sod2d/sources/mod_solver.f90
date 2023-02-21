@@ -505,8 +505,11 @@ module mod_solver
                   
               end subroutine arnoldi_iter
 
-              subroutine apply_givens_rotation()
+              subroutine apply_givens_rotation(ik)
                   implicit none
+                  integer(4), intent(in) :: ik
+                  integer(4)             :: jk, idime
+                  real(4)                :: aux
 
                   ! Modify the ik_th column of H_* matrices
                   do jk = 1,ik-1
@@ -526,14 +529,19 @@ module mod_solver
                   ! Apply the Givens rotation to the ik_th column of H_* matrices
                   call givens_rotation_full(H_mass(ik,ik),H_mass(ik+1,ik), &
                                             H_ener(ik,ik),H_ener(ik+1,ik), &
-                                            H_mom(ik,ik,:),H_mom(ik+1,ik,:), &
-                                            cs_mass,cs_mom,cs_ener, &
-                                            sn_mass,sn_mom,sn_ener,ik)
+                                            H_mom(ik,ik,:),H_mom(ik+1,ik,:),ik)
+
+                  ! Eliiminate the ik+1_th row of H_* matrices
+                  H_mass(ik,ik) = cs_mass(ik)*H_mass(ik,ik) + sn_mass(ik)*H_mass(ik+1,ik)
+                  H_mass(ik+1,ik) = 0.0
 
               end subroutine apply_givens_rotation
 
-              subroutine givens_rotation_full()
+              subroutine givens_rotation_full(v1mass,v2mass,v1ener,v2ener,v1mom,v2mom,ik)
                   implicit none
+                  integer(4), intent(in) :: ik
+                  real(4)   , intent(in) :: v1mass,v2mass,v1ener,v2ener,v1mom(ndime),v2mom(ndime)
+                  real(4)                :: tmass,tener
 
                   ! Mass ops.
                   if (v2mass .eq. 0.0) then
