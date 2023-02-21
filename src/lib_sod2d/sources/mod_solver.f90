@@ -534,6 +534,12 @@ module mod_solver
                   ! Eliiminate the ik+1_th row of H_* matrices
                   H_mass(ik,ik) = cs_mass(ik)*H_mass(ik,ik) + sn_mass(ik)*H_mass(ik+1,ik)
                   H_mass(ik+1,ik) = 0.0
+                  H_ener(ik,ik) = cs_ener(ik)*H_ener(ik,ik) + sn_ener(ik)*H_ener(ik+1,ik)
+                  H_ener(ik+1,ik) = 0.0
+                  do idime = 1,ndime
+                     H_mom(ik,ik,idime) = cs_mom(ik,idime)*H_mom(ik,ik,idime) + sn_mom(ik,idime)*H_mom(ik+1,ik,idime)
+                     H_mom(ik+1,ik,idime) = 0.0
+                  end do
 
               end subroutine apply_givens_rotation
 
