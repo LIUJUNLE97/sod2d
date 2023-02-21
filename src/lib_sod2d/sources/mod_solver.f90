@@ -460,7 +460,25 @@ module mod_solver
                      ! Stoppingg criiterion
                      ! TODO: define this
 
-                     ! Update the solution
+                     ! Update the solution (H_* iis upper triangular)
+                     do jk=ik,1,-1
+                        xmass(ik) = beta_mass(ik)/H_mass(jk,jk)
+                        xener(ik) = beta_ener(ik)/H_ener(jk,jk)
+                        do kk = jk-1,1,-1
+                           xmass(kk) = xmass(kk) - H_mass(kk,jk)*xmass(jk)
+                           xener(kk) = xener(kk) - H_ener(kk,jk)*xener(jk)
+                        end do
+                     end do
+                     ! Same for momentum
+                     do idime = 1,ndime
+                        do jk=ik,1,-1
+                           xmom(ik,idime) = beta_mom(ik,idime)/H_mom(jk,jk,idime)
+                           do kk = jk-1,1,-1
+                              xmom(kk,idime) = xmom(kk,idime) - H_mom(kk,jk,idime)*xmom(jk,idime)
+                           end do
+                        end do
+                     end do
+
                   end do
 
                   ! If memory not needed anymore, deallocate arrays
@@ -515,6 +533,7 @@ module mod_solver
                   ! Compute the new H matrix
                   do jk = 1,ik
                      H_mass(jk,ik) = dot_product(Q_mass(:,jk),Q_mass(:,ik+1))
+                     Q_Mass(:,ik+1) = Q_Mass(:,ik+1) - H_mass(jk,ik)*Q_mass(:,jk)
                      H_ener(jk,ik) = dot_product(Q_ener(:,jk),Q_ener(:,ik+1))
                      do idime = 1,ndime
                         H_mom(jk,ik,idime) = dot_product(Q_mom(:,jk,idime),Q_mom(:,ik+1,idime))
