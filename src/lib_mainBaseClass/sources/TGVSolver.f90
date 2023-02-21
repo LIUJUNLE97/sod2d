@@ -45,13 +45,13 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube_per333"
+      write(this%mesh_h5_file_name,*) "cube"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
       this%doGlobalAnalysis = .true.
-      this%doTimerAnalysis = .true.
+      this%doTimerAnalysis = .false.
 
       this%loadResults = .false.
       this%continue_oldLogs = .false.
@@ -65,7 +65,7 @@ contains
       this%nsave2 = 1   ! First step to save, TODO: input
 
       this%nsaveAVG = 1!1000000
-      this%nleap = 10000 ! Saving interval, TODO: input
+      this%nleap = 500 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 25  ! Saving interval, TODO: input
       this%nleapAVG = 2000000000

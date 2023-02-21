@@ -433,6 +433,8 @@ module mod_solver
                   integer(4)                :: ik, jk, kk, ipoin, idime
                   real(rp)                  :: errMax, errTol, aux
 
+                  errTol = tol
+
                   ! Allocate the memory for the gmres solver if not yet allocated
                   if (flag_gmres_mem_alloc .eqv. .true.) then
                      allocate(Jy_mass(npoin), Jy_mom(npoin,ndime), Jy_ener(npoin))
@@ -797,7 +799,7 @@ module mod_solver
                   integer(4), intent(in) :: npoin
                   real(rp)  , intent(in) :: bmass(npoin), bmom(npoin,ndime), bener(npoin), dt, gammaRK
                   integer(4)             :: ipoin, idime
-                  real(rp)               :: aux
+                  real(rp)               :: aux(5),aux2(5)
 
                   ! Zero Q_* arrays
                   Q_Mass(:,:) = 0.0_rp
@@ -836,25 +838,26 @@ module mod_solver
                   Q_Mom(:,:,1) = bmom(:,:) - ymom(:,:)
 
                   ! Normalize each residual
-                  aux = 0.0
+                  aux(:) = 0.0
                   do ipoin = 1,npoin
-                     aux = aux + Q_Mass(ipoin,1)**2
-                  end do
-                  beta_mass(:) = sqrt(aux)*e1_mass(:)
-                  Q_Mass(:,1) = Q_Mass(:,1)/sqrt(aux)
-                  aux = 0.0
-                  do ipoin = 1,npoin
-                     aux = aux + Q_Ener(ipoin,1)**2
-                  end do
-                  beta_ener(:) = sqrt(aux)*e1_ener(:)
-                  Q_Ener(:,1) = Q_Ener(:,1)/sqrt(aux)
-                  do idime = 1,ndime
-                     aux = 0.0
-                     do ipoin = 1,npoin
-                        aux = aux + Q_Mom(ipoin,idime,1)**2
+                     aux(1) = aux(1) + Q_Mass(ipoin,1)**2
+                     aux(2) = aux(2) + Q_Ener(ipoin,1)**2
+                     do idime = 1,ndime
+                        aux(idime+2) = aux(idime+2) + Q_Mom(ipoin,idime,1)**2
                      end do
-                     beta_mom(:,idime) = sqrt(aux)*e1_mom(:,idime)
-                     Q_Mom(:,idime,1) = Q_Mom(:,idime,1)/sqrt(aux)
+                  end do
+
+                  call MPI_Allreduce(aux,aux2,5,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+
+                  beta_mass(:) = sqrt(aux2(1))*e1_mass(:)
+                  beta_ener(:) = sqrt(aux2(2))*e1_ener(:)
+
+                  Q_Mass(:,1) = Q_Mass(:,1)/sqrt(aux2(1))
+                  Q_Ener(:,1) = Q_Ener(:,1)/sqrt(aux2(2))
+
+                  do idime = 1,ndime
+                     beta_mom(:,idime) = sqrt(aux2(idime+2))*e1_mom(:,idime)
+                     Q_Mom(:,idime,1) = Q_Mom(:,idime,1)/sqrt(aux2(idime+2))
                   end do
 
               end subroutine init_gmres

@@ -249,6 +249,12 @@ module time_integ
 
                !Here call Lucas gmres
 
+
+              call gmres_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                                    atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                                    rho(:,1),u(:,:,1),q(:,:,1),pr(:,1),E(:,1),Tem(:,1),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                    gamma_RK,dt,Rmass,Rmom,Rener,Yrho(:,istep),Yq(:,:,istep),YE(:,istep))
+
                !
                ! RK update to variables
                !
