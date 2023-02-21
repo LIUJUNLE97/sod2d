@@ -476,7 +476,7 @@ module mod_solver
                                        gammaRK,dt)
 
                      ! Modify the Hessenberg matrix
-                     !call apply_givens_rotation()
+                     call apply_givens_rotation(ik)
 
                      ! Update the residuals
                      beta_mass(ik+1) = -sn_mass(ik)*beta_mass(ik)
