@@ -566,48 +566,66 @@ module mod_solver
                   real(rp)  , intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus), He(ndime,ndime,ngaus,nelem), Ml(npoin)
                   real(rp)  , intent(in)    :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin),Rgas,gamma_gas, Cp, Prt
                   real(rp)  , intent(in)    :: mu_fluid(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
-                  integer(4)                :: idime, jk
+                  integer(4)                :: idime, jk, ipoin
                   real(rp)                  :: zmass(npoin), zmom(npoin,ndime), zener(npoin),aux(5),aux2(5)
                   
                   ! Compute the new J*Q(:,ik) arrays
+                  !$acc kernels
                   zmass(:) = Q_mass(:,ik)
                   zmom (:,:) = Q_mom(:,:,ik)
                   zener(:) = Q_ener(:,ik)
+                  !$acc end kernels
                   call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                       atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                       rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                                       zmass,zmom,zener,.false.)
 
                   ! Update Jy with the complement
-                  Q_mass(:,ik+1) = Q_mass(:,ik)/(gammaRK*dt) + Jy_mass(:)
-                  Q_ener(:,ik+1) = Q_ener(:,ik)/(gammaRK*dt) + Jy_ener(:)
-                  Q_mom (:,:,ik+1) = Q_mom(:,:,ik)/(gammaRK*dt) + Jy_mom(:,:)
+                  !$acc parallel loop
+                  do ipoin = 1,npoin_w
+                     Jy_mass(lpoin_w(ipoin)) = Jy_mass(lpoin_w(ipoin)) - zmass(lpoin_w(ipoin))
+                     Jy_ener(lpoin_w(ipoin)) = Jy_ener(lpoin_w(ipoin)) - zener(lpoin_w(ipoin))
+                     !$acc loop seq
+                     do idime = 1,ndime
+                        Jy_mom(lpoin_w(ipoin),idime) = Jy_mom(lpoin_w(ipoin),idime) - zmom(lpoin_w(ipoin),idime)
+                     end do
+                  end do
+                  !$acc end parallel loop
 
                   ! Compute the new H matrix
+                  ! TODO: make it gpu friendly
                   do jk = 1,ik
-                     aux(1) = dot_product(Q_mass(:,jk),Q_mass(:,ik+1))
-                     aux(2) = dot_product(Q_ener(:,jk),Q_ener(:,ik+1))
+                     aux(1) = dot_product(Q_mass(lpoin_w(:),jk),Q_mass(lpoin_w(:),ik+1))
+                     aux(2) = dot_product(Q_ener(lpoin_w(:),jk),Q_ener(lpoin_w(:),ik+1))
                      do idime = 1,ndime
-                        aux(idime+2) = dot_product(Q_mom(:,jk,idime),Q_mom(:,ik+1,idime))
+                        aux(idime+2) = dot_product(Q_mom(lpoin_w(:),jk,idime),Q_mom(lpoin_w(:),ik+1,idime))
                      end do
 
                      call MPI_Allreduce(aux,aux2,5,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
                      H_mass(jk,ik) = aux2(1)
-                     Q_Mass(:,ik+1) = Q_Mass(:,ik+1) - H_mass(jk,ik)*Q_Mass(:,jk)
                      H_ener(jk,ik) = aux2(2)
-                     Q_Ener(:,ik+1) = Q_Ener(:,ik+1) - H_Ener(jk,ik)*Q_Ener(:,jk)
+                     !$acc parallel loop
+                     do ipoin = 1,npoin_w
+                        Q_Mass(lpoin_w(ipoin),ik+1) = Q_Mass(lpoin_w(ipoin),ik+1) - H_mass(jk,ik)*Q_Mass(lpoin_w(ipoin),jk)
+                        Q_Ener(lpoin_w(ipoin),ik+1) = Q_Ener(lpoin_w(ipoin),ik+1) - H_Ener(jk,ik)*Q_Ener(lpoin_w(ipoin),jk)
+                     end do
+                     !$acc end parallel loop
                      do idime = 1,ndime
                         H_mom(jk,ik,idime) = aux2(idime+2)
-                        Q_mom(:,ik+1,idime) = Q_mom(:,ik+1,idime) - H_mom(jk,ik,idime)*Q_mom(:,jk,idime)
+                        !$acc parallel loop
+                        do ipoin = 1,npoin_w
+                           Q_Mom(lpoin_w(ipoin),ik+1,idime) = Q_Mom(lpoin_w(ipoin),ik+1,idime) - H_mom(jk,ik,idime)*Q_Mom(lpoin_w(ipoin),jk,idime)
+                        end do
+                        !$acc end parallel loop
                      end do
                   end do
 
                   ! Fill H(ik+1,ik) with the norms of Q(:,ik+1)
-                  aux(1) = dot_product(Q_mass(:,ik+1),Q_mass(:,ik+1))
-                  aux(2) = dot_product(Q_ener(:,ik+1),Q_ener(:,ik+1))
+                  aux(1) = dot_product(Q_mass(lpoin_w(:),ik+1),Q_mass(lpoin_w(:),ik+1))
+                  aux(2) = dot_product(Q_ener(lpoin_w(:),ik+1),Q_ener(lpoin_w(:),ik+1))
                   do idime = 1,ndime
-                     aux(idime+2) = dot_product(Q_mom(:,ik+1,idime),Q_mom(:,ik+1,idime))
+                     aux(idime+2) = dot_product(Q_mom(lpoin_w(:),ik+1,idime),Q_mom(lpoin_w(:),ik+1,idime))
                   end do
 
                   call MPI_Allreduce(aux,aux2,5,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
@@ -619,11 +637,16 @@ module mod_solver
                   end do
 
                   ! Normalize every Q(:,ik+1)
-                  Q_mass(:,ik+1) = Q_mass(:,ik+1)/H_mass(ik+1,ik)
-                  Q_ener(:,ik+1) = Q_ener(:,ik+1)/H_ener(ik+1,ik)
-                  do idime = 1,ndime
-                     Q_mom(:,ik+1,idime) = Q_mom(:,ik+1,idime)/H_mom(ik+1,ik,idime)
+                  !$acc parallel loop
+                  do ipoin = 1,npoin_w
+                     Q_mass(lpoin_w(ipoin),ik+1) = Q_mass(lpoin_w(ipoin),ik+1)/H_mass(ik+1,ik)
+                     Q_ener(lpoin_w(ipoin),ik+1) = Q_ener(lpoin_w(ipoin),ik+1)/H_ener(ik+1,ik)
+                     !$acc loop seq
+                     do idime = 1,ndime
+                        Q_mom(lpoin_w(ipoin),ik+1,idime) = Q_mom(lpoin_w(ipoin),ik+1,idime)/H_mom(ik+1,ik,idime)
+                     end do
                   end do
+                  !$acc end parallel loop
                   
               end subroutine arnoldi_iter
 
@@ -734,7 +757,7 @@ module mod_solver
                   real(rp)  , intent(in) :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin), Rgas,gamma_gas,Cp, Prt
                   real(rp)  , intent(in) :: mu_fluid(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
                   real(rp)  , intent(in) :: zmass(npoin), zener(npoin), zmom(npoin,ndime)
-                  real(rp)                  :: zpres(npoin),zu(npoin,ndime),ztemp(npoin),zeint(npoin)
+                  real(rp)               :: zpres(npoin),zu(npoin,ndime),ztemp(npoin),zeint(npoin)
                   integer(4)             :: idime,ipoin
                   real(rp)  , parameter  :: eps = 1.0e-7
 
@@ -745,21 +768,29 @@ module mod_solver
                      call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
                                              gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u, Tem, &
                                              mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dener)
-                     Rmass_fix(:) = Rmass(:) + Dmass(:)
-                     Rener_fix(:) = Rener(:) + Dener(:)
-                     Rmom_fix(:,:) = Rmom(:,:) + Dmom(:,:)
+                     !$acc parallel loop
+                     do ipoin = 1,npoin_w
+                        Rmass_fix(lpoin_w(ipoin)) = Rmass(lpoin_w(ipoin)) + Dmass(lpoin_w(ipoin))
+                        Rener_fix(lpoin_w(ipoin)) = Rener(lpoin_w(ipoin)) + Dener(lpoin_w(ipoin))
+                        !$acc loop seq
+                        do idime = 1,ndime
+                           Rmom_fix(lpoin_w(ipoin),idime) = Rmom(lpoin_w(ipoin),idime) + Dmom(lpoin_w(ipoin),idime)
+                        end do
+                     end do
+                     !$acc end parallel loop
                   end if
                   !$acc parallel loop
                   do ipoin = 1,npoin_w
                      !$acc loop seq
                      do idime = 1,ndime
-                        zu(lpoin_w(ipoin),idime) = zmom(lpoin_w(ipoin),idime)/zmass(lpoin_w(ipoin))
+                        zu(lpoin_w(ipoin),idime) = zmom(lpoin_w(ipoin),idime)/zmass(lpoin_w(ipoin)) ! TODO: verify this doesnt init to zero
                      end do
                      zeint(lpoin_w(ipoin)) = (zener(lpoin_w(ipoin))/zmass(lpoin_w(ipoin)))- &
                         0.5_rp*dot_product(zu(lpoin_w(ipoin),:),zu(lpoin_w(ipoin),:))
                      zpres(lpoin_w(ipoin)) = zmass(lpoin_w(ipoin))*(gamma_gas-1.0_rp)*zeint(lpoin_w(ipoin))
                      ztemp(lpoin_w(ipoin)) = zpres(lpoin_w(ipoin))/(zmass(lpoin_w(ipoin))*Rgas)
                   end do
+                  !$acc end parallel loop
 
                   ! Form the R(u^n + eps*y0) arrays
                   call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
@@ -767,14 +798,28 @@ module mod_solver
                   call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
                                           gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+eps*zmass, u+eps*zu, Tem+eps*ztemp, &
                                           mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dener)
-                  Rmass(:) = Rmass(:) + Dmass(:)
-                  Rener(:) = Rener(:) + Dener(:)
-                  Rmom(:,:) = Rmom(:,:) + Dmom(:,:)
+                  !$acc parallel loop
+                  do ipoin = 1,npoin_w
+                     Rmass(lpoin_w(ipoin)) = Rmass(lpoin_w(ipoin)) + Dmass(lpoin_w(ipoin))
+                     Rener(lpoin_w(ipoin)) = Rener(lpoin_w(ipoin)) + Dener(lpoin_w(ipoin))
+                     !$acc loop seq
+                     do idime = 1,ndime
+                        Rmom(lpoin_w(ipoin),idime) = Rmom(lpoin_w(ipoin),idime) + Dmom(lpoin_w(ipoin),idime)
+                     end do
+                  end do
+                  !$acc end parallel loop
 
                   ! Form the J*y arrays
-                  Jy_mass(:) = (Rmass(:) - Rmass_fix(:))/eps
-                  Jy_ener(:) = (Rener(:) - Rener_fix(:))/eps
-                  Jy_mom(:,:) = (Rmom(:,:) - Rmom_fix(:,:))/eps
+                  !$acc parallel loop
+                  do ipoin = 1,npoin_w
+                     Jy_mass(lpoin_w(ipoin)) = (Rmass(lpoin_w(ipoin)) - Rmass_fix(lpoin_w(ipoin)))/eps
+                     Jy_ener(lpoin_w(ipoin)) = (Rener(lpoin_w(ipoin)) - Rener_fix(lpoin_w(ipoin)))/eps
+                     !$acc loop seq
+                     do idime = 1,ndime
+                        Jy_mom(lpoin_w(ipoin),idime) = (Rmom(lpoin_w(ipoin),idime) - Rmom_fix(lpoin_w(ipoin),idime))/eps
+                     end do
+                  end do
+                  !$acc end parallel loop
 
                   ! Communicate before applying ML
                   if(mpi_size.ge.2) then
@@ -782,7 +827,7 @@ module mod_solver
                      call mpi_halo_atomic_update_float(Jy_mass)
                      call mpi_halo_atomic_update_float(Jy_ener)
                      do idime = 1,ndime
-                        call mpi_halo_atomic_update_float(Jy_mom(:,idime))
+                        call mpi_halo_atomic_update_float(Jy_mom(:,idime)) ! TODO: need to pass the fulll aray?
                      end do
                      call nvtxEndRange
                   end if
@@ -802,27 +847,35 @@ module mod_solver
                   real(rp)               :: aux(5),aux2(5)
 
                   ! Zero Q_* arrays
+                  !$acc kernels
                   Q_Mass(:,:) = 0.0_rp
                   Q_Ener(:,:) = 0.0_rp
                   Q_Mom(:,:,:) = 0.0_rp
+                  !$acc end kernels
 
                   ! Zero cs and sn arrays
+                  !$acc kernels
                   cs_mass(:) = 0.0_rp
                   cs_ener(:) = 0.0_rp
                   cs_mom(:,:) = 0.0_rp
                   sn_mass(:) = 0.0_rp
                   sn_ener(:) = 0.0_rp
                   sn_mom(:,:) = 0.0_rp
+                  !$acc end kernels
 
                   ! Zero H_* mmatrices
+                  !$acc kernels
                   H_Mass(:,:) = 0.0_rp
                   H_Ener(:,:) = 0.0_rp
                   H_Mom(:,:,:) = 0.0_rp
+                  !$acc end kernels
 
                   ! Initialize e1_* arrays
+                  !$acc kernels
                   e1_mass(:) = 0.0_rp
                   e1_ener(:) = 0.0_rp
                   e1_mom(:,:) = 0.0_rp
+                  !$acc end kernels
                   e1_mass(1) = 1.0_rp
                   e1_ener(1) = 1.0_rp
                   e1_mom(1,:) = 1.0_rp
@@ -852,6 +905,7 @@ module mod_solver
                   !$acc end parallel loop
 
                   ! Normalize each residual
+                  ! TODO: make it GPU compatible without using atomic update
                   aux(:) = 0.0
                   do ipoin = 1,npoin_w
                      aux(1) = aux(1) + Q_Mass(lpoin_w(ipoin),1)**2
@@ -863,12 +917,14 @@ module mod_solver
 
                   call MPI_Allreduce(aux,aux2,5,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
                   
+                  !$acc parrallel loop
                   do ipoin = 1,npoin_w
                      beta_mass(lpoin_w(ipoin)) = sqrt(aux2(1))*e1_mass(lpoin_w(ipoin))
                      beta_ener(lpoin_w(ipoin)) = sqrt(aux2(2))*e1_ener(lpoin_w(ipoin))
                      Q_Mass(lpoin_w(ipoin),1) = Q_Mass(lpoin_w(ipoin),1)/sqrt(aux2(1))
                      Q_Ener(lpoin_w(ipoin),1) = Q_Ener(lpoin_w(ipoin),1)/sqrt(aux2(2))
                   end do
+                  !$acc end parallel loop
 
                   !$acc paralllel loop collapse(2)
                   do idime = 1,ndime
