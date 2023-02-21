@@ -460,24 +460,29 @@ module mod_solver
                   !$acc end parallel loop
 
                   ! Form the approximate inv(Ml)*J*y for all equations
+                  print*, "Forming Jacobian at gmres_full"
                   call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                       atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                       rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                                       ymass,ymom,yener,.true.)
 
                   ! Initialize the solver
+                  print*, "Initializing gmres at gmres_full"
                   call init_gmres(npoin,npoin_w,lpoin_w,bmass,bmom,bener,dt,gammaRK)
 
                   ! Start iterations
+                  print*, "Starting iterations at gmres_full"
                   outer:do ik = 1,maxIter
 
                      ! Compute Q(:,ik+1) and H(1:ik+1,ik)
+                     print*, "Calling arnoldi_iter at gmres_full"
                      call arnoldi_iter(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                        atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                        rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                                        gammaRK,dt)
 
                      ! Modify the Hessenberg matrix
+                     print*, "Calling apply_givens_rotation at gmres_full"
                      call apply_givens_rotation(ik)
 
                      ! Update the residuals
@@ -507,6 +512,7 @@ module mod_solver
                      end if
 
                      ! Update the solution (H_* iis upper triangular)
+                     print*, "Performing back propagation at gmres_full"
                      do jk=ik,1,-1
                         xmass(ik) = beta_mass(ik)/H_mass(jk,jk)
                         xener(ik) = beta_ener(ik)/H_ener(jk,jk)
@@ -526,6 +532,7 @@ module mod_solver
                      end do
 
                      ! Update solution
+                     print*, "Updating solution at gmres_full"
                      do ipoin = 1,npoin_w
                         aux = 0.0_rp
                         do kk = 1,ik
