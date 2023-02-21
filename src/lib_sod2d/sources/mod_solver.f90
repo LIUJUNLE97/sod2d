@@ -536,7 +536,7 @@ module mod_solver
                   real(rp)  , intent(in)    :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin),Rgas,gamma_gas, Cp, Prt
                   real(rp)  , intent(in)    :: mu_fluid(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
                   integer(4)                :: idime, jk
-                  real(rp)                  :: zmass(npoin), zmom(npoin,ndime), zener(npoin)
+                  real(rp)                  :: zmass(npoin), zmom(npoin,ndime), zener(npoin),aux(5),aux2(5)
                   
                   ! Compute the new J*Q(:,ik) arrays
                   zmass(:) = Q_mass(:,ik)
@@ -555,19 +555,37 @@ module mod_solver
 
                   ! Compute the new H matrix
                   do jk = 1,ik
-                     H_mass(jk,ik) = dot_product(Q_mass(:,jk),Q_mass(:,ik+1))
-                     Q_Mass(:,ik+1) = Q_Mass(:,ik+1) - H_mass(jk,ik)*Q_mass(:,jk)
-                     H_ener(jk,ik) = dot_product(Q_ener(:,jk),Q_ener(:,ik+1))
+                     aux(1) = dot_product(Q_mass(:,jk),Q_mass(:,ik+1))
+                     aux(2) = dot_product(Q_ener(:,jk),Q_ener(:,ik+1))
                      do idime = 1,ndime
-                        H_mom(jk,ik,idime) = dot_product(Q_mom(:,jk,idime),Q_mom(:,ik+1,idime))
+                        aux(idime+2) = dot_product(Q_mom(:,jk,idime),Q_mom(:,ik+1,idime))
+                     end do
+
+                     call MPI_Allreduce(aux,aux2,5,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+
+                     H_mass(jk,ik) = aux2(1)
+                     Q_Mass(:,ik+1) = Q_Mass(:,ik+1) - H_mass(jk,ik)*Q_Mass(:,jk)
+                     H_ener(jk,ik) = aux2(2)
+                     Q_Ener(:,ik+1) = Q_Ener(:,ik+1) - H_Ener(jk,ik)*Q_Ener(:,jk)
+                     do idime = 1,ndime
+                        H_mom(jk,ik,idime) = aux2(idime+2)
+                        Q_mom(:,ik+1,idime) = Q_mom(:,ik+1,idime) - H_mom(jk,ik,idime)*Q_mom(:,jk,idime)
                      end do
                   end do
 
                   ! Fill H(ik+1,ik) with the norms of Q(:,ik+1)
-                  H_mass(ik+1,ik) = sqrt(dot_product(Q_mass(:,ik+1),Q_mass(:,ik+1)))
-                  H_ener(ik+1,ik) = sqrt(dot_product(Q_ener(:,ik+1),Q_ener(:,ik+1)))
+                  aux(1) = dot_product(Q_mass(:,ik+1),Q_mass(:,ik+1))
+                  aux(2) = dot_product(Q_ener(:,ik+1),Q_ener(:,ik+1))
                   do idime = 1,ndime
-                     H_mom(ik+1,ik,idime) = sqrt(dot_product(Q_mom(:,ik+1,idime),Q_mom(:,ik+1,idime)))
+                     aux(idime+2) = dot_product(Q_mom(:,ik+1,idime),Q_mom(:,ik+1,idime))
+                  end do
+
+                  call MPI_Allreduce(aux,aux2,5,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+
+                  H_mass(ik+1,ik) = sqrt(aux2(1))
+                  H_ener(ik+1,ik) = sqrt(aux2(2))
+                  do idime = 1,ndime
+                     H_mom(ik+1,ik,idime) = sqrt(aux2(idime+2))
                   end do
 
                   ! Normalize every Q(:,ik+1)
