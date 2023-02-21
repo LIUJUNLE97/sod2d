@@ -9,6 +9,8 @@ module mod_solver
       !-----------------------------------------------------------------------
       real(rp)  , allocatable, dimension(:)     :: Jy_mass, Jy_ener, ymass, yener
       real(rp)  , allocatable, dimension(:)     :: Rmass_fix, Rener_fix, Dmass, Dener, Rmass, Rener
+      real(rp)  , allocatable, dimension(:)     :: cs_mass, cs_ener, sn_mass, sn_ener
+      real(rp)  , allocatable, dimension(:,:)   :: cs_mom, sn_mom
       real(rp)  , allocatable, dimension(:,:)   :: Jy_mom, ymom, Rmom_fix, Dmom, Rmom
       real(rp)  , allocatable, dimension(:,:)   :: Q_Mass, Q_Ener, H_mass, H_ener
       real(rp)  , allocatable, dimension(:,:,:) :: Q_Mom, H_mom
@@ -414,6 +416,8 @@ module mod_solver
                   if (flag_gmres_mem_alloc .eqv. .true.) then
                      allocate(Jy_mass(npoin), Jy_mom(npoin,ndime), Jy_ener(npoin))
                      allocate(ymass(npoin), ymom(npoin,ndime), yener(npoin))
+                     allocate(cs_mass(npoin), cs_mom(npoin,ndime), cs_ener(npoin))
+                     allocate(sn_mass(npoin), sn_mom(npoin,ndime), sn_ener(npoin))
                      allocate(Rmass_fix(npoin), Rmom_fix(npoin,ndime), Rener_fix(npoin))
                      allocate(Rmass(npoin), Rmom(npoin,ndime), Rener(npoin))
                      allocate(Dmass(npoin), Dmom(npoin,ndime), Dener(npoin))
@@ -431,6 +435,8 @@ module mod_solver
                   if (flag_gmres_mem_free .eqv. .true.) then
                      deallocate(Jy_mass, Jy_mom, Jy_ener)
                      deallocate(ymass, ymom, yener)
+                     deallocate(cs_mass, cs_mom, cs_ener)
+                     deallocate(sn_mass, sn_mom, sn_ener)
                      deallocate(Rmass_fix, Rmom_fix, Rener_fix)
                      deallocate(Rmass, Rmom, Rener)
                      deallocate(Dmass, Dmom, Dener)
@@ -498,6 +504,39 @@ module mod_solver
                   end do
                   
               end subroutine arnoldi_iter
+
+              subroutine apply_givens_rotation()
+                  implicit none
+
+                  ! Modify the ik_th column of H_* matrices
+                  do jk = 1,ik-1
+                     aux = cs(jk)*H_mass(jk,ik) + sn(jk)*H_mass(jk+1,ik)
+                     H_mass(jk+1,ik) = -sn(jk)*H_mass(jk,ik) + cs(jk)*H_mass(jk+1,ik)
+                     H_mass(jk,ik) = aux
+                     aux = cs(jk)*H_ener(jk,ik) + sn(jk)*H_ener(jk+1,ik)
+                     H_ener(jk+1,ik) = -sn(jk)*H_ener(jk,ik) + cs(jk)*H_ener(jk+1,ik)
+                     H_ener(jk,ik) = aux
+                     do idime = 1,ndime
+                        aux = cs(jk)*H_mom(jk,ik,idime) + sn(jk)*H_mom(jk+1,ik,idime)
+                        H_mom(jk+1,ik,idime) = -sn(jk)*H_mom(jk,ik,idime) + cs(jk)*H_mom(jk+1,ik,idime)
+                        H_mom(jk,ik,idime) = aux
+                     end do
+                  end do
+
+                  ! Apply the Givens rotation to the ik_th column of H_* matrices
+                  call givens_rotation_full(H_mass(ik,ik),H_mass(ik+1,ik), &
+                                            H_ener(ik,ik),H_ener(ik+1,ik), &
+                                            H_mom(ik,ik,:),H_mom(ik+1,ik,:), &
+                                            cs,sn,ik)
+
+              end subroutine apply_givens_rotation
+
+              subroutine givens_rotation_full()
+                  implicit none
+                  tmass = sqrt(v1mass**2 + v2mass**2)
+                  cs(ik) = v1mass/tmass
+                  sn(ik) = -v2mass/tmass
+              end subroutine givens_rotation_full
 
               subroutine form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                         atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
