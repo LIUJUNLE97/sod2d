@@ -527,12 +527,21 @@ module mod_solver
 
                      ! Update solution
                      do ipoin = 1,npoin_w
-                        aux = dot_product(Q_Mass(lpoin_w(ipoin),1:ik),xmass(1:ik))
+                        aux = 0.0_rp
+                        do kk = 1,ik
+                           aux = aux + Q_Mass(lpoin_w(ipoin),kk)*xmass(kk)
+                        end do
                         mass_sol(lpoin_w(ipoin)) = mass_sol(lpoin_w(ipoin)) + aux
-                        aux = dot_product(Q_Ener(lpoin_w(ipoin),1:ik),xener(1:ik))
+                        aux = 0.0_rp
+                        do kk = 1,ik
+                           aux = aux + Q_Ener(lpoin_w(ipoin),kk)*xener(kk)
+                        end do
                         ener_sol(lpoin_w(ipoin)) = ener_sol(lpoin_w(ipoin)) + aux
                         do idime = 1,ndime
-                           aux = dot_product(Q_Mom(lpoin_w(ipoin),1:ik,idime),xmom(1:ik,idime))
+                           aux = 0.0_rp
+                           do kk = 1,ik
+                              aux = aux + Q_Mom(lpoin_w(ipoin),kk,idime)*xmom(kk,idime)
+                           end do
                            mom_sol(lpoin_w(ipoin),idime) = mom_sol(lpoin_w(ipoin),idime) + aux
                         end do
                      end do
