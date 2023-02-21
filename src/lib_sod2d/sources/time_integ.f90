@@ -15,6 +15,348 @@ module time_integ
 
       contains
 
+         subroutine implicit_rosenbrock_main(noBoundaries,isWallModelOn,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+                         ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
+                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
+                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term)  ! Optional args
+
+            implicit none
+
+            logical,              intent(in)   :: noBoundaries,isWallModelOn
+            integer(4),           intent(in)    :: flag_predic, flag_emac
+            integer(4),           intent(in)    :: nelem, nboun, npoin
+            integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou),lnbn_nodes(npoin)
+            integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+            integer(4),           intent(in)    :: ppow
+            real(rp),             intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
+            real(rp),             intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
+            real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
+            real(rp),             intent(in)    :: dt, helem(nelem) !helem_l(npoin) TO REVIEW I THINK IS BUG!
+            real(rp),             intent(in)    :: helem_l(nelem,nnode)
+            real(rp),             intent(in)    :: Ml(npoin)
+            real(rp),             intent(in)    :: mu_factor(npoin)
+            real(rp),             intent(in)    :: Rgas, gamma_gas, Cp, Prt
+            real(rp),             intent(inout) :: rho(npoin,2)
+            real(rp),             intent(inout) :: u(npoin,ndime,2)
+            real(rp),             intent(inout) :: q(npoin,ndime,2)
+            real(rp),             intent(inout) :: pr(npoin,2)
+            real(rp),             intent(inout) :: E(npoin,2)
+            real(rp),             intent(inout) :: Tem(npoin,2)
+            real(rp),             intent(inout) :: e_int(npoin,2)
+            real(rp),             intent(inout) :: eta(npoin,2)
+            real(rp),             intent(inout) :: mu_fluid(npoin)
+            real(rp),             intent(inout) :: csound(npoin)
+            real(rp),             intent(inout) :: machno(npoin)
+            real(rp),             intent(inout) :: mu_e(nelem,ngaus)
+            real(rp),             intent(inout) :: mu_sgs(nelem,ngaus)
+            real(rp),             intent(inout) :: kres(npoin)
+            real(rp),             intent(inout) :: etot(npoin)
+            real(rp),             intent(inout) :: au(npoin,ndime)
+            real(rp),             intent(inout) :: ax1(npoin)
+            real(rp),             intent(inout) :: ax2(npoin)
+            real(rp),             intent(inout) :: ax3(npoin)
+            real(rp),             intent(in)    :: coord(npoin,ndime)
+            real(rp),             intent(in)  ::  wgp(ngaus)
+            integer(4),            intent(in)    :: numBoundsWM
+            integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*)
+            integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun), bou_codes_nodes(npoin)
+            integer(4), optional, intent(in)    :: listBoundsWM(*)
+            real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
+            real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime)
+            real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
+            real(rp), optional, intent(in)      :: source_term(npoin,ndime)
+            integer(4)                          :: nstep
+            integer(4)                          :: istep, ipoin,idime,icode,jstep
+            real(rp),    dimension(npoin)       :: Reta, Rrho
+            real(rp),    dimension(4)           :: m_i
+            real(rp),    dimension(4,4)         :: a_ij, c_ij
+            real(rp),    dimension(npoin,ndime) :: aux_u, aux_q,aux_u_wall
+            real(rp),    dimension(npoin)       :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
+            real(rp),    dimension(npoin)       :: Rmass, Rener, alpha
+            real(rp),    dimension(npoin,ndime) :: Rmom, f_eta
+            real(rp),    dimension(npoin,4)       :: Yrho,YE
+            real(rp),    dimension(npoin,ndime,4) :: Yq
+            real(rp)                              :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
+            real(rp)                              :: Aemac(npoin,ndime), Femac(npoin), umag,gamma_RK
+
+            !
+            ! Butcher tableau
+            !
+            call nvtxStartRange("Create tableau")
+            if (flag_rk_order == 2) then
+               nstep = 2
+               gamma_RK = 1.0_rp-sqrt(2.0_rp)*0.5_rp
+
+               a_ij(:,:) = 0.0_rp
+               a_ij(1,2) = 4.0_rp-8.0_rp*gamma_RK
+
+               c_ij(:,:) = 0.0_rp
+
+               m_i = [1.0_rp/gamma_RK * (1.0_rp-1.0_rp/(8.0_rp*gamma_RK)), 1.0_rp/(8.0_rp*gamma_RK**2), 0.0_rp, 0.0_rp]
+            else
+               write(1,*) "--| NOT CODED FOR RK > 2 YET!"
+               stop 1
+            end if
+            call nvtxEndRange
+            !
+            ! Initialize variables to zero
+            !
+            call nvtxStartRange("Initialize variables")
+            !$acc kernels
+            aux_rho(1:npoin) = 0.0_rp
+            aux_u(1:npoin,1:ndime) = 0.0_rp
+            aux_q(1:npoin,1:ndime) = 0.0_rp
+            aux_pr(1:npoin) = 0.0_rp
+            aux_E(1:npoin) = 0.0_rp
+            aux_Tem(1:npoin) = 0.0_rp
+            aux_e_int(1:npoin) = 0.0_rp
+            aux_eta(1:npoin) = 0.0_rp
+            Rdiff_mass(1:npoin) = 0.0_rp
+            Rdiff_mom(1:npoin,1:ndime) = 0.0_rp
+            Rdiff_ener(1:npoin) = 0.0_rp
+            Rmass(1:npoin) = 0.0_rp
+            Rmom(1:npoin,1:ndime) = 0.0_rp
+            Rener(1:npoin) = 0.0_rp
+            Reta(1:npoin) = 0.0_rp
+            Yq(1:npoin,1:ndime,:) = 0.0_rp
+            YE(1:npoin,:) = 0.0_rp
+            Yrho(1:npoin,:) = 0.0_rp
+            !$acc end kernels
+
+            call nvtxEndRange
+            !
+            ! Loop over all RK steps
+            !
+            call nvtxStartRange("Loop over RK steps")
+
+            do istep = 1,nstep
+               !
+               ! Compute variable at substep (y_i = y_n+dt*A_ij*R_j)
+               !
+               call nvtxStartRange("Update aux_*")
+               !$acc parallel loop
+               do ipoin = 1,npoin
+                  aux_rho(ipoin) = rho(ipoin,1)
+                  aux_E(ipoin)   = E(ipoin,1)
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     aux_q(ipoin,idime) = q(ipoin,idime,1)
+                  end do
+                  !$acc loop seq
+                  do jstep=1, istep-1
+                     aux_rho(ipoin) = aux_rho(ipoin) + a_ij(istep,jstep)*Yrho(ipoin,jstep)
+                     aux_E(ipoin)   = aux_E(ipoin)   + a_ij(istep,jstep)*YE(ipoin,jstep)
+                     !$acc loop seq
+                     do idime = 1,ndime
+                        aux_q(ipoin,idime) = aux_q(ipoin,idime) + a_ij(istep,jstep)*Yq(ipoin,idime,jstep)
+                     end do
+                  end do
+               end do
+               !$acc end parallel loop
+               call nvtxEndRange
+
+               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,aux_rho,aux_q,u_buffer)
+
+               !
+               ! Update velocity and equations of state
+               !
+               call nvtxStartRange("Update u and EOS")
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     aux_u(lpoin_w(ipoin),idime) = aux_q(lpoin_w(ipoin),idime)/aux_rho(lpoin_w(ipoin))
+                  end do
+                  aux_e_int(lpoin_w(ipoin)) = (aux_E(lpoin_w(ipoin))/aux_rho(lpoin_w(ipoin)))- &
+                     0.5_rp*dot_product(aux_u(lpoin_w(ipoin),:),aux_u(lpoin_w(ipoin),:))
+                  aux_pr(lpoin_w(ipoin)) = aux_rho(lpoin_w(ipoin))*(gamma_gas-1.0_rp)*aux_e_int(lpoin_w(ipoin))
+                  aux_Tem(lpoin_w(ipoin)) = aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))*Rgas)
+               end do
+               !$acc end parallel loop
+
+               call nvtxEndRange
+
+               !
+               ! Compute viscosities and diffusion
+               !
+               !
+               ! Update viscosity if Sutherland's law is active
+               !
+               if (flag_real_diff == 1 .and. flag_diff_suth == 1) then
+                  call nvtxStartRange("MU_SUT")
+                  call sutherland_viscosity(npoin,aux_Tem,mu_factor,mu_fluid)
+                  call nvtxEndRange
+               end if
+               !
+               ! Compute diffusion terms with values at current substep
+               !
+               call nvtxStartRange("DIFFUSIONS")
+               call full_diffusion_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,aux_rho,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass,Rdiff_mom,Rdiff_ener)
+               call nvtxEndRange
+               !
+               ! Call source term if applicable
+               !
+               if(present(source_term)) then
+                  call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,source_term,Rdiff_mom)
+               end if
+               !
+               ! Evaluate wall models
+     
+               if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
+                  call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK,bou_codes,&
+                     bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),aux_u(:,:),tauw,Rdiff_mom)
+               end if
+               !
+               !
+               ! Compute convective terms
+               !
+               call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_u,aux_q,aux_rho,aux_pr,aux_E,Rmass,Rmom,Rener)
+
+               ! entropy advection
+               !
+               ! Add convection and diffusion terms (Rdiff_* is zero during prediction)
+               !
+               call nvtxStartRange("Add convection and diffusion")
+               !$acc kernels
+               Rmass(:) = -Rmass(:) - Rdiff_mass(:) ! we are missing the cijY that is 0 for now
+               Rener(:) = -Rener(:) - Rdiff_ener(:)
+               Rmom(:,:) = -Rmom(:,:) - Rdiff_mom(:,:)
+               !$acc end kernels
+               call nvtxEndRange
+
+               !TESTING NEW LOCATION FOR MPICOMMS
+               if(mpi_size.ge.2) then
+                  call nvtxStartRange("MPI_comms_tI")
+
+                  call mpi_halo_atomic_update_float(Rmass)
+                  call mpi_halo_atomic_update_float(Rener)
+                  do idime = 1,ndime
+                     call mpi_halo_atomic_update_float(Rmom(:,idime))
+                  end do
+
+                  call nvtxEndRange
+               end if
+
+               !
+               ! Call lumped mass matrix solver
+               !
+               call nvtxStartRange("Call solver")
+               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass)
+               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener)
+               call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom)
+               call nvtxEndRange
+
+               !Here call Lucas gmres
+
+               !
+               ! RK update to variables
+               !
+               call nvtxStartRange("RK_UPDATE")
+               !$acc parallel loop
+               do ipoin = 1,npoin
+                  rho(ipoin,2) = rho(ipoin,2)+m_i(istep)*Yrho(ipoin,istep)
+                  E(ipoin,2) = E(ipoin,2)+m_i(istep)*YE(ipoin,istep)
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     q(ipoin,idime,2) = q(ipoin,idime,2)+m_i(istep)*Yq(ipoin,idime,istep)
+                  end do
+               end do
+               !$acc end parallel loop
+               call nvtxEndRange
+            end do
+            call nvtxEndRange
+
+            if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,rho(:,2),q(:,:,2),u_buffer)
+
+            !
+            ! Apply bcs after update
+            !
+            if (noBoundaries .eqv. .false.) then
+               call nvtxStartRange("BCS_AFTER_UPDATE")
+               call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,rho(:,2),q(:,:,2),u(:,:,2),pr(:,2),E(:,2),u_buffer)
+               call nvtxEndRange
+            end if
+
+            !
+            ! Update velocity and equations of state
+            !
+            call nvtxStartRange("Update u and EOS")
+            
+            !$acc parallel loop
+            do ipoin = 1,npoin_w
+               umag = 0.0_rp
+               !$acc loop seq
+               do idime = 1,ndime
+                  u(lpoin_w(ipoin),idime,2) = q(lpoin_w(ipoin),idime,2)/rho(lpoin_w(ipoin),2)
+                  umag = umag + u(lpoin_w(ipoin),idime,2)**2
+               end do
+               umag = sqrt(umag)
+               e_int(lpoin_w(ipoin),2) = (E(lpoin_w(ipoin),2)/rho(lpoin_w(ipoin),2))- &
+                  0.5_rp*dot_product(u(lpoin_w(ipoin),:,2),u(lpoin_w(ipoin),:,2))
+               pr(lpoin_w(ipoin),2) = rho(lpoin_w(ipoin),2)*(gamma_gas-1.0_rp)*e_int(lpoin_w(ipoin),2)
+               csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),2)/rho(lpoin_w(ipoin),2))
+               machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
+               Tem(lpoin_w(ipoin),2) = pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)*Rgas)
+               eta(lpoin_w(ipoin),2) = (rho(lpoin_w(ipoin),2)/(gamma_gas-1.0_rp))* &
+                  log(pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)**gamma_gas))
+               !$acc loop seq
+               do idime = 1,ndime
+                  f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
+               end do
+            end do
+            !$acc end parallel loop
+
+            call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+               gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta,alpha)
+
+
+            if(mpi_size.ge.2) then
+               call nvtxStartRange("MPI_comms_tI")
+               call mpi_halo_atomic_update_float(Reta)
+               call nvtxEndRange
+            end if
+
+            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
+
+            !$acc parallel loop
+            do ipoin = 1,npoin_w
+               Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+            end do
+            !$acc end parallel loop
+
+            call nvtxEndRange
+            !
+            ! If using Sutherland viscosity model:
+            !
+            if (flag_real_diff == 1 .and. flag_diff_suth == 1) then
+               call nvtxStartRange("Sutherland viscosity")
+               call sutherland_viscosity(npoin,Tem(:,2),mu_factor,mu_fluid)
+               call nvtxEndRange
+            end if
+
+            call nvtxStartRange("Entropy viscosity evaluation")
+            !
+            ! Compute entropy viscosity
+            !
+            call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
+               gamma_gas,rho(:,2),u(:,:,2),csound,Tem(:,2),eta(:,2),helem_l,helem,Ml,mu_e)
+            call nvtxEndRange
+            !
+            ! Compute subgrid viscosity if active
+            !
+            if(flag_les == 1) then
+               call nvtxStartRange("MU_SGS")
+               if(flag_les_ilsa == 1) then
+                  call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
+               else
+                  call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
+               end if
+               call nvtxEndRange
+            end if
+
+         end subroutine implicit_rosenbrock_main
+
          subroutine rk_4_main(noBoundaries,isWallModelOn,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
