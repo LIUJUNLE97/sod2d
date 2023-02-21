@@ -19,6 +19,8 @@ module mod_solver
       real(rp)  , allocatable, dimension(:,:)   :: Jy_mom, ymom, Rmom_fix, Dmom, Rmom
       real(rp)  , allocatable, dimension(:,:)   :: Q_Mass, Q_Ener, H_mass, H_ener
       real(rp)  , allocatable, dimension(:,:,:) :: Q_Mom, H_mom
+      logical                                   :: flag_gmres_mem_alloc=.true.
+      logical                                   :: flag_gmres_mem_free=.false.
 
       contains
 
@@ -415,10 +417,8 @@ module mod_solver
               subroutine gmres_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                     atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                     rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-                                    gammaRK,dt,bmass,bmom,bener,mass_sol,mom_sol,ener_sol,&
-                                    flag_gmres_mem_alloc,flag_gmres_mem_free)
+                                    gammaRK,dt,bmass,bmom,bener,mass_sol,mom_sol,ener_sol)
                   implicit none
-                  logical   , intent(in)    :: flag_gmres_mem_alloc, flag_gmres_mem_free
                   integer(4), intent(in)    :: nelem, npoin, npoin_w, lpoin_w(npoin_w), connec(nelem,nnode)
                   integer(4), intent(in)    :: atoIJK(nnode), invAtoIJK(porder+1,pordder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
                   real(rp)  , intent(in)    :: Ngp(ngaus,nnoode), dNgp(ndime,ngaus,nnode), He(ndime,ndime,ngaus,nelem)
@@ -438,6 +438,7 @@ module mod_solver
                      allocate(Dmass(npoin), Dmom(npoin,ndime), Dener(npoin))
                      allocate(Q_Mass(npoin,maxIter+1), Q_Mom(npoin,ndime,maxIter+1), Q_Ener(npoin,maxIter+1))
                      allocate(H_mass(maxIter+1,maxIter), H_mom(maxIter+1,maxIter,ndime), H_ener(maxIter+1,maxIter))
+                     flag_gmres_mem_alloc = .false.
                   end if
 
                   ! Set y = *_sol
