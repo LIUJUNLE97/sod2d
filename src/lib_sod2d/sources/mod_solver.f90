@@ -594,11 +594,14 @@ module mod_solver
 
                   ! Compute the new H matrix
                   ! TODO: make it gpu friendly
+                  aux(:) = 0.0_rp
                   do jk = 1,ik
-                     aux(1) = dot_product(Q_mass(lpoin_w(:),jk),Q_mass(lpoin_w(:),ik+1))
-                     aux(2) = dot_product(Q_ener(lpoin_w(:),jk),Q_ener(lpoin_w(:),ik+1))
-                     do idime = 1,ndime
-                        aux(idime+2) = dot_product(Q_mom(lpoin_w(:),jk,idime),Q_mom(lpoin_w(:),ik+1,idime))
+                     do ipoin=1,npoin_w
+                        aux(1) = aux(1) + (Q_mass(lpoin_w(ipoin),jk)*Q_mass(lpoin_w(ipoin),ik+1))
+                        aux(2) = aux(2) + (Q_ener(lpoin_w(ipoin),jk)*Q_ener(lpoin_w(ipoin),ik+1))
+                        do idime = 1,ndime
+                           aux(idime+2) = aux(idime+2) + (Q_mom(lpoin_w(ipoin),jk,idime)*Q_mom(lpoin_w(ipoin),ik+1,idime))
+                        end do
                      end do
 
                      call MPI_Allreduce(aux,aux2,5,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
@@ -622,10 +625,13 @@ module mod_solver
                   end do
 
                   ! Fill H(ik+1,ik) with the norms of Q(:,ik+1)
-                  aux(1) = dot_product(Q_mass(lpoin_w(:),ik+1),Q_mass(lpoin_w(:),ik+1))
-                  aux(2) = dot_product(Q_ener(lpoin_w(:),ik+1),Q_ener(lpoin_w(:),ik+1))
-                  do idime = 1,ndime
-                     aux(idime+2) = dot_product(Q_mom(lpoin_w(:),ik+1,idime),Q_mom(lpoin_w(:),ik+1,idime))
+                  aux(:) = 0.0_rp
+                  do ipoin=1,npoin_w
+                     aux(1) = aux(1) + (Q_mass(lpoin_w(ipoin),ik+1)*Q_mass(lpoin_w(ipoin),ik+1))
+                     aux(2) = aux(2) + (Q_ener(lpoin_w(ipoin),ik+1)*Q_ener(lpoin_w(ipoin),ik+1))
+                     do idime = 1,ndime
+                        aux(idime+2) = aux(idime+2) + (Q_mom(lpoin_w(ipoin),ik+1,idime)*Q_mom(lpoin_w(ipoin),ik+1,idime))
+                     end do
                   end do
 
                   call MPI_Allreduce(aux,aux2,5,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)

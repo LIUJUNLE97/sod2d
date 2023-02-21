@@ -119,9 +119,6 @@ module time_integ
             Rmom(1:npoin,1:ndime) = 0.0_rp
             Rener(1:npoin) = 0.0_rp
             Reta(1:npoin) = 0.0_rp
-            Yq(1:npoin,1:ndime,:) = 0.0_rp
-            YE(1:npoin,:) = 0.0_rp
-            Yrho(1:npoin,:) = 0.0_rp
             !$acc end kernels
 
             call nvtxEndRange
@@ -137,11 +134,14 @@ module time_integ
                call nvtxStartRange("Update aux_*")
                !$acc parallel loop
                do ipoin = 1,npoin
+                  Yrho(ipoin,istep) =rho(ipoin,1)
                   aux_rho(ipoin) = rho(ipoin,1)
                   aux_E(ipoin)   = E(ipoin,1)
+                  YE(ipoin,istep) =E(ipoin,1)
                   !$acc loop seq
                   do idime = 1,ndime
                      aux_q(ipoin,idime) = q(ipoin,idime,1)
+                     Yq(ipoin,idime,istep) = q(ipoin,idime,1)
                   end do
                   !$acc loop seq
                   do jstep=1, istep-1
