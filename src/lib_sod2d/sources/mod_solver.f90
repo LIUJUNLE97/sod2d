@@ -466,7 +466,7 @@ module mod_solver
                                       ymass,ymom,yener,.true.)
 
                   ! Initialize the solver
-                  call init_gmres(npoin,bmass,bmom,bener,dt,gammaRK)
+                  call init_gmres(npoin,npoin_w,lpoin_w,bmass,bmom,bener,dt,gammaRK)
 
                   ! Start iterations
                   outer:do ik = 1,maxIter
@@ -833,7 +833,7 @@ module mod_solver
                      ymass(lpoin_w(ipoin)) = ymass(lpoin_w(ipoin))/(gammaRK*dt) + Jy_mass(lpoin_w(ipoin))
                      yener(lpoin_w(ipoin)) = yener(lpoin_w(ipoin))/(gammaRK*dt) + Jy_ener(lpoin_w(ipoin))
                      !$acc loop seq
-                     do idiime = 1,ndime
+                     do idime = 1,ndime
                         ymom(lpoin_w(ipoin),idime) = ymom(lpoin_w(ipoin),idime)/(gammaRK*dt) + Jy_mom(lpoin_w(ipoin),idime)
                      end do
                   end do
