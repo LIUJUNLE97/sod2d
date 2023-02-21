@@ -684,6 +684,19 @@ module mod_solver
                   Q_Ener(:,:) = 0.0_rp
                   Q_Mom(:,:,:) = 0.0_rp
 
+                  ! Zero cs and sn arrays
+                  cs_mass(:) = 0.0_rp
+                  cs_ener(:) = 0.0_rp
+                  cs_mom(:,:) = 0.0_rp
+                  sn_mass(:) = 0.0_rp
+                  sn_ener(:) = 0.0_rp
+                  sn_mom(:,:) = 0.0_rp
+
+                  ! Zero H_* mmatrices
+                  H_Mass(:,:) = 0.0_rp
+                  H_Ener(:,:) = 0.0_rp
+                  H_Mom(:,:,:) = 0.0_rp
+
                   ! Add the remaining terms
                   ymass(:) = ymass(:)/(gammaRK*dt) + Jy_mass(:)
                   yener(:) = yener(:)/(gammaRK*dt) + Jy_ener(:)
