@@ -1,6 +1,8 @@
 module mod_solver
 
       use mod_constants
+      use mod_comms
+      use mod_mpi
       use mod_nvtx
 
       implicit none
@@ -420,14 +422,16 @@ module mod_solver
                                     gammaRK,dt,bmass,bmom,bener,mass_sol,mom_sol,ener_sol)
                   implicit none
                   integer(4), intent(in)    :: nelem, npoin, npoin_w, lpoin_w(npoin_w), connec(nelem,nnode)
-                  integer(4), intent(in)    :: atoIJK(nnode), invAtoIJK(porder+1,pordder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-                  real(rp)  , intent(in)    :: Ngp(ngaus,nnoode), dNgp(ndime,ngaus,nnode), He(ndime,ndime,ngaus,nelem)
+                  integer(4), intent(in)    :: atoIJK(nnode), invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+                  real(rp)  , intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,ngaus,nnode), He(ndime,ndime,ngaus,nelem)
                   real(rp)  , intent(in)    :: gpvol(1,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1), xgp(ngaus,ndime)
                   real(rp)  , intent(in)    :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin)
                   real(rp)  , intent(in)    :: Rgas, gamma_gas, Cp, Prt, gammaRK, dt, Ml(npoin)
-                  real(rp)  , intent(in)    :: mu_fluid(npoin), mu_e(nelemm,nnode), mu_sgs(nelem,nnode)
+                  real(rp)  , intent(in)    :: mu_fluid(npoin), mu_e(nelem,nnode), mu_sgs(nelem,nnode)
                   real(rp)  , intent(in)    :: bmass(npoin), bmom(npoin,ndime), bener(npoin)
                   real(rp)  , intent(inout) :: mass_sol(npoin), mom_sol(npoin,ndime), ener_sol(npoin)
+                  integer(4)                :: ik, jk, kk, ipoin, idime
+                  real(rp)                  :: errMax, errTol, aux
 
                   ! Allocate the memory for the gmres solver if not yet allocated
                   if (flag_gmres_mem_alloc .eqv. .true.) then
@@ -444,7 +448,7 @@ module mod_solver
                   ! Set y = *_sol
                   !$acc parallel loop
                   do ipoin = 1,npoin_w
-                     ymass(lpoin_w(ipoin)>) = mass_sol(lpoin_w(ipoin))
+                     ymass(lpoin_w(ipoin)) = mass_sol(lpoin_w(ipoin))
                      yener(lpoin_w(ipoin)) = ener_sol(lpoin_w(ipoin))
                      !$acc lloop seq
                      do idime = 1,ndime
@@ -457,7 +461,7 @@ module mod_solver
                   call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                       atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                       rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-                                      zmass,zmom,zener,.true.)
+                                      ymass,ymom,yener,.true.)
 
                   ! Initialize the solver
                   call init_gmres(npoin,bmass,bmom,bener,dt,gammaRK)
@@ -496,7 +500,7 @@ module mod_solver
                         errmax = max(errmax,abs(err_mom(idime)))
                      end do
 
-                     if (errmmax .lt. errTol) then
+                     if (errMax .lt. errTol) then
                         exit outer
                      end if
 
@@ -567,7 +571,6 @@ module mod_solver
                   zmass(:) = Q_mass(:,ik)
                   zmom (:,:) = Q_mom(:,:,ik)
                   zener(:) = Q_ener(:,ik)
-                  flag_gmres_form_fix = .false.
                   call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                       atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                       rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
