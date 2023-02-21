@@ -456,6 +456,11 @@ module mod_solver
                         beta_mom(ik,idime) = cs_mom(ik,idime)*beta_mom(ik,idime)
                         err_mom(idime) = abs(beta_mom(ik+1,idime))/norm_bmom(idime)
                      end do
+
+                     ! Stoppingg criiterion
+                     ! TODO: define this
+
+                     ! Update the solution
                   end do
 
                   ! If memory not needed anymore, deallocate arrays
