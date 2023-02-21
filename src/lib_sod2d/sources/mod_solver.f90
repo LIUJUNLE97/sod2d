@@ -794,9 +794,9 @@ module mod_solver
 
               end subroutine form_approx_Jy
 
-              subroutine init_gmres(npoin, bmass, bmom, bener, dt, gammaRK)
+              subroutine init_gmres(npoin,npoin_w,lpoin_w,bmass,bmom,bener,dt,gammaRK)
                   implicit none
-                  integer(4), intent(in) :: npoin
+                  integer(4), intent(in) :: npoin, npoin_w, lpoin_w(npoin_w)
                   real(rp)  , intent(in) :: bmass(npoin), bmom(npoin,ndime), bener(npoin), dt, gammaRK
                   integer(4)             :: ipoin, idime
                   real(rp)               :: aux(5),aux2(5)
@@ -828,37 +828,56 @@ module mod_solver
                   e1_mom(1,:) = 1.0_rp
 
                   ! Add the remaining terms too form thhe L*y arrays
-                  ymass(:) = ymass(:)/(gammaRK*dt) + Jy_mass(:)
-                  yener(:) = yener(:)/(gammaRK*dt) + Jy_ener(:)
-                  ymom(:,:) = ymom(:,:)/(gammaRK*dt) + Jy_mom(:,:)
+                  !$acc parallel loop
+                  do ipoin = 1,npoin_w
+                     ymass(lpoin_w(ipoin)) = ymass(lpoin_w(ipoin))/(gammaRK*dt) + Jy_mass(lpoin_w(ipoin))
+                     yener(lpoin_w(ipoin)) = yener(lpoin_w(ipoin))/(gammaRK*dt) + Jy_ener(lpoin_w(ipoin))
+                     !$acc loop seq
+                     do idiime = 1,ndime
+                        ymom(lpoin_w(ipoin),idime) = ymom(lpoin_w(ipoin),idime)/(gammaRK*dt) + Jy_mom(lpoin_w(ipoin),idime)
+                     end do
+                  end do
+                  !$acc end parallel loop
 
                   ! Compute each r = b-Ax
-                  Q_Mass(:,1) = bmass(:) - ymass(:)
-                  Q_Ener(:,1) = bener(:) - yener(:)
-                  Q_Mom(:,:,1) = bmom(:,:) - ymom(:,:)
+                  !$acc parallel loop
+                  do ipoin = 1,npoin_w
+                     Q_Mass(lpoin_w(ipoin),1) = bmass(lpoin_w(ipoin)) - ymass(lpoin_w(ipoin))
+                     Q_Ener(lpoin_w(ipoin),1) = bener(lpoin_w(ipoin)) - yener(lpoin_w(ipoin))
+                     !$acc loop seq
+                     do idime = 1,ndime
+                        Q_Mom(lpoin_w(ipoin),idime,1) = bmom(lpoin_w(ipoin),idime) - ymom(lpoin_w(ipoin),idime)
+                     end do
+                  end do
+                  !$acc end parallel loop
 
                   ! Normalize each residual
                   aux(:) = 0.0
-                  do ipoin = 1,npoin
-                     aux(1) = aux(1) + Q_Mass(ipoin,1)**2
-                     aux(2) = aux(2) + Q_Ener(ipoin,1)**2
+                  do ipoin = 1,npoin_w
+                     aux(1) = aux(1) + Q_Mass(lpoin_w(ipoin),1)**2
+                     aux(2) = aux(2) + Q_Ener(lpoin_w(ipoin),1)**2
                      do idime = 1,ndime
-                        aux(idime+2) = aux(idime+2) + Q_Mom(ipoin,idime,1)**2
+                        aux(idime+2) = aux(idime+2) + Q_Mom(lpoin_w(ipoin),idime,1)**2
                      end do
                   end do
 
                   call MPI_Allreduce(aux,aux2,5,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
-
-                  beta_mass(:) = sqrt(aux2(1))*e1_mass(:)
-                  beta_ener(:) = sqrt(aux2(2))*e1_ener(:)
-
-                  Q_Mass(:,1) = Q_Mass(:,1)/sqrt(aux2(1))
-                  Q_Ener(:,1) = Q_Ener(:,1)/sqrt(aux2(2))
-
-                  do idime = 1,ndime
-                     beta_mom(:,idime) = sqrt(aux2(idime+2))*e1_mom(:,idime)
-                     Q_Mom(:,idime,1) = Q_Mom(:,idime,1)/sqrt(aux2(idime+2))
+                  
+                  do ipoin = 1,npoin_w
+                     beta_mass(lpoin_w(ipoin)) = sqrt(aux2(1))*e1_mass(lpoin_w(ipoin))
+                     beta_ener(lpoin_w(ipoin)) = sqrt(aux2(2))*e1_ener(lpoin_w(ipoin))
+                     Q_Mass(lpoin_w(ipoin),1) = Q_Mass(lpoin_w(ipoin),1)/sqrt(aux2(1))
+                     Q_Ener(lpoin_w(ipoin),1) = Q_Ener(lpoin_w(ipoin),1)/sqrt(aux2(2))
                   end do
+
+                  !$acc paralllel loop collapse(2)
+                  do idime = 1,ndime
+                     do ipoin = 1,npoin_w
+                        beta_mom(lpoin_w(ipoin),idime) = sqrt(aux2(idime+2))*e1_mom(lpoin_w(ipoin),idime)
+                        Q_Mom(lpoin_w(ipoin),idime,1) = Q_Mom(lpoin_w(ipoin),idime,1)/sqrt(aux2(idime+2))
+                     end do
+                  end do
+                  !$acc end parallel loop
 
               end subroutine init_gmres
 
