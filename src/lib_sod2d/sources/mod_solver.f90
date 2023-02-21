@@ -7,7 +7,6 @@ module mod_solver
       !-----------------------------------------------------------------------
       ! Creating variables for the GMRES solver
       !-----------------------------------------------------------------------
-      integer(4), parameter                     :: maxIter=5
       real(rp)  , allocatable, dimension(:)     :: Jy_mass, Jy_ener, ymass, yener
       real(rp)  , allocatable, dimension(:)     :: Rmass_fix, Rener_fix, Dmass, Dener, Rmass, Rener
       real(rp)  , allocatable, dimension(:,:)   :: Jy_mom, ymom, Rmom_fix, Dmom, Rmom
@@ -408,7 +407,7 @@ module mod_solver
 
               subroutine gmres_full(npoin, flag_gmres_mem_alloc, flag_gmres_mem_free)
                   implicit none
-                  logical   , intent(in)    :: flag_gmres_mem_alloc, flag_gmres_mem_free
+                  logical   , intent(in) :: flag_gmres_mem_alloc, flag_gmres_mem_free
                   integer(4), intent(in) :: npoin
 
                   ! Allocate the memory for the gmres solver if not yet allocated
@@ -444,11 +443,21 @@ module mod_solver
               ! Auxiliary routines for the gmres solver
               !-----------------------------------------------------------------------
 
-              subroutine arnoldi_iter(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+              subroutine arnoldi_iter(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                       atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                       rho,u,q,pr,E,Tem,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-                                      gammaRK,dt)
+                                      gammaRK,dt,flag_gmres_form_fix)
                   implicit none
+                  logical   , intent(inout) :: flag_gmres_form_fix
+                  integer(4), intent(in)    :: ik
+                  integer(4), intent(in)    :: nelem, npoin, npoin_w, atoIJK(nnode), invAtoIJK(porder+1,porder+1,porder+1)
+                  integer(4), intent(in)    :: connec(nelem,nnode), lpoin_w(npoin_w), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+                  real(rp)  , intent(in)    :: gammaRK, dt, gpvol(1,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1), xgp(ngaus,ndime)
+                  real(rp)  , intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus), He(ndime,ndime,ngaus,nelem), Ml(npoin)
+                  real(rp)  , intent(in)    :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin), Cp, Prt
+                  real(rp)  , intent(in)    :: mu_fluid(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
+                  integer(4)                :: idime, jk
+                  real(rp)                  :: zmass(npoin), zmom(npoin,ndime), zener(npoin)
                   
                   ! Compute the new J*Q(:,ik) arrays
                   zmass(:) = Q_mass(:,ik)
