@@ -513,15 +513,15 @@ module mod_solver
 
                   ! Modify the ik_th column of H_* matrices
                   do jk = 1,ik-1
-                     aux = cs(jk)*H_mass(jk,ik) + sn(jk)*H_mass(jk+1,ik)
-                     H_mass(jk+1,ik) = -sn(jk)*H_mass(jk,ik) + cs(jk)*H_mass(jk+1,ik)
+                     aux = cs_mass(jk)*H_mass(jk,ik) + sn_mass(jk)*H_mass(jk+1,ik)
+                     H_mass(jk+1,ik) = -sn_mass(jk)*H_mass(jk,ik) + cs_mass(jk)*H_mass(jk+1,ik)
                      H_mass(jk,ik) = aux
-                     aux = cs(jk)*H_ener(jk,ik) + sn(jk)*H_ener(jk+1,ik)
-                     H_ener(jk+1,ik) = -sn(jk)*H_ener(jk,ik) + cs(jk)*H_ener(jk+1,ik)
+                     aux = cs_ener(jk)*H_ener(jk,ik) + sn_ener(jk)*H_ener(jk+1,ik)
+                     H_ener(jk+1,ik) = -sn_ener(jk)*H_ener(jk,ik) + cs_ener(jk)*H_ener(jk+1,ik)
                      H_ener(jk,ik) = aux
                      do idime = 1,ndime
-                        aux = cs(jk)*H_mom(jk,ik,idime) + sn(jk)*H_mom(jk+1,ik,idime)
-                        H_mom(jk+1,ik,idime) = -sn(jk)*H_mom(jk,ik,idime) + cs(jk)*H_mom(jk+1,ik,idime)
+                        aux = cs_mom(jk,idime)*H_mom(jk,ik,idime) + sn_mom(jk,idime)*H_mom(jk+1,ik,idime)
+                        H_mom(jk+1,ik,idime) = -sn_mom(jk,idime)*H_mom(jk,ik,idime) + cs_mom(jk,idime)*H_mom(jk+1,ik,idime)
                         H_mom(jk,ik,idime) = aux
                      end do
                   end do
@@ -541,7 +541,8 @@ module mod_solver
                   implicit none
                   integer(4), intent(in) :: ik
                   real(4)   , intent(in) :: v1mass,v2mass,v1ener,v2ener,v1mom(ndime),v2mom(ndime)
-                  real(4)                :: tmass,tener
+                  integer(4)             :: idime
+                  real(4)                :: tmass,tener,tmom
 
                   ! Mass ops.
                   if (v2mass .eq. 0.0) then
