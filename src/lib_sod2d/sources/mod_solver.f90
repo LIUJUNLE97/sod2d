@@ -440,7 +440,7 @@ module mod_solver
                   !call init_gmres()
 
                   ! Start iterations
-                  do ik = 1,maxIter
+                  outer:do ik = 1,maxIter
 
                      ! Commpute Q(:,ik+1) and H(1:ik+1,ik)
                      !call arnoldi_iter()
@@ -461,8 +461,18 @@ module mod_solver
                         err_mom(idime) = abs(beta_mom(ik+1,idime))/norm_bmom(idime)
                      end do
 
-                     ! Stoppingg criiterion
-                     ! TODO: define this
+                     ! Stopping criterion
+                     ! Get the maximum absolute  error
+                     errmax = 0.0_rp
+                     errmax = max(errmax,abs(err_mass))
+                     errmax = max(errmax,abs(err_ener))
+                     do idime = 1,ndime
+                        errmax = max(errmax,abs(err_mom(idime)))
+                     end do
+
+                     if (errmmax .lt. errTol) then
+                        exit outer
+                     end if
 
                      ! Update the solution (H_* iis upper triangular)
                      do jk=ik,1,-1
@@ -494,7 +504,7 @@ module mod_solver
                            mom_sol(lpoin_w(ipoin),idime) = mom_sol(lpoin_w(ipoin),idime) + aux
                         end do
                      end do
-                  end do
+                  end do outer
 
                   ! If memory not needed anymore, deallocate arrays
                   if (flag_gmres_mem_free .eqv. .true.) then
