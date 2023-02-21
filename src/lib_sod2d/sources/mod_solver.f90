@@ -539,11 +539,46 @@ module mod_solver
                   if (v2mass .eq. 0.0) then
                      cs_mass(ik) = 0.0
                      sn_mass(ik) = 1.0
+                  else if (abs(v2mass) .gt. abs(v1mass)) then
+                     tmass = v1mass/v2mass
+                     sn_mass(ik) = 1.0/sqrt(1.0 + tmass**2)
+                     cs_mass(ik) = tmass*sn_mass(ik)
                   else
-                     tmass = sqrt(v1mass**2 + v2mass**2)
-                     cs_mass(ik) = v1mass/tmass
-                     sn_mass(ik) = v2mass/tmass
+                     tmass = v2mass/v1mass
+                     cs_mass(ik) = 1.0/sqrt(1.0 + tmass**2)
+                     sn_mass(ik) = tmass*cs_mass(ik)
                   end if
+
+                  ! Ener ops.
+                  if (v2ener .eq. 0.0) then
+                     cs_ener(ik) = 0.0
+                     sn_ener(ik) = 1.0
+                  else if (abs(v2ener) .gt. abs(v1ener)) then
+                     tener = v1ener/v2ener
+                     sn_ener(ik) = 1.0/sqrt(1.0 + tener**2)
+                     cs_ener(ik) = tener*sn_ener(ik)
+                  else
+                     tener = v2ener/v1ener
+                     cs_ener(ik) = 1.0/sqrt(1.0 + tener**2)
+                     sn_ener(ik) = tmass*cs_ener(ik)
+                  end if
+
+                  ! Mom ops.
+                  do idime = 1,ndime
+                     if (v2mom(idime) .eq. 0.0) then
+                        cs_mom(ik,idime) = 0.0
+                        sn_mom(ik,idime) = 1.0
+                     else if (abs(v2mom(idime)) .gt. abs(v1mom(idime))) then
+                        tmom = v1mom(idime)/v2mom(idime)
+                        sn_mom(ik,idime) = 1.0/sqrt(1.0 + tmom**2)
+                        cs_mom(ik,idime) = tmom*sn_mom(ik,idime)
+                     else
+                        tmom = v2mom(idime)/v1mom(idime)
+                        cs_mom(ik,idime) = 1.0/sqrt(1.0 + tmom**2)
+                        sn_mom(ik,idime) = tmom*cs_mom(ik,idime)
+                     end if
+                  end do
+
               end subroutine givens_rotation_full
 
               subroutine form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
