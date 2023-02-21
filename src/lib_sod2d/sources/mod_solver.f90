@@ -527,15 +527,23 @@ module mod_solver
                   call givens_rotation_full(H_mass(ik,ik),H_mass(ik+1,ik), &
                                             H_ener(ik,ik),H_ener(ik+1,ik), &
                                             H_mom(ik,ik,:),H_mom(ik+1,ik,:), &
-                                            cs,sn,ik)
+                                            cs_mass,cs_mom,cs_ener, &
+                                            sn_mass,sn_mom,sn_ener,ik)
 
               end subroutine apply_givens_rotation
 
               subroutine givens_rotation_full()
                   implicit none
-                  tmass = sqrt(v1mass**2 + v2mass**2)
-                  cs(ik) = v1mass/tmass
-                  sn(ik) = -v2mass/tmass
+
+                  ! Mass ops.
+                  if (v2mass .eq. 0.0) then
+                     cs_mass(ik) = 0.0
+                     sn_mass(ik) = 1.0
+                  else
+                     tmass = sqrt(v1mass**2 + v2mass**2)
+                     cs_mass(ik) = v1mass/tmass
+                     sn_mass(ik) = v2mass/tmass
+                  end if
               end subroutine givens_rotation_full
 
               subroutine form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
