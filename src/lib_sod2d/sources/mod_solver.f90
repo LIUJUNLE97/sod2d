@@ -412,10 +412,22 @@ module mod_solver
 
               end subroutine conjGrad_vector
 
-              subroutine gmres_full(npoin, flag_gmres_mem_alloc, flag_gmres_mem_free)
+              subroutine gmres_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                                    atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                                    rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                    gammaRK,dt,bmass,bmom,bener,mass_sol,mom_sol,ener_sol,&
+                                    flag_gmres_mem_alloc,flag_gmres_mem_free)
                   implicit none
-                  logical   , intent(in) :: flag_gmres_mem_alloc, flag_gmres_mem_free
-                  integer(4), intent(in) :: npoin
+                  logical   , intent(in)    :: flag_gmres_mem_alloc, flag_gmres_mem_free
+                  integer(4), intent(in)    :: nelem, npoin, npoin_w, lpoin_w(npoin_w), connec(nelem,nnode)
+                  integer(4), intent(in)    :: atoIJK(nnode), invAtoIJK(porder+1,pordder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+                  real(rp)  , intent(in)    :: Ngp(ngaus,nnoode), dNgp(ndime,ngaus,nnode), He(ndime,ndime,ngaus,nelem)
+                  real(rp)  , intent(in)    :: gpvol(1,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1), xgp(ngaus,ndime)
+                  real(rp)  , intent(in)    :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin)
+                  real(rp)  , intent(in)    :: Rgas, gamma_gas, Cp, Prt, gammaRK, dt, Ml(npoin)
+                  real(rp)  , intent(in)    :: mu_fluid(npoin), mu_e(nelemm,nnode), mu_sgs(nelem,nnode)
+                  real(rp)  , intent(in)    :: bmass(npoin), bmom(npoin,ndime), bener(npoin)
+                  real(rp)  , intent(inout) :: mass_sol(npoin), mom_sol(npoin,ndime), ener_sol(npoin)
 
                   ! Allocate the memory for the gmres solver if not yet allocated
                   if (flag_gmres_mem_alloc .eqv. .true.) then
@@ -429,21 +441,34 @@ module mod_solver
                   end if
 
                   ! Set y = *_sol
-                  ymass(:) = mass_sol(:)
-                  ymom(:,:) = mom_sol(:,:)
-                  yener(:) = ener_sol(:)
+                  !$acc parallel loop
+                  do ipoin = 1,npoin_w
+                     ymass(lpoin_w(ipoin)>) = mass_sol(lpoin_w(ipoin))
+                     yener(lpoin_w(ipoin)) = ener_sol(lpoin_w(ipoin))
+                     !$acc lloop seq
+                     do idime = 1,ndime
+                        ymom(lpoin_w(ipoin),idime) = mom_sol(lpoin_w(ipoin),idime)
+                     end do
+                  end do
+                  !$acc end parallel loop
 
                   ! Form the approximate inv(Ml)*J*y for all equations
-                  !call form_approx_Jy()
+                  call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                                      atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                                      rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                      zmass,zmom,zener,.true.)
 
                   ! Initialize the solver
-                  !call init_gmres()
+                  call init_gmres(npoin,bmass,bmom,bener,dt,gammaRK)
 
                   ! Start iterations
                   outer:do ik = 1,maxIter
 
-                     ! Commpute Q(:,ik+1) and H(1:ik+1,ik)
-                     !call arnoldi_iter()
+                     ! Compute Q(:,ik+1) and H(1:ik+1,ik)
+                     call arnoldi_iter(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                                       atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                                       rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                       gammaRK,dt)
 
                      ! Modify the Hessenberg matrix
                      !call apply_givens_rotation()
@@ -525,9 +550,8 @@ module mod_solver
               subroutine arnoldi_iter(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                       atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                       rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-                                      gammaRK,dt,flag_gmres_form_fix)
+                                      gammaRK,dt)
                   implicit none
-                  logical   , intent(inout) :: flag_gmres_form_fix
                   integer(4), intent(in)    :: ik
                   integer(4), intent(in)    :: nelem, npoin, npoin_w, atoIJK(nnode), invAtoIJK(porder+1,porder+1,porder+1)
                   integer(4), intent(in)    :: connec(nelem,nnode), lpoin_w(npoin_w), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
@@ -546,7 +570,7 @@ module mod_solver
                   call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                       atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                       rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-                                      zmass,zmom,zener,flag_gmres_form_fix)
+                                      zmass,zmom,zener,.false.)
 
                   ! Update Jy with the complement
                   Q_mass(:,ik+1) = Q_mass(:,ik)/(gammaRK*dt) + Jy_mass(:)
