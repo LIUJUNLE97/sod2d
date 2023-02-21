@@ -7,6 +7,10 @@ module mod_solver
       !-----------------------------------------------------------------------
       ! Creating variables for the GMRES solver
       !-----------------------------------------------------------------------
+      real(rp)                                  :: norm_bmass, norm_bener, norm_bmom(ndime)
+      real(rp)                                  :: err_mass, err_ener, err_mom(ndime)
+      real(rp)                                  :: e1_mass(maxIter+1), e1_ener(maxIter+1), e1_mom(maxIter+1,ndime)
+      real(rp)                                  :: beta_mass(maxIter+1), beta_ener(maxIter+1), beta_mom(maxIter+1,ndime)
       real(rp)  , allocatable, dimension(:)     :: Jy_mass, Jy_ener, ymass, yener
       real(rp)  , allocatable, dimension(:)     :: Rmass_fix, Rener_fix, Dmass, Dener, Rmass, Rener
       real(rp)  , allocatable, dimension(:)     :: cs_mass, cs_ener, sn_mass, sn_ener
@@ -431,6 +435,19 @@ module mod_solver
                   ! Initialize the solver
                   !call init_gmres()
 
+                  ! Start iterations
+                  do ik = 1,maxIter
+
+                     ! Commpute Q(:,ik+1) and H(1:ik+1,ik)
+                     !call arnoldi_iter()
+
+                     ! Modify the Hessenberg matrix
+                     !call apply_givens_rotation()
+
+                     ! Update the residuals
+                     beta_mass(ik+1) = -sn_mass(ik)*beta_mass(ik)
+                  end do
+
                   ! If memory not needed anymore, deallocate arrays
                   if (flag_gmres_mem_free .eqv. .true.) then
                      deallocate(Jy_mass, Jy_mom, Jy_ener)
@@ -697,7 +714,15 @@ module mod_solver
                   H_Ener(:,:) = 0.0_rp
                   H_Mom(:,:,:) = 0.0_rp
 
-                  ! Add the remaining terms
+                  ! Initialize e1_* arrays
+                  e1_mass(:) = 0.0_rp
+                  e1_ener(:) = 0.0_rp
+                  e1_mom(:,:) = 0.0_rp
+                  e1_mass(1) = 1.0_rp
+                  e1_ener(1) = 1.0_rp
+                  e1_mom(1,:) = 1.0_rp
+
+                  ! Add the remaining terms too form thhe L*y arrays
                   ymass(:) = ymass(:)/(gammaRK*dt) + Jy_mass(:)
                   yener(:) = yener(:)/(gammaRK*dt) + Jy_ener(:)
                   ymom(:,:) = ymom(:,:)/(gammaRK*dt) + Jy_mom(:,:)
@@ -712,17 +737,20 @@ module mod_solver
                   do ipoin = 1,npoin
                      aux = aux + Q_Mass(ipoin,1)**2
                   end do
+                  beta_mass(:) = sqrt(aux)*e1_mass(:)
                   Q_Mass(:,1) = Q_Mass(:,1)/sqrt(aux)
                   aux = 0.0
                   do ipoin = 1,npoin
                      aux = aux + Q_Ener(ipoin,1)**2
                   end do
+                  beta_ener(:) = sqrt(aux)*e1_ener(:)
                   Q_Ener(:,1) = Q_Ener(:,1)/sqrt(aux)
                   do idime = 1,ndime
                      aux = 0.0
                      do ipoin = 1,npoin
                         aux = aux + Q_Mom(ipoin,idime,1)**2
                      end do
+                     beta_mom(:,idime) = sqrt(aux)*e1_mom(:,idime)
                      Q_Mom(:,idime,1) = Q_Mom(:,idime,1)/sqrt(aux)
                   end do
 
