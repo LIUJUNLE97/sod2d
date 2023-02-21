@@ -431,7 +431,7 @@ module mod_solver
                   real(rp)  , intent(in)    :: bmass(npoin), bmom(npoin,ndime), bener(npoin)
                   real(rp)  , intent(inout) :: mass_sol(npoin), mom_sol(npoin,ndime), ener_sol(npoin)
                   integer(4)                :: ik, jk, kk, ipoin, idime
-                  real(rp)                  :: errMax, errTol, aux
+                  real(rp)                  :: errMax, errTol, aux, auxN(5),auxN2(5)
 
                   errTol = tol
 
@@ -448,43 +448,53 @@ module mod_solver
                   end if
 
                   ! Set y = *_sol
+                  auxN(:) = 0.0_rp
                   !$acc parallel loop
                   do ipoin = 1,npoin_w
+                     auxN(1) = auxN(1) + bmass(lpoin_w(ipoin))**2
+                     auxN(2) = auxN(2) + bener(lpoin_w(ipoin))**2
                      ymass(lpoin_w(ipoin)) = mass_sol(lpoin_w(ipoin))
                      yener(lpoin_w(ipoin)) = ener_sol(lpoin_w(ipoin))
                      !$acc lloop seq
                      do idime = 1,ndime
                         ymom(lpoin_w(ipoin),idime) = mom_sol(lpoin_w(ipoin),idime)
+                        auxN(idime+2) = auxN(idime+2) + bmom(lpoin_w(ipoin),idime)**2
                      end do
                   end do
                   !$acc end parallel loop
 
+                  call MPI_Allreduce(auxN,auxN2,5,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+
+                  norm_bmass   = sqrt(auxN2(1))
+                  norm_bener   = sqrt(auxN2(2))
+                  norm_bmom(1) = sqrt(auxN2(3))
+                  norm_bmom(2) = sqrt(auxN2(4))
+                  norm_bmom(3) = sqrt(auxN2(5))
+
                   ! Form the approximate inv(Ml)*J*y for all equations
-                  print*, "Forming Jacobian at gmres_full"
+                  !print*, "Forming Jacobian at gmres_full"
                   call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                       atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                       rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                                       ymass,ymom,yener,.true.)
 
                   ! Initialize the solver
-                  print*, "Initializing gmres at gmres_full"
+                  !print*, "Initializing gmres at gmres_full"
                   call init_gmres(npoin,npoin_w,lpoin_w,bmass,bmom,bener,dt,gammaRK)
 
 
-#if 1
                   ! Start iterations
-                  print*, "Starting iterations at gmres_full"
+                  !print*, "Starting iterations at gmres_full"
                   outer:do ik = 1,maxIter
 
                      ! Compute Q(:,ik+1) and H(1:ik+1,ik)
-                     print*, "Calling arnoldi_iter at gmres_full"
+                     !print*, "Calling arnoldi_iter at gmres_full"
                      call arnoldi_iter(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                        atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                        rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                                        gammaRK,dt)
-
                      ! Modify the Hessenberg matrix
-                     print*, "Calling apply_givens_rotation at gmres_full"
+                     !print*, "Calling apply_givens_rotation at gmres_full"
                      call apply_givens_rotation(ik)
 
                      ! Update the residuals
@@ -514,10 +524,10 @@ module mod_solver
                      end if
 
                      ! Update the solution (H_* iis upper triangular)
-                     print*, "Performing back propagation at gmres_full"
+                     !print*, "Performing back propagation at gmres_full"
                      do jk=ik,1,-1
-                        xmass(ik) = beta_mass(ik)/H_mass(jk,jk)
-                        xener(ik) = beta_ener(ik)/H_ener(jk,jk)
+                        xmass(jk) = beta_mass(jk)/H_mass(jk,jk)
+                        xener(jk) = beta_ener(jk)/H_ener(jk,jk)
                         do kk = jk-1,1,-1
                            xmass(kk) = xmass(kk) - H_mass(kk,jk)*xmass(jk)
                            xener(kk) = xener(kk) - H_ener(kk,jk)*xener(jk)
@@ -526,7 +536,7 @@ module mod_solver
                      ! Same for momentum
                      do idime = 1,ndime
                         do jk=ik,1,-1
-                           xmom(ik,idime) = beta_mom(ik,idime)/H_mom(jk,jk,idime)
+                           xmom(jk,idime) = beta_mom(jk,idime)/H_mom(jk,jk,idime)
                            do kk = jk-1,1,-1
                               xmom(kk,idime) = xmom(kk,idime) - H_mom(kk,jk,idime)*xmom(jk,idime)
                            end do
@@ -534,7 +544,7 @@ module mod_solver
                      end do
 
                      ! Update solution
-                     print*, "Updating solution at gmres_full"
+                     !print*, "Updating solution at gmres_full"
                      do ipoin = 1,npoin_w
                         aux = 0.0_rp
                         do kk = 1,ik
@@ -555,7 +565,7 @@ module mod_solver
                         end do
                      end do
                   end do outer
-#endif
+
                   ! If memory not needed anymore, deallocate arrays
                   if (flag_gmres_mem_free .eqv. .true.) then
                      deallocate(Jy_mass, Jy_mom, Jy_ener)
@@ -601,19 +611,19 @@ module mod_solver
                   ! Update Jy with the complement
                   !$acc parallel loop
                   do ipoin = 1,npoin_w
-                     Jy_mass(lpoin_w(ipoin)) = Jy_mass(lpoin_w(ipoin)) - zmass(lpoin_w(ipoin))
-                     Jy_ener(lpoin_w(ipoin)) = Jy_ener(lpoin_w(ipoin)) - zener(lpoin_w(ipoin))
+                     Q_Mass(lpoin_w(ipoin),ik+1) = ymass(lpoin_w(ipoin))/(gammaRK*dt) + Jy_mass(lpoin_w(ipoin))
+                     Q_Ener(lpoin_w(ipoin),ik+1) = yener(lpoin_w(ipoin))/(gammaRK*dt) + Jy_ener(lpoin_w(ipoin))
                      !$acc loop seq
                      do idime = 1,ndime
-                        Jy_mom(lpoin_w(ipoin),idime) = Jy_mom(lpoin_w(ipoin),idime) - zmom(lpoin_w(ipoin),idime)
+                        Q_Mom(lpoin_w(ipoin),ik+1,idime) = ymom(lpoin_w(ipoin),idime)/(gammaRK*dt) + Jy_mom(lpoin_w(ipoin),idime)
                      end do
                   end do
                   !$acc end parallel loop
 
                   ! Compute the new H matrix
                   ! TODO: make it gpu friendly
-                  aux(:) = 0.0_rp
                   do jk = 1,ik
+                     aux(:) = 0.0_rp
                      do ipoin=1,npoin_w
                         aux(1) = aux(1) + (Q_mass(lpoin_w(ipoin),jk)*Q_mass(lpoin_w(ipoin),ik+1))
                         aux(2) = aux(2) + (Q_ener(lpoin_w(ipoin),jk)*Q_ener(lpoin_w(ipoin),ik+1))
@@ -678,7 +688,7 @@ module mod_solver
                   implicit none
                   integer(4), intent(in) :: ik
                   integer(4)             :: jk, idime
-                  real(4)                :: aux
+                  real(rp)                :: aux
 
                   ! Modify the ik_th column of H_* matrices
                   do jk = 1,ik-1
@@ -715,9 +725,9 @@ module mod_solver
               subroutine givens_rotation_full(v1mass,v2mass,v1ener,v2ener,v1mom,v2mom,ik)
                   implicit none
                   integer(4), intent(in) :: ik
-                  real(4)   , intent(in) :: v1mass,v2mass,v1ener,v2ener,v1mom(ndime),v2mom(ndime)
+                  real(rp)   , intent(in) :: v1mass,v2mass,v1ener,v2ener,v1mom(ndime),v2mom(ndime)
                   integer(4)             :: idime
-                  real(4)                :: tmass,tener,tmom
+                  real(rp)                :: tmass,tener,tmom
 
                   ! Mass ops.
                   if (v2mass .eq. 0.0) then
@@ -783,7 +793,7 @@ module mod_solver
                   real(rp)  , intent(in) :: zmass(npoin), zener(npoin), zmom(npoin,ndime)
                   real(rp)               :: zpres(npoin),zu(npoin,ndime),ztemp(npoin),zeint(npoin)
                   integer(4)             :: idime,ipoin
-                  real(rp)  , parameter  :: eps = 1.0e-7
+                  real(rp)  , parameter  :: eps = 3.0e-4
                   real(rp)               :: aux
 
                   ! Form the R(u^n) arrays if not formed already

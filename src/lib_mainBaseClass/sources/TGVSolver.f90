@@ -67,7 +67,7 @@ contains
       this%nsaveAVG = 1!1000000
       this%nleap = 500 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 25  ! Saving interval, TODO: input
+      this%nleap2 = 1  ! Saving interval, TODO: input
       this%nleapAVG = 2000000000
 
       this%Cp = 1004.0_rp
