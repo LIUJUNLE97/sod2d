@@ -445,7 +445,7 @@ module mod_solver
 
               subroutine arnoldi_iter(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                       atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-                                      rho,u,q,pr,E,Tem,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                      rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                                       gammaRK,dt,flag_gmres_form_fix)
                   implicit none
                   logical   , intent(inout) :: flag_gmres_form_fix
@@ -454,7 +454,7 @@ module mod_solver
                   integer(4), intent(in)    :: connec(nelem,nnode), lpoin_w(npoin_w), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
                   real(rp)  , intent(in)    :: gammaRK, dt, gpvol(1,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1), xgp(ngaus,ndime)
                   real(rp)  , intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus), He(ndime,ndime,ngaus,nelem), Ml(npoin)
-                  real(rp)  , intent(in)    :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin), Cp, Prt
+                  real(rp)  , intent(in)    :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin),Rgas,gamma_gas, Cp, Prt
                   real(rp)  , intent(in)    :: mu_fluid(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
                   integer(4)                :: idime, jk
                   real(rp)                  :: zmass(npoin), zmom(npoin,ndime), zener(npoin)
@@ -466,7 +466,7 @@ module mod_solver
                   flag_gmres_form_fix = .false.
                   call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                       atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-                                      rho,u,q,pr,E,Tem,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                      rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                                       zmass,zmom,zener,flag_gmres_form_fix)
 
                   ! Update Jy with the complement
@@ -501,7 +501,7 @@ module mod_solver
 
               subroutine form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                         atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-                                        rho,u,q,pr,E,Tem,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                        rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                                         zmass,zmom,zener,flag_gmres_form_fix)
                   use mod_comms
                   use elem_convec
@@ -512,10 +512,11 @@ module mod_solver
                   integer(4), intent(in) :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
                   real(rp)  , intent(in) :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus), gpvol(1,ngaus,nelem), xgp(ngaus,ndime)
                   real(rp)  , intent(in) :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1), Ml(npoin)
-                  real(rp)  , intent(in) :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin), Cp, Prt
+                  real(rp)  , intent(in) :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin), Rgas,gamma_gas,Cp, Prt
                   real(rp)  , intent(in) :: mu_fluid(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
                   real(rp)  , intent(in) :: zmass(npoin), zener(npoin), zmom(npoin,ndime)
-                  integer(4)             :: idime
+                  real(rp)                  :: zpres(npoin),zu(npoin,ndime),ztemp(npoin),zeint(npoin)
+                  integer(4)             :: idime,ipoin
                   real(rp)  , parameter  :: eps = 1.0e-7
 
                   ! Form the R(u^n) arrays if not formed already
@@ -529,12 +530,23 @@ module mod_solver
                      Rener_fix(:) = Rener(:) + Dener(:)
                      Rmom_fix(:,:) = Rmom(:,:) + Dmom(:,:)
                   end if
+                  !$acc parallel loop
+                  do ipoin = 1,npoin_w
+                     !$acc loop seq
+                     do idime = 1,ndime
+                        zu(lpoin_w(ipoin),idime) = zmom(lpoin_w(ipoin),idime)/zmass(lpoin_w(ipoin))
+                     end do
+                     zeint(lpoin_w(ipoin)) = (zener(lpoin_w(ipoin))/zmass(lpoin_w(ipoin)))- &
+                        0.5_rp*dot_product(zu(lpoin_w(ipoin),:),zu(lpoin_w(ipoin),:))
+                     zpres(lpoin_w(ipoin)) = zmass(lpoin_w(ipoin))*(gamma_gas-1.0_rp)*zeint(lpoin_w(ipoin))
+                     ztemp(lpoin_w(ipoin)) = zpres(lpoin_w(ipoin))/(zmass(lpoin_w(ipoin))*Rgas)
+                  end do
 
                   ! Form the R(u^n + eps*y0) arrays
                   call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
                                        gmshAtoI, gmshAtoJ, gmshAtoK, u, q+eps*zmom, rho+eps*zmass, pr, E+eps*zener, Rmass, Rmom, Rener)
                   call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                                          gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+eps*zmass, u, Tem, &
+                                          gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+eps*zmass, u+eps*zu, Tem+eps*ztemp, &
                                           mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dener)
                   Rmass(:) = Rmass(:) + Dmass(:)
                   Rener(:) = Rener(:) + Dener(:)
