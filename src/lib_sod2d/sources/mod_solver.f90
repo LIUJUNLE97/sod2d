@@ -446,6 +446,16 @@ module mod_solver
 
                      ! Update the residuals
                      beta_mass(ik+1) = -sn_mass(ik)*beta_mass(ik)
+                     beta_mass(ik) = cs_mass(ik)*beta_mass(ik)
+                     err_mass = abs(beta_mass(ik+1))/norm_bmass
+                     beta_ener(ik+1) = -sn_ener(ik)*beta_ener(ik)
+                     beta_ener(ik) = cs_ener(ik)*beta_ener(ik)
+                     err_ener = abs(beta_ener(ik+1))/norm_bener
+                     do idime = 1,ndime
+                        beta_mom(ik+1,idime) = -sn_mom(ik,idime)*beta_mom(ik,idime)
+                        beta_mom(ik,idime) = cs_mom(ik,idime)*beta_mom(ik,idime)
+                        err_mom(idime) = abs(beta_mom(ik+1,idime))/norm_bmom(idime)
+                     end do
                   end do
 
                   ! If memory not needed anymore, deallocate arrays
@@ -548,7 +558,7 @@ module mod_solver
                                             H_ener(ik,ik),H_ener(ik+1,ik), &
                                             H_mom(ik,ik,:),H_mom(ik+1,ik,:),ik)
 
-                  ! Eliiminate the ik+1_th row of H_* matrices
+                  ! Eliminate the ik+1_th row of H_* matrices
                   H_mass(ik,ik) = cs_mass(ik)*H_mass(ik,ik) + sn_mass(ik)*H_mass(ik+1,ik)
                   H_mass(ik+1,ik) = 0.0
                   H_ener(ik,ik) = cs_ener(ik)*H_ener(ik,ik) + sn_ener(ik)*H_ener(ik+1,ik)
