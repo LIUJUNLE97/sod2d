@@ -428,6 +428,11 @@ module mod_solver
                      allocate(H_mass(maxIter+1,maxIter), H_mom(maxIter+1,maxIter,ndime), H_ener(maxIter+1,maxIter))
                   end if
 
+                  ! Set y = *_sol
+                  ymass(:) = mass_sol(:)
+                  ymom(:,:) = mom_sol(:,:)
+                  yener(:) = ener_sol(:)
+
                   ! Form the approximate inv(Ml)*J*y for all equations
                   !call form_approx_Jy()
 
@@ -478,6 +483,17 @@ module mod_solver
                         end do
                      end do
 
+                     ! Update solution
+                     do ipoin = 1,npoin_w
+                        aux = dot_product(Q_Mass(lpoin_w(ipoin),1:ik),xmass(1:ik))
+                        mass_sol(lpoin_w(ipoin)) = mass_sol(lpoin_w(ipoin)) + aux
+                        aux = dot_product(Q_Ener(lpoin_w(ipoin),1:ik),xener(1:ik))
+                        ener_sol(lpoin_w(ipoin)) = ener_sol(lpoin_w(ipoin)) + aux
+                        do idime = 1,ndime
+                           aux = dot_product(Q_Mom(lpoin_w(ipoin),1:ik,idime),xmom(1:ik,idime))
+                           mom_sol(lpoin_w(ipoin),idime) = mom_sol(lpoin_w(ipoin),idime) + aux
+                        end do
+                     end do
                   end do
 
                   ! If memory not needed anymore, deallocate arrays
