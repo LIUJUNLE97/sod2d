@@ -775,6 +775,7 @@ module mod_solver
                   real(rp)               :: zpres(npoin),zu(npoin,ndime),ztemp(npoin),zeint(npoin)
                   integer(4)             :: idime,ipoin
                   real(rp)  , parameter  :: eps = 1.0e-7
+                  real(rp)               :: aux
 
                   ! Form the R(u^n) arrays if not formed already
                   if (flag_gmres_form_fix .eqv. .true.) then
@@ -800,8 +801,11 @@ module mod_solver
                      do idime = 1,ndime
                         zu(lpoin_w(ipoin),idime) = zmom(lpoin_w(ipoin),idime)/zmass(lpoin_w(ipoin)) ! TODO: verify this doesnt init to zero
                      end do
-                     zeint(lpoin_w(ipoin)) = (zener(lpoin_w(ipoin))/zmass(lpoin_w(ipoin)))- &
-                        0.5_rp*dot_product(zu(lpoin_w(ipoin),:),zu(lpoin_w(ipoin),:))
+                     aux = 0.0
+                     do idime = 1,ndime
+                        aux = aux + zu(lpoin_w(ipoin),idime)**2
+                     end do
+                     zeint(lpoin_w(ipoin)) = (zener(lpoin_w(ipoin))/zmass(lpoin_w(ipoin)))-0.5_rp*aux
                      zpres(lpoin_w(ipoin)) = zmass(lpoin_w(ipoin))*(gamma_gas-1.0_rp)*zeint(lpoin_w(ipoin))
                      ztemp(lpoin_w(ipoin)) = zpres(lpoin_w(ipoin))/(zmass(lpoin_w(ipoin))*Rgas)
                   end do
