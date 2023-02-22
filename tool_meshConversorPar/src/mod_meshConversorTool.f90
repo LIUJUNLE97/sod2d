@@ -4070,7 +4070,7 @@ contains
       !*********************************************************
 
       call set_hex64_lists(atoIJK,listHEX08)
-      call chebyshev_hex(atoIJK,xgp,wgp)
+      call GaussLobattoLegendre_hex(atoIJK,xgp,wgp)
 
       do igaus = 1,ngaus
          s = xgp(igaus,1)

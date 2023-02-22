@@ -655,9 +655,9 @@ contains
       call set_hex64_lists(atoIJK,listHEX08)
       call set_qua16_lists(atoIJ)
 
-      if(mpi_rank.eq.0) write(111,*) "  --| GENERATING CHEBYSHEV TABLE..."
-      call chebyshev_hex(atoIJK,xgp,wgp)
-      call chebyshev_qua(atoIJ,xgp_b,wgp_b)
+      if(mpi_rank.eq.0) write(111,*) "  --| Generating Gauss-Lobatto-Legendre table..."
+      call GaussLobattoLegendre_hex(atoIJK,xgp,wgp)
+      call GaussLobattoLegendre_qua(atoIJ,xgp_b,wgp_b)
 
       call nvtxEndRange
 
