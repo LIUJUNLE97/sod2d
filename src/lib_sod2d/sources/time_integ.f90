@@ -134,14 +134,14 @@ module time_integ
                call nvtxStartRange("Update aux_*")
                !$acc parallel loop
                do ipoin = 1,npoin
-                  Yrho(ipoin,istep) =rho(ipoin,1)
+                  Yrho(ipoin,istep) = 1e-4
                   aux_rho(ipoin) = rho(ipoin,1)
                   aux_E(ipoin)   = E(ipoin,1)
-                  YE(ipoin,istep) =E(ipoin,1)
+                  YE(ipoin,istep) = 1e-4
                   !$acc loop seq
                   do idime = 1,ndime
                      aux_q(ipoin,idime) = q(ipoin,idime,1)
-                     Yq(ipoin,idime,istep) = q(ipoin,idime,1)
+                     Yq(ipoin,idime,istep) = 1e-4
                   end do
                   !$acc loop seq
                   do jstep=1, istep-1

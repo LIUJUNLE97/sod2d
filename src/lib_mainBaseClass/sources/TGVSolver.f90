@@ -57,15 +57,15 @@ contains
       this%continue_oldLogs = .false.
       this%load_step = 8001
 
-      this%nstep = 5001
+      this%nstep = 100
 
-      this%cfl_conv = 0.5_rp
-      this%cfl_diff = 0.5_rp
+      this%cfl_conv = 10.0_rp
+      this%cfl_diff = 10.0_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
 
       this%nsaveAVG = 1!1000000
-      this%nleap = 500 ! Saving interval, TODO: input
+      this%nleap = 5 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 1  ! Saving interval, TODO: input
       this%nleapAVG = 2000000000
