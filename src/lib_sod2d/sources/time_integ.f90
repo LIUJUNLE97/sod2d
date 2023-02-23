@@ -96,7 +96,7 @@ module time_integ
                m_i = [(1.0_rp/gamma_RK)*(1.0_rp-1.0_rp/(8.0_rp*gamma_RK)), 1.0_rp/(8.0_rp*(gamma_RK**2)), 0.0_rp, 0.0_rp]
             else if (flag_rk_order == 4) then
                nstep = 4
-               gamma_RK = 0.0_rp
+               gamma_RK = 0.5_rp
 
                a_ij(:,:) = 0.0_rp
 
@@ -179,12 +179,12 @@ module time_integ
                   do jstep=1, istep-1
                      aux_rho(ipoin) = aux_rho(ipoin) + a_ij(istep,jstep)*Yrho(ipoin,jstep)
                      aux_E(ipoin)   = aux_E(ipoin)   + a_ij(istep,jstep)*YE(ipoin,jstep)
-                     cMass(ipoin) = cMass(ipoin) + c_ij(istep,jstep)*Yrho(ipoin,jstep)
-                     cEner(ipoin)   = cEner(ipoin)   + c_ij(istep,jstep)*YE(ipoin,jstep)
+                     cMass(ipoin) = cMass(ipoin) + c_ij(istep,jstep)*Yrho(ipoin,jstep)/dt
+                     cEner(ipoin)   = cEner(ipoin)   + c_ij(istep,jstep)*YE(ipoin,jstep)/dt
                      !$acc loop seq
                      do idime = 1,ndime
                         aux_q(ipoin,idime) = aux_q(ipoin,idime) + a_ij(istep,jstep)*Yq(ipoin,idime,jstep)
-                        cMom(ipoin,idime) = cMom(ipoin,idime) + c_ij(istep,jstep)*Yq(ipoin,idime,jstep)
+                        cMom(ipoin,idime) = cMom(ipoin,idime) + c_ij(istep,jstep)*Yq(ipoin,idime,jstep)/dt
                      end do
                   end do
                end do
