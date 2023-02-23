@@ -570,7 +570,7 @@ module mod_solver
                            do idime = 1,ndime
                               aux = 0.0_rp
                               do kk = 1,ik
-                                 aux = aux + Q_Mom(lpoin_w(ipoin),kk,idime)*beta_mom(kk,idime)
+                                 aux = aux + Q_Mom(lpoin_w(ipoin),idime,kk)*beta_mom(kk,idime)
                               end do
                               mom_sol(lpoin_w(ipoin),idime) = mom_sol(lpoin_w(ipoin),idime) + aux
                            end do
@@ -617,7 +617,7 @@ module mod_solver
                         do idime = 1,ndime
                            aux = 0.0_rp
                            do kk = 1,maxIter
-                              aux = aux + Q_Mom(lpoin_w(ipoin),kk,idime)*beta_mom(kk,idime)
+                              aux = aux + Q_Mom(lpoin_w(ipoin),idime,kk)*beta_mom(kk,idime)
                            end do
                            mom_sol(lpoin_w(ipoin),idime) = mom_sol(lpoin_w(ipoin),idime) + aux
                         end do
@@ -676,7 +676,7 @@ module mod_solver
                      Q_Ener(lpoin_w(ipoin),ik+1) = zener(lpoin_w(ipoin))/(gammaRK*dt) + Jy_ener(lpoin_w(ipoin))
                      !$acc loop seq
                      do idime = 1,ndime
-                        Q_Mom(lpoin_w(ipoin),ik+1,idime) = zmom(lpoin_w(ipoin),idime)/(gammaRK*dt) + Jy_mom(lpoin_w(ipoin),idime)
+                        Q_Mom(lpoin_w(ipoin),idime,ik+1) = zmom(lpoin_w(ipoin),idime)/(gammaRK*dt) + Jy_mom(lpoin_w(ipoin),idime)
                      end do
                   end do
                   !$acc end parallel loop
@@ -689,7 +689,7 @@ module mod_solver
                         aux(1) = aux(1) + real((Q_mass(lpoin_w(ipoin),jk)*Q_mass(lpoin_w(ipoin),ik+1)),8)
                         aux(2) = aux(2) + real((Q_ener(lpoin_w(ipoin),jk)*Q_ener(lpoin_w(ipoin),ik+1)),8)
                         do idime = 1,ndime
-                           aux(idime+2) = aux(idime+2) + real((Q_mom(lpoin_w(ipoin),jk,idime)*Q_mom(lpoin_w(ipoin),ik+1,idime)),8)
+                           aux(idime+2) = aux(idime+2) + real((Q_mom(lpoin_w(ipoin),idime,jk)*Q_mom(lpoin_w(ipoin),idime,ik+1)),8)
                         end do
                      end do
 
@@ -707,7 +707,7 @@ module mod_solver
                         H_mom(jk,ik,idime) = real(aux2(idime+2),rp)
                         !$acc parallel loop
                         do ipoin = 1,npoin_w
-                           Q_Mom(lpoin_w(ipoin),ik+1,idime) = Q_Mom(lpoin_w(ipoin),ik+1,idime) - H_mom(jk,ik,idime)*Q_Mom(lpoin_w(ipoin),jk,idime)
+                           Q_Mom(lpoin_w(ipoin),idime,ik+1) = Q_Mom(lpoin_w(ipoin),idime,ik+1) - H_mom(jk,ik,idime)*Q_Mom(lpoin_w(ipoin),idime,jk)
                         end do
                         !$acc end parallel loop
                      end do
@@ -719,7 +719,7 @@ module mod_solver
                      aux(1) = aux(1) + real((Q_mass(lpoin_w(ipoin),ik+1)*Q_mass(lpoin_w(ipoin),ik+1)),8)
                      aux(2) = aux(2) + real((Q_ener(lpoin_w(ipoin),ik+1)*Q_ener(lpoin_w(ipoin),ik+1)),8)
                      do idime = 1,ndime
-                        aux(idime+2) = aux(idime+2) + real((Q_mom(lpoin_w(ipoin),ik+1,idime)*Q_mom(lpoin_w(ipoin),ik+1,idime)),8)
+                        aux(idime+2) = aux(idime+2) + real((Q_mom(lpoin_w(ipoin),idime,ik+1)*Q_mom(lpoin_w(ipoin),idime,ik+1)),8)
                      end do
                   end do
 
@@ -738,7 +738,7 @@ module mod_solver
                      Q_ener(lpoin_w(ipoin),ik+1) = Q_ener(lpoin_w(ipoin),ik+1)/H_ener(ik+1,ik)
                      !$acc loop seq
                      do idime = 1,ndime
-                        Q_mom(lpoin_w(ipoin),ik+1,idime) = Q_mom(lpoin_w(ipoin),ik+1,idime)/H_mom(ik+1,ik,idime)
+                        Q_mom(lpoin_w(ipoin),idime,ik+1) = Q_mom(lpoin_w(ipoin),idime,ik+1)/H_mom(ik+1,ik,idime)
                      end do
                   end do
                   !$acc end parallel loop
@@ -856,9 +856,9 @@ module mod_solver
                   real(rp)  , intent(in) :: mu_fluid(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
                   real(rp)  , intent(in) :: zmass(npoin), zener(npoin), zmom(npoin,ndime)
                   real(rp)               :: zpres(npoin),zu(npoin,ndime),ztemp(npoin),zeint(npoin)
-                  real(rp)               :: auxRmass(npoin),auxRmom(npoin,ndime),auxRener(npoin)
+                  real(rp)               :: auxRmass(npoin),auxRmom(npoin,ndime),auxRener(npoin),auxQ(npoin,ndime),auxU(npoin,ndime)
                   integer(4)             :: idime,ipoin
-                  real(rp)  , parameter  :: eps = 1.0e-3
+                  real(rp)  , parameter  :: eps = 1.0e-2
                   real(rp)               :: aux
 
                   ! Form the R(u^n) arrays if not formed already
@@ -879,33 +879,40 @@ module mod_solver
                      end do
                      !$acc end parallel loop
                   end if
-                 !!$acc parallel loop
-                 !do ipoin = 1,npoin_w
-                 !   !$acc loop seq
-                 !   do idime = 1,ndime
-                 !      zu(lpoin_w(ipoin),idime) = zmom(lpoin_w(ipoin),idime)/zmass(lpoin_w(ipoin)) ! TODO: verify this doesnt init to zero
-                 !   end do
-                 !   aux = 0.0
-                 !   do idime = 1,ndime
-                 !      aux = aux + zu(lpoin_w(ipoin),idime)**2
-                 !   end do
-                 !   zeint(lpoin_w(ipoin)) = (zener(lpoin_w(ipoin))/zmass(lpoin_w(ipoin)))-0.5_rp*aux
-                 !   zpres(lpoin_w(ipoin)) = zmass(lpoin_w(ipoin))*(gamma_gas-1.0_rp)*zeint(lpoin_w(ipoin))
-                 !   ztemp(lpoin_w(ipoin)) = zpres(lpoin_w(ipoin))/(zmass(lpoin_w(ipoin))*Rgas)
-                 !end do
-                 !!$acc end parallel loop
 
                   ! Form the R(u^n + eps*y0) arrays
                   call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                                       gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho+eps*zmass, pr, E, Rmass, auxRmom, auxRener)
+                     gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho+eps*zmass, pr, E, Rmass, auxRmom, auxRener)
+
+
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     !$acc kernels
+                     auxU(:,:) = 0.0_rp
+                     auxQ(:,:) = 0.0_rp
+                     !$acc end kernels
+                     !!$acc parallel loop
+                     do ipoin = 1,npoin_w
+                        auxU(lpoin_w(ipoin),idime) = eps*zmom(lpoin_w(ipoin),idime)/rho(lpoin_w(ipoin))
+                        auxQ(lpoin_w(ipoin),idime) = eps*zmom(lpoin_w(ipoin),idime)
+                     end do
+                     call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                        gmshAtoI, gmshAtoJ, gmshAtoK, u+auxU, q+auxQ, rho, pr, E, auxRmass, auxRmom, auxRener)
+                     !!$acc parallel loop
+                     do ipoin = 1,npoin_w
+                        Rmom(lpoin_w(ipoin),idime) = auxRmom(lpoin_w(ipoin),idime)
+                     end do
+                  end do
+
+                  !$acc end parallel loop
+
                   call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                                       gmshAtoI, gmshAtoJ, gmshAtoK, u, q+eps*zmom, rho, pr, E, auxRmass, Rmom, auxRener)
-                  call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                                       gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho, pr, E+eps*zener, auxRmass, auxRmom, Rener)
+                     gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho, pr, E+eps*zener, auxRmass, auxRmom, Rener)
+
                   !call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
                   !                        gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+eps*zmass, u, Tem, &
                   !                        mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dener)
-                  
+
                   !$acc parallel loop
                   do ipoin = 1,npoin_w
                      Rmass(lpoin_w(ipoin)) = Rmass(lpoin_w(ipoin)) !+ Dmass(lpoin_w(ipoin))
