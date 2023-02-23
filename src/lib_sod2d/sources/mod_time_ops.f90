@@ -5,27 +5,51 @@ module mod_time_ops
    use mod_nvtx
    use mod_mpi
 
-   contains
+contains
 
-      subroutine adapt_dt_cfl(nelem,npoin,connec,helem,u,csound,cfl_conv,dt,cfl_diff,mu_fluid,mu_sgs,rho)
+   subroutine adapt_dt_cfl(nelem,npoin,connec,helem,u,csound,cfl_conv,dt,cfl_diff,mu_fluid,mu_sgs,rho)
 
-         implicit none
+      implicit none
 
-         integer(4), intent(in)            :: nelem, npoin, connec(nelem,nnode)
-         real(rp)   , intent(in)           :: helem(nelem)
-         real(rp)   , intent(in)           :: u(npoin,ndime), csound(npoin)
-         real(rp)   , intent(in)           :: cfl_conv
-         real(rp)   , intent(in), optional :: cfl_diff,mu_fluid(npoin),mu_sgs(nelem,nnode),rho(npoin)
-         real(rp)  , intent(out)           :: dt
+      integer(4), intent(in)            :: nelem, npoin, connec(nelem,nnode)
+      real(rp)   , intent(in)           :: helem(nelem)
+      real(rp)   , intent(in)           :: u(npoin,ndime), csound(npoin)
+      real(rp)   , intent(in)           :: cfl_conv
+      real(rp)   , intent(in), optional :: cfl_diff,mu_fluid(npoin),mu_sgs(nelem,nnode),rho(npoin)
+      real(rp)  , intent(out)           :: dt
 
-         integer(4)                        :: inode,iElem
-         real(rp)                          :: dt_l,dt_conv,dt_diff
-         real(rp)                          :: umag, aux1, aux2, aux4, L3, max_MU
+      integer(4)                        :: inode,iElem
+      real(rp)                          :: dt_l,dt_conv,dt_diff
+      real(rp)                          :: umag, aux1, aux2, aux4, L3, max_MU
 
-         call nvtxStartRange("Adapting dt")
-         dt_conv = 100000000000000.0_rp
-         dt_diff = 100000000000000.0_rp
-         dt_l    = 100000000000000.0_rp
+      call nvtxStartRange("Adapting dt")
+      dt_conv = 100000000000000.0_rp
+      dt_diff = 100000000000000.0_rp
+      dt_l    = 100000000000000.0_rp
+      if(flag_implicit == 1) then
+
+         !$acc parallel loop gang  reduction(min:dt_conv,dt_diff,dt_l) 
+         do ielem = 1,nelem
+            L3 = 0.0_rp
+            !$acc loop vector reduction(max:L3)
+            do inode = 1,nnode
+               umag = abs(u(connec(ielem,inode),1))
+               umag = max(umag,abs(u(connec(ielem,inode),2)))
+               umag = max(umag,abs(u(connec(ielem,inode),3)))
+               L3 = max(L3,umag)
+            end do
+            !aux2 = cfl_conv*(helem(ielem))/L3
+            aux2 = cfl_conv*(helem(ielem)/real(2.0_rp*porder+1,rp))/L3
+            ! aux2 = cfl_conv*(helem(ielem)/real(porder**2,rp))/L3
+            dt_conv = min(dt_conv,aux2)
+            dt_l =dt_conv
+         end do
+         !$acc end parallel loop
+
+         call MPI_Allreduce(dt_l,dt,1,MPI_FLOAT,MPI_MIN,MPI_COMM_WORLD,mpi_err)
+
+      else
+
          !$acc parallel loop gang  reduction(min:dt_conv,dt_diff,dt_l) 
          do ielem = 1,nelem
             L3 = 0.0_rp
@@ -39,7 +63,7 @@ module mod_time_ops
             end do
             !aux2 = cfl_conv*(helem(ielem))/L3
             aux2 = cfl_conv*(helem(ielem)/real(2.0_rp*porder+1,rp))/L3
-           ! aux2 = cfl_conv*(helem(ielem)/real(porder**2,rp))/L3
+            ! aux2 = cfl_conv*(helem(ielem)/real(porder**2,rp))/L3
             dt_conv = min(dt_conv,aux2)
             if(present(cfl_diff) .and. present(mu_fluid) .and. present(mu_sgs)  .and.  present(rho)) then
                max_MU = 0.0_rp
@@ -58,6 +82,7 @@ module mod_time_ops
 
          call MPI_Allreduce(dt_l,dt,1,MPI_FLOAT,MPI_MIN,MPI_COMM_WORLD,mpi_err)
 
+      end if
          call nvtxEndRange
 
       end subroutine adapt_dt_cfl

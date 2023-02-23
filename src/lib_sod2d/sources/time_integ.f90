@@ -73,8 +73,8 @@ module time_integ
             real(rp),    dimension(4,4)         :: a_ij, c_ij
             real(rp),    dimension(npoin,ndime) :: aux_u, aux_q,aux_u_wall
             real(rp),    dimension(npoin)       :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
-            real(rp),    dimension(npoin)       :: Rmass, Rener, alpha
-            real(rp),    dimension(npoin,ndime) :: Rmom, f_eta
+            real(rp),    dimension(npoin)       :: Rmass, Rener,alpha,cMass,cEner
+            real(rp),    dimension(npoin,ndime) :: Rmom, f_eta,cMom
             real(rp),    dimension(npoin,4)       :: Yrho,YE
             real(rp),    dimension(npoin,ndime,4) :: Yq
             real(rp)                              :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
@@ -89,13 +89,42 @@ module time_integ
                gamma_RK = 1.0_rp-sqrt(2.0_rp)*0.5_rp
 
                a_ij(:,:) = 0.0_rp
-               a_ij(1,2) = 4.0_rp-8.0_rp*gamma_RK
+               a_ij(2,1) = 4.0_rp-8.0_rp*gamma_RK
 
                c_ij(:,:) = 0.0_rp
 
-               m_i = [1.0_rp/gamma_RK * (1.0_rp-1.0_rp/(8.0_rp*gamma_RK)), 1.0_rp/(8.0_rp*gamma_RK**2), 0.0_rp, 0.0_rp]
+               m_i = [(1.0_rp/gamma_RK)*(1.0_rp-1.0_rp/(8.0_rp*gamma_RK)), 1.0_rp/(8.0_rp*(gamma_RK**2)), 0.0_rp, 0.0_rp]
+            else if (flag_rk_order == 4) then
+               nstep = 4
+               gamma_RK = 0.0_rp
+
+               a_ij(:,:) = 0.0_rp
+
+               a_ij(2,1) = 2.0_rp
+               a_ij(3,1) = 48.0_rp/25.0_rp
+               a_ij(3,2) = 6.0_rp/25.0_rp
+               a_ij(4,1) = 48.0_rp/25.0_rp
+               a_ij(4,2) = 6.0_rp/25.0_rp
+               a_ij(4,3) = 0.0_rp
+
+               c_ij(:,:) = 0.0_rp
+
+               c_ij(2,1) = -8.0_rp
+               c_ij(3,1) = 372.0_rp/25.0_rp
+               c_ij(3,2) = 12.0_rp/5.0_rp
+               c_ij(4,1) = -112.0_rp/125.0_rp
+               c_ij(4,2) = -54.0_rp/125.0_rp
+               c_ij(4,3) = -2.0_rp/5.0_rp
+               
+               m_i(:) = 0.0_rp
+
+               m_i(1) = 19.0_rp/9.0_rp
+               m_i(2) = 0.5_rp
+               m_i(3) = 25.0_rp/108.0_rp
+               m_i(4) = 125.0_rp/108.0_rp
+
             else
-               write(1,*) "--| NOT CODED FOR RK > 2 YET!"
+               write(1,*) "--| NOT CODED FOR RK > 4 YET!"
                stop 1
             end if
             call nvtxEndRange
@@ -119,6 +148,12 @@ module time_integ
             Rmom(1:npoin,1:ndime) = 0.0_rp
             Rener(1:npoin) = 0.0_rp
             Reta(1:npoin) = 0.0_rp
+            Yq(1:npoin,1:ndime,1:4) = 0.0_rp
+            YE(1:npoin,1:4) = 0.0_rp
+            Yrho(1:npoin,1:4) = 0.0_rp
+            cMass(1:npoin) = 0.0_rp
+            cMom(1:npoin,1:ndime) = 0.0_rp
+            cEner(1:npoin) = 0.0_rp
             !$acc end kernels
 
             call nvtxEndRange
@@ -134,22 +169,22 @@ module time_integ
                call nvtxStartRange("Update aux_*")
                !$acc parallel loop
                do ipoin = 1,npoin
-                  Yrho(ipoin,istep) = 1e-4
                   aux_rho(ipoin) = rho(ipoin,1)
                   aux_E(ipoin)   = E(ipoin,1)
-                  YE(ipoin,istep) = 1e-4
                   !$acc loop seq
                   do idime = 1,ndime
                      aux_q(ipoin,idime) = q(ipoin,idime,1)
-                     Yq(ipoin,idime,istep) = 1e-4
                   end do
                   !$acc loop seq
                   do jstep=1, istep-1
                      aux_rho(ipoin) = aux_rho(ipoin) + a_ij(istep,jstep)*Yrho(ipoin,jstep)
                      aux_E(ipoin)   = aux_E(ipoin)   + a_ij(istep,jstep)*YE(ipoin,jstep)
+                     cMass(ipoin) = cMass(ipoin) + c_ij(istep,jstep)*Yrho(ipoin,jstep)
+                     cEner(ipoin)   = cEner(ipoin)   + c_ij(istep,jstep)*YE(ipoin,jstep)
                      !$acc loop seq
                      do idime = 1,ndime
                         aux_q(ipoin,idime) = aux_q(ipoin,idime) + a_ij(istep,jstep)*Yq(ipoin,idime,jstep)
+                        cMom(ipoin,idime) = cMom(ipoin,idime) + c_ij(istep,jstep)*Yq(ipoin,idime,jstep)
                      end do
                   end do
                end do
@@ -219,9 +254,9 @@ module time_integ
                !
                call nvtxStartRange("Add convection and diffusion")
                !$acc kernels
-               Rmass(:) = -Rmass(:) - Rdiff_mass(:) ! we are missing the cijY that is 0 for now
-               Rener(:) = -Rener(:) - Rdiff_ener(:)
-               Rmom(:,:) = -Rmom(:,:) - Rdiff_mom(:,:)
+               Rmass(:) =  -Rmass(:) - Rdiff_mass(:) + cMass(:) 
+               Rener(:) =  -Rener(:) - Rdiff_ener(:) + cEner(:)
+               Rmom(:,:) =  -Rmom(:,:) - Rdiff_mom(:,:) + cMom(:,:)
                !$acc end kernels
                call nvtxEndRange
 
@@ -259,8 +294,16 @@ module time_integ
                ! RK update to variables
                !
                call nvtxStartRange("RK_UPDATE")
-               !$acc parallel loop
-               do ipoin = 1,npoin
+            end do
+            call nvtxEndRange
+            !$acc kernels
+            rho(1:npoin,2) = rho(1:npoin,1)
+            E(1:npoin,2) = E(1:npoin,1)
+            q(1:npoin,1:ndime,2) = q(1:npoin,1:ndime,1)
+            !$acc end kernels
+            !$acc parallel loop
+            do ipoin = 1,npoin
+               do istep=1,nstep
                   rho(ipoin,2) = rho(ipoin,2)+m_i(istep)*Yrho(ipoin,istep)
                   E(ipoin,2) = E(ipoin,2)+m_i(istep)*YE(ipoin,istep)
                   !$acc loop seq
@@ -268,9 +311,8 @@ module time_integ
                      q(ipoin,idime,2) = q(ipoin,idime,2)+m_i(istep)*Yq(ipoin,idime,istep)
                   end do
                end do
-               !$acc end parallel loop
-               call nvtxEndRange
             end do
+            !$acc end parallel loop
             call nvtxEndRange
 
             if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,rho(:,2),q(:,:,2),u_buffer)
