@@ -939,7 +939,7 @@ module mod_solver
                         Rener_fix(lpoin_w(ipoin)) = Rener(lpoin_w(ipoin)) + Dener(lpoin_w(ipoin))
                         !$acc loop seq
                         do idime = 1,ndime
-                           Rmom_fix(lpoin_w(ipoin),idime) = Rmom(lpoin_w(ipoin),idime) !+ Dmom(lpoin_w(ipoin),idime)
+                           Rmom_fix(lpoin_w(ipoin),idime) = Rmom(lpoin_w(ipoin),idime) + Dmom(lpoin_w(ipoin),idime)
                         end do
                      end do
                      !$acc end parallel loop
@@ -1024,9 +1024,9 @@ module mod_solver
                   call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
                      gmshAtoI, gmshAtoJ, gmshAtoK, u+eps*zu, q+eps*zmom, rho+eps*zmass, pr+eps*zpres, E+eps*zener, Rmass, Rmom, Rener)
 
-                  !call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                  !   gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+eps*zmass, u+eps*zu, Tem+eps*ztemp, &
-                  !   mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dmass)
+                 ! call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                 !    gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+eps*zmass, u+eps*zu, Tem+eps*ztemp, &
+                 !    mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dmass)
 #endif
 
                   !$acc end parallel loop
@@ -1037,7 +1037,7 @@ module mod_solver
                      Rener(lpoin_w(ipoin)) = Rener(lpoin_w(ipoin)) + Dener(lpoin_w(ipoin))
                      !$acc loop seq
                      do idime = 1,ndime
-                        Rmom(lpoin_w(ipoin),idime) = Rmom(lpoin_w(ipoin),idime) !+ Dmom(lpoin_w(ipoin),idime)
+                        Rmom(lpoin_w(ipoin),idime) = Rmom(lpoin_w(ipoin),idime) + Dmom(lpoin_w(ipoin),idime)
                      end do
                   end do
                   !$acc end parallel loop
