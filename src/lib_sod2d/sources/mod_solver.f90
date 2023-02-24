@@ -415,6 +415,68 @@ module mod_solver
 
               end subroutine conjGrad_vector
 
+              subroutine jacobi_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                                    atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                                    rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                    gammaRK,dt,bmass,bmom,bener,mass_sol,mom_sol,ener_sol)
+                  implicit none
+                  integer(4), intent(in)    :: nelem, npoin, npoin_w, lpoin_w(npoin_w), connec(nelem,nnode)
+                  integer(4), intent(in)    :: atoIJK(nnode), invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+                  real(rp)  , intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,ngaus,nnode), He(ndime,ndime,ngaus,nelem)
+                  real(rp)  , intent(in)    :: gpvol(1,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1), xgp(ngaus,ndime)
+                  real(rp)  , intent(in)    :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin)
+                  real(rp)  , intent(in)    :: Rgas, gamma_gas, Cp, Prt, gammaRK, dt, Ml(npoin)
+                  real(rp)  , intent(in)    :: mu_fluid(npoin), mu_e(nelem,nnode), mu_sgs(nelem,nnode)
+                  real(rp)  , intent(in)    :: bmass(npoin), bmom(npoin,ndime), bener(npoin)
+                  real(rp)  , intent(inout) :: mass_sol(npoin), mom_sol(npoin,ndime), ener_sol(npoin)
+                  integer(4)                :: ik, jk, kk, ipoin, idime
+                  real(rp)                  :: errMax, errTol, aux
+                  real(8)                  :: auxN(5),auxN2(5),relax=1.0_rp
+
+                  errTol = tol
+
+                  ! Allocate the memory for the gmres solver if not yet allocated
+                  if (flag_gmres_mem_alloc .eqv. .true.) then
+                     allocate(Jy_mass(npoin), Jy_mom(npoin,ndime), Jy_ener(npoin))
+                     allocate(ymass(npoin), ymom(npoin,ndime), yener(npoin))
+                     allocate(Rmass_fix(npoin), Rmom_fix(npoin,ndime), Rener_fix(npoin))
+                     allocate(Rmass(npoin), Rmom(npoin,ndime), Rener(npoin))
+                     allocate(Dmass(npoin), Dmom(npoin,ndime), Dener(npoin))
+                     allocate(Q_Mass(npoin,maxIter+1), Q_Mom(npoin,ndime,maxIter+1), Q_Ener(npoin,maxIter+1))
+                     allocate(H_mass(maxIter+1,maxIter), H_mom(maxIter+1,maxIter,ndime), H_ener(maxIter+1,maxIter))
+                     flag_gmres_mem_alloc = .false.
+                  end if
+
+                  do ik = 1,maxIter
+                     call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                        atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                        rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                        mass_sol,mom_sol,ener_sol,.false.)
+                     !$acc parallel loop
+                     do ipoin = 1,npoin_w
+                        mass_sol(lpoin_w(ipoin)) = mass_sol(lpoin_w(ipoin))*(1.0_rp-relax) + relax*gammaRK*dt*(bmass(lpoin_w(ipoin)) - Jy_mass(lpoin_w(ipoin)))
+                        ener_sol(lpoin_w(ipoin)) = ener_sol(lpoin_w(ipoin))*(1.0_rp-relax) + relax*gammaRK*dt*(bener(lpoin_w(ipoin)) - Jy_ener(lpoin_w(ipoin)))
+                        !$acc loop seq
+                        do idime = 1,ndime
+                           mom_sol(lpoin_w(ipoin),idime) = mom_sol(lpoin_w(ipoin),idime)*(1.0_rp-relax) + relax*gammaRK*dt*(bmom(lpoin_w(ipoin),idime) - Jy_mom(lpoin_w(ipoin),idime))
+                        end do
+                     end do
+                     !$acc end parallel loop
+                  end do
+
+
+                  ! If memory not needed anymore, deallocate arrays
+                  if (flag_gmres_mem_free .eqv. .true.) then
+                     deallocate(Jy_mass, Jy_mom, Jy_ener)
+                     deallocate(ymass, ymom, yener)
+                     deallocate(Rmass_fix, Rmom_fix, Rener_fix)
+                     deallocate(Rmass, Rmom, Rener)
+                     deallocate(Dmass, Dmom, Dener)
+                     deallocate(Q_Mass, Q_Mom, Q_Ener)
+                  end if
+
+              end subroutine jacobi_full
+
               subroutine gmres_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                     atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                     rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
@@ -491,10 +553,13 @@ module mod_solver
                   !print*, "Initializing gmres at gmres_full"
                   call init_gmres(npoin,npoin_w,lpoin_w,bmass,bmom,bener,dt,gammaRK)
 
-
                   ! Start iterations
                   !print*, "Starting iterations at gmres_full"
                   outer:do ik = 1,maxIter
+                    ! call smooth_gmres(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                    !                   atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                    !                   rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                    !                   gammaRK,dt,5)
 
                      ! Compute Q(:,ik+1) and H(1:ik+1,ik)
                      !print*, "Calling arnoldi_iter at gmres_full"
@@ -510,16 +575,16 @@ module mod_solver
                      aux = cs_mass(ik)*beta_mass(ik) + sn_mass(ik)*beta_mass(ik+1)
                      beta_mass(ik+1) = -sn_mass(ik)*beta_mass(ik) + cs_mass(ik)*beta_mass(ik+1)
                      beta_mass(ik) = aux
-                     err_mass = abs(beta_mass(ik+1))!/norm_bmass
+                     err_mass = abs(beta_mass(ik+1))/norm_bmass
                      aux = cs_ener(ik)*beta_ener(ik) + sn_ener(ik)*beta_ener(ik+1)
                      beta_ener(ik+1) = -sn_ener(ik)*beta_ener(ik) + cs_ener(ik)*beta_ener(ik+1)
                      beta_ener(ik) = aux
-                     err_ener = abs(beta_ener(ik+1))!/norm_bener
+                     err_ener = abs(beta_ener(ik+1))/norm_bener
                      do idime = 1,ndime
                         aux = cs_mom(ik,idime)*beta_mom(ik,idime) + sn_mom(ik,idime)*beta_mom(ik+1,idime)
                         beta_mom(ik+1,idime) = -sn_mom(ik,idime)*beta_mom(ik,idime) + cs_mom(ik,idime)*beta_mom(ik+1,idime)
                         beta_mom(ik,idime) = aux
-                        err_mom(idime) = abs(beta_mom(ik+1,idime))!/norm_bmom(idime)
+                        err_mom(idime) = abs(beta_mom(ik+1,idime))/norm_bmom(idime)
                      end do
 
                      ! Stopping criterion
@@ -531,7 +596,7 @@ module mod_solver
                         errmax = max(errmax,abs(err_mom(idime)))
                      end do
 
-                     print*, " err ",errMax," it ",ik,' emass ',err_mass," eener ",err_ener," emom ",err_mom
+                     if(mpi_rank.eq.0)print*, " err ",errMax," it ",ik,' emass ',err_mass," eener ",err_ener," emom ",err_mom
 
                      if (errMax .lt. errTol) then
                         ! Update the solution (H_* iis upper triangular)
@@ -865,9 +930,9 @@ module mod_solver
                   if (flag_gmres_form_fix .eqv. .true.) then
                      call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
                                           gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho, pr, E, Rmass, Rmom, Rener)
-                   !  call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                   !                          gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u, Tem, &
-                   !                          mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dener)
+                     call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                                             gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u, Tem, &
+                                             mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dener)
                      !$acc parallel loop
                      do ipoin = 1,npoin_w
                         Rmass_fix(lpoin_w(ipoin)) = Rmass(lpoin_w(ipoin)) + Dmass(lpoin_w(ipoin))
@@ -880,6 +945,7 @@ module mod_solver
                      !$acc end parallel loop
                   end if
 
+#if 1
                   ! Form the R(u^n + eps*y0) arrays
                   call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
                      gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho+eps*zmass, pr, E, Rmass, auxRmom, auxRener)
@@ -903,23 +969,68 @@ module mod_solver
                         Rmom(lpoin_w(ipoin),idime) = auxRmom(lpoin_w(ipoin),idime)
                      end do
                   end do
-
                   !$acc end parallel loop
 
                   call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
                      gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho, pr, E+eps*zener, auxRmass, auxRmom, Rener)
 
-                  !call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                  !                        gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+eps*zmass, u, Tem, &
-                  !                        mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dener)
+                  call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                     gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+eps*zmass, u, Tem, &
+                     mu_fluid, mu_e, mu_sgs, Ml, Dmass, auxRmom, auxRmass)
 
                   !$acc parallel loop
                   do ipoin = 1,npoin_w
-                     Rmass(lpoin_w(ipoin)) = Rmass(lpoin_w(ipoin)) !+ Dmass(lpoin_w(ipoin))
-                     Rener(lpoin_w(ipoin)) = Rener(lpoin_w(ipoin)) !+ Dener(lpoin_w(ipoin))
+                     zeint(lpoin_w(ipoin)) = (zener(lpoin_w(ipoin))/rho(lpoin_w(ipoin)))- &
+                        0.5_rp*dot_product(u(lpoin_w(ipoin),:),u(lpoin_w(ipoin),:))
+                     zpres(lpoin_w(ipoin)) = rho(lpoin_w(ipoin))*(gamma_gas-1.0_rp)*zeint(lpoin_w(ipoin))
+                     ztemp(lpoin_w(ipoin)) = zpres(lpoin_w(ipoin))/(rho(lpoin_w(ipoin))*Rgas)
+                  end do
+                  !$acc end parallel loop
+
+                  call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                     gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u, Tem+eps*ztemp, &
+                     mu_fluid, mu_e, mu_sgs, Ml, auxRmass, auxRmom, Dener)
+
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                        gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u+auxU, Tem, &
+                        mu_fluid, mu_e, mu_sgs, Ml, auxRmass, auxRmom, auxRener)
+                     !!$acc parallel loop
+                     do ipoin = 1,npoin_w
+                        Dmom(lpoin_w(ipoin),idime) = auxRmom(lpoin_w(ipoin),idime)
+                     end do
+                  end do
+#else
+                  !$acc parallel loop
+                  do ipoin = 1,npoin_w
+                     zeint(lpoin_w(ipoin)) = (zener(lpoin_w(ipoin))/rho(lpoin_w(ipoin)))- &
+                        0.5_rp*dot_product(u(lpoin_w(ipoin),:),u(lpoin_w(ipoin),:))
+                     zpres(lpoin_w(ipoin)) = rho(lpoin_w(ipoin))*(gamma_gas-1.0_rp)*zeint(lpoin_w(ipoin))
+                     ztemp(lpoin_w(ipoin)) = zpres(lpoin_w(ipoin))/(rho(lpoin_w(ipoin))*Rgas)
+                     !!$acc parallel loop
+                     do idime = 1,ndime
+                        zu(lpoin_w(ipoin),idime) = zmom(lpoin_w(ipoin),idime)/rho(lpoin_w(ipoin))
+                     end do
+                  end do
+                  !$acc end parallel loop
+                  call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                     gmshAtoI, gmshAtoJ, gmshAtoK, u+eps*zu, q+eps*zmom, rho+eps*zmass, pr+eps*zpres, E+eps*zener, Rmass, Rmom, Rener)
+
+                  call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                     gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+eps*zmass, u+eps*zu, Tem+eps*ztemp, &
+                     mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dmass)
+#endif
+
+                  !$acc end parallel loop
+
+                  !$acc parallel loop
+                  do ipoin = 1,npoin_w
+                     Rmass(lpoin_w(ipoin)) = Rmass(lpoin_w(ipoin)) + Dmass(lpoin_w(ipoin))
+                     Rener(lpoin_w(ipoin)) = Rener(lpoin_w(ipoin)) + Dener(lpoin_w(ipoin))
                      !$acc loop seq
                      do idime = 1,ndime
-                        Rmom(lpoin_w(ipoin),idime) = Rmom(lpoin_w(ipoin),idime) !+ Dmom(lpoin_w(ipoin),idime)
+                        Rmom(lpoin_w(ipoin),idime) = Rmom(lpoin_w(ipoin),idime) + Dmom(lpoin_w(ipoin),idime)
                      end do
                   end do
                   !$acc end parallel loop
@@ -935,7 +1046,6 @@ module mod_solver
                      end do
                   end do
                   !$acc end parallel loop
-
                   ! Communicate before applying ML
                   if(mpi_size.ge.2) then
                      call nvtxStartRange("MPI_comms_tI")
@@ -1057,8 +1167,56 @@ module mod_solver
                   end do
                   !$acc end parallel loop
                   !print*," beta mass ",beta_mass
-                  !print*," beta ener ",beta_ener
+                  !print*," beta ener ",beta_ener                  !print*," beta mom ",beta_mom
                   !print*," beta mom ",beta_mom
               end subroutine init_gmres
 
+              subroutine smooth_gmres(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                                      atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                                      rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                      gammaRK,dt,iters)
+                  implicit none
+                  integer(4), intent(in)    :: ik,iters
+                  integer(4), intent(in)    :: nelem, npoin, npoin_w, atoIJK(nnode), invAtoIJK(porder+1,porder+1,porder+1)
+                  integer(4), intent(in)    :: connec(nelem,nnode), lpoin_w(npoin_w), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+                  real(rp)  , intent(in)    :: gammaRK, dt, gpvol(1,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1), xgp(ngaus,ndime)
+                  real(rp)  , intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus), He(ndime,ndime,ngaus,nelem), Ml(npoin)
+                  real(rp)  , intent(in)    :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin),Rgas,gamma_gas, Cp, Prt
+                  real(rp)  , intent(in)    :: mu_fluid(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
+                  integer(4)                :: idime, jk, ipoin,i
+                  real(rp)               :: amass(npoin),aener(npoin),amom(npoin,ndime)
+                  real(rp)                  :: zmass(npoin), zmom(npoin,ndime), zener(npoin)
+                  real(rp)                  :: bmass(npoin), bmom(npoin,ndime), bener(npoin)
+                  real(8)                  :: aux(5),aux2(5),relax=0.5_rp
+
+                  call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                     atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                     rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                     Q_Mass(:,ik),Q_mom(:,:,ik),Q_ener(:,ik),.false.)
+                  !$acc parallel loop
+                  do ipoin = 1,npoin_w
+                     bmass(lpoin_w(ipoin)) = Q_Mass(lpoin_w(ipoin),ik)/(gammaRK*dt) + Jy_mass(lpoin_w(ipoin))
+                     bener(lpoin_w(ipoin)) = Q_Ener(lpoin_w(ipoin),ik)/(gammaRK*dt) + Jy_ener(lpoin_w(ipoin))
+                     !$acc loop seq
+                     do idime = 1,ndime
+                        bmom(lpoin_w(ipoin),idime) = Q_Mom(lpoin_w(ipoin),idime,ik)/(gammaRK*dt) + Jy_mom(lpoin_w(ipoin),idime)
+                     end do
+                  end do
+                  do i=1,iters
+                     call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                        atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                        rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                        Q_Mass(:,ik),Q_mom(:,:,ik),Q_ener(:,ik),.false.)
+                     !$acc parallel loop
+                     do ipoin = 1,npoin_w
+                        Q_Mass(lpoin_w(ipoin),ik) = Q_Mass(lpoin_w(ipoin),ik)*(1.0_rp-relax) + relax*gammaRK*dt*(bmass(lpoin_w(ipoin)) - Jy_mass(lpoin_w(ipoin)))
+                        Q_Ener(lpoin_w(ipoin),ik) = Q_Ener(lpoin_w(ipoin),ik)*(1.0_rp-relax) + relax*gammaRK*dt*(bener(lpoin_w(ipoin)) - Jy_ener(lpoin_w(ipoin)))
+                        !$acc loop seq
+                        do idime = 1,ndime
+                           Q_Mom(lpoin_w(ipoin),idime,ik) =Q_Mom(lpoin_w(ipoin),idime,ik)*(1.0_rp-relax) + relax*gammaRK*dt*(bmom(lpoin_w(ipoin),idime) - Jy_mom(lpoin_w(ipoin),idime))
+                        end do
+                     end do
+                     !$acc end parallel loop
+                  end do
+              end subroutine smooth_gmres
 end module mod_solver
