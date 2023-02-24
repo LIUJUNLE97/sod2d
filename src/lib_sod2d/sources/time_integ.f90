@@ -216,7 +216,7 @@ module time_integ
             call nvtxStartRange("Initialize variables")
             !$acc kernels
             aux_rho(1:npoin) = 0.0_rp
-            aux_u(1:npoin,1:ndime) = 0.0_rp
+            aux_u(1:npoin,1:ndime) = u(:,:,1)
             aux_q(1:npoin,1:ndime) = 0.0_rp
             aux_pr(1:npoin) = 0.0_rp
             aux_E(1:npoin) = 0.0_rp
@@ -252,6 +252,10 @@ module time_integ
                !$acc parallel loop
                do ipoin = 1,npoin_w
                   eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     f_eta(lpoin_w(ipoin),idime) = aux_u(lpoin_w(ipoin),idime)*eta(lpoin_w(ipoin),1)
+                  end do
                   aux_rho(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),1)
                   aux_E(lpoin_w(ipoin))   = E(lpoin_w(ipoin),1)
                   cMass(lpoin_w(ipoin)) = 0.0_rp
@@ -295,15 +299,11 @@ module time_integ
                   aux_Tem(lpoin_w(ipoin)) = aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))*Rgas)
                   eta(lpoin_w(ipoin),2) = (aux_rho(lpoin_w(ipoin))/(gamma_gas-1.0_rp))* &
                      log(abs(aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))**gamma_gas)))
-                  !$acc loop seq
-                  do idime = 1,ndime
-                     f_eta(lpoin_w(ipoin),idime) = aux_u(lpoin_w(ipoin),idime)*eta(lpoin_w(ipoin),1)
-                  end do
                end do
                !$acc end parallel loop
 
                call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),aux_u(:,:),Reta2,alpha)
+                  gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),aux_u(:,:),Reta,alpha)
 
 
                if(mpi_size.ge.2) then
