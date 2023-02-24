@@ -939,13 +939,13 @@ module mod_solver
                         Rener_fix(lpoin_w(ipoin)) = Rener(lpoin_w(ipoin)) + Dener(lpoin_w(ipoin))
                         !$acc loop seq
                         do idime = 1,ndime
-                           Rmom_fix(lpoin_w(ipoin),idime) = Rmom(lpoin_w(ipoin),idime) + Dmom(lpoin_w(ipoin),idime)
+                           Rmom_fix(lpoin_w(ipoin),idime) = Rmom(lpoin_w(ipoin),idime) !+ Dmom(lpoin_w(ipoin),idime)
                         end do
                      end do
                      !$acc end parallel loop
                   end if
 
-#if 1
+#if 0
                   ! Form the R(u^n + eps*y0) arrays
                   call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
                      gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho+eps*zmass, pr, E, Rmass, auxRmom, auxRener)
@@ -974,40 +974,40 @@ module mod_solver
                   call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
                      gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho, pr, E+eps*zener, auxRmass, auxRmom, Rener)
 
-                  call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                     gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+eps*zmass, u, Tem, &
-                     mu_fluid, mu_e, mu_sgs, Ml, Dmass, auxRmom, auxRmass)
+                !  call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                !     gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+eps*zmass, u, Tem, &
+                !     mu_fluid, mu_e, mu_sgs, Ml, Dmass, auxRmom, auxRmass)
 
-                  !$acc parallel loop
-                  do ipoin = 1,npoin_w
-                     zeint(lpoin_w(ipoin)) = (zener(lpoin_w(ipoin))/rho(lpoin_w(ipoin)))- &
-                        0.5_rp*dot_product(u(lpoin_w(ipoin),:),u(lpoin_w(ipoin),:))
-                     zpres(lpoin_w(ipoin)) = rho(lpoin_w(ipoin))*(gamma_gas-1.0_rp)*zeint(lpoin_w(ipoin))
-                     ztemp(lpoin_w(ipoin)) = zpres(lpoin_w(ipoin))/(rho(lpoin_w(ipoin))*Rgas)
-                  end do
-                  !$acc end parallel loop
+                !  !$acc parallel loop
+                !  do ipoin = 1,npoin_w
+                !     zeint(lpoin_w(ipoin)) = (zener(lpoin_w(ipoin))/rho(lpoin_w(ipoin)))- &
+                !        0.5_rp*dot_product(u(lpoin_w(ipoin),:),u(lpoin_w(ipoin),:))
+                !     zpres(lpoin_w(ipoin)) = rho(lpoin_w(ipoin))*(gamma_gas-1.0_rp)*zeint(lpoin_w(ipoin))
+                !     ztemp(lpoin_w(ipoin)) = zpres(lpoin_w(ipoin))/(rho(lpoin_w(ipoin))*Rgas)
+                !  end do
+                !  !$acc end parallel loop
 
-                  call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                     gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u, Tem+eps*ztemp, &
-                     mu_fluid, mu_e, mu_sgs, Ml, auxRmass, auxRmom, Dener)
+                !  call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                !     gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u, Tem+eps*ztemp, &
+                !     mu_fluid, mu_e, mu_sgs, Ml, auxRmass, auxRmom, Dener)
 
-                  !$acc loop seq
-                  do idime = 1,ndime
-                     !$acc kernels
-                     auxU(:,:) = 0.0_rp
-                     !$acc end kernels
-                     !!$acc parallel loop
-                     do ipoin = 1,npoin_w
-                        auxU(lpoin_w(ipoin),idime) = eps*zmom(lpoin_w(ipoin),idime)/rho(lpoin_w(ipoin))
-                     end do
-                     call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                        gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u+auxU, Tem, &
-                        mu_fluid, mu_e, mu_sgs, Ml, auxRmass, auxRmom, auxRener)
-                     !!$acc parallel loop
-                     do ipoin = 1,npoin_w
-                        Dmom(lpoin_w(ipoin),idime) = auxRmom(lpoin_w(ipoin),idime)
-                     end do
-                  end do
+                !  !$acc loop seq
+                !  do idime = 1,ndime
+                !    !$acc kernels
+                !    auxU(:,:) = 0.0_rp
+                !    !$acc end kernels
+                !    !!$acc parallel loop
+                !    do ipoin = 1,npoin_w
+                !       auxU(lpoin_w(ipoin),idime) = eps*zmom(lpoin_w(ipoin),idime)/rho(lpoin_w(ipoin))
+                !    end do
+                !    call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                !       gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u+auxU, Tem, &
+                !       mu_fluid, mu_e, mu_sgs, Ml, auxRmass, auxRmom, auxRener)
+                !    !!$acc parallel loop
+                !    do ipoin = 1,npoin_w
+                !       Dmom(lpoin_w(ipoin),idime) = auxRmom(lpoin_w(ipoin),idime)
+                !    end do
+                ! end do
 #else
                   !$acc parallel loop
                   do ipoin = 1,npoin_w
@@ -1024,9 +1024,9 @@ module mod_solver
                   call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
                      gmshAtoI, gmshAtoJ, gmshAtoK, u+eps*zu, q+eps*zmom, rho+eps*zmass, pr+eps*zpres, E+eps*zener, Rmass, Rmom, Rener)
 
-                  call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                     gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+eps*zmass, u+eps*zu, Tem+eps*ztemp, &
-                     mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dmass)
+                  !call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                  !   gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+eps*zmass, u+eps*zu, Tem+eps*ztemp, &
+                  !   mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dmass)
 #endif
 
                   !$acc end parallel loop
@@ -1037,7 +1037,7 @@ module mod_solver
                      Rener(lpoin_w(ipoin)) = Rener(lpoin_w(ipoin)) + Dener(lpoin_w(ipoin))
                      !$acc loop seq
                      do idime = 1,ndime
-                        Rmom(lpoin_w(ipoin),idime) = Rmom(lpoin_w(ipoin),idime) + Dmom(lpoin_w(ipoin),idime)
+                        Rmom(lpoin_w(ipoin),idime) = Rmom(lpoin_w(ipoin),idime) !+ Dmom(lpoin_w(ipoin),idime)
                      end do
                   end do
                   !$acc end parallel loop
