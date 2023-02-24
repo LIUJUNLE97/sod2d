@@ -923,7 +923,7 @@ module mod_solver
                   real(rp)               :: zpres(npoin),zu(npoin,ndime),ztemp(npoin),zeint(npoin)
                   real(rp)               :: auxRmass(npoin),auxRmom(npoin,ndime),auxRener(npoin),auxQ(npoin,ndime),auxU(npoin,ndime)
                   integer(4)             :: idime,ipoin
-                  real(rp)  , parameter  :: eps = 1.0e-2
+                  real(rp)  , parameter  :: eps = 1.0e-4
                   real(rp)               :: aux
 
                   ! Form the R(u^n) arrays if not formed already
@@ -993,6 +993,13 @@ module mod_solver
 
                   !$acc loop seq
                   do idime = 1,ndime
+                     !$acc kernels
+                     auxU(:,:) = 0.0_rp
+                     !$acc end kernels
+                     !!$acc parallel loop
+                     do ipoin = 1,npoin_w
+                        auxU(lpoin_w(ipoin),idime) = eps*zmom(lpoin_w(ipoin),idime)/rho(lpoin_w(ipoin))
+                     end do
                      call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
                         gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho, u+auxU, Tem, &
                         mu_fluid, mu_e, mu_sgs, Ml, auxRmass, auxRmom, auxRener)
