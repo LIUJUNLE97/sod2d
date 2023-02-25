@@ -27,7 +27,7 @@ module mod_constants
       !
       integer(4), parameter :: flag_real_diff=1
       integer(4), parameter :: flag_diff_suth=1
-      integer(4), parameter :: flag_rk_order=4
+      integer(4), parameter :: flag_rk_order=3
       integer(4), parameter :: flag_implicit=1
       integer(4), parameter :: flag_les=0
       integer(4), parameter :: flag_les_ilsa=0
@@ -42,8 +42,8 @@ module mod_constants
       !
       ! Solver params
       !
-      integer(4) , parameter ::  maxIter=50
-      real(rp)   , parameter ::  tol=0.00001_rp
+      integer(4) , parameter ::  maxIter=5
+      real(rp)   , parameter ::  tol=0.001_rp
 
       !
       ! Other constants

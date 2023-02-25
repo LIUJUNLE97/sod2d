@@ -99,6 +99,26 @@ module time_integ
 
                m_i(1) = (1.0_rp/gamma_RK)*(1.0_rp-1.0_rp/(8.0_rp*gamma_RK))
                m_i(2) = 1.0_rp/(8.0_rp*gamma_RK*gamma_RK)
+            else if (flag_rk_order == 3) then
+               nstep = 3
+               gamma_RK = 0.5_rp - sqrt(3.0_rp)/6.0_rp
+
+               a_ij(:,:) = 0.0_rp
+
+               a_ij(2,1) = 1.0_rp/gamma_RK
+               a_ij(3,1) = 1.0_rp/gamma_RK
+
+               c_ij(:,:) = 0.0_rp
+
+               c_ij(2,1) = -1.0_rp/sqrt(gamma_RK)
+               c_ij(3,1) = -(1.0_rp/gamma_RK)*(1.0_rp + (1.0_rp/gamma_RK)*(2.0_rp-0.5_rp/gamma_RK))
+               c_ij(3,2) = -(1.0_rp/sqrt(gamma_RK))*(2.0_rp - 0.5_rp/gamma_RK)
+
+               m_i(:) = 0.0_rp
+
+               m_i(1) = (1.0_rp/gamma_RK)*(1.0_rp + (1.0_rp/gamma_RK)*(2.0_rp/3.0_rp-1.0_rp/(6.0_rp*gamma_RK)))
+               m_i(2) = -(1.0_rp/gamma_RK)*(2.0_rp/3.0_rp-1.0_rp/(6.0_rp*gamma_RK))
+               m_i(3) = 1.0_rp/(3.0_rp*gamma_RK)
             else if (flag_rk_order == 4) then
                nstep = 4
                gamma_RK = 0.5_rp
@@ -134,76 +154,76 @@ module time_integ
 
                a_ij(:,:) = 0.0_rp
 
-               a_ij(2,1) = 2.0
-               a_ij(3,1) = 3.040894194418781
-               a_ij(3,2) = 1.041747909077569
-               a_ij(4,1) = 2.576417536461461
-               a_ij(4,2) = 1.622083060776640
-               a_ij(4,3) = -9.089668560264532e-1
-               a_ij(5,1) = 2.760842080225597
-               a_ij(5,2) = 1.446624659844071
-               a_ij(5,3) = -3.036980084553738e-1
-               a_ij(5,4) = 2.877498600325443e-1
-               a_ij(6,1) = -1.409640773051259e1
-               a_ij(6,2) = 6.925207756232704
-               a_ij(6,3) = -4.147510893210728e1
-               a_ij(6,4) = 2.343771018586405
-               a_ij(6,5) = 2.413215229196062e1
-               a_ij(7,1) = -1.409640773051259e1
-               a_ij(7,2) = 6.925207756232704
-               a_ij(7,3) = -4.147510893210728e1
-               a_ij(7,4) = 2.343771018586405
-               a_ij(7,5) = 2.413215229196062e1
-               a_ij(7,6) = 1.0
-               a_ij(8,1) = -1.409640773051259e1
-               a_ij(8,2) = 6.925207756232704
-               a_ij(8,3) = -4.147510893210728e1
-               a_ij(8,4) = 2.343771018586405
-               a_ij(8,5) = 2.413215229196062e1
-               a_ij(8,6) = 1.0
-               a_ij(8,7) = 1.0
+               a_ij(2,1) =real(2.0,rp)
+               a_ij(3,1) =real(3.040894194418781,rp)
+               a_ij(3,2) =real(1.041747909077569,rp)
+               a_ij(4,1) =real(2.576417536461461,rp)
+               a_ij(4,2) =real(1.622083060776640,rp)
+               a_ij(4,3) =real(-9.089668560264532e-1,rp)
+               a_ij(5,1) =real(2.760842080225597,rp)
+               a_ij(5,2) =real(1.446624659844071,rp)
+               a_ij(5,3) =real(-3.036980084553738e-1,rp)
+               a_ij(5,4) =real(2.877498600325443e-1,rp)
+               a_ij(6,1) =real(-1.409640773051259e1,rp)
+               a_ij(6,2) =real(6.925207756232704,rp)
+               a_ij(6,3) =real(-4.147510893210728e1,rp)
+               a_ij(6,4) =real(2.343771018586405,rp)
+               a_ij(6,5) =real(2.413215229196062e1,rp)
+               a_ij(7,1) =real(-1.409640773051259e1,rp)
+               a_ij(7,2) =real(6.925207756232704,rp)
+               a_ij(7,3) =real(-4.147510893210728e1,rp)
+               a_ij(7,4) =real(2.343771018586405,rp)
+               a_ij(7,5) =real(2.413215229196062e1,rp)
+               a_ij(7,6) =real(1.0,rp)
+               a_ij(8,1) =real(-1.409640773051259e1,rp)
+               a_ij(8,2) =real(6.925207756232704,rp)
+               a_ij(8,3) =real(-4.147510893210728e1,rp)
+               a_ij(8,4) =real(2.343771018586405,rp)
+               a_ij(8,5) =real(2.413215229196062e1,rp)
+               a_ij(8,6) =real(1.0,rp)
+               a_ij(8,7) =real(1.0,rp)
 
                c_ij(:,:) = 0.0_rp
 
-               c_ij(2,1) = -1.031323885133993e1
-               c_ij(3,1) = -2.104823117650003e1
-               c_ij(3,2) = -7.234992135176716
-               c_ij(4,1) = 3.222751541853323e1
-               c_ij(4,2) = -4.943732386540191
-               c_ij(4,3) = 1.944922031041879e1
-               c_ij(5,1) = -2.069865579590063e1
-               c_ij(5,2) = -8.816374604402768
-               c_ij(5,3) = 1.260436877740897
-               c_ij(5,4) = -7.495647613787146e-1
-               c_ij(6,1) = -4.622004352711257e1
-               c_ij(6,2) = -1.749534862857472e1
-               c_ij(6,3) = -2.896389582892057e2
-               c_ij(6,4) = 9.360855400400906e1
-               c_ij(6,5) = 3.183822534212147e2
-               c_ij(7,1) = 3.420013733472935e1
-               c_ij(7,2) = -1.415535402717690e1
-               c_ij(7,3) = 5.782335640988400e1
-               c_ij(7,4) = 2.583362985412365e1
-               c_ij(7,5) = 1.408950972071624
-               c_ij(7,6) = -6.551835421242162
-               c_ij(8,1) = 4.257076742291101e1
-               c_ij(8,2) = -1.380770672017997e1
-               c_ij(8,3) = 9.398938432427124e1
-               c_ij(8,4) = 1.877919633714503e1
-               c_ij(8,5) = -3.158359187223370
-               c_ij(8,6) = -6.685968952921985
-               c_ij(8,7) = -5.810979938412932
+               c_ij(2,1) =real(-1.031323885133993e1,rp)
+               c_ij(3,1) =real(-2.104823117650003e1,rp)
+               c_ij(3,2) =real(-7.234992135176716,rp)
+               c_ij(4,1) =real(3.222751541853323e1,rp)
+               c_ij(4,2) =real(-4.943732386540191,rp)
+               c_ij(4,3) =real(1.944922031041879e1,rp)
+               c_ij(5,1) =real(-2.069865579590063e1,rp)
+               c_ij(5,2) =real(-8.816374604402768,rp)
+               c_ij(5,3) =real(1.260436877740897,rp)
+               c_ij(5,4) =real(-7.495647613787146e-1,rp)
+               c_ij(6,1) =real(-4.622004352711257e1,rp)
+               c_ij(6,2) =real(-1.749534862857472e1,rp)
+               c_ij(6,3) =real(-2.896389582892057e2,rp)
+               c_ij(6,4) =real(9.360855400400906e1,rp)
+               c_ij(6,5) =real(3.183822534212147e2,rp)
+               c_ij(7,1) =real(3.420013733472935e1,rp)
+               c_ij(7,2) =real(-1.415535402717690e1,rp)
+               c_ij(7,3) =real(5.782335640988400e1,rp)
+               c_ij(7,4) =real(2.583362985412365e1,rp)
+               c_ij(7,5) =real(1.408950972071624,rp)
+               c_ij(7,6) =real(-6.551835421242162,rp)
+               c_ij(8,1) =real(4.257076742291101e1,rp)
+               c_ij(8,2) =real(-1.380770672017997e1,rp)
+               c_ij(8,3) =real(9.398938432427124e1,rp)
+               c_ij(8,4) =real(1.877919633714503e1,rp)
+               c_ij(8,5) =real(-3.158359187223370,rp)
+               c_ij(8,6) =real(-6.685968952921985,rp)
+               c_ij(8,7) =real(-5.810979938412932,rp)
                
                m_i(:) = 0.0_rp
 
-               m_i(1) = -1.409640773051259e1
-               m_i(2) = 6.925207756232704
-               m_i(3) = -4.147510893210728e1
-               m_i(4) = 2.343771018586405
-               m_i(5) = 2.413215229196062e1
-               m_i(6) = 1.0
-               m_i(7) = 1.0
-               m_i(8) = 1.0
+               m_i(1) =real(-1.409640773051259e1,rp)
+               m_i(2) =real(6.925207756232704,rp)
+               m_i(3) =real(-4.147510893210728e1,rp)
+               m_i(4) =real(2.343771018586405,rp)
+               m_i(5) =real(2.413215229196062e1,rp)
+               m_i(6) =real(1.0,rp)
+               m_i(7) =real(1.0,rp)
+               m_i(8) =real(1.0,rp)
 
             else
                write(1,*) "--| NOT CODED FOR RK > 5 YET!"
@@ -252,12 +272,6 @@ module time_integ
                call nvtxStartRange("Update aux_*")
                !$acc parallel loop
                do ipoin = 1,npoin_w
-                  eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
-                  !$acc loop seq
-                  do idime = 1,ndime
-                     f_eta(lpoin_w(ipoin),idime) = aux_u(lpoin_w(ipoin),idime)*eta(lpoin_w(ipoin),1)
-                     u_eta(lpoin_w(ipoin),idime) = aux_u(lpoin_w(ipoin),idime)
-                  end do
                   aux_rho(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),1)
                   aux_E(lpoin_w(ipoin))   = E(lpoin_w(ipoin),1)
                   cMass(lpoin_w(ipoin)) = 0.0_rp
@@ -299,27 +313,9 @@ module time_integ
                      0.5_rp*dot_product(aux_u(lpoin_w(ipoin),:),aux_u(lpoin_w(ipoin),:))
                   aux_pr(lpoin_w(ipoin)) = aux_rho(lpoin_w(ipoin))*(gamma_gas-1.0_rp)*aux_e_int(lpoin_w(ipoin))
                   aux_Tem(lpoin_w(ipoin)) = aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))*Rgas)
-                  eta(lpoin_w(ipoin),2) = (aux_rho(lpoin_w(ipoin))/(gamma_gas-1.0_rp))* &
-                     log(abs(aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))**gamma_gas)))
                end do
                !$acc end parallel loop
 
-               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u_eta(:,:),Reta,alpha)
-
-               if(mpi_size.ge.2) then
-                  call nvtxStartRange("MPI_comms_tI")
-                  call mpi_halo_atomic_update_float(Reta)
-                  call nvtxEndRange
-               end if
-
-               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
-
-               !$acc parallel loop
-               do ipoin = 1,npoin_w
-                  Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin)) !+(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/(gamma_RK*dt)
-               end do
-               !$acc end parallel loop
                !
                ! Compute viscosities and diffusion
                !
@@ -331,11 +327,6 @@ module time_integ
                   call sutherland_viscosity(npoin,aux_Tem,mu_factor,mu_fluid)
                   call nvtxEndRange
                end if
-               !
-               ! Compute entropy viscosity
-               !
-                call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
-                   gamma_gas,aux_rho(:),aux_u(:,:),csound,aux_Tem(:),eta(:,2),helem_l,helem,Ml,mu_e)
                
                ! Compute diffusion terms with values at current substep
                !
@@ -404,29 +395,29 @@ module time_integ
                !$acc end kernels
                call nvtxEndRange
 
+              !call gmres_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+              !                      atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+              !                      rho(:,1),u(:,:,1),q(:,:,1),pr(:,1),E(:,1),Tem(:,1),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+              !                      gamma_RK,dt,Rmass,Rmom,Rener,Yrho(:,istep),Yq(:,:,istep),YE(:,istep))
+
               call gmres_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                     atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                     aux_rho(:),aux_u(:,:),aux_q(:,:),aux_pr(:),aux_E(:),aux_Tem(:),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                                     gamma_RK,dt,Rmass,Rmom,Rener,Yrho(:,istep),Yq(:,:,istep),YE(:,istep))
-
-              !call jacobi_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
-              !                      atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-              !                      aux_rho(:),aux_u(:,:),aux_q(:,:),aux_pr(:),aux_E(:),aux_Tem(:),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-              !                      gamma_RK,dt,Rmass,Rmom,Rener,Yrho(:,istep),Yq(:,:,istep),YE(:,istep))
-
                !
                ! RK update to variables
                !
                call nvtxStartRange("RK_UPDATE")
             end do
             call nvtxEndRange
-            !$acc kernels
-            rho(1:npoin,2) = rho(1:npoin,1)
-            E(1:npoin,2) = E(1:npoin,1)
-            q(1:npoin,1:ndime,2) = q(1:npoin,1:ndime,1)
-            !$acc end kernels
             !$acc parallel loop
             do ipoin = 1,npoin_w
+               rho(lpoin_w(ipoin),2) = rho(lpoin_w(ipoin),1)
+               E(lpoin_w(ipoin),2) = E(lpoin_w(ipoin),1)
+               !$acc loop seq
+               do idime = 1,ndime
+                  q(lpoin_w(ipoin),idime,2) = q(lpoin_w(ipoin),idime,1)
+               end do
                do istep=1,nstep
                   rho(lpoin_w(ipoin),2) = rho(lpoin_w(ipoin),2)+m_i(istep)*Yrho(lpoin_w(ipoin),istep)
                   E(lpoin_w(ipoin),2) = E(lpoin_w(ipoin),2)+m_i(istep)*YE(lpoin_w(ipoin),istep)
@@ -471,11 +462,40 @@ module time_integ
                machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
                Tem(lpoin_w(ipoin),2) = pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)*Rgas)
                eta(lpoin_w(ipoin),2) = (rho(lpoin_w(ipoin),2)/(gamma_gas-1.0_rp))* &
-                  log(abs(pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)**gamma_gas)))
+                  log(pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)**gamma_gas))
+               !$acc loop seq
+               do idime = 1,ndime
+                  f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
+               end do
             end do
             !$acc end parallel loop
 
+            call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+               gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta,alpha)
+
+
+            if(mpi_size.ge.2) then
+               call nvtxStartRange("MPI_comms_tI")
+               call mpi_halo_atomic_update_float(Reta)
+               call nvtxEndRange
+            end if
+
+            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
+
+            !$acc parallel loop
+            do ipoin = 1,npoin_w
+               Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))!-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+            end do
+            !$acc end parallel loop
+
+            call nvtxStartRange("Entropy viscosity evaluation")
+            !
+            ! Compute entropy viscosity
+            !
+            call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
+               gamma_gas,rho(:,2),u(:,:,2),csound,Tem(:,2),eta(:,2),helem_l,helem,Ml,mu_e)
             call nvtxEndRange
+
             !
             ! If using Sutherland viscosity model:
             !
@@ -819,7 +839,7 @@ module time_integ
 
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))!-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+               Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
             end do
             !$acc end parallel loop
 
