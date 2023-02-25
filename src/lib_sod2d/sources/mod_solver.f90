@@ -578,10 +578,10 @@ module mod_solver
                      epsQ(2) = sqrt(epsilon(epsR))/sqrt(real(auxN2(4),rp))
                      epsQ(3) = sqrt(epsilon(epsR))/sqrt(real(auxN2(5),rp))
 
-                     call  smooth_gmres(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
-                                      atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-                                      rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-                                      gammaRK,dt,5)
+                     !call  smooth_gmres(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                     !                 atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                     !                 rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                     !                 gammaRK,dt,5)
 
                      call arnoldi_iter(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                         atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
