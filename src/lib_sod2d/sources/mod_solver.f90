@@ -9,7 +9,7 @@ module mod_solver
       !-----------------------------------------------------------------------
       ! Creating variables for the GMRES solver
       !-----------------------------------------------------------------------
-      real(rp)                                  :: norm_bmass, norm_bener, norm_bmom(ndime)
+      real(rp)                                  :: norm_bmass, norm_bener, norm_bmom(ndime),epsQ,epsR,epsE
       real(rp)                                  :: err_mass, err_ener, err_mom(ndime)
       real(rp)                                  :: e1_mass(maxIter+1), e1_ener(maxIter+1), e1_mom(maxIter+1,ndime)
       real(rp)                                  :: beta_mass(maxIter+1), beta_ener(maxIter+1), beta_mom(maxIter+1,ndime)
@@ -539,6 +539,37 @@ module mod_solver
                   norm_bmom(2) = sqrt(real(auxN2(4),rp))
                   norm_bmom(3) = sqrt(real(auxN2(5),rp))
 
+                  auxN(:) = 0.0_rp
+                  !$acc parallel loop
+                  do ipoin = 1,npoin_w
+                     auxN(1) = auxN(1) + real(rho(lpoin_w(ipoin))**2,8)
+                     auxN(2) = auxN(2) + real(E(lpoin_w(ipoin))**2,8)
+                     !$acc lloop seq
+                     do idime = 1,ndime
+                        auxN(idime+2) = auxN(idime+2) + real(q(lpoin_w(ipoin),idime)**2,8)
+                     end do
+                  end do
+                  !$acc end parallel loop
+
+                  call MPI_Allreduce(auxN,auxN2,5,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+
+                  if(auxN2(1)<1e-10) auxN2(1) = 1.0_rp
+                  if(auxN2(2)<1e-10) auxN2(2) = 1.0_rp
+                  if(auxN2(3)<1e-10) auxN2(3) = 1.0_rp
+                  if(auxN2(4)<1e-10) auxN2(4) = 1.0_rp
+                  if(auxN2(5)<1e-10) auxN2(5) = 1.0_rp
+
+                  norm_bmass   = sqrt(real(auxN2(1),rp))
+                  norm_bener   = sqrt(real(auxN2(2),rp))
+                  norm_bmom(1) = sqrt(real(auxN2(3),rp))
+                  norm_bmom(2) = sqrt(real(auxN2(4),rp))
+                  norm_bmom(3) = sqrt(real(auxN2(5),rp))
+
+
+                  epsR = 1e-4*sqrt(real(auxN2(1),rp))
+                  epsE = 1e-4*sqrt(real(auxN2(2),rp))
+                  epsQ = 1e-4*(1.0_rp/3.0_rp)*(sqrt(real(auxN2(3),rp))+sqrt(real(auxN2(4),rp))+sqrt(real(auxN2(5),rp)))
+                  
                   !print*, " bnorm m ",norm_bmom," aux ",auxN
 
 
@@ -923,7 +954,6 @@ module mod_solver
                   real(rp)               :: zpres(npoin),zu(npoin,ndime),ztemp(npoin),zeint(npoin)
                   real(rp)               :: auxRmass(npoin),auxRmom(npoin,ndime),auxRener(npoin),auxQ(npoin,ndime),auxU(npoin,ndime)
                   integer(4)             :: idime,ipoin
-                  real(rp)  , parameter  :: eps = 1.0e-4
                   real(rp)               :: aux
 
                   ! Form the R(u^n) arrays if not formed already
@@ -1017,12 +1047,16 @@ module mod_solver
                      ztemp(lpoin_w(ipoin)) = zpres(lpoin_w(ipoin))/(rho(lpoin_w(ipoin))*Rgas)
                      !!$acc parallel loop
                      do idime = 1,ndime
+                        !zu(lpoin_w(ipoin),idime) = zmom(lpoin_w(ipoin),idime)/zmass(lpoin_w(ipoin))
                         zu(lpoin_w(ipoin),idime) = zmom(lpoin_w(ipoin),idime)/rho(lpoin_w(ipoin))
                      end do
                   end do
                   !$acc end parallel loop
+                  !call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                  !   gmshAtoI, gmshAtoJ, gmshAtoK, u+eps*zu, q+eps*zmom, rho+eps*zmass, pr+eps*zpres, E+eps*zener, Rmass, Rmom, Rener)
+
                   call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                     gmshAtoI, gmshAtoJ, gmshAtoK, u+eps*zu, q+eps*zmom, rho+eps*zmass, pr+eps*zpres, E+eps*zener, Rmass, Rmom, Rener)
+                     gmshAtoI, gmshAtoJ, gmshAtoK, u+epsQ*zu, q+epsQ*zmom, rho+epsR*zmass, pr, E+epsE*zener, Rmass, Rmom, Rener)
 
                  ! call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
                  !    gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+eps*zmass, u+eps*zu, Tem+eps*ztemp, &
@@ -1045,11 +1079,11 @@ module mod_solver
                   ! Form the J*y arrays
                   !$acc parallel loop
                   do ipoin = 1,npoin_w
-                     Jy_mass(lpoin_w(ipoin)) = (Rmass(lpoin_w(ipoin)) - Rmass_fix(lpoin_w(ipoin)))/eps
-                     Jy_ener(lpoin_w(ipoin)) = (Rener(lpoin_w(ipoin)) - Rener_fix(lpoin_w(ipoin)))/eps
+                     Jy_mass(lpoin_w(ipoin)) = (Rmass(lpoin_w(ipoin)) - Rmass_fix(lpoin_w(ipoin)))/epsR
+                     Jy_ener(lpoin_w(ipoin)) = (Rener(lpoin_w(ipoin)) - Rener_fix(lpoin_w(ipoin)))/epsE
                      !$acc loop seq
                      do idime = 1,ndime
-                        Jy_mom(lpoin_w(ipoin),idime) = (Rmom(lpoin_w(ipoin),idime) - Rmom_fix(lpoin_w(ipoin),idime))/eps
+                        Jy_mom(lpoin_w(ipoin),idime) = (Rmom(lpoin_w(ipoin),idime) - Rmom_fix(lpoin_w(ipoin),idime))/epsQ
                      end do
                   end do
                   !$acc end parallel loop
