@@ -42,14 +42,14 @@ module mod_constants
       !
       ! Solver params
       !
-      integer(4) , parameter ::  maxIter=5
-      real(rp)   , parameter ::  tol=0.01_rp
+      integer(4) , parameter ::  maxIter=50
+      real(rp)   , parameter ::  tol=0.00001_rp
 
       !
       ! Other constants
       !
       real(rp), parameter :: v_pi = 2.0_rp*asin(1.0_rp) ! Value of Pi
-      real(rp), parameter :: ce = 1.0_rp   
+      real(rp), parameter :: ce = 0.1_rp   
       real(rp), parameter :: cmax = 0.5_rp 
       real(rp), parameter :: cglob =1.0_rp
       real(rp), parameter :: c_rho =1.0_rp

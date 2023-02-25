@@ -71,7 +71,7 @@ module time_integ
             real(rp),    dimension(npoin)       :: Reta, Reta2, Rrho
             real(rp),    dimension(8)           :: m_i
             real(rp),    dimension(8,8)         :: a_ij, c_ij
-            real(rp),    dimension(npoin,ndime) :: aux_u, aux_q,aux_u_wall
+            real(rp),    dimension(npoin,ndime) :: aux_u, aux_q,aux_u_wall,u_eta
             real(rp),    dimension(npoin)       :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
             real(rp),    dimension(npoin)       :: Rmass, Rener,alpha,cMass,cEner
             real(rp),    dimension(npoin,ndime) :: Rmom, f_eta,cMom
@@ -217,6 +217,7 @@ module time_integ
             !$acc kernels
             aux_rho(1:npoin) = 0.0_rp
             aux_u(1:npoin,1:ndime) = u(:,:,1)
+            u_eta(1:npoin,1:ndime) = u(:,:,1)
             aux_q(1:npoin,1:ndime) = 0.0_rp
             aux_pr(1:npoin) = 0.0_rp
             aux_E(1:npoin) = 0.0_rp
@@ -255,6 +256,7 @@ module time_integ
                   !$acc loop seq
                   do idime = 1,ndime
                      f_eta(lpoin_w(ipoin),idime) = aux_u(lpoin_w(ipoin),idime)*eta(lpoin_w(ipoin),1)
+                     u_eta(lpoin_w(ipoin),idime) = aux_u(lpoin_w(ipoin),idime)
                   end do
                   aux_rho(lpoin_w(ipoin)) = rho(lpoin_w(ipoin),1)
                   aux_E(lpoin_w(ipoin))   = E(lpoin_w(ipoin),1)
@@ -303,8 +305,7 @@ module time_integ
                !$acc end parallel loop
 
                call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),aux_u(:,:),Reta,alpha)
-
+                  gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u_eta(:,:),Reta,alpha)
 
                if(mpi_size.ge.2) then
                   call nvtxStartRange("MPI_comms_tI")
@@ -316,7 +317,7 @@ module time_integ
 
                !$acc parallel loop
                do ipoin = 1,npoin_w
-                  Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin)) +(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/(gamma_RK*dt)
+                  Reta(lpoin_w(ipoin)) = Reta(lpoin_w(ipoin)) !+(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/(gamma_RK*dt)
                end do
                !$acc end parallel loop
                !
