@@ -101,7 +101,7 @@ module time_integ
                m_i(2) = 1.0_rp/(8.0_rp*gamma_RK*gamma_RK)
             else if (flag_rk_order == 3) then
                nstep = 3
-               gamma_RK = 0.5_rp - sqrt(3.0_rp)/6.0_rp
+               gamma_RK = 0.5_rp + sqrt(3.0_rp)/6.0_rp
 
                a_ij(:,:) = 0.0_rp
 
@@ -117,7 +117,7 @@ module time_integ
                m_i(:) = 0.0_rp
 
                m_i(1) = (1.0_rp/gamma_RK)*(1.0_rp + (1.0_rp/gamma_RK)*(2.0_rp/3.0_rp-1.0_rp/(6.0_rp*gamma_RK)))
-               m_i(2) = -(1.0_rp/gamma_RK)*(2.0_rp/3.0_rp-1.0_rp/(6.0_rp*gamma_RK))
+               m_i(2) = (1.0_rp/gamma_RK)*(2.0_rp/3.0_rp-1.0_rp/(6.0_rp*gamma_RK))
                m_i(3) = 1.0_rp/(3.0_rp*gamma_RK)
             else if (flag_rk_order == 4) then
                nstep = 4
@@ -395,15 +395,17 @@ module time_integ
                !$acc end kernels
                call nvtxEndRange
 
-              !call gmres_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
-              !                      atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-              !                      rho(:,1),u(:,:,1),q(:,:,1),pr(:,1),E(:,1),Tem(:,1),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-              !                      gamma_RK,dt,Rmass,Rmom,Rener,Yrho(:,istep),Yq(:,:,istep),YE(:,istep))
-
+#if 1
+              call jacobi_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                                    atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                                    rho(:,1),u(:,:,1),q(:,:,1),pr(:,1),E(:,1),Tem(:,1),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                    gamma_RK,dt,Rmass,Rmom,Rener,Yrho(:,istep),Yq(:,:,istep),YE(:,istep))
+#else
               call gmres_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                     atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                     aux_rho(:),aux_u(:,:),aux_q(:,:),aux_pr(:),aux_E(:),aux_Tem(:),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                                     gamma_RK,dt,Rmass,Rmom,Rener,Yrho(:,istep),Yq(:,:,istep),YE(:,istep))
+#endif
                !
                ! RK update to variables
                !

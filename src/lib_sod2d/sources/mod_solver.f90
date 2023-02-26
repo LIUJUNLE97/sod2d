@@ -431,7 +431,7 @@ module mod_solver
                   real(rp)  , intent(inout) :: mass_sol(npoin), mom_sol(npoin,ndime), ener_sol(npoin)
                   integer(4)                :: ik, jk, kk, ipoin, idime
                   real(rp)                  :: errMax, errTol, aux
-                  real(8)                  :: auxN(5),auxN2(5),relax=1.0_rp
+                  real(8)                  :: auxN(5),auxN2(5),relax=0.2_rp
 
                   errTol = tol
 
@@ -447,7 +447,41 @@ module mod_solver
                      flag_gmres_mem_alloc = .false.
                   end if
 
+                  epsR = 1e-3
+                  epsE = 1e-3
+                  epsQ(1) = 1e-3
+                  epsQ(2) = 1e-3
+                  epsQ(3) = 1e-3
+                  call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                     atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                     rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                     mass_sol,mom_sol,ener_sol,.true.)
                   do ik = 1,maxIter
+                     auxN(:) = 0.0_rp
+                     !$acc parallel loop
+                     do ipoin = 1,npoin_w
+                        auxN(1) = auxN(1) + real(mass_sol(lpoin_w(ipoin))**2,8)
+                        auxN(2) = auxN(2) + real(ener_sol(lpoin_w(ipoin))**2,8)
+                        !$acc lloop seq
+                        do idime = 1,ndime
+                           auxN(idime+2) = auxN(idime+2) + real(mom_sol(lpoin_w(ipoin),idime)**2,8)
+                        end do
+                     end do
+                     !$acc end parallel loop
+
+                     call MPI_Allreduce(auxN,auxN2,5,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+
+                     if(auxN2(1)<1e-10) auxN2(1) = 1.0_rp
+                     if(auxN2(2)<1e-10) auxN2(2) = 1.0_rp
+                     if(auxN2(3)<1e-10) auxN2(3) = 1.0_rp
+                     if(auxN2(4)<1e-10) auxN2(4) = 1.0_rp
+                     if(auxN2(5)<1e-10) auxN2(5) = 1.0_rp
+
+                     epsR = sqrt(epsilon(epsR))/sqrt(real(auxN2(1),rp))
+                     epsE = sqrt(epsilon(epsR))/sqrt(real(auxN2(2),rp))
+                     epsQ(1) = sqrt(epsilon(epsR))/sqrt(real(auxN2(3),rp))
+                     epsQ(2) = sqrt(epsilon(epsR))/sqrt(real(auxN2(4),rp))
+                     epsQ(3) = sqrt(epsilon(epsR))/sqrt(real(auxN2(5),rp))
                      call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                         atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                         rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
@@ -1138,7 +1172,7 @@ module mod_solver
                   real(rp)               :: amass(npoin),aener(npoin),amom(npoin,ndime)
                   real(rp)                  :: zmass(npoin), zmom(npoin,ndime), zener(npoin)
                   real(rp)                  :: bmass(npoin), bmom(npoin,ndime), bener(npoin)
-                  real(8)                  :: aux(5),aux2(5),relax=0.5_rp
+                  real(8)                  :: aux(5),aux2(5),relax=0.8_rp
 
                   call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                      atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
