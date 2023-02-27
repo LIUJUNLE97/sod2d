@@ -3,7 +3,7 @@
 ! reutilized, such as interpolation. Included routines:               !
 !                                                                     !
 !   - Interpolation                                                   !
-!   - Chebyshev roots                                                 !
+!   - GLL weights & roots                                             !
 !   - Polynomial evaluation                                           !
 !                                                                     !
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -14,78 +14,143 @@ module mod_maths
 
    contains
 
-      pure subroutine chebyshev_roots(xi_chb)
+      !----------------------------------------------------------------------------------
+      subroutine getGaussLobattoLegendre_roots(roots)
+         real(rp),dimension(porder+1),intent(out) :: roots
+         real(8),dimension(porder+1) :: roots_d,legendre_aux
 
-         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-         ! Computes the roots of Tn(cos(y)) = cos(ny)       !
-         ! in the interval [-1,1], and includes the         !
-         ! endpoints. Roots are given in the following      !
-         ! order:                                           !
-         !  - xi(1) = -1                                    !
-         !  - xi(2) =  1                                    !
-         !    xi(3:porder+1) = -cos(pi*[1:porder-1]/porder) !
-         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         call ZELEGL(porder,roots_d,legendre_aux)
 
-         implicit none
+         roots = real(roots_d)
 
-         real(rp), intent(out) :: xi_chb(porder+1)
-         integer(4)           :: i
+      end subroutine getGaussLobattoLegendre_roots
+      !----------------------------------------------------------------------------------
 
-         !do i = 1,porder+1
-         !   xi_chb(i) = -cos(v_pi*dble(i-1)/dble(porder))
-         !end do
+      !----------------------------------------------------------------------------------
+      subroutine getGaussLobattoLegendre_weights_and_roots(weights,roots)
+         real(rp),dimension(porder+1),intent(out) :: weights,roots
+         real(8),dimension(porder+1) :: roots_d,weights_d,legendre_aux
 
-         xi_chb(1) = -1.0_rp
-         xi_chb(2) = -0.447213595499958_rp
-         xi_chb(3) =  0.447213595499958_rp
-         xi_chb(4) =  1.0_rp
+         call ZELEGL(porder,roots_d,legendre_aux)
+         call WELEGL(porder,roots_d,legendre_aux,weights_d)
 
+         roots = real(roots_d)
+         weights = real(weights_d)
 
-      end subroutine chebyshev_roots
+      end subroutine getGaussLobattoLegendre_weights_and_roots
+      !----------------------------------------------------------------------------------
 
-      pure subroutine eval_chebyshevPoly1(xi,Tn)
+!----------------------------------------------------------------------------------------------
+      subroutine ZELEGL(N,ET,VN)
+      !********************************************************************   
+      !   COMPUTES THE NODES RELATIVE TO THE LEGENDRE GAUSS-LOBATTO FORMULA   
+      !   N  = ORDER OF THE FORMULA                                           
+      !   ET = VECTOR OF THE NODES, ET(I), I=0,N                              
+      !   VN = VALUES OF THE LEGENDRE POLYNOMIAL AT THE NODES, VN(I), I=0,N   
+      !********************************************************************   
+         !implicit double precision (A-H,O-Z)                               
+         implicit real(8) (A-H,O-Z)
+         dimension ET(0:*), VN(0:*)                                        
+         integer:: N, N2, I, IT
+         if (N .EQ. 0) return                                              
+            N2 = (N-1)/2                                                   
+            SN = DFLOAT(2*N-4*N2-3)                                        
+            ET(0) = -1.D0                                                  
+            ET(N) = 1.D0                                                   
+            VN(0) = SN                                                     
+            VN(N) = 1.D0                                                   
+         if (N .EQ. 1) RETURN                                              
+            ET(N2+1) = 0.D0                                                
+            X = 0.D0                                                       
+            call VALEPO(N,X,Y,DY,D2Y)                                         
+            VN(N2+1) = Y                                                   
+         if(N .EQ. 2) RETURN                                               
+            C  = v_pi/DFLOAT(N)                                              
+         do I=1,N2                                                       
+            ETX = DCOS(C*DFLOAT(I))                                        
+            do IT=1,8                                                       
+               call VALEPO(N,ETX,Y,DY,D2Y)                                       
+               ETX = ETX-DY/D2Y                                               
+            end do                                                          
+            ET(I) = -ETX                                                   
+            ET(N-I) = ETX                                                  
+            VN(I) = Y*SN                                                   
+            VN(N-I) = Y                                                    
+         end do                                                             
+      end subroutine ZELEGL                                             
 
-         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-         ! Evaluates all type 1 Chebyshev polys from        !
-         ! order 0 to 1 using the recursion expression.     !
-         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      subroutine WELEGL(N,ET,VN,WT)
+      !********************************************************************** 
+      !   COMPUTES THE WEIGHTS RELATIVE TO THE LEGENDRE GAUSS-LOBATTO FORMULA 
+      !   N  = ORDER OF THE FORMULA                                           
+      !   ET = JACOBI GAUSS-LOBATTO NODES, ET(I), I=0,N                       
+      !   VN = VALUES OF THE LEGENDRE POLYNOMIAL AT THE NODES, VN(I), I=0,N   
+      !   WT = VECTOR OF THE WEIGHTS, WT(I), I=0,N                            
+      !********************************************************************** 
+         !IMPLICIT DOUBLE PRECISION (A-H,O-Z)
+         implicit real(8) (A-H,O-Z)
+         dimension ET(0:*), VN(0:*), WT(0:*)
+         integer:: N, N2, I
+         if(N .EQ. 0) return
+            N2 = (N-1)/2                                                  
+            DN = DFLOAT(N)                                                
+            C  = 2.D0/(DN*(DN+1.D0))                                      
+         do I=0,N2                                                       
+            X = ET(I)                                                     
+            Y = VN(I)                                                     
+            WTX = C/(Y*Y)                                                 
+            WT(I) = WTX                                                   
+            WT(N-I) = WTX                                                 
+         end do                                                          
+         if(N-1 .EQ. 2*N2) return
+            X = 0.D0                                                      
+            Y = VN(N2+1)                                                  
+            WT(N2+1) = C/(Y*Y)                                            
+      end subroutine WELEGL
 
-         implicit none
+      subroutine VALEPO(N,X,Y,DY,D2Y)                                   
+      !*************************************************************          
+      !   COMPUTES THE VALUE OF THE LEGENDRE POLYNOMIAL OF DEGREE N           
+      !   AND ITS FIRST AND SECOND DERIVATIVES AT A GIVEN POINT               
+      !   N  = DEGREE OF THE POLYNOMIAL                                       
+      !   X  = POINT IN WHICH THE COMPUTATION IS PERFORMED                    
+      !   Y  = VALUE OF THE POLYNOMIAL IN X                                   
+      !   DY = VALUE OF THE FIRST DERIVATIVE IN X                             
+      !   D2Y= VALUE OF THE SECOND DERIVATIVE IN X                            
+      !*************************************************************
+         !implicit double precision (A-H,O-Z)
+         implicit real(8) (A-H,O-Z)
+         integer :: N, i
 
-         real(rp), intent(in)  :: xi
-         real(rp), intent(out) :: Tn(porder+1)
-         integer(4)           :: n
+         Y   = 1.D0
+         DY  = 0.D0
+         D2Y = 0.D0
+         if (N .EQ. 0) return
+         Y   = X
+         DY  = 1.D0
+         D2Y = 0.D0
+         if(N .EQ. 1) return
+         YP   = 1.D0
+         DYP  = 0.D0
+         D2YP = 0.D0
+         do I=2,N             
+            C1 = DFLOAT(I)    
+            C2 = 2.D0*C1-1.D0 
+            C4 = C1-1.D0      
+            YM = Y            
+            Y  = (C2*X*Y-C4*YP)/C1                  
+            YP = YM                                 
+            DYM  = DY                               
+            DY   = (C2*X*DY-C4*DYP+C2*YP)/C1        
+            DYP  = DYM                              
+            D2YM = D2Y                              
+            D2Y  = (C2*X*D2Y-C4*D2YP+2.D0*C2*DYP)/C1
+            D2YP = D2YM                                                    
+         end do                                                                    
+      end subroutine VALEPO
+!----------------------------------------------------------------------------------------------
 
-         Tn(1) = 1.0_rp
-         Tn(2) = xi
-         do n = 3,porder+1
-            Tn(n) = 2.0_rp*xi*Tn(n-1)-Tn(n-2)
-         end do
-
-      end subroutine eval_chebyshevPoly1
-
-      pure subroutine eval_chebyshevPoly2(xi,Un)
-
-         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-         ! Evaluates all type 2 Chebyshev polys from        !
-         ! order 0 to 1 using the recursion expression.     !
-         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-         implicit none
-
-         real(rp), intent(in)  :: xi
-         real(rp), intent(out) :: Un(porder+1)
-         integer(4)           :: n
-
-         Un(1) = 1.0_rp
-         Un(2) = 2.0_rp*xi
-         do n = 3,porder+1
-            Un(n) = 2.0_rp*xi*Un(n-1)-Un(n-2)
-         end do
-
-      end subroutine eval_chebyshevPoly2
-
-      pure subroutine lagrange_roots(xi_lag)
+      pure subroutine getEquispaced_roots(xi_equi)
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          ! Computes the equispaced loci for the Lagrange    !
@@ -99,14 +164,14 @@ module mod_maths
          !
          implicit none
 
-         real(rp), intent(out) :: xi_lag(porder+1)
-         integer(4)           :: i
+         real(rp),intent(out) :: xi_equi(porder+1)
+         integer(4) :: i
 
          do i = 1,porder+1
-            xi_lag(i) = -1.0_rp+(2.0_rp*real(i-1,rp)/real(porder,rp))
+            xi_equi(i) = -1.0_rp+(2.0_rp*real(i-1,rp)/real(porder,rp))
          end do
 
-      end subroutine lagrange_roots
+      end subroutine getEquispaced_roots
 
       pure subroutine eval_lagrangePoly(xi,xi_p,l_ip)
 
@@ -163,7 +228,6 @@ module mod_maths
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
          implicit none
-
 
          real(rp),    intent(in)  :: xi(porder+1), xi_p
          real(rp),    intent(out) :: dl_ip(porder+1)

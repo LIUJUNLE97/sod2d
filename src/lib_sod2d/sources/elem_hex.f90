@@ -332,18 +332,18 @@ module elem_hex
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
          implicit none
-         real(rp), intent(in)   :: xi, eta, zeta
-         integer(4), intent(in) :: atoIJK(64)
-         real(rp), intent(out)  :: N(nnode), dN(ndime,nnode),dlxigp_ip(ndime,porder+1)
-         real(rp), intent(out)  :: N_lagrange(nnode), dN_lagrange(ndime,nnode)
-         real(rp)               :: xi_grid(porder+1)
+         real(rp),intent(in)   :: xi, eta, zeta
+         integer(4),intent(in) :: atoIJK(64)
+         real(rp),intent(out)  :: N(nnode), dN(ndime,nnode),dlxigp_ip(ndime,porder+1)
+         real(rp),intent(out)  :: N_lagrange(nnode), dN_lagrange(ndime,nnode)
+         real(rp)              :: xi_grid(porder+1)
 
-         call lagrange_roots(xi_grid)
+         call getEquispaced_roots(xi_grid)
          call tripleTensorProduct(xi_grid,xi,eta,zeta,atoIJK,N,dN)
          if (flag_spectralElem == 1) then
             N_lagrange(:) = N(:)
             dN_lagrange(:,:) = dN(:,:)
-            call chebyshev_roots(xi_grid)
+            call getGaussLobattoLegendre_roots(xi_grid)
             call tripleTensorProduct(xi_grid,xi,eta,zeta,atoIJK,N,dN,dlxigp_ip)
          end if
       end subroutine hex64
