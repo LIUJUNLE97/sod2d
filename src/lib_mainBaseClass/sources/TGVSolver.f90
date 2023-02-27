@@ -59,7 +59,6 @@ contains
 
       this%nstep = 50001
 
-      this%dt = 1.0e-3
       this%cfl_conv = 1.0_rp
       this%cfl_diff = 1.0_rp
       this%nsave  = 1  ! First step to save, TODO: input
