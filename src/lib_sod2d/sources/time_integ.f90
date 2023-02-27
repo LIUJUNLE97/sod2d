@@ -398,14 +398,14 @@ module time_integ
 #if 1
              call jacobi_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                     atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-                                    aux_rho(:),aux_u(:,:),aux_q(:,:),aux_pr(:),aux_E(:),aux_Tem(:),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-                                    !rho(:,1),u(:,:,1),q(:,:,1),pr(:,1),E(:,1),Tem(:,1),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-                                    gamma_RK,dt,Rmass,Rmom,Rener,Yrho(:,istep),Yq(:,:,istep),YE(:,istep))
+                                    !aux_rho(:),aux_u(:,:),aux_q(:,:),aux_pr(:),aux_E(:),aux_Tem(:),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                    rho(:,1),u(:,:,1),q(:,:,1),pr(:,1),E(:,1),Tem(:,1),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                    gamma_RK,dt,Rmass,Rmom,Rener,Yrho(:,istep),Yq(:,:,istep),YE(:,istep),istep)
 #else
               call gmres_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                     atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                     rho(:,1),u(:,:,1),q(:,:,1),pr(:,1),E(:,1),Tem(:,1),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-                                    gamma_RK,dt,Rmass,Rmom,Rener,Yrho(:,istep),Yq(:,:,istep),YE(:,istep))
+                                    gamma_RK,dt,Rmass,Rmom,Rener,Yrho(:,istep),Yq(:,:,istep),YE(:,istep),istep)
 #endif
                !
                ! RK update to variables
