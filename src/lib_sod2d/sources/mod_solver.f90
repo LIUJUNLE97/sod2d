@@ -598,6 +598,7 @@ module mod_solver
                   call init_gmres(npoin,npoin_w,lpoin_w,bmass,bmom,bener,dt,gammaRK)
 
                   outer:do ik = 1,maxIter
+                     ! TODO: put this inside Jy and make gpu friendly
                      auxN(:) = 0.0_rp
                      !$acc parallel loop
                      do ipoin = 1,npoin_w
@@ -1066,8 +1067,8 @@ module mod_solver
                   integer(4), intent(in) :: npoin, npoin_w, lpoin_w(npoin_w)
                   real(rp)  , intent(in) :: bmass(npoin), bmom(npoin,ndime), bener(npoin), dt, gammaRK
                   integer(4)             :: ipoin, idime
-                  real(rp)               :: amass(npoin),aener(npoin),amom(npoin,ndime)
-                  real(8)               :: aux(5),aux2(5)
+                  real(rp)               :: amass(npoin), aener(npoin), amom(npoin,ndime)
+                  real(8)                :: aux(5), aux2(5), aux3
 
                   ! Zero Q_* arrays
                   !$acc kernels
@@ -1129,13 +1130,34 @@ module mod_solver
 
                   ! Normalize each residual
                   ! TODO: make it GPU compatible without using atomic update
-                  aux(:) = 0.0
+                  !$acc kernels
+                  aux(:) = 0.0_rp
+                  aux2(:) = 0.0_rp
+                  !$acc end kernels
+                  aux3 = 0.0_rp
+                  !$acc parallel loop reduction(+:aux3)
                   do ipoin = 1,npoin_w
-                     aux(1) = aux(1) + real(Q_Mass(lpoin_w(ipoin),1)**2,8)
-                     aux(2) = aux(2) + real(Q_Ener(lpoin_w(ipoin),1)**2,8)
-                     do idime = 1,ndime
-                        aux(idime+2) = aux(idime+2) + real(Q_Mom(lpoin_w(ipoin),idime,1)**2,8)
+                     aux3 = aux3 + real(Q_Mass(lpoin_w(ipoin),1)**2,8)
+                  end do
+                  !$acc end parallel loop
+                  aux(1) = aux3
+
+                  aux3 = 0.0_rp
+                  !$acc parallel loop reduction(+:aux3)
+                  do ipoin = 1,npoin_w
+                     aux3 = aux3 + real(Q_Ener(lpoin_w(ipoin),1)**2,8)
+                  end do
+                  aux(2) = aux3
+                  !$acc end parallel loop
+
+                  do idime = 1,ndime
+                     aux3 = 0.0_rp
+                     !$acc parallel loop reduction(+:aux3)
+                     do ipoin = 1,npoin_w
+                        aux3 = aux3 + real(Q_Mom(lpoin_w(ipoin),idime,1)**2,8)
                      end do
+                     !$acc end parallel loop
+                     aux(idime+2) = aux3
                   end do
 
                   call MPI_Allreduce(aux,aux2,5,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
@@ -1146,8 +1168,11 @@ module mod_solver
                   if(aux2(4)<1e-10) aux2(4) = 1.0_rp
                   if(aux2(5)<1e-10) aux2(5) = 1.0_rp
                   
+                  !$acc kernels
                   beta_mass(:) = sqrt(real(aux2(1),rp))*e1_mass(:)
                   beta_ener(:) = sqrt(real(aux2(2),rp))*e1_ener(:)
+                  !$acc end kernels
+
                   !$acc parallel loop
                   do ipoin = 1,npoin_w
                      Q_Mass(lpoin_w(ipoin),1) = Q_Mass(lpoin_w(ipoin),1)/sqrt(real(aux2(1),rp))
@@ -1155,13 +1180,17 @@ module mod_solver
                   end do
                   !$acc end parallel loop
 
-                  !$acc parallel loop collapse(2)
                   do idime = 1,ndime
+                     !$acc kernels
                      beta_mom(:,idime) = sqrt(real(aux2(idime+2),rp))*e1_mom(:,idime)
+                     !$acc end kernels
+                     !$acc parallel loop
                      do ipoin = 1,npoin_w
                         Q_Mom(lpoin_w(ipoin),idime,1) = Q_Mom(lpoin_w(ipoin),idime,1)/sqrt(real(aux2(idime+2),rp))
                      end do
+                     !$acc end parallel loop
                   end do
+                  
                   !$acc end parallel loop
                   !print*," beta mass ",beta_mass
                   !print*," beta ener ",beta_ener                  !print*," beta mom ",beta_mom
