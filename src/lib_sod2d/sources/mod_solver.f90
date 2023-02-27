@@ -544,19 +544,31 @@ module mod_solver
                   end if
 
                   auxN(:) = 0.0_rp
-                  !$acc parallel loop
+                  aux = 0.0_rp
+                  !$acc parallel loop reduction(+:aux)
                   do ipoin = 1,npoin_w
-                     auxN(1) = auxN(1) + real(bmass(lpoin_w(ipoin))**2,8)
-                     auxN(2) = auxN(2) + real(bener(lpoin_w(ipoin))**2,8)
-                     ymass(lpoin_w(ipoin)) = mass_sol(lpoin_w(ipoin))
-                     yener(lpoin_w(ipoin)) = ener_sol(lpoin_w(ipoin))
-                     !$acc loop seq
-                     do idime = 1,ndime
-                        ymom(lpoin_w(ipoin),idime) = mom_sol(lpoin_w(ipoin),idime)
-                        auxN(idime+2) = auxN(idime+2) + real(bmom(lpoin_w(ipoin),idime)**2,8)
-                     end do
+                     aux = aux + real(bmass(lpoin_w(ipoin))**2,8)
                   end do
                   !$acc end parallel loop
+                  auxN(1) = aux
+
+                  aux = 0.0_rp
+                  !$acc parallel loop reduction(+:aux)
+                  do ipoin = 1,npoin_w
+                     aux = aux + real(bener(lpoin_w(ipoin))**2,8)
+                  end do
+                  !$acc end parallel loop
+                  auxN(2) = aux
+
+                  do idime = 1,ndime
+                     aux = 0.0_rp
+                     !$acc parallel loop reduction(+:aux)
+                     do ipoin = 1,npoin_w
+                        aux = aux + real(bmom(lpoin_w(ipoin),idime)**2,8)
+                     end do
+                     !$acc end parallel loop
+                     auxN(idime+2) = aux
+                  end do
 
                   call MPI_Allreduce(auxN,auxN2,5,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
