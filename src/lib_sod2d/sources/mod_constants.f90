@@ -2,7 +2,7 @@ module mod_constants
 
       implicit none
 
-      integer(4), parameter::rp = 4
+      integer(4), parameter::rp = 4 !8
 
       !
       ! Dimensions

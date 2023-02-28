@@ -238,8 +238,8 @@ module mod_entropy_viscosity
                          end do
                          !$acc end parallel loop
 
-                         call MPI_Allreduce(maxEta_r,maxEta,1,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
-                         call MPI_Allreduce(npoin_w,npoin_w_g,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                         call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                         call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
                          maxEta = maxEta/real(npoin_w_g,rp)
 
@@ -250,7 +250,7 @@ module mod_entropy_viscosity
                          end do
                          !$acc end parallel loop
 
-                         call MPI_Allreduce(norm_r,norm,1,MPI_FLOAT,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+                         call MPI_Allreduce(norm_r,norm,1,mpi_datatype_real,MPI_MAX,MPI_COMM_WORLD,mpi_err)
                       else
                          norm = 1.0_rp
                       end if

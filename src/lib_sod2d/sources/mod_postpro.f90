@@ -114,11 +114,11 @@ contains
 
       if(mpi_size.ge.2) then
          call nvtxStartRange("MPI_comms_post")
-         call mpi_halo_atomic_update_float(Qcrit)
-         call mpi_halo_atomic_update_float(divU)
+         call mpi_halo_atomic_update_real(Qcrit)
+         call mpi_halo_atomic_update_real(divU)
          do idime = 1,ndime
-            call mpi_halo_atomic_update_float(curlU(:,idime))
-            call mpi_halo_atomic_update_float(gradRho(:,idime))
+            call mpi_halo_atomic_update_real(curlU(:,idime))
+            call mpi_halo_atomic_update_real(gradRho(:,idime))
          end do
          call nvtxEndRange
       end if

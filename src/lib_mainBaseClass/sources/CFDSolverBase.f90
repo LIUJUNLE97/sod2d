@@ -76,7 +76,7 @@ module CFDSolverBase_mod
       ! main logical parameters
       logical, public    :: doGlobalAnalysis=.false.,isFreshStart=.true.,doTimerAnalysis=.false.
       logical, public    :: loadResults=.false.,continue_oldLogs=.false.,saveInitialField=.true.,isWallModelOn=.false.
-      logical, public    :: useIntInComms=.false.,useFloatInComms=.false.,useDoubleInComms=.false.
+      logical, public    :: useIntInComms=.false.,useRealInComms=.false.
 
       ! main char variables
       character(512) :: log_file_name
@@ -108,10 +108,8 @@ module CFDSolverBase_mod
       procedure, public :: evalViscosityFactor=>CFDSolverBase_evalViscosityFactor
       procedure, public :: evalInitialDt =>CFDSolverBase_evalInitialDt
       procedure, public :: evalShapeFunctions =>CFDSolverBase_evalShapeFunctions
-      !procedure, public :: interpolateInitialConditions =>CFDSolverBase_interpolateInitialConditions
       procedure, public :: evalBoundaryNormals =>CFDSolverBase_evalBoundaryNormals
       procedure, public :: evalJacobians =>CFDSolverBase_evalJacobians
-      !procedure, public :: evalVTKconnectivity =>CFDSolverBase_evalVTKconnectivity
       procedure, public :: evalAtoIJKInverse =>CFDSolverBase_evalAtoIJKInverse
       procedure, public :: eval_elemPerNode_and_nearBoundaryNode =>CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode
       procedure, public :: evalMass=>CFDSolverBase_evalMass
@@ -197,14 +195,13 @@ contains
       call set_hdf5_baseResultsFile_name(this%results_h5_file_path,this%results_h5_file_name,this%mesh_h5_file_name,mpi_size)
 
       this%useIntInComms=.true.
-      this%useFloatInComms=.true.
-      this%useDoubleInComms=.false.
+      this%useRealInComms=.true.
 
       call load_hdf5_meshfile()
       ! init comms
-      call init_comms(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
+      call init_comms(this%useIntInComms,this%useRealInComms)
       !----- init comms boundaries
-      call init_comms_bnd(this%useIntInComms,this%useFloatInComms,this%useDoubleInComms)
+      call init_comms_bnd(this%useIntInComms,this%useRealInComms)
 
       call nvtxEndRange
 
@@ -292,9 +289,9 @@ contains
       !$acc end parallel loop
 
       if(mpi_size.ge.2) then
-         call mpi_halo_boundary_atomic_update_float(normalsAtNodes(:,1))
-         call mpi_halo_boundary_atomic_update_float(normalsAtNodes(:,2))
-         call mpi_halo_boundary_atomic_update_float(normalsAtNodes(:,3))
+         call mpi_halo_boundary_atomic_update_real(normalsAtNodes(:,1))
+         call mpi_halo_boundary_atomic_update_real(normalsAtNodes(:,2))
+         call mpi_halo_boundary_atomic_update_real(normalsAtNodes(:,3))
       end if
 
       !$acc parallel loop  private(aux)
@@ -742,7 +739,7 @@ contains
          end do
       end do
 
-      call MPI_Allreduce(vol_rank,vol_tot_d,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(vol_rank,vol_tot_d,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
       this%VolTot = real(vol_tot_d,rp) 
 
@@ -937,7 +934,7 @@ contains
          if(this%doTimerAnalysis) then
             iStepEndTime = MPI_Wtime()
             iStepTimeRank = iStepEndTime - iStepStartTime
-            call MPI_Allreduce(iStepTimeRank,iStepTimeMax,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+            call MPI_Allreduce(iStepTimeRank,iStepTimeMax,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
             inv_iStep = 1.0_rp/real(istep)
             iStepAvgTime = (iStepAvgTime*(istep-1)+iStepTimeMax)*inv_iStep
 
@@ -1212,102 +1209,79 @@ contains
       call init_mpi()
 
       ! Init HDF5 interface
-
       call init_hdf5_interface()
 
-        ! Main simulation parameters
+      ! Main simulation parameters
+      call this%initializeDefaultParameters()         
+      call this%initializeParameters()
 
-        call this%initializeDefaultParameters()         
-        call this%initializeParameters()
-
-
-        ! Define vector length to be used 
-        
-        call define_veclen()
+      ! Define vector length to be used 
+      call define_veclen()
 
       ! Open log file
-
       call this%open_log_file()
 
       ! read the mesh
-
       call this%openMesh()
 
       ! Open analysis files
       call this%open_analysis_files
 
       ! Eval shape Functions
-
       call this%evalShapeFunctions()
 
-        ! Allocate variables
+      ! Allocate variables
+      call this%allocateVariables()
 
-        call this%allocateVariables()
+      ! Eval or load initial conditions
+      call this%evalOrLoadInitialConditions()
 
-        ! Eval or load initial conditions
+      ! Init of the source terms
+      call this%initializeSourceTerms()
 
-        call this%evalOrLoadInitialConditions()
+      ! Eval  viscosty factor
+      call this%evalViscosityFactor()
 
-        ! Init of the source terms
+      ! Eval initial viscosty
+      call this%evalInitialViscosity()
 
-        call this%initializeSourceTerms()
+      ! Compute characteristic size of the elements
+      call this%evalCharLength()
 
-        ! Eval  viscosty factor
+      ! Eval boundary element normal
+      call this%evalBoundaryNormals()
 
-        call this%evalViscosityFactor()
+      ! Eval Jacobian information
+      call this%evalJacobians()
 
-        ! Eval initial viscosty
+      ! Eval AtoIJK inverse
+      call this%evalAtoIJKInverse()
 
-        call this%evalInitialViscosity()
-
-        ! Compute characteristic size of the elements
-
-        call this%evalCharLength()
-
-        ! Eval boundary element normal
-
-        call this%evalBoundaryNormals()
-
-        ! Eval Jacobian information
-
-        call this%evalJacobians()
-
-        ! Eval AtoIJK inverse
-
-        call this%evalAtoIJKInverse()
-
-        ! Eval BoundaryFacesToNodes
-
-        call  this%boundaryFacesToNodes()
+      ! Eval BoundaryFacesToNodes
+      call  this%boundaryFacesToNodes()
 
       ! Eval list Elems per Node and Near Boundary Node
-
       call this%eval_elemPerNode_and_nearBoundaryNode()
 
-        ! Eval mass 
+      ! Eval mass 
+      call this%evalMass()
 
-        call this%evalMass()
+      ! Eval first output
+      if(this%isFreshStart) call this%evalFirstOutput()
+      call this%flush_log_file()
 
-        ! Eval first output
-        if(this%isFreshStart) call this%evalFirstOutput()
-
-        call this%flush_log_file()
-
-        ! Eval Normal Faces To Nodes
-
+      ! Eval Normal Faces To Nodes
       if(this%isWallModelOn) call  this%normalFacesToNodes()
 
-        ! Eval initial time step
+      ! Eval initial time step
+      call this%evalInitialDt()
 
-        call this%evalInitialDt()
+      call this%initialBuffer()
 
-        call this%initialBuffer()
+      call this%flush_log_file()
 
-        call this%flush_log_file()
-
-        ! Do the time iteration
-
-        call this%evalTimeIteration()
+      ! Do the time iteration
+      call this%evalTimeIteration()
 
       call this%close_log_file()
       call this%close_analysis_files()
@@ -1318,6 +1292,7 @@ contains
       ! End comms
       call end_comms()
       call end_comms_bnd()
+
       ! End MPI      
       call end_mpi()
 

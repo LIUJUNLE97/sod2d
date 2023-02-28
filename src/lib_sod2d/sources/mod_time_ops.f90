@@ -56,7 +56,7 @@ module mod_time_ops
          end do
          !$acc end parallel loop
 
-         call MPI_Allreduce(dt_l,dt,1,MPI_FLOAT,MPI_MIN,MPI_COMM_WORLD,mpi_err)
+         call MPI_Allreduce(dt_l,dt,1,mpi_datatype_real,MPI_MIN,MPI_COMM_WORLD,mpi_err)
 
          call nvtxEndRange
 

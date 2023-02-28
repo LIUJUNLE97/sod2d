@@ -8,22 +8,20 @@ module mod_comms_boundaries
 
     !---- for the comms---
     integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size
-    !integer(KIND=MPI_ADDRESS_KIND) :: memPos_t
     integer :: bnd_worldGroup,bnd_commGroup
 
     integer(4), dimension(:), allocatable :: aux_bnd_intField_s, aux_bnd_intField_r
-    real(4), dimension(:), allocatable :: aux_bnd_floatField_s, aux_bnd_floatField_r
-    real(8), dimension(:), allocatable :: aux_bnd_doubleField_s, aux_bnd_doubleField_r
+    real(rp), dimension(:), allocatable :: aux_bnd_realField_s, aux_bnd_realField_r
 
-    integer :: window_id_bnd_int,window_id_bnd_float,window_id_bnd_double
+    integer :: window_id_bnd_int,window_id_bnd_real
 
-    logical :: bnd_isInt,bnd_isFloat,bnd_isDouble
+    logical :: bnd_isInt,bnd_isReal
 
 contains
 
-    subroutine init_comms_bnd(useInt,useFloat,useDouble)
+    subroutine init_comms_bnd(useInt,useReal)
         implicit none
-        logical, intent(in) :: useInt,useFloat,useDouble
+        logical, intent(in) :: useInt,useReal
         logical :: useFenceFlags,useAssertNoCheckFlags,useLockBarrier
 
 #if _ISENDIRCV_
@@ -31,8 +29,7 @@ contains
 #endif
 
         bnd_isInt=.false.
-        bnd_isFloat=.false.
-        bnd_isDouble=.false.
+        bnd_isReal=.false.
 
         if(useInt) then
             bnd_isInt = .true.
@@ -45,30 +42,20 @@ contains
             !call init_window_intField()
         end if
 
-        if(useFloat) then
-            bnd_isFloat = .true.
+        if(useReal) then
+            bnd_isReal = .true.
 
-            allocate(aux_bnd_floatField_s(bnd_numNodesToComm))
-            allocate(aux_bnd_floatField_r(bnd_numNodesToComm))
-            !$acc enter data create(aux_bnd_floatField_s(:))
-            !$acc enter data create(aux_bnd_floatField_r(:))
+            allocate(aux_bnd_realField_s(bnd_numNodesToComm))
+            allocate(aux_bnd_realField_r(bnd_numNodesToComm))
+            !$acc enter data create(aux_bnd_realField_s(:))
+            !$acc enter data create(aux_bnd_realField_r(:))
 
-            !call init_window_floatField()
+            !call init_window_realField()
         end if
 
-        if(useDouble) then
-            bnd_isDouble = .true.
-
-            allocate(aux_bnd_doubleField_s(numNodesToComm))
-            allocate(aux_bnd_doubleField_r(numNodesToComm))
-            !$acc enter data create(aux_bnd_doubleField_s(:))
-            !$acc enter data create(aux_bnd_doubleField_r(:))       
-
-            !call init_window_doubleField()
-        end if
 
         call MPI_Comm_group(MPI_COMM_WORLD,bnd_worldGroup,mpi_err)
-	     call MPI_Group_incl(bnd_worldGroup,bnd_numRanksWithComms,bnd_ranksToComm,bnd_commGroup,mpi_err);
+        call MPI_Group_incl(bnd_worldGroup,bnd_numRanksWithComms,bnd_ranksToComm,bnd_commGroup,mpi_err);
 
         !useFenceFlags=.false. !by default
         !useAssertNoCheckFlags=.true. !by default
@@ -92,22 +79,13 @@ contains
             !call close_window_intField_bnd()            
         end if
 
-        if(bnd_isFloat) then
-           !$acc exit data delete(aux_bnd_floatField_s(:))
-           !$acc exit data delete(aux_bnd_floatField_r(:))
-            deallocate(aux_bnd_floatField_s)
-            deallocate(aux_bnd_floatField_r)
+        if(bnd_isReal) then
+           !$acc exit data delete(aux_bnd_realField_s(:))
+           !$acc exit data delete(aux_bnd_realField_r(:))
+            deallocate(aux_bnd_realField_s)
+            deallocate(aux_bnd_realField_r)
 
-            !call close_window_floatField_bnd()
-        end if
-
-        if(bnd_isDouble) then
-            !$acc exit data delete(aux_bnd_doubleField_s(:))
-            !$acc exit data delete(aux_bnd_doubleField_r(:))
-            deallocate(aux_bnd_doubleField_s)
-            deallocate(aux_bnd_doubleField_r)
-
-            !call close_window_doubleField_bnd()
+            !call close_window_realField_bnd()
         end if
 
     end subroutine end_comms_bnd
@@ -128,32 +106,19 @@ contains
     end subroutine close_window_intField_bnd
 !-------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
-    subroutine init_window_floatField_bnd()
+    subroutine init_window_realField_bnd()
         implicit none
 
-        window_buffer_size = mpi_float_size*bnd_numNodesToComm
-        call MPI_Win_create(aux_bnd_floatField_r,window_buffer_size,mpi_float_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_bnd_float,mpi_err)
-    end subroutine init_window_floatField_bnd
+        window_buffer_size = mpi_real_size*bnd_numNodesToComm
+        call MPI_Win_create(aux_bnd_realField_r,window_buffer_size,mpi_real_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_bnd_real,mpi_err)
+    end subroutine init_window_realField_bnd
 
-    subroutine close_window_floatField_bnd()
-        implicit none
-        
-        call MPI_Win_free(window_id_bnd_float,mpi_err)
-    end subroutine close_window_floatField_bnd
-!-------------------------------------------------------------------------------------
-!-------------------------------------------------------------------------------------
-    subroutine init_window_doubleField_bnd()
-        implicit none
-
-        window_buffer_size = mpi_double_size*bnd_numNodesToComm
-        call MPI_Win_create(aux_bnd_doubleField_r,window_buffer_size,mpi_double_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_bnd_double,mpi_err)
-    end subroutine init_window_doubleField_bnd
-
-    subroutine close_window_doubleField_bnd()
+    subroutine close_window_realField_bnd()
         implicit none
         
-        call MPI_Win_free(window_id_bnd_double,mpi_err)
-    end subroutine close_window_doubleField_bnd
+        call MPI_Win_free(window_id_bnd_real,mpi_err)
+    end subroutine close_window_realField_bnd
+
 !-------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
@@ -175,37 +140,22 @@ contains
         !$acc end kernels
     end subroutine fill_boundary_sendBuffer_int
 !-------------------------------------------------------------------------------------
-    subroutine fill_boundary_sendBuffer_float(floatField)
+    subroutine fill_boundary_sendBuffer_real(realField)
         implicit none
-        real(4), intent(inout) :: floatField(:)
+        real(rp), intent(inout) :: realField(:)
         integer :: i,iNodeL
 
         !$acc parallel loop
         do i=1,bnd_numNodesToComm
             iNodeL = bnd_matrixCommScheme(i,1)
-            aux_bnd_floatField_s(i) = floatField(iNodeL)
+            aux_bnd_realField_s(i) = realField(iNodeL)
         end do
         !$acc end parallel loop
         !$acc kernels
-        aux_bnd_floatField_r(:)=0.
+        aux_bnd_realField_r(:)=0.
         !$acc end kernels
-    end subroutine fill_boundary_sendBuffer_float
-!-------------------------------------------------------------------------------------
-    subroutine fill_boundary_sendBuffer_double(doubleField)
-        implicit none
-        real(8), intent(inout) :: doubleField(:)
-        integer :: i,iNodeL
+    end subroutine fill_boundary_sendBuffer_real
 
-        !$acc parallel loop
-        do i=1,bnd_numNodesToComm
-            iNodeL = bnd_matrixCommScheme(i,1)
-            aux_bnd_doubleField_s(i) = doubleField(iNodeL)
-        end do
-        !$acc end parallel loop
-        !$acc kernels
-        aux_bnd_doubleField_r(:)=0.
-        !$acc end kernels
-    end subroutine fill_boundary_sendBuffer_double
 !-------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
 !   Standard copy boundary buffers
@@ -226,35 +176,21 @@ contains
         !$acc end parallel loop
     end subroutine copy_from_boundary_rcvBuffer_int
 !-------------------------------------------------------------------------
-    subroutine copy_from_boundary_rcvBuffer_float(floatField)
+    subroutine copy_from_boundary_rcvBuffer_real(realField)
         implicit none
-        real(4), intent(inout) :: floatField(:)
+        real(rp), intent(inout) :: realField(:)
         integer :: i,iNodeL
 
         !$acc parallel loop
         do i=1,bnd_numNodesToComm
             iNodeL = bnd_matrixCommScheme(i,1)
             !$acc atomic update
-            floatField(iNodeL) = floatField(iNodeL) + aux_bnd_floatField_r(i)
+            realField(iNodeL) = realField(iNodeL) + aux_bnd_realField_r(i)
             !$acc end atomic
         end do
         !$acc end parallel loop
-    end subroutine copy_from_boundary_rcvBuffer_float
-!-------------------------------------------------------------------------
-    subroutine copy_from_boundary_rcvBuffer_double(doubleField)
-        implicit none
-        real(8), intent(inout) :: doubleField(:)
-        integer :: i,iNodeL
+    end subroutine copy_from_boundary_rcvBuffer_real
 
-        !$acc parallel loop
-        do i=1,bnd_numNodesToComm
-            iNodeL = bnd_matrixCommScheme(i,1)
-            !$acc atomic update
-            doubleField(iNodeL) = doubleField(iNodeL) + aux_bnd_doubleField_r(i)
-            !$acc end atomic
-        end do
-        !$acc end parallel loop
-    end subroutine copy_from_boundary_rcvBuffer_double
 !-------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
 !   Specialized copy boundary buffers
@@ -275,20 +211,20 @@ contains
         !$acc end parallel loop
     end subroutine copy_from_min_boundary_rcvBuffer_int
 !-------------------------------------------------------------------------
-    subroutine copy_from_max_boundary_rcvBuffer_float(floatField)
+    subroutine copy_from_max_boundary_rcvBuffer_real(realField)
         implicit none
-        real(4), intent(inout) :: floatField(:)
+        real(rp), intent(inout) :: realField(:)
         integer :: i,iNodeL
 
         !$acc parallel loop
         do i=1,bnd_numNodesToComm
             iNodeL = bnd_matrixCommScheme(i,1)
             !$acc atomic update
-            floatField(iNodeL) = max(floatField(iNodeL),aux_bnd_floatField_r(i))
+            realField(iNodeL) = max(realField(iNodeL),aux_bnd_realField_r(i))
             !$acc end atomic
         end do
         !$acc end parallel loop
-    end subroutine copy_from_max_boundary_rcvBuffer_float
+    end subroutine copy_from_max_boundary_rcvBuffer_real
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
 
@@ -302,25 +238,15 @@ contains
 
     end subroutine mpi_halo_boundary_atomic_update_int
 
-    subroutine mpi_halo_boundary_atomic_update_float(floatField)
+    subroutine mpi_halo_boundary_atomic_update_real(realField)
         implicit none
-        real(4), intent(inout) :: floatField(:)
+        real(rp), intent(inout) :: realField(:)
 
 #if _ISENDIRCV_
-        call mpi_halo_boundary_atomic_update_float_iSendiRcv(floatField)
+        call mpi_halo_boundary_atomic_update_real_iSendiRcv(realField)
 #endif
 
-    end subroutine mpi_halo_boundary_atomic_update_float
-
-    subroutine mpi_halo_boundary_atomic_update_double(doubleField)
-        implicit none
-        real(8), intent(inout) :: doubleField(:)
-
-#if _ISENDIRCV_
-        call mpi_halo_boundary_atomic_update_double_iSendiRcv(doubleField)
-#endif
-
-    end subroutine mpi_halo_boundary_atomic_update_double
+    end subroutine mpi_halo_boundary_atomic_update_real
 
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
@@ -344,24 +270,24 @@ contains
             memSize  = bnd_commsMemSize(i)
 
             ireq = ireq+1
-            call MPI_Irecv(aux_bnd_intfield_r(mempos_l),memSize,MPI_INTEGER,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_Irecv(aux_bnd_intfield_r(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
             ireq = ireq+1
-            call MPI_ISend(aux_bnd_intfield_s(mempos_l),memSize,MPI_INTEGER,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_ISend(aux_bnd_intfield_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
 
         call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
         call copy_from_boundary_rcvBuffer_int(intField)
     end subroutine mpi_halo_boundary_atomic_update_int_iSendiRcv
-    !FLOAT ---------------------------------------------------------
-    subroutine mpi_halo_boundary_atomic_update_float_iSendiRcv(floatField)
+    !REAL ---------------------------------------------------------
+    subroutine mpi_halo_boundary_atomic_update_real_iSendiRcv(realField)
         implicit none
-        real(4), intent(inout) :: floatField(:)
+        real(rp), intent(inout) :: realField(:)
         integer :: i,ireq,ngbRank,tagComm
         integer :: memPos_l,memSize
         integer :: requests(2*numRanksWithComms)
 
-        call fill_boundary_sendBuffer_float(floatField)
+        call fill_boundary_sendBuffer_real(realField)
 
         ireq=0
         do i=1,bnd_numRanksWithComms
@@ -371,42 +297,15 @@ contains
             memSize  = bnd_commsMemSize(i)
 
             ireq = ireq+1
-            call MPI_Irecv(aux_bnd_floatfield_r(mempos_l),memSize,MPI_FLOAT,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_Irecv(aux_bnd_realfield_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
             ireq = ireq+1
-            call MPI_ISend(aux_bnd_floatfield_s(mempos_l),memSize,MPI_FLOAT,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_ISend(aux_bnd_realfield_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
 
         call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
-        call copy_from_boundary_rcvBuffer_float(floatField)
-    end subroutine mpi_halo_boundary_atomic_update_float_iSendiRcv
-    !DOUBLE ---------------------------------------------------------
-    subroutine mpi_halo_boundary_atomic_update_double_iSendiRcv(doubleField)
-        implicit none
-        real(8), intent(inout) :: doubleField(:)
-        integer :: i,ireq,ngbRank,tagComm
-        integer :: memPos_l,memSize
-        integer :: requests(2*numRanksWithComms)
-
-        call fill_boundary_sendBuffer_double(doubleField)
-
-        ireq=0
-        do i=1,bnd_numRanksWithComms
-            ngbRank  = bnd_ranksToComm(i)
-            tagComm  = 0
-            memPos_l = bnd_commsMemPosInLoc(i)
-            memSize  = bnd_commsMemSize(i)
-
-            ireq = ireq+1
-            call MPI_Irecv(aux_bnd_doublefield_r(mempos_l),memSize,MPI_DOUBLE,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
-            ireq = ireq+1
-            call MPI_ISend(aux_bnd_doublefield_s(mempos_l),memSize,MPI_DOUBLE,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
-        end do
-
-        call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
-
-        call copy_from_boundary_rcvBuffer_double(doubleField)
-    end subroutine mpi_halo_boundary_atomic_update_double_iSendiRcv
+        call copy_from_boundary_rcvBuffer_real(realField)
+    end subroutine mpi_halo_boundary_atomic_update_real_iSendiRcv
 
 !------------- MIN iSENDiRECV -------------------------------------------
     ! INTEGER ---------------------------------------------------
@@ -427,9 +326,9 @@ contains
             memSize  = bnd_commsMemSize(i)
 
             ireq = ireq+1
-            call MPI_Irecv(aux_bnd_intfield_r(mempos_l),memSize,MPI_INTEGER,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_Irecv(aux_bnd_intfield_r(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
             ireq = ireq+1
-            call MPI_ISend(aux_bnd_intfield_s(mempos_l),memSize,MPI_INTEGER,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_ISend(aux_bnd_intfield_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
 
         call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
@@ -437,15 +336,15 @@ contains
         call copy_from_min_boundary_rcvBuffer_int(intField)
     end subroutine mpi_halo_min_boundary_update_int_iSendiRcv
 !------------- MAX iSENDiRECV -------------------------------------------
-    ! FLOAT ---------------------------------------------------
-    subroutine mpi_halo_max_boundary_update_float_iSendiRcv(floatField)
+    ! REAL ---------------------------------------------------
+    subroutine mpi_halo_max_boundary_update_real_iSendiRcv(realField)
         implicit none
-        real(4), intent(inout) :: floatField(:)
+        real(rp), intent(inout) :: realField(:)
         integer :: i,ireq,ngbRank,tagComm
         integer :: memPos_l,memSize
         integer :: requests(2*bnd_numRanksWithComms)
 
-        call fill_boundary_sendBuffer_float(floatField)
+        call fill_boundary_sendBuffer_real(realField)
 
         ireq=0
         do i=1,bnd_numRanksWithComms
@@ -455,15 +354,15 @@ contains
             memSize  = bnd_commsMemSize(i)
 
             ireq = ireq+1
-            call MPI_Irecv(aux_bnd_floatfield_r(mempos_l),memSize,MPI_FLOAT,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_Irecv(aux_bnd_realfield_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
             ireq = ireq+1
-            call MPI_ISend(aux_bnd_floatfield_s(mempos_l),memSize,MPI_FLOAT,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_ISend(aux_bnd_realfield_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
 
         call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
-        call copy_from_max_boundary_rcvBuffer_float(floatField)
-    end subroutine mpi_halo_max_boundary_update_float_iSendiRcv
+        call copy_from_max_boundary_rcvBuffer_real(realField)
+    end subroutine mpi_halo_max_boundary_update_real_iSendiRcv
 
 
 end module mod_comms_boundaries

@@ -85,7 +85,7 @@ contains
 
    subroutine TGVCompSolver_evalInitialConditions(this)
       class(TGVCompSolver), intent(inout) :: this
-      integer(rp) :: matGidSrlOrdered(numNodesRankPar,2)
+      integer(4) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL
       character(512) :: initialField_filePath
 
