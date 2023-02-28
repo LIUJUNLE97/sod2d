@@ -473,7 +473,7 @@ module mod_solver
                      end do
                      !$acc end parallel loop
 
-                     call MPI_Allreduce(auxN,auxN2,5,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                     call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
                      if(auxN2(1)<1e-10) auxN2(1) = 1.0_rp
                      if(auxN2(2)<1e-10) auxN2(2) = 1.0_rp
@@ -508,7 +508,7 @@ module mod_solver
                         end do
                      end do
 
-                     call MPI_Allreduce(auxN,auxN2,5,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                     call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
                      errMax = real(sqrt(maxval(auxN2(:))),rp)
 
@@ -597,7 +597,7 @@ module mod_solver
                      auxN(idime+2) = aux
                   end do
 
-                  call MPI_Allreduce(auxN,auxN2,5,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                  call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
                   if(auxN2(1)<1e-10) auxN2(1) = 1.0_rp
                   if(auxN2(2)<1e-10) auxN2(2) = 1.0_rp
@@ -640,7 +640,7 @@ module mod_solver
                      end do
                      !$acc end parallel loop
 
-                     call MPI_Allreduce(auxN,auxN2,5,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                     call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
                      if(auxN2(1)<1e-10) auxN2(1) = 1.0_rp
                      if(auxN2(2)<1e-10) auxN2(2) = 1.0_rp
@@ -841,7 +841,7 @@ module mod_solver
                         end do
                      end do
 
-                     call MPI_Allreduce(aux,aux2,5,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                     call MPI_Allreduce(aux,aux2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
                      H_mass(jk,ik) = real(aux2(1),rp)
                      H_ener(jk,ik) = real(aux2(2),rp)
@@ -871,7 +871,7 @@ module mod_solver
                      end do
                   end do
 
-                  call MPI_Allreduce(aux,aux2,5,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                  call MPI_Allreduce(aux,aux2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
                   H_mass(ik+1,ik) = sqrt(real(aux2(1),rp))
                   H_ener(ik+1,ik) = sqrt(real(aux2(2),rp))
@@ -1076,10 +1076,10 @@ module mod_solver
                   ! Communicate before applying ML
                   if(mpi_size.ge.2) then
                      call nvtxStartRange("MPI_comms_tI")
-                     call mpi_halo_atomic_update_float(Jy_mass)
-                     call mpi_halo_atomic_update_float(Jy_ener)
+                     call mpi_halo_atomic_update_real(Jy_mass)
+                     call mpi_halo_atomic_update_real(Jy_ener)
                      do idime = 1,ndime
-                        call mpi_halo_atomic_update_float(Jy_mom(:,idime)) ! TODO: need to pass the fulll aray?
+                        call mpi_halo_atomic_update_real(Jy_mom(:,idime)) ! TODO: need to pass the fulll aray?
                      end do
                      call nvtxEndRange
                   end if
@@ -1189,7 +1189,7 @@ module mod_solver
                      aux(idime+2) = aux3
                   end do
 
-                  call MPI_Allreduce(aux,aux2,5,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                  call MPI_Allreduce(aux,aux2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
                   if(aux2(1)<1e-10) aux2(1) = 1.0_rp
                   if(aux2(2)<1e-10) aux2(2) = 1.0_rp
@@ -1270,7 +1270,7 @@ module mod_solver
                      end do
                      !$acc end parallel loop
 
-                     call MPI_Allreduce(auxN,auxN2,5,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                     call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
                      if(auxN2(1)<1e-10) auxN2(1) = 1.0_rp
                      if(auxN2(2)<1e-10) auxN2(2) = 1.0_rp
