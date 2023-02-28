@@ -431,8 +431,8 @@ module mod_solver
                   real(rp)  , intent(inout) :: mass_sol(npoin), mom_sol(npoin,ndime), ener_sol(npoin)
                   integer(4), intent(in)    :: istep
                   integer(4)                :: ik, jk, kk, ipoin, idime
-                  real(rp)                  :: errMax, errTol, aux,relax=0.2_rp
-                  real(8)                  :: auxN(5),auxN2(5)
+                  real(rp)                  :: errMax, errTol, relax=0.5_rp
+                  real(8)                  :: auxN(5),auxN2(5),aux
 
                   errTol = tol
 
@@ -459,6 +459,7 @@ module mod_solver
                         rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                         mass_sol,mom_sol,ener_sol,.true.)
                   end if
+
                   do ik = 1,maxIter
                      auxN(:) = 0.0_rp
                      !$acc parallel loop
@@ -489,16 +490,32 @@ module mod_solver
                         atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                         rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                         mass_sol,mom_sol,ener_sol,.false.)
+
+                     auxN(:) = 0.0_rp
                      !$acc parallel loop
                      do ipoin = 1,npoin_w
+                        aux = mass_sol(lpoin_w(ipoin))
                         mass_sol(lpoin_w(ipoin)) = mass_sol(lpoin_w(ipoin))*(1.0_rp-relax) + relax*gammaRK*dt*(bmass(lpoin_w(ipoin)) - Jy_mass(lpoin_w(ipoin)))
+                        auxN(1) = auxN(1) + real((aux-mass_sol(lpoin_w(ipoin)))**2 ,8)
+                        aux = ener_sol(lpoin_w(ipoin))
                         ener_sol(lpoin_w(ipoin)) = ener_sol(lpoin_w(ipoin))*(1.0_rp-relax) + relax*gammaRK*dt*(bener(lpoin_w(ipoin)) - Jy_ener(lpoin_w(ipoin)))
+                        auxN(2) = auxN(2) + real((aux-ener_sol(lpoin_w(ipoin)))**2 ,8)
                         !$acc loop seq
                         do idime = 1,ndime
+                           aux = mom_sol(lpoin_w(ipoin),idime)
                            mom_sol(lpoin_w(ipoin),idime) = mom_sol(lpoin_w(ipoin),idime)*(1.0_rp-relax) + relax*gammaRK*dt*(bmom(lpoin_w(ipoin),idime) - Jy_mom(lpoin_w(ipoin),idime))
+                           auxN(2+idime) = auxN(2+idime) + real((aux-mom_sol(lpoin_w(ipoin),idime))**2 ,8)
                         end do
                      end do
-                     !$acc end parallel loop
+
+                     call MPI_Allreduce(auxN,auxN2,5,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+
+                     errMax = real(sqrt(maxval(auxN2(:))),rp)
+
+                     if(mpi_rank.eq.0)print*, " err ",errMax," it ",ik,' emass ',sqrt(auxN2(1))," eener ",sqrt(auxN2(2))," emom ", sqrt(auxN2(3))," ", sqrt(auxN2(4))," ",sqrt(auxN2(5))
+
+                     if(errMax .lt. tol) exit
+
                   end do
 
 
@@ -637,10 +654,10 @@ module mod_solver
                      epsQ(2) = sqrt(epsilon(epsR))/sqrt(real(auxN2(4),rp))
                      epsQ(3) = sqrt(epsilon(epsR))/sqrt(real(auxN2(5),rp))
 
-                     call  smooth_gmres(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
-                                      atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-                                      rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-                                      gammaRK,dt,5)
+                    ! call  smooth_gmres(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                    !                  atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                    !                  rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                    !                  gammaRK,dt,5)
 
                      call arnoldi_iter(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                         atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
