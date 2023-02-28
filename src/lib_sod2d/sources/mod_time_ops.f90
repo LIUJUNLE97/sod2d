@@ -57,8 +57,6 @@ contains
             dt_l = min(dt_conv,dt_diff)
          end do
          !$acc end parallel loop
-
-         call MPI_Allreduce(dt_l,dt,1,mpi_datatype_real,MPI_MIN,MPI_COMM_WORLD,mpi_err)
       else
          !$acc parallel loop gang  reduction(min:dt_conv,dt_diff,dt_l) 
          do ielem = 1,nelem
@@ -78,9 +76,9 @@ contains
          end do
          !$acc end parallel loop
 
-         call MPI_Allreduce(dt_l,dt,1,mpi_datatype_real,MPI_MIN,MPI_COMM_WORLD,mpi_err)
       end if
-         call nvtxEndRange
+      call MPI_Allreduce(dt_l,dt,1,mpi_datatype_real,MPI_MIN,MPI_COMM_WORLD,mpi_err)
+      call nvtxEndRange
 
       end subroutine adapt_dt_cfl
 
