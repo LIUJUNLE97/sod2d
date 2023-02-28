@@ -151,8 +151,7 @@ contains
 
       target_displacement=0
       do iRank=0,mpi_size-1
-         call MPI_Get(vectorNumNodesRankPar(iRank),1,MPI_INTEGER,iRank,target_displacement,&
-                     1,MPI_INTEGER,window_id,mpi_err)
+         call MPI_Get(vectorNumNodesRankPar(iRank),1,mpi_datatype_int,iRank,target_displacement,1,mpi_datatype_int,window_id,mpi_err)
       end do
 
       !!! Wait for the MPI_Get issued to complete before going any further
@@ -238,8 +237,7 @@ contains
       target_displacement = iNodeStartSrl(mpi_rank)-1
       !write(*,*) 'rank ', mpi_rank, ' targetdisp ', target_displacement
       do iRank=0,mpi_size-1
-         call MPI_Get(matrixBN(:,iRank),numNodesRankSrl, MPI_INTEGER, irank, target_displacement,&
-         numNodesRankSrl, MPI_INTEGER, window_id, mpi_err)
+         call MPI_Get(matrixBN(:,iRank),numNodesRankSrl,mpi_datatype_int,iRank,target_displacement,numNodesRankSrl,mpi_datatype_int,window_id,mpi_err)
       end do
     
       !!! Wait for the MPI_Get issued to complete before going any further
@@ -290,7 +288,7 @@ contains
       do iRank=0,mpi_size-1
          target_displacement = 0
          if(iRank .ne. mpi_rank) then
-            call MPI_Get(vecAuxCnt(iRank),1,MPI_INTEGER,iRank,target_displacement,1,MPI_INTEGER,window_id,mpi_err)
+            call MPI_Get(vecAuxCnt(iRank),1,mpi_datatype_int,iRank,target_displacement,1,mpi_datatype_int,window_id,mpi_err)
          else
          end if
       end do
@@ -353,8 +351,7 @@ contains
          do iRank=0,mpi_size-1
             target_displacement = 0
 
-            call MPI_Get(vecSharedBN_full(auxCnt),vecAuxCnt(iRank),MPI_INTEGER,iRank,target_displacement,&
-                        vecAuxCnt(iRank),MPI_INTEGER,window_id,mpi_err)
+            call MPI_Get(vecSharedBN_full(auxCnt),vecAuxCnt(iRank),mpi_datatype_int,iRank,target_displacement,vecAuxCnt(iRank),mpi_datatype_int,window_id,mpi_err)
             auxCnt=auxCnt+vecAuxCnt(iRank)
          end do
    
@@ -529,7 +526,7 @@ contains
          j=j+1
 
          target_displacement = 2*mpi_rank
-         call MPI_Get(commsMemPosInNgb(j),1,MPI_INTEGER,iRank,target_displacement,1,MPI_INTEGER,window_id,mpi_err)
+         call MPI_Get(commsMemPosInNgb(j),1,mpi_datatype_int,iRank,target_displacement,1,mpi_datatype_int,window_id,mpi_err)
 
       end do
    

@@ -738,10 +738,10 @@ module time_integ
                if(mpi_size.ge.2) then
                   call nvtxStartRange("MPI_comms_tI")
 
-                  call mpi_halo_atomic_update_float(Rmass)
-                  call mpi_halo_atomic_update_float(Rener)
+                  call mpi_halo_atomic_update_real(Rmass)
+                  call mpi_halo_atomic_update_real(Rener)
                   do idime = 1,ndime
-                     call mpi_halo_atomic_update_float(Rmom(:,idime))
+                     call mpi_halo_atomic_update_real(Rmom(:,idime))
                   end do
 
                   call nvtxEndRange
@@ -834,7 +834,7 @@ module time_integ
 
             if(mpi_size.ge.2) then
                call nvtxStartRange("MPI_comms_tI")
-               call mpi_halo_atomic_update_float(Reta)
+               call mpi_halo_atomic_update_real(Reta)
                call nvtxEndRange
             end if
 

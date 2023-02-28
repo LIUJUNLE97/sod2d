@@ -137,10 +137,10 @@ module inicond_reader
 
    end subroutine order_matrix_globalIdSrl
 
-   subroutine avg_randomField_in_sharedNodes_Par(numNodesInRank,floatField)
+   subroutine avg_randomField_in_sharedNodes_Par(numNodesInRank,realField)
       implicit none
       integer, intent(in) :: numNodesInRank
-      real(rp), intent(inout) :: floatField(numNodesInRank)
+      real(rp), intent(inout) :: realField(numNodesInRank)
       integer :: numRanksNodeCnt(numNodesInRank)
       integer :: i,iNodeL
 
@@ -151,10 +151,10 @@ module inicond_reader
          numRanksNodeCnt(iNodeL) = numRanksNodeCnt(iNodeL) + 1
       end do 
 
-      call mpi_halo_atomic_update_float(floatField)
+      call mpi_halo_atomic_update_real(realField)
 
       do iNodeL = 1,numNodesInRank
-         floatField(iNodeL) = floatField(iNodeL) / real(numRanksNodeCnt(iNodeL),rp)
+         realField(iNodeL) = realField(iNodeL) / real(numRanksNodeCnt(iNodeL),rp)
       end do
    end subroutine avg_randomField_in_sharedNodes_Par
 
