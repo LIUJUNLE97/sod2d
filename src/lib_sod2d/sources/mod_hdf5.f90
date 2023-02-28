@@ -1198,6 +1198,7 @@ contains
       call h5dclose_f(dset_id,h5err)
    end subroutine create_chunked_dataspace_hdf5
 
+!-------------------------------------------------------------------------------------------------------------------
    subroutine open_create_dataspace_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,&
                                              dset_id,fspace_id,mspace_id,plist_id,fs_dims,fs_maxdims)
       implicit none
@@ -1229,7 +1230,7 @@ contains
       call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
 
    end subroutine open_create_dataspace_hyperslab_parallel
-
+!-------------------------------------------------------------------------------------------------------------------
    subroutine close_dataspace_hyperslab_parallel(dset_id,fspace_id,mspace_id,plist_id)
       implicit none
       integer(hid_t),intent(inout) :: dset_id,fspace_id,mspace_id,plist_id
@@ -1241,7 +1242,9 @@ contains
       call h5dclose_f(dset_id,h5err)
 
    end subroutine close_dataspace_hyperslab_parallel
-
+!-------------------------------------------------------------------------------------------------------------------
+!-------------------------------------------------------------------------------------------------------------------
+!  FP(rp 4/8)
    subroutine write_dataspace_real_rp_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
       implicit none
       integer(hid_t),intent(in) :: file_id
@@ -1301,7 +1304,8 @@ contains
       call close_dataspace_hyperslab_parallel(dset_id,fspace_id,mspace_id,plist_id)
 
    end subroutine read_dataspace_real_rp_hyperslab_parallel
-
+!-------------------------------------------------------------------------------------------------------------------
+!  FP32
    subroutine write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
       implicit none
       integer(hid_t),intent(in) :: file_id
@@ -1316,32 +1320,40 @@ contains
 
       dtype = H5T_NATIVE_REAL
 
-      call h5dopen_f(file_id, dsetname, dset_id, h5err)
-
-      !get filespace of the dataset
-      call h5dget_space_f(dset_id, fspace_id, h5err)
-
-      !get dimensions of the filespace
-      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
-
-      ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) 
-
-      ! Select hyperslab in the file.
-      call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
-
-      ! Create property list for collective dataset write
-      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) 
-      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+      call open_create_dataspace_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,&
+                                         dset_id,fspace_id,mspace_id,plist_id,fs_dims,fs_maxdims)
 
       call h5dwrite_f(dset_id,dtype,data,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
-      call h5pclose_f(plist_id,h5err)
-      call h5sclose_f(mspace_id,h5err)
-      call h5sclose_f(fspace_id,h5err)
-      call h5dclose_f(dset_id,h5err)
+      call close_dataspace_hyperslab_parallel(dset_id,fspace_id,mspace_id,plist_id)
+
    end subroutine write_dataspace_fp32_hyperslab_parallel
 
+   subroutine read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
+      implicit none
+      integer(hid_t),intent(in) :: file_id
+      character(len=*),intent(in) :: dsetname
+      integer,intent(in) :: ms_rank !assuming ms_rank=fs_rank
+      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
+      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
+      real(4),intent(out) :: data(:)
+      integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
+      integer :: h5err
+      integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
+      integer(hid_t) :: dtype
+
+      dtype = H5T_NATIVE_REAL
+
+      call open_create_dataspace_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,&
+                                         dset_id,fspace_id,mspace_id,plist_id,fs_dims,fs_maxdims)
+
+      call h5dread_f(dset_id,dtype,data,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+
+      call close_dataspace_hyperslab_parallel(dset_id,fspace_id,mspace_id,plist_id)
+
+   end subroutine read_dataspace_fp32_hyperslab_parallel
+!-------------------------------------------------------------------------------------------------------------------
+!  FP64
    subroutine write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
       implicit none
       integer(hid_t),intent(in) :: file_id
@@ -1356,32 +1368,41 @@ contains
 
       dtype = H5T_NATIVE_DOUBLE
 
-      call h5dopen_f(file_id, dsetname, dset_id, h5err)
-
-      !get filespace of the dataset
-      call h5dget_space_f(dset_id, fspace_id, h5err)
-
-      !get dimensions of the filespace
-      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
-
-      ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) 
-
-      ! Select hyperslab in the file.
-      call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
-
-      ! Create property list for collective dataset write
-      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) 
-      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+      call open_create_dataspace_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,&
+                                         dset_id,fspace_id,mspace_id,plist_id,fs_dims,fs_maxdims)
 
       call h5dwrite_f(dset_id,dtype,data,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
-      call h5pclose_f(plist_id,h5err)
-      call h5sclose_f(mspace_id,h5err)
-      call h5sclose_f(fspace_id,h5err)
-      call h5dclose_f(dset_id,h5err)
+      call close_dataspace_hyperslab_parallel(dset_id,fspace_id,mspace_id,plist_id)
+
    end subroutine write_dataspace_fp64_hyperslab_parallel
 
+   subroutine read_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
+      implicit none
+      integer(hid_t),intent(in) :: file_id
+      character(len=*),intent(in) :: dsetname
+      integer,intent(in) :: ms_rank !assuming ms_rank=fs_rank
+      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
+      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
+      real(8),intent(out) :: data(:)
+      integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
+      integer :: h5err
+      integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
+      integer(hid_t) :: dtype
+
+      dtype = H5T_NATIVE_DOUBLE
+
+      call open_create_dataspace_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,&
+                                         dset_id,fspace_id,mspace_id,plist_id,fs_dims,fs_maxdims)
+
+      call h5dread_f(dset_id,dtype,data,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+
+      call close_dataspace_hyperslab_parallel(dset_id,fspace_id,mspace_id,plist_id)
+
+   end subroutine read_dataspace_fp64_hyperslab_parallel
+!-------------------------------------------------------------------------------------------------------------------
+!-------------------------------------------------------------------------------------------------------------------
+!  INT1
    subroutine write_dataspace_int1_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
       implicit none
       integer(hid_t),intent(in) :: file_id
@@ -1396,30 +1417,13 @@ contains
       
       dtype = H5T_STD_U8LE
 
-      call h5dopen_f(file_id, dsetname, dset_id, h5err)
-
-      !get filespace of the dataset
-      call h5dget_space_f(dset_id, fspace_id, h5err)
-
-      !get dimensions of the filespace
-      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
-
-      ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) 
-
-      ! Select hyperslab in the file.
-      call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
-
-      ! Create property list for collective dataset write
-      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) 
-      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+      call open_create_dataspace_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,&
+                                         dset_id,fspace_id,mspace_id,plist_id,fs_dims,fs_maxdims)
 
       call h5dwrite_f(dset_id,dtype,data,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
-      call h5pclose_f(plist_id,h5err)
-      call h5sclose_f(mspace_id,h5err)
-      call h5sclose_f(fspace_id,h5err)
-      call h5dclose_f(dset_id,h5err)
+      call close_dataspace_hyperslab_parallel(dset_id,fspace_id,mspace_id,plist_id)
+
    end subroutine write_dataspace_int1_hyperslab_parallel
 
    subroutine read_dataspace_int1_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
@@ -1436,33 +1440,16 @@ contains
 
       dtype = H5T_STD_I8LE
 
-      call h5dopen_f(file_id, dsetname, dset_id, h5err)
-
-      !get filespace of the dataset
-      call h5dget_space_f(dset_id, fspace_id, h5err)
-
-      !get dimensions of the filespace
-      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
-
-      ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) 
-
-      ! Select hyperslab in the file.
-      call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
-
-      ! Create property list for collective dataset write
-      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) 
-      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+      call open_create_dataspace_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,&
+                                         dset_id,fspace_id,mspace_id,plist_id,fs_dims,fs_maxdims)
 
       call h5dread_f(dset_id,dtype,data,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
-      call h5pclose_f(plist_id,h5err)
-      call h5sclose_f(mspace_id,h5err)
-      call h5sclose_f(fspace_id,h5err)
-      call h5dclose_f(dset_id,h5err)
+      call close_dataspace_hyperslab_parallel(dset_id,fspace_id,mspace_id,plist_id)
 
    end subroutine read_dataspace_int1_hyperslab_parallel
-
+!-------------------------------------------------------------------------------------------------------------------
+!  INT4
    subroutine write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
       implicit none
       integer(hid_t),intent(in) :: file_id
@@ -1477,30 +1464,13 @@ contains
 
       dtype = H5T_NATIVE_INTEGER
 
-      call h5dopen_f(file_id, dsetname, dset_id, h5err)
-
-      !get filespace of the dataset
-      call h5dget_space_f(dset_id, fspace_id, h5err)
-
-      !get dimensions of the filespace
-      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
-
-      ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) 
-
-      ! Select hyperslab in the file.
-      call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
-
-      ! Create property list for collective dataset write
-      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) 
-      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+      call open_create_dataspace_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,&
+                                         dset_id,fspace_id,mspace_id,plist_id,fs_dims,fs_maxdims)
 
       call h5dwrite_f(dset_id,dtype,data,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
-      call h5pclose_f(plist_id,h5err)
-      call h5sclose_f(mspace_id,h5err)
-      call h5sclose_f(fspace_id,h5err)
-      call h5dclose_f(dset_id,h5err)
+      call close_dataspace_hyperslab_parallel(dset_id,fspace_id,mspace_id,plist_id)
+
    end subroutine write_dataspace_int4_hyperslab_parallel
 
    subroutine read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
@@ -1517,33 +1487,16 @@ contains
 
       dtype = H5T_NATIVE_INTEGER
 
-      call h5dopen_f(file_id, dsetname, dset_id, h5err)
-
-      !get filespace of the dataset
-      call h5dget_space_f(dset_id, fspace_id, h5err)
-
-      !get dimensions of the filespace
-      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
-
-      ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) 
-
-      ! Select hyperslab in the file.
-      call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
-
-      ! Create property list for collective dataset write
-      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) 
-      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+      call open_create_dataspace_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,&
+                                         dset_id,fspace_id,mspace_id,plist_id,fs_dims,fs_maxdims)
 
       call h5dread_f(dset_id,dtype,data,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
-      call h5pclose_f(plist_id,h5err)
-      call h5sclose_f(mspace_id,h5err)
-      call h5sclose_f(fspace_id,h5err)
-      call h5dclose_f(dset_id,h5err)
+      call close_dataspace_hyperslab_parallel(dset_id,fspace_id,mspace_id,plist_id)
 
    end subroutine read_dataspace_int4_hyperslab_parallel
-
+!-------------------------------------------------------------------------------------------------------------------
+!  INT8
    subroutine write_dataspace_int8_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
       implicit none
       integer(hid_t),intent(in) :: file_id
@@ -1556,33 +1509,15 @@ contains
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
       integer :: h5err
 
-
       dtype = H5T_STD_I64LE
 
-      call h5dopen_f(file_id, dsetname, dset_id, h5err)
-
-      !get filespace of the dataset
-      call h5dget_space_f(dset_id, fspace_id, h5err)
-
-      !get dimensions of the filespace
-      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
-
-      ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) 
-
-      ! Select hyperslab in the file.
-      call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
-
-      ! Create property list for collective dataset write
-      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) 
-      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+      call open_create_dataspace_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,&
+                                         dset_id,fspace_id,mspace_id,plist_id,fs_dims,fs_maxdims)
 
       call h5dwrite_f(dset_id,dtype,data,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
-      call h5pclose_f(plist_id,h5err)
-      call h5sclose_f(mspace_id,h5err)
-      call h5sclose_f(fspace_id,h5err)
-      call h5dclose_f(dset_id,h5err)
+      call close_dataspace_hyperslab_parallel(dset_id,fspace_id,mspace_id,plist_id)
+
    end subroutine write_dataspace_int8_hyperslab_parallel
 
    subroutine read_dataspace_int8_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
@@ -1597,115 +1532,19 @@ contains
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
       integer :: h5err
 
-
       dtype = H5T_STD_I64LE
 
-      call h5dopen_f(file_id, dsetname, dset_id, h5err)
-
-      !get filespace of the dataset
-      call h5dget_space_f(dset_id, fspace_id, h5err)
-
-      !get dimensions of the filespace
-      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
-
-      ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) 
-
-      ! Select hyperslab in the file.
-      call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
-
-      ! Create property list for collective dataset write
-      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) 
-      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+      call open_create_dataspace_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,&
+                                         dset_id,fspace_id,mspace_id,plist_id,fs_dims,fs_maxdims)
 
       call h5dread_f(dset_id,dtype,data,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
-      call h5pclose_f(plist_id,h5err)
-      call h5sclose_f(mspace_id,h5err)
-      call h5sclose_f(fspace_id,h5err)
-      call h5dclose_f(dset_id,h5err)
+      call close_dataspace_hyperslab_parallel(dset_id,fspace_id,mspace_id,plist_id)
 
    end subroutine read_dataspace_int8_hyperslab_parallel
 
-   subroutine read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
-      implicit none
-      integer(hid_t),intent(in) :: file_id
-      character(len=*),intent(in) :: dsetname
-      integer,intent(in) :: ms_rank !assuming ms_rank=fs_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      real(4),intent(out) :: data(:)
-      integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
-      integer :: h5err
-      integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
-      integer(hid_t) :: dtype
-      dtype = H5T_NATIVE_REAL
-
-      call h5dopen_f(file_id, dsetname, dset_id, h5err)
-
-      !get filespace of the dataset
-      call h5dget_space_f(dset_id, fspace_id, h5err)
-
-      !get dimensions of the filespace
-      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
-
-      ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) 
-
-      ! Select hyperslab in the file.
-      call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
-
-      ! Create property list for collective dataset write
-      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) 
-      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
-
-      call h5dread_f(dset_id,dtype,data,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
-
-      call h5pclose_f(plist_id,h5err)
-      call h5sclose_f(mspace_id,h5err)
-      call h5sclose_f(fspace_id,h5err)
-      call h5dclose_f(dset_id,h5err)
-   end subroutine read_dataspace_fp32_hyperslab_parallel
-
-   subroutine read_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
-      implicit none
-      integer(hid_t),intent(in) :: file_id
-      character(len=*),intent(in) :: dsetname
-      integer,intent(in) :: ms_rank !assuming ms_rank=fs_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      real(8),intent(out) :: data(:)
-      integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
-      integer :: h5err
-      integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
-      integer(hid_t) :: dtype
-      dtype = H5T_NATIVE_DOUBLE
-
-      call h5dopen_f(file_id, dsetname, dset_id, h5err)
-
-      !get filespace of the dataset
-      call h5dget_space_f(dset_id, fspace_id, h5err)
-
-      !get dimensions of the filespace
-      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
-
-      ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) 
-
-      ! Select hyperslab in the file.
-      call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
-
-      ! Create property list for collective dataset write
-      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) 
-      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
-
-      call h5dread_f(dset_id,dtype,data,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
-
-      call h5pclose_f(plist_id,h5err)
-      call h5sclose_f(mspace_id,h5err)
-      call h5sclose_f(fspace_id,h5err)
-      call h5dclose_f(dset_id,h5err)
-   end subroutine read_dataspace_fp64_hyperslab_parallel
+!--------------------------------------------------------------------------------------------------------------------------
+!--------------------------------------------------------------------------------------------------------------------------
 
    subroutine overwrite_coordinates_hdf5()
       implicit none
@@ -1806,10 +1645,6 @@ contains
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,connecVTK)
       !-----------------------------------------------------------------------------------------------------
-      !  SAVING connecParCGNS(:)
-      !dsetname = '/Connectivity/connecCGNS'
-      !call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      !call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,connecCGNS)
 
       deallocate(aux_array)
       !--------------------------------------------------------------------------------------------------------
@@ -1910,10 +1745,6 @@ contains
       dsetname = '/Connectivity/connecVTK'
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,connecVTK)
       !-------------------------------------------------------------------------------------------------------
-      !LOADING connecCGNS(:)
-      !allocate( connecCGNS(numElemsRankPar*nnode) )
-      !dsetname = '/Connectivity/connecCGNS'
-      !call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,connecCGNS)
 
       !-------------------------------------------------------------------------------------------------------
       ds_dims(1) = mpi_size
@@ -4403,7 +4234,6 @@ contains
 
    subroutine save_vtkhdf_realFieldFile(realField)
       implicit none
-      !integer, intent(in) :: iStep
       real(rp),dimension(numNodesRankPar),intent(in) :: realField
       character(512) :: full_fileName
 
