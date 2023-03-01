@@ -395,7 +395,7 @@ module time_integ
                !$acc end kernels
                call nvtxEndRange
 
-#if 1
+#if 0
              call jacobi_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                     atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                     !aux_rho(:),aux_u(:,:),aux_q(:,:),aux_pr(:),aux_E(:),aux_Tem(:),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
