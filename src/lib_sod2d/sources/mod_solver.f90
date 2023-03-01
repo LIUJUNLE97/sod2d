@@ -15,6 +15,8 @@ module mod_solver
       real(rp)                                  :: beta_mass(maxIter+1), beta_ener(maxIter+1), beta_mom(maxIter+1,ndime)
       real(rp)  , dimension(maxIter+1)          :: cs_mass, cs_ener, sn_mass, sn_ener
       real(rp)  , dimension(maxIter+1,ndime)    :: cs_mom, sn_mom
+      real(rp)  , dimension(maxIter)            :: updMass, updEner
+      real(rp)  , dimension(maxIter,ndime)      :: updMom
       real(rp)  , allocatable, dimension(:)     :: Jy_mass, Jy_ener, ymass, yener
       real(rp)  , allocatable, dimension(:)     :: Rmass_fix, Rener_fix, Dmass, Dener, Rmass, Rener,pEner,pMass
       real(rp)  , allocatable, dimension(:,:)   :: Jy_mom, ymom, Rmom_fix, Dmom, Rmom,pMom
@@ -631,6 +633,7 @@ module mod_solver
 
                   outer:do ik = 1,maxIter
                      ! TODO: put this inside Jy and make gpu friendly
+                     ! Verify: if this is properly done, ||Q|| = 1, so step should be
                      auxN(:) = 0.0_rp
                      if(ik .lt. 3) then 
                         !$acc parallel loop
