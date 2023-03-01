@@ -13,8 +13,8 @@ module mod_solver
       real(rp)                                  :: err_mass, err_ener, err_mom(ndime)
       real(rp)                                  :: e1_mass(maxIter+1), e1_ener(maxIter+1), e1_mom(maxIter+1,ndime)
       real(rp)                                  :: beta_mass(maxIter+1), beta_ener(maxIter+1), beta_mom(maxIter+1,ndime)
-      real(rp)  , dimension(maxIter+1)          :: cs_mass, cs_ener, sn_mass, sn_ener
-      real(rp)  , dimension(maxIter+1,ndime)    :: cs_mom, sn_mom
+      real(rp)  , dimension(maxIter)          :: cs_mass, cs_ener, sn_mass, sn_ener
+      real(rp)  , dimension(maxIter,ndime)    :: cs_mom, sn_mom
       real(rp)  , dimension(maxIter)            :: updMass, updEner
       real(rp)  , dimension(maxIter,ndime)      :: updMom
       real(rp)  , allocatable, dimension(:)     :: Jy_mass, Jy_ener, ymass, yener
