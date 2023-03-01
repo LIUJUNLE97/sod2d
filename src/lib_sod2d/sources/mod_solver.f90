@@ -24,7 +24,7 @@ module mod_solver
       real(rp)  , allocatable, dimension(:,:,:) :: Q_Mom, H_mom
       logical                                   :: flag_gmres_mem_alloc=.true.
       logical                                   :: flag_gmres_mem_free=.false.
-      real(rp)                                  :: eps=1e-4
+      real(rp)                                  :: eps=1e-7
 
       contains
 
@@ -634,34 +634,6 @@ module mod_solver
                   outer:do ik = 1,maxIter
                      ! TODO: put this inside Jy and make gpu friendly
                      ! Verify: if this is properly done, ||Q|| = 1, so step should be
-                     auxN(:) = 0.0_rp
-                     if(ik .lt. 3) then 
-                        !$acc parallel loop
-                        do ipoin = 1,npoin_w
-                           auxN(1) = auxN(1) + real(Q_mass(lpoin_w(ipoin),ik)**2,8)
-                           auxN(2) = auxN(2) + real(Q_ener(lpoin_w(ipoin),ik)**2,8)
-                           !$acc lloop seq
-                           do idime = 1,ndime
-                              auxN(idime+2) = auxN(idime+2) + real(Q_mom(lpoin_w(ipoin),idime,ik)**2,8)
-                           end do
-                        end do
-                        !$acc end parallel loop
-
-                        call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
-
-                        if(auxN2(1)<epsilon(errTol)) auxN2(1) = 1.0_rp
-                        if(auxN2(2)<epsilon(errTol)) auxN2(2) = 1.0_rp
-                        if(auxN2(3)<epsilon(errTol)) auxN2(3) = 1.0_rp
-                        if(auxN2(4)<epsilon(errTol)) auxN2(4) = 1.0_rp
-                        if(auxN2(5)<epsilon(errTol)) auxN2(5) = 1.0_rp
-
-                        epsR = eps/sqrt(real(auxN2(1),rp))
-                        epsE = eps/sqrt(real(auxN2(2),rp))
-                        epsQ(1) = eps/sqrt(real(auxN2(3),rp))
-                        epsQ(2) = eps/sqrt(real(auxN2(4),rp))
-                        epsQ(3) = eps/sqrt(real(auxN2(5),rp))
-
-                     end if
 
                      !$acc kernels
                      pMass(:) = Q_Mass(:,ik)
@@ -672,7 +644,7 @@ module mod_solver
                      call  smooth_gmres(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                       atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                       rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-                                      gammaRK,dt,3)
+                                      gammaRK,dt,5)
 
                      call arnoldi_iter(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                         atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &

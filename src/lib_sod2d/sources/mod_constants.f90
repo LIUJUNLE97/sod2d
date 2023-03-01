@@ -43,7 +43,7 @@ module mod_constants
       ! Solver params
       !
       integer(4) , parameter ::  maxIter=5
-      real(rp)   , parameter ::  tol=0.01_rp
+      real(rp)   , parameter ::  tol=0.001_rp
 
       !
       ! Other constants
