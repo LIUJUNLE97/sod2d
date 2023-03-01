@@ -13,8 +13,8 @@ module mod_solver
       real(rp)                                  :: err_mass, err_ener, err_mom(ndime)
       real(rp)                                  :: e1_mass(maxIter+1), e1_ener(maxIter+1), e1_mom(maxIter+1,ndime)
       real(rp)                                  :: beta_mass(maxIter+1), beta_ener(maxIter+1), beta_mom(maxIter+1,ndime)
-      real(rp)  , dimension(maxIter)          :: cs_mass, cs_ener, sn_mass, sn_ener
-      real(rp)  , dimension(maxIter,ndime)    :: cs_mom, sn_mom
+      real(rp)  , dimension(maxIter)            :: cs_mass, cs_ener, sn_mass, sn_ener
+      real(rp)  , dimension(maxIter,ndime)      :: cs_mom, sn_mom
       real(rp)  , dimension(maxIter)            :: updMass, updEner
       real(rp)  , dimension(maxIter,ndime)      :: updMom
       real(rp)  , allocatable, dimension(:)     :: Jy_mass, Jy_ener, ymass, yener
@@ -706,19 +706,25 @@ module mod_solver
                      if(mpi_rank.eq.0)print*, " err ",errMax," it ",ik,' emass ',err_mass," eener ",err_ener," emom ",err_mom
 
                      if (errMax .lt. errTol) then
+                        ! Set upd* to beta_*
+                        !$acc kernels
+                        updMass(1:maxIter) = beta_mass(1:maxIter)
+                        updEner(1:maxIter) = beta_ener(1:maxIter)
+                        updMom(1:maxIter,1:ndime) = beta_mom(1:maxIter,1:ndime)
+                        !$acc end kernels
                         do jk=ik,1,-1
-                           beta_mass(jk) = beta_mass(jk)/H_mass(jk,jk)
-                           beta_ener(jk) = beta_ener(jk)/H_ener(jk,jk)
+                           updMass(jk) = updMass(jk)/H_mass(jk,jk)
+                           updEner(jk) = updEner(jk)/H_ener(jk,jk)
                            do kk = jk-1,1,-1
-                              beta_mass(kk) = beta_mass(kk) - H_mass(kk,jk)*beta_mass(jk)
-                              beta_ener(kk) = beta_ener(kk) - H_ener(kk,jk)*beta_ener(jk)
+                              updMass(kk) = updMass(kk) - H_mass(kk,jk)*updMass(jk)
+                              updEner(kk) = updEner(kk) - H_ener(kk,jk)*updEner(jk)
                            end do
                         end do
                         do idime = 1,ndime
                            do jk=ik,1,-1
-                              beta_mom(jk,idime) = beta_mom(jk,idime)/H_mom(jk,jk,idime)
+                              updMom(jk,idime) = updMom(jk,idime)/H_mom(jk,jk,idime)
                               do kk = jk-1,1,-1
-                                 beta_mom(kk,idime) = beta_mom(kk,idime) - H_mom(kk,jk,idime)*beta_mom(jk,idime)
+                                 updMom(kk,idime) = updMom(kk,idime) - H_mom(kk,jk,idime)*updMom(jk,idime)
                               end do
                            end do
                         end do
@@ -750,19 +756,24 @@ module mod_solver
                   end do outer
 
                   if(ik == (maxIter+1)) then
-                     do jk=maxIter,1,-1
-                        beta_mass(jk) = beta_mass(jk)/H_mass(jk,jk)
-                        beta_ener(jk) = beta_ener(jk)/H_ener(jk,jk)
+                     !$acc kernels
+                     updMass(1:maxIter) = beta_mass(1:maxIter)
+                     updEner(1:maxIter) = beta_ener(1:maxIter)
+                     updMom(1:maxIter,1:ndime) = beta_mom(1:maxIter,1:ndime)
+                     !$acc end kernels
+                     do jk=ik,1,-1
+                        updMass(jk) = updMass(jk)/H_mass(jk,jk)
+                        updEner(jk) = updEner(jk)/H_ener(jk,jk)
                         do kk = jk-1,1,-1
-                           beta_mass(kk) = beta_mass(kk) - H_mass(kk,jk)*beta_mass(jk)
-                           beta_ener(kk) = beta_ener(kk) - H_ener(kk,jk)*beta_ener(jk)
+                           updMass(kk) = updMass(kk) - H_mass(kk,jk)*updMass(jk)
+                           updEner(kk) = updEner(kk) - H_ener(kk,jk)*updEner(jk)
                         end do
                      end do
                      do idime = 1,ndime
-                        do jk=maxIter,1,-1
-                           beta_mom(jk,idime) = beta_mom(jk,idime)/H_mom(jk,jk,idime)
+                        do jk=ik,1,-1
+                           updMom(jk,idime) = updMom(jk,idime)/H_mom(jk,jk,idime)
                            do kk = jk-1,1,-1
-                              beta_mom(kk,idime) = beta_mom(kk,idime) - H_mom(kk,jk,idime)*beta_mom(jk,idime)
+                              updMom(kk,idime) = updMom(kk,idime) - H_mom(kk,jk,idime)*updMom(jk,idime)
                            end do
                         end do
                      end do
