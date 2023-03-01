@@ -733,18 +733,18 @@ module mod_solver
                         do ipoin = 1,npoin_w
                            aux = 0.0_rp
                            do kk = 1,ik
-                              aux = aux + Q_Mass(lpoin_w(ipoin),kk)*beta_mass(kk)
+                              aux = aux + Q_Mass(lpoin_w(ipoin),kk)*updMass(kk)
                            end do
                            mass_sol(lpoin_w(ipoin)) = mass_sol(lpoin_w(ipoin)) + aux
                            aux = 0.0_rp
                            do kk = 1,ik
-                              aux = aux + Q_Ener(lpoin_w(ipoin),kk)*beta_ener(kk)
+                              aux = aux + Q_Ener(lpoin_w(ipoin),kk)*updEner(kk)
                            end do
                            ener_sol(lpoin_w(ipoin)) = ener_sol(lpoin_w(ipoin)) + aux
                            do idime = 1,ndime
                               aux = 0.0_rp
                               do kk = 1,ik
-                                 aux = aux + Q_Mom(lpoin_w(ipoin),idime,kk)*beta_mom(kk,idime)
+                                 aux = aux + Q_Mom(lpoin_w(ipoin),idime,kk)*updMom(kk,idime)
                               end do
                               mom_sol(lpoin_w(ipoin),idime) = mom_sol(lpoin_w(ipoin),idime) + aux
                            end do
@@ -782,18 +782,18 @@ module mod_solver
                      do ipoin = 1,npoin_w
                         aux = 0.0_rp
                         do kk = 1,maxIter
-                           aux = aux + Q_Mass(lpoin_w(ipoin),kk)*beta_mass(kk)
+                           aux = aux + Q_Mass(lpoin_w(ipoin),kk)*updMass(kk)
                         end do
                         mass_sol(lpoin_w(ipoin)) = mass_sol(lpoin_w(ipoin)) + aux
                         aux = 0.0_rp
                         do kk = 1,maxIter
-                           aux = aux + Q_Ener(lpoin_w(ipoin),kk)*beta_ener(kk)
+                           aux = aux + Q_Ener(lpoin_w(ipoin),kk)*updEner(kk)
                         end do
                         ener_sol(lpoin_w(ipoin)) = ener_sol(lpoin_w(ipoin)) + aux
                         do idime = 1,ndime
                            aux = 0.0_rp
                            do kk = 1,maxIter
-                              aux = aux + Q_Mom(lpoin_w(ipoin),idime,kk)*beta_mom(kk,idime)
+                              aux = aux + Q_Mom(lpoin_w(ipoin),idime,kk)*updMom(kk,idime)
                            end do
                            mom_sol(lpoin_w(ipoin),idime) = mom_sol(lpoin_w(ipoin),idime) + aux
                         end do
