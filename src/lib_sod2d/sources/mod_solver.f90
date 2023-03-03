@@ -24,7 +24,7 @@ module mod_solver
       real(rp)  , allocatable, dimension(:,:,:) :: Q_Mom, H_mom
       logical                                   :: flag_gmres_mem_alloc=.true.
       logical                                   :: flag_gmres_mem_free=.false.
-      real(rp)                                  :: eps=1e-4
+      real(rp)                                  :: eps=1e-3
 
       contains
 
@@ -485,11 +485,11 @@ module mod_solver
                         if(auxN2(4)<epsilon(errTol)) auxN2(4) = 1.0_rp
                         if(auxN2(5)<epsilon(errTol)) auxN2(5) = 1.0_rp
 
-                        epsR = eps/sqrt(real(auxN2(1),rp))
-                        epsE = eps/sqrt(real(auxN2(2),rp))
-                        epsQ(1) = eps/sqrt(real(auxN2(3),rp))
-                        epsQ(2) = eps/sqrt(real(auxN2(4),rp))
-                        epsQ(3) = eps/sqrt(real(auxN2(5),rp))
+                        epsR = eps/(sqrt(real(auxN2(1),rp)))
+                        epsE = eps/(sqrt(real(auxN2(2),rp)))
+                        epsQ(1) = eps/(sqrt(real(auxN2(3),rp)))
+                        epsQ(2) = eps/(sqrt(real(auxN2(4),rp)))
+                        epsQ(3) = eps/(sqrt(real(auxN2(5),rp)))
                      end if
                      call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                         atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
@@ -551,12 +551,12 @@ module mod_solver
                   real(rp)  , intent(in)    :: bmass(npoin), bmom(npoin,ndime), bener(npoin)
                   real(rp)  , intent(inout) :: mass_sol(npoin), mom_sol(npoin,ndime), ener_sol(npoin)
                   integer(4), intent(in)    :: istep
-                  integer(4)                :: ik, jk, kk, ipoin, idime
+                  integer(4)                :: ik, jk, kk, ipoin, idime,npoin_w_g
                   real(rp)                  :: errMax, errTol, aux
                   real(8)                  :: auxN(5),auxN2(5)
 
                   errTol = tol
-
+                  call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
                   ! Allocate the memory for the gmres solver if not yet allocated
                   if (flag_gmres_mem_alloc .eqv. .true.) then
@@ -617,11 +617,11 @@ module mod_solver
                   norm_bmom(2) = sqrt(real(auxN2(4),rp))
                   norm_bmom(3) = sqrt(real(auxN2(5),rp))
 
-                  epsR = 1e-3
-                  epsE = 1e-3
-                  epsQ(1) = 1e-3
-                  epsQ(2) = 1e-3
-                  epsQ(3) = 1e-3
+                  epsR = eps
+                  epsE = eps
+                  epsQ(1) = eps
+                  epsQ(2) = eps
+                  epsQ(3) = eps
 
                   if(istep == 1) then 
                      call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
@@ -643,12 +643,12 @@ module mod_solver
                      !$acc end kernels
 
                      if(ik .lt. 3) then 
-                        auxN(:) = 0.0_rp
+                         auxN(:) = 0.0_rp
                         !$acc parallel loop
                         do ipoin = 1,npoin_w
                            auxN(1) = auxN(1) + real(pMass(lpoin_w(ipoin))**2,8)
                            auxN(2) = auxN(2) + real(pEner(lpoin_w(ipoin))**2,8)
-                           !$acc lloop seq
+                           !$acc loop seq
                            do idime = 1,ndime
                               auxN(idime+2) = auxN(idime+2) + real(pMom(lpoin_w(ipoin),idime)**2,8)
                            end do
@@ -657,23 +657,45 @@ module mod_solver
 
                         call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
-                        if(auxN2(1)<epsilon(eps)) auxN2(1) = 1.0_rp
-                        if(auxN2(2)<epsilon(eps)) auxN2(2) = 1.0_rp
-                        if(auxN2(3)<epsilon(eps)) auxN2(3) = 1.0_rp
-                        if(auxN2(4)<epsilon(eps)) auxN2(4) = 1.0_rp
-                        if(auxN2(5)<epsilon(eps)) auxN2(5) = 1.0_rp
+                        if(auxN2(1)<epsilon(errTol)) auxN2(1) = 1.0_rp
+                        if(auxN2(2)<epsilon(errTol)) auxN2(2) = 1.0_rp
+                        if(auxN2(3)<epsilon(errTol)) auxN2(3) = 1.0_rp
+                        if(auxN2(4)<epsilon(errTol)) auxN2(4) = 1.0_rp
+                        if(auxN2(5)<epsilon(errTol)) auxN2(5) = 1.0_rp
 
-                        epsR = eps/sqrt(real(auxN2(1),rp))
-                        epsE = eps/sqrt(real(auxN2(2),rp))
-                        epsQ(1) = eps/sqrt(real(auxN2(3),rp))
-                        epsQ(2) = eps/sqrt(real(auxN2(4),rp))
-                        epsQ(3) = eps/sqrt(real(auxN2(5),rp))
+                        epsR = 1.0_rp/(real(npoin_w_g,rp)*sqrt(real(auxN2(1),rp)))
+                        epsE = 1.0_rp/(real(npoin_w_g,rp)*sqrt(real(auxN2(2),rp)))
+                        epsQ(1) = 1.0_rp/(real(npoin_w_g,rp)*sqrt(real(auxN2(3),rp)))
+                        epsQ(2) = 1.0_rp/(real(npoin_w_g,rp)*sqrt(real(auxN2(4),rp)))
+                        epsQ(3) = 1.0_rp/(real(npoin_w_g,rp)*sqrt(real(auxN2(5),rp)))
+                                            
+                        auxN(:) = 0.0_rp
+                        !$acc parallel loop
+                        do ipoin = 1,npoin_w
+                           auxN(1) = auxN(1) + real(eps*abs(rho(lpoin_w(ipoin)))+eps,8)
+                           auxN(2) = auxN(2) + real(eps*abs(E(lpoin_w(ipoin)))+eps,8)
+                           !$acc loop seq
+                           do idime = 1,ndime
+                              auxN(idime+2) = auxN(idime+2) + real(eps*abs(q(lpoin_w(ipoin),idime))+eps,8)
+                           end do
+                        end do
+                        !$acc end parallel loop
+
+                        call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                        
+                        epsR = real(auxN2(1),rp)*epsR
+                        epsE = real(auxN2(2),rp)*epsE
+                        epsQ(1) = real(auxN2(3),rp)*epsQ(1)
+                        epsQ(2) = real(auxN2(4),rp)*epsQ(2)
+                        epsQ(3) = real(auxN2(5),rp)*epsQ(3)
+
+                        if(mpi_rank.eq.0)print*, "    it ",ik,' epsR ',epsR," epsE ",epsE," epsQ ",epsQ
                      end if
 
-                     call  smooth_gmres(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
-                                      atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-                                      rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-                                      gammaRK,dt,3)
+                    !call  smooth_gmres(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
+                    !                  atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                    !                  rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                    !                  gammaRK,dt,3)
 
                      call arnoldi_iter(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                         atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
@@ -1071,14 +1093,14 @@ module mod_solver
 
 
                   call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                     gmshAtoI, gmshAtoJ, gmshAtoK, auxU, auxQ, rho+epsR*zmass, pr+epsE*zpres, E+epsE*zener, Rmass, Rmom, Rener)
+                     gmshAtoI, gmshAtoJ, gmshAtoK, auxU, auxQ, rho+epsR*zmass, pr, E+epsE*zener, Rmass, Rmom, Rener)
                   
                   !call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                  !   gmshAtoI, gmshAtoJ, gmshAtoK, auxU, auxQ, rho, pr, E, Rmass, Rmom, Rener)
+                  !   gmshAtoI, gmshAtoJ, gmshAtoK, u, auxQ, rho+epsR*zmass, pr, E+epsE*zener, Rmass, Rmom, Rener)
 
-                   call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                      gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+epsR*zmass, auxU, Tem+epsE*ztemp, &
-                      mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dener)
+                   !call full_diffusion_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                   !   gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+epsR*zmass, auxU, Tem+epsE*ztemp, &
+                   !   mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dener)
 
                   !$acc end parallel loop
 
@@ -1270,9 +1292,9 @@ module mod_solver
                   real(rp)  , intent(in)    :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin),Rgas,gamma_gas, Cp, Prt
                   real(rp)  , intent(in)    :: mu_fluid(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
                   integer(4)                :: idime, jk, ipoin,i
-                  real(rp)                  :: bmass(npoin), bmom(npoin,ndime), bener(npoin),relax=1.0_rp
+                  real(rp)                  :: bmass(npoin), bmom(npoin,ndime), bener(npoin),relax=0.2_rp
                   real(8)                  :: auxN(5),auxN2(5)
-#if 1             
+#if 1            
                   !$acc kernels
                   pMass(:) = dt*gamma_gas*pMass(:)
                   pEner(:) = dt*gamma_gas*pEner(:)

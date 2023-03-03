@@ -101,24 +101,24 @@ module time_integ
                m_i(2) = 1.0_rp/(8.0_rp*gamma_RK*gamma_RK)
             else if (flag_rk_order == 3) then
                nstep = 3
-               gamma_RK = 0.5_rp + sqrt(3.0_rp)/6.0_rp
+               gamma_RK = real(7.886751345948129e-01,rp)
 
                a_ij(:,:) = 0.0_rp
 
-               a_ij(2,1) = 1.0_rp/gamma_RK
-               a_ij(3,1) = 1.0_rp/gamma_RK
+               a_ij(2,1) = real(1.267949192431123e+00,rp)
+               a_ij(3,1) = real(1.267949192431123e+00,rp)
 
                c_ij(:,:) = 0.0_rp
 
-               c_ij(2,1) = -1.0_rp/sqrt(gamma_RK)
-               c_ij(3,1) = -(1.0_rp/gamma_RK)*(1.0_rp + (1.0_rp/gamma_RK)*(2.0_rp-0.5_rp/gamma_RK))
-               c_ij(3,2) = -(1.0_rp/sqrt(gamma_RK))*(2.0_rp - 0.5_rp/gamma_RK)
+               c_ij(2,1) = real(-1.607695154586736e+00,rp) 
+               c_ij(3,1) = real(-3.464101615137755e+00,rp) 
+               c_ij(3,2) = real(-1.732050807568877e+00,rp) 
 
                m_i(:) = 0.0_rp
 
-               m_i(1) = (1.0_rp/gamma_RK)*(1.0_rp + (1.0_rp/gamma_RK)*(2.0_rp/3.0_rp-1.0_rp/(6.0_rp*gamma_RK)))
-               m_i(2) = (1.0_rp/gamma_RK)*(2.0_rp/3.0_rp-1.0_rp/(6.0_rp*gamma_RK))
-               m_i(3) = 1.0_rp/(3.0_rp*gamma_RK)
+               m_i(1) = real(2.000000000000000e+00,rp) 
+               m_i(2) = real(5.773502691896258e-01,rp)
+               m_i(3) = real(4.226497308103742e-01,rp)
             else if (flag_rk_order == 4) then
                nstep = 4
                gamma_RK = 0.5_rp
@@ -386,8 +386,6 @@ module time_integ
                call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom)
                call nvtxEndRange
 
-               !Here call Lucas gmres
-
                !$acc kernels
                Rmass(:) =  -Rmass(:)   + cMass(:) 
                Rener(:) =  -Rener(:)   + cEner(:)
@@ -404,7 +402,8 @@ module time_integ
 #else
               call gmres_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                     atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-                                    rho(:,1),u(:,:,1),q(:,:,1),pr(:,1),E(:,1),Tem(:,1),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                    aux_rho(:),aux_u(:,:),aux_q(:,:),aux_pr(:),aux_E(:),aux_Tem(:),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
+                                    !rho(:,1),u(:,:,1),q(:,:,1),pr(:,1),E(:,1),Tem(:,1),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                                     gamma_RK,dt,Rmass,Rmom,Rener,Yrho(:,istep),Yq(:,:,istep),YE(:,istep),istep)
 #endif
                !
@@ -465,7 +464,7 @@ module time_integ
                machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
                Tem(lpoin_w(ipoin),2) = pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)*Rgas)
                eta(lpoin_w(ipoin),2) = (rho(lpoin_w(ipoin),2)/(gamma_gas-1.0_rp))* &
-                  log(pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)**gamma_gas))
+                  log(abs(pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)**gamma_gas)))
                !$acc loop seq
                do idime = 1,ndime
                   f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
