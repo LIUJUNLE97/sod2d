@@ -388,10 +388,10 @@ contains
       ! where 1 is prediction, 2 is final value
       !
       allocate(u(numNodesRankPar,ndime,2))  ! Velocity
-      allocate(q(numNodesRankPar,ndime,2))  ! momentum
-      allocate(rho(numNodesRankPar,2))      ! Density
+      allocate(q(numNodesRankPar,ndime,3))  ! momentum
+      allocate(rho(numNodesRankPar,3))      ! Density
       allocate(pr(numNodesRankPar,2))       ! Pressure
-      allocate(E(numNodesRankPar,2))        ! Total Energy
+      allocate(E(numNodesRankPar,3))        ! Total Energy
       allocate(Tem(numNodesRankPar,2))      ! Temperature
       allocate(e_int(numNodesRankPar,2))    ! Internal Energy
       allocate(eta(numNodesRankPar,2))      ! entropy

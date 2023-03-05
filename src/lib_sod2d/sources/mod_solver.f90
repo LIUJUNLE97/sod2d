@@ -4,6 +4,7 @@ module mod_solver
       use mod_comms
       use mod_mpi
       use mod_nvtx
+      use mod_time_ops
 
       implicit none
       !-----------------------------------------------------------------------
