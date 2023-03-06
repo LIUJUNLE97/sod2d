@@ -471,7 +471,7 @@ module mod_solver
                         do ipoin = 1,npoin_w
                            auxN(1) = auxN(1) + real(mass_sol(lpoin_w(ipoin))**2,8)
                            auxN(2) = auxN(2) + real(ener_sol(lpoin_w(ipoin))**2,8)
-                           !$acc lloop seq
+                           !$acc loop seq
                            do idime = 1,ndime
                               auxN(idime+2) = auxN(idime+2) + real(mom_sol(lpoin_w(ipoin),idime)**2,8)
                            end do
@@ -645,16 +645,17 @@ module mod_solver
 
                      if(ik .lt. 3) then 
                          auxN(:) = 0.0_rp
-                        !$acc parallel loop
+                         ! Commenting out ACC here as it will fail with this. Need to remake in a GPU-friendly way
+                        !!$acc parallel loop
                         do ipoin = 1,npoin_w
                            auxN(1) = auxN(1) + real(pMass(lpoin_w(ipoin))**2,8)
                            auxN(2) = auxN(2) + real(pEner(lpoin_w(ipoin))**2,8)
-                           !$acc loop seq
+                           !!$acc loop seq
                            do idime = 1,ndime
                               auxN(idime+2) = auxN(idime+2) + real(pMom(lpoin_w(ipoin),idime)**2,8)
                            end do
                         end do
-                        !$acc end parallel loop
+                        !!$acc end parallel loop
 
                         call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
@@ -1103,8 +1104,6 @@ module mod_solver
                    !   gmshAtoI, gmshAtoJ, gmshAtoK, Cp, Prt, rho+epsR*zmass, auxU, Tem+epsE*ztemp, &
                    !   mu_fluid, mu_e, mu_sgs, Ml, Dmass, Dmom, Dener)
 
-                  !$acc end parallel loop
-
                   !$acc parallel loop
                   do ipoin = 1,npoin_w
                      Rmass(lpoin_w(ipoin)) = Rmass(lpoin_w(ipoin)) + Dmass(lpoin_w(ipoin))
@@ -1230,8 +1229,8 @@ module mod_solver
                   do ipoin = 1,npoin_w
                      aux3 = aux3 + real(Q_Ener(lpoin_w(ipoin),1)**2,8)
                   end do
-                  aux(2) = aux3
                   !$acc end parallel loop
+                  aux(2) = aux3
 
                   do idime = 1,ndime
                      aux3 = 0.0_rp
@@ -1274,7 +1273,6 @@ module mod_solver
                      !$acc end parallel loop
                   end do
                   
-                  !$acc end parallel loop
                   !print*," beta mass ",beta_mass
                   !print*," beta ener ",beta_ener                  !print*," beta mom ",beta_mom
                   !print*," beta mom ",beta_mom
