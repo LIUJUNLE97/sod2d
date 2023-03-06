@@ -1,5 +1,9 @@
 ## This coonfigures the pipelines for SOD2D, still under coonstruction!
 
+## Define the OS to use for the jobs
+default:
+  image: ubuntu:20.04
+
 ## List of stages for jobs, and their order of execution
 stages:
   - build
