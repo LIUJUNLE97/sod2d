@@ -1,22 +1,22 @@
 ## This coonfigures the pipelines for SOD2D, still under coonstruction!
 
-## Define the OS to use for the jobs
+## Define and configure the OS to use for the jobs
 default:
-  image: ubuntu:20.04
+    image: ubuntu:20.04
 
 ## List of stages for jobs, and their order of execution
 stages:
-  - build
-  - test
+    - build
+    - test
 
 ## Configuration of each job to be executed
 
 # This job runs in the build stage, which runs first.
-build-job:
-  stage: build
-  script:
-    - echo "Compiling the code..."
-    - echo "Compile complete."
+build-GNU-Debug:
+    stage: build
+    script:
+        - echo "Compiling the code..."
+        - echo "Compile complete."
 
 # This job runs in the test stage.
 unit-test-job:
