@@ -30,6 +30,8 @@ module mod_constants
       integer(4), parameter :: flag_rk_order=4
       integer(4), parameter :: flag_implicit=1
       integer(4), parameter :: flag_pseudo_time=1
+      integer(4), parameter :: flag_pseudo_steps=4
+      real(rp),   parameter :: pseudo_ftau=8.0_rp
       integer(4), parameter :: flag_les=0
       integer(4), parameter :: flag_les_ilsa=0
       integer(4), parameter :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG

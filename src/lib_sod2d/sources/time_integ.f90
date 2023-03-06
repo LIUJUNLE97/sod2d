@@ -13,6 +13,14 @@ module time_integ
    use mod_bc_routines
    use mod_wall_model
 
+      implicit none
+
+      real(rp)  , allocatable, dimension(:,:)   :: sigMass,sigEner
+      real(rp)  , allocatable, dimension(:,:,:) :: sigMom
+      real(rp), allocatable,   dimension(:,:)     :: aijKjMass,aijKjEner,pt
+      real(rp), allocatable,   dimension(:,:,:) :: aijKjMom
+      logical                                   :: flag_mem_alloc=.true.
+
       contains
 
          subroutine implicit_rosenbrock_main(noBoundaries,isWallModelOn,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
@@ -571,17 +579,30 @@ module time_integ
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
             real(rp), optional, intent(in)      :: source_term(npoin,ndime)
             integer(4)                          :: pos
-            integer(4)                          :: istep, ipoin, idime,icode,itime,nsteps
+            integer(4)                          :: istep, ipoin, idime,icode,itime,jstep
             real(rp),    dimension(npoin)       :: Reta, Rrho
-            real(rp),    dimension(4)           :: a_i, b_i, c_i
-            real(rp),    dimension(7,7)         :: a_ij
+            real(rp),    dimension(5)           :: b_i, b_i2
+            real(rp),    dimension(5,5)         :: a_ij
             real(rp),    dimension(npoin,ndime) :: aux_u, aux_q,aux_u_wall
             real(rp),    dimension(npoin)       :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
-            real(rp),    dimension(npoin)       :: Rmass, Rener, Rmass_sum, Rener_sum, alpha,Reta_sum,pt
+            real(rp),    dimension(npoin)       :: Rmass, Rener, Rmass_sum, Rener_sum, alpha,dt_min
             real(rp),    dimension(npoin,ndime) :: Rmom, Rmom_sum, f_eta
             real(rp)                            :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
-            real(rp)                            :: Aemac(npoin,ndime), Femac(npoin), umag,aux
-            real(8)                             :: auxN(5),auxN2(5),errMax
+            real(rp)                            :: umag,aux
+            real(8)                             :: auxN(5),auxN2(5),errMax,kappa=1e-6,phi=0.4,xi=0.7,f_save=0.9,f_max=1.15_rp,f_min=0.85_rp
+
+            if (flag_mem_alloc .eqv. .true.) then
+               allocate(sigMass(npoin,2), sigEner(npoin,2), sigMom(npoin,ndime,2))
+               allocate(aijKjMass(npoin,5),aijKjEner(npoin,5),pt(npoin,5))
+               allocate(aijKjMom(npoin,ndime,5))
+               flag_mem_alloc = .false.
+               !$acc kernels
+               sigMass(1:npoin,1:2) = 0.0_rp
+               sigEner(1:npoin,1:2) = 0.0_rp
+               sigMom(1:npoin,1:ndime,1:2) = 0.0_rp
+               !$acc end kernels
+            end if
+
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! New version of RK4 using loops                 !
@@ -591,27 +612,103 @@ module time_integ
             !
             pos = 2 ! Set correction as default value
 
-            call adapt_local_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,1.5_rp,pt,1.5_rp,mu_fluid,mu_sgs,rho(:,2))
+            call adapt_local_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,2.0_rp,dt_min,2.0_rp,mu_fluid,mu_sgs,rho(:,2))
 
+            !$acc kernels
+            pt(:,1) = dt_min(:)
+            pt(:,2) = dt_min(:)
+            pt(:,3) = dt_min(:)
+            pt(:,4) = dt_min(:)
+            pt(:,5) = dt_min(:)
+            !$acc end kernels
             !
             ! Butcher tableau
             !
             call nvtxStartRange("Create tableau")
-            if (flag_rk_order == 1) then
-               a_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
-               c_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
-               b_i = [1.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
-            else if (flag_rk_order == 2) then
-               a_i = [0.0_rp, 1.0_rp, 0.0_rp, 0.0_rp]
-               c_i = [0.0_rp, 1.0_rp, 0.0_rp, 0.0_rp]
-               b_i = [0.5_rp, 0.5_rp, 0.0_rp, 0.0_rp]
-            else if (flag_rk_order == 3) then
-               write(1,*) "--| NOT CODED FOR RK3 YET!"
-               stop 1
-            else if (flag_rk_order == 4) then
-               a_i = [0.0_rp, 0.5_rp, 0.5_rp, 1.0_rp]
-               c_i = [0.0_rp, 0.5_rp, 0.5_rp, 1.0_rp]
-               b_i = [1.0_rp/6.0_rp, 1.0_rp/3.0_rp, 1.0_rp/3.0_rp, 1.0_rp/6.0_rp]
+            if (flag_pseudo_steps == 4) then
+#if 1            
+               a_ij(:,:) = 0.0_rp
+
+               a_ij(2,1) = real(11847461282814,rp)/real(36547543011857,rp)
+
+               a_ij(3,1) = real(1017324711453,rp)/real(9774461848756,rp)
+               a_ij(3,2) = real(3943225443063,rp)/real(7078155732230,rp)
+
+               a_ij(4,1) = real(1017324711453,rp)/real(9774461848756,rp)
+               a_ij(4,2) = real(8237718856693,rp)/real(13685301971492,rp)
+               a_ij(4,3) = -real(346793006927,rp)/real(4029903576067,rp)
+
+               b_i(:) = 0.0_rp
+
+               b_i(1)  = real(1017324711453,rp)/real(9774461848756,rp)
+               b_i(2) = real(8237718856693,rp)/real(13685301971492,rp)
+               b_i(3)  = real(57731312506979,rp)/real(19404895981398,rp)
+               b_i(4)  = -real(101169746363290,rp)/real(37734290219643,rp)
+
+               b_i2(:) = 0.0_rp
+
+               b_i2(1)  = real(15763415370699,rp)/real(46270243929542,rp)
+               b_i2(2) = real(514528521746,rp)/real(5659431552419,rp)
+               b_i2(3)  = real(27030193851939,rp)/real(9429696342944,rp)
+               b_i2(4)  = -real(69544964788955,rp)/real(30262026368149,rp)
+#else 
+
+
+            else if (flag_pseudo_steps == 10) then
+               a_ij(:,:) = 0.0_rp
+
+               a_ij(2,1) = 0.1111111111
+
+               a_ij(3,1) = 0.1900199097
+               a_ij(3,2) = 0.0322023124
+
+               a_ij(4,1) = 0.2810938259
+               a_ij(4,3) = 0.0522395073
+
+               a_ij(5,1) = 0.3683599872
+               a_ij(5,4) = 0.0760844571
+
+               a_ij(6,1) = 0.4503724121
+               a_ij(6,5) = 0.1051831433
+
+               a_ij(7,1) = 0.5247721825
+               a_ij(7,6) = 0.1418944841
+
+               a_ij(8,1) = 0.5874505094
+               a_ij(8,7) = 0.1903272683
+
+               a_ij(9,1) = 0.6304783975
+               a_ij(9,8) = 0.2584104913
+
+               a_ij(10,1) = 0.6358199324
+               a_ij(10,9) = 0.3641800675                      
+
+               b_i(:) = 0.0_rp
+
+               b_i(1) = 0.4988192238
+               b_i(2) =  0.0_rp
+               b_i(3) =  0.0_rp
+               b_i(4) =  0.0_rp
+               b_i(5) = 0.0_rp
+               b_i(6) = 0.0_rp
+               b_i(7) = 0.0_rp
+               b_i(8) = 0.0_rp
+               b_i(9) = 0.0_rp
+               b_i(10) = 0.5011807761
+
+               b_i2(:) = 0.0_rp
+
+               b_i2(1) = 0.3906281980
+               b_i2(2) =  0.1179848341
+               b_i2(3) =  1.7353065354
+               b_i2(4) =  -7.9567462555
+               b_i2(5) = 17.3753753701
+               b_i2(6) = -23.4057667136
+               b_i2(7) = 20.5007152462
+               b_i2(8) = -11.4042315893
+               b_i2(9) = 3.6467343745
+               b_i2(10) = 0.0_rp
+#endif              
             else
                write(1,*) "--| NOT CODED FOR RK > 4 YET!"
                stop 1
@@ -639,8 +736,10 @@ module time_integ
             Reta(1:npoin) = 0.0_rp
             Rmass_sum(1:npoin) = 0.0_rp
             Rener_sum(1:npoin) = 0.0_rp
-            Reta_sum(1:npoin) = 0.0_rp
             Rmom_sum(1:npoin,1:ndime) = 0.0_rp
+            aijKjMass(1:npoin,1:5) = 0.0_rp
+            aijKjEner(1:npoin,1:5) = 0.0_rp
+            aijKjMom(1:npoin,1:ndime,1:5) = 0.0_rp
             !$acc end kernels
 
             call nvtxEndRange
@@ -656,19 +755,28 @@ module time_integ
                Rmass(1:npoin) = 0.0_rp
                Rmom(1:npoin,1:ndime) = 0.0_rp
                Rener(1:npoin) = 0.0_rp
+               aijKjMass(1:npoin,1:5) = 0.0_rp
+               aijKjEner(1:npoin,1:5) = 0.0_rp
+               aijKjMom(1:npoin,1:ndime,1:5) = 0.0_rp
+               sigMass(1:npoin,1) = sigMass(1:npoin,2)
+               sigEner(1:npoin,1) = sigEner(1:npoin,2)
+               sigMom(1:npoin,1:ndime,1) = sigMom(1:npoin,1:ndime,2)
+               sigMass(1:npoin,2) = 0.0_rp
+               sigEner(1:npoin,2) = 0.0_rp
+               sigMom(1:npoin,1:ndime,2) = 0.0_rp
                !$acc end kernels
-               do istep = 1,flag_rk_order
+               do istep = 1,flag_pseudo_steps
                   !
                   ! Compute variable at substep (y_i = y_n+dt*A_ij*R_j)
                   !
                   call nvtxStartRange("Update aux_*")
                   !$acc parallel loop
                   do ipoin = 1,npoin
-                     aux_rho(ipoin) = rho(ipoin,pos) + pt(ipoin)*a_i(istep)*Rmass(ipoin)
-                     aux_E(ipoin)   = E(ipoin,pos)   + pt(ipoin)*a_i(istep)*Rener(ipoin)
+                     aux_rho(ipoin) = rho(ipoin,pos) + pt(ipoin,1)*aijKjMass(ipoin,istep)
+                     aux_E(ipoin)   = E(ipoin,pos)   + pt(ipoin,2)*aijKjEner(ipoin,istep)
                      !$acc loop seq
                      do idime = 1,ndime
-                        aux_q(ipoin,idime) = q(ipoin,idime,pos) + pt(ipoin)*a_i(istep)*Rmom(ipoin,idime)
+                        aux_q(ipoin,idime) = q(ipoin,idime,pos) + pt(ipoin,idime+2)*aijKjMom(ipoin,idime,istep)
                      end do
                   end do
                   !$acc end parallel loop
@@ -772,12 +880,24 @@ module time_integ
                   do ipoin = 1,npoin
                      Rmass(ipoin) = -Rmass(ipoin)-(rho(ipoin,2)-4.0_rp*rho(ipoin,1)/3.0_rp + rho(ipoin,3)/3.0_rp)/(dt*2.0_rp/3.0_rp)
                      Rmass_sum(ipoin) = Rmass_sum(ipoin) + b_i(istep)*Rmass(ipoin)
+                     sigMass(ipoin,2) = sigMass(ipoin,2) + abs(pt(ipoin,1)*(b_i(istep)-b_i2(istep))*Rmass(ipoin))/kappa
                      Rener(ipoin) = -Rener(ipoin)-(E(ipoin,2)-4.0_rp*E(ipoin,1)/3.0_rp + E(ipoin,3)/3.0_rp)/(dt*2.0_rp/3.0_rp)
                      Rener_sum(ipoin) = Rener_sum(ipoin) + b_i(istep)*Rener(ipoin)
+                     sigEner(ipoin,2) = sigEner(ipoin,2) + abs(pt(ipoin,2)*(b_i(istep)-b_i2(istep))*Rener(ipoin))/kappa
                      !$acc loop seq
                      do idime = 1,ndime
                         Rmom(ipoin,idime) = -Rmom(ipoin,idime)-(q(ipoin,idime,2)-4.0_rp*q(ipoin,idime,1)/3.0_rp + q(ipoin,idime,3)/3.0_rp)/(dt*2.0_rp/3.0_rp)
                         Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)
+                        sigMom(ipoin,idime,2) = sigMom(ipoin,idime,2) + abs(pt(ipoin,idime+2)*(b_i(istep)-b_i2(istep))*Rmom(ipoin,idime))/kappa
+                     end do
+                     
+                     do jstep=istep+1,flag_pseudo_steps
+                        aijKjMass(ipoin,jstep) = aijKjMass(ipoin,jstep) + a_ij(jstep,istep)*Rmass(ipoin)
+                        aijKjEner(ipoin,jstep) = aijKjEner(ipoin,jstep) + a_ij(jstep,istep)*Rener(ipoin)
+                        !$acc loop seq
+                        do idime = 1,ndime
+                           aijKjMom(ipoin,idime,jstep) = aijKjMom(ipoin,idime,jstep) + a_ij(jstep,istep)*RMom(ipoin,idime)
+                        end do
                      end do
                   end do
                   !$acc end parallel loop
@@ -791,16 +911,31 @@ module time_integ
                !$acc parallel loop
                do ipoin = 1,npoin
                   aux = rho(ipoin,pos) 
-                  rho(ipoin,pos) = rho(ipoin,pos)+pt(ipoin)*Rmass_sum(ipoin)
+                  rho(ipoin,pos) = rho(ipoin,pos)+pt(ipoin,1)*Rmass_sum(ipoin)
                   Rmass(ipoin) = (rho(ipoin,pos)-aux)!/pt(ipoin)
                   aux = E(ipoin,pos)
-                  E(ipoin,pos) = E(ipoin,pos)+pt(ipoin)*Rener_sum(ipoin)
+                  E(ipoin,pos) = E(ipoin,pos)+pt(ipoin,2)*Rener_sum(ipoin)
                   Rener(ipoin) = (E(ipoin,pos)-aux)!/pt(ipoin)
                   !$acc loop seq
                   do idime = 1,ndime
                      aux = q(ipoin,idime,pos)
-                     q(ipoin,idime,pos) = q(ipoin,idime,pos)+pt(ipoin)*Rmom_sum(ipoin,idime)
+                     q(ipoin,idime,pos) = q(ipoin,idime,pos)+pt(ipoin,idime+2)*Rmom_sum(ipoin,idime)
                      Rmom(ipoin,idime) = (q(ipoin,idime,pos)-aux)!/pt(ipoin)
+                  end do
+                  
+                  ! pseudo stepping
+                  aux = ((sigMass(ipoin,2))**(-phi))*((sigMass(ipoin,1))**(-xi))
+                  aux = min(f_max,max(f_min,f_save*aux))
+                  pt(ipoin,1) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,1)))
+
+                  aux = ((sigEner(ipoin,2))**(-phi))*((sigEner(ipoin,2))**(-xi))
+                  aux = min(f_max,max(f_min,f_save*aux))
+                  pt(ipoin,2) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,2)))
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     aux = ((sigMom(ipoin,idime,2))**(-phi))*((sigMom(ipoin,idime,2))**(-xi))
+                     aux = min(f_max,max(f_min,f_save*aux))
+                     pt(ipoin,idime+2) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,idime+2)))
                   end do
                end do
                !$acc end parallel loop
@@ -845,12 +980,12 @@ module time_integ
                   end do
                end do
                !$acc end parallel loop
-            auxN(:) = 0.0_rp
+               auxN(:) = 0.0_rp
                !$acc parallel loop
                do ipoin = 1,npoin_w
                   auxN(1) = auxN(1) + real(rho(lpoin_w(ipoin),pos)**2,8)
                   auxN(2) = auxN(2) + real(E(lpoin_w(ipoin),pos)**2,8)
-                  !$acc lloop seq
+                  !$acc loop seq
                   do idime = 1,ndime
                      auxN(idime+2) = auxN(idime+2) + real(q(lpoin_w(ipoin),idime,pos)**2,8)
                   end do
@@ -876,7 +1011,7 @@ module time_integ
                do ipoin = 1,npoin_w
                   auxN(1) = auxN(1) + real(Rmass(lpoin_w(ipoin))**2 * epsR,8)
                   auxN(2) = auxN(2) + real(Rener(lpoin_w(ipoin))**2 * epsE,8)
-                  !$acc lloop seq
+                  !$acc loop seq
                   do idime = 1,ndime
                      auxN(idime+2) = auxN(idime+2) + real(Rmom(lpoin_w(ipoin),idime)**2 * epsQ(idime),8)
                   end do
@@ -887,11 +1022,11 @@ module time_integ
 
                errMax = real(sqrt(maxval(auxN2(:))),rp)
 
-               if(mpi_rank.eq.0)print*, " err ",errMax," it ",itime,' emass ',sqrt(auxN2(1))," eener ",sqrt(auxN2(2))," emom ", sqrt(auxN2(3))," ", sqrt(auxN2(4))," ",sqrt(auxN2(5))
-
                if(errMax .lt. tol) exit
             end do
 
+            if(mpi_rank.eq.0)print*, " err ",errMax," it ",itime,' emass ',sqrt(auxN2(1))," eener ",sqrt(auxN2(2))," emom ", sqrt(auxN2(3))," ", sqrt(auxN2(4))," ",sqrt(auxN2(5))
+            
             call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
                gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta,alpha)
 
