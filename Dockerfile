@@ -20,6 +20,9 @@ RUN tar -xvzf openmpi-4.1.4.tar.gz
 WORKDIR /apps/compilers/openMPI/4.1.4/openmpi-4.1.4
 RUN ./configure --prefix=/apps/compilers/openMPI/4.1.4/gnu
 RUN make -j 12 && make install
+# Set the PATH and LD_LIBRARY_PATH environment variables
+ENV PATH="/apps/compilers/openMPI/4.1.4/gnu/bin:${PATH}"
+ENV LD_LIBRARY_PATH="/apps/compilers/openMPI/4.1.4/gnu/lib:${LD_LIBRARY_PATH}"
 
 ## Download and install HDF5-1.12.0 enabling parallel and fortran support
 WORKDIR /apps/libraries
