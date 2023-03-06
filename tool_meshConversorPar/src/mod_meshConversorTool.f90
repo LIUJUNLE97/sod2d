@@ -305,6 +305,7 @@ contains
       deallocate(connecMpiRank)
       deallocate(coordNodesMpiRank)
 
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
       !----------------------------------------------------------------------------------------------
       call get_vector_with_mshRank_values_for_numMshRanks2Part(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numWorkingNodesMshRank,vecNumWorkingNodes)
       call get_vector_with_mshRank_values_for_numMshRanks2Part(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numNodesToCommMshRank,vecNumNodesToCommMshRank)
@@ -328,9 +329,13 @@ contains
 
       call set_hdf5_meshFile_name(mesh_h5_filePath,mesh_h5_fileName,numMshRanks2Part)
 
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+
       call create_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId)
       call create_hdf5_groups_datasets_in_meshFile_from_tool(sod2dmsh_h5_fileId,isPeriodic,isBoundaries,numMshRanks2Part,numElemsGmsh,numNodesParTotal,&
                vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank)
+
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
       do iMshRank=1,numMshRanksInMpiRank
          mshRank = mshRanksInMpiRank(iMshRank)
@@ -353,12 +358,12 @@ contains
          call dummy_write_mshRank_data_in_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId,numMshRanks2Part,isPeriodic,isBoundaries)
       end do
 
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
       call close_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId)
 
       end_time(8) = mpi_wtime()
       elapsed_time_r(8) = end_time(8) - start_time(8)
-
 
       end_time(1) = MPI_Wtime()
       elapsed_time_r(1) = end_time(1) - start_time(1)
@@ -995,7 +1000,7 @@ contains
                      exit eLoop
                   end if
                end do eLoop              
-               if(not(vertexFound)) exit fLoop
+               if(.not.(vertexFound)) exit fLoop
             end do fLoop     
             if(nodeCnt.ge.4) then
                !isBoundInElem=.true.
@@ -1276,7 +1281,7 @@ contains
 
       do iPerFace=1,numPerFacesInRank
          !perFaceId = listPerFacesInRank(iPerFace)
-         if(not(masterPerFacesInRank(iPerFace))) then
+         if(.not.(masterPerFacesInRank(iPerFace))) then
             do iVert=1,numVert
                ind_gmsh = gmsh2ij(posFaceInnerNodes(iVert))
                iNodeG = connecPerFacesInRank(iPerFace,ind_gmsh)
@@ -1349,7 +1354,7 @@ contains
       masSlaNodesAll(iAux,:) = matPerLinkNodes(iLink,:)
       !write(*,*) 'iAux',iAux,'msns',masSlaNodesAll(iAux,:)
       do iLink=2,numPerLinkedNodesSrl
-         if(not((masSlaNodesAll(iAux,1).eq.matPerLinkNodes(iLink,1)).and.(masSlaNodesAll(iAux,2).eq.matPerLinkNodes(iLink,2)))) then
+         if(.not.((masSlaNodesAll(iAux,1).eq.matPerLinkNodes(iLink,1)).and.(masSlaNodesAll(iAux,2).eq.matPerLinkNodes(iLink,2)))) then
             iAux=iAux+1
             masSlaNodesAll(iAux,:) = matPerLinkNodes(iLink,:)
             !write(*,*) 'iAux',iAux,'msns',masSlaNodesAll(iAux,:)
@@ -1603,7 +1608,7 @@ contains
       do iFaceMaster=1,numPerFacesSrl
          if(masterPerFacesAll(iFaceMaster)) then 
             id2loop: do iFaceSlave=1,numPerFacesSrl
-               if(not(masterPerFacesAll(iFaceSlave))) then
+               if(.not.(masterPerFacesAll(iFaceSlave))) then
                   vertNodeCnt=0
                   iVertLoop: do iVert=1,numVert
                      iAux = (iFaceMaster-1)*numVert + iVert
@@ -1618,7 +1623,7 @@ contains
                            exit jVertLoop
                         end if
                      end do jVertLoop
-                     if(not(vertNodeFound)) exit iVertLoop
+                     if(.not.(vertNodeFound)) exit iVertLoop
                   end do iVertLoop
                   if(vertNodeCnt.eq.4) then
                      !if(mpi_rank.eq.0) write(*,*) '(M)pFId',perFaceIdM,'(S)pFId',perFaceIdS
@@ -2113,7 +2118,7 @@ contains
       !write(*,*) 'numElems2mshRankInMpiRank[',mpi_rank,'] ',numElems2mshRankInMpiRank(:)
 
 #if _CHECK_
-      if(not(isPeriodic)) then
+      if(.not.(isPeriodic)) then
       write(aux_string_mpirank_deb,'(I0)') mpi_rank
       file_name_deb = 'elemPartition_mpiRank'// trim(aux_string_mpirank_deb)//'.csv'
       open(1, file=file_name_deb)
@@ -2176,7 +2181,7 @@ contains
       end do
 
 #if _CHECK_
-      if(not(isPeriodic)) then
+      if(.not.(isPeriodic)) then
       write(aux_string_mpirank_deb,'(I0)') mpi_rank
       file_name_deb = 'elemPartitionOrdered_mpiRank'// trim(aux_string_mpirank_deb)//'.csv'
       open(1, file=file_name_deb)
@@ -3520,7 +3525,7 @@ contains
                      if(iPos.ne.0) then
                         iNodeLPos = binarySearch_int_i(globalIdSrlOrdered_jm%matrix(iMshRank)%elems(:,1),iNodeGSrl)
                         iNodeL    = globalIdSrlOrdered_jm%matrix(iMshRank)%elems(iNodeLPos,2)
-                        if(not(auxListBN(iNodeL))) then
+                        if(.not.(auxListBN(iNodeL))) then
                            auxListBN(iNodeL) = .true.
                            auxCntBoundaryNode = auxCntBoundaryNode + 1
                         end if
@@ -4474,7 +4479,7 @@ END WHEN READING LINE BY LINE.. FUCKING SLOW
                      exit eLoop
                   end if
                end do eLoop              
-               if(not(vertexFound)) exit fLoop
+               if(.not.(vertexFound)) exit fLoop
             end do fLoop     
             if(nodeCnt.ge.4) then
                !isBoundInElem=.true.
