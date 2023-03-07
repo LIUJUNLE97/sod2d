@@ -3,7 +3,7 @@
 ## Define and configure the OS to use for the jobs
 default:
     #image: ubuntu:20.04
-    image: lucasbsc21387/test1
+    image: lucasbsc21387/sod2d-image:0.1.0
 
 ## List of stages for jobs, and their order of execution
 stages:

@@ -7,7 +7,7 @@ ARG LD_LIBRARY_PATH0="${LD_LIBRARY_PATH}"
 
 ## Update and install basic system packages
 RUN apt-get -y update && apt-get -y upgrade
-RUN apt-get install -y build-essential git cmake gfortran ninja-build wget
+RUN apt-get install -y build-essential git cmake gfortran ninja-build wget pkg-config
 
 ## Set the working dir to home
 WORKDIR /home
