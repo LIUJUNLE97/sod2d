@@ -2,6 +2,8 @@
 
 ## Import the base image
 FROM ubuntu:22.04
+ARG PATH0="${PATH}"
+ARG LD_LIBRARY_PATH0="${LD_LIBRARY_PATH}"
 
 ## Update and install basic system packages
 RUN apt-get -y update && apt-get -y upgrade
@@ -37,7 +39,7 @@ WORKDIR /home/apps/libraries/hdf5/1.12.0/hdf5-1.12.0
 RUN CPP=cpp CC=mpicc CXX=mpicxx FC=mpif90 ./configure --prefix=/apps/libraries/hdf5/1.12.0/gnu --enable-threadsafe --enable-cxx --enable-fortran --enable-unsupported --enable-parallel
 RUN make -j 12 && make install
 # Set the PATH and LD_LIBRARY_PATH environment variables
-ENV PATH="/apps/libraries/hdf5/1.12.0/gnu/bin:${PATH}"
-ENV LD_LIBRARY_PATH="/apps/libraries/hdf5/1.12.0/gnu/lib:${LD_LIBRARY_PATH}"
-ENV HDF5_ROOT="/apps/libraries/hdf5/1.12.0/gnu"
-ENV HDF5_DIR="/apps/libraries/hdf5/1.12.0/gnu"
+ENV PATH="/home/apps/libraries/hdf5/1.12.0/gnu/bin:${PATH}"
+ENV LD_LIBRARY_PATH="/home/apps/libraries/hdf5/1.12.0/gnu/lib:${LD_LIBRARY_PATH}"
+ENV HDF5_ROOT="/home/apps/libraries/hdf5/1.12.0/gnu"
+ENV HDF5_DIR="/home/apps/libraries/hdf5/1.12.0/gnu"
