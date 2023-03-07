@@ -22,18 +22,32 @@ build-GNU-Debug:
         # Run CMake
         - cmake -DCMAKE_BUILD_TYPE=Debug ..
         # Run make
-        - make
+        - make -j 4
         - echo "Compile complete."
+
+# build-GNU-Debug job configuration
+build-GNU-Release:
+    stage: build
+    script:
+        - echo "Compiling the code..."
+        # Add a build folder and enter it
+        - mkdir build && cd build
+        # Run CMake
+        - cmake -DCMAKE_BUILD_TYPE=Release ..
+        # Run make
+        - make -j 4
+        - echo "Compile complete."
+
 
 # This job runs in the test stage.
 unit-test-job:
-  stage: test    # It only starts when the job in the build stage completes successfully.
-  script:
-    - echo "Running unit tests..."
-    - echo "Testing complete!"
+    stage: test    # It only starts when the job in the build stage completes successfully.
+    script:
+        - echo "Running unit tests..."
+        - echo "Testing complete!"
 
 code-coverage-job:   # This job also runs in the test stage.
-  stage: test    # It can run at the same time as unit-test-job (in parallel).
-  script:
-    - echo "Checking code coverage..."
-    - echo "Code coverage check complete!"
+    stage: test    # It can run at the same time as unit-test-job (in parallel).
+    script:
+        - echo "Checking code coverage..."
+        - echo "Code coverage check complete!"
