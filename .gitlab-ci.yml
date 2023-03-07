@@ -10,13 +10,19 @@ stages:
     - build
     - test
 
-## Configuration of each job to be executed
+## Confgure the build jobs
 
-# This job runs in the build stage, which runs first.
+# build-GNU-Debug job configuration
 build-GNU-Debug:
     stage: build
     script:
         - echo "Compiling the code..."
+        # Add a build folder and enter it
+        - mkdir build && cd build
+        # Run CMake
+        - cmake -DCMAKE_BUILD_TYPE=Debug ..
+        # Run make
+        - make
         - echo "Compile complete."
 
 # This job runs in the test stage.

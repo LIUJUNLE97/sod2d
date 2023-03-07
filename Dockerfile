@@ -43,3 +43,8 @@ ENV PATH="/home/apps/libraries/hdf5/1.12.0/gnu/bin:${PATH}"
 ENV LD_LIBRARY_PATH="/home/apps/libraries/hdf5/1.12.0/gnu/lib:${LD_LIBRARY_PATH}"
 ENV HDF5_ROOT="/home/apps/libraries/hdf5/1.12.0/gnu"
 ENV HDF5_DIR="/home/apps/libraries/hdf5/1.12.0/gnu"
+
+## Set the working dir to /home/apps and create a folder for sod2d
+WORKDIR /home/apps
+RUN mkdir -p sod2d
+WORKDIR /home/apps/sod2d
