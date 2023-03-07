@@ -19,7 +19,9 @@ module time_integ
       real(rp)  , allocatable, dimension(:,:,:) :: sigMom
       real(rp), allocatable,   dimension(:,:)     :: aijKjMass,aijKjEner,pt
       real(rp), allocatable,   dimension(:,:,:) :: aijKjMom
+      real(rp)                                  :: volT
       logical                                   :: flag_mem_alloc=.true.
+      logical                                   :: initialize_pt=.true.
 
       contains
 
@@ -579,28 +581,43 @@ module time_integ
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
             real(rp), optional, intent(in)      :: source_term(npoin,ndime)
             integer(4)                          :: pos
-            integer(4)                          :: istep, ipoin, idime,icode,itime,jstep
+            integer(4)                          :: istep, ipoin, idime,icode,itime,jstep,inode,ielem
             real(rp),    dimension(npoin)       :: Reta, Rrho
-            real(rp),    dimension(5)           :: b_i, b_i2
-            real(rp),    dimension(5,5)         :: a_ij
+            real(rp),    dimension(11)           :: b_i, b_i2
+            real(rp),    dimension(11,11)         :: a_ij
             real(rp),    dimension(npoin,ndime) :: aux_u, aux_q,aux_u_wall
             real(rp),    dimension(npoin)       :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
             real(rp),    dimension(npoin)       :: Rmass, Rener, Rmass_sum, Rener_sum, alpha,dt_min
             real(rp),    dimension(npoin,ndime) :: Rmom, Rmom_sum, f_eta
             real(rp)                            :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
-            real(rp)                            :: umag,aux
-            real(8)                             :: auxN(5),auxN2(5),errMax,kappa=1e-6,phi=0.4,xi=0.7,f_save=0.9,f_max=1.15_rp,f_min=0.85_rp
+            real(rp)                            :: umag,aux,vol_rank,vol_tot_d
+            real(8)                             :: auxN(5),auxN2(5),errMax,kappa=1e-6,phi=0.4,xi=0.7,f_save=1.0,f_max=1.01_rp,f_min=0.98_rp
+
+            kappa = sqrt(epsilon(kappa))
 
             if (flag_mem_alloc .eqv. .true.) then
                allocate(sigMass(npoin,2), sigEner(npoin,2), sigMom(npoin,ndime,2))
-               allocate(aijKjMass(npoin,5),aijKjEner(npoin,5),pt(npoin,5))
-               allocate(aijKjMom(npoin,ndime,5))
+               allocate(aijKjMass(npoin,11),aijKjEner(npoin,11),pt(npoin,11))
+               allocate(aijKjMom(npoin,ndime,11))
                flag_mem_alloc = .false.
                !$acc kernels
                sigMass(1:npoin,1:2) = 0.0_rp
                sigEner(1:npoin,1:2) = 0.0_rp
                sigMom(1:npoin,1:ndime,1:2) = 0.0_rp
                !$acc end kernels
+
+               vol_rank  = 0.0
+               vol_tot_d = 0.0
+               do ielem = 1,numElemsRankPar
+                  do inode = 1,nnode
+                     vol_rank = vol_rank+gpvol(1,inode,ielem)
+                  end do
+               end do
+
+               call MPI_Allreduce(vol_rank,vol_tot_d,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+
+               volT = real(vol_tot_d,rp) 
+
             end if
 
 
@@ -612,21 +629,23 @@ module time_integ
             !
             pos = 2 ! Set correction as default value
 
-            call adapt_local_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,2.0_rp,dt_min,2.0_rp,mu_fluid,mu_sgs,rho(:,2))
+            call adapt_local_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,pseudo_ftau,dt_min,pseudo_ftau,mu_fluid,mu_sgs,rho(:,2))
 
-            !$acc kernels
-            pt(:,1) = dt_min(:)
-            pt(:,2) = dt_min(:)
-            pt(:,3) = dt_min(:)
-            pt(:,4) = dt_min(:)
-            pt(:,5) = dt_min(:)
-            !$acc end kernels
+            !if(initialize_pt .eqv. .true.) then
+               !$acc kernels
+               pt(:,1) = dt_min(:)
+               pt(:,2) = dt_min(:)
+               pt(:,3) = dt_min(:)
+               pt(:,4) = dt_min(:)
+               pt(:,5) = dt_min(:)
+               !$acc end kernels
+               !initialize_pt = .true.
+            !end if
             !
             ! Butcher tableau
             !
             call nvtxStartRange("Create tableau")
-            if (flag_pseudo_steps == 4) then
-#if 1            
+            if (flag_pseudo_steps == 4) then    
                a_ij(:,:) = 0.0_rp
 
                a_ij(2,1) = real(11847461282814,rp)/real(36547543011857,rp)
@@ -651,66 +670,8 @@ module time_integ
                b_i2(2) = real(514528521746,rp)/real(5659431552419,rp)
                b_i2(3)  = real(27030193851939,rp)/real(9429696342944,rp)
                b_i2(4)  = -real(69544964788955,rp)/real(30262026368149,rp)
-#else 
-
-
-            else if (flag_pseudo_steps == 10) then
-               a_ij(:,:) = 0.0_rp
-
-               a_ij(2,1) = 0.1111111111
-
-               a_ij(3,1) = 0.1900199097
-               a_ij(3,2) = 0.0322023124
-
-               a_ij(4,1) = 0.2810938259
-               a_ij(4,3) = 0.0522395073
-
-               a_ij(5,1) = 0.3683599872
-               a_ij(5,4) = 0.0760844571
-
-               a_ij(6,1) = 0.4503724121
-               a_ij(6,5) = 0.1051831433
-
-               a_ij(7,1) = 0.5247721825
-               a_ij(7,6) = 0.1418944841
-
-               a_ij(8,1) = 0.5874505094
-               a_ij(8,7) = 0.1903272683
-
-               a_ij(9,1) = 0.6304783975
-               a_ij(9,8) = 0.2584104913
-
-               a_ij(10,1) = 0.6358199324
-               a_ij(10,9) = 0.3641800675                      
-
-               b_i(:) = 0.0_rp
-
-               b_i(1) = 0.4988192238
-               b_i(2) =  0.0_rp
-               b_i(3) =  0.0_rp
-               b_i(4) =  0.0_rp
-               b_i(5) = 0.0_rp
-               b_i(6) = 0.0_rp
-               b_i(7) = 0.0_rp
-               b_i(8) = 0.0_rp
-               b_i(9) = 0.0_rp
-               b_i(10) = 0.5011807761
-
-               b_i2(:) = 0.0_rp
-
-               b_i2(1) = 0.3906281980
-               b_i2(2) =  0.1179848341
-               b_i2(3) =  1.7353065354
-               b_i2(4) =  -7.9567462555
-               b_i2(5) = 17.3753753701
-               b_i2(6) = -23.4057667136
-               b_i2(7) = 20.5007152462
-               b_i2(8) = -11.4042315893
-               b_i2(9) = 3.6467343745
-               b_i2(10) = 0.0_rp
-#endif              
-            else
-               write(1,*) "--| NOT CODED FOR RK > 4 YET!"
+             else
+               write(1,*) "--| NOT CODED FOR RK == 4 YET!"
                stop 1
             end if
             call nvtxEndRange
@@ -755,9 +716,9 @@ module time_integ
                Rmass(1:npoin) = 0.0_rp
                Rmom(1:npoin,1:ndime) = 0.0_rp
                Rener(1:npoin) = 0.0_rp
-               aijKjMass(1:npoin,1:5) = 0.0_rp
-               aijKjEner(1:npoin,1:5) = 0.0_rp
-               aijKjMom(1:npoin,1:ndime,1:5) = 0.0_rp
+               aijKjMass(1:npoin,1:11) = 0.0_rp
+               aijKjEner(1:npoin,1:11) = 0.0_rp
+               aijKjMom(1:npoin,1:ndime,1:11) = 0.0_rp
                sigMass(1:npoin,1) = sigMass(1:npoin,2)
                sigEner(1:npoin,1) = sigEner(1:npoin,2)
                sigMom(1:npoin,1:ndime,1) = sigMom(1:npoin,1:ndime,2)
@@ -912,31 +873,31 @@ module time_integ
                do ipoin = 1,npoin
                   aux = rho(ipoin,pos) 
                   rho(ipoin,pos) = rho(ipoin,pos)+pt(ipoin,1)*Rmass_sum(ipoin)
-                  Rmass(ipoin) = (rho(ipoin,pos)-aux)!/pt(ipoin)
+                  Rmass(ipoin) = (rho(ipoin,pos)-aux)
                   aux = E(ipoin,pos)
-                  E(ipoin,pos) = E(ipoin,pos)+pt(ipoin,2)*Rener_sum(ipoin)
-                  Rener(ipoin) = (E(ipoin,pos)-aux)!/pt(ipoin)
+                  E(ipoin,pos) = (E(ipoin,pos)+pt(ipoin,2)*Rener_sum(ipoin))
+                  Rener(ipoin) = (E(ipoin,pos)-aux)
                   !$acc loop seq
                   do idime = 1,ndime
                      aux = q(ipoin,idime,pos)
                      q(ipoin,idime,pos) = q(ipoin,idime,pos)+pt(ipoin,idime+2)*Rmom_sum(ipoin,idime)
-                     Rmom(ipoin,idime) = (q(ipoin,idime,pos)-aux)!/pt(ipoin)
+                     Rmom(ipoin,idime) = (q(ipoin,idime,pos)-aux)
                   end do
                   
-                  ! pseudo stepping
-                  aux = ((sigMass(ipoin,2))**(-phi))*((sigMass(ipoin,1))**(-xi))
-                  aux = min(f_max,max(f_min,f_save*aux))
-                  pt(ipoin,1) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,1)))
-
-                  aux = ((sigEner(ipoin,2))**(-phi))*((sigEner(ipoin,2))**(-xi))
-                  aux = min(f_max,max(f_min,f_save*aux))
-                  pt(ipoin,2) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,2)))
-                  !$acc loop seq
-                  do idime = 1,ndime
-                     aux = ((sigMom(ipoin,idime,2))**(-phi))*((sigMom(ipoin,idime,2))**(-xi))
-                     aux = min(f_max,max(f_min,f_save*aux))
-                     pt(ipoin,idime+2) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,idime+2)))
-                  end do
+                ! ! pseudo stepping
+                ! aux = ((sigMass(ipoin,2))**(-phi))*((sigMass(ipoin,1))**(-xi))
+                ! aux = min(f_max,max(f_min,f_save*aux))
+                ! pt(ipoin,1) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,1)))
+!
+                ! aux = ((sigEner(ipoin,2))**(-phi))*((sigEner(ipoin,2))**(-xi))
+                ! aux = min(f_max,max(f_min,f_save*aux))
+                ! pt(ipoin,2) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,2)))
+                ! !$acc loop seq
+                ! do idime = 1,ndime
+                !    aux = ((sigMom(ipoin,idime,2))**(-phi))*((sigMom(ipoin,idime,2))**(-xi))
+                !    aux = min(f_max,max(f_min,f_save*aux))
+                !    pt(ipoin,idime+2) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,idime+2)))
+                ! end do
                end do
                !$acc end parallel loop
                call nvtxEndRange
@@ -1009,23 +970,36 @@ module time_integ
                auxN(:) = 0.0_rp
                !$acc parallel loop
                do ipoin = 1,npoin_w
-                  auxN(1) = auxN(1) + real(Rmass(lpoin_w(ipoin))**2 * epsR,8)
-                  auxN(2) = auxN(2) + real(Rener(lpoin_w(ipoin))**2 * epsE,8)
+                  auxN(1) = auxN(1) + real(Rmass(lpoin_w(ipoin))**2,8)
+                  auxN(2) = auxN(2) + real(Rener(lpoin_w(ipoin))**2,8)
                   !$acc loop seq
                   do idime = 1,ndime
-                     auxN(idime+2) = auxN(idime+2) + real(Rmom(lpoin_w(ipoin),idime)**2 * epsQ(idime),8)
+                     auxN(idime+2) = auxN(idime+2) + real(Rmom(lpoin_w(ipoin),idime)**2,8)
                   end do
                end do
                !$acc end parallel loop
 
                call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
-               errMax = real(sqrt(maxval(auxN2(:))),rp)
+               epsR = (sqrt(real(auxN2(1),rp)))*epsR
+               epsE = (sqrt(real(auxN2(2),rp)))*epsE
+               epsQ(1) = (sqrt(real(auxN2(3),rp)))*epsQ(1)
+               epsQ(2) = (sqrt(real(auxN2(4),rp)))*epsQ(2)
+               epsQ(3) = (sqrt(real(auxN2(5),rp)))*epsQ(3)
+
+
+
+               errMax = 0.0_rp
+               errMax = max(errMax, epsR)
+               errMax = max(errMax, epsE)
+               errMax = max(errMax, epsQ(1))
+               errMax = max(errMax, epsQ(2))
+               errMax = max(errMax, epsQ(3))
 
                if(errMax .lt. tol) exit
             end do
 
-            if(mpi_rank.eq.0)print*, " err ",errMax," it ",itime,' emass ',sqrt(auxN2(1))," eener ",sqrt(auxN2(2))," emom ", sqrt(auxN2(3))," ", sqrt(auxN2(4))," ",sqrt(auxN2(5))
+            if(mpi_rank.eq.0)print*, " err ",errMax," it ",itime,' emass ',epsR," eener ",epsE," emom ", epsQ(1)," ", epsQ(2)," ",epsQ(3)
             
             call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
                gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta,alpha)
