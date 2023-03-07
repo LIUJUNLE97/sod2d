@@ -2,7 +2,8 @@
 
 ## Define and configure the OS to use for the jobs
 default:
-    image: ubuntu:20.04
+    #image: ubuntu:20.04
+    image: lucasbsc21387/test1
 
 ## List of stages for jobs, and their order of execution
 stages:
