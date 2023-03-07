@@ -36,7 +36,7 @@ WORKDIR /home/apps/libraries/hdf5/1.12.0
 RUN wget https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.0/src/hdf5-1.12.0.tar.gz
 RUN tar -xvzf hdf5-1.12.0.tar.gz
 WORKDIR /home/apps/libraries/hdf5/1.12.0/hdf5-1.12.0
-RUN CPP=cpp CC=mpicc CXX=mpicxx FC=mpif90 ./configure --prefix=/apps/libraries/hdf5/1.12.0/gnu --enable-threadsafe --enable-cxx --enable-fortran --enable-unsupported --enable-parallel
+RUN CPP=cpp CC=mpicc CXX=mpicxx FC=mpif90 ./configure --prefix=/home/apps/libraries/hdf5/1.12.0/gnu --enable-threadsafe --enable-cxx --enable-fortran --enable-unsupported --enable-parallel
 RUN make -j 12 && make install
 # Set the PATH and LD_LIBRARY_PATH environment variables
 ENV PATH="/home/apps/libraries/hdf5/1.12.0/gnu/bin:${PATH}"
