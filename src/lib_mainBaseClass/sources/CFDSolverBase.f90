@@ -1173,6 +1173,10 @@ contains
          Tem(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*this%Rgas)
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
          eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
+
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,1)
+         rho(iNodeL,3) = rho(iNodeL,1)
+          E(iNodeL,3) =  E(iNodeL,1)
       end do
       !$acc end parallel loop
 
