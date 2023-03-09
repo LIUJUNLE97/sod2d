@@ -761,7 +761,6 @@ module time_integ
             aijKjEner(1:npoin,1:5) = 0.0_rp
             aijKjMom(1:npoin,1:ndime,1:5) = 0.0_rp
             !$acc end kernels
-
             call nvtxEndRange
             !
             ! Loop over all RK steps
@@ -1088,27 +1087,43 @@ module time_integ
                epsQ(2) = 1.0_rp/(sqrt(real(auxN2(4),rp)))
                epsQ(3) = 1.0_rp/(sqrt(real(auxN2(5),rp)))
 
-               auxN(:) = 0.0_rp
-               !$acc parallel loop
+               call nvtxStartRange("Dot products of the residuals")
+               aux = 0.0_rp
+               !$acc parallel loop reduction(+:aux)
                do ipoin = 1,npoin_w
-                  auxN(1) = auxN(1) + real(Rmass(lpoin_w(ipoin))**2,8)
-                  auxN(2) = auxN(2) + real(Rener(lpoin_w(ipoin))**2,8)
-                  !$acc loop seq
-                  do idime = 1,ndime
-                     auxN(idime+2) = auxN(idime+2) + real(Rmom(lpoin_w(ipoin),idime)**2,8)
-                  end do
+                  aux = aux + real(Rmass(lpoin_w(ipoin)),8)
                end do
                !$acc end parallel loop
+               auxN(1) = aux
 
+               aux = 0.0_rp
+               !$acc parallel loop reduction(+:aux)
+               do ipoin = 1,npoin_w
+                  aux = aux + real(Rener(lpoin_w(ipoin)),8)
+               end do
+               !$acc end parallel loop
+               auxN(2) = aux
+
+               do idime = 1,ndime
+                  aux = 0.0_rp
+                  !$acc parallel loop reduction(+:aux)
+                  do ipoin = 1,npoin_w
+                     aux = aux + real(Rmom(lpoin_w(ipoin),idime),8)
+                  end do
+                  !$acc end parallel loop
+                  auxN(idime+2) = aux
+               end do
+               call nvtxEndRange
+
+               call nvtxStartRange("Accumullatee auxN in auxN2")
                call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+               call nvtxEndRange
 
                epsR = (sqrt(real(auxN2(1),rp)))*epsR
                epsE = (sqrt(real(auxN2(2),rp)))*epsE
                epsQ(1) = (sqrt(real(auxN2(3),rp)))*epsQ(1)
                epsQ(2) = (sqrt(real(auxN2(4),rp)))*epsQ(2)
                epsQ(3) = (sqrt(real(auxN2(5),rp)))*epsQ(3)
-
-
 
                errMax = 0.0_rp
                errMax = max(errMax, epsR)
@@ -1120,10 +1135,10 @@ module time_integ
                if(errMax .lt. tol) exit
                !if(mpi_rank.eq.0)print*, " err ",errMax," it ",itime,' emass ',epsR," eener ",epsE," emom ", epsQ(1)," ", epsQ(2)," ",epsQ(3)
             end do
+            call nvtxEndRange
 
             if(mpi_rank.eq.0)print*, " err ",errMax," it ",itime,' emass ',epsR," eener ",epsE," emom ", epsQ(1)," ", epsQ(2)," ",epsQ(3)
 
-            call nvtxEndRange
             !
             ! If using Sutherland viscosity model:
             !
@@ -1146,12 +1161,14 @@ module time_integ
                call nvtxEndRange
             end if
 
+            call nvtxStartRange("Last update")
             !$acc kernels
             rho(:,3) = rho(:,1)
             E(:,3) = E(:,1)
             q(:,:,3) = q(:,:,1)
             eta(:,3) = eta(:,1)
             !$acc end kernels
+            call nvtxEndRange
 
          end subroutine rk_pseudo_main
 
