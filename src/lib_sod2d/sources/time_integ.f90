@@ -1091,7 +1091,7 @@ module time_integ
                aux = 0.0_rp
                !$acc parallel loop reduction(+:aux)
                do ipoin = 1,npoin_w
-                  aux = aux + real(Rmass(lpoin_w(ipoin)),8)
+                  aux = aux + real(Rmass(lpoin_w(ipoin))**2,8)
                end do
                !$acc end parallel loop
                auxN(1) = aux
@@ -1099,7 +1099,7 @@ module time_integ
                aux = 0.0_rp
                !$acc parallel loop reduction(+:aux)
                do ipoin = 1,npoin_w
-                  aux = aux + real(Rener(lpoin_w(ipoin)),8)
+                  aux = aux + real(Rener(lpoin_w(ipoin))**2,8)
                end do
                !$acc end parallel loop
                auxN(2) = aux
@@ -1108,7 +1108,7 @@ module time_integ
                   aux = 0.0_rp
                   !$acc parallel loop reduction(+:aux)
                   do ipoin = 1,npoin_w
-                     aux = aux + real(Rmom(lpoin_w(ipoin),idime),8)
+                     aux = aux + real(Rmom(lpoin_w(ipoin),idime)**2,8)
                   end do
                   !$acc end parallel loop
                   auxN(idime+2) = aux
