@@ -608,14 +608,22 @@ module time_integ
 
                vol_rank  = 0.0
                vol_tot_d = 0.0
+               call nvtxStartRange("Computingg ttotal volume per rank")
+               !$acc parallel loop collapse(2) reduction(+:vol_rank)
                do ielem = 1,numElemsRankPar
                   do inode = 1,nnode
                      vol_rank = vol_rank+gpvol(1,inode,ielem)
                   end do
                end do
+               !$acc end parallel loop
+               call nvtxEndRange()
 
+               call nvtxStartRange("Computing total volume")
                call MPI_Allreduce(vol_rank,vol_tot_d,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+               call nvtxEndRange()
+               call nvtxStartRange("Computing total number of points")
                call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+               call nvtxEndRange()
 
                volT = real(vol_tot_d,rp)/npoin_w_g
 
@@ -630,9 +638,12 @@ module time_integ
             !
             pos = 2 ! Set correction as default value
 
+            call nvtxStartRange("Updating local dt")
             call adapt_local_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,pseudo_cfl,dt_min,pseudo_cfl,mu_fluid,mu_sgs,rho(:,2))
+            call nvtxEndRange()
 
             !if(initialize_pt .eqv. .true.) then
+               call nvtxStartRange("Initialize pt")
                !$acc kernels
                pt(:,1) = dt_min(:)
                pt(:,2) = dt_min(:)
@@ -640,6 +651,7 @@ module time_integ
                pt(:,4) = dt_min(:)
                pt(:,5) = dt_min(:)
                !$acc end kernels
+               call nvtxEndRange()
                !initialize_pt = .true.
             !end if
             !
@@ -718,7 +730,7 @@ module time_integ
                b_i2(9)  = 3.6467343745
 
              else
-               write(1,*) "--| NOT CODED FOR RK == 4 YET!"
+               write(1,*) "--| NOT CODED YET!"
                stop 1
             end if
             call nvtxEndRange
@@ -773,6 +785,7 @@ module time_integ
                sigEner(1:npoin,2) = 0.0_rp
                sigMom(1:npoin,1:ndime,2) = 0.0_rp
                !$acc end kernels
+               call nvtxStartRange("Loop over pseudo-steps")
                do istep = 1,flag_pseudo_steps
                   !
                   ! Compute variable at substep (y_i = y_n+dt*A_ij*R_j)
@@ -808,7 +821,6 @@ module time_integ
                      aux_Tem(lpoin_w(ipoin)) = aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))*Rgas)
                   end do
                   !$acc end parallel loop
-
                   call nvtxEndRange
 
                   !
@@ -832,20 +844,26 @@ module time_integ
                   ! Call source term if applicable
                   !
                   if(present(source_term)) then
+                     call nvtxStartRange("SOURCE TERM")
                      call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,source_term,Rdiff_mom)
+                     call nvtxEndRange
                   end if
                   !
                   ! Evaluate wall models
       
                   if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
+                     call nvtxStartRange("WALL MODEL")
                      call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK,bou_codes,&
                         bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),aux_u(:,:),tauw,Rdiff_mom)
+                     call nvtxEndRange
                   end if
                   !
                   !
                   ! Compute convective terms
                   !
+                  call nvtxStartRange("CONVECTIONS")
                   call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_u,aux_q,aux_rho,aux_pr,aux_E,Rmass,Rmom,Rener)
+                  call nvtxEndRange
 
                   ! entropy advection
                   !
@@ -862,13 +880,11 @@ module time_integ
                   !TESTING NEW LOCATION FOR MPICOMMS
                   if(mpi_size.ge.2) then
                      call nvtxStartRange("MPI_comms_tI")
-
                      call mpi_halo_atomic_update_real(Rmass)
                      call mpi_halo_atomic_update_real(Rener)
                      do idime = 1,ndime
                         call mpi_halo_atomic_update_real(Rmom(:,idime))
                      end do
-
                      call nvtxEndRange
                   end if
 
@@ -898,7 +914,7 @@ module time_integ
                         Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)
                         sigMom(ipoin,idime,2) = sigMom(ipoin,idime,2) + abs(pt(ipoin,idime+2)*(b_i(istep)-b_i2(istep))*Rmom(ipoin,idime))/kappa
                      end do
-                     
+                     !$acc loop seq
                      do jstep=istep+1,flag_pseudo_steps
                         aijKjMass(ipoin,jstep) = aijKjMass(ipoin,jstep) + a_ij(jstep,istep)*Rmass(ipoin)
                         aijKjEner(ipoin,jstep) = aijKjEner(ipoin,jstep) + a_ij(jstep,istep)*Rener(ipoin)
@@ -951,7 +967,11 @@ module time_integ
                !$acc end parallel loop
                call nvtxEndRange
 
-               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,rho(:,pos),q(:,:,pos),u_buffer)
+               if (flag_buffer_on .eqv. .true.) then
+                  call nvtxStartRange("Apply buffer")
+                  call updateBuffer(npoin,npoin_w,coord,lpoin_w,rho(:,pos),q(:,:,pos),u_buffer)
+                  call nvtxEndRange
+               end if
 
                !
                ! Apply bcs after update
@@ -966,7 +986,6 @@ module time_integ
                ! Update velocity and equations of state
                !
                call nvtxStartRange("Update u and EOS")
-               
                !$acc parallel loop
                do ipoin = 1,npoin_w
                   umag = 0.0_rp
@@ -990,8 +1009,12 @@ module time_integ
                   end do
                end do
                !$acc end parallel loop
+               call nvtxEndRange
+
+               call nvtxStartRange("Update generic convection")
                call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
                   gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
+               call nvtxEndRange
 
 
                if(mpi_size.ge.2) then
@@ -1000,35 +1023,58 @@ module time_integ
                   call nvtxEndRange
                end if
 
+               call nvtxStartRange("Lumped mass solver on generic")
                call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
+               call nvtxEndRange
 
+               call nvtxStartRange("Update sign Reta")
                !$acc parallel loop
                do ipoin = 1,npoin_w
                   Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))!-(3.0_rp*eta(lpoin_w(ipoin),2)-4.0_rp*eta(lpoin_w(ipoin),1)+eta(lpoin_w(ipoin),3))/(2.0_rp*dt)
                end do
                !$acc end parallel loop
+               call nvtxEndRange
 
-               call nvtxStartRange("Entropy viscosity evaluation")
                !
                ! Compute entropy viscosity
                !
+               call nvtxStartRange("Entropy viscosity evaluation")
                call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
                   gamma_gas,rho(:,pos),u(:,:,pos),csound,Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e)
                call nvtxEndRange
 
-               auxN(:) = 0.0_rp
-               !$acc parallel loop
+               !!! Dot products forr errNorm
+               call nvtxStartRange("Dot products for errNorm")
+               aux = 0.0_rp
+               !$acc parallel loop reduction(+:aux)
                do ipoin = 1,npoin_w
-                  auxN(1) = auxN(1) + real(rho(lpoin_w(ipoin),pos)**2,8)
-                  auxN(2) = auxN(2) + real(E(lpoin_w(ipoin),pos)**2,8)
-                  !$acc loop seq
-                  do idime = 1,ndime
-                     auxN(idime+2) = auxN(idime+2) + real(q(lpoin_w(ipoin),idime,pos)**2,8)
-                  end do
+                  aux = aux + real(rho(lpoin_w(ipoin),pos)**2,8)
                end do
                !$acc end parallel loop
+               auxN(1) = aux
 
+               aux = 0.0_rp
+               !$acc parallel loop reduction(+:aux)
+               do ipoin = 1,npoin_w
+                  aux = aux + real(E(lpoin_w(ipoin),pos)**2,8)
+               end do
+               !$acc end parallel loop
+               auxN(2) = aux
+
+               do idime = 1,ndime
+                  aux = 0.0_rp
+                  !$acc parallel loop reduction(+:aux)
+                  do ipoin = 1,npoin_w
+                     aux = aux + real(q(lpoin_w(ipoin),idime,pos)**2,8)
+                  end do
+                  !$acc end parallel loop
+                  auxN(idime+2) = aux
+               end do
+               call nvtxEndRange
+
+               call nvtxStartRange("Accumullatee auxN in auxN2")
                call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+               call nvtxEndRange
 
                if(auxN2(1)<epsilon(aux)) auxN2(1) = 1.0_rp
                if(auxN2(2)<epsilon(aux)) auxN2(2) = 1.0_rp
