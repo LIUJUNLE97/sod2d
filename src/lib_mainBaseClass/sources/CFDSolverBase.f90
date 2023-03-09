@@ -1174,9 +1174,9 @@ contains
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
          eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
 
-         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,1)
-         rho(iNodeL,3) = rho(iNodeL,1)
-          E(iNodeL,3) =  E(iNodeL,1)
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+         rho(iNodeL,3) = rho(iNodeL,2)
+          E(iNodeL,3) =  E(iNodeL,2)
       end do
       !$acc end parallel loop
 
