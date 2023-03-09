@@ -31,7 +31,7 @@ module mod_constants
       integer(4), parameter :: flag_implicit=1
       integer(4), parameter :: flag_pseudo_time=1
       integer(4), parameter :: flag_pseudo_steps=4
-      real(rp),   parameter :: pseudo_cfl=1.0_rp
+      real(rp),   parameter :: pseudo_cfl=2.0_rp
       real(rp),   parameter :: pseudo_ftau=8.0_rp
       integer(4), parameter :: flag_les=0
       integer(4), parameter :: flag_les_ilsa=0
