@@ -394,7 +394,7 @@ contains
       allocate(E(numNodesRankPar,3))        ! Total Energy
       allocate(Tem(numNodesRankPar,2))      ! Temperature
       allocate(e_int(numNodesRankPar,2))    ! Internal Energy
-      allocate(eta(numNodesRankPar,2))      ! entropy
+      allocate(eta(numNodesRankPar,3))      ! entropy
       allocate(csound(numNodesRankPar))     ! Speed of sound
       allocate(machno(numNodesRankPar))     ! Speed of sound
       allocate(mu_fluid(numNodesRankPar))   ! Fluid viscosity

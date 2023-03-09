@@ -581,7 +581,7 @@ module time_integ
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
             real(rp), optional, intent(in)      :: source_term(npoin,ndime)
             integer(4)                          :: pos
-            integer(4)                          :: istep, ipoin, idime,icode,itime,jstep,inode,ielem
+            integer(4)                          :: istep, ipoin, idime,icode,itime,jstep,inode,ielem,npoin_w_g
             real(rp),    dimension(npoin)       :: Reta, Rrho
             real(rp),    dimension(11)           :: b_i, b_i2
             real(rp),    dimension(11,11)         :: a_ij
@@ -590,10 +590,10 @@ module time_integ
             real(rp),    dimension(npoin)       :: Rmass, Rener, Rmass_sum, Rener_sum, alpha,dt_min
             real(rp),    dimension(npoin,ndime) :: Rmom, Rmom_sum, f_eta
             real(rp)                            :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
-            real(rp)                            :: umag,aux,vol_rank,vol_tot_d
-            real(8)                             :: auxN(5),auxN2(5),errMax,kappa=1e-6,phi=0.4,xi=0.7,f_save=1.0,f_max=1.01_rp,f_min=0.98_rp
+            real(rp)                            :: umag,aux,vol_rank,kappa=1e-6,phi=0.4,xi=0.7,f_save=1.0,f_max=1.02_rp,f_min=0.98_rp,errMax
+            real(8)                             :: auxN(5),auxN2(5),vol_tot_d
 
-            kappa = sqrt(epsilon(kappa))
+            !kappa = sqrt(epsilon(kappa))
 
             if (flag_mem_alloc .eqv. .true.) then
                allocate(sigMass(npoin,2), sigEner(npoin,2), sigMom(npoin,ndime,2))
@@ -615,8 +615,9 @@ module time_integ
                end do
 
                call MPI_Allreduce(vol_rank,vol_tot_d,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+               call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
-               volT = real(vol_tot_d,rp) 
+               volT = real(vol_tot_d,rp)/npoin_w_g
 
             end if
 
@@ -629,7 +630,7 @@ module time_integ
             !
             pos = 2 ! Set correction as default value
 
-            call adapt_local_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,pseudo_ftau,dt_min,pseudo_ftau,mu_fluid,mu_sgs,rho(:,2))
+            call adapt_local_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,pseudo_cfl,dt_min,pseudo_cfl,mu_fluid,mu_sgs,rho(:,2))
 
             !if(initialize_pt .eqv. .true.) then
                !$acc kernels
@@ -645,7 +646,7 @@ module time_integ
             ! Butcher tableau
             !
             call nvtxStartRange("Create tableau")
-            if (flag_pseudo_steps == 4) then    
+            if (flag_pseudo_steps == 4) then               
                a_ij(:,:) = 0.0_rp
 
                a_ij(2,1) = real(11847461282814,rp)/real(36547543011857,rp)
@@ -669,7 +670,53 @@ module time_integ
                b_i2(1)  = real(15763415370699,rp)/real(46270243929542,rp)
                b_i2(2) = real(514528521746,rp)/real(5659431552419,rp)
                b_i2(3)  = real(27030193851939,rp)/real(9429696342944,rp)
-               b_i2(4)  = -real(69544964788955,rp)/real(30262026368149,rp)
+               b_i2(4)  = -real(69544964788955,rp)/real(30262026368149,rp)        
+             else if (flag_pseudo_steps == 10) then  
+               a_ij(:,:) = 0.0_rp
+
+               a_ij(2,1) = 0.1111111111
+
+               a_ij(3,1) = 0.1900199097
+               a_ij(3,2) = 0.0322023124
+
+               a_ij(4,1) = 0.2810938259
+               a_ij(4,3) = 0.0522395073
+
+               a_ij(5,1) = 0.3683599872
+               a_ij(5,4) = 0.0760844571
+
+               a_ij(6,1) = 0.4503724121
+               a_ij(6,5) = 0.1051831433
+
+               a_ij(7,1) = 0.5247721825
+               a_ij(7,6) = 0.1418944841
+               
+               a_ij(8,1) = 0.5874505094
+               a_ij(8,7) = 0.1903272683
+
+               a_ij(9,1) = 0.6304783975
+               a_ij(9,8) = 0.2584104913
+
+               a_ij(10,1) = 0.6358199324
+               a_ij(10,9) = 0.3641800675
+
+               b_i(:) = 0.0_rp
+
+               b_i(1)  = 0.4988192238
+               b_i(10)  = 0.5011807761
+
+               b_i2(:) = 0.0_rp
+
+               b_i2(1)  = 0.3906281980
+               b_i2(2)  = 0.1179848341
+               b_i2(3)  = 1.7353065354
+               b_i2(4)  = -7.9567462555
+               b_i2(5)  = 17.3753753701
+               b_i2(6)  = -23.4057667136
+               b_i2(7)  = 20.5007152462
+               b_i2(8)  = -11.4042315893
+               b_i2(9)  = 3.6467343745
+
              else
                write(1,*) "--| NOT CODED FOR RK == 4 YET!"
                stop 1
@@ -860,6 +907,9 @@ module time_integ
                            aijKjMom(ipoin,idime,jstep) = aijKjMom(ipoin,idime,jstep) + a_ij(jstep,istep)*RMom(ipoin,idime)
                         end do
                      end do
+                     !if(istep==4) then
+                     !   if(mpi_rank.eq.0)print*, " sig ",sigMass(ipoin,2)," kappa ",kappa," dt ",pt(ipoin,1)
+                     !end if
                   end do
                   !$acc end parallel loop
                   call nvtxEndRange
@@ -873,31 +923,30 @@ module time_integ
                do ipoin = 1,npoin
                   aux = rho(ipoin,pos) 
                   rho(ipoin,pos) = rho(ipoin,pos)+pt(ipoin,1)*Rmass_sum(ipoin)
-                  Rmass(ipoin) = (rho(ipoin,pos)-aux)
+                  Rmass(ipoin) = (rho(ipoin,pos)-aux)*Ml(ipoin)/volT
                   aux = E(ipoin,pos)
                   E(ipoin,pos) = (E(ipoin,pos)+pt(ipoin,2)*Rener_sum(ipoin))
-                  Rener(ipoin) = (E(ipoin,pos)-aux)
+                  Rener(ipoin) = (E(ipoin,pos)-aux)*Ml(ipoin)/volT
                   !$acc loop seq
                   do idime = 1,ndime
                      aux = q(ipoin,idime,pos)
                      q(ipoin,idime,pos) = q(ipoin,idime,pos)+pt(ipoin,idime+2)*Rmom_sum(ipoin,idime)
-                     Rmom(ipoin,idime) = (q(ipoin,idime,pos)-aux)
+                     Rmom(ipoin,idime) = (q(ipoin,idime,pos)-aux)*Ml(ipoin)/volT
                   end do
                   
-                ! ! pseudo stepping
-                ! aux = ((sigMass(ipoin,2))**(-phi))*((sigMass(ipoin,1))**(-xi))
-                ! aux = min(f_max,max(f_min,f_save*aux))
-                ! pt(ipoin,1) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,1)))
-!
-                ! aux = ((sigEner(ipoin,2))**(-phi))*((sigEner(ipoin,2))**(-xi))
-                ! aux = min(f_max,max(f_min,f_save*aux))
-                ! pt(ipoin,2) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,2)))
-                ! !$acc loop seq
-                ! do idime = 1,ndime
-                !    aux = ((sigMom(ipoin,idime,2))**(-phi))*((sigMom(ipoin,idime,2))**(-xi))
-                !    aux = min(f_max,max(f_min,f_save*aux))
-                !    pt(ipoin,idime+2) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,idime+2)))
-                ! end do
+                 ! pseudo stepping
+                  aux = ((sigMass(ipoin,2))**(-phi/3.0_rp))*((sigMass(ipoin,1))**(-xi/3.0_rp))
+                  aux = min(f_max,max(f_min,f_save*aux))
+                  pt(ipoin,1) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,1)))
+                  aux = ((sigEner(ipoin,2))**(-phi/3.0_rp))*((sigEner(ipoin,2))**(-xi/3.0_rp))
+                  aux = min(f_max,max(f_min,f_save*aux))
+                  pt(ipoin,2) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,2)))
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     aux = ((sigMom(ipoin,idime,2))**(-phi/3.0_rp))*((sigMom(ipoin,idime,2))**(-xi/3.0_rp))
+                     aux = min(f_max,max(f_min,f_save*aux))
+                     pt(ipoin,idime+2) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,idime+2)))
+                  end do
                end do
                !$acc end parallel loop
                call nvtxEndRange
@@ -937,10 +986,36 @@ module time_integ
                      log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
                   !$acc loop seq
                   do idime = 1,ndime
-                     f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
+                     f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),pos)
                   end do
                end do
                !$acc end parallel loop
+               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+                  gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
+
+
+               if(mpi_size.ge.2) then
+                  call nvtxStartRange("MPI_comms_tI")
+                  call mpi_halo_atomic_update_real(Reta)
+                  call nvtxEndRange
+               end if
+
+               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
+
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))!-(3.0_rp*eta(lpoin_w(ipoin),2)-4.0_rp*eta(lpoin_w(ipoin),1)+eta(lpoin_w(ipoin),3))/(2.0_rp*dt)
+               end do
+               !$acc end parallel loop
+
+               call nvtxStartRange("Entropy viscosity evaluation")
+               !
+               ! Compute entropy viscosity
+               !
+               call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
+                  gamma_gas,rho(:,pos),u(:,:,pos),csound,Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e)
+               call nvtxEndRange
+
                auxN(:) = 0.0_rp
                !$acc parallel loop
                do ipoin = 1,npoin_w
@@ -997,27 +1072,10 @@ module time_integ
                errMax = max(errMax, epsQ(3))
 
                if(errMax .lt. tol) exit
+               !if(mpi_rank.eq.0)print*, " err ",errMax," it ",itime,' emass ',epsR," eener ",epsE," emom ", epsQ(1)," ", epsQ(2)," ",epsQ(3)
             end do
 
             if(mpi_rank.eq.0)print*, " err ",errMax," it ",itime,' emass ',epsR," eener ",epsE," emom ", epsQ(1)," ", epsQ(2)," ",epsQ(3)
-            
-            call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-               gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta,alpha)
-
-
-            if(mpi_size.ge.2) then
-               call nvtxStartRange("MPI_comms_tI")
-               call mpi_halo_atomic_update_real(Reta)
-               call nvtxEndRange
-            end if
-
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
-
-            !$acc parallel loop
-            do ipoin = 1,npoin_w
-               Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))!-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
-            end do
-            !$acc end parallel loop
 
             call nvtxEndRange
             !
@@ -1029,13 +1087,6 @@ module time_integ
                call nvtxEndRange
             end if
 
-            call nvtxStartRange("Entropy viscosity evaluation")
-            !
-            ! Compute entropy viscosity
-            !
-            call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
-               gamma_gas,rho(:,pos),u(:,:,pos),csound,Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e)
-            call nvtxEndRange
             !
             ! Compute subgrid viscosity if active
             !
@@ -1053,6 +1104,7 @@ module time_integ
             rho(:,3) = rho(:,1)
             E(:,3) = E(:,1)
             q(:,:,3) = q(:,:,1)
+            eta(:,3) = eta(:,1)
             !$acc end kernels
 
          end subroutine rk_pseudo_main
