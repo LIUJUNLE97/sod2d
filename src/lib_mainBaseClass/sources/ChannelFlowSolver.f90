@@ -76,11 +76,11 @@ contains
 
       this%loadResults = .false.
       this%continue_oldLogs = .false.
-      this%load_step = 6001
+      this%load_step = 14501
 
       this%nstep = 1000000 
-      this%cfl_conv = 2.0_rp
-      this%cfl_diff = 2.0_rp
+      this%cfl_conv = 50.0_rp
+      this%cfl_diff = 50.0_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
@@ -198,6 +198,7 @@ contains
                     q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
          rho(iNodeL,3) = rho(iNodeL,2)
           E(iNodeL,3) =  E(iNodeL,2)
+          eta(iNodeL,3) = eta(iNodeL,2) 
          end do
          !!$acc end parallel loop
       end if

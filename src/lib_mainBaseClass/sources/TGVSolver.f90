@@ -59,8 +59,8 @@ contains
 
       this%nstep = 50001
 
-      this%cfl_conv = 1.0_rp
-      this%cfl_diff = 1.0_rp
+      this%cfl_conv = 20.0_rp
+      this%cfl_diff = 20.0_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
 
@@ -124,10 +124,12 @@ contains
          E(iNodeL,2) = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))+e_int(iNodeL,2))
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
+         eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
 
          q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
          rho(iNodeL,3) = rho(iNodeL,2)
-          E(iNodeL,3) =  E(iNodeL,2)
+         E(iNodeL,3) =  E(iNodeL,2)
+         eta(iNodeL,3) =  eta(iNodeL,2)
       end do
       !$acc end parallel loop
 

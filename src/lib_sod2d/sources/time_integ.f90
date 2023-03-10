@@ -589,7 +589,7 @@ module time_integ
             real(rp),    dimension(npoin)       :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
             real(rp),    dimension(npoin)       :: Rmass, Rener, Rmass_sum, Rener_sum, alpha,dt_min
             real(rp),    dimension(npoin,ndime) :: Rmom, Rmom_sum, f_eta
-            real(rp)                            :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
+            real(rp)                            :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin),alfa_pt(5)
             real(rp)                            :: umag,aux,vol_rank,kappa=1e-6,phi=0.4,xi=0.7,f_save=1.0,f_max=1.02_rp,f_min=0.98_rp,errMax
             real(8)                             :: auxN(5),auxN2(5),vol_tot_d
 
@@ -899,18 +899,25 @@ module time_integ
                   ! Accumulate the residuals
                   !
                   call nvtxStartRange("Accumulate residuals")
+
                   !$acc parallel loop
                   do ipoin = 1,npoin
+                     alfa_pt(1) = 1.0_rp+b_i(istep)*pt(ipoin,1)/(dt*2.0_rp/3.0_rp)
+                     alfa_pt(2) = 1.0_rp+b_i(istep)*pt(ipoin,2)/(dt*2.0_rp/3.0_rp)
+                     alfa_pt(3) = 1.0_rp+b_i(istep)*pt(ipoin,3)/(dt*2.0_rp/3.0_rp)
+                     alfa_pt(4) = 1.0_rp+b_i(istep)*pt(ipoin,4)/(dt*2.0_rp/3.0_rp)
+                     alfa_pt(5) = 1.0_rp+b_i(istep)*pt(ipoin,5)/(dt*2.0_rp/3.0_rp)
+
                      Rmass(ipoin) = -Rmass(ipoin)-(rho(ipoin,2)-4.0_rp*rho(ipoin,1)/3.0_rp + rho(ipoin,3)/3.0_rp)/(dt*2.0_rp/3.0_rp)
-                     Rmass_sum(ipoin) = Rmass_sum(ipoin) + b_i(istep)*Rmass(ipoin)
+                     Rmass_sum(ipoin) = Rmass_sum(ipoin) + b_i(istep)*Rmass(ipoin)/alfa_pt(1)
                      sigMass(ipoin,2) = sigMass(ipoin,2) + abs(pt(ipoin,1)*(b_i(istep)-b_i2(istep))*Rmass(ipoin))/kappa
                      Rener(ipoin) = -Rener(ipoin)-(E(ipoin,2)-4.0_rp*E(ipoin,1)/3.0_rp + E(ipoin,3)/3.0_rp)/(dt*2.0_rp/3.0_rp)
-                     Rener_sum(ipoin) = Rener_sum(ipoin) + b_i(istep)*Rener(ipoin)
+                     Rener_sum(ipoin) = Rener_sum(ipoin) + b_i(istep)*Rener(ipoin)/alfa_pt(2)
                      sigEner(ipoin,2) = sigEner(ipoin,2) + abs(pt(ipoin,2)*(b_i(istep)-b_i2(istep))*Rener(ipoin))/kappa
                      !$acc loop seq
                      do idime = 1,ndime
                         Rmom(ipoin,idime) = -Rmom(ipoin,idime)-(q(ipoin,idime,2)-4.0_rp*q(ipoin,idime,1)/3.0_rp + q(ipoin,idime,3)/3.0_rp)/(dt*2.0_rp/3.0_rp)
-                        Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)
+                        Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)/alfa_pt(idime+2)
                         sigMom(ipoin,idime,2) = sigMom(ipoin,idime,2) + abs(pt(ipoin,idime+2)*(b_i(istep)-b_i2(istep))*Rmom(ipoin,idime))/kappa
                      end do
                      !$acc loop seq
