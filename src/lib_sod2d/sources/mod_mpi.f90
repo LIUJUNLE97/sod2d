@@ -7,9 +7,8 @@ module mod_mpi
    implicit none
 
    integer :: mpi_rank, mpi_size, mpi_err   
-   integer :: mpi_integer_size,mpi_real_size
-   integer :: mpi_datatype_int,mpi_datatype_real
-   integer :: mpi_datatype_real4,mpi_datatype_real8
+   integer :: mpi_integer_size,mpi_real_size,mpi_real4_size,mpi_real8_size
+   integer :: mpi_datatype_int,mpi_datatype_real,mpi_datatype_real4,mpi_datatype_real8
 
    integer :: smNode_comm,smNode_rank,smNode_size
    integer :: num_devices, id_device
@@ -32,11 +31,14 @@ module mod_mpi
       else if(rp.eq.8) then
          mpi_datatype_real = MPI_REAL8
       else
+         write(*,*) 'Fatal error in init_mpi()! rp is not 4 or 8 >> CRASH!'
          call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
       end if   
 
       call MPI_Type_size(mpi_datatype_int,mpi_integer_size, mpi_err)
       call MPI_Type_size(mpi_datatype_real,mpi_real_size,mpi_err)
+      call MPI_Type_size(mpi_datatype_real4,mpi_real4_size,mpi_err)
+      call MPI_Type_size(mpi_datatype_real8,mpi_real8_size,mpi_err)
 
       call init_sharedMemoryNode_comm()
 

@@ -155,13 +155,14 @@ module mod_analysis
 
          integer(4), intent(in)  :: npoin
          integer(4), intent(in)  :: npoin_w
-         integer(4), intent(in)  :: lpoin_w(npoin)
+         integer(4), intent(in)  :: lpoin_w(npoin_w)
          real(rp),   intent(in)  :: machno(npoin)
          real(rp),   intent(out) :: maxmachno
          real(rp)                :: maxmachno_l
          integer(4)              :: ipoin
 
          maxmachno = 0.0_rp
+         maxmachno_l = 0.0_rp
          !$acc parallel loop reduction(max:maxmachno_l)
          do ipoin = 1,npoin_w
             maxmachno_l = max(maxmachno_l,machno(lpoin_w(ipoin)))
