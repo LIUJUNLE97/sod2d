@@ -86,7 +86,7 @@ module CFDSolverBase_mod
       ! main real parameters
       real(rp) , public                   :: cfl_conv, cfl_diff, acutim
       real(rp) , public                   :: leviCivi(3,3,3), surfArea, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
-      real(rp) , public                   :: dt, Cp, Rgas, gamma_gas,Prt,tleap,time
+      real(rp) , public                   :: dt, Cp, Rgas, gamma_gas,Prt,tleap,time, maxPhysTime
       logical  , public                   :: noBoundaries
 
    contains
@@ -168,6 +168,7 @@ contains
       this%time = 0.0_rp
       this%load_step = 0
       this%initial_istep = 1
+      this%maxPhysTime = 1.0e6_rp
 
       this%loadResults = .false.
       this%continue_oldLogs= .false.
