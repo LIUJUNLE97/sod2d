@@ -946,11 +946,6 @@ contains
          end if
 
          this%time = this%time+this%dt
-         if (this%time .ge. this%maxPhysTime+this%dt) then
-            write(111,*) "--| Time integration finished at step: ",istep,"| time: ",this%time
-            ! TODO: check if we want to save the last step
-            exit
-         end if
 
          if (istep == this%nsave2 .and. (this%doGlobalAnalysis)) then
             call volAvg_EK(numElemsRankPar,numNodesRankPar,connecParWork,gpvol,Ngp,nscbc_rho_inf,rho(:,2),u(:,:,2),this%EK)
@@ -1028,6 +1023,12 @@ contains
 
          counter = counter+1
 
+         ! End simulation when physical time is reached (user defined)
+         if (this%time .ge. this%maxPhysTime) then
+            write(111,*) "--| Time integration finished at step: ",istep,"| time: ",this%time
+            ! TODO: check if we want to save the last step
+            exit
+         end if
       end do
       call nvtxEndRange
    end subroutine CFDSolverBase_evalTimeIteration
