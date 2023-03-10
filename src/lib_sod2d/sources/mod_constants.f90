@@ -30,7 +30,7 @@ module mod_constants
       integer(4), parameter :: flag_rk_order=4
       integer(4), parameter :: flag_implicit=1
       integer(4), parameter :: flag_pseudo_time=1
-      integer(4), parameter :: flag_pseudo_steps=4
+      integer(4), parameter :: flag_pseudo_steps=10
       real(rp),   parameter :: pseudo_cfl=2.0_rp
       real(rp),   parameter :: pseudo_ftau=8.0_rp
       integer(4), parameter :: flag_les=0
@@ -47,7 +47,7 @@ module mod_constants
       ! Solver params
       !
       integer(4) , parameter ::  maxIter=15
-      real(rp)   , parameter ::  tol=0.001_rp
+      real(rp)   , parameter ::  tol=0.0001_rp
 
       !
       ! Other constants

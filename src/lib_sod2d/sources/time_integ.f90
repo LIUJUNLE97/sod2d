@@ -675,59 +675,59 @@ module time_integ
                b_i(1) = 0.10407986927510238_rp ! real(1017324711453,rp)/real(9774461848756,rp)
                b_i(2) = 0.6019391368822611_rp  ! real(8237718856693,rp)/real(13685301971492,rp)
                b_i(3) = 2.9750900268840206_rp  ! real(57731312506979,rp)/real(19404895981398,rp)
-               b_i(4) = -2.681109033041384_rp  ! real(101169746363290,rp)/real(37734290219643,rp)
+               b_i(4) = -2.681109033041384_rp  !-real(101169746363290,rp)/real(37734290219643,rp)
 
                b_i2(:) = 0.0_rp
 
                b_i2(1) = 0.3406814840808433_rp  ! real(15763415370699,rp)/real(46270243929542,rp)
                b_i2(2) = 0.09091523008632837_rp ! real(514528521746,rp)/real(5659431552419,rp)
                b_i2(3) = 2.866496742725443_rp   ! real(27030193851939,rp)/real(9429696342944,rp)
-               b_i2(4) = -2.298093456892615_rp  ! real(69544964788955,rp)/real(30262026368149,rp)
+               b_i2(4) = -2.298093456892615_rp  !-real(69544964788955,rp)/real(30262026368149,rp)
              else if (flag_pseudo_steps == 10) then  
                a_ij(:,:) = 0.0_rp
 
-               a_ij(2,1) = 0.1111111111
+               a_ij(2,1) = 0.1111111111_rp
 
-               a_ij(3,1) = 0.1900199097
-               a_ij(3,2) = 0.0322023124
+               a_ij(3,1) = 0.1900199097_rp
+               a_ij(3,2) = 0.0322023124_rp
 
-               a_ij(4,1) = 0.2810938259
-               a_ij(4,3) = 0.0522395073
+               a_ij(4,1) = 0.2810938259_rp
+               a_ij(4,3) = 0.0522395073_rp
 
-               a_ij(5,1) = 0.3683599872
-               a_ij(5,4) = 0.0760844571
+               a_ij(5,1) = 0.3683599872_rp
+               a_ij(5,4) = 0.0760844571_rp
 
-               a_ij(6,1) = 0.4503724121
-               a_ij(6,5) = 0.1051831433
+               a_ij(6,1) = 0.4503724121_rp
+               a_ij(6,5) = 0.1051831433_rp
 
-               a_ij(7,1) = 0.5247721825
-               a_ij(7,6) = 0.1418944841
+               a_ij(7,1) = 0.5247721825_rp
+               a_ij(7,6) = 0.1418944841_rp
                
-               a_ij(8,1) = 0.5874505094
-               a_ij(8,7) = 0.1903272683
+               a_ij(8,1) = 0.5874505094_rp
+               a_ij(8,7) = 0.1903272683_rp
 
-               a_ij(9,1) = 0.6304783975
-               a_ij(9,8) = 0.2584104913
+               a_ij(9,1) = 0.6304783975_rp
+               a_ij(9,8) = 0.2584104913_rp
 
-               a_ij(10,1) = 0.6358199324
-               a_ij(10,9) = 0.3641800675
+               a_ij(10,1) = 0.6358199324_rp
+               a_ij(10,9) = 0.3641800675_rp
 
                b_i(:) = 0.0_rp
 
-               b_i(1)  = 0.4988192238
-               b_i(10)  = 0.5011807761
+               b_i(1)  = 0.4988192238_rp
+               b_i(10)  = 0.5011807761_rp
 
                b_i2(:) = 0.0_rp
 
-               b_i2(1)  = 0.3906281980
-               b_i2(2)  = 0.1179848341
-               b_i2(3)  = 1.7353065354
-               b_i2(4)  = -7.9567462555
-               b_i2(5)  = 17.3753753701
-               b_i2(6)  = -23.4057667136
-               b_i2(7)  = 20.5007152462
-               b_i2(8)  = -11.4042315893
-               b_i2(9)  = 3.6467343745
+               b_i2(1)  = 0.3906281980_rp
+               b_i2(2)  = 0.1179848341_rp
+               b_i2(3)  = 1.7353065354_rp
+               b_i2(4)  = -7.9567462555_rp
+               b_i2(5)  = 17.3753753701_rp
+               b_i2(6)  = -23.4057667136_rp
+               b_i2(7)  = 20.5007152462_rp
+               b_i2(8)  = -11.4042315893_rp
+               b_i2(9)  = 3.6467343745_rp
 
              else
                write(1,*) "--| NOT CODED YET!"
@@ -757,9 +757,9 @@ module time_integ
             Rmass_sum(1:npoin) = 0.0_rp
             Rener_sum(1:npoin) = 0.0_rp
             Rmom_sum(1:npoin,1:ndime) = 0.0_rp
-            aijKjMass(1:npoin,1:5) = 0.0_rp
-            aijKjEner(1:npoin,1:5) = 0.0_rp
-            aijKjMom(1:npoin,1:ndime,1:5) = 0.0_rp
+            aijKjMass(1:npoin,1:11) = 0.0_rp
+            aijKjEner(1:npoin,1:11) = 0.0_rp
+            aijKjMom(1:npoin,1:ndime,1:11) = 0.0_rp
             !$acc end kernels
             call nvtxEndRange
             !
@@ -1029,7 +1029,7 @@ module time_integ
                call nvtxStartRange("Update sign Reta")
                !$acc parallel loop
                do ipoin = 1,npoin_w
-                  Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))!-(3.0_rp*eta(lpoin_w(ipoin),2)-4.0_rp*eta(lpoin_w(ipoin),1)+eta(lpoin_w(ipoin),3))/(2.0_rp*dt)
+                  Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))-(3.0_rp*eta(lpoin_w(ipoin),2)-4.0_rp*eta(lpoin_w(ipoin),1)+eta(lpoin_w(ipoin),3))/(2.0_rp*dt)
                end do
                !$acc end parallel loop
                call nvtxEndRange

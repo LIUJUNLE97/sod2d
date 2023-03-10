@@ -1177,6 +1177,7 @@ contains
          q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
          rho(iNodeL,3) = rho(iNodeL,2)
           E(iNodeL,3) =  E(iNodeL,2)
+           eta(iNodeL,3) =  eta(iNodeL,2)
       end do
       !$acc end parallel loop
 
