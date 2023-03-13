@@ -291,9 +291,7 @@ if default_size: args.size = nnodes
 print('--|')
 print('--| Detected <%d> nodes.'%nnodes,flush=True)
 
-dset = dims_group.create_dataset('numNodes',(1,),dtype='i',data=nnodes)
-
-
+dset = dims_group.create_dataset('numNodes',(1,),dtype='i8',data=nnodes)
 
 # Generate header for the COORD file
 """
@@ -431,10 +429,10 @@ for ibatch in range(int(np.ceil(nelems/args.size))):
 	lcode_len=len(codeb)
 	print('--| lnods_len <%d> lnodb_len <%d> londp_len <%d> lcode_len<%d>'%(lnods_len,lnodb_len,lnodp_len,lcode_len),flush=True)
 	if ibatch == 0:
-		connec_dset = h5file.create_dataset('connec',(nel_interior,lnods_ndim),dtype='i4',data=lnods,chunks=True,maxshape=(None,lnods_ndim))
-		bounds_dset = h5file.create_dataset('boundFaces',(nel_boundary,lnodb_ndim),dtype='i4',data=lnodb,chunks=True,maxshape=(None,lnodb_ndim))
-		per_dset = h5file.create_dataset('periodicFaces',(nel_periodic,lnodp_ndim),dtype='i4',data=lnodp,chunks=True,maxshape=(None,lnodp_ndim))
-		boundId_dset = h5file.create_dataset('boundFacesId',(nel_boundary,),dtype='i4',data=codeb,chunks=True,maxshape=(None))
+		connec_dset = h5file.create_dataset('connec',(nel_interior,lnods_ndim),dtype='i8',data=lnods,chunks=True,maxshape=(None,lnods_ndim))
+		bounds_dset = h5file.create_dataset('boundFaces',(nel_boundary,lnodb_ndim),dtype='i8',data=lnodb,chunks=True,maxshape=(None,lnodb_ndim))
+		per_dset = h5file.create_dataset('periodicFaces',(nel_periodic,lnodp_ndim),dtype='i8',data=lnodp,chunks=True,maxshape=(None,lnodp_ndim))
+		boundId_dset = h5file.create_dataset('boundFacesId',(nel_boundary,),dtype='i8',data=codeb,chunks=True,maxshape=(None))
 	else:
 		if lnods_len != 0:
 			h5file['connec'].resize((h5file['connec'].shape[0] + lnods.shape[0]), axis=0)
@@ -459,9 +457,9 @@ print('--| Found %d inner elements, %d boundary elements, %d per elems'%(nel_int
 #lnodp_len=len(lnodp)
 #print('--| lnods_len <%d> lnodb_len <%d> londp_len <%d>'%(lnods_len,lnodb_len,lnodp_len),flush=True)
 
-elems_dset = dims_group.create_dataset('numElements',(1,),dtype='i',data=nel_interior)
-bound_dset = dims_group.create_dataset('numBoundaryFaces',(1,),dtype='i',data=nel_boundary)
-per_dset   = dims_group.create_dataset('numPeriodicFaces',(1,),dtype='i',data=nel_periodic)
+elems_dset = dims_group.create_dataset('numElements',(1,),dtype='i8',data=nel_interior)
+bound_dset = dims_group.create_dataset('numBoundaryFaces',(1,),dtype='i8',data=nel_boundary)
+per_dset   = dims_group.create_dataset('numPeriodicFaces',(1,),dtype='i8',data=nel_periodic)
 
 #connec_group = h5file.create_group('connectivity')
 #connec_dset = h5file.create_dataset('connec',(nel_interior,lnods_ndim),dtype='i4',data=lnods)
@@ -511,7 +509,7 @@ for iper in range(num_bounds_per):
 print('--|',flush=True)
 #---- en section implemented by me ------- #
 
-dset = dims_group.create_dataset('numPeriodicLinks',(1,),dtype='i',data=npernodes)
+dset = dims_group.create_dataset('numPeriodicLinks',(1,),dtype='i8',data=npernodes)
 
 h5file.close()
 mshFile.close()

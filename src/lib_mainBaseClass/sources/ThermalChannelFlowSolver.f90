@@ -141,11 +141,11 @@ contains
 
    subroutine ThermalChannelFlowSolver_evalInitialConditions(this)
       class(ThermalChannelFlowSolver), intent(inout) :: this
-      integer(4) :: matGidSrlOrdered(numNodesRankPar,2)
-      integer :: iNodeL
+      integer(8) :: matGidSrlOrdered(numNodesRankPar,2)
+      integer(4) :: iNodeL,idime
       logical :: readFiles
       real(rp) :: velo, rti(3), yp
-      integer(4)  :: iLine,iNodeGSrl,auxCnt,idime
+      integer(8)  :: iLine,iNodeGSrl,auxCnt
       character(512) :: initialField_filePath
 
       readFiles = .true.

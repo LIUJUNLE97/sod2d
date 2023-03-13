@@ -35,9 +35,6 @@ module mod_constants
       integer(4), parameter :: flag_normalise_entropy=1
 
 
-      logical, parameter :: save_vtk = .false.
-      logical, parameter :: save_hdf5 = .true.
-
       !
       ! Solver params
       !

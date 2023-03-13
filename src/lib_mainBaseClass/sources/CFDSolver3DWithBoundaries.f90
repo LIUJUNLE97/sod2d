@@ -32,8 +32,6 @@ module CFDSolver3DWithBoundaries_mod
    contains
       procedure, public :: fillBCTypes             =>CFDSolver3DWithBoundaries_fill_BC_Types
       procedure, public :: callTimeIntegration     =>CFDSolver3DWithBoundaries_callTimeIntegration
-      procedure, public :: saveAverages            =>CFDSolver3DWithBoundaries_saveAverages
-      procedure, public :: savePosprocessingFields =>CFDSolver3DWithBoundaries_savePosprocessingFields
    end type CFDSolver3DWithBoundaries
 contains
 
@@ -57,26 +55,4 @@ contains
 
    end subroutine CFDSolver3DWithBoundaries_callTimeIntegration
 
-   subroutine CFDSolver3DWithBoundaries_savePosprocessingFields(this,istep)
-      class(CFDSolver3DWithBoundaries), intent(inout) :: this
-      integer(4)        , intent(in)   :: istep
-
-      if(save_hdf5) then
-         call save_hdf5_resultsFile(istep,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),eta(:,2),csound,machno,gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs)
-      end if
-
-   end subroutine CFDSolver3DWithBoundaries_savePosprocessingFields
-
-   subroutine CFDSolver3DWithBoundaries_saveAverages(this,istep)
-      class(CFDSolver3DWithBoundaries), intent(inout) :: this
-      integer(4)              , intent(in)   :: istep
-
-      call eval_average_window(isMeshPeriodic,numNodesRankPar,numElemsRankPar,acuvel,acuve2,acuvex,acurho,acupre,acumueff,acutw,this%acutim,&
-											avvel,avve2,avvex,avrho,avpre,avmueff,avtw,nPerRankPar,masSlaRankPar)
-
-      if(save_hdf5) then
-         call save_hdf5_avgResultsFile(istep,avvel,avve2,avvex,avrho,avpre,avmueff,avtw)
-      end if
-
-   end subroutine CFDSolver3DWithBoundaries_saveAverages
 end module CFDSolver3DWithBoundaries_mod

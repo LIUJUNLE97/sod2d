@@ -852,24 +852,26 @@ contains
 
    subroutine CFDSolverBase_saveAverages(this,istep)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)              , intent(in)   :: istep
-      if(mpi_rank.eq.0) write(111,*) " Save Averages should be overwritted"
-      stop 1
+      integer(4), intent(in)   :: istep
+
+      call eval_average_window(isMeshPeriodic,numNodesRankPar,numElemsRankPar,acuvel,acuve2,acuvex,acurho,acupre,acumueff,acutw,this%acutim,&
+											avvel,avve2,avvex,avrho,avpre,avmueff,avtw,nPerRankPar,masSlaRankPar)
+
+      call save_hdf5_avgResultsFile(istep,avvel,avve2,avvex,avrho,avpre,avmueff,avtw)
 
    end subroutine CFDSolverBase_saveAverages
 
    subroutine CFDSolverBase_afterDt(this,istep)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)              , intent(in)   :: istep
+      integer(4), intent(in) :: istep
 
    end subroutine CFDSolverBase_afterDt
 
    subroutine CFDSolverBase_savePosprocessingFields(this,istep)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)              , intent(in)   :: istep
+      integer(4), intent(in) :: istep
 
-      if(mpi_rank.eq.0) write(111,*) " Save Posprocessing Fields should be overwritted"
-      stop 1
+      call save_hdf5_resultsFile(istep,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),eta(:,2),csound,machno,gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs)
 
    end subroutine CFDSolverBase_savePosprocessingFields
 

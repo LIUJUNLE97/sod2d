@@ -6,70 +6,57 @@ module mod_mpi_mesh
    use iso_c_binding
    implicit none
 !-----------------------------------   
-#define _CHECK_ 0
-#define int_size 4
-!-----------------------------------   
-
-! ################################################################################################
-! ----------------- VARS for alya/gmsh file reading ----------------------------------------------
-! ################################################################################################
-!------  -------------------------
-!TO DO ELIMINAR AQUESTS EN EL LECTOR PARALEL!
-integer(int_size), allocatable :: connecGMSH(:,:), boundGMSH(:,:), bou_codesGMSH(:,:)
-real(rp), allocatable :: coordGMSH(:,:)
 
 ! ################################################################################################
 ! ----------------- VARS for new Par mesh FORMAT -------------------------------------------------
 ! ################################################################################################
 
-integer(int_size) :: numNodesRankPar, totalNumNodesPar, totalNumNodesSrl
-integer(int_size) :: totalNumElements
-integer(int_size) :: numElemsRankPar, rankElemStart, rankElemEnd
-integer(int_size) :: rankNodeStart, rankNodeEnd
+integer(4) :: numNodesRankPar,numElemsRankPar,totalNumElements
+integer(4) :: rankNodeStart,rankNodeEnd,rankElemStart,rankElemEnd
+integer(8) :: totalNumNodesPar, totalNumNodesSrl
 
-integer(int_size), allocatable :: globalIdSrl(:), globalIdPar(:), elemGid(:)
+integer(4),allocatable :: elemGid(:)
+integer(8),allocatable :: globalIdSrl(:),globalIdPar(:)
 
 real(rp), allocatable :: coordPar(:,:)
 
-integer(int_size), allocatable :: connecVTK(:)
-integer(int_size), allocatable :: connecParOrig(:,:),connecParWork(:,:)
+integer(4),allocatable :: connecVTK(:)
+integer(4),allocatable :: connecParOrig(:,:),connecParWork(:,:)
 
-integer(int_size), allocatable :: workingNodesPar(:)
-integer(int_size) :: numWorkingNodesRankPar
+integer(4),allocatable :: workingNodesPar(:)
+integer(4) :: numWorkingNodesRankPar
 
-integer(int_size), allocatable :: masSlaSrl(:,:),masSlaRankPar(:,:)
-integer(int_size) :: nPerSrl,nPerRankPar
+integer(4),allocatable :: masSlaRankPar(:,:)
+integer(4) :: nPerRankPar
 logical :: isMeshPeriodic
 
-integer(int_size) :: numBoundCodes, numBoundsRankPar, totalNumBoundsSrl
-integer(int_size) :: ndofRankPar, numBoundaryNodesRankPar
-integer(int_size), allocatable :: boundPar(:,:), boundParOrig(:,:),bouCodesPar(:), ldofPar(:), lbnodesPar(:), bouCodesNodesPar(:)
+integer(4) :: numBoundCodes, numBoundsRankPar, totalNumBoundsSrl
+integer(4) :: ndofRankPar, numBoundaryNodesRankPar
+integer(4), allocatable :: boundPar(:,:), boundParOrig(:,:),bouCodesPar(:), ldofPar(:), lbnodesPar(:), bouCodesNodesPar(:)
 real(rp), allocatable :: boundNormalPar(:,:)
 logical :: isMeshBoundaries
 
 !For WallModels
-integer(int_size) :: numBoundsWMRankPar
-integer(int_size), allocatable :: listBoundsWallModel(:)
+integer(4) :: numBoundsWMRankPar
+integer(4), allocatable :: listBoundsWallModel(:)
 
 ! ################################################################################################
 ! ------------------------ VARS for MPI COMMS ----------------------------------------------------
 ! ################################################################################################
 
-integer(int_size), allocatable :: matrixCommScheme(:,:),ranksToComm(:)
-integer(int_size), allocatable :: commsMemPosInLoc(:),commsMemSize(:),commsMemPosInNgb(:)
-integer(int_size) :: numNodesToComm,numRanksWithComms
+integer(4),allocatable :: matrixCommScheme(:,:),ranksToComm(:)
+integer(4),allocatable :: commsMemPosInLoc(:),commsMemSize(:),commsMemPosInNgb(:)
+integer(4) :: numNodesToComm,numRanksWithComms
 
-integer(int_size), allocatable :: bnd_matrixCommScheme(:,:),bnd_ranksToComm(:)
-integer(int_size), allocatable :: bnd_commsMemPosInLoc(:),bnd_commsMemSize(:),bnd_commsMemPosInNgb(:)
-integer(int_size) :: bnd_numNodesToComm,bnd_numRanksWithComms
+integer(4),allocatable :: bnd_matrixCommScheme(:,:),bnd_ranksToComm(:)
+integer(4),allocatable :: bnd_commsMemPosInLoc(:),bnd_commsMemSize(:),bnd_commsMemPosInNgb(:)
+integer(4) :: bnd_numNodesToComm,bnd_numRanksWithComms
 
 ! ################################################################################################
 ! --------------------------------- END VARS  ----------------------------------------------------
 ! ################################################################################################
 
-!FOR DEBUG
-character(128) :: file_name_deb_TBD, aux_string_rank_deb_TBD
-character(*), parameter :: fmt_csv_TBD = '(1x,*(g0,","))'
+character(*), parameter :: fmt_csv_msh = '(1x,*(g0,","))'
 
 contains
 
@@ -214,19 +201,6 @@ contains
       end do
       !!!$acc end parallel loop
 
-      !---------------------------------------------------------------
-      ! TO CHECK
-#if _CHECK_
-      write(aux_string_rank_deb_TBD,'(I0)') mpi_rank
-      file_name_deb_TBD = 'boundaryNodes_rank'// trim(aux_string_rank_deb_TBD)//'.csv'
-      open(1, file=file_name_deb_TBD)
-      do iNodeGSrl=1,size(vectorBN)
-           write(1,fmt_csv_TBD) iNodeGSrl,vectorBN(iNodeGSrl)
-      end do
-      close(1)
-#endif
-      !---------------------------------------------------------------
-
       ! Create the window
       !--------------------------------------------------------------------------------------
       window_buffer_size = mpi_integer_size*totalNumNodesSrl
@@ -245,18 +219,6 @@ contains
       call MPI_Win_free(window_id, mpi_err)
       !--------------------------------------------------------------------------------------
 
-      !---------------------------------------------------------------
-      ! TO CHECK
-#if _CHECK_
-      file_name_deb_TBD = 'matrixBN_rank'// trim(aux_string_rank_deb_TBD)//'.csv'
-      open(1, file=file_name_deb_TBD)
-      do i=1,numNodesRankSrl
-           iNodeGSrl = iNodeStartSrl(mpi_rank)-1 + i
-           write(1,fmt_csv_TBD) i,iNodeGSrl,matrixBN(i,0),matrixBN(i,1)
-      end do
-      close(1)
-#endif
-      !---------------------------------------------------------------
       !nou metode!
       !generating vector type
       !iNodeGsrl_i,numRanks(n),rank_1,rank_2,...,rank_n,iNodeGsrl_j,numRanks(n),rank_1,rank_2,...,rank_n,iNodeGsrl_k....
@@ -362,45 +324,19 @@ contains
       end if
       !if(mpi_rank.eq.0) write(*,*) vecSharedBN_full(:)
 
-#if _CHECK_
-      write(aux_string_rank_deb_TBD,'(I0)') mpi_rank
-      file_name_deb_TBD = 'vecSharedBN_full_rank'// trim(aux_string_rank_deb_TBD)//'.csv'
-      open(1, file=file_name_deb_TBD)
-      i=0
-      do while(i<size(vecSharedBN_full))
-         i=i+1
-         iNodeGsrl  = vecSharedBN_full(i)
-         i=i+1
-         numRanksCnt =vecSharedBN_full(i)
-         allocate(auxVecDebug(numRanksCnt))
-         do j=1,numRanksCnt
-            i=i+1
-            auxVecDebug(j)=vecSharedBN_full(i)
-         end do
-
-         write(1,fmt_csv_TBD)iNodeGSrl,coordGMSH(iNodeGSrl,1),coordGMSH(iNodeGSrl,2),coordGMSH(iNodeGSrl,3),&
-               auxVecDebug(:)
-
-         !write(1,'(*(G0.7,:,","))')iNodeGSrl,coordGMSH(iNodeGSrl,1),coordGMSH(iNodeGSrl,2),coordGMSH(iNodeGSrl,3),&
-         !      auxVecDebug(:)
-
-         deallocate(auxVecDebug)
-      end do
-      close(1)
-#endif
-
    end subroutine define_mpi_boundaries_inPar
 
-   subroutine generate_mpi_comm_scheme(vecSharedBN_full)
+   subroutine generate_mpi_comm_scheme_i4(vecSharedBN_full)
       !generate a matrix with the comm schemes for shared nodes between procs
-      integer, intent(in)  :: vecSharedBN_full(:)
-      integer, allocatable :: auxVecRanks(:)
-      integer, dimension(0:mpi_size-1) :: commSchemeNumNodes
-      integer,dimension(mpi_size*2) :: commSchemeStartEndNodes
+      integer(4), intent(in)  :: vecSharedBN_full(:)
+      integer(4), allocatable :: auxVecRanks(:)
+      integer(4), dimension(0:mpi_size-1) :: commSchemeNumNodes
+      integer(4), dimension(mpi_size*2) :: commSchemeStartEndNodes
       
       logical :: imIn
-      integer :: i,j,k,iNodeL,iNodeGsrl,iRank,numRanksCnt
-      integer :: window_id
+      integer(4) :: i,j,k,iNodeL,iRank,numRanksCnt
+      integer(4) :: iNodeGsrl
+      integer(4) :: window_id
       
       integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size
       integer(KIND=MPI_ADDRESS_KIND) :: target_displacement
@@ -413,7 +349,7 @@ contains
          i=i+1
          iNodeGsrl  = vecSharedBN_full(i)
          i=i+1
-         numRanksCnt =vecSharedBN_full(i)
+         numRanksCnt = int(vecSharedBN_full(i),4)
 
          imIn=.false.
          do j=1,numRanksCnt
@@ -435,7 +371,7 @@ contains
          i=i+1
          iNodeGsrl  = vecSharedBN_full(i)
          i=i+1
-         numRanksCnt =vecSharedBN_full(i)
+         numRanksCnt = int(vecSharedBN_full(i),4)
 
          imIn=.false.
          allocate(auxVecRanks(numRanksCnt))
@@ -460,7 +396,7 @@ contains
       end do
 
       !first, we sort the matrix depending on the rank
-      call quicksort_matrix_int(matrixCommScheme,3)
+      call quicksort_matrix_int4(matrixCommScheme,3)
 
       !second, determine how many nodes are shared with each other ranks
       commSchemeNumNodes(:)=0
@@ -480,7 +416,7 @@ contains
          if(j.ne.0) then
             k=i+j-1
             !write(*,*) '[',mpi_rank,']sort rank',irank,' from ',i,' to ', k
-            call quicksort_matrix_int(matrixCommScheme,2,i,k)
+            call quicksort_matrix_int4(matrixCommScheme,2,i,k)
             !start position
             commSchemeStartEndNodes(2*iRank+1)=i
             !end position
@@ -545,17 +481,7 @@ contains
 
       !ara podria obtenir els ranks locals de les altres cpus... pero cal?
 
-#if _CHECK_
-      write(aux_string_rank_deb_TBD,'(I0)') mpi_rank
-      file_name_deb_TBD = 'matrixCommScheme_rank'// trim(aux_string_rank_deb_TBD)//'.csv'
-      open(1, file=file_name_deb_TBD)
-         do i=1,numNodesToComm
-             write(1,fmt_csv_TBD) matrixCommScheme(i,:)
-         end do
-      close(1)
-#endif
-
-   end subroutine generate_mpi_comm_scheme
+   end subroutine generate_mpi_comm_scheme_i4
 !----------------------------------------------------------------------------------------------------------
 
 ! ################################################################################################
@@ -575,8 +501,7 @@ contains
 
       write(1,*) 'X,Y,Z,d_field'
       do iNodeL=1,numNodesRankPar
-         !write(1,fmt_csv_TBD) coord_x(iNodeL),coord_y(iNodeL),coord_z(iNodeL),dfield(iNodeL)
-         write(1,fmt_csv_TBD) coordPar(iNodeL,1),coordPar(iNodeL,2),coordPar(iNodeL,3),dfield(iNodeL)
+         write(1,fmt_csv_msh) coordPar(iNodeL,1),coordPar(iNodeL,2),coordPar(iNodeL,3),dfield(iNodeL)
       end do
 
       close(1)
@@ -596,7 +521,7 @@ contains
 
       write(1,*) 'X,Y,Z,ffield'
       do iNodeL=1,numNodesRankPar
-         write(1,fmt_csv_TBD) coordPar(iNodeL,1),coordPar(iNodeL,2),coordPar(iNodeL,3),ffield(iNodeL)
+         write(1,fmt_csv_msh) coordPar(iNodeL,1),coordPar(iNodeL,2),coordPar(iNodeL,3),ffield(iNodeL)
       end do
 
       close(1)
