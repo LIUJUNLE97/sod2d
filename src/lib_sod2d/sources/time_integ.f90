@@ -8,7 +8,7 @@ module time_integ
    use elem_source
    use mod_solver
    use mod_entropy_viscosity
-   use mod_constants
+   use mod_numerical_params
    use mod_fluid_viscosity
    use mod_sgs_viscosity
    use mod_sgs_ilsa_viscosity
@@ -83,7 +83,7 @@ module time_integ
             real(rp),    dimension(npoin,ndime) :: Rmom, Rmom_sum, f_eta
             real(rp)                            :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin),alfa_pt(5), f_alpha,pt_g,dt_min_g
             real(rp)                            :: umag,aux,vol_rank,errMax
-            real(8)                             :: auxN(5),auxN2(5),vol_tot_d, res(2),aux2
+            real(8)                             :: auxN(5),auxN2(5),vol_tot_d, res(2),aux2,res_ini
 
 
             if (flag_mem_alloc .eqv. .true.) then
@@ -107,7 +107,7 @@ module time_integ
                call nvtxEndRange()
 
                volT = real(vol_tot_d,rp)/npoin_w_g
-
+               flag_mem_alloc = .false.
             end if
 
 
@@ -120,7 +120,7 @@ module time_integ
             pos = 2 ! Set correction as default value
             
             !call expl_adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,pseudo_cfl,pt_g,pseudo_cfl,mu_fluid,mu_sgs,rho(:,2))
-            pt_g = 1e-5
+            pt_g = pseudo_min_dt
             dt_min_g = pt_g
 
             !
@@ -253,11 +253,12 @@ module time_integ
                   end do
                end do
                !$acc end parallel loop
-
+               call nvtxStartRange("GMRES")
                call gmres_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                               atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                               rho(:,pos),u(:,:,pos),q(:,:,pos),pr(:,pos),E(:,pos),Tem(:,pos),Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                               2.0_rp/3.0_rp,dt,pt_g,Rmass,Rmom,Rener,aux_rho,aux_q,aux_E,1,0.001_rp)
+               call nvtxEndRange
 
                !$acc parallel loop
                do ipoin = 1,npoin
@@ -447,10 +448,15 @@ module time_integ
                res(1) = sqrt(res(1))
 
                if(itime .gt. 1) then
-                  pt_g = min(pt_g*(res(2)/res(1)),1e6)
+                  pt_g = min(pt_g*(res(2)/res(1)),pseudo_max_dt)
+               else
+                  res_ini = res(1)
                endif
 
+               errMax = abs(res(1)-res(2))/abs(res_ini)
+
                res(2) = res(1)
+
 
                if(errMax .lt. tol) exit  
                !if(mpi_rank.eq.0)print*, " #### err ",errMax," it ",itime,' emass ',epsR," eener ",epsE," emom ", epsQ(1)," ", epsQ(2)," ",epsQ(3)," pt ",pt_g

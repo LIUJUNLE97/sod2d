@@ -1,6 +1,7 @@
 module elem_hex
 
    use mod_constants
+   use mod_numerical_params
    use mod_maths
 
    contains  

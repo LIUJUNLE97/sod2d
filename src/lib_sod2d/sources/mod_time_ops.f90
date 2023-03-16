@@ -1,6 +1,6 @@
 module mod_time_ops
 
-   use mod_constants
+   use mod_numerical_params
    use mod_veclen
    use mod_nvtx
    use mod_mpi

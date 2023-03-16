@@ -20,7 +20,7 @@ module BluffBody3DSolver_mod
    use mod_period
    use time_integ
    use mod_analysis
-   use mod_constants
+   use mod_numerical_params
    use mod_time_ops
    use mod_fluid_viscosity
    use mod_postpro
@@ -87,20 +87,30 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "auto"
+      write(this%mesh_h5_file_name,*) "crm"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
+      ! numerical params
+      flag_les = 1
+      flag_implicit = 0
+      pseudo_min_dt = 1e-7
+      pseudo_max_dt = 1e6
+      maxIter=20
+      maxIterNonLineal=20
+      tol=1e-4
+
       this%loadResults = .false.
 
-      this%continue_oldLogs = .true.
+      this%continue_oldLogs = .false.
       this%load_step = 1060001
 
       this%nstep = 800000001 !250001
 #if CRM
-      this%cfl_conv = 10.0_rp 
-      this%cfl_diff = 10.0_rp 
+      this%dt = 1e-5
+      this%cfl_conv = 1.0_rp 
+      this%cfl_diff = 1.0_rp 
 #else
       this%cfl_conv = 0.95_rp !0.1_rp
       this%cfl_diff = 0.95_rp !0.1_rp

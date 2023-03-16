@@ -1,5 +1,5 @@
 module mod_arrays
-      use mod_constants
+      use mod_numerical_params
 
       implicit none
 
@@ -49,7 +49,7 @@ module CFDSolverBase_mod
       use mod_period
       use time_integ
       use mod_analysis
-      use mod_constants
+      use mod_numerical_params
       use mod_time_ops
       use mod_fluid_viscosity
       use mod_postpro
@@ -1071,7 +1071,6 @@ contains
          write(111,*) "    c_ener: ",  c_ener
          write(111,*) "    stau: ",    stau
          write(111,*) "    T_ilsa: ",  T_ilsa
-         write(111,*) "    T_wmles: ", T_wmles
          write(111,*) "--------------------------------------"
       end if
 

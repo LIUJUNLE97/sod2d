@@ -18,7 +18,7 @@ module ChannelFlowSolver_mod
    use mod_period
    use time_integ
    use mod_analysis
-   use mod_constants
+   use mod_numerical_params
    use mod_time_ops
    use mod_fluid_viscosity
    use mod_postpro
@@ -74,20 +74,29 @@ contains
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
+      ! numerical params
+      flag_les = 1
+      flag_implicit = 1
+      pseudo_min_dt = 5e-6
+      pseudo_max_dt = 1e6
+      maxIter=20
+      maxIterNonLineal=100
+      tol=1e-2
+
       this%loadResults = .true.
       this%continue_oldLogs = .false.
-      this%load_step = 5001
+      this%load_step = 2501
 
       this%nstep = 1000000 
-      this%dt = 1e-2
-      !this%cfl_conv = 1.0_rp
-      !this%cfl_diff = 1.0_rp
+      this%dt = 5e-3
+      this%cfl_conv = 1.0_rp
+      this%cfl_diff = 1.0_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
       this%nleap = 500 ! Saving interval, TODO: input
       this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 2000
+      this%nleapAVG = 500
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

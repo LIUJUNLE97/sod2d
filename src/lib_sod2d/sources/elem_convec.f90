@@ -1,7 +1,7 @@
 module elem_convec
 
    use mod_nvtx
-   use mod_constants
+   use mod_numerical_params
    use mod_veclen
    use mod_maths
    use mod_mpi

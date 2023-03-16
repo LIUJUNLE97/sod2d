@@ -1,7 +1,7 @@
 module elem_diffu
 
    use mod_nvtx
-   use mod_constants
+   use mod_numerical_params
    use mod_veclen
    use mod_mpi
    use mod_mpi_mesh

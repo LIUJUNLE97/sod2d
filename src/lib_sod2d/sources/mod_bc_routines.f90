@@ -1,7 +1,7 @@
 module mod_bc_routines
 
    use mod_mpi
-   use mod_constants
+   use mod_numerical_params
    use mod_comms
    use mod_comms_boundaries
    use mod_nvtx

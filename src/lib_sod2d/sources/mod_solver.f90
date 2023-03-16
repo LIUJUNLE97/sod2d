@@ -1,6 +1,6 @@
 module mod_solver
 
-      use mod_constants
+      use mod_numerical_params
       use mod_comms
       use mod_mpi
       use mod_nvtx
@@ -12,12 +12,10 @@ module mod_solver
       !-----------------------------------------------------------------------
       real(rp)                                  :: norm_bmass, norm_bener, norm_bmom(ndime),epsQ(3),epsR,epsE
       real(rp)                                  :: err_mass, err_ener, err_mom(ndime)
-      real(rp)                                  :: e1_mass(maxIter+1), e1_ener(maxIter+1), e1_mom(maxIter+1,ndime)
-      real(rp)                                  :: beta_mass(maxIter+1), beta_ener(maxIter+1), beta_mom(maxIter+1,ndime)
-      real(rp)  , dimension(maxIter)            :: cs_mass, cs_ener, sn_mass, sn_ener
-      real(rp)  , dimension(maxIter,ndime)      :: cs_mom, sn_mom
-      real(rp)  , dimension(maxIter)            :: updMass, updEner
-      real(rp)  , dimension(maxIter,ndime)      :: updMom
+
+      real(rp)  ,allocatable, dimension(:)      :: e1_mass, e1_ener, beta_mass, beta_ener,cs_mass, cs_ener, sn_mass, sn_ener,updMass, updEner
+      real(rp)  ,allocatable, dimension(:,:)    :: e1_mom,beta_mom, cs_mom, sn_mom, updMom
+
       real(rp)  , allocatable, dimension(:)     :: Jy_mass, Jy_ener, ymass, yener
       real(rp)  , allocatable, dimension(:)     :: Rmass_fix, Rener_fix, SDmass, SDener, SRmass, SRener,pEner,pMass
       real(rp)  , allocatable, dimension(:,:)   :: Jy_mom, ymom, Rmom_fix, SDmom, SRmom,pMom
@@ -420,97 +418,6 @@ module mod_solver
               end subroutine conjGrad_vector
 
 
-              subroutine jacobi_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
-                                    atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-                                    rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-                                    gammaRK,dt,pt,bmass,bmom,bener,mass_sol,mom_sol,ener_sol,istep,tolJacobi)
-                  implicit none
-                  integer(4), intent(in)    :: nelem, npoin, npoin_w, lpoin_w(npoin_w), connec(nelem,nnode)
-                  integer(4), intent(in)    :: atoIJK(nnode), invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-                  real(rp)  , intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,ngaus,nnode), He(ndime,ndime,ngaus,nelem)
-                  real(rp)  , intent(in)    :: gpvol(1,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1), xgp(ngaus,ndime)
-                  real(rp)  , intent(in)    :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin)
-                  real(rp)  , intent(in)    :: Rgas, gamma_gas, Cp, Prt, gammaRK, dt, Ml(npoin),pt,tolJacobi
-                  real(rp)  , intent(in)    :: mu_fluid(npoin), mu_e(nelem,nnode), mu_sgs(nelem,nnode)
-                  real(rp)  , intent(in)    :: bmass(npoin), bmom(npoin,ndime), bener(npoin)
-                  real(rp)  , intent(inout) :: mass_sol(npoin), mom_sol(npoin,ndime), ener_sol(npoin)
-                  integer(4), intent(in)    :: istep
-                  integer(4)                :: ik, jk, kk, ipoin, idime
-                  real(rp)                  :: errMax, errTol, diag
-                  real(8)                  :: auxN(5),auxN2(5),aux
-
-                  errTol = tolJacobi
-
-                  ! Allocate the memory for the gmres solver if not yet allocated
-                  if (flag_gmres_mem_alloc .eqv. .true.) then
-                     allocate(Jy_mass(npoin), Jy_mom(npoin,ndime), Jy_ener(npoin))
-                     allocate(ymass(npoin), ymom(npoin,ndime), yener(npoin))
-                     allocate(Rmass_fix(npoin), Rmom_fix(npoin,ndime), Rener_fix(npoin))
-                     allocate(SRmass(npoin), SRmom(npoin,ndime), SRener(npoin))
-                     allocate(SDmass(npoin), SDmom(npoin,ndime),SDener(npoin),pEner(npoin),pMass(npoin),pMom(npoin,ndime))
-                     allocate(Q_Mass(npoin,maxIter+1), Q_Mom(npoin,ndime,maxIter+1), Q_Ener(npoin,maxIter+1))
-                     allocate(H_mass(maxIter+1,maxIter), H_mom(maxIter+1,maxIter,ndime), H_ener(maxIter+1,maxIter))
-                     flag_gmres_mem_alloc = .false.
-                  end if
-
-                  epsR = eps
-                  epsE = eps
-                  epsQ(1) = eps
-                  epsQ(2) = eps
-                  epsQ(3) = eps
-                  if(istep == 1) then 
-                     call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
-                        atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-                        rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-                        mass_sol,mom_sol,ener_sol,.true.)
-                  end if
-
-                  do ik = 1,maxIter
-                     call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
-                        atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-                        rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
-                        mass_sol,mom_sol,ener_sol,.false.)
-
-                     auxN(:) = 0.0_rp
-                     diag = (1.0_rp/pt) + (1.0_rp/(gammaRK*dt))
-                     diag = 1.0_rp/diag
-                     !$acc parallel loop
-                     do ipoin = 1,npoin_w
-                        aux = mass_sol(lpoin_w(ipoin))
-                        mass_sol(lpoin_w(ipoin)) = diag*(bmass(lpoin_w(ipoin))   - Jy_mass(lpoin_w(ipoin)))
-                        auxN(1) = auxN(1) + real((aux-mass_sol(lpoin_w(ipoin)))**2 ,8)
-                        aux = ener_sol(lpoin_w(ipoin))
-                        ener_sol(lpoin_w(ipoin)) = diag*(bener(lpoin_w(ipoin))  - Jy_ener(lpoin_w(ipoin)))
-                        auxN(2) = auxN(2) + real((aux-ener_sol(lpoin_w(ipoin)))**2 ,8)
-                        !$acc loop seq
-                        do idime = 1,ndime
-                           aux = mom_sol(lpoin_w(ipoin),idime)
-                           mom_sol(lpoin_w(ipoin),idime) = diag*(bmom(lpoin_w(ipoin),idime)  - Jy_mom(lpoin_w(ipoin),idime))
-                           auxN(2+idime) = auxN(2+idime) + real((aux-mom_sol(lpoin_w(ipoin),idime))**2 ,8)
-                        end do
-                     end do
-
-                     call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
-
-                     errMax = real(sqrt(maxval(auxN2(:))),rp)
-                     if(errMax .lt. errTol) exit
-                  end do
-
-                  if(mpi_rank.eq.0)print*, " err ",errMax," it ",ik,' emass ',sqrt(auxN2(1))," eener ",sqrt(auxN2(2))," emom ", sqrt(auxN2(3))," ", sqrt(auxN2(4))," ",sqrt(auxN2(5))
-
-                  ! If memory not needed anymore, deallocate arrays
-                  if (flag_gmres_mem_free .eqv. .true.) then
-                     deallocate(Jy_mass, Jy_mom, Jy_ener)
-                     deallocate(ymass, ymom, yener)
-                     deallocate(Rmass_fix, Rmom_fix, Rener_fix)
-                     deallocate(SRmass, SRmom, SRener)
-                     deallocate(SDmass, SDmom, SDener)
-                     deallocate(Q_Mass, Q_Mom, Q_Ener)
-                  end if
-
-              end subroutine jacobi_full
-
-
               subroutine gmres_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                     atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                     rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
@@ -543,6 +450,9 @@ module mod_solver
                      allocate(SDmass(npoin), SDmom(npoin,ndime),SDener(npoin),pEner(npoin),pMass(npoin),pMom(npoin,ndime))
                      allocate(Q_Mass(npoin,maxIter+1), Q_Mom(npoin,ndime,maxIter+1), Q_Ener(npoin,maxIter+1))
                      allocate(H_mass(maxIter+1,maxIter), H_mom(maxIter+1,maxIter,ndime), H_ener(maxIter+1,maxIter))
+                     allocate(e1_mass(maxIter+1), e1_ener(maxIter+1), beta_mass(maxIter+1), beta_ener(maxIter+1),cs_mass(maxIter), &
+                              cs_ener(maxIter), sn_mass(maxIter), sn_ener(maxIter),updMass(maxIter), updEner(maxIter))
+                     allocate(e1_mom(maxIter+1,ndime),beta_mom(maxIter+1,ndime), cs_mom(maxIter,ndime), sn_mom(maxIter,ndime), updMom(maxIter,ndime))
                      flag_gmres_mem_alloc = .false.
                   end if
 
@@ -1046,8 +956,8 @@ module mod_solver
                   real(rp)  , intent(in) :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin), Rgas,gamma_gas,Cp, Prt
                   real(rp)  , intent(in) :: mu_fluid(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
                   real(rp)  , intent(in) :: zmass(npoin), zener(npoin), zmom(npoin,ndime)
-                  real(rp)               :: zpres(npoin),zu(npoin,ndime),ztemp(npoin),zeint(npoin)
-                  real(rp)               :: auxRmass(npoin),auxRmom(npoin,ndime),auxRener(npoin),auxQ(npoin,ndime),auxU(npoin,ndime)
+                  real(rp)               :: zu(npoin,ndime)
+                  real(rp)               :: auxQ(npoin,ndime),auxU(npoin,ndime)
                   integer(4)             :: idime,ipoin
                   real(rp)               :: aux
 

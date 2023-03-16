@@ -1,6 +1,6 @@
 module mod_geom
 
-   use mod_constants
+   use mod_numerical_params
    use elem_qua
    use elem_hex
    use mod_mpi

@@ -18,7 +18,7 @@ module TGVSolver_mod
    use mod_period
    use time_integ
    use mod_analysis
-   use mod_constants
+   use mod_numerical_params
    use mod_time_ops
    use mod_fluid_viscosity
    use mod_postpro
@@ -57,10 +57,19 @@ contains
       this%continue_oldLogs = .false.
       this%load_step = 8001
 
+      ! numerical params
+      flag_les = 0
+      flag_implicit = 1
+      pseudo_min_dt = 5e-4
+      pseudo_max_dt = 1e6
+      maxIter=20
+      maxIterNonLineal=100
+      tol=1e-2
+
       this%nstep = 50001
       this%maxPhysTime = 20.0_rp
 
-      this%dt = 4.0e-2
+      this%dt = 1.0e-2
       this%cfl_conv = 1.0_rp
       this%cfl_diff = 1.0_rp
       this%nsave  = 1  ! First step to save, TODO: input
