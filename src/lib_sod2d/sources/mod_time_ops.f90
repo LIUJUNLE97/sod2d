@@ -27,7 +27,7 @@ contains
       dt_diff = 100000000000000.0_rp
       dt_l    = 100000000000000.0_rp
 
-      !if(flag_implicit == 0) then
+      if(flag_implicit == 0) then
          !$acc parallel loop gang  reduction(min:dt_conv,dt_diff,dt_l) 
          do ielem = 1,nelem
             L3 = 0.0_rp
@@ -57,24 +57,24 @@ contains
             dt_l = min(dt_conv,dt_diff)
          end do
          !$acc end parallel loop
-     ! else
-     !    !$acc parallel loop gang  reduction(min:dt_conv,dt_diff,dt_l) 
-     !    do ielem = 1,nelem
-     !       L3 = 0.0_rp
-     !       !$acc loop vector reduction(max:L3)
-     !       do inode = 1,nnode
-     !          umag = abs(u(connec(ielem,inode),1))
-     !          umag = max(umag,abs(u(connec(ielem,inode),2)))
-     !          umag = max(umag,abs(u(connec(ielem,inode),3)))
-     !          aux1 = umag!+csound(connec(ielem,inode))
-     !          L3 = max(L3,aux1)
-     !       end do
-     !       aux2 = cfl_conv*(helem(ielem)/real(2.0_rp*porder+1,rp))/L3
-     !       dt_l = min(dt_l,aux2)
-     !    end do
-     !    !$acc end parallel loop
-     ! end if
-      call MPI_Allreduce(dt_l,dt,1,mpi_datatype_real,MPI_MIN,MPI_COMM_WORLD,mpi_err)
+         call MPI_Allreduce(dt_l,dt,1,mpi_datatype_real,MPI_MIN,MPI_COMM_WORLD,mpi_err)
+      else
+       !  !$acc parallel loop gang  reduction(min:dt_conv,dt_diff,dt_l) 
+       !  do ielem = 1,nelem
+       !     L3 = 0.0_rp
+       !     !$acc loop vector reduction(max:L3)
+       !     do inode = 1,nnode
+       !        umag = abs(u(connec(ielem,inode),1))
+       !        umag = max(umag,abs(u(connec(ielem,inode),2)))
+       !        umag = max(umag,abs(u(connec(ielem,inode),3)))
+       !        aux1 = umag!+csound(connec(ielem,inode))
+       !        L3 = max(L3,aux1)
+       !     end do
+       !     aux2 = cfl_conv*(helem(ielem)/real(2.0_rp*porder+1,rp))/L3
+       !     dt_l = min(dt_l,aux2)
+       !  end do
+       !  !$acc end parallel loop
+      end if
       call nvtxEndRange
 
       end subroutine adapt_dt_cfl

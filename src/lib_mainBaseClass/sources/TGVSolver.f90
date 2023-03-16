@@ -58,17 +58,18 @@ contains
       this%load_step = 8001
 
       this%nstep = 50001
-      this%maxPhysTime = 0.5_rp
+      this%maxPhysTime = 20.0_rp
 
-      this%cfl_conv = 20.0_rp
-      this%cfl_diff = 20.0_rp
+      this%dt = 4.0e-2
+      this%cfl_conv = 1.0_rp
+      this%cfl_diff = 1.0_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
 
       this%nsaveAVG = 1
-      this%nleap = 250 ! Saving interval, TODO: input
+      this%nleap = 2000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 1  ! Saving interval, TODO: input
+      this%nleap2 = 10  ! Saving interval, TODO: input
       this%nleapAVG = 2000000000
 
       this%Cp = 1004.0_rp

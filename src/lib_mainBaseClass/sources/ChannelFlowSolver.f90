@@ -74,19 +74,20 @@ contains
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
-      this%loadResults = .false.
+      this%loadResults = .true.
       this%continue_oldLogs = .false.
-      this%load_step = 14501
+      this%load_step = 5001
 
       this%nstep = 1000000 
-      this%cfl_conv = 50.0_rp
-      this%cfl_diff = 50.0_rp
+      this%dt = 1e-2
+      !this%cfl_conv = 1.0_rp
+      !this%cfl_diff = 1.0_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
       this%nleap = 500 ! Saving interval, TODO: input
       this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 500
+      this%nleapAVG = 2000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

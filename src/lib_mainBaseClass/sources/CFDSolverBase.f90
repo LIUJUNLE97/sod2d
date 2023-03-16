@@ -844,8 +844,10 @@ contains
 
    end subroutine CFDSolverBase_evalFirstOutput
 
-   subroutine CFDSolverBase_callTimeIntegration(this)
+   subroutine CFDSolverBase_callTimeIntegration(this,istep)
       class(CFDSolverBase), intent(inout) :: this
+      integer(4)              , intent(in)   :: istep
+
       if(mpi_rank.eq.0) write(111,*) " Time integration should be overwritted"
       stop 1
 
@@ -930,7 +932,7 @@ contains
          flag_predic = 0
          if(this%doTimerAnalysis) iStepStartTime = MPI_Wtime()
 
-         call this%callTimeIntegration()
+         call this%callTimeIntegration(istep)
 
          if(this%doTimerAnalysis) then
             iStepEndTime = MPI_Wtime()

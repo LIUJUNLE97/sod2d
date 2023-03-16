@@ -1,4 +1,4 @@
-#define ABL 0
+#define CRM 1
 
 module BluffBody3DSolver_mod
    use mod_arrays
@@ -34,25 +34,23 @@ module BluffBody3DSolver_mod
 
    type, public, extends(CFDSolver3DWithBoundaries) :: BluffBody3DSolver
 
-      real(rp) , public  :: vo, M, delta, rho0, Re, to, po
+      real(rp) , public  :: vo, M, delta, rho0, Re, to, po, aoa
 
    contains
       procedure, public :: fillBCTypes           =>BluffBody3DSolver_fill_BC_Types
       procedure, public :: initializeParameters  => BluffBody3DSolver_initializeParameters
       procedure, public :: evalInitialConditions => BluffBody3DSolver_evalInitialConditions
-      procedure, public :: evalViscosityFactor=>BluffBody3DSolver_evalViscosityFactor
+      procedure, public :: initialBuffer => BluffBody3DSolver_initialBuffer
    end type BluffBody3DSolver
 contains
 
    subroutine BluffBody3DSolver_fill_BC_Types(this)
       class(BluffBody3DSolver), intent(inout) :: this
 
-#if ABL
+#if CRM
       bouCodes2BCType(1) = bc_type_far_field
       bouCodes2BCType(2) = bc_type_far_field
-      bouCodes2BCType(3) = bc_type_inlet
-      bouCodes2BCType(4) = bc_type_slip_wall_model
-      bouCodes2BCType(5) = bc_type_slip_wall_model
+      bouCodes2BCType(3) = bc_type_slip_wall_model
 #else
       bouCodes2BCType(1) = bc_type_far_field
       bouCodes2BCType(2) = bc_type_slip_wall_model
@@ -64,12 +62,32 @@ contains
 
    end subroutine BluffBody3DSolver_fill_BC_Types
 
+      subroutine BluffBody3DSolver_initialBuffer(this)
+      class(BluffBody3DSolver), intent(inout) :: this
+      integer(4) :: iNodeL
+
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+#if CRM
+            u_buffer(iNodeL,1) = this%vo*cos(this%aoa*v_pi/180.0_rp)
+            u_buffer(iNodeL,2) = 0.0_rp
+            u_buffer(iNodeL,3) = this%vo*sin(this%aoa*v_pi/180.0_rp)    
+#else
+            u_buffer(iNodeL,1) = this%vo
+            u_buffer(iNodeL,2) = 0.0_rp
+            u_buffer(iNodeL,3) = 0.0_rp  
+#endif
+      end do
+      !$acc end parallel loop
+
+   end subroutine BluffBody3DSolver_initialBuffer
+
    subroutine BluffBody3DSolver_initializeParameters(this)
       class(BluffBody3DSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "carCoarseTool4"!"auto"
+      write(this%mesh_h5_file_name,*) "auto"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -80,9 +98,9 @@ contains
       this%load_step = 1060001
 
       this%nstep = 800000001 !250001
-#if ABL
-      this%cfl_conv = 1.5_rp !0.1_rp
-      this%cfl_diff = 1.5_rp !0.1_rp
+#if CRM
+      this%cfl_conv = 10.0_rp 
+      this%cfl_diff = 10.0_rp 
 #else
       this%cfl_conv = 0.95_rp !0.1_rp
       this%cfl_diff = 0.95_rp !0.1_rp
@@ -103,10 +121,12 @@ contains
       this%delta  = 1.0_rp
       this%rho0   = 1.0_rp
       this%gamma_gas = 1.40_rp
-#if ABL
-      this%Re     =  37250.0_rp
+#if CRM
+      this%Re     =  5490000.0_rp
+      this%aoa = 19.57_rp
 #else
       this%Re     =  2900000.0_rp
+      this%aoa = 0.0_rp
 #endif      
 
       mul    = (this%rho0*this%delta*this%vo)/this%Re
@@ -124,6 +144,27 @@ contains
       nscbc_Rgas_inf = this%Rgas
 
       flag_buffer_on = .true.
+#if CRM
+      flag_buffer_on_east = .true.
+      flag_buffer_e_min = 20000.0_rp
+      flag_buffer_e_size = 5400.0_rp 
+
+      flag_buffer_on_west = .true.
+      flag_buffer_w_min = -20000.0_rp
+      flag_buffer_w_size = 5400.0_rp 
+
+      flag_buffer_on_north = .true.
+      flag_buffer_n_min = 20000.0_rp
+      flag_buffer_n_size = 5400.0_rp 
+      
+      flag_buffer_on_top = .true.
+      flag_buffer_t_min = 20000.0_rp
+      flag_buffer_t_size = 5400.0_rp
+
+      flag_buffer_on_bottom = .true.
+      flag_buffer_b_min = -20000.0_rp
+      flag_buffer_b_size = 5400.0_rp
+#else
       !windsor
       flag_buffer_on_east = .true.
       flag_buffer_e_min = 5.5_rp
@@ -144,6 +185,7 @@ contains
       flag_buffer_on_top = .true.
       flag_buffer_t_min = 1.2_rp
       flag_buffer_t_size = 0.3_rp 
+#endif
       
 
    end subroutine BluffBody3DSolver_initializeParameters
@@ -164,9 +206,15 @@ contains
       else
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
-              u(iNodeL,1,2) = this%vo
-              u(iNodeL,2,2) = 0.0_rp
-              u(iNodeL,3,2) = 0.0_rp
+#if CRM
+            u(iNodeL,1,2) = this%vo*cos(this%aoa*v_pi/180.0_rp)
+            u(iNodeL,2,2) = 0.0_rp
+            u(iNodeL,3,2) = this%vo*sin(this%aoa*v_pi/180.0_rp)    
+#else
+            u(iNodeL,1,2) = this%vo
+            u(iNodeL,2,2) = 0.0_rp
+            u(iNodeL,3,2),2 = 0.0_rp  
+#endif
          end do
          !$acc end parallel loop
       end if
@@ -181,6 +229,11 @@ contains
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
          eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
+         
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+         rho(iNodeL,3) = rho(iNodeL,2)
+         E(iNodeL,3) =  E(iNodeL,2)
+         eta(iNodeL,3) = eta(iNodeL,2) 
       end do
       !$acc end parallel loop
 
@@ -204,47 +257,4 @@ contains
 
    end subroutine BluffBody3DSolver_evalInitialConditions
 
-   subroutine BluffBody3DSolver_evalViscosityFactor(this)
-      class(BluffBody3DSolver), intent(inout) :: this
-      integer(4) :: iNodeL
-
-      ! set out of the buffer zone
-      ! remember that the mu_factor field has to we filled at least with the
-      ! flag_mu_factor
-#if ABL
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
-         mu_factor(iNodeL) = flag_mu_factor
-         if(coordPar(iNodeL,1)>15.0_rp) then
-            mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
-         end if
-      end do
-      !$acc end parallel loop
-#else
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
-         mu_factor(iNodeL) = flag_mu_factor
-        ! if(coordPar(iNodeL,1)<-4.5_rp) then
-        !    mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
-        ! end if
-         !if(coordPar(iNodeL,2)>0.9_rp) then
-         !   mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
-         !end if
-         !if(coordPar(iNodeL,3)<-8.0_rp) then
-         !   mu_factor(iNodeL) = flag_mu_factor*10.0_rp
-         !end if
-         !if(coordPar(iNodeL,3)>1.2_rp) then
-         !   mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
-         !end if
-         !if(coordPar(iNodeL,2)<-0.9_rp) then
-         !   mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
-         !end if
-         !if(coordPar(iNodeL,1)>5.5_rp) then
-         !   mu_factor(iNodeL) = flag_mu_factor*10000.0_rp
-         !end if
-      end do
-      !$acc end parallel loop
-#endif      
-
-   end subroutine BluffBody3DSolver_evalViscosityFactor
 end module BluffBody3DSolver_mod

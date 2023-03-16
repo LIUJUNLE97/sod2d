@@ -28,11 +28,8 @@ module mod_constants
       integer(4), parameter :: flag_real_diff=1
       integer(4), parameter :: flag_diff_suth=1
       integer(4), parameter :: flag_rk_order=4
-      integer(4), parameter :: flag_implicit=1
-      integer(4), parameter :: flag_pseudo_time=1
-      integer(4), parameter :: flag_pseudo_steps=10
-      real(rp),   parameter :: pseudo_cfl=2.0_rp
-      real(rp),   parameter :: pseudo_ftau=8.0_rp
+      integer(4), parameter :: flag_implicit=1  
+      real(rp),   parameter :: pseudo_cfl=0.5_rp
       integer(4), parameter :: flag_les=0
       integer(4), parameter :: flag_les_ilsa=0
       integer(4), parameter :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
@@ -46,8 +43,9 @@ module mod_constants
       !
       ! Solver params
       !
-      integer(4) , parameter ::  maxIter=15
-      real(rp)   , parameter ::  tol=0.0001_rp
+      integer(4) , parameter ::  maxIter=20
+      integer(4) , parameter ::  maxIterNonLineal=20
+      real(rp)   , parameter ::  tol=1e-4
 
       !
       ! Other constants
