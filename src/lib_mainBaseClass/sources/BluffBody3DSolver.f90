@@ -95,7 +95,6 @@ contains
       ! numerical params
       flag_les = 1
       flag_implicit = 0
-      pseudo_min_dt = 1e-7
       pseudo_max_dt = 1e6
       maxIter=20
       maxIterNonLineal=20

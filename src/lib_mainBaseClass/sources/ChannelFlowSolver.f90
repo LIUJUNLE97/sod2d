@@ -77,15 +77,13 @@ contains
       ! numerical params
       flag_les = 1
       flag_implicit = 1
-      pseudo_min_dt = 5e-6
-      pseudo_max_dt = 1e6
       maxIter=20
       maxIterNonLineal=100
       tol=1e-2
 
       this%loadResults = .true.
       this%continue_oldLogs = .false.
-      this%load_step = 2501
+      this%load_step = 28501
 
       this%nstep = 1000000 
       this%dt = 5e-3
@@ -94,9 +92,9 @@ contains
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 500 ! Saving interval, TODO: input
+      this%nleap = 2000 ! Saving interval, TODO: input
       this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 500
+      this%nleapAVG = 2000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

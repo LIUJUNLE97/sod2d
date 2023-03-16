@@ -60,8 +60,6 @@ contains
       ! numerical params
       flag_les = 0
       flag_implicit = 1
-      pseudo_min_dt = 5e-4
-      pseudo_max_dt = 1e6
       maxIter=20
       maxIterNonLineal=100
       tol=1e-2

@@ -28,7 +28,6 @@ module mod_numerical_params
         real(rp) :: flag_mu_factor=1.0_rp
 
         ! Implicit solver
-        real(rp)    :: pseudo_min_dt = 1e-5
         real(rp)    :: pseudo_max_dt = 1e20
         integer(4) ::  maxIter=20
         integer(4) ::  maxIterNonLineal=20
