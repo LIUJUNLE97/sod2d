@@ -905,6 +905,7 @@ module mod_solver
 
                   ! Fill H(ik+1,ik) with the norms of Q(:,ik+1)
                   ! New version
+                  call nvtxStartRange("Arnoldi: norm(Q)")
                   aux(:) = 0.0_rp
                   auxDot = 0.0_rp
                   !$acc parallel loop reduction(+:auxDot)
@@ -920,22 +921,26 @@ module mod_solver
                   end do
                   !$acc end parallel loop
                   aux(2) = auxDot
-                  ! Old version
-                  do ipoin=1,npoin_w
-                     !aux(1) = aux(1) + real((Q_mass(lpoin_w(ipoin),ik+1)*Q_mass(lpoin_w(ipoin),ik+1)),8)
-                     !aux(2) = aux(2) + real((Q_ener(lpoin_w(ipoin),ik+1)*Q_ener(lpoin_w(ipoin),ik+1)),8)
                   do idime = 1,ndime
-                        aux(idime+2) = aux(idime+2) + real((Q_mom(lpoin_w(ipoin),idime,ik+1)*Q_mom(lpoin_w(ipoin),idime,ik+1)),8)
+                     auxDot = 0.0_rp
+                     !$acc parallel loop reduction(+:auxDot)
+                     do ipoin = 1,npoin_w
+                        auxDot = auxDot + real(Q_Mom(lpoin_w(ipoin),idime,ik+1)*Q_Mom(lpoin_w(ipoin),idime,ik+1),8)
                      end do
+                     !$acc end parallel loop
+                     aux(idime+2) = auxDot
                   end do
 
                   call MPI_Allreduce(aux,aux2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                  call nvtxEndRange()
 
+                  call nvtxStartRange("Arnoldi: Update H")
                   H_mass(ik+1,ik) = sqrt(real(aux2(1),rp))
                   H_ener(ik+1,ik) = sqrt(real(aux2(2),rp))
                   do idime = 1,ndime
                      H_mom(ik+1,ik,idime) = sqrt(real(aux2(idime+2),rp))
                   end do
+                  call nvtxEndRange()
 
                   ! Normalize every Q(:,ik+1)
                   call nvtxStartRange("Arnoldi: Normalize Q(ik+1)")
