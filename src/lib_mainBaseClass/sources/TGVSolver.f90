@@ -58,7 +58,8 @@ contains
       this%continue_oldLogs = .false.
       this%load_step = 1001
 
-      this%nstep = 20001
+      this%nstep = 25001
+      this%maxPhysTime = 0.5_rp
 
       this%cfl_conv = 0.5_rp
       this%cfl_diff = 0.5_rp
