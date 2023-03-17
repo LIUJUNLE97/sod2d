@@ -980,9 +980,11 @@ module mod_solver
                   end do
 
                   ! Apply the Givens rotation to the ik_th column of H_* matrices
+                  call nvtxStartRange("Arnoldi: Givens rotation")
                   call givens_rotation_full(H_mass(ik,ik),H_mass(ik+1,ik), &
                                             H_ener(ik,ik),H_ener(ik+1,ik), &
                                             H_mom(ik,ik,:),H_mom(ik+1,ik,:),ik)
+                  call nvtxEndRange()
 
                   ! Eliminate the ik+1_th row of H_* matrices
                   aux = cs_mass(ik)*H_mass(ik,ik) + sn_mass(ik)*H_mass(ik+1,ik)
