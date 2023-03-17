@@ -1,6 +1,7 @@
 # SOD2D
 
 A SEM code for computing scale-resolving simulations of compressible fluid flow.
+test
 
 ## Description
 
