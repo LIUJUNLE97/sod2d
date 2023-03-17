@@ -44,11 +44,11 @@ integer(4), allocatable :: listBoundsWallModel(:)
 ! ------------------------ VARS for MPI COMMS ----------------------------------------------------
 ! ################################################################################################
 
-integer(4),allocatable :: matrixCommScheme(:,:),ranksToComm(:)
+integer(4),allocatable :: nodesToComm(:),ranksToComm(:)
 integer(4),allocatable :: commsMemPosInLoc(:),commsMemSize(:),commsMemPosInNgb(:)
 integer(4) :: numNodesToComm,numRanksWithComms
 
-integer(4),allocatable :: bnd_matrixCommScheme(:,:),bnd_ranksToComm(:)
+integer(4),allocatable :: bnd_nodesToComm(:),bnd_ranksToComm(:)
 integer(4),allocatable :: bnd_commsMemPosInLoc(:),bnd_commsMemSize(:),bnd_commsMemPosInNgb(:)
 integer(4) :: bnd_numNodesToComm,bnd_numRanksWithComms
 
@@ -329,7 +329,7 @@ contains
    subroutine generate_mpi_comm_scheme_i4(vecSharedBN_full)
       !generate a matrix with the comm schemes for shared nodes between procs
       integer(4), intent(in)  :: vecSharedBN_full(:)
-      integer(4), allocatable :: auxVecRanks(:)
+      integer(4), allocatable :: auxVecRanks(:),matrixCommScheme(:,:)
       integer(4), dimension(0:mpi_size-1) :: commSchemeNumNodes
       integer(4), dimension(mpi_size*2) :: commSchemeStartEndNodes
       
@@ -425,6 +425,12 @@ contains
             numRanksWithComms=numRanksWithComms+1
          endif
       end do
+
+      allocate(nodesToComm(numNodesToComm))
+
+      nodesToComm(:) = matrixCommScheme(:,1)
+
+      deallocate(matrixCommScheme)
 
       !now I generate the vector ranksToComm, storing the ranks who with this rank will comm
       allocate(ranksToComm(numRanksWithComms))

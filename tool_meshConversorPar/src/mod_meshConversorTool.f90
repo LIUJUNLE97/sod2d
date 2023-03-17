@@ -164,12 +164,10 @@ contains
 ! ------------------------ VARS for MPI COMMS ----------------------------------------------------
 ! ################################################################################################
 
-      type(jagged_matrix_int4) :: matrixCommScheme_jm
-      type(jagged_vector_int4) :: commsMemPosInLoc_jv,commsMemSize_jv,commsMemPosInNgb_jv,ranksToComm_jv
+      type(jagged_vector_int4) :: nodesToComm_jv,commsMemPosInLoc_jv,commsMemSize_jv,commsMemPosInNgb_jv,ranksToComm_jv
       integer(4),allocatable :: numNodesToCommMshRank(:),numMshRanksWithComms(:)
 
-      type(jagged_matrix_int4) :: bnd_matrixCommScheme_jm
-      type(jagged_vector_int4) :: bnd_commsMemPosInLoc_jv,bnd_commsMemSize_jv,bnd_commsMemPosInNgb_jv,bnd_ranksToComm_jv
+      type(jagged_vector_int4) :: bnd_nodesToComm_jv,bnd_commsMemPosInLoc_jv,bnd_commsMemSize_jv,bnd_commsMemPosInNgb_jv,bnd_ranksToComm_jv
       integer(4),allocatable :: bnd_numNodesToCommMshRank(:),bnd_numMshRanksWithComms(:)
 
 ! ################################################################################################
@@ -333,7 +331,7 @@ contains
       start_time(6) = MPI_Wtime()
       call generate_mpi_comm_scheme_parallel(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numMpiBoundaryNodes,&
                                     mpiBoundaryNodes_i8_jv,globalIdSrl_i8_jv,globalIdSrlOrdered_i8_jm,&
-                                    matrixCommScheme_jm,commsMemPosInLoc_jv,commsMemSize_jv,commsMemPosInNgb_jv,ranksToComm_jv,numNodesToCommMshRank,numMshRanksWithComms)
+                                    nodesToComm_jv,commsMemPosInLoc_jv,commsMemSize_jv,commsMemPosInNgb_jv,ranksToComm_jv,numNodesToCommMshRank,numMshRanksWithComms)
 
       end_time(6) = MPI_Wtime()
       elapsed_time_r(6) = end_time(6) - start_time(6)
@@ -343,7 +341,7 @@ contains
       call generate_dof_and_boundary_mpi_comm_scheme_parallel(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,&
                numNodesMshRank,numMshBoundaryNodes,mshBoundaryNodes_i8_jv,numMpiBoundaryNodes,mpiBoundaryNodes_i8_jv,globalIdSrl_i8_jv,globalIdSrlOrdered_i8_jm,&
                numBoundaryNodesMshRank,boundaryNodes_jv,numDoFMshRank,dofNodes_jv,&
-               bnd_matrixCommScheme_jm,bnd_commsMemPosInLoc_jv,bnd_commsMemSize_jv,bnd_commsMemPosInNgb_jv,bnd_ranksToComm_jv,bnd_numNodesToCommMshRank,bnd_numMshRanksWithComms)
+               bnd_nodesToComm_jv,bnd_commsMemPosInLoc_jv,bnd_commsMemSize_jv,bnd_commsMemPosInNgb_jv,bnd_ranksToComm_jv,bnd_numNodesToCommMshRank,bnd_numMshRanksWithComms)
 
       end_time(7) = mpi_wtime()
       elapsed_time_r(7) = end_time(7) - start_time(7)
@@ -396,9 +394,9 @@ contains
             connecVTK_jv%vector(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems,connecParWork_jm%matrix(iMshRank)%elems,coordPar_jm%matrix(iMshRank)%elems,workingNodesPar_jv%vector(iMshRank)%elems,&
             boundaryNodes_jv%vector(iMshRank)%elems,dofNodes_jv%vector(iMshRank)%elems,boundFacesCodesMshRank_jv%vector(iMshRank)%elems,connecOrigBoundFacesMshRank_jm%matrix(iMshRank)%elems,connecBoundFacesMshRank_jm%matrix(iMshRank)%elems,&
             numPerNodesMshRank(iMshRank),masSlaRankPar_jm%matrix(iMshRank)%elems,&
-            numNodesToCommMshRank(iMshRank),numMshRanksWithComms(iMshRank),matrixCommScheme_jm%matrix(iMshRank)%elems,commsMemPosInLoc_jv%vector(iMshRank)%elems,&
+            numNodesToCommMshRank(iMshRank),numMshRanksWithComms(iMshRank),nodesToComm_jv%vector(iMshRank)%elems,commsMemPosInLoc_jv%vector(iMshRank)%elems,&
             commsMemSize_jv%vector(iMshRank)%elems,commsMemPosInNgb_jv%vector(iMshRank)%elems,ranksToComm_jv%vector(iMshRank)%elems,&
-            bnd_numNodesToCommMshRank(iMshRank),bnd_numMshRanksWithComms(iMshRank),bnd_matrixCommScheme_jm%matrix(iMshRank)%elems,bnd_commsMemPosInLoc_jv%vector(iMshRank)%elems,&
+            bnd_numNodesToCommMshRank(iMshRank),bnd_numMshRanksWithComms(iMshRank),bnd_nodesToComm_jv%vector(iMshRank)%elems,bnd_commsMemPosInLoc_jv%vector(iMshRank)%elems,&
             bnd_commsMemSize_jv%vector(iMshRank)%elems,bnd_commsMemPosInNgb_jv%vector(iMshRank)%elems,bnd_ranksToComm_jv%vector(iMshRank)%elems,&
             vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank) 
       end do
@@ -3072,14 +3070,13 @@ contains
 #define _NEWMETHOD_ 1
 
    subroutine generate_mpi_comm_scheme_parallel(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numMpiBoundaryNodes,mpiBoundaryNodes_i8_jv,globalIdSrl_i8_jv,globalIdSrlOrdered_i8_jm,&
-               matrixCommScheme_jm,commsMemPosInLoc_jv,commsMemSize_jv,commsMemPosInNgb_jv,ranksToComm_jv,numNodesToCommMshRank,numMshRanksWithComms)
+               nodesToComm_jv,commsMemPosInLoc_jv,commsMemSize_jv,commsMemPosInNgb_jv,ranksToComm_jv,numNodesToCommMshRank,numMshRanksWithComms)
       !generate a matrix with the comm schemes for shared nodes between procs
       integer(4),intent(in) :: numMshRanks2Part,numMpiBoundaryNodes(numMshRanksInMpiRank)
       integer(4),intent(in) :: numMshRanksInMpiRank,mshRanksInMpiRank(numMshRanksInMpiRank),mapMshRankToMpiRank(numMshRanks2Part)
       type(jagged_vector_int8),intent(in) :: mpiBoundaryNodes_i8_jv,globalIdSrl_i8_jv
       type(jagged_matrix_int8),intent(in) :: globalIdSrlOrdered_i8_jm
-      type(jagged_matrix_int4),intent(inout) :: matrixCommScheme_jm
-      type(jagged_vector_int4),intent(inout) :: commsMemPosInLoc_jv,commsMemSize_jv,commsMemPosInNgb_jv,ranksToComm_jv
+      type(jagged_vector_int4),intent(inout) :: nodesToComm_jv,commsMemPosInLoc_jv,commsMemSize_jv,commsMemPosInNgb_jv,ranksToComm_jv
       integer(int_size),allocatable,intent(inout) :: numNodesToCommMshRank(:),numMshRanksWithComms(:)
 
       integer(4) :: iMshRank,mshRank,iMshRankTrgt,mpiRank,iAux,memPos,memSize,memDisp
@@ -3175,7 +3172,7 @@ contains
 
       allocate(numNodesToCommMshRank(numMshRanksInMpiRank))
       allocate(numMshRanksWithComms(numMshRanksInMpiRank))
-      allocate(matrixCommScheme_jm%matrix(numMshRanksInMpiRank))
+      allocate(nodesToComm_jv%vector(numMshRanksInMpiRank))
       allocate(ranksToComm_jv%vector(numMshRanksInMpiRank))
       allocate(commsMemSize_jv%vector(numMshRanksInMpiRank))
       allocate(commsMemPosInLoc_jv%vector(numMshRanksInMpiRank))
@@ -3282,7 +3279,8 @@ contains
 
          !write(*,*) 'rank[',mpi_rank,']mshRankOrig',mshRankOrig,'numNodesToCommMshRank',numNodesToCommMshRank(iMshRank),'numBNOrig',numBNOrig,'cSNN',auxCommSchemeNumNodes(:),&
          !          'numMshRanksWithComms',numMshRanksWithComms(iMshRank),'r2C',ranksToComm_jv%vector(iMshRank)%elems(:)
-         allocate(matrixCommScheme_jm%matrix(iMshRank)%elems(numNodesToCommMshRank(iMshRank),3))
+
+         allocate(nodesToComm_jv%vector(iMshRank)%elems(numNodesToCommMshRank(iMshRank)))
          iAux=0
          do iMshRankTrgt=1,numMshRanks2Part
             mshRankTrgt = iMshRankTrgt-1
@@ -3308,9 +3306,7 @@ contains
                      iNodeLPos = binarySearch_int_i8(globalIdSrlOrdered_i8_jm%matrix(iMshRank)%elems(:,1),iNodeGSrl)
                      iNodeL = globalIdSrlOrdered_i8_jm%matrix(iMshRank)%elems(iNodeLPos,2)
                      !write(*,*) 'iNodeL',iNodeL,'iNodeG',iNodeGSrl,'mshRank',mshRankTrgt
-                     matrixCommScheme_jm%matrix(iMshRank)%elems(iAux,1) = iNodeL
-                     matrixCommScheme_jm%matrix(iMshRank)%elems(iAux,2) = iNodeGSrl
-                     matrixCommScheme_jm%matrix(iMshRank)%elems(iAux,3) = mshRankTrgt
+                     nodesToComm_jv%vector(iMshRank)%elems(iAux) = iNodeL
                   end if
 
                end do
@@ -3379,7 +3375,7 @@ contains
    subroutine generate_dof_and_boundary_mpi_comm_scheme_parallel(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,&
                numNodesMshRank,numMshBoundaryNodes,mshBoundaryNodes_i8_jv,numMpiBoundaryNodes,mpiBoundaryNodes_i8_jv,globalIdSrl_i8_jv,globalIdSrlOrdered_i8_jm,&
                numBoundaryNodesMshRank,boundaryNodes_jv,numDoFMshRank,dofNodes_jv,&
-               bnd_matrixCommScheme_jm,bnd_commsMemPosInLoc_jv,bnd_commsMemSize_jv,bnd_commsMemPosInNgb_jv,bnd_ranksToComm_jv,bnd_numNodesToCommMshRank,bnd_numMshRanksWithComms)
+               bnd_nodesToComm_jv,bnd_commsMemPosInLoc_jv,bnd_commsMemSize_jv,bnd_commsMemPosInNgb_jv,bnd_ranksToComm_jv,bnd_numNodesToCommMshRank,bnd_numMshRanksWithComms)
       !generate a matrix with the comm schemes for shared nodes between procs
       integer,intent(in) :: numMshRanks2Part,numNodesMshRank(numMshRanksInMpiRank),numMpiBoundaryNodes(numMshRanksInMpiRank),numMshBoundaryNodes(numMshRanksInMpiRank)
       integer,intent(in) :: numMshRanksInMpiRank,mshRanksInMpiRank(numMshRanksInMpiRank),mapMshRankToMpiRank(numMshRanks2Part)
@@ -3387,8 +3383,7 @@ contains
       type(jagged_matrix_int8),intent(in) :: globalIdSrlOrdered_i8_jm
       integer,dimension(numMshRanksInMpiRank),intent(out) :: numBoundaryNodesMshRank,numDoFMshRank
       type(jagged_vector_int4),intent(inout) :: boundaryNodes_jv,dofNodes_jv
-      type(jagged_matrix_int4),intent(inout) :: bnd_matrixCommScheme_jm
-      type(jagged_vector_int4),intent(inout) :: bnd_commsMemPosInLoc_jv,bnd_commsMemSize_jv,bnd_commsMemPosInNgb_jv,bnd_ranksToComm_jv
+      type(jagged_vector_int4),intent(inout) :: bnd_nodesToComm_jv,bnd_commsMemPosInLoc_jv,bnd_commsMemSize_jv,bnd_commsMemPosInNgb_jv,bnd_ranksToComm_jv
       integer(4),allocatable,intent(inout) :: bnd_numNodesToCommMshRank(:),bnd_numMshRanksWithComms(:)
 
       integer(4) :: iMshRank,mshRank,iMshRankTrgt,mpiRank,memPos,memSize,memDisp
@@ -3672,7 +3667,7 @@ contains
       !---------------------------------------------------------------------------------------------------------
       allocate(bnd_numNodesToCommMshRank(numMshRanksInMpiRank))
       allocate(bnd_numMshRanksWithComms(numMshRanksInMpiRank))
-      allocate(bnd_matrixCommScheme_jm%matrix(numMshRanksInMpiRank))
+      allocate(bnd_nodesToComm_jv%vector(numMshRanksInMpiRank))
       allocate(bnd_ranksToComm_jv%vector(numMshRanksInMpiRank))
       allocate(bnd_commsMemSize_jv%vector(numMshRanksInMpiRank))
       allocate(bnd_commsMemPosInLoc_jv%vector(numMshRanksInMpiRank))
@@ -3760,7 +3755,7 @@ contains
          !write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'bnd_commsMemPosInLoc->',bnd_commsMemPosInLoc_jv%vector(iMshRank)%elems(:)
          !write(*,*) '[',mpi_rank,']mshRank',mshRankOrig,'bnd_commsMemSize->',bnd_commsMemSize_jv%vector(iMshRank)%elems(:)
 
-         allocate(bnd_matrixCommScheme_jm%matrix(iMshRank)%elems(bnd_numNodesToCommMshRank(iMshRank),3))
+         allocate(bnd_nodesToComm_jv%vector(iMshRank)%elems(bnd_numNodesToCommMshRank(iMshRank)))
          iAux=0
          do iMshRankTrgt=1,numMshRanks2Part
             mshRankTrgt = iMshRankTrgt-1
@@ -3785,9 +3780,7 @@ contains
                      iNodeLPos = binarySearch_int_i8(globalIdSrlOrdered_i8_jm%matrix(iMshRank)%elems(:,1),iNodeGSrl)
                      iNodeL = globalIdSrlOrdered_i8_jm%matrix(iMshRank)%elems(iNodeLPos,2)
 
-                     bnd_matrixCommScheme_jm%matrix(iMshRank)%elems(iAux,1) = iNodeL
-                     bnd_matrixCommScheme_jm%matrix(iMshRank)%elems(iAux,2) = iNodeGSrl
-                     bnd_matrixCommScheme_jm%matrix(iMshRank)%elems(iAux,3) = mshRankTrgt
+                     bnd_nodesToComm_jv%vector(iMshRank)%elems(iAux) = iNodeL
                   end if
                end do
 
