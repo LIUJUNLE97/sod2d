@@ -543,7 +543,7 @@ contains
          aux_array_i8(1)=mshRankNodeEnd_i8
          call write_dataspace_int8_hyperslab_parallel(hdf5_file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_i8)
 
-         deallocate(aux_array_i8(1))
+         deallocate(aux_array_i8)
          allocate(aux_array(1))
 
          dsetname = '/Parallel_data/rankElemStart'
