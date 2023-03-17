@@ -7,8 +7,10 @@ module mod_mpi
    implicit none
 
    integer :: mpi_rank, mpi_size, mpi_err   
-   integer :: mpi_integer_size,mpi_real_size,mpi_real4_size,mpi_real8_size
-   integer :: mpi_datatype_int,mpi_datatype_real,mpi_datatype_real4,mpi_datatype_real8
+   integer :: mpi_integer_size,mpi_int4_size,mpi_int8_size
+   integer :: mpi_real_size,mpi_real4_size,mpi_real8_size
+   integer :: mpi_datatype_int,mpi_datatype_int4,mpi_datatype_int8
+   integer :: mpi_datatype_real,mpi_datatype_real4,mpi_datatype_real8
 
    integer :: smNode_comm,smNode_rank,smNode_size
    integer :: num_devices, id_device
@@ -23,6 +25,8 @@ module mod_mpi
       call mpi_comm_size(MPI_COMM_WORLD, mpi_size, mpi_err)
       
       mpi_datatype_int = MPI_INTEGER
+      mpi_datatype_int4 = MPI_INTEGER4
+      mpi_datatype_int8 = MPI_INTEGER8
       mpi_datatype_real4 = MPI_REAL4
       mpi_datatype_real8 = MPI_REAL8
 
@@ -36,6 +40,9 @@ module mod_mpi
       end if   
 
       call MPI_Type_size(mpi_datatype_int,mpi_integer_size, mpi_err)
+      call MPI_Type_size(mpi_datatype_int4,mpi_int4_size, mpi_err)
+      call MPI_Type_size(mpi_datatype_int8,mpi_int8_size, mpi_err)
+
       call MPI_Type_size(mpi_datatype_real,mpi_real_size,mpi_err)
       call MPI_Type_size(mpi_datatype_real4,mpi_real4_size,mpi_err)
       call MPI_Type_size(mpi_datatype_real8,mpi_real8_size,mpi_err)

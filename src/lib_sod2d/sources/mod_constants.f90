@@ -2,7 +2,8 @@ module mod_constants
 
       implicit none
 
-      integer(4), parameter::rp = 4 !8
+      integer(4), parameter :: rp = 4 !(4/8)
+      integer(4), parameter :: rp_vtk = 4 !(4/8)
 
       !
       ! Dimensions
@@ -34,9 +35,6 @@ module mod_constants
       integer(4), parameter :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
       integer(4), parameter :: flag_normalise_entropy=1
 
-
-      logical, parameter :: save_vtk = .false.
-      logical, parameter :: save_hdf5 = .true.
 
       !
       ! Solver params

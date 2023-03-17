@@ -129,7 +129,7 @@ contains
         end do
 
         !5. generar esquema de comunicacio
-        call generate_mpi_comm_scheme(vecSharedBN_full)
+        call generate_mpi_comm_scheme_i4(vecSharedBN_full)
 
         deallocate(boundaryNodes)
         deallocate(vecSharedBN_full)
