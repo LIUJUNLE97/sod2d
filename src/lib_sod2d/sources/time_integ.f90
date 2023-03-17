@@ -453,7 +453,7 @@ module time_integ
                endif
 
                errMax = dt*abs(res(1)-res(2))/abs(res_ini*dt_min_g)
-               errMax = abs(res(1)-res(2))/abs(res_ini)
+               !errMax = abs(res(1)-res(2))/abs(res_ini)
 
 
                res(2) = res(1)
