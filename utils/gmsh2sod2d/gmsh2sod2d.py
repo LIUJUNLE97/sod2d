@@ -4,7 +4,7 @@
 #
 # Export a mesh from GMSH to Sod2D format.
 #
-# Last rev: 16/02/2023
+# Last rev: 14/03/2023
 from __future__ import print_function, division
 
 # Please do not delete this part otherwise it will not work
@@ -310,9 +310,10 @@ header = #pyAlya.io.AlyaMPIO_header(
 )
 """
 # Read the number of nodes in batches and write the COORD file
-print('--| Reading in batches of %d: '%args.size,flush=True)
+numBatches = int(np.ceil(nnodes/args.size))
+print('--| Reading Nodes coords in %d batches of %d...'%(numBatches,args.size),flush=True)
 
-for ibatch in range(int(np.ceil(nnodes/args.size))):
+for ibatch in range(numBatches):
 	print('--|   Batch %d... '%(ibatch+1),end='',flush=True)
     # Read from text file
 	nread = min(args.size,nnodes-ibatch*args.size)
@@ -360,9 +361,11 @@ nbatchi, nbatchb           = 0, 0
 nel_periodic 					= 0
 lnodp_ndim						= 0
 nbatchp							= 0
+
 # Read the number of elements in batches 
-print('--| Reading in batches of %d: '%args.size,flush=True)
-for ibatch in range(int(np.ceil(nelems/args.size))):
+numBatches = int(np.ceil(nelems/args.size))
+print('--| Reading elements in %d batches of %d...'%(numBatches,args.size),flush=True)
+for ibatch in range(numBatches):
 	print('--|   Batch %d... '%(ibatch+1),end='',flush=True)	
 	# Read from text file
 	nread = min(args.size,nelems-ibatch*args.size)
@@ -487,9 +490,10 @@ for iper in range(num_bounds_per):
 	nperlinks = np.genfromtxt(mshFile,dtype=('i8'),comments='$',max_rows=1)
 	if default_size: args.size = nperlinks
 	print('--| Per bound <%d> per links: %d'%(iper+1,nperlinks),flush=True)
-	# Read the number of elements in batches 
-	print('--| Reading Per bounds in batches of %d: '%args.size,flush=True)
-	for ibatch in range(int(np.ceil(nperlinks/args.size))):
+	# Read the number of Per Bounds in batches 
+	numBatches = int(np.ceil(nperlinks/args.size))
+	print('--| Reading Per Bounds in %d batches of %d...'%(numBatches,args.size),flush=True)
+	for ibatch in range(numBatches):
 		print('--|   Batch %d... '%(ibatch+1),end='',flush=True)	
 		# Read from text file
 		nread = min(args.size,nperlinks-ibatch*args.size)

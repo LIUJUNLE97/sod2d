@@ -56,7 +56,7 @@ contains
       this%saveInitialField = .false.
       this%loadResults = .false.
       this%continue_oldLogs = .false.
-      this%load_step = 8001
+      this%load_step = 1001
 
       this%nstep = 20001
 

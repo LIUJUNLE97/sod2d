@@ -671,7 +671,7 @@ contains
       numChunks = ceiling(real(numElemsSrl)/real(maxRows2read))
       if(mpi_rank.eq.0) write(*,*) ' -Reading elems by chunks | numChunks',numChunks,'maxRows2read',maxRows2read
 
-      ms_dims(1) = nnode
+      ms_dims(1) = int(nnode,hsize_t)
       ms_dims(2) = 1
       ms_offset(1) = 0
       ms_offset(2) = 0
@@ -685,8 +685,8 @@ contains
       nextElemToRead=listElemsRank(elemCnt+1)
       ms_offset(2) = 0
       do iChunk=1,numChunks
-         ms_dims(1) = nnode
-         ms_dims(2) = vecChunks(iChunk)
+         ms_dims(1) = int(nnode,hsize_t)
+         ms_dims(2) = int(vecChunks(iChunk),hsize_t)
          allocate(auxConnec_i8(ms_dims(1),ms_dims(2)))
          !write(*,*) 'iChunk',iChunk,'ms_dims',ms_dims,'ms_offset',ms_offset(2),'+',ms_offset(2) + ms_dims(2)!,'fsdims',fs_dims
 
@@ -735,8 +735,8 @@ contains
 
       dtype = h5_datatype_int8
 
-      ms_dims(1) = nnode
-      ms_dims(2) = numElemsInRank
+      ms_dims(1) = int(nnode,hsize_t)
+      ms_dims(2) = int(numElemsInRank,hsize_t)
       ms_numElems = nnode*numElemsInRank
       !write(*,*) 'ms_numElems(',mpi_rank,')',ms_numElems
       allocate(ms_coords(ms_rank,nnode*numElemsInRank))
@@ -796,11 +796,11 @@ contains
       numChunks = ceiling(real(numNodesSrl)/real(maxRows2read))
       if(mpi_rank.eq.0) write(*,*) ' -Reading nodescoords by chunks | numChunks',numChunks,'maxRows2read',maxRows2read
 
-      ms_dims(1) = ndime
+      ms_dims(1) = int(ndime,hsize_t)
       ms_dims(2) = 1
       ms_offset(1) = 0
       ms_offset(2) = 0
-      dtype = H5T_NATIVE_DOUBLE
+      dtype = h5_datatype_real8
 
       allocate(vecChunks(numChunks))
       call distribution_algorithm(numNodesSrl,numChunks,vecChunks)
@@ -810,8 +810,8 @@ contains
       nextNodeToRead=listNodesRank(nodeCnt+1)
       ms_offset(2) = 0
       do iChunk=1,numChunks
-         ms_dims(1) = ndime
-         ms_dims(2) = vecChunks(iChunk)
+         ms_dims(1) = int(ndime,hsize_t)
+         ms_dims(2) = int(vecChunks(iChunk),hsize_t)
          allocate(auxCoords(ms_dims(1),ms_dims(2)))
          !write(*,*) 'iChunk',iChunk,'ms_dims',ms_dims,'ms_offset',ms_offset(2),'+',ms_offset(2) + ms_dims(2),'fsdims',fs_dims
 
@@ -861,8 +861,8 @@ contains
       
       dtype = h5_datatype_real8
 
-      ms_dims(1) = ndime
-      ms_dims(2) = numNodesInRank
+      ms_dims(1) = int(ndime,hsize_t)
+      ms_dims(2) = int(numNodesInRank,hsize_t)
 
       ms_numElems = ms_dims(1)*ms_dims(2)
       allocate(ms_coords(ms_rank,ms_dims(1)*ms_dims(2)))
@@ -989,7 +989,7 @@ contains
       maxFaces2read =1000
 
       dtype = h5_datatype_int8
-      ms_dims(1) = npbou
+      ms_dims(1) = int(npbou,hsize_t)
       ms_dims(2) = 0
       ms_offset(1) = 0
       ms_offset(2) = 0
@@ -999,7 +999,7 @@ contains
       allocate(auxFacesInRank_i8(npbou+1,faces2readInChunk))
       auxFacesInRank_i8(:,:) = 0
 
-      ms_dims(2) = faces2readInChunk
+      ms_dims(2) = int(faces2readInChunk,hsize_t)
 
       start_time(1) = MPI_Wtime()
 
@@ -1154,7 +1154,7 @@ contains
       dtype = h5_datatype_int8
 
       if(numBoundsInRank.ne.0) then
-         ms_dims(1) = numBoundsInRank
+         ms_dims(1) = int(numBoundsInRank,hsize_t)
       else
          ms_dims(1) = 1 !dummy acces case numBoundsInRank=0
       end if
@@ -1285,7 +1285,7 @@ contains
 
       dtype = h5_datatype_int8
       ms_dims(1) = 2
-      ms_dims(2) = numPerLinkedNodesSrl
+      ms_dims(2) = int(numPerLinkedNodesSrl,hsize_t)
       ms_offset(1) = 0
       ms_offset(2) = 0
 
