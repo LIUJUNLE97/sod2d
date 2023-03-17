@@ -494,6 +494,7 @@ module mod_solver
                      auxN(idime+2) = aux
                   end do
                   call nvtxEndRange()
+
                   call nvtxStartRange("GMRES: Update auxN2")
                   call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
                   call nvtxEndRange()
@@ -727,6 +728,7 @@ module mod_solver
                            end do
                         end do
                         !$acc end parallel loop
+                        call nvtxEndRange()
                         exit outer
                      end if
                      !if(mpi_rank.eq.0)print*, " err ",errMax," it ",ik,' emass ',err_mass," eener ",err_ener," emom ",err_mom
@@ -785,6 +787,7 @@ module mod_solver
                         end do
                      end do
                      !$acc end parallel loop
+                     call nvtxEndRange()
                   end if
 
                   if (flag_gmres_mem_free .eqv. .true.) then
@@ -847,18 +850,39 @@ module mod_solver
 
                   ! Compute the new H matrix
                   ! TODO: make it gpu friendly
+                  call nvtxStartRange("Arnoldi: iterations")
                   do jk = 1,ik
+                     call nvtxStartRange("Arnoldi: Qjk*Qik+1")
+                     ! New version
                      aux(:) = 0.0_rp
-                     do ipoin=1,npoin_w
-                        aux(1) = aux(1) + real((Q_mass(lpoin_w(ipoin),jk)*Q_mass(lpoin_w(ipoin),ik+1)),8)
-                        aux(2) = aux(2) + real((Q_ener(lpoin_w(ipoin),jk)*Q_ener(lpoin_w(ipoin),ik+1)),8)
+                     auxDot = 0.0_rp
+                     !$acc parallel loop reduction(+:auxDot)
+                     do ipoin = 1,npoin_w
+                        auxDot = auxDot + real(Q_Mass(lpoin_w(ipoin),jk)*Q_Mass(lpoin_w(ipoin),ik+1),8)
+                     end do
+                     !$acc end parallel loop
+                     aux(1) = auxDot
+                     auxDot = 0.0_rp
+                     !$acc parallel loop reduction(+:auxDot)
+                     do ipoin = 1,npoin_w
+                        auxDot = auxDot + real(Q_Ener(lpoin_w(ipoin),jk)*Q_Ener(lpoin_w(ipoin),ik+1),8)
+                     end do
+                     !$acc end parallel loop
+                     aux(2) = auxDot
                      do idime = 1,ndime
-                           aux(idime+2) = aux(idime+2) + real((Q_mom(lpoin_w(ipoin),idime,jk)*Q_mom(lpoin_w(ipoin),idime,ik+1)),8)
+                        auxDot = 0.0_rp
+                        !$acc parallel loop reduction(+:auxDot)
+                        do ipoin = 1,npoin_w
+                           auxDot = auxDot + real(Q_Mom(lpoin_w(ipoin),idime,jk)*Q_Mom(lpoin_w(ipoin),idime,ik+1),8)
                         end do
+                        !$acc end parallel loop
+                        aux(idime+2) = auxDot
                      end do
 
                      call MPI_Allreduce(aux,aux2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                     call nvtxEndRange()
 
+                     call nvtxStartRange("Arnoldi: Update H and Q")
                      H_mass(jk,ik) = real(aux2(1),rp)
                      H_ener(jk,ik) = real(aux2(2),rp)
                      !$acc parallel loop
@@ -875,13 +899,31 @@ module mod_solver
                         end do
                         !$acc end parallel loop
                      end do
+                     call nvtxEndRange()
                   end do
+                  call nvtxEndRange()
 
                   ! Fill H(ik+1,ik) with the norms of Q(:,ik+1)
+                  ! New version
                   aux(:) = 0.0_rp
+                  auxDot = 0.0_rp
+                  !$acc parallel loop reduction(+:auxDot)
+                  do ipoin = 1,npoin_w
+                     auxDot = auxDot + real(Q_Mass(lpoin_w(ipoin),ik+1)*Q_Mass(lpoin_w(ipoin),ik+1),8)
+                  end do
+                  !$acc end parallel loop
+                  aux(1) = auxDot
+                  auxDot = 0.0_rp
+                  !$acc parallel loop reduction(+:auxDot)
+                  do ipoin = 1,npoin_w
+                     auxDot = auxDot + real(Q_Ener(lpoin_w(ipoin),ik+1)*Q_Ener(lpoin_w(ipoin),ik+1),8)
+                  end do
+                  !$acc end parallel loop
+                  aux(2) = auxDot
+                  ! Old version
                   do ipoin=1,npoin_w
-                     aux(1) = aux(1) + real((Q_mass(lpoin_w(ipoin),ik+1)*Q_mass(lpoin_w(ipoin),ik+1)),8)
-                     aux(2) = aux(2) + real((Q_ener(lpoin_w(ipoin),ik+1)*Q_ener(lpoin_w(ipoin),ik+1)),8)
+                     !aux(1) = aux(1) + real((Q_mass(lpoin_w(ipoin),ik+1)*Q_mass(lpoin_w(ipoin),ik+1)),8)
+                     !aux(2) = aux(2) + real((Q_ener(lpoin_w(ipoin),ik+1)*Q_ener(lpoin_w(ipoin),ik+1)),8)
                   do idime = 1,ndime
                         aux(idime+2) = aux(idime+2) + real((Q_mom(lpoin_w(ipoin),idime,ik+1)*Q_mom(lpoin_w(ipoin),idime,ik+1)),8)
                      end do
