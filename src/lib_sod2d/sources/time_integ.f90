@@ -119,7 +119,7 @@ module time_integ
             !
             pos = 2 ! Set correction as default value
             
-            call expl_adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,0.1_rp,pt_g,0.1_rp,mu_fluid,mu_sgs,rho(:,2))
+            call expl_adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,pseudo_cfl,pt_g,pseudo_cfl,mu_fluid,mu_sgs,rho(:,2))
             dt_min_g = pt_g
 
             !
@@ -452,7 +452,9 @@ module time_integ
                   res_ini = res(1)
                endif
 
+               errMax = dt*abs(res(1)-res(2))/abs(res_ini*dt_min_g)
                errMax = abs(res(1)-res(2))/abs(res_ini)
+
 
                res(2) = res(1)
 
