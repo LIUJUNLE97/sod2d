@@ -434,7 +434,7 @@ module mod_solver
                   real(rp)  , intent(inout) :: mass_sol(npoin), mom_sol(npoin,ndime), ener_sol(npoin)
                   integer(4), intent(in)    :: istep
                   integer(4)                :: ik, jk, kk, ipoin, idime,npoin_w_g
-                  real(rp)                  :: errMax, errTol, aux,b
+                  real(rp)                  :: errMax, errTol, aux,b, auxDot
                   real(8)                  :: auxN(5),auxN2(5)
 
                   b = sqrt(eps)
@@ -463,6 +463,7 @@ module mod_solver
                   !$acc end kernels
 
                   auxN(:) = 0.0_rp
+                  call nvtxStartRange("GMRES: dot(bmass,bmass)")
                   aux = 0.0_rp
                   !$acc parallel loop reduction(+:aux)
                   do ipoin = 1,npoin_w
@@ -470,7 +471,9 @@ module mod_solver
                   end do
                   !$acc end parallel loop
                   auxN(1) = aux
+                  call nvtxEndRange()
 
+                  call nvtxStartRange("GMRES: dot(bener,bener)")
                   aux = 0.0_rp
                   !$acc parallel loop reduction(+:aux)
                   do ipoin = 1,npoin_w
@@ -478,7 +481,9 @@ module mod_solver
                   end do
                   !$acc end parallel loop
                   auxN(2) = aux
+                  call nvtxEndRange()
 
+                  call nvtxStartRange("GMRES: dot(bmom,bmom)")
                   do idime = 1,ndime
                      aux = 0.0_rp
                      !$acc parallel loop reduction(+:aux)
@@ -488,8 +493,10 @@ module mod_solver
                      !$acc end parallel loop
                      auxN(idime+2) = aux
                   end do
-
+                  call nvtxEndRange()
+                  call nvtxStartRange("GMRES: Update auxN2")
                   call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                  call nvtxEndRange()
 
                   if(auxN2(1)<epsilon(errTol)) auxN2(1) = 1.0_rp
                   if(auxN2(2)<epsilon(errTol)) auxN2(2) = 1.0_rp
@@ -510,15 +517,21 @@ module mod_solver
                   epsQ(3) = eps
 
                   if(istep == 1) then 
+                     call nvtxStartRange("GMRES: form_approx_Jy initial")
                      call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                         atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                         rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                         mass_sol,mom_sol,ener_sol,.true.)
+                     call nvtxEndRange()
                   end if
 
+                  call nvtxStartRange("GMRES: callling init_gmres")
                   call init_gmres(npoin,npoin_w,lpoin_w,bmass,bmom,bener,dt,pt,gammaRK)
+                  call nvtxEndRange()
 
+                  call nvtxStartRange("GMRES: iterations")
                   outer:do ik = 1,maxIter
+
                      ! TODO: put this inside Jy and make gpu friendly
                      ! Verify: if this is properly done, ||Q|| = 1, so step should be
 
@@ -527,21 +540,44 @@ module mod_solver
                      pEner(:) = Q_Ener(:,ik)
                      pMom(:,:) = Q_Mom(:,:,ik)
                      !$acc end kernels
-                     !if(ik .lt. 3) then 
-                         auxN(:) = 0.0_rp
-                         ! Commenting out ACC here as it will fail with this. Need to remake in a GPU-friendly way
-                        !!$acc parallel loop
+                     !if(ik .lt. 3) then  !TODO: can we remove this?
+                        ! New version
+                        auxN(:) = 0.0_rp
+                        auxDot = 0.0_rp
+                        call nvtxStartRange("GMRES: dot(pMass,pMass)")
+                        !$acc parallel loop reduction(+:auxDot)
                         do ipoin = 1,npoin_w
-                           auxN(1) = auxN(1) + real(pMass(lpoin_w(ipoin))**2,8)
-                           auxN(2) = auxN(2) + real(pEner(lpoin_w(ipoin))**2,8)
-                           !!$acc loop seq
-                           do idime = 1,ndime
-                              auxN(idime+2) = auxN(idime+2) + real(pMom(lpoin_w(ipoin),idime)**2,8)
-                           end do
+                           auxDot = auxDot + real(pMass(lpoin_w(ipoin))**2,8)
                         end do
-                        !!$acc end parallel loop
+                        !$acc end parallel loop
+                        auxN(1) = auxDot
+                        call nvtxEndRange()
 
+                        auxDot = 0.0_rp
+                        call nvtxStartRange("GMRES: dot(pEner,pEner)")
+                        !$acc parallel loop reduction(+:auxDot)
+                        do ipoin = 1,npoin_w
+                           auxDot = auxDot + real(pEner(lpoin_w(ipoin))**2,8)
+                        end do
+                        !$acc end parallel loop
+                        auxN(2) = auxDot
+                        call nvtxEndRange()
+
+                        call nvtxStartRange("GMRES: dot(pMom,pMom)")
+                        do idime = 1,ndime
+                           auxDot = 0.0_rp
+                           !$acc parallel loop reduction(+:auxDot)
+                           do ipoin = 1,npoin_w
+                              auxDot = auxDot + real(pMom(lpoin_w(ipoin),idime)**2,8)
+                           end do
+                           !$acc end parallel loop
+                           auxN(idime+2) = auxDot
+                        end do
+                        call nvtxEndRange()
+
+                        call nvtxStartRange("GMRES: Update auxN2")
                         call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                        call nvtxEndRange()
 
                         if(auxN2(1)<epsilon(errTol)) auxN2(1) = 1.0_rp
                         if(auxN2(2)<epsilon(errTol)) auxN2(2) = 1.0_rp
@@ -554,21 +590,45 @@ module mod_solver
                         epsQ(1) = 1.0_rp/(real(npoin_w_g,rp)*sqrt(real(auxN2(3),rp)))
                         epsQ(2) = 1.0_rp/(real(npoin_w_g,rp)*sqrt(real(auxN2(4),rp)))
                         epsQ(3) = 1.0_rp/(real(npoin_w_g,rp)*sqrt(real(auxN2(5),rp)))
-                                            
+
+                        ! new version
                         auxN(:) = 0.0_rp
-                        !$acc parallel loop
+                        auxDot = 0.0_rp
+                        call nvtxStartRange("GMRES: mod rho")
+                        !$acc parallel loop reduction(+:auxDot)
                         do ipoin = 1,npoin_w
-                           auxN(1) = auxN(1) + real(b*abs(rho(lpoin_w(ipoin)))+b,8)
-                           auxN(2) = auxN(2) + real(b*abs(E(lpoin_w(ipoin)))+b,8)
-                           !$acc loop seq
-                           do idime = 1,ndime
-                              auxN(idime+2) = auxN(idime+2) + real(b*abs(q(lpoin_w(ipoin),idime))+b,8)
-                           end do
+                           auxDot = auxDot + real(b*abs(rho(lpoin_w(ipoin)))+b,8)
                         end do
                         !$acc end parallel loop
+                        auxN(1) = auxDot
+                        call nvtxEndRange()
 
+                        auxDot = 0.0_rp
+                        call nvtxStartRange("GMRES: mod E")
+                        !$acc parallel loop reduction(+:auxDot)
+                        do ipoin = 1,npoin_w
+                           auxDot = auxDot + real(b*abs(E(lpoin_w(ipoin)))+b,8)
+                        end do
+                        !$acc end parallel loop
+                        auxN(2) = auxDot
+                        call nvtxEndRange()
+
+                        call nvtxStartRange("GMRES: mod q")
+                        do idime = 1,ndime
+                           auxDot = 0.0_rp
+                           !$acc parallel loop reduction(+:auxDot)
+                           do ipoin = 1,npoin_w
+                              auxDot = auxDot + real(b*abs(q(lpoin_w(ipoin),idime))+b,8)
+                           end do
+                           !$acc end parallel loop
+                           auxN(idime+2) = auxDot
+                        end do
+                        call nvtxEndRange()
+
+                        call nvtxStartRange("GMRES: Update auxN2")
                         call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
-                        
+                        call nvtxEndRange()
+
                         epsR = real(auxN2(1),rp)*epsR
                         epsE = real(auxN2(2),rp)*epsE
                         epsQ(1) = real(auxN2(3),rp)*epsQ(1)
@@ -583,13 +643,18 @@ module mod_solver
                      !                  rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                      !                  gammaRK,dt,pt,1)
 
+                     call nvtxStartRange("GMRES: arnoldi_iter")
                      call arnoldi_iter(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                         atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                         rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                         gammaRK,dt,pt)
+                     call nvtxEndRange()
 
+                     call nvtxStartRange("GMRES: apply_givens_rotation")
                      call apply_givens_rotation(ik)
+                     call nvtxEndRange()
 
+                     call nvtxStartRange("GMRES: update betas and errors")
                      beta_mass(ik+1) = -sn_mass(ik)*beta_mass(ik) 
                      beta_mass(ik) = cs_mass(ik)*beta_mass(ik)
                      err_mass = abs(beta_mass(ik+1))/norm_bmass
@@ -608,9 +673,11 @@ module mod_solver
                      do idime = 1,ndime
                         errmax = max(errmax,abs(err_mom(idime)))
                      end do
+                     call nvtxEndRange()
 
                      if (errMax .lt. errTol) then
                         ! Set upd* to beta_*
+                        call nvtxStartRange("GMRES: compute updates")
                         !$acc kernels
                         updMass(1:maxIter) = beta_mass(1:maxIter)
                         updEner(1:maxIter) = beta_ener(1:maxIter)
@@ -632,21 +699,27 @@ module mod_solver
                               end do
                            end do
                         end do
+                        call nvtxEndRange()
 
+                        call nvtxStartRange("GMRES: update solution")
                         !$acc parallel loop
                         do ipoin = 1,npoin_w
                            aux = 0.0_rp
+                           !$acc loop seq
                            do kk = 1,ik
                               aux = aux + Q_Mass(lpoin_w(ipoin),kk)*updMass(kk)
                            end do
                            mass_sol(lpoin_w(ipoin)) = mass_sol(lpoin_w(ipoin)) + aux
                            aux = 0.0_rp
+                           !$acc loop seq
                            do kk = 1,ik
                               aux = aux + Q_Ener(lpoin_w(ipoin),kk)*updEner(kk)
                            end do
                            ener_sol(lpoin_w(ipoin)) = ener_sol(lpoin_w(ipoin)) + aux
+                           !$acc loop seq
                            do idime = 1,ndime
                               aux = 0.0_rp
+                              !$acc loop seq
                               do kk = 1,ik
                                  aux = aux + Q_Mom(lpoin_w(ipoin),idime,kk)*updMom(kk,idime)
                               end do
@@ -659,10 +732,12 @@ module mod_solver
                      !if(mpi_rank.eq.0)print*, " err ",errMax," it ",ik,' emass ',err_mass," eener ",err_ener," emom ",err_mom
 
                   end do outer
+                  call nvtxEndRange()
 
                   !if(mpi_rank.eq.0)print*, "(gmres) err ",errMax," it ",ik,' emass ',err_mass," eener ",err_ener," emom ",err_mom
 
                   if(ik == (maxIter+1)) then
+                     call nvtxStartRange("GMRES: non-converged update")
                      !$acc kernels
                      updMass(1:maxIter) = beta_mass(1:maxIter)
                      updEner(1:maxIter) = beta_ener(1:maxIter)
@@ -688,17 +763,21 @@ module mod_solver
                      !$acc parallel loop
                      do ipoin = 1,npoin_w
                         aux = 0.0_rp
+                        !$acc loop seq
                         do kk = 1,maxIter
                            aux = aux + Q_Mass(lpoin_w(ipoin),kk)*updMass(kk)
                         end do
                         mass_sol(lpoin_w(ipoin)) = mass_sol(lpoin_w(ipoin)) + aux
                         aux = 0.0_rp
+                        !$acc loop seq
                         do kk = 1,maxIter
                            aux = aux + Q_Ener(lpoin_w(ipoin),kk)*updEner(kk)
                         end do
                         ener_sol(lpoin_w(ipoin)) = ener_sol(lpoin_w(ipoin)) + aux
+                        !$acc loop seq
                         do idime = 1,ndime
                            aux = 0.0_rp
+                           !$acc loop seq
                            do kk = 1,maxIter
                               aux = aux + Q_Mom(lpoin_w(ipoin),idime,kk)*updMom(kk,idime)
                            end do
@@ -737,7 +816,7 @@ module mod_solver
                   real(rp)  , intent(in)    :: mu_fluid(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
                   integer(4)                :: idime, jk, ipoin
                   real(rp)                  :: zmass(npoin), zmom(npoin,ndime), zener(npoin)
-                  real(8)                  :: aux(5),aux2(5)
+                  real(8)                  :: aux(5),aux2(5), auxDot
                   
                   ! Compute the new J*Q(:,ik) arrays
                   !$acc kernels
@@ -745,12 +824,15 @@ module mod_solver
                   zmom (:,:) = pMom(:,:)
                   zener(:) = pEner(:)
                   !$acc end kernels
+                  call nvtxStartRange("Arnoldi: J*Q")
                   call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
                                       atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                       rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                                       zmass,zmom,zener,.false.)
+                  call nvtxEndRange()
 
                   ! Update Jy with the complement
+                  call nvtxStartRange("Arnoldi: Compute L*Q")
                   !$acc parallel loop
                   do ipoin = 1,npoin_w
                      Q_Mass(lpoin_w(ipoin),ik+1) = zmass(lpoin_w(ipoin))/(pt) + zmass(lpoin_w(ipoin))/(gammaRK*dt) + Jy_mass(lpoin_w(ipoin))
@@ -761,6 +843,7 @@ module mod_solver
                      end do
                   end do
                   !$acc end parallel loop
+                  call nvtxEndRange()
 
                   ! Compute the new H matrix
                   ! TODO: make it gpu friendly
@@ -769,7 +852,7 @@ module mod_solver
                      do ipoin=1,npoin_w
                         aux(1) = aux(1) + real((Q_mass(lpoin_w(ipoin),jk)*Q_mass(lpoin_w(ipoin),ik+1)),8)
                         aux(2) = aux(2) + real((Q_ener(lpoin_w(ipoin),jk)*Q_ener(lpoin_w(ipoin),ik+1)),8)
-                        do idime = 1,ndime
+                     do idime = 1,ndime
                            aux(idime+2) = aux(idime+2) + real((Q_mom(lpoin_w(ipoin),idime,jk)*Q_mom(lpoin_w(ipoin),idime,ik+1)),8)
                         end do
                      end do
@@ -799,7 +882,7 @@ module mod_solver
                   do ipoin=1,npoin_w
                      aux(1) = aux(1) + real((Q_mass(lpoin_w(ipoin),ik+1)*Q_mass(lpoin_w(ipoin),ik+1)),8)
                      aux(2) = aux(2) + real((Q_ener(lpoin_w(ipoin),ik+1)*Q_ener(lpoin_w(ipoin),ik+1)),8)
-                     do idime = 1,ndime
+                  do idime = 1,ndime
                         aux(idime+2) = aux(idime+2) + real((Q_mom(lpoin_w(ipoin),idime,ik+1)*Q_mom(lpoin_w(ipoin),idime,ik+1)),8)
                      end do
                   end do
@@ -813,6 +896,7 @@ module mod_solver
                   end do
 
                   ! Normalize every Q(:,ik+1)
+                  call nvtxStartRange("Arnoldi: Normalize Q(ik+1)")
                   !$acc parallel loop
                   do ipoin = 1,npoin_w
                      Q_mass(lpoin_w(ipoin),ik+1) = Q_mass(lpoin_w(ipoin),ik+1)/H_mass(ik+1,ik)
@@ -823,6 +907,7 @@ module mod_solver
                      end do
                   end do
                   !$acc end parallel loop
+                  call nvtxEndRange()
                   
               end subroutine arnoldi_iter
 
@@ -1179,6 +1264,7 @@ module mod_solver
                         pMom(lpoin_w(ipoin),idime) = diag*(bmom(lpoin_w(ipoin),idime))
                      end do
                   end do
+                  !$acc end parallel loop
 
               end subroutine smooth_gmres
 
