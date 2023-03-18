@@ -63,11 +63,13 @@ contains
       maxIter=20
       maxIterNonLineal=100
       tol=1e-2
+      pseudo_cfl = 0.1_rp
+      pseudo_steps=10
 
       this%nstep = 50001
       this%maxPhysTime = 20.0_rp
 
-      this%dt = 1.0e-3
+      this%dt = 1.0e-2
       this%cfl_conv = 1.0_rp
       this%cfl_diff = 1.0_rp
       this%nsave  = 1  ! First step to save, TODO: input

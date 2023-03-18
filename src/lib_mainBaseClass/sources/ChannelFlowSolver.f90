@@ -78,17 +78,18 @@ contains
       flag_les = 1
       flag_implicit = 1
       maxIter=20
-      maxIterNonLineal=100
+      maxIterNonLineal=20
       pseudo_max_dt = 1000.0_rp
-      pseudo_cfl = 0.5_rp
       tol=1e-2
+      pseudo_cfl = 0.5_rp
+      pseudo_steps=10
 
       this%loadResults = .true.
       this%continue_oldLogs = .false.
       this%load_step = 70001
 
       this%nstep = 1000000 
-      this%dt = 1e-3
+      this%dt = 5e-3
       this%cfl_conv = 1.0_rp
       this%cfl_diff = 1.0_rp
       this%nsave  = 1  ! First step to save, TODO: input

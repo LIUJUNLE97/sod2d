@@ -23,7 +23,7 @@ module mod_solver
       real(rp)  , allocatable, dimension(:,:,:) :: Q_Mom, H_mom
       logical                                   :: flag_gmres_mem_alloc=.true.
       logical                                   :: flag_gmres_mem_free=.false.
-      real(rp)                                  :: eps=1e-6
+      real(rp)                                  :: eps=1e-8
 
       contains
 
