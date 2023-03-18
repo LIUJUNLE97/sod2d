@@ -63,7 +63,7 @@ contains
       maxIter=20
       maxIterNonLineal=100
       tol=1e-2
-      pseudo_cfl = 0.1_rp
+      pseudo_cfl = 2.0_rp
       pseudo_steps=10
 
       this%nstep = 50001

@@ -558,7 +558,7 @@ module time_integ
                if(itime .lt. 2) then
                   res_ini = res(1)
                endif
-               errMax = abs(res(1))/abs(res_ini)               
+               errMax = abs(res(1)-res(2))/abs(res_ini)               
 
                if(errMax .lt. tol) exit
                !if(mpi_rank.eq.0)print*, " err ",errMax," it ",itime,' emass ',epsR," eener ",epsE," emom ", epsQ(1)," ", epsQ(2)," ",epsQ(3)
