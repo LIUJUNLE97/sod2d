@@ -29,6 +29,9 @@ module mod_numerical_params
 
         ! Implicit solver
         real(rp)    :: pseudo_max_dt = 1e20
+        real(rp)    :: pseudo_cfl = 0.1_rp
+        real(rp)    :: pseudo_ftau = 8.0_rp
+        integer(4) :: pseudo_steps=10
         integer(4) ::  maxIter=20
         integer(4) ::  maxIterNonLineal=20
         real(rp)   ::  tol=1e-4
