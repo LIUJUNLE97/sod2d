@@ -147,7 +147,7 @@ module inicond_reader
       numRanksNodeCnt(:)=1
 
       do i= 1,numNodesToComm
-         iNodeL = matrixCommScheme(i,1)
+         iNodeL = nodesToComm(i)
          numRanksNodeCnt(iNodeL) = numRanksNodeCnt(iNodeL) + 1
       end do 
 

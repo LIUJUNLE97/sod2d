@@ -268,7 +268,7 @@ contains
 
         !$acc parallel loop
         do i=1,numNodesToComm
-            iNodeL = matrixCommScheme(i,1)
+            iNodeL = nodesToComm(i)
             aux_intField_s(i) = intField(iNodeL)
         end do
         !$acc end parallel loop
@@ -284,7 +284,7 @@ contains
 
         !$acc parallel loop
         do i=1,numNodesToComm
-            iNodeL = matrixCommScheme(i,1)
+            iNodeL = nodesToComm(i)
             aux_realField_s(i) = realField(iNodeL)
         end do
         !$acc end parallel loop
@@ -301,7 +301,7 @@ contains
 
         !$acc parallel loop
         do i=1,numNodesToComm
-            iNodeL = matrixCommScheme(i,1)
+            iNodeL = nodesToComm(i)
             aux_intField_r(i) = intField(iNodeL)
         end do
         !$acc end parallel loop
@@ -317,7 +317,7 @@ contains
 
         !$acc parallel loop
         do i=1,numNodesToComm
-            iNodeL = matrixCommScheme(i,1)
+            iNodeL = nodesToComm(i)
             aux_realField_r(i) = realField(iNodeL)
         end do
         !$acc end parallel loop
@@ -334,7 +334,7 @@ contains
 
         !$acc parallel loop
         do i=1,numNodesToComm
-            iNodeL = matrixCommScheme(i,1)
+            iNodeL = nodesToComm(i)
             !$acc atomic update
             intField(iNodeL) = intField(iNodeL) + aux_intField_r(i)
             !$acc end atomic
@@ -349,7 +349,7 @@ contains
 
         !$acc parallel loop
         do i=1,numNodesToComm
-            iNodeL = matrixCommScheme(i,1)
+            iNodeL = nodesToComm(i)
             !$acc atomic update
             realField(iNodeL) = realField(iNodeL) + aux_realField_r(i)
             !$acc end atomic
@@ -365,7 +365,7 @@ contains
 
         !$acc parallel loop
         do i=1,numNodesToComm
-            iNodeL = matrixCommScheme(i,1)
+            iNodeL = nodesToComm(i)
             !$acc atomic update
             intField(iNodeL) = intField(iNodeL) + aux_intField_s(i)
             !$acc end atomic
@@ -380,7 +380,7 @@ contains
 
         !$acc parallel loop
         do i=1,numNodesToComm
-            iNodeL = matrixCommScheme(i,1)
+            iNodeL = nodesToComm(i)
             !$acc atomic update
             realField(iNodeL) = realField(iNodeL) + aux_realField_s(i)
             !$acc end atomic
@@ -396,7 +396,7 @@ contains
 
         !$acc parallel loop
         do i=1,numNodesToComm
-           iNodeL = matrixCommScheme(i,1)
+           iNodeL = nodesToComm(i)
            if(abs(aux_realField_r(i)).gt. cond) then 
               if(abs(realField(iNodeL)).gt. cond) then 
                  !$acc atomic update

@@ -501,7 +501,7 @@ for iper in range(num_bounds_per):
 		#data_per = np.genfromtxt(mshFile,comments='$',max_rows=nread)[:,1:dim_id+1]
 		data_per = np.genfromtxt(mshFile,comments='$',dtype=('i8'),max_rows=nread)
 		if ibatch == 0 and iper == 0:
-			nes_dset = h5file.create_dataset('periodicLinks',(nread,2),dtype='i4',data=data_per,chunks=True,maxshape=(None,2))
+			nes_dset = h5file.create_dataset('periodicLinks',(nread,2),dtype='i8',data=data_per,chunks=True,maxshape=(None,2))
 		else:
 			h5file['periodicLinks'].resize((h5file['periodicLinks'].shape[0] + data_per.shape[0]), axis=0)
 			h5file['periodicLinks'][-data_per.shape[0]:] = data_per
