@@ -2238,7 +2238,7 @@ contains
       end do
       ms_dims(1)=int(bnd_numNodesToComm,hsize_t)
 
-      allocate(nodesToComm(bnd_numNodesToComm))
+      allocate(bnd_nodesToComm(bnd_numNodesToComm))
 
       dsetname = '/Parallel_data_boundary/nodesToComm'
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,bnd_nodesToComm)
