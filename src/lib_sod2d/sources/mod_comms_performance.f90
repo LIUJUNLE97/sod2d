@@ -129,7 +129,7 @@ contains
         end do
 
         !5. generar esquema de comunicacio
-        call generate_mpi_comm_scheme(vecSharedBN_full)
+        call generate_mpi_comm_scheme_i4(vecSharedBN_full)
 
         deallocate(boundaryNodes)
         deallocate(vecSharedBN_full)
@@ -696,7 +696,7 @@ contains
       isOk = .true.
 
       do i=1,numNodesToComm
-         iNodeL = matrixCommScheme(i,1)
+         iNodeL = nodesToComm(i)
          value = real(realField(iNodeL),8)
          if((value>refValueHi).or.(value<refValueLo)) then
             !write(*,*) '[',mpi_rank,'] Wrong value! iNodeL',iNodeL,' value ',value
@@ -715,7 +715,7 @@ contains
       numRanksNodeCnt(:)=1
 
       do i= 1,numNodesToComm
-         iNodeL = matrixCommScheme(i,1)
+         iNodeL = nodesToComm(i)
          numRanksNodeCnt(iNodeL) = numRanksNodeCnt(iNodeL) + 1
       end do 
    end subroutine evalNumRanksNodeCnt

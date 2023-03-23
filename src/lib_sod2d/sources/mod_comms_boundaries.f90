@@ -131,7 +131,7 @@ contains
 
         !$acc parallel loop
         do i=1,bnd_numNodesToComm
-            iNodeL = bnd_matrixCommScheme(i,1)
+            iNodeL = bnd_nodesToComm(i)
             aux_bnd_intField_s(i) = intField(iNodeL)
         end do
         !$acc end parallel loop
@@ -147,7 +147,7 @@ contains
 
         !$acc parallel loop
         do i=1,bnd_numNodesToComm
-            iNodeL = bnd_matrixCommScheme(i,1)
+            iNodeL = bnd_nodesToComm(i)
             aux_bnd_realField_s(i) = realField(iNodeL)
         end do
         !$acc end parallel loop
@@ -168,7 +168,7 @@ contains
 
         !$acc parallel loop
         do i=1,bnd_numNodesToComm
-            iNodeL = bnd_matrixCommScheme(i,1)
+            iNodeL = bnd_nodesToComm(i)
             !$acc atomic update
             intField(iNodeL) = intField(iNodeL) + aux_bnd_intField_r(i)
             !$acc end atomic
@@ -183,7 +183,7 @@ contains
 
         !$acc parallel loop
         do i=1,bnd_numNodesToComm
-            iNodeL = bnd_matrixCommScheme(i,1)
+            iNodeL = bnd_nodesToComm(i)
             !$acc atomic update
             realField(iNodeL) = realField(iNodeL) + aux_bnd_realField_r(i)
             !$acc end atomic
@@ -203,7 +203,7 @@ contains
 
         !$acc parallel loop
         do i=1,bnd_numNodesToComm
-            iNodeL = bnd_matrixCommScheme(i,1)
+            iNodeL = bnd_nodesToComm(i)
             !$acc atomic update
             intField(iNodeL) = min(intField(iNodeL),aux_bnd_intField_r(i))
             !$acc end atomic
@@ -218,7 +218,7 @@ contains
 
         !$acc parallel loop
         do i=1,bnd_numNodesToComm
-            iNodeL = bnd_matrixCommScheme(i,1)
+            iNodeL = bnd_nodesToComm(i)
             !$acc atomic update
             realField(iNodeL) = max(realField(iNodeL),aux_bnd_realField_r(i))
             !$acc end atomic

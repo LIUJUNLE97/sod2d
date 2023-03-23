@@ -2,7 +2,8 @@ module mod_constants
 
       implicit none
 
-      integer(4), parameter::rp = 8
+      integer(4), parameter :: rp = 4 !(4/8)
+      integer(4), parameter :: rp_vtk = 4 !(4/8)
 
       !
       ! Dimensions
@@ -27,9 +28,6 @@ module mod_constants
       !
       integer(4), parameter :: flag_real_diff=1
       integer(4), parameter :: flag_diff_suth=1
-
-      logical, parameter :: save_vtk = .false.
-      logical, parameter :: save_hdf5 = .true.
 
       !
       ! Other constants

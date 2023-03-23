@@ -53,9 +53,10 @@ contains
       this%doGlobalAnalysis = .true.
       this%doTimerAnalysis = .false.
 
+      this%saveInitialField = .false.
       this%loadResults = .false.
       this%continue_oldLogs = .false.
-      this%load_step = 8001
+      this%load_step = 1001
 
       ! numerical params
       flag_les = 0

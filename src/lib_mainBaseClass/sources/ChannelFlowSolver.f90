@@ -127,7 +127,7 @@ contains
 
    subroutine ChannelFlowSolver_evalInitialConditions(this)
       class(ChannelFlowSolver), intent(inout) :: this
-      integer(4) :: matGidSrlOrdered(numNodesRankPar,2)
+      integer(8) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL, idime
       real(rp) :: velo, rti(3), yp,velo_aux1
       integer(4)   :: iLine,iNodeGSrl,auxCnt

@@ -201,7 +201,7 @@ contains
 
    subroutine BluffBody3DSolver_evalInitialConditions(this)
       class(BluffBody3DSolver), intent(inout) :: this
-      integer(4) :: matGidSrlOrdered(numNodesRankPar,2)
+      integer(8) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL
       logical :: readFiles
       character(512) :: initialField_filePath

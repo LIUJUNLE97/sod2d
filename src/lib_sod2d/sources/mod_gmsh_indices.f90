@@ -2,34 +2,32 @@ module mod_gmsh_indices
    use mod_constants
    implicit none
 
-#define int_size 4
-
    !-----------------------------------------
-   integer(int_size),parameter :: tV=4,tE=3,tF=2,tI=1
-   integer(int_size),parameter :: tn2ijk(nnode) = [tV,tV,tE,tE,tV,tV,tE,tE,tE,tE,tF,tF,tE,tE,tF,tF,&
+   integer(4),parameter :: tV=4,tE=3,tF=2,tI=1
+   integer(4),parameter :: tn2ijk(nnode) = [tV,tV,tE,tE,tV,tV,tE,tE,tE,tE,tF,tF,tE,tE,tF,tF,&
                                    tV,tV,tE,tE,tV,tV,tE,tE,tE,tE,tF,tF,tE,tE,tF,tF,&
                                    tE,tE,tF,tF,tE,tE,tF,tF,tF,tF,tI,tI,tF,tF,tI,tI,&
                                    tE,tE,tF,tF,tE,tE,tF,tF,tF,tF,tI,tI,tF,tF,tI,tI]
 
-   integer(int_size),parameter :: gmsh2ijk(nnode) = [1,4,11,12,2,3,15,16,9,20,33,34,10,19,36,35,&
+   integer(4),parameter :: gmsh2ijk(nnode) = [1,4,11,12,2,3,15,16,9,20,33,34,10,19,36,35,&
                5,8,27,28,6,7,29,30,25,32,53,56,26,31,54,55,&
                13,23,41,44,17,21,45,46,37,50,57,60,38,49,58,59,&
                14,24,42,43,18,22,48,47,40,51,61,64,39,52,62,63]
 
-   integer(int_size),parameter :: gmsh2ij(npbou) = [1,4,12,11,2,3,7,8,5,10,13,16,6,9,14,15]
+   integer(4),parameter :: gmsh2ij(npbou) = [1,4,12,11,2,3,7,8,5,10,13,16,6,9,14,15]
 
-   integer(int_size),parameter :: vtk2ijk(nnode) = [1,4,15,16,2,3,11,12,9,13,49,51,10,14,50,52, &
+   integer(4),parameter :: vtk2ijk(nnode) = [1,4,15,16,2,3,11,12,9,13,49,51,10,14,50,52, &
               5,8,23,24,6,7,19,20,17,21,53,55,18,22,54,56, &
               25,31,33,34,27,29,37,38,41,45,57,59,42,46,58,60,&
               26,32,35,36,28,30,39,40,43,47,61,63,44,48,62,64]
 
    !the one from lucas old code
-   !integer(int_size),parameter :: vtk2ijk(nnode) = [1,4,15,16,2,3,11,12,9,13,49,51,10,14,50,52, &
+   !integer(4),parameter :: vtk2ijk(nnode) = [1,4,15,16,2,3,11,12,9,13,49,51,10,14,50,52, &
    !           5,8,23,24,6,7,19,20,17,21,53,55,18,22,54,56, &
    !           25,29,33,34,27,31,37,38,41,45,57,59,42,46,58,60,&
    !           26,30,35,36,28,32,39,40,43,47,61,63,44,48,62,64]
 
-   integer(int_size),parameter :: cgns2ijk(nnode)= [1,4,16,15,2,3,11,12,9,14,33,36,10,13,34,35,&
+   integer(4),parameter :: cgns2ijk(nnode)= [1,4,16,15,2,3,11,12,9,14,33,36,10,13,34,35,&
                  5,8,32,31,6,7,27,28,25,30,53,56,26,29,54,55,&
                  17,21,50,49,19,23,41,42,37,46,57,60,38,45,58,59,&
                  18,22,51,52,20,24,44,43,40,47,61,64,39,48,62,63]
@@ -40,7 +38,7 @@ module mod_gmsh_indices
 !                17,23,50,49,19,21,41,42,37,46,57,60,38,45,58,59,&
 !                18,24,51,52,20,22,44,43,40,47,61,64,39,48,62,63]
 
-   integer(int_size),parameter :: dummy2ijk(nnode)= [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,&
+   integer(4),parameter :: dummy2ijk(nnode)= [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,&
                  17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,&
                  33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,&
                  49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64]
