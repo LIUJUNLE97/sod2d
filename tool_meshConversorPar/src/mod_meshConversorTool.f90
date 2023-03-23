@@ -1129,7 +1129,7 @@ contains
       integer(4),intent(out) :: maxBoundCodeInRank
       integer,allocatable,intent(inout) :: boundFacesCodesInRank(:)
       
-      integer,allocatable :: boundFacesCodesInRank_i8(:)
+      integer(8),allocatable :: boundFacesCodesInRank_i8(:)
       integer(4) :: iBound     
 
       !-----------------------------------------------------------
