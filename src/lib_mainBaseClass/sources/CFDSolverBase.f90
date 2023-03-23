@@ -1,5 +1,5 @@
 module mod_arrays
-      use mod_constants
+      use mod_numerical_params
 
       implicit none
 
@@ -49,7 +49,7 @@ module CFDSolverBase_mod
       use mod_period
       use time_integ
       use mod_analysis
-      use mod_constants
+      use mod_numerical_params
       use mod_time_ops
       use mod_fluid_viscosity
       use mod_postpro
@@ -389,13 +389,13 @@ contains
       ! where 1 is prediction, 2 is final value
       !
       allocate(u(numNodesRankPar,ndime,2))  ! Velocity
-      allocate(q(numNodesRankPar,ndime,2))  ! momentum
-      allocate(rho(numNodesRankPar,2))      ! Density
+      allocate(q(numNodesRankPar,ndime,3))  ! momentum
+      allocate(rho(numNodesRankPar,3))      ! Density
       allocate(pr(numNodesRankPar,2))       ! Pressure
-      allocate(E(numNodesRankPar,2))        ! Total Energy
+      allocate(E(numNodesRankPar,3))        ! Total Energy
       allocate(Tem(numNodesRankPar,2))      ! Temperature
       allocate(e_int(numNodesRankPar,2))    ! Internal Energy
-      allocate(eta(numNodesRankPar,2))      ! entropy
+      allocate(eta(numNodesRankPar,3))      ! entropy
       allocate(csound(numNodesRankPar))     ! Speed of sound
       allocate(machno(numNodesRankPar))     ! Speed of sound
       allocate(mu_fluid(numNodesRankPar))   ! Fluid viscosity
@@ -844,8 +844,10 @@ contains
 
    end subroutine CFDSolverBase_evalFirstOutput
 
-   subroutine CFDSolverBase_callTimeIntegration(this)
+   subroutine CFDSolverBase_callTimeIntegration(this,istep)
       class(CFDSolverBase), intent(inout) :: this
+      integer(4)              , intent(in)   :: istep
+
       if(mpi_rank.eq.0) write(111,*) " Time integration should be overwritted"
       stop 1
 
@@ -932,7 +934,7 @@ contains
          flag_predic = 0
          if(this%doTimerAnalysis) iStepStartTime = MPI_Wtime()
 
-         call this%callTimeIntegration()
+         call this%callTimeIntegration(istep)
 
          if(this%doTimerAnalysis) then
             iStepEndTime = MPI_Wtime()
@@ -1071,7 +1073,6 @@ contains
          write(111,*) "    c_ener: ",  c_ener
          write(111,*) "    stau: ",    stau
          write(111,*) "    T_ilsa: ",  T_ilsa
-         write(111,*) "    T_wmles: ", T_wmles
          write(111,*) "--------------------------------------"
       end if
 
@@ -1182,6 +1183,11 @@ contains
          Tem(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*this%Rgas)
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
          eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
+
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+         rho(iNodeL,3) = rho(iNodeL,2)
+          E(iNodeL,3) =  E(iNodeL,2)
+           eta(iNodeL,3) =  eta(iNodeL,2)
       end do
       !$acc end parallel loop
 

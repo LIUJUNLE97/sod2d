@@ -1,13 +1,13 @@
 ! main.f90
 
-#define _tgv_ 1
-#define _channel_ 0
+#define _tgv_ 0
+#define _channel_ 1
 #define _bluff_ 0
 #define _bluff3d_ 0
 #define _bl_ 0
 
 program main
-   use mod_constants
+   use mod_numerical_params
 #if _tgv_
    use TGVSolver_mod
 #endif

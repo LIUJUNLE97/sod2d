@@ -1,6 +1,6 @@
 module mod_output
 
-   use mod_constants
+   use mod_numerical_params
    use mod_mpi
    use mod_mpi_mesh
    use mod_hdf5

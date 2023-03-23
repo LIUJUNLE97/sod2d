@@ -20,7 +20,7 @@ module ThermalChannelFlowSolver_mod
    use mod_period
    use time_integ
    use mod_analysis
-   use mod_constants
+   use mod_numerical_params
    use mod_time_ops
    use mod_fluid_viscosity
    use mod_postpro

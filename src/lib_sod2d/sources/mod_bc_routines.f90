@@ -1,7 +1,7 @@
 module mod_bc_routines
 
    use mod_mpi
-   use mod_constants
+   use mod_numerical_params
    use mod_comms
    use mod_comms_boundaries
    use mod_nvtx
@@ -174,5 +174,89 @@ module mod_bc_routines
             !$acc end parallel loop
 
          end subroutine temporary_bc_routine_dirichlet_prim
+subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Rmass,Rmom,Rener)
 
+            implicit none
+
+            integer(4), intent(in)     :: npoin, nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
+            integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou),lnbn_nodes(npoin)
+            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
+            real(rp),    intent(inout) :: Rmass(npoin),Rmom(npoin,ndime),Rener(npoin)
+            integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
+
+         
+            !$acc parallel loop  
+            do inode = 1,npoin
+               if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
+                  bcode = bou_codes_nodes(inode) ! Boundary element code
+                  if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic                  
+                     Rmom(inode,1) = 0.0_rp
+                     Rmom(inode,2) = 0.0_rp
+                     Rmom(inode,3) = 0.0_rp
+
+                     Rmass(inode) = 0.0_rp
+                     Rener(inode) = 0.0_rp
+                  else if (bcode == bc_type_non_slip_hot) then ! non_slip wall hot
+                     Rmom(inode,1) = 0.0_rp
+                     Rmom(inode,2) = 0.0_rp
+                     Rmom(inode,3) = 0.0_rp
+
+                     Rmass(inode) = 0.0_rp
+                     Rener(inode) = 0.0_rp
+                  else if (bcode == bc_type_non_slip_cold) then ! non_slip wall cold
+                     Rmom(inode,1) = 0.0_rp
+                     Rmom(inode,2) = 0.0_rp
+                     Rmom(inode,3) = 0.0_rp
+
+                     Rmass(inode) = 0.0_rp
+                     Rener(inode) = 0.0_rp
+                  end if
+               end if
+            end do
+            !$acc end parallel loop
+
+         end subroutine bc_fix_dirichlet_residual
+
+         subroutine bc_fix_dirichlet_Jacobian(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Jmass,Jmom,Jener)
+
+            implicit none
+
+            integer(4), intent(in)     :: npoin, nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
+            integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou),lnbn_nodes(npoin)
+            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
+            real(rp),    intent(inout) :: Jmass(npoin),Jmom(npoin,ndime),Jener(npoin)
+            integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
+
+         
+            !$acc parallel loop  
+            do inode = 1,npoin
+               if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
+                  bcode = bou_codes_nodes(inode) ! Boundary element code
+                  if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic                  
+                     Jmom(inode,1) = 0.0_rp
+                     Jmom(inode,2) = 0.0_rp
+                     Jmom(inode,3) = 0.0_rp
+
+                     Jmass(inode) = 0.0_rp
+                     Jener(inode) = 0.0_rp
+                  else if (bcode == bc_type_non_slip_hot) then ! non_slip wall hot
+                     Jmom(inode,1) = 0.0_rp
+                     Jmom(inode,2) = 0.0_rp
+                     Jmom(inode,3) = 0.0_rp
+
+                     Jmass(inode) = 0.0_rp
+                     Jener(inode) = 0.0_rp
+                  else if (bcode == bc_type_non_slip_cold) then ! non_slip wall cold
+                     Jmom(inode,1) = 0.0_rp
+                     Jmom(inode,2) = 0.0_rp
+                     Jmom(inode,3) = 0.0_rp
+
+                     Jmass(inode) = 0.0_rp
+                     Jener(inode) = 0.0_rp
+                  end if
+               end if
+            end do
+            !$acc end parallel loop
+
+         end subroutine bc_fix_dirichlet_Jacobian
       end module mod_bc_routines

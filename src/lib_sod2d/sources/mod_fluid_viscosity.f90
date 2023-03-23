@@ -1,6 +1,6 @@
 module mod_fluid_viscosity
 
-   use mod_constants
+   use mod_numerical_params
 
    contains
 

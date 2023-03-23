@@ -18,7 +18,7 @@ module TGVSolver_mod
    use mod_period
    use time_integ
    use mod_analysis
-   use mod_constants
+   use mod_numerical_params
    use mod_time_ops
    use mod_fluid_viscosity
    use mod_postpro
@@ -45,31 +45,42 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube_per10"
+      write(this%mesh_h5_file_name,*) "cube"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
       this%doGlobalAnalysis = .true.
-      this%doTimerAnalysis = .true.
+      this%doTimerAnalysis = .false.
 
       this%saveInitialField = .false.
       this%loadResults = .false.
       this%continue_oldLogs = .false.
       this%load_step = 1001
 
-      this%nstep = 25001
+      ! numerical params
+      flag_les = 0
+      flag_implicit = 1
+      maxIter=20
+      maxIterNonLineal=500
+      tol=1e-4
+      pseudo_cfl = 0.1_rp
+      flag_rk_order = 2
+      pseudo_max_dt = 100
+
+      this%nstep = 50001
       this%maxPhysTime = 20.0_rp
 
-      this%cfl_conv = 0.5_rp
-      this%cfl_diff = 0.5_rp
+      this%dt = 4e-2
+      this%cfl_conv = 0.25_rp
+      this%cfl_diff = 1.0_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
 
-      this%nsaveAVG = 1!1000000
-      this%nleap = 1000 ! Saving interval, TODO: input
+      this%nsaveAVG = 1
+      this%nleap = 2000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 25  ! Saving interval, TODO: input
+      this%nleap2 = 10  ! Saving interval, TODO: input
       this%nleapAVG = 2000000000
 
       this%Cp = 1004.0_rp
@@ -126,6 +137,12 @@ contains
          E(iNodeL,2) = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))+e_int(iNodeL,2))
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
+         eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
+
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+         rho(iNodeL,3) = rho(iNodeL,2)
+         E(iNodeL,3) =  E(iNodeL,2)
+         eta(iNodeL,3) =  eta(iNodeL,2)
       end do
       !$acc end parallel loop
 

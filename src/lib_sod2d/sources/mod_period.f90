@@ -1,6 +1,6 @@
 module mod_period
 
-   use mod_constants
+   use mod_numerical_params
    use mod_veclen
 
    contains

@@ -1,6 +1,6 @@
 module mod_postpro
 
-   use mod_constants
+   use mod_numerical_params
    use mod_nvtx
    use mod_mpi
    use mod_mpi_mesh

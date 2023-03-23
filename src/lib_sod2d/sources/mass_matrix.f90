@@ -1,6 +1,6 @@
 module mass_matrix
 
-   use mod_constants
+   use mod_numerical_params
    use mod_nvtx
    use mod_veclen
    use mod_mpi

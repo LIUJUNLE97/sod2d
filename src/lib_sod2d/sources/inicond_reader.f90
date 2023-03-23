@@ -1,6 +1,6 @@
 module inicond_reader
 
-      use mod_constants
+      use mod_numerical_params
       use mod_utils
       use mod_maths
       use mod_mpi
