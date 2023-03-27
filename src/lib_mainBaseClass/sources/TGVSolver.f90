@@ -71,9 +71,9 @@ contains
       this%nstep = 50001
       this%maxPhysTime = 20.0_rp
 
-      this%dt = 4e-2
-      this%cfl_conv = 1.0_rp
-      this%cfl_diff = 1.0_rp
+
+      this%cfl_conv = 2.5_rp
+      this%cfl_diff = 2.5_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
 
