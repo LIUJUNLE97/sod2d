@@ -25,7 +25,7 @@ module mod_arrays
       real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:),avvex(:,:),avtw(:,:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
-      real(rp), allocatable :: witxi(:,:), Nwit(:,:), buffwit(:,:,:), bufftime(:) 
+      real(rp), allocatable :: witxi(:,:), Nwit(:,:), buffwit(:,:,:), bufftime(:), buffstep(:) 
       
       real(rp), allocatable :: u_buffer(:,:)
 
@@ -80,6 +80,7 @@ module CFDSolverBase_mod
       integer(4), public :: nwitPar
       integer(4), public :: leapwit
       integer(4), public :: leapwitsave
+      integer(4), public :: load_stepwit = 0
       integer(4), public :: nvarwit=5 !Default value, only to be substituted if function update_witness is modified to
 
       ! main logical parameters
@@ -1050,13 +1051,24 @@ contains
 
          !!! Witness points interpolation !!!
          if(this%have_witness) then
-            if (mod(istep,this%leapwit)==0) then
-               iwitstep = iwitstep+1
-               call this%update_witness(istep, iwitstep)
-            end if
-            if (mod(istep,this%leapwit*this%leapwitsave)==0) then
-               call this%save_witness(istep)
-               iwitstep = 0
+            if (this%continue_oldLogs) then
+               if (mod(istep-this%load_step,this%leapwit)==0) then
+                  iwitstep = iwitstep+1
+                  call this%update_witness(istep, iwitstep)
+               end if
+               if ((istep-this%load_step > 0) .and. (mod((istep-this%load_step),this%leapwitsave*this%leapwit)==0)) then
+                  call this%save_witness(istep)
+                  iwitstep = 0
+               end if
+            else
+               if (mod(istep,this%leapwit)==0) then
+                  iwitstep = iwitstep+1
+                  call this%update_witness(istep, iwitstep)
+               end if
+               if ((istep > 0) .and. (mod((istep),this%leapwitsave*this%leapwit)==0)) then
+                  call this%save_witness(istep)
+                  iwitstep = 0
+               end if
             end if
          end if
       end do
@@ -1067,7 +1079,6 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in)              :: istep, iwitstep
       integer(4)                          :: iwit, iwitglobal, itewit, inode
-      real(rp)                            :: witval(this%nwitPar,this%nvarwit) ! u_x | u_y | u_z | pr | rho
       real(rp)                            :: start, finish, auxux, auxuy, auxuz, auxpr, auxrho
       
       !$acc parallel loop gang
@@ -1093,6 +1104,7 @@ contains
       end do
       !$acc end loop
       bufftime(iwitstep) = this%time
+      buffstep(iwitstep) = istep
    end subroutine CFDSolverBase_update_witness
 
    subroutine CFDSolverBase_save_witness(this, istep)
@@ -1100,14 +1112,17 @@ contains
       integer(4), intent(in)              :: istep
       integer(4)                          :: iwit, iwitglobal, itewit
       real(rp)                            :: start, finish
-      
-      !if ((this%loadResults) .AND. (this%continue_oldLogs .eqv. .false.)) then
-      !   itewit   = this%load_step + istep/(this%leapwit)
-      !   bufftime = bufftime + this%loadtimewit 
-      !else
-      itewit = istep/(this%leapwit) !- this%load_step + 1
-      !end if
-      call update_witness_hdf5(itewit, this%leapwitsave, buffwit, this%nwit, this%nwitPar, this%nvarwit, this%witness_h5_file_name, bufftime, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+
+      if ((this%continue_witness .eqv. .false.) .AND. (this%continue_oldLogs .eqv. .false.)) then
+         itewit = istep/(this%leapwit)
+      end if
+      if ((this%continue_witness .eqv. .false.) .AND. (this%continue_oldLogs .eqv. .true.)) then
+         itewit = (istep - this%load_step)/(this%leapwit)
+      end if
+      if ((this%continue_witness .eqv. .true.) .AND. (this%continue_oldLogs .eqv. .true.)) then
+         itewit = this%load_stepwit + (istep - this%load_step)/(this%leapwit)
+      end if
+      call update_witness_hdf5(itewit, this%leapwitsave, buffwit, this%nwit, this%nwitPar, this%nvarwit, this%witness_h5_file_name, bufftime, buffstep, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
    end subroutine CFDSolverBase_save_witness
 
    subroutine CFDSolverBase_preprocWitnessPoints(this)
@@ -1181,6 +1196,7 @@ contains
       this%nwitPar = ifound
       allocate(buffwit(this%leapwitsave,this%nwitPar,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
+      allocate(buffstep(this%leapwitsave))
       call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
       if(mpi_rank.eq.0) then
          write(*,*) "--| End of preprocessing witness points"
@@ -1191,9 +1207,10 @@ contains
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       
-      call load_witness_hdf5(this%witness_h5_file_name, this%nwit, this%load_step, this%nwitPar, witel, witxi, Nwit)
+      call load_witness_hdf5(this%witness_h5_file_name, this%nwit, this%load_step, this%load_stepwit, this%nwitPar, witel, witxi, Nwit)
       allocate(buffwit(this%leapwitsave,this%nwitPar,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
+      allocate(buffstep(this%leapwitsave))
    end subroutine CFDSolverBase_loadWitnessPoints
 
    subroutine open_log_file(this)

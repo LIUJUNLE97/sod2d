@@ -771,6 +771,29 @@ contains
 
    end subroutine read_dataspace_int4_hyperslab_parallel
 
+   subroutine get_dims(file_id,dsetname, ms_rank, fs_dims, fs_maxdims)
+      integer(hid_t),intent(in) :: file_id
+      character(len=*),intent(in) :: dsetname
+      integer, intent(in) :: ms_rank
+      integer(hid_t) :: dset_id,fspace_id
+      integer :: h5err
+      integer(hsize_t), intent(out) :: fs_dims(ms_rank),fs_maxdims(ms_rank)
+      integer(hid_t) :: dtype
+      dtype = H5T_NATIVE_INTEGER
+
+      call h5dopen_f(file_id, dsetname, dset_id, h5err)
+
+      !get filespace of the dataset
+      call h5dget_space_f(dset_id, fspace_id, h5err)
+
+      !get dimensions of the filespace
+      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
+
+      call h5sclose_f(fspace_id,h5err)
+      call h5dclose_f(dset_id,h5err)
+
+   end subroutine get_dims
+
    subroutine write_dataspace_int8_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,data)
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
@@ -3793,6 +3816,14 @@ contains
       chunk_dims(1) = 1
       call create_dataspace_maxdims_hdf5(file_id,dsetname,ds_rank,ds_dims,max_dims,chunk_dims,dtype)
 
+      !Create istep dataset!
+      ds_rank       = 1
+      dsetname      = 'istep'
+      ds_dims(1)    = 1
+      max_dims(1)   = H5S_UNLIMITED_F
+      chunk_dims(1) = 1
+      call create_dataspace_maxdims_hdf5(file_id,dsetname,ds_rank,ds_dims,max_dims,chunk_dims,dtype)
+
       !Create dataspaces for the magnitudes to save!
       ds_rank       = 2
       ds_dims(1)    = 1
@@ -3826,20 +3857,22 @@ contains
 
    end subroutine create_witness_hdf5
 
-   subroutine load_witness_hdf5(full_fileName, nwit, loadstep, nwitPar, witel, witxi, shapefunc) 
+   subroutine load_witness_hdf5(full_fileName, nwit, loadstep, load_stepwit, nwitPar, witel, witxi, shapefunc) 
       implicit none
       character(512), intent(in)  :: full_fileName
       integer(rp),    intent(in)  :: nwit, loadstep
       integer(rp),    intent(out) :: witel(nwit)
       real(rp),       intent(out) :: witxi(nwit,ndime), shapefunc(nwit,nnode)!, t
-      integer(rp),    intent(out) :: nwitPar
+      integer(rp),    intent(out) :: nwitPar, load_stepwit
       integer(hid_t)              :: file_id,plist_id,dset_id,dspace_id,group_id, dtype
       integer(HSIZE_T)            :: ms_dims(2), max_dims(2)
       integer(HSSIZE_T)           :: ms_offset(2)
-      integer                     :: ms_rank, h5err, iwit
+      integer                     :: ms_rank, h5err, iwit, istep
+      integer(hsize_t)            :: nsteps(2), maxnsteps(2)
       character(256)              :: groupname,dsetname
       integer(rp)                 :: nwitOffset, auxread(1)
       real(rp)                    :: auxwitxi(ndime,nwit), auxshapefunc(nnode, nwit)!, auxt(1)
+      integer(rp), allocatable    :: steps(:)
 
       witel(:)   = 0
       witxi(:,:) = 0.0_rp
@@ -3856,6 +3889,23 @@ contains
 
       dtype = H5T_NATIVE_REAL
 
+      !Read nwitPar!
+      dsetname     = 'istep'
+      ms_rank      = 1
+      call get_dims(file_id, dsetname, ms_rank, nsteps, maxnsteps)
+      ms_dims(1)   = nsteps(1)
+      ms_offset(1) = 0
+      allocate(steps(nsteps(1)))
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,steps)
+      do istep = nsteps(1), 1, -1
+         if (steps(istep) < loadstep) then
+            load_stepwit = istep+1
+            exit
+         end if
+      end do
+      write(*,*) load_stepwit
+      deallocate(steps)
+      
       !Read nwitPar!
       dsetname     = 'nwitPar'
       ms_rank      = 1
@@ -3901,34 +3951,13 @@ contains
          shapefunc(iwit,:) = auxshapefunc(:,iwit)
       end do
 
-      !Read the shape functions coordinates!
-      dsetname     = 'shape_functions'
-      ms_rank      = 2
-      ms_dims(1)   = nnode
-      ms_dims(2)   = nwitPar
-      ms_offset(1) = 0
-      ms_offset(2) = nwitOffset
-      call read_dataspace_2d_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxshapefunc)
-      do iwit =1,nwitPar
-         witxi(iwit,:) = auxwitxi(:,iwit)
-         shapefunc(iwit,:) = auxshapefunc(:,iwit)
-      end do
-
-      !Read the last time!
-      !dsetname     = 'time'
-      !ms_rank      = 1
-      !ms_dims(1)   = 1
-      !ms_offset(1) = loadstep-1
-      !call read_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxt)
-      !t = auxt(1)
-
       call h5fclose_f(file_id,h5err)
 
    end subroutine load_witness_hdf5
 
-   subroutine update_witness_hdf5(itewit, leapwitsave, witval, nwit, nwitPar, nvarwit, full_fileName, t, save_u_i, save_pr, save_rho)
+   subroutine update_witness_hdf5(itewit, leapwitsave, witval, nwit, nwitPar, nvarwit, full_fileName, t, steps, save_u_i, save_pr, save_rho)
       integer(4), intent(in)     :: itewit, nwit, nwitPar, nvarwit, leapwitsave
-      real(rp), intent(in)       :: witval(leapwitsave, nwitPar, nvarwit), t(leapwitsave)
+      real(rp), intent(in)       :: witval(leapwitsave, nwitPar, nvarwit), t(leapwitsave), steps(leapwitsave)
       logical, intent(in)        :: save_u_i, save_pr, save_rho
       character(512), intent(in) :: full_fileName
       character(256)             :: dsetname
@@ -4005,7 +4034,7 @@ contains
       end if
 
       !Save time!
-      dsetname = 'time'
+      dsetname     = 'time'
       ms_rank      = 1
       ms_dims(1)   = leapwitsave
       ms_offset(1) = itewit - leapwitsave
@@ -4014,6 +4043,15 @@ contains
       call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
       call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,t)
 
+      !Save istep!
+      dsetname     = 'istep'
+      ms_rank      = 1
+      ms_dims(1)   = leapwitsave
+      ms_offset(1) = itewit - leapwitsave
+      ds_rank      = 1
+      ds_dims(1)   = itewit
+      call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
+      call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,steps)
       call h5fclose_f(file_id,h5err)
    
    end subroutine update_witness_hdf5

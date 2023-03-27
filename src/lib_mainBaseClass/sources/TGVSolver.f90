@@ -61,7 +61,7 @@ contains
       this%continue_oldLogs = .true.
       this%load_step = 401
 
-      this%nstep = 4001
+      this%nstep = 7001
 
       this%cfl_conv = 0.5_rp
       this%cfl_diff = 0.5_rp
