@@ -5,8 +5,8 @@ module mod_numerical_params
     implicit none
 
         ! Time integration algorithm
-        integer(4)  :: flag_rk_order=4 !Explicit RK
-        integer(4)  :: flag_implicit=1 
+        integer(4)  :: flag_rk_order=4 
+        integer(4)  :: flag_implicit=0 !Explicit: RK, Implicit: ESDIRK
 
 
         ! LES 
@@ -30,8 +30,10 @@ module mod_numerical_params
         ! Implicit solver
         real(rp)    :: pseudo_max_dt = 1e20
         real(rp)    :: pseudo_cfl = 1.0_rp
+        real(rp)    :: pseudo_ftau= 8.0_rp
         integer(4) ::  maxIter=20
         integer(4) ::  maxIterNonLineal=20
+        integer(4) ::  pseudo_steps=10
         real(rp)   ::  tol=1e-4
 
         !

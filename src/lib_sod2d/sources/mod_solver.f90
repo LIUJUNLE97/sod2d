@@ -445,7 +445,7 @@ module mod_solver
 
                   b = sqrt(eps)
                   errTol = gmresTol
-                  call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                  !call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
                   ! Allocate the memory for the gmres solver if not yet allocated
                   if (flag_gmres_mem_alloc .eqv. .true.) then

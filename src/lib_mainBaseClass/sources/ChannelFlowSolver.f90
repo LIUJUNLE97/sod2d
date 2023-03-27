@@ -77,26 +77,26 @@ contains
       ! numerical params
       flag_les = 1
       flag_implicit = 1
-      maxIter=20
-      maxIterNonLineal=500
-      tol=1e-4
-      pseudo_cfl = 0.1_rp
+      maxIter=5
+      maxIterNonLineal=200
+      tol=1e-2
+      pseudo_cfl =   0.4_rp
       flag_rk_order = 2
 
       this%loadResults = .false.
       this%continue_oldLogs = .false.
       this%load_step = 60001
 
+      this%dt = 2e-3
       this%nstep = 1000000 
-      this%dt = 1.0e-2
       this%cfl_conv = 1.0_rp
       this%cfl_diff = 1.0_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 5000 ! Saving interval, TODO: input
+      this%nleap = 1000 ! Saving interval, TODO: input
       this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 5000
+      this%nleapAVG = 1000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

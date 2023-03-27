@@ -195,7 +195,6 @@ subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound
                      Rmom(inode,3) = 0.0_rp
 
                      Rmass(inode) = 0.0_rp
-                     Rener(inode) = 0.0_rp
                   else if (bcode == bc_type_non_slip_hot) then ! non_slip wall hot
                      Rmom(inode,1) = 0.0_rp
                      Rmom(inode,2) = 0.0_rp
@@ -236,9 +235,8 @@ subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound
                      Jmom(inode,1) = 0.0_rp
                      Jmom(inode,2) = 0.0_rp
                      Jmom(inode,3) = 0.0_rp
-
                      Jmass(inode) = 0.0_rp
-                     Jener(inode) = 0.0_rp
+
                   else if (bcode == bc_type_non_slip_hot) then ! non_slip wall hot
                      Jmom(inode,1) = 0.0_rp
                      Jmom(inode,2) = 0.0_rp
