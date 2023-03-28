@@ -1,5 +1,6 @@
 module mod_hdf5
    use hdf5
+   use mod_constants
    use mod_mpi
    use mod_mpi_mesh
    use mod_comms
@@ -117,8 +118,16 @@ contains
       !--------------------------------------------------------------------------------
       ds_rank = 1
       ds_dims(1) = numNodesParTotal_i8
-      
-      dtype = h5_datatype_real4
+
+      if(rp.eq.4) then
+         dtype = h5_datatype_real4
+      else if(rp.eq.8) then
+         dtype = h5_datatype_real8
+      else
+         write(*,*) 'Fatal error in create_hdf5_groups_datasets_in_meshFile_from_tool! rp is not 4 or 8 >> CRASH!'
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
+      !dtype = h5_datatype_real
 
       groupname = '/Coords'
       call create_group_hdf5(hdf5_file_id,groupname)
