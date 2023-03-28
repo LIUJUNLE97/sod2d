@@ -63,8 +63,8 @@ contains
       flag_implicit = 1
       maxIter=20
       maxIterNonLineal=500
-      tol=1e-2
-      pseudo_cfl =2.0_rp
+      tol=1e-3
+      pseudo_cfl =0.9_rp
       flag_rk_order = 2
       pseudo_max_dt = 100
 

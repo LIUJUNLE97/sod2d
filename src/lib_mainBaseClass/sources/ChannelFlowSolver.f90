@@ -79,24 +79,24 @@ contains
       flag_implicit = 1
       maxIter=5
       maxIterNonLineal=200
-      tol=1e-2
-      pseudo_cfl =   0.4_rp
+      tol=1e-3
+      pseudo_cfl =   0.9_rp
       flag_rk_order = 2
 
-      this%loadResults = .false.
+      this%loadResults = .true.
       this%continue_oldLogs = .false.
-      this%load_step = 60001
+      this%load_step = 11501
 
       !this%dt = 2e-3
       this%nstep = 1000000 
-      this%cfl_conv = 10.0_rp
-      this%cfl_diff = 10.0_rp
+      this%cfl_conv = 5.0_rp
+      this%cfl_diff = 5.0_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 1000 ! Saving interval, TODO: input
+      this%nleap = 500 ! Saving interval, TODO: input
       this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 1000
+      this%nleapAVG = 500
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
