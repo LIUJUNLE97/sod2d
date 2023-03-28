@@ -3889,7 +3889,7 @@ contains
 
       dtype = H5T_NATIVE_REAL
 
-      !Read nwitPar!
+      !Read step to continue!
       dsetname     = 'istep'
       ms_rank      = 1
       call get_dims(file_id, dsetname, ms_rank, nsteps, maxnsteps)
@@ -3989,49 +3989,62 @@ contains
 
       !Save variables!
       ms_rank      = 2
-      ms_dims(1)   = leapwitsave
+      ms_dims(1)   = 1
       ms_dims(2)   = nwitPar
       ds_rank      = 2
       ds_dims(1)   = itewit
       ds_dims(2)   = nwit
-      ms_offset(1) = itewit - leapwitsave
       ms_offset(2) = nwitOffset    
       if (save_u_i) then
          dsetname = 'u_x'
-         !$acc kernels
-         auxwrite(:,:) = witval(:,:,1)
-         !$acc end kernels
          call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
-         call write_dataspace_2d_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwrite)
          dsetname = 'u_y'
-         !$acc kernels
-         auxwrite(:,:) = witval(:,:,2)
-         !$acc end kernels
          call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
-         call write_dataspace_2d_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwrite)
          dsetname = 'u_z'
-         !$acc kernels
-         auxwrite(:,:) = witval(:,:,3)
-         !$acc end kernels
          call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
-         call write_dataspace_2d_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwrite)
       end if
       if (save_pr) then
          dsetname = 'pr'
-         !$acc kernels
-         auxwrite(:,:) = witval(:,:,4)
-         !$acc end kernels
          call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
-         call write_dataspace_2d_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwrite)
       end if
       if (save_rho) then
          dsetname = 'rho'
-         !$acc kernels
-         auxwrite(:,:) = witval(:,:,5)
-         !$acc end kernels
          call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
-         call write_dataspace_2d_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwrite)
       end if
+      do ileap = 1, leapwitsave
+         ms_offset(1) = itewit - leapwitsave + ileap - 1
+         if (save_u_i) then
+            dsetname = 'u_x'
+            !$acc kernels
+            auxwrite(:) = witval(ileap,:,1)
+            !$acc end kernels
+            call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwrite)
+            dsetname = 'u_y'  
+            !$acc kernels
+            auxwrite(:) = witval(ileap,:,2)
+            !$acc end kernels
+            call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwrite)
+            dsetname = 'u_z'  
+            !$acc kernels
+            auxwrite(:) = witval(ileap,:,3)
+            !$acc end kernels
+            call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwrite)
+         end if
+         if (save_pr) then
+            dsetname = 'pr'  
+            !$acc kernels
+            auxwrite(:) = witval(ileap,:,4)
+            !$acc end kernels
+            call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwrite)
+         end if
+         if (save_rho) then
+            dsetname = 'rho'  
+            !$acc kernels
+            auxwrite(:) = witval(ileap,:,5)
+            !$acc end kernels
+            call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwrite)
+         end if
+      end do   
 
       !Save time!
       dsetname     = 'time'
