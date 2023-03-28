@@ -1,6 +1,6 @@
 # SOD2D
 
-A SEM code for computing scale-resolving simulations of compressible fluid flow.
+**SOD2D**: **S**pectral high-**O**rder co**D**e **2** solve partial **D**ifferential equations
 
 ## Description
 
