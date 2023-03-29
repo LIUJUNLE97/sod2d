@@ -78,16 +78,15 @@ contains
       flag_les = 1
       flag_implicit = 1
       maxIter=5
-      maxIterNonLineal=200
+      maxIterNonLineal=500
       tol=1e-3
-      pseudo_cfl =   0.9_rp
+      pseudo_cfl =   0.1_rp
       flag_rk_order = 2
 
-      this%loadResults = .true.
+      this%loadResults = .false.
       this%continue_oldLogs = .false.
       this%load_step = 11501
 
-      !this%dt = 2e-3
       this%nstep = 1000000 
       this%cfl_conv = 5.0_rp
       this%cfl_diff = 5.0_rp

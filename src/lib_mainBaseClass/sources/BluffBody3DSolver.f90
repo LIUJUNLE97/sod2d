@@ -1,4 +1,4 @@
-#define CRM 1
+#define CRM 0
 
 module BluffBody3DSolver_mod
    use mod_arrays
@@ -52,12 +52,12 @@ contains
       bouCodes2BCType(2) = bc_type_far_field
       bouCodes2BCType(3) = bc_type_slip_wall_model
 #else
-      bouCodes2BCType(1) = bc_type_far_field
-      bouCodes2BCType(2) = bc_type_slip_wall_model
-      bouCodes2BCType(3) = bc_type_non_slip_adiabatic
-      bouCodes2BCType(4) = bc_type_slip_wall_model
-      bouCodes2BCType(5) = bc_type_slip_adiabatic
-      bouCodes2BCType(6) = bc_type_far_field
+      bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! floor
+      bouCodes2BCType(2) = bc_type_far_field ! top wall
+      bouCodes2BCType(3) = bc_type_far_field ! inlet
+      bouCodes2BCType(4) = bc_type_far_field ! outlet
+      bouCodes2BCType(5) = bc_type_non_slip_adiabatic !pins
+      bouCodes2BCType(6) = bc_type_non_slip_adiabatic !car
 #endif
 
    end subroutine BluffBody3DSolver_fill_BC_Types
@@ -85,43 +85,49 @@ contains
    subroutine BluffBody3DSolver_initializeParameters(this)
       class(BluffBody3DSolver), intent(inout) :: this
       real(rp) :: mul, mur
-
+#if CRM
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "crm"
+#else
+      write(this%mesh_h5_file_path,*) ""
+      write(this%mesh_h5_file_name,*) "windsor"
+#endif
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
       ! numerical params
-      flag_les = 1
+      flag_les = 0
       flag_implicit = 0
-      pseudo_max_dt = 1e6
+      flag_rk_order = 4
+       
+      pseudo_cfl =0.1_rp
+      pseudo_max_dt = 100
       maxIter=20
-      maxIterNonLineal=20
-      tol=1e-4
+      maxIterNonLineal=15
+      tol=1e-3
 
       this%loadResults = .false.
-
       this%continue_oldLogs = .false.
-      this%load_step = 1060001
+      this%load_step = 1501
 
-      this%nstep = 800000001 !250001
+      this%nstep = 8000001 !250001
 #if CRM
-      this%dt = 1e-5
+      this%dt = 4e-5
       this%cfl_conv = 1.0_rp 
       this%cfl_diff = 1.0_rp 
-#else
-      this%cfl_conv = 0.95_rp !0.1_rp
-      this%cfl_diff = 0.95_rp !0.1_rp
+#else   
+      this%cfl_conv = 10.0_rp
+      this%cfl_diff = 10.0_rp
 #endif
 
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 500!25 ! Saving interval, TODO: input
+      this%nleap = 1000!25 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 1  ! Saving interval, TODO: input
-      this%nleapAVG = 20000
+      this%nleapAVG = 1000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -177,23 +183,23 @@ contains
       !windsor
       flag_buffer_on_east = .true.
       flag_buffer_e_min = 5.5_rp
-      flag_buffer_e_size = 0.5_rp 
+      flag_buffer_e_size = 1.0_rp 
 
       flag_buffer_on_west = .true.
-      flag_buffer_w_min = -4.5_rp
-      flag_buffer_w_size = 0.5_rp 
+      flag_buffer_w_min = -3.5_rp
+      flag_buffer_w_size = 1.0_rp 
 
       flag_buffer_on_north = .true.
-      flag_buffer_n_min = 0.87_rp
-      flag_buffer_n_size = 0.1_rp 
+      flag_buffer_n_min = 1.5_rp
+      flag_buffer_n_size = 0.5_rp 
 
       flag_buffer_on_south = .true.
-      flag_buffer_s_min = -0.87_rp
-      flag_buffer_s_size = 0.1_rp 
+      flag_buffer_s_min = -1.5_rp
+      flag_buffer_s_size = 0.5_rp 
       
       flag_buffer_on_top = .true.
-      flag_buffer_t_min = 1.2_rp
-      flag_buffer_t_size = 0.3_rp 
+      flag_buffer_t_min = 2.0_rp
+      flag_buffer_t_size = 0.5_rp 
 #endif
       
 
@@ -222,7 +228,7 @@ contains
 #else
             u(iNodeL,1,2) = this%vo
             u(iNodeL,2,2) = 0.0_rp
-            u(iNodeL,3,2),2 = 0.0_rp  
+            u(iNodeL,3,2) = 0.0_rp  
 #endif
          end do
          !$acc end parallel loop
