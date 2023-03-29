@@ -651,32 +651,7 @@ module time_integ
             ! Butcher tableau
             !
             call nvtxStartRange("Create tableau")
-            if (pseudo_steps == 4) then               
-               a_ij(:,:) = 0.0_rp
-
-               a_ij(2,1) = real(11847461282814,rp)/real(36547543011857,rp)
-
-               a_ij(3,1) = real(1017324711453,rp)/real(9774461848756,rp)
-               a_ij(3,2) = real(3943225443063,rp)/real(7078155732230,rp)
-
-               a_ij(4,1) = real(1017324711453,rp)/real(9774461848756,rp)
-               a_ij(4,2) = real(8237718856693,rp)/real(13685301971492,rp)
-               a_ij(4,3) = -real(346793006927,rp)/real(4029903576067,rp)
-
-               b_i(:) = 0.0_rp
-
-               b_i(1) = real(1017324711453,rp)/real(9774461848756,rp)
-               b_i(2) = real(8237718856693,rp)/real(13685301971492,rp)
-               b_i(3) = real(57731312506979,rp)/real(19404895981398,rp)
-               b_i(4) = -real(101169746363290,rp)/real(37734290219643,rp)
-
-               b_i2(:) = 0.0_rp
-
-               b_i2(1) = real(15763415370699,rp)/real(46270243929542,rp)
-               b_i2(2) = real(514528521746,rp)/real(5659431552419,rp)
-               b_i2(3) = real(27030193851939,rp)/real(9429696342944,rp)
-               b_i2(4) = -real(69544964788955,rp)/real(30262026368149,rp)
-             else if (pseudo_steps == 10) then  
+            if (pseudo_steps == 10) then  
                a_ij(:,:) = 0.0_rp
 
                a_ij(2,1) = 0.1111111111_rp
@@ -723,7 +698,7 @@ module time_integ
                b_i2(9)  = 3.6467343745_rp
 
              else
-               write(1,*) "--| NOT CODED YET!"
+               write(1,*) "--| ONLY CODED RK10 !"
                stop 1
             end if
             call nvtxEndRange
