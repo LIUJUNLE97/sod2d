@@ -1,6 +1,6 @@
 module time_integ
 
-#define ESDIRK 1
+#define ESDIRK 0
 #define PSEUDO 1
 
    use mod_nvtx
@@ -774,10 +774,10 @@ module time_integ
                do ipoin = 1,npoin
                   Rmass_sum(ipoin) = 0.0_rp
                   Rener_sum(ipoin) = 0.0_rp
-                  sigMass(1:npoin,1) = sigMass(1:npoin,2)
-                  sigEner(1:npoin,1) = sigEner(1:npoin,2)
-                  sigMass(1:npoin,2) = 0.0_rp
-                  sigEner(1:npoin,2) = 0.0_rp
+                  sigMass(ipoin,1) = sigMass(ipoin,2)
+                  sigEner(ipoin,1) = sigEner(ipoin,2)
+                  sigMass(ipoin,2) = 0.0_rp
+                  sigEner(ipoin,2) = 0.0_rp
                   !$acc loop seq
                   do idime = 1,ndime
                      Rmom_sum(ipoin,idime) = 0.0_rp
