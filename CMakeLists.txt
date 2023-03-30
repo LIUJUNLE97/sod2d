@@ -18,7 +18,7 @@ option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
 
 option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
 option(USE_PCPOWER "Compiling in PC-POWER" OFF)
-option(USE_MN "Compiling in MareNostrum" ON)
+option(USE_MN "Compiling in MareNostrum" OFF)
 
 option(USE_GPU "Compile using GPU" OFF)
 option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
