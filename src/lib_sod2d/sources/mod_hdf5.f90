@@ -1232,9 +1232,9 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(4),intent(in) :: ms_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      real(rp),dimension(ms_rank),intent(in) :: data2write
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank)
+      real(rp),intent(in) :: data2write(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id,dtype
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
       integer(4) :: h5err
@@ -1262,9 +1262,9 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(4),intent(in) :: ms_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      real(rp),dimension(ms_rank),intent(out) :: data2read
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank)
+      real(rp),intent(out) :: data2read(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id,dtype
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
       integer(4) :: h5err
@@ -1292,9 +1292,9 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(4),intent(in) :: ms_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      real(rp_vtk),dimension(ms_rank),intent(in) :: data2write
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank)
+      real(rp_vtk),intent(in) :: data2write(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id,dtype
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
       integer(4) :: h5err
@@ -1322,9 +1322,9 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(4),intent(in) :: ms_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      real(rp_vtk),dimension(ms_rank),intent(out) :: data2read
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank)
+      real(rp_vtk),intent(out) :: data2read(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id,dtype
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
       integer(4) :: h5err
@@ -1355,9 +1355,9 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(4),intent(in) :: ms_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      real(4),dimension(ms_rank),intent(in) :: data2write
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank)
+      real(4),intent(in) :: data2write(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
       integer(4) :: h5err
@@ -1376,9 +1376,9 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(4),intent(in) :: ms_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      real(4),dimension(ms_rank),intent(out) :: data2read
+      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset(ms_rank)
+      real(4),intent(out) :: data2read(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
       integer(4) :: h5err
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
@@ -1398,9 +1398,9 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(4),intent(in) :: ms_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      real(8),dimension(ms_rank),intent(in) :: data2write
+      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset(ms_rank)
+      real(8),intent(in) :: data2write(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
       integer(4) :: h5err
@@ -1419,9 +1419,9 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(4),intent(in) :: ms_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      real(8),dimension(ms_rank),intent(out) :: data2read
+      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset(ms_rank)
+      real(8),intent(out) :: data2read(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
       integer(4) :: h5err
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
@@ -1442,9 +1442,9 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(4),intent(in) :: ms_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      integer(1),dimension(ms_rank),intent(in) :: data2write
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank) 
+      integer(1),intent(in) :: data2write(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
       integer(4) :: h5err
@@ -1463,9 +1463,9 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(4),intent(in) :: ms_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      integer(1),dimension(ms_rank),intent(out) :: data2read
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank)
+      integer(1),intent(out) :: data2read(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
       integer(4) :: h5err
@@ -1485,9 +1485,9 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(4),intent(in) :: ms_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      integer(1),dimension(ms_rank),intent(in) :: data2write
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank)
+      integer(1),intent(in) :: data2write(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
       integer(4) :: h5err
@@ -1506,9 +1506,9 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(4),intent(in) :: ms_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      integer(1),dimension(ms_rank),intent(out) :: data2read
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank)
+      integer(1),intent(out) :: data2read(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
       integer(4) :: h5err
@@ -1528,9 +1528,9 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(4),intent(in) :: ms_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      integer(4),dimension(ms_rank),intent(in) :: data2write
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank)
+      integer(4),intent(in) :: data2write(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
       integer(4) :: h5err
@@ -1549,9 +1549,9 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(4),intent(in) :: ms_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      integer(4),dimension(ms_rank),intent(out) :: data2read
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank)
+      integer(4),intent(out) :: data2read(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
       integer(4) :: h5err
@@ -1571,9 +1571,9 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(4),intent(in) :: ms_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      integer(8),dimension(ms_rank),intent(in) :: data2write
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank) 
+      integer(8),intent(in) :: data2write(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
       integer(4) :: h5err
@@ -1592,9 +1592,9 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(4),intent(in) :: ms_rank
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset 
-      integer(8),dimension(ms_rank),intent(out) :: data2read
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank)
+      integer(8),intent(out) :: data2read(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
       integer(4) :: h5err
@@ -2838,7 +2838,7 @@ contains
       integer(hssize_t),dimension(1),intent(in) :: ms_offset 
       real(rp),intent(in) :: data_array_rp(ms_dims(1))
 
-      integer :: ds_rank = 1,ms_rank = 1 !it is forced
+      integer(4) :: ds_rank = 1,ms_rank = 1 !it is forced
       integer(4) :: h5err
       real(rp_vtk),allocatable :: aux_data_array_rp_vtk(:)
    !---------------------------------------------------------------------------------------------------
@@ -2864,22 +2864,14 @@ contains
       integer(hsize_t),dimension(2),intent(in) :: ds_dims2d
       integer(hsize_t),dimension(2),intent(in) :: ms_dims2d
       integer(hssize_t),dimension(2),intent(inout) :: ms_offset2d 
-      real(rp),intent(in) :: data_array_rp(ms_dims2d(1),ms_dims2d(2))
+      real(rp),intent(in) :: data_array_rp(ms_dims2d(2),ms_dims2d(1)) !fortran is column-major & hdf5 writes in row-major
 
-      integer :: ds_rank = 2,ms_rank = 2 !it is forced
+      integer(4) :: ds_rank = 2,ms_rank = 2 !it is forced
       integer(4) :: iCol,h5err
       real(rp_vtk),allocatable :: aux_data_array_rp_vtk(:)
    !---------------------------------------------------------------------------------------------------
 
       call create_dataspace_for_rp_vtk_hdf5(file_id,dsetname,ds_rank,ds_dims2d)
-
-      !ds_rank = 2
-      !ms_rank = 2
-      !ds_dims2d(1) = 3
-      !ms_dims2d(1) = 1
-      !ds_dims2d(2) = totalNumNodesPar
-      !ms_dims2d(2) = numNodesRankPar
-      !ms_offset2d(2) = rankNodeStart-1
 
       if(rp .eq. rp_vtk) then
          do iCol= 1,ds_dims2d(1)
@@ -3648,7 +3640,6 @@ contains
          aux_array_i8(iElemL) = aux_array_i8(iElemL-1)+nnode
       end do
 
-      !call create_chunked_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,ms_dims,dtype)
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       call write_dataspace_int8_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_i8)
       deallocate(aux_array_i8)
@@ -3670,7 +3661,7 @@ contains
       deallocate(aux_array_i8)
       !-----------------------------------------------------------------------------
       allocate(aux_array_i1(numElemsRankPar))
-      dtype = h5_datatype_uint1!H5T_STD_U8LE
+      dtype = h5_datatype_uint1
       dsetname = '/VTKHDF/Types'
       !$acc kernels
       aux_array_i1(:) = 72
@@ -3707,9 +3698,8 @@ contains
       integer(HSSIZE_T), dimension(2) :: ms_offset2d
       integer(4) :: ds_rank,ms_rank,h5err
 
-      integer(4) :: ii,iNodeL,iElemL
+      integer(4) :: ii,iElemL
       integer(1),allocatable :: aux_array_i1(:)
-      real(8),allocatable :: aux_array_r8(:)
 
       !------------------------------------------------------------------------------------
 
@@ -3727,9 +3717,7 @@ contains
 
       call create_vtkhdf_resultsFile(file_id)
 
-      allocate(aux_array_r8(numNodesRankPar))
       !------------------------------------------------------------------------------------------------------
-      !dtype = h5_datatype_real4
       ds_dims(1)   = int(totalNumNodesPar,hsize_t)
       ms_dims(1)   = int(numNodesRankPar ,hsize_t)
       ms_offset(1) = int(rankNodeStart,hssize_t)-1
@@ -3788,71 +3776,14 @@ contains
       ms_offset2d(2) = rankNodeStart-1
       !-------------------------------------------------------------------------------- 
       dsetname = '/VTKHDF/PointData/Velocity'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims2d,dtype)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 0
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(u(iNodeL,1),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !call write_dataspace_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,u(:,1))
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 1
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(u(iNodeL,2),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 2
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(u(iNodeL,3),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
+      call save_array2D_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,u)
       !-------------------------------------------------------------------------------- 
       dsetname = '/VTKHDF/PointData/gradRho'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims2d,dtype)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 0
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(gradRho(iNodeL,1),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 1
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(gradRho(iNodeL,2),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 2
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(gradRho(iNodeL,3),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
+      call save_array2D_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,gradRho)
       !-------------------------------------------------------------------------------- 
       dsetname = '/VTKHDF/PointData/curlU'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims2d,dtype)
+      call save_array2D_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,curlU)
       !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 0
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(curlU(iNodeL,1),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 1
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(curlU(iNodeL,2),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 2
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(curlU(iNodeL,3),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
-
-      deallocate(aux_array_r8)
 
       !-------------------------------------------------------------------------------------------------------
 
@@ -3895,11 +3826,8 @@ contains
       integer(HSSIZE_T), dimension(2) :: ms_offset2d
       integer(4) :: ds_rank,ms_rank,h5err
 
-      integer(4) :: ii,iNodeL,iElemL
+      integer(4) :: iElemL
       integer(1),allocatable :: aux_array_i1(:)
-      !integer(4),allocatable :: aux_array_i4(:)
-      !integer(8),allocatable :: aux_array_i8(:)
-      real(8),allocatable :: aux_array_r8(:)
 
       !------------------------------------------------------------------------------------
       ! Setup file access property list with parallel I/O access.
@@ -3916,9 +3844,7 @@ contains
 
       call create_vtkhdf_resultsFile(file_id)
 
-      allocate(aux_array_r8(numNodesRankPar))
       !------------------------------------------------------------------------------------------------------
-      dtype = h5_datatype_real8
       ds_rank = 1
       ms_rank = 1
       ds_dims(1)   = int(totalNumNodesPar,hsize_t)
@@ -3927,27 +3853,15 @@ contains
 
       ! ## avgRHO ##
       dsetname = '/VTKHDF/PointData/avrho'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(avrho(iNodeL),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_r8)
+      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avrho)
 
       ! ## avgPRE ##
       dsetname = '/VTKHDF/PointData/avpre'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(avpre(iNodeL),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_r8)
+      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avpre)
 
       ! ## avgMUEFF ##
       dsetname = '/VTKHDF/PointData/avmueff' 
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(avmueff(iNodeL),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_r8)
+      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avmueff)
       
       !-------------------------------------------------------------------------------------------------------
       ds_rank = 2
@@ -3959,92 +3873,17 @@ contains
       ms_offset2d(2) = rankNodeStart-1
       !-------------------------------------------------------------------------------- 
       dsetname = '/VTKHDF/PointData/avvel'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims2d,dtype)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 0
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(avvel(iNodeL,1),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 1
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(avvel(iNodeL,2),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 2
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(avvel(iNodeL,3),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
+      call save_array2D_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,avvel)
       !-------------------------------------------------------------------------------- 
       dsetname = '/VTKHDF/PointData/avve2'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims2d,dtype)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 0
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(avve2(iNodeL,1),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 1
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(avve2(iNodeL,2),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 2
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(avve2(iNodeL,3),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
+      call save_array2D_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,avve2)
       !-------------------------------------------------------------------------------- 
       dsetname = '/VTKHDF/PointData/avvex'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims2d,dtype)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 0
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(avvex(iNodeL,1),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 1
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(avvex(iNodeL,2),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 2
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(avvex(iNodeL,3),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
+      call save_array2D_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,avvex)
       !-------------------------------------------------------------------------------- 
       dsetname = '/VTKHDF/PointData/avtw'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims2d,dtype)
+      call save_array2D_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,avtw)
       !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 0
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(avtw(iNodeL,1),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 1
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(avtw(iNodeL,2),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
-      ms_offset2d(1) = 2
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(avtw(iNodeL,3),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims2d,ms_offset2d,aux_array_r8)
-      !-------------------------------------------------------------------------------- 
-      deallocate(aux_array_r8)
 
       !-------------------------------------------------------------------------------------------------------
       allocate(aux_array_i1(numNodesRankPar))
@@ -4083,9 +3922,8 @@ contains
       integer(HSSIZE_T), dimension(1) :: ms_offset 
       integer :: ds_rank,ms_rank,h5err
 
-      integer :: ii,iNodeL,iElemL
+      integer(4) :: iElemL
       integer(1),allocatable :: aux_array_i1(:)
-      real(8),allocatable :: aux_array_r8(:)
 
       !------------------------------------------------------------------------------------
       ! Setup file access property list with parallel I/O access.
@@ -4102,22 +3940,16 @@ contains
 
       call create_vtkhdf_resultsFile(file_id)
 
-      allocate(aux_array_r8(numNodesRankPar))
       !------------------------------------------------------------------------------------------------------
-      dtype = h5_datatype_real8
       ds_rank = 1
       ms_rank = 1
       ds_dims(1)   = int(totalNumNodesPar,hsize_t)
       ms_dims(1)   = int(numNodesRankPar ,hsize_t)
       ms_offset(1) = int(rankNodeStart,hssize_t)-1
 
-      ! ## realField ##
+      ! ## realField ##      
       dsetname = '/VTKHDF/PointData/realField'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      do iNodeL = 1,numNodesRankPar
-         aux_array_r8(iNodeL) = real(realField(iNodeL),8)
-      end do
-      call write_dataspace_fp64_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_r8)
+      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,realField)
 
       !-------------------------------------------------------------------------------------------------------
       allocate(aux_array_i1(numNodesRankPar))
