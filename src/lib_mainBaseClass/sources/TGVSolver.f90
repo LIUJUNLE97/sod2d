@@ -61,16 +61,12 @@ contains
       ! numerical params
       flag_les = 0
       flag_implicit = 0
-      maxIter=20
       maxIterNonLineal=500
       tol=1e-3
-      pseudo_cfl =0.9_rp
-      flag_rk_order = 2
-      pseudo_max_dt = 100
+      pseudo_cfl =2.0_rp
 
       this%nstep = 50001
       this%maxPhysTime = 20.0_rp
-
 
       this%cfl_conv = 0.5_rp
       this%cfl_diff = 0.5_rp
