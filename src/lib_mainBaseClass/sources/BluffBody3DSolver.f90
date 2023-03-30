@@ -99,10 +99,12 @@ contains
       ! numerical params
       flag_les = 0
       flag_implicit = 1
+      flag_rk_order=2 
        
-      pseudo_cfl =0.1_rp
-      maxIterNonLineal=15
-      tol=1e-2
+      pseudo_cfl =0.5_rp
+      pseudo_ftau= 5.0_rp
+      maxIterNonLineal=30
+      tol=1e-3
 
       this%loadResults = .false.
       this%continue_oldLogs = .false.
@@ -115,17 +117,20 @@ contains
       this%cfl_diff = 1.0_rp 
 #else   
       !this%dt = 6e-5
-      this%cfl_conv = 20.0_rp
-      this%cfl_diff = 20.0_rp
+      this%cfl_conv = 15.0_rp
+      this%cfl_diff = 15.0_rp
+
+      !this%cfl_conv = 2.5_rp
+      !this%cfl_diff = 2.5_rp
 #endif
 
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 100!25 ! Saving interval, TODO: input
+      this%nleap = 500!25 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 1  ! Saving interval, TODO: input
-      this%nleapAVG = 100
+      this%nleapAVG = 500
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

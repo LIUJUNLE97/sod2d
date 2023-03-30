@@ -78,8 +78,9 @@ contains
       flag_les = 1
       flag_implicit = 1
       maxIterNonLineal=500
-      pseudo_cfl =   2.0_rp
+      pseudo_cfl =   0.75_rp
       tol = 1e-3
+      flag_rk_order=2 
 
       this%loadResults = .false.
       this%continue_oldLogs = .false.
@@ -88,8 +89,8 @@ contains
       this%nstep = 1000000 
 
       !this%dt=5e-3
-      this%cfl_conv = 20.0_rp
-      this%cfl_diff = 20.0_rp
+      this%cfl_conv = 10.0_rp
+      this%cfl_diff = 10.0_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1

@@ -908,15 +908,25 @@ module time_integ
                         Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)/alfa_pt(idime+2)
                         sigMom(ipoin,idime,2) = sigMom(ipoin,idime,2) + abs(pt(ipoin,idime+2)*(b_i(istep)-b_i2(istep))*Rmom(ipoin,idime))/kappa
                      end do
-                     !$acc loop seq
-                     do jstep=istep+1,pseudo_steps
-                        aijKjMass(ipoin,jstep) = aijKjMass(ipoin,jstep) + a_ij(jstep,istep)*Rmass(ipoin)
-                        aijKjEner(ipoin,jstep) = aijKjEner(ipoin,jstep) + a_ij(jstep,istep)*Rener(ipoin)
+                     if(istep .eq. 1) then
+                        !$acc loop seq
+                        do jstep=istep+1,pseudo_steps
+                           aijKjMass(ipoin,jstep) = aijKjMass(ipoin,jstep) + a_ij(jstep,istep)*Rmass(ipoin)
+                           aijKjEner(ipoin,jstep) = aijKjEner(ipoin,jstep) + a_ij(jstep,istep)*Rener(ipoin)
+                           !$acc loop seq
+                           do idime = 1,ndime
+                              aijKjMom(ipoin,idime,jstep) = aijKjMom(ipoin,idime,jstep) + a_ij(jstep,istep)*RMom(ipoin,idime)
+                           end do
+                        end do
+                     else 
+                        !$acc loop seq
+                        aijKjMass(ipoin,istep+1) = aijKjMass(ipoin,istep+1) + a_ij(istep+1,istep)*Rmass(ipoin)
+                        aijKjEner(ipoin,istep+1) = aijKjEner(ipoin,istep+1) + a_ij(istep+1,istep)*Rener(ipoin)
                         !$acc loop seq
                         do idime = 1,ndime
-                           aijKjMom(ipoin,idime,jstep) = aijKjMom(ipoin,idime,jstep) + a_ij(jstep,istep)*RMom(ipoin,idime)
+                           aijKjMom(ipoin,idime,istep+1) = aijKjMom(ipoin,idime,istep+1) + a_ij(istep+1,istep)*RMom(ipoin,idime)
                         end do
-                     end do
+                     end if
                   end do
                   !$acc end parallel loop
                   call nvtxEndRange
