@@ -61,18 +61,16 @@ contains
       ! numerical params
       flag_les = 0
       flag_implicit = 1
-      maxIter=20
       maxIterNonLineal=500
-      tol=1e-1
-      pseudo_cfl =1.0_rp
-      flag_rk_order = 2
-      pseudo_max_dt = 100
+      tol=1e-3
+      pseudo_cfl =2.0_rp
 
       this%nstep = 50001
       this%maxPhysTime = 20.0_rp
 
-      this%cfl_conv = 2.5_rp
-      this%cfl_diff = 2.5_rp
+      !this%dt = 1e-2
+      this%cfl_conv = 20.0_rp
+      this%cfl_diff = 20.0_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
 

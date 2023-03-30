@@ -806,48 +806,8 @@ module time_integ
                         0.5_rp*dot_product(aux_u(lpoin_w(ipoin),:),aux_u(lpoin_w(ipoin),:))
                      aux_pr(lpoin_w(ipoin)) = aux_rho(lpoin_w(ipoin))*(gamma_gas-1.0_rp)*aux_e_int(lpoin_w(ipoin))
                      aux_Tem(lpoin_w(ipoin)) = aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))*Rgas)
-                     aux_eta2(lpoin_w(ipoin)) = aux_eta(lpoin_w(ipoin))
-                     aux_eta(lpoin_w(ipoin)) = (aux_rho(lpoin_w(ipoin))/(gamma_gas-1.0_rp))* &
-                     log(aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))**gamma_gas))
-                     !$acc loop seq
-                     do idime = 1,ndime
-                        f_eta(lpoin_w(ipoin),idime) = aux_u(lpoin_w(ipoin),idime)*aux_eta(lpoin_w(ipoin))
-                     end do
                   end do
                   !$acc end parallel loop
-                  call nvtxEndRange
-
-                  call nvtxStartRange("Update generic convection")
-                  call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-                     gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,aux_eta,aux_u(:,:),Reta,alpha)
-                  call nvtxEndRange
-
-                  if(mpi_size.ge.2) then
-                     call nvtxStartRange("MPI_comms_tI")
-                     call mpi_halo_atomic_update_real(Reta)
-                     call nvtxEndRange
-                  end if
-
-                  call nvtxStartRange("Lumped mass solver on generic")
-                  call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
-                  call nvtxEndRange
-
-                  call nvtxStartRange("Update sign Reta")
-                  !$acc parallel loop
-                  do ipoin = 1,npoin_w
-                     Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin)) &
-                                             -(3.0_rp*eta(lpoin_w(ipoin),2)-4.0_rp*eta(lpoin_w(ipoin),1)+eta(lpoin_w(ipoin),3))/(2.0_rp*dt) &
-                                             -(aux_eta(lpoin_w(ipoin))-aux_eta2(lpoin_w(ipoin)))/(pt(ipoin,1))
-                  end do
-                  !$acc end parallel loop
-                  call nvtxEndRange
-
-                  !
-                  ! Compute entropy viscosity
-                  !
-                  call nvtxStartRange("Entropy viscosity evaluation")
-                  call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
-                     gamma_gas,aux_rho(:),aux_u(:,:),csound,aux_Tem(:),aux_eta(:),helem_l,helem,Ml,mu_e)
                   call nvtxEndRange
 
                   !
@@ -1032,8 +992,44 @@ module time_integ
                   Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
                   eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0_rp))* &
                   log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
+                  !$acc loop seq
+                     do idime = 1,ndime
+                        f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,pos)*eta(lpoin_w(ipoin),pos)
+                     end do
                end do
                !$acc end parallel loop
+
+               call nvtxStartRange("Update generic convection")
+               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+                  gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta,alpha)
+               call nvtxEndRange
+
+               if(mpi_size.ge.2) then
+                  call nvtxStartRange("MPI_comms_tI")
+                  call mpi_halo_atomic_update_real(Reta)
+                  call nvtxEndRange
+               end if
+
+               call nvtxStartRange("Lumped mass solver on generic")
+               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
+               call nvtxEndRange
+
+               call nvtxStartRange("Update sign Reta")
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin)) &
+                                          -(3.0_rp*eta(lpoin_w(ipoin),2)-4.0_rp*eta(lpoin_w(ipoin),1)+eta(lpoin_w(ipoin),3))/(2.0_rp*dt) 
+               end do
+               !$acc end parallel loop
+               call nvtxEndRange
+
+               !
+               ! Compute entropy viscosity
+               !
+               call nvtxStartRange("Entropy viscosity evaluation")
+               call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
+                  gamma_gas,rho(:,pos),u(:,:,pos),csound,Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e)
+               call nvtxEndRange
 
                call nvtxStartRange("Accumullatee auxN in auxN2")
                call MPI_Allreduce(aux2,res(1),1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
