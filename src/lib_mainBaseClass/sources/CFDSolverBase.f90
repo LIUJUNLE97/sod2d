@@ -65,17 +65,20 @@ module CFDSolverBase_mod
    type, public :: CFDSolverBase
 
       ! main integer parameters
-      !NOTES @JORDI: -> it would be nice if nelem, npoin, nper... etc dissapear from here!
-      integer(4), public :: nstep, nper, numCodes 
-      integer(4), public :: nsave, nleap
-      integer(4), public :: nsave2, nleap2
-      integer(4), public :: nsaveAVG, nleapAVG
-      integer(4), public :: counter, npoin_w
-      integer(4), public :: load_step, initial_istep
+      !integer(4), public :: nper, numCodes 
+      !integer(4), public :: nsave, nleap
+      !integer(4), public :: nsave2, nleap2
+      !integer(4), public :: nsaveAVG, nleapAVG
+      integer(4), public :: save_logFile_first,save_logFile_step,save_logFile_next
+      integer(4), public :: save_restartFile_first,save_restartFile_step,save_restartFile_next
+      integer(4), public :: save_resultsFile_first,save_resultsFile_step,save_resultsFile_next
+      integer(4), public :: save_avgResultsFile_first,save_avgResultsFile_step,save_avgResultsFile_next
+      integer(4), public :: restartFileCnt,restartFile_to_load
+      integer(4), public :: initial_istep,final_istep,load_step
 
       ! main logical parameters
       logical, public    :: doGlobalAnalysis=.false.,isFreshStart=.true.,doTimerAnalysis=.false.
-      logical, public    :: loadResults=.false.,continue_oldLogs=.false.,saveInitialField=.true.,isWallModelOn=.false.
+      logical, public    :: loadRestartFile=.false.,continue_oldLogs=.false.,saveInitialField=.true.,isWallModelOn=.false.
       logical, public    :: useIntInComms=.false.,useRealInComms=.false.
 
       ! main char variables
@@ -116,6 +119,7 @@ module CFDSolverBase_mod
       procedure, public :: evalFirstOutput =>CFDSolverBase_evalFirstOutput
       procedure, public :: evalTimeIteration =>CFDSolverBase_evalTimeIteration
       procedure, public :: callTimeIntegration =>CFDSolverBase_callTimeIntegration
+      procedure, public :: saveRestartFile =>CFDSolverBase_saveRestartFile
       procedure, public :: saveAverages =>CFDSolverBase_saveAverages
       procedure, public :: savePosprocessingFields =>CFDSolverBase_savePosprocessingFields
       procedure, public :: afterDt =>CFDSolverBase_afterDt
@@ -166,16 +170,31 @@ contains
       write(this%results_h5_file_name,*) "resultsFile"
 
       this%time = 0.0_rp
-      this%load_step = 0
       this%initial_istep = 1
       this%maxPhysTime = 1.0e6_rp
 
-      this%loadResults = .false.
+      !--------------------------------------------------------------------------
+      this%save_logFile_first = 1
+      this%save_logFile_step = 100
+      !--------------------------------------------------------------------------
+      this%save_restartFile_first = 1
+      this%save_restartFile_step = 10000
+      this%restartFile_to_load = 1
+      this%restartFileCnt = 1
+       !--------------------------------------------------------------------------     
+      this%save_resultsFile_first = 1
+      this%save_resultsFile_step = 100000
+       !--------------------------------------------------------------------------     
+      this%save_avgResultsFile_first = 1
+      this%save_avgResultsFile_step = 100000
+      !--------------------------------------------------------------------------
+
+      this%loadRestartFile = .false.
       this%continue_oldLogs= .false.
       this%doGlobalAnalysis = .false.
       this%doTimerAnalysis = .false.
       this%isFreshStart=.true.
-      this%saveInitialField=.true.
+      this%saveInitialField=.false.
       this%isWallModelOn=.false.
       !@JORDI: discuss which other parameters can be set as default....
 
@@ -190,8 +209,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
 
       call nvtxStartRange("Open mesh")
-      ! init hdf5
-      !call init_hdf5_interface(this%mesh_h5_file_path,this%mesh_h5_file_name,this%results_h5_file_path,this%results_h5_file_name)
+
       call set_hdf5_meshFile_name(this%mesh_h5_file_path,this%mesh_h5_file_name,mpi_size)
       call set_hdf5_baseResultsFile_name(this%results_h5_file_path,this%results_h5_file_name,this%mesh_h5_file_name,mpi_size)
 
@@ -201,7 +219,7 @@ contains
       call load_hdf5_meshfile()
       ! init comms
       call init_comms(this%useIntInComms,this%useRealInComms)
-      !----- init comms boundaries
+      ! init comms boundaries
       call init_comms_bnd(this%useIntInComms,this%useRealInComms)
 
       call nvtxEndRange
@@ -514,17 +532,47 @@ contains
    subroutine CFDSolverBase_evalOrLoadInitialConditions(this)
       class(CFDSolverBase), intent(inout) :: this
 
-      if(this%loadResults) then
-         if(mpi_rank.eq.0) write(111,*) "--| Loading results load_step ",this%load_step
-         call load_hdf5_resultsFile(this%load_step,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs)
-         if(mpi_rank.eq.0) write(111,*) "   --| Loaded results for load_step",this%load_step,"time",this%time
+      this%save_logFile_next = this%save_logFile_first
+      this%save_restartFile_next = this%save_restartFile_first
+      this%save_resultsFile_next = this%save_resultsFile_first
+      this%save_avgResultsFile_next = this%save_avgResultsFile_first
+
+      if(this%loadRestartFile) then
+         if(mpi_rank.eq.0) write(111,*) "--| Loading restart file ",this%restartFile_to_load
+         !call load_hdf5_restartFile(this%restartFile_to_load,this%load_step,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2))
+         call load_hdf5_restartFile(this%restartFile_to_load,this%load_step,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs)
+
+         if(mpi_rank.eq.0) write(111,*) "   --| Loaded results for iStep",this%load_step,"time",this%time
          call this%eval_vars_after_load_hdf5_resultsFile()
 
          if(this%continue_oldLogs) then
-            this%initial_istep = this%load_step
-            this%nsave = this%load_step+this%nleap
-            this%nsaveAVG = this%load_step+this%nleapAVG
-            this%nsave2 = this%load_step+this%nleap2
+            this%initial_istep = this%load_step+1
+
+            do while(this%save_logFile_next .le. this%load_step) 
+               this%save_logFile_next = this%save_logFile_next + this%save_logFile_step
+            end do
+
+            do while(this%save_restartFile_next .le. this%load_step) 
+               this%save_restartFile_next = this%save_restartFile_next + this%save_restartFile_step
+            end do
+
+            do while(this%save_resultsFile_next .le. this%load_step) 
+               this%save_resultsFile_next = this%save_resultsFile_next + this%save_resultsFile_step
+            end do
+
+            do while(this%save_avgResultsFile_next .le. this%load_step) 
+               this%save_avgResultsFile_next = this%save_avgResultsFile_next + this%save_avgResultsFile_step
+            end do
+
+            if(mpi_rank.eq.0) then
+               write(111,*) "   --| Continuing old logs..."
+               write(111,*) "   --| initial_istep",this%initial_istep
+               write(111,*) "   --| save_logFile_next",this%save_logFile_next
+               write(111,*) "   --| save_restartFile_next",this%save_restartFile_next
+               write(111,*) "   --| save_resultsFile_next",this%save_resultsFile_next
+               write(111,*) "   --| save_avgResultsFile_next",this%save_avgResultsFile_next
+            end if
+
             this%isFreshStart = .false.
          else
             this%time = 0.0_rp
@@ -846,16 +894,34 @@ contains
 
    subroutine CFDSolverBase_callTimeIntegration(this,istep)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)              , intent(in)   :: istep
+      integer(4), intent(in) :: istep
 
       if(mpi_rank.eq.0) write(111,*) " Time integration should be overwritted"
       stop 1
 
    end subroutine CFDSolverBase_callTimeIntegration
 
+   subroutine CFDSolverBase_saveRestartFile(this,istep)
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4), intent(in) :: istep
+      
+      call save_hdf5_restartFile(this%restartFileCnt,istep,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs)
+
+      if(this%restartFileCnt .eq. 1) then
+         this%restartFileCnt = 2
+      else if(this%restartFileCnt .eq. 2) then
+         this%restartFileCnt = 1
+      else
+         if(mpi_rank.eq.0) write(111,*) 'Wrong value in restartFileCnt! Setting it to default value 1'
+         this%restartFileCnt = 1
+      end if 
+
+   end subroutine CFDSolverBase_saveRestartFile
+
+
    subroutine CFDSolverBase_saveAverages(this,istep)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4), intent(in)   :: istep
+      integer(4), intent(in) :: istep
 
       call eval_average_window(isMeshPeriodic,numNodesRankPar,numElemsRankPar,acuvel,acuve2,acuvex,acurho,acupre,acumueff,acutw,this%acutim,&
 											avvel,avve2,avvex,avrho,avpre,avmueff,avtw,nPerRankPar,masSlaRankPar)
@@ -889,29 +955,21 @@ contains
 
    subroutine CFDSolverBase_evalTimeIteration(this)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: icode,counter,istep,flag_emac,flag_predic
+      integer(4) :: icode,istep
       character(4) :: timeStep
       real(8) :: iStepTimeRank,iStepTimeMax,iStepEndTime,iStepStartTime,iStepAvgTime
       real(rp) :: inv_iStep
-
-      counter = 1
-      flag_emac = 0
-      flag_predic=0
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
       call nvtxStartRange("Start RK4")
       if(mpi_rank.eq.0) then
          write(*,*) 'Strarting evalTimeItarion! All info will be written in the log file: ',this%log_file_name
-         write(111,*) 'Doing evalTimeItarion. Ini step:',this%initial_istep,'| End step:',this%nstep
+         write(111,*) 'Doing evalTimeIteration. Ini step:',this%initial_istep,'| End step:',this%final_istep
       end if
-      ! periodic with boundaries
-      do istep = this%initial_istep,this%nstep
-         !if (istep==this%nsave.and.mpi_rank.eq.0) write(111,*) '   --| STEP: ', istep
-         !
-         ! Prediction
-         !
-         flag_predic = 1
+
+      do istep = this%initial_istep,this%final_istep
+
          call nvtxStartRange("Init pred "//timeStep,istep)
          !$acc kernels
          rho(:,1) = rho(:,2)
@@ -925,13 +983,8 @@ contains
          !$acc end kernels
          call nvtxEndRange
 
-         ! nvtx range for full RK
-         ! write(timeStep,'(i4)') istep
          call nvtxStartRange("RK4 step "//timeStep,istep)
-         !
-         ! Advance with entropy viscosity
-         !
-         flag_predic = 0
+
          if(this%doTimerAnalysis) iStepStartTime = MPI_Wtime()
 
          call this%callTimeIntegration(istep)
@@ -943,7 +996,7 @@ contains
             inv_iStep = 1.0_rp/real(istep)
             iStepAvgTime = (iStepAvgTime*(istep-1)+iStepTimeMax)*inv_iStep
 
-            if((mpi_rank.eq.0).and.(istep==this%nsave2)) then
+            if((mpi_rank.eq.0).and.(this%save_logFile_next==istep)) then
                write(123,*) istep,iStepTimeMax,iStepAvgTime
                call flush(123)
             end if
@@ -951,7 +1004,7 @@ contains
 
          this%time = this%time+this%dt
 
-         if (istep == this%nsave2 .and. (this%doGlobalAnalysis)) then
+         if ((this%save_logFile_next==istep) .and. (this%doGlobalAnalysis)) then
             call volAvg_EK(numElemsRankPar,numNodesRankPar,connecParWork,gpvol,Ngp,nscbc_rho_inf,rho(:,2),u(:,:,2),this%EK)
             call visc_dissipationRate(numElemsRankPar,numNodesRankPar,connecParWork,this%leviCivi,nscbc_rho_inf,mu_fluid,mu_e,u(:,:,2),this%VolTot,gpvol,He,dNgp,this%eps_S,this%eps_D,this%eps_T)
             call maxMach(numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,machno,this%maxmachno)
@@ -980,11 +1033,11 @@ contains
                             mu_fluid,mu_e,mu_sgs,tauw,this%acutim,acurho,acupre,acuvel,acuve2,acuvex,acumueff,acutw)
          call nvtxEndRange
 
-         if (istep == this%nsave2) then
-            if(istep==this%nsave2.and.mpi_rank.eq.0) write(111,*) "step",istep,"time:",this%time,"s (dt",this%dt,"s)"
+         if(this%save_logFile_next==istep) then
+            if(mpi_rank.eq.0) write(111,*) "step",istep,"time:",this%time,"s (dt",this%dt,"s)"
 
             if (isMeshBoundaries) then
-               do icode = 1,numBoundCodes!this%numCodes
+               do icode = 1,numBoundCodes
                   call nvtxStartRange("Surface info")
                   call surfInfo(istep,this%time,numElemsRankPar,numNodesRankPar,numBoundsRankPar,icode,connecParWork,boundPar,point2elem, &
                      bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
@@ -996,36 +1049,40 @@ contains
             end if
          end if
 
-         !
-         ! Output the averages after some steps (user defined)
-         !
-         if (istep == this%nsaveAVG) then
-            call nvtxStartRange("Output AVG"//timeStep,istep)
-            call this%saveAverages(istep)
-            this%nsaveAVG = this%nsaveAVG+this%nleapAVG
+         ! ---- SAVING RESTART FILE ---------------------------------------------------------------------------
+         if (this%save_restartFile_next == istep) then
+            this%save_restartFile_next = this%save_restartFile_next + this%save_restartFile_step
+            if (mpi_rank.eq.0) write(111,*) ' - Saving restart file',this%restartFileCnt,'in step',istep,'(next to save',this%save_restartFile_next,')'
+            call nvtxStartRange("Saving_restart_file"//timeStep,istep)
+            call this%saveRestartFile(istep)
             call nvtxEndRange
          end if
 
-         !
-         ! Call VTK output
-         !
-         if (istep == this%nsave) then
-            if (mpi_rank.eq.0) write(111,*) ' -Saving file step: ',istep
+         ! ---- SAVING AVG RESULTS FILE -----------------------------------------------------------------------
+         if (this%save_avgResultsFile_next == istep) then
+            this%save_avgResultsFile_next = this%save_avgResultsFile_next + this%save_avgResultsFile_step
+            if (mpi_rank.eq.0) write(111,*) ' - Saving avgResults file step:',istep,'(next to save',this%save_avgResultsFile_next,')'
+            call nvtxStartRange("Output AVG"//timeStep,istep)
+            call this%saveAverages(istep)
+            call nvtxEndRange
+         end if
+
+         ! ---- SAVING INST RESULTS FILE -----------------------------------------------------------------------
+         if (this%save_resultsFile_next == istep) then
+            this%save_resultsFile_next = this%save_resultsFile_next + this%save_resultsFile_step
+            if (mpi_rank.eq.0) write(111,*) ' - Saving results file step:',istep,'(next to save',this%save_resultsFile_next,')'
             call nvtxStartRange("Output "//timeStep,istep)
             call compute_fieldDerivs(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
             call this%savePosprocessingFields(istep)
-            this%nsave = this%nsave+this%nleap
             call nvtxEndRange
          end if
 
          call this%afterDt(istep)
 
-         if(istep==this%nsave2) then
-            this%nsave2 = this%nsave2+this%nleap2
+         if(this%save_logFile_next==istep) then
+            this%save_logFile_next = this%save_logFile_next + this%save_logFile_step
             if(mpi_rank.eq.0) call flush(111)
          end if
-
-         counter = counter+1
 
          ! End simulation when physical time is reached (user defined)
          if (this%time .ge. this%maxPhysTime) then
@@ -1186,8 +1243,8 @@ contains
 
          q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
          rho(iNodeL,3) = rho(iNodeL,2)
-          E(iNodeL,3) =  E(iNodeL,2)
-           eta(iNodeL,3) =  eta(iNodeL,2)
+         E(iNodeL,3) =  E(iNodeL,2)
+         eta(iNodeL,3) =  eta(iNodeL,2)
       end do
       !$acc end parallel loop
 

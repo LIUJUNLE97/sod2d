@@ -6,7 +6,7 @@ module mod_hdf5
    use mod_comms_boundaries
    implicit none
 
-   character(256) :: meshFile_h5_name,base_resultsFile_h5_name,base_avgResultsFile_h5_name
+   character(256) :: meshFile_h5_name,base_resultsFile_h5_name,base_avgResultsFile_h5_name,base_restartFile_h5_name
    integer(hid_t) :: meshFile_h5_id,resultsFile_h5_id
 
    integer(hid_t) :: h5_datatype_uint1,h5_datatype_int1,h5_datatype_int4,h5_datatype_int8
@@ -59,6 +59,9 @@ contains
       base_resultsFile_h5_name = trim(adjustl(res_filePath))//trim(adjustl(res_fileName))//'_'&
          //trim(adjustl(mesh_fileName))//'-'//trim(aux_numRanks)//'_'
       base_avgResultsFile_h5_name = trim(adjustl(res_filePath))//trim(adjustl(res_fileName))//'_AVG_'&
+         //trim(adjustl(mesh_fileName))//'-'//trim(aux_numRanks)//'_'
+
+      base_restartFile_h5_name = trim(adjustl(res_filePath))//'restart_'&
          //trim(adjustl(mesh_fileName))//'-'//trim(aux_numRanks)//'_'
 
    end subroutine set_hdf5_baseResultsFile_name
@@ -2797,6 +2800,16 @@ contains
       full_fileName = trim(adjustl(base_resultsFile_h5_name))//trim(aux_step)//'.h5'
    end subroutine set_hdf5_resultsFile_name
 
+   subroutine set_hdf5_restartFile_name(iStep,full_fileName)
+      implicit none
+      integer, intent(in) :: iStep
+      character(len=*), intent(out) :: full_fileName
+      character(len=12) :: aux_step
+
+      write(aux_step,'(I0)') iStep
+      full_fileName = trim(adjustl(base_restartFile_h5_name))//trim(aux_step)//'.h5'
+   end subroutine set_hdf5_restartFile_name
+
 !----------------------------------------------------------------------------------------------------------------------------------
 
    subroutine create_dataspace_for_rp_vtk_hdf5(file_id,dsetname,ds_rank,ds_dims)
@@ -2820,7 +2833,7 @@ contains
 
    end subroutine create_dataspace_for_rp_vtk_hdf5
 
-   subroutine save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,data_array_rp)
+   subroutine save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,data_array_rp)
       implicit none
       integer(hid_t),intent(in) :: file_id
       character(*),intent(in) :: dsetname
@@ -2846,9 +2859,9 @@ contains
          deallocate(aux_data_array_rp_vtk)
       end if
 
-   end subroutine save_array1D_in_dataset_hdf5_file
+   end subroutine save_array1D_rp_in_dataset_hdf5_file
 
-   subroutine save_array2D_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,data_array_rp)
+   subroutine save_array2D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,data_array_rp)
       implicit none
       integer(hid_t),intent(in) :: file_id
       character(*),intent(in) :: dsetname
@@ -2888,10 +2901,10 @@ contains
          deallocate(aux_data_array_rp_vtk)
       end if
 
-   end subroutine save_array2D_in_dataset_hdf5_file
+   end subroutine save_array2D_rp_in_dataset_hdf5_file
 !------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,data_array_rp)
+   subroutine read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,data_array_rp)
       implicit none
       integer(hid_t),intent(in) :: file_id
       character(*),intent(in) :: dsetname
@@ -2916,7 +2929,227 @@ contains
          deallocate(aux_data_array_rp_vtk)
       end if
 
-   end subroutine read_array1D_in_dataset_hdf5_file
+   end subroutine read_array1D_rp_in_dataset_hdf5_file
+
+!----------------------------------------------------------------------------------------------------------------------------------
+
+   subroutine save_hdf5_restartFile(restartCnt,iStep,time,rho,u,pr,E,mu_e,mu_t)
+      implicit none
+      integer(4), intent(in) :: restartCnt,iStep
+      real(rp),intent(in) :: time
+      real(rp),intent(inout),dimension(numNodesRankPar)       :: rho,pr,E
+      real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u
+      real(rp),intent(inout),dimension(numElemsRankPar,ngaus) :: mu_e,mu_t
+
+      integer(hid_t) :: file_id,plist_id,dtype
+      integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
+      integer(HSSIZE_T), dimension(1) :: ms_offset 
+      integer(4) :: ds_rank,ms_rank,h5err
+      character(512) :: full_fileName,dsetname
+
+      real(rp) :: aux_array_rp(1)
+      integer(4) :: aux_array_i4(1)
+
+      real(rp),dimension(numNodesRankPar) :: aux_mu_e,aux_mu_t
+      integer(4) :: iElem,iNode
+
+      !$acc kernels
+      do iElem = 1,numElemsRankPar
+         do iNode = 1,nnode
+            aux_mu_e(connecParOrig(iElem,iNode)) = mu_e(iElem,iNode)
+            aux_mu_t(connecParOrig(iElem,iNode)) = mu_t(iElem,iNode)
+         end do
+      end do
+      !$acc end kernels
+
+      !-----------------------------------------------------------------------------------------------
+      ! Writing HDF5 Files
+
+      call set_hdf5_restartFile_name(restartCnt,full_fileName)
+
+      ! Setup file access property list with parallel I/O access.
+      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
+      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+
+      ! create file collectively
+      call h5fcreate_f(full_fileName,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot create restart file ',trim(adjustl(full_fileName))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
+      call h5pclose_f(plist_id, h5err)
+      !-----------------------------------------------------------------------------------------------
+      ds_dims(1) = int(totalNumNodesPar,hsize_t)
+      ms_dims(1) = int(numNodesRankPar,hsize_t)
+      ms_offset(1) = int(rankNodeStart,hssize_t)-1
+      !-----------------------------------------------------------------------------------------------
+      
+      dsetname = 'rho'
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,rho)
+
+      dsetname = 'u_x'
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u(:,1))
+
+      dsetname = 'u_y'
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u(:,2))
+
+      dsetname = 'u_z'
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u(:,3))
+
+      dsetname = 'pr'
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,pr)
+
+      dsetname = 'E'
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,E)
+
+      dsetname = 'mue'
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_mu_e)
+
+      dsetname = 'mut'
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_mu_t)
+
+      !-----------------------------------------------------------------------------------------------
+      ! ----  time  -----
+      ms_dims(1) = 0
+      ds_dims = 1
+      ms_offset(1) = 0
+      if(mpi_rank.eq.0) then
+         ms_dims(1) = 1
+      endif
+      aux_array_rp(1) = time
+
+      dsetname = 'time'
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_array_rp)
+
+      !-----------------------------------------------------------------------------------------------
+      ! ---- istep -----
+      dtype = h5_datatype_int4
+      ds_rank = 1
+      ms_rank = 1
+      aux_array_i4(1) = iStep
+
+      dsetname = 'istep'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_i4)
+
+      !close the file.
+      call h5fclose_f(file_id,h5err)
+
+   end subroutine save_hdf5_restartFile
+
+   subroutine load_hdf5_restartFile(restartCnt,load_step,time,rho,u,pr,E,mu_e,mu_t)
+      implicit none
+      integer(4),intent(in) :: restartCnt
+      integer(4),intent(inout) :: load_step
+      real(rp),intent(inout) :: time
+      real(rp),intent(inout),dimension(numNodesRankPar)       :: rho,pr,E
+      real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u
+      real(rp),intent(inout),dimension(numElemsRankPar,ngaus) :: mu_e,mu_t
+      
+      character(512) :: full_restartFileName
+      integer(hid_t) :: file_id,plist_id
+      integer(hsize_t),dimension(1) :: ms_dims
+      integer(hssize_t),dimension(1) :: ms_offset 
+      integer(4) :: ms_rank,iPer,h5err
+      character(128) :: dsetname
+
+      real(rp) :: aux_array_rp(1)
+      integer(4) :: aux_array_i4(1)
+
+      real(rp),dimension(numNodesRankPar) :: aux_mu_e,aux_mu_t
+      integer(4) :: iElem,iNode
+
+      !----------------------------------------------------------------------------------------------------------------------
+
+      if((restartCnt.ne.1).and.(restartCnt.ne.2)) then
+         write(*,*) 'FATAL ERROR in load_hdf5_restartFile! restartFile to load must be 1 or 2 and is',restartCnt,'CRASHING!'
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
+
+      call set_hdf5_restartFile_name(restartCnt,full_restartFileName)
+      if(mpi_rank.eq.0) write(*,*) '# Loading restart file: ',trim(adjustl(full_restartFileName))
+
+      ! Setup file access property list with parallel I/O access.
+      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
+      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+
+      call h5fopen_f(full_restartFileName, H5F_ACC_RDWR_F,file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot load restart file ',trim(adjustl(full_restartFileName))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
+      call h5pclose_f(plist_id, h5err)
+
+      ms_rank = 1
+      ms_offset(1) = 0
+      ms_dims(1) = 1
+      ! ----  read time  --------------------------------------------------------------------------
+
+      dsetname = 'time'
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_array_rp)
+      time = aux_array_rp(1)
+
+      ! ----  read istep --------------------------------------------------------------------------
+      dsetname = 'istep'
+      call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array_i4)
+      load_step = aux_array_i4(1)
+
+      ! ----  read arrays  --------------------------------------------------------------------------
+      ms_dims(1) = int(numNodesRankPar,hsize_t)
+      ms_offset(1) = int(rankNodeStart,hssize_t)-1
+
+      dsetname = 'rho'
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,rho)
+
+      dsetname = 'u_x'
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,1))
+
+      dsetname = 'u_y'
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,2))
+
+      dsetname = 'u_z'
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,3))
+
+      dsetname = 'pr'
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,pr)
+
+      dsetname = 'E'
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,E)
+
+      dsetname = 'mue'
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_mu_e)
+
+      dsetname = 'mut'
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_mu_t)
+
+      !$acc kernels
+      do iElem = 1,numElemsRankPar
+         do iNode = 1, nnode
+            mu_e(iElem,iNode) = aux_mu_e(connecParOrig(iElem,iNode))
+            mu_t(iElem,iNode) = aux_mu_t(connecParOrig(iElem,iNode))
+         end do
+      end do
+      !$acc end kernels
+
+      !-------------------------------------------
+      !2. If case is periodic, adjust slave nodes
+
+      if (isMeshPeriodic) then
+         !$acc parallel loop
+         do iPer = 1,nPerRankPar
+            rho(masSlaRankPar(iPer,2)) = rho(masSlaRankPar(iPer,1))
+            u(masSlaRankPar(iPer,2),1) = u(masSlaRankPar(iPer,1),1)
+            u(masSlaRankPar(iPer,2),2) = u(masSlaRankPar(iPer,1),2)
+            u(masSlaRankPar(iPer,2),3) = u(masSlaRankPar(iPer,1),3)
+            pr(masSlaRankPar(iPer,2))  = pr(masSlaRankPar(iPer,1))
+            E(masSlaRankPar(iPer,2))   = E(masSlaRankPar(iPer,1))
+         end do
+         !$acc end parallel loop
+      end if
+
+      call h5fclose_f(file_id,h5err)
+
+   end subroutine load_hdf5_restartFile
 
 !----------------------------------------------------------------------------------------------------------------------------------
 
@@ -3003,64 +3236,64 @@ contains
       !-----------------------------------------------------------------------------------------------
       
       dsetname = 'rho'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,rho)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,rho)
 
       dsetname = 'u_x'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u(:,1))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u(:,1))
 
       dsetname = 'u_y'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u(:,2))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u(:,2))
 
       dsetname = 'u_z'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u(:,3))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u(:,3))
 
       dsetname = 'mu_fluid'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,mu_fluid)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,mu_fluid)
 
       dsetname = 'mut'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,mut)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,mut)
 
       dsetname = 'envit'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,envit)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,envit)
 
       dsetname = 'gradRho_x'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,gradRho(:,1))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,gradRho(:,1))
 
       dsetname = 'gradRho_y'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,gradRho(:,2))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,gradRho(:,2))
 
       dsetname = 'gradRho_z'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,gradRho(:,3))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,gradRho(:,3))
 
       dsetname = 'curlU_x'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,curlU(:,1))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,curlU(:,1))
 
       dsetname = 'curlU_y'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,curlU(:,2))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,curlU(:,2))
 
       dsetname = 'curlU_z'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,curlU(:,3))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,curlU(:,3))
 
       dsetname = 'pr'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,pr)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,pr)
 
       dsetname = 'E'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,E)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,E)
 
       dsetname = 'eta'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,eta)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,eta)
 
       dsetname = 'csound'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,csound)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,csound)
 
       dsetname = 'machno'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,machno)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,machno)
 
       dsetname = 'divU'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,divU)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,divU)
 
       dsetname = 'Qcrit'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,Qcrit)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,Qcrit)
 
       ! ----  time  -----
       ms_dims(1) = 0
@@ -3072,7 +3305,7 @@ contains
       aux_array_time(1) = time
 
       dsetname = 'time'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_array_time)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_array_time)
 
       !close the file.
       call h5fclose_f(file_id,h5err)
@@ -3115,7 +3348,7 @@ contains
       ms_dims(1) = 1
 
       dsetname = 'time'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_array_time)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_array_time)
       time = aux_array_time(1)
 
       if(mpi_rank.eq.0) write(*,*) ' - load_step',load_step,'time',time
@@ -3126,28 +3359,28 @@ contains
       ms_offset(1) = int(rankNodeStart,hssize_t)-1
 
       dsetname = 'rho'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,rho)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,rho)
 
       dsetname = 'u_x'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,1))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,1))
 
       dsetname = 'u_y'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,2))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,2))
 
       dsetname = 'u_z'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,3))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,3))
 
       dsetname = 'envit'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,envit)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,envit)
 
       dsetname = 'mut'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,mut)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,mut)
 
       dsetname = 'pr'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,pr)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,pr)
 
       dsetname = 'E'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,E)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,E)
 
       !$acc kernels
       do i = 1,numElemsRankPar
@@ -3200,7 +3433,7 @@ contains
       ms_dims(1) = 1
 
       dsetname = 'time'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_array_time)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_array_time)
       time = aux_array_time(1)
 
       if(mpi_rank.eq.0) write(*,*) ' - load_step',load_step,'time',time
@@ -3211,64 +3444,64 @@ contains
       ms_offset(1) = int(rankNodeStart,hssize_t)-1
 
       dsetname = 'rho'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,rho)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,rho)
 
       dsetname = 'u_x'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,1))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,1))
 
       dsetname = 'u_y'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,2))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,2))
 
       dsetname = 'u_z'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,3))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,3))
 
       dsetname = 'envit'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,envit)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,envit)
 
       dsetname = 'mut'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,mut)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,mut)
 
       dsetname = 'pr'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,pr)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,pr)
 
       dsetname = 'E'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,E)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,E)
 
       dsetname = 'eta'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,eta)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,eta)
 
       dsetname = 'csound'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,csound)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,csound)
 
       dsetname = 'machno'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,machno)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,machno)
 
       dsetname = 'gradRho_x'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,gradRho(:,1))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,gradRho(:,1))
 
       dsetname = 'gradRho_y'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,gradRho(:,2))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,gradRho(:,2))
 
       dsetname = 'gradRho_z'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,gradRho(:,3))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,gradRho(:,3))
 
       dsetname = 'curlU_x'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,curlU(:,1))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,curlU(:,1))
 
       dsetname = 'curlU_y'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,curlU(:,2))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,curlU(:,2))
 
       dsetname = 'curlU_z'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,curlU(:,3))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,curlU(:,3))
 
       dsetname = 'mu_fluid'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,mu_fluid)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,mu_fluid)
 
       dsetname = 'divU'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,divU)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,divU)
 
       dsetname = 'Qcrit'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,Qcrit)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,Qcrit)
 
       call h5fclose_f(file_id,h5err)
 
@@ -3319,49 +3552,49 @@ contains
       ms_offset(1) = int(rankNodeStart,hssize_t)-1
 
       dsetname = 'avrho'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avrho)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avrho)
 
       dsetname = 'avpre'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avpre)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avpre)
 
       dsetname = 'avmueff'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avmueff)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avmueff)
 
       dsetname = 'avvel_x'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvel(:,1))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvel(:,1))
 
       dsetname = 'avvel_y'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvel(:,2))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvel(:,2))
 
       dsetname = 'avvel_z'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvel(:,3))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvel(:,3))
 
       dsetname = 'avve2_x'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avve2(:,1))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avve2(:,1))
 
       dsetname = 'avve2_y'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avve2(:,2))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avve2(:,2))
 
       dsetname = 'avve2_z'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avve2(:,3))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avve2(:,3))
 
       dsetname = 'avvex_x'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvex(:,1))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvex(:,1))
 
       dsetname = 'avvex_y'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvex(:,2))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvex(:,2))
 
       dsetname = 'avvex_z'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvex(:,3))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvex(:,3))
 
       dsetname = 'avtw_x'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avtw(:,1))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avtw(:,1))
 
       dsetname = 'avtw_y'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avtw(:,2))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avtw(:,2))
 
       dsetname = 'avtw_z'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avtw(:,3))
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avtw(:,3))
 
       !close the file.
       call h5fclose_f(file_id,h5err)
@@ -3402,49 +3635,49 @@ contains
       ms_offset(1) = int(rankNodeStart,hssize_t)-1
 
       dsetname = 'avrho'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avrho)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avrho)
 
       dsetname = 'avpre'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avpre)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avpre)
 
       dsetname = 'avmueff'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avmueff)
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avmueff)
 
       dsetname = 'avvel_x'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvel(:,1))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvel(:,1))
 
       dsetname = 'avvel_y'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvel(:,2))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvel(:,2))
 
       dsetname = 'avvel_z'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvel(:,3))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvel(:,3))
 
       dsetname = 'avve2_x'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avve2(:,1))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avve2(:,1))
 
       dsetname = 'avve2_y'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avve2(:,2))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avve2(:,2))
 
       dsetname = 'avve2_z'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avve2(:,3))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avve2(:,3))
 
       dsetname = 'avvex_x'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvex(:,1))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvex(:,1))
 
       dsetname = 'avvex_y'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvex(:,2))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvex(:,2))
 
       dsetname = 'avvex_z'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvex(:,3))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvex(:,3))
 
       dsetname = 'avtw_x'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avtw(:,1))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avtw(:,1))
 
       dsetname = 'avtw_y'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avtw(:,2))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avtw(:,2))
 
       dsetname = 'avtw_z'
-      call read_array1D_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avtw(:,3))
+      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avtw(:,3))
 
       !close the file.
       call h5fclose_f(file_id,h5err)
@@ -3727,47 +3960,47 @@ contains
 
       ! ## RHO ##
       dsetname = '/VTKHDF/PointData/rho'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,rho)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,rho)
 
       ! ## PR ##
       dsetname = '/VTKHDF/PointData/pr'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,pr)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,pr)
 
       ! ## Ener ##
       dsetname = '/VTKHDF/PointData/Ener'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,E)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,E)
      
       ! ## eta ##
       dsetname = '/VTKHDF/PointData/eta'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,eta)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,eta)
 
       ! ## csound ##
       dsetname = '/VTKHDF/PointData/csound'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,csound)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,csound)
 
       ! ## machno ##
       dsetname = '/VTKHDF/PointData/machno'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,machno)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,machno)
 
       ! ## divU ##
       dsetname = '/VTKHDF/PointData/divU'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,divU)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,divU)
 
       ! ## Qcrit ##
       dsetname = '/VTKHDF/PointData/Qcrit'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,Qcrit)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,Qcrit)
 
       ! ## envit ##
       dsetname = '/VTKHDF/PointData/envit'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,envit)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,envit)
 
       ! ## mut ##
       dsetname = '/VTKHDF/PointData/mut'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,mut)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,mut)
 
       ! ## mu_fluid ##
       dsetname = '/VTKHDF/PointData/mu_fluid'
-      call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,mu_fluid)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,mu_fluid)
 
       !-------------------------------------------------------------------------------------------------------
       ds_rank = 2

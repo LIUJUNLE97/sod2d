@@ -100,12 +100,7 @@ contains
       maxIterNonLineal=20
       tol=1e-4
 
-      this%loadResults = .false.
-
-      this%continue_oldLogs = .false.
-      this%load_step = 1060001
-
-      this%nstep = 800000001 !250001
+      this%final_istep = 800000001
 #if CRM
       this%dt = 1e-5
       this%cfl_conv = 1.0_rp 
@@ -115,13 +110,20 @@ contains
       this%cfl_diff = 0.95_rp !0.1_rp
 #endif
 
-      this%nsave  = 1  ! First step to save, TODO: input
-      this%nsave2 = 1   ! First step to save, TODO: input
-      this%nsaveAVG = 1
-      this%nleap = 500!25 ! Saving interval, TODO: input
-      this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 1  ! Saving interval, TODO: input
-      this%nleapAVG = 20000
+      this%save_logFile_first = 1 
+      this%save_logFile_step  = 10
+
+      this%loadRestartFile = .false.
+      this%restartFile_to_load = 1 !1 or 2
+      this%continue_oldLogs = .false.
+      this%save_restartFile_first = 1
+      this%save_restartFile_step = 50000
+
+      this%save_resultsFile_first = 1
+      this%save_resultsFile_step = 50000
+
+      this%save_avgResultsFile_first = 1
+      this%save_avgResultsFile_step = 50000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

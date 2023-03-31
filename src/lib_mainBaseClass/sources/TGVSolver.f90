@@ -45,22 +45,18 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube"
+      write(this%mesh_h5_file_name,*) "cube_per10"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
       this%doGlobalAnalysis = .true.
       this%doTimerAnalysis = .false.
-
       this%saveInitialField = .false.
-      this%loadResults = .false.
-      this%continue_oldLogs = .false.
-      this%load_step = 1001
 
       ! numerical params
       flag_les = 0
-      flag_implicit = 1
+      flag_implicit = 0
       maxIter=20
       maxIterNonLineal=500
       tol=1e-2
@@ -68,20 +64,26 @@ contains
       flag_rk_order = 2
       pseudo_max_dt = 100
 
-      this%nstep = 50001
-      this%maxPhysTime = 20.0_rp
+      this%final_istep = 50001
+      this%maxPhysTime = 5.0_rp
 
+      this%cfl_conv = 0.5_rp
+      this%cfl_diff = 0.5_rp
 
-      this%cfl_conv = 2.5_rp
-      this%cfl_diff = 2.5_rp
-      this%nsave  = 1  ! First step to save, TODO: input
-      this%nsave2 = 1   ! First step to save, TODO: input
+      this%save_logFile_first = 1 
+      this%save_logFile_step  = 1
 
-      this%nsaveAVG = 1
-      this%nleap = 2000 ! Saving interval, TODO: input
-      this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 2000000000
+      this%loadRestartFile = .true.
+      this%restartFile_to_load = 2 !1 or 2
+      this%continue_oldLogs = .true.
+      this%save_restartFile_first = 1
+      this%save_restartFile_step = 1000
+
+      this%save_resultsFile_first = 1
+      this%save_resultsFile_step = 1000
+
+      this%save_avgResultsFile_first = 1
+      this%save_avgResultsFile_step = 50000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
