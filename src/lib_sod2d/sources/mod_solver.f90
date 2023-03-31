@@ -930,7 +930,7 @@ module mod_solver
                   real(rp)   , intent(in) :: v1mass,v2mass,v1ener,v2ener,v1mom(ndime),v2mom(ndime)
                   integer(4)             :: idime
                   real(rp)                :: tmass,tener,tmom
-#if 1
+
                   tmass = sqrt(v2mass**2 + v1mass**2)
                   cs_mass(ik) = v1mass/tmass
                   sn_mass(ik) = v2mass/tmass
@@ -944,51 +944,6 @@ module mod_solver
                      cs_mom(ik,idime) = v1mom(idime)/tmom
                      sn_mom(ik,idime) = v2mom(idime)/tmom
                   end do
-#else
-                  ! Mass ops.
-                  if (v2mass .lt. 0.0) then
-                     cs_mass(ik) = 0.0
-                     sn_mass(ik) = 1.0
-                  else if (abs(v2mass) .gt. abs(v1mass)) then
-                     tmass = v1mass/v2mass
-                     sn_mass(ik) = 1.0/sqrt(1.0 + tmass**2)
-                     cs_mass(ik) = tmass*sn_mass(ik)
-                  else
-                     tmass = v2mass/v1mass
-                     cs_mass(ik) = 1.0/sqrt(1.0 + tmass**2)
-                     sn_mass(ik) = tmass*cs_mass(ik)
-                  end if
-
-                  ! Ener ops.
-                  if (v2ener .lt. 0.0) then
-                     cs_ener(ik) = 0.0
-                     sn_ener(ik) = 1.0
-                  else if (abs(v2ener) .gt. abs(v1ener)) then
-                     tener = v1ener/v2ener
-                     sn_ener(ik) = 1.0/sqrt(1.0 + tener**2)
-                     cs_ener(ik) = tener*sn_ener(ik)
-                  else
-                     tener = v2ener/v1ener
-                     cs_ener(ik) = 1.0/sqrt(1.0 + tener**2)
-                     sn_ener(ik) = tmass*cs_ener(ik)
-                  end if
-
-                  ! Mom ops.
-                  do idime = 1,ndime
-                     if (v2mom(idime) .lt. 0.0) then
-                        cs_mom(ik,idime) = 0.0
-                        sn_mom(ik,idime) = 1.0
-                     else if (abs(v2mom(idime)) .gt. abs(v1mom(idime))) then
-                        tmom = v1mom(idime)/v2mom(idime)
-                        sn_mom(ik,idime) = 1.0/sqrt(1.0 + tmom**2)
-                        cs_mom(ik,idime) = tmom*sn_mom(ik,idime)
-                     else
-                        tmom = v2mom(idime)/v1mom(idime)
-                        cs_mom(ik,idime) = 1.0/sqrt(1.0 + tmom**2)
-                        sn_mom(ik,idime) = tmom*cs_mom(ik,idime)
-                     end if
-                  end do
-#endif
               end subroutine givens_rotation_full
 
               subroutine form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
@@ -1013,7 +968,7 @@ module mod_solver
                   logical,              intent(in)   :: noBoundaries
                   real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)                  
                   real(rp)               :: zu(npoin,ndime)
-                  real(rp)               :: auxQ(npoin,ndime),auxU(npoin,ndime)
+                  real(rp)               :: auxQ(npoin,ndime),auxE(npoin),auxRho(npoin)
                   integer(4)             :: idime,ipoin
                   real(rp)               :: aux
 
@@ -1025,17 +980,17 @@ module mod_solver
 
                   !$acc parallel loop
                   do ipoin = 1,npoin_w
+                     auxRho(lpoin_w(ipoin)) = rho(lpoin_w(ipoin))+epsR*zmass(lpoin_w(ipoin))
+                     auxE(lpoin_w(ipoin)) = E(lpoin_w(ipoin))+epsE*zener(lpoin_w(ipoin))
                      !$acc loop seq
                      do idime = 1,ndime
-                        zu(lpoin_w(ipoin),idime) = zmom(lpoin_w(ipoin),idime)/rho(lpoin_w(ipoin))
-                        auxU(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime)+epsQ(idime)*zu(lpoin_w(ipoin),idime)
                         auxQ(lpoin_w(ipoin),idime) = q(lpoin_w(ipoin),idime)+epsQ(idime)*zmom(lpoin_w(ipoin),idime)
                      end do 
                   end do
                   !$acc end parallel loop
                   
                   call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
-                     gmshAtoI, gmshAtoJ, gmshAtoK, u, auxQ, rho+epsR*zmass, pr, E+epsE*zener, SRmass, SRmom, SRener)
+                     gmshAtoI, gmshAtoJ, gmshAtoK, u, auxQ, auxRho, pr, auxE, SRmass, SRmom, SRener)
 
                   ! Form the J*y arrays
                   !$acc parallel loop
@@ -1121,12 +1076,7 @@ module mod_solver
                      do idime = 1,ndime
                         amom(lpoin_w(ipoin),idime) = ymom(lpoin_w(ipoin),idime)/(pt) + ymom(lpoin_w(ipoin),idime)/(gammaRK*dt) + Jy_mom(lpoin_w(ipoin),idime)
                      end do
-                  end do
-                  !$acc end parallel loop
 
-                  ! Compute each r = b-Ax
-                  !$acc parallel loop
-                  do ipoin = 1,npoin_w
                      Q_Mass(lpoin_w(ipoin),1) = bmass(lpoin_w(ipoin)) - amass(lpoin_w(ipoin))
                      Q_Ener(lpoin_w(ipoin),1) = bener(lpoin_w(ipoin)) - aener(lpoin_w(ipoin))
                      !$acc loop seq
@@ -1198,10 +1148,6 @@ module mod_solver
                      end do
                      !$acc end parallel loop
                   end do
-                  
-                  !print*," beta mass ",beta_mass
-                  !print*," beta ener ",beta_ener                  !print*," beta mom ",beta_mom
-                  !print*," beta mom ",beta_mom
               end subroutine init_gmres
 
               subroutine smooth_gmres(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &

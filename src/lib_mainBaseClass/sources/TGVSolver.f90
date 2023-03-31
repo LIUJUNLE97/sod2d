@@ -51,31 +51,38 @@ contains
       write(this%results_h5_file_name,*) "results"
 
       this%doGlobalAnalysis = .true.
-      this%doTimerAnalysis = .false.
+      this%doTimerAnalysis = .true.
       this%saveInitialField = .false.
 
       ! numerical params
       flag_les = 0
       flag_implicit = 0
-      maxIter=20
+      !implicit_solver = implicit_solver_bdf2_rk10
+      !implicit_solver = implicit_solver_esdirk
+      
       maxIterNonLineal=500
-      tol=1e-2
-      pseudo_cfl =2.0_rp
-      flag_rk_order = 2
-      pseudo_max_dt = 100
+      tol=1e-3
+      !pseudo_cfl =1.95_rp
+      pseudo_cfl =0.95_rp !esdirk
+      flag_rk_order=2
 
       this%final_istep = 50001
-      this%maxPhysTime = 5.0_rp
+      this%maxPhysTime = 20.0_rp
 
       this%cfl_conv = 0.5_rp
       this%cfl_diff = 0.5_rp
+      !this%dt = 1e-2
+      !this%cfl_conv = 2.5_rp
+      !this%cfl_diff = 2.5_rp
+      !this%cfl_conv = 20.0_rp
+      !this%cfl_diff = 20.0_rp
 
       this%save_logFile_first = 1 
       this%save_logFile_step  = 1
 
-      this%loadRestartFile = .true.
-      this%restartFile_to_load = 2 !1 or 2
-      this%continue_oldLogs = .true.
+      this%loadRestartFile = .false.
+      this%restartFile_to_load = 1 !1 or 2
+      this%continue_oldLogs = .false.
       this%save_restartFile_first = 1
       this%save_restartFile_step = 1000
 

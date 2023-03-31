@@ -77,15 +77,18 @@ contains
       ! numerical params
       flag_les = 1
       flag_implicit = 1
-      maxIter=5
-      maxIterNonLineal=200
-      tol=1e-2
-      pseudo_cfl =   0.4_rp
-      flag_rk_order = 2
+      maxIterNonLineal=500
+      pseudo_cfl =   1.95_rp
+      implicit_solver = implicit_solver_bdf2_rk10
+      !pseudo_cfl =   0.95_rp !esdirk
+      tol = 1e-3
+      flag_rk_order=2 
 
       this%final_istep = 1000000 
-      this%cfl_conv = 10.0_rp
-      this%cfl_diff = 10.0_rp
+      this%cfl_conv = 40.0_rp
+      this%cfl_diff = 40.0_rp
+      !this%cfl_conv = 10.0_rp !esdirk
+      !this%cfl_diff = 10.0_rp !esdirk
 
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10

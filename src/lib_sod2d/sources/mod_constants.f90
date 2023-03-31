@@ -48,4 +48,13 @@ module mod_constants
       integer(4), parameter :: bc_type_slip_adiabatic       = 5
       integer(4), parameter :: bc_type_slip_wall_model      = 6
 
+
+      !
+      ! Types of implicit solvers
+      !
+
+      integer(4), parameter :: implicit_solver_esdirk      = 1
+      integer(4), parameter :: implicit_solver_bdf2_rk10   = 2
+      
+
 end module mod_constants
