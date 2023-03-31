@@ -438,7 +438,7 @@ module time_integ
                   res(1) = sqrt(res(1))
 
                   if(itime .gt. 1) then
-                     pt_g = min(pt_g*(res(2)/res(1)),pseudo_max_dt)
+                     pt_g = min(pt_g*(real(res(2)/res(1),rp)),pseudo_max_dt)
                   else
                      res_ini = res(1)
                   endif
@@ -912,7 +912,6 @@ module time_integ
                            end do
                         end do
                      else 
-                        !$acc loop seq
                         aijKjMass(ipoin,istep+1) = aijKjMass(ipoin,istep+1) + a_ij(istep+1,istep)*Rmass(ipoin)
                         aijKjEner(ipoin,istep+1) = aijKjEner(ipoin,istep+1) + a_ij(istep+1,istep)*Rener(ipoin)
                         !$acc loop seq
