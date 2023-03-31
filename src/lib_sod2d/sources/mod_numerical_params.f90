@@ -36,6 +36,8 @@ module mod_numerical_params
         integer(4) ::  pseudo_steps=10
         real(rp)   ::  tol=1e-4
 
+        integer(4) ::  implicit_solver = implicit_solver_esdirk
+
         !
         ! Reference conditions
         !

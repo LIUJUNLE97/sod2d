@@ -78,19 +78,23 @@ contains
       flag_les = 1
       flag_implicit = 1
       maxIterNonLineal=500
-      pseudo_cfl =   0.75_rp
+      pseudo_cfl =   1.95_rp
+      implicit_solver = implicit_solver_bdf2_rk10
+      !pseudo_cfl =   0.95_rp !esdirk
       tol = 1e-3
       flag_rk_order=2 
 
       this%loadResults = .false.
       this%continue_oldLogs = .false.
-      this%load_step = 11501
+      this%load_step = 6001
 
       this%nstep = 1000000 
 
       !this%dt=5e-3
-      this%cfl_conv = 10.0_rp
-      this%cfl_diff = 10.0_rp
+      this%cfl_conv = 40.0_rp
+      this%cfl_diff = 40.0_rp
+      !this%cfl_conv = 10.0_rp !esdirk
+      !this%cfl_diff = 10.0_rp !esdirk
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1

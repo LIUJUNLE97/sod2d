@@ -61,6 +61,8 @@ contains
       ! numerical params
       flag_les = 0
       flag_implicit = 1
+      implicit_solver = implicit_solver_bdf2_rk10
+
       maxIterNonLineal=500
       tol=1e-3
       pseudo_cfl =1.95_rp
