@@ -27,7 +27,7 @@ module time_integ
 
       contains
 
-         subroutine rk_implicit_esdirk_main(igtime,nsave2,noBoundaries,isWallModelOn,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         subroutine rk_implicit_esdirk_main(igtime,nsave2,currIter,noBoundaries,isWallModelOn,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
@@ -37,6 +37,7 @@ module time_integ
 
             logical,              intent(in)   :: noBoundaries,isWallModelOn
             integer(4),           intent(in)    :: igtime, nsave2, flag_predic, flag_emac
+            integer(4),           intent(out)    :: currIter
             integer(4),           intent(in)    :: nelem, nboun, npoin
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou),lnbn_nodes(npoin)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
@@ -535,12 +536,14 @@ module time_integ
                call nvtxEndRange
             end if
 
+            currIter = itime
+
             call nvtxStartRange("Last update")
             call nvtxEndRange
 
          end subroutine rk_implicit_esdirk_main
 
-         subroutine rk_implicit_bdf2_rk10_main(igtime,nsave2,noBoundaries,isWallModelOn,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         subroutine rk_implicit_bdf2_rk10_main(igtime,nsave2,currIter,noBoundaries,isWallModelOn,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
@@ -549,6 +552,7 @@ module time_integ
             implicit none
 
             logical,              intent(in)   :: noBoundaries,isWallModelOn
+            integer(4),           intent(out)    :: currIter
             integer(4),           intent(in)    :: flag_predic, flag_emac,igtime,nsave2
             integer(4),           intent(in)    :: nelem, nboun, npoin
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou),lnbn_nodes(npoin)
@@ -990,6 +994,7 @@ module time_integ
                   csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
                   machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
                   Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
+                  aux_eta(lpoin_w(ipoin)) = eta(lpoin_w(ipoin),pos) 
                   eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0_rp))* &
                   log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
                   !$acc loop seq
@@ -1018,7 +1023,8 @@ module time_integ
                !$acc parallel loop
                do ipoin = 1,npoin_w
                   Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin)) &
-                                          -(3.0_rp*eta(lpoin_w(ipoin),2)-4.0_rp*eta(lpoin_w(ipoin),1)+eta(lpoin_w(ipoin),3))/(2.0_rp*dt) 
+                                          -(3.0_rp*eta(lpoin_w(ipoin),2)-4.0_rp*eta(lpoin_w(ipoin),1)+eta(lpoin_w(ipoin),3))/(2.0_rp*dt) &
+                                          -(eta(lpoin_w(ipoin),2)-aux_eta(lpoin_w(ipoin)))/pt(lpoin_w(ipoin),1)
                end do
                !$acc end parallel loop
                call nvtxEndRange
@@ -1072,14 +1078,7 @@ module time_integ
                call nvtxEndRange
             end if
 
-            call nvtxStartRange("Last update")
-            !$acc kernels
-            rho(:,3) = rho(:,1)
-            E(:,3) = E(:,1)
-            q(:,:,3) = q(:,:,1)
-            eta(:,3) = eta(:,1)
-            !$acc end kernels
-            call nvtxEndRange
+            currIter = itime
 
          end subroutine rk_implicit_bdf2_rk10_main
 

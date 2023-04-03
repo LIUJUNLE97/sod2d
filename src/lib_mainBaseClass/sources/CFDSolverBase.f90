@@ -66,7 +66,7 @@ module CFDSolverBase_mod
 
       ! main integer parameters
       !NOTES @JORDI: -> it would be nice if nelem, npoin, nper... etc dissapear from here!
-      integer(4), public :: nstep, nper, numCodes 
+      integer(4), public :: nstep, nper, numCodes,currentNonLinealIter
       integer(4), public :: nsave, nleap
       integer(4), public :: nsave2, nleap2
       integer(4), public :: nsaveAVG, nleapAVG
@@ -889,10 +889,12 @@ contains
 
    subroutine CFDSolverBase_evalTimeIteration(this)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: icode,counter,istep,flag_emac,flag_predic
+      integer(4) :: icode,counter,istep,flag_emac,flag_predic,inonLineal
       character(4) :: timeStep
       real(8) :: iStepTimeRank,iStepTimeMax,iStepEndTime,iStepStartTime,iStepAvgTime
-      real(rp) :: inv_iStep
+      real(rp) :: inv_iStep, aux_rho(numNodesRankPar),aux_E(numNodesRankPar),aux_eta(numNodesRankPar),aux_q(numNodesRankPar,ndime),aux_pseudo_cfl
+      real(rp) :: aux_envit(numElemsRankPar,nnode)
+      logical :: do__iteration
 
       counter = 1
       flag_emac = 0
@@ -932,9 +934,55 @@ contains
          ! Advance with entropy viscosity
          !
          flag_predic = 0
-         if(this%doTimerAnalysis) iStepStartTime = MPI_Wtime()
 
-         call this%callTimeIntegration(istep)
+         if(flag_implicit .eqv. .true.) then
+            !$acc kernels
+            aux_rho(:) = rho(:,2)
+            aux_E(:) = E(:,2)
+            aux_q(:,:) = q(:,:,2)
+            aux_eta(:) = eta(:,2)
+            aux_envit(:,:) = mu_e(:,:)
+            !$acc end kernels
+            aux_pseudo_cfl = pseudo_cfl
+         end if
+
+         do__iteration = .true.
+         inonLineal = 1
+         do while(do__iteration .eqv. .true.) 
+            if(flag_implicit .eqv. .true.) then
+               !$acc kernels
+               rho(:,2) = aux_rho(:)
+               E(:,2) = aux_E(:)
+               q(:,:,2) = aux_q(:,:)
+               eta(:,2) = aux_eta(:)
+               mu_e(:,:) = aux_envit(:,:)
+               !$acc end kernels
+            else
+               do__iteration = .false.
+            end if
+            if(this%doTimerAnalysis) iStepStartTime = MPI_Wtime()
+            call this%callTimeIntegration(istep)
+            if(flag_implicit .eqv. .true.) then
+               if((this%currentNonLinealIter .gt. maxIterNonLineal) .and. (inonLineal .lt. 4)) then
+                  inonLineal = inonLineal + 1
+                  pseudo_cfl = pseudo_cfl*0.5_rp
+                  if(mpi_rank.eq.0) write(111,*)"(WARRNING)  non lineal iteration failed in time ",istep," new pseudo cfl ",pseudo_cfl," non lineal tries ",inonLineal
+                  call flush(111)
+               else
+                  do__iteration = .false.
+               end if
+            end if
+         end do
+
+         if(flag_implicit .eqv. .true.) then 
+            !$acc kernels
+            rho(:,3) = rho(:,1)
+            E(:,3) = E(:,1)
+            q(:,:,3) = q(:,:,1)
+            eta(:,3) = eta(:,1)
+            !$acc end kernels
+            pseudo_cfl = aux_pseudo_cfl
+         end if
 
          if(this%doTimerAnalysis) then
             iStepEndTime = MPI_Wtime()

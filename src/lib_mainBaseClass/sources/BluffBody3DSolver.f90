@@ -56,8 +56,9 @@ contains
       bouCodes2BCType(2) = bc_type_far_field ! top wall
       bouCodes2BCType(3) = bc_type_far_field ! inlet
       bouCodes2BCType(4) = bc_type_far_field ! outlet
-      bouCodes2BCType(5) = bc_type_non_slip_adiabatic !pins
-      bouCodes2BCType(6) = bc_type_non_slip_adiabatic !car
+      bouCodes2BCType(5) = bc_type_non_slip_adiabatic !back
+      bouCodes2BCType(6) = bc_type_non_slip_adiabatic !pins
+      bouCodes2BCType(7) = bc_type_non_slip_adiabatic !car
 #endif
 
    end subroutine BluffBody3DSolver_fill_BC_Types
@@ -97,20 +98,20 @@ contains
       write(this%results_h5_file_name,*) "results"
 
       ! numerical params
-      flag_les = 1
+      flag_les = 0
       flag_implicit = 1
       flag_les_ilsa=0 
       implicit_solver = implicit_solver_bdf2_rk10
       !implicit_solver = implicit_solver_esdirk
-      flag_rk_order=2
-      ce = 1.0_rp
+      flag_rk_order=4
+      ce = 0.1_rp
        
       pseudo_cfl =0.5_rp 
       pseudo_ftau= 5.0_rp
-      maxIterNonLineal=50
+      maxIterNonLineal=200
       tol=1e-3
 
-      this%loadResults = .true.
+      this%loadResults = .false.
       this%continue_oldLogs = .false.
       this%load_step = 70501
 
@@ -120,15 +121,8 @@ contains
       this%cfl_conv = 1.0_rp 
       this%cfl_diff = 1.0_rp 
 #else   
-      !this%dt = 6e-5
-      !this%cfl_conv = 20.0_rp
-      !this%cfl_diff = 20.0_rp
-      !this%cfl_conv = 100.0_rp
-      !this%cfl_diff = 100.0_rp
-      !this%cfl_conv = 0.5_rp
-      !this%cfl_diff = 0.5_rp
-      this%cfl_conv = 10.0_rp
-      this%cfl_diff = 10.0_rp
+      this%cfl_conv = 5.0_rp
+      this%cfl_diff = 5.0_rp
 #endif
 
       this%nsave  = 1  ! First step to save, TODO: input

@@ -75,13 +75,13 @@ contains
       !this%dt = 1e-2
       !this%cfl_conv = 2.5_rp
       !this%cfl_diff = 2.5_rp
-      this%cfl_conv = 20.0_rp
-      this%cfl_diff = 20.0_rp
+      this%cfl_conv = 100.0_rp
+      this%cfl_diff = 100.0_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
 
       this%nsaveAVG = 1
-      this%nleap = 2000 ! Saving interval, TODO: input
+      this%nleap = 40 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 10  ! Saving interval, TODO: input
       this%nleapAVG = 2000
