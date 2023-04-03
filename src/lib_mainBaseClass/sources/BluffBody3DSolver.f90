@@ -97,18 +97,22 @@ contains
       write(this%results_h5_file_name,*) "results"
 
       ! numerical params
-      flag_les = 0
+      flag_les = 1
       flag_implicit = 1
-      flag_rk_order=2 
+      flag_les_ilsa=0 
+      implicit_solver = implicit_solver_bdf2_rk10
+      !implicit_solver = implicit_solver_esdirk
+      flag_rk_order=2
+      ce = 1.0_rp
        
-      pseudo_cfl =0.5_rp
+      pseudo_cfl =0.5_rp 
       pseudo_ftau= 5.0_rp
-      maxIterNonLineal=30
+      maxIterNonLineal=50
       tol=1e-3
 
-      this%loadResults = .false.
+      this%loadResults = .true.
       this%continue_oldLogs = .false.
-      this%load_step = 1501
+      this%load_step = 70501
 
       this%nstep = 8000001 !250001
 #if CRM
@@ -117,11 +121,14 @@ contains
       this%cfl_diff = 1.0_rp 
 #else   
       !this%dt = 6e-5
-      this%cfl_conv = 15.0_rp
-      this%cfl_diff = 15.0_rp
-
-      !this%cfl_conv = 2.5_rp
-      !this%cfl_diff = 2.5_rp
+      !this%cfl_conv = 20.0_rp
+      !this%cfl_diff = 20.0_rp
+      !this%cfl_conv = 100.0_rp
+      !this%cfl_diff = 100.0_rp
+      !this%cfl_conv = 0.5_rp
+      !this%cfl_diff = 0.5_rp
+      this%cfl_conv = 10.0_rp
+      this%cfl_diff = 10.0_rp
 #endif
 
       this%nsave  = 1  ! First step to save, TODO: input
@@ -129,7 +136,7 @@ contains
       this%nsaveAVG = 1
       this%nleap = 500!25 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 1  ! Saving interval, TODO: input
+      this%nleap2 = 10  ! Saving interval, TODO: input
       this%nleapAVG = 500
 
       this%Cp = 1004.0_rp

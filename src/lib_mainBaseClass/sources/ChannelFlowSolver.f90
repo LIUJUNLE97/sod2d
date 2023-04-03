@@ -80,7 +80,7 @@ contains
       maxIterNonLineal=500
       pseudo_cfl =   1.95_rp
       implicit_solver = implicit_solver_bdf2_rk10
-      !pseudo_cfl =   0.95_rp !esdirk
+      !pseudo_cfl =   0.5_rp !esdirk
       tol = 1e-3
       flag_rk_order=2 
 
@@ -91,10 +91,8 @@ contains
       this%nstep = 1000000 
 
       !this%dt=5e-3
-      this%cfl_conv = 40.0_rp
-      this%cfl_diff = 40.0_rp
-      !this%cfl_conv = 10.0_rp !esdirk
-      !this%cfl_diff = 10.0_rp !esdirk
+      this%cfl_conv = 10.0_rp !esdirk
+      this%cfl_diff = 10.0_rp !esdirk
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
@@ -120,7 +118,6 @@ contains
       this%po = this%rho0*this%Rgas*this%to
       mur = 0.000001458_rp*(this%to**1.50_rp)/(this%to+110.40_rp)
       flag_mu_factor = this%mu/mur
-      write(1,*) " Gp ", this%utau*this%utau*this%rho0/this%delta
       nscbc_rho_inf = this%rho0
       nscbc_p_inf = this%po
       nscbc_Rgas_inf = this%Rgas
