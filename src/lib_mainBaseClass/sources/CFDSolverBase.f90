@@ -935,7 +935,7 @@ contains
          !
          flag_predic = 0
 
-         if(flag_implicit .eqv. .true.) then
+         if(flag_implicit == 1) then
             !$acc kernels
             aux_rho(:) = rho(:,2)
             aux_E(:) = E(:,2)
@@ -949,7 +949,7 @@ contains
          do__iteration = .true.
          inonLineal = 1
          do while(do__iteration .eqv. .true.) 
-            if(flag_implicit .eqv. .true.) then
+            if(flag_implicit == 1) then
                !$acc kernels
                rho(:,2) = aux_rho(:)
                E(:,2) = aux_E(:)
@@ -962,7 +962,7 @@ contains
             end if
             if(this%doTimerAnalysis) iStepStartTime = MPI_Wtime()
             call this%callTimeIntegration(istep)
-            if(flag_implicit .eqv. .true.) then
+            if(flag_implicit == 1) then
                if((this%currentNonLinealIter .gt. maxIterNonLineal) .and. (inonLineal .lt. 4)) then
                   inonLineal = inonLineal + 1
                   pseudo_cfl = pseudo_cfl*0.5_rp
@@ -974,7 +974,7 @@ contains
             end if
          end do
 
-         if(flag_implicit .eqv. .true.) then 
+         if(flag_implicit == 1) then 
             !$acc kernels
             rho(:,3) = rho(:,1)
             E(:,3) = E(:,1)
