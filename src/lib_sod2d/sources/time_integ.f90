@@ -639,7 +639,7 @@ module time_integ
                pt(:,4) = dt_min(:)
                pt(:,5) = dt_min(:)
                !$acc end kernels
-               call nvtxEndRange()
+               call nvtxEndRange
                !initialize_pt = .true.
             !end if
             !
@@ -1003,6 +1003,7 @@ module time_integ
                      end do
                end do
                !$acc end parallel loop
+               call nvtxEndRange
 
                call nvtxStartRange("Update generic convection")
                call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &

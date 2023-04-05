@@ -97,7 +97,7 @@ else
         postprocOption=$(grep TOOL_POSTPROC CMakeCache.txt | cut -d '=' -f 2)
         meshpartOption=$(grep TOOL_MESHPART CMakeCache.txt | cut -d '=' -f 2)
         ## Compare the MN option with the existing one
-        if [ "$mnOption" != "$setP9" ]; then
+        if [ "$p9Option" != "$setP9" ]; then
             ## Machiine type is different, exit with error
             echo "ERROR: Machine type is different from the one used to configure CMake prevviously."
             exit 1
