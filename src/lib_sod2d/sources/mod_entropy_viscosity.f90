@@ -257,22 +257,21 @@ module mod_entropy_viscosity
 
                       !$acc parallel loop gang vector_length(vecLength)
                       do ielem = 1,nelem
-                        !maxJe=0.0_rp
-                        !minJe=1000000.0_rp
+                        maxJe=0.0_rp
+                        minJe=1000000.0_rp
                         maxV = 0.0_rp
                         maxC = 0.0_rp
                         !$acc loop seq
                         do igaus = 1,ngaus
-                           !minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                           !maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
+                           minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
+                           maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
                            maxV = max(maxV,sqrt(dot_product(u(connec(ielem,igaus),:),u(connec(ielem,igaus),:))))
                            maxC = max(maxC,csound(connec(ielem,igaus)))
                         end do
                         M = maxV/maxC
                         ceM = max(tanh((M**15)*v_pi),ce)
-                        ! ced = max(1.0_rp-(minJe/maxJe)**2,ce)
-                        ! ced = max(ced,ceM) 
-                        ced = ceM
+                        ced = max(1.0_rp-(minJe/maxJe)**2,ce)
+                        ced = max(ced,ceM) 
 
                          mu = 0.0_rp
                          betae = 0.0_rp

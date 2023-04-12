@@ -59,6 +59,22 @@ contains
       bouCodes2BCType(5) = bc_type_non_slip_adiabatic !back
       bouCodes2BCType(6) = bc_type_non_slip_adiabatic !pins
       bouCodes2BCType(7) = bc_type_non_slip_adiabatic !car
+
+      !bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! floor
+      !bouCodes2BCType(2) = bc_type_far_field ! top wall
+      !bouCodes2BCType(3) = bc_type_far_field ! inlet
+      !bouCodes2BCType(4) = bc_type_far_field ! outlet
+      !bouCodes2BCType(5) = bc_type_non_slip_adiabatic !back
+      !bouCodes2BCType(6) = bc_type_non_slip_adiabatic !pins
+      !bouCodes2BCType(7) = bc_type_non_slip_adiabatic !car
+
+      bouCodes2BCType(1) = bc_type_far_field
+      bouCodes2BCType(2) = bc_type_slip_wall_model
+      bouCodes2BCType(3) = bc_type_slip_wall_model
+      bouCodes2BCType(4) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(5) = bc_type_slip_adiabatic
+      bouCodes2BCType(6) = bc_type_far_field
+
 #endif
 
    end subroutine BluffBody3DSolver_fill_BC_Types
@@ -91,29 +107,29 @@ contains
       write(this%mesh_h5_file_name,*) "crm"
 #else
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "windsor"
+      !write(this%mesh_h5_file_name,*) "windsor"
+      write(this%mesh_h5_file_name,*) "auto"
 #endif
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
       ! numerical params
-      flag_les = 0
-      flag_implicit = 1
+      flag_les = 1
+      flag_implicit = 0
       flag_les_ilsa=0 
       implicit_solver = implicit_solver_bdf2_rk10
       !implicit_solver = implicit_solver_esdirk
       flag_rk_order=4
-      ce = 0.1_rp
        
-      pseudo_cfl =0.5_rp 
+      pseudo_cfl =0.3_rp 
       pseudo_ftau= 5.0_rp
-      maxIterNonLineal=200
+      maxIterNonLineal=300
       tol=1e-3
 
-      this%loadResults = .false.
+      this%loadResults = .true.
       this%continue_oldLogs = .false.
-      this%load_step = 70501
+      this%load_step = 1650001
 
       this%nstep = 8000001 !250001
 #if CRM
@@ -121,17 +137,17 @@ contains
       this%cfl_conv = 1.0_rp 
       this%cfl_diff = 1.0_rp 
 #else   
-      this%cfl_conv = 5.0_rp
-      this%cfl_diff = 5.0_rp
+      this%cfl_conv = 0.95_rp
+      this%cfl_diff = 0.95_rp
 #endif
 
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 500!25 ! Saving interval, TODO: input
+      this%nleap = 10000!25 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 500
+      this%nleapAVG = 10000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -185,25 +201,46 @@ contains
       flag_buffer_b_size = 5400.0_rp
 #else
       !windsor
+      !flag_buffer_on_east = .true.
+      !flag_buffer_e_min = 5.5_rp
+      !flag_buffer_e_size = 1.0_rp 
+
+      !flag_buffer_on_west = .true.
+      !flag_buffer_w_min = -3.5_rp
+      !flag_buffer_w_size = 1.0_rp 
+
+      !flag_buffer_on_north = .true.
+      !flag_buffer_n_min = 1.5_rp
+      !flag_buffer_n_size = 0.5_rp 
+
+      !flag_buffer_on_south = .true.
+      !flag_buffer_s_min = -1.5_rp
+      !flag_buffer_s_size = 0.5_rp 
+      
+      !flag_buffer_on_top = .true.
+      !flag_buffer_t_min = 2.0_rp
+      !flag_buffer_t_size = 0.5_rp 
+      
+      !windsor
       flag_buffer_on_east = .true.
       flag_buffer_e_min = 5.5_rp
-      flag_buffer_e_size = 1.0_rp 
+      flag_buffer_e_size = 0.5_rp 
 
       flag_buffer_on_west = .true.
-      flag_buffer_w_min = -3.5_rp
-      flag_buffer_w_size = 1.0_rp 
+      flag_buffer_w_min = -4.5_rp
+      flag_buffer_w_size = 0.5_rp 
 
       flag_buffer_on_north = .true.
-      flag_buffer_n_min = 1.5_rp
-      flag_buffer_n_size = 0.5_rp 
+      flag_buffer_n_min = 0.87_rp
+      flag_buffer_n_size = 0.1_rp 
 
       flag_buffer_on_south = .true.
-      flag_buffer_s_min = -1.5_rp
-      flag_buffer_s_size = 0.5_rp 
+      flag_buffer_s_min = -0.87_rp
+      flag_buffer_s_size = 0.1_rp 
       
       flag_buffer_on_top = .true.
-      flag_buffer_t_min = 2.0_rp
-      flag_buffer_t_size = 0.5_rp 
+      flag_buffer_t_min = 1.2_rp
+      flag_buffer_t_size = 0.3_rp 
 #endif
       
 
