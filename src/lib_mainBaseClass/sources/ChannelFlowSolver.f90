@@ -76,29 +76,29 @@ contains
 
       ! numerical params
       flag_les = 1
-      flag_implicit = 0
+      flag_implicit = 1
       maxIterNonLineal=200
       !pseudo_cfl =   1.95_rp
       implicit_solver = implicit_solver_bdf2_rk10
       pseudo_cfl =   1.95_rp !esdirk
-      tol = 1e-4
+      tol = 1e-3
       flag_rk_order=4
 
-      this%loadResults = .false.
+      this%loadResults = .true.
       this%continue_oldLogs = .false.
-      this%load_step = 6001
+      this%load_step = 500001
 
       this%nstep = 10000000 
 
       !this%dt=5e-3
-      this%cfl_conv = 0.95_rp !esdirk
-      this%cfl_diff = 0.95_rp !esdirk
+      this%cfl_conv = 20.0_rp !esdirk
+      this%cfl_diff = 20.0_rp !esdirk
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 50000 ! Saving interval, TODO: input
+      this%nleap = 500 ! Saving interval, TODO: input
       this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 50000
+      this%nleapAVG = 500
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

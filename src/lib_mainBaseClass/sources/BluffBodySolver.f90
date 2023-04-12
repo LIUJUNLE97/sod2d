@@ -65,8 +65,8 @@ contains
       write(this%results_h5_file_name,*) "results"
 
       ! numerical params
-      flag_les = 0
-      flag_implicit = 0
+      flag_les = 1
+      flag_implicit = 1
       flag_les_ilsa=0 
       implicit_solver = implicit_solver_bdf2_rk10
       !implicit_solver = implicit_solver_esdirk
@@ -83,17 +83,17 @@ contains
       this%load_step = 150001
 
       this%nstep = 90000001 !250001
-      this%cfl_conv = 0.5_rp 
-      this%cfl_diff = 0.5_rp 
+      this%cfl_conv = 100.0_rp 
+      this%cfl_diff = 100.0_rp 
 
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
 
-      this%nleap = 50000 ! Saving interval, TODO: input
+      this%nleap = 500 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 50  ! Saving interval, TODO: input
-      this%nleapAVG = 50000
+      this%nleapAVG = 500
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
