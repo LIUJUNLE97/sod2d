@@ -69,8 +69,8 @@ contains
       !bouCodes2BCType(7) = bc_type_non_slip_adiabatic !car
 
       bouCodes2BCType(1) = bc_type_far_field
-      bouCodes2BCType(2) = bc_type_slip_wall_model
-      bouCodes2BCType(3) = bc_type_slip_wall_model
+      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(3) = bc_type_non_slip_adiabatic
       bouCodes2BCType(4) = bc_type_non_slip_adiabatic
       bouCodes2BCType(5) = bc_type_slip_adiabatic
       bouCodes2BCType(6) = bc_type_far_field
@@ -116,14 +116,14 @@ contains
 
       ! numerical params
       flag_les = 1
-      flag_implicit = 0
+      flag_implicit = 1
       flag_les_ilsa=0 
       implicit_solver = implicit_solver_bdf2_rk10
       !implicit_solver = implicit_solver_esdirk
       flag_rk_order=4
        
       pseudo_cfl =0.3_rp 
-      pseudo_ftau= 5.0_rp
+      pseudo_ftau= 8.0_rp
       maxIterNonLineal=300
       tol=1e-3
 
@@ -137,17 +137,17 @@ contains
       this%cfl_conv = 1.0_rp 
       this%cfl_diff = 1.0_rp 
 #else   
-      this%cfl_conv = 0.95_rp
-      this%cfl_diff = 0.95_rp
+      this%cfl_conv = 100.0_rp
+      this%cfl_diff = 100.0_rp
 #endif
 
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 10000!25 ! Saving interval, TODO: input
+      this%nleap = 500!25 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 10000
+      this%nleapAVG = 500
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

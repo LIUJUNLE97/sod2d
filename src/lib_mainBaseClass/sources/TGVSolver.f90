@@ -64,7 +64,7 @@ contains
       implicit_solver = implicit_solver_bdf2_rk10
 
       maxIterNonLineal=200
-      tol=1e-4
+      tol=1e-3
       pseudo_cfl =1.95_rp
       !pseudo_cfl =0.95_rp
       flag_rk_order=4
