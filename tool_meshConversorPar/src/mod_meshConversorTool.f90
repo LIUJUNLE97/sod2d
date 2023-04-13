@@ -1957,6 +1957,13 @@ contains
       if(isPeriodic) then
          call read_periodic_faces_and_links_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,numPerFacesSrl,numPerLinkedNodesSrl,numElemsMpiRank,listElemsMpiRank,connecMpiRank_i8,&
                      numLinkedPerElemsSrl,linkedPerElemsSrl,numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl_i8)
+      else
+         numLinkedPerElemsSrl = 0
+         numPerElemsSrl = 0
+         numMasSlaNodesSrl = 0
+         allocate(linkedPerElemsSrl(numLinkedPerElemsSrl,0))
+         allocate(listPerElemsSrl(numPerElemsSrl))
+         allocate(masSlaNodesSrl_i8(numMasSlaNodesSrl,0))
       end if
       end_time(2) = MPI_Wtime()
 
@@ -2455,6 +2462,11 @@ contains
          close(1)
       end do
 #endif
+      else
+         do iMshRank=1,numMshRanksInMpiRank
+            numPerNodesMshRank(iMshRank)=0
+            allocate(masSlaRankPar_i8_jm%matrix(iMshRank)%elems(0,0))
+         end do
       end if
 
    end subroutine do_element_partitioning_gempa_in_parallel
@@ -2686,7 +2698,7 @@ contains
       real(rp),intent(in) :: coordInRank(numNodesInRank,3)
       
       integer(4), intent(out) :: numMshBoundNodesRankPar,numMpiBoundNodesRankPar,numInnerNodesRankPar
-      integer(8), allocatable, intent(out) :: mpiBoundaryNodes_i8(:),mshBoundaryNodes_i8(:)
+      integer(8), allocatable, intent(inout) :: mpiBoundaryNodes_i8(:),mshBoundaryNodes_i8(:)
       
       integer(4) :: nodeOwnedCnt(numNodesInRank)
       logical :: nodeInBoundary(numNodesInRank),nodeInMshBoundary(numNodesInRank),nodeInMpiBoundary(numNodesInRank)
