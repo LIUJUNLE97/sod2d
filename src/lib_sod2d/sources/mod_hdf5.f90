@@ -1215,7 +1215,7 @@ contains
 
    subroutine write_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
-      integer(4) :: ms_rank = 1
+      integer(4),parameter :: ms_rank = 1
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -1238,7 +1238,7 @@ contains
 
    subroutine read_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
-      integer(4) :: ms_rank = 1
+      integer(4),parameter :: ms_rank = 1
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -1261,7 +1261,7 @@ contains
 !-------------------------------------------------------------------------------------------------------------------------------   
    subroutine write_dataspace_2d_tr_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array2d)
       implicit none
-      integer(4) :: ms_rank = 2
+      integer(4),parameter :: ms_rank = 2
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -1293,7 +1293,7 @@ contains
 
    subroutine read_dataspace_2d_tr_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array2d)
       implicit none
-      integer(4) :: ms_rank = 2
+      integer(4),parameter :: ms_rank = 2
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -1327,7 +1327,7 @@ contains
 !-------------------------------------------------------------------------------------------------------------------
    subroutine write_dataspace_1d_real_rp_vtk_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
-      integer(4) :: ms_rank = 1
+      integer(4),parameter :: ms_rank = 1
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -1350,7 +1350,7 @@ contains
 
    subroutine read_dataspace_1d_real_rp_vtk_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
-      integer(4):: ms_rank = 1
+      integer(4),parameter:: ms_rank = 1
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -1373,7 +1373,7 @@ contains
 !--------------------------------------------------------------------------------------------------------------------------------------
    subroutine write_dataspace_2d_tr_real_rp_vtk_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array2d)
       implicit none
-      integer(4) :: ms_rank = 2
+      integer(4),parameter :: ms_rank = 2
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -1405,7 +1405,7 @@ contains
 
    subroutine read_dataspace_2d_tr_real_rp_vtk_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array2d)
       implicit none
-      integer(4) :: ms_rank = 2
+      integer(4),parameter :: ms_rank = 2
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -1441,7 +1441,7 @@ contains
 !  FP32
    subroutine write_dataspace_1d_fp32_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
-      integer(4) :: ms_rank = 1
+      integer(4),parameter :: ms_rank = 1
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -1462,11 +1462,11 @@ contains
 
    subroutine read_dataspace_1d_fp32_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
-      integer(4) :: ms_rank = 1
+      integer(4),parameter :: ms_rank = 1
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims(ms_rank)
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset(ms_rank)
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank)
       real(4),intent(out) :: array1d(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
       integer(4) :: h5err
@@ -1484,11 +1484,11 @@ contains
 !  FP64
    subroutine write_dataspace_1d_fp64_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
-      integer(4) :: ms_rank = 1
+      integer(4),parameter :: ms_rank = 1
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims(ms_rank)
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset(ms_rank)
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank)
       real(8),intent(in) :: array1d(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
       integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
@@ -1505,11 +1505,11 @@ contains
 
    subroutine read_dataspace_1d_fp64_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
-      integer(4) :: ms_rank = 1
+      integer(4),parameter :: ms_rank = 1
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
-      integer(hsize_t),dimension(ms_rank),intent(in) :: ms_dims(ms_rank)
-      integer(hssize_t),dimension(ms_rank),intent(in) :: ms_offset(ms_rank)
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank)
       real(8),intent(out) :: array1d(ms_dims(1))
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
       integer(4) :: h5err
@@ -1528,7 +1528,7 @@ contains
 !  INT1
    subroutine write_dataspace_1d_int1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
-      integer(4):: ms_rank = 1
+      integer(4),parameter:: ms_rank = 1
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -1549,7 +1549,7 @@ contains
 
    subroutine read_dataspace_1d_int1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
-      integer(4) :: ms_rank = 1
+      integer(4),parameter :: ms_rank = 1
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -1571,7 +1571,7 @@ contains
 !  UINT1
    subroutine write_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
-      integer(4):: ms_rank = 1
+      integer(4),parameter :: ms_rank = 1
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -1592,7 +1592,7 @@ contains
 
    subroutine read_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
-      integer(4) :: ms_rank = 1
+      integer(4),parameter :: ms_rank = 1
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -1614,7 +1614,7 @@ contains
 !  INT4
    subroutine write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
-      integer(4) :: ms_rank = 1
+      integer(4),parameter :: ms_rank = 1
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -1635,7 +1635,7 @@ contains
 
    subroutine read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
-      integer(4) :: ms_rank = 1
+      integer(4),parameter :: ms_rank = 1
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -1657,7 +1657,7 @@ contains
 !  INT8
    subroutine write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
-      integer(4) :: ms_rank = 1
+      integer(4),parameter :: ms_rank = 1
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -1678,7 +1678,7 @@ contains
 
    subroutine read_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
-      integer(4) :: ms_rank = 1
+      integer(4),parameter :: ms_rank = 1
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer(hsize_t),intent(in) :: ms_dims(ms_rank)
@@ -2942,7 +2942,7 @@ contains
 
    subroutine save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,data_array_rp)
       implicit none
-      integer(4) :: ds_rank = 2 !it is forced
+      integer(4),parameter :: ds_rank = 2 !it is forced
       integer(hid_t),intent(in) :: file_id
       character(*),intent(in) :: dsetname
       integer(hsize_t),dimension(ds_rank),intent(in) :: ds_dims2d,ms_dims2d
