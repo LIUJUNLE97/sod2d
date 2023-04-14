@@ -1,5 +1,5 @@
 module mod_arrays
-      use mod_numerical_params
+      use mod_constants
 
       implicit none
 
@@ -14,12 +14,12 @@ module mod_arrays
       real(rp), allocatable :: xgp(:,:), wgp(:), xgp_b(:,:), wgp_b(:)
       real(rp), allocatable :: Ngp(:,:), dNgp(:,:,:), Ngp_b(:,:), dNgp_b(:,:,:)
       real(rp), allocatable :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
-      real(rp), allocatable :: Je(:,:), He(:,:,:,:), bou_norm(:,:)
-      real(rp), allocatable :: gpvol(:,:,:), gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
-      real(rp), allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:),tauw(:,:)
-      real(rp), allocatable :: Ml(:)
-      real(rp), allocatable :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:),mu_factor(:)
-      real(rp), allocatable :: source_term(:,:)
+      real(rp), allocatable :: gpvol(:,:,:),Je(:,:), He(:,:,:,:), bou_norm(:,:),Ml(:),mu_factor(:),source_term(:,:)
+
+      real(rp), target,allocatable :: gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
+      real(rp), target,allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:),tauw(:,:)
+      real(rp), target,allocatable :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:)
+
       real(rp), allocatable :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:),acuvex(:,:),acutw(:,:)
       real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:),avvex(:,:),avtw(:,:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
@@ -59,22 +59,20 @@ module CFDSolverBase_mod
       use mod_hdf5
       use mod_comms
       use mod_comms_boundaries
+      use mod_custom_types
    implicit none
    private
 
    type, public :: CFDSolverBase
 
       ! main integer parameters
-      !integer(4), public :: nper, numCodes 
-      !integer(4), public :: nsave, nleap
-      !integer(4), public :: nsave2, nleap2
-      !integer(4), public :: nsaveAVG, nleapAVG
       integer(4), public :: save_logFile_first,save_logFile_step,save_logFile_next
       integer(4), public :: save_restartFile_first,save_restartFile_step,save_restartFile_next
       integer(4), public :: save_resultsFile_first,save_resultsFile_step,save_resultsFile_next
       integer(4), public :: save_avgResultsFile_first,save_avgResultsFile_step,save_avgResultsFile_next
       integer(4), public :: restartFileCnt,restartFile_to_load
       integer(4), public :: initial_istep,final_istep,load_step
+      integer(4), public :: numNodeScalarFields2save,numNodeVectorFields2save,numElemGpScalarFields2save
 
       ! main logical parameters
       logical, public    :: doGlobalAnalysis=.false.,isFreshStart=.true.,doTimerAnalysis=.false.
@@ -91,6 +89,16 @@ module CFDSolverBase_mod
       real(rp) , public                   :: leviCivi(3,3,3), surfArea, EK, VolTot, eps_D, eps_S, eps_T, maxmachno
       real(rp) , public                   :: dt, Cp, Rgas, gamma_gas,Prt,tleap,time, maxPhysTime
       logical  , public                   :: noBoundaries
+
+
+      ! saving parameters 
+      character(128),public :: nameNodeScalarFields2save(max_num_saved_fields),nameNodeVectorFields2save(max_num_saved_fields),nameElemGpScalarFields2save(max_num_saved_fields)
+      type(ptr_array1d_rp),public :: nodeScalarFields2save(max_num_saved_fields)
+      type(ptr_array2d_rp),public :: nodeVectorFields2save(max_num_saved_fields),elemGpScalarFields2save(max_num_saved_fields)
+      logical, public :: save_scalarField_rho,     save_scalarField_muFluid, save_scalarField_pressure, save_scalarField_energy, &
+                         save_scalarField_entropy, save_scalarField_csound,  save_scalarField_machno,   save_scalarField_divU,   &
+                         save_scalarField_qcrit,   save_scalarField_muSgs,   save_scalarField_muEnvit,  save_vectorField_vel,    &
+                         save_vectorField_gradRho, save_vectorField_curlU
 
    contains
       procedure, public :: printDt => CFDSolverBase_printDt
@@ -125,6 +133,11 @@ module CFDSolverBase_mod
       procedure, public :: afterDt =>CFDSolverBase_afterDt
 
       procedure, public :: initialBuffer =>CFDSolverBase_initialBuffer
+
+      procedure, public :: add_nodeScalarField2save => CFDSolverBase_add_nodeScalarField2save
+      procedure, public :: add_nodeVectorField2save => CFDSolverBase_add_nodeVectorField2save
+      procedure, public :: add_elemGpScalarField2save => CFDSolverBase_add_elemGpScalarField2save
+      procedure, public :: setFields2Save => CFDSolverBase_setFields2Save
 
       procedure :: open_log_file
       procedure :: close_log_file
@@ -198,7 +211,172 @@ contains
       this%isWallModelOn=.false.
       !@JORDI: discuss which other parameters can be set as default....
 
+      this%numNodeScalarFields2save    = 0
+      this%numNodeVectorFields2save    = 0
+      this%numElemGpScalarFields2save  = 0
+      this%save_scalarField_rho        = .true.
+      this%save_scalarField_muFluid    = .true.
+      this%save_scalarField_pressure   = .true.
+      this%save_scalarField_energy     = .true.
+      this%save_scalarField_entropy    = .true.
+      this%save_scalarField_csound     = .true.
+      this%save_scalarField_machno     = .true.
+      this%save_scalarField_divU       = .true.
+      this%save_scalarField_qcrit      = .true.
+      this%save_scalarField_muSgs      = .true.
+      this%save_scalarField_muEnvit    = .true.
+      this%save_vectorField_vel        = .true.
+      this%save_vectorField_gradRho    = .true.
+      this%save_vectorField_curlU      = .true.
+       
    end subroutine CFDSolverBase_initializeDefaultParameters
+
+!--------------------------------------------------------------------------------------------------------------------------
+
+   subroutine CFDSolverBase_add_nodeScalarField2save(this,fieldSaveName,array2save)
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      character(*),intent(in) :: fieldSaveName
+      real(rp),target,intent(in) :: array2save(:)
+
+      this%numNodeScalarFields2save = this%numNodeScalarFields2save + 1
+
+      if(this%numNodeScalarFields2save .gt. max_num_saved_fields) then
+         if(mpi_rank.eq.0) then
+            write(111,*) 'WARNING! Trying to add node scalarfield ',fieldSaveName,' num ',this%numNodeScalarFields2save,' but max_num_saved_fields ',max_num_saved_fields
+            write(111,*) 'node scalarfield NOT ADDED! If required, modify max_num_saved_fields in mod_constants.f90'
+         end if
+         return
+      end if
+
+      this%nameNodeScalarFields2save(this%numNodeScalarFields2save) = trim(adjustl(fieldSaveName))
+      this%nodeScalarFields2save(this%numNodeScalarFields2save)%ptr => array2save
+
+   end subroutine CFDSolverBase_add_nodeScalarField2save
+
+!--------------------------------------------------------------------------------------------------------------------------
+
+   subroutine CFDSolverBase_add_nodeVectorField2save(this,fieldSaveName,array2save)
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      character(*),intent(in) :: fieldSaveName
+      real(rp),target,intent(in) :: array2save(:,:)
+
+      this%numNodeVectorFields2save = this%numNodeVectorFields2save + 1
+
+      if(this%numNodeVectorFields2save .gt. max_num_saved_fields) then
+         if(mpi_rank.eq.0) then
+            write(111,*) 'WARNING! Trying to add node vectorfield ',fieldSaveName,' num ',this%numNodeVectorFields2save,' but max_num_saved_fields ',max_num_saved_fields
+            write(111,*) 'node vectorfield NOT ADDED! If required, modify max_num_saved_fields in mod_constants.f90'
+         end if
+         return
+      end if
+
+      this%nameNodeVectorFields2save(this%numNodeVectorFields2save) = trim(adjustl(fieldSaveName))
+      this%nodeVectorFields2save(this%numNodeVectorFields2save)%ptr => array2save
+
+   end subroutine CFDSolverBase_add_nodeVectorField2save
+
+!--------------------------------------------------------------------------------------------------------------------------
+
+   subroutine CFDSolverBase_add_elemGpScalarField2save(this,fieldSaveName,array2save)
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      character(*),intent(in) :: fieldSaveName
+      real(rp),target,intent(in) :: array2save(:,:)
+
+      this%numElemGpScalarFields2save = this%numElemGpScalarFields2save + 1
+
+      if(this%numElemGpScalarFields2save .gt. max_num_saved_fields) then
+         if(mpi_rank.eq.0) then
+            write(111,*) 'WARNING! Trying to add elemGp scalarfield ',fieldSaveName,' num ',this%numElemGpScalarFields2save,' but max_num_saved_fields ',max_num_saved_fields
+            write(111,*) 'elemGp scalarfield NOT ADDED! If required, modify max_num_saved_fields in mod_constants.f90'
+         end if
+         return
+      end if
+
+      this%nameElemGpScalarFields2save(this%numElemGpScalarFields2save) = trim(adjustl(fieldSaveName))
+      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%ptr => array2save
+
+   end subroutine CFDSolverBase_add_elemGpScalarField2save
+
+!--------------------------------------------------------------------------------------------------------------------------
+
+   subroutine CFDSolverBase_setFields2Save(this)
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+
+      if(mpi_rank.eq.0) write(*,*) 'Setting default fields to be saved'
+      !-----------------------------------------------------------------------
+
+      !---------   nodeScalars  -----------------------------
+      !------------------------------------------------------
+      if(this%save_scalarField_rho) then !rho(numNodesRankPar,3)
+         call this%add_nodeScalarField2save('rho',rho(:,2))
+      end if
+      !------------------------------------------------------
+      if(this%save_scalarField_muFluid) then !mu_fluid(numNodesRankPar)
+         call this%add_nodeScalarField2save('mu_fluid',mu_fluid(:))
+      end if
+      !------------------------------------------------------
+      if(this%save_scalarField_pressure) then !pr(numNodesRankPar,2)
+         call this%add_nodeScalarField2save('pr',pr(:,2))
+      end if
+      !------------------------------------------------------
+      if(this%save_scalarField_energy) then !E(numNodesRankPar,3)
+         call this%add_nodeScalarField2save('E',E(:,2))
+      end if
+      !------------------------------------------------------
+      if(this%save_scalarField_entropy) then !eta(numNodesRankPar,3)
+         call this%add_nodeScalarField2save('eta',eta(:,2))
+      end if
+      !------------------------------------------------------
+      if(this%save_scalarField_csound) then !csound(numNodesRankPar)
+         call this%add_nodeScalarField2save('csound',csound(:))
+      end if
+      !------------------------------------------------------
+      if(this%save_scalarField_machno) then !machno(numNodesRankPar)
+         call this%add_nodeScalarField2save('machno',machno(:))
+      end if
+      !------------------------------------------------------
+      if(this%save_scalarField_divU) then !divU(numNodesRankPar)
+         call this%add_nodeScalarField2save('divU',divU(:))
+      end if
+      !------------------------------------------------------
+      if(this%save_scalarField_qcrit) then !qcrit(numNodesRankPar)
+         call this%add_nodeScalarField2save('qcrit',qcrit(:))
+      end if
+
+      !-----------  vectorScalars   -------------------------------------
+      !----------------------------------------------------------------------
+      if(this%save_vectorField_vel) then !u(numNodesRankPar,ndime,2)
+         call this%add_nodeVectorField2save('u',u(:,:,2))
+      end if
+      !----------------------------------------------------------------------
+      if(this%save_vectorField_gradRho) then !gradRho(numNodesRankPar,ndime)
+         call this%add_nodeVectorField2save('gradRho',gradRho(:,:))
+      end if
+      !----------------------------------------------------------------------
+      if(this%save_vectorField_curlU) then !curlU(numNodesRankPar,ndime)
+         call this%add_nodeVectorField2save('curlU',curlU(:,:))
+      end if
+      !----------------------------------------------------------------------
+
+      !-------------    elemGpScalars   -------------------------------------
+      !----------------------------------------------------------------------
+      if(this%save_scalarField_muSgs) then !mu_sgs(numElemsRankPar,ngaus)
+         call this%add_elemGpScalarField2save('mu_sgs',mu_sgs(:,:))
+      end if
+      !----------------------------------------------------------------------
+      if(this%save_scalarField_muEnvit) then !mu_e(numElemsRankPar,ngaus)
+         call this%add_elemGpScalarField2save('mu_e',mu_e(:,:))
+      end if
+      !----------------------------------------------------------------------
+
+
+      !------------------------------------------------------
+
+   end subroutine CFDSolverBase_setFields2Save
 
    subroutine CFDSolverBase_initializeParameters(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -940,7 +1118,12 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
 
-      call save_hdf5_resultsFile(istep,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),eta(:,2),csound,machno,gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs)
+      !call save_hdf5_resultsFile(istep,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),eta(:,2),csound,machno,gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs)
+      call save_hdf5_resultsFile(iStep,this%time,&
+                                 this%numNodeScalarFields2save,this%nodeScalarFields2save,this%nameNodeScalarFields2save,&
+                                 this%numNodeVectorFields2save,this%nodeVectorFields2save,this%nameNodeVectorFields2save,&
+                                 this%numElemGpScalarFields2save,this%elemGpScalarFields2save,this%nameElemGpScalarFields2save)
+
 
    end subroutine CFDSolverBase_savePosprocessingFields
 
@@ -1304,6 +1487,8 @@ contains
 
       ! Allocate variables
       call this%allocateVariables()
+
+      call this%setFields2Save()
 
       ! Eval or load initial conditions
       call this%evalOrLoadInitialConditions()

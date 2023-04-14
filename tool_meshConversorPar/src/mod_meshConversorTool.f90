@@ -380,8 +380,11 @@ contains
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
       call create_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId)
+
       call create_hdf5_groups_datasets_in_meshFile_from_tool(sod2dmsh_h5_fileId,isPeriodic,isBoundaries,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
                vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank)
+
+      call create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(sod2dmsh_h5_fileId,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8)
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
@@ -399,14 +402,24 @@ contains
             bnd_numNodesToCommMshRank(iMshRank),bnd_numMshRanksWithComms(iMshRank),bnd_nodesToComm_jv%vector(iMshRank)%elems,bnd_commsMemPosInLoc_jv%vector(iMshRank)%elems,&
             bnd_commsMemSize_jv%vector(iMshRank)%elems,bnd_commsMemPosInNgb_jv%vector(iMshRank)%elems,bnd_ranksToComm_jv%vector(iMshRank)%elems,&
             vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank) 
+
+         call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),&
+            mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),&
+            coordPar_jm%matrix(iMshRank)%elems,connecVTK_jv%vector(iMshRank)%elems)
       end do
 
       do iMshRank=(numMshRanksInMpiRank+1),maxNumMshRanks
-         !write(*,*) 'FAKE-rank[',mpi_rank,']doing',iMshRank,'max',maxNumMshRanks
          call dummy_write_mshRank_data_in_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId,numMshRanks2Part,isPeriodic,isBoundaries)
+
+         call dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(sod2dmsh_h5_fileId,numMshRanks2Part)
       end do
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      !--------------------------------------------------------------------------------------------------------------------------------
+
+
+      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      !--------------------------------------------------------------------------------------------------------------------------------
 
       call close_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId)
 
@@ -469,36 +482,35 @@ contains
       character(128) :: dsetname
       integer(hsize_t), dimension(1) :: ms_dims
       integer(hid_t) :: dtype
-      integer(4) :: ms_rank,h5err
+      integer(4) :: h5err
       integer(HSSIZE_T), dimension(1) :: ms_offset 
       integer(8),allocatable :: aux_array_i8(:)
 
       !write(*,*) 'Loading parallel data hdf5...'
 
       dtype = h5_datatype_int8
-      ms_rank = 1
       ms_dims(1) = 1
       ms_offset(1) = 0
       allocate(aux_array_i8(1))
 
       dsetname = '/dims/numNodes'
-      call read_dataspace_int8_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_rank,ms_dims,ms_offset,aux_array_i8)
+      call read_dataspace_1d_int8_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
       numNodes_i8=aux_array_i8(1)
 
       dsetname = '/dims/numElements'
-      call read_dataspace_int8_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_rank,ms_dims,ms_offset,aux_array_i8)
+      call read_dataspace_1d_int8_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
       numElems=int(aux_array_i8(1),4)
 
       dsetname = '/dims/numBoundaryFaces'
-      call read_dataspace_int8_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_rank,ms_dims,ms_offset,aux_array_i8)
+      call read_dataspace_1d_int8_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
       numBoundFaces=int(aux_array_i8(1),4)
 
       dsetname = '/dims/numPeriodicFaces'
-      call read_dataspace_int8_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_rank,ms_dims,ms_offset,aux_array_i8)
+      call read_dataspace_1d_int8_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
       numPerFaces=int(aux_array_i8(1),4)
 
       dsetname = '/dims/numPeriodicLinks'
-      call read_dataspace_int8_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_rank,ms_dims,ms_offset,aux_array_i8)
+      call read_dataspace_1d_int8_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
       numPerLinks=int(aux_array_i8(1),4)
 
       if(numBoundFaces.ne.0) isBoundaries = .true.

@@ -66,7 +66,7 @@ contains
       pseudo_cfl =0.95_rp !esdirk
       flag_rk_order=2
 
-      this%final_istep = 50001
+      this%final_istep = 5001
       this%maxPhysTime = 20.0_rp
 
       this%cfl_conv = 0.5_rp
@@ -78,7 +78,7 @@ contains
       !this%cfl_diff = 20.0_rp
 
       this%save_logFile_first = 1 
-      this%save_logFile_step  = 1
+      this%save_logFile_step  = 25
 
       this%loadRestartFile = .false.
       this%restartFile_to_load = 1 !1 or 2
@@ -87,7 +87,7 @@ contains
       this%save_restartFile_step = 1000
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 1000
+      this%save_resultsFile_step = 500
 
       this%save_avgResultsFile_first = 1
       this%save_avgResultsFile_step = 50000
