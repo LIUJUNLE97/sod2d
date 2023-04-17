@@ -231,7 +231,12 @@ contains
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
-      this%loadResults = .true.
+      ! numerical params
+      flag_les = 1
+      flag_implicit = 0
+      flag_rk_order=4
+
+      this%loadResults = .false.
 
       this%continue_oldLogs = .false.
       this%load_step = 800001
