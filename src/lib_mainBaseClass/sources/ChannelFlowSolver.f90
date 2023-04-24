@@ -76,29 +76,30 @@ contains
 
       ! numerical params
       flag_les = 1
-      flag_implicit = 1
+      flag_implicit = 0
       maxIterNonLineal=200
-      !pseudo_cfl =   1.95_rp
+      c_sgs = 0.025_rp
       implicit_solver = implicit_solver_bdf2_rk10
       pseudo_cfl =   1.95_rp !esdirk
       tol = 1e-3
       flag_rk_order=4
 
-      this%loadResults = .true.
+      this%loadResults = .false.
       this%continue_oldLogs = .false.
-      this%load_step = 500001
+      this%load_step = 10001
 
       this%nstep = 10000000 
 
-      !this%dt=5e-3
-      this%cfl_conv = 20.0_rp !esdirk
-      this%cfl_diff = 20.0_rp !esdirk
+      this%cfl_conv = 100.0_rp !bdf2
+      this%cfl_diff = 100.0_rp !bdf2
+      this%cfl_conv = 0.95_rp !rk
+      this%cfl_diff = 0.95_rp !rk
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 500 ! Saving interval, TODO: input
+      this%nleap = 2500 ! Saving interval, TODO: input
       this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 500
+      this%nleapAVG = 2500
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -152,10 +153,14 @@ contains
             q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
             csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
             eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
+
+            rho(iNodeL,3) = rho(iNodeL,2)
+            E(iNodeL,3) =  E(iNodeL,2)
+            eta(iNodeL,3) = eta(iNodeL,2) 
+            q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
          end do
          !$acc end parallel loop
       else
-#if 1
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
          auxCnt = 1
          !!$acc parallel loop
@@ -181,21 +186,6 @@ contains
             end if
          end do serialLoop
          !!$acc end parallel loop
-#else
-         !$acc parallel loop
-         do iNodeL = 1,numNodesRankPar
-               if(coordPar(iNodeL,2)<this%delta) then
-                  yp = coordPar(iNodeL,2)*this%utau*this%rho0/this%mu
-               else
-                  yp = abs(coordPar(iNodeL,2)-2.0_rp*this%delta)*this%utau*this%rho0/this%mu
-               end if
-               velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
-               u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp)
-               u(iNodeL,2,2) = velo*(0.1_rp)
-               u(iNodeL,3,2) = velo*(0.1_rp)
-         end do
-         !$acc end parallel loop
-#endif
          !!$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             pr(iNodeL,2) = this%po
@@ -206,7 +196,8 @@ contains
             q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
             csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
             eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
-                    q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+                    
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
          rho(iNodeL,3) = rho(iNodeL,2)
           E(iNodeL,3) =  E(iNodeL,2)
           eta(iNodeL,3) = eta(iNodeL,2) 

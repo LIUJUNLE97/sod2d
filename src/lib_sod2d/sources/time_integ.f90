@@ -1023,9 +1023,9 @@ module time_integ
                call nvtxStartRange("Update sign Reta")
                !$acc parallel loop
                do ipoin = 1,npoin_w
-                  Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin)) !&
-                                          !-(3.0_rp*eta(lpoin_w(ipoin),2)-4.0_rp*eta(lpoin_w(ipoin),1)+eta(lpoin_w(ipoin),3))/(2.0_rp*dt) &
-                                          !-(eta(lpoin_w(ipoin),2)-aux_eta(lpoin_w(ipoin)))/pt(lpoin_w(ipoin),1)
+                  Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin)) &
+                                          -(3.0_rp*eta(lpoin_w(ipoin),2)-4.0_rp*eta(lpoin_w(ipoin),1)+eta(lpoin_w(ipoin),3))/(2.0_rp*dt) &
+                                          -(eta(lpoin_w(ipoin),2)-aux_eta(lpoin_w(ipoin)))/pt(lpoin_w(ipoin),1)
                end do
                !$acc end parallel loop
                call nvtxEndRange
