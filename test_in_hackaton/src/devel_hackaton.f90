@@ -5,10 +5,11 @@ program devel_hackaton
     use mod_mpi_mesh
     use mod_comms
     use mod_hdf5
-    use openacc
     use mod_nvtx
-    use cudafor
     use mod_test_funcs
+    !use openacc
+    !use cudafor
+
     implicit none
 
     character(512) :: mesh_h5_file_path,mesh_h5_file_name,results_h5_file_path,results_h5_file_name

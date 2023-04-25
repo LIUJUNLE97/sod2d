@@ -3,9 +3,11 @@ module mod_test_funcs
    use mod_mpi_mesh
    use mod_comms
    use mod_hdf5
-   use openacc
    use mod_nvtx
-   use cudafor
+#ifndef NOACC   
+   use openacc
+#endif
+   !use cudafor
 
    implicit none
 
