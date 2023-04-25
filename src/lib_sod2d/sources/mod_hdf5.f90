@@ -2060,9 +2060,11 @@ contains
       ms_dims(1)=int(numNodesToComm,hsize_t)
 
       allocate(nodesToComm(numNodesToComm))
+      !$acc enter data create(nodesToComm(:))
 
       dsetname = '/Parallel_data/nodesToComm'
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,nodesToComm)
+      !$acc update device(nodesToComm(:))
 
       deallocate(aux_array)
 

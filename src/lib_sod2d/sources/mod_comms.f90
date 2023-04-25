@@ -39,25 +39,21 @@ contains
 !-----------------------------------------------------------------------------------------------------------------------
     subroutine init_comms(useInt,useReal)
         implicit none
-        logical, intent(in) :: useInt,useReal!Float,useDouble
+        logical, intent(in) :: useInt,useReal
         logical :: useFenceFlags,useAssertNoCheckFlags,useLockBarrier
-        !logical :: useFloat5=.false. !i think that will dissapear... but...
 
 #if _SENDRCV_
-        write(111,*) "--| Comm. scheme: Send-Recv"
+        write(*,*) "--| Comm. scheme: Send-Recv"
 #endif
 #if _ISENDIRCV_
-        write(111,*) "--| Comm. scheme: iSend-iRecv"
+        write(*,*) "--| Comm. scheme: iSend-iRecv"
 #endif
 #if _PUTFENCE_
-        write(111,*) "--| Comm. scheme: Put(Fence)"
+        write(*,*) "--| Comm. scheme: Put(Fence)"
 #endif
 
         isInt=.false.
         isReal=.false.
-        !isFloat=.false.
-        !isDouble=.false.
-        !isFloat5=.false. !i think that will dissapear... but...
 
         if(useInt) then
             isInt = .true.
@@ -80,40 +76,7 @@ contains
 
             call init_window_realField()
         end if
-#if 0
-        if(useFloat) then
-            isFloat = .true.
 
-            allocate(aux_floatField_s(numNodesToComm))
-            allocate(aux_floatField_r(numNodesToComm))
-            !$acc enter data create(aux_floatField_s(:))
-            !$acc enter data create(aux_floatField_r(:))
-
-            call init_window_floatField()
-        end if
-
-        if(useDouble) then
-            isDouble = .true.
-
-            allocate(aux_doubleField_s(numNodesToComm))
-            allocate(aux_doubleField_r(numNodesToComm))
-            !$acc enter data create(aux_doubleField_s(:))
-            !$acc enter data create(aux_doubleField_r(:))       
-
-            call init_window_doubleField()
-        end if
-
-        if(useFloat5) then
-            isFloat5 = .true.
-
-            allocate(aux_floatField_5s(5*numNodesToComm))
-            allocate(aux_floatField_5r(5*numNodesToComm))
-            !$acc enter data create(aux_floatField_5s(:))
-            !$acc enter data create(aux_floatField_5r(:))
-
-            call init_window_floatField5()
-        end if
-#endif
         call MPI_Comm_group(MPI_COMM_WORLD,worldGroup,mpi_err)
 	    call MPI_Group_incl(worldGroup,numRanksWithComms,ranksToComm,commGroup,mpi_err);
 
@@ -547,6 +510,80 @@ contains
 
         call copy_from_rcvBuffer_real(realField)
     end subroutine mpi_halo_atomic_update_real_iSendiRcv
+
+!----------------------------------------------------------------------------------------------------
+!       DEVEL
+!----------------------------------------------------------------------------------------------------
+
+    subroutine fill_sendBuffer_real_devel(realField)
+        implicit none
+        real(rp),intent(inout) :: realField(:)
+        integer :: i,iNodeL
+
+        !$acc data present (realField(:),aux_realField_s(:),nodesToComm(:))
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = nodesToComm(i)
+            aux_realField_s(i) = realField(iNodeL)
+        end do
+        !$acc end parallel loop
+        !$acc kernels
+        aux_realField_r(:)=0.
+        !$acc end kernels
+        !$acc end data
+    end subroutine fill_sendBuffer_real_devel
+
+    subroutine copy_from_rcvBuffer_real_devel(realField)
+        implicit none
+        real(rp), intent(inout) :: realField(:)
+        integer :: i,iNodeL
+
+        !$acc data present (realField(:),aux_realField_r(:),nodesToComm(:))
+        !$acc parallel loop 
+        do i=1,numNodesToComm
+            iNodeL = nodesToComm(i)
+            !$acc atomic update
+            realField(iNodeL) = realField(iNodeL) + aux_realField_r(i)
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+        !$acc end data
+    end subroutine copy_from_rcvBuffer_real_devel
+
+    subroutine mpi_halo_atomic_update_real_iSendiRcv_devel(realField)
+        implicit none
+        real(rp), intent(inout) :: realField(:)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*numRanksWithComms)
+
+        call fill_sendBuffer_real_devel(realField)
+
+        ireq=0
+        !$acc data present (aux_realField_r(:),aux_realField_s(:))
+        !$acc host_data use_device (aux_realField_r,aux_realField_s)
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_realField_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+        end do
+        !$acc end host_data
+        !$acc end data
+
+        call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+        call copy_from_rcvBuffer_real_devel(realField)
+    end subroutine mpi_halo_atomic_update_real_iSendiRcv_devel
+
+!----------------------------------------------------------------------------------------------------
+!       DEVEL
+!----------------------------------------------------------------------------------------------------
 
 !------------- conditional average ISEND/IRECV -------------------------------------------
     ! REAL ---------------------------------------------------

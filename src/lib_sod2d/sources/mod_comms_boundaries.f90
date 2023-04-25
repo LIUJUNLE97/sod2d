@@ -25,7 +25,7 @@ contains
         logical :: useFenceFlags,useAssertNoCheckFlags,useLockBarrier
 
 #if _ISENDIRCV_
-        write(111,*) "--| Boundary Comm. scheme: iSend-iRecv"
+        write(*,*) "--| Boundary Comm. scheme: iSend-iRecv"
 #endif
 
         bnd_isInt=.false.

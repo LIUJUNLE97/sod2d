@@ -97,6 +97,8 @@ if(TOOL_COMMPERF)
     add_subdirectory(tool_commsPerformance)
 endif()
 
+add_subdirectory(test_in_hackaton)
+
 #enable folder unitt
 #add_subdirectory(unitt)
 
