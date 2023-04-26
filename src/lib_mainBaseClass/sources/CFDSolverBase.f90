@@ -908,6 +908,9 @@ contains
          write(111,*) 'Doing evalTimeItarion. Ini step:',this%initial_istep,'| End step:',this%nstep
       end if
       ! periodic with boundaries
+
+      call init_rk4_solver(numNodesRankPar)
+
       do istep = this%initial_istep,this%nstep
          !if (istep==this%nsave.and.mpi_rank.eq.0) write(111,*) '   --| STEP: ', istep
          !
@@ -1083,6 +1086,9 @@ contains
          end if
       end do
       call nvtxEndRange
+
+      call end_rk4_solver()
+
    end subroutine CFDSolverBase_evalTimeIteration
 
    subroutine open_log_file(this)
