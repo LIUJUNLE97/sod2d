@@ -27,6 +27,13 @@ module time_integ
    real(rp), allocatable, dimension(:,:)   :: aijKjMass,aijKjEner,pt
    real(rp), allocatable, dimension(:,:,:) :: aijKjMom
 
+   real(rp), allocatable, dimension(:)   :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
+   real(rp), allocatable, dimension(:,:) :: aux_u,aux_q
+   real(rp), allocatable, dimension(:)   :: Rmass_sum,Rener_sum,Reta_sum,alpha,Rdiff_mass,Rdiff_ener
+   real(rp), allocatable, dimension(:,:) :: Rmom_sum,Rdiff_mom,f_eta
+
+   real(rp), allocatable, dimension(:)   :: a_i, b_i, c_i
+
    contains
 
    subroutine init_rk4_solver(npoin)
@@ -57,6 +64,69 @@ module time_integ
       !$acc enter data create(REta(:,:))
       allocate(RMom(npoin,ndime,numSteps))
       !$acc enter data create(RMom(:,:,:))
+
+      allocate(aux_rho(npoin),aux_pr(npoin),aux_E(npoin),aux_Tem(npoin),aux_e_int(npoin),aux_eta(npoin))
+      !$acc enter data create(aux_rho(:))
+      !$acc enter data create(aux_pr(:))
+      !$acc enter data create(aux_E(:))
+      !$acc enter data create(aux_Tem(:))
+      !$acc enter data create(aux_e_int(:))
+      !$acc enter data create(aux_eta(:))
+      allocate(aux_u(npoin,ndime),aux_q(npoin,ndime))
+      !$acc enter data create(aux_u(:,:))
+      !$acc enter data create(aux_q(:,:))
+
+      allocate(Rmass_sum(npoin),Rener_sum(npoin),Reta_sum(npoin),alpha(npoin),Rdiff_mass(npoin),Rdiff_ener(npoin))
+      !$acc enter data create(Rmass_sum(:))
+      !$acc enter data create(Rener_sum(:))
+      !$acc enter data create(Reta_sum(:))
+      !$acc enter data create(alpha(:))
+      !$acc enter data create(Rdiff_mass(:))
+      !$acc enter data create(Rdiff_ener(:))
+      allocate(Rmom_sum(npoin,ndime),Rdiff_mom(npoin,ndime),f_eta(npoin,ndime))
+      !$acc enter data create(Rmom_sum(:,:))
+      !$acc enter data create(Rdiff_mom(:,:))
+      !$acc enter data create(f_eta(:,:))
+
+      allocate(a_i(4),b_i(4),c_i(4))
+      !$acc enter data create(a_i(:))
+      !$acc enter data create(b_i(:))
+      !$acc enter data create(c_i(:))
+
+      call nvtxStartRange("Create tableau")
+      if(flag_implicit == 1) then
+         if(implicit_solver == implicit_solver_esdirk) then
+            !TODO
+         else if(implicit_solver == implicit_solver_bdf2_rk10) then
+            !TODO
+         endif
+      else
+         if (flag_rk_order == 1) then
+            a_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
+            c_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
+            b_i = [1.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
+         else if (flag_rk_order == 2) then
+            a_i = [0.0_rp, 1.0_rp, 0.0_rp, 0.0_rp]
+            c_i = [0.0_rp, 1.0_rp, 0.0_rp, 0.0_rp]
+            b_i = [0.5_rp, 0.5_rp, 0.0_rp, 0.0_rp]
+         else if (flag_rk_order == 3) then
+            write(1,*) "--| NOT CODED FOR RK3 YET!"
+            stop 1
+         else if (flag_rk_order == 4) then
+            a_i = [0.0_rp, 0.5_rp, 0.5_rp, 1.0_rp]
+            c_i = [0.0_rp, 0.5_rp, 0.5_rp, 1.0_rp]
+            b_i = [1.0_rp/6.0_rp, 1.0_rp/3.0_rp, 1.0_rp/3.0_rp, 1.0_rp/6.0_rp]
+         else
+            write(1,*) "--| NOT CODED FOR RK > 4 YET!"
+            stop 1
+         end if
+         !$acc update device(a_i(:))
+         !$acc update device(b_i(:))
+         !$acc update device(c_i(:))
+      end if
+
+      call nvtxEndRange
+
 
    end subroutine init_rk4_solver
 
@@ -1185,12 +1255,12 @@ module time_integ
             integer(4)                          :: pos
             integer(4)                          :: istep, ipoin, idime,icode
             real(rp),    dimension(npoin)       :: Rrho
-            real(rp),    dimension(4)           :: a_i, b_i, c_i
-            real(rp),    dimension(npoin,ndime) :: aux_u, aux_q,aux_u_wall
-            real(rp),    dimension(npoin)       :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
-            real(rp),    dimension(npoin)       :: Rmass_sum,Rener_sum,Reta_sum,alpha
-            real(rp),    dimension(npoin,ndime) :: Rmom_sum,f_eta
-            real(rp)                            :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
+            !real(rp),    dimension(4)           :: a_i, b_i, c_i
+            !real(rp),    dimension(npoin,ndime) :: aux_u, aux_q,aux_u_wall
+            !real(rp),    dimension(npoin)       :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
+            !real(rp),    dimension(npoin)       :: Rmass_sum,Rener_sum,Reta_sum,alpha
+            !real(rp),    dimension(npoin,ndime) :: Rmom_sum,f_eta
+            !real(rp)                            :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
             real(rp)                            :: umag
 
 
@@ -1204,30 +1274,7 @@ module time_integ
             if (flag_predic == 1) then
                pos = 1 ! Change to prediction update
             end if
-            !
-            ! Butcher tableau
-            !
-            call nvtxStartRange("Create tableau")
-            if (flag_rk_order == 1) then
-               a_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
-               c_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
-               b_i = [1.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
-            else if (flag_rk_order == 2) then
-               a_i = [0.0_rp, 1.0_rp, 0.0_rp, 0.0_rp]
-               c_i = [0.0_rp, 1.0_rp, 0.0_rp, 0.0_rp]
-               b_i = [0.5_rp, 0.5_rp, 0.0_rp, 0.0_rp]
-            else if (flag_rk_order == 3) then
-               write(1,*) "--| NOT CODED FOR RK3 YET!"
-               stop 1
-            else if (flag_rk_order == 4) then
-               a_i = [0.0_rp, 0.5_rp, 0.5_rp, 1.0_rp]
-               c_i = [0.0_rp, 0.5_rp, 0.5_rp, 1.0_rp]
-               b_i = [1.0_rp/6.0_rp, 1.0_rp/3.0_rp, 1.0_rp/3.0_rp, 1.0_rp/6.0_rp]
-            else
-               write(1,*) "--| NOT CODED FOR RK > 4 YET!"
-               stop 1
-            end if
-            call nvtxEndRange
+
             !
             ! Initialize variables to zero
             !
@@ -1337,6 +1384,15 @@ module time_integ
                !
                ! Add convection and diffusion terms (Rdiff_* is zero during prediction)
                !
+
+             !!!!!!!!$acc update host(Rmass,Rener,Rmom)
+             !!!!!!!! if(mpi_rank.eq.0) then
+             !!!!!!!!    write(*,*) 'rmass',Rmass(250:300,1)
+             !!!!!!!!    write(*,*) 'rener',Rener(250:300,1)
+             !!!!!!!!    write(*,*) 'rmomx',Rmom(250:300,1,1)
+             !!!!!!!!    write(*,*) 'rmomy',Rmom(250:300,2,1)
+             !!!!!!!! end if
+
                call nvtxStartRange("Add convection and diffusion")
                !$acc kernels
                Rmass(:,1) = Rmass(:,1) + Rdiff_mass(:)

@@ -66,6 +66,15 @@ program devel_hackaton
     end do
     call nvtxEndRange
 
+    if(mpi_rank.eq.0) write(*,*) 'test_array(1)',test_array(:)
+
+    !$acc update host(test_array(:))
+    if(mpi_rank.eq.0) write(*,*) 'test_array(2)',test_array(:)
+    !do i=1,numNodesToComm
+    !    iNodeL = nodesToComm(i)
+    !    write(*,*) 'test_array(',iNodeL,')'!realField(iNodeL) = realField(iNodeL) + aux_realField_r(i)
+    !end do
+
     call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
     if(mpi_rank.eq.0) write(*,*) 'testing old way'

@@ -1769,6 +1769,7 @@ contains
       !-------------------------------------------------------------------------------------------------------
       allocate( connecParOrig(numElemsRankPar,nnode) )
       allocate( connecParWork(numElemsRankPar,nnode) )
+      !$acc enter data create(connecParWork(:,:))
       !-------------------------------------------------------------------------------------------------------
       !LOADING connecParOrig(:,:)
       allocate(aux_array(numElemsRankPar*nnode))
@@ -1797,6 +1798,7 @@ contains
       end do
 
       deallocate(aux_array)
+      !$acc update device(connecParWork(:,:))
       !-------------------------------------------------------------------------------------------------------
       !LOADING connecVTK(:)
       allocate( connecVTK(numElemsRankPar*nnode) )
@@ -1818,6 +1820,8 @@ contains
       !--------------------------------------------------------------------------------------------------------
       !LOADING workingNodesPar
       allocate(workingNodesPar(numWorkingNodesRankPar))
+      !$acc enter data create(workingNodesPar(:))
+
       allocate(aux_array(mpi_size))
       ms_dims(1) = int(mpi_size,hsize_t)
       ms_offset(1) = 0
@@ -1835,6 +1839,7 @@ contains
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,workingNodesPar)
       deallocate(aux_array)
       !-------------------------------------------------------------------------------------------------------
+      !$acc update device(workingNodesPar(:))
 
    end subroutine load_connectivity_hdf5
 #if 0
@@ -2033,15 +2038,21 @@ contains
       allocate(commsMemPosInLoc(numRanksWithComms))
       allocate(commsMemPosInNgb(numRanksWithComms))
       allocate(commsMemSize(numRanksWithComms))
+      !$acc enter data create(ranksToComm(:))
+      !$acc enter data create(commsMemPosInLoc(:))
+      !$acc enter data create(commsMemSize(:))
 
       dsetname = '/Parallel_data/ranksToComm'
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,ranksToComm)
+      !$acc update device(ranksToComm(:))
 
       dsetname = '/Parallel_data/commsMemPosInLoc'
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,commsMemPosInLoc)
+      !$acc update device(commsMemPosInLoc(:))
 
       dsetname = '/Parallel_data/commsMemSize'
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,commsMemSize)
+      !$acc update device(commsMemSize(:))
 
       dsetname = '/Parallel_data/commsMemPosInNgb'
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,commsMemPosInNgb)

@@ -369,10 +369,12 @@ contains
 
       call nvtxStartRange("Elem size compute")
       allocate(helem(numElemsRankPar))
+      !$acc enter data create(helem(:))
       do iElem = 1,numElemsRankPar
          call char_length(iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,he_aux)
          helem(iElem) = he_aux
       end do
+      !$acc update device(helem(:))
       call nvtxEndRange
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
@@ -403,8 +405,24 @@ contains
       allocate(mu_e(numElemsRankPar,ngaus))  ! Elemental viscosity
       allocate(mu_sgs(numElemsRankPar,ngaus))! SGS viscosity
       allocate(u_buffer(numNodesRankPar,ndime))  ! momentum at the buffer
+      !$acc enter data create(u(:,:,:))
+      !$acc enter data create(q(:,:,:))
+      !$acc enter data create(rho(:,:))
+      !$acc enter data create(pr(:,:))
+      !$acc enter data create(E(:,:))
+      !$acc enter data create(Tem(:,:))
+      !$acc enter data create(e_int(:,:))
+      !$acc enter data create(eta(:,:))
+      !$acc enter data create(csound(:))
+      !$acc enter data create(machno(:))
+      !$acc enter data create(mu_fluid(:))
+      !$acc enter data create(mu_factor(:))
+      !$acc enter data create(mu_e(:,:))
+      !$acc enter data create(mu_sgs(:,:))
+
 
       allocate(tauw(numNodesRankPar,ndime))  ! momentum at the buffer
+      !$acc enter data create(tauw(:,:))
 
       !$acc kernels
       u(:,:,:) = 0.0_rp
@@ -477,6 +495,13 @@ contains
       allocate(acuve2(numNodesRankPar,ndime))
       allocate(acuvex(numNodesRankPar,ndime))
       allocate(acutw(numNodesRankPar,ndime))
+      !$acc enter data create(acurho(:))
+      !$acc enter data create(acupre(:))
+      !$acc enter data create(acumueff(:))
+      !$acc enter data create(acuvel(:,:))
+      !$acc enter data create(acuve2(:,:))
+      !$acc enter data create(acuvex(:,:))
+      !$acc enter data create(acutw(:,:))
 
       allocate(avrho(numNodesRankPar))
       allocate(avpre(numNodesRankPar))
@@ -641,6 +666,7 @@ contains
 
       allocate(xgp(ngaus,ndime))
       allocate(wgp(ngaus))
+      !$acc enter data create(wgp(:))
       allocate(xgp_b(npbou,ndime-1))
       allocate(wgp_b(npbou))
 
@@ -648,6 +674,9 @@ contains
       allocate(Ngp_l(ngaus,nnode),dNgp_l(ndime,nnode,ngaus))
       allocate(Ngp_b(npbou,npbou),dNgp_b(ndime-1,npbou,npbou))
       allocate(dlxigp_ip(ngaus,ndime,porder+1))
+      !$acc enter data create(Ngp(:,:))
+      !$acc enter data create(dNgp(:,:,:))
+      !$acc enter data create(dlxigp_ip(:,:,:))
       !*********************************************************
 
       call set_hex64_lists(atoIJK,listHEX08)
@@ -655,6 +684,7 @@ contains
 
       if(mpi_rank.eq.0) write(111,*) "  --| Generating Gauss-Lobatto-Legendre table..."
       call GaussLobattoLegendre_hex(atoIJK,xgp,wgp)
+      !$acc update device(wgp(:))
       call GaussLobattoLegendre_qua(atoIJ,xgp_b,wgp_b)
 
       call nvtxEndRange
@@ -674,6 +704,9 @@ contains
          z = xgp(igaus,3)
          call hex64(s,t,z,atoIJK,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
       end do
+      !$acc update device(Ngp(:,:))
+      !$acc update device(dNgp(:,:,:))
+      !$acc update device(dlxigp_ip(:,:,:))
       !
       ! Compute N andd dN for boundary elements
       !
@@ -729,16 +762,22 @@ contains
       call nvtxStartRange("Jacobian info")
       allocate(He(ndime,ndime,ngaus,numElemsRankPar))
       allocate(gpvol(1,ngaus,numElemsRankPar))
+      !$acc enter data create(He(:,:,:,:))
+      !$acc enter data create(gpvol(:,:,:))
+
       call elem_jacobian(numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,dNgp,wgp,gpvol,He) 
       call  nvtxEndRange
 
       vol_rank  = 0.0
       vol_tot_d = 0.0
+      !$acc parallel loop reduction(+:vol_rank)
       do ielem = 1,numElemsRankPar
+         !$acc loop vector
          do igaus = 1,ngaus
             vol_rank = vol_rank+gpvol(1,igaus,ielem)
          end do
       end do
+      !$acc end parallel loop
 
       call MPI_Allreduce(vol_rank,vol_tot_d,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
@@ -756,7 +795,16 @@ contains
       allocate(gmshAtoI(nnode))
       allocate(gmshAtoJ(nnode))
       allocate(gmshAtoK(nnode))
+      !$acc enter data create(invAtoIJK(:,:,:))
+      !$acc enter data create(gmshAtoI(:))
+      !$acc enter data create(gmshAtoJ(:))
+      !$acc enter data create(gmshAtoK(:))
+
       call atioIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+      !$acc update device(invAtoIJK(:,:,:))
+      !$acc update device(gmshAtoI(:))
+      !$acc update device(gmshAtoJ(:))
+      !$acc update device(gmshAtoK(:))
 
    end subroutine CFDSolverBase_evalAtoIJKInverse
 
@@ -794,12 +842,14 @@ contains
       if(mpi_rank.eq.0) write(111,*) '--| COMPUTING LUMPED MASS MATRIX...'
       call nvtxStartRange("Lumped mass compute")
       allocate(Ml(numNodesRankPar))
+      !$acc enter data create(Ml(:))
       call lumped_mass_spectral(numElemsRankPar,numNodesRankPar,connecParWork,gpvol,Ml)
       call nvtxEndRange
 
       !charecteristic length for spectral elements for the entropy
       !stablisation
       allocate(helem_l(numElemsRankPar,nnode))
+      !$acc enter data create(helem_l(:,:))
       do iElem = 1,numElemsRankPar
          call char_length_spectral(iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,Ml,helem_l)
       end do

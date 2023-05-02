@@ -45,7 +45,7 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube"
+      write(this%mesh_h5_file_name,*) "cube_per10"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -69,7 +69,7 @@ contains
       !pseudo_cfl =0.95_rp
       flag_rk_order=4
 
-      this%nstep = 50001
+      this%nstep = 51
       this%maxPhysTime = 20.0_rp
 
       !this%dt = 1e-2
@@ -77,13 +77,13 @@ contains
       !this%cfl_diff = 2.5_rp
       this%cfl_conv = 0.90_rp
       this%cfl_diff = 0.90_rp
-      this%nsave  = 1  ! First step to save, TODO: input
+      this%nsave  = 10000  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
 
       this%nsaveAVG = 1
       this%nleap = 2000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 10  ! Saving interval, TODO: input
+      this%nleap2 = 1  ! Saving interval, TODO: input
       this%nleapAVG = 2000
 
       this%Cp = 1004.0_rp
@@ -118,7 +118,7 @@ contains
       V0 = 1.0_rp
       L  = 1.0_rp
 
-      !acc parallel loop
+      !$acc parallel loop
       do iNodeL=1,numNodesRankPar
          x = coordPar(iNodeL,1)
          y = coordPar(iNodeL,2)

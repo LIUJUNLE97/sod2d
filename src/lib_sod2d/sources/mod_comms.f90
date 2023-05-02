@@ -310,7 +310,7 @@ contains
         real(rp), intent(inout) :: realField(:)
         integer :: i,iNodeL
 
-        !$acc parallel loop
+        !$acc parallel loop copy(realField(:))
         do i=1,numNodesToComm
             iNodeL = nodesToComm(i)
             !$acc atomic update
@@ -492,7 +492,7 @@ contains
         integer :: requests(2*numRanksWithComms)
 
         call fill_sendBuffer_real(realField)
-
+        !$acc update host(aux_realField_r(:),aux_realField_s(:))
         ireq=0
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
@@ -507,7 +507,7 @@ contains
         end do
 
         call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
-
+        !$acc update device(aux_realField_r(:),aux_realField_s(:))
         call copy_from_rcvBuffer_real(realField)
     end subroutine mpi_halo_atomic_update_real_iSendiRcv
 
@@ -520,7 +520,7 @@ contains
         real(rp),intent(inout) :: realField(:)
         integer :: i,iNodeL
 
-        !$acc data present (realField(:),aux_realField_s(:),nodesToComm(:))
+        !$acc data present (realField(:),aux_realField_s(:),aux_realField_r(:),nodesToComm(:))
         !$acc parallel loop
         do i=1,numNodesToComm
             iNodeL = nodesToComm(i)
@@ -560,8 +560,8 @@ contains
         call fill_sendBuffer_real_devel(realField)
 
         ireq=0
-        !$acc data present (aux_realField_r(:),aux_realField_s(:))
-        !$acc host_data use_device (aux_realField_r,aux_realField_s)
+        !$acc data present(aux_realField_r(:),aux_realField_s(:),ranksToComm(:),commsMemPosInLoc(:),commsMemSize(:))
+        !$acc host_data use_device (aux_realField_r(:),aux_realField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             tagComm  = 0
