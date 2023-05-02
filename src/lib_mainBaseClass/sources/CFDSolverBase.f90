@@ -75,7 +75,7 @@ module CFDSolverBase_mod
 
       ! main logical parameters
       logical, public    :: doGlobalAnalysis=.false.,isFreshStart=.true.,doTimerAnalysis=.false.
-      logical, public    :: loadResults=.false.,continue_oldLogs=.false.,saveInitialField=.true.,isWallModelOn=.false.
+      logical, public    :: loadResults=.false.,continue_oldLogs=.false.,saveInitialField=.true.,isWallModelOn=.false.,isSymmetryOn=.false.
       logical, public    :: useIntInComms=.false.,useRealInComms=.false.
 
       ! main char variables
@@ -130,6 +130,7 @@ module CFDSolverBase_mod
       procedure :: eval_vars_after_load_hdf5_resultsFile
       procedure :: eval_initial_mu_sgs
       procedure :: checkIfWallModelOn
+      procedure :: checkIfSymmetryOn
    end type CFDSolverBase
 contains
 
@@ -177,6 +178,7 @@ contains
       this%isFreshStart=.true.
       this%saveInitialField=.true.
       this%isWallModelOn=.false.
+      this%isSymmetryOn=.false.
       !@JORDI: discuss which other parameters can be set as default....
 
    end subroutine CFDSolverBase_initializeDefaultParameters
@@ -248,6 +250,20 @@ contains
 
    end subroutine checkIfWallModelOn
 
+      subroutine checkIfSymmetryOn(this)
+      class(CFDSolverBase), intent(inout) :: this
+      integer :: iBound,bcCode,auxBoundCnt
+
+      this%isSymmetryOn = .false.
+      do iBound = 1,numBoundCodes
+         if(bouCodes2BCType(iBound) .eq. bc_type_slip_adiabatic) then
+            this%isSymmetryOn = .true.
+            if(mpi_rank.eq.0) write(111,*) "--| Symmetry activated in Boundary id",iBound
+         end if
+      end do
+
+   end subroutine checkIfSymmetryOn
+
    subroutine CFDSolverBase_normalFacesToNodes(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), allocatable    :: aux1(:)
@@ -263,8 +279,10 @@ contains
       !$acc end kernels
 
       !$acc parallel loop gang 
-      do iAux = 1,numBoundsWMRankPar
-         iBound = listBoundsWallModel(iAux)
+      !do iAux = 1,numBoundsWMRankPar
+      do iAux = 1,numBoundsRankPar
+         !iBound = listBoundsWallModel(iAux)
+         iBound = iAux
          iElem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
          jgaus = connecParWork(iElem,nnode)         ! internal node
          !$acc loop vector private(aux)
@@ -355,6 +373,7 @@ contains
       !$acc end parallel loop
 
       call this%checkIfWallModelOn()
+      call this%checkIfSymmetryOn()
 
       deallocate(aux1)
 
@@ -893,7 +912,7 @@ contains
       character(4) :: timeStep
       real(8) :: iStepTimeRank,iStepTimeMax,iStepEndTime,iStepStartTime,iStepAvgTime
       real(rp) :: inv_iStep, aux_rho(numNodesRankPar),aux_E(numNodesRankPar),aux_eta(numNodesRankPar),aux_q(numNodesRankPar,ndime),aux_pseudo_cfl
-      real(rp) :: aux_envit(numElemsRankPar,nnode)
+      real(rp) :: aux_envit(numElemsRankPar,nnode),aux_mu_fluid(numNodesRankPar),aux_mu_sgs(numElemsRankPar,nnode)
       logical :: do__iteration
 
       counter = 1
@@ -942,6 +961,8 @@ contains
             aux_q(:,:) = q(:,:,2)
             aux_eta(:) = eta(:,2)
             aux_envit(:,:) = mu_e(:,:)
+            aux_mu_fluid(:) = mu_fluid(:)
+            aux_mu_sgs(:,:) = mu_sgs(:,:)
             !$acc end kernels
             aux_pseudo_cfl = pseudo_cfl
          end if
@@ -956,6 +977,8 @@ contains
                q(:,:,2) = aux_q(:,:)
                eta(:,2) = aux_eta(:)
                mu_e(:,:) = aux_envit(:,:)
+               mu_fluid(:) = aux_mu_fluid(:)
+               mu_sgs(:,:) = aux_mu_sgs(:,:)
                !$acc end kernels
             else
                do__iteration = .false.
@@ -1334,7 +1357,7 @@ contains
       call this%flush_log_file()
 
       ! Eval Normal Faces To Nodes
-      if(this%isWallModelOn) call  this%normalFacesToNodes()
+      if(this%isWallModelOn .or. this%isSymmetryOn) call  this%normalFacesToNodes()
 
       ! Eval initial time step
       call this%evalInitialDt()

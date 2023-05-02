@@ -76,9 +76,8 @@ contains
 
       ! numerical params
       flag_les = 1
-      flag_implicit = 0
+      flag_implicit = 1
       maxIterNonLineal=200
-      c_sgs = 0.025_rp
       implicit_solver = implicit_solver_bdf2_rk10
       pseudo_cfl =   1.95_rp !esdirk
       tol = 1e-3
@@ -92,8 +91,6 @@ contains
 
       this%cfl_conv = 100.0_rp !bdf2
       this%cfl_diff = 100.0_rp !bdf2
-      this%cfl_conv = 0.95_rp !rk
-      this%cfl_diff = 0.95_rp !rk
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1

@@ -1,4 +1,4 @@
-#define CRM 0
+#define CRM 1
 
 module BluffBody3DSolver_mod
    use mod_arrays
@@ -48,25 +48,24 @@ contains
       class(BluffBody3DSolver), intent(inout) :: this
 
 #if CRM
+      
       bouCodes2BCType(1) = bc_type_far_field
-      bouCodes2BCType(2) = bc_type_far_field
-      bouCodes2BCType(3) = bc_type_slip_wall_model
-#else
-      bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! floor
-      bouCodes2BCType(2) = bc_type_far_field ! top wall
-      bouCodes2BCType(3) = bc_type_far_field ! inlet
-      bouCodes2BCType(4) = bc_type_far_field ! outlet
-      bouCodes2BCType(5) = bc_type_non_slip_adiabatic !back
-      bouCodes2BCType(6) = bc_type_non_slip_adiabatic !pins
-      bouCodes2BCType(7) = bc_type_non_slip_adiabatic !car
+      bouCodes2BCType(2) = bc_type_far_field !far field
+      bouCodes2BCType(3) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(4) = bc_type_far_field !inlet
+      bouCodes2BCType(5) = bc_type_far_field !outlet
+      bouCodes2BCType(6) = bc_type_slip_adiabatic  ! symmetry
+      bouCodes2BCType(7) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(8) = bc_type_non_slip_adiabatic
 
-      !bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! floor
-      !bouCodes2BCType(2) = bc_type_far_field ! top wall
-      !bouCodes2BCType(3) = bc_type_far_field ! inlet
-      !bouCodes2BCType(4) = bc_type_far_field ! outlet
-      !bouCodes2BCType(5) = bc_type_non_slip_adiabatic !back
-      !bouCodes2BCType(6) = bc_type_non_slip_adiabatic !pins
-      !bouCodes2BCType(7) = bc_type_non_slip_adiabatic !car
+#else
+     ! bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! floor
+     ! bouCodes2BCType(2) = bc_type_far_field ! top wall
+     ! bouCodes2BCType(3) = bc_type_far_field ! inlet
+     ! bouCodes2BCType(4) = bc_type_far_field ! outlet
+     ! bouCodes2BCType(5) = bc_type_non_slip_adiabatic !back
+     ! bouCodes2BCType(6) = bc_type_non_slip_adiabatic !pins
+     ! bouCodes2BCType(7) = bc_type_non_slip_adiabatic !car
 
       bouCodes2BCType(1) = bc_type_far_field
       bouCodes2BCType(2) = bc_type_non_slip_adiabatic
@@ -108,34 +107,38 @@ contains
 #else
       write(this%mesh_h5_file_path,*) ""
       !write(this%mesh_h5_file_name,*) "windsor"
-      write(this%mesh_h5_file_name,*) "auto"
+      write(this%mesh_h5_file_name,*) "windsor"
 #endif
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
       ! numerical params
-      flag_les = 1
+      flag_les = 0
       flag_implicit = 1
-      flag_les_ilsa=0 
       implicit_solver = implicit_solver_bdf2_rk10
-      !implicit_solver = implicit_solver_esdirk
       flag_rk_order=4
-       
+#if CRM    
+      pseudo_cfl =0.1_rp 
+#else
       pseudo_cfl =0.3_rp 
+#endif
       pseudo_ftau= 8.0_rp
-      maxIterNonLineal=300
+      maxIterNonLineal=1000
       tol=1e-3
-
-      this%loadResults = .true.
+#if CRM
+      this%loadResults = .false.
       this%continue_oldLogs = .false.
-      this%load_step = 1650001
-
+      this%load_step = 801
+#else
+      this%loadResults = .false.
+      this%continue_oldLogs = .false.
+      this%load_step = 290001
+#endif
       this%nstep = 8000001 !250001
 #if CRM
-      this%dt = 4e-5
-      this%cfl_conv = 1.0_rp 
-      this%cfl_diff = 1.0_rp 
+      this%cfl_conv = 20.0_rp 
+      this%cfl_diff = 20.0_rp 
 #else   
       this%cfl_conv = 100.0_rp
       this%cfl_diff = 100.0_rp
@@ -144,10 +147,9 @@ contains
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 500!25 ! Saving interval, TODO: input
-      this%tleap = 0.5_rp ! Saving interval, TODO: input
+      this%nleap = 100!25 ! Saving interval, TODO: input
       this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 500
+      this%nleapAVG = 100
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -157,8 +159,8 @@ contains
       this%rho0   = 1.0_rp
       this%gamma_gas = 1.40_rp
 #if CRM
-      this%Re     =  5490000.0_rp
-      this%aoa = 19.57_rp
+      this%Re  =  5600000.0_rp
+      this%aoa = 0.00_rp
 #else
       this%Re     =  2900000.0_rp
       this%aoa = 0.0_rp
@@ -181,24 +183,24 @@ contains
       flag_buffer_on = .true.
 #if CRM
       flag_buffer_on_east = .true.
-      flag_buffer_e_min = 20000.0_rp
-      flag_buffer_e_size = 5400.0_rp 
+      flag_buffer_e_min = 235.0_rp
+      flag_buffer_e_size = 35.0_rp 
 
       flag_buffer_on_west = .true.
-      flag_buffer_w_min = -20000.0_rp
-      flag_buffer_w_size = 5400.0_rp 
+      flag_buffer_w_min = -235.0_rp
+      flag_buffer_w_size = 35.0_rp 
 
       flag_buffer_on_north = .true.
-      flag_buffer_n_min = 20000.0_rp
-      flag_buffer_n_size = 5400.0_rp 
+      flag_buffer_n_min = 235.0_rp
+      flag_buffer_n_size = 35.0_rp 
       
       flag_buffer_on_top = .true.
-      flag_buffer_t_min = 20000.0_rp
-      flag_buffer_t_size = 5400.0_rp
+      flag_buffer_t_min = 235.0_rp
+      flag_buffer_t_size = 35.0_rp
 
       flag_buffer_on_bottom = .true.
-      flag_buffer_b_min = -20000.0_rp
-      flag_buffer_b_size = 5400.0_rp
+      flag_buffer_b_min = -235.0_rp
+      flag_buffer_b_size = 35.0_rp
 #else
       !windsor
       !flag_buffer_on_east = .true.
@@ -221,7 +223,7 @@ contains
       !flag_buffer_t_min = 2.0_rp
       !flag_buffer_t_size = 0.5_rp 
       
-      !windsor
+      !!windsor
       flag_buffer_on_east = .true.
       flag_buffer_e_min = 5.5_rp
       flag_buffer_e_size = 0.5_rp 

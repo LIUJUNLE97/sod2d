@@ -47,8 +47,8 @@ contains
 
       bouCodes2BCType(1) = bc_type_far_field
       bouCodes2BCType(2) = bc_type_far_field
-      bouCodes2BCType(3) = bc_type_slip_adiabatic
-      bouCodes2BCType(4) = bc_type_slip_adiabatic
+      bouCodes2BCType(3) = bc_type_far_field
+      bouCodes2BCType(4) = bc_type_far_field
       bouCodes2BCType(5) = bc_type_non_slip_adiabatic
 
    end subroutine BluffBodySolver_fill_BC_Types
@@ -72,7 +72,7 @@ contains
       !implicit_solver = implicit_solver_esdirk
       flag_rk_order=4
 
-      pseudo_cfl =1.95_rp 
+      pseudo_cfl =0.95_rp 
       pseudo_ftau= 8.0_rp
       maxIterNonLineal=300
       tol=1e-3
