@@ -25,6 +25,9 @@ module mod_arrays
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
       real(rp), allocatable :: u_buffer(:,:)
+      ! implicit auxiliar fields
+      real(rp), allocatable :: impl_rho(:),impl_E(:),impl_eta(:),impl_q(:,:)
+      real(rp), allocatable :: impl_envit(:,:),impl_mu_fluid(:),impl_mu_sgs(:,:)
 
 end module mod_arrays
 
@@ -420,6 +423,21 @@ contains
       !$acc enter data create(mu_e(:,:))
       !$acc enter data create(mu_sgs(:,:))
 
+      ! implicit
+      allocate(impl_rho(numNodesRankPar))
+      allocate(impl_E(numNodesRankPar))
+      allocate(impl_eta(numNodesRankPar))
+      allocate(impl_q(numNodesRankPar,ndime))
+      allocate(impl_envit(numElemsRankPar,nnode))
+      allocate(impl_mu_fluid(numNodesRankPar))
+      allocate(impl_mu_sgs(numElemsRankPar,nnode))
+      !$acc enter data create(impl_rho(:))
+      !$acc enter data create(impl_E(:))
+      !$acc enter data create(impl_eta(:))
+      !$acc enter data create(impl_q(:,:))
+      !$acc enter data create(impl_envit(:,:))
+      !$acc enter data create(impl_mu_fluid(:))
+      !$acc enter data create(impl_mu_sgs(:,:))
 
       allocate(tauw(numNodesRankPar,ndime))  ! momentum at the buffer
       !$acc enter data create(tauw(:,:))
@@ -942,8 +960,7 @@ contains
       integer(4) :: icode,counter,istep,flag_emac,flag_predic,inonLineal
       character(4) :: timeStep
       real(8) :: iStepTimeRank,iStepTimeMax,iStepEndTime,iStepStartTime,iStepAvgTime
-      real(rp) :: inv_iStep, aux_rho(numNodesRankPar),aux_E(numNodesRankPar),aux_eta(numNodesRankPar),aux_q(numNodesRankPar,ndime),aux_pseudo_cfl
-      real(rp) :: aux_envit(numElemsRankPar,nnode),aux_mu_fluid(numNodesRankPar),aux_mu_sgs(numElemsRankPar,nnode)
+      real(rp) :: inv_iStep,aux_pseudo_cfl
       logical :: do__iteration
 
       counter = 1
@@ -990,13 +1007,13 @@ contains
 
          if(flag_implicit == 1) then
             !$acc kernels
-            aux_rho(:) = rho(:,2)
-            aux_E(:) = E(:,2)
-            aux_q(:,:) = q(:,:,2)
-            aux_eta(:) = eta(:,2)
-            aux_envit(:,:) = mu_e(:,:)
-            aux_mu_fluid(:) = mu_fluid(:)
-            aux_mu_sgs(:,:) = mu_sgs(:,:)
+            impl_rho(:) = rho(:,2)
+            impl_E(:) = E(:,2)
+            impl_q(:,:) = q(:,:,2)
+            impl_eta(:) = eta(:,2)
+            impl_envit(:,:) = mu_e(:,:)
+            impl_mu_fluid(:) = mu_fluid(:)
+            impl_mu_sgs(:,:) = mu_sgs(:,:)
             !$acc end kernels
             aux_pseudo_cfl = pseudo_cfl
          end if
@@ -1006,13 +1023,13 @@ contains
          do while(do__iteration .eqv. .true.) 
             if(flag_implicit == 1) then
                !$acc kernels
-               rho(:,2) = aux_rho(:)
-               E(:,2) = aux_E(:)
-               q(:,:,2) = aux_q(:,:)
-               eta(:,2) = aux_eta(:)
-               mu_e(:,:) = aux_envit(:,:)
-               mu_fluid(:) = aux_mu_fluid(:)
-               mu_sgs(:,:) = aux_mu_sgs(:,:)
+               rho(:,2)    = impl_rho(:)
+               E(:,2)      = impl_E(:)
+               q(:,:,2)    = impl_q(:,:)
+               eta(:,2)    = impl_eta(:)
+               mu_e(:,:)   = impl_envit(:,:)
+               mu_fluid(:) = impl_mu_fluid(:)
+               mu_sgs(:,:) = impl_mu_sgs(:,:)
                !$acc end kernels
             else
                do__iteration = .false.

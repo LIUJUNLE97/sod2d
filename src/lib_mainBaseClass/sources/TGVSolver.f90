@@ -131,7 +131,7 @@ contains
          pr(iNodeL,2)  = this%po+((1.0_rp*V0*V0)/(16.0_rp))*(cos(2.0_rp*x/L)+cos(2.0_rp*y/L))*(cos(2.0_rp*z/L)+2.0_rp)
          rho(iNodeL,2) = pr(iNodeL,2)/this%Rgas/this%to
       end do
-      !acc end parallel loop
+      !$acc end parallel loop
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
