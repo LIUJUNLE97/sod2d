@@ -871,7 +871,7 @@ contains
       do iElem = 1,numElemsRankPar
          call char_length_spectral(iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,Ml,helem_l)
       end do
-      
+      !$acc update device(helem_l(:,:))
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
    end subroutine CFDSolverBase_evalMass

@@ -520,7 +520,7 @@ contains
         real(rp),intent(inout) :: realField(:)
         integer :: i,iNodeL
 
-        !$acc data present (realField(:),aux_realField_s(:),aux_realField_r(:),nodesToComm(:))
+        !!!!!!$acc data present (realField(:),aux_realField_s(:),aux_realField_r(:),nodesToComm(:))
         !$acc parallel loop
         do i=1,numNodesToComm
             iNodeL = nodesToComm(i)
@@ -530,7 +530,7 @@ contains
         !$acc kernels
         aux_realField_r(:)=0.
         !$acc end kernels
-        !$acc end data
+        !!!!!!$acc end data
     end subroutine fill_sendBuffer_real_devel
 
     subroutine copy_from_rcvBuffer_real_devel(realField)
@@ -538,7 +538,7 @@ contains
         real(rp), intent(inout) :: realField(:)
         integer :: i,iNodeL
 
-        !$acc data present (realField(:),aux_realField_r(:),nodesToComm(:))
+        !!!!!!$acc data present (realField(:),aux_realField_r(:),nodesToComm(:))
         !$acc parallel loop 
         do i=1,numNodesToComm
             iNodeL = nodesToComm(i)
@@ -547,7 +547,7 @@ contains
             !$acc end atomic
         end do
         !$acc end parallel loop
-        !$acc end data
+        !!!!!$acc end data
     end subroutine copy_from_rcvBuffer_real_devel
 
     subroutine mpi_halo_atomic_update_real_iSendiRcv_devel(realField)
@@ -560,7 +560,7 @@ contains
         call fill_sendBuffer_real_devel(realField)
 
         ireq=0
-        !$acc data present(aux_realField_r(:),aux_realField_s(:),ranksToComm(:),commsMemPosInLoc(:),commsMemSize(:))
+        !!!!!!!$acc data present(aux_realField_r(:),aux_realField_s(:),ranksToComm(:),commsMemPosInLoc(:),commsMemSize(:))
         !$acc host_data use_device (aux_realField_r(:),aux_realField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
@@ -574,7 +574,7 @@ contains
             call MPI_ISend(aux_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
         !$acc end host_data
-        !$acc end data
+        !!!!!$acc end data
 
         call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 

@@ -45,13 +45,13 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube"
+      write(this%mesh_h5_file_name,*) "cube_per64"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
-      this%doGlobalAnalysis = .true.
-      this%doTimerAnalysis = .true.
+      this%doGlobalAnalysis = .false.
+      this%doTimerAnalysis = .false.
 
       this%saveInitialField = .false.
       this%loadResults = .false.
@@ -60,7 +60,7 @@ contains
 
       ! numerical params
       flag_les = 0
-      flag_implicit = 1
+      flag_implicit = 0
       implicit_solver = implicit_solver_bdf2_rk10
 
       maxIterNonLineal=500
@@ -69,21 +69,21 @@ contains
       !pseudo_cfl =0.95_rp
       flag_rk_order=4
 
-      this%nstep = 1000001
+      this%nstep = 51
       this%maxPhysTime = 20.0_rp
 
       !this%dt = 1e-2
-      !this%cfl_conv = 2.5_rp
-      !this%cfl_diff = 2.5_rp
-      this%cfl_conv = 100.0_rp
-      this%cfl_diff = 100.0_rp
+      this%cfl_conv = 0.9_rp
+      this%cfl_diff = 0.9_rp
+      !this%cfl_conv = 100.0_rp
+      !this%cfl_diff = 100.0_rp
       this%nsave  = 10000  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
 
-      this%nsaveAVG = 1
+      this%nsaveAVG = 2000
       this%nleap = 2000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 10  ! Saving interval, TODO: input
+      this%nleap2 = 1  ! Saving interval, TODO: input
       this%nleapAVG = 2000
 
       this%Cp = 1004.0_rp

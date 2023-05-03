@@ -103,7 +103,6 @@ module mod_geom
                  do inode = 1,nnode
                     he_l(ielem,inode) = Ml(connec(ielem,inode))**(1.0_rp/real(ndime,rp))
                  end do
-                 !$acc update device(he_l(:))
          end subroutine char_length_spectral
 
          subroutine linearMeshOutput(nelem,connec,listHEX08,connecLINEAR)
