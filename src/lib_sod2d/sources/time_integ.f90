@@ -15,13 +15,8 @@ module time_integ
 
    implicit none
 
-   !logical                                   :: flag_mem_alloc=.true.
-   !logical                                   :: initialize_pt=.true.
-
-   !real(rp), allocatable, dimension(:,:)   :: DRMass,DREner,DReta
-   !real(rp), allocatable, dimension(:,:,:) :: DRMom
-   real(rp), allocatable, dimension(:)   :: RMass,REner,Reta
-   real(rp), allocatable, dimension(:,:) :: RMom
+   real(rp), allocatable, dimension(:)   :: Rmass,Rener,Reta
+   real(rp), allocatable, dimension(:,:) :: Rmom
    real(rp), allocatable, dimension(:,:)   :: sigMass,sigEner
    real(rp), allocatable, dimension(:,:,:) :: sigMom
    real(rp), allocatable, dimension(:,:)   :: aijKjMass,aijKjEner,pt
@@ -62,14 +57,14 @@ module time_integ
          endif
       end if
 
-      allocate(RMass(npoin))
-      !$acc enter data create(RMass(:))
-      allocate(REner(npoin))
-      !$acc enter data create(REner(:))
+      allocate(Rmass(npoin))
+      !$acc enter data create(Rmass(:))
+      allocate(Rener(npoin))
+      !$acc enter data create(Rener(:))
       allocate(Reta(npoin))
-      !$acc enter data create(REta(:))
-      allocate(RMom(npoin,ndime))
-      !$acc enter data create(RMom(:,:))
+      !$acc enter data create(Reta(:))
+      allocate(Rmom(npoin,ndime))
+      !$acc enter data create(Rmom(:,:))
 
       allocate(aux_rho(npoin),aux_pr(npoin),aux_E(npoin),aux_Tem(npoin),aux_e_int(npoin),aux_eta(npoin))
       !$acc enter data create(aux_rho(:))
@@ -189,14 +184,14 @@ module time_integ
    subroutine end_rk4_solver()
       implicit none
 
-      !$acc exit data delete(RMass(:))
-      deallocate(RMass)
-      !$acc exit data delete(REner(:))
-      deallocate(REner)
-      !$acc exit data delete(REta(:))
+      !$acc exit data delete(Rmass(:))
+      deallocate(Rmass)
+      !$acc exit data delete(Rener(:))
+      deallocate(Rener)
+      !$acc exit data delete(Reta(:))
       deallocate(Reta)
-      !$acc exit data delete(RMom(:,:))
-      deallocate(RMom)
+      !$acc exit data delete(Rmom(:,:))
+      deallocate(Rmom)
 
    end subroutine end_rk4_solver
 
@@ -519,7 +514,7 @@ module time_integ
                !
                ! RK update to variables
                !
-               call nvtxStartRange("RK_UPDATE")
+               call nvtxStartRange("RK_UPDATE AND PT UPDATE")
                aux2 = 0.d0
                !$acc parallel loop reduction(+:aux2)
                do ipoin = 1,npoin
@@ -838,33 +833,26 @@ module time_integ
                ! Call source term if applicable
                !
                if(present(source_term)) then
+                  call nvtxStartRange("SOURCE TERM")
                   call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,source_term,Rdiff_mom)
+                  call nvtxEndRange
                end if
                !
                ! Evaluate wall models
      
                if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
+                  call nvtxStartRange("WALL MODEL")
                   call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK,bou_codes,&
                      bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),aux_u(:,:),tauw,Rdiff_mom)
+                  call nvtxEndRange
                end if
                !
                !
                ! Compute convective terms
                !
+               call nvtxStartRange("CONVECTIONS")
                call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_u,aux_q,aux_rho,aux_pr,aux_E,Rmass(:),Rmom(:,:),Rener(:))
-
-               ! entropy advection
-               !
-               ! Add convection and diffusion terms (Rdiff_* is zero during prediction)
-               !
-
-             !!!!!!!!$acc update host(Rmass,Rener,Rmom)
-             !!!!!!!! if(mpi_rank.eq.0) then
-             !!!!!!!!    write(*,*) 'rmass',Rmass(250:300,1)
-             !!!!!!!!    write(*,*) 'rener',Rener(250:300,1)
-             !!!!!!!!    write(*,*) 'rmomx',Rmom(250:300,1,1)
-             !!!!!!!!    write(*,*) 'rmomy',Rmom(250:300,2,1)
-             !!!!!!!! end if
+               call nvtxEndRange
 
                call nvtxStartRange("Add convection and diffusion")
                !$acc kernels
@@ -973,9 +961,12 @@ module time_integ
                end do
             end do
             !$acc end parallel loop
+            call nvtxEndRange
 
+            call nvtxStartRange("Entropy convection")
             call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
                gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta(:),alpha)
+            call nvtxEndRange
 
 
             if(mpi_size.ge.2) then
@@ -985,6 +976,7 @@ module time_integ
                call nvtxEndRange
             end if
 
+            call nvtxStartRange("Entropy Residual")
             call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
 
             !$acc parallel loop
@@ -992,8 +984,8 @@ module time_integ
                Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))!-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
             end do
             !$acc end parallel loop
-
             call nvtxEndRange
+
             !
             ! If using Sutherland viscosity model:
             !
