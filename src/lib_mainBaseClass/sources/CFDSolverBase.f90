@@ -469,6 +469,12 @@ contains
       allocate(ax1(numNodesRankPar))
       allocate(ax2(numNodesRankPar))
       allocate(ax3(numNodesRankPar))
+      !$acc enter data create(au(:,:))
+      !$acc enter data create(kres(:))
+      !$acc enter data create(etot(:))     
+      !$acc enter data create(ax1(:))     
+      !$acc enter data create(ax2(:))     
+      !$acc enter data create(ax3(:))      
       !$acc kernels
       kres(:) = 0.0_rp
       etot(:) = 0.0_rp
@@ -482,6 +488,8 @@ contains
       if(numBoundCodes .ge. 1) then
          allocate(Fpr(ndime,numBoundCodes))
          allocate(Ftau(ndime,numBoundCodes))
+         !$acc enter data create(Fpr(:,:))
+         !$acc enter data create(Ftau(:,:))
          !$acc kernels
          Fpr(:,:) = 0.0_rp
          Ftau(:,:) = 0.0_rp
@@ -495,6 +503,10 @@ contains
       allocate(curlU(numNodesRankPar,ndime))
       allocate(divU(numNodesRankPar))
       allocate(Qcrit(numNodesRankPar))
+      !$acc enter data create(gradRho(:,:))
+      !$acc enter data create(curlU(:,:))
+      !$acc enter data create(divU(:))
+      !$acc enter data create(Qcrit(:))
 
       !$acc kernels
       gradRho(:,:) = 0.0_rp
@@ -528,6 +540,13 @@ contains
       allocate(avve2(numNodesRankPar,ndime))
       allocate(avvex(numNodesRankPar,ndime))
       allocate(avtw(numNodesRankPar,ndime))
+      !$acc enter data create(avrho(:))
+      !$acc enter data create(avpre(:))
+      !$acc enter data create(avmueff(:))
+      !$acc enter data create(avvel(:,:))
+      !$acc enter data create(avve2(:,:))
+      !$acc enter data create(avvex(:,:))
+      !$acc enter data create(avtw(:,:))
 
       !$acc kernels
       acurho(:) = 0.0_rp
@@ -928,6 +947,13 @@ contains
       call eval_average_window(isMeshPeriodic,numNodesRankPar,numElemsRankPar,acuvel,acuve2,acuvex,acurho,acupre,acumueff,acutw,this%acutim,&
 											avvel,avve2,avvex,avrho,avpre,avmueff,avtw,nPerRankPar,masSlaRankPar)
 
+      !$acc update host(avvel(:,:))
+      !$acc update host(avve2(:,:))
+      !$acc update host(avvex(:,:))
+      !$acc update host(avrho(:))
+      !$acc update host(avpre(:))
+      !$acc update host(avmueff(:))
+      !$acc update host(avtw(:,:))
       call save_hdf5_avgResultsFile(istep,avvel,avve2,avvex,avrho,avpre,avmueff,avtw)
 
    end subroutine CFDSolverBase_saveAverages
@@ -942,6 +968,21 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
 
+      !$acc update host(rho(:,:))
+      !$acc update host(u(:,:,:))
+      !$acc update host(pr(:,:))
+      !$acc update host(E(:,:))
+      !$acc update host(eta(:,:))
+      !$acc update host(csound(:))
+      !$acc update host(machno(:))
+      !$acc update host(gradRho(:,:))
+      !$acc update host(curlU(:,:))
+      !$acc update host(divU(:))
+      !$acc update host(Qcrit(:))
+      !$acc update host(mu_fluid(:))
+      !$acc update host(mu_e(:,:))
+      !$acc update host(mu_sgs(:,:))      
+      
       call save_hdf5_resultsFile(istep,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),eta(:,2),csound,machno,gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs)
 
    end subroutine CFDSolverBase_savePosprocessingFields
