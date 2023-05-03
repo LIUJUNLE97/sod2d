@@ -6,7 +6,7 @@ module mod_numerical_params
 
         ! Time integration algorithm
         integer(4)  :: flag_rk_order=4 
-        integer(4)  :: flag_implicit=0 !Explicit: RK, Implicit: ESDIRK
+        integer(4)  :: flag_implicit=0 !Explicit: RK, Implicit: BDF2
 
 
         ! LES 
@@ -36,7 +36,7 @@ module mod_numerical_params
         integer(4) ::  pseudo_steps=10
         real(rp)   ::  tol=1e-4
 
-        integer(4) ::  implicit_solver = implicit_solver_esdirk
+        integer(4) ::  implicit_solver = implicit_solver_bdf2_rk10
 
         !
         ! Reference conditions

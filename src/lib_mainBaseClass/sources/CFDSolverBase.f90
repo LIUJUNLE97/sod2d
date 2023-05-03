@@ -943,7 +943,7 @@ contains
       character(4) :: timeStep
       real(8) :: iStepTimeRank,iStepTimeMax,iStepEndTime,iStepStartTime,iStepAvgTime
       real(rp) :: inv_iStep, aux_rho(numNodesRankPar),aux_E(numNodesRankPar),aux_eta(numNodesRankPar),aux_q(numNodesRankPar,ndime),aux_pseudo_cfl
-      real(rp) :: aux_envit(numElemsRankPar,nnode)
+      real(rp) :: aux_envit(numElemsRankPar,nnode),aux_mu_fluid(numNodesRankPar),aux_mu_sgs(numElemsRankPar,nnode)
       logical :: do__iteration
 
       counter = 1
@@ -995,6 +995,8 @@ contains
             aux_q(:,:) = q(:,:,2)
             aux_eta(:) = eta(:,2)
             aux_envit(:,:) = mu_e(:,:)
+            aux_mu_fluid(:) = mu_fluid(:)
+            aux_mu_sgs(:,:) = mu_sgs(:,:)
             !$acc end kernels
             aux_pseudo_cfl = pseudo_cfl
          end if
@@ -1009,6 +1011,8 @@ contains
                q(:,:,2) = aux_q(:,:)
                eta(:,2) = aux_eta(:)
                mu_e(:,:) = aux_envit(:,:)
+               mu_fluid(:) = aux_mu_fluid(:)
+               mu_sgs(:,:) = aux_mu_sgs(:,:)
                !$acc end kernels
             else
                do__iteration = .false.
