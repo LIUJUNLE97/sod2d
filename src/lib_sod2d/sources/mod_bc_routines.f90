@@ -8,6 +8,10 @@ module mod_bc_routines
 
    implicit none
 
+      real(rp), allocatable, dimension(:)   :: aux_rho2,aux_p2,aux_E2
+      real(rp), allocatable, dimension(:,:) :: aux_q2,aux_u2
+      logical  :: allocate_memory_bcc = .true.
+
       contains
 
          subroutine temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,aux_rho,aux_q,aux_u,aux_p,aux_E,u_buffer)
@@ -18,10 +22,21 @@ module mod_bc_routines
             integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou),lnbn_nodes(npoin)
             real(rp), intent(in)     :: normalsAtNodes(npoin,ndime),u_buffer(npoin,ndime)
             real(rp),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
-            real(rp)                   :: aux_rho2(npoin),aux_q2(npoin,ndime),aux_u2(npoin,ndime),aux_p2(npoin),aux_E2(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
             real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
             real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm
+
+            if(allocate_memory_bcc) then
+               allocate_memory_bcc = .false.
+               
+               allocate(aux_rho2(npoin),aux_p2(npoin),aux_E2(npoin))
+               !$acc enter data create(aux_rho2(:))
+               !$acc enter data create(aux_p2(:))
+               !$acc enter data create(aux_E2(:))
+               allocate(aux_u2(npoin,ndime),aux_q2(npoin,ndime))
+               !$acc enter data create(aux_u2(:,:))
+               !$acc enter data create(aux_q2(:,:))
+            end if
 
             !$acc parallel loop  
             do inode = 1,npoin
