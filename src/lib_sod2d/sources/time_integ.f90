@@ -26,7 +26,7 @@ module time_integ
    real(rp), allocatable, dimension(:,:,:) :: sigMom
    real(rp), allocatable, dimension(:,:)   :: aijKjMass,aijKjEner,pt
    real(rp), allocatable, dimension(:,:,:) :: aijKjMom
-   real(rp), allocatable, dimension(:)     :: dt_min
+   real(rp), allocatable, dimension(:)     :: dt_min,alfa_pt
 
    real(rp), allocatable, dimension(:)   :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
    real(rp), allocatable, dimension(:,:) :: aux_u,aux_q
@@ -57,6 +57,8 @@ module time_integ
             !$acc enter data create(aijKjMom(:,:,:))
             allocate(dt_min(npoin))
             !$acc enter data create(dt_min(:))
+            allocate(alfa_pt(5))
+            !$acc enter data create(alfa_pt(:))
          endif
       end if
 
@@ -260,16 +262,9 @@ module time_integ
             !real(rp),    dimension(npoin)       :: Rmass_sum, Rener_sum, alpha,dt_min
             !real(rp),    dimension(npoin,ndime) :: Rmom_sum, f_eta
             !real(rp)                            :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
-            real(rp)                            :: alfa_pt(5),umag,aux,vol_rank,kappa=1e-6,phi=0.4,xi=0.7,f_save=1.0,f_max=1.02_rp,f_min=0.98_rp,errMax
-            real(8)                             :: auxN(5),auxN2(5),vol_tot_d, res(2),aux2,res_ini
-            !$acc enter data create(alfa_pt(:),umag,aux,vol_rank,kappa,phi,xi,f_save,f_max,f_min,errMax)
-            !$acc enter data create(auxN(:),auxN2(:),vol_tot_d, res(:),aux2,res_ini)
-            !$acc update device(kappa,phi,xi,f_save,f_max,f_min)
+            real(rp)                            :: umag,aux,kappa=1e-6,phi=0.4,xi=0.7,f_save=1.0,f_max=1.02_rp,f_min=0.98_rp,errMax
+            real(8)                             :: aux2,res_ini,res(2)
 
-
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            ! New version of RK4 using loops                 !
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             !
             ! Choose between updating prediction or correction
             !
@@ -279,18 +274,15 @@ module time_integ
             call adapt_local_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,pseudo_cfl,dt_min,pseudo_cfl,mu_fluid,mu_sgs,rho(:,2))
             call nvtxEndRange()
 
-            !if(initialize_pt .eqv. .true.) then
-               call nvtxStartRange("Initialize pt")
-               !$acc kernels
-               pt(:,1) = dt_min(:)
-               pt(:,2) = dt_min(:)
-               pt(:,3) = dt_min(:)
-               pt(:,4) = dt_min(:)
-               pt(:,5) = dt_min(:)
-               !$acc end kernels
-               call nvtxEndRange
-               !initialize_pt = .true.
-            !end if
+            call nvtxStartRange("Initialize pt")
+            !$acc kernels
+            pt(:,1) = dt_min(:)
+            pt(:,2) = dt_min(:)
+            pt(:,3) = dt_min(:)
+            pt(:,4) = dt_min(:)
+            pt(:,5) = dt_min(:)
+            !$acc end kernels
+            call nvtxEndRange
 
             !
             ! Initialize variables to zero
@@ -332,7 +324,6 @@ module time_integ
             call nvtxStartRange("Loop over RK steps")
             maxIterL = maxIterNonLineal
             res(:) = 0.0d0
-            !$acc update device(res(:))
             do itime =1, maxIterL
                !$acc parallel loop
                do ipoin = 1,npoin
@@ -530,7 +521,6 @@ module time_integ
                !
                call nvtxStartRange("RK_UPDATE")
                aux2 = 0.d0
-               !$acc update device(aux2)
                !$acc parallel loop reduction(+:aux2)
                do ipoin = 1,npoin
                   rho(ipoin,pos) = rho(ipoin,pos)+pt(ipoin,1)*Rmass_sum(ipoin)
@@ -639,8 +629,7 @@ module time_integ
                   gamma_gas,rho(:,pos),u(:,:,pos),csound,Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e)
                call nvtxEndRange
 
-               !$acc update host(aux2)
-               call nvtxStartRange("Accumullatee auxN in auxN2")
+               call nvtxStartRange("Accumullate aux2 in res(1)")
                call MPI_Allreduce(aux2,res(1),1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
                call nvtxEndRange
 
