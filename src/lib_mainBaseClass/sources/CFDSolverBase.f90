@@ -59,6 +59,7 @@ module CFDSolverBase_mod
       use mod_hdf5
       use mod_comms
       use mod_comms_boundaries
+      use mod_smartredis
    implicit none
    private
 
@@ -147,7 +148,7 @@ contains
 
    subroutine CFDSolverBase_initializeSourceTerms(this)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: iNodeL 
+      integer(4) :: iNodeL
 
       allocate(source_term(numNodesRankPar,ndime))
       !$acc kernels
@@ -212,7 +213,7 @@ contains
 
    subroutine CFDSolverBase_fill_BC_Types(this)
       class(CFDSolverBase), intent(inout) :: this
-   
+
    end subroutine CFDSolverBase_fill_BC_Types
 
    subroutine checkIfWallModelOn(this)
@@ -241,7 +242,7 @@ contains
       do iBound = 1,numBoundsRankPar
          bcCode = bouCodes2BCType(bouCodesPar(iBound))
          if(bcCode .eq. bc_type_slip_wall_model) then
-            auxBoundCnt = auxBoundCnt + 1 
+            auxBoundCnt = auxBoundCnt + 1
             listBoundsWallModel(auxBoundCnt) = iBound
          end if
       end do
@@ -262,7 +263,7 @@ contains
       normalsAtNodes(:,:) = 0.0_rp
       !$acc end kernels
 
-      !$acc parallel loop gang 
+      !$acc parallel loop gang
       do iAux = 1,numBoundsWMRankPar
          iBound = listBoundsWallModel(iAux)
          iElem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
@@ -279,7 +280,7 @@ contains
                sig=-1.0_rp
             end if
             !$acc loop seq
-            do idime = 1,ndime     
+            do idime = 1,ndime
                aux(idime) = aux(idime)*sig/normaux
             end do
             normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1) + aux(1)
@@ -333,7 +334,7 @@ contains
       bouCodesNodesPar(:) =  max_num_bou_codes
       !$acc end kernels
 
-      !$acc parallel loop gang 
+      !$acc parallel loop gang
       do iBound = 1,numBoundsRankPar
          !$acc loop vector
          do ipbou = 1,npbou
@@ -346,7 +347,7 @@ contains
          call mpi_halo_min_boundary_update_int_iSendiRcv(aux1)
       end if
 
-      !$acc parallel loop  
+      !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          if(aux1(iNodeL) .lt. max_num_bou_codes) then
             bouCodesNodesPar(iNodeL) = aux1(iNodeL)
@@ -410,8 +411,8 @@ contains
       u(:,:,:) = 0.0_rp
       q(:,:,:) = 0.0_rp
       rho(:,:) = 0.0_rp
-      pr(:,:) = 0.0_rp 
-      E(:,:) = 0.0_rp  
+      pr(:,:) = 0.0_rp
+      E(:,:) = 0.0_rp
       Tem(:,:) = 0.0_rp
       e_int(:,:) = 0.0_rp
       eta(:,:) = 0.0_rp
@@ -589,7 +590,7 @@ contains
       call nvtxStartRange("MU_SGS")
       if(flag_les_ilsa == 1) then
          this%dt = 1.0_rp !To avoid 0.0 division inside sgs_ilsa_visc calc
-         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
+         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3)
       else
          call sgs_visc(numElemsRankPar,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
       end if
@@ -729,7 +730,7 @@ contains
       call nvtxStartRange("Jacobian info")
       allocate(He(ndime,ndime,ngaus,numElemsRankPar))
       allocate(gpvol(1,ngaus,numElemsRankPar))
-      call elem_jacobian(numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,dNgp,wgp,gpvol,He) 
+      call elem_jacobian(numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,dNgp,wgp,gpvol,He)
       call  nvtxEndRange
 
       vol_rank  = 0.0
@@ -742,13 +743,13 @@ contains
 
       call MPI_Allreduce(vol_rank,vol_tot_d,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
-      this%VolTot = real(vol_tot_d,rp) 
+      this%VolTot = real(vol_tot_d,rp)
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
       if(mpi_rank.eq.0) write(111,*) '--| DOMAIN VOLUME := ',this%VolTot
 
    end subroutine CFDSolverBase_evalJacobians
-   
+
    subroutine CFDSolverBase_evalAtoIJKInverse(this)
       class(CFDSolverBase), intent(inout) :: this
 
@@ -803,7 +804,7 @@ contains
       do iElem = 1,numElemsRankPar
          call char_length_spectral(iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,Ml,helem_l)
       end do
-      
+
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
    end subroutine CFDSolverBase_evalMass
@@ -948,7 +949,7 @@ contains
 
          do__iteration = .true.
          inonLineal = 1
-         do while(do__iteration .eqv. .true.) 
+         do while(do__iteration .eqv. .true.)
             if(flag_implicit == 1) then
                !$acc kernels
                rho(:,2) = aux_rho(:)
@@ -974,7 +975,7 @@ contains
             end if
          end do
 
-         if(flag_implicit == 1) then 
+         if(flag_implicit == 1) then
             !$acc kernels
             rho(:,3) = rho(:,1)
             E(:,3) = E(:,1)
@@ -1275,10 +1276,10 @@ contains
       call init_hdf5_interface()
 
       ! Main simulation parameters
-      call this%initializeDefaultParameters()         
+      call this%initializeDefaultParameters()
       call this%initializeParameters()
 
-      ! Define vector length to be used 
+      ! Define vector length to be used
       call define_veclen()
 
       ! Open log file
@@ -1326,7 +1327,7 @@ contains
       ! Eval list Elems per Node and Near Boundary Node
       call this%eval_elemPerNode_and_nearBoundaryNode()
 
-      ! Eval mass 
+      ! Eval mass
       call this%evalMass()
 
       ! Eval first output
@@ -1356,7 +1357,7 @@ contains
       call end_comms()
       call end_comms_bnd()
 
-      ! End MPI      
+      ! End MPI
       call end_mpi()
 
    end subroutine CFDSolverBase_run

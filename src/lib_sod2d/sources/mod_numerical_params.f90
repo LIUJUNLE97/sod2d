@@ -1,15 +1,14 @@
 module mod_numerical_params
 
     use mod_constants
-    
+
     implicit none
 
         ! Time integration algorithm
-        integer(4)  :: flag_rk_order=4 
+        integer(4)  :: flag_rk_order=4
         integer(4)  :: flag_implicit=0 !Explicit: RK, Implicit: ESDIRK
 
-
-        ! LES 
+        ! LES
         integer(4)  :: flag_les=0
         integer(4)  :: flag_les_ilsa=0
         real(rp) :: c_sgs = 0.07_rp
@@ -20,8 +19,8 @@ module mod_numerical_params
         integer(4)  :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
         integer(4)  :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
         integer(4)  :: flag_normalise_entropy=1
-        real(rp) :: ce = 0.1_rp   
-        real(rp) :: cmax = 0.5_rp 
+        real(rp) :: ce = 0.1_rp
+        real(rp) :: cmax = 0.5_rp
         real(rp) :: cglob =1.0_rp
         real(rp) :: c_rho =1.0_rp
         real(rp) :: c_ener = 1.0_rp
@@ -53,7 +52,6 @@ module mod_numerical_params
         !
         ! Penalisation buffer zone
         !
-
         logical :: flag_buffer_on = .false.
         logical :: flag_buffer_on_east = .false.
         logical :: flag_buffer_on_west = .false.
@@ -76,5 +74,9 @@ module mod_numerical_params
         real(4) :: flag_buffer_t_size = 0.0_rp
         real(4) :: flag_buffer_b_min = 0.0_rp
         real(4) :: flag_buffer_b_size = 0.0_rp
+
+        ! SmartRedis
+        logical :: do_smartredis = .true.
+        logical :: db_is_clustered = .false.
 
 end module mod_numerical_params
