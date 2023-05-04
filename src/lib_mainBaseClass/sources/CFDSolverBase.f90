@@ -153,6 +153,7 @@ contains
       integer(4) :: iNodeL 
 
       allocate(source_term(numNodesRankPar,ndime))
+      !$acc enter data create(source_term(:,:))
       !$acc kernels
       source_term(:,:) = 0.00_rp
       !$acc end kernels
@@ -240,6 +241,7 @@ contains
       !write(*,*) '[',mpi_rank,'] numBoundsWMRankPar',numBoundsWMRankPar
 
       allocate(listBoundsWallModel(numBoundsWMRankPar))
+      !$acc enter data create(listBoundsWallModel(:))
       auxBoundCnt = 0
       do iBound = 1,numBoundsRankPar
          bcCode = bouCodes2BCType(bouCodesPar(iBound))
@@ -260,6 +262,7 @@ contains
       if(mpi_rank.eq.0) write(111,*) "--| Evaluating Normals at Nodes for Wall-Model"
 
       allocate(normalsAtNodes(numNodesRankPar,ndime))
+      !$acc enter data create(normalsAtNodes(:,:))
 
       !$acc kernels
       normalsAtNodes(:,:) = 0.0_rp
@@ -326,8 +329,12 @@ contains
       allocate(bouCodesNodesPar(numNodesRankPar))
       allocate(aux1(numNodesRankPar))
       allocate(bouCodes2BCType(numBoundCodes))
+      !$acc enter data create(bouCodesNodesPar(:))
+      !$acc enter data create(aux1(:))
+      !$acc enter data create(bouCodes2BCType(:))
 
       bouCodes2BCType(:) = 0
+      !$acc update device(bouCodes2BCType(:))
 
       call this%fillBCTypes()
 
@@ -358,7 +365,8 @@ contains
       !$acc end parallel loop
 
       call this%checkIfWallModelOn()
-
+      
+      !$acc exit data delete(aux1(:))
       deallocate(aux1)
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
@@ -422,6 +430,7 @@ contains
       !$acc enter data create(mu_factor(:))
       !$acc enter data create(mu_e(:,:))
       !$acc enter data create(mu_sgs(:,:))
+      !$acc enter data create(u_buffer(:,:))
 
       ! implicit
       allocate(impl_rho(numNodesRankPar))
@@ -706,6 +715,7 @@ contains
       !$acc enter data create(wgp(:))
       allocate(xgp_b(npbou,ndime-1))
       allocate(wgp_b(npbou))
+      !$acc enter data create(wgp_b(:))
 
       allocate(Ngp(ngaus,nnode),dNgp(ndime,nnode,ngaus))
       allocate(Ngp_l(ngaus,nnode),dNgp_l(ndime,nnode,ngaus))
@@ -713,6 +723,8 @@ contains
       allocate(dlxigp_ip(ngaus,ndime,porder+1))
       !$acc enter data create(Ngp(:,:))
       !$acc enter data create(dNgp(:,:,:))
+      !$acc enter data create(Ngp_b(:,:))
+      !$acc enter data create(dNgp_b(:,:,:))
       !$acc enter data create(dlxigp_ip(:,:,:))
       !*********************************************************
 
@@ -723,6 +735,7 @@ contains
       call GaussLobattoLegendre_hex(atoIJK,xgp,wgp)
       !$acc update device(wgp(:))
       call GaussLobattoLegendre_qua(atoIJ,xgp_b,wgp_b)
+      !$acc update device(wgp_b(:))
 
       call nvtxEndRange
 
@@ -752,6 +765,8 @@ contains
          t = xgp_b(igaus,2)
          call qua16(s,t,atoIJ,Ngp_b(igaus,:),dNgp_b(:,:,igaus))
       end do
+      !$acc update device(Ngp_b(:,:))
+      !$acc update device(dNgp_b(:,:,:))
 
       call nvtxEndRange
 
@@ -776,6 +791,7 @@ contains
       if (isMeshBoundaries) then
          if(mpi_rank.eq.0) write(111,*) "--| COMPUTING BOUNDARY ELEMENT NORMALS"
          allocate(boundNormalPar(numBoundsRankPar,ndime*npbou))
+         !$acc enter data create(boundNormalPar(:,:))
          call nvtxStartRange("Bou normals")
          call boundary_normals(numNodesRankPar,numBoundsRankPar,boundParOrig,this%leviCivi,coordPar,dNgp_b,boundNormalPar)
          call nvtxEndRange
@@ -855,13 +871,17 @@ contains
       !not the best place Oriol!
       if(mpi_rank.eq.0) write(111,*) "--| Doing near boundary calculations..."
       allocate(lelpn(numNodesRankPar))
+      !$acc enter data create(lelpn(:))
       allocate(point2elem(numNodesRankPar))
+      !$acc enter data create(point2elem(:))
       if(mpi_rank.eq.0) write(111,*) '  --| Evaluating point2elem array...'
       call elemPerNode(numElemsRankPar,numNodesRankPar,connecParWork,lelpn,point2elem)
 
       if(mpi_rank.eq.0) write(111,*) '  --| Evaluating lnbn & lnbnNodes arrays...'
       allocate(lnbn(numBoundsRankPar,npbou))
+      !$acc enter data create(lnbn(:,:))
       allocate(lnbnNodes(numNodesRankPar))
+      !$acc enter data create(lnbnNodes(:))
       call nearBoundaryNode(numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)

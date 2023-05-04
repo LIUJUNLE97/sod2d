@@ -467,6 +467,7 @@ contains
         call fill_sendBuffer_int(intField)
 
         ireq=0
+        !$acc host_data use_device (aux_intfield_r(:),aux_intfield_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             tagComm  = 0
@@ -478,6 +479,7 @@ contains
             ireq = ireq+1
             call MPI_ISend(aux_intfield_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
+        !$acc end host_data
 
         call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 

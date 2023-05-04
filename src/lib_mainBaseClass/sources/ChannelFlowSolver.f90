@@ -46,6 +46,7 @@ contains
       class(ChannelFlowSolver), intent(inout) :: this
 
       bouCodes2BCType(1) = bc_type_non_slip_adiabatic
+      !$acc update device(bouCodes2BCType(:))
 
    end subroutine ChannelFlowSolver_fill_BC_Types
 

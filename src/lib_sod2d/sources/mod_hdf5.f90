@@ -2234,15 +2234,21 @@ contains
       allocate(bnd_commsMemPosInLoc(bnd_numRanksWithComms))
       allocate(bnd_commsMemPosInNgb(bnd_numRanksWithComms))
       allocate(bnd_commsMemSize(bnd_numRanksWithComms))
+      !$acc enter data create(bnd_ranksToComm(:))
+      !$acc enter data create(bnd_commsMemPosInLoc(:))
+      !$acc enter data create(bnd_commsMemSize(:))
 
       dsetname = '/Parallel_data_boundary/ranksToComm'
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,bnd_ranksToComm)
+      !$acc update device(bnd_ranksToComm(:))
 
       dsetname = '/Parallel_data_boundary/commsMemPosInLoc'
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,bnd_commsMemPosInLoc)
+      !$acc update device(bnd_commsMemPosInLoc(:))
 
       dsetname = '/Parallel_data_boundary/commsMemSize'
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,bnd_commsMemSize)
+      !$acc update device(bnd_commsMemSize(:))
 
       dsetname = '/Parallel_data_boundary/commsMemPosInNgb'
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,bnd_commsMemPosInNgb)
@@ -2261,9 +2267,11 @@ contains
       ms_dims(1)=int(bnd_numNodesToComm,hsize_t)
 
       allocate(bnd_nodesToComm(bnd_numNodesToComm))
+      !$acc enter data create(bnd_nodesToComm(:))
 
       dsetname = '/Parallel_data_boundary/nodesToComm'
       call read_dataspace_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,bnd_nodesToComm)
+      !$acc update device(bnd_nodesToComm(:))
 
       deallocate(aux_array)
 
@@ -2743,6 +2751,7 @@ contains
       integer(HSSIZE_T), dimension(1) :: ms_offset
 
       allocate(coordPar(numNodesRankPar,ndime)) !only works for ndime=3
+      !$acc enter data create(coordPar(:,:))
 
       ms_rank = 1
       ms_dims(1) = int(numNodesRankPar,hsize_t)
@@ -2756,6 +2765,8 @@ contains
 
       dsetname = '/Coords/Z'
       call read_dataspace_real_rp_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,coordPar(:,3))
+
+      !$acc update device(coordPar(:,:))
 
    end subroutine load_coordinates_hdf5
 

@@ -74,8 +74,8 @@ contains
       bouCodes2BCType(4) = bc_type_non_slip_adiabatic
       bouCodes2BCType(5) = bc_type_slip_adiabatic
       bouCodes2BCType(6) = bc_type_far_field
-
 #endif
+      !$acc update device(bouCodes2BCType(:))
 
    end subroutine BluffBody3DSolver_fill_BC_Types
 

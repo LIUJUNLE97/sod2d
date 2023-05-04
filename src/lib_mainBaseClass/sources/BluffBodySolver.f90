@@ -50,6 +50,7 @@ contains
       bouCodes2BCType(3) = bc_type_slip_adiabatic
       bouCodes2BCType(4) = bc_type_slip_adiabatic
       bouCodes2BCType(5) = bc_type_non_slip_adiabatic
+      !$acc update device(bouCodes2BCType(:))
 
    end subroutine BluffBodySolver_fill_BC_Types
 

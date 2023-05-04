@@ -75,6 +75,7 @@ contains
 
       bouCodes2BCType(1) = bc_type_slip_wall_model
       bouCodes2BCType(2) = bc_type_far_field
+      !$acc update device(bouCodes2BCType(:))
 
    end subroutine BLFlowSolver_fill_BC_Types
 

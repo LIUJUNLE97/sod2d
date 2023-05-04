@@ -263,6 +263,7 @@ contains
         call fill_boundary_sendBuffer_int(intField)
 
         ireq=0
+        !$acc host_data use_device (aux_bnd_intfield_r(:),aux_bnd_intfield_s(:))
         do i=1,bnd_numRanksWithComms
             ngbRank  = bnd_ranksToComm(i)
             tagComm  = 0
@@ -274,6 +275,7 @@ contains
             ireq = ireq+1
             call MPI_ISend(aux_bnd_intfield_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
+        !$acc end host_data
 
         call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
@@ -290,6 +292,7 @@ contains
         call fill_boundary_sendBuffer_real(realField)
 
         ireq=0
+        !$acc host_data use_device (aux_bnd_realfield_r(:),aux_bnd_realfield_s(:))
         do i=1,bnd_numRanksWithComms
             ngbRank  = bnd_ranksToComm(i)
             tagComm  = 0
@@ -301,6 +304,7 @@ contains
             ireq = ireq+1
             call MPI_ISend(aux_bnd_realfield_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
+        !$acc end host_data
 
         call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
@@ -319,6 +323,7 @@ contains
         call fill_boundary_sendBuffer_int(intField)
 
         ireq=0
+        !$acc host_data use_device (aux_bnd_intfield_r(:),aux_bnd_intfield_s(:))
         do i=1,bnd_numRanksWithComms
             ngbRank  = bnd_ranksToComm(i)
             tagComm  = 0
@@ -330,6 +335,7 @@ contains
             ireq = ireq+1
             call MPI_ISend(aux_bnd_intfield_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
+        !$acc end host_data
 
         call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
@@ -347,6 +353,7 @@ contains
         call fill_boundary_sendBuffer_real(realField)
 
         ireq=0
+        !$acc host_data use_device (aux_bnd_realfield_r(:),aux_bnd_realfield_s(:))
         do i=1,bnd_numRanksWithComms
             ngbRank  = bnd_ranksToComm(i)
             tagComm  = 0
@@ -358,6 +365,7 @@ contains
             ireq = ireq+1
             call MPI_ISend(aux_bnd_realfield_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
+        !$acc end host_data
 
         call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
