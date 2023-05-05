@@ -68,7 +68,7 @@ module mod_bc_routines
                   aux_u2(inode,3) = aux_q2(inode,3)/aux_rho2(inode)
 
                   aux_p2(inode) = aux_rho2(inode)*(nscbc_gamma_inf-1.0_rp)*((aux_E2(inode)/aux_rho2(inode))- &
-                     0.5_rp*dot_product(aux_u2(inode,:),aux_u2(inode,:)))
+                     0.5_rp*((aux_u2(inode,1)*aux_u2(inode,1)) + (aux_u2(inode,2)*aux_u2(inode,2)) +(aux_u2(inode,3)*aux_u2(inode,3))))
                end if
             end do
             !$acc end parallel loop
@@ -114,7 +114,7 @@ module mod_bc_routines
                      aux_u(inode,3) = aux_q(inode,3)/aux_rho(inode)
 
                      aux_p(inode) = aux_rho(inode)*(nscbc_gamma_inf-1.0_rp)*((aux_E(inode)/aux_rho(inode))- &
-                        0.5_rp*dot_product(aux_u(inode,:),aux_u(inode,:)))
+                        0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3))))
                   else if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic
                      
                      aux_q(inode,1) = 0.0_rp
@@ -169,7 +169,7 @@ module mod_bc_routines
                      aux_E(inode) = nscbc_rho_inf*0.5_rp*u_buffer(inode,1)**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
 
                   else if (bcode == bc_type_slip_wall_model) then ! slip wall model
-                     norm = dot_product(normalsAtNodes(inode,:),aux_q(inode,:))
+                     norm = (normalsAtNodes(inode,1)*aux_q(inode,1)) + (normalsAtNodes(inode,2)*aux_q(inode,2)) + (normalsAtNodes(inode,3)*aux_q(inode,3))
                      !$acc loop seq
                      do idime = 1,ndime     
                         aux_q(inode,idime) = aux_q(inode,idime) - norm*normalsAtNodes(inode,idime)
@@ -180,8 +180,8 @@ module mod_bc_routines
                      aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
                      aux_u(inode,3) = aux_q(inode,3)/aux_rho(inode)
 
-                     aux_E(inode) = aux_p(inode)/(nscbc_gamma_inf-1.0_rp)+ &
-                                    aux_rho(inode)*0.5_rp*dot_product(aux_u(inode,:),aux_u(inode,:))
+                     aux_E(inode) = aux_p(inode)/(nscbc_gamma_inf-1.0_rp) + &
+                                    aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
 
                   end if
                end if

@@ -213,7 +213,7 @@ module time_integ
             real(rp),             intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
             real(rp),             intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
-            real(rp),             intent(in)    :: dt, helem(nelem) !helem_l(npoin) TO REVIEW I THINK IS BUG!
+            real(rp),             intent(in)    :: dt, helem(nelem)
             real(rp),             intent(in)    :: helem_l(nelem,nnode)
             real(rp),             intent(in)    :: Ml(npoin)
             real(rp),             intent(in)    :: mu_factor(npoin)
@@ -687,7 +687,7 @@ module time_integ
             real(rp),             intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
             real(rp),             intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
-            real(rp),             intent(in)    :: dt, helem(nelem) !helem_l(npoin) TO REVIEW I THINK IS BUG!
+            real(rp),             intent(in)    :: dt, helem(nelem) 
             real(rp),             intent(in)    :: helem_l(nelem,nnode)
             real(rp),             intent(in)    :: Ml(npoin)
             real(rp),             intent(in)    :: mu_factor(npoin)
