@@ -61,7 +61,8 @@ program devel_hackaton
         call nvtxEndRange
 
         call nvtxStartRange("new_way_comm")
-        call mpi_halo_atomic_update_real_iSendiRcv_devel(test_array)
+        call mpi_halo_atomic_update_real(test_array)
+        !call mpi_halo_atomic_update_real_iSendiRcv_devel(test_array)
         call nvtxEndRange
     end do
     call nvtxEndRange

@@ -15,22 +15,15 @@ module mod_comms
 
     integer(4),dimension(:),allocatable :: aux_intField_s,  aux_intField_r
     real(rp),dimension(:),allocatable   :: aux_realField_s, aux_realField_r
-    !real(4), dimension(:), allocatable :: aux_floatField_s, aux_floatField_r
-    !real(8), dimension(:), allocatable :: aux_doubleField_s, aux_doubleField_r
-    !real(4), dimension(:), allocatable :: aux_floatField_5s, aux_floatField_5r
-    !using two buffers because if we use only one maybe we send the info after other proc has added something in me!
-    !then i'll duplicate the info :S
 
-    integer :: window_id_int,window_id_real!,window_id_float,window_id_double
-    !integer :: window_id_float5
+    integer :: window_id_int,window_id_real
     integer :: window_id_sm
     integer :: beginFence=0,endFence=0
     integer :: startAssert=0,postAssert=0
 
-    logical :: isInt,isReal!isFloat,isDouble,isFloat5
+    logical :: isInt,isReal
     logical :: isLockBarrier,isPSCWBarrier
 
-    !integer :: ms_rank,ms_size,ms_newComm
     type(c_ptr) :: c_ms_ptr
 
 contains
@@ -153,7 +146,9 @@ contains
         implicit none
 
         window_buffer_size = mpi_integer_size*numNodesToComm
+        !$acc host_data use_device(aux_intField_r(:),aux_intField_s(:))
         call MPI_Win_create(aux_intField_r,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_int,mpi_err)
+        !$acc end host_data
     end subroutine init_window_intField
 
     subroutine close_window_intField()
@@ -167,7 +162,9 @@ contains
         implicit none
 
         window_buffer_size = mpi_real_size*numNodesToComm
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
         call MPI_Win_create(aux_realField_r,window_buffer_size,mpi_real_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_real,mpi_err)
+        !$acc end host_data
     end subroutine init_window_realField
 
     subroutine close_window_realField()
@@ -175,51 +172,7 @@ contains
         
         call MPI_Win_free(window_id_real,mpi_err)
     end subroutine close_window_realField
-#if 0
-!-------------------------------------------------------------------------------------
-!-------------------------------------------------------------------------------------
-    subroutine init_window_floatField()
-        implicit none
 
-        window_buffer_size = mpi_float_size*numNodesToComm
-        call MPI_Win_create(aux_floatField_r,window_buffer_size,mpi_float_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_float,mpi_err)
-    end subroutine init_window_floatField
-
-    subroutine close_window_floatField()
-        implicit none
-        
-        call MPI_Win_free(window_id_float,mpi_err)
-    end subroutine close_window_floatField
-!-------------------------------------------------------------------------------------
-!-------------------------------------------------------------------------------------
-    subroutine init_window_doubleField()
-        implicit none
-
-        window_buffer_size = mpi_double_size*numNodesToComm
-        call MPI_Win_create(aux_doubleField_r,window_buffer_size,mpi_double_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_double,mpi_err)
-    end subroutine init_window_doubleField
-
-    subroutine close_window_doubleField()
-        implicit none
-        
-        call MPI_Win_free(window_id_double,mpi_err)
-    end subroutine close_window_doubleField
-!-------------------------------------------------------------------------------------
-!-------------------------------------------------------------------------------------
-    subroutine init_window_floatField5()
-        implicit none
-
-        window_buffer_size = 5*mpi_float_size*numNodesToComm
-        call MPI_Win_create(aux_floatField_5r,window_buffer_size,mpi_float_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_float5,mpi_err)
-    end subroutine init_window_floatField5
-
-    subroutine close_window_floatField5()
-        implicit none
-        
-        call MPI_Win_free(window_id_float5,mpi_err)
-    end subroutine close_window_floatField5
-!-------------------------------------------------------------------------------------
-#endif
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
 !    SUBROUTINES COPY/FROM SEND/RCV BUFFERS
@@ -227,7 +180,7 @@ contains
     subroutine fill_sendBuffer_int(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
-        integer :: i,iNodeL
+        integer(4) :: i,iNodeL
 
         !$acc parallel loop
         do i=1,numNodesToComm
@@ -243,7 +196,7 @@ contains
     subroutine fill_sendBuffer_real(realField)
         implicit none
         real(rp),intent(inout) :: realField(:)
-        integer :: i,iNodeL
+        integer(4) :: i,iNodeL
 
         !$acc parallel loop
         do i=1,numNodesToComm
@@ -260,7 +213,7 @@ contains
     subroutine fill_sendBuffer_get_int(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
-        integer :: i,iNodeL
+        integer(4) :: i,iNodeL
 
         !$acc parallel loop
         do i=1,numNodesToComm
@@ -276,7 +229,7 @@ contains
     subroutine fill_sendBuffer_get_real(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
-        integer :: i,iNodeL
+        integer(4) :: i,iNodeL
 
         !$acc parallel loop
         do i=1,numNodesToComm
@@ -293,7 +246,7 @@ contains
     subroutine copy_from_rcvBuffer_int(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
-        integer :: i,iNodeL
+        integer(4) :: i,iNodeL
 
         !$acc parallel loop
         do i=1,numNodesToComm
@@ -308,9 +261,9 @@ contains
     subroutine copy_from_rcvBuffer_real(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
-        integer :: i,iNodeL
+        integer(4) :: i,iNodeL
 
-        !$acc parallel loop copy(realField(:))
+        !$acc parallel loop
         do i=1,numNodesToComm
             iNodeL = nodesToComm(i)
             !$acc atomic update
@@ -324,7 +277,7 @@ contains
     subroutine copy_from_rcvBuffer_get_int(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
-        integer :: i,iNodeL
+        integer(4) :: i,iNodeL
 
         !$acc parallel loop
         do i=1,numNodesToComm
@@ -339,7 +292,7 @@ contains
     subroutine copy_from_rcvBuffer_get_real(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
-        integer :: i,iNodeL
+        integer(4) :: i,iNodeL
 
         !$acc parallel loop
         do i=1,numNodesToComm
@@ -355,7 +308,7 @@ contains
         implicit none
         real(rp),intent(in) :: cond
         real(rp),intent(inout) :: realField(:)
-        integer :: i,iNodeL
+        integer(4) :: i,iNodeL
 
         !$acc parallel loop
         do i=1,numNodesToComm
@@ -379,7 +332,7 @@ contains
 
     subroutine mpi_halo_atomic_update_int(intField)
         implicit none
-        integer, intent(inout) :: intField(:)
+        integer(4), intent(inout) :: intField(:)
 #if _SENDRCV_
         call mpi_halo_atomic_update_int_sendRcv(intField)
 #endif
@@ -414,21 +367,23 @@ contains
     subroutine mpi_halo_atomic_update_int_sendRcv(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
-        integer :: i,ngbRank,tagComm
-        integer :: memPos_l,memSize
+        integer(4) :: i,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
 
         call fill_sendBuffer_int(intField)
 
+        !$acc host_data use_device(aux_intField_r(:),aux_intField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             tagComm  = 0
             memPos_l = commsMemPosInLoc(i)
             memSize  = commsMemSize(i)
 
-            call MPI_Sendrecv(aux_intfield_s(mempos_l), memSize, mpi_datatype_int, ngbRank, tagComm, &
-                              aux_intfield_r(mempos_l), memSize, mpi_datatype_int, ngbRank, tagComm, &
+            call MPI_Sendrecv(aux_intField_s(mempos_l), memSize, mpi_datatype_int, ngbRank, tagComm, &
+                              aux_intField_r(mempos_l), memSize, mpi_datatype_int, ngbRank, tagComm, &
                               MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
         end do
+        !$acc end host_data
 
         call copy_from_rcvBuffer_int(intField)
     end subroutine mpi_halo_atomic_update_int_sendRcv
@@ -436,21 +391,23 @@ contains
     subroutine mpi_halo_atomic_update_real_sendRcv(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
-        integer :: i,ngbRank,tagComm
-        integer :: memPos_l,memSize
+        integer(4) :: i,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
 
         call fill_sendBuffer_real(realField)
 
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             tagComm  = 0
             memPos_l = commsMemPosInLoc(i)
             memSize  = commsMemSize(i)
 
-            call MPI_Sendrecv(aux_realfield_s(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
-                              aux_realfield_r(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
+            call MPI_Sendrecv(aux_realField_s(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
+                              aux_realField_r(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
                               MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
         end do
+        !$acc end host_data
 
         call copy_from_rcvBuffer_real(realField)
     end subroutine mpi_halo_atomic_update_real_sendRcv
@@ -459,15 +416,15 @@ contains
     !INTEGER ---------------------------------------------------------
     subroutine mpi_halo_atomic_update_int_iSendiRcv(intField)
         implicit none
-        integer, intent(inout) :: intField(:)
-        integer :: i,ireq,ngbRank,tagComm
-        integer :: memPos_l,memSize
-        integer :: requests(2*numRanksWithComms)
+        integer(4), intent(inout) :: intField(:)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*numRanksWithComms)
 
         call fill_sendBuffer_int(intField)
 
         ireq=0
-        !$acc host_data use_device (aux_intfield_r(:),aux_intfield_s(:))
+        !$acc host_data use_device(aux_intField_r(:),aux_intField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             tagComm  = 0
@@ -475,9 +432,9 @@ contains
             memSize  = commsMemSize(i)
 
             ireq = ireq+1
-            call MPI_Irecv(aux_intfield_r(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_Irecv(aux_intField_r(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
             ireq = ireq+1
-            call MPI_ISend(aux_intfield_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_ISend(aux_intField_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
         !$acc end host_data
 
@@ -489,81 +446,14 @@ contains
     subroutine mpi_halo_atomic_update_real_iSendiRcv(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
-        integer :: i,ireq,ngbRank,tagComm
-        integer :: memPos_l,memSize
-        integer :: requests(2*numRanksWithComms)
-
-        call fill_sendBuffer_real(realField)
-        !$acc update host(aux_realField_r(:),aux_realField_s(:))
-        ireq=0
-        do i=1,numRanksWithComms
-            ngbRank  = ranksToComm(i)
-            tagComm  = 0
-            memPos_l = commsMemPosInLoc(i)
-            memSize  = commsMemSize(i)
-
-            ireq = ireq+1
-            call MPI_Irecv(aux_realfield_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
-            ireq = ireq+1
-            call MPI_ISend(aux_realfield_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
-        end do
-
-        call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
-        !$acc update device(aux_realField_r(:),aux_realField_s(:))
-        call copy_from_rcvBuffer_real(realField)
-    end subroutine mpi_halo_atomic_update_real_iSendiRcv
-
-!----------------------------------------------------------------------------------------------------
-!       DEVEL
-!----------------------------------------------------------------------------------------------------
-
-    subroutine fill_sendBuffer_real_devel(realField)
-        implicit none
-        real(rp),intent(inout) :: realField(:)
-        integer :: i,iNodeL
-
-        !!!!!!$acc data present (realField(:),aux_realField_s(:),aux_realField_r(:),nodesToComm(:))
-        !$acc parallel loop
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
-            aux_realField_s(i) = realField(iNodeL)
-        end do
-        !$acc end parallel loop
-        !$acc kernels
-        aux_realField_r(:)=0.
-        !$acc end kernels
-        !!!!!!$acc end data
-    end subroutine fill_sendBuffer_real_devel
-
-    subroutine copy_from_rcvBuffer_real_devel(realField)
-        implicit none
-        real(rp), intent(inout) :: realField(:)
-        integer :: i,iNodeL
-
-        !!!!!!$acc data present (realField(:),aux_realField_r(:),nodesToComm(:))
-        !$acc parallel loop 
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
-            !$acc atomic update
-            realField(iNodeL) = realField(iNodeL) + aux_realField_r(i)
-            !$acc end atomic
-        end do
-        !$acc end parallel loop
-        !!!!!$acc end data
-    end subroutine copy_from_rcvBuffer_real_devel
-
-    subroutine mpi_halo_atomic_update_real_iSendiRcv_devel(realField)
-        implicit none
-        real(rp), intent(inout) :: realField(:)
         integer(4) :: i,ireq,ngbRank,tagComm
         integer(4) :: memPos_l,memSize
         integer(4) :: requests(2*numRanksWithComms)
 
-        call fill_sendBuffer_real_devel(realField)
+        call fill_sendBuffer_real(realField)
 
         ireq=0
-        !!!!!!!$acc data present(aux_realField_r(:),aux_realField_s(:),ranksToComm(:),commsMemPosInLoc(:),commsMemSize(:))
-        !$acc host_data use_device (aux_realField_r(:),aux_realField_s(:))
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             tagComm  = 0
@@ -576,16 +466,11 @@ contains
             call MPI_ISend(aux_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
         !$acc end host_data
-        !!!!!$acc end data
 
         call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
-        call copy_from_rcvBuffer_real_devel(realField)
-    end subroutine mpi_halo_atomic_update_real_iSendiRcv_devel
-
-!----------------------------------------------------------------------------------------------------
-!       DEVEL
-!----------------------------------------------------------------------------------------------------
+        call copy_from_rcvBuffer_real(realField)
+    end subroutine mpi_halo_atomic_update_real_iSendiRcv
 
 !------------- conditional average ISEND/IRECV -------------------------------------------
     ! REAL ---------------------------------------------------
@@ -593,13 +478,14 @@ contains
         implicit none
         real(rp),intent(in) :: cond
         real(rp),intent(inout) :: realField(:)
-        integer :: i,ireq,ngbRank,tagComm
-        integer :: memPos_l,memSize
-        integer :: requests(2*numRanksWithComms)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*numRanksWithComms)
 
         call fill_sendBuffer_real(realField)
 
         ireq=0
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             tagComm  = 0
@@ -611,6 +497,7 @@ contains
             ireq = ireq+1
             call MPI_ISend(aux_realfield_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
+        !$acc end host_data
 
         call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
@@ -620,14 +507,15 @@ contains
     !INT
     subroutine mpi_halo_atomic_update_int_put_fence(intField)
         implicit none
-        integer, intent(inout) :: intField(:)
-        integer :: i,ngbRank
-        integer :: memPos_l,memSize
+        integer(4), intent(inout) :: intField(:)
+        integer(4) :: i,ngbRank
+        integer(4) :: memPos_l,memSize
 
         call fill_sendBuffer_int(intField)
 
         call MPI_Win_fence(beginFence,window_id_int,mpi_err)
 
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             memPos_l = commsMemPosInLoc(i)
@@ -636,6 +524,7 @@ contains
 
             call MPI_Put(aux_intField_s(memPos_l),memSize,mpi_datatype_int,ngbRank,memPos_t,memSize,mpi_datatype_int,window_id_int,mpi_err)
         end do
+        !$acc end host_data
 
         call MPI_Win_fence(endFence,window_id_int,mpi_err)
 
@@ -645,13 +534,14 @@ contains
     subroutine mpi_halo_atomic_update_real_put_fence(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
-        integer :: i,ngbRank
-        integer :: memPos_l,memSize
+        integer(4) :: i,ngbRank
+        integer(4) :: memPos_l,memSize
 
         call fill_sendBuffer_real(realField)
 
         call MPI_Win_fence(beginFence,window_id_real,mpi_err)
 
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             memPos_l = commsMemPosInLoc(i)
@@ -660,6 +550,7 @@ contains
 
             call MPI_Put(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,memPos_t,memSize,mpi_datatype_real,window_id_real,mpi_err)
         end do
+        !$acc end host_data
 
         call MPI_Win_fence(endFence,window_id_real,mpi_err)
 
@@ -669,9 +560,9 @@ contains
     !INTEGER--------------------------------------------------
     subroutine mpi_halo_atomic_update_int_put_pscw(intField)
         implicit none
-        integer, intent(inout) :: intField(:)
-        integer :: i,ngbRank
-        integer :: memPos_l,memSize
+        integer(4), intent(inout) :: intField(:)
+        integer(4) :: i,ngbRank
+        integer(4) :: memPos_l,memSize
 
         call fill_sendBuffer_int(intField)
 
@@ -679,6 +570,7 @@ contains
 	    call MPI_Win_post(commGroup,postAssert,window_id_int,mpi_err);
 	    call MPI_Win_start(commGroup,startAssert,window_id_int,mpi_err);
 
+        !$acc host_data use_device(aux_intField_r(:),aux_intField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             memPos_l = commsMemPosInLoc(i)
@@ -687,6 +579,7 @@ contains
 
             call MPI_Put(aux_intField_s(memPos_l),memSize,mpi_datatype_int,ngbRank,memPos_t,memSize,mpi_datatype_int,window_id_int,mpi_err)
         end do
+        !$acc end host_data
 
 	    call MPI_Win_complete(window_id_int,mpi_err);
 	    call MPI_Win_wait(window_id_int,mpi_err);
@@ -697,8 +590,8 @@ contains
     subroutine mpi_halo_atomic_update_real_put_pscw(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
-        integer :: i,ngbRank
-        integer :: memPos_l,memSize
+        integer(4) :: i,ngbRank
+        integer(4) :: memPos_l,memSize
 
         call fill_sendBuffer_real(realField)
 
@@ -706,6 +599,7 @@ contains
 	    call MPI_Win_post(commGroup,postAssert,window_id_real,mpi_err);
 	    call MPI_Win_start(commGroup,startAssert,window_id_real,mpi_err);
 
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             memPos_l = commsMemPosInLoc(i)
@@ -714,6 +608,7 @@ contains
 
             call MPI_Put(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,memPos_t,memSize,mpi_datatype_real,window_id_real,mpi_err)
         end do
+        !$acc end host_data
 
 	    call MPI_Win_complete(window_id_real,mpi_err);
 	    call MPI_Win_wait(window_id_real,mpi_err);
@@ -726,11 +621,12 @@ contains
     subroutine mpi_halo_atomic_update_int_put_lock(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
-        integer :: i,ngbRank
-        integer :: memPos_l,memSize
+        integer(4) :: i,ngbRank
+        integer(4) :: memPos_l,memSize
 
         call fill_sendBuffer_int(intField)
 
+        !$acc host_data use_device(aux_intField_r(:),aux_intField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             memPos_l = commsMemPosInLoc(i)
@@ -741,6 +637,7 @@ contains
             call MPI_Put(aux_intField_s(memPos_l),memSize,mpi_datatype_int,ngbRank,memPos_t,memSize,mpi_datatype_int,window_id_int,mpi_err)
             call MPI_Win_unlock(ngbRank,window_id_int,mpi_err)
         end do
+        !$acc end host_data
 
         if(isLockBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
@@ -750,11 +647,12 @@ contains
     subroutine mpi_halo_atomic_update_real_put_lock(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
-        integer :: i,ngbRank
-        integer :: memPos_l,memSize
+        integer(4) :: i,ngbRank
+        integer(4) :: memPos_l,memSize
 
         call fill_sendBuffer_real(realField)
 
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             memPos_l = commsMemPosInLoc(i)
@@ -765,6 +663,7 @@ contains
             call MPI_Put(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,memPos_t,memSize,mpi_datatype_real,window_id_real,mpi_err)
             call MPI_Win_unlock(ngbRank,window_id_real,mpi_err)
         end do
+        !$acc end host_data
 
         if(isLockBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
@@ -776,13 +675,14 @@ contains
     subroutine mpi_halo_atomic_update_int_get_fence(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
-        integer :: i,ngbRank
-        integer :: memPos_l,memSize
+        integer(4) :: i,ngbRank
+        integer(4) :: memPos_l,memSize
 
         call fill_sendBuffer_get_int(intField)
 
         call MPI_Win_fence(beginFence,window_id_int,mpi_err)
 
+        !$acc host_data use_device(aux_intField_r(:),aux_intField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             memPos_l = commsMemPosInLoc(i)
@@ -791,6 +691,7 @@ contains
 
             call MPI_Get(aux_intField_s(memPos_l),memSize,mpi_datatype_int,ngbRank,memPos_t,memSize,mpi_datatype_int,window_id_int,mpi_err)
         end do
+        !$acc end host_data
 
         call MPI_Win_fence(endFence,window_id_int,mpi_err)
 
@@ -800,13 +701,14 @@ contains
     subroutine mpi_halo_atomic_update_real_get_fence(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
-        integer :: i,ngbRank
-        integer :: memPos_l,memSize
+        integer(4) :: i,ngbRank
+        integer(4) :: memPos_l,memSize
 
         call fill_sendBuffer_get_real(realField)
 
         call MPI_Win_fence(beginFence,window_id_real,mpi_err)
 
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             memPos_l = commsMemPosInLoc(i)
@@ -815,6 +717,7 @@ contains
 
             call MPI_Get(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,memPos_t,memSize,mpi_datatype_real,window_id_real,mpi_err)
         end do
+        !$acc end host_data
 
         call MPI_Win_fence(endFence,window_id_real,mpi_err)
 
@@ -826,8 +729,8 @@ contains
     subroutine mpi_halo_atomic_update_int_get_pscw(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
-        integer :: i,ngbRank
-        integer :: memPos_l,memSize
+        integer(4) :: i,ngbRank
+        integer(4) :: memPos_l,memSize
 
         call fill_sendBuffer_get_int(intField)
 
@@ -835,6 +738,7 @@ contains
 	    call MPI_Win_post(commGroup,postAssert,window_id_int,mpi_err);
 	    call MPI_Win_start(commGroup,startAssert,window_id_int,mpi_err);
 
+        !$acc host_data use_device(aux_intField_r(:),aux_intField_s(:))
         do i=1,numRanksWithComms
             ngbRank   = ranksToComm(i)
             memPos_l  = commsMemPosInLoc(i)
@@ -843,18 +747,19 @@ contains
 
             call MPI_Get(aux_intField_s(memPos_l),memSize,mpi_datatype_int,ngbRank,memPos_t,memSize,mpi_datatype_int,window_id_int,mpi_err)
         end do
+        !$acc end host_data
 
 	    call MPI_Win_complete(window_id_int,mpi_err);
 	    call MPI_Win_wait(window_id_int,mpi_err);
 
         call copy_from_rcvBuffer_get_int(intField)
     end subroutine mpi_halo_atomic_update_int_get_pscw
-    !FLOAT-------------------------------------------------------
+    !REAL-------------------------------------------------------
     subroutine mpi_halo_atomic_update_real_get_pscw(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
-        integer :: i,ngbRank
-        integer :: memPos_l,memSize
+        integer(4) :: i,ngbRank
+        integer(4) :: memPos_l,memSize
 
         call fill_sendBuffer_get_real(realField)
 
@@ -862,6 +767,7 @@ contains
 	    call MPI_Win_post(commGroup,postAssert,window_id_real,mpi_err);
 	    call MPI_Win_start(commGroup,startAssert,window_id_real,mpi_err);
 
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
         do i=1,numRanksWithComms
             ngbRank   = ranksToComm(i)
             memPos_l  = commsMemPosInLoc(i)
@@ -870,6 +776,7 @@ contains
 
             call MPI_Get(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,memPos_t,memSize,mpi_datatype_real,window_id_real,mpi_err)
         end do
+        !$acc end host_data
 
 	    call MPI_Win_complete(window_id_real,mpi_err);
 	    call MPI_Win_wait(window_id_real,mpi_err);
@@ -882,11 +789,12 @@ contains
     subroutine mpi_halo_atomic_update_int_get_lock(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
-        integer :: i,ngbRank
-        integer :: memPos_l,memSize
+        integer(4) :: i,ngbRank
+        integer(4) :: memPos_l,memSize
 
         call fill_sendBuffer_get_int(intField)
 
+        !$acc host_data use_device(aux_intField_r(:),aux_intField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             memPos_l = commsMemPosInLoc(i)
@@ -897,6 +805,7 @@ contains
             call MPI_Get(aux_intField_s(memPos_l),memSize,mpi_datatype_int,ngbRank,memPos_t,memSize,mpi_datatype_int,window_id_int,mpi_err)
             call MPI_Win_unlock(ngbRank,window_id_int,mpi_err)
         end do
+        !$acc end host_data
 
         if(isLockBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
@@ -906,11 +815,12 @@ contains
     subroutine mpi_halo_atomic_update_real_get_lock(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
-        integer :: i,ngbRank
-        integer :: memPos_l,memSize
+        integer(4) :: i,ngbRank
+        integer(4) :: memPos_l,memSize
 
         call fill_sendBuffer_get_real(realField)
 
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             memPos_l = commsMemPosInLoc(i)
@@ -921,6 +831,7 @@ contains
             call MPI_Get(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,memPos_t,memSize,mpi_datatype_real,window_id_real,mpi_err)
             call MPI_Win_unlock(ngbRank,window_id_real,mpi_err)
         end do
+        !$acc end host_data
 
         if(isLockBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
@@ -933,8 +844,8 @@ contains
     subroutine mpi_halo_atomic_update_int_onlybuffers(intfield) 
         implicit none
         integer(4), intent(inout) :: intfield(:)
-        integer :: i,ngbrank,tagcomm
-        integer :: mempos_l,memsize
+        integer(4) :: i,ngbrank,tagcomm
+        integer(4) :: mempos_l,memsize
 
         call fill_sendbuffer_int(intfield)
         call copy_from_rcvbuffer_int(intfield)
@@ -944,8 +855,8 @@ contains
     subroutine mpi_halo_atomic_update_real_onlybuffers(realfield) 
         implicit none
         real(rp), intent(inout) :: realfield(:)
-        integer :: i,ngbrank,tagcomm
-        integer :: mempos_l,memsize
+        integer(4) :: i,ngbrank,tagcomm
+        integer(4) :: mempos_l,memsize
 
         call fill_sendbuffer_real(realfield)
         call copy_from_rcvbuffer_real(realfield)

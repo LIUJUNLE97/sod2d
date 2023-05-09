@@ -187,22 +187,11 @@ module mass_matrix
                  end do
                  !$acc end parallel loop
 
-               !$acc update host(Ml(:))
-               if(mpi_rank.eq.0) then
-                  write(*,*) 'Ml(1)',Ml(250:300)
-               end if
-
                  if(mpi_size.ge.2) then
                   call nvtxStartRange("MPI_comms_mass")
-                  !call mpi_halo_atomic_update_real(Ml)
-                  call mpi_halo_atomic_update_real_iSendiRcv_devel(Ml)
+                  call mpi_halo_atomic_update_real(Ml)
                   call nvtxEndRange
                  end if
-
-               !$acc update host(Ml(:))
-               if(mpi_rank.eq.0) then
-                  write(*,*) 'Ml(2)',Ml(250:300)
-               end if
 
               end subroutine lumped_mass_spectral
 
