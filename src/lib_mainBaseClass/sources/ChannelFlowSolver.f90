@@ -18,7 +18,7 @@ module ChannelFlowSolver_mod
    use mod_period
    use time_integ
    use mod_analysis
-   use mod_constants
+   use mod_numerical_params
    use mod_time_ops
    use mod_fluid_viscosity
    use mod_postpro
@@ -46,7 +46,6 @@ contains
       class(ChannelFlowSolver), intent(inout) :: this
 
       bouCodes2BCType(1) = bc_type_non_slip_adiabatic
-      !bouCodes2BCType(1) = bc_type_slip_wall_model
 
    end subroutine ChannelFlowSolver_fill_BC_Types
 
@@ -69,31 +68,35 @@ contains
       class(ChannelFlowSolver), intent(inout) :: this
       real(rp) :: mur
 
-      write(this%gmsh_file_path,*) "./mesh_channel/"
-      write(this%gmsh_file_name,*) "channel"
-
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "channel"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
-      this%isPeriodic = .true.
-      this%loadMesh = .true.
+      ! numerical params
+      flag_les = 1
+      flag_implicit = 1
+      maxIterNonLineal=200
+      implicit_solver = implicit_solver_bdf2_rk10
+      pseudo_cfl =   1.95_rp !esdirk
+      tol = 1e-3
+      flag_rk_order=4
 
-      this%loadResults = .true.
-!      this%continue_oldLogs = .false.
-      this%load_step = 0
+      this%loadResults = .false.
+      this%continue_oldLogs = .false.
+      this%load_step = 10001
 
-      this%nstep = 1000 
-      this%cfl_conv = 0.5_rp
-      this%cfl_diff = 0.5_rp
+      this%nstep = 10000000 
+
+      this%cfl_conv = 100.0_rp !bdf2
+      this%cfl_diff = 100.0_rp !bdf2
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 50 ! Saving interval, TODO: input
-      this%nleap2 = 5  ! Saving interval, TODO: input
-      this%nleapAVG = 50000
+      this%nleap = 2500 ! Saving interval, TODO: input
+      this%nleap2 = 10  ! Saving interval, TODO: input
+      this%nleapAVG = 2500
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -113,7 +116,6 @@ contains
       this%po = this%rho0*this%Rgas*this%to
       mur = 0.000001458_rp*(this%to**1.50_rp)/(this%to+110.40_rp)
       flag_mu_factor = this%mu/mur
-      write(1,*) " Gp ", this%utau*this%utau*this%rho0/this%delta
       nscbc_rho_inf = this%rho0
       nscbc_p_inf = this%po
       nscbc_Rgas_inf = this%Rgas
@@ -124,17 +126,19 @@ contains
 
    subroutine ChannelFlowSolver_evalInitialConditions(this)
       class(ChannelFlowSolver), intent(inout) :: this
-      integer(4) :: matGidSrlOrdered(numNodesRankPar,2)
+      integer(8) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL, idime
       real(rp) :: velo, rti(3), yp,velo_aux1
       integer(4)   :: iLine,iNodeGSrl,auxCnt
       logical :: readFiles
+      character(512) :: initialField_filePath
 
-      readFiles = .false.
+      readFiles = .true.
 
       if(readFiles) then
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
-         call read_veloc_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+         write(initialField_filePath,*) ""
+         call read_veloc_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,initialField_filePath,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
 
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
@@ -146,10 +150,14 @@ contains
             q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
             csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
             eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
+
+            rho(iNodeL,3) = rho(iNodeL,2)
+            E(iNodeL,3) =  E(iNodeL,2)
+            eta(iNodeL,3) = eta(iNodeL,2) 
+            q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
          end do
          !$acc end parallel loop
       else
-#if 1
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
          auxCnt = 1
          !!$acc parallel loop
@@ -175,21 +183,6 @@ contains
             end if
          end do serialLoop
          !!$acc end parallel loop
-#else
-         !$acc parallel loop
-         do iNodeL = 1,numNodesRankPar
-               if(coordPar(iNodeL,2)<this%delta) then
-                  yp = coordPar(iNodeL,2)*this%utau*this%rho0/this%mu
-               else
-                  yp = abs(coordPar(iNodeL,2)-2.0_rp*this%delta)*this%utau*this%rho0/this%mu
-               end if
-               velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
-               u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp)
-               u(iNodeL,2,2) = velo*(0.1_rp)
-               u(iNodeL,3,2) = velo*(0.1_rp)
-         end do
-         !$acc end parallel loop
-#endif
          !!$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             pr(iNodeL,2) = this%po
@@ -200,6 +193,11 @@ contains
             q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
             csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
             eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
+                    
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+         rho(iNodeL,3) = rho(iNodeL,2)
+          E(iNodeL,3) =  E(iNodeL,2)
+          eta(iNodeL,3) = eta(iNodeL,2) 
          end do
          !!$acc end parallel loop
       end if

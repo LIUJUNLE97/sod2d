@@ -1,7 +1,0 @@
-#Ignore build directory
-/build*
-/generated-docs
-
-# Ignore weird files
-*.swp
-*.mod

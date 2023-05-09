@@ -1,6 +1,6 @@
 module elem_qua
 
-        use mod_constants
+        use mod_numerical_params
         use mod_maths
 
         contains
@@ -77,7 +77,7 @@ module elem_qua
 			real(rp), intent(out)  :: N(16), dN(2,16)
 			real(rp)               :: xi_grid(porder+1)
 
-			call chebyshev_roots(xi_grid)
+			call getGaussLobattoLegendre_roots(xi_grid)
 			call DoubleTensorProduct(xi_grid,xi,eta,atoIJ,N,dN)
 		end subroutine qua16
 

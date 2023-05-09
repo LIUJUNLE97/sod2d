@@ -11,11 +11,15 @@ set(TEST_VERSION "${TEST_VERSION_MAJOR}.${TEST_VERSION_MINOR}.${TEST_VERSION_PAT
 option(UNIT_TESTING "Enable unit tests" OFF)
 option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
-option(USE_GEMPA "Compile using GEMPA" ON)
+
+option(TOOL_POSTPROC "Compiles tool PostProc" ON)
+option(TOOL_MESHPART "Compiles tool MeshPart" ON)
+option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
 
 option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
 option(USE_PCPOWER "Compiling in PC-POWER" OFF)
 option(USE_MN "Compiling in MareNostrum" OFF)
+option(USE_CRAY "Compiling with CrayMpi" OFF)
 
 option(USE_GPU "Compile using GPU" OFF)
 option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
@@ -26,9 +30,16 @@ option(DEBUG_MODE "Set debug mode" OFF)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 # Set MPI Compilers if required
-set(ENV{CC} "mpicc")
-set(ENV{CXX} "mpicxx")
-set(ENV{FC} "mpif90")
+if(USE_CRAY)
+    message("Compiling with CrayMpi compilers")
+    set(ENV{CC} "cc")
+    set(ENV{CXX} "CC")
+    set(ENV{FC} "ftn")
+else()    
+    set(ENV{CC} "mpicc")
+    set(ENV{CXX} "mpicxx")
+    set(ENV{FC} "mpif90")
+endif()
 
 # Set project name, version and languages
 project(sod2d LANGUAGES C CXX Fortran)
@@ -70,12 +81,21 @@ if("${isSystemDir}" STREQUAL "-1")
     set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 endif("${isSystemDir}" STREQUAL "-1")
 
-# Enable GEMPA if requested
-include(gempa)
-
-add_subdirectory(external)
 add_subdirectory(src)
-add_subdirectory(tool_postProc)
+
+if(TOOL_POSTPROC)
+    add_subdirectory(tool_postProc)
+endif()
+
+if(TOOL_MESHPART)
+    include(gempa)
+    add_subdirectory(external)
+    add_subdirectory(tool_meshConversorPar)
+endif()
+
+if(TOOL_COMMPERF)
+    add_subdirectory(tool_commsPerformance)
+endif()
 
 #enable folder unitt
 #add_subdirectory(unitt)

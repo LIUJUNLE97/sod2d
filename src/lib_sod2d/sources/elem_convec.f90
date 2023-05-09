@@ -1,7 +1,7 @@
 module elem_convec
 
    use mod_nvtx
-   use mod_constants
+   use mod_numerical_params
    use mod_veclen
    use mod_maths
    use mod_mpi
@@ -1183,4 +1183,157 @@ module elem_convec
                  call nvtxEndRange
 
               end subroutine generic_scalar_convec_ijk
+
+
+               subroutine full_convec_ijk_jacobian(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,q,rho,pr,E,Rmass,Rmom,Rener)
+
+                 implicit none
+
+                 integer(4), intent(in)  :: nelem, npoin
+                 integer(4), intent(in)  :: connec(nelem,nnode)
+                 real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                 real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
+                 real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
+                 integer(4), intent(in)  :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+                 real(rp),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), rho(npoin),pr(npoin), E(npoin)
+                 real(rp),    intent(out) :: Rmass(npoin)
+                 real(rp),    intent(out) :: Rmom(npoin,ndime)
+                 real(rp),    intent(out) :: Rener(npoin)
+                 integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,kdime,ii
+                 real(rp)                 :: Re_mom(nnode,ndime)
+                 real(rp)                 :: Re_mass(nnode), Re_ener(nnode)
+                 real(rp)                 :: gradIsoRho(ndime),gradIsoP(ndime), gradIsoE(ndime),gradIsoU(ndime,ndime), gradIsoF(ndime,ndime,ndime), gradIsoQ(ndime,ndime), gradIsoFe(ndime,ndime)
+                 real(rp)                 :: gradRho(ndime),gradP(ndime),gradE(ndime),gradU(ndime,ndime),divF(ndime),divU,divFe,divQ
+                 real(rp)                 :: ul(nnode,ndime), ql(nnode,ndime), rhol(nnode), prl(nnode),El(nnode),fel(nnode,ndime),fl(nnode,ndime,ndime)
+                 real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
+
+                 call nvtxStartRange("Full convection")
+                 !$acc kernels
+                 Rmom(:,:) = 0.0_rp
+                 Rmass(:) = 0.0_rp
+                 Rener(:) = 0.0_rp
+                 !$acc end kernels
+
+                 !$acc parallel loop gang private(Re_ener,Re_mass,Re_mom,ul,ql,rhol,prl,El,fl,fel) !!vector_length(vecLength)
+                 do ielem = 1,nelem
+                    !$acc loop vector collapse(2)
+                    do idime = 1,ndime
+                       do inode = 1,nnode
+                          ql(inode,idime) = rho(connec(ielem,inode))*u(connec(ielem,inode),idime)
+                          fel(inode,idime) = (E(connec(ielem,inode))+pr(connec(ielem,inode)))*u(connec(ielem,inode),idime)
+                       end do
+                    end do
+                    !$acc loop vector collapse(3)
+                    do idime = 1,ndime
+                       do jdime = 1,ndime
+                          do inode = 1,nnode
+                             fl(inode,idime,jdime)  = q(connec(ielem,inode),idime)*u(connec(ielem,inode),jdime)
+                          end do
+                       end do
+                    end do
+                    !$acc loop vector
+                    do inode = 1,nnode
+                       prl(inode) = pr(connec(ielem,inode))
+                    end do
+                    !$acc loop vector private(dlxi_ip,dleta_ip,dlzeta_ip, gradIsoRho,gradIsoP, gradIsoE,gradIsoU, gradIsoF, gradIsoQ, gradIsoFe,gradRho,gradP,gradE,gradU,divF,divU,divQ,divFe)
+                    do igaus = 1,ngaus
+                       !$acc loop seq
+                       do ii=1,porder+1
+                          dlxi_ip(ii) = dlxigp_ip(igaus,1,ii)
+                          dleta_ip(ii) = dlxigp_ip(igaus,2,ii)
+                          dlzeta_ip(ii) = dlxigp_ip(igaus,3,ii)
+                       end do
+                       isoI = gmshAtoI(igaus) 
+                       isoJ = gmshAtoJ(igaus) 
+                       isoK = gmshAtoK(igaus) 
+
+                       gradIsoRho(:) = 0.0_rp
+                       gradIsoP(:) = 0.0_rp
+                       gradIsoE(:) = 0.0_rp
+                       gradIsoU(:,:) = 0.0_rp
+                       gradIsoF(:,:,:) = 0._rp
+                       gradIsoQ(:,:) = 0._rp
+                       gradIsoFe(:,:) = 0._rp
+                       !$acc loop seq
+                       do ii=1,porder+1
+
+                          gradIsoP(1) = gradIsoP(1) + dlxi_ip(ii)*prl(invAtoIJK(ii,isoJ,isoK))
+                          gradIsoP(2) = gradIsoP(2) + dleta_ip(ii)*prl(invAtoIJK(isoI,ii,isoK))
+                          gradIsoP(3) = gradIsoP(3) + dlzeta_ip(ii)*prl(invAtoIJK(isoI,isoJ,ii))
+                          
+                          !$acc loop seq
+                          do idime=1,ndime
+
+                             gradIsoQ(idime,1) = gradIsoQ(idime,1) + dlxi_ip(ii)*ql(invAtoIJK(ii,isoJ,isoK),idime)
+                             gradIsoQ(idime,2) = gradIsoQ(idime,2) + dleta_ip(ii)*ql(invAtoIJK(isoI,ii,isoK),idime)
+                             gradIsoQ(idime,3) = gradIsoQ(idime,3) + dlzeta_ip(ii)*ql(invAtoIJK(isoI,isoJ,ii),idime)
+
+                             gradIsoFe(idime,1) = gradIsoFe(idime,1) + dlxi_ip(ii)*fel(invAtoIJK(ii,isoJ,isoK),idime)
+                             gradIsoFe(idime,2) = gradIsoFe(idime,2) + dleta_ip(ii)*fel(invAtoIJK(isoI,ii,isoK),idime)
+                             gradIsoFe(idime,3) = gradIsoFe(idime,3) + dlzeta_ip(ii)*fel(invAtoIJK(isoI,isoJ,ii),idime)
+                             
+                             !$acc loop seq
+                             do jdime=1, ndime
+                                 gradIsoF(idime,jdime,1) = gradIsoF(idime,jdime,1) + dlxi_ip(ii)*fl(invAtoIJK(ii,isoJ,isoK),idime,jdime)
+                                 gradIsoF(idime,jdime,2) = gradIsoF(idime,jdime,2) + dleta_ip(ii)*fl(invAtoIJK(isoI,ii,isoK),idime,jdime)
+                                 gradIsoF(idime,jdime,3) = gradIsoF(idime,jdime,3) + dlzeta_ip(ii)*fl(invAtoIJK(isoI,isoJ,ii),idime,jdime)
+                             end do
+                          end do
+                       end do
+
+                       gradRho(:) = 0.0_rp
+                       gradP(:) = 0.0_rp
+                       gradE(:) = 0.0_rp
+                       gradU(:,:) = 0.0_rp
+                       divF(:) = 0.0_rp
+                       divQ = 0.0_rp
+                       divFe = 0.0_rp
+                       !$acc loop seq
+                       do idime=1, ndime
+                          !$acc loop seq
+                          do jdime=1, ndime
+                              gradP(idime)   = gradP(idime) + He(idime,jdime,igaus,ielem) * gradIsoP(jdime)
+                              divQ = divQ + He(idime,jdime,igaus,ielem) * gradIsoQ(idime,jdime)
+                              divFe = divFe + He(idime,jdime,igaus,ielem) * gradIsoFe(idime,jdime)
+                              !$acc loop seq
+                              do kdime=1,ndime
+                                 divF(idime) = divF(idime) + He(jdime,kdime,igaus,ielem)*gradIsoF(idime,jdime,kdime)
+                              end do
+                          end do
+                       end do
+                       Re_mass(igaus) = divQ 
+                       Re_ener(igaus) = divFe
+                       !$acc loop seq
+                       do idime=1, ndime
+                          Re_mom(igaus,idime) = divF(idime)+gradP(idime)
+                          Re_mom(igaus,idime) = gpvol(1,igaus,ielem)*Re_mom(igaus,idime)
+                       end do
+                       Re_mass(igaus) = gpvol(1,igaus,ielem)*Re_mass(igaus)
+                       Re_ener(igaus) = gpvol(1,igaus,ielem)*Re_ener(igaus)
+                    end do
+                    !
+                    ! Final assembly
+                    !
+                    !$acc loop vector collapse(2)
+                    do idime = 1,ndime
+                       do inode = 1,nnode
+                          !$acc atomic update
+                          Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)+Re_mom(inode,idime)
+                          !$acc end atomic
+                       end do
+                    end do
+                    !$acc loop vector
+                    do inode = 1,nnode
+                       !$acc atomic update
+                       Rmass(connec(ielem,inode)) = Rmass(connec(ielem,inode))+Re_mass(inode)
+                       !$acc end atomic
+                       !$acc atomic update
+                       Rener(connec(ielem,inode)) = Rener(connec(ielem,inode))+Re_ener(inode)
+                       !$acc end atomic
+                    end do
+                 end do
+                 !$acc end parallel loop
+                 call nvtxEndRange
+
+              end subroutine full_convec_ijk_jacobian
 end module elem_convec

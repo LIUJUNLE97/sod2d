@@ -18,7 +18,7 @@ module TGVCompSolver_mod
    use mod_period
    use time_integ
    use mod_analysis
-   use mod_constants
+   use mod_numerical_params
    use mod_time_ops
    use mod_fluid_viscosity
    use mod_postpro
@@ -44,15 +44,13 @@ contains
       class(TGVCompSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%gmsh_file_path,*) "./mesh_cube/"
-      write(this%gmsh_file_name,*) "cube" 
-
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "cube" ! Nsys
 
-      this%isPeriodic = .true.
+      write(this%results_h5_file_path,*) ""
+      write(this%results_h5_file_name,*) "results"
+
       this%doGlobalAnalysis = .true.
-      this%loadMesh = .false.
 
       this%nstep = 10000 
       this%cfl_conv = 0.95_rp
@@ -87,13 +85,15 @@ contains
 
    subroutine TGVCompSolver_evalInitialConditions(this)
       class(TGVCompSolver), intent(inout) :: this
-      integer(rp) :: matGidSrlOrdered(numNodesRankPar,2)
+      integer(8) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL
+      character(512) :: initialField_filePath
 
       call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
-      call read_veloc_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
-      call read_densi_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,rho(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
-      call read_press_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,pr(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+      write(initialField_filePath,*) ""
+      call read_veloc_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,initialField_filePath,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+      call read_densi_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,initialField_filePath,rho(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+      call read_press_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,initialField_filePath,pr(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar

@@ -1,6 +1,6 @@
 module mod_geom
 
-   use mod_constants
+   use mod_numerical_params
    use elem_qua
    use elem_hex
    use mod_mpi
@@ -154,35 +154,27 @@ module mod_geom
 
          end subroutine create_connecVTK
 
-         subroutine elemPerNode(nelem,npoin,connec,lelpn,point2elem)
+         subroutine elemPerNode(numElems,numNodes,connec,lelpn,point2elem)
 
             implicit none
 
-            integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
-            integer(4), intent(out) :: lelpn(npoin),point2elem(npoin)
-            integer(4)              ::  ipoin, inode, ielem, aux
-
+            integer(4), intent(in)  :: numElems,numNodes,connec(numElems,nnode)
+            integer(4), intent(out) :: lelpn(numNodes),point2elem(numNodes)
+            integer(4)              :: iNode,iNodeL,iElem
 
             !$acc kernels
             lelpn(:) = 0
             point2elem(:) = 0
             !$acc end kernels
             !$acc parallel loop gang
-            do ielem = 1,nelem
+            do iElem = 1,numElems
                !$acc loop seq
-               do inode = 1,nnode
-                  point2elem(connec(ielem,inode)) = ielem
-               end do
-               !$acc loop worker
-               do inode = 1,nnode
-                  !$acc loop vector
-                  do ipoin = 1,npoin
-                     if (connec(ielem,inode) == ipoin) then
-                        !$acc atomic update
-                        lelpn(ipoin) = lelpn(ipoin)+1
-                        !$acc end atomic
-                     end if
-                  end do
+               do iNode = 1,nnode
+                  iNodeL = connec(iElem,iNode)
+                  point2elem(iNodeL) = iElem
+                  !$acc atomic update
+                  lelpn(iNodeL) = lelpn(iNodeL)+1
+                  !$acc end atomic
                end do
             end do
             !$acc end parallel loop

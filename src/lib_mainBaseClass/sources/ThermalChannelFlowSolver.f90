@@ -20,7 +20,7 @@ module ThermalChannelFlowSolver_mod
    use mod_period
    use time_integ
    use mod_analysis
-   use mod_constants
+   use mod_numerical_params
    use mod_time_ops
    use mod_fluid_viscosity
    use mod_postpro
@@ -64,26 +64,19 @@ contains
    subroutine ThermalChannelFlowSolver_initializeParameters(this)
       class(ThermalChannelFlowSolver), intent(inout) :: this
 
-      write(this%gmsh_file_path,*) "./mesh_channel/"
-      write(this%gmsh_file_name,*) "channel"
-
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "channel_sem"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
-      this%isPeriodic = .true.
-
 #if AR2
-      this%loadMesh = .true.
       this%loadResults = .true.
 
       this%continue_oldLogs = .false.
       this%load_step = 8100001
       this%do_control = 0
 #else
-      this%loadMesh = .true.
       this%loadResults = .true.
 
       this%continue_oldLogs = .false.
@@ -148,19 +141,21 @@ contains
 
    subroutine ThermalChannelFlowSolver_evalInitialConditions(this)
       class(ThermalChannelFlowSolver), intent(inout) :: this
-      integer(rp) :: matGidSrlOrdered(numNodesRankPar,2)
-      integer :: iNodeL
+      integer(8) :: matGidSrlOrdered(numNodesRankPar,2)
+      integer(4) :: iNodeL,idime
       logical :: readFiles
       real(rp) :: velo, rti(3), yp
-      integer(4)  :: iLine,iNodeGSrl,auxCnt,idime
+      integer(8)  :: iLine,iNodeGSrl,auxCnt
+      character(512) :: initialField_filePath
 
       readFiles = .true.
 
       if(readFiles) then
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
-         call read_densi_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,rho(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
-         call read_veloc_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
-         call read_temper_from_file_Par(numElemsInRank,numNodesRankPar,totalNumNodesSrl,this%gmsh_file_path,Tem(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+         write(initialField_filePath,*) ""
+         call read_densi_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,initialField_filePath,rho(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+         call read_veloc_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,initialField_filePath,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+         call read_temper_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,initialField_filePath,Tem(:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
 
          !!$acc parallel loop
          do iNodeL = 1,numNodesRankPar

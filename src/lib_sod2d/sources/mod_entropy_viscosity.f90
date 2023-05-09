@@ -1,6 +1,6 @@
 module mod_entropy_viscosity
 
-   use mod_constants
+   use mod_numerical_params
    use mod_nvtx
    use mod_veclen
    use mod_mpi
@@ -238,8 +238,8 @@ module mod_entropy_viscosity
                          end do
                          !$acc end parallel loop
 
-                         call MPI_Allreduce(maxEta_r,maxEta,1,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
-                         call MPI_Allreduce(npoin_w,npoin_w_g,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                         call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                         call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
                          maxEta = maxEta/real(npoin_w_g,rp)
 
@@ -250,29 +250,28 @@ module mod_entropy_viscosity
                          end do
                          !$acc end parallel loop
 
-                         call MPI_Allreduce(norm_r,norm,1,MPI_FLOAT,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+                         call MPI_Allreduce(norm_r,norm,1,mpi_datatype_real,MPI_MAX,MPI_COMM_WORLD,mpi_err)
                       else
                          norm = 1.0_rp
                       end if
 
                       !$acc parallel loop gang vector_length(vecLength)
                       do ielem = 1,nelem
-                         maxJe=0.0_rp
-                         minJe=1000000.0_rp
-                         maxV = 0.0_rp
-                         maxC = 0.0_rp
-                         !$acc loop seq
-                         do igaus = 1,ngaus
-                            minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                            maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                            maxV = max(maxV,sqrt(dot_product(u(connec(ielem,igaus),:),u(connec(ielem,igaus),:))))
-                            maxC = max(maxC,csound(connec(ielem,igaus)))
-                         end do
-                         M = maxV/maxC
-                         ceM = max( tanh((M**15)*v_pi),ce)
-                         ced = max(1.0_rp-(minJe/maxJe)**2,ce)
-                         ced = max(ced,ceM) 
-                         !ced = 1.0_rp
+                        maxJe=0.0_rp
+                        minJe=1000000.0_rp
+                        maxV = 0.0_rp
+                        maxC = 0.0_rp
+                        !$acc loop seq
+                        do igaus = 1,ngaus
+                           minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
+                           maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
+                           maxV = max(maxV,sqrt(dot_product(u(connec(ielem,igaus),:),u(connec(ielem,igaus),:))))
+                           maxC = max(maxC,csound(connec(ielem,igaus)))
+                        end do
+                        M = maxV/maxC
+                        ceM = max(tanh((M**15)*v_pi),ce)
+                        ced = max(1.0_rp-(minJe/maxJe)**2,ce)
+                        ced = max(ced,ceM) 
 
                          mu = 0.0_rp
                          betae = 0.0_rp

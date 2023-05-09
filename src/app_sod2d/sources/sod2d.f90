@@ -7,7 +7,7 @@
 #define _bl_ 0
 
 program main
-   use mod_constants
+   use mod_numerical_params
 #if _tgv_
    use TGVSolver_mod
 #endif

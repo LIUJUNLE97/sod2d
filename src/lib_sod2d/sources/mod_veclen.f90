@@ -1,6 +1,6 @@
 module mod_veclen
 
-   use mod_constants
+   use mod_numerical_params
 
    implicit none
 

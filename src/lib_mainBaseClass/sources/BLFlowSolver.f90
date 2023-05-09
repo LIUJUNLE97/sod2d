@@ -18,7 +18,7 @@ module BLFlowSolver_mod
    use mod_period
    use time_integ
    use mod_analysis
-   use mod_constants
+   use mod_numerical_params
    use mod_time_ops
    use mod_fluid_viscosity
    use mod_postpro
@@ -225,31 +225,37 @@ contains
       class(BLFlowSolver), intent(inout) :: this
       real(rp) :: mur
 
-      write(this%gmsh_file_path,*) "./mesh/"
-      write(this%gmsh_file_name,*) "bl"
-
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "bl"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
-      this%isPeriodic = .true.
-      this%loadMesh = .true.
-      this%loadResults = .true.
+      ! numerical params
+      flag_les = 0
+      flag_implicit = 1
+      flag_rk_order=4
+      implicit_solver = implicit_solver_bdf2_rk10
+      !c_sgs = 0.025_rp
 
+      pseudo_cfl =0.5_rp 
+      pseudo_ftau= 8.0_rp
+      maxIterNonLineal=500
+      tol=1e-3
+
+      this%loadResults = .true.
       this%continue_oldLogs = .false.
-      this%load_step = 800001
+      this%load_step = 50001
 
       this%nstep = 9000000 
-      this%cfl_conv = 0.95_rp
-      this%cfl_diff = 0.95_rp
+      this%cfl_conv = 20.00_rp
+      this%cfl_diff = 20.00_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 50000 ! Saving interval, TODO: input
+      this%nleap = 2500 ! Saving interval, TODO: input
       this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 50000
+      this%nleapAVG = 2500
 
       this%Cp   = 1004.0_rp
       this%Prt  = 0.71_rp
@@ -331,7 +337,6 @@ contains
       class(BLFlowSolver), intent(inout) :: this
       integer(4) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL, idime, j,k
-      real(rp) :: velo, ti(3),velo_aux1
       real(rp) :: yp,eta_y,f_y,f_prim_y
       integer(4)   :: iLine,iNodeGSrl,auxCnt
 

@@ -16,9 +16,7 @@ set_property(TARGET ${PROJECT_NAME} PROPERTY LINKER_LANGUAGE Fortran)
 #add_executable(${PROJECT_NAME} ${SRC_FILES})
 
 set_mpi()
-set_gempa()
 set_hdf5()
-target_link_libraries(${PROJECT_NAME} lib_gempaInterface)
 
 #set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME ${PROJECT_NAME} VERSION ${TEST_VERSION} SOVERSION ${TEST_VERSION_MAJOR})
 

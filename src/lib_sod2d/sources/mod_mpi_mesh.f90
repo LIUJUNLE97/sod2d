@@ -2,132 +2,61 @@ module mod_mpi_mesh
    use mod_constants
    use mod_mpi
    use mod_utils
+   use mod_gmsh_indices !potser en el futur pot volar!
    use iso_c_binding
    implicit none
 !-----------------------------------   
-#define _CHECK_ 0
-#define int_size 4
-!-----------------------------------   
-#ifndef GEMPAINTERFACE
-   interface
-      subroutine gempa_do_partition(numElemsToPart,numRanksToPart,x,y,z,weights,part) bind(c)
-        import c_int, c_double
-        integer(kind=c_int), intent(in), value :: numElemsToPart
-        integer(kind=c_int), intent(in), value :: numRanksToPart
-        real(kind=c_double), intent(in) :: x(numElemsToPart)
-        real(kind=c_double), intent(in) :: y(numElemsToPart)
-        real(kind=c_double), intent(in) :: z(numElemsToPart)
-        integer(kind=c_int), intent(in) :: weights(numElemsToPart)
-        integer(kind=c_int), intent(out) :: part(numElemsToPart)
-      end subroutine gempa_do_partition
-   end interface
-#endif
-!-----------------------------------   
-   character(*), parameter :: fmt_csv = '(1x,*(g0,","))'
-   ! Dimensions -----------------------------
-   !integer(int_size), parameter :: ndime=3
-   !-----------------------------------------
-   ! Element characteristics ----------------
-   !integer(int_size), parameter :: nnode=64
-   !integer(int_size), parameter :: porder=3
-   !integer(int_size), parameter :: npbou=16
-   !integer(int_size), parameter :: ngaus=64
-   !-----------------------------------------
-   integer(int_size),parameter :: tV=4,tE=3,tF=2,tI=1
-   integer(int_size),parameter :: tn2ijk(nnode) = [tV,tV,tE,tE,tV,tV,tE,tE,tE,tE,tF,tF,tE,tE,tF,tF,&
-                                   tV,tV,tE,tE,tV,tV,tE,tE,tE,tE,tF,tF,tE,tE,tF,tF,&
-                                   tE,tE,tF,tF,tE,tE,tF,tF,tF,tF,tI,tI,tF,tF,tI,tI,&
-                                   tE,tE,tF,tF,tE,tE,tF,tF,tF,tF,tI,tI,tF,tF,tI,tI]  
-
-   integer(int_size),parameter :: gmsh2ijk(nnode) = [1,4,11,12,2,3,15,16,9,20,33,34,10,19,36,35,&
-               5,8,27,28,6,7,29,30,25,32,53,56,26,31,54,55,&
-               13,23,41,44,17,21,45,46,37,50,57,60,38,49,58,59,&
-               14,24,42,43,18,22,48,47,40,51,61,64,39,52,62,63]
-
-   integer(int_size),parameter :: vtk2ijk(nnode) = [1,4,15,16,2,3,11,12,9,13,49,51,10,14,50,52, &
-              5,8,23,24,6,7,19,20,17,21,53,55,18,22,54,56, &
-              25,31,33,34,27,29,37,38,41,45,57,59,42,46,58,60,&
-              26,32,35,36,28,30,39,40,43,47,61,63,44,48,62,64]
-
-   !the one from lucas old code
-   !integer(int_size),parameter :: vtk2ijk(nnode) = [1,4,15,16,2,3,11,12,9,13,49,51,10,14,50,52, &
-   !           5,8,23,24,6,7,19,20,17,21,53,55,18,22,54,56, &
-   !           25,29,33,34,27,31,37,38,41,45,57,59,42,46,58,60,&
-   !           26,30,35,36,28,32,39,40,43,47,61,63,44,48,62,64]
-
-   integer(int_size),parameter :: cgns2ijk(nnode)= [1,4,16,15,2,3,11,12,9,14,33,36,10,13,34,35,&
-                 5,8,32,31,6,7,27,28,25,30,53,56,26,29,54,55,&
-                 17,21,50,49,19,23,41,42,37,46,57,60,38,45,58,59,&
-                 18,22,51,52,20,24,44,43,40,47,61,64,39,48,62,63]
- 
-!  according to cgns documentation....-----------------------------------------
-!  integer(4),parameter :: cgns2ijk(nnode)= [1,4,16,15,2,3,11,12,9,14,33,36,10,13,34,35,&
-!                5,8,32,31,6,7,27,28,25,30,53,56,26,29,54,55,&
-!                17,23,50,49,19,21,41,42,37,46,57,60,38,45,58,59,&
-!                18,24,51,52,20,22,44,43,40,47,61,64,39,48,62,63]
-
-   integer(int_size),parameter :: dummy2ijk(nnode)= [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,&
-                 17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,&
-                 33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,&
-                 49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64]
-
-
-! ################################################################################################
-! ----------------- VARS for alya/gmsh file reading ----------------------------------------------
-! ################################################################################################
-!------  -------------------------
-integer(int_size), allocatable :: connecGMSH(:,:), boundGMSH(:,:), bou_codesGMSH(:,:)
-real(rp), allocatable :: coordGMSH(:,:)
 
 ! ################################################################################################
 ! ----------------- VARS for new Par mesh FORMAT -------------------------------------------------
 ! ################################################################################################
 
-integer(int_size) :: numNodesRankPar, totalNumNodesPar, totalNumNodesSrl
-integer(int_size) :: totalNumElements
-integer(int_size) :: numElemsInRank, rankElemStart, rankElemEnd
-integer(int_size) :: rankNodeStart, rankNodeEnd
+integer(4) :: numNodesRankPar,numElemsRankPar,totalNumElements
+integer(4) :: rankNodeStart,rankNodeEnd,rankElemStart,rankElemEnd
+integer(8) :: totalNumNodesPar, totalNumNodesSrl
 
-integer(int_size), allocatable :: globalIdSrl(:), globalIdPar(:), elemGid(:)
+integer(4),allocatable :: elemGid(:)
+integer(8),allocatable :: globalIdSrl(:),globalIdPar(:)
 
 real(rp), allocatable :: coordPar(:,:)
 
-integer(int_size), allocatable :: connecCGNS(:)
-integer(int_size), allocatable :: connecVTK(:)
-integer(int_size), allocatable :: connecParOrig(:,:),connecParWork(:,:)
+integer(4),allocatable :: connecVTK(:)
+integer(4),allocatable :: connecParOrig(:,:),connecParWork(:,:)
 
-integer(int_size), allocatable :: workingNodesPar(:)
-integer(int_size) :: numWorkingNodesRankPar
+integer(4),allocatable :: workingNodesPar(:)
+integer(4) :: numWorkingNodesRankPar
 
-integer(int_size), allocatable :: masSlaSrl(:,:),masSlaRankPar(:,:)
-integer(int_size) :: nPerSrl,nPerRankPar
+integer(4),allocatable :: masSlaRankPar(:,:)
+integer(4) :: nPerRankPar
 logical :: isMeshPeriodic
 
-integer(int_size) :: numBoundCodes, numBoundsRankPar, totalNumBoundsSrl
-integer(int_size) :: ndofRankPar, numBoundaryNodesRankPar
-integer(int_size), allocatable :: boundPar(:,:), boundParOrig(:,:),bouCodesPar(:), ldofPar(:), lbnodesPar(:), bouCodesNodesPar(:)
+integer(4) :: numBoundCodes, numBoundsRankPar, totalNumBoundsSrl
+integer(4) :: ndofRankPar, numBoundaryNodesRankPar
+integer(4), allocatable :: boundPar(:,:), boundParOrig(:,:),bouCodesPar(:), ldofPar(:), lbnodesPar(:), bouCodesNodesPar(:)
 real(rp), allocatable :: boundNormalPar(:,:)
 logical :: isMeshBoundaries
 
 !For WallModels
-integer(int_size) :: numBoundsWMRankPar
-integer(int_size), allocatable :: listBoundsWallModel(:)
+integer(4) :: numBoundsWMRankPar
+integer(4), allocatable :: listBoundsWallModel(:)
 
 ! ################################################################################################
 ! ------------------------ VARS for MPI COMMS ----------------------------------------------------
 ! ################################################################################################
 
-integer(int_size), allocatable :: matrixCommScheme(:,:),ranksToComm(:)
-integer(int_size), allocatable :: commsMemPosInLoc(:),commsMemSize(:),commsMemPosInNgb(:)
-integer(int_size) :: numNodesToComm,numRanksWithComms
+integer(4),allocatable :: nodesToComm(:),ranksToComm(:)
+integer(4),allocatable :: commsMemPosInLoc(:),commsMemSize(:),commsMemPosInNgb(:)
+integer(4) :: numNodesToComm,numRanksWithComms
 
-integer(int_size), allocatable :: bnd_matrixCommScheme(:,:),bnd_ranksToComm(:)
-integer(int_size), allocatable :: bnd_commsMemPosInLoc(:),bnd_commsMemSize(:),bnd_commsMemPosInNgb(:)
-integer(int_size) :: bnd_numNodesToComm,bnd_numRanksWithComms
+integer(4),allocatable :: bnd_nodesToComm(:),bnd_ranksToComm(:)
+integer(4),allocatable :: bnd_commsMemPosInLoc(:),bnd_commsMemSize(:),bnd_commsMemPosInNgb(:)
+integer(4) :: bnd_numNodesToComm,bnd_numRanksWithComms
 
 ! ################################################################################################
 ! --------------------------------- END VARS  ----------------------------------------------------
 ! ################################################################################################
+
+character(*), parameter :: fmt_csv_msh = '(1x,*(g0,","))'
 
 contains
 
@@ -164,1347 +93,7 @@ contains
    end function gidPar_to_lid
 
 !----------------------------------------------------------------------------------------------------------
-
-! ################################################################################################
-! --------------------------- FOR READING ALYA MESH ----------------------------------------------
-! ################################################################################################
-   subroutine read_alya_mesh_files(file_path,file_name,isPeriodic)
-      implicit none     
-      character(500), intent(in)  :: file_path, file_name
-      logical, optional :: isPeriodic
-      integer(4) :: nelem,npoin,nboun,nper
-
-      isMeshPeriodic = .false.
-      if(present(isPeriodic)) then
-         isMeshPeriodic = isPeriodic
-      end if
-
-      call read_dims_file(file_path,file_name,npoin,nelem,nboun)
-
-      allocate(connecGMSH(nelem,nnode))
-      allocate(coordGMSH(npoin,ndime))
-
-      isMeshBoundaries = .false.
-      if (nboun .ne. 0) then
-         allocate(boundGMSH(nboun,npbou))
-         allocate(bou_codesGMSH(nboun,2))
-
-         isMeshBoundaries = .true.
-         call read_fixbou_file(file_path,file_name,nboun,numBoundCodes,bou_codesGMSH)
-      end if
-
-      call read_geo_dat_file(file_path,file_name,npoin,nelem,nboun)
- 
-      if(isMeshPeriodic) then 
-         call read_periodic_file(file_path,file_name,nper,masSlaSrl)
-      end if
-
-      totalNumElements = nelem
-      totalNumNodesSrl = npoin
-      totalNumBoundsSrl = nboun
-      nPerSrl = nper
-
-   end subroutine read_alya_mesh_files
-
-   subroutine deallocate_read_alya_mesh_arrays()
-      implicit none
-
-      deallocate(connecGMSH)
-      deallocate(coordGMSH)
-      if(isMeshBoundaries) then
-         deallocate(boundGMSH)
-         deallocate(bou_codesGMSH)
-      end if
-   end subroutine deallocate_read_alya_mesh_arrays
-
-   subroutine read_dims_file(file_path,file_name,npoin,nelem,nboun)
-      implicit none     
-      character(500), intent(in)  :: file_path, file_name
-      integer(4)    , intent(out) :: npoin, nelem, nboun
-      character(500)              :: file_type, line  
-
-      write(file_type,*) ".dims.dat"
-
-      if(mpi_rank.eq.0)write(*,*) "--| READING DIMS FILE..."
-      open(99,file=trim(adjustl(file_path))//trim(adjustl(file_name))//trim(adjustl(file_type)),status="old")
-      read(99,*) line, npoin
-      if(mpi_rank.eq.0)write(*,*) "--| NODES ON MESH : ",npoin
-      read(99,*) line, nelem
-      if(mpi_rank.eq.0)write(*,*) "--| ELEMENTS ON MESH : ",nelem
-      read(99,*) line, nboun
-      if(mpi_rank.eq.0)write(*,*) "--| BOUNDARY ELEMENTS ON MESH : ",nboun
-      if(mpi_rank.eq.0)write(*,*) "--| END OF DIMS FILE!"
-      close(99)
-    
-   end subroutine read_dims_file
-
-   subroutine read_geo_dat_file(file_path,file_name,npoin,nelem,nboun)
-      implicit none
-      character(500), intent(in) :: file_path, file_name
-      integer(4)    , intent(in) :: npoin, nelem, nboun
-      integer(4)                 :: iline, int1, inode, idime, aux(nnode+1), bou_aux(npbou+1)
-      character(2000)            :: file_type, line
-      real(8)                    :: x,y,z
-
-      write(file_type,*) ".geo.dat"
-
-      if(mpi_rank.eq.0) write(*,*) "--| READING GEO.DAT FILE..."
-      open(99,file=trim(adjustl(file_path))//trim(adjustl(file_name))//trim(adjustl(file_type)),status="old")
-      !
-      ! Nodes/element section, blank for now
-      !
-      read(99,*) ! Section header
-      do iline = 1,nelem
-         read(99,*)
-      end do
-      read(99,*) ! Section ender
-      !
-      ! Connectivity table section
-      !
-      if(mpi_rank.eq.0)write(*,*) "--| READING ELEMENT TABLE..."
-      read(99,*) ! Section header
-      do iline = 1,nelem
-         read(99,'(a)') line
-         read(line,*) (aux(inode), inode=1,nnode+1)
-         connecGMSH(iline,1:nnode) = aux(2:nnode+1)
-         !write(*,*) 'connecGMSH(',iline,'): ', connecGMSH(iline,:)
-      end do
-      read(99,*) ! Section ender
-      !
-      ! Nodal coordinates section
-      !
-      if(mpi_rank.eq.0)write(*,*) "--| READING COORDINATES..."
-      read(99,*) ! Section header
-      do iline = 1,npoin
-         if (ndime == 2) then
-            read(99,*) int1, coordGMSH(iline,1), coordGMSH(iline,2)
-         else if (ndime == 3) then
-            if(rp == 4) then
-               read(99,*) int1, x, y, z
-               coordGMSH(iline,1)=real(x,rp)
-               coordGMSH(iline,2)=real(y,rp) 
-               coordGMSH(iline,3)=real(z,rp)
-            else
-               read(99,*) int1, coordGMSH(iline,1), coordGMSH(iline,2), coordGMSH(iline,3)
-            end if
-         end if
-      end do
-      read(99,*) ! Section ender
-      !
-      ! Boundary nodes section
-      !
-      if(mpi_rank.eq.0)write(*,*) "--| READING BOUNDARIES..."
-      read(99,*) line! Section header
-      do iline = 1,nboun
-         read(99,'(a)') line
-         read(line,*) (bou_aux(inode), inode=1,npbou+1)
-         boundGMSH(iline,1:npbou) = bou_aux(2:npbou+1)
-      end do
-      close(99)
-      if(mpi_rank.eq.0)write(*,*) "--| END OF GEO.DAT FILE!"
-    
-   end subroutine read_geo_dat_file
-
-   subroutine read_periodic_file(file_path,file_name,nper,masSla)
-      implicit none
-      character(500), intent(in) :: file_path, file_name
-      integer(4), intent(out) :: nper
-      integer(4), intent(out), allocatable :: masSla(:,:)
-      integer(4)                :: i,nlines,io_val
-      character(500)            :: file_type, line
-
-      if(mpi_rank.eq.0) write(*,*) "--| READING PERIODICITY FILE..."
-
-      write(file_type,*) ".per"
-      open(99,file=trim(adjustl(file_path))//trim(adjustl(file_name))//trim(adjustl(file_type)),status="old")
-
-      nlines = 0
-      do
-         read(99,*,iostat=io_val)
-         if(io_val.ne.0) exit
-         nlines = nlines + 1
-      end do
-      nper = nlines
-
-      allocate(masSla(nper,2))
-
-      rewind 99
-      do i=1,nper
-         read(99,*) masSla(i,1), masSla(i,2)
-      end do
-
-      if(mpi_rank.eq.0) write(*,*) "--| TOTAL PERIODIC NODES : ",nper
-
-   end subroutine read_periodic_file
-
-   subroutine read_fixbou_file(file_path,file_name,nboun,nbcodes,bou_codes)
-      implicit none
-
-      character(500), intent(in)  :: file_path, file_name
-      integer(4), intent(in)      :: nboun
-      integer(4), intent(inout)   :: nbcodes, bou_codes(nboun,2)
-      integer(4)                  :: iboun, ii
-      character(500)              :: file_type, line
-      
-      write(file_type,*) ".fix.bou"
-      
-      if(mpi_rank.eq.0) write(*,*) "--| READING FIXBOU FILE..."
-      open(99,file=trim(adjustl(file_path))//trim(adjustl(file_name))//trim(adjustl(file_type)),status="old")
-
-      read(99,*) ! Header
-      do iboun = 1,nboun
-         read(99,'(a)') line
-         read(line,*) (bou_codes(iboun,ii), ii=1,2)
-      end do
-      nbcodes = maxval(bou_codes(:,2))
-      if(mpi_rank.eq.0) write(*,*) "--| TOTAL BOUNDARY CODES : ",nbcodes
-
-   end subroutine read_fixbou_file
-
-! ################################################################################################
-! ---------------------------- CGNS MESH PARTITIONING --------------------------------------------
-! ################################################################################################
-
-   subroutine do_mesh_partitioning()
-      implicit none
-
-      call do_element_partitioning_gempa()
-
-      call do_node_partitioning_and_connectivity()
-
-      call create_nodesCoordinates()
-
-      if(isMeshPeriodic) then
-         call create_masSla_parallel()
-      end if
-
-      call create_working_lists() !pot anar aqui no? Si, pero oju que potser em canvien altres merdes!
-
-      !if(totalNumBoundsSrl.ne.0) then
-      !   call splitBoundary_inPar()
-      !   !crear communicador per nomes nodes boundaries
-      !   call generate_boundary_mpi_comm_scheme()
-      !end if
-
-   end subroutine do_mesh_partitioning
-
-   subroutine do_element_partitioning_serial(numElems2Par,iElemStart,iElemEnd,iElemsInRank)
-      implicit none
-      integer, intent(in) :: numElems2Par
-      integer, intent(out) :: iElemStart,iElemEnd,iElemsInRank
-
-      !---- number of elements and range this process will write
-      iElemsInRank = (numElems2Par + mpi_size - 1) / mpi_size
-      iElemStart = iElemsInRank * mpi_rank + 1
-      iElemEnd   = iElemsInRank * (mpi_rank + 1)
-      if (iElemEnd .gt. numElems2Par) iElemEnd = numElems2Par
-      iElemsInRank = iElemEnd - iElemStart + 1
-
-      !write(*,*) '#rank ',mpi_rank,' elemsInRank ',numElemsInRank,' iElemS ',rankElemStart,' iElemE ',rankElemEnd
-      !write(*,*) '#rank ',mpi_rank,' totalNumElements ',totalNumElements,' totalNumNodesSrl ',totalNumNodesSrl
-
-   end subroutine do_element_partitioning_serial
-
-   recursive subroutine find_linked_elems(iRank,linkedElems,iElemG,unfoldedElems,numAddElemsInRank)
-      implicit none
-      integer, intent(in) :: iRank,linkedElems(:,:),iElemG
-      integer, intent(inout) :: unfoldedElems(:),numAddElemsInRank
-      integer :: numLinkedElems
-      integer :: i,iEL1,iEL2
-         
-      numLinkedElems = size(linkedElems(:,1))
-
-      do i=1,numLinkedElems
-         iEL1 = linkedElems(i,1)
-         if(iElemG.eq.iEL1) then   !#checking if the elem is in the linkedElems list
-            iEL2 = linkedElems(i,2)
-            !write(*,*) 'iEL1 ',iEL1, ' linked to iEL2 ', iEL2
-            
-            if(unfoldedElems(iEL2).le.0) then
-               unfoldedElems(iEL2) = iRank
-               numAddElemsInRank=numAddElemsInRank+1
-               call find_linked_elems(iRank,linkedElems,iEL2,unfoldedElems,numAddElemsInRank)
-            end if        
-         end if
-      end do
-
-      numLinkedElems = size(linkedElems(:,1))
-
-   end subroutine find_linked_elems
-
-   subroutine do_element_partitioning_gempa()
-      implicit none
-      integer, parameter :: nodesToAvg(8) = [1,2,5,6,17,18,21,22]
-      
-      real(8), allocatable, dimension(:) :: x,y,z
-      integer, allocatable :: listElems2Par(:),weightElems2Par(:),unfoldedElems(:)
-      integer, allocatable :: linkedElems(:,:),elemPart(:,:),elemPartAux(:,:)
-
-      integer :: i,j,k,m,iElem,iElemG,iEL1,iEL2,iEL2rep,iEL3,iNodeG,iRank,iPos
-      integer :: numElemsInRank_par,numElems2get
-      integer :: iElemStart,iElemEnd,iElemsInRank,numElems2Par,numLinkedElems,numAdditionalElemsInRank
-      real(8) :: x_a,y_a,z_a
-      integer,dimension(0:mpi_size-1) :: vecNumElemsRank
-      integer,dimension(0:mpi_size-1,0:mpi_size-1) :: matNumElemsRank
-      integer :: window_id
-      integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size,target_displacement
-
-      character(128) :: file_name, aux_string_rank
-
-      if(mpi_rank.eq.0) write(*,*) ' # Doing element partitioning GEMPA...'
-
-      !1. obtain the list element 2 part using gempa
-      if(isMeshPeriodic) then
-         call get_listElems2Par_Periodic(listElems2Par,weightElems2Par,linkedElems)
-      else
-         call get_listElems2Par(listElems2Par,weightElems2Par)
-      end if
-      
-      numElems2Par = size(listElems2Par)
-      !write(*,*) 'numElems2Par ',numElems2Par
-      
-      call do_element_partitioning_serial(numElems2Par,iElemStart,iElemEnd,iElemsInRank)
-
-      allocate(elemPart(iElemsInRank,3))
-      allocate(x(iElemsInRank))
-      allocate(y(iElemsInRank))
-      allocate(z(iElemsInRank))
-
-      !numElemsInRank_srl = numElemsInRank
-
-      i=1
-      do iElem=iElemStart,iElemEnd
-         iElemG=listElems2Par(iElem)
-         elemPart(i,1) = iElemG 
-         elemPart(i,3) = weightElems2Par(iElem)
-         !write(*,*) '[',mpi_rank,'] iElem ',iElem,' iElemG ',iElemG,' weight ', elemPart(i,3)
-         x_a=0.
-         y_a=0.
-         z_a=0.
-         do j=1,8
-            m = gmsh2ijk(nodesToAvg(j))
-            iNodeG = connecGMSH(iElemG,m) !de moment poso el primer, despres ja fare avg
-            x_a = x_a + coordGMSH(iNodeG,1)
-            y_a = y_a + coordGMSH(iNodeG,2)
-            z_a = z_a + coordGMSH(iNodeG,3)
-         end do
-
-         x(i) = x_a/8.d0
-         y(i) = y_a/8.d0
-         z(i) = z_a/8.d0
-         i=i+1
-      end do
-
-      !numCoords=iElemsInRank !numElemsInRank_srl
-
-      !----------------------------------------------------------------------------------
-      !@TODO: en el cas de malles periodiques, aqui haurem de fer un trucu del almendrucu
-      !       per associar els elements que siguin periodics
-      !       un cop fet el particionament amb els elements associats, desfer aquesta
-      !       'assosiacio' ficticia i posarlos on toca
-      !----------------------------------------------------------------------------------
-
-#ifndef GEMPAINTERFACE
-      !---- CALLING GEMPA in PARALLEL-----------------------
-      call gempa_do_partition(iElemsInRank,mpi_size,x,y,z,elemPart(:,3),elemPart(:,2))
-      !---------------------------------------------------------------------
-#endif
-
-      ! if parallel, now we have to put the rank to the 'slave' elements who were not included in the partitioning process
-      ! since they were linked to a 'master' element
-
-      if(isMeshPeriodic) then
-         numAdditionalElemsInRank=0
-         allocate(unfoldedElems(totalNumElements))
-         unfoldedElems(:)=-1
-#if 1
-         do iElem=1,iElemsInRank
-            iElemG = elemPart(iElem,1)
-            iRank = elemPart(iElem,2)
-            call find_linked_elems(iRank,linkedElems,iElemG,unfoldedElems,numAdditionalElemsInRank)
-         end do
-         !do iElemG=1,size(unfoldedElems)
-         !   iRank = unfoldedElems(iElemG)
-         !   if(iRank.ge.0) then
-         !      write(*,*) '[',mpi_rank,'] unfolded Elem ',iElemG,' rank ', iRank
-         !   end if
-         !end do
-         !write(*,*) 'unfolded ',unfoldedElems(:)
-#else
-         numLinkedElems = size(linkedElems(:,1))
-         !write(*,*) 'numLinkedElems ',numLinkedElems
-         do iElem=1,iElemsInRank
-            iElemG = elemPart(iElem,1)
-            iRank = elemPart(iElem,2)
-            do j=1,numLinkedElems 
-               iEL1 = linkedElems(j,1)
-               if(iElemG.eq.iEL1) then   !#checking if the elem is in the linkedElems list
-                  iEL2 = linkedElems(j,2)
-                  write(*,*) 'iEL1 ',iEL1, ' linked to iEL2 ', iEL2
-                  
-                  if(unfoldedElems(iEL2).le.0) then
-                     unfoldedElems(iEL2) = iRank
-                     numAdditionalElemsInRank=numAdditionalElemsInRank+1
-                  end if
-
-                  do k=1,numLinkedElems
-                     iEL2rep = linkedElems(k,1)
-                     if(iEL2.eq.iEL2rep) then 
-                        iEL3 = linkedElems(k,2)
-                        write(*,*) 'iEL2 ',iEL2, ' linked to iEL3 ', iEL3
-                        if(unfoldedElems(iEL3).le.0) then
-                           unfoldedElems(iEL3) = iRank
-                           numAdditionalElemsInRank=numAdditionalElemsInRank+1
-                        end if
-                     end if
-                  end do
-               end if
-               !if(iElemG.eq.iEL2) write(*,*) 'iEL2 ',iEL2, ' linked to iEL1 ', iEL1
-            end do
-         end do
-#endif
-
-         !now we have the 'unfolded elems' and the rank that they belong!
-         !we need to add it to the elemPart matrix(:,2)!!!
-         !write(*,*) 'numAdditional ',numAdditionalElemsInRank
-         allocate(elemPartAux(iElemsInRank,2))
-         !$acc kernels
-         elemPartAux(:,1)=elemPart(:,1)
-         elemPartAux(:,2)=elemPart(:,2)
-         !$acc end kernels
-
-         deallocate(elemPart)
-         iElemsInRank = iElemsInRank + numAdditionalElemsInRank
-         allocate(elemPart(iElemsInRank,2))
-
-         i=1
-         !!!$acc kernels
-         do j=1,size(elemPartAux(:,1))
-            elemPart(i,:)=elemPartAux(i,:)
-            !!!$acc atomic update
-            i=i+1
-            !!!$acc end atomic
-         end do
-         !!!$acc end kernels
-
-         do iElemG=1,size(unfoldedElems)
-            iRank = unfoldedElems(iElemG)
-            if(iRank.ge.0) then
-               elemPart(i,1) = iElemG
-               elemPart(i,2) = iRank
-               !write(*,*) '[',mpi_rank,'] unf.Elem ',iElemG,' rank ', iRank,' i ',i
-               i=i+1
-            end if
-         end do
-
-         deallocate(unfoldedElems)
-         deallocate(linkedElems)
-         deallocate(elemPartAux)
-      end if
-
-      ! @now we have to info all the ranks about which are the elements that they will 'store'
-      ! since we have done the partitioning in paralel...
-
-      vecNumElemsRank(:)=0
-      !!!$acc parallel loop
-      do i=1,iElemsInRank
-         iRank = elemPart(i,2)-1 !elemPart came with rank=1:mpi_size
-         !!!$acc atomic update
-         vecNumElemsRank(iRank) = vecNumElemsRank(iRank) + 1
-         !!!$acc end atomic
-      end do
-      !!!$acc end parallel loop
-
-#if _CHECK_
-      write(aux_string_rank,'(I0)') mpi_rank
-      file_name = 'elemPartition_rank'// trim(aux_string_rank)//'.csv'
-      open(1, file=file_name)
-      write(1,*) 'X,Y,Z,iElemG,rank'
-      do i=1,iElemsInRank ! numElemsInRank_srl
-         iElemG=elemPart(i,1)
-         x_a=0.
-         y_a=0.
-         z_a=0.
-         do j=1,8
-            m = gmsh2ijk(nodesToAvg(j))
-            iNodeG = connecGMSH(iElemG,m) !de moment poso el primer, despres ja fare avg
-            x_a = x_a + coordGMSH(iNodeG,1)
-            y_a = y_a + coordGMSH(iNodeG,2)
-            z_a = z_a + coordGMSH(iNodeG,3)
-         end do
-         x_a = x_a/8.d0
-         y_a = y_a/8.d0
-         z_a = z_a/8.d0
-
-         !write(1,fmt_csv) x(i),y(i),z(i),elemPart(i,1),elemPart(i,2)
-         write(1,fmt_csv) x_a,y_a,z_a,iElemG,elemPart(i,2)
-      end do
-      close(1)
-#endif
-      !write(*,*) 'vecNumElemsRank[',mpi_rank,'] ',vecNumElemsRank(:)
-
-      !una finestra on comunicar el nou mpi_rank de cada node
-      !es una primera fora de treballar, es pot mirar d'optimitzar per no requerir un vector tamany totalNumElements
-
-      ! Create the window
-      !--------------------------------------------------------------------------------------
-      window_buffer_size = mpi_integer_size*mpi_size
-
-      call MPI_Win_create(vecNumElemsRank,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
-      call MPI_Win_fence(0,window_id,mpi_err)
-
-      target_displacement=0
-      do iRank=0,mpi_size-1
-         call MPI_Get(matNumElemsRank(:,iRank),mpi_size,MPI_INTEGER,iRank,target_displacement,&
-                       mpi_size,MPI_INTEGER,window_id,mpi_err)
-      end do
-
-      !!! Wait for the MPI_Get issued to complete before going any further
-      call MPI_Win_fence(0,window_id,mpi_err)
-      call MPI_Win_free(window_id,mpi_err)
-      !--------------------------------------------------------------------------------------
-
-      numElemsInRank_par=0
-
-      do iRank=0,mpi_size-1
-            numElemsInRank_par = numElemsInRank_par + matNumElemsRank(mpi_rank,iRank)
-      end do
-
-      !write(*,*) 'numElemsInRankP(,',mpi_rank,')->',numElemsInRank_par!,' srl ',numElemsInRank_srl
-
-      call quicksort_matrix_int(elemPart,2)
-
-      i=1
-      do iRank=0,mpi_size-1
-         j=vecNumElemsRank(iRank)
-         if(j.ne.0) then
-            k=i+j-1
-            call quicksort_matrix_int(elemPart,1,i,k)
-            i=k+1
-         endif
-      end do
-
-      allocate(elemGid(numElemsInRank_par))
-
-      ! Create the window
-      !--------------------------------------------------------------------------------------
-      window_buffer_size = mpi_integer_size*iElemsInRank ! numElemsInRank_srl
-
-      call MPI_Win_create(elemPart(:,1),window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
-      call MPI_Win_fence(0,window_id,mpi_err)
-
-      iPos=1
-      do iRank=0,mpi_size-1
-         numElems2get=matNumElemsRank(mpi_rank,iRank)
-
-         if(numElems2get.ne.0) then
-
-            target_displacement=0
-            do i=0,mpi_rank-1
-               target_displacement=target_displacement+matNumElemsRank(i,iRank)
-            end do
-
-            !if(mpi_rank.eq.2) write(*,*) 'iPos',iPos,' numE ',numElems2get,' td ',target_displacement
-
-            call MPI_Get(elemGid(iPos),numElems2get,MPI_INTEGER,iRank,target_displacement,&
-                       numElems2get,MPI_INTEGER,window_id,mpi_err)
-
-            iPos = iPos + numElems2get
-         end if
-
-      end do
-
-      !!! Wait for the MPI_Get issued to complete before going any further
-      call MPI_Win_fence(0,window_id,mpi_err)
-      call MPI_Win_free(window_id,mpi_err)
-!---------------------------------------------------------------------------------
-      vecNumElemsRank(:)=0
-      do i=0,mpi_size-1
-         do j=0,mpi_size-1
-            vecNumElemsRank(i)=vecNumElemsRank(i)+matNumElemsRank(i,j)
-         end do
-      end do
-      !write(*,*) 'vecNumElemsRank[',mpi_rank,'] ',vecNumElemsRank(:)
-
-      numElemsInRank = numElemsInRank_par
-
-      rankElemStart=1
-      do iRank=0,mpi_rank-1
-         rankElemStart=rankElemStart+vecNumElemsRank(iRank)
-      end do
-      rankElemEnd = rankElemStart + vecNumElemsRank(iRank) - 1
-
-      !write(*,*) 'vecNumElemsRank[',mpi_rank,'] ',vecNumElemsRank(:),' eStart ',rankElemStart,' eEnd ', rankElemEnd
-      deallocate(listElems2Par)
-      deallocate(elemPart)
-      deallocate(x)
-      deallocate(y)
-      deallocate(z)
-!------------------------------------------------------------------------------
-
-      !i=1    
-      !do iElem=rankElemStart,rankElemEnd
-      !   write(*,*) '[',mpi_rank,']iElem[',iElem,'] elemPart[',elemPart(i,1),' ',elemPart(i,2)
-      !   i=i+1
-      !end do
-
-      !do i=1,numElemsInRank_par
-      !   write(*,*) '[',mpi_rank,']i[',i,'] iElemG:',elemGid(i)
-      !end do
-
-#if _CHECK_
-      file_name = 'elemGid_rank'// trim(aux_string_rank)//'.csv'
-      open(1, file=file_name)
-      do i=1,numElemsInRank_par
-         write(1,fmt_csv) i,',',elemGid(i)
-      end do
-      close(1)
-
-#endif
-!------------------------------------------------------------------------------
-
-   end subroutine do_element_partitioning_gempa
-
-   subroutine get_listElems2Par(listElems2Par,weightElems2Par)
-      implicit none
-      integer, allocatable, intent(out) :: listElems2Par(:),weightElems2Par(:)
-      integer iElem
-
-      allocate(listElems2Par(totalNumElements))
-      allocate(weightElems2Par(totalNumElements))
-      !$acc parallel loop
-      do iElem=1,totalNumElements
-         listElems2Par(iElem) = iElem
-         weightElems2Par(iElem) = 1
-      end do
-      !$acc end parallel loop
-
-   end subroutine get_listElems2Par
-
-   subroutine get_listElems2Par_Periodic(listElems2Par,weightElems2Par,linkedElems)
-      implicit none
-      integer, allocatable, intent(out) :: listElems2Par(:),weightElems2Par(:)
-      integer, allocatable, intent(out) :: linkedElems(:,:)
-      integer, parameter :: nodesToPer(6) = [11,27,36,40,41,42]
-      integer, allocatable :: linkerNodesAll(:),listAllElems(:),listElems2NotPar(:)
-      integer :: numLinkerNodes,numLinkedElems,numElems2Par,numElems2NotPar
-      integer :: iElem,iElemG,i,j,m,iNodeGSrl,weightCnt
-      integer :: iNode1,iNode2,iElem1,iElem2
-
-      allocate(linkerNodesAll(totalNumNodesSrl))
-
-      !$acc kernels
-      linkerNodesAll(:) = -1
-      !$acc end kernels
-
-      numLinkerNodes=0
-      do iElem=1,totalNumElements
-         do j=1,6
-            m = gmsh2ijk(nodesToPer(j))
-            iNodeGSrl = connecGMSH(iElem,m) !de moment poso el primer, despres ja fare avg
-
-            if(linkerNodesAll(iNodeGSrl).lt.0) then
-               linkerNodesAll(iNodeGSrl) = iElem
-               numLinkerNodes=numLinkerNodes+1
-            else !the linker node is inner, not boundary
-               linkerNodesAll(iNodeGSrl) = -2
-               numLinkerNodes=numLinkerNodes-1
-            end if
-         end do
-      end do
-
-      numLinkedElems = numLinkerNodes/2
-      !nPer = size(masSla(:,1))
-      !write(*,*) 'nPer ',nPer
-
-      allocate(linkedElems(numLinkedElems,2))
-      allocate(listAllElems(totalNumElements))
-      !$acc kernels
-      listAllElems(:)=1
-      !$acc end kernels
-      numElems2Par=totalNumElements
-      numElems2NotPar=0
-
-      j=1
-      do i=1,nPerSrl
-         iNode1 = masSlaSrl(i,1)
-         iNode2 = masSlaSrl(i,2)
-         iElem1 = linkerNodesAll(iNode1)
-         iElem2 = linkerNodesAll(iNode2)
-         if(iElem1.ge.0) then
-            linkedElems(j,1) = iElem1
-            linkedElems(j,2) = iElem2
-            j=j+1
-
-            if(listAllElems(iElem2).ge.0) then
-               listAllElems(iElem2) = -1
-               numElems2Par = numElems2Par-1
-               numElems2NotPar = numElems2NotPar+1
-            end if
-            !if(mpi_rank.eq.0) write(*,*) 'iElem1 ',iElem1,' iElem2 ',iElem2
-         end if
-         !if(linkerNodesAll(iNodeGSrl).gt.0) then
-         !   linkerNodes(j)=linkerNodesAll(iNodeGSrl)
-      end do
-
-      !write(*,*) 'numElems2Par: ',numElems2Par,' numElem2NotPar ',numElems2NotPar
-      allocate(listElems2Par(numElems2Par))
-      allocate(weightElems2Par(numElems2Par))
-      allocate(listElems2NotPar(numElems2NotPar))
-
-      !$acc kernels
-      listElems2Par(:)=-1
-      listElems2NotPar(:)=-1
-      !$acc end kernels
-      i=1
-      j=1
-      do iElem=1,totalNumElements
-         if(listAllElems(iElem).ge.0) then
-            listElems2Par(i) = iElem
-            weightElems2Par(i) = 1
-            i=i+1
-         else
-            listElems2NotPar(j) = iElem
-            j=j+1
-         end if
-      end do
-
-      do iElem=1,numElems2Par
-         iElemG = listElems2Par(iElem)
-         weightCnt=1
-         do i=1,numLinkedElems
-            if(linkedElems(i,1).eq.iElemG) weightCnt=weightCnt+1
-         end do
-         weightElems2Par(iElem) = weightCnt
-         !write(*,*) 'iElemG ',iElemG,' weight ',weightCnt
-      end do
-
-      !give more weight to the elements that account for more nodes
-      !---------------------------------------------------------------------
-
-      !---------------------------------------------------------------------
-      !write(*,*) 'numElems2Par: ',numElems2Par,' i ',i,' j ',j
-      !if(mpi_rank.eq.0) write(*,*) 'listElems2Par ',listElems2Par
-      !if(mpi_rank.eq.0) write(*,*) 'listElemsNot2Par ',listElems2NotPar
-
-      deallocate(linkerNodesAll)
-      deallocate(listAllElems)
-
-      !write(*,*) 'numLinkerNodes ',numLinkerNodes
-
-   end subroutine get_listElems2Par_Periodic
-
-   subroutine do_node_partitioning_and_connectivity()
-      implicit none
-      integer, dimension(0:mpi_size-1) :: iNodeStartPar, iNodeEndPar
-      integer, allocatable :: boundaryNodes(:)
-      integer, allocatable :: vecSharedBN_full(:)
-
-      if(mpi_rank.eq.0) write(*,*) ' # Doing node partitioning...'
-
-      call get_rankPartitionBoundaryNodes(boundaryNodes)
-
-      call define_parallelNodePartitioning(iNodeStartPar,iNodeEndPar)
-
-      call define_mpi_boundaries_inPar(boundaryNodes,vecSharedBN_full)
-
-      deallocate(boundaryNodes)
-
-      call reorder_nodes_in_proc(iNodeStartPar)
-
-      !aixo ho podria ficar en un altre modul... crec que quedaria mes 'endreçat'
-      call generate_mpi_comm_scheme(vecSharedBN_full)
-
-      deallocate(vecSharedBN_full)
-
-   end subroutine do_node_partitioning_and_connectivity
-
-   subroutine create_nodesCoordinates()
-      implicit none
-      integer :: iNodeL,iNodeGsrl
-
-      if(mpi_rank.eq.0) write(*,*) ' # Creating nodes coordinates...'
-      !------------------------------------------------------
-      allocate(coordPar(numNodesRankPar,ndime)) !only works for ndime=3
-
-      !- create the coordinate data for this process
-      !$acc parallel loop
-      do iNodeL=1,numNodesRankPar
-          iNodeGSrl=globalIdSrl(iNodeL)
-          !write (*,*) 'iL ', iNodeL, ' iG ', iNodeG,' [', coord(iNodeG,1),']',' [', coord(iNodeG,2),']'
-          coordPar(iNodeL,1) = coordGMSH(iNodeGSrl,1)
-          coordPar(iNodeL,2) = coordGMSH(iNodeGSrl,2)
-          coordPar(iNodeL,3) = coordGMSH(iNodeGSrl,3)
-      end do
-      !$acc end parallel loop
-
-   end subroutine create_nodesCoordinates
-
-   subroutine create_masSla_parallel()
-      implicit none
-      integer :: iNodeL,iNodeL1,iNodeL2,iNodeG,iPer,iPerPar
-      integer :: i,iGidSrl1,iGidSrl2
-
-      if(mpi_rank.eq.0) write(*,*) ' # Creting master-slave rels in parallel...'
-      if(mpi_rank.eq.0) write(*,*) ' #  1. Calc nPerRankPar...'
-
-      nPerRankPar=0
-      !$acc parallel loop reduction(+:nPerRankPar)
-      do iNodeL = 1,numNodesRankPar
-         iNodeG = globalIdSrl(iNodeL)
-         !$acc loop seq
-         do iPer = 1,nPerSrl
-            if (iNodeG .eq. masSlaSrl(iPer,2)) then
-               nPerRankPar=nPerRankPar+1
-            end if
-         end do
-      end do
-      !$acc end parallel loop
-
-      if(mpi_rank.eq.0) write(*,*) ' #  2. Generating masSlaRankPar...'
-      !TRY TO ACC THIS PART OF THE CODE: MAIN ISSUE WITH gidSrl_to_lid func in device!!
-      allocate(masSlaRankPar(nPerRankPar,2))
-      iPerPar=0
-#if 1
-      do iNodeL = 1,numNodesRankPar
-         iNodeG = globalIdSrl(iNodeL)
-         do iPer = 1,nPerSrl
-            if (iNodeG .eq. masSlaSrl(iPer,2)) then
-               iPerPar=iPerPar+1
-               !masSlaRankPar(iPerPar,:) = masSlaSrl(iPer,:)
-               iNodeL1 = gidSrl_to_lid(masSlaSrl(iPer,1))
-               iNodeL2 = gidSrl_to_lid(masSlaSrl(iPer,2))
-               masSlaRankPar(iPerPar,1) = iNodeL1
-               masSlaRankPar(iPerPar,2) = iNodeL2
-               !write(*,*) 'iPerPar',iPerPar,'masSla',masSlaRankPar(iPerPar,:)
-            end if
-         end do
-      end do
-#else
-      !IDEA:
-      !if we create a matrix (numNodesToRank,2) ordneant les global id podem fer un algoritme cerca
-      ! rapid i associar cada row a la iNodeL
-      !
-      !$acc kernels copyin(globalIdSrl,masSlaSrl) copyout(masSlaRankPar)
-      do iNodeL = 1,numNodesRankPar
-         iNodeG = globalIdSrl(iNodeL)
-         do iPer = 1,nPerSrl
-            iGidSrl1 = masSlaSrl(iPer,1)
-            iGidSrl2 = masSlaSrl(iPer,2)
-            if (iNodeG .eq. iGidSrl2) then
-               !$acc atomic update
-               iPerPar=iPerPar+1
-               !$acc end atomic
-
-               !iNodeL1 = gidSrl_to_lid_GPU(masSlaSrl(iPer,1),numNodesRankPar,globalIdSrl)
-               iNodeL1=-1
-               do i=1,numNodesRankPar
-                  if(iGidSrl1 .eq. globalIdSrl(i)) then
-                     iNodeL1 = i
-                  endif
-               end do
-
-               !iNodeL2 = gidSrl_to_lid_GPU(masSlaSrl(iPer,2),numNodesRankPar,globalIdSrl)
-               iNodeL2=-1
-               do i=1,numNodesRankPar
-                  if(iGidSrl2 .eq. globalIdSrl(i)) then
-                     iNodeL2 = i
-                  endif
-               end do
-               masSlaRankPar(iPerPar,1) = iNodeL1
-               masSlaRankPar(iPerPar,2) = iNodeL2
-            end if
-         end do
-      end do
-      !$acc end kernels
-#endif
-
-      !write(*,*) '[',mpi_rank,']nPerSrl',nPerSrl,'nPerRankPar',nPerRankPar,'iPerPar',iPerPar
-
-   end subroutine create_masSla_parallel
-
-   subroutine create_working_lists()
-      implicit none
-      integer :: iNodeL,iElem,iPer,iAux
-      integer :: iNodeL_Per,iNodeL_Per_Pair
-      integer, allocatable :: aux_workingNodesPar(:)
-
-      if(mpi_rank.eq.0) write(*,*) ' # Creating working lists...'
-
-      allocate( connecParWork(numElemsInRank,nnode) )
-      !$acc kernels
-      connecParWork(:,:) = connecParOrig(:,:)
-      !$acc end kernels
-
-      if(isMeshPeriodic) then !do all stuff in case mesh is periodic
-
-         !----------------------------------------------------------------
-         !-------------  CONNEC   ----------------------------------------
-
-        !allocate( connecParOrig(numElemsInRank,nnode) )
-        !connecParOrig(:,:) = connecPar(:,:)
-
-         !$acc kernels
-         do iElem = 1,numElemsInRank
-            do iAux = 1,nnode
-               iNodeL = connecParWork(iElem,iAux)
-               !iNodeG = globalIdSrl(iNodeL)
-               do iPer = 1,nPerRankPar
-                  iNodeL_Per = masSlaRankPar(iPer,2)
-                  if (iNodeL .eq. iNodeL_Per) then
-                     iNodeL_Per_Pair = masSlaRankPar(iPer,1)
-                     !iNodeL_Per_Pair = gidSrl_to_lid(iNodeG_Per_Pair)
-                     connecParWork(iElem,iAux) = iNodeL_Per_Pair
-                  end if
-               end do
-            end do
-         end do
-         !$acc end kernels
-
-         !if(present(bound) .and. present(bound_orig)) then
-         !   !!!$acc kernels
-         !   bound_orig(:,:) = bound(:,:)
-         !   !!!$acc end kernels
-         !end if
-
-         !if(present(bound)) then
-         !   !!!$acc parallel loop gang vector_length(vecLength)
-         !   do iboun = 1,nboun
-         !      !!!$acc loop vector
-         !      do ipbou = 1,npbou
-         !         !!!$acc loop seq
-         !         do iper = 1,nper
-         !            if (bound(iboun,ipbou) .eq. masSla(iper,2)) then
-         !               bound(iboun,ipbou) = masSla(iper,1)
-         !            end if
-         !         end do
-         !      end do
-         !   end do
-         !   !!!$acc end parallel loop
-         !end if
-
-         numWorkingNodesRankPar = numNodesRankPar - nPerRankPar
-
-         allocate(aux_workingNodesPar(numNodesRankPar))
-         allocate(workingNodesPar(numWorkingNodesRankPar))
-
-         !$acc parallel loop
-         do iNodeL = 1,numNodesRankPar
-            aux_workingNodesPar(iNodeL) = iNodeL
-         end do
-         !$acc end parallel loop
-
-         do iPer = 1,nPerRankPar
-            iNodeL_Per = masSlaRankPar(iPer,2)
-            do iNodeL = 1,numNodesRankPar
-               !iNodeG = globalIdSrl(iNodeL)
-               if (iNodeL_Per .eq. iNodeL) then
-                  aux_workingNodesPar(iNodeL) = 0
-                  exit
-               end if
-            end do
-         end do
-
-         !TODO: GPU-PARALLELIZE THIS LOOP
-         iAux = 0
-         do iNodeL = 1,numNodesRankPar
-            if (aux_workingNodesPar(iNodeL) .ne. 0) then
-               iAux = iAux+1
-               workingNodesPar(iAux) = aux_workingNodesPar(iNodeL)
-               !write(*,*)'wNP(',iAux,')',workingNodesPar(iAux)
-            end if
-         end do
-
-         deallocate(aux_workingNodesPar)
-      else !non-periodic meshes
-
-         numWorkingNodesRankPar = numNodesRankPar
-         allocate(workingNodesPar(numWorkingNodesRankPar))
-
-         !$acc parallel loop
-         do iNodeL = 1,numWorkingNodesRankPar
-            workingNodesPar(iNodeL) = iNodeL
-         end do
-         !$acc end parallel loop
-
-      end if
-
-   end subroutine create_working_lists
-
-   subroutine get_rankPartitionBoundaryNodes(boundaryNodes)
-      implicit none
-      integer, allocatable, intent(out) :: boundaryNodes(:)
-      integer, allocatable :: nodeOwned(:),nodeInBoundary(:)
-      integer :: i,ind,ind_f,iElemL,iElemG,iNodeG,iNodeG_inFace,checkFacePos
-      integer :: numBNodesRankPar,numINodesRankPar
-!      integer, allocatable :: boundaryNodesGlobal(:),vectorNumBNodesRankPar(:)
-!      integer :: window_id,iRank,auxPos,numTotalBNodes
-!      integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size
-!      integer(KIND=MPI_ADDRESS_KIND) :: target_displacement
-      !-------------------------------------------
-      character(128) :: file_name, aux_string_rank !for debug
-      !-------------------------------------------
-      integer, parameter :: faceFront(16)  = [1,9,13,5,33,41,45,37,49,57,61,53,17,25,29,21]
-      integer, parameter :: faceLeft(16)   = [2,4,3,1,34,36,35,33,50,52,51,49,18,20,19,17]
-      integer, parameter :: faceTop(16)    = [17,25,29,21,19,27,31,23,20,28,32,24,18,26,30,22]
-      integer, parameter :: faceBack(16)   = [2,10,14,6,34,42,46,38,50,58,62,54,18,26,30,22]
-      integer, parameter :: faceRight(16)  = [6,8,7,5,38,40,39,37,54,56,55,53,22,24,23,21]
-      integer, parameter :: faceBottom(16) = [1,9,13,5,3,11,15,7,4,12,16,8,2,10,14,6]
-      !-------------------------------------------
-
-      allocate(nodeOwned(totalNumNodesSrl))
-      allocate(nodeInBoundary(totalNumNodesSrl))
-
-      !$acc kernels
-      nodeOwned(:)=0
-      nodeInBoundary(:)=0
-      !$acc end kernels
-
-      do iElemL=1,numElemsInRank
-         iElemG = elemGid(iElemL)
-         do ind = 1,nnode
-            iNodeG = connecGMSH(iElemG,gmsh2ijk(ind))
-            nodeOwned(iNodeG) = nodeOwned(iNodeG) + 1
-         end do
-      end do
-
-      !check if face is in boundary
-      checkFacePos = 6
-      do iElemL=1,numElemsInRank
-         iElemG = elemGid(iElemL)
-         !# 1.Front ------------------------------------------------------
-         ind = faceFront(checkFacePos)
-         iNodeG_inFace = connecGMSH(iElemG,gmsh2ijk(ind))
-         if(nodeOwned(iNodeG_inFace).eq.1) then !this face is boundary
-            do i=1,16
-               ind_f = gmsh2ijk(faceFront(i))
-               iNodeG = connecGMSH(iElemG,ind_f)
-               nodeInBoundary(iNodeG) = 1
-            end do
-         end if
-         !#--------------------------------------------------------------
-         !# 2.Left ------------------------------------------------------
-         ind = faceLeft(checkFacePos)
-         iNodeG_inFace = connecGMSH(iElemG,gmsh2ijk(ind))
-         if(nodeOwned(iNodeG_inFace).eq.1) then !this face is boundary
-            do i=1,16
-               ind_f = gmsh2ijk(faceLeft(i))
-               iNodeG = connecGMSH(iElemG,ind_f)
-               nodeInBoundary(iNodeG) = 1
-            end do
-         end if
-         !#-------------------------------------------------------------- 
-         !# 3.Top ------------------------------------------------------
-         ind = faceTop(checkFacePos)
-         iNodeG_inFace = connecGMSH(iElemG,gmsh2ijk(ind))
-         if(nodeOwned(iNodeG_inFace).eq.1) then !this face is boundary
-            do i=1,16
-               ind_f = gmsh2ijk(faceTop(i))
-               iNodeG = connecGMSH(iElemG,ind_f)
-               nodeInBoundary(iNodeG) = 1
-            end do
-         end if
-         !#-------------------------------------------------------------- 
-         !# 4.Back ------------------------------------------------------
-         ind = faceBack(checkFacePos)
-         iNodeG_inFace = connecGMSH(iElemG,gmsh2ijk(ind))
-         if(nodeOwned(iNodeG_inFace).eq.1) then !this face is boundary
-            do i=1,16
-               ind_f = gmsh2ijk(faceBack(i))
-               iNodeG = connecGMSH(iElemG,ind_f)
-               nodeInBoundary(iNodeG) = 1
-            end do
-         end if
-         !#--------------------------------------------------------------
-         !# 5.Right ------------------------------------------------------
-         ind = faceRight(checkFacePos)
-         iNodeG_inFace = connecGMSH(iElemG,gmsh2ijk(ind))
-         if(nodeOwned(iNodeG_inFace).eq.1) then !this face is boundary
-            do i=1,16
-               ind_f = gmsh2ijk(faceRight(i))
-               iNodeG = connecGMSH(iElemG,ind_f)
-               nodeInBoundary(iNodeG) = 1
-            end do
-         end if
-         !#-------------------------------------------------------------- 
-         !# 6.Bottom ------------------------------------------------------
-         ind = faceBottom(checkFacePos)
-         iNodeG_inFace = connecGMSH(iElemG,gmsh2ijk(ind))
-         if(nodeOwned(iNodeG_inFace).eq.1) then !this face is boundary
-            do i=1,16
-               ind_f = gmsh2ijk(faceBottom(i))
-               iNodeG = connecGMSH(iElemG,ind_f)
-               nodeInBoundary(iNodeG) = 1
-            end do
-         end if
-         !#-------------------------------------------------------------- 
-      end do
-
-      numNodesRankPar=0
-      numBNodesRankPar=0
-      numINodesRankPar=0
-
-      do iNodeG=1,totalNumNodesSrl
-         if(nodeOwned(iNodeG).ne.0) then !node is in rank
-            numNodesRankPar = numNodesRankPar+1
-            if(nodeInBoundary(iNodeG).eq.1) then !node is boundary
-               numBNodesRankPar=numBNodesRankPar+1
-            else !node is inner
-               numINodesRankPar=numINodesRankPar+1
-            end if
-         end if
-      end do
-
-      !write(*,*) '1.#rank[',mpi_rank,']  nodesInRank ',numNodesRankPar, " bN ", numBNodesRankPar, " iN ",numINodesRankPar
-      allocate(boundaryNodes(numBNodesRankPar))
-
-      i=0
-      do iNodeG=1,totalNumNodesSrl
-         if(nodeInBoundary(iNodeG).eq.1) then !node is boundary
-            i=i+1
-            boundaryNodes(i) = iNodeG
-         end if
-      end do
-      !write(*,*) '#rank[',mpi_rank,']  nodesInRank ',numNodesRankPar, " bN ", numBNodesRankPar, " iN ",numINodesRankPar,'i',i
-
-#if 0
-!AQUI FARIA UN PAS INTERMIG, el vector boundaryNodes sera auxiliar
-!1. faig una finestra per comunicar quants boundaryNodes (numBNodesRankPar) te cada rank
-
-      allocate(vectorNumBNodesRankPar(0:mpi_size-1))
-      vectorNumBNodesRankPar(:)=0
-
-      ! Create the window
-      !--------------------------------------------------------------------------------------
-      window_buffer_size = mpi_integer_size*1
-
-      call MPI_Win_create(numBNodesRankPar,window_buffer_size,mpi_integer_size,&
-                         MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
-      call MPI_Win_fence(0, window_id, mpi_err)
-
-      target_displacement=0
-      do iRank=0,mpi_size-1
-         call MPI_Get(vectorNumBNodesRankPar(iRank),1,MPI_INTEGER,iRank,target_displacement,&
-                     1,MPI_INTEGER,window_id,mpi_err)
-      end do
-
-      call MPI_Win_fence(0, window_id, mpi_err)
-      call MPI_Win_free(window_id, mpi_err)
-      !--------------------------------------------------------------------------------------
-
-!2. un cop fet aixo creo un vector amb el numero total de boundary nodes i faig un get de cada procesador
-      numTotalBNodes = 0
-      do iRank=0,mpi_size-1
-         numTotalBNodes = numTotalBNodes + vectorNumBNodesRankPar(iRank)
-      end do
-
-      write(*,*) '[',mpi_rank,']numTotalBNodes: ',numTotalBNodes
-
-!3. tots els procs tindran tots els boundary nodes
-      allocate(boundaryNodesGlobal(numTotalBNodes))
-
-      ! Create the window
-      !-------------------------------------------------------------------------------------------------
-      window_buffer_size = mpi_integer_size*numBNodesRankPar
- 
-      call MPI_Win_create(boundaryNodes,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
-      call MPI_Win_fence(0, window_id, mpi_err)
-
-      target_displacement = 0
-      auxPos = 1
-      do iRank=0,mpi_size-1
-         call MPI_Get(boundaryNodesGlobal(auxPos),vectorNumBNodesRankPar(iRank),MPI_INTEGER,iRank,target_displacement,&
-                                                  vectorNumBNodesRankPar(iRank),MPI_INTEGER,window_id,mpi_err)
-      !write(*,*) '[',mpi_rank,'][',iRank,']auxPos: ',auxPos,' numBNodes:',vectorNumBNodesRankPar(iRank)
-         auxPos = auxPos + vectorNumBNodesRankPar(iRank)
-      end do
-    
-      call MPI_Win_fence(0, window_id, mpi_err)
-      call MPI_Win_free(window_id, mpi_err)
-      !--------------------------------------------------------------------------------------------------
-
-!4. corro per aquest vector "nou" i creo/omplo de nou el vector nodeInBoundary
-
-      !if(mpi_rank.eq.1) then
-      !   do i = 1,numTotalBNodes
-      !      iNodeG = boundaryNodesGlobal(i)
-      !      write(*,*) i,',',iNodeG
-      !      !nodeInBoundary(iNodeG) = 1
-      !   end do
-      !end if
-
-      !$acc kernels
-      nodeInBoundary(:) = 0
-      !$acc end kernels
-      do i = 1,numTotalBNodes
-         iNodeG = boundaryNodesGlobal(i)
-         nodeInBoundary(iNodeG) = 1
-      end do
-
-!5. torno a fer com el proces anterior, ara tindre tmb nodes que no sabia que eren boundaries al meu rank
-      numNodesRankPar=0
-      numBNodesRankPar=0
-      numINodesRankPar=0
-
-      do iNodeG=1,totalNumNodesSrl
-         if(nodeOwned(iNodeG).ne.0) then !node is in rank
-            numNodesRankPar = numNodesRankPar+1
-            if(nodeInBoundary(iNodeG).eq.1) then !node is boundary
-               numBNodesRankPar=numBNodesRankPar+1
-            else !node is inner
-               numINodesRankPar=numINodesRankPar+1
-            end if
-         end if
-      end do
-
-      write(*,*) '2.#rank[',mpi_rank,']  nodesInRank ',numNodesRankPar, " bN ", numBNodesRankPar, " iN ",numINodesRankPar
-
-      deallocate(boundaryNodes)
-
-      allocate(boundaryNodes(numBNodesRankPar))
-
-      i=0
-      do iNodeG=1,totalNumNodesSrl
-         if((nodeOwned(iNodeG).ne.0).and.(nodeInBoundary(iNodeG).eq.1)) then !node is in rank
-            i=i+1
-            boundaryNodes(i) = iNodeG
-            write(*,*) ' #rank[',mpi_rank,'] ',i,',',iNodeG
-         end if
-      end do
-
-      deallocate(boundaryNodesGlobal)
-      deallocate(vectorNumBNodesRankPar)
-!6. solved!? NO! this is not the problem :'
-#endif
-
-      deallocate(nodeOwned)
-      deallocate(nodeInBoundary)
-
-#if _CHECK_
-      write(aux_string_rank,'(I0)') mpi_rank
-      file_name = 'boundaryNodes_rank'// trim(aux_string_rank)//'.csv'
-      open(1, file=file_name)
-      do i=1,numBNodesRankPar
-         iNodeG=boundaryNodes(i)
-         write(1,fmt_csv) coordGMSH(iNodeG,1),coordGMSH(iNodeG,2),coordGMSH(iNodeG,3),iNodeG
-      end do
-      close(1)
-#endif
-   end subroutine get_rankPartitionBoundaryNodes
-
-   subroutine get_rankPartitionBoundaryNodes_structured(boundaryNodes)
-      implicit none
-      integer, allocatable, intent(out) :: boundaryNodes(:)
-
-      integer, allocatable :: nodeType(:), nodeOwned(:)
-
-      integer :: i,j,k,ind,nt,iElemL,iElemG,iNodeG,iRank
-      integer :: numBNodesRankPar, numINodesRankPar, nodeCnt
-
-      character(128) :: file_name, aux_string_rank
-
-      allocate(nodeOwned(totalNumNodesSrl))
-      allocate(nodeType(totalNumNodesSrl))
-
-      !$acc kernels
-      nodeOwned(:)=0
-      nodeType(:)=0
-      !$acc end kernels
-
-      do iElemL=1,numElemsInRank
-         !iElemG = (iElemL-1) + rankElemStart
-         iElemG = elemGid(iElemL)
-         do k = 0,porder
-            do i = 0,porder
-               do j = 0,porder
-                  ind = ((porder+1)**2)*k+(porder+1)*i+j+1
-                  iNodeG = connecGMSH(iElemG,gmsh2ijk(ind))
-                  nt = tn2ijk(ind)
-
-                  nodeOwned(iNodeG) = nodeOwned(iNodeG) + 1
-
-                 if(nodeType(iNodeG) .eq. 0) then
-                    nodeType(iNodeG) = nt
-                 else
-                   if(nodeType(iNodeG) .ne. nt) write(*,*) 'fuck node', iNodeG,' nt ', nt, ' nt(ig) ', nodeType(iNodeG)
-                 end if
-               end do
-            end do
-         end do
-      end do
-
-      numNodesRankPar=0
-      numBNodesRankPar=0
-      numINodesRankPar=0
-      do iNodeG=1,size(nodeOwned)
-         nodeCnt = nodeOwned(iNodeG)
-         if(nodeCnt .ne. 0) then
-            numNodesRankPar = numNodesRankPar+1
-            select case (nodeType(iNodeG))
-               case (tV)
-                  if(nodeCnt.ne.8) then 
-                     numBNodesRankPar=numBNodesRankPar+1
-                  else
-                     numINodesRankPar=numINodesRankPar+1
-                  end if
-               case (tE)
-                  if(nodeCnt.ne.4) then 
-                     numBNodesRankPar=numBNodesRankPar+1
-                  else
-                     numINodesRankPar=numINodesRankPar+1
-                  end if
-               case (tF)
-                  if(nodeCnt.ne.2) then 
-                     numBNodesRankPar=numBNodesRankPar+1
-                  else
-                     numINodesRankPar=numINodesRankPar+1
-                  end if
-               case (tI)
-                  numINodesRankPar=numINodesRankPar+1
-               case default
-                  write(*,*) "FUCKING ERROR!!!"
-            end select
-         end if
-      end do
-
-      !write(*,*) '#rank[',mpi_rank,']  nodesInRank ',numNodesRankPar, " bN ", numBNodesRankPar, " iN ",numINodesRankPar
-      allocate(boundaryNodes(numBNodesRankPar))
-
-      i=1
-      do iNodeG=1,size(nodeOwned)
-         nodeCnt = nodeOwned(iNodeG)
-         if(nodeCnt .ne. 0) then
-            select case (nodeType(iNodeG))
-               case (tV)
-                  if(nodeCnt.ne.8) then 
-                     boundaryNodes(i) = iNodeG
-                     i=i+1
-                  end if
-               case (tE)
-                  if(nodeCnt.ne.4) then 
-                     boundaryNodes(i) = iNodeG
-                     i=i+1
-                  end if
-               case (tF)
-                  if(nodeCnt.ne.2) then 
-                     boundaryNodes(i) = iNodeG
-                     i=i+1
-                  end if
-            end select
-         end if
-      end do
-
-#if _CHECK_
-      write(aux_string_rank,'(I0)') mpi_rank
-      file_name = 'boundaryNodes_rank'// trim(aux_string_rank)//'.csv'
-      open(1, file=file_name)
-      do i=1,numBNodesRankPar
-         iNodeG=boundaryNodes(i)
-         write(1,fmt_csv) coordGMSH(iNodeG,1),coordGMSH(iNodeG,2),coordGMSH(iNodeG,3),iNodeG
-      end do
-      close(1)
-#endif
-   end subroutine get_rankPartitionBoundaryNodes_structured
+!----------------------------------------------------------------------------------------------------------
 
    subroutine get_serialNodePartitioning(numNodesRankSrl,iNodeStartSrl,iNodeEndSrl)
       integer, intent(out) :: numNodesRankSrl
@@ -1525,7 +114,7 @@ contains
 
    end subroutine get_serialNodePartitioning
 
-   subroutine define_parallelNodePartitioning(iNodeStartPar,iNodeEndPar)
+   subroutine get_parallelNode_partitioning(iNodeStartPar,iNodeEndPar)
       integer,dimension(0:mpi_size-1),intent(out) :: iNodeStartPar, iNodeEndPar
       integer, allocatable :: vectorNumNodesRankPar(:)
 
@@ -1549,8 +138,7 @@ contains
 
       target_displacement=0
       do iRank=0,mpi_size-1
-         call MPI_Get(vectorNumNodesRankPar(iRank),1,MPI_INTEGER,iRank,target_displacement,&
-                     1,MPI_INTEGER,window_id,mpi_err)
+         call MPI_Get(vectorNumNodesRankPar(iRank),1,mpi_datatype_int,iRank,target_displacement,1,mpi_datatype_int,window_id,mpi_err)
       end do
 
       !!! Wait for the MPI_Get issued to complete before going any further
@@ -1574,8 +162,7 @@ contains
       !write(*,*) '#rank ', mpi_rank, ' nodesInRank ', numNodesRankPar, ' iNodeS ', rankNodeStart, ' iNodeE ', rankNodeEnd
       !write(*,*) 'rank[',mpi_rank,'] -> start ',iNodeStartPar(:),' end ', iNodeEndPar(:), 'tNNP ', totalNumNodesPar
 
-   end subroutine define_parallelNodePartitioning
-
+   end subroutine get_parallelNode_partitioning
 
    subroutine define_mpi_boundaries_inPar(boundaryNodes,vecSharedBN_full)
       implicit none
@@ -1592,8 +179,6 @@ contains
       integer, allocatable :: vectorBN(:), matrixBN(:,:),vecSharedBN_part(:),auxVecDebug(:)
       integer, dimension(0:mpi_size-1) :: vecAuxCnt,iNodeStartSrl, iNodeEndSrl
       integer :: numRanksCnt,auxCnt,auxPos
-
-      character(128) :: file_name, aux_string_rank
 
       ! getting a serial partitioning of the nodes without overlaping
       ! just to do the boundary calc in parallel 
@@ -1616,19 +201,6 @@ contains
       end do
       !!!$acc end parallel loop
 
-      !---------------------------------------------------------------
-      ! TO CHECK
-#if _CHECK_
-      write(aux_string_rank,'(I0)') mpi_rank
-      file_name = 'boundaryNodes_rank'// trim(aux_string_rank)//'.csv'
-      open(1, file=file_name)
-      do iNodeGSrl=1,size(vectorBN)
-           write(1,fmt_csv) iNodeGSrl,vectorBN(iNodeGSrl)
-      end do
-      close(1)
-#endif
-      !---------------------------------------------------------------
-
       ! Create the window
       !--------------------------------------------------------------------------------------
       window_buffer_size = mpi_integer_size*totalNumNodesSrl
@@ -1639,8 +211,7 @@ contains
       target_displacement = iNodeStartSrl(mpi_rank)-1
       !write(*,*) 'rank ', mpi_rank, ' targetdisp ', target_displacement
       do iRank=0,mpi_size-1
-         call MPI_Get(matrixBN(:,iRank),numNodesRankSrl, MPI_INTEGER, irank, target_displacement,&
-         numNodesRankSrl, MPI_INTEGER, window_id, mpi_err)
+         call MPI_Get(matrixBN(:,iRank),numNodesRankSrl,mpi_datatype_int,iRank,target_displacement,numNodesRankSrl,mpi_datatype_int,window_id,mpi_err)
       end do
     
       !!! Wait for the MPI_Get issued to complete before going any further
@@ -1648,18 +219,6 @@ contains
       call MPI_Win_free(window_id, mpi_err)
       !--------------------------------------------------------------------------------------
 
-      !---------------------------------------------------------------
-      ! TO CHECK
-#if _CHECK_
-      file_name = 'matrixBN_rank'// trim(aux_string_rank)//'.csv'
-      open(1, file=file_name)
-      do i=1,numNodesRankSrl
-           iNodeGSrl = iNodeStartSrl(mpi_rank)-1 + i
-           write(1,fmt_csv) i,iNodeGSrl,matrixBN(i,0),matrixBN(i,1)
-      end do
-      close(1)
-#endif
-      !---------------------------------------------------------------
       !nou metode!
       !generating vector type
       !iNodeGsrl_i,numRanks(n),rank_1,rank_2,...,rank_n,iNodeGsrl_j,numRanks(n),rank_1,rank_2,...,rank_n,iNodeGsrl_k....
@@ -1691,7 +250,7 @@ contains
       do iRank=0,mpi_size-1
          target_displacement = 0
          if(iRank .ne. mpi_rank) then
-            call MPI_Get(vecAuxCnt(iRank),1,MPI_INTEGER,iRank,target_displacement,1,MPI_INTEGER,window_id,mpi_err)
+            call MPI_Get(vecAuxCnt(iRank),1,mpi_datatype_int,iRank,target_displacement,1,mpi_datatype_int,window_id,mpi_err)
          else
          end if
       end do
@@ -1754,8 +313,7 @@ contains
          do iRank=0,mpi_size-1
             target_displacement = 0
 
-            call MPI_Get(vecSharedBN_full(auxCnt),vecAuxCnt(iRank),MPI_INTEGER,iRank,target_displacement,&
-                        vecAuxCnt(iRank),MPI_INTEGER,window_id,mpi_err)
+            call MPI_Get(vecSharedBN_full(auxCnt),vecAuxCnt(iRank),mpi_datatype_int,iRank,target_displacement,vecAuxCnt(iRank),mpi_datatype_int,window_id,mpi_err)
             auxCnt=auxCnt+vecAuxCnt(iRank)
          end do
    
@@ -1766,289 +324,22 @@ contains
       end if
       !if(mpi_rank.eq.0) write(*,*) vecSharedBN_full(:)
 
-#if _CHECK_
-      write(aux_string_rank,'(I0)') mpi_rank
-      file_name = 'vecSharedBN_full_rank'// trim(aux_string_rank)//'.csv'
-      open(1, file=file_name)
-      i=0
-      do while(i<size(vecSharedBN_full))
-         i=i+1
-         iNodeGsrl  = vecSharedBN_full(i)
-         i=i+1
-         numRanksCnt =vecSharedBN_full(i)
-         allocate(auxVecDebug(numRanksCnt))
-         do j=1,numRanksCnt
-            i=i+1
-            auxVecDebug(j)=vecSharedBN_full(i)
-         end do
-
-         write(1,fmt_csv)iNodeGSrl,coordGMSH(iNodeGSrl,1),coordGMSH(iNodeGSrl,2),coordGMSH(iNodeGSrl,3),&
-               auxVecDebug(:)
-
-         !write(1,'(*(G0.7,:,","))')iNodeGSrl,coordGMSH(iNodeGSrl,1),coordGMSH(iNodeGSrl,2),coordGMSH(iNodeGSrl,3),&
-         !      auxVecDebug(:)
-
-         deallocate(auxVecDebug)
-      end do
-      close(1)
-#endif
-
-#if 0
-!JUST TO CHECK THE SHIT OF MPI_ACCUMULATE!!!
-      i=0!mpi_rank
-      j=mpi_rank
-      write(*,*) '[',mpi_rank,']test PRE i',i
-      window_buffer_size = mpi_integer_size*1
-      call MPI_Win_create(i,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
-      call MPI_Win_fence(0,window_id,mpi_err)
-   
-      do iRank=0,mpi_size-1
-         target_displacement = 0
-         call MPI_Accumulate(j,1,MPI_INTEGER,iRank,target_displacement,1,MPI_INTEGER,MPI_SUM,window_id,mpi_err)
-      end do
-   
-      !! Wait for the MPI_Get issued to complete before going any further
-      call MPI_Win_fence(0,window_id,mpi_err)
-      call MPI_Win_free(window_id,mpi_err)
-
-      write(*,*) '[',mpi_rank,']test POST i',i
-
-#endif
-
-#if 0
-!AIXO era el metode antic! i no permetia tenir mes de dos procs per node! vigila!!!!
-      do i=1,numNodesRankSrl
-         iNodeGSrl = iNodeStartSrl(mpi_rank)-1 + i
-         j=0
-         do iRank=0,mpi_size-1
-            if(j>2) then
-               !####################################################################
-               !OJO! QUE NO HO HAVIA PREVIST!! PERO AIXO SI POT PASSAR!!!! SITUACIO
-               !  |       |       |
-               !  |   0   |   1   |
-               !  |-------·--------   <-- this vertex/node will share 4 PROCS!!!
-               !  |       |       |
-               !  |   3   |   4   |
-               !
-               write(*,*) 'FUCK ERROR in define_mpi_boundaries_inPar!!!!!! j CANNOT BE MORE THAN 2'
-               write(*,*) 'This program is going to exit.'
-               call exit(0)
-            end if
-            if(matrixBN(i,iRank) .eq. 1) then
-               j=j+1
-               matrixSharedBN_full(iNodeGSrl,j) = iRank
-            end if
-         end do
-      end do
-
-      !---------------------------------------------------------------
-      ! TO CHECK
-#if _CHECK_
-      write(aux_string_rank,'(I0)') mpi_rank
-      file_name = 'matrixBN_rank'// trim(aux_string_rank)//'.csv'
-      open(1, file=file_name)
-      do i=1,numNodesRankSrl
-           iNodeGSrl = iNodeStartSrl(mpi_rank)-1 + i
-           write(1,*) i,',',iNodeGSrl,',',matrixBN(i,0),',',matrixBN(i,1)
-      end do
-      close(1)
-
-      file_name = 'matrixSharedBN_rank'// trim(aux_string_rank)//'.csv'
-      open(1, file=file_name)
-      do i=1,numNodesRankSrl
-         iNodeGSrl = iNodeStartSrl(mpi_rank)-1 + i
-         if(matrixSharedBN_full(iNodeGSrl,1).ne.-1 .and. matrixSharedBN_full(iNodeGSrl,2).ne.-1) then
-            write(1,*) coordGMSH(iNodeGSrl,1),',',coordGMSH(iNodeGSrl,2),',',coordGMSH(iNodeGSrl,3),',',&
-            iNodeGSrl,',',i,',',matrixSharedBN_full(iNodeGSrl,1),',',matrixSharedBN_full(iNodeGSrl,2)
-         end if
-      end do
-      close(1)
-#endif
-      !---------------------------------------------------------------
-
-      ! Create the window
-      !--------------------------------------------------------------------------------------
-      window_buffer_size = mpi_integer_size*numNodesRankSrl
- 
-      call MPI_Win_create(matrixSharedBN_full(iNodeStartSrl(mpi_rank),1), window_buffer_size,&
-                                         mpi_integer_size, MPI_INFO_NULL, MPI_COMM_WORLD,& 
-                                         window_id, mpi_err)
-      call MPI_Win_fence(0, window_id, mpi_err)
-    
-      target_displacement = 0 
-
-      do iRank=0,mpi_size-1
-         if(mpi_rank .ne. iRank) then
-            origin_cnt = iNodeEndSrl(iRank) - iNodeStartSrl(iRank) + 1
-
-            !write(*,*) 'irank ', iRank, ' origin_cnt ', origin_cnt,' tar_disp ', target_displacement
-            call MPI_Get(matrixSharedBN_full(iNodeStartSrl(iRank),1),origin_cnt, MPI_INTEGER,&
-                         irank,target_displacement,origin_cnt, MPI_INTEGER, window_id, mpi_err)
-         end if
-      end do
-    
-      !!! Wait for the MPI_Get issued to complete before going any further
-      call MPI_Win_fence(0, window_id, mpi_err)
-      call MPI_Win_free(window_id, mpi_err)
-
-      call MPI_Win_create(matrixSharedBN_full(iNodeStartSrl(mpi_rank),2), window_buffer_size,&
-                                         mpi_integer_size, MPI_INFO_NULL, MPI_COMM_WORLD,& 
-                                         window_id, mpi_err)
-      call MPI_Win_fence(0, window_id, mpi_err)
-    
-      do iRank=0,mpi_size-1
-         if(mpi_rank .ne. iRank) then
-            origin_cnt = iNodeEndSrl(iRank) - iNodeStartSrl(iRank) + 1
-            call MPI_Get(matrixSharedBN_full(iNodeStartSrl(iRank),2),origin_cnt, MPI_INTEGER,&
-                         irank,target_displacement,origin_cnt, MPI_INTEGER, window_id, mpi_err)
-         end if
-      end do
-    
-      !!! Wait for the MPI_Get issued to complete before going any further
-      call MPI_Win_fence(0, window_id, mpi_err)
-      call MPI_Win_free(window_id, mpi_err)
-
-      !---------------------------------------------------------------
-      ! TO CHECK
-#if _CHECK_
-      file_name = 'matrixSharedBN_Glob_rank'// trim(aux_string_rank)//'.csv'
-      do iNodeG=1,totalNumNodesSrl
-         if(matrixSharedBN_full(iNodeG,1).ne.-1 .and. matrixSharedBN_full(iNodeG,2).ne.-1) then
-            write(1,*) coordGMSH(iNodeG,1),',',coordGMSH(iNodeG,2),',',coordGMSH(iNodeG,3),',',&
-            iNodeG,',',matrixSharedBN_full(iNodeG,1),',',matrixSharedBN_full(iNodeG,2)
-         end if
-      end do
-      close(1)
-#endif
-      !---------------------------------------------------------------
-#endif
    end subroutine define_mpi_boundaries_inPar
 
-   subroutine reorder_nodes_in_proc(iNodeStartPar)
-      integer,dimension(0:mpi_size-1),intent(in) :: iNodeStartPar
-      integer :: iPos,m,indConn,indexIJK,indexVTK,indexCGNS,indexGMSH,indexNew
-      integer :: iNodeL,iNodeGpar,iNodeGsrl,iElemL,iElemG
-
-      integer,dimension(nnode) :: auxNodeNewOrderInElem,auxNewOrderIndex,auxVTKorder,auxCGNSorder
-      integer,dimension(totalNumNodesSrl) :: isNodeAdded
-
-      allocate(globalIdSrl(numNodesRankPar))
-      allocate(globalIdPar(numNodesRankPar))
-
-      allocate(connecCGNS(numElemsInRank*nnode))
-      allocate(connecVTK(numElemsInRank*nnode))
-      allocate(connecParOrig(numElemsInRank,nnode))
-
-      isNodeAdded=-1
-      iPos = 1
-
-      indConn = -1
-
-      !@TODO SUPER VERY FUCKING IMPORTANT
-      !--------------------------------------------------------------------------------------------------------
-      ! now this only works using gmsh2ijk, because the old part of the code is using the atoijk set in 
-      ! the subroutine set_hex64_list in mod_elem.f90 file
-      ! atoijk is the same than in gmsh2ijk
-      ! first do a first migration of the code and once it work, think how to allow different node ordering
-      ! BUT FIX IT!!!!!!
-
-      call generate_new_nodeOrder_and_connectivity(gmsh2ijk,auxNewOrderIndex,auxVTKorder,auxCGNSorder)
-      !call generate_new_nodeOrder_and_connectivity(cgns2ijk,auxNewOrderIndex,auxCGNSorder)
-      !call generate_new_nodeOrder_and_connectivity(dummy2ijk,auxNewOrderIndex,auxCGNSorder)
-
-      !----------------------------------------------------------------------------------------------------------
-
-      do iElemL=1,numElemsInRank
-         !iElemG = (iElemL-1) + rankElemStart
-         iElemG = elemGid(iElemL)
-         auxNodeNewOrderInElem(:)=0
-
-         do indexIJK=1,nnode
-            indexGMSH = gmsh2ijk(indexIJK)
-            iNodeGsrl = connecGMSH(iElemG,indexGMSH)
-
-            indexNew = auxNewOrderIndex(indexIJK)
-            
-            auxNodeNewOrderInElem(indexNew) = iNodeGsrl
-         end do
-
-         do m=1,nnode
-            iNodeGsrl = auxNodeNewOrderInElem(m)
-
-            if(isNodeAdded(iNodeGsrl) < 0) then !node not added put it in the list
-               iNodeL = iPos
-               isNodeAdded(iNodeGSrl)  = iNodeL
-
-               iNodeGPar = iNodeL + iNodeStartPar(mpi_rank) - 1
-
-               globalIdSrl(iNodeL) = iNodeGsrl
-               globalIdPar(iNodeL) = iNodeGPar
-
-               iPos=iPos+1
-
-            else 
-               iNodeL = isNodeAdded(iNodeGSrl)
-               iNodeGPar = globalIdPar(iNodeL)
-            endif
-
-            connecParOrig(iElemL,m) = iNodeL
-
-            indexCGNS = auxCGNSorder(m)
-            indConn = (iElemL-1)*nnode + indexCGNS
-            connecCGNS(indConn) = iNodeGPar
-
-            indexVTK = auxVTKorder(m)
-            indConn = (iElemL-1)*nnode + indexVTK
-            connecVTK(indConn) = iNodeL!connec(ielem,indGmsh)
-
-         end do
-
-         !write(*,*) '[',mpi_rank,']iElemG ',iElemG,' connecParOrig ',connecParOrig(iElemL,:)
-
-      end do
-   end subroutine reorder_nodes_in_proc
-
-   subroutine generate_new_nodeOrder_and_connectivity(newOrderIJK,auxNewOrderIndex,auxVTKorder,auxCGNSorder)
-      integer,intent(in)  :: newOrderIJK(:)
-      integer,intent(out) :: auxNewOrderIndex(:),auxVTKorder(:),auxCGNSorder(:)
-      integer :: i,j,k,indexIJK,indexNew,indexVTK,indexCGNS
-
-      !!!$acc kernels
-      do k = 0,porder
-         do i = 0,porder
-            do j = 0,porder
-               indexIJK = ((porder+1)**2)*k+(porder+1)*i+j+1
-
-               indexNew = newOrderIJK(indexIJK)
-               indexVTK = vtk2ijk(indexIJK)
-               indexCGNS = cgns2ijk(indexIJK) !posicio requerida en el connec de cgns
-
-               auxNewOrderIndex(indexIJK) = indexNew
-               auxVTKorder(indexNew) = indexVTK
-               auxCGNSorder(indexNew) = indexCGNS
-
-               !write(*,*) 'test->indexIJK ', indexIJK, ' iNew ', indexNew,' aux ', auxCGNSorder(indexNew)
-            end do
-         end do
-      end do
-      !!!$acc end kernels
-   end subroutine generate_new_nodeOrder_and_connectivity
-
-   subroutine generate_mpi_comm_scheme(vecSharedBN_full)
+   subroutine generate_mpi_comm_scheme_i4(vecSharedBN_full)
       !generate a matrix with the comm schemes for shared nodes between procs
-      integer, intent(in)  :: vecSharedBN_full(:)
-      integer, allocatable :: auxVecRanks(:)
-      integer, dimension(0:mpi_size-1) :: commSchemeNumNodes
-      integer,dimension(mpi_size*2) :: commSchemeStartEndNodes
+      integer(4), intent(in)  :: vecSharedBN_full(:)
+      integer(4), allocatable :: auxVecRanks(:),matrixCommScheme(:,:)
+      integer(4), dimension(0:mpi_size-1) :: commSchemeNumNodes
+      integer(4), dimension(mpi_size*2) :: commSchemeStartEndNodes
       
       logical :: imIn
-      integer :: i,j,k,iNodeL,iNodeGsrl,iRank,numRanksCnt
-      integer :: window_id
+      integer(4) :: i,j,k,iNodeL,iRank,numRanksCnt
+      integer(4) :: iNodeGsrl
+      integer(4) :: window_id
       
       integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size
       integer(KIND=MPI_ADDRESS_KIND) :: target_displacement
-
-      character(128) :: file_name, aux_string_rank
 
       if(mpi_rank.eq.0) write(*,*) ' # Generating MPI Comm scheme...'
 
@@ -2058,7 +349,7 @@ contains
          i=i+1
          iNodeGsrl  = vecSharedBN_full(i)
          i=i+1
-         numRanksCnt =vecSharedBN_full(i)
+         numRanksCnt = int(vecSharedBN_full(i),4)
 
          imIn=.false.
          do j=1,numRanksCnt
@@ -2080,7 +371,7 @@ contains
          i=i+1
          iNodeGsrl  = vecSharedBN_full(i)
          i=i+1
-         numRanksCnt =vecSharedBN_full(i)
+         numRanksCnt = int(vecSharedBN_full(i),4)
 
          imIn=.false.
          allocate(auxVecRanks(numRanksCnt))
@@ -2105,7 +396,7 @@ contains
       end do
 
       !first, we sort the matrix depending on the rank
-      call quicksort_matrix_int(matrixCommScheme,3)
+      call quicksort_matrix_int4(matrixCommScheme,3)
 
       !second, determine how many nodes are shared with each other ranks
       commSchemeNumNodes(:)=0
@@ -2125,7 +416,7 @@ contains
          if(j.ne.0) then
             k=i+j-1
             !write(*,*) '[',mpi_rank,']sort rank',irank,' from ',i,' to ', k
-            call quicksort_matrix_int(matrixCommScheme,2,i,k)
+            call quicksort_matrix_int4(matrixCommScheme,2,i,k)
             !start position
             commSchemeStartEndNodes(2*iRank+1)=i
             !end position
@@ -2134,6 +425,12 @@ contains
             numRanksWithComms=numRanksWithComms+1
          endif
       end do
+
+      allocate(nodesToComm(numNodesToComm))
+
+      nodesToComm(:) = matrixCommScheme(:,1)
+
+      deallocate(matrixCommScheme)
 
       !now I generate the vector ranksToComm, storing the ranks who with this rank will comm
       allocate(ranksToComm(numRanksWithComms))
@@ -2171,7 +468,7 @@ contains
          j=j+1
 
          target_displacement = 2*mpi_rank
-         call MPI_Get(commsMemPosInNgb(j),1,MPI_INTEGER,iRank,target_displacement,1,MPI_INTEGER,window_id,mpi_err)
+         call MPI_Get(commsMemPosInNgb(j),1,mpi_datatype_int,iRank,target_displacement,1,mpi_datatype_int,window_id,mpi_err)
 
       end do
    
@@ -2190,17 +487,7 @@ contains
 
       !ara podria obtenir els ranks locals de les altres cpus... pero cal?
 
-#if _CHECK_
-      write(aux_string_rank,'(I0)') mpi_rank
-      file_name = 'matrixCommScheme_rank'// trim(aux_string_rank)//'.csv'
-      open(1, file=file_name)
-         do i=1,numNodesToComm
-             write(1,fmt_csv) matrixCommScheme(i,:)
-         end do
-      close(1)
-#endif
-
-   end subroutine generate_mpi_comm_scheme
+   end subroutine generate_mpi_comm_scheme_i4
 !----------------------------------------------------------------------------------------------------------
 
 ! ################################################################################################
@@ -2220,8 +507,7 @@ contains
 
       write(1,*) 'X,Y,Z,d_field'
       do iNodeL=1,numNodesRankPar
-         !write(1,fmt_csv) coord_x(iNodeL),coord_y(iNodeL),coord_z(iNodeL),dfield(iNodeL)
-         write(1,fmt_csv) coordPar(iNodeL,1),coordPar(iNodeL,2),coordPar(iNodeL,3),dfield(iNodeL)
+         write(1,fmt_csv_msh) coordPar(iNodeL,1),coordPar(iNodeL,2),coordPar(iNodeL,3),dfield(iNodeL)
       end do
 
       close(1)
@@ -2241,7 +527,7 @@ contains
 
       write(1,*) 'X,Y,Z,ffield'
       do iNodeL=1,numNodesRankPar
-         write(1,fmt_csv) coordPar(iNodeL,1),coordPar(iNodeL,2),coordPar(iNodeL,3),ffield(iNodeL)
+         write(1,fmt_csv_msh) coordPar(iNodeL,1),coordPar(iNodeL,2),coordPar(iNodeL,3),ffield(iNodeL)
       end do
 
       close(1)

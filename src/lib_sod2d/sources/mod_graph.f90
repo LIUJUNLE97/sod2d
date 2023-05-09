@@ -1,6 +1,6 @@
 module mod_graph
 
-      use mod_constants
+      use mod_numerical_params
       use mod_nvtx
 
       contains

@@ -2,7 +2,7 @@ module mesh_reader
 
    ! TODO: Read fix.bou
    
-      use mod_constants
+      use mod_numerical_params
       contains
       
          subroutine read_dims(file_path,file_name,npoin,nelem,nboun)

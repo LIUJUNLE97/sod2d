@@ -18,7 +18,7 @@ module BluffBodySolver_mod
    use mod_period
    use time_integ
    use mod_analysis
-   use mod_constants
+   use mod_numerical_params
    use mod_time_ops
    use mod_fluid_viscosity
    use mod_postpro
@@ -38,7 +38,7 @@ module BluffBodySolver_mod
       procedure, public :: fillBCTypes           =>BluffBodySolver_fill_BC_Types
       procedure, public :: initializeParameters  => BluffBodySolver_initializeParameters
       procedure, public :: evalInitialConditions => BluffBodySolver_evalInitialConditions
-      procedure, public :: evalViscosityFactor=>BluffBodySolver_evalViscosityFactor
+      procedure, public :: initialBuffer => BluffBodySolver_initialBuffer
    end type BluffBodySolver
 contains
 
@@ -57,47 +57,52 @@ contains
       class(BluffBodySolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%gmsh_file_path,*) "./mesh/"
-      write(this%gmsh_file_name,*) "cyl" 
-      !write(this%gmsh_file_name,*) "naca" 
-
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cyl"
+      write(this%mesh_h5_file_name,*) "cylin"
       !write(this%mesh_h5_file_name,*) "naca"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
-      this%isPeriodic = .true.
-      this%loadMesh = .true.
-      this%loadResults = .true.
+      ! numerical params
+      flag_les = 1
+      flag_implicit = 1
+      flag_les_ilsa=0 
+      implicit_solver = implicit_solver_bdf2_rk10
+      !implicit_solver = implicit_solver_esdirk
+      flag_rk_order=4
+
+      pseudo_cfl =0.95_rp 
+      pseudo_ftau= 8.0_rp
+      maxIterNonLineal=300
+      tol=1e-3
+
+      this%loadResults = .false.
 
       this%continue_oldLogs = .false.
       this%load_step = 150001
 
       this%nstep = 90000001 !250001
-      this%cfl_conv = 0.5_rp !0.1_rp
-      this%cfl_diff = 0.5_rp !0.1_rp
-      !this%cfl_conv = 0.5_rp !0.1_rp
-      !this%cfl_diff = 0.5_rp !0.1_rp
+      this%cfl_conv = 100.0_rp 
+      this%cfl_diff = 100.0_rp 
 
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
 
-      this%nleap = 50000 ! Saving interval, TODO: input
+      this%nleap = 500 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
       this%nleap2 = 50  ! Saving interval, TODO: input
-      this%nleapAVG = 50000
+      this%nleapAVG = 500
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
-      this%vo = 4.0_rp
-      this%M  = 1.0_rp
+      this%vo = 1.0_rp
+      this%M  = 0.2_rp
       this%delta  = 1.0_rp
       this%rho0   = 1.0_rp
       this%gamma_gas = 1.40_rp
-      this%Re     =  10000.0_rp
+      this%Re     =  3300.0_rp
       !this%Re     =  100000.0_rp
 
       mul    = (this%rho0*this%delta*this%vo)/this%Re
@@ -125,23 +130,24 @@ contains
       this%wit_save_rho          = .true.
       this%continue_witness      = .false.     
  
-     flag_buffer_on = .true.
-      !cylinder
-      flag_buffer_on_east = .true.
-      flag_buffer_e_min = 40.0_rp
-      flag_buffer_e_size = 10.0_rp
+      flag_buffer_on = .true.
+     !cylinder
+     flag_buffer_on_east = .true.
+     flag_buffer_e_min = 100.0_rp
+     flag_buffer_e_size = 10.0_rp
 
-      flag_buffer_on_west = .true.
-      flag_buffer_w_min = -20.0_rp
-      flag_buffer_w_size = 10.0_rp
+     flag_buffer_on_west = .true.
+     flag_buffer_w_min = -15.0_rp
+     flag_buffer_w_size = 10.0_rp
 
-      flag_buffer_on_north = .true.
-      flag_buffer_n_min = 20.0_rp
-      flag_buffer_n_size = 10.0_rp
+     flag_buffer_on_north = .true.
+     flag_buffer_n_min = 15.0_rp
+     flag_buffer_n_size = 10.0_rp
 
-      flag_buffer_on_south = .true.
-      flag_buffer_s_min = -20.0_rp
-      flag_buffer_s_size = 10.0_rp
+     flag_buffer_on_south = .true.
+     flag_buffer_s_min = -15.0_rp
+     flag_buffer_s_size = 10.0_rp
+
       !naca
      !flag_buffer_on_east = .true.
      !flag_buffer_e_min = 10.0_rp
@@ -186,6 +192,11 @@ contains
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
          eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
          machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
+
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+         rho(iNodeL,3) = rho(iNodeL,2)
+         E(iNodeL,3) =  E(iNodeL,2)
+         eta(iNodeL,3) = eta(iNodeL,2) 
       end do
       !$acc end parallel loop
 
@@ -203,21 +214,19 @@ contains
 
    end subroutine BluffBodySolver_evalInitialConditions
 
-   subroutine BluffBodySolver_evalViscosityFactor(this)
+
+   subroutine BluffBodySolver_initialBuffer(this)
       class(BluffBodySolver), intent(inout) :: this
       integer(4) :: iNodeL
 
-      ! set out of the buffer zone
-      ! remember that the mu_factor field has to be filled at least with the
-      ! flag_mu_factor
-
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-         mu_factor(iNodeL) = flag_mu_factor
-
+            u_buffer(iNodeL,1) = this%vo
+            u_buffer(iNodeL,2) = 0.0_rp
+            u_buffer(iNodeL,3) = 0.0_rp  
       end do
       !$acc end parallel loop
 
-   end subroutine BluffBodySolver_evalViscosityFactor
+   end subroutine BluffBodySolver_initialBuffer
 
 end module BluffBodySolver_mod

@@ -1,7 +1,7 @@
 module mod_bc_routines
 
    use mod_mpi
-   use mod_constants
+   use mod_numerical_params
    use mod_comms
    use mod_comms_boundaries
    use mod_nvtx
@@ -37,11 +37,11 @@ module mod_bc_routines
 
             if(mpi_size.ge.2) then
                call nvtxStartRange("MPI_comms_tI")
-               call mpi_halo_max_boundary_update_float_iSendiRcv(aux_q2(:,1))
-               call mpi_halo_max_boundary_update_float_iSendiRcv(aux_q2(:,2))
-               call mpi_halo_max_boundary_update_float_iSendiRcv(aux_q2(:,3))
-               call mpi_halo_max_boundary_update_float_iSendiRcv(aux_rho2(:))
-               call mpi_halo_max_boundary_update_float_iSendiRcv(aux_E2(:))
+               call mpi_halo_max_boundary_update_real_iSendiRcv(aux_q2(:,1))
+               call mpi_halo_max_boundary_update_real_iSendiRcv(aux_q2(:,2))
+               call mpi_halo_max_boundary_update_real_iSendiRcv(aux_q2(:,3))
+               call mpi_halo_max_boundary_update_real_iSendiRcv(aux_rho2(:))
+               call mpi_halo_max_boundary_update_real_iSendiRcv(aux_E2(:))
                call nvtxEndRange
             end if
 
@@ -75,7 +75,7 @@ module mod_bc_routines
                      sl = min(u_buffer(inode,1)-nscbc_c_inf, aux_u2(inode,1) - sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)))
                      sr =  max(aux_u2(inode,1) + sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)), u_buffer(inode,1)+nscbc_c_inf)
 
-                     rho_hll = (sr*aux_rho2(inode)-sl*nscbc_rho_inf+nscbc_rho_inf*nscbc_u_inf-aux_q2(inode,1))/(sr-sl)
+                     q_hll   = (sr*aux_q2(inode,1)-sl*nscbc_rho_inf*u_buffer(inode,1)+nscbc_rho_inf*u_buffer(inode,1)**2-aux_u2(inode,1)*aux_q2(inode,1))/(sr-sl)
 
                      aux_rho(inode) = rho_hll
                      aux_E(inode) = E_hll
@@ -140,20 +140,7 @@ module mod_bc_routines
                      !aux_p(inode) = nscbc_p_inf
                      aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
 
-                  else if (bcode == bc_type_slip_adiabatic) then !slip wall in x
-
-                     aux_q(inode,1) = nscbc_rho_inf*u_buffer(inode,1)
-                     aux_u(inode,1) = u_buffer(inode,1)
-                     aux_q(inode,2) = 0.0_rp
-                     aux_u(inode,2) = 0.0_rp
-                     aux_q(inode,3) = 0.0_rp
-                     aux_u(inode,3) = 0.0_rp
-
-                     aux_p(inode) = nscbc_p_inf
-                     aux_rho(inode) = nscbc_rho_inf
-                     aux_E(inode) = nscbc_rho_inf*0.5_rp*u_buffer(inode,1)**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
-
-                  else if (bcode == bc_type_slip_wall_model) then ! slip wall model
+                  else if ((bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic)) then ! slip wall model
                      norm = dot_product(normalsAtNodes(inode,:),aux_q(inode,:))
                      !$acc loop seq
                      do idime = 1,ndime     
@@ -174,5 +161,87 @@ module mod_bc_routines
             !$acc end parallel loop
 
          end subroutine temporary_bc_routine_dirichlet_prim
+subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Rmass,Rmom,Rener)
 
+            implicit none
+
+            integer(4), intent(in)     :: npoin, nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
+            integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou),lnbn_nodes(npoin)
+            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
+            real(rp),    intent(inout) :: Rmass(npoin),Rmom(npoin,ndime),Rener(npoin)
+            integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
+
+         
+            !$acc parallel loop  
+            do inode = 1,npoin
+               if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
+                  bcode = bou_codes_nodes(inode) ! Boundary element code
+                  if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic                  
+                     Rmom(inode,1) = 0.0_rp
+                     Rmom(inode,2) = 0.0_rp
+                     Rmom(inode,3) = 0.0_rp
+
+                     Rmass(inode) = 0.0_rp
+                  else if (bcode == bc_type_non_slip_hot) then ! non_slip wall hot
+                     Rmom(inode,1) = 0.0_rp
+                     Rmom(inode,2) = 0.0_rp
+                     Rmom(inode,3) = 0.0_rp
+
+                     Rmass(inode) = 0.0_rp
+                     Rener(inode) = 0.0_rp
+                  else if (bcode == bc_type_non_slip_cold) then ! non_slip wall cold
+                     Rmom(inode,1) = 0.0_rp
+                     Rmom(inode,2) = 0.0_rp
+                     Rmom(inode,3) = 0.0_rp
+
+                     Rmass(inode) = 0.0_rp
+                     Rener(inode) = 0.0_rp
+                  end if
+               end if
+            end do
+            !$acc end parallel loop
+
+         end subroutine bc_fix_dirichlet_residual
+
+         subroutine bc_fix_dirichlet_Jacobian(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Jmass,Jmom,Jener)
+
+            implicit none
+
+            integer(4), intent(in)     :: npoin, nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
+            integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou),lnbn_nodes(npoin)
+            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
+            real(rp),    intent(inout) :: Jmass(npoin),Jmom(npoin,ndime),Jener(npoin)
+            integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
+
+         
+            !$acc parallel loop  
+            do inode = 1,npoin
+               if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
+                  bcode = bou_codes_nodes(inode) ! Boundary element code
+                  if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic                  
+                     Jmom(inode,1) = 0.0_rp
+                     Jmom(inode,2) = 0.0_rp
+                     Jmom(inode,3) = 0.0_rp
+                     Jmass(inode) = 0.0_rp
+
+                  else if (bcode == bc_type_non_slip_hot) then ! non_slip wall hot
+                     Jmom(inode,1) = 0.0_rp
+                     Jmom(inode,2) = 0.0_rp
+                     Jmom(inode,3) = 0.0_rp
+
+                     Jmass(inode) = 0.0_rp
+                     Jener(inode) = 0.0_rp
+                  else if (bcode == bc_type_non_slip_cold) then ! non_slip wall cold
+                     Jmom(inode,1) = 0.0_rp
+                     Jmom(inode,2) = 0.0_rp
+                     Jmom(inode,3) = 0.0_rp
+
+                     Jmass(inode) = 0.0_rp
+                     Jener(inode) = 0.0_rp
+                  end if
+               end if
+            end do
+            !$acc end parallel loop
+
+         end subroutine bc_fix_dirichlet_Jacobian
       end module mod_bc_routines

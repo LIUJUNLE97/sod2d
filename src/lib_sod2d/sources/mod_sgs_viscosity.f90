@@ -1,6 +1,6 @@
 module mod_sgs_viscosity
 
-   use mod_constants
+   use mod_numerical_params
    use mod_nvtx
    use mod_veclen
 

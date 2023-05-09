@@ -1,6 +1,6 @@
 module mass_matrix
 
-   use mod_constants
+   use mod_numerical_params
    use mod_nvtx
    use mod_veclen
    use mod_mpi
@@ -189,7 +189,7 @@ module mass_matrix
 
                  if(mpi_size.ge.2) then
                   call nvtxStartRange("MPI_comms_mass")
-                  call mpi_halo_atomic_update_float(Ml)
+                  call mpi_halo_atomic_update_real(Ml)
                   call nvtxEndRange
                  end if
 
