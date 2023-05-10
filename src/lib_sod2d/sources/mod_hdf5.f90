@@ -3165,18 +3165,15 @@ contains
       call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,Qcrit)
       
       ! ----  time  -----
-      ms_dims(1) = 0
+      ms_dims(1) = 1
       ds_dims = 1
       ms_offset(1) = 0
       if(mpi_rank.eq.0) then
          ms_dims(1) = 1
       endif
-      aux_array_time(1) = time
 
       dsetname = 'time'
-      write(*,*) "Hola HDF5"
       call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_array_time)
-      write(*,*) "Hola HDF5 2"
 
       !close the file.
       call h5fclose_f(file_id,h5err)

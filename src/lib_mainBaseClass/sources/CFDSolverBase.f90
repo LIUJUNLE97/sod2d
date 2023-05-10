@@ -1104,9 +1104,7 @@ contains
             if (mpi_rank.eq.0) write(111,*) ' -Saving file step: ',istep
             call nvtxStartRange("Output "//timeStep,istep)
             call compute_fieldDerivs(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
-            write(*,*) "Hola 0"
             call this%savePosprocessingFields(istep)
-            write(*,*) "Hola 1"
             this%nsave = this%nsave+this%nleap
             call nvtxEndRange
          end if
