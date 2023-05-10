@@ -123,7 +123,7 @@ contains
       flag_rk_order=4
        
       pseudo_cfl =0.3_rp 
-      pseudo_ftau= 8.0_rp
+      pseudo_ftau= 6.0_rp
       maxIterNonLineal=300
       tol=1e-3
 

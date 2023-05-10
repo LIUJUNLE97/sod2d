@@ -257,13 +257,14 @@ module time_integ
             !real(rp),    dimension(npoin)       :: Rmass_sum, Rener_sum, alpha,dt_min
             !real(rp),    dimension(npoin,ndime) :: Rmom_sum, f_eta
             !real(rp)                            :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
-            real(rp)                            :: umag,aux,kappa=1e-6,phi=0.4,xi=0.7,f_save=1.0,f_max=1.02_rp,f_min=0.98_rp,errMax
-            real(8)                             :: aux2,res_ini,res(2)
+            real(rp)                            :: umag,aux,kappa=1e-6,phi=0.4_rp,xi=0.7_rp,f_save=1.0_rp,f_max=1.01_rp,f_min=0.98_rp
+            real(8)                             :: aux2,res_ini,res(2),errMax
 
             !
             ! Choose between updating prediction or correction
             !
             pos = 2 ! Set correction as default value
+            kappa = sqrt(epsilon(kappa))
 
             call nvtxStartRange("Updating local dt")
             call adapt_local_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,pseudo_cfl,dt_min,pseudo_cfl,mu_fluid,mu_sgs,rho(:,2))
@@ -520,25 +521,25 @@ module time_integ
                !$acc parallel loop reduction(+:aux2)
                do ipoin = 1,npoin
                   rho(ipoin,pos) = rho(ipoin,pos)+pt(ipoin,1)*Rmass_sum(ipoin)
-                  aux2 = aux2 + real(Rmass_sum(ipoin)**2,8)
+                  aux2 = aux2 + real(Rmass_sum(ipoin),8)**2
                   E(ipoin,pos) = (E(ipoin,pos)+pt(ipoin,2)*Rener_sum(ipoin))
-                  aux2 = aux2 + real(Rener_sum(ipoin)**2,8)
+                  aux2 = aux2 + real(Rener_sum(ipoin),8)**2
                   !$acc loop seq
                   do idime = 1,ndime
                      q(ipoin,idime,pos) = q(ipoin,idime,pos)+pt(ipoin,idime+2)*Rmom_sum(ipoin,idime)
-                     aux2 = aux2 + real(Rmom_sum(ipoin,idime)**2,8)
+                     aux2 = aux2 + real(Rmom_sum(ipoin,idime),8)**2
                   end do
                   
                  ! pseudo stepping
-                  aux = ((sigMass(ipoin,2))**(-phi/3.0_rp))*((sigMass(ipoin,1))**(-xi/3.0_rp))
+                  aux = ((sigMass(ipoin,2))**(-phi))*((sigMass(ipoin,1))**(-xi))
                   aux = min(f_max,max(f_min,f_save*aux))
                   pt(ipoin,1) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,1)))
-                  aux = ((sigEner(ipoin,2))**(-phi/3.0_rp))*((sigEner(ipoin,2))**(-xi/3.0_rp))
+                  aux = ((sigEner(ipoin,2))**(-phi))*((sigEner(ipoin,2))**(-xi))
                   aux = min(f_max,max(f_min,f_save*aux))
                   pt(ipoin,2) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,2)))
                   !$acc loop seq
                   do idime = 1,ndime
-                     aux = ((sigMom(ipoin,idime,2))**(-phi/3.0_rp))*((sigMom(ipoin,idime,2))**(-xi/3.0_rp))
+                     aux = ((sigMom(ipoin,idime,2))**(-phi))*((sigMom(ipoin,idime,2))**(-xi))
                      aux = min(f_max,max(f_min,f_save*aux))
                      pt(ipoin,idime+2) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,idime+2)))
                   end do

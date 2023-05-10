@@ -34,7 +34,7 @@ module mod_numerical_params
         integer(4) ::  maxIter=20
         integer(4) ::  maxIterNonLineal=20
         integer(4) ::  pseudo_steps=10
-        real(rp)   ::  tol=1e-4
+        real(8)   ::  tol=1e-4
 
         integer(4) ::  implicit_solver = implicit_solver_bdf2_rk10
 
