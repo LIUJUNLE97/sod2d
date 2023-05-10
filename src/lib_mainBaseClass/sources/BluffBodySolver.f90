@@ -119,6 +119,17 @@ contains
       nscbc_c_inf = sqrt(this%gamma_gas*this%po/this%rho0)
       nscbc_Rgas_inf = this%Rgas
 
+      !Witness points parameters
+      this%have_witness          = .true.
+      this%witness_inp_file_name = "witness.txt"
+      this%witness_h5_file_name  = "resultwit.h5"
+      this%leapwit               = 1
+      this%nwit                  = 17986
+      this%wit_save_u_i          = .true.
+      this%wit_save_pr           = .true.
+      this%wit_save_rho          = .true.
+      this%continue_witness      = .false.     
+ 
       flag_buffer_on = .true.
      !cylinder
      flag_buffer_on_east = .true.

@@ -44,10 +44,10 @@ contains
       class(TGVSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%mesh_h5_file_path,*) ""
+      write(this%mesh_h5_file_path,*) "test_witness/"
       write(this%mesh_h5_file_name,*) "cube"
 
-      write(this%results_h5_file_path,*) ""
+      write(this%results_h5_file_path,*) "test_witness/"
       write(this%results_h5_file_name,*) "results"
 
       this%doGlobalAnalysis = .true.
@@ -73,15 +73,15 @@ contains
 
       !this%cfl_conv = 2.5_rp
       !this%cfl_diff = 2.5_rp
-      this%cfl_conv = 100.0_rp
-      this%cfl_diff = 100.0_rp
+      this%cfl_conv = 10.0_rp
+      this%cfl_diff = 10.0_rp
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
 
       this%nsaveAVG = 1
-      this%nleap = 2000 ! Saving interval, TODO: input
+      this%nleap = 10 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 10  ! Saving interval, TODO: input
+      this%nleap2 = 2  ! Saving interval, TODO: input
       this%nleapAVG = 2000
 
       this%Cp = 1004.0_rp
@@ -101,6 +101,18 @@ contains
       nscbc_p_inf = this%po
       nscbc_Rgas_inf = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
+
+      !Witness points parameters
+      this%have_witness          = .true.
+      this%witness_inp_file_name = "witness.txt"
+      this%witness_h5_file_name  = "resultwit.h5"
+      this%leapwit               = 1
+      this%leapwitsave           = 5
+      this%nwit                  = 10
+      this%wit_save_u_i          = .true.
+      this%wit_save_pr           = .true.
+      this%wit_save_rho          = .true.
+      this%continue_witness      = .false.
 
    end subroutine TGVSolver_initializeParameters
 
