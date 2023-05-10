@@ -44,10 +44,10 @@ contains
       class(TGVSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%mesh_h5_file_path,*) ""
+      write(this%mesh_h5_file_path,*) "test_witness/"
       write(this%mesh_h5_file_name,*) "cube"
 
-      write(this%results_h5_file_path,*) ""
+      write(this%results_h5_file_path,*) "test_witness/"
       write(this%results_h5_file_name,*) "results"
 
       this%doGlobalAnalysis = .true.
@@ -112,7 +112,7 @@ contains
       this%wit_save_u_i          = .true.
       this%wit_save_pr           = .true.
       this%wit_save_rho          = .true.
-      this%continue_witness      = .true.
+      this%continue_witness      = .false.
 
    end subroutine TGVSolver_initializeParameters
 
