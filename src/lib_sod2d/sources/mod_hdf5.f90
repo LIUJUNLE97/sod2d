@@ -3165,7 +3165,7 @@ contains
       call save_array1D_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,Qcrit)
       
       ! ----  time  -----
-      ms_dims(1) = 1
+      ms_dims(1) = 0
       ds_dims = 1
       ms_offset(1) = 0
       if(mpi_rank.eq.0) then
