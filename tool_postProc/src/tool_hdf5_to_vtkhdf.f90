@@ -6,6 +6,8 @@ program tool_hdf5_to_cgns
     use mod_hdf5
     !use mod_cgns_mesh
     implicit none
+#if 0
+!TOOL TO BE DEPRECATED
 
     character(512) :: mesh_h5_filePath,mesh_h5_fileName
     character(512) :: results_h5_filePath,results_h5_fileName
@@ -191,5 +193,5 @@ program tool_hdf5_to_cgns
     call end_hdf5_interface()
 
     call end_mpi()
-
+#endif
 end program tool_hdf5_to_cgns

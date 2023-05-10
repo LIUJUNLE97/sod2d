@@ -9,7 +9,7 @@ module mod_hdf5
    implicit none
 
    character(256) :: meshFile_h5_name,base_resultsFile_h5_name,base_avgResultsFile_h5_name,base_restartFile_h5_name
-   integer(hid_t) :: meshFile_h5_id,resultsFile_h5_id
+   !integer(hid_t) :: meshFile_h5_id
 
    integer(hid_t) :: h5_datatype_uint1,h5_datatype_int1,h5_datatype_int4,h5_datatype_int8
    integer(hid_t) :: h5_datatype_real4,h5_datatype_real8
@@ -71,6 +71,62 @@ contains
 !---------------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------------
 
+   subroutine create_hdf5_file(full_hdf5FileName,hdf5_file_id)
+      implicit none
+      character(*), intent(in) :: full_hdf5FileName
+      integer(hid_t),intent(inout) :: hdf5_file_id
+      integer(hid_t) :: plist_id
+      integer :: h5err
+
+      !-----------------------------------------------------------------------------------------------
+      ! Setup file access property list with parallel I/O access.
+      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
+      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+
+      ! create file collectively
+      call h5fcreate_f(full_hdf5FileName,H5F_ACC_TRUNC_F,hdf5_file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot create results file ',trim(adjustl(full_hdf5FileName))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
+      call h5pclose_f(plist_id, h5err)
+
+   end subroutine create_hdf5_file
+
+   subroutine open_hdf5_file(full_hdf5FileName,hdf5_file_id)
+      implicit none
+      character(*), intent(in) :: full_hdf5FileName
+      integer(hid_t),intent(inout) :: hdf5_file_id
+      integer(hid_t) :: plist_id
+      integer :: h5err
+
+      !-----------------------------------------------------------------------------------------------
+      ! Setup file access property list with parallel I/O access.
+      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
+      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+
+      call h5fopen_f(full_hdf5FileName,H5F_ACC_RDWR_F,hdf5_file_id,h5err,access_prp=plist_id)
+      if(h5err .ne. 0) then
+         write(*,*) 'FATAL ERROR! Cannot load hdf5 file ',trim(adjustl(full_hdf5FileName))
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
+      call h5pclose_f(plist_id, h5err)
+
+
+      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
+      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+
+   end subroutine open_hdf5_file
+
+   subroutine close_hdf5_file(hdf5_file_id)
+      implicit none
+      integer(hid_t),intent(inout) :: hdf5_file_id
+      integer :: h5err
+
+      !close the file.
+      call h5fclose_f(hdf5_file_id,h5err)
+   end subroutine close_hdf5_file
+#if 0
    subroutine create_hdf5_meshFile_from_tool(hdf5_file_id)
       implicit none
       integer(hid_t),intent(inout) :: hdf5_file_id
@@ -100,7 +156,7 @@ contains
       !close the file.
       call h5fclose_f(hdf5_file_id,h5err)
    end subroutine close_hdf5_meshFile_from_tool
-
+#endif
    subroutine create_hdf5_groups_datasets_in_meshFile_from_tool(hdf5_file_id,isPeriodic,isBoundaries,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
                vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,&
                vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank)
@@ -965,25 +1021,13 @@ contains
    subroutine load_hdf5_meshFile()
       implicit none     
       character(256) :: groupname,dsetname
-      integer(hid_t) :: file_id,plist_id,dset_id,fspace_id
+      integer(hid_t) :: file_id,dset_id,fspace_id
       integer(4) :: h5err
       integer(hsize_t),dimension(1) :: fs_dims,fs_maxdims
 
-      !.init h5 interface
-      !call h5open_f(h5err)
-
-      ! Setup file access property list with parallel I/O access.
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
-      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
-
       if(mpi_rank.eq.0) write(*,*) '# Loading hdf5 mesh: ',meshFile_h5_name
 
-      call h5fopen_f(meshFile_h5_name, H5F_ACC_RDWR_F,file_id,h5err,access_prp=plist_id)
-      if(h5err .ne. 0) then
-         write(*,*) 'FATAL ERROR! Cannot load meshfile ',trim(adjustl(meshFile_h5_name))
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-      end if
-      call h5pclose_f(plist_id, h5err)
+      call open_hdf5_file(meshFile_h5_name,file_id)
 
       !-----------------------------------------------------------------------------------------------
 
@@ -1066,10 +1110,11 @@ contains
       call load_globalIds_hdf5(file_id)
 
       !close h5 file
-      call h5fclose_f(file_id,h5err)
+      call close_hdf5_file(file_id)
 
    end subroutine load_hdf5_meshFile
-
+#if 0
+   !TO DEL?
    subroutine close_hdf5_meshFile()
       implicit none
       integer(4) :: h5err
@@ -1077,7 +1122,7 @@ contains
       !close the file.
       call h5fclose_f(meshFile_h5_id,h5err)
    end subroutine close_hdf5_meshFile
-
+#endif
    subroutine create_group_hdf5(file_id,groupname)
       implicit none
       integer(hid_t),intent(in) :: file_id
@@ -2813,7 +2858,7 @@ contains
 
       ms_dims2d(1) = int(ndime,hsize_t)
       ms_dims2d(2) = int(numNodesRankPar,hsize_t)
-      ms_offset2d(2) = 0
+      ms_offset2d(1) = 0
       ms_offset2d(2) = int(rankNodeStart,hssize_t)-1
 
       dsetname = '/VTKHDF/Points'
@@ -2888,6 +2933,16 @@ contains
       write(aux_step,'(I0)') iStep
       full_fileName = trim(adjustl(base_restartFile_h5_name))//trim(aux_step)//'.h5'
    end subroutine set_hdf5_restartFile_name
+
+   subroutine set_hdf5_avgResultsFile_name(iStep,full_fileName)
+      implicit none
+      integer, intent(in) :: iStep
+      character(len=*), intent(out) :: full_fileName
+      character(len=12) :: aux_step
+
+      write(aux_step,'(I0)') iStep
+      full_fileName = trim(adjustl(base_avgResultsFile_h5_name))//trim(aux_step)//'.hdf'
+   end subroutine set_hdf5_avgResultsFile_name
 
 !----------------------------------------------------------------------------------------------------------------------------------
 
@@ -3003,7 +3058,7 @@ contains
 
       integer(4) :: h5err
       real(rp_vtk),allocatable :: aux_data_array_rp_vtk(:,:)
-   !---------------------------------------------------------------------------------------------------
+   !------------------------------------------------------------------v---------------------------------
 
       if(rp .eq. rp_vtk) then
          call read_dataspace_2d_tr_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims2d,ms_offset2d,data_array_rp)
@@ -3015,6 +3070,84 @@ contains
       end if
 
    end subroutine read_array2D_tr_rp_in_dataset_hdf5_file
+
+   subroutine save_real_rp_in_dataset_hdf5_file(file_id,dsetname,real2save)
+      implicit none
+      integer(4),parameter :: ds_rank = 1, ms_rank = 1 !it is forced
+      integer(hid_t),intent(in) :: file_id
+      character(*),intent(in) :: dsetname
+      real(rp),intent(in) :: real2save
+      integer(hsize_t),dimension(ms_rank) :: ds_dims,ms_dims,fs_dims,fs_maxdims
+      integer(hssize_t),dimension(ms_rank) :: ms_offset 
+      integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id,dtype
+      integer(4) :: h5err
+
+      real(rp_vtk),allocatable :: aux_data_array_rp_vtk(:)
+      
+      !----------------------------------------------------------------------------------------------------------
+      ms_dims(1) = 0
+      ds_dims = 1
+      ms_offset(1) = 0
+      if(mpi_rank.eq.0) then
+         ms_dims(1) = 1
+      endif
+
+      allocate(aux_data_array_rp_vtk(ms_dims(1)))
+
+      if(mpi_rank.eq.0) then
+         aux_data_array_rp_vtk(1) = real(real2save,rp_vtk)
+      end if
+
+      !---------------------------------------------------------------------------------------------------
+
+      call create_dataspace_for_rp_vtk_hdf5(file_id,dsetname,ds_rank,ds_dims)
+
+      call select_dtype_rp_vtk(dtype)
+
+      call open_create_dataspace_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,&
+                                         dset_id,fspace_id,mspace_id,plist_id,fs_dims,fs_maxdims)
+
+      call h5dwrite_f(dset_id,dtype,aux_data_array_rp_vtk,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+
+      call close_dataspace_hyperslab_parallel(dset_id,fspace_id,mspace_id,plist_id)
+
+   end subroutine save_real_rp_in_dataset_hdf5_file
+
+   subroutine read_real_rp_in_dataset_hdf5_file(file_id,dsetname,real2read)
+      implicit none
+      integer(4),parameter :: ds_rank = 1, ms_rank = 1 !it is forced
+      integer(hid_t),intent(in) :: file_id
+      character(*),intent(in) :: dsetname
+      real(rp),intent(out) :: real2read
+      integer(hsize_t),dimension(ms_rank) :: ds_dims,ms_dims,fs_dims,fs_maxdims
+      integer(hssize_t),dimension(ms_rank) :: ms_offset 
+      integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id,dtype
+      integer(4) :: h5err
+
+      real(rp_vtk),allocatable :: aux_data_array_rp_vtk(:)
+      
+      !----------------------------------------------------------------------------------------------------------
+      ms_dims(1) = 1
+      ds_dims = 1
+      ms_offset(1) = 0
+
+      allocate(aux_data_array_rp_vtk(ms_dims(1)))
+
+      !---------------------------------------------------------------------------------------------------
+
+      call select_dtype_rp_vtk(dtype)
+
+      call open_create_dataspace_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,&
+                                         dset_id,fspace_id,mspace_id,plist_id,fs_dims,fs_maxdims)
+
+      call h5dread_f(dset_id,dtype,aux_data_array_rp_vtk,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+
+      call close_dataspace_hyperslab_parallel(dset_id,fspace_id,mspace_id,plist_id)
+
+      real2read = real(aux_data_array_rp_vtk(1),rp)
+
+   end subroutine read_real_rp_in_dataset_hdf5_file
+
 
 !----------------------------------------------------------------------------------------------------------------------------------
 
@@ -3032,7 +3165,7 @@ contains
       integer(4) :: ds_rank,ms_rank,h5err
       character(512) :: full_fileName,dsetname
 
-      real(rp) :: aux_array_rp(1)
+      !real(rp) :: aux_array_rp(1)
       integer(4) :: aux_array_i4(1)
 
       real(rp),dimension(numNodesRankPar) :: aux_mu_e,aux_mu_t
@@ -3052,17 +3185,8 @@ contains
 
       call set_hdf5_restartFile_name(restartCnt,full_fileName)
 
-      ! Setup file access property list with parallel I/O access.
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
-      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+      call create_hdf5_file(full_fileName,file_id)
 
-      ! create file collectively
-      call h5fcreate_f(full_fileName,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
-      if(h5err .ne. 0) then
-         write(*,*) 'FATAL ERROR! Cannot create restart file ',trim(adjustl(full_fileName))
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-      end if
-      call h5pclose_f(plist_id, h5err)
       !-----------------------------------------------------------------------------------------------
       ds_dims(1) = int(totalNumNodesPar,hsize_t)
       ms_dims(1) = int(numNodesRankPar,hsize_t)
@@ -3095,16 +3219,17 @@ contains
 
       !-----------------------------------------------------------------------------------------------
       ! ----  time  -----
+      dsetname = 'time'
+      call save_real_rp_in_dataset_hdf5_file(file_id,dsetname,time)
+
       ms_dims(1) = 0
       ds_dims = 1
       ms_offset(1) = 0
       if(mpi_rank.eq.0) then
          ms_dims(1) = 1
       endif
-      aux_array_rp(1) = time
-
-      dsetname = 'time'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_array_rp)
+      !aux_array_rp(1) = time
+      !call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_array_rp)
 
       !-----------------------------------------------------------------------------------------------
       ! ---- istep -----
@@ -3118,7 +3243,7 @@ contains
       call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
       !close the file.
-      call h5fclose_f(file_id,h5err)
+      call close_hdf5_file(file_id)
 
    end subroutine save_hdf5_restartFile
 
@@ -3154,16 +3279,7 @@ contains
       call set_hdf5_restartFile_name(restartCnt,full_restartFileName)
       if(mpi_rank.eq.0) write(*,*) '# Loading restart file: ',trim(adjustl(full_restartFileName))
 
-      ! Setup file access property list with parallel I/O access.
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
-      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
-
-      call h5fopen_f(full_restartFileName, H5F_ACC_RDWR_F,file_id,h5err,access_prp=plist_id)
-      if(h5err .ne. 0) then
-         write(*,*) 'FATAL ERROR! Cannot load restart file ',trim(adjustl(full_restartFileName))
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-      end if
-      call h5pclose_f(plist_id, h5err)
+      call open_hdf5_file(full_restartFileName,file_id)
 
       ms_rank = 1
       ms_offset(1) = 0
@@ -3171,8 +3287,9 @@ contains
       ! ----  read time  --------------------------------------------------------------------------
 
       dsetname = 'time'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_array_rp)
-      time = aux_array_rp(1)
+      call read_real_rp_in_dataset_hdf5_file(file_id,dsetname,time)
+      !call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_array_rp)
+      !time = aux_array_rp(1)
 
       ! ----  read istep --------------------------------------------------------------------------
       dsetname = 'istep'
@@ -3232,12 +3349,12 @@ contains
          !$acc end parallel loop
       end if
 
-      call h5fclose_f(file_id,h5err)
+      call close_hdf5_file(file_id)
 
    end subroutine load_hdf5_restartFile
 
 !----------------------------------------------------------------------------------------------------------------------------------
-
+#if 0
    subroutine save_hdf5_resultsFile_old(iStep,time,rho,u,pr,E,eta,csound,machno,gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs)
       implicit none
       integer(4), intent(in) :: iStep
@@ -3396,48 +3513,29 @@ contains
       call h5fclose_f(file_id,h5err)
 
    end subroutine save_hdf5_resultsFile_old
+#endif 
 
-   subroutine save_hdf5_resultsFile(iStep,time,numNodeScalarFields2save,nodeScalarFields2save,nameNodeScalarFields2save,&
+   subroutine save_hdf5_resultsFile_baseFunc(hdf5_fileId,numNodeScalarFields2save,nodeScalarFields2save,nameNodeScalarFields2save,&
                                                      numNodeVectorFields2save,nodeVectorFields2save,nameNodeVectorFields2save,&
                                                      numElemGpScalarFields2save,elemGpScalarFields2save,nameElemGpScalarFields2save)
       implicit none
-      integer(4), intent(in) :: iStep
-      real(rp),intent(in) :: time
+      integer(hid_t),intent(in) :: hdf5_fileId
       integer(4),intent(in) :: numNodeScalarFields2save,numNodeVectorFields2save,numElemGpScalarFields2save
       type(ptr_array1d_rp),intent(in) :: nodeScalarFields2save(:)
       type(ptr_array2d_rp),intent(in) :: nodeVectorFields2save(:),elemGpScalarFields2save(:)
 
       character(128),intent(in)   :: nameNodeScalarFields2save(numNodeScalarFields2save),nameNodeVectorFields2save(numNodeVectorFields2save),nameElemGpScalarFields2save(numElemGpScalarFields2save)
       
-      integer(hid_t) :: file_id,plist_id
       integer(hsize_t) :: ds_dims(1),ms_dims(1),ds_dims2d(2),ms_dims2d(2)
       integer(hssize_t) :: ms_offset(1),ms_offset2d(2)
       integer(4) :: h5err
-      character(512) :: full_fileName,mesh_path_fileName,groupname,dsetname,obj_name
+      character(512) :: groupname,dsetname
       integer(4) :: iElem,iGp,iPer,iField
       real(rp) :: aux_nodeScalarField(numNodesRankPar)
-      real(rp) :: aux_array_time(1)
-
-      !-----------------------------------------------------------------------------------------------
-      ! Writing HDF5 Files
-
-      call set_hdf5_resultsFile_name(iStep,full_fileName)
-
-      ! Setup file access property list with parallel I/O access.
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
-      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
-
-      ! create file collectively
-      call h5fcreate_f(full_fileName,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
-      if(h5err .ne. 0) then
-         write(*,*) 'FATAL ERROR! Cannot create results file ',trim(adjustl(full_fileName))
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-      end if
-      call h5pclose_f(plist_id, h5err)
 
       !-----------------------------------------------------------------------------------------------
       !   Creating the VTK-HDF structure
-      call create_vtkhdf_unstructuredGrid_struct_for_resultsFile(file_id)
+      call create_vtkhdf_unstructuredGrid_struct_for_resultsFile(hdf5_fileId)
 
       !-----------------------------------------------------------------------------------------------
       ds_dims(1) = int(totalNumNodesPar,hsize_t)
@@ -3445,7 +3543,7 @@ contains
       ms_offset(1) = int(rankNodeStart,hssize_t)-1
       !-----------------------------------------------------------------------------------------------
 
-      if(mpi_rank.eq.0) write(*,*) 'saving hdf5 resultsfile istep',iStep,'time',time
+      !if(mpi_rank.eq.0) write(*,*) 'saving hdf5 resultsfile istep',iStep,'time',time
 
       groupname = '/VTKHDF/PointData/'
 
@@ -3463,7 +3561,7 @@ contains
             !$acc end parallel loop
          end if
 
-         call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,nodeScalarFields2save(iField)%ptr)
+         call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,nodeScalarFields2save(iField)%ptr)
       end do
 
       !--------------------------------------------------------------------------------------------------------------------------------------
@@ -3488,7 +3586,7 @@ contains
             !$acc end parallel loop
          end if
 
-         call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,nodeVectorFields2save(iField)%ptr)
+         call save_array2D_tr_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,nodeVectorFields2save(iField)%ptr)
       end do
 
       do iField=1,numElemGpScalarFields2save
@@ -3511,9 +3609,77 @@ contains
             !$acc end parallel loop
          end if
 
-         call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_nodeScalarField)
+         call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,aux_nodeScalarField)
       end do
 
+   end subroutine save_hdf5_resultsFile_baseFunc
+
+   subroutine load_hdf5_resultsFile_baseFunc(hdf5_fileId,numNodeScalarFields2load,nodeScalarFields2load,nameNodeScalarFields2load,&
+                                                     numNodeVectorFields2load,nodeVectorFields2load,nameNodeVectorFields2load,&
+                                                     numElemGpScalarFields2load,elemGpScalarFields2load,nameElemGpScalarFields2load)
+      implicit none
+      integer(hid_t),intent(in) :: hdf5_fileId
+      integer(4),intent(in) :: numNodeScalarFields2load,numNodeVectorFields2load,numElemGpScalarFields2load
+      type(ptr_array1d_rp),intent(inout) :: nodeScalarFields2load(:)
+      type(ptr_array2d_rp),intent(inout) :: nodeVectorFields2load(:),elemGpScalarFields2load(:)
+
+      character(128),intent(in)   :: nameNodeScalarFields2load(numNodeScalarFields2load),nameNodeVectorFields2load(numNodeVectorFields2load),nameElemGpScalarFields2load(numElemGpScalarFields2load)
+      
+      integer(hsize_t) :: ds_dims(1),ms_dims(1),ds_dims2d(2),ms_dims2d(2)
+      integer(hssize_t) :: ms_offset(1),ms_offset2d(2)
+      integer(4) :: h5err
+      character(512) :: groupname,dsetname
+      integer(4) :: iElem,iGp,iPer,iField
+      real(rp) :: aux_nodeScalarField(numNodesRankPar)
+      real(rp) :: aux_array_time(1)
+
+      !-----------------------------------------------------------------------------------------------
+      ds_dims(1) = int(totalNumNodesPar,hsize_t)
+      ms_dims(1) = int(numNodesRankPar,hsize_t)
+      ms_offset(1) = int(rankNodeStart,hssize_t)-1
+      !-----------------------------------------------------------------------------------------------
+
+      groupname = '/VTKHDF/PointData/'
+
+      !--------------------------------------------------------------------------------------------------------------------------------------
+      do iField=1,numNodeScalarFields2load
+         dsetname = trim(adjustl(groupname))//trim(nameNodeScalarFields2load(iField))
+         call read_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ms_dims,ms_offset,nodeScalarFields2load(iField)%ptr)
+      end do
+
+      !--------------------------------------------------------------------------------------------------------------------------------------
+
+      !-----------------------------------------------------------------------------------------------
+      ds_dims2d(1) = int(ndime,hsize_t)
+      ds_dims2d(2) = int(totalNumNodesPar,hsize_t)
+      ms_dims2d(1) = int(ndime,hsize_t)
+      ms_dims2d(2) = int(numNodesRankPar,hsize_t)
+      ms_offset2d(1) = 0
+      ms_offset2d(2) = int(rankNodeStart,hssize_t)-1
+      !-----------------------------------------------------------------------------------------------
+
+      do iField=1,numNodeVectorFields2load
+         dsetname = trim(adjustl(groupname))//trim(nameNodeVectorFields2load(iField))
+         call read_array2D_tr_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ms_dims2d,ms_offset2d,nodeVectorFields2load(iField)%ptr)
+      end do
+
+
+      do iField=1,numElemGpScalarFields2load
+         dsetname = trim(adjustl(groupname))//trim(nameElemGpScalarFields2load(iField))
+         !if(mpi_rank.eq.0) write(*,*) 'saving field',iField,'name',dsetname
+
+         call read_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_nodeScalarField)
+
+         !$acc kernels
+         do iElem = 1,numElemsRankPar
+            do iGp = 1, nnode
+               elemGpScalarFields2load(iField)%ptr(iElem,iGp) = aux_nodeScalarField(connecParOrig(iElem,iGp))
+            end do
+         end do
+         !$acc end kernels
+
+      end do
+#if 0
       ! ----  time  -----
       ms_dims(1) = 0
       ds_dims = 1
@@ -3524,219 +3690,132 @@ contains
       aux_array_time(1) = time
 
       dsetname = 'time'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_array_time)
+      call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,aux_array_time)
+#endif
+   end subroutine load_hdf5_resultsFile_baseFunc
 
-      !close the file.
-      call h5fclose_f(file_id,h5err)
-
-   end subroutine save_hdf5_resultsFile
-
-   subroutine load_hdf5_resultsFile(load_step,time,rho,u,pr,E,mu_e,mu_sgs)
+   subroutine save_instResults_hdf5_file(iStep,time,numNodeScalarFields2save,nodeScalarFields2save,nameNodeScalarFields2save,&
+                                                     numNodeVectorFields2save,nodeVectorFields2save,nameNodeVectorFields2save,&
+                                                     numElemGpScalarFields2save,elemGpScalarFields2save,nameElemGpScalarFields2save)
       implicit none
-      integer,intent(in) :: load_step
-      real(rp),intent(inout) :: time
-      real(rp),intent(inout),dimension(numNodesRankPar)       :: rho,pr,E
-      real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u
-      real(rp),intent(inout),dimension(numElemsRankPar,ngaus) :: mu_e,mu_sgs
+      integer(4), intent(in) :: iStep
+      real(rp),intent(in) :: time
+      integer(4),intent(in) :: numNodeScalarFields2save,numNodeVectorFields2save,numElemGpScalarFields2save
+      type(ptr_array1d_rp),intent(in) :: nodeScalarFields2save(:)
+      type(ptr_array2d_rp),intent(in) :: nodeVectorFields2save(:),elemGpScalarFields2save(:)
+      character(128),intent(in)   :: nameNodeScalarFields2save(numNodeScalarFields2save),nameNodeVectorFields2save(numNodeVectorFields2save),nameElemGpScalarFields2save(numElemGpScalarFields2save)
       
-      character(512) :: full_loadFileName
-      integer(hid_t) :: file_id,plist_id
-      integer(HSIZE_T), dimension(1) :: ms_dims
-      integer(HSSIZE_T), dimension(1) :: ms_offset 
-      integer(4) :: i,j,h5err
-      character(128) :: dsetname
-      real(rp) :: aux_array_time(1)
-      real(rp), dimension(numNodesRankPar) :: envit, mut
-      
-      call set_hdf5_resultsFile_name(load_step,full_loadFileName)
-      if(mpi_rank.eq.0) write(*,*) '# Loading results file: ',trim(adjustl(full_loadFileName))
+      integer(hid_t) :: hdf5_fileId
+      character(512) :: full_hdf5_fileName,dsetname
 
-      ! Setup file access property list with parallel I/O access.
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
-      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+      !-----------------------------------------------------------------------------------------------
 
-      call h5fopen_f(full_loadFileName, H5F_ACC_RDWR_F,file_id,h5err,access_prp=plist_id)
-      if(h5err .ne. 0) then
-         write(*,*) 'FATAL ERROR! Cannot load results file ',trim(adjustl(full_loadFileName))
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-      end if
-      call h5pclose_f(plist_id, h5err)
+      call set_hdf5_resultsFile_name(iStep,full_hdf5_fileName)
 
-      ! ----  read time  --------------------------------------------------------------------------
-      ms_offset(1) = 0
-      ms_dims(1) = 1
+      call create_hdf5_file(full_hdf5_fileName,hdf5_fileId)
+
+      call save_hdf5_resultsFile_baseFunc(hdf5_fileId,numNodeScalarFields2save,nodeScalarFields2save,nameNodeScalarFields2save,&
+                                          numNodeVectorFields2save,nodeVectorFields2save,nameNodeVectorFields2save,&
+                                          numElemGpScalarFields2save,elemGpScalarFields2save,nameElemGpScalarFields2save)
 
       dsetname = 'time'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_array_time)
-      time = aux_array_time(1)
+      call save_real_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,time)
 
-      if(mpi_rank.eq.0) write(*,*) ' - load_step',load_step,'time',time
+      !----------------------------------------------------------------------------------------------------------
 
-      ! ----  read arrays  --------------------------------------------------------------------------
+      call close_hdf5_file(hdf5_fileId)
 
-      ms_dims(1) = int(numNodesRankPar,hsize_t)
-      ms_offset(1) = int(rankNodeStart,hssize_t)-1
+   end subroutine save_instResults_hdf5_file
 
-      dsetname = 'rho'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,rho)
-
-      dsetname = 'u_x'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,1))
-
-      dsetname = 'u_y'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,2))
-
-      dsetname = 'u_z'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,3))
-
-      dsetname = 'envit'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,envit)
-
-      dsetname = 'mut'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,mut)
-
-      dsetname = 'pr'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,pr)
-
-      dsetname = 'E'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,E)
-
-      !$acc kernels
-      do i = 1,numElemsRankPar
-         do j = 1, nnode
-            mu_e(i,j)   = envit(connecParOrig(i,j))
-            mu_sgs(i,j) = mut(connecParOrig(i,j))
-         end do
-      end do
-      !$acc end kernels
-
-      call h5fclose_f(file_id,h5err)
-
-   end subroutine load_hdf5_resultsFile
-
-   subroutine load_hdf5_resultsFile_allArrays(load_step,time,rho,u,pr,E,eta,csound,machno,gradRho,&
-                                              curlU,divU,Qcrit,mu_fluid,envit,mut)
+   subroutine save_avgResults_hdf5_file(restartCnt,initial_avgTime,elapsed_avgTime,numAvgNodeScalarFields2save,avgNodeScalarFields2save,nameAvgNodeScalarFields2save,&
+                                       numAvgNodeVectorFields2save,avgNodeVectorFields2save,nameAvgNodeVectorFields2save,&
+                                       numAvgElemGpScalarFields2save,avgElemGpScalarFields2save,nameAvgElemGpScalarFields2save)
       implicit none
-      integer, intent(in) :: load_step
-      real(rp), intent(inout) :: time
-      real(rp), intent(inout), dimension(numNodesRankPar)       :: rho,pr,E,eta,csound,machno,mu_fluid,divU,Qcrit
-      real(rp), intent(inout), dimension(numNodesRankPar,ndime) :: u
-      real(rp), intent(inout), dimension(numNodesRankPar,ndime) :: gradRho,curlU
-      real(rp), intent(inout), dimension(numNodesRankPar)       :: envit,mut
-
-      character(512) :: full_loadFileName
-      integer(hid_t) :: file_id,plist_id
-      integer(hid_t) :: dtype
-      integer(HSIZE_T), dimension(1) :: ms_dims
-      integer(HSSIZE_T), dimension(1) :: ms_offset 
-      integer(4) :: i,j,h5err
-      character(128) :: dsetname
-      real(rp) :: aux_array_time(1)
+      integer(4), intent(in) :: restartCnt
+      real(rp),intent(in) :: initial_avgTime,elapsed_avgTime
+      integer(4),intent(in) :: numAvgNodeScalarFields2save,numAvgNodeVectorFields2save,numAvgElemGpScalarFields2save
+      type(ptr_array1d_rp),intent(in) :: avgNodeScalarFields2save(:)
+      type(ptr_array2d_rp),intent(in) :: avgNodeVectorFields2save(:),avgElemGpScalarFields2save(:)
+      character(128),intent(in)   :: nameAvgNodeScalarFields2save(numAvgNodeScalarFields2save),nameAvgNodeVectorFields2save(numAvgNodeVectorFields2save),nameAvgElemGpScalarFields2save(numAvgElemGpScalarFields2save)
       
-      call set_hdf5_resultsFile_name(load_step,full_loadFileName)
-      if(mpi_rank.eq.0) write(*,*) '# Loading results file: ',full_loadFileName
+      integer(hid_t) :: hdf5_fileId
+      character(512) :: full_hdf5_fileName,dsetname
+      integer(hsize_t),dimension(1) :: ds_dims,ms_dims
+      integer(hssize_t),dimension(1) :: ms_offset 
+      real(rp) :: aux_array_rp(1)
 
-      ! Setup file access property list with parallel I/O access.
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
-      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+      !-----------------------------------------------------------------------------------------------
 
-      call h5fopen_f(full_loadFileName, H5F_ACC_RDWR_F,file_id,h5err,access_prp=plist_id)
-      if(h5err .ne. 0) then
-         write(*,*) 'FATAL ERROR! Cannot load results file ',trim(adjustl(full_loadFileName))
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-      end if
-      call h5pclose_f(plist_id, h5err)
+      call set_hdf5_avgResultsFile_name(restartCnt,full_hdf5_fileName)
 
-      ! ----  read time  --------------------------------------------------------------------------
-      ms_offset(1) = 0
-      ms_dims(1) = 1
+      call create_hdf5_file(full_hdf5_fileName,hdf5_fileId)
 
-      dsetname = 'time'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_array_time)
-      time = aux_array_time(1)
+      call save_hdf5_resultsFile_baseFunc(hdf5_fileId,numAvgNodeScalarFields2save,avgNodeScalarFields2save,nameAvgNodeScalarFields2save,&
+                                          numAvgNodeVectorFields2save,avgNodeVectorFields2save,nameAvgNodeVectorFields2save,&
+                                          numAvgElemGpScalarFields2save,avgElemGpScalarFields2save,nameAvgElemGpScalarFields2save)
 
-      if(mpi_rank.eq.0) write(*,*) ' - load_step',load_step,'time',time
+      dsetname = 'elapsed_avgTime'
+      call save_real_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,elapsed_avgTime)
 
-      ! ----  read arrays  --------------------------------------------------------------------------
+      dsetname = 'initial_avgTime'
+      call save_real_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,initial_avgTime)
 
-      ms_dims(1) = int(numNodesRankPar,hsize_t)
-      ms_offset(1) = int(rankNodeStart,hssize_t)-1
+      !-----------------------------------------------------------------------------------------------
 
-      dsetname = 'rho'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,rho)
+      call close_hdf5_file(hdf5_fileId)
 
-      dsetname = 'u_x'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,1))
+   end subroutine save_avgResults_hdf5_file
 
-      dsetname = 'u_y'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,2))
-
-      dsetname = 'u_z'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,3))
-
-      dsetname = 'envit'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,envit)
-
-      dsetname = 'mut'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,mut)
-
-      dsetname = 'pr'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,pr)
-
-      dsetname = 'E'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,E)
-
-      dsetname = 'eta'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,eta)
-
-      dsetname = 'csound'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,csound)
-
-      dsetname = 'machno'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,machno)
-
-      dsetname = 'gradRho_x'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,gradRho(:,1))
-
-      dsetname = 'gradRho_y'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,gradRho(:,2))
-
-      dsetname = 'gradRho_z'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,gradRho(:,3))
-
-      dsetname = 'curlU_x'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,curlU(:,1))
-
-      dsetname = 'curlU_y'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,curlU(:,2))
-
-      dsetname = 'curlU_z'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,curlU(:,3))
-
-      dsetname = 'mu_fluid'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,mu_fluid)
-
-      dsetname = 'divU'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,divU)
-
-      dsetname = 'Qcrit'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,Qcrit)
-
-      call h5fclose_f(file_id,h5err)
-
-   end subroutine load_hdf5_resultsFile_allArrays
-
-   subroutine set_hdf5_avgResultsFile_name(iStep,full_fileName)
+   subroutine load_avgResults_hdf5_file(restartCnt,initial_avgTime,elapsed_avgTime,numAvgNodeScalarFields2load,avgNodeScalarFields2load,nameAvgNodeScalarFields2load,&
+                                       numAvgNodeVectorFields2load,avgNodeVectorFields2load,nameAvgNodeVectorFields2load,&
+                                       numAvgElemGpScalarFields2load,avgElemGpScalarFields2load,nameAvgElemGpScalarFields2load)
       implicit none
-      integer, intent(in) :: iStep
-      character(len=*), intent(out) :: full_fileName
-      character(len=12) :: aux_step
+      integer(4), intent(in) :: restartCnt
+      real(rp),intent(inout) :: initial_avgTime,elapsed_avgTime
+      integer(4),intent(in) :: numAvgNodeScalarFields2load,numAvgNodeVectorFields2load,numAvgElemGpScalarFields2load
+      type(ptr_array1d_rp),intent(inout) :: avgNodeScalarFields2load(:)
+      type(ptr_array2d_rp),intent(inout) :: avgNodeVectorFields2load(:),avgElemGpScalarFields2load(:)
+      character(128),intent(in)   :: nameAvgNodeScalarFields2load(numAvgNodeScalarFields2load),nameAvgNodeVectorFields2load(numAvgNodeVectorFields2load),nameAvgElemGpScalarFields2load(numAvgElemGpScalarFields2load)
 
-      write(aux_step,'(I0)') iStep
-      full_fileName = trim(adjustl(base_avgResultsFile_h5_name))//trim(aux_step)//'.hdf'
-   end subroutine set_hdf5_avgResultsFile_name
+      integer(hid_t) :: hdf5_fileId
+      character(512) :: full_hdf5_fileName,dsetname
+      integer(hsize_t),dimension(1) :: ms_dims
+      integer(hssize_t),dimension(1) :: ms_offset 
+      real(rp) :: aux_array_rp(1)
 
-   subroutine save_hdf5_avgResultsFile(iStep,avvel,avve2,avvex,avrho,avpre,avmueff,avtw)
+      call set_hdf5_avgResultsFile_name(restartCnt,full_hdf5_fileName)
+
+      call open_hdf5_file(full_hdf5_fileName,hdf5_fileId)
+
+      call load_hdf5_resultsFile_baseFunc(hdf5_fileId,numAvgNodeScalarFields2load,avgNodeScalarFields2load,nameAvgNodeScalarFields2load,&
+                                          numAvgNodeVectorFields2load,avgNodeVectorFields2load,nameAvgNodeVectorFields2load,&
+                                          numAvgElemGpScalarFields2load,avgElemGpScalarFields2load,nameAvgElemGpScalarFields2load)
+
+      !-----------------------------------------------------------------------------------------------
+      ! ----  elapsed_avgTime  -----
+      ms_dims(1) = 0
+      ms_offset(1) = 0
+      if(mpi_rank.eq.0) then
+         ms_dims(1) = 1
+      endif
+
+      dsetname = 'elapsed_avgTime'
+      call read_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_rp)
+      elapsed_avgTime = aux_array_rp(1)
+
+      dsetname = 'initial_avgTime'
+      call read_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_rp)
+      initial_avgTime = aux_array_rp(1)
+
+      !------------------         !if(mpi_rank.eq.0) write(*,*) 'saving field',iField,'name',dsetname-----------------------------------------------------------------------------
+
+      call close_hdf5_file(hdf5_fileId)
+
+   end subroutine load_avgResults_hdf5_file
+
+
+#if 0
+   subroutine save_hdf5_avgResultsFile_old(iStep,avvel,avve2,avvex,avrho,avpre,avmueff,avtw)
       implicit none
       integer,intent(in) :: iStep
       real(rp),intent(in),dimension(numNodesRankPar)       :: avrho,avpre,avmueff
@@ -3818,7 +3897,7 @@ contains
       !close the file.
       call h5fclose_f(file_id,h5err)
 
-   end subroutine save_hdf5_avgResultsFile
+   end subroutine save_hdf5_avgResultsFile_old
 
    subroutine load_hdf5_avgResultsFile(iStep,avvel,avve2,avvex,avrho,avpre,avmueff,avtw)
       implicit none
@@ -3911,7 +3990,7 @@ contains
       call h5fclose_f(resultsFile_h5_id,h5err)
 
    end subroutine close_hdf5_resultsfile
-
+#endif
 !---------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------
 !        VTKHDF5 FILE

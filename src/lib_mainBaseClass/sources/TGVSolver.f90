@@ -80,17 +80,17 @@ contains
       this%save_logFile_first = 1 
       this%save_logFile_step  = 25
 
-      this%loadRestartFile = .false.
-      this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
+      this%loadRestartFile = .true.
+      this%loadAvgFile = .true.
+      this%restartFile_to_load = 2 !1 or 2
+      this%continue_oldLogs = .true.
       this%save_restartFile_first = 1
       this%save_restartFile_step = 1000
 
       this%save_resultsFile_first = 1
       this%save_resultsFile_step = 500
 
-      this%save_avgResultsFile_first = 1
-      this%save_avgResultsFile_step = 50000
+      this%saveAvgFile = .true.
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

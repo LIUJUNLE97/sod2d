@@ -80,8 +80,8 @@ contains
       this%save_resultsFile_first = 1
       this%save_resultsFile_step = 50000
 
-      this%save_avgResultsFile_first = 1
-      this%save_avgResultsFile_step = 50000
+      !this%save_avgResultsFile_first = 1
+      !this%save_avgResultsFile_step = 50000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

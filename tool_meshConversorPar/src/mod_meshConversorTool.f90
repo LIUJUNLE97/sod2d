@@ -379,7 +379,8 @@ contains
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
-      call create_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId)
+      call create_hdf5_file(meshFile_h5_name,sod2dmsh_h5_fileId)
+      !call create_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId)
 
       call create_hdf5_groups_datasets_in_meshFile_from_tool(sod2dmsh_h5_fileId,isPeriodic,isBoundaries,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
                vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank)
@@ -421,7 +422,8 @@ contains
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
       !--------------------------------------------------------------------------------------------------------------------------------
 
-      call close_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId)
+      call close_hdf5_file(sod2dmsh_h5_fileId)
+      !call close_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId)
 
       end_time(8) = mpi_wtime()
       elapsed_time_r(8) = end_time(8) - start_time(8)

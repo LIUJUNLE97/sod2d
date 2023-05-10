@@ -4,6 +4,97 @@ module mod_aver
 
 contains
 
+   subroutine eval_average_iter(nelem,npoin,npoin_w,lpoin_w,connec,dt,elapsed_avg_time,&
+                                 rho,u,pr,mu_fluid,mu_e,mu_sgs,tauw,&
+                                 avrho,avpr,avvel,avve2,avvex,avmueff,avtw)
+      implicit none
+      integer(4),intent(in)                           :: nelem, npoin, npoin_w, lpoin_w(npoin_w), connec(nelem,nnode)
+      real(rp),intent(in)                             :: dt
+      real(rp),intent(inout)                          :: elapsed_avg_time
+      real(rp),intent(in),dimension(npoin)            :: rho, pr, mu_fluid
+      real(rp),intent(in),dimension(npoin,ndime)      :: u,tauw
+      real(rp),intent(in),dimension(nelem,ngaus)      :: mu_e, mu_sgs
+      real(rp),intent(inout),dimension(npoin)         :: avrho,avpr,avmueff
+      real(rp),intent(inout),dimension(npoin,ndime)   :: avvel,avve2,avvex,avtw
+      integer(4)                                      :: iPoin,iDime,iElem,iNode
+      real(rp)                                        :: envit(npoin),mut(npoin)
+      real(rp)                                        :: inv_denominator
+
+      inv_denominator = 1.0_rp / (elapsed_avg_time + dt)
+
+      !$acc parallel loop
+      do ipoin = 1,npoin_w
+         do idime = 1,ndime
+            !$acc atomic update
+            avvel(lpoin_w(ipoin),idime) = (avvel(lpoin_w(ipoin),idime)*elapsed_avg_time + &
+                                           rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*dt ) &
+                                          * inv_denominator
+            !$acc end atomic
+            !$acc atomic update
+            avve2(lpoin_w(ipoin),idime) = (avve2(lpoin_w(ipoin),idime)*elapsed_avg_time + &
+                                           rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*u(lpoin_w(ipoin),idime)*dt ) &
+                                          * inv_denominator
+            !$acc end atomic
+            !$acc atomic update
+            avtw(lpoin_w(ipoin),idime)  = (avtw(lpoin_w(ipoin),idime)*elapsed_avg_time + & 
+                                           tauw(lpoin_w(ipoin),idime)*dt ) &
+                                          * inv_denominator
+            !$acc end atomic
+         end do
+         !$acc atomic update
+         avrho(lpoin_w(ipoin))   = (avrho(lpoin_w(ipoin))*elapsed_avg_time + &
+                                    rho(lpoin_w(ipoin))*dt ) &
+                                    * inv_denominator
+         !$acc end atomic
+         !$acc atomic update
+         avpr(lpoin_w(ipoin))    = (avpr(lpoin_w(ipoin))*elapsed_avg_time + &
+                                    pr(lpoin_w(ipoin))*dt) &
+                                    * inv_denominator
+         !$acc atomic update
+         avvex(lpoin_w(ipoin),1) = (avvex(lpoin_w(ipoin),1)*elapsed_avg_time + &
+                                    rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),1)*u(lpoin_w(ipoin),2)*dt) &
+                                    * inv_denominator
+         !$acc end atomic
+         !$acc atomic update
+         avvex(lpoin_w(ipoin),2) = (avvex(lpoin_w(ipoin),2)*elapsed_avg_time + &
+                                    rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),1)*u(lpoin_w(ipoin),3)*dt) &
+                                    * inv_denominator
+         !$acc end atomic
+         !$acc atomic update
+         avvex(lpoin_w(ipoin),3) = (avvex(lpoin_w(ipoin),3)*elapsed_avg_time + &
+                                    rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),2)*u(lpoin_w(ipoin),3)*dt) &
+                                    * inv_denominator
+         !$acc end atomic
+      end do
+      !$acc end parallel loop
+
+      ! Compute accumulated tally for effective viscosity times current dt
+      !$acc parallel loop collapse(2)
+      do ielem = 1,nelem
+         do inode = 1, nnode
+            !$acc atomic write
+            envit(connec(ielem,inode)) =  mu_e(ielem,inode)
+            !$acc end atomic
+            !$acc atomic write
+            mut(connec(ielem,inode))   =  mu_sgs(ielem,inode)
+            !$acc end atomic
+         end do
+      end do
+      !$acc end parallel loop
+      !$acc parallel loop
+      do ipoin = 1,npoin_w
+         !$acc atomic update
+         avmueff(lpoin_w(ipoin)) =  (avmueff(lpoin_w(ipoin))*elapsed_avg_time + &
+                                    (mu_fluid(lpoin_w(ipoin))+envit(lpoin_w(ipoin))+mut(lpoin_w(ipoin)))*dt) &
+                                    * inv_denominator
+         !$acc end atomic
+      end do
+      !$acc end parallel loop
+
+      elapsed_avg_time = elapsed_avg_time + dt
+
+   end subroutine eval_average_iter
+
    subroutine  favre_average(nelem,npoin,npoin_w,lpoin_w,connec,dt,rho,u,pr, &
          mu_fluid,mu_e,mu_sgs,tauw,acutim,acurho,acupre,acuvel,acuve2,acuvex,acumueff,acutw)
 

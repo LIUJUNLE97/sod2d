@@ -94,6 +94,7 @@ contains
       this%save_logFile_step  = 10
 
       this%loadRestartFile = .false.
+      this%loadAvgFile = .false.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
       this%save_restartFile_first = 1
@@ -102,8 +103,7 @@ contains
       this%save_resultsFile_first = 1
       this%save_resultsFile_step = 50000
 
-      this%save_avgResultsFile_first = 1
-      this%save_avgResultsFile_step = 50000
+      this%saveAvgFile = .false.
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
