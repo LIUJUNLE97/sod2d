@@ -57,13 +57,10 @@ module time_integ
          endif
       end if
 
-      allocate(Rmass(npoin))
+      allocate(Rmass(npoin),Rener(npoin),Reta(npoin),Rmom(npoin,ndime))
       !$acc enter data create(Rmass(:))
-      allocate(Rener(npoin))
       !$acc enter data create(Rener(:))
-      allocate(Reta(npoin))
       !$acc enter data create(Reta(:))
-      allocate(Rmom(npoin,ndime))
       !$acc enter data create(Rmom(:,:))
 
       allocate(aux_rho(npoin),aux_pr(npoin),aux_E(npoin),aux_Tem(npoin),aux_e_int(npoin),aux_eta(npoin))
@@ -178,20 +175,70 @@ module time_integ
 
       call nvtxEndRange
 
-
    end subroutine init_rk4_solver
 
    subroutine end_rk4_solver()
       implicit none
 
       !$acc exit data delete(Rmass(:))
-      deallocate(Rmass)
       !$acc exit data delete(Rener(:))
-      deallocate(Rener)
       !$acc exit data delete(Reta(:))
-      deallocate(Reta)
       !$acc exit data delete(Rmom(:,:))
-      deallocate(Rmom)
+      deallocate(Rmass,Rener,Reta,Rmom)
+
+      !$acc exit data delete(aux_rho(:))
+      !$acc exit data delete(aux_pr(:))
+      !$acc exit data delete(aux_E(:))
+      !$acc exit data delete(aux_Tem(:))
+      !$acc exit data delete(aux_e_int(:))
+      !$acc exit data delete(aux_eta(:))
+      deallocate(aux_rho,aux_pr,aux_E,aux_Tem,aux_e_int,aux_eta)
+      !$acc exit data delete(aux_u(:,:))
+      !$acc exit data delete(aux_q(:,:))
+      deallocate(aux_u,aux_q)
+
+      !$acc exit data delete(Rmass_sum(:))
+      !$acc exit data delete(Rener_sum(:))
+      !$acc exit data delete(Reta_sum(:))
+      !$acc exit data delete(alpha(:))
+      !$acc exit data delete(Rdiff_mass(:))
+      !$acc exit data delete(Rdiff_ener(:))
+      deallocate(Rmass_sum,Rener_sum,Reta_sum,alpha,Rdiff_mass,Rdiff_ener)
+
+      !$acc exit data delete(Rmom_sum(:,:))
+      !$acc exit data delete(Rdiff_mom(:,:))
+      !$acc exit data delete(f_eta(:,:))
+      deallocate(Rmom_sum,Rdiff_mom,f_eta)
+
+      if(flag_implicit == 1) then
+
+         if(implicit_solver == implicit_solver_bdf2_rk10) then
+            !$acc exit data delete(sigMass(:,:))
+            !$acc exit data delete(sigEner(:,:))
+            !$acc exit data delete(sigMom(:,:,:))
+            !$acc exit data delete(aijKjMass(:,:))
+            !$acc exit data delete(aijKjEner(:,:))
+            !$acc exit data delete(pt(:,:))
+            !$acc exit data delete(aijKjMom(:,:,:))
+            !$acc exit data delete(dt_min(:))
+            !$acc exit data delete(alfa_pt(:))
+            deallocate(sigMass,sigEner,sigMom)
+            deallocate(aijKjMass,aijKjEner,pt)
+            deallocate(aijKjMom)
+            deallocate(dt_min)
+            deallocate(alfa_pt)
+         endif
+
+         !$acc exit data delete(a_ij(:,:))
+         !$acc exit data delete(b_i(:))
+         !$acc exit data delete(b_i2(:))
+         deallocate(a_ij,b_i,b_i2)
+      else
+         !$acc exit data delete(a_i(:))
+         !$acc exit data delete(b_i(:))
+         !$acc exit data delete(c_i(:))
+         deallocate(a_i,b_i,c_i)
+      end if
 
    end subroutine end_rk4_solver
 
@@ -250,13 +297,6 @@ module time_integ
             integer(4)                          :: pos,maxIterL
             integer(4)                          :: istep, ipoin, idime,icode,itime,jstep,inode,ielem,npoin_w_g
             real(rp),    dimension(npoin)       :: Rrho
-            !real(rp),    dimension(11)          :: b_i, b_i2
-            !real(rp),    dimension(11,11)       :: a_ij
-            !real(rp),    dimension(npoin,ndime) :: aux_u, aux_q,aux_u_wall
-            !real(rp),    dimension(npoin)       :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
-            !real(rp),    dimension(npoin)       :: Rmass_sum, Rener_sum, alpha,dt_min
-            !real(rp),    dimension(npoin,ndime) :: Rmom_sum, f_eta
-            !real(rp)                            :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
             real(rp)                            :: umag,aux,kappa=1e-6,phi=0.4_rp,xi=0.7_rp,f_save=1.0_rp,f_max=1.01_rp,f_min=0.98_rp
             real(8)                             :: aux2,res_ini,res(2),errMax
 
@@ -444,15 +484,10 @@ module time_integ
                   !TESTING NEW LOCATION FOR MPICOMMS
                   if(mpi_size.ge.2) then
                      call nvtxStartRange("MPI_comms_tI")
-                     !call mpi_halo_atomic_update_real(Rmass(:))
-                     !call mpi_halo_atomic_update_real(Rener(:))
-                     !do idime = 1,ndime
-                     !   call mpi_halo_atomic_update_real(Rmom(:,idime))
-                     !end do
-                     call mpi_halo_atomic_update_real_iSendiRcv_devel(Rmass(:))
-                     call mpi_halo_atomic_update_real_iSendiRcv_devel(Rener(:))
+                     call mpi_halo_atomic_update_real(Rmass(:))
+                     call mpi_halo_atomic_update_real(Rener(:))
                      do idime = 1,ndime
-                        call mpi_halo_atomic_update_real_iSendiRcv_devel(Rmom(:,idime))
+                        call mpi_halo_atomic_update_real(Rmom(:,idime))
                      end do
                      call nvtxEndRange
                   end if
@@ -599,8 +634,7 @@ module time_integ
 
                if(mpi_size.ge.2) then
                   call nvtxStartRange("MPI_comms_tI")
-                  !call mpi_halo_atomic_update_real(Reta(:,1))
-                  call mpi_halo_atomic_update_real_iSendiRcv_devel(Reta(:))
+                  call mpi_halo_atomic_update_real(Reta(:))
                   call nvtxEndRange
                end if
 
@@ -725,12 +759,6 @@ module time_integ
             integer(4)                          :: pos
             integer(4)                          :: istep, ipoin, idime,icode
             real(rp),    dimension(npoin)       :: Rrho
-            !real(rp),    dimension(4)           :: a_i, b_i, c_i
-            !real(rp),    dimension(npoin,ndime) :: aux_u, aux_q,aux_u_wall
-            !real(rp),    dimension(npoin)       :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
-            !real(rp),    dimension(npoin)       :: Rmass_sum,Rener_sum,Reta_sum,alpha
-            !real(rp),    dimension(npoin,ndime) :: Rmom_sum,f_eta
-            !real(rp)                            :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin)
             real(rp)                            :: umag
 
 
@@ -868,19 +896,11 @@ module time_integ
                !TESTING NEW LOCATION FOR MPICOMMS
                if(mpi_size.ge.2) then
                   call nvtxStartRange("MPI_comms_tI")
-
-                  !call mpi_halo_atomic_update_real(Rmass(:,1))
-                  !call mpi_halo_atomic_update_real(Rener(:,1))
-                  !do idime = 1,ndime
-                  !   call mpi_halo_atomic_update_real(Rmom(:,idime,1))
-                  !end do
-
-                  call mpi_halo_atomic_update_real_iSendiRcv_devel(Rmass(:))
-                  call mpi_halo_atomic_update_real_iSendiRcv_devel(Rener(:))
+                  call mpi_halo_atomic_update_real(Rmass(:))
+                  call mpi_halo_atomic_update_real(Rener(:))
                   do idime = 1,ndime
-                     call mpi_halo_atomic_update_real_iSendiRcv_devel(Rmom(:,idime))
+                     call mpi_halo_atomic_update_real(Rmom(:,idime))
                   end do
-
                   call nvtxEndRange
                end if
 
@@ -974,8 +994,7 @@ module time_integ
 
             if(mpi_size.ge.2) then
                call nvtxStartRange("MPI_comms_tI")
-               !call mpi_halo_atomic_update_real(Reta(:,1))
-               call mpi_halo_atomic_update_real_iSendiRcv_devel(Reta(:))
+               call mpi_halo_atomic_update_real(Reta(:))
                call nvtxEndRange
             end if
 
