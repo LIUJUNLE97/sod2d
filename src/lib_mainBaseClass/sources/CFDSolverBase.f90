@@ -28,6 +28,9 @@ module mod_arrays
       real(rp), allocatable :: witxi(:,:), Nwit(:,:), buffwit(:,:,:), bufftime(:)
       
       real(rp), allocatable :: u_buffer(:,:)
+      ! implicit auxiliar fields
+      real(rp), allocatable :: impl_rho(:),impl_E(:),impl_eta(:),impl_q(:,:)
+      real(rp), allocatable :: impl_envit(:,:),impl_mu_fluid(:),impl_mu_sgs(:,:)
 
 end module mod_arrays
 
@@ -167,6 +170,7 @@ contains
       integer(4) :: iNodeL 
 
       allocate(source_term(numNodesRankPar,ndime))
+      !$acc enter data create(source_term(:,:))
       !$acc kernels
       source_term(:,:) = 0.00_rp
       !$acc end kernels
@@ -255,6 +259,7 @@ contains
       !write(*,*) '[',mpi_rank,'] numBoundsWMRankPar',numBoundsWMRankPar
 
       allocate(listBoundsWallModel(numBoundsWMRankPar))
+      !$acc enter data create(listBoundsWallModel(:))
       auxBoundCnt = 0
       do iBound = 1,numBoundsRankPar
          bcCode = bouCodes2BCType(bouCodesPar(iBound))
@@ -289,6 +294,7 @@ contains
       if(mpi_rank.eq.0) write(111,*) "--| Evaluating Normals at Nodes for Wall-Model"
 
       allocate(normalsAtNodes(numNodesRankPar,ndime))
+      !$acc enter data create(normalsAtNodes(:,:))
 
       !$acc kernels
       normalsAtNodes(:,:) = 0.0_rp
@@ -357,8 +363,12 @@ contains
       allocate(bouCodesNodesPar(numNodesRankPar))
       allocate(aux1(numNodesRankPar))
       allocate(bouCodes2BCType(numBoundCodes))
+      !$acc enter data create(bouCodesNodesPar(:))
+      !$acc enter data create(aux1(:))
+      !$acc enter data create(bouCodes2BCType(:))
 
       bouCodes2BCType(:) = 0
+      !$acc update device(bouCodes2BCType(:))
 
       call this%fillBCTypes()
 
@@ -390,7 +400,8 @@ contains
 
       call this%checkIfWallModelOn()
       call this%checkIfSymmetryOn()
-
+ 
+      !$acc exit data delete(aux1(:))
       deallocate(aux1)
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
@@ -404,10 +415,12 @@ contains
 
       call nvtxStartRange("Elem size compute")
       allocate(helem(numElemsRankPar))
+      !$acc enter data create(helem(:))
       do iElem = 1,numElemsRankPar
          call char_length(iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,he_aux)
          helem(iElem) = he_aux
       end do
+      !$acc update device(helem(:))
       call nvtxEndRange
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
@@ -438,8 +451,40 @@ contains
       allocate(mu_e(numElemsRankPar,ngaus))  ! Elemental viscosity
       allocate(mu_sgs(numElemsRankPar,ngaus))! SGS viscosity
       allocate(u_buffer(numNodesRankPar,ndime))  ! momentum at the buffer
+      !$acc enter data create(u(:,:,:))
+      !$acc enter data create(q(:,:,:))
+      !$acc enter data create(rho(:,:))
+      !$acc enter data create(pr(:,:))
+      !$acc enter data create(E(:,:))
+      !$acc enter data create(Tem(:,:))
+      !$acc enter data create(e_int(:,:))
+      !$acc enter data create(eta(:,:))
+      !$acc enter data create(csound(:))
+      !$acc enter data create(machno(:))
+      !$acc enter data create(mu_fluid(:))
+      !$acc enter data create(mu_factor(:))
+      !$acc enter data create(mu_e(:,:))
+      !$acc enter data create(mu_sgs(:,:))
+      !$acc enter data create(u_buffer(:,:))
+
+      ! implicit
+      allocate(impl_rho(numNodesRankPar))
+      allocate(impl_E(numNodesRankPar))
+      allocate(impl_eta(numNodesRankPar))
+      allocate(impl_q(numNodesRankPar,ndime))
+      allocate(impl_envit(numElemsRankPar,nnode))
+      allocate(impl_mu_fluid(numNodesRankPar))
+      allocate(impl_mu_sgs(numElemsRankPar,nnode))
+      !$acc enter data create(impl_rho(:))
+      !$acc enter data create(impl_E(:))
+      !$acc enter data create(impl_eta(:))
+      !$acc enter data create(impl_q(:,:))
+      !$acc enter data create(impl_envit(:,:))
+      !$acc enter data create(impl_mu_fluid(:))
+      !$acc enter data create(impl_mu_sgs(:,:))
 
       allocate(tauw(numNodesRankPar,ndime))  ! momentum at the buffer
+      !$acc enter data create(tauw(:,:))
 
       !$acc kernels
       u(:,:,:) = 0.0_rp
@@ -468,6 +513,12 @@ contains
       allocate(ax1(numNodesRankPar))
       allocate(ax2(numNodesRankPar))
       allocate(ax3(numNodesRankPar))
+      !$acc enter data create(au(:,:))
+      !$acc enter data create(kres(:))
+      !$acc enter data create(etot(:))     
+      !$acc enter data create(ax1(:))     
+      !$acc enter data create(ax2(:))     
+      !$acc enter data create(ax3(:))      
       !$acc kernels
       kres(:) = 0.0_rp
       etot(:) = 0.0_rp
@@ -481,6 +532,8 @@ contains
       if(numBoundCodes .ge. 1) then
          allocate(Fpr(ndime,numBoundCodes))
          allocate(Ftau(ndime,numBoundCodes))
+         !$acc enter data create(Fpr(:,:))
+         !$acc enter data create(Ftau(:,:))
          !$acc kernels
          Fpr(:,:) = 0.0_rp
          Ftau(:,:) = 0.0_rp
@@ -494,6 +547,10 @@ contains
       allocate(curlU(numNodesRankPar,ndime))
       allocate(divU(numNodesRankPar))
       allocate(Qcrit(numNodesRankPar))
+      !$acc enter data create(gradRho(:,:))
+      !$acc enter data create(curlU(:,:))
+      !$acc enter data create(divU(:))
+      !$acc enter data create(Qcrit(:))
 
       !$acc kernels
       gradRho(:,:) = 0.0_rp
@@ -512,6 +569,13 @@ contains
       allocate(acuve2(numNodesRankPar,ndime))
       allocate(acuvex(numNodesRankPar,ndime))
       allocate(acutw(numNodesRankPar,ndime))
+      !$acc enter data create(acurho(:))
+      !$acc enter data create(acupre(:))
+      !$acc enter data create(acumueff(:))
+      !$acc enter data create(acuvel(:,:))
+      !$acc enter data create(acuve2(:,:))
+      !$acc enter data create(acuvex(:,:))
+      !$acc enter data create(acutw(:,:))
 
       allocate(avrho(numNodesRankPar))
       allocate(avpre(numNodesRankPar))
@@ -520,6 +584,13 @@ contains
       allocate(avve2(numNodesRankPar,ndime))
       allocate(avvex(numNodesRankPar,ndime))
       allocate(avtw(numNodesRankPar,ndime))
+      !$acc enter data create(avrho(:))
+      !$acc enter data create(avpre(:))
+      !$acc enter data create(avmueff(:))
+      !$acc enter data create(avvel(:,:))
+      !$acc enter data create(avve2(:,:))
+      !$acc enter data create(avvex(:,:))
+      !$acc enter data create(avtw(:,:))
 
       !$acc kernels
       acurho(:) = 0.0_rp
@@ -682,13 +753,20 @@ contains
 
       allocate(xgp(ngaus,ndime))
       allocate(wgp(ngaus))
+      !$acc enter data create(wgp(:))
       allocate(xgp_b(npbou,ndime-1))
       allocate(wgp_b(npbou))
+      !$acc enter data create(wgp_b(:))
 
       allocate(Ngp(ngaus,nnode),dNgp(ndime,nnode,ngaus))
       allocate(Ngp_l(ngaus,nnode),dNgp_l(ndime,nnode,ngaus))
       allocate(Ngp_b(npbou,npbou),dNgp_b(ndime-1,npbou,npbou))
       allocate(dlxigp_ip(ngaus,ndime,porder+1))
+      !$acc enter data create(Ngp(:,:))
+      !$acc enter data create(dNgp(:,:,:))
+      !$acc enter data create(Ngp_b(:,:))
+      !$acc enter data create(dNgp_b(:,:,:))
+      !$acc enter data create(dlxigp_ip(:,:,:))
       !*********************************************************
 
       call set_hex64_lists(atoIJK,listHEX08)
@@ -696,7 +774,9 @@ contains
 
       if(mpi_rank.eq.0) write(111,*) "  --| Generating Gauss-Lobatto-Legendre table..."
       call GaussLobattoLegendre_hex(atoIJK,xgp,wgp)
+      !$acc update device(wgp(:))
       call GaussLobattoLegendre_qua(atoIJ,xgp_b,wgp_b)
+      !$acc update device(wgp_b(:))
 
       call nvtxEndRange
 
@@ -715,6 +795,9 @@ contains
          z = xgp(igaus,3)
          call hex64(s,t,z,atoIJK,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
       end do
+      !$acc update device(Ngp(:,:))
+      !$acc update device(dNgp(:,:,:))
+      !$acc update device(dlxigp_ip(:,:,:))
       !
       ! Compute N andd dN for boundary elements
       !
@@ -723,6 +806,8 @@ contains
          t = xgp_b(igaus,2)
          call qua16(s,t,atoIJ,Ngp_b(igaus,:),dNgp_b(:,:,igaus))
       end do
+      !$acc update device(Ngp_b(:,:))
+      !$acc update device(dNgp_b(:,:,:))
 
       call nvtxEndRange
 
@@ -747,6 +832,7 @@ contains
       if (isMeshBoundaries) then
          if(mpi_rank.eq.0) write(111,*) "--| COMPUTING BOUNDARY ELEMENT NORMALS"
          allocate(boundNormalPar(numBoundsRankPar,ndime*npbou))
+         !$acc enter data create(boundNormalPar(:,:))
          call nvtxStartRange("Bou normals")
          call boundary_normals(numNodesRankPar,numBoundsRankPar,boundParOrig,this%leviCivi,coordPar,dNgp_b,boundNormalPar)
          call nvtxEndRange
@@ -770,15 +856,21 @@ contains
       call nvtxStartRange("Jacobian info")
       allocate(He(ndime,ndime,ngaus,numElemsRankPar))
       allocate(gpvol(1,ngaus,numElemsRankPar))
+      !$acc enter data create(He(:,:,:,:))
+      !$acc enter data create(gpvol(:,:,:))
+
       call elem_jacobian(numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,dNgp,wgp,gpvol,He) 
       call  nvtxEndRange
       vol_rank  = 0.0
       vol_tot_d = 0.0
+      !$acc parallel loop reduction(+:vol_rank)
       do ielem = 1,numElemsRankPar
+         !$acc loop vector
          do igaus = 1,ngaus
             vol_rank = vol_rank+gpvol(1,igaus,ielem)
          end do
       end do
+      !$acc end parallel loop
 
       call MPI_Allreduce(vol_rank,vol_tot_d,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
 
@@ -796,7 +888,16 @@ contains
       allocate(gmshAtoI(nnode))
       allocate(gmshAtoJ(nnode))
       allocate(gmshAtoK(nnode))
+      !$acc enter data create(invAtoIJK(:,:,:))
+      !$acc enter data create(gmshAtoI(:))
+      !$acc enter data create(gmshAtoJ(:))
+      !$acc enter data create(gmshAtoK(:))
+
       call atioIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+      !$acc update device(invAtoIJK(:,:,:))
+      !$acc update device(gmshAtoI(:))
+      !$acc update device(gmshAtoJ(:))
+      !$acc update device(gmshAtoK(:))
 
    end subroutine CFDSolverBase_evalAtoIJKInverse
 
@@ -810,14 +911,17 @@ contains
       !not the best place Oriol!
       if(mpi_rank.eq.0) write(111,*) "--| Doing near boundary calculations..."
       allocate(lelpn(numNodesRankPar))
+      !$acc enter data create(lelpn(:))
       allocate(point2elem(numNodesRankPar))
+      !$acc enter data create(point2elem(:))
       if(mpi_rank.eq.0) write(111,*) '  --| Evaluating point2elem array...'
       call elemPerNode(numElemsRankPar,numNodesRankPar,connecParWork,lelpn,point2elem)
 
       if(mpi_rank.eq.0) write(111,*) '  --| Evaluating lnbn & lnbnNodes arrays...'
       allocate(lnbn(numBoundsRankPar,npbou))
+      !$acc enter data create(lnbn(:,:))
       allocate(lnbnNodes(numNodesRankPar))
-      !if(isMeshBoundaries) call nearBoundaryNode(numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
+      !$acc enter data create(lnbnNodes(:))
       call nearBoundaryNode(numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
@@ -835,16 +939,18 @@ contains
       if(mpi_rank.eq.0) write(111,*) '--| COMPUTING LUMPED MASS MATRIX...'
       call nvtxStartRange("Lumped mass compute")
       allocate(Ml(numNodesRankPar))
+      !$acc enter data create(Ml(:))
       call lumped_mass_spectral(numElemsRankPar,numNodesRankPar,connecParWork,gpvol,Ml)
       call nvtxEndRange
 
       !charecteristic length for spectral elements for the entropy
       !stablisation
       allocate(helem_l(numElemsRankPar,nnode))
+      !$acc enter data create(helem_l(:,:))
       do iElem = 1,numElemsRankPar
          call char_length_spectral(iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,Ml,helem_l)
       end do
-      
+      !$acc update device(helem_l(:,:))
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
    end subroutine CFDSolverBase_evalMass
@@ -899,6 +1005,13 @@ contains
       call eval_average_window(isMeshPeriodic,numNodesRankPar,numElemsRankPar,acuvel,acuve2,acuvex,acurho,acupre,acumueff,acutw,this%acutim,&
 											avvel,avve2,avvex,avrho,avpre,avmueff,avtw,nPerRankPar,masSlaRankPar)
 
+      !$acc update host(avvel(:,:))
+      !$acc update host(avve2(:,:))
+      !$acc update host(avvex(:,:))
+      !$acc update host(avrho(:))
+      !$acc update host(avpre(:))
+      !$acc update host(avmueff(:))
+      !$acc update host(avtw(:,:))
       call save_hdf5_avgResultsFile(istep,avvel,avve2,avvex,avrho,avpre,avmueff,avtw)
 
    end subroutine CFDSolverBase_saveAverages
@@ -913,6 +1026,21 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
 
+      !$acc update host(rho(:,:))
+      !$acc update host(u(:,:,:))
+      !$acc update host(pr(:,:))
+      !$acc update host(E(:,:))
+      !$acc update host(eta(:,:))
+      !$acc update host(csound(:))
+      !$acc update host(machno(:))
+      !$acc update host(gradRho(:,:))
+      !$acc update host(curlU(:,:))
+      !$acc update host(divU(:))
+      !$acc update host(Qcrit(:))
+      !$acc update host(mu_fluid(:))
+      !$acc update host(mu_e(:,:))
+      !$acc update host(mu_sgs(:,:))      
+      
       call save_hdf5_resultsFile(istep,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),eta(:,2),csound,machno,gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs)
 
    end subroutine CFDSolverBase_savePosprocessingFields
@@ -931,8 +1059,7 @@ contains
       integer(4) :: icode,counter,istep,flag_emac,flag_predic,inonLineal,iwitstep=0
       character(4) :: timeStep
       real(8) :: iStepTimeRank,iStepTimeMax,iStepEndTime,iStepStartTime,iStepAvgTime
-      real(rp) :: inv_iStep, aux_rho(numNodesRankPar),aux_E(numNodesRankPar),aux_eta(numNodesRankPar),aux_q(numNodesRankPar,ndime),aux_pseudo_cfl
-      real(rp) :: aux_envit(numElemsRankPar,nnode),aux_mu_fluid(numNodesRankPar),aux_mu_sgs(numElemsRankPar,nnode)
+      real(rp) :: inv_iStep,aux_pseudo_cfl
       logical :: do__iteration
 
       counter = 1
@@ -947,6 +1074,9 @@ contains
          write(111,*) 'Doing evalTimeItarion. Ini step:',this%initial_istep,'| End step:',this%nstep
       end if
       ! periodic with boundaries
+
+      call init_rk4_solver(numNodesRankPar)
+
       do istep = this%initial_istep,this%nstep
          !if (istep==this%nsave.and.mpi_rank.eq.0) write(111,*) '   --| STEP: ', istep
          !
@@ -976,13 +1106,13 @@ contains
 
          if(flag_implicit == 1) then
             !$acc kernels
-            aux_rho(:) = rho(:,2)
-            aux_E(:) = E(:,2)
-            aux_q(:,:) = q(:,:,2)
-            aux_eta(:) = eta(:,2)
-            aux_envit(:,:) = mu_e(:,:)
-            aux_mu_fluid(:) = mu_fluid(:)
-            aux_mu_sgs(:,:) = mu_sgs(:,:)
+            impl_rho(:) = rho(:,2)
+            impl_E(:) = E(:,2)
+            impl_q(:,:) = q(:,:,2)
+            impl_eta(:) = eta(:,2)
+            impl_envit(:,:) = mu_e(:,:)
+            impl_mu_fluid(:) = mu_fluid(:)
+            impl_mu_sgs(:,:) = mu_sgs(:,:)
             !$acc end kernels
             aux_pseudo_cfl = pseudo_cfl
          end if
@@ -992,13 +1122,13 @@ contains
          do while(do__iteration .eqv. .true.) 
             if(flag_implicit == 1) then
                !$acc kernels
-               rho(:,2) = aux_rho(:)
-               E(:,2) = aux_E(:)
-               q(:,:,2) = aux_q(:,:)
-               eta(:,2) = aux_eta(:)
-               mu_e(:,:) = aux_envit(:,:)
-               mu_fluid(:) = aux_mu_fluid(:)
-               mu_sgs(:,:) = aux_mu_sgs(:,:)
+               rho(:,2)    = impl_rho(:)
+               E(:,2)      = impl_E(:)
+               q(:,:,2)    = impl_q(:,:)
+               eta(:,2)    = impl_eta(:)
+               mu_e(:,:)   = impl_envit(:,:)
+               mu_fluid(:) = impl_mu_fluid(:)
+               mu_sgs(:,:) = impl_mu_sgs(:,:)
                !$acc end kernels
             else
                do__iteration = .false.
@@ -1148,6 +1278,9 @@ contains
          end if
       end do
       call nvtxEndRange
+
+      call end_rk4_solver()
+
    end subroutine CFDSolverBase_evalTimeIteration
 
    subroutine CFDSolverBase_update_witness(this, istep, iwitstep)

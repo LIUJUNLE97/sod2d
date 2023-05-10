@@ -44,10 +44,10 @@ contains
       class(TGVSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%mesh_h5_file_path,*) "test_witness/"
-      write(this%mesh_h5_file_name,*) "cube"
+      write(this%mesh_h5_file_path,*) ""
+      write(this%mesh_h5_file_name,*) "cube_per64"
 
-      write(this%results_h5_file_path,*) "test_witness/"
+      write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
       this%doGlobalAnalysis = .true.
@@ -60,7 +60,7 @@ contains
 
       ! numerical params
       flag_les = 0
-      flag_implicit = 1
+      flag_implicit = 0
       implicit_solver = implicit_solver_bdf2_rk10
 
       maxIterNonLineal=500
@@ -68,21 +68,19 @@ contains
       pseudo_cfl =1.95_rp
       flag_rk_order=4
 
-      this%nstep = 50001
+      this%nstep = 5001
       this%maxPhysTime = 20.0_rp
 
-      !this%cfl_conv = 2.5_rp
-      !this%cfl_diff = 2.5_rp
-      this%cfl_conv = 10.0_rp
-      this%cfl_diff = 10.0_rp
+      this%cfl_conv = 0.9_rp
+      this%cfl_diff = 0.9_rp
       this%nsave  = 1  ! First step to save, TODO: input
-      this%nsave2 = 1   ! First step to save, TODO: input
+      this%nsave2 = 1  ! First step to save, TODO: input
 
-      this%nsaveAVG = 1
-      this%nleap = 10 ! Saving interval, TODO: input
+      this%nsaveAVG = 2000000
+      this%nleap = 10000 ! Saving interval, TODO: input
       this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 2  ! Saving interval, TODO: input
-      this%nleapAVG = 2000
+      this%nleap2 = 10  ! Saving interval, TODO: input
+      this%nleapAVG = 2000000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -103,7 +101,7 @@ contains
       nscbc_gamma_inf = this%gamma_gas
 
       !Witness points parameters
-      this%have_witness          = .true.
+      this%have_witness          = .false.
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
       this%leapwit               = 1
@@ -128,7 +126,7 @@ contains
       V0 = 1.0_rp
       L  = 1.0_rp
 
-      !acc parallel loop
+      !$acc parallel loop
       do iNodeL=1,numNodesRankPar
          x = coordPar(iNodeL,1)
          y = coordPar(iNodeL,2)
@@ -141,7 +139,7 @@ contains
          pr(iNodeL,2)  = this%po+((1.0_rp*V0*V0)/(16.0_rp))*(cos(2.0_rp*x/L)+cos(2.0_rp*y/L))*(cos(2.0_rp*z/L)+2.0_rp)
          rho(iNodeL,2) = pr(iNodeL,2)/this%Rgas/this%to
       end do
-      !acc end parallel loop
+      !$acc end parallel loop
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar

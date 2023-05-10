@@ -73,8 +73,8 @@ contains
       bouCodes2BCType(4) = bc_type_non_slip_adiabatic
       bouCodes2BCType(5) = bc_type_slip_adiabatic
       bouCodes2BCType(6) = bc_type_far_field
-
 #endif
+      !$acc update device(bouCodes2BCType(:))
 
    end subroutine BluffBody3DSolver_fill_BC_Types
 
@@ -107,14 +107,14 @@ contains
 #else
       write(this%mesh_h5_file_path,*) ""
       !write(this%mesh_h5_file_name,*) "windsor"
-      write(this%mesh_h5_file_name,*) "windsor"
+      write(this%mesh_h5_file_name,*) "auto"
 #endif
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
       ! numerical params
-      flag_les = 0
+      flag_les = 1
       flag_implicit = 1
       implicit_solver = implicit_solver_bdf2_rk10
       flag_rk_order=4
@@ -123,8 +123,8 @@ contains
 #else
       pseudo_cfl =0.3_rp 
 #endif
-      pseudo_ftau= 8.0_rp
-      maxIterNonLineal=1000
+      pseudo_ftau= 6.0_rp
+      maxIterNonLineal=300
       tol=1e-3
 #if CRM
       this%loadResults = .false.
