@@ -25,7 +25,7 @@ contains
         logical :: useFenceFlags,useAssertNoCheckFlags,useLockBarrier
 
 #if _ISENDIRCV_
-        write(111,*) "--| Boundary Comm. scheme: iSend-iRecv"
+        if(mpi_rank.eq.0) write(111,*) "--| Boundary Comm. scheme: iSend-iRecv"
 #endif
 
         bnd_isInt=.false.
@@ -127,7 +127,7 @@ contains
     subroutine fill_boundary_sendBuffer_int(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
-        integer :: i,iNodeL
+        integer(4) :: i,iNodeL
 
         !$acc parallel loop
         do i=1,bnd_numNodesToComm
@@ -143,7 +143,7 @@ contains
     subroutine fill_boundary_sendBuffer_real(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
-        integer :: i,iNodeL
+        integer(4) :: i,iNodeL
 
         !$acc parallel loop
         do i=1,bnd_numNodesToComm
@@ -164,7 +164,7 @@ contains
     subroutine copy_from_boundary_rcvBuffer_int(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
-        integer :: i,iNodeL
+        integer(4) :: i,iNodeL
 
         !$acc parallel loop
         do i=1,bnd_numNodesToComm
@@ -179,7 +179,7 @@ contains
     subroutine copy_from_boundary_rcvBuffer_real(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
-        integer :: i,iNodeL
+        integer(4) :: i,iNodeL
 
         !$acc parallel loop
         do i=1,bnd_numNodesToComm
@@ -199,7 +199,7 @@ contains
     subroutine copy_from_min_boundary_rcvBuffer_int(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
-        integer :: i,iNodeL
+        integer(4) :: i,iNodeL
 
         !$acc parallel loop
         do i=1,bnd_numNodesToComm
@@ -214,7 +214,7 @@ contains
     subroutine copy_from_max_boundary_rcvBuffer_real(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
-        integer :: i,iNodeL
+        integer(4) :: i,iNodeL
 
         !$acc parallel loop
         do i=1,bnd_numNodesToComm
@@ -230,7 +230,7 @@ contains
 
     subroutine mpi_halo_boundary_atomic_update_int(intField)
         implicit none
-        integer, intent(inout) :: intField(:)
+        integer(4), intent(inout) :: intField(:)
 
 #if _ISENDIRCV_
         call mpi_halo_boundary_atomic_update_int_iSendiRcv(intField)
@@ -256,13 +256,14 @@ contains
     subroutine mpi_halo_boundary_atomic_update_int_iSendiRcv(intField)
         implicit none
         integer, intent(inout) :: intField(:)
-        integer :: i,ireq,ngbRank,tagComm
-        integer :: memPos_l,memSize
-        integer :: requests(2*bnd_numRanksWithComms)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*bnd_numRanksWithComms)
 
         call fill_boundary_sendBuffer_int(intField)
 
         ireq=0
+        !$acc host_data use_device (aux_bnd_intField_r(:),aux_bnd_intField_s(:))
         do i=1,bnd_numRanksWithComms
             ngbRank  = bnd_ranksToComm(i)
             tagComm  = 0
@@ -270,10 +271,11 @@ contains
             memSize  = bnd_commsMemSize(i)
 
             ireq = ireq+1
-            call MPI_Irecv(aux_bnd_intfield_r(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_Irecv(aux_bnd_intField_r(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
             ireq = ireq+1
-            call MPI_ISend(aux_bnd_intfield_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_ISend(aux_bnd_intField_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
+        !$acc end host_data
 
         call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
@@ -283,13 +285,14 @@ contains
     subroutine mpi_halo_boundary_atomic_update_real_iSendiRcv(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
-        integer :: i,ireq,ngbRank,tagComm
-        integer :: memPos_l,memSize
-        integer :: requests(2*numRanksWithComms)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*numRanksWithComms)
 
         call fill_boundary_sendBuffer_real(realField)
 
         ireq=0
+        !$acc host_data use_device (aux_bnd_realField_r(:),aux_bnd_realField_s(:))
         do i=1,bnd_numRanksWithComms
             ngbRank  = bnd_ranksToComm(i)
             tagComm  = 0
@@ -297,10 +300,11 @@ contains
             memSize  = bnd_commsMemSize(i)
 
             ireq = ireq+1
-            call MPI_Irecv(aux_bnd_realfield_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_Irecv(aux_bnd_realField_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
             ireq = ireq+1
-            call MPI_ISend(aux_bnd_realfield_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_ISend(aux_bnd_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
+        !$acc end host_data
 
         call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
@@ -312,13 +316,14 @@ contains
     subroutine mpi_halo_min_boundary_update_int_iSendiRcv(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
-        integer :: i,ireq,ngbRank,tagComm
-        integer :: memPos_l,memSize
-        integer :: requests(2*bnd_numRanksWithComms)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*bnd_numRanksWithComms)
 
         call fill_boundary_sendBuffer_int(intField)
 
         ireq=0
+        !$acc host_data use_device (aux_bnd_intField_r(:),aux_bnd_intField_s(:))
         do i=1,bnd_numRanksWithComms
             ngbRank  = bnd_ranksToComm(i)
             tagComm  = 0
@@ -326,10 +331,11 @@ contains
             memSize  = bnd_commsMemSize(i)
 
             ireq = ireq+1
-            call MPI_Irecv(aux_bnd_intfield_r(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_Irecv(aux_bnd_intField_r(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
             ireq = ireq+1
-            call MPI_ISend(aux_bnd_intfield_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_ISend(aux_bnd_intField_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
+        !$acc end host_data
 
         call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
@@ -340,13 +346,14 @@ contains
     subroutine mpi_halo_max_boundary_update_real_iSendiRcv(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
-        integer :: i,ireq,ngbRank,tagComm
-        integer :: memPos_l,memSize
-        integer :: requests(2*bnd_numRanksWithComms)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*bnd_numRanksWithComms)
 
         call fill_boundary_sendBuffer_real(realField)
 
         ireq=0
+        !$acc host_data use_device (aux_bnd_realField_r(:),aux_bnd_realField_s(:))
         do i=1,bnd_numRanksWithComms
             ngbRank  = bnd_ranksToComm(i)
             tagComm  = 0
@@ -354,15 +361,15 @@ contains
             memSize  = bnd_commsMemSize(i)
 
             ireq = ireq+1
-            call MPI_Irecv(aux_bnd_realfield_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_Irecv(aux_bnd_realField_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
             ireq = ireq+1
-            call MPI_ISend(aux_bnd_realfield_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_ISend(aux_bnd_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
         end do
+        !$acc end host_data
 
         call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
         call copy_from_max_boundary_rcvBuffer_real(realField)
     end subroutine mpi_halo_max_boundary_update_real_iSendiRcv
-
 
 end module mod_comms_boundaries

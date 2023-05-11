@@ -1971,6 +1971,13 @@ contains
       if(isPeriodic) then
          call read_periodic_faces_and_links_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,numPerFacesSrl,numPerLinkedNodesSrl,numElemsMpiRank,listElemsMpiRank,connecMpiRank_i8,&
                      numLinkedPerElemsSrl,linkedPerElemsSrl,numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl_i8)
+      else
+         numLinkedPerElemsSrl = 0
+         numPerElemsSrl = 0
+         numMasSlaNodesSrl = 0
+         allocate(linkedPerElemsSrl(numLinkedPerElemsSrl,0))
+         allocate(listPerElemsSrl(numPerElemsSrl))
+         allocate(masSlaNodesSrl_i8(numMasSlaNodesSrl,0))
       end if
       end_time(2) = MPI_Wtime()
 
@@ -1999,7 +2006,7 @@ contains
       integer(4),intent(in) :: numElemsSrl,numBoundFacesSrl
       integer(8),intent(in) :: numNodesSrl_i8
       integer(4),intent(in) :: numElemsMpiRank,numNodesMpiRank,numMshRanks2Part,numLinkedPerElemsSrl,numPerElemsSrl,numMasSlaNodesSrl
-      integer(4),intent(in) :: numMshRanksInMpiRank,maxNumMshRanks,mshRanksInMpiRank(numMshRanksInMpiRank),mapMshRankToMpiRank(numMshRanksInMpiRank)
+      integer(4),intent(in) :: numMshRanksInMpiRank,maxNumMshRanks,mshRanksInMpiRank(numMshRanksInMpiRank),mapMshRankToMpiRank(numMshRanks2Part)
       integer(4),intent(in) :: listElemsMpiRank(numElemsMpiRank)
       integer(4),intent(in) :: linkedPerElemsSrl(numLinkedPerElemsSrl,2),listPerElemsSrl(numPerElemsSrl)
       integer(8),intent(in) :: listNodesMpiRank_i8(numNodesMpiRank),connecMpiRank_i8(numElemsMpiRank,nnode),masSlaNodesSrl_i8(numMasSlaNodesSrl,2)
@@ -2469,6 +2476,11 @@ contains
          close(1)
       end do
 #endif
+      else
+         do iMshRank=1,numMshRanksInMpiRank
+            numPerNodesMshRank(iMshRank)=0
+            allocate(masSlaRankPar_i8_jm%matrix(iMshRank)%elems(0,0))
+         end do
       end if
 
    end subroutine do_element_partitioning_gempa_in_parallel
@@ -2700,7 +2712,7 @@ contains
       real(rp),intent(in) :: coordInRank(numNodesInRank,3)
       
       integer(4), intent(out) :: numMshBoundNodesRankPar,numMpiBoundNodesRankPar,numInnerNodesRankPar
-      integer(8), allocatable, intent(out) :: mpiBoundaryNodes_i8(:),mshBoundaryNodes_i8(:)
+      integer(8), allocatable, intent(inout) :: mpiBoundaryNodes_i8(:),mshBoundaryNodes_i8(:)
       
       integer(4) :: nodeOwnedCnt(numNodesInRank)
       logical :: nodeInBoundary(numNodesInRank),nodeInMshBoundary(numNodesInRank),nodeInMpiBoundary(numNodesInRank)
@@ -2894,7 +2906,7 @@ contains
    subroutine define_parallelNodePartitioning(numMshRanks2Part,numMshRanksInMpiRank,numNodesMshRank,mshRanksInMpiRank,mapMshRankToMpiRank,mshRankNodeStart_i8,mshRankNodeEnd_i8,iNodeStartPar_i8,numNodesParTotal_i8)
       implicit none
       integer(4),intent(in) :: numMshRanks2Part
-      integer(4),intent(in) :: numMshRanksInMpiRank,numNodesMshRank(numMshRanksInMpiRank),mshRanksInMpiRank(numMshRanksInMpiRank),mapMshRankToMpiRank(numMshRanksInMpiRank)
+      integer(4),intent(in) :: numMshRanksInMpiRank,numNodesMshRank(numMshRanksInMpiRank),mshRanksInMpiRank(numMshRanksInMpiRank),mapMshRankToMpiRank(numMshRanks2Part)
       integer(8),intent(out) :: mshRankNodeStart_i8(numMshRanksInMpiRank),mshRankNodeEnd_i8(numMshRanksInMpiRank)
       integer(8),dimension(0:numMshRanks2Part-1),intent(out) :: iNodeStartPar_i8
       integer(8),intent(out) :: numNodesParTotal_i8
@@ -4035,7 +4047,7 @@ contains
    subroutine get_vector_with_mshRank_values_for_numMshRanks2Part(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,int2comm,vectorOut)
       implicit none
       integer(4),intent(in) :: numMshRanks2Part
-      integer(4),intent(in) :: numMshRanksInMpiRank,mshRanksInMpiRank(numMshRanksInMpiRank),mapMshRankToMpiRank(numMshRanksInMpiRank),int2comm(numMshRanksInMpiRank)
+      integer(4),intent(in) :: numMshRanksInMpiRank,mshRanksInMpiRank(numMshRanksInMpiRank),mapMshRankToMpiRank(numMshRanks2Part),int2comm(numMshRanksInMpiRank)
       integer(4),dimension(0:numMshRanks2Part-1),intent(out) :: vectorOut
 
       integer(4),dimension(0:numMshRanks2Part-1) :: auxVector2send

@@ -18,6 +18,7 @@ option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
 option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
 option(USE_PCPOWER "Compiling in PC-POWER" OFF)
 option(USE_MN "Compiling in MareNostrum" OFF)
+option(USE_CRAY "Compiling with CrayMpi" OFF)
 
 option(USE_GPU "Compile using GPU" OFF)
 option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
@@ -28,9 +29,16 @@ option(DEBUG_MODE "Set debug mode" OFF)
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 # Set MPI Compilers if required
-set(ENV{CC} "mpicc")
-set(ENV{CXX} "mpicxx")
-set(ENV{FC} "mpif90")
+if(USE_CRAY)
+    message("Compiling with CrayMpi compilers")
+    set(ENV{CC} "cc")
+    set(ENV{CXX} "CC")
+    set(ENV{FC} "ftn")
+else()    
+    set(ENV{CC} "mpicc")
+    set(ENV{CXX} "mpicxx")
+    set(ENV{FC} "mpif90")
+endif()
 
 # Set project name, version and languages
 project(sod2d LANGUAGES C CXX Fortran)

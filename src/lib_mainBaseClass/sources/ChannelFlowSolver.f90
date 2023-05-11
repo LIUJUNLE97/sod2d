@@ -46,6 +46,7 @@ contains
       class(ChannelFlowSolver), intent(inout) :: this
 
       bouCodes2BCType(1) = bc_type_non_slip_adiabatic
+      !$acc update device(bouCodes2BCType(:))
 
    end subroutine ChannelFlowSolver_fill_BC_Types
 
@@ -74,36 +75,37 @@ contains
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
-      ! numerical params
-      flag_les = 1
-      flag_implicit = 1
-      maxIterNonLineal=500
-      pseudo_cfl =   1.95_rp
-      implicit_solver = implicit_solver_bdf2_rk10
-      !pseudo_cfl =   0.95_rp !esdirk
-      tol = 1e-3
-      flag_rk_order=2 
-
+      !----------------------------------------------
+      !  --------------  I/O params -------------
       this%final_istep = 1000000 
-      this%cfl_conv = 40.0_rp
-      this%cfl_diff = 40.0_rp
-      !this%cfl_conv = 10.0_rp !esdirk
-      !this%cfl_diff = 10.0_rp !esdirk
 
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10
 
-      this%loadRestartFile = .false.
-      this%loadAvgFile = .false.
-      this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 50000
-
       this%save_resultsFile_first = 1
       this%save_resultsFile_step = 50000
 
+      this%save_restartFile_first = 1
+      this%save_restartFile_step = 50000
+      this%loadRestartFile = .false.
+      this%restartFile_to_load = 1 !1 or 2
+      this%continue_oldLogs = .false.
+
       this%saveAvgFile = .false.
+      this%loadAvgFile = .false.
+      !----------------------------------------------
+
+      ! numerical params
+      flag_les = 1
+      flag_implicit = 1
+      maxIterNonLineal=200
+      implicit_solver = implicit_solver_bdf2_rk10
+      pseudo_cfl =   1.95_rp !esdirk
+      tol = 1e-3
+      flag_rk_order=4
+
+      this%cfl_conv = 100.0_rp !bdf2
+      this%cfl_diff = 100.0_rp !bdf2
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -123,7 +125,6 @@ contains
       this%po = this%rho0*this%Rgas*this%to
       mur = 0.000001458_rp*(this%to**1.50_rp)/(this%to+110.40_rp)
       flag_mu_factor = this%mu/mur
-      write(1,*) " Gp ", this%utau*this%utau*this%rho0/this%delta
       nscbc_rho_inf = this%rho0
       nscbc_p_inf = this%po
       nscbc_Rgas_inf = this%Rgas
@@ -158,10 +159,14 @@ contains
             q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
             csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
             eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
+
+            rho(iNodeL,3) = rho(iNodeL,2)
+            E(iNodeL,3) =  E(iNodeL,2)
+            eta(iNodeL,3) = eta(iNodeL,2) 
+            q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
          end do
          !$acc end parallel loop
       else
-#if 1
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
          auxCnt = 1
          !!$acc parallel loop
@@ -187,21 +192,6 @@ contains
             end if
          end do serialLoop
          !!$acc end parallel loop
-#else
-         !$acc parallel loop
-         do iNodeL = 1,numNodesRankPar
-               if(coordPar(iNodeL,2)<this%delta) then
-                  yp = coordPar(iNodeL,2)*this%utau*this%rho0/this%mu
-               else
-                  yp = abs(coordPar(iNodeL,2)-2.0_rp*this%delta)*this%utau*this%rho0/this%mu
-               end if
-               velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
-               u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp)
-               u(iNodeL,2,2) = velo*(0.1_rp)
-               u(iNodeL,3,2) = velo*(0.1_rp)
-         end do
-         !$acc end parallel loop
-#endif
          !!$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             pr(iNodeL,2) = this%po
@@ -212,7 +202,8 @@ contains
             q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
             csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
             eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
-                    q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+                    
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
          rho(iNodeL,3) = rho(iNodeL,2)
           E(iNodeL,3) =  E(iNodeL,2)
           eta(iNodeL,3) = eta(iNodeL,2) 

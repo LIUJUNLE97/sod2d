@@ -45,7 +45,7 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube_per10"
+      write(this%mesh_h5_file_name,*) "cube_per64"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -54,43 +54,41 @@ contains
       this%doTimerAnalysis = .true.
       this%saveInitialField = .false.
 
+      !----------------------------------------------
+      !  --------------  I/O params -------------
+      this%final_istep = 100001
+      this%maxPhysTime = 20.0_rp
+
+      this%save_logFile_first = 1 
+      this%save_logFile_step  = 10
+
+      this%save_resultsFile_first = 1
+      this%save_resultsFile_step = 1000
+
+      this%save_restartFile_first = 1
+      this%save_restartFile_step = 2000
+      this%loadRestartFile = .false.
+      this%restartFile_to_load = 1 !1 or 2
+      this%continue_oldLogs = .false.
+
+      this%saveAvgFile = .true.
+      this%loadAvgFile = .false.
+      !----------------------------------------------
+
       ! numerical params
       flag_les = 0
       flag_implicit = 0
-      !implicit_solver = implicit_solver_bdf2_rk10
-      !implicit_solver = implicit_solver_esdirk
-      
+      implicit_solver = implicit_solver_bdf2_rk10
+
       maxIterNonLineal=500
-      tol=1e-3
-      !pseudo_cfl =1.95_rp
-      pseudo_cfl =0.95_rp !esdirk
-      flag_rk_order=2
+      tol=1e-4
+      pseudo_cfl =1.95_rp
+      flag_rk_order=4
 
-      this%final_istep = 5001
-      this%maxPhysTime = 20.0_rp
-
-      this%cfl_conv = 0.5_rp
-      this%cfl_diff = 0.5_rp
-      !this%dt = 1e-2
-      !this%cfl_conv = 2.5_rp
-      !this%cfl_diff = 2.5_rp
-      !this%cfl_conv = 20.0_rp
-      !this%cfl_diff = 20.0_rp
-
-      this%save_logFile_first = 1 
-      this%save_logFile_step  = 25
-
-      this%loadRestartFile = .true.
-      this%loadAvgFile = .true.
-      this%restartFile_to_load = 2 !1 or 2
-      this%continue_oldLogs = .true.
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 1000
-
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 500
-
-      this%saveAvgFile = .true.
+      this%cfl_conv = 0.9_rp
+      this%cfl_diff = 0.9_rp
+      !this%cfl_conv = 100.0_rp
+      !this%cfl_diff = 100.0_rp
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -110,6 +108,18 @@ contains
       nscbc_Rgas_inf = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
 
+      !Witness points parameters
+      this%have_witness          = .false.
+      this%witness_inp_file_name = "witness.txt"
+      this%witness_h5_file_name  = "resultwit.h5"
+      this%leapwit               = 1
+      this%leapwitsave           = 5
+      this%nwit                  = 10
+      this%wit_save_u_i          = .true.
+      this%wit_save_pr           = .true.
+      this%wit_save_rho          = .true.
+      this%continue_witness      = .false.
+
    end subroutine TGVSolver_initializeParameters
 
    subroutine TGVSolver_evalInitialConditions(this)
@@ -124,7 +134,7 @@ contains
       V0 = 1.0_rp
       L  = 1.0_rp
 
-      !acc parallel loop
+      !$acc parallel loop
       do iNodeL=1,numNodesRankPar
          x = coordPar(iNodeL,1)
          y = coordPar(iNodeL,2)
@@ -137,7 +147,7 @@ contains
          pr(iNodeL,2)  = this%po+((1.0_rp*V0*V0)/(16.0_rp))*(cos(2.0_rp*x/L)+cos(2.0_rp*y/L))*(cos(2.0_rp*z/L)+2.0_rp)
          rho(iNodeL,2) = pr(iNodeL,2)/this%Rgas/this%to
       end do
-      !acc end parallel loop
+      !$acc end parallel loop
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar

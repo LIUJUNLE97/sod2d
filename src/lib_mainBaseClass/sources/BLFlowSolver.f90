@@ -75,6 +75,7 @@ contains
 
       bouCodes2BCType(1) = bc_type_slip_wall_model
       bouCodes2BCType(2) = bc_type_far_field
+      !$acc update device(bouCodes2BCType(:))
 
    end subroutine BLFlowSolver_fill_BC_Types
 
@@ -231,24 +232,39 @@ contains
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
+      !----------------------------------------------
+      !  --------------  I/O params -------------
       this%final_istep = 9000000 
-      this%cfl_conv = 0.95_rp
-      this%cfl_diff = 0.95_rp
-      
+
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10
-
-      this%loadRestartFile = .false.
-      this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 50000
 
       this%save_resultsFile_first = 1
       this%save_resultsFile_step = 50000
 
-      !this%save_avgResultsFile_first = 1
-      !this%save_avgResultsFile_step = 50000
+      this%save_restartFile_first = 1
+      this%save_restartFile_step = 50000
+      this%loadRestartFile = .false.
+      this%restartFile_to_load = 1 !1 or 2
+      this%continue_oldLogs = .false.
+
+      this%saveAvgFile = .false.
+      this%loadAvgFile = .false.
+      !----------------------------------------------
+
+      ! numerical params
+      flag_les = 0
+      flag_implicit = 1
+      flag_rk_order=4
+      implicit_solver = implicit_solver_bdf2_rk10
+
+      pseudo_cfl =0.5_rp 
+      pseudo_ftau= 8.0_rp
+      maxIterNonLineal=500
+      tol=1e-3
+
+      this%cfl_conv = 20.00_rp
+      this%cfl_diff = 20.00_rp
 
       this%Cp   = 1004.0_rp
       this%Prt  = 0.71_rp

@@ -38,7 +38,7 @@ module BluffBodySolver_mod
       procedure, public :: fillBCTypes           =>BluffBodySolver_fill_BC_Types
       procedure, public :: initializeParameters  => BluffBodySolver_initializeParameters
       procedure, public :: evalInitialConditions => BluffBodySolver_evalInitialConditions
-      procedure, public :: evalViscosityFactor=>BluffBodySolver_evalViscosityFactor
+      procedure, public :: initialBuffer => BluffBodySolver_initialBuffer
    end type BluffBodySolver
 contains
 
@@ -50,6 +50,7 @@ contains
       bouCodes2BCType(3) = bc_type_far_field
       bouCodes2BCType(4) = bc_type_far_field
       bouCodes2BCType(5) = bc_type_non_slip_adiabatic
+      !$acc update device(bouCodes2BCType(:))
 
    end subroutine BluffBodySolver_fill_BC_Types
 
@@ -58,39 +59,55 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cyl"
+      write(this%mesh_h5_file_name,*) "cylin"
       !write(this%mesh_h5_file_name,*) "naca"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
-      this%final_istep = 90000001
-      this%cfl_conv = 0.5_rp !0.1_rp
-      this%cfl_diff = 0.5_rp !0.1_rp
+      ! numerical params
+      flag_les = 1
+      flag_implicit = 1
+      flag_les_ilsa=0
+      implicit_solver = implicit_solver_bdf2_rk10
+      flag_rk_order=4
+
+      pseudo_cfl =1.95_rp 
+      pseudo_ftau= 4.5_rp  !pseudo_cfl*pseudo_ftau<10 !important
+      maxIterNonLineal=300
+      tol=1e-3
+
+      this%cfl_conv = 100.0_rp 
+      this%cfl_diff = 100.0_rp 
+
+      !----------------------------------------------
+      !  --------------  I/O params -------------
+      this%final_istep = 1000000 
 
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10
 
-      this%loadRestartFile = .false.
-      this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 50000
-
       this%save_resultsFile_first = 1
       this%save_resultsFile_step = 50000
 
-      !this%save_avgResultsFile_first = 1
-      !this%save_avgResultsFile_step = 50000
+      this%save_restartFile_first = 1
+      this%save_restartFile_step = 50000
+      this%loadRestartFile = .false.
+      this%restartFile_to_load = 1 !1 or 2
+      this%continue_oldLogs = .false.
+
+      this%saveAvgFile = .false.
+      this%loadAvgFile = .false.
+      !----------------------------------------------
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
-      this%vo = 4.0_rp
-      this%M  = 1.0_rp
+      this%vo = 1.0_rp
+      this%M  = 0.2_rp
       this%delta  = 1.0_rp
       this%rho0   = 1.0_rp
       this%gamma_gas = 1.40_rp
-      this%Re     =  10000.0_rp
+      this%Re     =  3300.0_rp
       !this%Re     =  100000.0_rp
 
       mul    = (this%rho0*this%delta*this%vo)/this%Re
@@ -107,23 +124,35 @@ contains
       nscbc_c_inf = sqrt(this%gamma_gas*this%po/this%rho0)
       nscbc_Rgas_inf = this%Rgas
 
+      !Witness points parameters
+      this%have_witness          = .true.
+      this%witness_inp_file_name = "witness.txt"
+      this%witness_h5_file_name  = "resultwit.h5"
+      this%leapwit               = 1
+      this%nwit                  = 17986
+      this%wit_save_u_i          = .true.
+      this%wit_save_pr           = .true.
+      this%wit_save_rho          = .true.
+      this%continue_witness      = .false.     
+ 
       flag_buffer_on = .true.
-      !cylinder
-      flag_buffer_on_east = .true.
-      flag_buffer_e_min = 40.0_rp
-      flag_buffer_e_size = 10.0_rp
+     !cylinder
+     flag_buffer_on_east = .true.
+     flag_buffer_e_min = 100.0_rp
+     flag_buffer_e_size = 10.0_rp
 
-      flag_buffer_on_west = .true.
-      flag_buffer_w_min = -20.0_rp
-      flag_buffer_w_size = 10.0_rp
+     flag_buffer_on_west = .true.
+     flag_buffer_w_min = -15.0_rp
+     flag_buffer_w_size = 10.0_rp
 
-      flag_buffer_on_north = .true.
-      flag_buffer_n_min = 20.0_rp
-      flag_buffer_n_size = 10.0_rp
+     flag_buffer_on_north = .true.
+     flag_buffer_n_min = 15.0_rp
+     flag_buffer_n_size = 10.0_rp
 
-      flag_buffer_on_south = .true.
-      flag_buffer_s_min = -20.0_rp
-      flag_buffer_s_size = 10.0_rp
+     flag_buffer_on_south = .true.
+     flag_buffer_s_min = -15.0_rp
+     flag_buffer_s_size = 10.0_rp
+
       !naca
      !flag_buffer_on_east = .true.
      !flag_buffer_e_min = 10.0_rp
@@ -168,6 +197,11 @@ contains
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
          eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
          machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
+
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+         rho(iNodeL,3) = rho(iNodeL,2)
+         E(iNodeL,3) =  E(iNodeL,2)
+         eta(iNodeL,3) = eta(iNodeL,2) 
       end do
       !$acc end parallel loop
 
@@ -185,21 +219,19 @@ contains
 
    end subroutine BluffBodySolver_evalInitialConditions
 
-   subroutine BluffBodySolver_evalViscosityFactor(this)
+
+   subroutine BluffBodySolver_initialBuffer(this)
       class(BluffBodySolver), intent(inout) :: this
       integer(4) :: iNodeL
 
-      ! set out of the buffer zone
-      ! remember that the mu_factor field has to be filled at least with the
-      ! flag_mu_factor
-
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-         mu_factor(iNodeL) = flag_mu_factor
-
+            u_buffer(iNodeL,1) = this%vo
+            u_buffer(iNodeL,2) = 0.0_rp
+            u_buffer(iNodeL,3) = 0.0_rp  
       end do
       !$acc end parallel loop
 
-   end subroutine BluffBodySolver_evalViscosityFactor
+   end subroutine BluffBodySolver_initialBuffer
 
 end module BluffBodySolver_mod

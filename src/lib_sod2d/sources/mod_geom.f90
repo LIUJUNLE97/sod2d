@@ -159,7 +159,7 @@ module mod_geom
             implicit none
 
             integer(4), intent(in)  :: numElems,numNodes,connec(numElems,nnode)
-            integer(4), intent(out) :: lelpn(numNodes),point2elem(numNodes)
+            integer(4), intent(inout) :: lelpn(numNodes),point2elem(numNodes)
             integer(4)              :: iNode,iNodeL,iElem
 
             !$acc kernels
@@ -191,8 +191,8 @@ module mod_geom
 
             integer(4), intent(in)  :: nelem,npoin,nboun,connec(nelem,nnode),bound(nboun,npbou),bouCodesNodes(npoin),point2elem(npoin),atoIJK(nnode)
             real(rp), intent(in) :: coord(npoin,ndime)
-            integer(4), intent(out) :: lnbn(nboun,npbou)
-            integer(4), intent(out) :: lnbnNodes(npoin)
+            integer(4), intent(inout) :: lnbn(nboun,npbou)
+            integer(4), intent(inout) :: lnbnNodes(npoin)
             integer(4)              :: ipoin, inode,ielem,bnode,ipbou,iboun,rnode,c,i,j,k,innode
             integer(4)              :: aux1, aux2
 

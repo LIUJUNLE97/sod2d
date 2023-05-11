@@ -25,46 +25,46 @@ contains
       !$acc parallel loop
       do ipoin = 1,npoin_w
          do idime = 1,ndime
-            !$acc atomic update
+            !!!$acc atomic update
             avvel(lpoin_w(ipoin),idime) = (avvel(lpoin_w(ipoin),idime)*elapsed_avg_time + &
                                            rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*dt ) &
                                           * inv_denominator
-            !$acc end atomic
-            !$acc atomic update
+            !!!$acc end atomic
+            !!!$acc atomic update
             avve2(lpoin_w(ipoin),idime) = (avve2(lpoin_w(ipoin),idime)*elapsed_avg_time + &
                                            rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*u(lpoin_w(ipoin),idime)*dt ) &
                                           * inv_denominator
-            !$acc end atomic
-            !$acc atomic update
+            !!!$acc end atomic
+            !!!$acc atomic update
             avtw(lpoin_w(ipoin),idime)  = (avtw(lpoin_w(ipoin),idime)*elapsed_avg_time + & 
                                            tauw(lpoin_w(ipoin),idime)*dt ) &
                                           * inv_denominator
-            !$acc end atomic
+            !!!$acc end atomic
          end do
-         !$acc atomic update
+         !!!$acc atomic update
          avrho(lpoin_w(ipoin))   = (avrho(lpoin_w(ipoin))*elapsed_avg_time + &
                                     rho(lpoin_w(ipoin))*dt ) &
                                     * inv_denominator
-         !$acc end atomic
-         !$acc atomic update
+         !!!$acc end atomic
+         !!!$acc atomic update
          avpr(lpoin_w(ipoin))    = (avpr(lpoin_w(ipoin))*elapsed_avg_time + &
                                     pr(lpoin_w(ipoin))*dt) &
                                     * inv_denominator
-         !$acc atomic update
+         !!!$acc atomic update
          avvex(lpoin_w(ipoin),1) = (avvex(lpoin_w(ipoin),1)*elapsed_avg_time + &
                                     rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),1)*u(lpoin_w(ipoin),2)*dt) &
                                     * inv_denominator
-         !$acc end atomic
-         !$acc atomic update
+         !!!$acc end atomic
+         !!!$acc atomic update
          avvex(lpoin_w(ipoin),2) = (avvex(lpoin_w(ipoin),2)*elapsed_avg_time + &
                                     rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),1)*u(lpoin_w(ipoin),3)*dt) &
                                     * inv_denominator
-         !$acc end atomic
-         !$acc atomic update
+         !!!$acc end atomic
+         !!!$acc atomic update
          avvex(lpoin_w(ipoin),3) = (avvex(lpoin_w(ipoin),3)*elapsed_avg_time + &
                                     rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),2)*u(lpoin_w(ipoin),3)*dt) &
                                     * inv_denominator
-         !$acc end atomic
+         !!!$acc end atomic
       end do
       !$acc end parallel loop
 
@@ -83,11 +83,11 @@ contains
       !$acc end parallel loop
       !$acc parallel loop
       do ipoin = 1,npoin_w
-         !$acc atomic update
+         !!!$acc atomic update
          avmueff(lpoin_w(ipoin)) =  (avmueff(lpoin_w(ipoin))*elapsed_avg_time + &
                                     (mu_fluid(lpoin_w(ipoin))+envit(lpoin_w(ipoin))+mut(lpoin_w(ipoin)))*dt) &
                                     * inv_denominator
-         !$acc end atomic
+         !!!$acc end atomic
       end do
       !$acc end parallel loop
 
