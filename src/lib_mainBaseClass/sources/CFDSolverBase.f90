@@ -1437,7 +1437,6 @@ contains
    subroutine CFDSolverBase_evalTimeIteration(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4) :: icode,istep,inonLineal,iwitstep=0
-      !integer(4) :: counter,flag_predic !TODEL
       character(4) :: timeStep
       real(8) :: iStepTimeRank,iStepTimeMax,iStepEndTime,iStepStartTime,iStepAvgTime
       real(rp) :: inv_iStep,aux_pseudo_cfl
@@ -1455,10 +1454,6 @@ contains
 
       do istep = this%initial_istep,this%final_istep
          !if (istep==this%nsave.and.mpi_rank.eq.0) write(111,*) '   --| STEP: ', istep
-         !
-         ! Prediction
-         !
-         !!!!flag_predic = 1
 
          call nvtxStartRange("Init pred "//timeStep,istep)
          !$acc kernels
@@ -1474,10 +1469,6 @@ contains
          call nvtxEndRange
 
          call nvtxStartRange("RK4 step "//timeStep,istep)
-         !
-         ! Advance with entropy viscosity
-         !
-         !!!flag_predic = 0
 
          if(flag_implicit == 1) then
             !$acc kernels
@@ -1642,8 +1633,6 @@ contains
             if(mpi_rank.eq.0) call flush(111)
          end if
 
-         !!!!counter = counter+1
-         
          !!! Witness points interpolation !!!
          if(this%have_witness) then
             if (this%continue_oldLogs) then

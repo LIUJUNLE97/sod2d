@@ -80,13 +80,13 @@ contains
       this%final_istep = 1000000 
 
       this%save_logFile_first = 1 
-      this%save_logFile_step  = 10
+      this%save_logFile_step  = 1
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 50000
+      this%save_resultsFile_step = 100
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 50000
+      this%save_restartFile_step = 100
       this%loadRestartFile = .false.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
