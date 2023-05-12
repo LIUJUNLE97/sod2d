@@ -3432,6 +3432,11 @@ contains
       dsetname = 'mut'
       call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_mu_t)
 
+      !$acc update device(rho(:))
+      !$acc update device(pr(:))
+      !$acc update device(E(:))
+      !$acc update device(u(:,:))
+
       !$acc kernels
       do iElem = 1,numElemsRankPar
          do iNode = 1, nnode
