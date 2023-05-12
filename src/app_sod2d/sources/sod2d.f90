@@ -2,9 +2,9 @@
 
 #define _tgv_ 0
 #define _channel_ 0
-#define _bluff_ 0
+#define _bluff_ 1
 #define _bluff3d_ 0
-#define _bl_ 1
+#define _bl_ 0
 
 program main
    use mod_numerical_params
@@ -17,6 +17,7 @@ program main
 #endif
 #if _bluff_
    use BluffBodySolver_mod
+   use DLRSolver_mod
 #endif
 #if _bluff3d_
    use BluffBody3DSolver_mod
@@ -36,7 +37,8 @@ program main
    call channel%run()
 #endif
 #if _bluff_
-   type(BluffBodySolver)  :: bluff
+   !type(BluffBodySolver)  :: bluff
+   type(DLRSolver)  :: bluff
    call bluff%run()
 #endif
 #if _bluff3d_

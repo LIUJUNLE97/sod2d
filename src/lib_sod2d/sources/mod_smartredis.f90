@@ -1,6 +1,6 @@
 module mod_smartredis
 
-#ifdef SMARTREDIS
+#if SMARTREDIS
 
    include "enum_fortran.inc"
    use iso_c_binding, only: c_bool
@@ -11,7 +11,7 @@ module mod_smartredis
 
    type(client_type) :: client ! Client instance of SmartRedis to communicate with Redis database
 
-contains
+   contains
 
    ! Initialise SmartRedis client
    ! Since each MPI rank communicates with the database, all of them need to initialise the client
