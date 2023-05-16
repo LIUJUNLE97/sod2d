@@ -3890,9 +3890,9 @@ contains
 
       integer(hid_t) :: hdf5_fileId
       character(512) :: full_hdf5_fileName,dsetname
-      integer(hsize_t),dimension(1) :: ms_dims
-      integer(hssize_t),dimension(1) :: ms_offset 
-      real(rp) :: aux_array_rp(1)
+      !nteger(hsize_t),dimension(1) :: ms_dims
+      !nteger(hssize_t),dimension(1) :: ms_offset 
+      !eal(rp) :: aux_array_rp(1)
 
       call set_hdf5_avgResultsFile_name(restartCnt,full_hdf5_fileName)
 
@@ -3904,6 +3904,14 @@ contains
 
       !-----------------------------------------------------------------------------------------------
       ! ----  elapsed_avgTime  -----
+
+      dsetname = 'elapsed_avgTime'
+      call read_real_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,elapsed_avgTime)
+
+      dsetname = 'initial_avgTime'
+      call read_real_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,initial_avgTime)
+
+#if 0
       ms_dims(1) = 0
       ms_offset(1) = 0
       if(mpi_rank.eq.0) then
@@ -3917,7 +3925,7 @@ contains
       dsetname = 'initial_avgTime'
       call read_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_rp)
       initial_avgTime = aux_array_rp(1)
-
+#endif
       !------------------         !if(mpi_rank.eq.0) write(*,*) 'saving field',iField,'name',dsetname-----------------------------------------------------------------------------
 
       call close_hdf5_file(hdf5_fileId)
@@ -5214,19 +5222,20 @@ contains
 !-------------------------------WITNESS POINTS-------------------------------!
    subroutine create_witness_hdf5(full_fileName, xyz, witel, witxi, shapewit, nwit, nwitPar, witGlob, save_u_i, save_pr, save_rho)
       implicit none
-      character(512), intent(in) :: full_fileName
-      integer(rp),    intent(in) :: nwit, nwitPar
-      integer(rp),    intent(in) :: witel(nwit), witGlob(nwit)
-      real(rp),       intent(in) :: witxi(nwit, ndime), shapewit(nwit,nnode)
-      real(rp),       intent(in) :: xyz(nwit,ndime)
-      logical,        intent(in) :: save_u_i, save_pr, save_rho
-      integer(rp)                :: aux(1), nwitParAllRanks(mpi_size), nwitOffset=0, inode
+      character(512),intent(in)  :: full_fileName
+      integer(4),intent(in)      :: nwit, nwitPar
+      integer(4),intent(in)      :: witel(nwit), witGlob(nwit)
+      real(rp),intent(in)        :: witxi(nwit, ndime), shapewit(nwit,nnode)
+      real(rp),intent(in)        :: xyz(nwit,ndime)
+      logical,intent(in)         :: save_u_i, save_pr, save_rho
+      integer(4)                 :: aux(1), nwitParAllRanks(mpi_size), nwitOffset=0, inode
       integer(hid_t)             :: file_id,plist_id,dset_id,dspace_id,group_id, dtype
       integer(HSIZE_T)           :: ds_dims(2), ms_dims(2), max_dims(2), chunk_dims(2)
       integer(HSSIZE_T)          :: ms_offset(2)
-      integer                    :: ds_rank, ms_rank, h5err, irank, iwit
+      integer(4)                 :: ds_rank, ms_rank, h5err, irank, iwit
       character(256)             :: groupname,dsetname
-      real(rp)                   :: auxwitxyz(nwitPar, ndime), auxwitxi(nwitPar,ndime), auxshapefunc(nwitPar,nnode) 
+      real(4)                    :: auxwitxyz(nwitPar, ndime), auxwitxi(nwitPar,ndime), auxshapefunc(nwitPar,nnode) 
+      !TOBECHANGED JODER
 
       ! Setup file access property list with parallel I/O access.
       call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
@@ -5401,19 +5410,19 @@ contains
    subroutine load_witness_hdf5(full_fileName, nwit, loadstep, load_stepwit, nwitPar, witel, witxi, shapefunc) 
       implicit none
       character(512), intent(in)  :: full_fileName
-      integer(rp),    intent(in)  :: nwit, loadstep
-      integer(rp),    intent(out) :: witel(nwit)
-      real(rp),       intent(out) :: witxi(nwit,ndime), shapefunc(nwit,nnode)!, t
-      integer(rp),    intent(out) :: nwitPar, load_stepwit
+      integer(4),    intent(in)  :: nwit, loadstep
+      integer(4),    intent(out) :: witel(nwit)
+      real(4),       intent(out) :: witxi(nwit,ndime), shapefunc(nwit,nnode)!, t
+      integer(4),    intent(out) :: nwitPar, load_stepwit
       integer(hid_t)              :: file_id,plist_id,dset_id,dspace_id,group_id, dtype
       integer(HSIZE_T)            :: ms_dims(2), max_dims(2)
       integer(HSSIZE_T)           :: ms_offset(2)
       integer                     :: ms_rank, h5err, iwit, istep
       integer(hsize_t)            :: nsteps(2), maxnsteps(2)
       character(256)              :: groupname,dsetname
-      integer(rp)                 :: nwitOffset, auxread(1)
-      real(rp)                    :: auxwitxi(ndime,nwit), auxshapefunc(nnode, nwit)!, auxt(1)
-      integer(rp), allocatable    :: steps(:)
+      integer(4)                 :: nwitOffset, auxread(1)
+      real(4)                    :: auxwitxi(ndime,nwit), auxshapefunc(nnode, nwit)!, auxt(1)
+      integer(4), allocatable    :: steps(:)
 
       witel(:)   = 0
       witxi(:,:) = 0.0_rp
@@ -5498,13 +5507,13 @@ contains
 
    subroutine update_witness_hdf5(itewit, leapwitsave, witval, nwit, nwitPar, nvarwit, full_fileName, t, steps, save_u_i, save_pr, save_rho)
       integer(4), intent(in)     :: itewit, nwit, nwitPar, nvarwit, leapwitsave, steps(leapwitsave)
-      real(rp), intent(in)       :: witval(leapwitsave, nwitPar, nvarwit), t(leapwitsave) 
+      real(4), intent(in)       :: witval(leapwitsave, nwitPar, nvarwit), t(leapwitsave) 
       logical, intent(in)        :: save_u_i, save_pr, save_rho
       character(512), intent(in) :: full_fileName
       character(256)             :: dsetname
-      real(rp)                   :: auxwrite(nwitPar)
+      real(4)                   :: auxwrite(nwitPar)
       integer(HSSIZE_T)          :: ms_offset(2)
-      integer                    :: ms_rank,h5err, iwit, ds_rank, ileap
+      integer(4)                    :: ms_rank,h5err, iwit, ds_rank, ileap
       integer(4)                 :: nwitOffset, auxread(1)
       integer(HSIZE_T)           :: ms_dims(2), ds_dims(2)
       integer(hid_t)             :: file_id,plist_id, dtype

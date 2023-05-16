@@ -77,16 +77,16 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 1000000 
+      this%final_istep = 900000000 
 
       this%save_logFile_first = 1 
-      this%save_logFile_step  = 1
+      this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 100
+      this%save_resultsFile_step = 1000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 100
+      this%save_restartFile_step = 250
       this%loadRestartFile = .false.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
@@ -106,6 +106,8 @@ contains
 
       this%cfl_conv = 100.0_rp !bdf2
       this%cfl_diff = 100.0_rp !bdf2
+      !this%cfl_conv = 0.15_rp !exp
+      !this%cfl_diff = 0.15_rp !exp
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
