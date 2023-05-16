@@ -87,11 +87,11 @@ contains
 
       this%save_restartFile_first = 1
       this%save_restartFile_step = 250
-      this%loadRestartFile = .false.
+      this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
-      this%saveAvgFile = .false.
+      this%saveAvgFile = .true.
       this%loadAvgFile = .false.
       !----------------------------------------------
 
