@@ -193,6 +193,8 @@ module mass_matrix
                   call nvtxEndRange
                  end if
 
+                 !$acc update host(Ml(:))
+
               end subroutine lumped_mass_spectral
 
               subroutine cmass_times_vector(nelem,npoin,connec,gpvol,Ngp,v,Rmc)

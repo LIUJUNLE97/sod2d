@@ -21,14 +21,14 @@ module time_integ
    real(rp), allocatable, dimension(:,:,:) :: sigMom
    real(rp), allocatable, dimension(:,:)   :: aijKjMass,aijKjEner,pt
    real(rp), allocatable, dimension(:,:,:) :: aijKjMom
-   real(rp), allocatable, dimension(:)     :: dt_min,alfa_pt
+   real(rp), allocatable, dimension(:)     :: dt_min
 
    real(rp), allocatable, dimension(:)   :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
    real(rp), allocatable, dimension(:,:) :: aux_u,aux_q
    real(rp), allocatable, dimension(:)   :: Rmass_sum,Rener_sum,Reta_sum,alpha,Rdiff_mass,Rdiff_ener
    real(rp), allocatable, dimension(:,:) :: Rmom_sum,Rdiff_mom,f_eta
 
-   real(rp), allocatable, dimension(:)   :: a_i, b_i, c_i,b_i2
+   real(rp), allocatable, dimension(:)   :: a_i, b_i, c_i,b_i2,e_b
    real(rp), allocatable, dimension(:,:)   :: a_ij
 
    contains
@@ -52,8 +52,6 @@ module time_integ
             !$acc enter data create(aijKjMom(:,:,:))
             allocate(dt_min(npoin))
             !$acc enter data create(dt_min(:))
-            allocate(alfa_pt(5))
-            !$acc enter data create(alfa_pt(:))
          endif
       end if
 
@@ -87,10 +85,11 @@ module time_integ
       !$acc enter data create(f_eta(:,:))
 
       if(flag_implicit == 1) then
-         allocate(a_ij(11,11),b_i(11),b_i2(11))
+         allocate(a_ij(11,11),b_i(11),b_i2(11),e_b(11))
          !$acc enter data create(a_ij(:,:))
          !$acc enter data create(b_i(:))
          !$acc enter data create(b_i2(:))
+         !$acc enter data create(e_b(:))
          if (pseudo_steps == 10) then  
             a_ij(:,:) = 0.0_rp
 
@@ -136,6 +135,18 @@ module time_integ
             b_i2(7)  = 20.5007152462_rp
             b_i2(8)  = -11.4042315893_rp
             b_i2(9)  = 3.6467343745_rp
+
+            e_b(1)  = abs(b_i(1)-b_i2(1))
+            e_b(2)  = abs(b_i(2)-b_i2(2))  
+            e_b(3)  = abs(b_i(3)-b_i2(3))  
+            e_b(4)  = abs(b_i(4)-b_i2(4))  
+            e_b(5)  = abs(b_i(5)-b_i2(5))  
+            e_b(6)  = abs(b_i(6)-b_i2(6))  
+            e_b(7)  = abs(b_i(7)-b_i2(7))  
+            e_b(8)  = abs(b_i(8)-b_i2(8))  
+            e_b(9)  = abs(b_i(9)-b_i2(9))  
+            e_b(10) = abs(b_i(10)-b_i2(10))  
+            e_b(11) = abs(b_i(11)-b_i2(11))  
           else
             write(1,*) "--| ONLY CODED RK10 !"
             stop 1
@@ -143,6 +154,7 @@ module time_integ
          !$acc update device(a_ij(:,:))
          !$acc update device(b_i(:))
          !$acc update device(b_i2(:))
+         !$acc update device(e_b(:))
       else
          allocate(a_i(4),b_i(4),c_i(4))
          !$acc enter data create(a_i(:))
@@ -221,12 +233,10 @@ module time_integ
             !$acc exit data delete(pt(:,:))
             !$acc exit data delete(aijKjMom(:,:,:))
             !$acc exit data delete(dt_min(:))
-            !$acc exit data delete(alfa_pt(:))
             deallocate(sigMass,sigEner,sigMom)
             deallocate(aijKjMass,aijKjEner,pt)
             deallocate(aijKjMom)
             deallocate(dt_min)
-            deallocate(alfa_pt)
          endif
 
          !$acc exit data delete(a_ij(:,:))
@@ -299,12 +309,16 @@ module time_integ
             real(rp),    dimension(npoin)       :: Rrho
             real(rp)                            :: umag,aux,kappa=1e-6,phi=0.4_rp,xi=0.7_rp,f_save=1.0_rp,f_max=1.01_rp,f_min=0.98_rp
             real(8)                             :: aux2,res_ini,res(2),errMax
+            real(rp)                            :: dt_inv_fact,inv_kappa,div_1_3
 
             !
             ! Choose between updating prediction or correction
             !
             pos = 2 ! Set correction as default value
             kappa = sqrt(epsilon(kappa))
+            dt_inv_fact = 1.0_rp/(dt*2.0_rp/3.0_rp)
+            inv_kappa = 1.0_rp/kappa
+            div_1_3 = 1.0_rp/3.0_rp
 
             call nvtxStartRange("Updating local dt")
             call adapt_local_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,pseudo_cfl,dt_min,pseudo_cfl,mu_fluid,mu_sgs,rho(:,2))
@@ -507,23 +521,21 @@ module time_integ
 
                   !$acc parallel loop 
                   do ipoin = 1,npoin
-                     alfa_pt(1) = 1.0_rp+b_i(istep)*pt(ipoin,1)/(dt*2.0_rp/3.0_rp)
-                     alfa_pt(2) = 1.0_rp+b_i(istep)*pt(ipoin,2)/(dt*2.0_rp/3.0_rp)
-                     alfa_pt(3) = 1.0_rp+b_i(istep)*pt(ipoin,3)/(dt*2.0_rp/3.0_rp)
-                     alfa_pt(4) = 1.0_rp+b_i(istep)*pt(ipoin,4)/(dt*2.0_rp/3.0_rp)
-                     alfa_pt(5) = 1.0_rp+b_i(istep)*pt(ipoin,5)/(dt*2.0_rp/3.0_rp)
+                     aux = 1.0_rp/(1.0_rp+b_i(istep)*pt(ipoin,1)*dt_inv_fact)
+                     Rmass(ipoin) = -Rmass(ipoin)-(rho(ipoin,2)-4.0_rp*rho(ipoin,1)*div_1_3 + rho(ipoin,3)*div_1_3)*dt_inv_fact
+                     Rmass_sum(ipoin) = Rmass_sum(ipoin) + b_i(istep)*Rmass(ipoin)*aux
+                     sigMass(ipoin,2) = sigMass(ipoin,2) + (pt(ipoin,1)*e_b(istep)*Rmass(ipoin))*inv_kappa
 
-                     Rmass(ipoin) = -Rmass(ipoin)-(rho(ipoin,2)-4.0_rp*rho(ipoin,1)/3.0_rp + rho(ipoin,3)/3.0_rp)/(dt*2.0_rp/3.0_rp)
-                     Rmass_sum(ipoin) = Rmass_sum(ipoin) + b_i(istep)*Rmass(ipoin)/alfa_pt(1)
-                     sigMass(ipoin,2) = sigMass(ipoin,2) + abs(pt(ipoin,1)*(b_i(istep)-b_i2(istep))*Rmass(ipoin))/kappa
-                     Rener(ipoin) = -Rener(ipoin)-(E(ipoin,2)-4.0_rp*E(ipoin,1)/3.0_rp + E(ipoin,3)/3.0_rp)/(dt*2.0_rp/3.0_rp)
-                     Rener_sum(ipoin) = Rener_sum(ipoin) + b_i(istep)*Rener(ipoin)/alfa_pt(2)
-                     sigEner(ipoin,2) = sigEner(ipoin,2) + abs(pt(ipoin,2)*(b_i(istep)-b_i2(istep))*Rener(ipoin))/kappa
+                     aux = 1.0_rp/(1.0_rp+b_i(istep)*pt(ipoin,2)*dt_inv_fact)
+                     Rener(ipoin) = -Rener(ipoin)-(E(ipoin,2)-4.0_rp*E(ipoin,1)*div_1_3 + E(ipoin,3)*div_1_3)*dt_inv_fact
+                     Rener_sum(ipoin) = Rener_sum(ipoin) + b_i(istep)*Rener(ipoin)*aux
+                     sigEner(ipoin,2) = sigEner(ipoin,2) + (pt(ipoin,2)*e_b(istep)*Rener(ipoin))*inv_kappa
                      !$acc loop seq
                      do idime = 1,ndime
-                        Rmom(ipoin,idime) = -Rmom(ipoin,idime)-(q(ipoin,idime,2)-4.0_rp*q(ipoin,idime,1)/3.0_rp + q(ipoin,idime,3)/3.0_rp)/(dt*2.0_rp/3.0_rp)
-                        Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)/alfa_pt(idime+2)
-                        sigMom(ipoin,idime,2) = sigMom(ipoin,idime,2) + abs(pt(ipoin,idime+2)*(b_i(istep)-b_i2(istep))*Rmom(ipoin,idime))/kappa
+                        aux = 1.0_rp/(1.0_rp+b_i(istep)*pt(ipoin,idime+2)*dt_inv_fact)
+                        Rmom(ipoin,idime) = -Rmom(ipoin,idime)-(q(ipoin,idime,2)-4.0_rp*q(ipoin,idime,1)*div_1_3 + q(ipoin,idime,3)*div_1_3)*dt_inv_fact
+                        Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)*aux
+                        sigMom(ipoin,idime,2) = sigMom(ipoin,idime,2) + (pt(ipoin,idime+2)*e_b(istep)*Rmom(ipoin,idime))*inv_kappa
                      end do
                      if(istep .eq. 1) then
                         !$acc loop seq
