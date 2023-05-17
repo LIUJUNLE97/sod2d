@@ -126,7 +126,9 @@ module time_integ
             b_i2(7)  = 20.5007152462_rp
             b_i2(8)  = -11.4042315893_rp
             b_i2(9)  = 3.6467343745_rp
-          else
+
+         else
+            
             write(1,*) "--| ONLY CODED RK10 !"
             stop 1
          end if
@@ -330,7 +332,7 @@ module time_integ
             !
             call nvtxStartRange("Loop over RK steps")
             maxIterL = maxIterNonLineal
-            res(:) = 0.0d0
+            res(:) = 0.0_rp
             do itime =1, maxIterL
                !$acc parallel loop
                do ipoin = 1,npoin
@@ -519,14 +521,14 @@ module time_integ
                   end do
                end do
                !$acc end parallel loop
-               aux2 = 0.d0
-               !$acc parallel loop reduction(+:aux2)
+               aux2 = 0.0_rp
+               !$acc parallel loop reduction(max:aux2)
                do ipoin = 1,npoin_w
-                  aux2 = aux2 + real(Rmass_sum(lpoin_w(ipoin))**2 ,8) + & 
-                                real(Rener_sum(lpoin_w(ipoin))**2 ,8) + &
-                                real(Rmom_sum(lpoin_w(ipoin),1)**2,8) + &
-                                real(Rmom_sum(lpoin_w(ipoin),2)**2,8) + &
-                                real(Rmom_sum(lpoin_w(ipoin),3)**2,8)
+                  aux2 = max(aux2 , abs(Rmass_sum(lpoin_w(ipoin)))) 
+                  aux2 = max(aux2 , abs(Rener_sum(lpoin_w(ipoin))))
+                  aux2 = max(aux2 , abs(Rmom_sum(lpoin_w(ipoin),1)))
+                  aux2 = max(aux2 , abs(Rmom_sum(lpoin_w(ipoin),2)))
+                  aux2 = max(aux2 , abs(Rmom_sum(lpoin_w(ipoin),3)))
                end do
                call nvtxEndRange
 
@@ -609,15 +611,15 @@ module time_integ
                call nvtxEndRange
 
                call nvtxStartRange("Accumullate aux2 in res(1)")
-               call MPI_Allreduce(aux2,res(1),1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+               call MPI_Allreduce(aux2,res(1),1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
                call nvtxEndRange
 
-               res(1) = sqrt(res(1))
+               !res(1) = sqrt(res(1))
 
-               if(itime .lt. 2) then
+               if(itime .eq. 1) then
                   res_ini = res(1)
                endif
-               errMax = abs(res(1)-res(2))/abs(res_ini)
+               errMax = abs(res(1)-res(2))/res_ini
 
                res(2) = res(1)            
 
