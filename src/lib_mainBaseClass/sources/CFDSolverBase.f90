@@ -669,6 +669,8 @@ contains
       end do
       !$acc end parallel loop
 
+      !$acc update host(normalsAtNodes(:,:)) !!just in case
+
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
    end subroutine CFDSolverBase_normalFacesToNodes
@@ -1199,6 +1201,7 @@ contains
          call nvtxStartRange("Bou normals")
          call boundary_normals(numNodesRankPar,numBoundsRankPar,boundParOrig,this%leviCivi,coordPar,dNgp_b,boundNormalPar)
          call nvtxEndRange
+         !$acc update device(boundNormalPar(:,:))
       end if
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
@@ -1383,9 +1386,6 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
 
-      !call eval_average_window(isMeshPeriodic,numNodesRankPar,numElemsRankPar,acuvel,acuve2,acuvex,acurho,acupre,acumueff,acutw,this%acutim,&
-		!									avvel,avve2,avvex,avrho,avpre,avmueff,avtw,nPerRankPar,masSlaRankPar)
-
       !TO REVIEW
       !$acc update host(avvel(:,:))
       !$acc update host(avve2(:,:))
@@ -1394,7 +1394,7 @@ contains
       !$acc update host(avpre(:))
       !$acc update host(avmueff(:))
       !$acc update host(avtw(:,:))
-      !call save_hdf5_avgResultsFile(istep,avvel,avve2,avvex,avrho,avpre,avmueff,avtw)
+
       call save_avgResults_hdf5_file(this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
                this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
                this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
@@ -1425,9 +1425,8 @@ contains
       !$acc update host(Qcrit(:))
       !$acc update host(mu_fluid(:))
       !$acc update host(mu_e(:,:))
-      !$acc update host(mu_sgs(:,:))      
+      !$acc update host(mu_sgs(:,:))
       
-      !call save_hdf5_resultsFile(istep,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),eta(:,2),csound,machno,gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs)
       call save_instResults_hdf5_file(iStep,this%time,&
                this%numNodeScalarFields2save,this%nodeScalarFields2save,this%nameNodeScalarFields2save,&
                this%numNodeVectorFields2save,this%nodeVectorFields2save,this%nameNodeVectorFields2save,&
