@@ -17,9 +17,11 @@ module time_integ
 
    real(rp), allocatable, dimension(:)   :: Rmass,Rener,Reta
    real(rp), allocatable, dimension(:,:) :: Rmom
-   real(rp), allocatable, dimension(:,:)   :: aijKjMass,aijKjEner
+   real(rp), allocatable, dimension(:,:)   :: sigMass,sigEner
+   real(rp), allocatable, dimension(:,:,:) :: sigMom
+   real(rp), allocatable, dimension(:,:)   :: aijKjMass,aijKjEner,pt
    real(rp), allocatable, dimension(:,:,:) :: aijKjMom
-   real(rp), allocatable, dimension(:)     :: pt
+   real(rp), allocatable, dimension(:)     :: dt_min,alfa_pt
 
    real(rp), allocatable, dimension(:)   :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
    real(rp), allocatable, dimension(:,:) :: aux_u,aux_q
@@ -38,12 +40,20 @@ module time_integ
 
       if(flag_implicit == 1) then
          if(implicit_solver == implicit_solver_bdf2_rk10) then
-            allocate(aijKjMass(npoin,11),aijKjEner(npoin,11),pt(npoin))
+            allocate(sigMass(npoin,2), sigEner(npoin,2), sigMom(npoin,ndime,2))
+            !$acc enter data create(sigMass(:,:))
+            !$acc enter data create(sigEner(:,:))
+            !$acc enter data create(sigMom(:,:,:))
+            allocate(aijKjMass(npoin,11),aijKjEner(npoin,11),pt(npoin,11))
             !$acc enter data create(aijKjMass(:,:))
             !$acc enter data create(aijKjEner(:,:))
-            !$acc enter data create(pt(:))
+            !$acc enter data create(pt(:,:))
             allocate(aijKjMom(npoin,ndime,11))
             !$acc enter data create(aijKjMom(:,:,:))
+            allocate(dt_min(npoin))
+            !$acc enter data create(dt_min(:))
+            allocate(alfa_pt(5))
+            !$acc enter data create(alfa_pt(:))
          endif
       end if
 
@@ -203,12 +213,20 @@ module time_integ
       if(flag_implicit == 1) then
 
          if(implicit_solver == implicit_solver_bdf2_rk10) then
+            !$acc exit data delete(sigMass(:,:))
+            !$acc exit data delete(sigEner(:,:))
+            !$acc exit data delete(sigMom(:,:,:))
             !$acc exit data delete(aijKjMass(:,:))
             !$acc exit data delete(aijKjEner(:,:))
-            !$acc exit data delete(pt(:))
+            !$acc exit data delete(pt(:,:))
             !$acc exit data delete(aijKjMom(:,:,:))
+            !$acc exit data delete(dt_min(:))
+            !$acc exit data delete(alfa_pt(:))
+            deallocate(sigMass,sigEner,sigMom)
             deallocate(aijKjMass,aijKjEner,pt)
             deallocate(aijKjMom)
+            deallocate(dt_min)
+            deallocate(alfa_pt)
          endif
 
          !$acc exit data delete(a_ij(:,:))
@@ -279,17 +297,28 @@ module time_integ
             integer(4)                          :: pos,maxIterL
             integer(4)                          :: istep, ipoin, idime,icode,itime,jstep,inode,ielem,npoin_w_g
             real(rp),    dimension(npoin)       :: Rrho
-            real(rp)                            :: umag,aux
+            real(rp)                            :: umag,aux,kappa=1e-6,phi=0.4_rp,xi=0.7_rp,f_save=1.0_rp,f_max=1.01_rp,f_min=0.98_rp
             real(8)                             :: aux2,res_ini,res(2),errMax
 
             !
             ! Choose between updating prediction or correction
             !
             pos = 2 ! Set correction as default value
+            kappa = sqrt(epsilon(kappa))
 
             call nvtxStartRange("Updating local dt")
-            call adapt_local_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,pseudo_cfl,pt,pseudo_cfl,mu_fluid,mu_sgs,rho(:,2))
+            call adapt_local_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,pseudo_cfl,dt_min,pseudo_cfl,mu_fluid,mu_sgs,rho(:,2))
             call nvtxEndRange()
+
+            call nvtxStartRange("Initialize pt")
+            !$acc kernels
+            pt(:,1) = dt_min(:)
+            pt(:,2) = dt_min(:)
+            pt(:,3) = dt_min(:)
+            pt(:,4) = dt_min(:)
+            pt(:,5) = dt_min(:)
+            !$acc end kernels
+            call nvtxEndRange
 
             !
             ! Initialize variables to zero
@@ -336,9 +365,15 @@ module time_integ
                do ipoin = 1,npoin
                   Rmass_sum(ipoin) = 0.0_rp
                   Rener_sum(ipoin) = 0.0_rp
+                  sigMass(ipoin,1) = sigMass(ipoin,2)
+                  sigEner(ipoin,1) = sigEner(ipoin,2)
+                  sigMass(ipoin,2) = 0.0_rp
+                  sigEner(ipoin,2) = 0.0_rp
                   !$acc loop seq
                   do idime = 1,ndime
                      Rmom_sum(ipoin,idime) = 0.0_rp
+                     sigMom(ipoin,idime,1) = sigMom(ipoin,idime,2)
+                     sigMom(ipoin,idime,2) = 0.0_rp
                      aijKjMom(ipoin,idime,1:11) = 0.0_rp
                   end do
                   aijKjMass(ipoin,1:11) = 0.0_rp
@@ -353,11 +388,11 @@ module time_integ
                   call nvtxStartRange("Update aux_*")
                   !$acc parallel loop
                   do ipoin = 1,npoin
-                     aux_rho(ipoin) = rho(ipoin,pos) + pt(ipoin)*aijKjMass(ipoin,istep)
-                     aux_E(ipoin)   = E(ipoin,pos)   + pt(ipoin)*aijKjEner(ipoin,istep)
+                     aux_rho(ipoin) = rho(ipoin,pos) + pt(ipoin,1)*aijKjMass(ipoin,istep)
+                     aux_E(ipoin)   = E(ipoin,pos)   + pt(ipoin,2)*aijKjEner(ipoin,istep)
                      !$acc loop seq
                      do idime = 1,ndime
-                        aux_q(ipoin,idime) = q(ipoin,idime,pos) + pt(ipoin)*aijKjMom(ipoin,idime,istep)
+                        aux_q(ipoin,idime) = q(ipoin,idime,pos) + pt(ipoin,idime+2)*aijKjMom(ipoin,idime,istep)
                      end do
                   end do
                   !$acc end parallel loop
@@ -472,15 +507,23 @@ module time_integ
 
                   !$acc parallel loop 
                   do ipoin = 1,npoin
-                     aux = 1.0_rp+b_i(istep)*pt(ipoin)/(dt*2.0_rp/3.0_rp)
+                     alfa_pt(1) = 1.0_rp+b_i(istep)*pt(ipoin,1)/(dt*2.0_rp/3.0_rp)
+                     alfa_pt(2) = 1.0_rp+b_i(istep)*pt(ipoin,2)/(dt*2.0_rp/3.0_rp)
+                     alfa_pt(3) = 1.0_rp+b_i(istep)*pt(ipoin,3)/(dt*2.0_rp/3.0_rp)
+                     alfa_pt(4) = 1.0_rp+b_i(istep)*pt(ipoin,4)/(dt*2.0_rp/3.0_rp)
+                     alfa_pt(5) = 1.0_rp+b_i(istep)*pt(ipoin,5)/(dt*2.0_rp/3.0_rp)
+
                      Rmass(ipoin) = -Rmass(ipoin)-(rho(ipoin,2)-4.0_rp*rho(ipoin,1)/3.0_rp + rho(ipoin,3)/3.0_rp)/(dt*2.0_rp/3.0_rp)
-                     Rmass_sum(ipoin) = Rmass_sum(ipoin) + b_i(istep)*Rmass(ipoin)/aux
+                     Rmass_sum(ipoin) = Rmass_sum(ipoin) + b_i(istep)*Rmass(ipoin)/alfa_pt(1)
+                     sigMass(ipoin,2) = sigMass(ipoin,2) + abs(pt(ipoin,1)*(b_i(istep)-b_i2(istep))*Rmass(ipoin))/kappa
                      Rener(ipoin) = -Rener(ipoin)-(E(ipoin,2)-4.0_rp*E(ipoin,1)/3.0_rp + E(ipoin,3)/3.0_rp)/(dt*2.0_rp/3.0_rp)
-                     Rener_sum(ipoin) = Rener_sum(ipoin) + b_i(istep)*Rener(ipoin)/aux
+                     Rener_sum(ipoin) = Rener_sum(ipoin) + b_i(istep)*Rener(ipoin)/alfa_pt(2)
+                     sigEner(ipoin,2) = sigEner(ipoin,2) + abs(pt(ipoin,2)*(b_i(istep)-b_i2(istep))*Rener(ipoin))/kappa
                      !$acc loop seq
                      do idime = 1,ndime
                         Rmom(ipoin,idime) = -Rmom(ipoin,idime)-(q(ipoin,idime,2)-4.0_rp*q(ipoin,idime,1)/3.0_rp + q(ipoin,idime,3)/3.0_rp)/(dt*2.0_rp/3.0_rp)
-                        Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)/aux
+                        Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)/alfa_pt(idime+2)
+                        sigMom(ipoin,idime,2) = sigMom(ipoin,idime,2) + abs(pt(ipoin,idime+2)*(b_i(istep)-b_i2(istep))*Rmom(ipoin,idime))/kappa
                      end do
                      if(istep .eq. 1) then
                         !$acc loop seq
@@ -509,25 +552,34 @@ module time_integ
                ! RK update to variables
                !
                call nvtxStartRange("RK_UPDATE AND PT UPDATE")
-               !$acc parallel loop 
+               aux2 = 0.d0
+               !$acc parallel loop reduction(+:aux2)
                do ipoin = 1,npoin
-                  rho(ipoin,pos) = rho(ipoin,pos)+pt(ipoin)*Rmass_sum(ipoin)
-                  E(ipoin,pos) = (E(ipoin,pos)+pt(ipoin)*Rener_sum(ipoin))
+                  rho(ipoin,pos) = rho(ipoin,pos)+pt(ipoin,1)*Rmass_sum(ipoin)
+                  aux2 = aux2 + real(Rmass_sum(ipoin),8)**2
+                  E(ipoin,pos) = (E(ipoin,pos)+pt(ipoin,2)*Rener_sum(ipoin))
+                  aux2 = aux2 + real(Rener_sum(ipoin),8)**2
                   !$acc loop seq
                   do idime = 1,ndime
-                     q(ipoin,idime,pos) = q(ipoin,idime,pos)+pt(ipoin)*Rmom_sum(ipoin,idime)
+                     q(ipoin,idime,pos) = q(ipoin,idime,pos)+pt(ipoin,idime+2)*Rmom_sum(ipoin,idime)
+                     aux2 = aux2 + real(Rmom_sum(ipoin,idime),8)**2
+                  end do
+                  
+                 ! pseudo stepping
+                  aux = ((sigMass(ipoin,2))**(-phi))*((sigMass(ipoin,1))**(-xi))
+                  aux = min(f_max,max(f_min,f_save*aux))
+                  pt(ipoin,1) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,1)))
+                  aux = ((sigEner(ipoin,2))**(-phi))*((sigEner(ipoin,2))**(-xi))
+                  aux = min(f_max,max(f_min,f_save*aux))
+                  pt(ipoin,2) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,2)))
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     aux = ((sigMom(ipoin,idime,2))**(-phi))*((sigMom(ipoin,idime,2))**(-xi))
+                     aux = min(f_max,max(f_min,f_save*aux))
+                     pt(ipoin,idime+2) = max(dt_min(ipoin),min(dt_min(ipoin)*pseudo_ftau,aux*pt(ipoin,idime+2)))
                   end do
                end do
                !$acc end parallel loop
-               aux2 = 0.d0
-               !$acc parallel loop reduction(+:aux2)
-               do ipoin = 1,npoin_w
-                  aux2 = aux2 + real(Rmass_sum(lpoin_w(ipoin))**2 ,8) + & 
-                                real(Rener_sum(lpoin_w(ipoin))**2 ,8) + &
-                                real(Rmom_sum(lpoin_w(ipoin),1)**2,8) + &
-                                real(Rmom_sum(lpoin_w(ipoin),2)**2,8) + &
-                                real(Rmom_sum(lpoin_w(ipoin),3)**2,8)
-               end do
                call nvtxEndRange
 
                if (flag_buffer_on .eqv. .true.) then
@@ -595,7 +647,7 @@ module time_integ
                do ipoin = 1,npoin_w
                   Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin)) &
                                           -(3.0_rp*eta(lpoin_w(ipoin),2)-4.0_rp*eta(lpoin_w(ipoin),1)+eta(lpoin_w(ipoin),3))/(2.0_rp*dt) &
-                                          -(eta(lpoin_w(ipoin),2)-aux_eta(lpoin_w(ipoin)))/pt(lpoin_w(ipoin))
+                                          -(eta(lpoin_w(ipoin),2)-aux_eta(lpoin_w(ipoin)))/pt(lpoin_w(ipoin),1)
                end do
                !$acc end parallel loop
                call nvtxEndRange
