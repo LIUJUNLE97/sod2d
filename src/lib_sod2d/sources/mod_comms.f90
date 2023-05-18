@@ -274,6 +274,22 @@ contains
     end subroutine copy_from_rcvBuffer_real
 !-------------------------------------------------------------------------
 !-------------------------------------------------------------------------
+    subroutine copy_from_min_rcvBuffer_real(realField)
+        implicit none
+        real(rp), intent(inout) :: realField(:)
+        integer(4) :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = nodesToComm(i)
+            !$acc atomic update
+            realField(iNodeL) = min(realField(iNodeL) , aux_realField_r(i))
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_min_rcvBuffer_real
+!-------------------------------------------------------------------------
+!-------------------------------------------------------------------------
     subroutine copy_from_rcvBuffer_get_int(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
@@ -411,6 +427,32 @@ contains
 
         call copy_from_rcvBuffer_real(realField)
     end subroutine mpi_halo_atomic_update_real_sendRcv
+
+     ! REAL ---------------------------------------------------
+    subroutine mpi_halo_atomic_min_update_real_sendRcv(realField)
+        implicit none
+        real(rp), intent(inout) :: realField(:)
+        integer(4) :: i,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+
+        call fill_sendBuffer_real(realField)
+
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            call MPI_Sendrecv(aux_realField_s(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
+                              aux_realField_r(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
+                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+        end do
+        !$acc end host_data
+
+        call copy_from_min_rcvBuffer_real(realField)
+    end subroutine mpi_halo_atomic_min_update_real_sendRcv
+
 
 !------------- ISEND/IRECV -------------------------------------------
     !INTEGER ---------------------------------------------------------
