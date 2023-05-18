@@ -3757,11 +3757,11 @@ contains
          !if(mpi_rank.eq.0) write(*,*) 'saving field',iField,'name',dsetname
 
          if(isMeshPeriodic) then
-            !$acc parallel loop
+            !!!!$acc parallel loop
             do iPer = 1,nPerRankPar
                nodeScalarFields2save(iField)%ptr(masSlaRankPar(iPer,2)) = nodeScalarFields2save(iField)%ptr(masSlaRankPar(iPer,1))
             end do
-            !$acc end parallel loop
+            !!!!$acc end parallel loop
          end if
 
          call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,nodeScalarFields2save(iField)%ptr)
@@ -3782,11 +3782,11 @@ contains
          dsetname = trim(adjustl(groupname))//trim(nameNodeVectorFields2save(iField))
 
          if(isMeshPeriodic) then
-            !$acc parallel loop
+            !!!!$acc parallel loop
             do iPer = 1,nPerRankPar
                nodeVectorFields2save(iField)%ptr(masSlaRankPar(iPer,2),:) = nodeVectorFields2save(iField)%ptr(masSlaRankPar(iPer,1),:)
             end do
-            !$acc end parallel loop
+            !!!!$acc end parallel loop
          end if
 
          call save_array2D_tr_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,nodeVectorFields2save(iField)%ptr)
@@ -3805,11 +3805,11 @@ contains
          !!!!$acc end kernels
 
          if(isMeshPeriodic) then
-            !$acc parallel loop
+            !!!!$acc parallel loop
             do iPer = 1,nPerRankPar
                aux_nodeScalarField(masSlaRankPar(iPer,2)) = aux_nodeScalarField(masSlaRankPar(iPer,1))
             end do
-            !$acc end parallel loop
+            !!!!$acc end parallel loop
          end if
 
          call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,aux_nodeScalarField)
