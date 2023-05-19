@@ -2,14 +2,14 @@ module mod_constants
 
       implicit none
 
-      integer(4), parameter :: rp = 8 !(4/8)
+      integer(4), parameter :: rp = 4 ! (4/8)
       integer(4), parameter :: rp_vtk = 4 !(4/8)
 
       !
       ! Dimensions
       !
       integer(4), parameter :: ndime=3
-      
+
       !
       ! Element characteristics
       !
@@ -56,6 +56,6 @@ module mod_constants
 
       integer(4), parameter :: implicit_solver_esdirk      = 1
       integer(4), parameter :: implicit_solver_bdf2_rk10   = 2
-      
+
 
 end module mod_constants

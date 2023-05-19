@@ -61,7 +61,7 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cylin"
+      write(this%mesh_h5_file_name,*) "cylinder"
       !write(this%mesh_h5_file_name,*) "naca"
 
       write(this%results_h5_file_path,*) ""
@@ -70,11 +70,11 @@ contains
       ! numerical params
       flag_les = 0
       flag_implicit = 0
-      flag_les_ilsa=0 
+      flag_les_ilsa=0
       implicit_solver = implicit_solver_bdf2_rk10
       flag_rk_order=4
 
-      pseudo_cfl =0.95_rp 
+      pseudo_cfl =0.95_rp
       pseudo_ftau= 4.0_rp
       maxIterNonLineal=1000
       tol=1e-3
@@ -85,8 +85,8 @@ contains
       this%load_step = 150001
 
       this%nstep = 90000001 !250001
-      this%cfl_conv = 0.25_rp 
-      this%cfl_diff = 0.25_rp 
+      this%cfl_conv = 0.25_rp
+      this%cfl_diff = 0.25_rp
 
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
@@ -124,11 +124,11 @@ contains
 
       flag_buffer_on_east = .true.
       flag_buffer_e_min = 18.0_rp
-      flag_buffer_e_size = 4.0_rp 
+      flag_buffer_e_size = 4.0_rp
 
       flag_buffer_on_west = .true.
       flag_buffer_w_min = 0.0_rp
-      flag_buffer_w_size = 4.0_rp 
+      flag_buffer_w_size = 4.0_rp
 
    end subroutine DLRSolver_initializeParameters
 
@@ -161,7 +161,7 @@ contains
          q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
          rho(iNodeL,3) = rho(iNodeL,2)
          E(iNodeL,3) =  E(iNodeL,2)
-         eta(iNodeL,3) = eta(iNodeL,2) 
+         eta(iNodeL,3) = eta(iNodeL,2)
       end do
       !$acc end parallel loop
 
@@ -188,10 +188,10 @@ contains
       do iNodeL = 1,numNodesRankPar
             u_buffer(iNodeL,1) = this%vo*(1.0-(((coordPar(iNodeL,2)-4.1_rp/2.0_rp)/4.1_rp)*2.0_rp)**2)
             u_buffer(iNodeL,2) = 0.0_rp
-            u_buffer(iNodeL,3) = 0.0_rp  
+            u_buffer(iNodeL,3) = 0.0_rp
             if(bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) then
                bcode = bouCodesNodesPar(iNodeL) ! Boundary element code
-               if (bcode == bc_type_unsteady_inlet .or. bcode == bc_type_non_slip_adiabatic) then 
+               if (bcode == bc_type_unsteady_inlet .or. bcode == bc_type_non_slip_adiabatic) then
                   u_buffer(iNodeL,1) = 0.00_rp
                   u_buffer(iNodeL,2) = 0.00_rp
                   u_buffer(iNodeL,3) = 0.00_rp
@@ -211,28 +211,28 @@ contains
       integer(4) :: inode,bcode
       real(rp) :: x,y,z
 
-      !$acc parallel loop  
+      !$acc parallel loop
       do inode = 1,numNodesRankPar
          if(bouCodesNodesPar(inode) .lt. max_num_bou_codes) then
             bcode = bouCodesNodesPar(inode) ! Boundary element code
-            if (bcode == bc_type_unsteady_inlet) then 
+            if (bcode == bc_type_unsteady_inlet) then
                x = coordPar(inode,1)
                y = coordPar(inode,2)
                z = coordPar(inode,3)
                if(y>2.0_rp) then !top
                   u_buffer(inode,1) = real(0.06283185307179587,rp)*cos((2.0_rp*atan((y - 2.0_rp)/(x - 2.0_rp + sqrt((x - 2.0_rp)**2+(y - 2.0_rp)**2))) &
                                     - real(1.2217304763960306,rp))/real(0.05555555555555555,rp))*0.5_rp*cos(2*atan((y - 2.0_rp)/(x - 2.0_rp &
-                                    + sqrt((x - 2.0_rp)**2+(y - 2.0_rp)**2)))-real(1.2217304763960306,rp))                                   
+                                    + sqrt((x - 2.0_rp)**2+(y - 2.0_rp)**2)))-real(1.2217304763960306,rp))
                   u_buffer(inode,2) = real(0.06283185307179587,rp)*cos((2.0_rp*atan((y - 2.0_rp)/(x - 2.0_rp + sqrt((x - 2.0_rp)**2+(y - 2.0_rp)**2))) &
-                                    - real(1.2217304763960306,rp))/real(0.05555555555555555,rp))*0.5_rp*sin(2.0_rp*atan((y - 2.0_rp)/(x - 2.0_rp & 
+                                    - real(1.2217304763960306,rp))/real(0.05555555555555555,rp))*0.5_rp*sin(2.0_rp*atan((y - 2.0_rp)/(x - 2.0_rp &
                                     + sqrt((x - 2.0_rp)**2+(y - 2.0_rp)**2)))-real(1.2217304763960306,rp))
                   u_buffer(inode,3) = 0.00_rp
                else
                   u_buffer(inode,1) = real(0.06283185307179587,rp)*cos((2.0_rp*atan((y - 2.0_rp)/(x - 2.0_rp + sqrt((x - 2.0_rp)**2+(y - 2.0_rp)**2))) &
                                     + real(1.221730476396031,rp))/real(0.05555555555555555,rp))*0.5_rp*cos(2.0_rp*atan((y - 2.0_rp)/(x - 2.0_rp &
-                                    + sqrt((x - 2.0_rp)**2+(y - 2.0_rp)**2)))-real(1.221730476396031,rp))                                   
+                                    + sqrt((x - 2.0_rp)**2+(y - 2.0_rp)**2)))-real(1.221730476396031,rp))
                   u_buffer(inode,2) = real(0.06283185307179587,rp)*cos((2.0_rp*atan((y - 2.0_rp)/(x - 2.0_rp + sqrt((x - 2.0_rp)**2+(y - 2.0_rp)**2))) &
-                                    + real(1.221730476396031,rp))/real(0.05555555555555555,rp))*0.5_rp*sin(2.0_rp*atan((y - 2.0_rp)/(x - 2.0_rp & 
+                                    + real(1.221730476396031,rp))/real(0.05555555555555555,rp))*0.5_rp*sin(2.0_rp*atan((y - 2.0_rp)/(x - 2.0_rp &
                                     + sqrt((x - 2.0_rp)**2+(y - 2.0_rp)**2)))-real(1.221730476396031,rp))
                   u_buffer(inode,3) = 0.00_rp
                end if

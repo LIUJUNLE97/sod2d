@@ -1,12 +1,12 @@
 module mod_smartredis
-
 #if SMARTREDIS
 
    include "enum_fortran.inc"
    use iso_c_binding, only: c_bool
-   use smartredis_client, only: client_type
-   use mod_numerical_params, only: do_smartredis, do_smartredis
+   use mod_constants
+   use mod_numerical_params, only: do_smartredis
    use mod_mpi
+   use smartredis_client, only: client_type
    implicit none
 
    type(client_type) :: client ! Client instance of SmartRedis to communicate with Redis database
@@ -33,9 +33,10 @@ module mod_smartredis
    end subroutine end_smartredis
 
    ! Write witness points state into DB
-   subroutine write_witness_state(client, state, key_name)
+   subroutine write_witness_state(client, state_size, state, key_name)
       type(client_type), intent(inout) :: client
-      real(rp), intent(in) :: state(:)             ! witness points state values
+      integer(4), intent(in) :: state_size         ! witness points size
+      real(rp), intent(in) :: state(state_size)    ! witness points state values
       character(len=*), intent(in) :: key_name     ! array name to write to database
       character(len=8) :: key_mpi_prefix           ! mpi rank prefix
       character(len=32) :: key                     ! name + mpi rank prefix
@@ -49,15 +50,16 @@ module mod_smartredis
    end subroutine write_witness_state
 
    ! Read actions from DB
-   subroutine read_actions(client, actions, key_name)
+   subroutine read_actions(client, actions_size, actions, key_name)
       type(client_type), intent(inout) :: client
-      real(rp), intent(inout) :: actions(:)        ! actions array buffer
-      character(len=*), intent(in) :: key_name     ! actions name to read from database
-      integer, parameter :: interval = 10          ! polling interval in milliseconds
-      integer, parameter :: tries = huge(1)        ! infinite number of polling tries
-      character(len=8) :: key_mpi_prefix           ! mpi rank prefix
-      character(len=32) :: key                     ! name + mpi rank prefix
-      logical(kind=c_bool) :: exists               ! receives whether the tensor exists
+      integer(4), intent(inout) :: actions_size        ! actions array buffer
+      real(rp), intent(inout) :: actions(actions_size) ! actions array buffer
+      character(len=*), intent(in) :: key_name         ! actions name to read from database
+      integer, parameter :: interval = 10              ! polling interval in milliseconds
+      integer, parameter :: tries = huge(1)            ! infinite number of polling tries
+      character(len=8) :: key_mpi_prefix               ! mpi rank prefix
+      character(len=32) :: key                         ! name + mpi rank prefix
+      logical(kind=c_bool) :: exists                   ! receives whether the tensor exists
       logical :: found
       integer :: return_code
 
@@ -73,5 +75,4 @@ module mod_smartredis
    end subroutine read_actions
 
 #endif
-
 end module mod_smartredis
