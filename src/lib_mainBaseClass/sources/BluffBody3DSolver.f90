@@ -50,13 +50,8 @@ contains
 #if CRM
       
       bouCodes2BCType(1) = bc_type_far_field
-      bouCodes2BCType(2) = bc_type_far_field !far field
+      bouCodes2BCType(2) = bc_type_far_field 
       bouCodes2BCType(3) = bc_type_non_slip_adiabatic
-      bouCodes2BCType(4) = bc_type_far_field !inlet
-      bouCodes2BCType(5) = bc_type_far_field !outlet
-      bouCodes2BCType(6) = bc_type_slip_adiabatic  ! symmetry
-      bouCodes2BCType(7) = bc_type_non_slip_adiabatic
-      bouCodes2BCType(8) = bc_type_non_slip_adiabatic
 
 #else
      ! bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! floor
@@ -71,7 +66,7 @@ contains
       bouCodes2BCType(2) = bc_type_non_slip_adiabatic
       bouCodes2BCType(3) = bc_type_non_slip_adiabatic
       bouCodes2BCType(4) = bc_type_non_slip_adiabatic
-      bouCodes2BCType(5) = bc_type_slip_adiabatic
+      bouCodes2BCType(5) = bc_type_far_field
       bouCodes2BCType(6) = bc_type_far_field
 #endif
       !$acc update device(bouCodes2BCType(:))
@@ -119,7 +114,7 @@ contains
       implicit_solver = implicit_solver_bdf2_rk10
       flag_rk_order=4
 #if CRM    
-      pseudo_cfl =0.1_rp 
+      pseudo_cfl =0.2_rp 
 #else
       pseudo_cfl =0.3_rp 
 #endif
@@ -137,8 +132,8 @@ contains
 #endif
       this%nstep = 8000001 !250001
 #if CRM
-      this%cfl_conv = 20.0_rp 
-      this%cfl_diff = 20.0_rp 
+      this%cfl_conv = 1000.0_rp 
+      this%cfl_diff = 1000.0_rp 
 #else   
       this%cfl_conv = 100.0_rp
       this%cfl_diff = 100.0_rp
@@ -147,9 +142,9 @@ contains
       this%nsave  = 1  ! First step to save, TODO: input
       this%nsave2 = 1   ! First step to save, TODO: input
       this%nsaveAVG = 1
-      this%nleap = 100!25 ! Saving interval, TODO: input
+      this%nleap = 200!25 ! Saving interval, TODO: input
       this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 100
+      this%nleapAVG = 200
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
