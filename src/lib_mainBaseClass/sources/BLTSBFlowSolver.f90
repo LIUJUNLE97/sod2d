@@ -27,6 +27,7 @@ module BLTSBFlowSolver_mod
    use mod_mpi_mesh
    use mod_hdf5
    use CFDSolverPeriodicWithBoundaries_mod
+   use mod_constants
    implicit none
    private
 
@@ -48,9 +49,9 @@ contains
 
    subroutine BLTSBFlowSolver_afterDt(this,istep)
       class(BLTSBFlowSolver), intent(inout) :: this
-      integer(4)              , intent(in)   :: istep
-      integer(4) :: iNodeL 
-      real(rp) :: cd, lx, ly, xmin, xmax
+      integer(4)             , intent(in)   :: istep
+      integer(4) :: iNodeL, bcode
+      real(rp) :: cd, lx, ly, xmin, xmax, f1, f2, f3
 
       cd = 1.0_rp
       lx = this%d0*2.5_rp
@@ -58,7 +59,7 @@ contains
       xmin = 20.0_rp*this%d0
       xmax = xmin+lx
 
-      !$acc parallel loop  
+      !!$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          if(coordPar(iNodeL,2) < ly) then
             if((coordPar(iNodeL,1)<xmax)  .and. (coordPar(iNodeL,1)>xmin)) then
@@ -66,16 +67,24 @@ contains
                source_term(iNodeL,2) = 0.00_rp
                source_term(iNodeL,3) = 0.00_rp
             end if
+         elseif(bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) then
+            bcode = bouCodesNodesPar(iNodeL) ! Boundary element code
+            if (bcode == bc_type_unsteady_inlet) then
+               call this%smoothStep((coordPar(iNodeL,1)-this%x_start  )/        this%x_rise          , f1)
+               call this%smoothStep((coordPar(iNodeL,1)-this%x_end    )/(2.0_rp*this%x_fall  )+1.0_rp, f2)
+               call this%smoothStep((coordPar(iNodeL,1)-this%x_restart)/        this%x_rerise        , f3)
+               u_buffer(iNodeL,2) = (f1 - (1.0_rp + this%coeff_tbs)*f2 + this%coeff_tbs*f3)*this%amp_tbs
+            end if
          end if
       end do
-      !$acc end parallel loop
+      !!$acc end parallel loop
    end subroutine BLTSBFlowSolver_afterDt
 
    subroutine BLTSBFlowSolver_fill_BC_Types(this)
       class(BLTSBFlowSolver), intent(inout) :: this
 
-      bouCodes2BCType(1) = bc_type_slip_wall_model
-      bouCodes2BCType(2) = bc_type_far_field
+      bouCodes2BCType(1) = bc_type_slip_wall_model  ! Wall
+      bouCodes2BCType(2) = bc_type_unsteady_inlet   ! Upper part of the domain
 
    end subroutine BLTSBFlowSolver_fill_BC_Types
 
@@ -222,21 +231,6 @@ contains
 
   end subroutine BLTSBFlowSolver_fillBlasius
 
-   subroutine BLTSBFlowSolver_smoothStep(this,x,y)
-      class(BLTSBFlowSolver), intent(inout) :: this
-      real(rp), intent(in)  :: x
-      real(rp), intent(out) :: y
-
-      if(x<=0.0_rp) then
-         y = 0.0_rp
-      elseif(x<1.0_rp) then
-         y = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
-      else
-         y = 1
-      end if
-
-   end subroutine BLTSBFlowSolver_smoothStep
-
    subroutine BLTSBFlowSolver_initializeParameters(this)
       class(BLTSBFlowSolver), intent(inout) :: this
       real(rp) :: mur
@@ -263,7 +257,7 @@ contains
       this%continue_oldLogs = .false.
       this%load_step = 1
 
-      this%nstep = 10001 
+      this%nstep = 100001 
       this%cfl_conv = 1.00_rp
       this%cfl_diff = 1.00_rp
       this%nsave  = 1  ! First step to save, TODO: input
@@ -287,7 +281,9 @@ contains
       this%x_end     = 435.0_rp  ! x coordinate where 2nd step function on the free streamwise velocity ends
       this%x_fall    = 115.0_rp   ! x half length of the smoothing of the 2nd step function for the free streamwise velocity
       this%x_rerise  = 100.0_rp   ! x length of the smoothing of the 3rd step function for the free streamwise velocity
-      this%x_restart = 3.0_rp*(this%x_end-this%x_fall) - 2.0_rp*this%x_start - this%x_rise - 0.5_rp*this%x_rerise
+      this%x_restart = 3.0_rp*(this%x_end-this%x_fall) - 2.0_rp*this%x_start - this%x_rise - 0.5_rp*this%x_rerise  ! x coordinate
+      !where 3rd step function on the free streamwise velocity starts. The location is calculated to have a zero vertical mass flow
+      !rate
       this%coeff_tbs = 0.5_rp
 
       this%Red0  = 450.0_rp
@@ -315,16 +311,16 @@ contains
       flag_buffer_e_min = 950.0_rp
       flag_buffer_e_size = 50.0_rp 
       
-      ! Top boundary condition
-      flag_buffer_on_north = .true.
-      flag_buffer_n_min = 39.9_rp
-      flag_buffer_n_size = 0.1_rp
+      !! Top boundary condition
+      !flag_buffer_on_north = .true.
+      !flag_buffer_n_min = 39.9_rp
+      !flag_buffer_n_size = 0.1_rp
 
    end subroutine BLTSBFlowSolver_initializeParameters
 
    subroutine BLTSBFlowSolver_initialBuffer(this)
       class(BLTSBFlowSolver), intent(inout) :: this
-      integer(4) :: iNodeL,k,j
+      integer(4) :: iNodeL,k,j,bcode
       real(rp) :: yp,eta_y,f_y,f_prim_y, f1, f2, f3
 
       call this%fillBlasius()
@@ -346,16 +342,21 @@ contains
             u_buffer(iNodeL,2) = 0.0_rp
             u_buffer(iNodeL,3) = 0.0_rp
          else if(j==45) then
-            if(yp > 39.99) then ! Change the value accordingly to Ly of the domain
-               call this%smoothStep((coordPar(iNodeL,1)-this%x_start  )/   this%x_rise     , f1)
-               call this%smoothStep((coordPar(iNodeL,1)-this%x_end    )/(2*this%x_fall  )+1, f2)
-               call this%smoothStep((coordPar(iNodeL,1)-this%x_restart)/   this%x_rerise   , f3)
-               u_buffer(iNodeL,2) = (f1 - (1.0_rp + this%coeff_tbs)*f2 + this%coeff_tbs*f3)*this%amp_tbs
-            else
-               u_buffer(iNodeL,2) = 0.0_rp
-            end if
             u_buffer(iNodeL,1) = this%U0
+            u_buffer(iNodeL,2) = 0.0_rp
             u_buffer(iNodeL,3) = 0.0_rp
+            if(bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) then
+               bcode = bouCodesNodesPar(iNodeL)
+               if (bcode == bc_type_unsteady_inlet) then
+                !  call this%smoothStep((coordPar(iNodeL,1)-this%x_start  )/        this%x_rise          , f1)
+                !  call this%smoothStep((coordPar(iNodeL,1)-this%x_end    )/(2.0_rp*this%x_fall  )+1.0_rp, f2)
+                !  call this%smoothStep((coordPar(iNodeL,1)-this%x_restart)/        this%x_rerise        , f3)
+                !  u_buffer(iNodeL,2) = (f1 - (1.0_rp + this%coeff_tbs)*f2 + this%coeff_tbs*f3)*this%amp_tbs
+                !  u(iNodeL,1,2) = this%U0
+                !  u(iNodeL,2,2) = (f1 - (1.0_rp + this%coeff_tbs)*f2 + this%coeff_tbs*f3)*this%amp_tbs
+                !  u(iNodeL,3,2) = 0.00_rp
+               end if
+            end if
          else
             f_y      = this%f(j-1)      + (this%f(j)-this%f(j-1))*(eta_y-this%eta_b(j-1))/(this%eta_b(j)-this%eta_b(j-1))
             f_prim_y = this%f_prim(j-1) + (this%f_prim(j)-this%f_prim(j-1))*(eta_y-this%eta_b(j-1))/(this%eta_b(j)-this%eta_b(j-1))
@@ -374,18 +375,18 @@ contains
    subroutine BLTSBFlowSolver_evalInitialConditions(this)
       class(BLTSBFlowSolver), intent(inout) :: this
       integer(4) :: matGidSrlOrdered(numNodesRankPar,2)
-      integer(4) :: iNodeL, idime, j,k
-      real(rp) :: yp,eta_y,f_y,f_prim_y
+      integer(4) :: iNodeL, idime, j,k,bcode
+      real(rp) :: yp,eta_y,f_y,f_prim_y, f1, f2, f3, fran1, fran2, fran3
       integer(4)   :: iLine,iNodeGSrl,auxCnt
 
       call this%fillBlasius()
 
-      !$acc parallel loop
+      !!$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          yp = coordPar(iNodeL,2) 
          eta_y = yp !with our normalisation is sqrt(U/(nu x ) is actually 1 for the inlet)
          j = 45
-         !$acc loop seq
+         !!$acc loop seq
          label1:do k=1,45            
             if(eta_y<this%eta_b(k)) then 
                j = k
@@ -400,6 +401,15 @@ contains
             u(iNodeL,1,2) = this%U0
             u(iNodeL,2,2) = 0.0_rp
             u(iNodeL,3,2) = 0.0_rp
+            !if(bouCodesNodesPar(iNodeL) < max_num_bou_codes) then
+            !   bcode = bouCodesNodesPar(iNodeL)
+            !   if(bcode == bc_type_unsteady_inlet) then
+            !      call this%smoothStep((coordPar(iNodeL,1)-this%x_start  )/        this%x_rise          , f1)
+            !      call this%smoothStep((coordPar(iNodeL,1)-this%x_end    )/(2.0_rp*this%x_fall  )+1.0_rp, f2)
+            !      call this%smoothStep((coordPar(iNodeL,1)-this%x_restart)/        this%x_rerise        , f3)
+            !      u(iNodeL,2,2) = (f1 - (1.0_rp + this%coeff_tbs)*f2 + this%coeff_tbs*f3)*this%amp_tbs
+            !   end if
+            !end if
          else
             f_y      = this%f(j-1)      + (this%f(j)-this%f(j-1))*(eta_y-this%eta_b(j-1))/(this%eta_b(j)-this%eta_b(j-1))
             f_prim_y = this%f_prim(j-1) + (this%f_prim(j)-this%f_prim(j-1))*(eta_y-this%eta_b(j-1))/(this%eta_b(j)-this%eta_b(j-1))
@@ -419,8 +429,7 @@ contains
          eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
          machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
       end do
-      !$acc end parallel loop
-
+      !!$acc end parallel loop
 
       !$acc kernels
       mu_e(:,:) = 0.0_rp ! Element syabilization viscosity
@@ -434,5 +443,21 @@ contains
       !$acc end kernels
       call nvtxEndRange
    end subroutine BLTSBFlowSolver_evalInitialConditions
+
+   subroutine BLTSBFlowSolver_smoothStep(this,x,y)
+      class(BLTSBFlowSolver), intent(inout) :: this
+      real(rp), intent(in)  :: x
+      real(rp), intent(out) :: y
+      
+      if(x<=0.0_rp) then
+         y = 0.0_rp
+      elseif(x<1.0_rp) then
+         y = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
+      else
+         y = 1
+      end if
+
+   end subroutine BLTSBFlowSolver_smoothStep
+
 
 end module BLTSBFlowSolver_mod
