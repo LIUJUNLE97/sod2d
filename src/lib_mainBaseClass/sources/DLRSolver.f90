@@ -32,7 +32,8 @@ module DLRSolver_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: DLRSolver
 
-      real(rp) , public  :: vo, M, delta, rho0, Re, to, po
+      real(rp), public :: vo, M, delta, rho0, Re, to, po
+      character(len=4) :: tag
 
    contains
       procedure, public :: fillBCTypes           =>DLRSolver_fill_BC_Types
@@ -59,13 +60,22 @@ contains
    subroutine DLRSolver_initializeParameters(this)
       class(DLRSolver), intent(inout) :: this
       real(rp) :: mul, mur
+      character(len=10) :: tag
 
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "cylinder"
-      !write(this%mesh_h5_file_name,*) "naca"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
+
+      ! get environment tag, ie: mpirun -n 4 sod2d --tag=12
+      call get_command_argument(1, tag)
+      if (tag(:6) .eq. "--tag=") then
+         this%tag = trim(tag(7:))
+      else
+         this%tag = "1"
+      end if
+      if (mpi_rank .eq. 0) write(*, "(a,a)") " # Environment ID for RL: ", this%tag
 
       ! numerical params
       flag_les = 0
