@@ -96,7 +96,7 @@ contains
       !----------------------------------------------
 
       ! numerical params
-      flag_les = 1
+      flag_les = 0
       flag_implicit = 1
       maxIterNonLineal=200
       implicit_solver = implicit_solver_bdf2_rk10

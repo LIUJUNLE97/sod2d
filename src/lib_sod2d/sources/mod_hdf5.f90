@@ -9,7 +9,6 @@ module mod_hdf5
    implicit none
 
    character(256) :: meshFile_h5_name,base_resultsFile_h5_name,base_avgResultsFile_h5_name,base_restartFile_h5_name
-   !integer(hid_t) :: meshFile_h5_id
 
    integer(hid_t) :: h5_datatype_uint1,h5_datatype_int1,h5_datatype_int4,h5_datatype_int8
    integer(hid_t) :: h5_datatype_real4,h5_datatype_real8
@@ -1112,16 +1111,7 @@ contains
       call close_hdf5_file(file_id)
 
    end subroutine load_hdf5_meshFile
-#if 0
-   !TO DEL?
-   subroutine close_hdf5_meshFile()
-      implicit none
-      integer(4) :: h5err
 
-      !close the file.
-      call h5fclose_f(meshFile_h5_id,h5err)
-   end subroutine close_hdf5_meshFile
-#endif
    subroutine create_group_hdf5(file_id,groupname)
       implicit none
       integer(hid_t),intent(in) :: file_id
@@ -3982,9 +3972,6 @@ contains
 
       integer(hid_t) :: hdf5_fileId
       character(512) :: full_hdf5_fileName,dsetname
-      !nteger(hsize_t),dimension(1) :: ms_dims
-      !nteger(hssize_t),dimension(1) :: ms_offset 
-      !eal(rp) :: aux_array_rp(1)
 
       call set_hdf5_avgResultsFile_name(restartCnt,full_hdf5_fileName)
 
@@ -3995,7 +3982,6 @@ contains
                                           numAvgElemGpScalarFields2load,avgElemGpScalarFields2load,nameAvgElemGpScalarFields2load)
 
       !-----------------------------------------------------------------------------------------------
-      ! ----  elapsed_avgTime  -----
 
       dsetname = 'elapsed_avgTime'
       call read_real_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,elapsed_avgTime)
@@ -4003,22 +3989,7 @@ contains
       dsetname = 'initial_avgTime'
       call read_real_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,initial_avgTime)
 
-#if 0
-      ms_dims(1) = 0
-      ms_offset(1) = 0
-      if(mpi_rank.eq.0) then
-         ms_dims(1) = 1
-      endif
-
-      dsetname = 'elapsed_avgTime'
-      call read_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_rp)
-      elapsed_avgTime = aux_array_rp(1)
-
-      dsetname = 'initial_avgTime'
-      call read_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_rp)
-      initial_avgTime = aux_array_rp(1)
-#endif
-      !------------------         !if(mpi_rank.eq.0) write(*,*) 'saving field',iField,'name',dsetname-----------------------------------------------------------------------------
+      !-----------------------------------------------------------------------------------------------
 
       call close_hdf5_file(hdf5_fileId)
 
