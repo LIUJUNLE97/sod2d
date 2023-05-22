@@ -232,31 +232,39 @@ contains
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
+      !----------------------------------------------
+      !  --------------  I/O params -------------
+      this%final_istep = 9000000 
+
+      this%save_logFile_first = 1 
+      this%save_logFile_step  = 10
+
+      this%save_resultsFile_first = 1
+      this%save_resultsFile_step = 50000
+
+      this%save_restartFile_first = 1
+      this%save_restartFile_step = 50000
+      this%loadRestartFile = .false.
+      this%restartFile_to_load = 1 !1 or 2
+      this%continue_oldLogs = .false.
+
+      this%saveAvgFile = .false.
+      this%loadAvgFile = .false.
+      !----------------------------------------------
+
       ! numerical params
       flag_les = 0
       flag_implicit = 1
       flag_rk_order=4
       implicit_solver = implicit_solver_bdf2_rk10
-      !c_sgs = 0.025_rp
 
       pseudo_cfl =0.5_rp 
       pseudo_ftau= 8.0_rp
       maxIterNonLineal=500
       tol=1e-3
 
-      this%loadResults = .true.
-      this%continue_oldLogs = .false.
-      this%load_step = 50001
-
-      this%nstep = 9000000 
       this%cfl_conv = 20.00_rp
       this%cfl_diff = 20.00_rp
-      this%nsave  = 1  ! First step to save, TODO: input
-      this%nsave2 = 1   ! First step to save, TODO: input
-      this%nsaveAVG = 1
-      this%nleap = 2500 ! Saving interval, TODO: input
-      this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 2500
 
       this%Cp   = 1004.0_rp
       this%Prt  = 0.71_rp

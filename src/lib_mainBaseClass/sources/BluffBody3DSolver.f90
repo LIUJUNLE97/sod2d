@@ -96,6 +96,7 @@ contains
    subroutine BluffBody3DSolver_initializeParameters(this)
       class(BluffBody3DSolver), intent(inout) :: this
       real(rp) :: mul, mur
+
 #if CRM
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "crm"
@@ -107,6 +108,26 @@ contains
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
+
+      !----------------------------------------------
+      !  --------------  I/O params -------------
+      this%final_istep = 800000001
+
+      this%save_logFile_first = 1 
+      this%save_logFile_step  = 10
+
+      this%save_resultsFile_first = 1
+      this%save_resultsFile_step = 200
+
+      this%save_restartFile_first = 1
+      this%save_restartFile_step = 200
+      this%loadRestartFile = .false.
+      this%restartFile_to_load = 1 !1 or 2
+      this%continue_oldLogs = .false.
+
+      this%saveAvgFile = .false.
+      this%loadAvgFile = .false.
+      !----------------------------------------------
 
       ! numerical params
       flag_les = 1
@@ -121,16 +142,7 @@ contains
       pseudo_ftau= 6.0_rp
       maxIterNonLineal=300
       tol=1e-3
-#if CRM
-      this%loadResults = .false.
-      this%continue_oldLogs = .false.
-      this%load_step = 801
-#else
-      this%loadResults = .false.
-      this%continue_oldLogs = .false.
-      this%load_step = 290001
-#endif
-      this%nstep = 8000001 !250001
+
 #if CRM
       this%cfl_conv = 1000.0_rp 
       this%cfl_diff = 1000.0_rp 
@@ -138,13 +150,6 @@ contains
       this%cfl_conv = 100.0_rp
       this%cfl_diff = 100.0_rp
 #endif
-
-      this%nsave  = 1  ! First step to save, TODO: input
-      this%nsave2 = 1   ! First step to save, TODO: input
-      this%nsaveAVG = 1
-      this%nleap = 200!25 ! Saving interval, TODO: input
-      this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 200
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

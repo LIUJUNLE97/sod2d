@@ -242,7 +242,7 @@ module time_integ
 
    end subroutine end_rk4_solver
 
-         subroutine rk_implicit_bdf2_rk10_main(igtime,nsave2,currIter,noBoundaries,isWallModelOn,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         subroutine rk_implicit_bdf2_rk10_main(igtime,save_logFile_next,currIter,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
@@ -250,9 +250,9 @@ module time_integ
 
             implicit none
 
-            logical,              intent(in)   :: noBoundaries,isWallModelOn
-            integer(4),           intent(out)    :: currIter
-            integer(4),           intent(in)    :: flag_predic, flag_emac,igtime,nsave2
+            logical,              intent(in)    :: noBoundaries,isWallModelOn
+            integer(4),           intent(out)   :: currIter
+            integer(4),           intent(in)    :: igtime,save_logFile_next
             integer(4),           intent(in)    :: nelem, nboun, npoin
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou),lnbn_nodes(npoin)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
@@ -677,7 +677,7 @@ module time_integ
             end do
             call nvtxEndRange
 
-            if(igtime==nsave2.and.mpi_rank.eq.0) write(111,*)"   non lineal residual ",errMax," non lineal iterations ",itime
+            if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*)"   non lineal residual ",errMax," non lineal iterations ",itime
 
             !
             ! If using Sutherland viscosity model:
@@ -705,7 +705,7 @@ module time_integ
 
          end subroutine rk_implicit_bdf2_rk10_main
 
-         subroutine rk_4_main(noBoundaries,isWallModelOn,flag_predic,flag_emac,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         subroutine rk_4_main(noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
@@ -714,7 +714,6 @@ module time_integ
             implicit none
 
             logical,              intent(in)   :: noBoundaries,isWallModelOn
-            integer(4),           intent(in)    :: flag_predic, flag_emac
             integer(4),           intent(in)    :: nelem, nboun, npoin
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou),lnbn_nodes(npoin)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
@@ -766,12 +765,7 @@ module time_integ
             ! New version of RK4 using loops                 !
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             !
-            ! Choose between updating prediction or correction
-            !
             pos = 2 ! Set correction as default value
-            if (flag_predic == 1) then
-               pos = 1 ! Change to prediction update
-            end if
 
             !
             ! Initialize variables to zero

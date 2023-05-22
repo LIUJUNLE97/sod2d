@@ -12,7 +12,7 @@ module mod_numerical_params
         ! LES 
         integer(4)  :: flag_les=0
         integer(4)  :: flag_les_ilsa=0
-        real(rp) :: c_sgs = 0.07_rp
+        real(rp) :: c_sgs = 0.025_rp
         real(rp) :: stau   = 0.022_rp
         real(rp) :: T_ilsa = 1.0_rp
 

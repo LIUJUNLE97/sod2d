@@ -62,10 +62,10 @@ contains
         if(useReal) then
             isReal = .true.
 
-            allocate(aux_RealField_s(numNodesToComm))
-            allocate(aux_RealField_r(numNodesToComm))
-            !$acc enter data create(aux_RealField_s(:))
-            !$acc enter data create(aux_RealField_r(:))
+            allocate(aux_realField_s(numNodesToComm))
+            allocate(aux_realField_r(numNodesToComm))
+            !$acc enter data create(aux_realField_s(:))
+            !$acc enter data create(aux_realField_r(:))
 
             call init_window_realField()
         end if

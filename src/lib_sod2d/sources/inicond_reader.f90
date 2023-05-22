@@ -203,6 +203,8 @@ module inicond_reader
          end do
       end do
 
+      !$acc update device(rho(:))
+
    end subroutine read_densi_from_file_Par
 
    subroutine read_veloc_from_file_Par(numElemsRank,numNodesRank,totalNumNodesInSerial,file_path,u,connecPar,Ngp_l,matGidSrlOrdered)
@@ -259,6 +261,8 @@ module inicond_reader
          end do
       end do
 
+      !$acc update device(u(:,:))
+
    end subroutine read_veloc_from_file_Par
 
    subroutine read_press_from_file_Par(numElemsRank,numNodesRank,totalNumNodesInSerial,file_path,pr,connecPar,Ngp_l,matGidSrlOrdered)
@@ -306,6 +310,8 @@ module inicond_reader
          end do
       end do
 
+      !$acc update device(pr(:))
+
    end subroutine read_press_from_file_Par
 
    subroutine read_temper_from_file_Par(numElemsRank,numNodesRank,totalNumNodesInSerial,file_path,temp,connecPar,Ngp_l,matGidSrlOrdered)
@@ -352,6 +358,8 @@ module inicond_reader
             call var_interpolate(aux_2(connecPar(iElem,:)),Ngp_l(igp,:),temp(connecPar(iElem,igp)))
          end do
       end do
+
+      !$acc update device(temp(:))
 
    end subroutine read_temper_from_file_Par
 

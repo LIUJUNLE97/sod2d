@@ -75,8 +75,28 @@ contains
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
+      !----------------------------------------------
+      !  --------------  I/O params -------------
+      this%final_istep = 900000000 
+
+      this%save_logFile_first = 1 
+      this%save_logFile_step  = 10
+
+      this%save_resultsFile_first = 1
+      this%save_resultsFile_step = 1000
+
+      this%save_restartFile_first = 1
+      this%save_restartFile_step = 250
+      this%loadRestartFile = .true.
+      this%restartFile_to_load = 2 !1 or 2
+      this%continue_oldLogs = .true.
+
+      this%saveAvgFile = .true.
+      this%loadAvgFile = .true.
+      !----------------------------------------------
+
       ! numerical params
-      flag_les = 1
+      flag_les = 0
       flag_implicit = 1
       maxIterNonLineal=200
       implicit_solver = implicit_solver_bdf2_rk10
@@ -84,20 +104,10 @@ contains
       tol = 1e-3
       flag_rk_order=4
 
-      this%loadResults = .false.
-      this%continue_oldLogs = .false.
-      this%load_step = 10001
-
-      this%nstep = 10000000 
-
       this%cfl_conv = 100.0_rp !bdf2
       this%cfl_diff = 100.0_rp !bdf2
-      this%nsave  = 1  ! First step to save, TODO: input
-      this%nsave2 = 1   ! First step to save, TODO: input
-      this%nsaveAVG = 1
-      this%nleap = 2500 ! Saving interval, TODO: input
-      this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 2500
+      !this%cfl_conv = 0.15_rp !exp
+      !this%cfl_diff = 0.15_rp !exp
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

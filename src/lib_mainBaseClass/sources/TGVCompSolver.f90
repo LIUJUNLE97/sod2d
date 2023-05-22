@@ -52,16 +52,24 @@ contains
 
       this%doGlobalAnalysis = .true.
 
-      this%nstep = 10000 
+      this%final_istep = 10000 
       this%cfl_conv = 0.95_rp
       this%cfl_diff = 0.95_rp
-      this%nsave  = 1  ! First step to save, TODO: input
-      this%nsave2 = 1   ! First step to save, TODO: input
-      this%nsaveAVG = 1
-      this%nleap = 250 ! Saving interval, TODO: input
-      this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 2000000000
+
+      this%save_logFile_first = 1 
+      this%save_logFile_step  = 10
+
+      this%loadRestartFile = .false.
+      this%restartFile_to_load = 1 !1 or 2
+      this%continue_oldLogs = .false.
+      this%save_restartFile_first = 1
+      this%save_restartFile_step = 50000
+
+      this%save_resultsFile_first = 1
+      this%save_resultsFile_step = 50000
+
+      !this%save_avgResultsFile_first = 1
+      !this%save_avgResultsFile_step = 50000
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

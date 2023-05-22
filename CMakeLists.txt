@@ -12,7 +12,6 @@ option(UNIT_TESTING "Enable unit tests" OFF)
 option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
 
-option(TOOL_POSTPROC "Compiles tool PostProc" ON)
 option(TOOL_MESHPART "Compiles tool MeshPart" ON)
 option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
 
@@ -82,10 +81,6 @@ if("${isSystemDir}" STREQUAL "-1")
 endif("${isSystemDir}" STREQUAL "-1")
 
 add_subdirectory(src)
-
-if(TOOL_POSTPROC)
-    add_subdirectory(tool_postProc)
-endif()
 
 if(TOOL_MESHPART)
     include(gempa)

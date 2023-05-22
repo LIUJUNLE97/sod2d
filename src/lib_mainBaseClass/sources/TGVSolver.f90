@@ -52,11 +52,28 @@ contains
 
       this%doGlobalAnalysis = .true.
       this%doTimerAnalysis = .true.
-
       this%saveInitialField = .false.
-      this%loadResults = .false.
+
+      !----------------------------------------------
+      !  --------------  I/O params -------------
+      this%final_istep = 100001
+      this%maxPhysTime = 20.0_rp
+
+      this%save_logFile_first = 1 
+      this%save_logFile_step  = 10
+
+      this%save_resultsFile_first = 1
+      this%save_resultsFile_step = 1000
+
+      this%save_restartFile_first = 1
+      this%save_restartFile_step = 2000
+      this%loadRestartFile = .false.
+      this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
-      this%load_step = 1001
+
+      this%saveAvgFile = .true.
+      this%loadAvgFile = .false.
+      !----------------------------------------------
 
       ! numerical params
       flag_les = 0
@@ -68,19 +85,10 @@ contains
       pseudo_cfl =1.95_rp
       flag_rk_order=4
 
-      this%nstep = 5001
-      this%maxPhysTime = 20.0_rp
-
       this%cfl_conv = 0.9_rp
       this%cfl_diff = 0.9_rp
-      this%nsave  = 1  ! First step to save, TODO: input
-      this%nsave2 = 1  ! First step to save, TODO: input
-
-      this%nsaveAVG = 2000000
-      this%nleap = 10000 ! Saving interval, TODO: input
-      this%tleap = 0.5_rp ! Saving interval, TODO: input
-      this%nleap2 = 10  ! Saving interval, TODO: input
-      this%nleapAVG = 2000000
+      !this%cfl_conv = 100.0_rp
+      !this%cfl_diff = 100.0_rp
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

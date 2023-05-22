@@ -37,6 +37,9 @@ module mod_constants
       ! No of boundary codes
       integer(4), parameter :: max_num_bou_codes = 10
 
+      ! No of max saved fields (size of pointer arrays)
+      integer(4), parameter :: max_num_saved_fields = 50
+
       !
       ! Boundary Conditions Types
       !
