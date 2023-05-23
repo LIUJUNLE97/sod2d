@@ -11,7 +11,7 @@ set(TEST_VERSION "${TEST_VERSION_MAJOR}.${TEST_VERSION_MINOR}.${TEST_VERSION_PAT
 option(UNIT_TESTING "Enable unit tests" OFF)
 option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
-option(USE_SMARTREDIS "Compile using SmartRedis" ON)
+option(USE_SMARTREDIS "Compile using SmartRedis" OFF)
 
 option(TOOL_POSTPROC "Compiles tool PostProc" ON)
 option(TOOL_MESHPART "Compiles tool MeshPart" ON)

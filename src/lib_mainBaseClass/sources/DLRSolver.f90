@@ -33,10 +33,10 @@ module DLRSolver_mod
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: DLRSolver
 
       real(rp), public :: vo, M, delta, rho0, Re, to, po
-      character(len=4) :: tag
+      character(len=8) :: tag, restart_step
 
    contains
-      procedure, public :: fillBCTypes           =>DLRSolver_fill_BC_Types
+      procedure, public :: fillBCTypes           => DLRSolver_fill_BC_Types
       procedure, public :: initializeParameters  => DLRSolver_initializeParameters
       procedure, public :: evalInitialConditions => DLRSolver_evalInitialConditions
       procedure, public :: initialBuffer => DLRSolver_initialBuffer
@@ -60,22 +60,48 @@ contains
    subroutine DLRSolver_initializeParameters(this)
       class(DLRSolver), intent(inout) :: this
       real(rp) :: mul, mur
-      character(len=10) :: tag
+      integer :: num_args, equal_pos, iarg
+      character(len=64) :: arg, output_dir
+      logical :: output_dir_exists
 
+      ! get command line args, ie: mpirun -n 4 sod2d --tag=12 --restart_step=2500
+      this%tag = "1"
+      this%restart_step = ""
+      num_args = command_argument_count()
+      do iarg = 1, num_args
+         call get_command_argument(iarg, arg)
+         equal_pos = scan(adjustl(trim(arg)), "=")
+         if (adjustl(trim(arg(:equal_pos-1))) .eq. "--tag") then
+            this%tag = trim(adjustl(arg(equal_pos+1:)))
+         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--restart_step") then
+            this%restart_step = trim(adjustl(arg(equal_pos+1:)))
+         else
+            stop "Unknown command line argument"
+         end if
+      end do
+
+      ! create output dir if not existing
+      output_dir = "./output_"//trim(adjustl(this%tag))//"/"
+      inquire(file=trim(adjustl(output_dir)), exist=output_dir_exists)
+      if (.not. output_dir_exists) call execute_command_line("mkdir -p "//trim(adjustl(output_dir)))
+
+      ! cold start or restart
+      if (this%restart_step == "") then
+         this%loadResults = .false.
+         this%continue_oldLogs = .false.
+         this%load_step = 150000
+      else
+         this%loadResults = .true.
+         this%continue_oldLogs = .true.
+         read(this%restart_step, *) this%load_step
+      end if
+
+      ! sod paths
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "cylinder"
 
-      write(this%results_h5_file_path,*) ""
-      write(this%results_h5_file_name,*) "results"
-
-      ! get environment tag, ie: mpirun -n 4 sod2d --tag=12
-      call get_command_argument(1, tag)
-      if (tag(:6) .eq. "--tag=") then
-         this%tag = trim(tag(7:))
-      else
-         this%tag = "1"
-      end if
-      if (mpi_rank .eq. 0) write(*, "(a,a)") " # Environment ID for RL: ", this%tag
+      write(this%results_h5_file_path,*) "./output_"//trim(adjustl(this%tag))//"/"
+      write(this%results_h5_file_name,*) "results_"//trim(adjustl(this%tag))
 
       ! numerical params
       flag_les = 0
@@ -88,11 +114,6 @@ contains
       pseudo_ftau= 4.0_rp
       maxIterNonLineal=1000
       tol=1e-3
-
-      this%loadResults = .false.
-
-      this%continue_oldLogs = .false.
-      this%load_step = 150001
 
       this%nstep = 90000001 !250001
       this%cfl_conv = 0.25_rp
@@ -116,7 +137,7 @@ contains
       this%gamma_gas = 1.40_rp
       this%Re     =  100.0_rp
 
-      mul    = (this%rho0*this%delta*this%vo)/this%Re
+      mul = (this%rho0*this%delta*this%vo)/this%Re
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
       this%to = this%vo*this%vo/(this%gamma_gas*this%Rgas*this%M*this%M)
       this%po = this%rho0*this%Rgas*this%to
