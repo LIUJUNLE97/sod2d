@@ -109,11 +109,11 @@ contains
       nscbc_gamma_inf = this%gamma_gas
 
       !Witness points parameters
-      this%have_witness          = .false.
+      this%have_witness          = .true.
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
       this%leapwit               = 1
-      this%leapwitsave           = 5
+      this%leapwitsave           = 20
       this%nwit                  = 10
       this%wit_save_u_i          = .true.
       this%wit_save_pr           = .true.
