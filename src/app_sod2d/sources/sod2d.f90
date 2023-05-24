@@ -4,8 +4,8 @@
 #define _channel_ 0
 #define _bluff_ 0
 #define _bluff3d_ 0
-#define _bl_ 0
-#define _tsb_ 1
+#define _bl_ 1
+#define _tsb_ 0
 
 program main
    use mod_numerical_params
@@ -24,7 +24,8 @@ program main
    use BluffBody3DSolver_mod
 #endif
 #if _bl_
-   use BLFlowSolver_mod
+   !use BLFlowSolver_mod
+   use BLAPGFlowSolver_mod
 #endif
 #if _tsb_
    use BLTSBFlowSolver_mod
@@ -51,7 +52,8 @@ program main
 #endif
 
 #if _bl_
-   type(BLFlowSolver)  :: blflow
+   !type(BLFlowSolver)    :: blflow
+   type(BLAPGFlowSolver) :: blflow
    call blflow%run()
 #endif
 
