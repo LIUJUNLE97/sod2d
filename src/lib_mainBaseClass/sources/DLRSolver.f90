@@ -33,7 +33,6 @@ module DLRSolver_mod
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: DLRSolver
 
       real(rp), public :: vo, M, delta, rho0, Re, to, po
-      integer, dimension(:), allocatable, public :: state_sizes, state_displs, actions_sizes, actions_displs
       character(len=8), public :: tag, restart_step
 
    contains
@@ -96,35 +95,6 @@ contains
          this%continue_oldLogs = .true.
          read(this%restart_step, *) this%load_step
       end if
-
-      allocate(this%state_sizes(mpi_size))
-      allocate(this%state_displs(mpi_size))
-      allocate(this%actions_sizes(mpi_size))
-      allocate(this%actions_displs(mpi_size))
-      !$acc enter data create(this%state_sizes(:))
-      !$acc enter data create(this%state_displs(:))
-      !$acc enter data create(this%actions_sizes(:))
-      !$acc enter data create(this%actions_displs(:))
-
-
-      ! TODO: compute size of witness points per each rank and their displacements
-      ! https://stackoverflow.com/questions/17508647/sending-2d-arrays-in-fortran-with-mpi-gather
-      ! https://stackoverflow.com/questions/31890523/how-to-use-mpi-gatherv-for-collecting-strings-of-diiferent-length-from-different
-      ! https://gist.github.com/jnvance/7b8cabebb06f91e2c1e788334f5de6c7
-      ! ! 1. Gather the individual sizes to get total size and offsets in root process (0)
-      ! call mpi_gather( &
-      !    state_local_size, 1, mpi_integer,      &  ! everyone sends 1 int from state_local_size
-      !    this%state_sizes, 1, mpi_integer,      &  ! root receives 1 int from each proc into state_sizes
-      !    0, mpi_comm_world, error               &  ! rank 0 is root
-      ! )
-      ! ! 2. Compute displacements (displs)
-      ! if (mpi_rank .eq. 0) then
-      !    count = 0
-      !    do i = 1, mpi_size
-      !       this%displs(i) = count
-      !       count = count + state_sizes(i)
-      !    end do
-      ! end if
 
       ! sod paths
       write(this%mesh_h5_file_path,*) ""
