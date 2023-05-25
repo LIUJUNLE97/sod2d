@@ -66,10 +66,10 @@ contains
       this%save_resultsFile_step = 1000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 2000
-      this%loadRestartFile = .false.
-      this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
+      this%save_restartFile_step = 500
+      this%loadRestartFile = .true.
+      this%restartFile_to_load = 2 !1 or 2
+      this%continue_oldLogs = .true.
 
       this%saveAvgFile = .true.
       this%loadAvgFile = .false.
@@ -118,7 +118,7 @@ contains
       this%wit_save_u_i          = .true.
       this%wit_save_pr           = .true.
       this%wit_save_rho          = .true.
-      this%continue_witness      = .false.
+      this%continue_witness      = .true.
 
    end subroutine TGVSolver_initializeParameters
 
