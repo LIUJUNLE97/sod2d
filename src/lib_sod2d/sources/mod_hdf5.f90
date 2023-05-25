@@ -5472,6 +5472,7 @@ contains
       integer                     :: ms_rank, h5err, iwit, istep
       integer(hsize_t)            :: nsteps(2), maxnsteps(2)
       character(256)              :: groupname,dsetname
+      real(rp), allocatable       :: auxwitxi(:,:), auxshapefunc(:,:)!, t
       integer(4)                  :: nwitOffset, auxread(1)
       integer(4), allocatable     :: steps(:)
 
@@ -5503,7 +5504,6 @@ contains
          end if
       end do
       deallocate(steps)
-      write(*,*) load_stepwit
       
       !Read nwitPar!
       dsetname     = 'nwitPar'
@@ -5512,6 +5512,8 @@ contains
       ms_offset(1) = mpi_rank
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,auxread)
       nwitPar = auxread(1)
+      allocate(auxwitxi(nwitPar,ndime))
+      allocate(auxshapefunc(nwitPar,nnode))
 
       !Read nwitOffset!
       dsetname     = 'nwitOffset'
@@ -5535,7 +5537,7 @@ contains
       ms_dims2d(2)   = nwitPar
       ms_offset2d(1) = 0
       ms_offset2d(2) = nwitOffset
-      call read_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims2d,ms_offset2d,witxi)
+      call read_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims2d,ms_offset2d,auxwitxi)
 
       !Read the shape functions coordinates!
       dsetname       = 'shape_functions'
@@ -5544,7 +5546,15 @@ contains
       ms_dims2d(2)   = nwitPar
       ms_offset2d(1) = 0
       ms_offset2d(2) = nwitOffset
-      call read_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims2d,ms_offset2d,shapefunc)
+      call read_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims2d,ms_offset2d,auxshapefunc)
+      
+      do iwit = 1,nwitPar
+         witxi(iwit,:) = auxwitxi(iwit,:)
+         shapefunc(iwit,:) = auxshapefunc(iwit,:)
+      end do
+      
+      deallocate(auxwitxi)
+      deallocate(auxshapefunc)
 
       call h5fclose_f(file_id,h5err)
 
