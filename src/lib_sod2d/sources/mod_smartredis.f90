@@ -107,11 +107,13 @@ module mod_smartredis
       integer :: found, error
       real(rp) :: actions_global(actions_global_size)
 
-      ! wait (poll) until the actions array is found in the DB, then read
+      ! wait (poll) until the actions array is found in the DB, then read, then delete
       if (mpi_rank .eq. 0) then
          found = client%poll_tensor(key, interval, tries, exists)
          if (found /= 0) stop 'Error in SmartRedis actions reading. Actions array not found.'
          error = client%unpack_tensor(key, actions_global, shape(actions_global))
+         if (error /= SRNoError) stop 'Error in SmartRedis actions reading. Tensor could not be unpacked.'
+         error = client%delete_tensor(key)
          if (error /= SRNoError) stop 'Error in SmartRedis actions reading. Tensor could not be deleted.'
       end if
       call mpi_barrier(mpi_comm_world, error) ! all processes wait for root to read actions
