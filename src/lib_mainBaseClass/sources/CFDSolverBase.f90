@@ -1510,8 +1510,8 @@ contains
             end if
             if(this%doTimerAnalysis) iStepStartTime = MPI_Wtime()
             call this%callTimeIntegration(istep)
-            if(flag_implicit == 1) then
-               if((this%currentNonLinealIter .gt. maxIterNonLineal) .and. (inonLineal .lt. 4)) then
+            if(flag_implicit == 1 ) then
+               if((this%currentNonLinealIter .gt. maxIterNonLineal) .and. (inonLineal .lt. 4) .and. (flag_implicit_repeat_dt_if_not_converged == 1)) then
                   inonLineal = inonLineal + 1
                   pseudo_cfl = pseudo_cfl*0.5_rp
                   if(mpi_rank.eq.0) write(111,*)"(WARRNING)  non lineal iteration failed in time ",istep," new pseudo cfl ",pseudo_cfl," non lineal tries ",inonLineal

@@ -35,6 +35,8 @@ module mod_numerical_params
         integer(4) ::  maxIterNonLineal=20
         integer(4) ::  pseudo_steps=10
         real(8)   ::  tol=1e-4
+        integer(4) :: flag_use_constant_dt = 0
+        integer(4) :: flag_implicit_repeat_dt_if_not_converged = 1
 
         integer(4) ::  implicit_solver = implicit_solver_bdf2_rk10
 
