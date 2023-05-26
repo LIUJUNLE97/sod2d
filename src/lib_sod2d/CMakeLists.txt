@@ -10,6 +10,7 @@ add_definitions(-D__BUILD_VERSION__="${TEST_VERSION}")
 set_mpi()
 set_gempa()
 set_hdf5()
+set_smartredis()
 target_link_libraries(${PROJECT_NAME} lib_gempaInterface)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${TEST_VERSION} SOVERSION ${TEST_VERSION_MAJOR})

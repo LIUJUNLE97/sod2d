@@ -26,3 +26,6 @@
 .flake8
 .isort.cfg
 .markdownlint.yaml
+
+# Load modules files
+*.mod.sh

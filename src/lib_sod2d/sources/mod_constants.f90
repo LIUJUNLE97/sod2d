@@ -2,14 +2,14 @@ module mod_constants
 
       implicit none
 
-      integer(4), parameter :: rp = 4 !(4/8)
+      integer(4), parameter :: rp = 4 ! (4/8)
       integer(4), parameter :: rp_vtk = 4 !(4/8)
 
       !
       ! Dimensions
       !
       integer(4), parameter :: ndime=3
-      
+
       !
       ! Element characteristics
       !
@@ -45,11 +45,12 @@ module mod_constants
       !
 
       integer(4), parameter :: bc_type_far_field            = 1
-      integer(4), parameter :: bc_type_non_slip_adiabatic   = 2
-      integer(4), parameter :: bc_type_non_slip_hot         = 3
-      integer(4), parameter :: bc_type_non_slip_cold        = 4
-      integer(4), parameter :: bc_type_slip_adiabatic       = 5
-      integer(4), parameter :: bc_type_slip_wall_model      = 6
+      integer(4), parameter :: bc_type_unsteady_inlet       = 2
+      integer(4), parameter :: bc_type_non_slip_adiabatic   = 3
+      integer(4), parameter :: bc_type_non_slip_hot         = 4
+      integer(4), parameter :: bc_type_non_slip_cold        = 5
+      integer(4), parameter :: bc_type_slip_adiabatic       = 6
+      integer(4), parameter :: bc_type_slip_wall_model      = 7
 
 
       !
@@ -58,6 +59,6 @@ module mod_constants
 
       integer(4), parameter :: implicit_solver_esdirk      = 1
       integer(4), parameter :: implicit_solver_bdf2_rk10   = 2
-      
+
 
 end module mod_constants
