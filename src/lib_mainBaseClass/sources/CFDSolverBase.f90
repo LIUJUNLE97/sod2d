@@ -1730,7 +1730,7 @@ contains
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       integer(4)                          :: iwit, ielem, inode, ifound, nwitParCand, icand
-      integer(rp)                         :: witGlobCand(this%nwit), witGlob(this%nwit)
+      integer(4)                         :: witGlobCand(this%nwit), witGlob(this%nwit)
       real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode)
       real(rp), parameter                 :: wittol=1e-7
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
