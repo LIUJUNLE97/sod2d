@@ -42,6 +42,27 @@ build-GNU-Release:
         - make -j 4
         - echo "Compile complete."
 
+# build-OneAPI-Release job configuration
+build-OneAPI-Release:
+    stage: build
+    script:
+        # Load necessary modules
+        - module load compiler/2023.1.0 mkl/2023.1.0 mpi/2021.9.0 hdf5/1.14.0
+        - ml list
+        # Set the proper I_MPI compilers
+        - export I_MPI_CC=icx
+        - export I_MPI_CXX=icpx
+        - export I_MPI_F77=ifort
+        - export I_MPI_F90=ifort
+        - export I_MPI_FC=ifort
+        - env | grep I_MPI
+        # Add a build folder and enter it
+        - mkdir build && cd build
+        # Run CMake
+        - cmake -DDEBUG_MODE=OFF ..
+        # Run make
+        - make -j 4
+
 # build-NVHPC-CPU-Release job configuration
 build-NVHPC-CPU-Release:
     stage: build
