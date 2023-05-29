@@ -75,7 +75,7 @@ build-NVHPC-CPU-Release:
         # Run CMake
         - cmake -DDEBUG_MODE=OFF -DCMAKE_C_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_CXX_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_Fortran_FLAGS="--gcc-toolchain=/usr/local/bin" ..
         # Run make
-        - make -j 4
+        #- make -j 4
 
 ## This job runs in the test stage.
 #unit-test-job:
