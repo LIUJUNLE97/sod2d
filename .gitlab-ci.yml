@@ -23,26 +23,38 @@ build-GNU-Debug:
         # Add a build folder and enter it
         - mkdir build && cd build
         # Run CMake
-        - cmake -DCMAKE_BUILD_TYPE=Debug ..
+        - cmake -DDEBUG_MODE=ON ..
         # Run make
         - make -j 4
 
-# build-GNU-Debug job configuration
+# build-GNU-Release job configuration
 build-GNU-Release:
     stage: build
     script:
         # Load necessary modules
         - module load gnu/12.3.0/openmpi/4.1.5 hdf5/1.14.0
         - ml list
-        - echo "Compiling the code..."
         # Add a build folder and enter it
         - mkdir build && cd build
         # Run CMake
-        - cmake -DCMAKE_BUILD_TYPE=Release ..
+        - cmake -DDEBUG_MODE=OFF ..
         # Run make
         - make -j 4
         - echo "Compile complete."
 
+# build-NVHPC-CPU-Release job configuration
+build-NVHPC-CPU-Release:
+    stage: build
+    script:
+        # Load necessary modules
+        - module load nvhpc-hpcx/23.3 hdf5/1.14.0
+        - ml list
+        # Add a build folder and enter it
+        - mkdir build && cd build
+        # Run CMake
+        - cmake -DDEBUG_MODE=OFF ..
+        # Run make
+        - make -j 4
 
 ## This job runs in the test stage.
 #unit-test-job:
