@@ -4,7 +4,7 @@
 default:
     #image: ubuntu:20.04
     #image: lucasbsc21387/sod2d-image:0.1.1
-    image: lucasbsc21387/archlinux-hhpc:latest
+    image: lucasbsc21387/archlinux-hpc:latest
 
 ## List of stages for jobs, and their order of execution
 stages:
