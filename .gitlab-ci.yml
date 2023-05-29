@@ -52,7 +52,7 @@ build-NVHPC-CPU-Release:
         # Add a build folder and enter it
         - mkdir build && cd build
         # Run CMake
-        - cmake -DDEBUG_MODE=OFF ..
+        - cmake -DDEBUG_MODE=OFF -DCMAKE_C_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_CXX_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_Fortran_FLAGS="--gcc-toolchain=/usr/local/bin" ..
         # Run make
         - make -j 4
 
