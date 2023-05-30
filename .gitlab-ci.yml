@@ -59,9 +59,9 @@ build-OneAPI-Release:
         # Add a build folder and enter it
         - mkdir build && cd build
         # Run CMake
-        - cmake -DDEBUG_MODE=OFF ..
+        #- cmake -DDEBUG_MODE=OFF ..
         # Run make
-        - make -j 4
+        #- make -j 4
 
 # build-NVHPC-CPU-Release job configuration
 build-NVHPC-CPU-Release:
@@ -76,6 +76,21 @@ build-NVHPC-CPU-Release:
         - cmake -DDEBUG_MODE=OFF -DCMAKE_C_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_CXX_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_Fortran_FLAGS="--gcc-toolchain=/usr/local/bin" ..
         # Run make
         #- make -j 4
+
+# build-NVHPC-GPU-Release job configuration
+build-NVHPC-GPU-Release:
+    stage: build
+    script:
+        # Load necessary modules
+        - module load nvhpc-hpcx/23.3 hdf5/1.14.0
+        - ml list
+        # Add a build folder and enter it
+        - mkdir build && cd build
+        # Run CMake
+        - cmake -DUSE_GPU=ON -DUSE_MEM_MANAGED=ON -DDEBUG_MODE=OFF -DCMAKE_C_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_CXX_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_Fortran_FLAGS="--gcc-toolchain=/usr/local/bin" ..
+        # Run make
+        #- make -j 4
+
 
 ## This job runs in the test stage.
 #unit-test-job:
