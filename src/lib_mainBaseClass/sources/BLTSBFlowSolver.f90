@@ -31,10 +31,12 @@ module BLTSBFlowSolver_mod
    implicit none
    private
 
+   real(rp), allocatable, dimension(:)   :: eta_b,f,f_prim !auxiliary datat needs to be here because how cuda works
+
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: BLTSBFlowSolver
 
       real(rp) , public  ::  M, d0, U0, rho0, Red0, Re, to, po, mu, amp_tbs, x_start, x_rise, x_end, x_fall, x_rerise, x_restart, coeff_tbs
-      real(rp), public   :: eta_b(45), f(45), f_prim(45)
+      
 
    contains
       procedure, public :: fillBCTypes           => BLTSBFlowSolver_fill_BC_Types
@@ -51,7 +53,7 @@ contains
       class(BLTSBFlowSolver), intent(inout) :: this
       integer(4)             , intent(in)   :: istep
       integer(4) :: iNodeL, bcode
-      real(rp) :: cd, lx, ly, xmin, xmax, f1, f2, f3
+      real(rp) :: cd, lx, ly, xmin, xmax, f1, f2, f3,x
 
       cd = 1.0_rp
       lx = this%d0*2.5_rp
@@ -59,7 +61,7 @@ contains
       xmin = 20.0_rp*this%d0
       xmax = xmin+lx
 
-      !!$acc parallel loop
+      !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          if(coordPar(iNodeL,2) < ly) then
             if((coordPar(iNodeL,1)<xmax)  .and. (coordPar(iNodeL,1)>xmin)) then
@@ -70,9 +72,37 @@ contains
          elseif(bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) then
             bcode = bouCodesNodesPar(iNodeL) ! Boundary element code
             if (bcode == bc_type_unsteady_inlet) then
-               call this%smoothStep((coordPar(iNodeL,1)-this%x_start  )/        this%x_rise          , f1)
-               call this%smoothStep((coordPar(iNodeL,1)-this%x_end    )/(2.0_rp*this%x_fall  )+1.0_rp, f2)
-               call this%smoothStep((coordPar(iNodeL,1)-this%x_restart)/        this%x_rerise        , f3)
+               !call this%smoothStep((coordPar(iNodeL,1)-this%x_start  )/        this%x_rise          , f1) ! I know is not cool but gpus are what like this :/
+               !call this%smoothStep((coordPar(iNodeL,1)-this%x_end    )/(2.0_rp*this%x_fall  )+1.0_rp, f2)
+               !call this%smoothStep((coordPar(iNodeL,1)-this%x_restart)/        this%x_rerise        , f3)
+
+               x = (coordPar(iNodeL,1)-this%x_start  )/        this%x_rise
+               if(x<=0.0_rp) then
+                  f1 = 0.0_rp
+               elseif(x<1.0_rp) then
+                  f1 = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
+               else
+                  f1 = 1
+               end if
+
+               x = (coordPar(iNodeL,1)-this%x_end    )/(2.0_rp*this%x_fall  )+1.0_rp
+               if(x<=0.0_rp) then
+                  f2 = 0.0_rp
+               elseif(x<1.0_rp) then
+                  f2 = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
+               else
+                  f2 = 1
+               end if
+
+               x = (coordPar(iNodeL,1)-this%x_restart)/        this%x_rerise
+               if(x<=0.0_rp) then
+                  f3 = 0.0_rp
+               elseif(x<1.0_rp) then
+                  f3 = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
+               else
+                  f3 = 1
+               end if               
+
                u_buffer(iNodeL,2) = (f1 - (1.0_rp + this%coeff_tbs)*f2 + this%coeff_tbs*f3)*this%amp_tbs
             end if
          end if
@@ -83,151 +113,163 @@ contains
    subroutine BLTSBFlowSolver_fill_BC_Types(this)
       class(BLTSBFlowSolver), intent(inout) :: this
 
-      bouCodes2BCType(1) = bc_type_slip_wall_model  ! Wall
-      bouCodes2BCType(2) = bc_type_unsteady_inlet   ! Upper part of the domain
+      bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! wall
+      bouCodes2BCType(2) = bc_type_unsteady_inlet     ! Upper part of the domain
+      bouCodes2BCType(3) = bc_type_far_field          ! inlet part of the domain
+      bouCodes2BCType(4) = bc_type_far_field          ! outlet part of the domain
+      !$acc update device(bouCodes2BCType(:))
 
    end subroutine BLTSBFlowSolver_fill_BC_Types
 
    subroutine BLTSBFlowSolver_fillBlasius(this)
       class(BLTSBFlowSolver), intent(inout) :: this
 
-     this%eta_b(1) = real(0.0E+00,rp)
-     this%eta_b(2) = real(2.0E-01,rp)
-     this%eta_b(3) = real(4.0E-01,rp)
-     this%eta_b(4) = real(6.0E-01,rp)
-     this%eta_b(5) = real(8.0E-01,rp)
-     this%eta_b(6) = real(1.0E+00,rp)
-     this%eta_b(7) = real(1.2E+00,rp)
-     this%eta_b(8) = real(1.4E+00,rp)
-     this%eta_b(9) = real(1.6E+00,rp)
-     this%eta_b(10) = real(1.8E+00,rp)
-     this%eta_b(11) = real(2.0E+00,rp)
-     this%eta_b(12) = real(2.2E+00,rp)
-     this%eta_b(13) = real(2.4E+00,rp)
-     this%eta_b(14) = real(2.6E+00,rp)
-     this%eta_b(15) = real(2.8E+00,rp)
-     this%eta_b(16) = real(3.0E+00,rp)
-     this%eta_b(17) = real(3.2E+00,rp)
-     this%eta_b(18) = real(3.4E+00,rp)
-     this%eta_b(19) = real(3.6E+00,rp)
-     this%eta_b(20) = real(3.8E+00,rp)
-     this%eta_b(21) = real(4.0E+00,rp)
-     this%eta_b(22) = real(4.2E+00,rp)
-     this%eta_b(23) = real(4.4E+00,rp)
-     this%eta_b(24) = real(4.6E+00,rp)
-     this%eta_b(25) = real(4.8E+00,rp)
-     this%eta_b(26) = real(5.0E+00,rp)
-     this%eta_b(27) = real(5.2E+00,rp)
-     this%eta_b(28) = real(5.4E+00,rp)
-     this%eta_b(29) = real(5.6E+00,rp)
-     this%eta_b(30) = real(5.8E+00,rp)
-     this%eta_b(31) = real(6.0E+00,rp)
-     this%eta_b(32) = real(6.2E+00,rp)
-     this%eta_b(33) = real(6.4E+00,rp)
-     this%eta_b(34) = real(6.6E+00,rp)
-     this%eta_b(35) = real(6.8E+00,rp)
-     this%eta_b(36) = real(7.0E+00,rp)
-     this%eta_b(37) = real(7.2E+00,rp)
-     this%eta_b(38) = real(7.4E+00,rp)
-     this%eta_b(39) = real(7.6E+00,rp)
-     this%eta_b(40) = real(7.8E+00,rp)
-     this%eta_b(41) = real(8.0E+00,rp)
-     this%eta_b(42) = real(8.2E+00,rp)
-     this%eta_b(43) = real(8.4E+00,rp)
-     this%eta_b(44) = real(8.6E+00,rp)
-     this%eta_b(45) = real(8.8E+00,rp)
+      allocate(eta_b(45), f(45), f_prim(45))
+      !$acc enter data create(eta_b(:))
+      !$acc enter data create(f(:))
+      !$acc enter data create(f_prim(:))
 
-     this%f(1)  = real(0.000000000E+00,rp)
-     this%f(2)  = real(6.640999715E-03,rp)
-     this%f(3)  = real(2.655988402E-02,rp)
-     this%f(4)  = real(5.973463750E-02,rp)
-     this%f(5)  = real(1.061082208E-01,rp)
-     this%f(6)  = real(1.655717258E-01,rp)
-     this%f(7)  = real(2.379487173E-01,rp)
-     this%f(8)  = real(3.229815738E-01,rp)
-     this%f(9)  = real(4.203207655E-01,rp)
-     this%f(10) = real(5.295180377E-01,rp)
-     this%f(11) = real(6.500243699E-01,rp)
-     this%f(12) = real(7.811933370E-01,rp)
-     this%f(13) = real(9.222901256E-01,rp)
-     this%f(14) = real(1.072505977E+00,rp)
-     this%f(15) = real(1.230977302E+00,rp)
-     this%f(16) = real(1.396808231E+00,rp)
-     this%f(17) = real(1.569094960E+00,rp)
-     this%f(18) = real(1.746950094E+00,rp)
-     this%f(19) = real(1.929525170E+00,rp)
-     this%f(20) = real(2.116029817E+00,rp)
-     this%f(21) = real(2.305746418E+00,rp)
-     this%f(22) = real(2.498039663E+00,rp)
-     this%f(23) = real(2.692360938E+00,rp)
-     this%f(24) = real(2.888247990E+00,rp)
-     this%f(25) = real(3.085320655E+00,rp)
-     this%f(26) = real(3.283273665E+00,rp)
-     this%f(27) = real(3.481867612E+00,rp)
-     this%f(28) = real(3.680919063E+00,rp)
-     this%f(29) = real(3.880290678E+00,rp)
-     this%f(30) = real(4.079881939E+00,rp)
-     this%f(31) = real(4.279620923E+00,rp)
-     this%f(32) = real(4.479457297E+00,rp)
-     this%f(33) = real(4.679356615E+00,rp)
-     this%f(34) = real(4.879295811E+00,rp)
-     this%f(35) = real(5.079259772E+00,rp)
-     this%f(36) = real(5.279238811E+00,rp)
-     this%f(37) = real(5.479226847E+00,rp)
-     this%f(38) = real(5.679220147E+00,rp)
-     this%f(39) = real(5.879216466E+00,rp)
-     this%f(40) = real(6.079214481E+00,rp)
-     this%f(41) = real(6.279213431E+00,rp)
-     this%f(42) = real(6.479212887E+00,rp)
-     this%f(43) = real(6.679212609E+00,rp)
-     this%f(44) = real(6.879212471E+00,rp)
-     this%f(45) = real(7.079212403E+00,rp)
+      eta_b(1) = real(0.0E+00,rp)
+      eta_b(2) = real(2.0E-01,rp)
+      eta_b(3) = real(4.0E-01,rp)
+      eta_b(4) = real(6.0E-01,rp)
+      eta_b(5) = real(8.0E-01,rp)
+      eta_b(6) = real(1.0E+00,rp)
+      eta_b(7) = real(1.2E+00,rp)
+      eta_b(8) = real(1.4E+00,rp)
+      eta_b(9) = real(1.6E+00,rp)
+      eta_b(10) = real(1.8E+00,rp)
+      eta_b(11) = real(2.0E+00,rp)
+      eta_b(12) = real(2.2E+00,rp)
+      eta_b(13) = real(2.4E+00,rp)
+      eta_b(14) = real(2.6E+00,rp)
+      eta_b(15) = real(2.8E+00,rp)
+      eta_b(16) = real(3.0E+00,rp)
+      eta_b(17) = real(3.2E+00,rp)
+      eta_b(18) = real(3.4E+00,rp)
+      eta_b(19) = real(3.6E+00,rp)
+      eta_b(20) = real(3.8E+00,rp)
+      eta_b(21) = real(4.0E+00,rp)
+      eta_b(22) = real(4.2E+00,rp)
+      eta_b(23) = real(4.4E+00,rp)
+      eta_b(24) = real(4.6E+00,rp)
+      eta_b(25) = real(4.8E+00,rp)
+      eta_b(26) = real(5.0E+00,rp)
+      eta_b(27) = real(5.2E+00,rp)
+      eta_b(28) = real(5.4E+00,rp)
+      eta_b(29) = real(5.6E+00,rp)
+      eta_b(30) = real(5.8E+00,rp)
+      eta_b(31) = real(6.0E+00,rp)
+      eta_b(32) = real(6.2E+00,rp)
+      eta_b(33) = real(6.4E+00,rp)
+      eta_b(34) = real(6.6E+00,rp)
+      eta_b(35) = real(6.8E+00,rp)
+      eta_b(36) = real(7.0E+00,rp)
+      eta_b(37) = real(7.2E+00,rp)
+      eta_b(38) = real(7.4E+00,rp)
+      eta_b(39) = real(7.6E+00,rp)
+      eta_b(40) = real(7.8E+00,rp)
+      eta_b(41) = real(8.0E+00,rp)
+      eta_b(42) = real(8.2E+00,rp)
+      eta_b(43) = real(8.4E+00,rp)
+      eta_b(44) = real(8.6E+00,rp)
+      eta_b(45) = real(8.8E+00,rp)
 
-     this%f_prim(1)  = real(0.000000000E+00,rp)
-     this%f_prim(2)  = real(6.640779210E-02,rp)
-     this%f_prim(3)  = real(1.327641608E-01,rp)
-     this%f_prim(4)  = real(1.989372524E-01,rp)
-     this%f_prim(5)  = real(2.647091387E-01,rp)
-     this%f_prim(6)  = real(3.297800312E-01,rp)
-     this%f_prim(7)  = real(3.937761044E-01,rp)
-     this%f_prim(8)  = real(4.562617647E-01,rp)
-     this%f_prim(9)  = real(5.167567844E-01,rp)
-     this%f_prim(10) = real(5.747581439E-01,rp)
-     this%f_prim(11) = real(6.297657365E-01,rp)
-     this%f_prim(12) = real(6.813103772E-01,rp)
-     this%f_prim(13) = real(7.289819351E-01,rp)
-     this%f_prim(14) = real(7.724550211E-01,rp)
-     this%f_prim(15) = real(8.115096232E-01,rp)
-     this%f_prim(16) = real(8.460444437E-01,rp)
-     this%f_prim(17) = real(8.760814552E-01,rp)
-     this%f_prim(18) = real(9.017612214E-01,rp)
-     this%f_prim(19) = real(9.233296659E-01,rp)
-     this%f_prim(20) = real(9.411179967E-01,rp)
-     this%f_prim(21) = real(9.555182298E-01,rp)
-     this%f_prim(22) = real(9.669570738E-01,rp)
-     this%f_prim(23) = real(9.758708321E-01,rp)
-     this%f_prim(24) = real(9.826835008E-01,rp)
-     this%f_prim(25) = real(9.877895262E-01,rp)
-     this%f_prim(26) = real(9.915419002E-01,rp)
-     this%f_prim(27) = real(9.942455354E-01,rp)
-     this%f_prim(28) = real(9.961553040E-01,rp)
-     this%f_prim(29) = real(9.974777682E-01,rp)
-     this%f_prim(30) = real(9.983754937E-01,rp)
-     this%f_prim(31) = real(9.989728724E-01,rp)
-     this%f_prim(32) = real(9.993625417E-01,rp)
-     this%f_prim(33) = real(9.996117017E-01,rp)
-     this%f_prim(34) = real(9.997678702E-01,rp)
-     this%f_prim(35) = real(9.998638190E-01,rp)
-     this%f_prim(36) = real(9.999216041E-01,rp)
-     this%f_prim(37) = real(9.999557173E-01,rp)
-     this%f_prim(38) = real(9.999754577E-01,rp)
-     this%f_prim(39) = real(9.999866551E-01,rp)
-     this%f_prim(40) = real(9.999928812E-01,rp)
-     this%f_prim(41) = real(9.999962745E-01,rp)
-     this%f_prim(42) = real(9.999980875E-01,rp)
-     this%f_prim(43) = real(9.999990369E-01,rp)
-     this%f_prim(44) = real(9.999995242E-01,rp)
-     this%f_prim(45) = real(9.999997695E-01,rp)
+      f(1)  = real(0.000000000E+00,rp)
+      f(2)  = real(6.640999715E-03,rp)
+      f(3)  = real(2.655988402E-02,rp)
+      f(4)  = real(5.973463750E-02,rp)
+      f(5)  = real(1.061082208E-01,rp)
+      f(6)  = real(1.655717258E-01,rp)
+      f(7)  = real(2.379487173E-01,rp)
+      f(8)  = real(3.229815738E-01,rp)
+      f(9)  = real(4.203207655E-01,rp)
+      f(10) = real(5.295180377E-01,rp)
+      f(11) = real(6.500243699E-01,rp)
+      f(12) = real(7.811933370E-01,rp)
+      f(13) = real(9.222901256E-01,rp)
+      f(14) = real(1.072505977E+00,rp)
+      f(15) = real(1.230977302E+00,rp)
+      f(16) = real(1.396808231E+00,rp)
+      f(17) = real(1.569094960E+00,rp)
+      f(18) = real(1.746950094E+00,rp)
+      f(19) = real(1.929525170E+00,rp)
+      f(20) = real(2.116029817E+00,rp)
+      f(21) = real(2.305746418E+00,rp)
+      f(22) = real(2.498039663E+00,rp)
+      f(23) = real(2.692360938E+00,rp)
+      f(24) = real(2.888247990E+00,rp)
+      f(25) = real(3.085320655E+00,rp)
+      f(26) = real(3.283273665E+00,rp)
+      f(27) = real(3.481867612E+00,rp)
+      f(28) = real(3.680919063E+00,rp)
+      f(29) = real(3.880290678E+00,rp)
+      f(30) = real(4.079881939E+00,rp)
+      f(31) = real(4.279620923E+00,rp)
+      f(32) = real(4.479457297E+00,rp)
+      f(33) = real(4.679356615E+00,rp)
+      f(34) = real(4.879295811E+00,rp)
+      f(35) = real(5.079259772E+00,rp)
+      f(36) = real(5.279238811E+00,rp)
+      f(37) = real(5.479226847E+00,rp)
+      f(38) = real(5.679220147E+00,rp)
+      f(39) = real(5.879216466E+00,rp)
+      f(40) = real(6.079214481E+00,rp)
+      f(41) = real(6.279213431E+00,rp)
+      f(42) = real(6.479212887E+00,rp)
+      f(43) = real(6.679212609E+00,rp)
+      f(44) = real(6.879212471E+00,rp)
+      f(45) = real(7.079212403E+00,rp)
+
+      f_prim(1)  = real(0.000000000E+00,rp)
+      f_prim(2)  = real(6.640779210E-02,rp)
+      f_prim(3)  = real(1.327641608E-01,rp)
+      f_prim(4)  = real(1.989372524E-01,rp)
+      f_prim(5)  = real(2.647091387E-01,rp)
+      f_prim(6)  = real(3.297800312E-01,rp)
+      f_prim(7)  = real(3.937761044E-01,rp)
+      f_prim(8)  = real(4.562617647E-01,rp)
+      f_prim(9)  = real(5.167567844E-01,rp)
+      f_prim(10) = real(5.747581439E-01,rp)
+      f_prim(11) = real(6.297657365E-01,rp)
+      f_prim(12) = real(6.813103772E-01,rp)
+      f_prim(13) = real(7.289819351E-01,rp)
+      f_prim(14) = real(7.724550211E-01,rp)
+      f_prim(15) = real(8.115096232E-01,rp)
+      f_prim(16) = real(8.460444437E-01,rp)
+      f_prim(17) = real(8.760814552E-01,rp)
+      f_prim(18) = real(9.017612214E-01,rp)
+      f_prim(19) = real(9.233296659E-01,rp)
+      f_prim(20) = real(9.411179967E-01,rp)
+      f_prim(21) = real(9.555182298E-01,rp)
+      f_prim(22) = real(9.669570738E-01,rp)
+      f_prim(23) = real(9.758708321E-01,rp)
+      f_prim(24) = real(9.826835008E-01,rp)
+      f_prim(25) = real(9.877895262E-01,rp)
+      f_prim(26) = real(9.915419002E-01,rp)
+      f_prim(27) = real(9.942455354E-01,rp)
+      f_prim(28) = real(9.961553040E-01,rp)
+      f_prim(29) = real(9.974777682E-01,rp)
+      f_prim(30) = real(9.983754937E-01,rp)
+      f_prim(31) = real(9.989728724E-01,rp)
+      f_prim(32) = real(9.993625417E-01,rp)
+      f_prim(33) = real(9.996117017E-01,rp)
+      f_prim(34) = real(9.997678702E-01,rp)
+      f_prim(35) = real(9.998638190E-01,rp)
+      f_prim(36) = real(9.999216041E-01,rp)
+      f_prim(37) = real(9.999557173E-01,rp)
+      f_prim(38) = real(9.999754577E-01,rp)
+      f_prim(39) = real(9.999866551E-01,rp)
+      f_prim(40) = real(9.999928812E-01,rp)
+      f_prim(41) = real(9.999962745E-01,rp)
+      f_prim(42) = real(9.999980875E-01,rp)
+      f_prim(43) = real(9.999990369E-01,rp)
+      f_prim(44) = real(9.999995242E-01,rp)
+      f_prim(45) = real(9.999997695E-01,rp)
+
+   !$acc update device(eta_b(:))
+   !$acc update device(f(:))
+   !$acc update device(f_prim(:))
 
   end subroutine BLTSBFlowSolver_fillBlasius
 
@@ -236,20 +278,21 @@ contains
       real(rp) :: mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "bl"
+      write(this%mesh_h5_file_name,*) "bl_les"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 100001
-      this%maxPhysTime = 20.0_rp
+      this%final_istep = 10000001
 
       this%save_logFile_first = 1
-      this%save_logFile_step  = 100
+      this%save_logFile_step  = 50
       this%save_restartFile_first = 1
       this%save_restartFile_step = 2000
+      this%save_resultsFile_first = 1
+      this%save_resultsFile_step = 2000
 
       this%loadRestartFile = .false.
       this%restartFile_to_load = 1 !1 or 2
@@ -262,17 +305,10 @@ contains
       ! numerical params
       flag_les = 1
       flag_implicit = 0
-      flag_rk_order=4
-      implicit_solver = implicit_solver_bdf2_rk10
-      !c_sgs = 0.025_rp
 
-      pseudo_cfl =0.5_rp
-      pseudo_ftau= 8.0_rp
-      maxIterNonLineal=500
-      tol=1e-3
-
-      this%cfl_conv = 1.00_rp
-      this%cfl_diff = 1.00_rp
+      this%cfl_conv = 1.5_rp 
+      this%cfl_diff = 1.5_rp 
+      flag_use_constant_dt = 0
 
       this%Cp   = 1004.0_rp
       this%Prt  = 0.71_rp
@@ -282,7 +318,7 @@ contains
       this%rho0 = 1.0_rp
 
       ! Coefficients for the wall-normal boundary condition on the top
-      this%amp_tbs   = 0.1
+      this%amp_tbs   = 0.2
       this%x_start   = 200.0_rp   ! x coordinate where 1st step function on the free streamwise velocity starts
       this%x_rise    = 20.0_rp   ! x length of the smoothing of the 1st step function for the free streamwise velocity
       this%x_end     = 435.0_rp  ! x coordinate where 2nd step function on the free streamwise velocity ends
@@ -318,10 +354,10 @@ contains
       flag_buffer_e_min = 950.0_rp
       flag_buffer_e_size = 50.0_rp
 
-      !! Top boundary condition
-      !flag_buffer_on_north = .true.
-      !flag_buffer_n_min = 39.9_rp
-      !flag_buffer_n_size = 0.1_rp
+      !! x inlet
+      !flag_buffer_on_west = .true.
+      !flag_buffer_w_min = 15.0_rp
+      !flag_buffer_w_size = 15.0_rp
 
    end subroutine BLTSBFlowSolver_initializeParameters
 
@@ -330,16 +366,15 @@ contains
       integer(4) :: iNodeL,k,j,bcode
       real(rp) :: yp,eta_y,f_y,f_prim_y, f1, f2, f3
 
-      call this%fillBlasius()
 
-      !!$acc parallel loop
+      !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          yp = coordPar(iNodeL,2)
          eta_y = yp !with our normalisation is sqrt(U/(nu x ) is actually 1 for the inlet)
          j = 45
-         !!$acc loop seq
+         !$acc loop seq
          label1:do k=1,45
-            if(eta_y<this%eta_b(k)) then
+            if(eta_y<eta_b(k)) then
                j = k
                exit label1
             end if
@@ -352,28 +387,16 @@ contains
             u_buffer(iNodeL,1) = this%U0
             u_buffer(iNodeL,2) = 0.0_rp
             u_buffer(iNodeL,3) = 0.0_rp
-            if(bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) then
-               bcode = bouCodesNodesPar(iNodeL)
-               if (bcode == bc_type_unsteady_inlet) then
-                !  call this%smoothStep((coordPar(iNodeL,1)-this%x_start  )/        this%x_rise          , f1)
-                !  call this%smoothStep((coordPar(iNodeL,1)-this%x_end    )/(2.0_rp*this%x_fall  )+1.0_rp, f2)
-                !  call this%smoothStep((coordPar(iNodeL,1)-this%x_restart)/        this%x_rerise        , f3)
-                !  u_buffer(iNodeL,2) = (f1 - (1.0_rp + this%coeff_tbs)*f2 + this%coeff_tbs*f3)*this%amp_tbs
-                !  u(iNodeL,1,2) = this%U0
-                !  u(iNodeL,2,2) = (f1 - (1.0_rp + this%coeff_tbs)*f2 + this%coeff_tbs*f3)*this%amp_tbs
-                !  u(iNodeL,3,2) = 0.00_rp
-               end if
-            end if
          else
-            f_y      = this%f(j-1)      + (this%f(j)-this%f(j-1))*(eta_y-this%eta_b(j-1))/(this%eta_b(j)-this%eta_b(j-1))
-            f_prim_y = this%f_prim(j-1) + (this%f_prim(j)-this%f_prim(j-1))*(eta_y-this%eta_b(j-1))/(this%eta_b(j)-this%eta_b(j-1))
+            f_y      = f(j-1)      + (f(j)-f(j-1))*(eta_y-eta_b(j-1))/(eta_b(j)-eta_b(j-1))
+            f_prim_y = f_prim(j-1) + (f_prim(j)-f_prim(j-1))*(eta_y-eta_b(j-1))/(eta_b(j)-eta_b(j-1))
 
             u_buffer(iNodeL,1) = f_prim_y
             u_buffer(iNodeL,2) = 0.5_rp*sqrt(1.0/(450.0_rp*450.0_rp))*(eta_y*f_prim_y-f_y)
             u_buffer(iNodeL,3) = 0.0_rp
          end if
       end do
-      !!$acc end parallel loop
+      !$acc end parallel loop
 
       !u_buffer(inodel,1) = (-1.0_rp/160000.0_rp)*yp*yp + yp*(1.0_rp/200.0_rp)
 
@@ -388,14 +411,14 @@ contains
 
       call this%fillBlasius()
 
-      !!$acc parallel loop
+      !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          yp = coordPar(iNodeL,2)
          eta_y = yp !with our normalisation is sqrt(U/(nu x ) is actually 1 for the inlet)
          j = 45
-         !!$acc loop seq
+         !$acc loop seq
          label1:do k=1,45
-            if(eta_y<this%eta_b(k)) then
+            if(eta_y<eta_b(k)) then
                j = k
                exit label1
             end if
@@ -408,18 +431,9 @@ contains
             u(iNodeL,1,2) = this%U0
             u(iNodeL,2,2) = 0.0_rp
             u(iNodeL,3,2) = 0.0_rp
-            !if(bouCodesNodesPar(iNodeL) < max_num_bou_codes) then
-            !   bcode = bouCodesNodesPar(iNodeL)
-            !   if(bcode == bc_type_unsteady_inlet) then
-            !      call this%smoothStep((coordPar(iNodeL,1)-this%x_start  )/        this%x_rise          , f1)
-            !      call this%smoothStep((coordPar(iNodeL,1)-this%x_end    )/(2.0_rp*this%x_fall  )+1.0_rp, f2)
-            !      call this%smoothStep((coordPar(iNodeL,1)-this%x_restart)/        this%x_rerise        , f3)
-            !      u(iNodeL,2,2) = (f1 - (1.0_rp + this%coeff_tbs)*f2 + this%coeff_tbs*f3)*this%amp_tbs
-            !   end if
-            !end if
          else
-            f_y      = this%f(j-1)      + (this%f(j)-this%f(j-1))*(eta_y-this%eta_b(j-1))/(this%eta_b(j)-this%eta_b(j-1))
-            f_prim_y = this%f_prim(j-1) + (this%f_prim(j)-this%f_prim(j-1))*(eta_y-this%eta_b(j-1))/(this%eta_b(j)-this%eta_b(j-1))
+            f_y      = f(j-1)      + (f(j)-f(j-1))*(eta_y-eta_b(j-1))/(eta_b(j)-eta_b(j-1))
+            f_prim_y = f_prim(j-1) + (f_prim(j)-f_prim(j-1))*(eta_y-eta_b(j-1))/(eta_b(j)-eta_b(j-1))
 
             u(iNodeL,1,2) = f_prim_y
             u(iNodeL,2,2) = 0.5_rp*sqrt(1.0/(450.0_rp*450.0_rp))*(eta_y*f_prim_y-f_y)
@@ -436,7 +450,7 @@ contains
          eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
          machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
       end do
-      !!$acc end parallel loop
+      !$acc end parallel loop
 
       !$acc kernels
       mu_e(:,:) = 0.0_rp ! Element syabilization viscosity
