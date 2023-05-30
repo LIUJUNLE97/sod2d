@@ -4783,7 +4783,7 @@ contains
       real(rp),dimension(numNodesRankPar),intent(in) :: envit,mut,mu_fluid
       real(rp),dimension(numNodesRankPar,ndime),intent(in) :: u,gradRho,curlU
 
-      character(512) :: groupname,dsetname
+      character(512) :: dsetname
       integer(hid_t) :: file_id,plist_id,dset_id
       integer(hid_t) :: dtype
       integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims,a_dims
@@ -5045,7 +5045,7 @@ contains
       real(rp),dimension(numNodesRankPar),intent(in) :: avrho,avpre,avmueff
       real(rp),dimension(numNodesRankPar,ndime),intent(in) :: avvel,avve2,avvex,avtw
 
-      character(512) :: groupname,dsetname
+      character(512) :: dsetname
       integer(hid_t) :: file_id,plist_id,dset_id
       integer(hid_t) :: dtype
       integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
@@ -5141,7 +5141,7 @@ contains
       character(512),intent(in) :: full_fileName
       real(rp),dimension(numNodesRankPar),intent(in) :: realField
 
-      character(512) :: groupname,dsetname
+      character(512) :: dsetname
       integer(hid_t) :: file_id,plist_id,dset_id
       integer(hid_t) :: dtype
       integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
@@ -5299,11 +5299,9 @@ contains
       integer(hssize_t)          :: ms_offset(1)
       integer(hsize_t)           :: ds_dims2d(2),ms_dims2d(2),max_dims2d(2),chunk_dims2d(2)
       integer(hssize_t)          :: ms_offset2d(2)
-      integer(4)                 :: ds_rank,ms_rank,h5err,irank,iwit
-      character(256)             :: groupname,dsetname
+      integer(4)                 :: ds_rank,h5err,irank,iwit
+      character(256)             :: dsetname
       real(rp)                   :: auxwitxyz(nwitPar, ndime), auxwitxi(nwitPar,ndime), auxshapefunc(nwitPar,nnode) 
-      real(rp),allocatable       :: aux_data_array_rp_vtk(:)
-      !TOBECHANGED JODER
 
       ! Setup file access property list with parallel I/O access.
       call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
@@ -5322,7 +5320,6 @@ contains
       ds_rank      = 1
       dsetname     = 'nwitPar'
       ds_dims(1)   = mpi_size
-      !ms_rank      = 1
       ms_dims(1)   = 1
       ms_offset(1) = mpi_rank
       aux(1)       = nwitPar
@@ -5462,7 +5459,7 @@ contains
       character(512), intent(in)  :: full_fileName
       integer(4),     intent(in)  :: nwit, loadstep
       integer(4),     intent(out) :: witel(nwit)
-      real(rp),       intent(out) :: witxi(nwit,ndime), shapefunc(nwit,nnode)!, t
+      real(rp),       intent(out) :: witxi(nwit,ndime), shapefunc(nwit,nnode)
       integer(4),     intent(out) :: nwitPar, load_stepwit
       integer(hid_t)              :: file_id,plist_id,dset_id,dspace_id,group_id
       integer(hsize_t)            :: ds_dims(1),ms_dims(1),max_dims(1),chunk_dims(1)
@@ -5471,8 +5468,8 @@ contains
       integer(hssize_t)           :: ms_offset2d(2)
       integer                     :: ms_rank, h5err, iwit, istep
       integer(hsize_t)            :: nsteps(2), maxnsteps(2)
-      character(256)              :: groupname,dsetname
-      real(rp), allocatable       :: auxwitxi(:,:), auxshapefunc(:,:)!, t
+      character(256)              :: dsetname
+      real(rp), allocatable       :: auxwitxi(:,:), auxshapefunc(:,:)
       integer(4)                  :: nwitOffset, auxread(1)
       integer(4), allocatable     :: steps(:)
 
@@ -5507,7 +5504,6 @@ contains
       
       !Read nwitPar!
       dsetname     = 'nwitPar'
-      ms_rank      = 1
       ms_dims(1)   = 1
       ms_offset(1) = mpi_rank
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,auxread)
@@ -5517,7 +5513,6 @@ contains
 
       !Read nwitOffset!
       dsetname     = 'nwitOffset'
-      ms_rank      = 1
       ms_dims(1)   = 1
       ms_offset(1) = mpi_rank
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,auxread)
@@ -5525,14 +5520,12 @@ contains
 
       !Read elements containing the witness points
       dsetname     = 'element'
-      ms_rank      = 1
       ms_dims(1)   = nwitPar
       ms_offset(1) = nwitOffset
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,witel)
       
       !Read witness isoparametric coordinates!
       dsetname       = 'witxi'
-      ms_rank        = 2
       ms_dims2d(1)   = ndime
       ms_dims2d(2)   = nwitPar
       ms_offset2d(1) = 0
@@ -5541,7 +5534,6 @@ contains
 
       !Read the shape functions coordinates!
       dsetname       = 'shape_functions'
-      ms_rank        = 2
       ms_dims2d(1)   = nnode
       ms_dims2d(2)   = nwitPar
       ms_offset2d(1) = 0
@@ -5567,7 +5559,7 @@ contains
       character(512), intent(in) :: full_fileName
       character(256)             :: dsetname
       real(rp)                   :: auxwrite(leapwitsave,nwitPar)
-      integer(4)                 :: ms_rank,h5err, iwit, ds_rank, ileap
+      integer(4)                 :: h5err, iwit, ds_rank, ileap
       integer(4)                 :: nwitOffset, auxread(1)
       integer(hsize_t)           :: ds_dims(1),ms_dims(1),max_dims(1),chunk_dims(1)
       integer(hssize_t)          :: ms_offset(1)
@@ -5588,14 +5580,12 @@ contains
 
       !Read nwitOffset!
       dsetname     = 'nwitOffset'
-      !ms_rank      = 1
       ms_dims(1)   = 1
       ms_offset(1) = mpi_rank
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,auxread)
       nwitOffset = auxread(1)
 
       !Save variables!
-      ms_rank        = 2
       ms_dims        = nwitPar
       ds_rank        = 2
       ds_dims2d(1)   = itewit
@@ -5643,7 +5633,6 @@ contains
 
       !Save time!
       dsetname     = 'time'
-      ms_rank      = 1
       ms_dims(1)   = leapwitsave
       ms_offset(1) = itewit - leapwitsave
       ds_rank      = 1
@@ -5653,7 +5642,6 @@ contains
 
       !Save istep!
       dsetname     = 'istep'
-      ms_rank      = 1
       ms_dims(1)   = leapwitsave
       ms_offset(1) = itewit - leapwitsave
       ds_rank      = 1
