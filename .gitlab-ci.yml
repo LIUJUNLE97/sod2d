@@ -76,7 +76,7 @@ build-NVHPC-CPU-Release:
         # Run CMake
         - cmake -DDEBUG_MODE=OFF -DCMAKE_C_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_CXX_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_Fortran_FLAGS="--gcc-toolchain=/usr/local/bin" ..
         # Run make
-        #- make -j 4
+        - make -j 4
 
 # build-NVHPC-GPU-Release job configuration
 build-NVHPC-GPU-Release:
@@ -90,7 +90,7 @@ build-NVHPC-GPU-Release:
         # Run CMake
         - cmake -DUSE_GPU=ON -DUSE_MEM_MANAGED=ON -DDEBUG_MODE=OFF -DCMAKE_C_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_CXX_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_Fortran_FLAGS="--gcc-toolchain=/usr/local/bin" ..
         # Run make
-        #- make -j 4
+        - make -j 4
 
 
 ## This job runs in the test stage.
