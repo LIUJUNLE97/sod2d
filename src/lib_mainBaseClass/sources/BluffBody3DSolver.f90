@@ -117,10 +117,10 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 200
+      this%save_resultsFile_step = 500
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 200
+      this%save_restartFile_step = 500
       this%loadRestartFile = .false.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
@@ -134,18 +134,21 @@ contains
       flag_implicit = 1
       implicit_solver = implicit_solver_bdf2_rk10
       flag_rk_order=4
+      flag_implicit_repeat_dt_if_not_converged = 0
 #if CRM    
-      pseudo_cfl =0.2_rp 
+      pseudo_cfl =0.1_rp 
 #else
       pseudo_cfl =0.3_rp 
 #endif
       pseudo_ftau= 6.0_rp
-      maxIterNonLineal=300
+      maxIterNonLineal=25
       tol=1e-3
 
 #if CRM
-      this%cfl_conv = 1000.0_rp 
-      this%cfl_diff = 1000.0_rp 
+      this%dt = 1e-4
+      flag_use_constant_dt = 1
+      !this%cfl_conv = 1000.0_rp 
+      !this%cfl_diff = 1000.0_rp 
 #else   
       this%cfl_conv = 100.0_rp
       this%cfl_diff = 100.0_rp
@@ -160,7 +163,7 @@ contains
       this%gamma_gas = 1.40_rp
 #if CRM
       this%Re  =  5600000.0_rp
-      this%aoa = 0.00_rp
+      this%aoa = 11.00_rp
 #else
       this%Re     =  2900000.0_rp
       this%aoa = 0.0_rp
@@ -179,6 +182,23 @@ contains
       nscbc_gamma_inf = this%gamma_gas
       nscbc_c_inf = sqrt(this%gamma_gas*this%po/this%rho0)
       nscbc_Rgas_inf = this%Rgas
+
+      ! -------- Instantaneous results file -------------
+      this%save_scalarField_rho        = .true.
+      this%save_scalarField_muFluid    = .false.
+      this%save_scalarField_pressure   = .true.
+      this%save_scalarField_energy     = .false.
+      this%save_scalarField_entropy    = .false.
+      this%save_scalarField_csound     = .false.
+      this%save_scalarField_machno     = .true.
+      this%save_scalarField_divU       = .false.
+      this%save_scalarField_qcrit      = .true.
+      this%save_scalarField_muSgs      = .false.
+      this%save_scalarField_muEnvit    = .false.
+      this%save_vectorField_vel        = .true.
+      this%save_vectorField_gradRho    = .false.
+      this%save_vectorField_curlU      = .true.
+
 
       flag_buffer_on = .true.
 #if CRM

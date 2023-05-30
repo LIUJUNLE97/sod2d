@@ -1,5 +1,11 @@
 # SOD2D
 
+## IMPORTANT!!!!
+
+SOD2D is moving today to a new location. By 15h, if a local change is not pushed to the repo, it will be lost! Please, make sure you have all your important commits pushed before.
+
+Transfer completed! check the issue on how to update the local remote.
+
 **SOD2D**: **S**pectral high-**O**rder co**D**e **2** solve partial **D**ifferential equations
 
 ## Description

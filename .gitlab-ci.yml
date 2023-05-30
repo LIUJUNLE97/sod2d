@@ -3,12 +3,13 @@
 ## Define and configure the OS to use for the jobs
 default:
     #image: ubuntu:20.04
-    image: lucasbsc21387/sod2d-image:0.1.1
+    #image: lucasbsc21387/sod2d-image:0.1.1
+    image: lucasbsc21387/archlinux-hpc:latest
 
 ## List of stages for jobs, and their order of execution
 stages:
     - build
-    - test
+    #- test
 
 ## Confgure the build jobs
 
@@ -16,38 +17,91 @@ stages:
 build-GNU-Debug:
     stage: build
     script:
-        - echo "Compiling the code..."
+        # Load necessary modules
+        - module load gnu/12.3.0/openmpi/4.1.5 hdf5/1.14.0
+        - ml list
         # Add a build folder and enter it
         - mkdir build && cd build
         # Run CMake
-        - cmake -DCMAKE_BUILD_TYPE=Debug ..
+        - cmake -DDEBUG_MODE=ON ..
         # Run make
         - make -j 4
-        - echo "Compile complete."
 
-# build-GNU-Debug job configuration
+# build-GNU-Release job configuration
 build-GNU-Release:
     stage: build
     script:
-        - echo "Compiling the code..."
+        # Load necessary modules
+        - module load gnu/12.3.0/openmpi/4.1.5 hdf5/1.14.0
+        - ml list
         # Add a build folder and enter it
         - mkdir build && cd build
         # Run CMake
-        - cmake -DCMAKE_BUILD_TYPE=Release ..
+        - cmake -DDEBUG_MODE=OFF ..
         # Run make
         - make -j 4
         - echo "Compile complete."
 
+# build-OneAPI-Release job configuration
+# TODO: re-enable once alll is working
+#build-OneAPI-Release:
+#    stage: build
+#    script:
+#        # Load necessary modules
+#        - module load compiler/2023.1.0 mkl/2023.1.0 mpi/2021.9.0 hdf5/1.14.0
+#        - ml list
+#        # Set the proper I_MPI compilers
+#        - export I_MPI_CC=icx
+#        - export I_MPI_CXX=icpx
+#        - export I_MPI_F77=ifort
+#        - export I_MPI_F90=ifort
+#        - export I_MPI_FC=ifort
+#        - env | grep I_MPI
+#        # Add a build folder and enter it
+#        - mkdir build && cd build
+#        # Run CMake
+#        #- cmake -DDEBUG_MODE=OFF ..
+#        # Run make
+#        #- make -j 4
 
-# This job runs in the test stage.
-unit-test-job:
-    stage: test    # It only starts when the job in the build stage completes successfully.
+# build-NVHPC-CPU-Release job configuration
+build-NVHPC-CPU-Release:
+    stage: build
     script:
-        - echo "Running unit tests..."
-        - echo "Testing complete!"
+        # Load necessary modules
+        - module load nvhpc-hpcx/23.3 hdf5/1.14.0
+        - ml list
+        # Add a build folder and enter it
+        - mkdir build && cd build
+        # Run CMake
+        - cmake -DDEBUG_MODE=OFF -DCMAKE_C_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_CXX_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_Fortran_FLAGS="--gcc-toolchain=/usr/local/bin" ..
+        # Run make
+        - make -j 4
 
-code-coverage-job:   # This job also runs in the test stage.
-    stage: test    # It can run at the same time as unit-test-job (in parallel).
+# build-NVHPC-GPU-Release job configuration
+build-NVHPC-GPU-Release:
+    stage: build
     script:
-        - echo "Checking code coverage..."
-        - echo "Code coverage check complete!"
+        # Load necessary modules
+        - module load nvhpc-hpcx/23.3 hdf5/1.14.0
+        - ml list
+        # Add a build folder and enter it
+        - mkdir build && cd build
+        # Run CMake
+        - cmake -DUSE_GPU=ON -DUSE_MEM_MANAGED=ON -DDEBUG_MODE=OFF -DCMAKE_C_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_CXX_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_Fortran_FLAGS="--gcc-toolchain=/usr/local/bin" ..
+        # Run make
+        - make -j 4
+
+
+## This job runs in the test stage.
+#unit-test-job:
+#    stage: test    # It only starts when the job in the build stage completes successfully.
+#    script:
+#        - echo "Running unit tests..."
+#        - echo "Testing complete!"
+#
+#code-coverage-job:   # This job also runs in the test stage.
+#    stage: test    # It can run at the same time as unit-test-job (in parallel).
+#    script:
+#        - echo "Checking code coverage..."
+#        - echo "Code coverage check complete!"
