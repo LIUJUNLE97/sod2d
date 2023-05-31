@@ -3068,7 +3068,7 @@ contains
 
    end subroutine create_dataspace_for_rp_vtk_hdf5
 
-   subroutine save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,data_array_rp,createDataspace)
+   subroutine save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,data_array_rp,isCreateDataspaceOpt)
       implicit none
       integer(hid_t),intent(in) :: file_id
       character(*),intent(in) :: dsetname
@@ -3076,13 +3076,18 @@ contains
       integer(hsize_t),dimension(1),intent(in) :: ms_dims
       integer(hssize_t),dimension(1),intent(in) :: ms_offset 
       real(rp),intent(in) :: data_array_rp(ms_dims(1))
-      logical, optional :: createDataspace
-
       integer(4) :: ds_rank = 1 !it is forced
+      logical :: isCreateDataspace = .true.
+      logical,optional :: isCreateDataspaceOpt
       integer(4) :: h5err
       real(rp_vtk),allocatable :: aux_data_array_rp_vtk(:)
    !---------------------------------------------------------------------------------------------------
-      if ((.not. present(createDataspace)) .or. (createDataspace)) then 
+
+      if (present(isCreateDataspaceOpt)) then 
+         isCreateDataspace = isCreateDataspaceOpt
+      end if
+
+      if (isCreateDataspace) then 
          call create_dataspace_for_rp_vtk_hdf5(file_id,dsetname,ds_rank,ds_dims)
       end if
 
@@ -3098,7 +3103,7 @@ contains
 
    end subroutine save_array1D_rp_in_dataset_hdf5_file
 
-   subroutine save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,data_array_rp,createDataspace)
+   subroutine save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,data_array_rp,isCreateDataspaceOpt)
       implicit none
       integer(4),parameter :: ds_rank = 2 !it is forced
       integer(hid_t),intent(in) :: file_id
@@ -3106,11 +3111,15 @@ contains
       integer(hsize_t),dimension(ds_rank),intent(in) :: ds_dims2d,ms_dims2d
       integer(hssize_t),dimension(ds_rank),intent(inout) :: ms_offset2d 
       real(rp),intent(in) :: data_array_rp(ms_dims2d(2),ms_dims2d(1)) !fortran is column-major & hdf5 writes in row-major
-      logical,optional :: createDataspace
+      logical :: isCreateDataspace = .true.
+      logical,optional :: isCreateDataspaceOpt
       integer(4) :: h5err
       real(rp_vtk),allocatable :: aux_data_array_rp_vtk(:,:)
    !---------------------------------------------------------------------------------------------------
-      if ((.not. present(createDataspace)) .or. (createDataspace)) then 
+      if (present(isCreateDataspaceOpt)) then 
+         isCreateDataspace = isCreateDataspaceOpt
+      end if
+      if (isCreateDataspace) then 
          call create_dataspace_for_rp_vtk_hdf5(file_id,dsetname,ds_rank,ds_dims2d)
       end if
 
@@ -5600,19 +5609,19 @@ contains
          auxwrite(:,:) = witval(:,:,1)
          !$acc end kernels
          call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims2d)
-         call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwrite,createDataspace=.False.)
+         call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwrite,isCreateDataspaceOpt=.False.)
          dsetname = 'u_y'
          !$acc kernels
          auxwrite(:,:) = witval(:,:,2)
          !$acc end kernels
          call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims2d)
-         call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwrite,createDataspace=.False.)
+         call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwrite,isCreateDataspaceOpt=.False.)
          dsetname = 'u_z'
          !$acc kernels
          auxwrite(:,:) = witval(:,:,3)
          !$acc end kernels
          call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims2d)
-         call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwrite,createDataspace=.False.)
+         call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwrite,isCreateDataspaceOpt=.False.)
       end if
       if (save_pr) then
          dsetname = 'pr'
@@ -5620,7 +5629,7 @@ contains
          auxwrite(:,:) = witval(:,:,4)
          !$acc end kernels
          call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims2d)
-         call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwrite,createDataspace=.False.)
+         call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwrite,isCreateDataspaceOpt=.False.)
       end if
       if (save_rho) then
          dsetname = 'rho'
@@ -5628,7 +5637,7 @@ contains
          auxwrite(:,:) = witval(:,:,5)
          !$acc end kernels
          call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims2d)
-         call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwrite,createDataspace=.False.)
+         call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwrite,isCreateDataspaceOpt=.False.)
       end if
 
       !Save time!
@@ -5638,7 +5647,7 @@ contains
       ds_rank      = 1
       ds_dims(1)   = itewit
       call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,t,createDataspace=.False.)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,t,isCreateDataspaceOpt=.False.)
 
       !Save istep!
       dsetname     = 'istep'
