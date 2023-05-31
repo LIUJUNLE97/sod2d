@@ -77,8 +77,4 @@ module mod_numerical_params
         real(4) :: flag_buffer_b_min = 0.0_rp
         real(4) :: flag_buffer_b_size = 0.0_rp
 
-        ! SmartRedis
-        logical :: do_smartredis = .true.
-        logical :: db_is_clustered = .false.
-
 end module mod_numerical_params
