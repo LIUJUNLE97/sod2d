@@ -1,8 +1,7 @@
 module mod_smartredis
 #if SMARTREDIS
 
-   include "enum_fortran.inc"
-   use iso_c_binding, only: c_bool
+   ! use iso_c_binding, only: c_bool
    use mod_constants
    use mod_numerical_params, only: do_smartredis
    use mod_mpi
@@ -56,7 +55,7 @@ module mod_smartredis
       end if
 
       error = client%initialize(do_smartredis)
-      if (error /= SRNoError) stop 'Error in SmartRedis client initialization'
+      if (error /= 0) stop 'Error in SmartRedis client initialization'
    end subroutine init_smartredis
 
    ! Destroy SmartRedis client
@@ -65,7 +64,7 @@ module mod_smartredis
       integer :: error
 
       error = client%destructor()
-      if (error /= SRNoError) stop 'Error in SmartRedis client destruction'
+      if (error /= 0) stop 'Error in SmartRedis client destruction'
    end subroutine end_smartredis
 
    ! Write witness points state into DB
@@ -89,7 +88,7 @@ module mod_smartredis
       ! write global state into DB
       if (mpi_rank .eq. 0) then
          error = client%put_tensor(key, state_global, shape(state_global))
-         if (error /= SRNoError) stop 'Error during SmartRedis state writting.'
+         if (error /= 0) stop 'Error during SmartRedis state writting.'
       end if
    end subroutine write_state
 
@@ -103,7 +102,7 @@ module mod_smartredis
 
       integer, parameter :: interval = 10              ! polling interval in milliseconds
       integer, parameter :: tries = huge(1)            ! infinite number of polling tries
-      logical(kind=c_bool) :: exists                   ! receives whether the tensor exists
+      logical :: exists                   ! receives whether the tensor exists
       integer :: found, error
       real(rp) :: actions_global(actions_global_size)
 
@@ -112,9 +111,9 @@ module mod_smartredis
          found = client%poll_tensor(key, interval, tries, exists)
          if (found /= 0) stop 'Error in SmartRedis actions reading. Actions array not found.'
          error = client%unpack_tensor(key, actions_global, shape(actions_global))
-         if (error /= SRNoError) stop 'Error in SmartRedis actions reading. Tensor could not be unpacked.'
+         if (error /= 0) stop 'Error in SmartRedis actions reading. Tensor could not be unpacked.'
          error = client%delete_tensor(key)
-         if (error /= SRNoError) stop 'Error in SmartRedis actions reading. Tensor could not be deleted.'
+         if (error /= 0) stop 'Error in SmartRedis actions reading. Tensor could not be deleted.'
       end if
       call mpi_barrier(mpi_comm_world, error) ! all processes wait for root to read actions
 
