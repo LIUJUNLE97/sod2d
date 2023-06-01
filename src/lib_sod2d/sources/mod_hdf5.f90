@@ -3076,17 +3076,16 @@ contains
       integer(hsize_t),dimension(1),intent(in) :: ms_dims
       integer(hssize_t),dimension(1),intent(in) :: ms_offset 
       real(rp),intent(in) :: data_array_rp(ms_dims(1))
+      logical, intent(in), optional :: isCreateDataspaceOpt
       integer(4) :: ds_rank = 1 !it is forced
-      logical :: isCreateDataspace = .true.
-      logical,optional :: isCreateDataspaceOpt
+      logical :: isCreateDataspace
       integer(4) :: h5err
       real(rp_vtk),allocatable :: aux_data_array_rp_vtk(:)
    !---------------------------------------------------------------------------------------------------
-
+      isCreateDataspace = .true.
       if (present(isCreateDataspaceOpt)) then 
          isCreateDataspace = isCreateDataspaceOpt
       end if
-
       if (isCreateDataspace) then 
          call create_dataspace_for_rp_vtk_hdf5(file_id,dsetname,ds_rank,ds_dims)
       end if
@@ -3110,12 +3109,13 @@ contains
       character(*),intent(in) :: dsetname
       integer(hsize_t),dimension(ds_rank),intent(in) :: ds_dims2d,ms_dims2d
       integer(hssize_t),dimension(ds_rank),intent(inout) :: ms_offset2d 
+      logical, intent(in), optional :: isCreateDataspaceOpt
       real(rp),intent(in) :: data_array_rp(ms_dims2d(2),ms_dims2d(1)) !fortran is column-major & hdf5 writes in row-major
-      logical :: isCreateDataspace = .true.
-      logical,optional :: isCreateDataspaceOpt
+      logical :: isCreateDataspace
       integer(4) :: h5err
       real(rp_vtk),allocatable :: aux_data_array_rp_vtk(:,:)
    !---------------------------------------------------------------------------------------------------
+      isCreateDataspace = .true.
       if (present(isCreateDataspaceOpt)) then 
          isCreateDataspace = isCreateDataspaceOpt
       end if
