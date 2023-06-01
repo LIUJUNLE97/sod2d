@@ -56,7 +56,7 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 100001
+      this%final_istep = 2001
       this%maxPhysTime = 20.0_rp
 
       this%save_logFile_first = 1 
@@ -67,9 +67,9 @@ contains
 
       this%save_restartFile_first = 1
       this%save_restartFile_step = 500
-      this%loadRestartFile = .true.
+      this%loadRestartFile = .false.
       this%restartFile_to_load = 2 !1 or 2
-      this%continue_oldLogs = .true.
+      this%continue_oldLogs = .false.
 
       this%saveAvgFile = .true.
       this%loadAvgFile = .false.
@@ -109,7 +109,7 @@ contains
       nscbc_gamma_inf = this%gamma_gas
 
       !Witness points parameters
-      this%have_witness          = .true.
+      this%have_witness          = .false.
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
       this%leapwit               = 1
