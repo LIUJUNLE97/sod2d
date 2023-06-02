@@ -77,37 +77,39 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 900000000 
+      this%final_istep = 10 
 
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 1000
+      this%save_resultsFile_step = 5
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 250
-      this%loadRestartFile = .true.
+      this%save_restartFile_step = 5
+      this%loadRestartFile = .false.
       this%restartFile_to_load = 2 !1 or 2
-      this%continue_oldLogs = .true.
+      this%continue_oldLogs = .false.
 
       this%saveAvgFile = .true.
-      this%loadAvgFile = .true.
+      this%loadAvgFile = .false.
+
+      this%saveSurfaceResults = .true.
       !----------------------------------------------
 
       ! numerical params
       flag_les = 0
-      flag_implicit = 1
+      flag_implicit = 0
       maxIterNonLineal=200
       implicit_solver = implicit_solver_bdf2_rk10
       pseudo_cfl =   1.95_rp !esdirk
       tol = 1e-3
       flag_rk_order=4
 
-      this%cfl_conv = 100.0_rp !bdf2
-      this%cfl_diff = 100.0_rp !bdf2
-      !this%cfl_conv = 0.15_rp !exp
-      !this%cfl_diff = 0.15_rp !exp
+      !this%cfl_conv = 100.0_rp !bdf2
+      !this%cfl_diff = 100.0_rp !bdf2
+      this%cfl_conv = 0.15_rp !exp
+      this%cfl_diff = 0.15_rp !exp
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -144,7 +146,7 @@ contains
       logical :: readFiles
       character(512) :: initialField_filePath
 
-      readFiles = .true.
+      readFiles = .false.
 
       if(readFiles) then
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)

@@ -85,7 +85,7 @@ module CFDSolverBase_mod
       integer(4), public :: nvarwit=5 !Default value, only to be substituted if function update_witness is modified to
 
       ! main logical parameters
-      logical, public :: loadRestartFile=.false.,saveAvgFile=.false.,loadAvgFile=.false.,saveInitialField=.false.,continue_oldLogs=.false.
+      logical, public :: loadRestartFile=.false.,saveAvgFile=.false.,loadAvgFile=.false.,saveInitialField=.false.,saveSurfaceResults=.false.,continue_oldLogs=.false.
       logical, public :: doGlobalAnalysis=.false.,isFreshStart=.true.,doTimerAnalysis=.false.,isWallModelOn=.false.,isSymmetryOn=.false.
       logical, public :: useIntInComms=.false.,useRealInComms=.false.
       logical, public    :: have_witness=.false.,wit_save_u_i=.false.,wit_save_pr=.false.,wit_save_rho=.false., continue_witness=.false.
@@ -149,8 +149,8 @@ module CFDSolverBase_mod
       procedure, public :: evalTimeIteration =>CFDSolverBase_evalTimeIteration
       procedure, public :: callTimeIntegration =>CFDSolverBase_callTimeIntegration
       procedure, public :: saveRestartFile =>CFDSolverBase_saveRestartFile
-      procedure, public :: saveAverages =>CFDSolverBase_saveAverages
-      procedure, public :: savePosprocessingFields =>CFDSolverBase_savePosprocessingFields
+      procedure, public :: saveAvgResultsFiles =>CFDSolverBase_saveAvgResultsFiles
+      procedure, public :: saveInstResultsFiles =>CFDSolverBase_saveInstResultsFiles
       procedure, public :: afterDt =>CFDSolverBase_afterDt
       procedure, public :: update_witness =>CFDSolverBase_update_witness
       procedure, public :: preprocWitnessPoints =>CFDSolverBase_preprocWitnessPoints
@@ -242,6 +242,7 @@ contains
       this%doTimerAnalysis    = .false.
       this%isFreshStart       = .true.
       this%saveInitialField   = .false.
+      this%saveSurfaceResults = .false.
       this%isWallModelOn      = .false.
       this%isSymmetryOn=.false.
       !@JORDI: discuss which other parameters can be set as default....
@@ -1327,7 +1328,7 @@ contains
       integer(4) :: iCode
 
       if(this%saveInitialField) then
-         call this%savePosprocessingFields(0)
+         call this%saveInstResultsFiles(0)
       end if
       !*********************************************************************!
       ! Compute surface forces and area                                                                !
@@ -1381,10 +1382,8 @@ contains
 
    end subroutine CFDSolverBase_saveRestartFile
 
-
-   subroutine CFDSolverBase_saveAverages(this,istep)
+   subroutine CFDSolverBase_saveAvgResultsFiles(this)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4), intent(in) :: istep
 
       !TO REVIEW
       !$acc update host(avvel(:,:))
@@ -1400,15 +1399,16 @@ contains
                this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
                this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
 
-   end subroutine CFDSolverBase_saveAverages
+      if (isMeshBoundaries .and. this%saveSurfaceResults) then
+         call save_surface_avgResults_hdf5_file(this%restartFileCnt,&
+                  this%numAvgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
+                  this%numAvgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
+                  this%numAvgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
+      end if
 
-   subroutine CFDSolverBase_afterDt(this,istep)
-      class(CFDSolverBase), intent(inout) :: this
-      integer(4), intent(in) :: istep
+   end subroutine CFDSolverBase_saveAvgResultsFiles
 
-   end subroutine CFDSolverBase_afterDt
-
-   subroutine CFDSolverBase_savePosprocessingFields(this,istep)
+   subroutine CFDSolverBase_saveInstResultsFiles(this,istep)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
 
@@ -1432,7 +1432,20 @@ contains
                this%numNodeVectorFields2save,this%nodeVectorFields2save,this%nameNodeVectorFields2save,&
                this%numElemGpScalarFields2save,this%elemGpScalarFields2save,this%nameElemGpScalarFields2save)
 
-   end subroutine CFDSolverBase_savePosprocessingFields
+      if (isMeshBoundaries .and. this%saveSurfaceResults) then
+         call save_surface_instResults_hdf5_file(istep,&
+               this%numNodeScalarFields2save,this%nameNodeScalarFields2save,&
+               this%numNodeVectorFields2save,this%nameNodeVectorFields2save,&
+               this%numElemGpScalarFields2save,this%nameElemGpScalarFields2save)
+      end if
+
+   end subroutine CFDSolverBase_saveInstResultsFiles
+
+   subroutine CFDSolverBase_afterDt(this,istep)
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4), intent(in) :: istep
+
+   end subroutine CFDSolverBase_afterDt
 
    subroutine CFDSolverBase_initialBuffer(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -1606,7 +1619,7 @@ contains
             if(this%saveAvgFile) then
                if (mpi_rank.eq.0) write(111,*) '   - Saving avgResults file step:',this%restartFileCnt
                call nvtxStartRange("Output AVG"//timeStep,istep)
-               call this%saveAverages(istep)
+               call this%saveAvgResultsFiles
                call nvtxEndRange
             end if
 
@@ -1616,22 +1629,13 @@ contains
 
          end if
 
-         ! ---- SAVING AVG RESULTS FILE -----------------------------------------------------------------------
-         !if (this%save_avgResultsFile_next == istep) then
-         !   this%save_avgResultsFile_next = this%save_avgResultsFile_next + this%save_avgResultsFile_step
-         !   if (mpi_rank.eq.0) write(111,*) ' - Saving avgResults file step:',istep,'(next to save',this%save_avgResultsFile_next,')'
-         !   call nvtxStartRange("Output AVG"//timeStep,istep)
-         !   call this%saveAverages(istep)
-         !   call nvtxEndRange
-         !end if
-
          ! ---- SAVING INST RESULTS FILE -----------------------------------------------------------------------
          if (this%save_resultsFile_next == istep) then
             this%save_resultsFile_next = this%save_resultsFile_next + this%save_resultsFile_step
             if (mpi_rank.eq.0) write(111,*) ' - Saving results file step:',istep,'(next to save',this%save_resultsFile_next,')'
             call nvtxStartRange("Output "//timeStep,istep)
             call compute_fieldDerivs(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
-            call this%savePosprocessingFields(istep)
+            call this%saveInstResultsFiles(istep)
             call nvtxEndRange
          end if
 

@@ -3045,6 +3045,18 @@ contains
       full_fileName = trim(adjustl(base_avgResultsFile_h5_name))//trim(aux_step)//'.hdf'
    end subroutine set_hdf5_avgResultsFile_name
 
+   subroutine set_hdf5_surface_resultsFile_name(surf_res_fileName,res_fileName)
+      implicit none
+      !integer(4),intent(in) :: surfCode
+      character(len=*), intent(out) :: surf_res_fileName
+      character(len=*), intent(in)  :: res_fileName
+      !character(len=12) :: aux_surfCode
+
+      !write(aux_surfCode,'(I0)') surfCode
+      !surf_res_fileName = 'surface_'//trim(aux_surfCode)//'_'//trim(adjustl(res_fileName))
+      surf_res_fileName = 'surface_'//trim(adjustl(res_fileName))
+   end subroutine set_hdf5_surface_resultsFile_name
+
 !----------------------------------------------------------------------------------------------------------------------------------
 
    subroutine create_dataspace_for_rp_vtk_hdf5(file_id,dsetname,ds_rank,ds_dims)
@@ -3872,19 +3884,7 @@ contains
          !!!$acc end kernels
 
       end do
-#if 0
-      ! ----  time  -----
-      ms_dims(1) = 0
-      ds_dims = 1
-      ms_offset(1) = 0
-      if(mpi_rank.eq.0) then
-         ms_dims(1) = 1
-      endif
-      aux_array_time(1) = time
 
-      dsetname = 'time'
-      call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,aux_array_time)
-#endif
    end subroutine load_hdf5_resultsFile_baseFunc
 
    subroutine save_instResults_hdf5_file(iStep,time,numNodeScalarFields2save,nodeScalarFields2save,nameNodeScalarFields2save,&
@@ -3995,6 +3995,224 @@ contains
 
    end subroutine load_avgResults_hdf5_file
 
+   !-------------------------------------------------------------------------------------------------------------------------------
+   !de moment la faig generica, ho enfoc a result instantani, despres veure si em funciona i ho puc estendre al avg
+   !cool
+
+   subroutine save_surface_instResults_hdf5_file(iStep,numNodeScalarFields2save,nameNodeScalarFields2save,&
+                                                  numNodeVectorFields2save,nameNodeVectorFields2save,&
+                                                  numElemGpScalarFields2save,nameElemGpScalarFields2save)
+      implicit none
+      integer(4), intent(in) :: iStep
+      integer(4),intent(in) :: numNodeScalarFields2save,numNodeVectorFields2save,numElemGpScalarFields2save
+      character(128),intent(in) :: nameNodeScalarFields2save(numNodeScalarFields2save),nameNodeVectorFields2save(numNodeVectorFields2save),nameElemGpScalarFields2save(numElemGpScalarFields2save)
+      character(512) :: res_hdf5_fileName
+
+      call set_hdf5_resultsFile_name(iStep,res_hdf5_fileName)
+
+      call save_surface_results_hdf5_file(res_hdf5_fileName,numNodeScalarFields2save,nameNodeScalarFields2save,&
+                                             numNodeVectorFields2save,nameNodeVectorFields2save,&
+                                             numElemGpScalarFields2save,nameElemGpScalarFields2save)
+
+   end subroutine save_surface_instResults_hdf5_file
+
+   subroutine save_surface_avgResults_hdf5_file(restartCnt,numAvgNodeScalarFields2save,nameAvgNodeScalarFields2save,&
+                                                   numAvgNodeVectorFields2save,nameAvgNodeVectorFields2save,&
+                                                   numAvgElemGpScalarFields2save,nameAvgElemGpScalarFields2save)
+      implicit none
+      integer(4), intent(in) :: restartCnt
+      integer(4),intent(in) :: numAvgNodeScalarFields2save,numAvgNodeVectorFields2save,numAvgElemGpScalarFields2save
+      character(128),intent(in) :: nameAvgNodeScalarFields2save(numAvgNodeScalarFields2save),nameAvgNodeVectorFields2save(numAvgNodeVectorFields2save),nameAvgElemGpScalarFields2save(numAvgElemGpScalarFields2save)
+      character(512) :: res_hdf5_fileName
+
+      call set_hdf5_avgResultsFile_name(restartCnt,res_hdf5_fileName)
+
+      call save_surface_results_hdf5_file(res_hdf5_fileName,numAvgNodeScalarFields2save,nameAvgNodeScalarFields2save,&
+                                             numAvgNodeVectorFields2save,nameAvgNodeVectorFields2save,&
+                                             numAvgElemGpScalarFields2save,nameAvgElemGpScalarFields2save)
+
+   end subroutine save_surface_avgResults_hdf5_file
+
+   subroutine save_surface_results_hdf5_file(res_hdf5_fileName,numNodeScalarFields2save,nameNodeScalarFields2save,&
+                                             numNodeVectorFields2save,nameNodeVectorFields2save,&
+                                             numElemGpScalarFields2save,nameElemGpScalarFields2save)
+      implicit none
+      character(512),intent(in) :: res_hdf5_fileName
+      integer(4),intent(in) :: numNodeScalarFields2save,numNodeVectorFields2save,numElemGpScalarFields2save
+      character(128),intent(in)   :: nameNodeScalarFields2save(numNodeScalarFields2save),nameNodeVectorFields2save(numNodeVectorFields2save),nameElemGpScalarFields2save(numElemGpScalarFields2save)
+      integer(4) :: ds_rank,h5err
+      integer(hsize_t),dimension(1) :: ds_dims,ms_dims
+      integer(hssize_t),dimension(1) :: ms_offset 
+
+      integer(hid_t) :: hdf5_fileId
+      character(512) :: surf_res_hdf5_fileName,groupname,dsetname
+      integer(hid_t) :: dtype
+      integer(1),allocatable :: aux_array_i1(:)
+      integer(8),allocatable :: aux_array_i8(:)
+      integer(4), dimension(0:mpi_size-1) :: vecNumBoundsRankPar
+      integer(4) :: mpiRankBoundStart
+      integer(4) :: ii,jj,iBound,iRank,indexGMSH,indexVTK,auxVTKorder(npbou),indexIJ,iNodeL,iField
+
+      !---------------------------------------------------------------------------------
+      call set_hdf5_surface_resultsFile_name(surf_res_hdf5_fileName,res_hdf5_fileName)
+
+      call create_hdf5_file(surf_res_hdf5_fileName,hdf5_fileId)
+
+      call set_vtkhdf_attributes_and_basic_groups(hdf5_fileId)
+
+      !---------------------------------------------------------------------------------
+
+      call h5lcreate_external_f(meshFile_h5_name,'/VTKHDF/Points',hdf5_fileId,'/VTKHDF/Points',h5err) 
+
+      !-----------------------------------------------------------------------------
+      ds_rank = 1
+      ds_dims(1) = int(mpi_size,hsize_t)
+      ms_dims(1) = 1
+      ms_offset(1) = int(mpi_rank,hssize_t)
+      dtype = h5_datatype_int8
+      allocate(aux_array_i8(1))
+
+      dsetname = '/VTKHDF/NumberOfPoints'
+      aux_array_i8(1) = numNodesRankPar
+      call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
+
+      dsetname = '/VTKHDF/NumberOfCells'
+      aux_array_i8(1) = numBoundsRankPar
+      call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
+
+      dsetname = '/VTKHDF/NumberOfConnectivityIds'
+      aux_array_i8(1) = numBoundsRankPar*npbou
+      call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
+
+      deallocate(aux_array_i8)
+
+      !-----------------------------------------------------------------------------
+      
+      call MPI_Allgather(numBoundsRankPar,1,mpi_datatype_int4,vecNumBoundsRankPar,1,mpi_datatype_int4,MPI_COMM_WORLD,mpi_err)
+
+      mpiRankBoundStart = 1
+
+      do iRank=1,mpi_rank
+         mpiRankBoundStart = mpiRankBoundStart +vecNumBoundsRankPar(iRank-1)
+      end do
+
+      !------------------------------------------------------------------------------
+
+
+
+
+      !-----------------------------------------------------------------------------
+
+      allocate(aux_array_i8(numBoundsRankPar+1))
+
+      ms_dims(1)   = int(numBoundsRankPar,hsize_t)  + 1
+      ms_offset(1) = int(mpiRankBoundStart,hssize_t) - 1 + int(mpi_rank,hssize_t)
+
+      dsetname = '/VTKHDF/Offsets'
+
+      ds_rank    = 1
+      ds_dims(1) = int(totalNumBoundsSrl,hsize_t) + int(mpi_size,hsize_t)
+      call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
+
+      aux_array_i8(1) = 0
+      do iBound = 2,(numBoundsRankPar+1)
+         aux_array_i8(iBound) = aux_array_i8(iBound-1)+npbou
+      end do
+
+      call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
+      deallocate(aux_array_i8)
+      !-----------------------------------------------------------------------------
+      allocate(aux_array_i8(numBoundsRankPar*npbou))
+
+      dsetname   = '/VTKHDF/Connectivity'
+
+      ds_rank    = 1
+      ds_dims(1) = int(totalNumBoundsSrl,hsize_t)  * int(npbou,hsize_t)
+      call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
+
+      ms_dims(1)   = int(numBoundsRankPar,hsize_t)   * int(npbou,hsize_t)
+      ms_offset(1) = int((mpiRankBoundStart-1),hssize_t)* int(npbou,hssize_t)
+
+      do iBound=1,numBoundsRankPar
+         do ii=1,npbou
+
+            iNodeL = boundParOrig(iBound,gmsh2ij(ii))
+            jj = (iBound-1)*npbou + vtk2ij(ii)
+            aux_array_i8(jj) = iNodeL - 1
+         end do
+      end do
+      !do ii = 1,numBoundsRankPar*npbou
+      !   aux_array_i8(ii) = ii!connecVTKMshRank(ii)-1
+      !end do
+
+      call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
+      deallocate(aux_array_i8)
+
+      !-----------------------------------------------------------------------------
+      allocate(aux_array_i1(numBoundsRankPar))
+      dsetname = '/VTKHDF/Types'
+      ds_rank    = 1
+      ds_dims(1) = int(totalNumBoundsSrl,hsize_t)
+      dtype      = h5_datatype_uint1
+      call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
+
+      !$acc kernels
+      aux_array_i1(:) = 70
+      !$acc end kernels
+
+      ms_dims(1)   = int(numBoundsRankPar ,hsize_t)
+      ms_offset(1) = int(mpiRankBoundStart,hssize_t) - 1
+
+      call write_dataspace_1d_uint1_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i1)
+
+      !------------------------------------------------------------------------------------------------------
+      ! ## mpi_rank ##
+      dsetname = '/VTKHDF/CellData/mpi_rank'
+      call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
+
+      do iBound = 1,numBoundsRankPar
+         aux_array_i1(iBound) = mpi_rank
+      end do
+      call write_dataspace_1d_uint1_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i1)
+
+      ! ## bou_codes ##
+      dsetname = '/VTKHDF/CellData/boundCode'
+      call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
+
+      do iBound = 1,numBoundsRankPar
+         aux_array_i1(iBound) = bouCodesPar(iBound)
+      end do
+      call write_dataspace_1d_uint1_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i1)
+
+      deallocate(aux_array_i1)
+
+      !---------------------------------------------------------------------------------
+      !--------------------------------------------------------------------------------------------------------------------------------------
+      groupname = '/VTKHDF/PointData/'
+      !--------------------------------------------------------------------------------------------------------------------------------------
+      do iField=1,numNodeScalarFields2save
+         dsetname = trim(adjustl(groupname))//trim(nameNodeScalarFields2save(iField))
+         call h5lcreate_external_f(res_hdf5_fileName,dsetname,hdf5_fileId,dsetname,h5err) 
+      end do
+      !--------------------------------------------------------------------------------------------------------------------------------------
+      do iField=1,numNodeVectorFields2save
+         dsetname = trim(adjustl(groupname))//trim(nameNodeVectorFields2save(iField))
+         call h5lcreate_external_f(res_hdf5_fileName,dsetname,hdf5_fileId,dsetname,h5err) 
+      end do
+      !--------------------------------------------------------------------------------------------------------------------------------------
+      do iField=1,numElemGpScalarFields2save
+         dsetname = trim(adjustl(groupname))//trim(nameElemGpScalarFields2save(iField))
+         call h5lcreate_external_f(res_hdf5_fileName,dsetname,hdf5_fileId,dsetname,h5err) 
+      end do
+      !--------------------------------------------------------------------------------------------------------------------------------------
+
+      call close_hdf5_file(hdf5_fileId)
+
+   end subroutine save_surface_results_hdf5_file
+   !-------------------------------------------------------------------------------------------------------------------------------
 
 #if 0
    subroutine save_hdf5_avgResultsFile_old(iStep,avvel,avve2,avvex,avrho,avpre,avmueff,avtw)
@@ -4205,29 +4423,22 @@ contains
       full_fileName = trim(adjustl(base_avgResultsFile_h5_name))//'final-vtk.hdf'
    end subroutine set_vtkhdf_finalAvgResultsFile_name
 
-   subroutine create_vtkhdf_unstructuredGrid_meshFile(file_id)
+   subroutine set_vtkhdf_attributes_and_basic_groups(file_id)
       implicit none
       integer(hid_t),intent(in) :: file_id
-      integer(hid_t) :: plist_id,dset_id,dspace_id,mspace_id,group_id,aspace_id,attr_id
-      integer(hid_t) :: dtype,atype
-      integer(hsize_t), dimension(1) :: ds_dims,ms_dims,a_dims
-      integer(hsize_t), dimension(2) :: ds_dims2d,ms_dims2d
-      integer(hssize_t), dimension(1) :: ms_offset 
-      integer(hssize_t), dimension(2) :: ms_offset2d
+      character(512) :: groupname
+      integer(hid_t) :: group_id,aspace_id,attr_id,atype
       integer(size_t) :: attr_length
-      integer(4) :: ds_rank,a_rank,h5err
-      character(512) :: full_fileName,groupname,dsetname
+      integer(hsize_t) :: a_dims(1)
+      integer(4) :: a_rank,h5err
       character(16) :: attr_value
-      integer(4) :: ii,iNodeL,iElemL
-      integer(1),allocatable :: aux_array_i1(:)
       integer(4),allocatable :: aux_array_i4(:)
-      integer(8),allocatable :: aux_array_i8(:)
 
-!--------------------------------------------------------------------------------
+      !--------------------------------------------------------------------------------
       groupname = '/VTKHDF'
       call h5gcreate_f(file_id,groupname,group_id,h5err)
-!--------------------------------------------------------------------------------
-!--------------------------------------------------------------------------------
+      !--------------------------------------------------------------------------------
+      !--------------------------------------------------------------------------------
       ! Attribute 'Type'
       call h5screate_f(H5S_SCALAR_F,aspace_id,h5err)
       
@@ -4241,13 +4452,13 @@ contains
 
       call h5acreate_f(group_id,'Type',atype,aspace_id,attr_id,h5err)
 
-      call h5awrite_f(attr_id,atype,attr_value,a_dims, h5err)
+      call h5awrite_f(attr_id,atype,attr_value,a_dims,h5err)
       call h5tclose_f(atype,h5err)
 
       call h5aclose_f(attr_id, h5err)
       
       call h5sclose_f(aspace_id, h5err)
-!--------------------------------------------------------------------------------
+      !--------------------------------------------------------------------------------
       ! Attribute 'Version'
       a_rank = 1
       a_dims(1) = 2
@@ -4266,7 +4477,7 @@ contains
       call h5sclose_f(aspace_id,h5err)
 
       call h5gclose_f(group_id, h5err)
-!--------------------------------------------------------------------------------
+      !--------------------------------------------------------------------------------
       groupname = '/VTKHDF/CellData'
       call create_group_hdf5(file_id,groupname)
 
@@ -4276,7 +4487,27 @@ contains
       groupname = '/VTKHDF/PointData'
       call create_group_hdf5(file_id,groupname)
       !--------------------------------------------------------------------------------
-!--------------------------------------------------------------------------------
+      !--------------------------------------------------------------------------------
+   end subroutine
+
+   subroutine create_vtkhdf_unstructuredGrid_meshFile(file_id)
+      implicit none
+      integer(hid_t),intent(in) :: file_id
+      integer(hid_t) :: dtype
+      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
+      integer(hsize_t), dimension(2) :: ds_dims2d,ms_dims2d
+      integer(hssize_t), dimension(1) :: ms_offset 
+      integer(hssize_t), dimension(2) :: ms_offset2d
+      integer(4) :: ds_rank,h5err
+      character(512) :: dsetname
+      integer(4) :: ii,iElemL
+      integer(1),allocatable :: aux_array_i1(:)
+      integer(8),allocatable :: aux_array_i8(:)
+      
+      !--------------------------------------------------------------------------------
+
+      call set_vtkhdf_attributes_and_basic_groups(file_id)
+
       !--------------------------------------------------------------------------------
       ds_dims2d(1) = int(ndime,hsize_t)
       ds_dims2d(2) = int(totalNumNodesPar,hsize_t)
@@ -4294,7 +4525,7 @@ contains
       ds_dims(1) = mpi_size
       ms_dims(1) = 1
       ms_offset(1) = int(mpi_rank,hssize_t)
-      dtype = h5_datatype_int8!H5T_STD_I64LE
+      dtype = h5_datatype_int8
       allocate(aux_array_i8(1))
 
       dsetname = '/VTKHDF/NumberOfPoints'
@@ -4372,70 +4603,15 @@ contains
       integer(hid_t),intent(in) :: file_id
       integer(4),intent(in) :: numMshRanks2Part,numElemsGmsh
       integer(8),intent(in) :: numNodesParTotal_i8
-      integer(hid_t) :: group_id,aspace_id,attr_id
-      integer(hid_t) :: dtype,atype
-      integer(hsize_t), dimension(1) :: ds_dims,a_dims
-      integer(hsize_t), dimension(2) :: ds_dims2d
-      integer(size_t) :: attr_length
-      integer(4) :: ds_rank,a_rank,h5err
-      character(512) :: groupname,dsetname
-      character(16) :: attr_value
-      integer(4),allocatable :: aux_array_i4(:)
-
-!--------------------------------------------------------------------------------
-      groupname = '/VTKHDF'
-      call h5gcreate_f(file_id,groupname,group_id,h5err)
-!--------------------------------------------------------------------------------
-!--------------------------------------------------------------------------------
-      ! Attribute 'Type'
-      call h5screate_f(H5S_SCALAR_F,aspace_id,h5err)
-      
-      attr_value = "UnstructuredGrid"
-      attr_length = len_trim(attr_value)
-
-      a_dims(1) = 1
-      call h5tcopy_f(H5T_C_S1,atype,h5err)
-      call h5tset_size_f(atype, attr_length,h5err)
-      call h5tset_strpad_f(atype,H5T_STR_NULLPAD_F,h5err)
-
-      call h5acreate_f(group_id,'Type',atype,aspace_id,attr_id,h5err)
-
-      call h5awrite_f(attr_id,atype,attr_value,a_dims, h5err)
-      call h5tclose_f(atype,h5err)
-
-      call h5aclose_f(attr_id, h5err)
-      
-      call h5sclose_f(aspace_id, h5err)
-!--------------------------------------------------------------------------------
-      ! Attribute 'Version'
-      a_rank = 1
-      a_dims(1) = 2
-      call h5screate_simple_f(a_rank,a_dims,aspace_id,h5err)
-
-      call h5acreate_f(group_id,'Version',h5_datatype_int4,aspace_id,attr_id,h5err)
-
-      allocate(aux_array_i4(2))
-      aux_array_i4(1) = 1
-      aux_array_i4(2) = 0
-      call h5awrite_f(attr_id,h5_datatype_int4,aux_array_i4,a_dims,h5err)
-      deallocate(aux_array_i4)   
-
-      call h5aclose_f(attr_id,h5err)
-
-      call h5sclose_f(aspace_id,h5err)
-
-      call h5gclose_f(group_id, h5err)
-!--------------------------------------------------------------------------------
-      groupname = '/VTKHDF/CellData'
-      call create_group_hdf5(file_id,groupname)
-
-      groupname = '/VTKHDF/FieldData'
-      call create_group_hdf5(file_id,groupname)
-
-      groupname = '/VTKHDF/PointData'
-      call create_group_hdf5(file_id,groupname)
+      integer(hid_t) :: dtype
+      integer(hsize_t) :: ds_dims(1),ds_dims2d(2)
+      integer(4) :: ds_rank,h5err
+      character(512) :: dsetname
       !--------------------------------------------------------------------------------
-!--------------------------------------------------------------------------------
+
+      call set_vtkhdf_attributes_and_basic_groups(file_id)
+
+      !--------------------------------------------------------------------------------
       !--------------------------------------------------------------------------------
       call select_dtype_rp(dtype)
       ds_rank = 2
@@ -4498,15 +4674,11 @@ contains
       integer(hsize_t), dimension(2) :: ms_dims2d
       integer(hssize_t), dimension(1) :: ms_offset 
       integer(hssize_t), dimension(2) :: ms_offset2d
-      integer(4) :: h5err
       character(512) :: dsetname
       integer(4) :: ii,iElemL
       integer(1),allocatable :: aux_array_i1(:)
-      integer(4),allocatable :: aux_array_i4(:)
       integer(8),allocatable :: aux_array_i8(:)
 
-!--------------------------------------------------------------------------------
-!--------------------------------------------------------------------------------
       !--------------------------------------------------------------------------------
       ms_dims2d(1) = ndime
       ms_dims2d(2) = numNodesMshRank
@@ -4598,7 +4770,6 @@ contains
       integer(hsize_t), dimension(2) :: ms_dims2d
       integer(hssize_t), dimension(1) :: ms_offset 
       integer(hssize_t), dimension(2) :: ms_offset2d
-      integer(4) :: h5err
       character(512) :: dsetname
       integer(1),allocatable :: empty_array_i1(:)
       integer(8),allocatable :: empty_array_i8(:)
@@ -4658,84 +4829,26 @@ contains
    subroutine create_vtkhdf_unstructuredGrid_struct_for_resultsFile(file_id)
       implicit none
       integer(hid_t),intent(in) :: file_id
-      integer(hid_t) :: group_id,aspace_id,attr_id
-      integer(hid_t) :: dtype,atype
-      integer(hsize_t), dimension(1) :: ds_dims,ms_dims,a_dims
-      integer(hsize_t), dimension(2) :: ds_dims2d,ms_dims2d
+      integer(hid_t) :: dtype
+      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
       integer(hssize_t), dimension(1) :: ms_offset 
-      integer(hssize_t), dimension(2) :: ms_offset2d
-      integer(size_t) :: attr_length
-      integer(4) :: ds_rank,a_rank,h5err
-      character(512) :: full_fileName,groupname,dsetname
-      character(16) :: attr_value
-      integer(4) :: ii,iNodeL,iElemL
-      integer(1),allocatable :: aux_array_i1(:)
-      integer(4),allocatable :: aux_array_i4(:)
+      !integer(hsize_t), dimension(2) :: ds_dims2d,ms_dims2d
+      !integer(hssize_t), dimension(2) :: ms_offset2d
+      integer(4) :: ds_rank,h5err
+      character(512) :: dsetname
       integer(8),allocatable :: aux_array_i8(:)
 
-!--------------------------------------------------------------------------------
-      groupname = '/VTKHDF'
-      !call create_group_hdf5(file_id,groupname)
-      call h5gcreate_f(file_id,groupname,group_id,h5err)
-!--------------------------------------------------------------------------------
-!--------------------------------------------------------------------------------
-      ! Attribute 'Type'
-      call h5screate_f(H5S_SCALAR_F,aspace_id,h5err)
-      
-      attr_value = "UnstructuredGrid"
-      attr_length = len_trim(attr_value)
+      call set_vtkhdf_attributes_and_basic_groups(file_id)
 
-      a_dims(1) = 1
-      call h5tcopy_f(H5T_C_S1,atype,h5err)
-      call h5tset_size_f(atype, attr_length,h5err)
-      call h5tset_strpad_f(atype,H5T_STR_NULLPAD_F,h5err)
-
-      call h5acreate_f(group_id,'Type',atype,aspace_id,attr_id,h5err)
-
-      call h5awrite_f(attr_id,atype,attr_value,a_dims, h5err)
-      call h5tclose_f(atype,h5err)
-
-      call h5aclose_f(attr_id, h5err)
-      
-      call h5sclose_f(aspace_id, h5err)
-!--------------------------------------------------------------------------------
-      ! Attribute 'Version'
-      a_rank = 1
-      a_dims(1) = 2
-      call h5screate_simple_f(a_rank,a_dims,aspace_id,h5err)
-
-      call h5acreate_f(group_id,'Version',h5_datatype_int4,aspace_id,attr_id,h5err)
-
-      allocate(aux_array_i4(2))
-      aux_array_i4(1) = 1
-      aux_array_i4(2) = 0
-      call h5awrite_f(attr_id,h5_datatype_int4,aux_array_i4,a_dims,h5err)
-      deallocate(aux_array_i4)   
-
-      call h5aclose_f(attr_id,h5err)
-
-      call h5sclose_f(aspace_id,h5err)
-
-      call h5gclose_f(group_id, h5err)
-!--------------------------------------------------------------------------------
-      groupname = '/VTKHDF/CellData'
-      call create_group_hdf5(file_id,groupname)
-
-      groupname = '/VTKHDF/FieldData'
-      call create_group_hdf5(file_id,groupname)
-
-      groupname = '/VTKHDF/PointData'
-      call create_group_hdf5(file_id,groupname)
       !--------------------------------------------------------------------------------
-!--------------------------------------------------------------------------------
       !--------------------------------------------------------------------------------
-      dtype = h5_datatype_real8
-      ds_dims2d(1) = 3
-      ms_dims2d(1) = 1
-      ds_dims2d(2) = totalNumNodesPar
-      ms_dims2d(2) = numNodesRankPar
-      ms_offset2d(1) = 0
-      ms_offset2d(2) = rankNodeStart-1
+      !dtype = h5_datatype_real8
+      !ds_dims2d(1) = 3
+      !ms_dims2d(1) = 1
+      !ds_dims2d(2) = totalNumNodesPar
+      !ms_dims2d(2) = numNodesRankPar
+      !ms_offset2d(1) = 0
+      !ms_offset2d(2) = rankNodeStart-1
 !--------------------------------------------------------------------------------
       call h5lcreate_external_f(meshFile_h5_name,'/VTKHDF/Points',file_id,'/VTKHDF/Points',h5err) 
 
@@ -4785,10 +4898,10 @@ contains
       real(rp),dimension(numNodesRankPar),intent(in) :: envit,mut,mu_fluid
       real(rp),dimension(numNodesRankPar,ndime),intent(in) :: u,gradRho,curlU
 
-      character(512) :: groupname,dsetname
+      character(512) :: dsetname
       integer(hid_t) :: file_id,plist_id,dset_id
       integer(hid_t) :: dtype
-      integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims,a_dims
+      integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
       integer(HSIZE_T), dimension(2) :: ds_dims2d,ms_dims2d
       integer(HSSIZE_T), dimension(1) :: ms_offset 
       integer(HSSIZE_T), dimension(2) :: ms_offset2d
@@ -4903,151 +5016,14 @@ contains
       call h5fclose_f(file_id,h5err)
 
    end subroutine write_vtkhdf_instResultsFile
-#if 0
-   subroutine write_vtkhdf_instResultsFile_devel(full_fileName,numScalars2save,numVectors2save,scalars2save,vectors2save)
-      implicit none
-      character(512),intent(in) :: full_fileName
-      integer(4),intent(in) :: numScalars2save,numVectors2save
-      real(rp),pointer,intent(in) :: scalars2save(:,:)
-      real(rp),pointer,intent(in) :: vectors2save(:,:)
 
-      !real(rp),dimension(numNodesRankPar),intent(in) :: rho,pr,E,eta,csound,machno,divU,Qcrit
-      !real(rp),dimension(numNodesRankPar),intent(in) :: envit,mut,mu_fluid
-      !real(rp),dimension(numNodesRankPar,ndime),intent(in) :: u,gradRho,curlU
-
-      character(512) :: groupname,dsetname
-      integer(hid_t) :: file_id,plist_id,dset_id
-      integer(hid_t) :: dtype
-      integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims,a_dims
-      integer(HSIZE_T), dimension(2) :: ds_dims2d,ms_dims2d
-      integer(HSSIZE_T), dimension(1) :: ms_offset 
-      integer(HSSIZE_T), dimension(2) :: ms_offset2d
-      integer(4) :: ds_rank,ms_rank,h5err
-
-      integer(4) :: ii,iElemL
-      integer(1),allocatable :: aux_array_i1(:)
-
-      !------------------------------------------------------------------------------------
-
-      ! Setup file access property list with parallel I/O access.
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
-      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
-
-      ! create file collectively
-      call h5fcreate_f(full_fileName,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
-      if(h5err .ne. 0) then
-         write(*,*) 'FATAL ERROR! Cannot create VTKHDF ',trim(adjustl(full_fileName))
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-      end if
-      call h5pclose_f(plist_id, h5err)
-
-      call create_vtkhdf_unstructuredGrid_meshFile(file_id)
-
-      !------------------------------------------------------------------------------------------------------
-      ds_dims(1)   = int(totalNumNodesPar,hsize_t)
-      ms_dims(1)   = int(numNodesRankPar ,hsize_t)
-      ms_offset(1) = int(rankNodeStart,hssize_t)-1
-
-      do ii=1,numScalars2save
-         dsetname = 'dummydu'
-         call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,scalars2save(:,ii))
-      end do
-
-#if 0
-      ! ## RHO ##
-      dsetname = '/VTKHDF/PointData/rho'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,rho)
-
-      ! ## PR ##
-      dsetname = '/VTKHDF/PointData/pr'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,pr)
-
-      ! ## Ener ##
-      dsetname = '/VTKHDF/PointData/Ener'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,E)
-     
-      ! ## eta ##
-      dsetname = '/VTKHDF/PointData/eta'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,eta)
-
-      ! ## csound ##
-      dsetname = '/VTKHDF/PointData/csound'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,csound)
-
-      ! ## machno ##
-      dsetname = '/VTKHDF/PointData/machno'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,machno)
-
-      ! ## divU ##
-      dsetname = '/VTKHDF/PointData/divU'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,divU)
-
-      ! ## Qcrit ##
-      dsetname = '/VTKHDF/PointData/Qcrit'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,Qcrit)
-
-      ! ## envit ##
-      dsetname = '/VTKHDF/PointData/envit'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,envit)
-
-      ! ## mut ##
-      dsetname = '/VTKHDF/PointData/mut'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,mut)
-
-      ! ## mu_fluid ##
-      dsetname = '/VTKHDF/PointData/mu_fluid'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,mu_fluid)
-#endif
-      !-------------------------------------------------------------------------------------------------------
-      ds_rank = 2
-      ds_dims2d(1) = 3
-      ms_dims2d(1) = 1
-      ds_dims2d(2) = totalNumNodesPar
-      ms_dims2d(2) = numNodesRankPar
-      ms_offset2d(1) = 0
-      ms_offset2d(2) = rankNodeStart-1
-      !-------------------------------------------------------------------------------- 
-#if 0
-      dsetname = '/VTKHDF/PointData/Velocity'
-      call save_array2D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,u)
-      !-------------------------------------------------------------------------------- 
-      dsetname = '/VTKHDF/PointData/gradRho'
-      call save_array2D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,gradRho)
-      !-------------------------------------------------------------------------------- 
-      dsetname = '/VTKHDF/PointData/curlU'
-      call save_array2D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,curlU)
-      !-------------------------------------------------------------------------------------------------------
-#endif
-      allocate(aux_array_i1(numNodesRankPar))
-      !------------------------------------------------------------------------------------------------------
-      dtype = h5_datatype_uint1
-      ds_rank = 1
-      ds_dims(1)   = int(totalNumElements,hsize_t)
-      ms_dims(1)   = int(numElemsRankPar ,hsize_t)
-      ms_offset(1) = int(rankElemStart,hssize_t)-1
-
-      ! ## mpi_rank ##
-      dsetname = '/VTKHDF/CellData/mpi_rank'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      do iElemL = 1,numElemsRankPar
-         aux_array_i1(iElemL) = mpi_rank
-      end do
-      call write_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i1)
-
-      deallocate(aux_array_i1)
-
-      !close the file.
-      call h5fclose_f(file_id,h5err)
-
-   end subroutine write_vtkhdf_instResultsFile_devel
-#endif
    subroutine write_vtkhdf_avgResultsFile(full_fileName,avrho,avpre,avmueff,avvel,avve2,avvex,avtw)
       implicit none
       character(512),intent(in) :: full_fileName
       real(rp),dimension(numNodesRankPar),intent(in) :: avrho,avpre,avmueff
       real(rp),dimension(numNodesRankPar,ndime),intent(in) :: avvel,avve2,avvex,avtw
 
-      character(512) :: groupname,dsetname
+      character(512) :: dsetname
       integer(hid_t) :: file_id,plist_id,dset_id
       integer(hid_t) :: dtype
       integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
@@ -5143,7 +5119,7 @@ contains
       character(512),intent(in) :: full_fileName
       real(rp),dimension(numNodesRankPar),intent(in) :: realField
 
-      character(512) :: groupname,dsetname
+      character(512) :: dsetname
       integer(hid_t) :: file_id,plist_id,dset_id
       integer(hid_t) :: dtype
       integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
@@ -5302,7 +5278,7 @@ contains
       integer(hsize_t)           :: ds_dims2d(2),ms_dims2d(2),max_dims2d(2),chunk_dims2d(2)
       integer(hssize_t)          :: ms_offset2d(2)
       integer(4)                 :: ds_rank,ms_rank,h5err,irank,iwit
-      character(256)             :: groupname,dsetname
+      character(256)             :: dsetname
       real(rp)                   :: auxwitxyz(nwitPar, ndime), auxwitxi(nwitPar,ndime), auxshapefunc(nwitPar,nnode) 
       real(rp),allocatable       :: aux_data_array_rp_vtk(:)
       !TOBECHANGED JODER
@@ -5491,7 +5467,7 @@ contains
       integer(HSSIZE_T)           :: ms_offset(2)
       integer                     :: ms_rank, h5err, iwit, istep
       integer(hsize_t)            :: nsteps(2), maxnsteps(2)
-      character(256)              :: groupname,dsetname
+      character(256)              :: dsetname
       integer(4)                 :: nwitOffset, auxread(1)
       real(4)                    :: auxwitxi(ndime,nwit), auxshapefunc(nnode, nwit)!, auxt(1)
       integer(4), allocatable    :: steps(:)
