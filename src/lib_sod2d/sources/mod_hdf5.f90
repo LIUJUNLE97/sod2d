@@ -3068,7 +3068,7 @@ contains
 
    end subroutine create_dataspace_for_rp_vtk_hdf5
 
-   subroutine save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,data_array_rp)
+   subroutine save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,data_array_rp,isCreateDataspaceOpt)
       implicit none
       integer(hid_t),intent(in) :: file_id
       character(*),intent(in) :: dsetname
@@ -3076,13 +3076,19 @@ contains
       integer(hsize_t),dimension(1),intent(in) :: ms_dims
       integer(hssize_t),dimension(1),intent(in) :: ms_offset 
       real(rp),intent(in) :: data_array_rp(ms_dims(1))
-
+      logical, intent(in), optional :: isCreateDataspaceOpt
       integer(4) :: ds_rank = 1 !it is forced
+      logical :: isCreateDataspace
       integer(4) :: h5err
       real(rp_vtk),allocatable :: aux_data_array_rp_vtk(:)
    !---------------------------------------------------------------------------------------------------
-
-      call create_dataspace_for_rp_vtk_hdf5(file_id,dsetname,ds_rank,ds_dims)
+      isCreateDataspace = .true.
+      if (present(isCreateDataspaceOpt)) then 
+         isCreateDataspace = isCreateDataspaceOpt
+      end if
+      if (isCreateDataspace) then 
+         call create_dataspace_for_rp_vtk_hdf5(file_id,dsetname,ds_rank,ds_dims)
+      end if
 
       if(rp .eq. rp_vtk) then
          call write_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,data_array_rp)
@@ -3096,20 +3102,26 @@ contains
 
    end subroutine save_array1D_rp_in_dataset_hdf5_file
 
-   subroutine save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,data_array_rp)
+   subroutine save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,data_array_rp,isCreateDataspaceOpt)
       implicit none
       integer(4),parameter :: ds_rank = 2 !it is forced
       integer(hid_t),intent(in) :: file_id
       character(*),intent(in) :: dsetname
       integer(hsize_t),dimension(ds_rank),intent(in) :: ds_dims2d,ms_dims2d
       integer(hssize_t),dimension(ds_rank),intent(inout) :: ms_offset2d 
+      logical, intent(in), optional :: isCreateDataspaceOpt
       real(rp),intent(in) :: data_array_rp(ms_dims2d(2),ms_dims2d(1)) !fortran is column-major & hdf5 writes in row-major
-
+      logical :: isCreateDataspace
       integer(4) :: h5err
       real(rp_vtk),allocatable :: aux_data_array_rp_vtk(:,:)
    !---------------------------------------------------------------------------------------------------
-
-      call create_dataspace_for_rp_vtk_hdf5(file_id,dsetname,ds_rank,ds_dims2d)
+      isCreateDataspace = .true.
+      if (present(isCreateDataspaceOpt)) then 
+         isCreateDataspace = isCreateDataspaceOpt
+      end if
+      if (isCreateDataspace) then 
+         call create_dataspace_for_rp_vtk_hdf5(file_id,dsetname,ds_rank,ds_dims2d)
+      end if
 
       if(rp .eq. rp_vtk) then
          call write_dataspace_2d_tr_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims2d,ms_offset2d,data_array_rp)
@@ -3185,7 +3197,7 @@ contains
       integer(4),allocatable :: aux_data_array_int4(:)
       
       !----------------------------------------------------------------------------------------------------------
-      ms_dims(1) = 0
+      ms_dims(1) = 1
       ds_dims = 1
       ms_offset(1) = 0
       if(mpi_rank.eq.0) then
@@ -3264,7 +3276,7 @@ contains
       real(rp_vtk),allocatable :: aux_data_array_rp_vtk(:)
       
       !----------------------------------------------------------------------------------------------------------
-      ms_dims(1) = 0
+      ms_dims(1) = 1
       ds_dims = 1
       ms_offset(1) = 0
       if(mpi_rank.eq.0) then
@@ -3753,7 +3765,6 @@ contains
             end do
             !!!!$acc end parallel loop
          end if
-
          call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,nodeScalarFields2save(iField)%ptr)
       end do
 
@@ -3778,7 +3789,6 @@ contains
             end do
             !!!!$acc end parallel loop
          end if
-
          call save_array2D_tr_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,nodeVectorFields2save(iField)%ptr)
       end do
 
@@ -3936,17 +3946,14 @@ contains
       integer(hsize_t),dimension(1) :: ds_dims,ms_dims
       integer(hssize_t),dimension(1) :: ms_offset 
       real(rp) :: aux_array_rp(1)
-
       !-----------------------------------------------------------------------------------------------
-
       call set_hdf5_avgResultsFile_name(restartCnt,full_hdf5_fileName)
-
+      
       call create_hdf5_file(full_hdf5_fileName,hdf5_fileId)
 
       call save_hdf5_resultsFile_baseFunc(hdf5_fileId,numAvgNodeScalarFields2save,avgNodeScalarFields2save,nameAvgNodeScalarFields2save,&
                                           numAvgNodeVectorFields2save,avgNodeVectorFields2save,nameAvgNodeVectorFields2save,&
                                           numAvgElemGpScalarFields2save,avgElemGpScalarFields2save,nameAvgElemGpScalarFields2save)
-
       dsetname = 'elapsed_avgTime'
       call save_real_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,elapsed_avgTime)
 
@@ -4785,7 +4792,7 @@ contains
       real(rp),dimension(numNodesRankPar),intent(in) :: envit,mut,mu_fluid
       real(rp),dimension(numNodesRankPar,ndime),intent(in) :: u,gradRho,curlU
 
-      character(512) :: groupname,dsetname
+      character(512) :: dsetname
       integer(hid_t) :: file_id,plist_id,dset_id
       integer(hid_t) :: dtype
       integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims,a_dims
@@ -5047,7 +5054,7 @@ contains
       real(rp),dimension(numNodesRankPar),intent(in) :: avrho,avpre,avmueff
       real(rp),dimension(numNodesRankPar,ndime),intent(in) :: avvel,avve2,avvex,avtw
 
-      character(512) :: groupname,dsetname
+      character(512) :: dsetname
       integer(hid_t) :: file_id,plist_id,dset_id
       integer(hid_t) :: dtype
       integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
@@ -5143,7 +5150,7 @@ contains
       character(512),intent(in) :: full_fileName
       real(rp),dimension(numNodesRankPar),intent(in) :: realField
 
-      character(512) :: groupname,dsetname
+      character(512) :: dsetname
       integer(hid_t) :: file_id,plist_id,dset_id
       integer(hid_t) :: dtype
       integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
@@ -5301,11 +5308,9 @@ contains
       integer(hssize_t)          :: ms_offset(1)
       integer(hsize_t)           :: ds_dims2d(2),ms_dims2d(2),max_dims2d(2),chunk_dims2d(2)
       integer(hssize_t)          :: ms_offset2d(2)
-      integer(4)                 :: ds_rank,ms_rank,h5err,irank,iwit
-      character(256)             :: groupname,dsetname
+      integer(4)                 :: ds_rank,h5err,irank,iwit
+      character(256)             :: dsetname
       real(rp)                   :: auxwitxyz(nwitPar, ndime), auxwitxi(nwitPar,ndime), auxshapefunc(nwitPar,nnode) 
-      real(rp),allocatable       :: aux_data_array_rp_vtk(:)
-      !TOBECHANGED JODER
 
       ! Setup file access property list with parallel I/O access.
       call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
@@ -5319,13 +5324,11 @@ contains
       end if
       call h5pclose_f(plist_id, h5err)
 
-      dtype = h5_datatype_int4
-
       !Create dataspece for nwitPar and save it!
+      dtype        = h5_datatype_int4
       ds_rank      = 1
       dsetname     = 'nwitPar'
       ds_dims(1)   = mpi_size
-      !ms_rank      = 1
       ms_dims(1)   = 1
       ms_offset(1) = mpi_rank
       aux(1)       = nwitPar
@@ -5334,7 +5337,7 @@ contains
       call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
 
       !Compute sum of nwitPar until that rank and save it on its dataspace!
-      !ms_rank      = 1
+      dtype        = h5_datatype_int4
       ms_dims(1)   = mpi_size
       ms_offset(1) = 0
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,nwitParAllRanks)
@@ -5346,7 +5349,6 @@ contains
       ds_rank      = 1
       dsetname     = 'nwitOffset'
       ds_dims(1)   = mpi_size
-      !ms_rank      = 1
       ms_dims(1)   = 1
       ms_offset(1) = mpi_rank
       aux(1)       = nwitOffset
@@ -5355,20 +5357,20 @@ contains
       call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
 
       !Create dataspece for global numeration and save it!
+      dtype        = h5_datatype_int4
       dsetname     = 'global'
       ds_rank      = 1
       ds_dims(1)   = nwit
-      !ms_rank      = 1
       ms_dims(1)   = nwitPar
       ms_offset(1) = nwitOffset
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,witGlob)
 
       !Create dataspece for element containing the witness and save it!
+      dtype        = h5_datatype_int4
       dsetname     = 'element'
       ds_rank      = 1
       ds_dims(1)   = nwit
-      !ms_rank      = 1
       ms_dims(1)   = nwitPar
       ms_offset(1) = nwitOffset
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
@@ -5380,52 +5382,34 @@ contains
          auxwitxi(iwit,:)  = witxi(iwit,:)
          auxshapefunc(iwit,:) = shapewit(iwit,:)
       end do
-
-!REVISAR DRAMA DEL BENET...OMG
-      !ds_rank        = 2
       dsetname       = 'xyz'
       ds_dims2d(1)   = ndime
       ds_dims2d(2)   = nwit
-      !ms_rank        = 2
-      ms_dims2d(1)   = 1
+      ms_dims2d(1)   = ndime
       ms_dims2d(2)   = nwitPar
       ms_offset2d(1) = 0
       ms_offset2d(2) = nwitOffset
-
       call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwitxyz)
-      !IMPLEMENTAR LA QUE NO TRANSPOSA I FER SERVIR
 
       !Create dataspace for witness isoparametric coordinates and save them!
-      !ds_rank      = 2
-      dsetname     = 'witxi'
+      dsetname       = 'witxi'
       ds_dims2d(1)   = ndime
       ds_dims2d(2)   = nwit
-      !ms_rank      = 2
-      ms_dims2d(1)   = 1
+      ms_dims2d(1)   = ndime
       ms_dims2d(2)   = nwitPar
       ms_offset2d(1) = 0
       ms_offset2d(2) = nwitOffset
-
       call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwitxi)
-      !IMPLEMENTAR LA QUE NO TRANSPOSA I FER SERVIR
  
-      !REVISA AQUESTA PERQUE NO ENTENC NI COM ARRIBA A FUNCIONAR...
-#if 0
       !Create dataspace for the shape functions evaluated on the witness points and save them!
-      ds_rank      = 2
-      dsetname     = 'shape_functions'
-      ds_dims(1)   = nnode
-      ds_dims(2)   = nwit
-      ms_rank      = 2
-      ms_dims(1)   = 1
-      ms_dims(2)   = nwitPar
-      ms_offset(2) = nwitOffset
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      do inode = 1, nnode
-         ms_offset(1) = inode-1
-         call write_dataspace_1d_fp32_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,auxshapefunc)
-      end do
-#endif
+      dsetname       = 'shape_functions'
+      ds_dims2d(1)   = nnode
+      ds_dims2d(2)   = nwit
+      ms_dims2d(1)   = nnode
+      ms_dims2d(2)   = nwitPar
+      ms_offset2d(1) = 0
+      ms_offset2d(2) = nwitOffset
+      call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxshapefunc)
 
       !Create time dataset!
       call select_dtype_rp_vtk(dtype)
@@ -5447,7 +5431,7 @@ contains
 
       !Create dataspaces for the magnitudes to save!
       call select_dtype_rp_vtk(dtype)
-      ds_rank       = 2
+      ds_rank         = 2
       ds_dims2d(1)    = 1
       ds_dims2d(2)    = nwit
       max_dims2d(1)   = H5S_UNLIMITED_F
@@ -5482,19 +5466,21 @@ contains
    subroutine load_witness_hdf5(full_fileName, nwit, loadstep, load_stepwit, nwitPar, witel, witxi, shapefunc) 
       implicit none
       character(512), intent(in)  :: full_fileName
-      integer(4),    intent(in)  :: nwit, loadstep
-      integer(4),    intent(out) :: witel(nwit)
-      real(4),       intent(out) :: witxi(nwit,ndime), shapefunc(nwit,nnode)!, t
-      integer(4),    intent(out) :: nwitPar, load_stepwit
-      integer(hid_t)              :: file_id,plist_id,dset_id,dspace_id,group_id, dtype
-      integer(HSIZE_T)            :: ms_dims(2), max_dims(2)
-      integer(HSSIZE_T)           :: ms_offset(2)
+      integer(4),     intent(in)  :: nwit, loadstep
+      integer(4),     intent(out) :: witel(nwit)
+      real(rp),       intent(out) :: witxi(nwit,ndime), shapefunc(nwit,nnode)
+      integer(4),     intent(out) :: nwitPar, load_stepwit
+      integer(hid_t)              :: file_id,plist_id,dset_id,dspace_id,group_id
+      integer(hsize_t)            :: ds_dims(1),ms_dims(1),max_dims(1),chunk_dims(1)
+      integer(hssize_t)           :: ms_offset(1)
+      integer(hsize_t)            :: ds_dims2d(2),ms_dims2d(2),max_dims2d(2),chunk_dims2d(2)
+      integer(hssize_t)           :: ms_offset2d(2)
       integer                     :: ms_rank, h5err, iwit, istep
       integer(hsize_t)            :: nsteps(2), maxnsteps(2)
-      character(256)              :: groupname,dsetname
-      integer(4)                 :: nwitOffset, auxread(1)
-      real(4)                    :: auxwitxi(ndime,nwit), auxshapefunc(nnode, nwit)!, auxt(1)
-      integer(4), allocatable    :: steps(:)
+      character(256)              :: dsetname
+      real(rp), allocatable       :: auxwitxi(:,:), auxshapefunc(:,:)
+      integer(4)                  :: nwitOffset, auxread(1)
+      integer(4), allocatable     :: steps(:)
 
       witel(:)   = 0
       witxi(:,:) = 0.0_rp
@@ -5508,8 +5494,6 @@ contains
          call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
       end if
       call h5pclose_f(plist_id, h5err)
-
-      dtype = H5T_NATIVE_REAL
 
       !Read step to continue!
       dsetname     = 'istep'
@@ -5525,20 +5509,19 @@ contains
             exit
          end if
       end do
-      write(*,*) load_stepwit
       deallocate(steps)
       
       !Read nwitPar!
       dsetname     = 'nwitPar'
-      ms_rank      = 1
       ms_dims(1)   = 1
       ms_offset(1) = mpi_rank
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,auxread)
       nwitPar = auxread(1)
+      allocate(auxwitxi(nwitPar,ndime))
+      allocate(auxshapefunc(nwitPar,nnode))
 
       !Read nwitOffset!
       dsetname     = 'nwitOffset'
-      ms_rank      = 1
       ms_dims(1)   = 1
       ms_offset(1) = mpi_rank
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,auxread)
@@ -5546,48 +5529,51 @@ contains
 
       !Read elements containing the witness points
       dsetname     = 'element'
-      ms_rank      = 1
       ms_dims(1)   = nwitPar
       ms_offset(1) = nwitOffset
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,witel)
       
       !Read witness isoparametric coordinates!
-      dsetname     = 'witxi'
-      ms_rank      = 2
-      ms_dims(1)   = ndime
-      ms_dims(2)   = nwitPar
-      ms_offset(1) = 0
-      ms_offset(2) = nwitOffset
-      call read_dataspace_2d_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxwitxi)
+      dsetname       = 'witxi'
+      ms_dims2d(1)   = ndime
+      ms_dims2d(2)   = nwitPar
+      ms_offset2d(1) = 0
+      ms_offset2d(2) = nwitOffset
+      call read_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims2d,ms_offset2d,auxwitxi)
 
       !Read the shape functions coordinates!
-      dsetname     = 'shape_functions'
-      ms_rank      = 2
-      ms_dims(1)   = nnode
-      ms_dims(2)   = nwitPar
-      ms_offset(1) = 0
-      ms_offset(2) = nwitOffset
-      call read_dataspace_2d_fp32_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,auxshapefunc)
-      do iwit =1,nwitPar
-         witxi(iwit,:) = auxwitxi(:,iwit)
-         shapefunc(iwit,:) = auxshapefunc(:,iwit)
+      dsetname       = 'shape_functions'
+      ms_dims2d(1)   = nnode
+      ms_dims2d(2)   = nwitPar
+      ms_offset2d(1) = 0
+      ms_offset2d(2) = nwitOffset
+      call read_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims2d,ms_offset2d,auxshapefunc)
+      
+      do iwit = 1,nwitPar
+         witxi(iwit,:) = auxwitxi(iwit,:)
+         shapefunc(iwit,:) = auxshapefunc(iwit,:)
       end do
+      
+      deallocate(auxwitxi)
+      deallocate(auxshapefunc)
 
       call h5fclose_f(file_id,h5err)
 
    end subroutine load_witness_hdf5
 
    subroutine update_witness_hdf5(itewit, leapwitsave, witval, nwit, nwitPar, nvarwit, full_fileName, t, steps, save_u_i, save_pr, save_rho)
-      integer(4), intent(in)     :: itewit, nwit, nwitPar, nvarwit, leapwitsave, steps(leapwitsave)
-      real(4), intent(in)       :: witval(leapwitsave, nwitPar, nvarwit), t(leapwitsave) 
-      logical, intent(in)        :: save_u_i, save_pr, save_rho
+      integer(4),     intent(in) :: itewit, nwit, nwitPar, nvarwit, leapwitsave, steps(leapwitsave)
+      real(rp),       intent(in) :: witval(leapwitsave, nwitPar, nvarwit), t(leapwitsave) 
+      logical,        intent(in) :: save_u_i, save_pr, save_rho
       character(512), intent(in) :: full_fileName
       character(256)             :: dsetname
-      real(4)                   :: auxwrite(nwitPar)
-      integer(HSSIZE_T)          :: ms_offset(2)
-      integer(4)                    :: ms_rank,h5err, iwit, ds_rank, ileap
+      real(rp)                   :: auxwrite(leapwitsave,nwitPar)
+      integer(4)                 :: h5err, iwit, ds_rank, ileap
       integer(4)                 :: nwitOffset, auxread(1)
-      integer(HSIZE_T)           :: ms_dims(2), ds_dims(2)
+      integer(hsize_t)           :: ds_dims(1),ms_dims(1),max_dims(1),chunk_dims(1)
+      integer(hssize_t)          :: ms_offset(1)
+      integer(hsize_t)           :: ds_dims2d(2),ms_dims2d(2),max_dims2d(2),chunk_dims2d(2)
+      integer(hssize_t)          :: ms_offset2d(2)
       integer(hid_t)             :: file_id,plist_id, dtype
 
       ! Setup file access property list with parallel I/O access.
@@ -5603,84 +5589,68 @@ contains
 
       !Read nwitOffset!
       dsetname     = 'nwitOffset'
-      ms_rank      = 1
       ms_dims(1)   = 1
       ms_offset(1) = mpi_rank
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,auxread)
       nwitOffset = auxread(1)
 
       !Save variables!
-      ms_rank      = 2
-      ms_dims(1)   = 1
-      ms_dims(2)   = nwitPar
-      ds_rank      = 2
-      ds_dims(1)   = itewit
-      ds_dims(2)   = nwit
-      ms_offset(2) = nwitOffset    
+      ms_dims        = nwitPar
+      ds_rank        = 2
+      ds_dims2d(1)   = itewit
+      ds_dims2d(2)   = nwit
+      ms_dims2d(1)   = leapwitsave
+      ms_dims2d(2)   = nwitPar
+      ms_offset2d(1) = itewit-leapwitsave
+      ms_offset2d(2) = nwitOffset
       if (save_u_i) then
          dsetname = 'u_x'
-         call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
+         !$acc kernels
+         auxwrite(:,:) = witval(:,:,1)
+         !$acc end kernels
+         call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims2d)
+         call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwrite,isCreateDataspaceOpt=.False.)
          dsetname = 'u_y'
-         call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
+         !$acc kernels
+         auxwrite(:,:) = witval(:,:,2)
+         !$acc end kernels
+         call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims2d)
+         call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwrite,isCreateDataspaceOpt=.False.)
          dsetname = 'u_z'
-         call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
+         !$acc kernels
+         auxwrite(:,:) = witval(:,:,3)
+         !$acc end kernels
+         call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims2d)
+         call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwrite,isCreateDataspaceOpt=.False.)
       end if
       if (save_pr) then
          dsetname = 'pr'
-         call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
+         !$acc kernels
+         auxwrite(:,:) = witval(:,:,4)
+         !$acc end kernels
+         call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims2d)
+         call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwrite,isCreateDataspaceOpt=.False.)
       end if
       if (save_rho) then
          dsetname = 'rho'
-         call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
+         !$acc kernels
+         auxwrite(:,:) = witval(:,:,5)
+         !$acc end kernels
+         call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims2d)
+         call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxwrite,isCreateDataspaceOpt=.False.)
       end if
-      do ileap = 1, leapwitsave
-         ms_offset(1) = itewit - leapwitsave + ileap - 1
-         if (save_u_i) then
-            dsetname = 'u_x'
-            !$acc kernels
-            auxwrite(:) = witval(ileap,:,1)
-            !$acc end kernels
-            call write_dataspace_1d_fp32_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,auxwrite)
-            dsetname = 'u_y'  
-            !$acc kernels
-            auxwrite(:) = witval(ileap,:,2)
-            !$acc end kernels
-            call write_dataspace_1d_fp32_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,auxwrite)
-            dsetname = 'u_z'  
-            !$acc kernels
-            auxwrite(:) = witval(ileap,:,3)
-            !$acc end kernels
-            call write_dataspace_1d_fp32_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,auxwrite)
-         end if
-         if (save_pr) then
-            dsetname = 'pr'  
-            !$acc kernels
-            auxwrite(:) = witval(ileap,:,4)
-            !$acc end kernels
-            call write_dataspace_1d_fp32_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,auxwrite)
-         end if
-         if (save_rho) then
-            dsetname = 'rho'  
-            !$acc kernels
-            auxwrite(:) = witval(ileap,:,5)
-            !$acc end kernels
-            call write_dataspace_1d_fp32_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,auxwrite)
-         end if
-      end do   
 
       !Save time!
       dsetname     = 'time'
-      ms_rank      = 1
       ms_dims(1)   = leapwitsave
       ms_offset(1) = itewit - leapwitsave
       ds_rank      = 1
       ds_dims(1)   = itewit
       call extend_dataset_hdf5(file_id,dsetname,ds_rank,ds_dims)
-      call write_dataspace_1d_fp32_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,t)
+      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,t,isCreateDataspaceOpt=.False.)
 
       !Save istep!
       dsetname     = 'istep'
-      ms_rank      = 1
       ms_dims(1)   = leapwitsave
       ms_offset(1) = itewit - leapwitsave
       ds_rank      = 1
