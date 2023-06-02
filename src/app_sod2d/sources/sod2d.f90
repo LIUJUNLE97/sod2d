@@ -29,6 +29,7 @@ program main
 #endif
 #if _tsb_
    use BLTSBFlowSolver_mod
+   use BLTSBDRLFlowSolver_mod
 #endif
    implicit none
 
@@ -58,8 +59,10 @@ program main
 #endif
 
 #if _tsb_
-   type(BLTSBFlowSolver)  :: bltsbflow
-   call bltsbflow%run()
+   ! type(BLTSBFlowSolver)  :: bltsbflow
+   type(BLTSBDRLFlowSolver)  :: bltsbdrlflow
+   ! call bltsbflow%run()
+   call bltsbdrlflow%run()
 #endif
 
 

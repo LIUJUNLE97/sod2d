@@ -33,7 +33,7 @@ module DLRSolver_mod
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: DLRSolver
 
       real(rp), public :: vo, M, delta, rho0, Re, to, po
-      character(len=8), public :: tag, restart_step
+      character(len=8), public :: tag, restart_step, db_clustered
 
    contains
       procedure, public :: fillBCTypes           => DLRSolver_fill_BC_Types
@@ -67,6 +67,7 @@ contains
       ! get command line args, ie: mpirun -n 4 sod2d --tag=12 --restart_step=2500
       this%tag = "1"
       this%restart_step = ""
+      this%db_clustered = "0"
       num_args = command_argument_count()
       do iarg = 1, num_args
          call get_command_argument(iarg, arg)
@@ -75,6 +76,8 @@ contains
             this%tag = trim(adjustl(arg(equal_pos+1:)))
          else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--restart_step") then
             this%restart_step = trim(adjustl(arg(equal_pos+1:)))
+         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--db_clustered") then
+            this%db_clustered = trim(adjustl(arg(equal_pos+1:)))
          else
             stop "Unknown command line argument"
          end if

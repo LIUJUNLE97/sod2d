@@ -1,10 +1,7 @@
 module mod_smartredis
 #if SMARTREDIS
 
-   include "enum_fortran.inc"
-   use iso_c_binding, only: c_bool
    use mod_constants
-   use mod_numerical_params, only: do_smartredis
    use mod_mpi
    use smartredis_client, only: client_type
    implicit none
@@ -16,10 +13,12 @@ module mod_smartredis
 
    ! Initialise SmartRedis client
    ! Since each MPI rank communicates with the database, all of them need to initialise the client
-   subroutine init_smartredis(client, state_local_size, actions_local_size)
+   subroutine init_smartredis(client, state_local_size, actions_local_size, db_clustered)
       type(client_type), intent(inout) :: client
       integer, intent(in) :: state_local_size, actions_local_size
+      logical, intent(in) :: db_clustered
       integer :: state_counter, actions_counter, error, i
+      logical :: is_error
 
       allocate(state_sizes(mpi_size))
       allocate(state_displs(mpi_size))
@@ -55,17 +54,20 @@ module mod_smartredis
          end do
       end if
 
-      error = client%initialize(do_smartredis)
-      if (error /= SRNoError) stop 'Error in SmartRedis client initialization'
+      error = client%initialize(db_clustered)
+      is_error = client%SR_error_parser(error)
+      if (error /= 0) stop 'Error in SmartRedis client initialization'
    end subroutine init_smartredis
 
    ! Destroy SmartRedis client
    subroutine end_smartredis(client)
       type(client_type), intent(inout) :: client
       integer :: error
+      logical :: is_error
 
       error = client%destructor()
-      if (error /= SRNoError) stop 'Error in SmartRedis client destruction'
+      is_error = client%SR_error_parser(error)
+      if (error /= 0) stop 'Error in SmartRedis client destruction'
    end subroutine end_smartredis
 
    ! Write witness points state into DB
@@ -77,6 +79,7 @@ module mod_smartredis
       character(len=*), intent(in) :: key                   ! state name to write to database
 
       integer :: error
+      logical :: is_error
       real(rp) :: state_global(state_global_size)
 
       ! gather the local states into a global state
@@ -89,7 +92,8 @@ module mod_smartredis
       ! write global state into DB
       if (mpi_rank .eq. 0) then
          error = client%put_tensor(key, state_global, shape(state_global))
-         if (error /= SRNoError) stop 'Error during SmartRedis state writting.'
+         is_error = client%SR_error_parser(error)
+         if (error /= 0) stop 'Error during SmartRedis state writting.'
       end if
    end subroutine write_state
 
@@ -103,18 +107,21 @@ module mod_smartredis
 
       integer, parameter :: interval = 10              ! polling interval in milliseconds
       integer, parameter :: tries = huge(1)            ! infinite number of polling tries
-      logical(kind=c_bool) :: exists                   ! receives whether the tensor exists
+      logical :: exists, is_error                      ! receives whether the tensor exists
       integer :: found, error
       real(rp) :: actions_global(actions_global_size)
 
       ! wait (poll) until the actions array is found in the DB, then read, then delete
       if (mpi_rank .eq. 0) then
          found = client%poll_tensor(key, interval, tries, exists)
+         is_error = client%SR_error_parser(found)
          if (found /= 0) stop 'Error in SmartRedis actions reading. Actions array not found.'
          error = client%unpack_tensor(key, actions_global, shape(actions_global))
-         if (error /= SRNoError) stop 'Error in SmartRedis actions reading. Tensor could not be unpacked.'
+         is_error = client%SR_error_parser(error)
+         if (error /= 0) stop 'Error in SmartRedis actions reading. Tensor could not be unpacked.'
          error = client%delete_tensor(key)
-         if (error /= SRNoError) stop 'Error in SmartRedis actions reading. Tensor could not be deleted.'
+         is_error = client%SR_error_parser(error)
+         if (error /= 0) stop 'Error in SmartRedis actions reading. Tensor could not be deleted.'
       end if
       call mpi_barrier(mpi_comm_world, error) ! all processes wait for root to read actions
 
@@ -125,6 +132,22 @@ module mod_smartredis
          0, mpi_comm_world, error &                                           ! rank 0 is the one sending data
       )
    end subroutine read_actions
+
+   ! Indicate environment time step status -> 0: init time step. 1: mid time step. 2: end time step
+   subroutine write_step_type(client, step_type, key)
+      type(client_type), intent(inout) :: client
+      integer, intent(in) :: step_type(1)
+      character(len=*), intent(in) :: key
+
+      integer :: error
+      logical :: is_error
+
+      if (mpi_rank .eq. 0) then
+         error = client%put_tensor(key, step_type, shape(step_type))
+         is_error = client%SR_error_parser(error)
+         if (error /= 0) stop 'Error in SmartRedis step_type writing.'
+      end if
+   end subroutine write_step_type
 
 #endif
 end module mod_smartredis
