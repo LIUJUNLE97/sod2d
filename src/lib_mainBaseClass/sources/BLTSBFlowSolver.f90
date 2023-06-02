@@ -45,7 +45,7 @@ module BLTSBFlowSolver_mod
       real(rp) , public  ::  M, d0, U0, rho0, Red0, Re, to, po, mu, amp_tbs, x_start, x_rise, x_end, x_fall, x_rerise, x_restart, coeff_tbs
       integer(4), public       :: countPar                                   ! Number of points in a rectangle of control per partition
       character(512), public   :: fileControlName                            ! Input: path to the file that contains the points defining the rectangle controls
-      real(rp), public         :: nRectangleControl                          ! Number of rectangle control
+      integer(4), public         :: nRectangleControl                          ! Number of rectangle control
       real(rp), public         :: amplitudeActuation, frequencyActuation     ! Parameters of the actuation
    contains
       procedure, public :: fillBCTypes           => BLTSBFlowSolver_fill_BC_Types
