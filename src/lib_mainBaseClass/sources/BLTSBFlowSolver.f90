@@ -1,3 +1,6 @@
+#define SMOOTH 1
+#define ACTUATION 1
+
 module BLTSBFlowSolver_mod
    use mod_arrays
    use mod_nvtx
@@ -31,13 +34,19 @@ module BLTSBFlowSolver_mod
    implicit none
    private
 
-   real(rp), allocatable, dimension(:)   :: eta_b,f,f_prim !auxiliary datat needs to be here because how cuda works
+   real(rp), allocatable, dimension(:)   :: eta_b,f,f_prim     !auxiliary data arrays needs to be here because how cuda works
+   real(rp), allocatable    :: rectangleControl(:,:)           ! Two point coordinates that define each rectangle
+   integer(4),  allocatable :: actionMask(:)                   ! Mask that contains whether a point is in a rectangle control or not
+   real(rp), allocatable    :: actionPar(:), actionNodePar(:)  ! Variables to define the control nodes
 
+                             
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: BLTSBFlowSolver
 
       real(rp) , public  ::  M, d0, U0, rho0, Red0, Re, to, po, mu, amp_tbs, x_start, x_rise, x_end, x_fall, x_rerise, x_restart, coeff_tbs
-      
-
+      integer(4), public       :: countPar                                   ! Number of points in a rectangle of control per partition
+      character(512), public   :: fileControlName                            ! Input: path to the file that contains the points defining the rectangle controls
+      real(rp), public         :: nRectangleControl                          ! Number of rectangle control
+      real(rp), public         :: amplitudeActuation, frequencyActuation     ! Parameters of the actuation
    contains
       procedure, public :: fillBCTypes           => BLTSBFlowSolver_fill_BC_Types
       procedure, public :: initializeParameters  => BLTSBFlowSolver_initializeParameters
@@ -46,6 +55,8 @@ module BLTSBFlowSolver_mod
       procedure, public :: fillBlasius => BLTSBFlowSolver_fillBlasius
       procedure, public :: smoothStep => BLTSBFlowSolver_smoothStep
       procedure, public :: afterDt => BLTSBFlowSolver_afterDt
+      procedure, public :: getControlNodes => BLTSBFlowSolver_getControlNodes
+      procedure, public :: readControlRectangles => BLTSBFlowSolver_readControlRectangles
    end type BLTSBFlowSolver
 contains
 
@@ -56,9 +67,9 @@ contains
       real(rp) :: cd, lx, ly, xmin, xmax, f1, f2, f3,x
 
       cd = 1.0_rp
-      lx = this%d0*2.5_rp
-      ly = this%d0*2.5_rp
-      xmin = 20.0_rp*this%d0
+      lx = this%d0*3.5_rp
+      ly = this%d0*1.5_rp
+      xmin = -15.0_rp*this%d0
       xmax = xmin+lx
 
       !$acc parallel loop
@@ -68,53 +79,85 @@ contains
                source_term(iNodeL,1) = -0.5_rp*rho(iNodeL,2)*cd*u(iNodeL,1,2)*abs(u(iNodeL,1,2))/lx
                source_term(iNodeL,2) = 0.00_rp
                source_term(iNodeL,3) = 0.00_rp
-            end if
-         elseif(bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) then
-            bcode = bouCodesNodesPar(iNodeL) ! Boundary element code
-            if (bcode == bc_type_unsteady_inlet) then
-               !call this%smoothStep((coordPar(iNodeL,1)-this%x_start  )/        this%x_rise          , f1) ! I know is not cool but gpus are what like this :/
-               !call this%smoothStep((coordPar(iNodeL,1)-this%x_end    )/(2.0_rp*this%x_fall  )+1.0_rp, f2)
-               !call this%smoothStep((coordPar(iNodeL,1)-this%x_restart)/        this%x_rerise        , f3)
-
-               x = (coordPar(iNodeL,1)-this%x_start  )/        this%x_rise
-               if(x<=0.0_rp) then
-                  f1 = 0.0_rp
-               elseif(x<1.0_rp) then
-                  f1 = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
-               else
-                  f1 = 1
-               end if
-
-               x = (coordPar(iNodeL,1)-this%x_end    )/(2.0_rp*this%x_fall  )+1.0_rp
-               if(x<=0.0_rp) then
-                  f2 = 0.0_rp
-               elseif(x<1.0_rp) then
-                  f2 = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
-               else
-                  f2 = 1
-               end if
-
-               x = (coordPar(iNodeL,1)-this%x_restart)/        this%x_rerise
-               if(x<=0.0_rp) then
-                  f3 = 0.0_rp
-               elseif(x<1.0_rp) then
-                  f3 = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
-               else
-                  f3 = 1
-               end if               
-
-               u_buffer(iNodeL,2) = (f1 - (1.0_rp + this%coeff_tbs)*f2 + this%coeff_tbs*f3)*this%amp_tbs
+#if (ACTUATION)               
+            elseif (actionMask(iNodeL)>0) then  ! Control
+               u_buffer(iNodeL,1) = 0
+               u_buffer(iNodeL,2) = this%amplitudeActuation*sin(2.0_rp*3.14159265_rp*this%frequencyActuation*this%time)
+               u_buffer(iNodeL,3) = 0
+#endif               
             end if
          end if
       end do
-      !!$acc end parallel loop
+      !$acc end parallel loop
    end subroutine BLTSBFlowSolver_afterDt
+
+   subroutine BLTSBFlowSolver_readControlRectangles(this)
+      ! This subroutine reads the file that contains the two points defining a rectanle paralel to the X-Z axis. Several rectangles
+      ! can be introduced. In this rectangles is where control will be applied
+      class(BLTSBFlowSolver), intent(inout) :: this
+
+      integer(rp)                           :: ii
+
+      open(unit=99, file=this%fileControlName, status='old', action='read')
+      
+      read(99,*) this%nRectangleControl
+      allocate(rectangleControl(2,2*this%nRectangleControl))
+      !$acc enter data create(rectangleControl(:,:))
+      do ii = 1, this%nRectangleControl
+         read(99, *) rectangleControl(:,2*ii-1)  ! First point
+         read(99, *) rectangleControl(:,2*ii  )  ! Second point
+         read(99, *)
+      end do
+      close(99)
+      !$acc update device(rectangleControl(:,:))
+      
+   end subroutine BLTSBFlowSolver_readControlRectangles
+
+   subroutine BLTSBFlowSolver_getControlNodes(this)
+      class(BLTSBFlowSolver), intent(inout) :: this
+
+      integer(4) :: iNodeL, iRectangleControl, bcode
+      real(rp)   :: xPoint, zPoint, x1RectangleControl, x2RectangleControl, z1RectangleControl, z2RectangleControl
+      
+      call this%readControlRectangles()
+      
+      allocate(actionMask (numNodesRankPar))
+      !$acc enter data create(actionMask(:))
+
+      !this%countPar = 0
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         if (bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) then
+            bcode = bouCodesNodesPar(iNodeL)
+            if (bcode == bc_type_unsteady_inlet) then ! we are on the wall and we need to check if node is in the control rectanle
+               do iRectangleControl = 1,this%nRectangleControl
+                  xPoint = coordPar(iNodeL,1)
+                  zPoint = coordPar(iNodeL,3)
+                  x1RectangleControl = rectangleControl(1,2*iRectangleControl-1)
+                  z1RectangleControl = rectangleControl(2,2*iRectangleControl-1)
+                  x2RectangleControl = rectangleControl(1,2*iRectangleControl  )
+                  z2RectangleControl = rectangleControl(2,2*iRectangleControl  )
+                  if (xPoint >= x1RectangleControl .and. xPoint <= x2RectangleControl .and. zPoint >= z1RectangleControl .and. zPoint <= z2RectangleControl) then
+                     actionMask(iNodeL) = iRectangleControl
+                     !this%countPar = this%countPar + 1
+                     exit
+                  endif
+               end do
+            end if
+         end if
+      end do
+       !!$acc end parallel loop
+
+   end subroutine BLTSBFlowSolver_getControlNodes
 
    subroutine BLTSBFlowSolver_fill_BC_Types(this)
       class(BLTSBFlowSolver), intent(inout) :: this
-
+#if (ACTUATION)
+      bouCodes2BCType(1) = bc_type_unsteady_inlet ! wall + actuation
+#else
       bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! wall
-      bouCodes2BCType(2) = bc_type_unsteady_inlet     ! Upper part of the domain
+#endif      
+      bouCodes2BCType(2) = bc_type_far_field          ! Upper part of the domain
       bouCodes2BCType(3) = bc_type_far_field          ! inlet part of the domain
       bouCodes2BCType(4) = bc_type_far_field          ! outlet part of the domain
       !$acc update device(bouCodes2BCType(:))
@@ -290,14 +333,15 @@ contains
       this%save_logFile_first = 1
       this%save_logFile_step  = 50
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 2000
+      this%save_restartFile_step = 20000
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 2000
+      this%save_resultsFile_step = 20000
 
       this%loadRestartFile = .false.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
+      this%initial_avgTime = 3000.0_rp
       this%saveAvgFile = .true.
       this%loadAvgFile = .false.
       !----------------------------------------------
@@ -305,10 +349,15 @@ contains
       ! numerical params
       flag_les = 1
       flag_implicit = 0
+      maxIterNonLineal=200
+      tol=1e-3
+      pseudo_cfl =1.95_rp 
+      flag_implicit_repeat_dt_if_not_converged = 0
 
-      this%cfl_conv = 1.5_rp 
+      this%cfl_conv = 1.5_rp !M0.1 1.5, M0.3 0.95
       this%cfl_diff = 1.5_rp 
-      flag_use_constant_dt = 0
+      !flag_use_constant_dt = 1
+      !this%dt = 1e-1
 
       this%Cp   = 1004.0_rp
       this%Prt  = 0.71_rp
@@ -318,7 +367,7 @@ contains
       this%rho0 = 1.0_rp
 
       ! Coefficients for the wall-normal boundary condition on the top
-      this%amp_tbs   = 0.2
+      this%amp_tbs   = 1.0
       this%x_start   = 200.0_rp   ! x coordinate where 1st step function on the free streamwise velocity starts
       this%x_rise    = 20.0_rp   ! x length of the smoothing of the 1st step function for the free streamwise velocity
       this%x_end     = 435.0_rp  ! x coordinate where 2nd step function on the free streamwise velocity ends
@@ -354,17 +403,54 @@ contains
       flag_buffer_e_min = 950.0_rp
       flag_buffer_e_size = 50.0_rp
 
-      !! x inlet
-      !flag_buffer_on_west = .true.
-      !flag_buffer_w_min = 15.0_rp
-      !flag_buffer_w_size = 15.0_rp
+      ! x inlet
+      flag_buffer_on_west = .true.
+      flag_buffer_w_min = -50.0_rp
+      flag_buffer_w_size = 50.0_rp
+      
+      ! y top
+      flag_buffer_on_north = .true.
+      flag_buffer_n_min =  160.0_rp
+      flag_buffer_n_size = 20.0_rp
+
+      ! -------- Instantaneous results file -------------
+      this%save_scalarField_rho        = .true.
+      this%save_scalarField_muFluid    = .false.
+      this%save_scalarField_pressure   = .true.
+      this%save_scalarField_energy     = .false.
+      this%save_scalarField_entropy    = .false.
+      this%save_scalarField_csound     = .false.
+      this%save_scalarField_machno     = .true.
+      this%save_scalarField_divU       = .true.
+      this%save_scalarField_qcrit      = .true.
+      this%save_scalarField_muSgs      = .false.
+      this%save_scalarField_muEnvit    = .false.
+      this%save_vectorField_vel        = .true.
+      this%save_vectorField_gradRho    = .false.
+      this%save_vectorField_curlU      = .true.
+
+      ! -------- Average results file -------------
+      this%save_avgScalarField_rho     = .true.
+      this%save_avgScalarField_pr      = .true.
+      this%save_avgScalarField_mueff   = .true.
+      this%save_avgVectorField_vel     = .true.
+      this%save_avgVectorField_ve2     = .true.
+      this%save_avgVectorField_vex     = .true.
+      this%save_avgVectorField_vtw     = .true.
+
+      ! control parameters
+#if (ACTUATION)      
+      this%fileControlName = 'rectangleControl.dat'
+      this%amplitudeActuation = 0.05
+      this%frequencyActuation = 0.0025 
+#endif      
 
    end subroutine BLTSBFlowSolver_initializeParameters
 
    subroutine BLTSBFlowSolver_initialBuffer(this)
       class(BLTSBFlowSolver), intent(inout) :: this
       integer(4) :: iNodeL,k,j,bcode
-      real(rp) :: yp,eta_y,f_y,f_prim_y, f1, f2, f3
+      real(rp) :: yp,eta_y,f_y,f_prim_y, f1, f2, f3,x
 
 
       !$acc parallel loop
@@ -395,6 +481,41 @@ contains
             u_buffer(iNodeL,2) = 0.5_rp*sqrt(1.0/(450.0_rp*450.0_rp))*(eta_y*f_prim_y-f_y)
             u_buffer(iNodeL,3) = 0.0_rp
          end if
+#if (SMOOTH) 
+         u_buffer(iNodeL,2) = 0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
+                              -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
+#else
+         if(yp .gt. 160.0_rp) then
+            x = (coordPar(iNodeL,1)-this%x_start  )/        this%x_rise
+            if(x<=0.0_rp) then
+               f1 = 0.0_rp
+            elseif(x<1.0_rp) then
+               f1 = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
+            else
+               f1 = 1
+            end if
+
+            x = (coordPar(iNodeL,1)-this%x_end    )/(2.0_rp*this%x_fall  )+1.0_rp
+            if(x<=0.0_rp) then
+               f2 = 0.0_rp
+            elseif(x<1.0_rp) then
+               f2 = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
+            else
+               f2 = 1
+            end if
+
+            x = (coordPar(iNodeL,1)-this%x_restart)/        this%x_rerise
+            if(x<=0.0_rp) then
+               f3 = 0.0_rp
+            elseif(x<1.0_rp) then
+               f3 = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
+            else
+               f3 = 1
+            end if               
+
+            u_buffer(iNodeL,2) = (f1 - (1.0_rp + this%coeff_tbs)*f2 + this%coeff_tbs*f3)*this%amp_tbs
+         end if
+#endif         
       end do
       !$acc end parallel loop
 
@@ -406,10 +527,13 @@ contains
       class(BLTSBFlowSolver), intent(inout) :: this
       integer(4) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL, idime, j,k,bcode
-      real(rp) :: yp,eta_y,f_y,f_prim_y, f1, f2, f3, fran1, fran2, fran3
+      real(rp) :: yp,eta_y,f_y,f_prim_y, f1, f2, f3, x
       integer(4)   :: iLine,iNodeGSrl,auxCnt
 
       call this%fillBlasius()
+#if (ACTUATION)      
+      call this%getControlNodes()  
+#endif
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
@@ -439,6 +563,41 @@ contains
             u(iNodeL,2,2) = 0.5_rp*sqrt(1.0/(450.0_rp*450.0_rp))*(eta_y*f_prim_y-f_y)
             u(iNodeL,3,2) = 0.0_rp
          end if
+#if (SMOOTH) 
+           u(iNodeL,2,2) = 0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
+                              -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
+#else       
+         if(yp .gt. 160.0_rp) then
+            x = (coordPar(iNodeL,1)-this%x_start  )/        this%x_rise
+            if(x<=0.0_rp) then
+               f1 = 0.0_rp
+            elseif(x<1.0_rp) then
+               f1 = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
+            else
+               f1 = 1
+            end if
+
+            x = (coordPar(iNodeL,1)-this%x_end    )/(2.0_rp*this%x_fall  )+1.0_rp
+            if(x<=0.0_rp) then
+               f2 = 0.0_rp
+            elseif(x<1.0_rp) then
+               f2 = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
+            else
+               f2 = 1
+            end if
+
+            x = (coordPar(iNodeL,1)-this%x_restart)/        this%x_rerise
+            if(x<=0.0_rp) then
+               f3 = 0.0_rp
+            elseif(x<1.0_rp) then
+               f3 = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
+            else
+               f3 = 1
+            end if               
+
+            u(iNodeL,2,2) = (f1 - (1.0_rp + this%coeff_tbs)*f2 + this%coeff_tbs*f3)*this%amp_tbs
+         end if
+#endif         
 
          pr(iNodeL,2) = this%po
          rho(iNodeL,2) = this%rho0
@@ -449,6 +608,11 @@ contains
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
          eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
          machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
+
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+         rho(iNodeL,3) = rho(iNodeL,2)
+         E(iNodeL,3) =  E(iNodeL,2)
+         eta(iNodeL,3) = eta(iNodeL,2) 
       end do
       !$acc end parallel loop
 
