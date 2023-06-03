@@ -123,6 +123,7 @@ contains
       end if
       !----------------------------------------------
 
+#if SMARTREDIS
       !----------------------------------------------
       !----------------  SmartRedis -----------------
       if (db_clustered_str == "" .or. db_clustered_str == "0") db_clustered = .false.
@@ -131,7 +132,7 @@ contains
       call random_number(state_local)
       call write_state(client, 4, 4, state_local, "state")
       !----------------------------------------------
-
+#endif
 
       ! numerical params
       flag_les = 1

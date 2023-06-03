@@ -1,5 +1,5 @@
-#define SMOOTH 1
-#define ACTUATION 1
+#define SMOOTH 0
+#define ACTUATION 0
 
 module BLTSBFlowSolver_mod
    use mod_arrays
@@ -67,9 +67,18 @@ contains
       real(rp) :: cd, lx, ly, xmin, xmax, f1, f2, f3,x
 
       cd = 1.0_rp
+#if (SMOOTH)      
       lx = this%d0*3.5_rp
       ly = this%d0*1.5_rp
       xmin = -15.0_rp*this%d0
+#else
+      !lx = this%d0*1.5_rp
+      !ly = this%d0*1.5_rp
+      !xmin = 0.0_rp*this%d0
+      lx = this%d0*3.5_rp
+      ly = this%d0*1.5_rp
+      xmin = -15.0_rp*this%d0
+#endif
       xmax = xmin+lx
 
       !$acc parallel loop
@@ -367,7 +376,8 @@ contains
       this%rho0 = 1.0_rp
 
       ! Coefficients for the wall-normal boundary condition on the top
-      this%amp_tbs   = 1.0
+      !this%amp_tbs   = 1.0
+      this%amp_tbs   = 0.5
       this%x_start   = 200.0_rp   ! x coordinate where 1st step function on the free streamwise velocity starts
       this%x_rise    = 20.0_rp   ! x length of the smoothing of the 1st step function for the free streamwise velocity
       this%x_end     = 435.0_rp  ! x coordinate where 2nd step function on the free streamwise velocity ends
@@ -485,7 +495,8 @@ contains
          u_buffer(iNodeL,2) = 0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
                               -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
 #else
-         if(yp .gt. 160.0_rp) then
+         !if(yp .gt. 160.0_rp) then
+         if(yp .gt. 100.0_rp) then
             x = (coordPar(iNodeL,1)-this%x_start  )/        this%x_rise
             if(x<=0.0_rp) then
                f1 = 0.0_rp
@@ -567,7 +578,8 @@ contains
            u(iNodeL,2,2) = 0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
                               -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
 #else       
-         if(yp .gt. 160.0_rp) then
+         !if(yp .gt. 160.0_rp) then
+         if(yp .gt. 100.0_rp) then
             x = (coordPar(iNodeL,1)-this%x_start  )/        this%x_rise
             if(x<=0.0_rp) then
                f1 = 0.0_rp
