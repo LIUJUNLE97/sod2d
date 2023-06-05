@@ -1464,7 +1464,6 @@ contains
 
       do istep = this%initial_istep,this%final_istep
          !if (istep==this%nsave.and.mpi_rank.eq.0) write(111,*) '   --| STEP: ', istep
-
          call nvtxStartRange("Init pred "//timeStep,istep)
          !$acc kernels
          rho(:,1) = rho(:,2)
@@ -1616,7 +1615,6 @@ contains
             call nvtxEndRange
 
          end if
-
          ! ---- SAVING AVG RESULTS FILE -----------------------------------------------------------------------
          !if (this%save_avgResultsFile_next == istep) then
          !   this%save_avgResultsFile_next = this%save_avgResultsFile_next + this%save_avgResultsFile_step
@@ -1700,11 +1698,11 @@ contains
             auxpr  = auxpr + Nwit(iwit,inode)*pr(connecParOrig(witel(iwit),inode),2)
             auxrho = auxrho + Nwit(iwit,inode)*rho(connecParOrig(witel(iwit),inode),2)
          end do
-         buffwit(iwitstep,iwit,1) = auxux
-         buffwit(iwitstep,iwit,2) = auxuz
-         buffwit(iwitstep,iwit,3) = auxuy
-         buffwit(iwitstep,iwit,4) = auxpr
-         buffwit(iwitstep,iwit,5) = auxrho
+         buffwit(iwit,iwitstep,1) = auxux
+         buffwit(iwit,iwitstep,2) = auxuz
+         buffwit(iwit,iwitstep,3) = auxuy
+         buffwit(iwit,iwitstep,4) = auxpr
+         buffwit(iwit,iwitstep,5) = auxrho
       end do
       !$acc end loop
       bufftime(iwitstep) = this%time
@@ -1726,15 +1724,14 @@ contains
       if ((this%continue_witness .eqv. .true.) .AND. (this%continue_oldLogs .eqv. .true.)) then
          itewit = this%load_stepwit + (istep - this%load_step)/(this%leapwit)
       end if
-      !call update_witness_hdf5(itewit, this%leapwitsave, buffwit, this%nwit, this%nwitPar, this%nvarwit, this%witness_h5_file_name, bufftime, buffstep, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
-      !TOSETOK
+      call update_witness_hdf5(itewit, this%leapwitsave, buffwit, this%nwit, this%nwitPar, this%nvarwit, this%witness_h5_file_name, bufftime, buffstep, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
    end subroutine CFDSolverBase_save_witness
 
    subroutine CFDSolverBase_preprocWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       integer(4)                          :: iwit, ielem, inode, ifound, nwitParCand, icand
-      integer(rp)                         :: witGlobCand(this%nwit), witGlob(this%nwit)
+      integer(4)                         :: witGlobCand(this%nwit), witGlob(this%nwit)
       real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode)
       real(rp), parameter                 :: wittol=1e-7
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
@@ -1750,7 +1747,7 @@ contains
       !$acc end kernels
       ifound  = 0
       icand   = 0
-      !call read_points(this%witness_inp_file_name, this%nwit, witxyz) BENET TOSETOK
+      call read_points(this%witness_inp_file_name, this%nwit, witxyz)
       do iwit = 1, this%nwit
          if ((abs(witxyz(iwit,1)) < maxval(abs(coordPar(:,1)))+wittol) .AND. (abs(witxyz(iwit,2)) < maxval(abs(coordPar(:,2)))+wittol) .AND. (abs(witxyz(iwit,3)) < maxval(abs(coordPar(:,3)))+wittol)) then
             icand = icand + 1
@@ -1799,11 +1796,10 @@ contains
          end do
       end do
       this%nwitPar = ifound
-      allocate(buffwit(this%leapwitsave,this%nwitPar,this%nvarwit))
+      allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
-      !call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
-      !BENET TOSETOK
+      call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
       if(mpi_rank.eq.0) then
          write(*,*) "--| End of preprocessing witness points"
       end if
@@ -1813,9 +1809,8 @@ contains
       implicit none
       class(CFDSolverBase), intent(inout) :: this
 
-      !call load_witness_hdf5(this%witness_h5_file_name, this%nwit, this%load_step, this%load_stepwit, this%nwitPar, witel, witxi, Nwit)
-      !BENET TOSETOK
-      allocate(buffwit(this%leapwitsave,this%nwitPar,this%nvarwit))
+      call load_witness_hdf5(this%witness_h5_file_name, this%nwit, this%load_step, this%load_stepwit, this%nwitPar, witel, witxi, Nwit)
+      allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
    end subroutine CFDSolverBase_loadWitnessPoints

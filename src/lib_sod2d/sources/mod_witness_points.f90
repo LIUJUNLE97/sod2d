@@ -21,9 +21,9 @@ module mod_witness_points
          !
          implicit none
          character(512), intent(in)  :: fname           ! Input 1: path to the witness points file   
-         integer(rp),    intent(in)  :: np              ! Output 1: number of witness points
+         integer(4),    intent(in)  :: np              ! Output 1: number of witness points
          real(rp),       intent(out) :: xyz(np,ndime) ! Output 2: coordinates of the witness points in a 1D array as xyz = [x1, y1, z1, ..., xn, yn, zn]
-         integer(rp)                 :: ii
+         integer(4)                 :: ii
 
          open(unit=99, file=fname, status='old', action='read')
 
@@ -54,9 +54,9 @@ module mod_witness_points
          real(rp)               :: a(ndime*ndime), b(ndime*ndime)
          real(rp)               :: j(ndime, ndime), k(ndime, ndime)
          real(rp)               :: detJ
-         integer(rp)            :: ii, ip
+         integer(4)            :: ii, ip
          real(rp), parameter    :: tol = 1e-10, alpha = 1, div = 100
-         integer(rp), parameter :: maxite = 50
+         integer(4), parameter :: maxite = 50
 
          xi_0(:) = 0
          xi(:)   = xi_0(:)
@@ -161,7 +161,7 @@ module mod_witness_points
          integer(4)            :: listHEX08(27,8)
          real(rp)              :: dlxigp_ip(ndime, porder+1)
          real(rp)              :: dN(ndime, nnode), dN_lagrange(ndime, nnode)
-         integer(rp)           :: ip
+         integer(4)           :: ip
          
          witval = 0.0_rp
 

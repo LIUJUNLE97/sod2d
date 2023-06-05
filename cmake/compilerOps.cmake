@@ -12,17 +12,17 @@ endif()
 set(CMAKE_CXX_STANDARD 11)
 
 # Define common C compiler flags
-set(CMAKE_C_FLAGS "-DNOPRED")
+set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-DNOPRED")
 set(CMAKE_C_FLAGS_DEBUG "-g -O0")
 set(CMAKE_C_FLAGS_RELEASE "")
 
 # Define common CXX compiler flags
-set(CMAKE_CXX_FLAGS "-DNOPRED")
+set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-DNOPRED")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "")
 
 # Define common Fortran compiler flags
-set(CMAKE_Fortran_FLAGS "-DNOPRED")
+set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-DNOPRED")
 set(CMAKE_Fortran_FLAGS_DEBUG "-g -O0")
 set(CMAKE_Fortran_FLAGS_RELEASE "")
 
