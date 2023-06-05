@@ -5,22 +5,39 @@
 !  - Compute the element to which the point belongs and its isoparametric coordinates (xi_1, xi_2, xi_3) ** Possible additional subroutine for domain splitting**         !
 !  - Interpolation of the magnitude to the witness point considering the value at the nodes of the element                                                                !
 !  - Output of the magnitude values at the witness points in HDF5 format.                                                                                                 !
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!   
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 module mod_witness_points
-   
+
    use mod_constants
    use elem_hex
 
    implicit none
    contains
+      subroutine read_nwit(fname, np)
+         implicit none
+         character(512), intent(in) :: fname ! Input 1: path to the witness points file
+         integer(4), intent(out) :: np ! Output 1: number of witness points
+         integer(4) :: io
+         real(rp) :: xyz(3) ! dummy var
+
+         open(unit=99, file=fname, status='old', action='read')
+         np = 0
+         do
+            read(99,*,iostat=io) xyz
+            if (io /= 0) exit ! if a line does not contain `x y z`, it will exit the loop
+            np = np + 1
+         end do
+         close(99)
+      end subroutine read_nwit
+
       subroutine read_points(fname, np, xyz)
          !
          ! Subroutine which reads an ASCII file for the input of the witness points.
          ! First row of the file contains the number of points and the rest the coordinates of the wintess points as of: X Y Z
          !
          implicit none
-         character(512), intent(in)  :: fname           ! Input 1: path to the witness points file   
+         character(512), intent(in)  :: fname           ! Input 1: path to the witness points file
          integer(4),    intent(in)  :: np              ! Output 1: number of witness points
          real(rp),       intent(out) :: xyz(np,ndime) ! Output 2: coordinates of the witness points in a 1D array as xyz = [x1, y1, z1, ..., xn, yn, zn]
          integer(4)                 :: ii
@@ -43,9 +60,9 @@ module mod_witness_points
          real(rp), intent(in)   :: wit(ndime)               ! Input 2: coordinates of the point we are looking the isoparametric coordinates from
          real(rp), intent(out)  :: xi(ndime)                ! Output 1: isoparametric coordinates of the point
          logical,  intent(out)  :: isinside
-         real(rp), intent(out)  :: Niwit(nnode) 
+         real(rp), intent(out)  :: Niwit(nnode)
          real(rp)               :: xi_0(ndime), xi_n(ndime)
-         real(rp)               :: N(nnode), N_lagrange(nnode) 
+         real(rp)               :: N(nnode), N_lagrange(nnode)
          integer(4)             :: atoIJK(nnode)
          integer(4)             :: listHEX08(27,8)
          real(rp)               :: dlxigp_ip(ndime, porder+1)
@@ -154,15 +171,15 @@ module mod_witness_points
          !
          implicit none
          real(rp), intent(in)  :: xiwit(ndime)    ! Input 1: isoparametric coordinates of the point we want to interpolate to
-         real(rp), intent(in)  :: elvalues(nnode) ! Input 2: values of the magnitude at the element nodes 
+         real(rp), intent(in)  :: elvalues(nnode) ! Input 2: values of the magnitude at the element nodes
          real(rp), intent(out) :: witval          ! Output 1: value interpolated at the point
-         real(rp)              :: N(nnode), N_lagrange(nnode) 
+         real(rp)              :: N(nnode), N_lagrange(nnode)
          integer(4)            :: atoIJK(nnode)
          integer(4)            :: listHEX08(27,8)
          real(rp)              :: dlxigp_ip(ndime, porder+1)
          real(rp)              :: dN(ndime, nnode), dN_lagrange(ndime, nnode)
          integer(4)           :: ip
-         
+
          witval = 0.0_rp
 
          call set_hex64_lists(atoIJK, listHEX08)

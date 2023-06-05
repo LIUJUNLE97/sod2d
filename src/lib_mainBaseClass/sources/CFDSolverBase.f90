@@ -25,7 +25,10 @@ module mod_arrays
       real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:),avvex(:,:),avtw(:,:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
+
       real(rp), allocatable :: witxi(:,:), Nwit(:,:), buffwit(:,:,:), bufftime(:)
+      integer(4), allocatable :: witGlobCand(:), witGlob(:)
+      real(rp), allocatable :: witxyz(:,:), witxyzPar(:,:), witxyzParCand(:,:)
 
       real(rp), allocatable :: u_buffer(:,:)
       ! implicit auxiliar fields
@@ -931,12 +934,6 @@ contains
       avtw(:,:) = 0.0_rp
       !$acc end kernels
 
-      if (this%have_witness) then
-         allocate(witel(this%nwit))
-         allocate(witxi(this%nwit,ndime))
-         allocate(Nwit(this%nwit,nnode))
-      end if
-
       call nvtxEndRange
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
@@ -1731,20 +1728,42 @@ contains
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       integer(4)                          :: iwit, ielem, inode, ifound, nwitParCand, icand
-      integer(4)                         :: witGlobCand(this%nwit), witGlob(this%nwit)
       real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode)
       real(rp), parameter                 :: wittol=1e-7
-      real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
       logical                             :: isinside
 
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
       end if
+
+      ! Get the number of witness points from number of lines in file
+      call read_nwit(this%witness_inp_file_name, this%nwit)
+
+      ! Allocate variables
+      allocate(witel(this%nwit))
+      allocate(witxi(this%nwit,ndime))
+      allocate(Nwit(this%nwit,nnode))
+      allocate(witGlobCand(this%nwit))
+      allocate(witGlob(this%nwit))
+      allocate(witxyz(this%nwit,ndime))
+      allocate(witxyzPar(this%nwit,ndime))
+      allocate(witxyzParCand(this%nwit,ndime))
+      !$acc enter data create(witel(:))
+      !$acc enter data create(witxi(:,:))
+      !$acc enter data create(Nwit(:,:))
+      !$acc enter data create(witGlobCand(:))
+      !$acc enter data create(witGlob(:))
+      !$acc enter data create(witxyz(:,:))
+      !$acc enter data create(witxyzPar(:,:))
+      !$acc enter data create(witxyzParCand(:,:))
+
+      ! Initialize variables
       !$acc kernels
       witGlobCand(:) = 0
       witGlob(:) = 0
       witxyzPar(:,:) = 0.0_rp
       !$acc end kernels
+
       ifound  = 0
       icand   = 0
       call read_points(this%witness_inp_file_name, this%nwit, witxyz)
