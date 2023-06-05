@@ -1,4 +1,4 @@
-#define SMOOTH 0
+#define SMOOTH 1
 #define ACTUATION 0
 
 module BLTSBFlowSolver_mod
