@@ -11,7 +11,7 @@ set(TEST_VERSION "${TEST_VERSION_MAJOR}.${TEST_VERSION_MINOR}.${TEST_VERSION_PAT
 option(UNIT_TESTING "Enable unit tests" OFF)
 option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
-option(USE_SMARTREDIS "Compile using SmartRedis" OFF)
+option(USE_SMARTREDIS "Compile using SmartRedis" ON)
 
 option(TOOL_MESHPART "Compiles tool MeshPart" ON)
 option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
@@ -21,8 +21,8 @@ option(USE_PCPOWER "Compiling in PC-POWER" OFF)
 option(USE_MN "Compiling in MareNostrum" OFF)
 option(USE_CRAY "Compiling with CrayMpi" OFF)
 
-option(USE_GPU "Compile using GPU" OFF)
-option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
+option(USE_GPU "Compile using GPU" ON)
+option(USE_MEM_MANAGED "Compile using Mem managed" ON)
 
 option(DEBUG_MODE "Set debug mode" OFF)
 
@@ -55,6 +55,8 @@ include(hdf5)
 
 # Include SmartRedis
 include(smartredis)
+
+add_compile_options(--gcc-toolchain=/home/b-fg/Apps/gcc/12.2.0/install)
 
 # Include external projects
 include(ExternalProject)

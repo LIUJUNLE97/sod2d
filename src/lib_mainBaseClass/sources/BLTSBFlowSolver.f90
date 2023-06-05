@@ -39,7 +39,7 @@ module BLTSBFlowSolver_mod
    integer(4),  allocatable :: actionMask(:)                   ! Mask that contains whether a point is in a rectangle control or not
    real(rp), allocatable    :: actionPar(:), actionNodePar(:)  ! Variables to define the control nodes
 
-                             
+
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: BLTSBFlowSolver
 
       real(rp) , public  ::  M, d0, U0, rho0, Red0, Re, to, po, mu, amp_tbs, x_start, x_rise, x_end, x_fall, x_rerise, x_restart, coeff_tbs
@@ -67,7 +67,7 @@ contains
       real(rp) :: cd, lx, ly, xmin, xmax, f1, f2, f3,x
 
       cd = 1.0_rp
-#if (SMOOTH)      
+#if (SMOOTH)
       lx = this%d0*1.5_rp
       ly = this%d0*1.5_rp
       xmin = -15.0_rp*this%d0
@@ -88,12 +88,12 @@ contains
                source_term(iNodeL,1) = -0.5_rp*rho(iNodeL,2)*cd*u(iNodeL,1,2)*abs(u(iNodeL,1,2))/lx
                source_term(iNodeL,2) = 0.00_rp
                source_term(iNodeL,3) = 0.00_rp
-#if (ACTUATION)               
+#if (ACTUATION)
             elseif (actionMask(iNodeL)>0) then  ! Control
                u_buffer(iNodeL,1) = 0
                u_buffer(iNodeL,2) = this%amplitudeActuation*sin(2.0_rp*3.14159265_rp*this%frequencyActuation*this%time)
                u_buffer(iNodeL,3) = 0
-#endif               
+#endif
             end if
          end if
       end do
@@ -108,7 +108,7 @@ contains
       integer(rp)                           :: ii
 
       open(unit=99, file=this%fileControlName, status='old', action='read')
-      
+
       read(99,*) this%nRectangleControl
       allocate(rectangleControl(2,2*this%nRectangleControl))
       !$acc enter data create(rectangleControl(:,:))
@@ -119,7 +119,7 @@ contains
       end do
       close(99)
       !$acc update device(rectangleControl(:,:))
-      
+
    end subroutine BLTSBFlowSolver_readControlRectangles
 
    subroutine BLTSBFlowSolver_getControlNodes(this)
@@ -127,9 +127,9 @@ contains
 
       integer(4) :: iNodeL, iRectangleControl, bcode
       real(rp)   :: xPoint, zPoint, x1RectangleControl, x2RectangleControl, z1RectangleControl, z2RectangleControl
-      
+
       call this%readControlRectangles()
-      
+
       allocate(actionMask (numNodesRankPar))
       !$acc enter data create(actionMask(:))
 
@@ -165,7 +165,7 @@ contains
       bouCodes2BCType(1) = bc_type_unsteady_inlet ! wall + actuation
 #else
       bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! wall
-#endif      
+#endif
       !bouCodes2BCType(2) = bc_type_far_field         ! Upper part of the domain
       bouCodes2BCType(2) = bc_type_slip_SB_wall       ! Upper part of the domain
       bouCodes2BCType(3) = bc_type_far_field          ! inlet part of the domain
@@ -361,11 +361,11 @@ contains
       flag_implicit = 0
       maxIterNonLineal=200
       tol=1e-3
-      pseudo_cfl =1.95_rp 
+      pseudo_cfl =1.95_rp
       flag_implicit_repeat_dt_if_not_converged = 0
 
       this%cfl_conv = 1.5_rp !M0.1 1.5, M0.3 0.95
-      this%cfl_diff = 1.5_rp 
+      this%cfl_diff = 1.5_rp
       !flag_use_constant_dt = 1
       !this%dt = 1e-1
 
@@ -418,7 +418,7 @@ contains
       flag_buffer_on_west = .true.
       flag_buffer_w_min = -50.0_rp
       flag_buffer_w_size = 50.0_rp
-      
+
       !! y top
       !flag_buffer_on_north = .true.
       !flag_buffer_n_min =  100.0_rp
@@ -450,11 +450,11 @@ contains
       this%save_avgVectorField_vtw     = .true.
 
       ! control parameters
-#if (ACTUATION)      
+#if (ACTUATION)
       this%fileControlName = 'rectangleControl.dat'
       this%amplitudeActuation = 0.05
-      this%frequencyActuation = 0.0025 
-#endif      
+      this%frequencyActuation = 0.0025
+#endif
 
    end subroutine BLTSBFlowSolver_initializeParameters
 
@@ -492,7 +492,7 @@ contains
             u_buffer(iNodeL,2) = 0.5_rp*sqrt(1.0/(450.0_rp*450.0_rp))*(eta_y*f_prim_y-f_y)
             u_buffer(iNodeL,3) = 0.0_rp
          end if
-#if (SMOOTH) 
+#if (SMOOTH)
          if(yp .gt. 100.0_rp) then
             u_buffer(iNodeL,2) = 0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
                               -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
@@ -525,11 +525,11 @@ contains
                f3 = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
             else
                f3 = 1
-            end if               
+            end if
 
             u_buffer(iNodeL,2) = (f1 - (1.0_rp + this%coeff_tbs)*f2 + this%coeff_tbs*f3)*this%amp_tbs
          end if
-#endif         
+#endif
       end do
       !$acc end parallel loop
 
@@ -545,8 +545,8 @@ contains
       integer(4)   :: iLine,iNodeGSrl,auxCnt
 
       call this%fillBlasius()
-#if (ACTUATION)      
-      call this%getControlNodes()  
+#if (ACTUATION)
+      call this%getControlNodes()
 #endif
 
       !$acc parallel loop
@@ -582,7 +582,7 @@ contains
            u(iNodeL,2,2) = 0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
                               -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
          end if
-#else       
+#else
          !if(yp .gt. 160.0_rp) then
          if(yp .gt. 100.0_rp) then
             x = (coordPar(iNodeL,1)-this%x_start  )/        this%x_rise
@@ -610,11 +610,11 @@ contains
                f3 = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
             else
                f3 = 1
-            end if               
+            end if
 
             u(iNodeL,2,2) = (f1 - (1.0_rp + this%coeff_tbs)*f2 + this%coeff_tbs*f3)*this%amp_tbs
          end if
-#endif         
+#endif
 
          pr(iNodeL,2) = this%po
          rho(iNodeL,2) = this%rho0
@@ -629,7 +629,7 @@ contains
          q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
          rho(iNodeL,3) = rho(iNodeL,2)
          E(iNodeL,3) =  E(iNodeL,2)
-         eta(iNodeL,3) = eta(iNodeL,2) 
+         eta(iNodeL,3) = eta(iNodeL,2)
       end do
       !$acc end parallel loop
 
