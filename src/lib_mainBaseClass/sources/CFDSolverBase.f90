@@ -92,7 +92,8 @@ module CFDSolverBase_mod
       logical, public :: loadRestartFile=.false.,saveAvgFile=.false.,loadAvgFile=.false.,saveInitialField=.false.,continue_oldLogs=.false.
       logical, public :: doGlobalAnalysis=.false.,isFreshStart=.true.,doTimerAnalysis=.false.,isWallModelOn=.false.,isSymmetryOn=.false.
       logical, public :: useIntInComms=.false.,useRealInComms=.false.
-      logical, public    :: have_witness=.false.,wit_save_u_i=.false.,wit_save_pr=.false.,wit_save_rho=.false., continue_witness=.false.
+      logical, public :: have_witness=.false.,wit_save=.true.,continue_witness=.false.
+      logical, public :: wit_save_u_i=.false.,wit_save_pr=.false.,wit_save_rho=.false.
 
       ! main char variables
       character(512) :: log_file_name
@@ -1645,7 +1646,8 @@ contains
                   iwitstep = iwitstep+1
                   call this%update_witness(istep, iwitstep)
                end if
-               if ((istep-this%load_step > 0) .and. (mod((istep-this%load_step),this%leapwitsave*this%leapwit)==0)) then
+               if (this%wit_save .and. (istep-this%load_step > 0) &
+                      .and. (mod((istep-this%load_step),this%leapwitsave*this%leapwit)==0)) then
                   call this%save_witness(istep)
                   iwitstep = 0
                end if
@@ -1654,7 +1656,7 @@ contains
                   iwitstep = iwitstep+1
                   call this%update_witness(istep, iwitstep)
                end if
-               if ((istep > 0) .and. (mod((istep),this%leapwitsave*this%leapwit)==0)) then
+               if (this%wit_save .and. (istep > 0) .and. (mod((istep),this%leapwitsave*this%leapwit)==0)) then
                   call this%save_witness(istep)
                   iwitstep = 0
                end if
@@ -1818,7 +1820,8 @@ contains
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
-      call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      if (this%wit_save) &
+         call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
       if(mpi_rank.eq.0) then
          write(*,*) "--| End of preprocessing witness points"
       end if

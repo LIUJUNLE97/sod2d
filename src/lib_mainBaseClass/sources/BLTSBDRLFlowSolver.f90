@@ -136,7 +136,7 @@ contains
       this%witness_h5_file_name  = "resultwit.h5"
       this%leapwit               = 1
       this%leapwitsave           = 1
-      ! this%nwit                  = 4
+      this%wit_save              = .false.
       this%wit_save_u_i          = .true.
       this%wit_save_pr           = .false.
       this%wit_save_rho          = .false.
