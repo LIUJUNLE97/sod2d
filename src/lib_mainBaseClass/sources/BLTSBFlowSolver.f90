@@ -68,14 +68,14 @@ contains
 
       cd = 1.0_rp
 #if (SMOOTH)      
-      lx = this%d0*3.5_rp
+      lx = this%d0*1.5_rp
       ly = this%d0*1.5_rp
       xmin = -15.0_rp*this%d0
 #else
       !lx = this%d0*1.5_rp
       !ly = this%d0*1.5_rp
       !xmin = 0.0_rp*this%d0
-      lx = this%d0*3.5_rp
+      lx = this%d0*1.5_rp
       ly = this%d0*1.5_rp
       xmin = -15.0_rp*this%d0
 #endif
@@ -166,7 +166,8 @@ contains
 #else
       bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! wall
 #endif      
-      bouCodes2BCType(2) = bc_type_far_field          ! Upper part of the domain
+      !bouCodes2BCType(2) = bc_type_far_field         ! Upper part of the domain
+      bouCodes2BCType(2) = bc_type_slip_SB_wall       ! Upper part of the domain
       bouCodes2BCType(3) = bc_type_far_field          ! inlet part of the domain
       bouCodes2BCType(4) = bc_type_far_field          ! outlet part of the domain
       !$acc update device(bouCodes2BCType(:))
@@ -418,10 +419,10 @@ contains
       flag_buffer_w_min = -50.0_rp
       flag_buffer_w_size = 50.0_rp
       
-      ! y top
-      flag_buffer_on_north = .true.
-      flag_buffer_n_min =  160.0_rp
-      flag_buffer_n_size = 20.0_rp
+      !! y top
+      !flag_buffer_on_north = .true.
+      !flag_buffer_n_min =  100.0_rp
+      !flag_buffer_n_size = 20.0_rp
 
       ! -------- Instantaneous results file -------------
       this%save_scalarField_rho        = .true.
@@ -492,8 +493,10 @@ contains
             u_buffer(iNodeL,3) = 0.0_rp
          end if
 #if (SMOOTH) 
-         u_buffer(iNodeL,2) = 0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
+         if(yp .gt. 100.0_rp) then
+            u_buffer(iNodeL,2) = 0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
                               -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
+         end if
 #else
          !if(yp .gt. 160.0_rp) then
          if(yp .gt. 100.0_rp) then
@@ -574,9 +577,11 @@ contains
             u(iNodeL,2,2) = 0.5_rp*sqrt(1.0/(450.0_rp*450.0_rp))*(eta_y*f_prim_y-f_y)
             u(iNodeL,3,2) = 0.0_rp
          end if
-#if (SMOOTH) 
+#if (SMOOTH)
+         if(yp .gt. 100.0_rp) then
            u(iNodeL,2,2) = 0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
                               -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
+         end if
 #else       
          !if(yp .gt. 160.0_rp) then
          if(yp .gt. 100.0_rp) then

@@ -24,7 +24,7 @@ module mod_bc_routines
             real(rp),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
             real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
-            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm
+            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm,norm2
 
             if(allocate_memory_bcc) then
                allocate_memory_bcc = .false.
@@ -166,6 +166,21 @@ module mod_bc_routines
                      !aux_p(inode) = nscbc_p_inf
                      aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
 
+                  else if (bcode == bc_type_slip_SB_wall) then ! a suction–blowing (SB) type of profile in normal direction
+                     norm = (normalsAtNodes(inode,1)*aux_q(inode,1)) + (normalsAtNodes(inode,2)*aux_q(inode,2)) + (normalsAtNodes(inode,3)*aux_q(inode,3))
+                     norm2 = aux_rho(inode)*((normalsAtNodes(inode,1)*u_buffer(inode,1)) + (normalsAtNodes(inode,2)*u_buffer(inode,2)) + (normalsAtNodes(inode,3)*u_buffer(inode,3)))
+                     !$acc loop seq
+                     do idime = 1,ndime
+                        aux_q(inode,idime) = aux_q(inode,idime) - norm*normalsAtNodes(inode,idime) + norm2*normalsAtNodes(inode,idime)
+                     end do
+                     aux_rho(inode) = nscbc_rho_inf
+
+                     aux_u(inode,1) = aux_q(inode,1)/aux_rho(inode)
+                     aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
+                     aux_u(inode,3) = aux_q(inode,3)/aux_rho(inode)
+
+                     aux_E(inode) = aux_p(inode)/(nscbc_gamma_inf-1.0_rp) + &
+                                    aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
                   else if ((bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic)) then ! slip
                      norm = (normalsAtNodes(inode,1)*aux_q(inode,1)) + (normalsAtNodes(inode,2)*aux_q(inode,2)) + (normalsAtNodes(inode,3)*aux_q(inode,3))
                      !$acc loop seq
