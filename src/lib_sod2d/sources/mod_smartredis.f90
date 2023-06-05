@@ -1,5 +1,5 @@
 module mod_smartredis
-#if SMARTREDIS
+#ifdef SMARTREDIS
 
    use mod_constants
    use mod_mpi

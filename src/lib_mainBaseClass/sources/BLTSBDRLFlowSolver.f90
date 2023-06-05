@@ -123,12 +123,6 @@ contains
       end if
       !----------------------------------------------
 
-#if SMARTREDIS
-      ! if (this%have_witness) then
-      !    allocate(witel(this%nwit))
-      !    allocate(witxi(this%nwit,ndime))
-      !    allocate(Nwit(this%nwit,nnode))
-      ! end if
 
       ! Witness points parameters
       this%have_witness          = .true.
@@ -140,12 +134,14 @@ contains
       this%wit_save_u_i          = .true.
       this%wit_save_pr           = .false.
       this%wit_save_rho          = .false.
-      this%continue_witness      = .false.
+      ! this%continue_witness      = .true.
+      ! this%load_step      = 1
 
+#ifdef SMARTREDIS
       !----------------------------------------------
       !----------------  SmartRedis -----------------
-      ! if (db_clustered_str == "" .or. db_clustered_str == "0") db_clustered = .false.
-      ! if (mpi_rank .eq. 0) call init_smartredis(client, 4, 4, db_clustered)
+      if (db_clustered_str == "" .or. db_clustered_str == "0") db_clustered = .false.
+      if (mpi_rank .eq. 0) call init_smartredis(client, 4, 4, db_clustered)
       ! call write_step_type(client, [1], "step_style")
       ! call random_number(state_local)
       ! call write_state(client, 4, 4, state_local, "state")
