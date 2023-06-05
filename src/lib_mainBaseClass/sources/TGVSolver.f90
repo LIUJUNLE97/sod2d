@@ -45,7 +45,7 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube_per64"
+      write(this%mesh_h5_file_name,*) "cube"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -56,7 +56,7 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 100001
+      this%final_istep = 2001
       this%maxPhysTime = 20.0_rp
 
       this%save_logFile_first = 1 
@@ -66,9 +66,9 @@ contains
       this%save_resultsFile_step = 1000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 2000
+      this%save_restartFile_step = 500
       this%loadRestartFile = .false.
-      this%restartFile_to_load = 1 !1 or 2
+      this%restartFile_to_load = 2 !1 or 2
       this%continue_oldLogs = .false.
 
       this%saveAvgFile = .true.
@@ -113,7 +113,7 @@ contains
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
       this%leapwit               = 1
-      this%leapwitsave           = 5
+      this%leapwitsave           = 20
       this%nwit                  = 10
       this%wit_save_u_i          = .true.
       this%wit_save_pr           = .true.
