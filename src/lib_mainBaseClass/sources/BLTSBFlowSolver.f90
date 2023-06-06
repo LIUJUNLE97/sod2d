@@ -543,7 +543,7 @@ contains
             u_buffer(iNodeL,2) = 0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
                               -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
          end if       
- #else
+#else
          !if(yp .gt. 160.0_rp) then
          if(yp .gt. 100.0_rp) then
             x = (coordPar(iNodeL,1)-this%x_start  )/        this%x_rise
