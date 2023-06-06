@@ -27,7 +27,7 @@ module mod_arrays
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
       real(rp), allocatable :: witxi(:,:), Nwit(:,:), buffwit(:,:,:), bufftime(:)
 
-      real(rp), allocatable :: u_buffer(:,:)
+      real(rp), allocatable :: u_buffer(:,:),u_buffer_flux(:,:)
       ! implicit auxiliar fields
       real(rp), allocatable :: impl_rho(:),impl_E(:),impl_eta(:),impl_q(:,:)
       real(rp), allocatable :: impl_envit(:,:),impl_mu_fluid(:),impl_mu_sgs(:,:)
@@ -773,6 +773,7 @@ contains
       allocate(mu_e(numElemsRankPar,ngaus))  ! Elemental viscosity
       allocate(mu_sgs(numElemsRankPar,ngaus))! SGS viscosity
       allocate(u_buffer(numNodesRankPar,ndime))  ! momentum at the buffer
+      allocate(u_buffer_flux(numNodesRankPar,ndime))  ! momentum flux norm at the buffer
       !$acc enter data create(u(:,:,:))
       !$acc enter data create(q(:,:,:))
       !$acc enter data create(rho(:,:))
@@ -788,6 +789,7 @@ contains
       !$acc enter data create(mu_e(:,:))
       !$acc enter data create(mu_sgs(:,:))
       !$acc enter data create(u_buffer(:,:))
+      !$acc enter data create(u_buffer_flux(:,:))
 
       ! implicit
       allocate(impl_rho(numNodesRankPar))
@@ -825,6 +827,7 @@ contains
       mu_sgs(:,:) = 0.0_rp
 
       u_buffer(:,:) = 0.0_rp
+      u_buffer_flux(:,:) = 0.0_rp
       tauw(:,:) = 0.0_rp
       !$acc end kernels
 

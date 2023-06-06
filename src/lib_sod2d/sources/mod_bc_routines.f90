@@ -115,7 +115,7 @@ module mod_bc_routines
 
                      aux_p(inode) = aux_rho(inode)*(nscbc_gamma_inf-1.0_rp)*((aux_E(inode)/aux_rho(inode))- &
                         0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3))))
-                 else if (bcode == bc_type_unsteady_inlet) then ! inlet just for aligened inlets with x
+                 else if (bcode == bc_type_unsteady_inlet) then ! unsteady inlet
 
                      aux_q(inode,1) = nscbc_rho_inf*u_buffer(inode,1)
                      aux_q(inode,2) = nscbc_rho_inf*u_buffer(inode,2)
@@ -166,10 +166,29 @@ module mod_bc_routines
                      !aux_p(inode) = nscbc_p_inf
                      aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
 
-                  else if (bcode == bc_type_slip_SB_wall) then ! a suction–blowing (SB) type of profile in normal direction (just for the Jimenez SP, not general)
+                  else if (bcode == bc_type_far_field_SB) then ! a suction–blowing (SB) type of profile in normal direction (just for the Jimenez SP, not general)
                      aux_rho(inode) = nscbc_rho_inf
 
                      aux_q(inode,2) = u_buffer(inode,2)*nscbc_rho_inf
+                     aux_q(inode,3) = 0.0_rp
+
+                     aux_u(inode,1) = aux_q(inode,1)/aux_rho(inode)
+                     aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
+                     aux_u(inode,3) = aux_q(inode,3)/aux_rho(inode)
+
+                     aux_E(inode) = aux_p(inode)/(nscbc_gamma_inf-1.0_rp) + &
+                                    aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
+
+                  else if (bcode == bc_type_slip_SB_wall) then ! a suction–blowing (SB) type of profile in normal direction (just for the Jimenez SP, not general)
+            
+                     aux_rho(inode) = nscbc_rho_inf
+
+                     aux_q(inode,2) = u_buffer(inode,2)*nscbc_rho_inf
+
+                     if(abs(u_buffer(inode,2)) .gt. 0.001_rp) then
+                        aux_q(inode,1) = 0.0_rp
+                        aux_q(inode,3) = 0.0_rp
+                     endif
 
                      aux_u(inode,1) = aux_q(inode,1)/aux_rho(inode)
                      aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
