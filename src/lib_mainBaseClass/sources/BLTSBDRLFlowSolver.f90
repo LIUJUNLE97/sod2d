@@ -100,14 +100,14 @@ contains
 
       !----------------------------------------------
       !----------------  I/O params -----------------
-      this%final_istep = 1000
+      this%final_istep = 5
 
       this%save_logFile_first = 1
       this%save_logFile_step  = 1
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 20
+      this%save_restartFile_step = 50
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 5
+      this%save_resultsFile_step = 20
 
       this%saveAvgFile = .true.
       this%loadAvgFile = .false.
@@ -123,14 +123,27 @@ contains
       end if
       !----------------------------------------------
 
-#if SMARTREDIS
+      ! Witness points parameters
+      this%have_witness          = .true.
+      this%witness_inp_file_name = "witness.txt"
+      this%witness_h5_file_name  = "resultwit.h5"
+      this%leapwit               = 1
+      this%leapwitsave           = 1
+      this%wit_save              = .true.
+      this%wit_save_u_i          = .true.
+      this%wit_save_pr           = .false.
+      this%wit_save_rho          = .false.
+      this%continue_witness      = .false.
+      this%load_step             = 1
+
+#ifdef SMARTREDIS
       !----------------------------------------------
       !----------------  SmartRedis -----------------
       if (db_clustered_str == "" .or. db_clustered_str == "0") db_clustered = .false.
       if (mpi_rank .eq. 0) call init_smartredis(client, 4, 4, db_clustered)
-      call write_step_type(client, [1], "step_style")
-      call random_number(state_local)
-      call write_state(client, 4, 4, state_local, "state")
+      ! call write_step_type(client, [1], "step_style")
+      ! call random_number(state_local)
+      ! call write_state(client, 4, 4, state_local, "state")
       !----------------------------------------------
 #endif
 
