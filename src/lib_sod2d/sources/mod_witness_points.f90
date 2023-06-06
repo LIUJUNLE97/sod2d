@@ -72,7 +72,7 @@ module mod_witness_points
          real(rp)               :: j(ndime, ndime), k(ndime, ndime)
          real(rp)               :: detJ
          integer(4)            :: ii, ip
-         real(rp), parameter    :: tol = 1e-10, alpha = 1, div = 100
+         real(rp), parameter    :: tol = 1e-5, alpha = 1, div = 1000
          integer(4), parameter :: maxite = 50
 
          xi_0(:) = 0

@@ -161,6 +161,7 @@ module CFDSolverBase_mod
       procedure, public :: preprocWitnessPoints =>CFDSolverBase_preprocWitnessPoints
       procedure, public :: loadWitnessPoints =>CFDSolverBase_loadWitnessPoints
       procedure, public :: save_witness =>CFDSolverBase_save_witness
+      procedure, public :: allocateWitnessPointsVariables =>CFDSolverBase_allocateWitnessPointsVariables
 
       procedure, public :: initialBuffer =>CFDSolverBase_initialBuffer
 
@@ -1726,22 +1727,10 @@ contains
       call update_witness_hdf5(itewit, this%leapwitsave, buffwit, this%nwit, this%nwitPar, this%nvarwit, this%witness_h5_file_name, bufftime, buffstep, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
    end subroutine CFDSolverBase_save_witness
 
-   subroutine CFDSolverBase_preprocWitnessPoints(this)
+   subroutine CFDSolverBase_allocateWitnessPointsVariables(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)                          :: iwit, ielem, inode, ifound, nwitParCand, icand
-      real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode)
-      real(rp), parameter                 :: wittol=1e-7
-      logical                             :: isinside
 
-      if(mpi_rank.eq.0) then
-         write(*,*) "--| Preprocessing witness points"
-      end if
-
-      ! Get the number of witness points from number of lines in file
-      call read_nwit(this%witness_inp_file_name, this%nwit)
-
-      ! Allocate variables
       allocate(witel(this%nwit))
       allocate(witxi(this%nwit,ndime))
       allocate(Nwit(this%nwit,nnode))
@@ -1758,6 +1747,25 @@ contains
       !$acc enter data create(witxyz(:,:))
       !$acc enter data create(witxyzPar(:,:))
       !$acc enter data create(witxyzParCand(:,:))
+   end subroutine CFDSolverBase_allocateWitnessPointsVariables
+
+   subroutine CFDSolverBase_preprocWitnessPoints(this)
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      integer                             :: iwit, ielem, inode, ifound, nwitParCand, icand, ifoundsum
+      real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode)
+      real(rp), parameter                 :: wittol=1e-6
+      logical                             :: isinside
+
+      if(mpi_rank.eq.0) then
+         write(*,*) "--| Preprocessing witness points"
+      end if
+
+      ! Get the number of witness points from number of lines in file
+      call read_nwit(this%witness_inp_file_name, this%nwit)
+
+      ! Allocate witness points vars
+      call this%allocateWitnessPointsVariables()
 
       ! Initialize variables
       !$acc kernels
@@ -1793,7 +1801,7 @@ contains
          center(ielem,1) = aux1/nnode
          center(ielem,2) = aux2/nnode
          center(ielem,3) = aux3/nnode
-         helemmax(ielem) = auxvol**(1.0/3.0)
+         helemmax(ielem) = 2.0_rp*auxvol**(1.0/3.0) ! safety factor of x2
       end do
       !$acc end loop
       maxL = maxval(helemmax)
@@ -1817,6 +1825,14 @@ contains
          end do
       end do
       this%nwitPar = ifound
+
+      ! Assert all witness points have been found
+      call mpi_allreduce(ifound, ifoundsum, 1, mpi_integer, mpi_sum, mpi_comm_world, mpi_err)
+      if (ifoundsum .ne. this%nwit) then
+         if(mpi_rank.eq.0) stop "Number of witness points found differs from witness points file. &
+         Change Newton-Rapson tolerances or slightly move the points."
+      end if
+
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
@@ -1830,6 +1846,12 @@ contains
    subroutine CFDSolverBase_loadWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
+
+      ! Get the number of witness points from number of lines in file
+      call read_nwit(this%witness_inp_file_name, this%nwit)
+
+      ! Allocate witness points vars
+      call this%allocateWitnessPointsVariables()
 
       call load_witness_hdf5(this%witness_h5_file_name, this%nwit, this%load_step, this%load_stepwit, this%nwitPar, witel, witxi, Nwit)
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))

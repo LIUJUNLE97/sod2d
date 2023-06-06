@@ -123,19 +123,18 @@ contains
       end if
       !----------------------------------------------
 
-
       ! Witness points parameters
       this%have_witness          = .true.
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
       this%leapwit               = 1
       this%leapwitsave           = 1
-      this%wit_save              = .false.
+      this%wit_save              = .true.
       this%wit_save_u_i          = .true.
       this%wit_save_pr           = .false.
       this%wit_save_rho          = .false.
-      ! this%continue_witness      = .true.
-      ! this%load_step      = 1
+      this%continue_witness      = .false.
+      this%load_step             = 1
 
 #ifdef SMARTREDIS
       !----------------------------------------------
