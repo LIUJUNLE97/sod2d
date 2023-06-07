@@ -43,30 +43,34 @@ module BLTSBDRLFlowSolver_mod
    contains
       procedure, public :: fillBCTypes           => BLTSBDRLFlowSolver_fill_BC_Types
       procedure, public :: initializeParameters  => BLTSBDRLFlowSolver_initializeParameters
-      procedure, public :: initSmartRedis  => BLTSBDRLFlowSolver_initSmartRedis
       procedure, public :: evalInitialConditions => BLTSBDRLFlowSolver_evalInitialConditions
       procedure, public :: initialBuffer => BLTSBDRLFlowSolver_initialBuffer
       procedure, public :: fillBlasius => BLTSBDRLFlowSolver_fillBlasius
       procedure, public :: smoothStep => BLTSBDRLFlowSolver_smoothStep
       procedure, public :: afterDt => BLTSBDRLFlowSolver_afterDt
+#ifdef SMARTREDIS
+      procedure, public :: initSmartRedis  => BLTSBDRLFlowSolver_initSmartRedis
       procedure, public :: afterTimeIteration => BLTSBDRLFlowSolver_afterTimeIteration
+#endif
    end type BLTSBDRLFlowSolver
 contains
 
-subroutine BLTSBDRLFlowSolver_initSmartRedis(this)
-   class(BLTSBDRLFlowSolver), intent(inout) :: this
-   integer :: state_local_size, actions_local_size
+#ifdef SMARTREDIS
+   subroutine BLTSBDRLFlowSolver_initSmartRedis(this)
+      class(BLTSBDRLFlowSolver), intent(inout) :: this
+      integer :: state_local_size, actions_local_size
 
-   state_local_size = this%nwitPar
-   action_local_size = 10 ! TO DO!!!
-   call init_smartredis(client, state_local_size, action_local_size, this%db_clustered)
-end subroutine BLTSBDRLFlowSolver_initSmartRedis
+      state_local_size = this%nwitPar
+      action_local_size = 10 ! TO DO!!!
+      call init_smartredis(client, state_local_size, action_local_size, this%db_clustered)
+   end subroutine BLTSBDRLFlowSolver_initSmartRedis
 
-subroutine BLTSBDRLFlowSolver_afterTimeIteration(this)
-   class(BLTSBDRLFlowSolver), intent(inout) :: this
+   subroutine BLTSBDRLFlowSolver_afterTimeIteration(this)
+      class(BLTSBDRLFlowSolver), intent(inout) :: this
 
-   call write_state(client, buffwit(:,1,1), "state")
-end subroutine BLTSBDRLFlowSolver_afterTimeIteration
+      call write_state(client, buffwit(:,1,1), "state")
+   end subroutine BLTSBDRLFlowSolver_afterTimeIteration
+#endif
 
    subroutine BLTSBDRLFlowSolver_fill_BC_Types(this)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
