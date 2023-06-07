@@ -1650,9 +1650,9 @@ contains
                   iwitstep = iwitstep+1
                   call this%update_witness(istep, iwitstep)
                end if
-               if (this%wit_save .and. (istep-this%load_step > 0) &
+               if ((istep-this%load_step > 0) &
                       .and. (mod((istep-this%load_step),this%leapwitsave*this%leapwit)==0)) then
-                  call this%save_witness(istep)
+                  if (this%wit_save) call this%save_witness(istep)
                   iwitstep = 0
                end if
             else
@@ -1660,8 +1660,8 @@ contains
                   iwitstep = iwitstep+1
                   call this%update_witness(istep, iwitstep)
                end if
-               if (this%wit_save .and. (istep > 0) .and. (mod((istep),this%leapwitsave*this%leapwit)==0)) then
-                  call this%save_witness(istep)
+               if ((istep > 0) .and. (mod((istep),this%leapwitsave*this%leapwit)==0)) then
+                  if (this%wit_save) call this%save_witness(istep)
                   iwitstep = 0
                end if
             end if
@@ -1839,8 +1839,10 @@ contains
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
-      if (this%wit_save) &
-         call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      if (this%wit_save) then
+         call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, Nwit, &
+            this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      end if
       if(mpi_rank.eq.0) then
          write(*,*) "--| End of preprocessing witness points"
       end if

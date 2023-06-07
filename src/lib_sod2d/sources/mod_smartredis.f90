@@ -142,11 +142,11 @@ module mod_smartredis
       integer :: error
       logical :: is_error
 
-      if (mpi_rank .eq. 0) then
+      ! if (mpi_rank .eq. 0) then
          error = client%put_tensor(key, step_type, shape(step_type))
          is_error = client%SR_error_parser(error)
          if (error /= 0) stop 'Error in SmartRedis step_type writing.'
-      end if
+      ! end if
    end subroutine write_step_type
 
 #endif

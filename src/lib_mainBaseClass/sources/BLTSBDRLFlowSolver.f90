@@ -100,7 +100,7 @@ contains
 
       !----------------------------------------------
       !----------------  I/O params -----------------
-      this%final_istep = 5
+      this%final_istep = 1000
 
       this%save_logFile_first = 1
       this%save_logFile_step  = 1
@@ -129,19 +129,20 @@ contains
       this%witness_h5_file_name  = "resultwit.h5"
       this%leapwit               = 1
       this%leapwitsave           = 1
-      this%wit_save              = .true.
-      this%wit_save_u_i          = .true.
+      this%wit_save              = .false.
+      this%wit_save_u_i          = .false.
       this%wit_save_pr           = .false.
       this%wit_save_rho          = .false.
       this%continue_witness      = .false.
-      this%load_step             = 1
+      ! this%load_step             = 1
 
 #ifdef SMARTREDIS
       !----------------------------------------------
       !----------------  SmartRedis -----------------
       if (db_clustered_str == "" .or. db_clustered_str == "0") db_clustered = .false.
-      if (mpi_rank .eq. 0) call init_smartredis(client, 4, 4, db_clustered)
-      ! call write_step_type(client, [1], "step_style")
+      ! if (mpi_rank .eq. 0) call init_smartredis(client, 4, 4, db_clustered)
+      call init_smartredis(client, 4, 4, db_clustered)
+      call write_step_type(client, [1], "step_style")
       ! call random_number(state_local)
       ! call write_state(client, 4, 4, state_local, "state")
       !----------------------------------------------
