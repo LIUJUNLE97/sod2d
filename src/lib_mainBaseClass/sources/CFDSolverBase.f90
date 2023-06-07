@@ -157,11 +157,13 @@ module CFDSolverBase_mod
       procedure, public :: saveAverages =>CFDSolverBase_saveAverages
       procedure, public :: savePosprocessingFields =>CFDSolverBase_savePosprocessingFields
       procedure, public :: afterDt =>CFDSolverBase_afterDt
+      procedure, public :: afterTimeIteration =>CFDSolverBase_afterTimeIteration
       procedure, public :: update_witness =>CFDSolverBase_update_witness
       procedure, public :: preprocWitnessPoints =>CFDSolverBase_preprocWitnessPoints
       procedure, public :: loadWitnessPoints =>CFDSolverBase_loadWitnessPoints
       procedure, public :: save_witness =>CFDSolverBase_save_witness
       procedure, public :: allocateWitnessPointsVariables =>CFDSolverBase_allocateWitnessPointsVariables
+      procedure, public :: initSmartRedis =>CFDSolverBase_initSmartRedis
 
       procedure, public :: initialBuffer =>CFDSolverBase_initialBuffer
 
@@ -533,6 +535,11 @@ contains
       class(CFDSolverBase), intent(inout) :: this
 
    end subroutine CFDSolverBase_initializeParameters
+
+   subroutine CFDSolverBase_initSmartRedis(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+   end subroutine CFDSolverBase_initSmartRedis
 
    subroutine CFDSolverBase_openMesh(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -1411,6 +1418,11 @@ contains
 
    end subroutine CFDSolverBase_afterDt
 
+   subroutine CFDSolverBase_afterTimeIteration(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+   end subroutine CFDSolverBase_afterTimeIteration
+
    subroutine CFDSolverBase_savePosprocessingFields(this,istep)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
@@ -2119,6 +2131,11 @@ contains
          end if
       end if
 
+      ! Init SmartRedis in required
+#ifdef SMARTREDIS
+      call this%initSmartRedis()
+#endif
+
       ! Eval first output
       if(this%isFreshStart) call this%evalFirstOutput()
       call this%flush_log_file()
@@ -2134,6 +2151,9 @@ contains
 
       ! Do the time iteration
       call this%evalTimeIteration()
+
+      ! After the time iteration
+      call this%afterTimeIteration()
 
       call this%close_log_file()
       call this%close_analysis_files()

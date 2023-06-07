@@ -37,19 +37,36 @@ module BLTSBDRLFlowSolver_mod
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: BLTSBDRLFlowSolver
 
       real(rp) , public  ::  M, d0, U0, rho0, Red0, Re, to, po, mu, amp_tbs, x_start, x_rise, x_end, x_fall, x_rerise, x_restart, coeff_tbs
-      character(len=8), public :: tag="1"
-
+      character(len=8), public :: tag="0"
+      logical :: db_clustered = .false.
 
    contains
       procedure, public :: fillBCTypes           => BLTSBDRLFlowSolver_fill_BC_Types
       procedure, public :: initializeParameters  => BLTSBDRLFlowSolver_initializeParameters
+      procedure, public :: initSmartRedis  => BLTSBDRLFlowSolver_initSmartRedis
       procedure, public :: evalInitialConditions => BLTSBDRLFlowSolver_evalInitialConditions
       procedure, public :: initialBuffer => BLTSBDRLFlowSolver_initialBuffer
       procedure, public :: fillBlasius => BLTSBDRLFlowSolver_fillBlasius
       procedure, public :: smoothStep => BLTSBDRLFlowSolver_smoothStep
       procedure, public :: afterDt => BLTSBDRLFlowSolver_afterDt
+      procedure, public :: afterTimeIteration => BLTSBDRLFlowSolver_afterTimeIteration
    end type BLTSBDRLFlowSolver
 contains
+
+subroutine BLTSBDRLFlowSolver_initSmartRedis(this)
+   class(BLTSBDRLFlowSolver), intent(inout) :: this
+   integer :: state_local_size, actions_local_size
+
+   state_local_size = this%nwitPar
+   action_local_size = 10 ! TO DO!!!
+   call init_smartredis(client, state_local_size, action_local_size, this%db_clustered)
+end subroutine BLTSBDRLFlowSolver_initSmartRedis
+
+subroutine BLTSBDRLFlowSolver_afterTimeIteration(this)
+   class(BLTSBDRLFlowSolver), intent(inout) :: this
+
+   call write_state(client, buffwit(:,1,1), "state")
+end subroutine BLTSBDRLFlowSolver_afterTimeIteration
 
    subroutine BLTSBDRLFlowSolver_fill_BC_Types(this)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
@@ -68,7 +85,7 @@ contains
       integer :: num_args, equal_pos, iarg
       character(len=64) :: arg, output_dir
       character(len=8) :: restart_step_str = "", db_clustered_str = "0"
-      logical :: output_dir_exists, db_clustered = .false.
+      logical :: output_dir_exists
       real(rp) :: state_local(4)
 
       ! get command line args, ie: mpirun -n 4 sod2d --tag=12 --restart_step=2500
@@ -86,6 +103,8 @@ contains
             stop "Unknown command line argument"
          end if
       end do
+      if (this%tag == "") this%tag = "0"
+      if (db_clustered_str == "" .or. db_clustered_str == "0") this%db_clustered = .false.
 
       ! create output dir if not existing
       output_dir = "./output_"//trim(adjustl(this%tag))//"/"
@@ -99,8 +118,8 @@ contains
       write(this%results_h5_file_name,*) "results_"//trim(adjustl(this%tag))
 
       !----------------------------------------------
-      !----------------  I/O params -----------------
-      this%final_istep = 1000
+      ! I/O params
+      this%final_istep = 5
 
       this%save_logFile_first = 1
       this%save_logFile_step  = 1
@@ -121,8 +140,8 @@ contains
          read(restart_step_str, *) this%restartFile_to_load ! 1 (start) or 2 (last time step)
          this%continue_oldLogs = .false.
       end if
-      !----------------------------------------------
 
+      !----------------------------------------------
       ! Witness points parameters
       this%have_witness          = .true.
       this%witness_inp_file_name = "witness.txt"
@@ -136,18 +155,7 @@ contains
       this%continue_witness      = .false.
       ! this%load_step             = 1
 
-#ifdef SMARTREDIS
       !----------------------------------------------
-      !----------------  SmartRedis -----------------
-      if (db_clustered_str == "" .or. db_clustered_str == "0") db_clustered = .false.
-      ! if (mpi_rank .eq. 0) call init_smartredis(client, 4, 4, db_clustered)
-      call init_smartredis(client, 4, 4, db_clustered)
-      call write_step_type(client, [1], "step_style")
-      ! call random_number(state_local)
-      ! call write_state(client, 4, 4, state_local, "state")
-      !----------------------------------------------
-#endif
-
       ! numerical params
       flag_les = 1
       flag_implicit = 0
