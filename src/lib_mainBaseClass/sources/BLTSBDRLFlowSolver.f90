@@ -68,7 +68,7 @@ contains
    subroutine BLTSBDRLFlowSolver_afterTimeIteration(this)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
 
-      call write_state(client, buffwit(:,1,1), "state")
+      ! call write_state(client, buffwit(:,1,1), "state")
    end subroutine BLTSBDRLFlowSolver_afterTimeIteration
 #endif
 
@@ -117,13 +117,13 @@ contains
 
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "bl"
-
       write(this%results_h5_file_path,*) "./output_"//trim(adjustl(this%tag))//"/"
       write(this%results_h5_file_name,*) "results_"//trim(adjustl(this%tag))
+      ! write(this%io_prepend_path,*) output_dir
 
       !----------------------------------------------
       ! I/O params
-      this%final_istep = 5
+      this%final_istep = 250
 
       this%save_logFile_first = 1
       this%save_logFile_step  = 1
@@ -177,7 +177,7 @@ contains
 
       ! Coefficients for the wall-normal boundary condition on the top
       this%amp_tbs   = 0.01
-      this%x_start   = 50.0_rp   ! x coordinate where 1st step function on the free streamwise velocity starts
+      this%x_start   = 50.0_rp  ! x coordinate where 1st step function on the free streamwise velocity starts
       this%x_rise    = 5.0_rp   ! x length of the smoothing of the 1st step function for the free streamwise velocity
       this%x_end     = 70.0_rp  ! x coordinate where 2nd step function on the free streamwise velocity ends
       this%x_fall    = 5.0_rp   ! x half length of the smoothing of the 2nd step function for the free streamwise velocity
@@ -187,10 +187,10 @@ contains
       !rate
       this%coeff_tbs = 0.5_rp
 
-      this%Red0  = 450.0_rp
+      this%Red0 = 450.0_rp
       this%gamma_gas = 1.40_rp
 
-      this%mu    = this%rho0*this%d0*this%U0/this%Red0
+      this%mu = this%rho0*this%d0*this%U0/this%Red0
 
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
       this%to = this%U0*this%U0/(this%gamma_gas*this%Rgas*this%M*this%M)
@@ -278,6 +278,10 @@ contains
          end if
       end do
       !!$acc end parallel loop
+
+      ! SmartRedis communications
+      ! call write_state(client, buffwit(:,1,1), "state")
+
    end subroutine BLTSBDRLFlowSolver_afterDt
 
    subroutine BLTSBDRLFlowSolver_initialBuffer(this)

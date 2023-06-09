@@ -99,6 +99,7 @@ module CFDSolverBase_mod
       character(512) :: log_file_name
       character(512) :: mesh_h5_file_path,mesh_h5_file_name
       character(512) :: results_h5_file_path,results_h5_file_name
+      character(512) :: io_prepend_path
       character(512) :: witness_inp_file_name,witness_h5_file_name
 
       ! main real parameters
@@ -221,6 +222,8 @@ contains
 
       write(this%results_h5_file_path,*) "./"
       write(this%results_h5_file_name,*) "resultsFile"
+
+      write(this%io_prepend_path,*) "./"
 
       this%time = 0.0_rp
       this%initial_istep = 1
@@ -1885,7 +1888,7 @@ contains
       if(mpi_rank.eq.0) then
          write(aux_string_mpisize,'(I0)') mpi_size
 
-         this%log_file_name = 'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
+         this%log_file_name = trim(adjustl(this%io_prepend_path))//'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
          if(this%continue_oldLogs) then
             open(unit=111,file=this%log_file_name,status='old',position='append')
          else
@@ -1927,7 +1930,7 @@ contains
          write(aux_string_mpisize,'(I0)') mpi_size
 
          if(this%doGlobalAnalysis) then
-            filenameAnalysis = 'analysis_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
+            filenameAnalysis = trim(adjustl(this%io_prepend_path))//'analysis_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
             if(this%continue_oldLogs) then
                open(unit=666,file=filenameAnalysis,status='old',position='append')
             else
@@ -1944,7 +1947,7 @@ contains
          if (isMeshBoundaries) then
             do iCode = 1,numBoundCodes
                write(aux_string_code,'(I0)') iCode
-               filenameBound = 'surf_code_'//trim(aux_string_code)//'-'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
+               filenameBound = trim(adjustl(this%io_prepend_path))//'surf_code_'//trim(aux_string_code)//'-'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
                if(this%continue_oldLogs) then
                   open(unit=888+iCode,form='formatted',file=filenameBound,status='old',position='append')
                else
