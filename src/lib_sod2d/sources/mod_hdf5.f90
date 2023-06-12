@@ -3197,7 +3197,7 @@ contains
       integer(4),allocatable :: aux_data_array_int4(:)
       
       !----------------------------------------------------------------------------------------------------------
-      ms_dims(1) = 1
+      ms_dims(1) = 0
       ds_dims = 1
       ms_offset(1) = 0
       if(mpi_rank.eq.0) then
@@ -3276,7 +3276,7 @@ contains
       real(rp_vtk),allocatable :: aux_data_array_rp_vtk(:)
       
       !----------------------------------------------------------------------------------------------------------
-      ms_dims(1) = 1
+      ms_dims(1) = 0
       ds_dims = 1
       ms_offset(1) = 0
       if(mpi_rank.eq.0) then
