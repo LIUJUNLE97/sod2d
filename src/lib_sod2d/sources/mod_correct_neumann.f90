@@ -22,12 +22,9 @@ contains
       !$acc parallel loop gang  private(bnorm)
       do iBound = 1,nboun
          bnorm(1:npbou*ndime) = bounorm(iBound,1:npbou*ndime)
-         !$acc loop vector private(aux)
+         !$acc loop vector
          do igaus = 1,npbou
-            aux(1) = bnorm((igaus-1)*ndime+1)
-            aux(2) = bnorm((igaus-1)*ndime+2)
-            aux(3) = bnorm((igaus-1)*ndime+3)
-            auxmag = sqrt(dot_product(aux(:),aux(:)))
+            auxmag = sqrt(bnorm((igaus-1)*ndime+1)**2 + bnorm((igaus-1)*ndime+2)**2 + bnorm((igaus-1)*ndime+3)**2)
             !$acc loop seq
             do idime = 1,ndime
                !$acc atomic update

@@ -17,7 +17,7 @@ module time_integ
    implicit none
 
    real(rp), allocatable, dimension(:)   :: Rmass,Rener,Reta
-   real(rp), allocatable, dimension(:,:) :: Rmom
+   real(rp), allocatable, dimension(:,:) :: Rmom, Rmom_neumann
    real(rp), allocatable, dimension(:,:)   :: sigMass,sigEner
    real(rp), allocatable, dimension(:,:,:) :: sigMom
    real(rp), allocatable, dimension(:,:)   :: aijKjMass,aijKjEner,pt
@@ -58,11 +58,12 @@ module time_integ
          endif
       end if
 
-      allocate(Rmass(npoin),Rener(npoin),Reta(npoin),Rmom(npoin,ndime))
+      allocate(Rmass(npoin),Rener(npoin),Reta(npoin),Rmom(npoin,ndime),Rmom_neumann(npoin,ndime))
       !$acc enter data create(Rmass(:))
       !$acc enter data create(Rener(:))
       !$acc enter data create(Reta(:))
       !$acc enter data create(Rmom(:,:))
+      !$acc enter data create(Rmom_neumann(:,:))
 
       allocate(aux_rho(npoin),aux_pr(npoin),aux_E(npoin),aux_Tem(npoin),aux_e_int(npoin),aux_eta(npoin))
       !$acc enter data create(aux_rho(:))
@@ -185,7 +186,8 @@ module time_integ
       !$acc exit data delete(Rener(:))
       !$acc exit data delete(Reta(:))
       !$acc exit data delete(Rmom(:,:))
-      deallocate(Rmass,Rener,Reta,Rmom)
+      !$acc exit data delete(Rmom_neumann(:,:))
+      deallocate(Rmass,Rener,Reta,Rmom,Rmom_neumann)
 
       !$acc exit data delete(aux_rho(:))
       !$acc exit data delete(aux_pr(:))
@@ -321,6 +323,15 @@ module time_integ
             pt(:,5) = dt_min(:)
             !$acc end kernels
             call nvtxEndRange
+
+            !$acc kernels
+            Rmom_neumann(:,:) = 0.0_rp
+            !$acc end kernels
+
+            ! include user defined neumann corrections
+            if(flag_include_neumann_flux == 1) then
+               call evalCorrectNeumann(npoin,nboun,bound,wgp_b,bounorm,u_buffer_flux,Rmom_neumann)
+            end if
 
             !
             ! Initialize variables to zero
@@ -463,6 +474,7 @@ module time_integ
                         bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),aux_u(:,:),tauw,Rdiff_mom)
                      call nvtxEndRange
                   end if
+
                   !
                   !
                   ! Compute convective terms
@@ -479,7 +491,7 @@ module time_integ
                   !$acc kernels
                   Rmass(:) = Rmass(:) + Rdiff_mass(:)
                   Rener(:) = Rener(:) + Rdiff_ener(:)
-                  Rmom(:,:) = Rmom(:,:) + Rdiff_mom(:,:)
+                  Rmom(:,:) = Rmom(:,:) + Rdiff_mom(:,:) + Rmom_neumann(:,:)
                   !$acc end kernels
                   call nvtxEndRange
 
@@ -797,6 +809,15 @@ module time_integ
             !$acc end kernels
 
             call nvtxEndRange
+
+            !$acc kernels
+            Rmom_neumann(:,:) = 0.0_rp
+            !$acc end kernels
+
+            ! include user defined neumann corrections
+            if(flag_include_neumann_flux == 1) then
+               call evalCorrectNeumann(npoin,nboun,bound,wgp_b,bounorm,u_buffer_flux,Rmom_neumann)
+            end if
             !
             ! Loop over all RK steps
             !
@@ -875,10 +896,6 @@ module time_integ
                   call nvtxEndRange
                end if
 
-               ! include user defined neumann corrections
-               if(flag_include_neumann_flux == 1) then
-                  call evalCorrectNeumann(npoin,nboun,bound,wgp_b,bounorm,u_buffer_flux,Rdiff_mom)
-               end if
                !
                !
                ! Compute convective terms
@@ -891,7 +908,7 @@ module time_integ
                !$acc kernels
                Rmass(:) = Rmass(:) + Rdiff_mass(:)
                Rener(:) = Rener(:) + Rdiff_ener(:)
-               Rmom(:,:) = Rmom(:,:) + Rdiff_mom(:,:)
+               Rmom(:,:) = Rmom(:,:) + Rdiff_mom(:,:) + Rmom_neumann(:,:)
                !$acc end kernels
                call nvtxEndRange
 
