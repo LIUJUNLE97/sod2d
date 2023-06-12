@@ -99,6 +99,7 @@ module CFDSolverBase_mod
       character(512) :: log_file_name
       character(512) :: mesh_h5_file_path,mesh_h5_file_name
       character(512) :: results_h5_file_path,results_h5_file_name
+      character(512) :: io_prepend_path
       character(512) :: witness_inp_file_name,witness_h5_file_name
 
       ! main real parameters
@@ -157,11 +158,13 @@ module CFDSolverBase_mod
       procedure, public :: saveAverages =>CFDSolverBase_saveAverages
       procedure, public :: savePosprocessingFields =>CFDSolverBase_savePosprocessingFields
       procedure, public :: afterDt =>CFDSolverBase_afterDt
+      procedure, public :: afterTimeIteration =>CFDSolverBase_afterTimeIteration
       procedure, public :: update_witness =>CFDSolverBase_update_witness
       procedure, public :: preprocWitnessPoints =>CFDSolverBase_preprocWitnessPoints
       procedure, public :: loadWitnessPoints =>CFDSolverBase_loadWitnessPoints
       procedure, public :: save_witness =>CFDSolverBase_save_witness
       procedure, public :: allocateWitnessPointsVariables =>CFDSolverBase_allocateWitnessPointsVariables
+      procedure, public :: initSmartRedis =>CFDSolverBase_initSmartRedis
 
       procedure, public :: initialBuffer =>CFDSolverBase_initialBuffer
 
@@ -219,6 +222,8 @@ contains
 
       write(this%results_h5_file_path,*) "./"
       write(this%results_h5_file_name,*) "resultsFile"
+
+      write(this%io_prepend_path,*) "./"
 
       this%time = 0.0_rp
       this%initial_istep = 1
@@ -533,6 +538,11 @@ contains
       class(CFDSolverBase), intent(inout) :: this
 
    end subroutine CFDSolverBase_initializeParameters
+
+   subroutine CFDSolverBase_initSmartRedis(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+   end subroutine CFDSolverBase_initSmartRedis
 
    subroutine CFDSolverBase_openMesh(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -1411,6 +1421,11 @@ contains
 
    end subroutine CFDSolverBase_afterDt
 
+   subroutine CFDSolverBase_afterTimeIteration(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+   end subroutine CFDSolverBase_afterTimeIteration
+
    subroutine CFDSolverBase_savePosprocessingFields(this,istep)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
@@ -1650,9 +1665,9 @@ contains
                   iwitstep = iwitstep+1
                   call this%update_witness(istep, iwitstep)
                end if
-               if (this%wit_save .and. (istep-this%load_step > 0) &
+               if ((istep-this%load_step > 0) &
                       .and. (mod((istep-this%load_step),this%leapwitsave*this%leapwit)==0)) then
-                  call this%save_witness(istep)
+                  if (this%wit_save) call this%save_witness(istep)
                   iwitstep = 0
                end if
             else
@@ -1660,8 +1675,8 @@ contains
                   iwitstep = iwitstep+1
                   call this%update_witness(istep, iwitstep)
                end if
-               if (this%wit_save .and. (istep > 0) .and. (mod((istep),this%leapwitsave*this%leapwit)==0)) then
-                  call this%save_witness(istep)
+               if ((istep > 0) .and. (mod((istep),this%leapwitsave*this%leapwit)==0)) then
+                  if (this%wit_save) call this%save_witness(istep)
                   iwitstep = 0
                end if
             end if
@@ -1839,8 +1854,10 @@ contains
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
-      if (this%wit_save) &
-         call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      if (this%wit_save) then
+         call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, Nwit, &
+            this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      end if
       if(mpi_rank.eq.0) then
          write(*,*) "--| End of preprocessing witness points"
       end if
@@ -1871,7 +1888,7 @@ contains
       if(mpi_rank.eq.0) then
          write(aux_string_mpisize,'(I0)') mpi_size
 
-         this%log_file_name = 'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
+         this%log_file_name = trim(adjustl(this%io_prepend_path))//'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
          if(this%continue_oldLogs) then
             open(unit=111,file=this%log_file_name,status='old',position='append')
          else
@@ -1913,7 +1930,7 @@ contains
          write(aux_string_mpisize,'(I0)') mpi_size
 
          if(this%doGlobalAnalysis) then
-            filenameAnalysis = 'analysis_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
+            filenameAnalysis = trim(adjustl(this%io_prepend_path))//'analysis_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
             if(this%continue_oldLogs) then
                open(unit=666,file=filenameAnalysis,status='old',position='append')
             else
@@ -1930,7 +1947,7 @@ contains
          if (isMeshBoundaries) then
             do iCode = 1,numBoundCodes
                write(aux_string_code,'(I0)') iCode
-               filenameBound = 'surf_code_'//trim(aux_string_code)//'-'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
+               filenameBound = trim(adjustl(this%io_prepend_path))//'surf_code_'//trim(aux_string_code)//'-'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
                if(this%continue_oldLogs) then
                   open(unit=888+iCode,form='formatted',file=filenameBound,status='old',position='append')
                else
@@ -2117,6 +2134,11 @@ contains
          end if
       end if
 
+      ! Init SmartRedis in required
+#ifdef SMARTREDIS
+      call this%initSmartRedis()
+#endif
+
       ! Eval first output
       if(this%isFreshStart) call this%evalFirstOutput()
       call this%flush_log_file()
@@ -2132,6 +2154,9 @@ contains
 
       ! Do the time iteration
       call this%evalTimeIteration()
+
+      ! After the time iteration
+      call this%afterTimeIteration()
 
       call this%close_log_file()
       call this%close_analysis_files()

@@ -7,53 +7,59 @@ module mod_smartredis
    implicit none
 
    type(client_type) :: client ! Client instance of SmartRedis to communicate with Redis database
-   integer, dimension(:), allocatable, public :: state_sizes, state_displs, actions_sizes, actions_displs
-
+   integer, dimension(:), allocatable, public :: state_sizes, state_displs, action_sizes, action_displs
+   integer :: state_local_size, state_global_size, action_local_size, action_global_size
    contains
 
    ! Initialise SmartRedis client
    ! Since each MPI rank communicates with the database, all of them need to initialise the client
-   subroutine init_smartredis(client, state_local_size, actions_local_size, db_clustered)
+   subroutine init_smartredis(client, state_local_size2, action_local_size2, db_clustered)
       type(client_type), intent(inout) :: client
-      integer, intent(in) :: state_local_size, actions_local_size
+      integer, intent(in) :: state_local_size2, action_local_size2
       logical, intent(in) :: db_clustered
-      integer :: state_counter, actions_counter, error, i
+      integer :: state_counter, action_counter, error, i
       logical :: is_error
 
       allocate(state_sizes(mpi_size))
       allocate(state_displs(mpi_size))
-      allocate(actions_sizes(mpi_size))
-      allocate(actions_displs(mpi_size))
+      allocate(action_sizes(mpi_size))
+      allocate(action_displs(mpi_size))
       !$acc enter data create(state_sizes(:))
       !$acc enter data create(state_displs(:))
-      !$acc enter data create(actions_sizes(:))
-      !$acc enter data create(actions_displs(:))
+      !$acc enter data create(action_sizes(:))
+      !$acc enter data create(action_displs(:))
 
-      ! TODO: compute size of witness points per each rank and their displacements
       ! https://gist.github.com/jnvance/7b8cabebb06f91e2c1e788334f5de6c7
       ! 1. Gather the individual sizes to get total size and offsets in root process (0)
       call mpi_gather( &
-         state_local_size, 1, mpi_integer,   &  ! everyone sends 1 int from state_local_size
+         state_local_size2, 1, mpi_integer,   &  ! everyone sends 1 int from state_local_size
          state_sizes, 1, mpi_integer,        &  ! root receives 1 int from each proc into state_sizes
          0, mpi_comm_world, error            &  ! rank 0 is root
       )
       call mpi_gather( &
-         actions_local_size, 1, mpi_integer, &  ! everyone sends 1 int from actions_local_size
-         actions_sizes, 1, mpi_integer,      &  ! root receives 1 int from each proc into s
+         action_local_size2, 1, mpi_integer, &  ! everyone sends 1 int from actions_local_size
+         action_sizes, 1, mpi_integer,      &  ! root receives 1 int from each proc into s
          0, mpi_comm_world, error            &  ! rank 0 is root
       )
       ! 2. Compute displacements
       if (mpi_rank .eq. 0) then
          state_counter = 0
-         actions_counter = 0
+         action_counter = 0
          do i = 1, mpi_size
             state_displs(i) = state_counter
-            actions_displs(i) = actions_counter
+            action_displs(i) = action_counter
             state_counter = state_counter + state_sizes(i)
-            actions_counter = actions_counter + actions_sizes(i)
+            action_counter = action_counter + action_sizes(i)
          end do
       end if
 
+      ! Save vars
+      state_local_size = state_local_size2
+      action_local_size = action_local_size2
+      call mpi_allreduce(state_local_size, state_global_size, 1, mpi_integer, mpi_sum, mpi_comm_world, mpi_err)
+      call mpi_allreduce(action_local_size, action_global_size, 1, mpi_integer, mpi_sum, mpi_comm_world, mpi_err)
+
+      ! Init client
       error = client%initialize(db_clustered)
       is_error = client%SR_error_parser(error)
       if (error /= 0) stop 'Error in SmartRedis client initialization'
@@ -71,13 +77,10 @@ module mod_smartredis
    end subroutine end_smartredis
 
    ! Write witness points state into DB
-   subroutine write_state(client, state_local_size, state_global_size, state_local, key)
+   subroutine write_state(client, state_local, key)
       type(client_type), intent(inout) :: client
-      integer, intent(in) :: state_local_size               ! local number of witness points
-      integer, intent(in) :: state_global_size              ! total number of witness points
       real(rp), intent(in) :: state_local(state_local_size) ! local witness points state values
-      character(len=*), intent(in) :: key                   ! state name to write to database
-
+      character(len=*), intent(in) :: key                        ! state name to write to database
       integer :: error
       logical :: is_error
       real(rp) :: state_global(state_global_size)
@@ -98,25 +101,24 @@ module mod_smartredis
    end subroutine write_state
 
    ! Read actions from DB
-   subroutine read_actions(client, actions_local_size, actions_global_size, actions_local, key)
+   subroutine read_actions(client, action_local, key)
       type(client_type), intent(inout) :: client
-      integer, intent(in) :: actions_local_size                 ! local number of actions
-      integer, intent(in) :: actions_global_size                ! total number of actions
-      real(rp), intent(in) :: actions_local(actions_local_size) ! local actions values
+      real(rp), intent(in) :: action_local(action_local_size) ! local actions values
       character(len=*), intent(in) :: key                       ! actions name to read from database
 
       integer, parameter :: interval = 10              ! polling interval in milliseconds
       integer, parameter :: tries = huge(1)            ! infinite number of polling tries
-      logical :: exists, is_error                      ! receives whether the tensor exists
+      logical(1) :: exists                             ! receives whether the tensor exists
+      logical :: is_error
       integer :: found, error
-      real(rp) :: actions_global(actions_global_size)
+      real(rp) :: action_global(action_global_size)
 
       ! wait (poll) until the actions array is found in the DB, then read, then delete
       if (mpi_rank .eq. 0) then
          found = client%poll_tensor(key, interval, tries, exists)
          is_error = client%SR_error_parser(found)
          if (found /= 0) stop 'Error in SmartRedis actions reading. Actions array not found.'
-         error = client%unpack_tensor(key, actions_global, shape(actions_global))
+         error = client%unpack_tensor(key, action_global, shape(action_global))
          is_error = client%SR_error_parser(error)
          if (error /= 0) stop 'Error in SmartRedis actions reading. Tensor could not be unpacked.'
          error = client%delete_tensor(key)
@@ -127,9 +129,9 @@ module mod_smartredis
 
       ! scatter the global actions into local actions
       call mpi_scatterv( &
-         actions_global, actions_sizes, actions_displs, mpi_datatype_real, &  ! actions_global is scattered according to actions_sizes and displs
-         actions_local, actions_local_size, mpi_datatype_real, &              ! actions_local to receive the data
-         0, mpi_comm_world, error &                                           ! rank 0 is the one sending data
+         action_global, action_sizes, action_displs, mpi_datatype_real, & ! actions_global is scattered according to action_sizes and displs
+         action_local, action_local_size, mpi_datatype_real, &            ! actions_local to receive the data
+         0, mpi_comm_world, error &                                       ! rank 0 is the one sending data
       )
    end subroutine read_actions
 

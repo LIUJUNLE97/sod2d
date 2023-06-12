@@ -37,8 +37,8 @@ module BLTSBDRLFlowSolver_mod
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: BLTSBDRLFlowSolver
 
       real(rp) , public  ::  M, d0, U0, rho0, Red0, Re, to, po, mu, amp_tbs, x_start, x_rise, x_end, x_fall, x_rerise, x_restart, coeff_tbs
-      character(len=8), public :: tag="1"
-
+      character(len=8), public :: tag="0"
+      logical :: db_clustered = .false.
 
    contains
       procedure, public :: fillBCTypes           => BLTSBDRLFlowSolver_fill_BC_Types
@@ -48,8 +48,29 @@ module BLTSBDRLFlowSolver_mod
       procedure, public :: fillBlasius => BLTSBDRLFlowSolver_fillBlasius
       procedure, public :: smoothStep => BLTSBDRLFlowSolver_smoothStep
       procedure, public :: afterDt => BLTSBDRLFlowSolver_afterDt
+#ifdef SMARTREDIS
+      procedure, public :: initSmartRedis  => BLTSBDRLFlowSolver_initSmartRedis
+      procedure, public :: afterTimeIteration => BLTSBDRLFlowSolver_afterTimeIteration
+#endif
    end type BLTSBDRLFlowSolver
 contains
+
+#ifdef SMARTREDIS
+   subroutine BLTSBDRLFlowSolver_initSmartRedis(this)
+      class(BLTSBDRLFlowSolver), intent(inout) :: this
+      integer :: state_local_size, actions_local_size
+
+      state_local_size = this%nwitPar
+      action_local_size = 10 ! TO DO!!!
+      call init_smartredis(client, state_local_size, action_local_size, this%db_clustered)
+   end subroutine BLTSBDRLFlowSolver_initSmartRedis
+
+   subroutine BLTSBDRLFlowSolver_afterTimeIteration(this)
+      class(BLTSBDRLFlowSolver), intent(inout) :: this
+
+      ! call write_state(client, buffwit(:,1,1), "state")
+   end subroutine BLTSBDRLFlowSolver_afterTimeIteration
+#endif
 
    subroutine BLTSBDRLFlowSolver_fill_BC_Types(this)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
@@ -68,7 +89,7 @@ contains
       integer :: num_args, equal_pos, iarg
       character(len=64) :: arg, output_dir
       character(len=8) :: restart_step_str = "", db_clustered_str = "0"
-      logical :: output_dir_exists, db_clustered = .false.
+      logical :: output_dir_exists
       real(rp) :: state_local(4)
 
       ! get command line args, ie: mpirun -n 4 sod2d --tag=12 --restart_step=2500
@@ -86,6 +107,8 @@ contains
             stop "Unknown command line argument"
          end if
       end do
+      if (this%tag == "") this%tag = "0"
+      if (db_clustered_str == "" .or. db_clustered_str == "0") this%db_clustered = .false.
 
       ! create output dir if not existing
       output_dir = "./output_"//trim(adjustl(this%tag))//"/"
@@ -94,13 +117,13 @@ contains
 
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "bl"
-
       write(this%results_h5_file_path,*) "./output_"//trim(adjustl(this%tag))//"/"
       write(this%results_h5_file_name,*) "results_"//trim(adjustl(this%tag))
+      ! write(this%io_prepend_path,*) output_dir
 
       !----------------------------------------------
-      !----------------  I/O params -----------------
-      this%final_istep = 5
+      ! I/O params
+      this%final_istep = 250
 
       this%save_logFile_first = 1
       this%save_logFile_step  = 1
@@ -121,32 +144,22 @@ contains
          read(restart_step_str, *) this%restartFile_to_load ! 1 (start) or 2 (last time step)
          this%continue_oldLogs = .false.
       end if
-      !----------------------------------------------
 
+      !----------------------------------------------
       ! Witness points parameters
       this%have_witness          = .true.
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
       this%leapwit               = 1
       this%leapwitsave           = 1
-      this%wit_save              = .true.
-      this%wit_save_u_i          = .true.
+      this%wit_save              = .false.
+      this%wit_save_u_i          = .false.
       this%wit_save_pr           = .false.
       this%wit_save_rho          = .false.
       this%continue_witness      = .false.
-      this%load_step             = 1
+      ! this%load_step             = 1
 
-#ifdef SMARTREDIS
       !----------------------------------------------
-      !----------------  SmartRedis -----------------
-      if (db_clustered_str == "" .or. db_clustered_str == "0") db_clustered = .false.
-      if (mpi_rank .eq. 0) call init_smartredis(client, 4, 4, db_clustered)
-      ! call write_step_type(client, [1], "step_style")
-      ! call random_number(state_local)
-      ! call write_state(client, 4, 4, state_local, "state")
-      !----------------------------------------------
-#endif
-
       ! numerical params
       flag_les = 1
       flag_implicit = 0
@@ -164,7 +177,7 @@ contains
 
       ! Coefficients for the wall-normal boundary condition on the top
       this%amp_tbs   = 0.01
-      this%x_start   = 50.0_rp   ! x coordinate where 1st step function on the free streamwise velocity starts
+      this%x_start   = 50.0_rp  ! x coordinate where 1st step function on the free streamwise velocity starts
       this%x_rise    = 5.0_rp   ! x length of the smoothing of the 1st step function for the free streamwise velocity
       this%x_end     = 70.0_rp  ! x coordinate where 2nd step function on the free streamwise velocity ends
       this%x_fall    = 5.0_rp   ! x half length of the smoothing of the 2nd step function for the free streamwise velocity
@@ -174,10 +187,10 @@ contains
       !rate
       this%coeff_tbs = 0.5_rp
 
-      this%Red0  = 450.0_rp
+      this%Red0 = 450.0_rp
       this%gamma_gas = 1.40_rp
 
-      this%mu    = this%rho0*this%d0*this%U0/this%Red0
+      this%mu = this%rho0*this%d0*this%U0/this%Red0
 
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
       this%to = this%U0*this%U0/(this%gamma_gas*this%Rgas*this%M*this%M)
@@ -265,6 +278,10 @@ contains
          end if
       end do
       !!$acc end parallel loop
+
+      ! SmartRedis communications
+      ! call write_state(client, buffwit(:,1,1), "state")
+
    end subroutine BLTSBDRLFlowSolver_afterDt
 
    subroutine BLTSBDRLFlowSolver_initialBuffer(this)
