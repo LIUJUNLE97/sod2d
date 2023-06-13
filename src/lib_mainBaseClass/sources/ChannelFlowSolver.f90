@@ -83,7 +83,7 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 5
+      this%save_resultsFile_step = 2
 
       this%save_restartFile_first = 1
       this%save_restartFile_step = 5

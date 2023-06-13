@@ -8,7 +8,8 @@ module mod_hdf5
    use mod_custom_types
    implicit none
 
-   character(256) :: meshFile_h5_name,base_resultsFile_h5_name,base_avgResultsFile_h5_name,base_restartFile_h5_name
+   character(256) :: meshFile_h5_name,surface_meshFile_h5_name
+   character(256) :: base_resultsFile_h5_name,base_avgResultsFile_h5_name,base_restartFile_h5_name
 
    integer(hid_t) :: h5_datatype_uint1,h5_datatype_int1,h5_datatype_int4,h5_datatype_int8
    integer(hid_t) :: h5_datatype_real4,h5_datatype_real8
@@ -49,6 +50,12 @@ contains
       write(aux_numRanks,'(I0)') numRanks
       meshFile_h5_name = trim(adjustl(file_path))//trim(adjustl(file_name))//'-'//trim(aux_numRanks)//'.hdf'
    end subroutine set_hdf5_meshFile_name
+
+   subroutine set_hdf5_surface_meshFile_name()
+      implicit none
+
+      surface_meshFile_h5_name = 'surface_'//trim(adjustl(meshFile_h5_name))
+   end subroutine set_hdf5_surface_meshFile_name
 
    subroutine set_hdf5_baseResultsFile_name(res_filePath,res_fileName,mesh_fileName,numRanks)
       implicit none
@@ -3209,7 +3216,7 @@ contains
       integer(4),allocatable :: aux_data_array_int4(:)
       
       !----------------------------------------------------------------------------------------------------------
-      ms_dims(1) = 1
+      ms_dims(1) = 0
       ds_dims = 1
       ms_offset(1) = 0
       if(mpi_rank.eq.0) then
@@ -3288,7 +3295,7 @@ contains
       real(rp_vtk),allocatable :: aux_data_array_rp_vtk(:)
       
       !----------------------------------------------------------------------------------------------------------
-      ms_dims(1) = 1
+      ms_dims(1) = 0
       ds_dims = 1
       ms_offset(1) = 0
       if(mpi_rank.eq.0) then
@@ -4046,27 +4053,72 @@ contains
       implicit none
       character(512),intent(in) :: res_hdf5_fileName
       integer(4),intent(in) :: numNodeScalarFields2save,numNodeVectorFields2save,numElemGpScalarFields2save
-      character(128),intent(in)   :: nameNodeScalarFields2save(numNodeScalarFields2save),nameNodeVectorFields2save(numNodeVectorFields2save),nameElemGpScalarFields2save(numElemGpScalarFields2save)
+      character(128),intent(in) :: nameNodeScalarFields2save(numNodeScalarFields2save),nameNodeVectorFields2save(numNodeVectorFields2save),nameElemGpScalarFields2save(numElemGpScalarFields2save)
+      integer(4) :: h5err
+
+      integer(hid_t) :: hdf5_fileId
+      character(512) :: surf_res_hdf5_fileName,groupname,dsetname
+      integer(4) :: iField
+
+      !--------------------------------------------------------------------------------------------------------------------------------------
+      call set_hdf5_surface_resultsFile_name(surf_res_hdf5_fileName,res_hdf5_fileName)
+      call create_hdf5_file(surf_res_hdf5_fileName,hdf5_fileId)
+      call set_vtkhdf_attributes_and_basic_groups(hdf5_fileId)
+      !--------------------------------------------------------------------------------------------------------------------------------------
+      !--------------------------------------------------------------------------------------------------------------------------------------
+      call h5lcreate_external_f(meshFile_h5_name,'/VTKHDF/Points',hdf5_fileId,'/VTKHDF/Points',h5err) 
+      call h5lcreate_external_f(surface_meshFile_h5_name,'/VTKHDF/NumberOfPoints',hdf5_fileId,'/VTKHDF/NumberOfPoints',h5err) 
+      call h5lcreate_external_f(surface_meshFile_h5_name,'/VTKHDF/NumberOfCells',hdf5_fileId,'/VTKHDF/NumberOfCells',h5err) 
+      call h5lcreate_external_f(surface_meshFile_h5_name,'/VTKHDF/NumberOfConnectivityIds',hdf5_fileId,'/VTKHDF/NumberOfConnectivityIds',h5err) 
+      call h5lcreate_external_f(surface_meshFile_h5_name,'/VTKHDF/Offsets',hdf5_fileId,'/VTKHDF/Offsets',h5err)
+      call h5lcreate_external_f(surface_meshFile_h5_name,'/VTKHDF/Connectivity',hdf5_fileId,'/VTKHDF/Connectivity',h5err)
+      call h5lcreate_external_f(surface_meshFile_h5_name,'/VTKHDF/Types',hdf5_fileId,'/VTKHDF/Types',h5err)
+      call h5lcreate_external_f(surface_meshFile_h5_name,'/VTKHDF/CellData/mpi_rank',hdf5_fileId,'/VTKHDF/CellData/mpi_rank',h5err)
+      call h5lcreate_external_f(surface_meshFile_h5_name,'/VTKHDF/CellData/boundCode',hdf5_fileId,'/VTKHDF/CellData/boundCode',h5err)
+      !--------------------------------------------------------------------------------------------------------------------------------------
+      !--------------------------------------------------------------------------------------------------------------------------------------
+      groupname = '/VTKHDF/PointData/'
+      !--------------------------------------------------------------------------------------------------------------------------------------
+      do iField=1,numNodeScalarFields2save
+         dsetname = trim(adjustl(groupname))//trim(nameNodeScalarFields2save(iField))
+         call h5lcreate_external_f(res_hdf5_fileName,dsetname,hdf5_fileId,dsetname,h5err) 
+      end do
+      !--------------------------------------------------------------------------------------------------------------------------------------
+      do iField=1,numNodeVectorFields2save
+         dsetname = trim(adjustl(groupname))//trim(nameNodeVectorFields2save(iField))
+         call h5lcreate_external_f(res_hdf5_fileName,dsetname,hdf5_fileId,dsetname,h5err) 
+      end do
+      !--------------------------------------------------------------------------------------------------------------------------------------
+      do iField=1,numElemGpScalarFields2save
+         dsetname = trim(adjustl(groupname))//trim(nameElemGpScalarFields2save(iField))
+         call h5lcreate_external_f(res_hdf5_fileName,dsetname,hdf5_fileId,dsetname,h5err) 
+      end do
+      !--------------------------------------------------------------------------------------------------------------------------------------
+
+      call close_hdf5_file(hdf5_fileId)
+
+   end subroutine save_surface_results_hdf5_file
+   !-------------------------------------------------------------------------------------------------------------------------------
+
+   subroutine save_surface_mesh_hdf5_file()
+      implicit none
       integer(4) :: ds_rank,h5err
       integer(hsize_t),dimension(1) :: ds_dims,ms_dims
       integer(hssize_t),dimension(1) :: ms_offset 
 
       integer(hid_t) :: hdf5_fileId
-      character(512) :: surf_res_hdf5_fileName,groupname,dsetname
+      character(512) :: groupname,dsetname
       integer(hid_t) :: dtype
       integer(1),allocatable :: aux_array_i1(:)
       integer(8),allocatable :: aux_array_i8(:)
       integer(4), dimension(0:mpi_size-1) :: vecNumBoundsRankPar
       integer(4) :: mpiRankBoundStart
-      integer(4) :: ii,jj,iBound,iRank,indexGMSH,indexVTK,auxVTKorder(npbou),indexIJ,iNodeL,iField
+      integer(4) :: ii,jj,iBound,iRank,iNodeL
 
       !---------------------------------------------------------------------------------
-      call set_hdf5_surface_resultsFile_name(surf_res_hdf5_fileName,res_hdf5_fileName)
-
-      call create_hdf5_file(surf_res_hdf5_fileName,hdf5_fileId)
-
+      call set_hdf5_surface_meshFile_name()
+      call create_hdf5_file(surface_meshFile_h5_name,hdf5_fileId)
       call set_vtkhdf_attributes_and_basic_groups(hdf5_fileId)
-
       !---------------------------------------------------------------------------------
 
       call h5lcreate_external_f(meshFile_h5_name,'/VTKHDF/Points',hdf5_fileId,'/VTKHDF/Points',h5err) 
@@ -4097,19 +4149,13 @@ contains
       deallocate(aux_array_i8)
 
       !-----------------------------------------------------------------------------
-      
       call MPI_Allgather(numBoundsRankPar,1,mpi_datatype_int4,vecNumBoundsRankPar,1,mpi_datatype_int4,MPI_COMM_WORLD,mpi_err)
 
       mpiRankBoundStart = 1
-
       do iRank=1,mpi_rank
          mpiRankBoundStart = mpiRankBoundStart +vecNumBoundsRankPar(iRank-1)
       end do
-
       !------------------------------------------------------------------------------
-
-
-
 
       !-----------------------------------------------------------------------------
 
@@ -4131,7 +4177,9 @@ contains
 
       call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
       deallocate(aux_array_i8)
+      
       !-----------------------------------------------------------------------------
+      
       allocate(aux_array_i8(numBoundsRankPar*npbou))
 
       dsetname   = '/VTKHDF/Connectivity'
@@ -4151,9 +4199,6 @@ contains
             aux_array_i8(jj) = iNodeL - 1
          end do
       end do
-      !do ii = 1,numBoundsRankPar*npbou
-      !   aux_array_i8(ii) = ii!connecVTKMshRank(ii)-1
-      !end do
 
       call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
       deallocate(aux_array_i8)
@@ -4166,9 +4211,7 @@ contains
       dtype      = h5_datatype_uint1
       call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
 
-      !$acc kernels
       aux_array_i1(:) = 70
-      !$acc end kernels
 
       ms_dims(1)   = int(numBoundsRankPar ,hsize_t)
       ms_offset(1) = int(mpiRankBoundStart,hssize_t) - 1
@@ -4196,30 +4239,7 @@ contains
 
       deallocate(aux_array_i1)
 
-      !---------------------------------------------------------------------------------
-      !--------------------------------------------------------------------------------------------------------------------------------------
-      groupname = '/VTKHDF/PointData/'
-      !--------------------------------------------------------------------------------------------------------------------------------------
-      do iField=1,numNodeScalarFields2save
-         dsetname = trim(adjustl(groupname))//trim(nameNodeScalarFields2save(iField))
-         call h5lcreate_external_f(res_hdf5_fileName,dsetname,hdf5_fileId,dsetname,h5err) 
-      end do
-      !--------------------------------------------------------------------------------------------------------------------------------------
-      do iField=1,numNodeVectorFields2save
-         dsetname = trim(adjustl(groupname))//trim(nameNodeVectorFields2save(iField))
-         call h5lcreate_external_f(res_hdf5_fileName,dsetname,hdf5_fileId,dsetname,h5err) 
-      end do
-      !--------------------------------------------------------------------------------------------------------------------------------------
-      do iField=1,numElemGpScalarFields2save
-         dsetname = trim(adjustl(groupname))//trim(nameElemGpScalarFields2save(iField))
-         call h5lcreate_external_f(res_hdf5_fileName,dsetname,hdf5_fileId,dsetname,h5err) 
-      end do
-      !--------------------------------------------------------------------------------------------------------------------------------------
-
-      call close_hdf5_file(hdf5_fileId)
-
-   end subroutine save_surface_results_hdf5_file
-   !-------------------------------------------------------------------------------------------------------------------------------
+   end subroutine save_surface_mesh_hdf5_file
 
 #if 0
    subroutine save_hdf5_avgResultsFile_old(iStep,avvel,avve2,avvex,avrho,avpre,avmueff,avtw)

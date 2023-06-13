@@ -546,6 +546,10 @@ contains
       ! init comms boundaries
       call init_comms_bnd(this%useIntInComms,this%useRealInComms)
 
+      if (isMeshBoundaries .and. this%saveSurfaceResults) then
+         call save_surface_mesh_hdf5_file()
+      end if
+
       call nvtxEndRange
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
