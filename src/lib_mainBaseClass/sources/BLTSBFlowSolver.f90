@@ -1,6 +1,6 @@
 #define ACTUATION 1
 #define IMPLICIT 0
-#define NEUMANN 0
+#define NEUMANN 1
 #define SB 1
 
 
@@ -72,11 +72,6 @@ contains
 
       ! test with teh new condition
 
-      !cd = 1.0_rp
-      !lx = this%d0*1.5_rp
-      !ly = this%d0*1.5_rp
-      !xmin = -15.0_rp*this%d0
-
       cd = 1.0_rp
       lx = this%d0*3.5_rp
       ly = this%d0*3.5_rp
@@ -110,27 +105,20 @@ contains
          end do
          !$acc end parallel loop
       end if
-#endif       
+#endif      
       if(flag_include_neumann_flux == 1) then
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             if(coordPar(iNodeL,2)  .gt. 100.0_rp) then
-#if (SB)
-               x=coordPar(iNodeL,1)
-               fx1 = 0.470226_rp*(306.640625_rp-x)/110.485435_rp*exp(0.95_rp-((306.640625_rp &
-                              -x)/110.485435_rp)**2_rp)
-               x=coordPar(iNodeL,1)+11.0_rp
-               fx2 = 0.470226_rp*(306.640625_rp-x)/110.485435_rp*exp(0.95_rp-((306.640625_rp &
-                              -x)/110.485435_rp)**2_rp)
-               
-               u_buffer_flux(iNodeL,1) = this%mu*((fx2-fx1)/3.5_rp)   
+#if (SB)       
+               u_buffer_flux(iNodeL,1) = this%mu*((0.158531_rp-0.00110576_rp*coordPar(iNodeL,1)+1.8030232059983043_rp*10.0_rp**(-6.0_rp)*coordPar(iNodeL,1)**2.0_rp)*exp(-0.00008192_rp*(306.641_rp- coordPar(iNodeL,1))**2.0_rp))
 #else
                x=coordPar(iNodeL,1)
                fx1 = 0.9_rp*exp(-((x-171.9_rp)/(0.3375_rp*100.0_rp))**2)
                x=coordPar(iNodeL,1)+11.0_rp
                fx2 = 0.9_rp*exp(-((x-171.9_rp)/(0.3375_rp*100.0_rp))**2)
                
-               u_buffer_flux(iNodeL,1) = this%mu*((fx2-fx1)/3.5_rp)   
+               u_buffer_flux(iNodeL,1) = this%mu*((fx2-fx1)/11.0_rp)   
 #endif                              
             end if 
          end do
@@ -396,7 +384,7 @@ contains
       this%save_resultsFile_step = 20000
 #endif      
 #if (ACTUATION) 
-      this%loadRestartFile = .true.
+      this%loadRestartFile = .false.
 #else
       !this%loadRestartFile = .true.
       this%loadRestartFile = .false.
@@ -514,8 +502,11 @@ contains
       write(this%fileControlName ,*) "rectangleControl.dat"
       this%amplitudeActuation = 0.05_rp*2.0_rp
       this%frequencyActuation = 0.0025_rp 
-      this%timeBeginActuation = 0.0_rp
+      this%timeBeginActuation = 2000.0_rp
 #endif      
+      
+      !Blasius analytical function
+      call this%fillBlasius()
 
    end subroutine BLTSBFlowSolver_initializeParameters
 
@@ -560,16 +551,10 @@ contains
 #if (SB)
             u_buffer(iNodeL,2) =  0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
                               -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
-            !if(abs(u_buffer(iNodeL,2)) .gt. 1e-3) then
-            !   u_buffer(iNodeL,1) = 0.0_rp
-            !end if
 #else
             u_buffer(iNodeL,2) =  0.9_rp*exp(-((coordPar(iNodeL,1)-171.9_rp)/(0.3375_rp*100.0_rp))**2)
-            !if(u_buffer(iNodeL,2) .gt. 1e-3) then
-            !   u_buffer(iNodeL,1) = 0.0_rp
-            !end if
 #endif
-         end if       
+         end if      
       end do
       !$acc end parallel loop
 
@@ -581,8 +566,6 @@ contains
       integer(4) :: iNodeL, idime, j,k,bcode
       real(rp) :: yp,eta_y,f_y,f_prim_y, f1, f2, f3, x
       integer(4)   :: iLine,iNodeGSrl,auxCnt
-
-      call this%fillBlasius()
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
@@ -612,6 +595,7 @@ contains
             u(iNodeL,2,2) = 0.5_rp*sqrt(1.0/(450.0_rp*450.0_rp))*(eta_y*f_prim_y-f_y)
             u(iNodeL,3,2) = 0.0_rp
          end if
+#if(!NEUMANN)
          if(yp .gt. 100.0_rp) then
 #if (SB)
             u(iNodeL,2,2) =  0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
@@ -620,6 +604,7 @@ contains
             u(iNodeL,2,2) =  0.9_rp*exp(-((coordPar(iNodeL,1)-171.9_rp)/(0.3375_rp*100.0_rp))**2)
 #endif
          end if  
+#endif
          pr(iNodeL,2) = this%po
          rho(iNodeL,2) = this%rho0
          e_int(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp))
@@ -647,6 +632,7 @@ contains
       ax3(:) = 0.0_rp
       au(:,:) = 0.0_rp
       !$acc end kernels
+
       call nvtxEndRange
    end subroutine BLTSBFlowSolver_evalInitialConditions
 

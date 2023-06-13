@@ -28,7 +28,7 @@ contains
             !$acc loop seq
             do idime = 1,ndime
                !$acc atomic update
-               Rdiff(bound(iBound,igaus),idime) = Rdiff(bound(iBound,igaus),idime)+auxmag*u_buffer_flux(bound(iBound,igaus),idime)*wgp_b(igaus)
+               Rdiff(bound(iBound,igaus),idime) = Rdiff(bound(iBound,igaus),idime)-auxmag*u_buffer_flux(bound(iBound,igaus),idime)*wgp_b(igaus)
                !$acc end atomic
             end do
          end do
