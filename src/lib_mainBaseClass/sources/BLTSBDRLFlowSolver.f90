@@ -84,16 +84,16 @@ contains
 
    subroutine BLTSBDRLFlowSolver_fill_BC_Types(this)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
-   #if (ACTUATION)
+#if (ACTUATION)
       bouCodes2BCType(1) = bc_type_unsteady_inlet ! wall + actuation
-   #else
+#else
       bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! wall
-   #endif
-   #if (NEUMANN)
+#endif
+#if (NEUMANN)
       bouCodes2BCType(2) = bc_type_far_field_SB
-   #else
+#else
       bouCodes2BCType(2) = bc_type_far_field         ! Upper part of the domain
-   #endif
+#endif
       bouCodes2BCType(3) = bc_type_far_field          ! inlet part of the domain
       bouCodes2BCType(4) = bc_type_far_field          ! outlet part of the domain
       !$acc update device(bouCodes2BCType(:))
