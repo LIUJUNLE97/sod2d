@@ -2134,11 +2134,6 @@ contains
          end if
       end if
 
-      ! Init SmartRedis in required
-#ifdef SMARTREDIS
-      call this%initSmartRedis()
-#endif
-
       ! Eval first output
       if(this%isFreshStart) call this%evalFirstOutput()
       call this%flush_log_file()
@@ -2149,6 +2144,11 @@ contains
       call this%evalInitialDt()
 
       call this%initialBuffer()
+
+      ! Init SmartRedis if required
+#ifdef SMARTREDIS
+      call this%initSmartRedis()
+#endif
 
       call this%flush_log_file()
 
