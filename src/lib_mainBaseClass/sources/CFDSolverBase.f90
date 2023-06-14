@@ -21,7 +21,6 @@ module mod_arrays
       real(rp), target,allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:),tauw(:,:)
       real(rp), target,allocatable :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:)
 
-      !real(rp), allocatable :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:),acuvex(:,:),acutw(:,:)
       real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:),avvex(:,:),avtw(:,:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
@@ -479,11 +478,11 @@ contains
       !-------------    elemGpScalars   -------------------------------------
       !----------------------------------------------------------------------
       if(this%save_scalarField_muSgs) then !mu_sgs(numElemsRankPar,ngaus)
-         call this%add_elemGpScalarField2save('mu_sgs',mu_sgs(:,:))
+         call this%add_elemGpScalarField2save('mut',mu_sgs(:,:))
       end if
       !----------------------------------------------------------------------
       if(this%save_scalarField_muEnvit) then !mu_e(numElemsRankPar,ngaus)
-         call this%add_elemGpScalarField2save('mu_e',mu_e(:,:))
+         call this%add_elemGpScalarField2save('mue',mu_e(:,:))
       end if
       !----------------------------------------------------------------------
 
@@ -953,7 +952,6 @@ contains
       this%save_logFile_next = this%save_logFile_first
       this%save_restartFile_next = this%save_restartFile_first
       this%save_resultsFile_next = this%save_resultsFile_first
-      !this%save_avgResultsFile_next = this%save_avgResultsFile_first
 
       if(this%loadRestartFile) then
          if(mpi_rank.eq.0) write(111,*) "--| Loading restart file ",this%restartFile_to_load
@@ -1592,8 +1590,6 @@ contains
                call eval_average_iter(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,this%dt,this%elapsed_avgTime,&
                                  rho,u,pr,mu_fluid,mu_e,mu_sgs,tauw,avrho,avpre,avvel,avve2,avvex,avmueff,avtw)
                
-               !call favre_average(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,this%dt,rho,u,pr, &
-               !                   mu_fluid,mu_e,mu_sgs,tauw,this%acutim,acurho,acupre,acuvel,acuve2,acuvex,acumueff,acutw)
                call nvtxEndRange
             end if
          end if
