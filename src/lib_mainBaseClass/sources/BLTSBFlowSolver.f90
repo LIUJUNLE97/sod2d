@@ -1,7 +1,4 @@
 #define ACTUATION 1
-#define IMPLICIT 0
-#define NEUMANN 1
-#define SB 1
 
 
 module BLTSBFlowSolver_mod
@@ -65,17 +62,21 @@ contains
    subroutine BLTSBFlowSolver_afterDt(this,istep)
       class(BLTSBFlowSolver), intent(inout) :: this
       integer(4)             , intent(in)   :: istep
-      integer(4) :: iNodeL, bcode
+      integer(4) :: iNodeL, bcode,iNodeL2
       real(rp) :: cd, lx, ly, xmin, xmax, f1, f2, f3
-      integer(4) :: k,j,ielem,iCen
-      real(rp) :: dy,fx1,fx2,x
+      integer(4) :: k,j,ielem,iCen,inode,igaus, isoI, isoJ, isoK,ii,jdime,idime
+      real(rp) :: dy,fx1,fx2,xp
+      real(rp) :: mul , yp, ul
+      real(rp)  :: gradIsoV(ndime)
+      real(rp)  :: gradV(ndime),vl(ndime),fact,targ
+      real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
 
       ! test with teh new condition
 
       cd = 1.0_rp
-      lx = this%d0*3.5_rp
-      ly = this%d0*3.5_rp
-      xmin = -15.0_rp*this%d0
+      lx = this%d0*2.5_rp
+      ly = this%d0*2.5_rp
+      xmin = -90.0_rp*this%d0
 
       xmax = xmin+lx
 
@@ -94,36 +95,66 @@ contains
       if (this%time .gt. this%timeBeginActuation) then
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
-            if ((bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) .and. (actionMask(iNodeL) .gt. 0)) then
-               bcode = bouCodesNodesPar(iNodeL)
-               if (bcode == bc_type_unsteady_inlet) then
+            if (actionMask(iNodeL) .gt. 0) then
                   u_buffer(iNodeL,1) = 0.0_rp
                   u_buffer(iNodeL,2) = this%amplitudeActuation*sin(2.0_rp*v_pi*this%frequencyActuation*this%time)
                   u_buffer(iNodeL,3) = 0.0_rp              
-               end if
             end if
          end do
          !$acc end parallel loop
       end if
 #endif      
-      if(flag_include_neumann_flux == 1) then
-         !$acc parallel loop
-         do iNodeL = 1,numNodesRankPar
-            if(coordPar(iNodeL,2)  .gt. 100.0_rp) then
-#if (SB)       
-               u_buffer_flux(iNodeL,1) = this%mu*((0.158531_rp-0.00110576_rp*coordPar(iNodeL,1)+1.8030232059983043_rp*10.0_rp**(-6.0_rp)*coordPar(iNodeL,1)**2.0_rp)*exp(-0.00008192_rp*(306.641_rp- coordPar(iNodeL,1))**2.0_rp))
-#else
-               x=coordPar(iNodeL,1)
-               fx1 = 0.9_rp*exp(-((x-171.9_rp)/(0.3375_rp*100.0_rp))**2)
-               x=coordPar(iNodeL,1)+11.0_rp
-               fx2 = 0.9_rp*exp(-((x-171.9_rp)/(0.3375_rp*100.0_rp))**2)
-               
-               u_buffer_flux(iNodeL,1) = this%mu*((fx2-fx1)/11.0_rp)   
-#endif                              
-            end if 
+     ! if(this%save_logFile_next==istep) then
+         !$acc parallel loop private(vl,dlxi_ip, dleta_ip, dlzeta_ip,gradIsoV,gradV)
+         do iNodeL2 = 1,numWorkingNodesRankPar
+            iNodeL = workingNodesPar(iNodeL2)
+            yp = coordPar(iNodeL,2)
+            xp = coordPar(iNodeL,1)
+            if((yp .gt. 100.0_rp) .and. (yp .lt. 110.0_rp) .and. (xp .lt. 950.0_rp)) then
+            !if((yp .gt. 100.0_rp) .and. (yp .lt. 110.0_rp)) then
+            !if((yp .gt. 100.0_rp)) then
+               fact = 1.0_rp
+               ielem = point2elem(iNodeL)
+
+               !$acc loop seq
+               do inode = 1,nnode
+                  vl(inode) = u(connecParWork(ielem,inode),2,2)
+               end do
+               igaus = minloc(abs(connecParWork(ielem,:)-iNodeL),1)
+
+               !$acc loop seq
+               do ii=1,porder+1
+                  dlxi_ip(ii) = dlxigp_ip(igaus,1,ii)
+                  dleta_ip(ii) = dlxigp_ip(igaus,2,ii)
+                  dlzeta_ip(ii) = dlxigp_ip(igaus,3,ii)
+               end do
+               isoI = gmshAtoI(igaus) 
+               isoJ = gmshAtoJ(igaus) 
+               isoK = gmshAtoK(igaus) 
+
+               gradIsoV(:) = 0.0_rp
+               !$acc loop seq
+               do ii=1,porder+1
+                  gradIsoV(1) = gradIsoV(1) + dlxi_ip(ii)*vl(invAtoIJK(ii,isoJ,isoK))
+                  gradIsoV(2) = gradIsoV(2) + dleta_ip(ii)*vl(invAtoIJK(isoI,ii,isoK))
+                  gradIsoV(3) = gradIsoV(3) + dlzeta_ip(ii)*vl(invAtoIJK(isoI,isoJ,ii))
+               end do
+
+               gradV(:) = 0.0_rp
+               !$acc loop seq
+               do idime=1, ndime
+                  !$acc loop seq
+                  do jdime=1, ndime
+                     gradV(idime) = gradV(idime) + He(idime,jdime,igaus,ielem) * gradIsoV(jdime)
+                  end do
+               end do
+
+               iCen = connecParWork(ielem,atoIJK(64))
+               u_buffer(iNodeL,1) = max(gradV(1)*(yp-coordPar(iCen,2)) + u(iCen,1,2) , 0.0_rp)
+            end if  
          end do
-         !$acc end parallel loop 
-      end if     
+         !$acc end parallel loop
+     ! end if
    end subroutine BLTSBFlowSolver_afterDt
 
    subroutine BLTSBFlowSolver_readControlRectangles(this)
@@ -193,13 +224,10 @@ contains
 #else
       bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! wall
 #endif
-#if (NEUMANN)
-      bouCodes2BCType(2) = bc_type_far_field_SB
-#else
       bouCodes2BCType(2) = bc_type_far_field         ! Upper part of the domain  
-#endif   
-      bouCodes2BCType(3) = bc_type_far_field          ! inlet part of the domain
-      bouCodes2BCType(4) = bc_type_far_field          ! outlet part of the domain
+
+     ! bouCodes2BCType(3) = bc_type_far_field          ! inlet part of the domain
+     ! bouCodes2BCType(4) = bc_type_far_field          ! outlet part of the domain
       !$acc update device(bouCodes2BCType(:))
 
    end subroutine BLTSBFlowSolver_fill_BC_Types
@@ -372,17 +400,12 @@ contains
 
       this%save_logFile_first = 1
       this%save_logFile_step  = 50
-#if (IMPLICIT)
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 200
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 200
-#else
+
       this%save_restartFile_first = 1
       this%save_restartFile_step = 20000
       this%save_resultsFile_first = 1
       this%save_resultsFile_step = 20000
-#endif      
+     
 #if (ACTUATION) 
       this%loadRestartFile = .false.
 #else
@@ -398,21 +421,10 @@ contains
       !----------------------------------------------
 
       ! numerical params
-      flag_les = 1
-#if (IMPLICIT)
-      flag_implicit = 1
-      maxIterNonLineal=200
-      tol=1e-3
-      pseudo_cfl =1.95_rp
-      flag_implicit_repeat_dt_if_not_converged = 0
-      flag_use_constant_dt = 1
-      this%dt = 0.5_rp
-#else      
+      flag_les = 1    
       flag_implicit = 0
       this%cfl_conv = 1.0_rp !M0.1 1.5, M0.3 0.95
       this%cfl_diff = 1.0_rp
-#endif      
-      
 
       this%Cp   = 1004.0_rp
       this%Prt  = 0.71_rp
@@ -459,18 +471,14 @@ contains
       flag_buffer_e_min = 950.0_rp
       flag_buffer_e_size = 50.0_rp
 
-      ! x inlet
-      flag_buffer_on_west = .true.
-      flag_buffer_w_min = -50.0_rp
-      flag_buffer_w_size = 50.0_rp   
-#if (NEUMANN)
-      flag_include_neumann_flux = 1
-#else
+      !! x inlet
+      !flag_buffer_on_west = .true.
+      !flag_buffer_w_min = -50.0_rp
+      !flag_buffer_w_size = 50.0_rp   
       ! y top
       flag_buffer_on_north = .true.
       flag_buffer_n_min =  100.0_rp
       flag_buffer_n_size = 20.0_rp
-#endif
 
       ! -------- Instantaneous results file -------------
       this%save_scalarField_rho        = .true.
@@ -548,13 +556,9 @@ contains
             u_buffer(iNodeL,3) = 0.0_rp
          end if
          if(yp .gt. 100.0_rp) then
-#if (SB)
             u_buffer(iNodeL,2) =  0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
                               -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
-#else
-            u_buffer(iNodeL,2) =  0.9_rp*exp(-((coordPar(iNodeL,1)-171.9_rp)/(0.3375_rp*100.0_rp))**2)
-#endif
-         end if      
+         end if  
       end do
       !$acc end parallel loop
 
@@ -595,16 +599,10 @@ contains
             u(iNodeL,2,2) = 0.5_rp*sqrt(1.0/(450.0_rp*450.0_rp))*(eta_y*f_prim_y-f_y)
             u(iNodeL,3,2) = 0.0_rp
          end if
-#if(!NEUMANN)
          if(yp .gt. 100.0_rp) then
-#if (SB)
             u(iNodeL,2,2) =  0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
                               -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
-#else
-            u(iNodeL,2,2) =  0.9_rp*exp(-((coordPar(iNodeL,1)-171.9_rp)/(0.3375_rp*100.0_rp))**2)
-#endif
          end if  
-#endif
          pr(iNodeL,2) = this%po
          rho(iNodeL,2) = this%rho0
          e_int(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp))

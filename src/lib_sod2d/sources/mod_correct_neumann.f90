@@ -19,7 +19,7 @@ contains
       real(rp)                :: aux(ndime),auxmag
       real(rp)                :: bnorm(npbou*ndime)
 
-      !$acc parallel loop gang  private(bnorm)
+      !$acc parallel loop gang private(bnorm)
       do iBound = 1,nboun
          bnorm(1:npbou*ndime) = bounorm(iBound,1:npbou*ndime)
          !$acc loop vector

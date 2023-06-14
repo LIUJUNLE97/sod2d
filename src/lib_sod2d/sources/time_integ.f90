@@ -418,7 +418,7 @@ module time_integ
                   !
                   if (noBoundaries .eqv. .false.) then
                      call nvtxStartRange("BCS_AFTER_UPDATE")
-                     call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,aux_rho(:),aux_q(:,:),aux_u(:,:),aux_pr(:),aux_E(:),u_buffer)
+                     call temporary_bc_routine_dirichlet_prim(npoin,nboun,coord,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,aux_rho(:),aux_q(:,:),aux_u(:,:),aux_pr(:),aux_E(:),u_buffer)
                      call nvtxEndRange
                   end if
                   !
@@ -607,7 +607,7 @@ module time_integ
                !
                if (noBoundaries .eqv. .false.) then
                   call nvtxStartRange("BCS_AFTER_UPDATE")
-                  call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos),u_buffer)
+                  call temporary_bc_routine_dirichlet_prim(npoin,nboun,coord,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos),u_buffer)
                   call nvtxEndRange
                end if
 
@@ -811,7 +811,7 @@ module time_integ
             call nvtxEndRange
 
             !$acc kernels
-            Rmom_neumann(:,:) = 0.0_rp
+            Rmom_neumann(1:npoin,1:ndime) = 0.0_rp
             !$acc end kernels
 
             ! include user defined neumann corrections
@@ -971,7 +971,7 @@ module time_integ
             !
             if (noBoundaries .eqv. .false.) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos),u_buffer)
+               call temporary_bc_routine_dirichlet_prim(npoin,nboun,coord,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos),u_buffer)
                call nvtxEndRange
             end if
 
@@ -1073,11 +1073,11 @@ module time_integ
             c2 = 10.0_rp
 
             !$acc parallel loop
-            do ipoin = 1,npoin_w
+            do ipoin = 1,npoin
                xi = 1.0_rp
                !east 
                if(flag_buffer_on_east .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),1)
+                  xs = coord(ipoin,1)
                   if(xs>flag_buffer_e_min) then
                      xb = (xs-flag_buffer_e_min)/flag_buffer_e_size
                      xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
@@ -1085,7 +1085,7 @@ module time_integ
                end if
                !west 
                if(flag_buffer_on_west .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),1)
+                  xs = coord(ipoin,1)
                   if(xs<flag_buffer_w_min) then
                      xb = (flag_buffer_w_min-xs)/flag_buffer_w_size
                      xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
@@ -1093,7 +1093,7 @@ module time_integ
                end if
                !north 
                if(flag_buffer_on_north .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),2)
+                  xs = coord(ipoin,2)
                   if(xs>flag_buffer_n_min) then
                      xb = (xs-flag_buffer_n_min)/flag_buffer_n_size
                      xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi) 
@@ -1101,7 +1101,7 @@ module time_integ
                end if
                !south
                if(flag_buffer_on_south .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),2)
+                  xs = coord(ipoin,2)
                   if(xs<flag_buffer_s_min) then
                      xb = (flag_buffer_s_min-xs)/flag_buffer_s_size
                      xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi) 
@@ -1109,7 +1109,7 @@ module time_integ
                end if
                !north 
                if(flag_buffer_on_top .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),3)
+                  xs = coord(ipoin,3)
                   if(xs>flag_buffer_t_min) then
                      xb = (xs-flag_buffer_t_min)/flag_buffer_t_size
                      xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi) 
@@ -1117,16 +1117,16 @@ module time_integ
                end if
                !bottom
                if(flag_buffer_on_bottom .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),3)
+                  xs = coord(ipoin,3)
                   if(xs<flag_buffer_b_min) then
                      xb = (flag_buffer_b_min-xs)/flag_buffer_b_size
                      xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi) 
                   end if
                end if
 
-               q(lpoin_w(ipoin),1) = u_buffer(lpoin_w(ipoin),1)*rho(lpoin_w(ipoin)) + xi*(q(lpoin_w(ipoin),1)-u_buffer(lpoin_w(ipoin),1)*rho(lpoin_w(ipoin)))
-               q(lpoin_w(ipoin),2) = u_buffer(lpoin_w(ipoin),2)*rho(lpoin_w(ipoin)) + xi*(q(lpoin_w(ipoin),2)-u_buffer(lpoin_w(ipoin),2)*rho(lpoin_w(ipoin)))
-               q(lpoin_w(ipoin),3) = u_buffer(lpoin_w(ipoin),3)*rho(lpoin_w(ipoin)) + xi*(q(lpoin_w(ipoin),3)-u_buffer(lpoin_w(ipoin),3)*rho(lpoin_w(ipoin)))
+               q(ipoin,1) = u_buffer(ipoin,1)*rho(ipoin) + xi*(q(ipoin,1)-u_buffer(ipoin,1)*rho(ipoin))
+               q(ipoin,2) = u_buffer(ipoin,2)*rho(ipoin) + xi*(q(ipoin,2)-u_buffer(ipoin,2)*rho(ipoin))
+               q(ipoin,3) = u_buffer(ipoin,3)*rho(ipoin) + xi*(q(ipoin,3)-u_buffer(ipoin,3)*rho(ipoin))
 
             end do
             !$acc end parallel loop
