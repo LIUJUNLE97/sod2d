@@ -884,31 +884,6 @@ contains
       Qcrit(:) = 0.0_rp
       !$acc end kernels
 
-      !*********************************************************************!
-      ! Allocate accumulators for averaging process                         !
-      !*********************************************************************!
-      !!!!!!allocate(acurho(numNodesRankPar))
-      !!!!!!allocate(acupre(numNodesRankPar))
-      !!!!!!allocate(acumueff(numNodesRankPar))
-      !!!!!!allocate(acuvel(numNodesRankPar,ndime))
-      !!!!!!allocate(acuve2(numNodesRankPar,ndime))
-      !!!!!!allocate(acuvex(numNodesRankPar,ndime))
-      !!!!!!allocate(acutw(numNodesRankPar,ndime))
-      !!!!!!$acc enter data create(acurho(:))
-      !!!!!!$acc enter data create(acupre(:))
-      !!!!!!$acc enter data create(acumueff(:))
-      !!!!!!$acc enter data create(acuvel(:,:))
-      !!!!!!$acc enter data create(acuve2(:,:))
-      !!!!!!$acc enter data create(acuvex(:,:))
-      !!!!!!$acc enter data create(acutw(:,:))
-      !!!!!!acurho(:) = 0.0_rp
-      !!!!!!acupre(:) = 0.0_rp
-      !!!!!!acumueff(:) = 0.0_rp
-      !!!!!!acuvel(:,:) = 0.0_rp
-      !!!!!!acuve2(:,:) = 0.0_rp
-      !!!!!!acuvex(:,:) = 0.0_rp
-      !!!!!!acutw(:,:) = 0.0_rp
-
       allocate(avrho(numNodesRankPar))
       allocate(avpre(numNodesRankPar))
       allocate(avmueff(numNodesRankPar))
