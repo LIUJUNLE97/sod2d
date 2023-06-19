@@ -966,7 +966,7 @@ contains
       integer(4), allocatable, intent(inout) :: listElemsFacesInRank(:,:),listFacesInRank(:)
       integer(8), allocatable, intent(inout) :: connecFacesInRank_i8(:,:)
 
-      integer(4) :: iFace,iChunk,iFaceG,numFacesToRead,iElem,ind_gmsh,iElemG,iAux,jAux,nodeCnt
+      integer(4) :: iFace,iChunk,iFaceG,numFacesToRead,iElem,iVert,ind_gmsh,iElemG,iAux,jAux,nodeCnt
       integer(4) :: faces2readInChunk,maxFaces2read
       integer(8) :: iNodeG_inFace,iNodeG_inElem,iFaceNodes_i8(npbou)
       integer(8),allocatable :: auxFacesInRank_i8(:,:)
@@ -1045,9 +1045,9 @@ contains
          !-----------------------------------------------------
          iFaceNodes_i8(:)=auxFacesInRank_i8(1:npbou,iFace)
          !fill the corners of the face to check
-         do iAux=1,4
-            ind_gmsh = gmsh2ij(posFaceVertices(iAux))
-            f_iNodeG_i8(iAux) = iFaceNodes_i8(ind_gmsh)
+         do iVert=1,4
+            ind_gmsh = gmsh2ij_vertices(iVert)
+            f_iNodeG_i8(iVert) = iFaceNodes_i8(ind_gmsh)
          end do
          !write(*,*) '[',mpi_rank,']iFace',iFace,' -> f_iNodeG ',f_iNodeG(:)
 
@@ -1056,15 +1056,14 @@ contains
             nodeCnt=0
             iElemG=listElemsInRank(iElem)
             !fill the corners of the element 
-            do iAux=1,8
-               ind_gmsh = gmsh2ijk(posElemVertices(iAux))
-               e_iNodeG_i8(iAux) = connecInRank_i8(iElem,ind_gmsh)
+            do iVert=1,8
+               ind_gmsh = gmsh2ijk_vertices(iVert)
+               e_iNodeG_i8(iVert) = connecInRank_i8(iElem,ind_gmsh)
             end do
 
-            !isBoundInElem=.false.
-            fLoop: do iAux=1,4
+            fLoop: do iVert=1,4
                vertexFound=.false.
-               iNodeG_inFace = f_iNodeG_i8(iAux)
+               iNodeG_inFace = f_iNodeG_i8(iVert)
                eLoop: do jAux=1,8
                   iNodeG_inElem = e_iNodeG_i8(jAux)
                   if(iNodeG_inFace .eq. iNodeG_inElem) then
@@ -1076,11 +1075,8 @@ contains
                if(.not.(vertexFound)) exit fLoop
             end do fLoop     
             if(nodeCnt.ge.4) then
-               !isBoundInElem=.true.
                numFacesInRank=numFacesInRank+1
                !write(*,*) '[',mpi_rank,']iFace',iFace,' -> elem ',iElemG
-               !auxFacesInRank(numFacesInRank,1)=iFace
-               !auxFacesInRank(numFacesInRank,2:npbou+1)=iFaceNodes(1:npbou)
                auxFacesInRank_i8(npbou+1,iFace)=iFaceG!numFacesInRank! iFaceNodes(1:npbou)
 
                addLoop : do iAux = 1,maxBoundsPerElem
@@ -1102,9 +1098,6 @@ contains
       allocate(listFacesInRank(numFacesInRank))
       allocate(connecFacesInRank_i8(numFacesInRank,npbou))
 
-      !allocate(boundFacesCodesInRank(numBoundsInRank))
-      !maxBoundCodeInRank = 0
-      !do iFace=1,numFacesInRank
       start_time(3) = MPI_Wtime()
 
       iAux=0
@@ -1112,12 +1105,9 @@ contains
          iFaceG=auxFacesInRank_i8(npbou+1,iFace)
          if(iFaceG.ne.0) then
             iAux=iAux+1
-            listFacesInRank(iAux)        = iFaceG!auxFacesInRank(iFace,1)
+            listFacesInRank(iAux)        = iFaceG
             connecFacesInRank_i8(iAux,:) = auxFacesInRank_i8(1:npbou,iFace)
          end if
-         !boundFacesCodesInRank(iBound) = auxBoundFacesInRank(iBound,2)
-         !maxBoundCodeInRank = max(maxBoundCodeInRank,boundFacesCodesInRank(iBound))
-         !write(*,*) '[',mpi_rank,']bfmpirank(',iBound,')',boundFacesInRank(iBound,:)
       end do
       end_time(3) = MPI_Wtime()
       elapsed_time(3) = end_time(3) - start_time(3)
@@ -1131,7 +1121,6 @@ contains
          write(*,*) '     2.Bounds(linkElemAndFace)',elapsed_time_m(2)
          write(*,*) '     3.Bounds(genListAndConn)',elapsed_time_m(3)
       end if
-
 
    end subroutine read_boundaries_for_elemsInRank_from_gmsh_h5_file_in_parallel
 
@@ -2067,7 +2056,7 @@ contains
          y_a=0.0_rp
          z_a=0.0_rp
          do ii=1,8
-            m = gmsh2ijk(posElemVertices(ii))
+            m = gmsh2ijk_vertices(ii)
             iNodeG = connecMpiRank_i8(iElem,m)
 
             iPos = binarySearch_int_i8(listNodesMpiRank_i8,iNodeG)
@@ -2147,7 +2136,7 @@ contains
          y_a=0.
          z_a=0.
          do jj=1,8
-            m = gmsh2ijk(posElemVertices(jj))
+            m = gmsh2ijk_vertices(jj)
             iNodeG = connecMpiRank_i8(iElem,m)
 
             iPos = binarySearch_int_i8(listNodesMpiRank_i8,iNodeG)
@@ -2209,7 +2198,7 @@ contains
          y_a=0.
          z_a=0.
          do jj=1,8
-            m = gmsh2ijk(posElemVertices(jj))
+            m = gmsh2ijk_vertices(jj)
             iNodeG = connecMpiRank_i8(iElem,m)
 
             iPos = binarySearch_int_i8(listNodesMpiRank_i8,iNodeG)
@@ -2956,7 +2945,7 @@ contains
       integer(8) :: iNodeGsrl,iNodeGpar
 
       integer(8),dimension(nnode) :: auxNodeNewOrderInElem_i8
-      integer(4),dimension(nnode) :: auxNewOrderIndex,auxVTKorder,auxCGNSorder
+      integer(4),dimension(nnode) :: auxNewOrderIndex,auxVTKorder
       integer(4),dimension(numNodesInRank) :: isNodeAdded
       integer(4) :: aux_ibound_GtoL(npbou), aux_iMasSla_GtoL(2)
 
@@ -2975,7 +2964,7 @@ contains
       ! first do a first migration of the code and once it work, think how to allow different node ordering
       ! BUT FIX IT!!!!!!
 
-      call generate_new_nodeOrder_and_connectivity(gmsh2ijk,auxNewOrderIndex,auxVTKorder,auxCGNSorder)
+      call generate_new_nodeOrder_and_connectivity(gmsh2ijk,auxNewOrderIndex,auxVTKorder)
       !call generate_new_nodeOrder_and_connectivity(cgns2ijk,auxNewOrderIndex,auxCGNSorder)
       !call generate_new_nodeOrder_and_connectivity(dummy2ijk,auxNewOrderIndex,auxCGNSorder)
 
@@ -3067,9 +3056,9 @@ contains
 
    end subroutine reorder_nodes_in_mshRank
 
-   subroutine generate_new_nodeOrder_and_connectivity(newOrderIJK,auxNewOrderIndex,auxVTKorder,auxCGNSorder)
+   subroutine generate_new_nodeOrder_and_connectivity(newOrderIJK,auxNewOrderIndex,auxVTKorder)
       integer,intent(in)  :: newOrderIJK(:)
-      integer,intent(out) :: auxNewOrderIndex(:),auxVTKorder(:),auxCGNSorder(:)
+      integer,intent(out) :: auxNewOrderIndex(:),auxVTKorder(:)
       integer :: i,j,k,indexIJK,indexNew,indexVTK,indexCGNS
 
       !!!$acc kernels
@@ -3080,11 +3069,9 @@ contains
 
                indexNew = newOrderIJK(indexIJK)
                indexVTK = vtk2ijk(indexIJK)
-               indexCGNS = cgns2ijk(indexIJK) !posicio requerida en el connec de cgns
 
                auxNewOrderIndex(indexIJK) = indexNew
                auxVTKorder(indexNew) = indexVTK
-               auxCGNSorder(indexNew) = indexCGNS
 
                !write(*,*) 'test->indexIJK ', indexIJK, ' iNew ', indexNew,' aux ', auxCGNSorder(indexNew)
             end do
