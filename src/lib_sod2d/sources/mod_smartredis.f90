@@ -7,9 +7,9 @@ module mod_smartredis
    implicit none
 
    type(client_type) :: client ! Client instance of SmartRedis to communicate with Redis database
-   integer, dimension(:), allocatable, public :: state_sizes, state_displs
-   real(rp), dimension(:), allocatable, public :: action_global
-   integer :: state_local_size, state_global_size, action_global_size
+   integer, dimension(:), allocatable :: state_sizes, state_displs
+   real(rp), dimension(:), allocatable :: action_global, action_global_previous
+   integer :: state_local_size, state_global_size, action_global_size, step_type_mod
    contains
 
    ! Initialise SmartRedis client
@@ -25,9 +25,16 @@ module mod_smartredis
       allocate(state_sizes(mpi_size))
       allocate(state_displs(mpi_size))
       allocate(action_global(action_global_size2))
+      allocate(action_global_previous(action_global_size2))
       !$acc enter data create(state_sizes(:))
       !$acc enter data create(state_displs(:))
       !$acc enter data create(action_global(:))
+      !$acc enter data create(action_global_previous(:))
+
+      !$acc kernels
+      action_global(:) = 0.0_rp
+      action_global_previous(:) = 0.0_rp
+      !$acc end kernels
 
       ! https://gist.github.com/jnvance/7b8cabebb06f91e2c1e788334f5de6c7
       ! 1. Gather the individual sizes to get total size and offsets in root process (0)
@@ -111,8 +118,8 @@ module mod_smartredis
       type(client_type), intent(inout) :: client
       character(len=*), intent(in) :: key ! actions name to read from database
 
-      integer, parameter :: interval = 10 ! polling interval in milliseconds
-      integer, parameter :: tries = huge(1) ! infinite number of polling tries
+      integer, parameter :: interval = 100 ! polling interval in milliseconds
+      integer, parameter :: tries = 1000 ! huge(1) ! infinite number of polling tries
       ! logical(1) :: exists ! receives whether the tensor exists
       logical :: exists ! receives whether the tensor exists
       logical :: is_error
@@ -120,49 +127,51 @@ module mod_smartredis
 
       ! wait (poll) until the actions array is found in the DB, then read, then delete
       if (mpi_rank .eq. 0) then
-         found = client%poll_tensor(key, interval, tries, exists)
+         found = client%poll_tensor(trim(adjustl(key)), interval, tries, exists) ! wait indefinitely for new actions to appear
          is_error = client%SR_error_parser(found)
          if (found /= 0) stop 'Error in SmartRedis actions reading. Actions array not found.'
-         error = client%unpack_tensor(key, action_global, shape(action_global))
+         error = client%unpack_tensor(trim(adjustl(key)), action_global, shape(action_global))
          is_error = client%SR_error_parser(error)
          if (error /= 0) stop 'Error in SmartRedis actions reading. Tensor could not be unpacked.'
-         error = client%delete_tensor(key)
+         error = client%delete_tensor(trim(adjustl(key)))
          is_error = client%SR_error_parser(error)
          if (error /= 0) stop 'Error in SmartRedis actions reading. Tensor could not be deleted.'
       end if
-      ! call mpi_barrier(mpi_comm_world, error) ! all processes wait for root to read actions [mpi_bcast is blocking already]
 
       ! broadcast rank 0 global action array to all processes
       call mpi_bcast(action_global, action_global_size, mpi_datatype_real, 0, mpi_comm_world, error)
    end subroutine read_action
 
-   ! Indicate environment time step status -> 0: init time step. 1: mid time step. 2: end time step
+   ! Indicate environment time step status -> 1: init time step. 2: mid time step. 0: end time step
    subroutine write_step_type(client, step_type, key)
       type(client_type), intent(inout) :: client
-      integer, intent(in) :: step_type(1)
+      integer, intent(in) :: step_type
       character(len=*), intent(in) :: key
 
       integer :: error
       logical :: is_error
 
       if (mpi_rank .eq. 0) then
-         error = client%put_tensor(key, step_type, shape(step_type))
+         error = client%put_tensor(key, [step_type], shape([step_type]))
          is_error = client%SR_error_parser(error)
          if (error /= 0) stop 'Error in SmartRedis step_type writing.'
       end if
+      step_type_mod = step_type
    end subroutine write_step_type
 
    ! Write flow time
    subroutine write_time(client, time, key)
       type(client_type), intent(inout) :: client
-      real, intent(in) :: time(1)
+      real(rp), intent(in) :: time
       character(len=*), intent(in) :: key
 
       integer :: error
       logical :: is_error
+      real(rp) :: time_tensor(1)
 
       if (mpi_rank .eq. 0) then
-         error = client%put_tensor(key, time, shape(time))
+         time_tensor(1) = time
+         error = client%put_tensor(key, time_tensor, shape(time_tensor))
          is_error = client%SR_error_parser(error)
          if (error /= 0) stop 'Error in SmartRedis time writing.'
       end if
