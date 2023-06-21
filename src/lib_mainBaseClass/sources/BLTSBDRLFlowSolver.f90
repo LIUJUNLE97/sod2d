@@ -74,8 +74,8 @@ contains
       class(BLTSBDRLFlowSolver), intent(inout) :: this
 
       this%previousActuationTime = this%time
-      open(unit=443,file="control_fortran_raw.txt",status='replace')
-      open(unit=444,file="control_fortran_smooth.txt",status='replace')
+      open(unit=443,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_raw.txt",status='replace')
+      open(unit=444,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_smooth.txt",status='replace')
       call init_smartredis(client, this%nwitPar, this%nRectangleControl, this%db_clustered)
       call write_step_type(client, 1, "step_type")
    end subroutine BLTSBDRLFlowSolver_initSmartRedis
@@ -159,8 +159,8 @@ contains
 
       !----------------------------------------------
       ! I/O params
-      this%final_istep = 1000 ! 10000001
-
+      this%final_istep = 10000001
+      this%maxPhysTime = 1.0_rp
       this%save_logFile_first = 1
       this%save_logFile_step  = 50
 #if (IMPLICIT)
@@ -172,7 +172,7 @@ contains
       this%save_restartFile_first = 1
       this%save_restartFile_step = 1000
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 1000
+      this%save_resultsFile_step = 100
 #endif
 
       if (restart_step_str == "" .or. restart_step_str == "0") then
@@ -407,25 +407,33 @@ contains
 #if ACTUATION
 #ifdef SMARTREDIS
       if (this%time .gt. this%timeBeginActuation) then
-         write(*,*) this%time, this%time - this%previousActuationTime, this%periodActuation
-            ! check if a new action is needed
-         if (this%time - this%previousActuationTime .gt. this%periodActuation) then
+         ! check if a new action is needed
+         if (this%time - this%previousActuationTime .ge. this%periodActuation) then
             ! save old action values and time - useful for interpolating to new action_global values
             !$acc kernels
             action_global_previous(:) = action_global(:)
             this%previousActuationTime = this%previousActuationTime + this%periodActuation
             !$acc end kernels
+
             write(*,*) "Sod2D to write time: ", this%time
             call write_time(client, this%time, "time") ! writes current time into database
             write(*,*) "Sod2D wrote time: ", this%time
             call read_action(client, "action") ! modifies action_global (the target control values)
             write(*,*) "Sod2D read action: ", action_global
-            write(443,*) action_global(1), this%time+this%periodActuation
+            write(443,'(*(ES12.4,:,","))') action_global(1), this%time+this%periodActuation
+            call flush(443)
+
+            ! if the next time that we require actuation value is the last one, write now step_type=0 into database
+            write(*,*) this%time, this%time + 2.0_rp * this%periodActuation, this%maxPhysTime
+            if (this%time + 2.0_rp * this%periodActuation .gt. this%maxPhysTime) then
+               call write_step_type(client, 0, "step_type")
+               write(*,*) "Sod2D wrote step: 0"
+            end if
          end if
 
          call this%smoothControlFunction(action_global_instant)
-         write(444,*) action_global_instant(1), this%time
-
+         write(444,'(*(ES12.4,:,","))') action_global_instant(1), this%time
+         call flush(444)
 
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
