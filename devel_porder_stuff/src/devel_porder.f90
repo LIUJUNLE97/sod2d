@@ -49,7 +49,7 @@ program devel_porder
          y = real(j)/real(porder)*1.0_rp
          do k=0,(porder)
             z = real(k)/real(porder)*1.0_rp
-            call vtk_pointIndexFromIJK(i,j,k,pIndex)
+            call vtkHigherOrderHexahedron_pointIndexFromIJK(i,j,k,pIndex)
             coordsHex(pIndex,1) = x
             coordsHex(pIndex,2) = y
             coordsHex(pIndex,3) = z
