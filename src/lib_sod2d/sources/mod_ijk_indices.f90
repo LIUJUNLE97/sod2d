@@ -1,12 +1,60 @@
 module mod_ijk_indices
-   !use mod_constants
+   use mod_constants
+   use mod_mpi
+   use mod_gmsh_indices !TO DEL WHEN FULLY IMPLEMENTED
    implicit none
+
+   !--------------------------------------------------------------------------------------------
+   ! GMSH Indices
+   integer(4) :: gmsh2ijk(nnode),gmsh2ij(npbou) 
+   integer(4),dimension(npbou) :: faceFront2ijk,faceLeft2ijk,faceTop2ijk,faceBack2ijk,faceRight2ijk,faceBottom2ijk
+
+   integer(4),parameter :: gmsh2ij_vertices(4) = [1,2,3,4]
+   integer(4),parameter :: gmsh2ijk_vertices(8) = [1,2,3,4,5,6,7,8]
+   integer(4),parameter :: posFaceInnerNodes(4) = [11,12,15,16]
+
+   !--------------------------------------------------------------------------------------------
+   ! VTK Indices
+   integer(4):: vtk2ijk(nnode),vtk2ij(npbou) 
 
 contains
 
-   subroutine vtk_pointIndexFromIJK(i,j,k,porder,pointIndex)
+   subroutine set_ijk_indices()
       implicit none
-      integer(4),intent(in) :: i,j,k,porder
+      integer(4) :: ii
+
+      if(porder.le.2) then
+         write(*,*) 'SOD2D is not ready to work for porder <= 2... You know, #gobigorgohome and set proder >= 3'
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      elseif(porder .eq. 3) then
+
+         do ii=1,nnode_hexa_p3
+            gmsh2ijk(ii) = gmsh2ijk_p3(ii)
+            vtk2ijk(ii) = vtk2ijk_p3(ii)
+         end do
+
+         do ii=1,npbou_hexa_p3
+            gmsh2ij(ii)  = gmsh2ij_p3(ii)
+            vtk2ij(ii)  = vtk2ij_p3(ii)
+
+            faceFront2ijk(ii) =  faceFront2ijk_p3(ii)
+            faceLeft2ijk(ii) =   faceLeft2ijk_p3(ii)
+            faceTop2ijk(ii) =    faceTop2ijk_p3(ii)
+            faceBack2ijk(ii) =   faceBack2ijk_p3(ii)
+            faceRight2ijk(ii) =  faceRight2ijk_p3(ii)
+            faceBottom2ijk(ii) = faceBottom2ijk_p3(ii)
+         end do
+
+      else 
+         write(*,*) 'porder >= 4 not yet implemented'
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
+
+   end subroutine set_ijk_indices
+
+   subroutine vtk_pointIndexFromIJK(i,j,k,pointIndex)
+      implicit none
+      integer(4),intent(in) :: i,j,k
       integer(4),intent(out) :: pointIndex
       integer(4) :: ibdy,jbdy,kbdy,nbdy
       integer(4) :: aux_pi

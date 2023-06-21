@@ -28,6 +28,7 @@ file(GLOB SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_const
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_mpi.f90 
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_utils.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_gmsh_indices.f90
+   ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_ijk_indices.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_custom_types.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_maths.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/quadrature_rules.f90

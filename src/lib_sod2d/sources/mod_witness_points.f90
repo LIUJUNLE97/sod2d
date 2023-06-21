@@ -64,7 +64,7 @@ module mod_witness_points
          isinside = .false.
 
          do ii = 1, maxite
-            call hex64(xi(1), xi(2), xi(3), atoIJK, N, dN, N_lagrange, dN_lagrange, dlxigp_ip)
+            call hex_highorder(xi(1), xi(2), xi(3), atoIJK, N, dN, N_lagrange, dN_lagrange, dlxigp_ip)
             f(:)   = wit(:)
             j(:,:) = 0
             do ip = 1, nnode
@@ -166,7 +166,7 @@ module mod_witness_points
          witval = 0.0_rp
 
          call set_hex64_lists(atoIJK, listHEX08)
-         call hex64(xiwit(1), xiwit(2), xiwit(3), atoIJK, N, dN, N_lagrange, dN_lagrange, dlxigp_ip)
+         call hex_highorder(xiwit(1), xiwit(2), xiwit(3), atoIJK, N, dN, N_lagrange, dN_lagrange, dlxigp_ip)
          call var_interpolate(elvalues, N, witval)
       end subroutine wit_interpolation
 end module mod_witness_points

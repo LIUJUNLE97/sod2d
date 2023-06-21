@@ -1136,7 +1136,7 @@ contains
          s = xgp(igaus,1)
          t = xgp(igaus,2)
          z = xgp(igaus,3)
-         call hex64(s,t,z,atoIJK,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
+         call hex_highorder(s,t,z,atoIJK,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
       end do
       !$acc update device(Ngp(:,:))
       !$acc update device(dNgp(:,:,:))
@@ -1147,7 +1147,7 @@ contains
       do igaus = 1,npbou
          s = xgp_b(igaus,1)
          t = xgp_b(igaus,2)
-         call qua16(s,t,atoIJ,Ngp_b(igaus,:),dNgp_b(:,:,igaus))
+         call quad_highorder(s,t,atoIJ,Ngp_b(igaus,:),dNgp_b(:,:,igaus))
       end do
       !$acc update device(Ngp_b(:,:))
       !$acc update device(dNgp_b(:,:,:))
@@ -1982,6 +1982,9 @@ contains
 
       ! Init HDF5 interface
       call init_hdf5_interface()
+
+      ! Set ijk indices (depending on porder)
+      call set_ijk_indices()
 
       ! Main simulation parameters
       call this%initializeDefaultParameters()         

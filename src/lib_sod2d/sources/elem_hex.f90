@@ -324,7 +324,7 @@ module elem_hex
          listHEX08(27,1:8) = [63,47,22,52,55,30,7,31]
       end subroutine set_hex64_lists
 
-      subroutine hex64(xi,eta,zeta,atoIJK,N,dN,N_lagrange,dN_lagrange,dlxigp_ip)
+      subroutine hex_highorder(xi,eta,zeta,atoIJK,N,dN,N_lagrange,dN_lagrange,dlxigp_ip)
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          ! Lagrangian HEX64 element model. Built using    !
@@ -334,7 +334,7 @@ module elem_hex
 
          implicit none
          real(rp),intent(in)   :: xi, eta, zeta
-         integer(4),intent(in) :: atoIJK(64)
+         integer(4),intent(in) :: atoIJK(nnode)
          real(rp),intent(out)  :: N(nnode), dN(ndime,nnode),dlxigp_ip(ndime,porder+1)
          real(rp),intent(out)  :: N_lagrange(nnode), dN_lagrange(ndime,nnode)
          real(rp)              :: xi_grid(porder+1)
@@ -347,7 +347,7 @@ module elem_hex
             call getGaussLobattoLegendre_roots(xi_grid)
             call tripleTensorProduct(xi_grid,xi,eta,zeta,atoIJK,N,dN,dlxigp_ip)
          end if
-      end subroutine hex64
+      end subroutine hex_highorder
 
       subroutine hexa_edges(ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
          implicit none

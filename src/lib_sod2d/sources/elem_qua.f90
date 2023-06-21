@@ -70,16 +70,16 @@ module elem_qua
 
                 end subroutine set_qua16_lists
 
-		subroutine qua16(xi,eta,atoIJ,N,dN) ! QUA16 element
+		subroutine quad_highorder(xi,eta,atoIJ,N,dN) ! QUA16 element
 			implicit none
 			real(rp), intent(in)   :: xi, eta
-			integer(4), intent(in) :: atoIJ(16)
-			real(rp), intent(out)  :: N(16), dN(2,16)
+			integer(4), intent(in) :: atoIJ(npbou)
+			real(rp), intent(out)  :: N(npbou), dN(2,npbou)
 			real(rp)               :: xi_grid(porder+1)
 
 			call getGaussLobattoLegendre_roots(xi_grid)
 			call DoubleTensorProduct(xi_grid,xi,eta,atoIJ,N,dN)
-		end subroutine qua16
+		end subroutine quad_highorder
 
                 subroutine quad_edges(ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
 

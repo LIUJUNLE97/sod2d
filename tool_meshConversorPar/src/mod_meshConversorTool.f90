@@ -2,7 +2,7 @@ module mod_meshConversorTool
    use mod_constants
    use mod_mpi
    use mod_utils
-   use mod_gmsh_indices
+   use mod_ijk_indices
    use elem_hex
    use quadrature_rules
    use mod_hdf5
@@ -4093,7 +4093,7 @@ contains
          s = xgp(igaus,1)
          t = xgp(igaus,2)
          z = xgp(igaus,3)
-         call hex64(s,t,z,atoIJK,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
+         call hex_highorder(s,t,z,atoIJK,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
       end do
 
    end subroutine evalShapeFunctions_Ngp_l

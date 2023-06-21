@@ -2,7 +2,7 @@ module mod_mpi_mesh
    use mod_constants
    use mod_mpi
    use mod_utils
-   use mod_gmsh_indices !potser en el futur pot volar!
+   use mod_ijk_indices !potser en el futur pot volar!
    use iso_c_binding
    implicit none
 !-----------------------------------   

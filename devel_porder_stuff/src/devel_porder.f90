@@ -12,114 +12,146 @@ program devel_porder
    character(512) :: mesh_h5_file_path,mesh_h5_file_name,results_h5_file_path,results_h5_file_name
    logical :: useIntInComms,useRealInComms
    real(rp), allocatable :: test_array(:)
-   integer(4) :: i,j,k,p_order,pIndex
-   !-----------------------------------
+   integer(4) :: i,j,k,pIndex,auxCnt
+   real(rp),allocatable :: coordsHex(:,:)
+   real(rp) :: x,y,z
+
+   !------------------------------------------------------------
+   integer(4) :: ds_rank,h5err
+   integer(hsize_t),dimension(1) :: ds_dims,ms_dims
+   integer(hssize_t),dimension(1) :: ms_offset 
+   integer(hsize_t),dimension(2) :: ds_dims2d,ms_dims2d
+   integer(hssize_t),dimension(2) :: ms_offset2d
+
+   integer(hid_t) :: hdf5_fileId
+   character(512) :: groupname,dsetname,outputfilename
+   character(12) :: aux_porder
+   integer(hid_t) :: dtype
+   integer(1),allocatable :: aux_array_i1(:)
+   integer(8),allocatable :: aux_array_i8(:)
+   integer(4) :: ii,jj,iBound,iRank,iNodeL
+
+   !------------------------------------------------------------
 
    call init_mpi()
    if(mpi_rank.eq.0) write(*,*) 'testing stuff for porder!'
 
    call init_hdf5_interface()
 
-   p_order = 4
+   !-----------------------------------------------------------------------------
 
-   do i=0,(p_order)
-      do j=0,(p_order)
-         do k=0,(p_order)
-            call vtk_pointIndexFromIJK(i,j,k,p_order,pIndex)
+   allocate(coordsHex(nnode,ndime))
+
+   auxCnt = 1
+   do i=0,(porder)
+      x = real(i)/real(porder)*1.0_rp
+      do j=0,(porder)
+         y = real(j)/real(porder)*1.0_rp
+         do k=0,(porder)
+            z = real(k)/real(porder)*1.0_rp
+            call vtk_pointIndexFromIJK(i,j,k,pIndex)
+            coordsHex(pIndex,1) = x
+            coordsHex(pIndex,2) = y
+            coordsHex(pIndex,3) = z
+            vtk2ijk(auxCnt) = auxCnt!pIndex
+            auxCnt = auxCnt + 1
             write(*,*) i,j,k,pIndex
          enddo
       end do
    end do
 
+   !-----------------------------------------------------------------------------
+
+   write(aux_porder,'(I0)') porder
+   outputfilename = 'hexaedra_vtkhdf_p'//trim(aux_porder)//'.hdf'
+   call create_hdf5_file(outputfilename,hdf5_fileId)
+   call set_vtkhdf_attributes_and_basic_groups(hdf5_fileId)
+
+   !-----------------------------------------------------------------------------
+   ds_rank = 1
+   ds_dims(1) = int(mpi_size,hsize_t)
+   ms_dims(1) = 1
+   ms_offset(1) = int(mpi_rank,hssize_t)
+   dtype = h5_datatype_int8
+   allocate(aux_array_i8(1))
+
+   dsetname = '/VTKHDF/NumberOfPoints'
+   aux_array_i8(1) = nnode
+   call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
+   call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
+
+   dsetname = '/VTKHDF/NumberOfCells'
+   aux_array_i8(1) = 1
+   call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
+   call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
+
+   dsetname = '/VTKHDF/NumberOfConnectivityIds'
+   aux_array_i8(1) = 1*nnode
+   call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
+   call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
+
+   deallocate(aux_array_i8)
+   !-----------------------------------------------------------------------------------
+   allocate(aux_array_i8(2))
+   ds_dims(1)   = 2
+   ms_dims(1)   = 2
+   ms_offset(1) = 0
+
+   dsetname = '/VTKHDF/Offsets'
+   aux_array_i8(1) = 0
+   aux_array_i8(2) = aux_array_i8(1)+nnode
+   call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
+   call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
+
+   deallocate(aux_array_i8)
+   !-----------------------------------------------------------------------------
+   allocate(aux_array_i8(nnode))
+
+   ds_dims(1)   = nnode
+   ms_dims(1)   = nnode
+   ms_offset(1) = 0
+
+   do ii = 1,nnode
+      aux_array_i8(ii) = vtk2ijk(ii)-1
+   end do
+
+   dsetname = '/VTKHDF/Connectivity'
+   call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
+   call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
+   deallocate(aux_array_i8)
+
+   !-----------------------------------------------------------------------------
+   allocate(aux_array_i1(1))
+   dtype = h5_datatype_uint1
+   dsetname = '/VTKHDF/Types'
+   aux_array_i1(:) = 72
+
+   ds_dims(1)   = 1
+   ms_dims(1)   = 1
+   ms_offset(1) = 0
+   call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
+   call write_dataspace_1d_uint1_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i1)
+   !--------------------------------------------------------------------------------
+   ds_dims2d(1) = int(ndime,hsize_t)
+   ds_dims2d(2) = int(nnode,hsize_t)
+   ms_dims2d(1) = int(ndime,hsize_t)
+   ms_dims2d(2) = int(nnode,hsize_t)
+   ms_offset2d(1) = 0
+   ms_offset2d(2) = 0!int(0,hssize_t)-1
+
+!-----------------------------------------------------------------------------
+   dsetname = '/VTKHDF/Points'
+   call save_array2D_tr_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,coordsHex)
 
 
-#if 0
-    write(mesh_h5_file_path,*) ""
-    write(mesh_h5_file_name,*) "cube_per10"
 
-    write(results_h5_file_path,*) ""
-    write(results_h5_file_name,*) "results"
 
-    numIters = 5
 
-    call set_hdf5_meshFile_name(mesh_h5_file_path,mesh_h5_file_name,mpi_size)
-    call set_hdf5_baseResultsFile_name(results_h5_file_path,results_h5_file_name,mesh_h5_file_name,mpi_size)
 
-    useIntInComms=.true.
-    useRealInComms=.true.
 
-    call load_hdf5_meshfile()
-    ! init comms
-    call init_comms(useIntInComms,useRealInComms)
-    call init_comms_bnd(useIntInComms,useRealInComms)
+   call close_hdf5_file(hdf5_fileId)
 
-    allocate(test_array(numNodesRankPar))
-    !$acc enter data create(test_array(:))
-
-    call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
-
-    if(mpi_rank.eq.0) write(*,*) 'testing new way'
-    call nvtxStartRange("new_way")
-    do iter=1,numIters
-
-        call nvtxStartRange("new_way_op")
-        !$acc parallel loop present(test_array(:))
-        do iNode=1,numNodesRankPar
-           test_array(iNode) = mpi_rank + 0.5
-        end do
-        !$acc end parallel loop
-        call nvtxEndRange
-
-        call nvtxStartRange("new_way_comm")
-        call mpi_halo_atomic_update_real(test_array)
-        !call mpi_halo_atomic_update_real_iSendiRcv_devel(test_array)
-        call nvtxEndRange
-    end do
-    call nvtxEndRange
-
-    if(mpi_rank.eq.0) write(*,*) 'test_array(1)',test_array(:)
-
-    !$acc update host(test_array(:))
-    if(mpi_rank.eq.0) write(*,*) 'test_array(2)',test_array(:)
-    !do i=1,numNodesToComm
-    !    iNodeL = ndevel_porderodesToComm(i)
-    !    write(*,*) 'test_array(',iNodeL,')'!realField(iNodeL) = realField(iNodeL) + aux_realField_r(i)
-    !end do
-
-    call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
-
-    if(mpi_rank.eq.0) write(*,*) 'testing old way'
-    call nvtxStartRange("old_way")
-    do iter=1,numIters
-
-        call nvtxStartRange("old_way_op")
-        !$acc parallel loop present(test_array(:))
-        do iNode=1,numNodesRankPar
-           test_array(iNode) = mpi_rank + 0.5
-        end do
-        !$acc end parallel loop
-        call nvtxEndRange
-
-        call nvtxStartRange("old_way_comm")
-        call mpi_halo_atomic_update_real_iSendiRcv(test_array)
-        call nvtxEndRange
-
-    end do
-    call nvtxEndRange
-
-    call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
-
-    !$acc exit data delete(test_array(:))
-    deallocate(test_array)
-
-    !call test_mpi_cudaware(100,10)
-
-    ! End comms
-    call end_comms()
-    call end_comms_bnd()
-#endif
-
-    ! End hdf5 interface
+   ! End hdf5 interface
    call end_hdf5_interface()
 
    call end_mpi()
