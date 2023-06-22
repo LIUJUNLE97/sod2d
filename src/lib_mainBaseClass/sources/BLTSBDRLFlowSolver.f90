@@ -47,8 +47,8 @@ module BLTSBDRLFlowSolver_mod
       character(len=8), public :: tag="0"
       logical :: db_clustered = .false.
       character(512), public :: fileControlName ! file that contains the points defining the rectangle controls
-      integer(4), public :: nRectangleControl, iControl
-      real(rp), public :: amplitudeActuation, frequencyActuation, timeBeginActuation ! parameters of the actuation
+      integer(4), public :: nRectangleControl
+      real(rp), public :: previousActuationTime, periodActuation, frequencyActuation, timeBeginActuation ! parameters of the actuation
 
    contains
       procedure, public :: fillBCTypes => BLTSBDRLFlowSolver_fill_BC_Types
@@ -63,6 +63,7 @@ module BLTSBDRLFlowSolver_mod
 #ifdef SMARTREDIS
       procedure, public :: initSmartRedis  => BLTSBDRLFlowSolver_initSmartRedis
       procedure, public :: afterTimeIteration => BLTSBDRLFlowSolver_afterTimeIteration
+      procedure, public :: smoothControlFunction => BLTSBDRLFlowSolver_smoothControlFunction
 #endif
    end type BLTSBDRLFlowSolver
 
@@ -72,13 +73,19 @@ contains
    subroutine BLTSBDRLFlowSolver_initSmartRedis(this)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
 
+      this%previousActuationTime = this%time
+      open(unit=443,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_raw.txt",status='replace')
+      open(unit=444,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_smooth.txt",status='replace')
       call init_smartredis(client, this%nwitPar, this%nRectangleControl, this%db_clustered)
+      call write_step_type(client, 1, "step_type")
    end subroutine BLTSBDRLFlowSolver_initSmartRedis
 
    subroutine BLTSBDRLFlowSolver_afterTimeIteration(this)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
 
-      ! call write_state(client, buffwit(:,1,1), "state")
+      call write_step_type(client, 0, "step_type")
+      close(443)
+      close(444)
    end subroutine BLTSBDRLFlowSolver_afterTimeIteration
 #endif
 
@@ -105,7 +112,7 @@ contains
       real(rp) :: mur
       integer :: num_args, equal_pos, iarg, ierr
       character(len=64) :: arg, output_dir
-      character(len=8) :: restart_step_str="", db_clustered_str="0", iControl_str="100"
+      character(len=8) :: restart_step_str="", db_clustered_str="0", frequencyActuation_str="1.0"
       logical :: output_dir_exists
 
       ! get command line args, ie: mpirun -n 4 sod2d --tag=12 --restart_step=2500
@@ -119,8 +126,8 @@ contains
             restart_step_str = trim(adjustl(arg(equal_pos+1:)))
          else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--db_clustered") then
             db_clustered_str = trim(adjustl(arg(equal_pos+1:)))
-         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--i_control") then
-            iControl_str = trim(adjustl(arg(equal_pos+1:)))
+         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--f_action") then
+            frequencyActuation_str = trim(adjustl(arg(equal_pos+1:)))
          else
             stop "Unknown command line argument"
          end if
@@ -128,12 +135,13 @@ contains
 
       if (this%tag == "") this%tag = "0"
       if (db_clustered_str == "" .or. db_clustered_str == "0") this%db_clustered = .false.
-      read(iControl_str,*,iostat=ierr) this%iControl
+      read(frequencyActuation_str,*,iostat=ierr) this%frequencyActuation
+      this%periodActuation = 1.0_rp / this%frequencyActuation
 
       ! create output dir if not existing
       output_dir = "./output_"//trim(adjustl(this%tag))//"/"
       inquire(file=trim(adjustl(output_dir)), exist=output_dir_exists)
-      if (.not. output_dir_exists) call execute_command_line("mkdir -p "//trim(adjustl(output_dir)))
+      if (.not. output_dir_exists .and. mpi_rank .eq. 0) call execute_command_line("mkdir -p "//trim(adjustl(output_dir)))
 
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "bl_les"
@@ -141,10 +149,18 @@ contains
       write(this%results_h5_file_name,*) "results_"//trim(adjustl(this%tag))
       write(this%io_prepend_path,*) output_dir
 
+      if (mpi_rank .eq. 0) then
+         write(*,*) "Received arguments are:"
+         write(*,*) "--tag:  ", this%tag
+         write(*,*) "--restart_step:  ", restart_step_str
+         write(*,*) "--db_clustered:  ", db_clustered_str
+         write(*,*) "--freq_action:  ", this%frequencyActuation
+      end if
+
       !----------------------------------------------
       ! I/O params
-      this%final_istep = 500 ! 10000001
-
+      this%final_istep = 10000001
+      this%maxPhysTime = 1.0_rp
       this%save_logFile_first = 1
       this%save_logFile_step  = 50
 #if (IMPLICIT)
@@ -156,7 +172,7 @@ contains
       this%save_restartFile_first = 1
       this%save_restartFile_step = 1000
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 1000
+      this%save_resultsFile_step = 100
 #endif
 
       if (restart_step_str == "" .or. restart_step_str == "0") then
@@ -191,9 +207,7 @@ contains
       ! Control parameters
 #if (ACTUATION)
       write(this%fileControlName ,*) "rectangleControl.txt"
-      this%amplitudeActuation = 0.05_rp*2.0_rp
-      this%frequencyActuation = 0.0025_rp
-      this%timeBeginActuation = 2000.0_rp
+      this%timeBeginActuation = 0.0 ! 2000.0_rp
 #endif
 
       !----------------------------------------------
@@ -361,14 +375,17 @@ contains
 
    subroutine BLTSBDRLFlowSolver_afterDt(this,istep)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
-      integer(4)             , intent(in)   :: istep
-      integer(4) :: iNodeL, bcode
+      integer(4), intent(in) :: istep
+
+      integer(4) :: iNodeL, bcode, rectangleId
       real(rp) :: cd, lx, ly, xmin, xmax, f1, f2, f3
-      integer(4) :: k,j,ielem,iCen
-      real(rp) :: dy,fx1,fx2,x
-
-      ! test with the new condition
-
+      integer(4) :: k, j, ielem, iCen
+      real(rp) :: dy, fx1, fx2, x
+#if ACTUATION
+#ifdef SMARTREDIS
+      real(rp) :: action_global_instant(action_global_size)
+#endif
+#endif
       cd = 1.0_rp
       lx = this%d0*3.5_rp
       ly = this%d0*3.5_rp
@@ -387,21 +404,56 @@ contains
          end if
       end do
       !$acc end parallel loop
-#if (ACTUATION)
-      if (this%time .gt. this%timeBeginActuation .and. mod(istep,this%iControl) .eq. 0) then
+#if ACTUATION
+#ifdef SMARTREDIS
+      if (this%time .gt. this%timeBeginActuation) then
+         ! check if a new action is needed
+         if (this%time - this%previousActuationTime .ge. this%periodActuation) then
+            ! save old action values and time - useful for interpolating to new action_global values
+            !$acc kernels
+            action_global_previous(:) = action_global(:)
+            this%previousActuationTime = this%previousActuationTime + this%periodActuation
+            !$acc end kernels
+
+            write(*,*) "Sod2D to write time: ", this%time
+            call write_time(client, this%time, "time") ! writes current time into database
+            write(*,*) "Sod2D wrote time: ", this%time
+            call read_action(client, "action") ! modifies action_global (the target control values)
+            write(*,*) "Sod2D read action: ", action_global
+            write(443,'(*(ES12.4,:,","))') action_global(1), this%time+this%periodActuation
+            call flush(443)
+
+            ! if the next time that we require actuation value is the last one, write now step_type=0 into database
+            write(*,*) this%time, this%time + 2.0_rp * this%periodActuation, this%maxPhysTime
+            if (this%time + 2.0_rp * this%periodActuation .gt. this%maxPhysTime) then
+               call write_step_type(client, 0, "step_type")
+               write(*,*) "Sod2D wrote step: 0"
+            end if
+         end if
+
+         call this%smoothControlFunction(action_global_instant)
+         write(444,'(*(ES12.4,:,","))') action_global_instant(1), this%time
+         call flush(444)
+
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             if ((bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) .and. (actionMask(iNodeL) .gt. 0)) then
                bcode = bouCodesNodesPar(iNodeL)
                if (bcode == bc_type_unsteady_inlet) then
                   u_buffer(iNodeL,1) = 0.0_rp
-                  u_buffer(iNodeL,2) = this%amplitudeActuation*sin(2.0_rp*v_pi*this%frequencyActuation*this%time)
+                  u_buffer(iNodeL,2) = action_global(actionMask(iNodeL))
                   u_buffer(iNodeL,3) = 0.0_rp
                end if
             end if
          end do
          !$acc end parallel loop
       end if
+
+      if (step_type_mod .eq. 1) then
+         call write_step_type(client, 2, "step_type")
+         write(*,*) "Sod2D wrote step: 2"
+      end if
+#endif
 #endif
       if(flag_include_neumann_flux == 1) then
          !$acc parallel loop
@@ -422,6 +474,25 @@ contains
          !$acc end parallel loop
       end if
    end subroutine BLTSBDRLFlowSolver_afterDt
+
+#if ACTUATION
+#ifdef SMARTREDIS
+   subroutine BLTSBDRLFlowSolver_smoothControlFunction(this, action_global_instant)
+      class(BLTSBDRLFlowSolver), intent(inout) :: this
+      real(rp), intent(inout) :: action_global_instant(action_global_size)
+
+      real(rp) :: f1, f2, f3
+
+      f1 = exp(-1.0_rp / ((this%time - this%previousActuationTime) / this%periodActuation))
+      f2 = exp(-1.0_rp / (1.0_rp - (this%time - this%previousActuationTime) / this%periodActuation))
+      f3 = f1 / (f1 + f2)
+
+      !$acc kernels
+      action_global_instant(:) = action_global_previous(:) + f3 * (action_global(:) - action_global_previous(:))
+      !$acc end kernels
+   end subroutine BLTSBDRLFlowSolver_smoothControlFunction
+#endif
+#endif
 
    subroutine BLTSBDRLFlowSolver_initialBuffer(this)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
