@@ -328,11 +328,6 @@ module time_integ
             Rmom_neumann(:,:) = 0.0_rp
             !$acc end kernels
 
-            ! include user defined neumann corrections
-            if(flag_include_neumann_flux == 1) then
-               call evalCorrectNeumann(npoin,nboun,bound,wgp_b,bounorm,u_buffer_flux,Rmom_neumann)
-            end if
-
             !
             ! Initialize variables to zero
             !
@@ -814,10 +809,6 @@ module time_integ
             Rmom_neumann(1:npoin,1:ndime) = 0.0_rp
             !$acc end kernels
 
-            ! include user defined neumann corrections
-            if(flag_include_neumann_flux == 1) then
-               call evalCorrectNeumann(npoin,nboun,bound,wgp_b,bounorm,u_buffer_flux,Rmom_neumann)
-            end if
             !
             ! Loop over all RK steps
             !
@@ -895,6 +886,12 @@ module time_integ
                      bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),aux_u(:,:),tauw,Rdiff_mom)
                   call nvtxEndRange
                end if
+               
+               ! include user defined neumann corrections
+               if(flag_include_neumann_flux == 1) then
+                  call evalCorrectNeumann(nelem,npoin,nboun,connec,bound,point2elem,atoIJK, bou_codes, &
+                     bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,mu_fluid,aux_u(:,:),Rdiff_mom)
+               end if   
 
                !
                !
@@ -908,7 +905,7 @@ module time_integ
                !$acc kernels
                Rmass(:) = Rmass(:) + Rdiff_mass(:)
                Rener(:) = Rener(:) + Rdiff_ener(:)
-               Rmom(:,:) = Rmom(:,:) + Rdiff_mom(:,:) + Rmom_neumann(:,:)
+               Rmom(:,:) = Rmom(:,:) + Rdiff_mom(:,:) !+ Rmom_neumann(:,:)
                !$acc end kernels
                call nvtxEndRange
 

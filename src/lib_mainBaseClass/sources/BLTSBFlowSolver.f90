@@ -1,5 +1,4 @@
-#define ACTUATION 1
-
+#define ACTUATION 0
 
 module BLTSBFlowSolver_mod
    use mod_arrays
@@ -66,9 +65,9 @@ contains
       real(rp) :: cd, lx, ly, xmin, xmax, f1, f2, f3
       integer(4) :: k,j,ielem,iCen,inode,igaus, isoI, isoJ, isoK,ii,jdime,idime
       real(rp) :: dy,fx1,fx2,xp
-      real(rp) :: mul , yp, ul
-      real(rp)  :: gradIsoV(ndime)
-      real(rp)  :: gradV(ndime),vl(ndime),fact,targ
+      real(rp) :: mul , yp,yc
+      real(rp)  :: gradIsoV(ndime),gradIsoU(ndime)
+      real(rp)  :: gradV(ndime),vl(ndime),fact,targ,gradU(ndime),ul(ndime)
       real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
 
       ! test with teh new condition
@@ -76,7 +75,7 @@ contains
       cd = 1.0_rp
       lx = this%d0*2.5_rp
       ly = this%d0*2.5_rp
-      xmin = -90.0_rp*this%d0
+      xmin = -40.0_rp*this%d0
 
       xmax = xmin+lx
 
@@ -104,24 +103,19 @@ contains
          !$acc end parallel loop
       end if
 #endif      
-     ! if(this%save_logFile_next==istep) then
-         !$acc parallel loop private(vl,dlxi_ip, dleta_ip, dlzeta_ip,gradIsoV,gradV)
-         do iNodeL2 = 1,numWorkingNodesRankPar
-            iNodeL = workingNodesPar(iNodeL2)
-            yp = coordPar(iNodeL,2)
-            xp = coordPar(iNodeL,1)
-            if((yp .gt. 100.0_rp) .and. (yp .lt. 110.0_rp) .and. (xp .lt. 950.0_rp)) then
-            !if((yp .gt. 100.0_rp) .and. (yp .lt. 110.0_rp)) then
-            !if((yp .gt. 100.0_rp)) then
-               fact = 1.0_rp
+      !$acc parallel loop private(vl,dlxi_ip, dleta_ip, dlzeta_ip,gradIsoV,gradV,gradIsoU,gradU,ul)
+      do iNodeL2 = 1,numWorkingNodesRankPar
+         iNodeL = workingNodesPar(iNodeL2)
+         yp = coordPar(iNodeL,2)
+         xp = coordPar(iNodeL,1)
+         if((xp .gt.-50.0_rp) .and. (xp .lt. 950.0_rp) .and. (yp .gt. 100.0_rp) .and. (yp .lt. 110.0_rp)) then
                ielem = point2elem(iNodeL)
-
                !$acc loop seq
                do inode = 1,nnode
                   vl(inode) = u(connecParWork(ielem,inode),2,2)
+                  !ul(inode) = u(connecParWork(ielem,inode),1,2)
                end do
                igaus = minloc(abs(connecParWork(ielem,:)-iNodeL),1)
-
                !$acc loop seq
                do ii=1,porder+1
                   dlxi_ip(ii) = dlxigp_ip(igaus,1,ii)
@@ -133,28 +127,70 @@ contains
                isoK = gmshAtoK(igaus) 
 
                gradIsoV(:) = 0.0_rp
+              !gradIsoU(:) = 0.0_rp
                !$acc loop seq
                do ii=1,porder+1
                   gradIsoV(1) = gradIsoV(1) + dlxi_ip(ii)*vl(invAtoIJK(ii,isoJ,isoK))
                   gradIsoV(2) = gradIsoV(2) + dleta_ip(ii)*vl(invAtoIJK(isoI,ii,isoK))
                   gradIsoV(3) = gradIsoV(3) + dlzeta_ip(ii)*vl(invAtoIJK(isoI,isoJ,ii))
+                  !gradIsoU(1) = gradIsoU(1) + dlxi_ip(ii)*ul(invAtoIJK(ii,isoJ,isoK))
+                  !gradIsoU(2) = gradIsoU(2) + dleta_ip(ii)*ul(invAtoIJK(isoI,ii,isoK))
+                  !gradIsoU(3) = gradIsoU(3) + dlzeta_ip(ii)*ul(invAtoIJK(isoI,isoJ,ii))
                end do
 
                gradV(:) = 0.0_rp
+               !gradU(:) = 0.0_rp
                !$acc loop seq
                do idime=1, ndime
                   !$acc loop seq
                   do jdime=1, ndime
                      gradV(idime) = gradV(idime) + He(idime,jdime,igaus,ielem) * gradIsoV(jdime)
+                     !gradU(idime) = gradU(idime) + He(idime,jdime,igaus,ielem) * gradIsoU(jdime)
                   end do
-               end do
+                end do
 
+               !if(gradU(2) .lt. gradV(1)) then
+               !   u_buffer(iNodeL,1) = u_buffer(iNodeL,1)*1.01_rp
+               !else
+               !   u_buffer(iNodeL,1) = u_buffer(iNodeL,1)*0.99_rp
+               !endif
+               !u_buffer(iNodeL,1) = max(u_buffer(iNodeL,1),-this%U0)
+               !u_buffer(iNodeL,1) = min(u_buffer(iNodeL,1),this%U0)
                iCen = connecParWork(ielem,atoIJK(64))
-               u_buffer(iNodeL,1) = max(gradV(1)*(yp-coordPar(iCen,2)) + u(iCen,1,2) , 0.0_rp)
-            end if  
-         end do
-         !$acc end parallel loop
-     ! end if
+               yc =  coordPar(iCen,2)
+               u_buffer(iNodeL,1) = (gradV(1))*(yp-yc) + u(iCen,1,2)
+         end if  
+      end do
+      !$acc end parallel loop
+      !Filtering u buffer at the top of the domain
+      !$acc parallel loop gang
+      do ielem = 1, numElemsRankPar
+         iCen = connecParWork(ielem,atoIJK(64))
+         yp = coordPar(iCen,2)
+         xp = coordPar(iCen,1)
+         
+         !if((xp .gt.-50.0_rp) .and. (xp .lt. 950.0_rp) .and. (yp .gt. 80.0_rp)) then
+         if((yp .gt. 100.0_rp)) then
+            fact = 0.0_rp
+            !$acc loop vector reduction(+:fact)
+            do inode = 1, nnode
+               fact = fact + u_buffer(connecParWork(ielem,inode),1)
+            end do
+            fact = fact/real(nnode,rp)
+            !$acc loop vector
+            do inode = 1, nnode
+               !$acc atomic write
+               u_buffer(connecParWork(ielem,inode),1) = fact 
+               !$acc end atomic
+            end do
+         end if
+      end do
+      !$acc end loop
+      if(mpi_size.ge.2) then
+         call nvtxStartRange("MPI_comms_tI")
+         call mpi_halo_max_boundary_update_real_iSendiRcv(u_buffer(:,1))
+         call nvtxEndRange
+      end if
    end subroutine BLTSBFlowSolver_afterDt
 
    subroutine BLTSBFlowSolver_readControlRectangles(this)
@@ -225,9 +261,8 @@ contains
       bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! wall
 #endif
       bouCodes2BCType(2) = bc_type_far_field         ! Upper part of the domain  
-
-     ! bouCodes2BCType(3) = bc_type_far_field          ! inlet part of the domain
-     ! bouCodes2BCType(4) = bc_type_far_field          ! outlet part of the domain
+      bouCodes2BCType(3) = bc_type_far_field          ! inlet part of the domain
+      bouCodes2BCType(4) = bc_type_far_field          ! outlet part of the domain
       !$acc update device(bouCodes2BCType(:))
 
    end subroutine BLTSBFlowSolver_fill_BC_Types
@@ -410,18 +445,18 @@ contains
       this%loadRestartFile = .false.
 #else
       !this%loadRestartFile = .true.
-      this%loadRestartFile = .false.
+      this%loadRestartFile = .true.
 #endif
       this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
+      this%continue_oldLogs = .true.
 
       this%initial_avgTime = 3000.0_rp
       this%saveAvgFile = .true.
-      this%loadAvgFile = .false.
+      this%loadAvgFile = .true.
       !----------------------------------------------
 
       ! numerical params
-      flag_les = 1    
+      flag_les = 1
       flag_implicit = 0
       this%cfl_conv = 1.0_rp !M0.1 1.5, M0.3 0.95
       this%cfl_diff = 1.0_rp
@@ -472,9 +507,10 @@ contains
       flag_buffer_e_size = 50.0_rp
 
       !! x inlet
-      !flag_buffer_on_west = .true.
-      !flag_buffer_w_min = -50.0_rp
-      !flag_buffer_w_size = 50.0_rp   
+      flag_buffer_on_west = .true.
+      flag_buffer_w_min = -50.0_rp
+      flag_buffer_w_size = 50.0_rp   
+
       ! y top
       flag_buffer_on_north = .true.
       flag_buffer_n_min =  100.0_rp
@@ -508,13 +544,25 @@ contains
       ! control parameters
 #if (ACTUATION)      
       write(this%fileControlName ,*) "rectangleControl.dat"
-      this%amplitudeActuation = 0.05_rp*2.0_rp
+      this%amplitudeActuation = 0.2
       this%frequencyActuation = 0.0025_rp 
       this%timeBeginActuation = 2000.0_rp
 #endif      
       
       !Blasius analytical function
       call this%fillBlasius()
+
+
+      this%have_witness          = .true.
+      this%witness_inp_file_name = "witness.txt"
+      this%witness_h5_file_name  = "resultwit.h5"
+      this%leapwit               = 5 ! cada quants dts sampleja
+      this%leapwitsave           = 50 ! cada quants dt guarda
+      this%wit_save              = .true. ! guardar o no
+      this%wit_save_u_i          = .true.
+      this%wit_save_pr           = .false.
+      this%wit_save_rho          = .false.
+      this%continue_witness      = .true. ! continuar els witness des de un arxiu de witness, pero no se si va gaire be aixo...
 
    end subroutine BLTSBFlowSolver_initializeParameters
 
