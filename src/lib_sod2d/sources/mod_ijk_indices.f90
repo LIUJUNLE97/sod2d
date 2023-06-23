@@ -9,9 +9,11 @@ module mod_ijk_indices
    integer(4) :: gmsh2ijk(nnode),gmsh2ij(npbou) 
    integer(4),dimension(npbou) :: faceFront2ijk,faceLeft2ijk,faceTop2ijk,faceBack2ijk,faceRight2ijk,faceBottom2ijk
 
-   integer(4),parameter :: gmsh2ij_vertices(4) = [1,2,3,4]
-   integer(4),parameter :: gmsh2ijk_vertices(8) = [1,2,3,4,5,6,7,8]
-   integer(4),parameter :: posFaceInnerNodes(4) = [11,12,15,16]
+   integer(4) :: gmsh2ij_vertices(4),gmsh2ijk_vertices(8),gmsh2ij_vertInnerNodes(4)
+
+   !integer(4),parameter :: gmsh2ij_vertices(4) = [1,2,3,4]
+   !integer(4),parameter :: gmsh2ijk_vertices(8) = [1,2,3,4,5,6,7,8]
+   !integer(4),parameter :: gmsh2ij_vertInnerNodes(4) = [11,12,15,16]
 
    !--------------------------------------------------------------------------------------------
    ! VTK Indices
@@ -21,33 +23,244 @@ contains
 
    subroutine set_ijk_indices()
       implicit none
-      integer(4) :: ii
+      integer(4) :: i,j,k,gmshCnt,vtkCnt,gmshIndex,vtkIndex
 
       if(porder.le.2) then
          write(*,*) 'SOD2D is not ready to work for porder <= 2... You know, #gobigorgohome and set proder >= 3'
          call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
       elseif(porder .eq. 3) then
 
-         do ii=1,nnode_hexa_p3
-            gmsh2ijk(ii) = gmsh2ijk_p3(ii)
-            vtk2ijk(ii) = vtk2ijk_p3(ii)
+         do i=1,nnode_hexa_p3
+            gmsh2ijk(i) = gmsh2ijk_p3(i)
+            vtk2ijk(i) = vtk2ijk_p3(i)
          end do
 
-         do ii=1,npbou_hexa_p3
-            gmsh2ij(ii)  = gmsh2ij_p3(ii)
-            vtk2ij(ii)  = vtk2ij_p3(ii)
+         do i=1,npbou_hexa_p3
+            gmsh2ij(i)  = gmsh2ij_p3(i)
+            vtk2ij(i)  = vtk2ij_p3(i)
 
-            faceFront2ijk(ii) =  faceFront2ijk_p3(ii)
-            faceLeft2ijk(ii) =   faceLeft2ijk_p3(ii)
-            faceTop2ijk(ii) =    faceTop2ijk_p3(ii)
-            faceBack2ijk(ii) =   faceBack2ijk_p3(ii)
-            faceRight2ijk(ii) =  faceRight2ijk_p3(ii)
-            faceBottom2ijk(ii) = faceBottom2ijk_p3(ii)
+            faceFront2ijk(i) =  faceFront2ijk_p3(i)
+            faceLeft2ijk(i) =   faceLeft2ijk_p3(i)
+            faceTop2ijk(i) =    faceTop2ijk_p3(i)
+            faceBack2ijk(i) =   faceBack2ijk_p3(i)
+            faceRight2ijk(i) =  faceRight2ijk_p3(i)
+            faceBottom2ijk(i) = faceBottom2ijk_p3(i)
          end do
+
+         gmsh2ij_vertices(:)       = gmsh2ij_vertices_p3(:)
+         gmsh2ijk_vertices(:)      = gmsh2ijk_vertices_p3(:)
+         gmsh2ij_vertInnerNodes(:) = gmsh2ij_vertInnerNodes_p3(:)
 
       else 
          write(*,*) 'porder >= 4 not yet implemented'
          call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+
+         !--------------------------------------------------------------------
+         !Filling high order hexahedra 
+         gmshCnt=0
+         vtkCnt=0
+         do i=0,porder
+            do j=0,porder
+               do k=0,porder
+
+                  call vtkHigherOrderHexahedron_pointIndexFromIJK(i,j,k,vtkIndex)
+                  call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
+
+                  gmshCnt = gmshCnt+1
+                  gmsh2ijk(gmshCnt) = gmshIndex
+
+                  vtkCnt  = vtkCnt+1
+                  vtk2ijk(vtkCnt) = vtkIndex
+
+               end do
+            end do
+         end do
+         !--------------------------------------------------------------------
+
+         !--------------------------------------------------------------------
+         !Filling gmsh2ijk_vertices(:) 
+         !--------------------------------------------------------------------
+         i=0
+         j=0
+         k=0
+         call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
+         gmsh2ijk_vertices(1) = gmshIndex
+         !--------------------------------------------------------------------
+         i=porder
+         j=0
+         k=0
+         call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
+         gmsh2ijk_vertices(2) = gmshIndex
+         !--------------------------------------------------------------------
+         i=porder
+         j=porder
+         k=0
+         call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
+         gmsh2ijk_vertices(3) = gmshIndex
+         !--------------------------------------------------------------------
+         i=0
+         j=porder
+         k=0
+         call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
+         gmsh2ijk_vertices(4) = gmshIndex
+         !--------------------------------------------------------------------
+         i=0
+         j=0
+         k=porder
+         call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
+         gmsh2ijk_vertices(5) = gmshIndex
+         !--------------------------------------------------------------------
+         i=porder
+         j=0
+         k=porder
+         call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
+         gmsh2ijk_vertices(6) = gmshIndex
+         !--------------------------------------------------------------------
+         i=porder
+         j=porder
+         k=porder
+         call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
+         gmsh2ijk_vertices(7) = gmshIndex
+         !--------------------------------------------------------------------
+         i=0
+         j=porder
+         k=porder
+         call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
+         gmsh2ijk_vertices(8) = gmshIndex
+         !--------------------------------------------------------------------
+
+         !--------------------------------------------------------------------
+         !Filling faceFront2ijk(:)
+         gmshCnt=0
+         j=0
+         do i=0,porder
+            do k=0,porder
+               call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
+               
+               gmshCnt = gmshCnt+1
+               faceFront2ijk(gmshCnt) = gmshIndex
+            end do
+         end do
+         !--------------------------------------------------------------------
+         !Filling faceBack2ijk(:)
+         gmshCnt=0
+         j=porder
+         do i=0,porder
+            do k=0,porder
+               call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
+               
+               gmshCnt = gmshCnt+1
+               faceBack2ijk(gmshCnt) = gmshIndex
+            end do
+         end do
+         !--------------------------------------------------------------------
+         !Filling faceBottom2ijk(:)
+         gmshCnt=0
+         k=0
+         do i=0,porder
+            do j=0,porder
+               call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
+               
+               gmshCnt = gmshCnt+1
+               faceBottom2ijk(gmshCnt) = gmshIndex
+            end do
+         end do
+         !--------------------------------------------------------------------
+         !Filling faceTop2ijk(:)
+         gmshCnt=0
+         k=porder
+         do i=0,porder
+            do j=0,porder
+               call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
+               
+               gmshCnt = gmshCnt+1
+               faceTop2ijk(gmshCnt) = gmshIndex
+            end do
+         end do
+         !--------------------------------------------------------------------
+         !Filling faceLeft2ijk(:)
+         gmshCnt=0
+         i=0
+         do j=0,porder
+            do k=0,porder
+               call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
+               
+               gmshCnt = gmshCnt+1
+               faceLeft2ijk(gmshCnt) = gmshIndex
+            end do
+         end do
+         !--------------------------------------------------------------------
+         !Filling faceRight2ijk(:)
+         gmshCnt=0
+         i=porder
+         do j=0,porder
+            do k=0,porder
+               call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
+               
+               gmshCnt = gmshCnt+1
+               faceRight2ijk(gmshCnt) = gmshIndex
+            end do
+         end do
+         !--------------------------------------------------------------------
+
+         !--------------------------------------------------------------------
+         !filling high order quads
+         do i=0,porder
+            do j=0,porder
+               call vtkHigherOrderQuadrilateral_pointIndexFromIJ(i,j,vtkIndex)
+               call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
+            end do
+         end do
+
+         !--------------------------------------------------------------------
+         !Filling gmsh2ij_vertices(:) 
+         !--------------------------------------------------------------------
+         i=0
+         j=0
+         call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
+         gmsh2ij_vertices(1) = gmshIndex
+         !--------------------------------------------------------------------
+         i=porder
+         j=0
+         call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
+         gmsh2ij_vertices(2) = gmshIndex
+         !--------------------------------------------------------------------
+         i=porder
+         j=porder
+         call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
+         gmsh2ij_vertices(3) = gmshIndex
+         !--------------------------------------------------------------------
+         i=0
+         j=porder
+         call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
+         gmsh2ij_vertices(4) = gmshIndex
+         !--------------------------------------------------------------------
+
+         !--------------------------------------------------------------------
+         !Filling gmsh2ij_vertInnerNodes(:)
+         !--------------------------------------------------------------------
+         i=1
+         j=1
+         call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
+         gmsh2ij_vertInnerNodes(1) = gmshIndex
+         !--------------------------------------------------------------------
+         i=porder-1
+         j=1
+         call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
+         gmsh2ij_vertInnerNodes(2) = gmshIndex
+         !--------------------------------------------------------------------
+         i=porder-1
+         j=porder-1
+         call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
+         gmsh2ij_vertInnerNodes(3) = gmshIndex
+         !--------------------------------------------------------------------
+         i=1
+         j=porder-1
+         call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
+         gmsh2ij_vertInnerNodes(4) = gmshIndex
+         !--------------------------------------------------------------------
+         
+
       end if
 
    end subroutine set_ijk_indices
@@ -263,6 +476,22 @@ contains
       pointIndex = pointIndex + (i-1)+(porder-1)*(j-1)
 
    end subroutine vtkHigherOrderQuadrilateral_pointIndexFromIJ
+
+   subroutine gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,pointIndex)
+      implicit none
+      integer(4),intent(in) :: i,j,k
+      integer(4),intent(out) :: pointIndex
+
+      !YET TO BE IMPLEMENTED! COME ON BENET!
+   end subroutine gmshHigherOrderHexahedron_pointIndexFromIJK
+
+   subroutine gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,pointIndex)
+      implicit none
+      integer(4),intent(in) :: i,j
+      integer(4),intent(out) :: pointIndex
+
+      !YET TO BE IMPLEMENTED! COME ON BENET!
+   end subroutine gmshHigherOrderQuadrilateral_pointIndexFromIJ
 
 #if 0
 

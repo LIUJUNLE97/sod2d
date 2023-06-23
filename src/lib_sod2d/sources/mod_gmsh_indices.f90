@@ -14,6 +14,11 @@ module mod_gmsh_indices
 
    integer(4),parameter :: gmsh2ij_p3(npbou_hexa_p3) = [1,4,12,11,2,3,7,8,5,10,13,16,6,9,14,15]
 
+   integer(4),parameter :: gmsh2ij_vertices_p3(4) = [1,2,3,4]
+   integer(4),parameter :: gmsh2ijk_vertices_p3(8) = [1,2,3,4,5,6,7,8]
+   integer(4),parameter :: gmsh2ij_vertInnerNodes_p3(4) = [11,12,15,16]
+
+
    integer, parameter :: facefront2ijk_p3(npbou_hexa_p3)  = [1,9,13,5,33,41,45,37,49,57,61,53,17,25,29,21]
    integer, parameter :: faceleft2ijk_p3(npbou_hexa_p3)   = [2,4,3,1,34,36,35,33,50,52,51,49,18,20,19,17]
    integer, parameter :: facetop2ijk_p3(npbou_hexa_p3)    = [17,25,29,21,19,27,31,23,20,28,32,24,18,26,30,22]

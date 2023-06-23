@@ -105,30 +105,6 @@ module mod_geom
                  end do
          end subroutine char_length_spectral
 
-         subroutine linearMeshOutput(nelem,connec,listHEX08,connecLINEAR)
-
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            ! Given a high order mesh, generates a linearized connectivity !
-            ! table based on listHEX08 ordering for each elem. type.       !
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-            implicit none
-
-            integer(4), intent(in)  :: nelem,connec(nelem,nnode), listHEX08((porder**ndime),2**ndime) ! TODO: make this more generic
-            integer(4), intent(out) :: connecLinear(nelem*(porder**ndime),2**ndime)
-            integer(4)              :: ind, iproxy,ielem
-
-            ind = 0
-            do ielem = 1,nelem
-               do iproxy = 1,(porder**ndime)
-                  ind = ind+1
-                  connecLINEAR(ind,1:8) = connec(ielem,listHEX08(iproxy,1:8))
-               end do
-            end do
-            !write(*,*) " ind ",ind
-
-         end subroutine linearMeshOutput
-
          subroutine create_connecVTK(nelem,connec,atoIJK,vtk_atoIJK,connecVTKout)
 
             implicit none
@@ -240,7 +216,7 @@ module mod_geom
 
          end subroutine nearBoundaryNode
 
-         subroutine atioIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+         subroutine atoIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
 
             implicit none
 
@@ -261,7 +237,7 @@ module mod_geom
                   end do
                end do
             end do
-         end subroutine atioIJKInverse
+         end subroutine atoIJKInverse
 
 			subroutine boundary_normals(npoin,nboun,bound,leviCivi,coord,dNgp_b,bounorm)
 				implicit none

@@ -6,7 +6,7 @@ module mod_arrays
       ! main allocatable arrays
       ! integer ---------------------------------------------------
       integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
-      integer(4), allocatable :: atoIJ(:),atoIJK(:),listHEX08(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
+      integer(4), allocatable :: atoIJ(:),atoIJK(:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
       integer(4), allocatable :: witel(:), buffstep(:)
 
       ! real ------------------------------------------------------
@@ -1049,9 +1049,9 @@ contains
       call nvtxStartRange("MU_SGS")
       if(flag_les_ilsa == 1) then
          this%dt = 1.0_rp !To avoid 0.0 division inside sgs_ilsa_visc calc
-         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
+         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
       else
-         call sgs_visc(numElemsRankPar,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
+         call sgs_visc(numElemsRankPar,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
       end if
       call nvtxEndRange
 
@@ -1091,8 +1091,6 @@ contains
       !           Allocating required arrays!
       allocate(atoIJ(16))
       allocate(atoIJK(64))
-      !allocate(vtk_atoIJK(64))
-      allocate(listHEX08((porder**ndime),2**ndime))
 
       allocate(xgp(ngaus,ndime))
       allocate(wgp(ngaus))
@@ -1112,7 +1110,7 @@ contains
       !$acc enter data create(dlxigp_ip(:,:,:))
       !*********************************************************
 
-      call set_hex64_lists(atoIJK,listHEX08)
+      call set_hex64_lists(atoIJK)
       call set_qua16_lists(atoIJ)
 
       if(mpi_rank.eq.0) write(111,*) "  --| Generating Gauss-Lobatto-Legendre table..."
@@ -1237,7 +1235,7 @@ contains
       !$acc enter data create(gmshAtoJ(:))
       !$acc enter data create(gmshAtoK(:))
 
-      call atioIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+      call atoIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
       !$acc update device(invAtoIJK(:,:,:))
       !$acc update device(gmshAtoI(:))
       !$acc update device(gmshAtoJ(:))

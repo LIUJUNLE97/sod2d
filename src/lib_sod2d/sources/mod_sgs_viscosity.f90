@@ -10,24 +10,24 @@ contains
 
    ! it implents the Vreman SGS
 
-   subroutine sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+   subroutine sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
          rho,u,Ml,mu_sgs)
 
       implicit none
 
       integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
-      real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-      real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
-      real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
-      real(rp),    intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1)
-      integer(4), intent(in)  :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-      real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime),Ml(npoin)
-      real(rp),    intent(out) :: mu_sgs(nelem,ngaus)
+      real(rp),   intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+      real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem)
+      real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
+      real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1)
+      integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+      real(rp),   intent(in)  :: rho(npoin), u(npoin,ndime),Ml(npoin)
+      real(rp),   intent(out) :: mu_sgs(nelem,ngaus)
       integer(4)              :: ielem, inode, igaus, kdime, idime, jdime,isoI, isoJ, isoK , ii
-      real(rp)                 :: hLES, evol,gpcar(ndime,nnode), aux, mue(npoin), ave(npoin)
-      real(rp)                 :: gradU(ndime,ndime),gradV2(ndime,ndime),Bbeta, alpha, tau, aux2
-      real(rp)                 :: gradIsoU(ndime,ndime)
-      real(rp)                 :: ul(nnode,ndime)
+      real(rp)                :: hLES, evol,gpcar(ndime,nnode), aux, mue(npoin), ave(npoin)
+      real(rp)                :: gradU(ndime,ndime),gradV2(ndime,ndime),Bbeta, alpha, tau, aux2
+      real(rp)                :: gradIsoU(ndime,ndime)
+      real(rp)                :: ul(nnode,ndime)
 
 
       !$acc parallel loop gang private(ul) 

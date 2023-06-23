@@ -1322,9 +1322,8 @@ contains
       call quicksort_matrix_int8(matPerLinkNodes_i8,1)
 
       do iPerFace=1,numPerFacesInRank
-         !perFaceId = listPerFacesInRank(iPerFace)
          perFaceLoop : do iVert=1,numVert
-            ind_gmsh = gmsh2ij(posFaceInnerNodes(iVert))
+            ind_gmsh = gmsh2ij_vertInnerNodes(iVert)
             iNodeG = connecPerFacesInRank_i8(iPerFace,ind_gmsh)
             iAux = (iPerFace-1)*numVert + iVert
             iPos = binarySearch_int_i8(matPerLinkNodes_i8(:,1),iNodeG)
@@ -1344,10 +1343,9 @@ contains
       call quicksort_matrix_int8(matPerLinkNodes_i8,2)
 
       do iPerFace=1,numPerFacesInRank
-         !perFaceId = listPerFacesInRank(iPerFace)
          if(.not.(masterPerFacesInRank(iPerFace))) then
             do iVert=1,numVert
-               ind_gmsh = gmsh2ij(posFaceInnerNodes(iVert))
+               ind_gmsh = gmsh2ij_vertInnerNodes(iVert)
                iNodeG = connecPerFacesInRank_i8(iPerFace,ind_gmsh)
                iAux = (iPerFace-1)*numVert + iVert
                iPos = binarySearch_int_i8(matPerLinkNodes_i8(:,2),iNodeG)
@@ -4080,13 +4078,12 @@ contains
       real(rp) :: s, t, z
       integer(4) :: igaus
       integer(4) :: atoIJK(nnode)
-      integer(4) :: listHEX08((porder**ndime),2**ndime)
       real(rp) :: xgp(ngaus,ndime), wgp(ngaus)
       real(rp) :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1),dNgp_l(ndime,nnode,ngaus)
 
       !*********************************************************
 
-      call set_hex64_lists(atoIJK,listHEX08)
+      call set_hex64_lists(atoIJK)
       call GaussLobattoLegendre_hex(atoIJK,xgp,wgp)
 
       do igaus = 1,ngaus

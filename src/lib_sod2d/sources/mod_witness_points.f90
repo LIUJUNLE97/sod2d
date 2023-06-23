@@ -47,7 +47,6 @@ module mod_witness_points
          real(rp)               :: xi_0(ndime), xi_n(ndime)
          real(rp)               :: N(nnode), N_lagrange(nnode) 
          integer(4)             :: atoIJK(nnode)
-         integer(4)             :: listHEX08(27,8)
          real(rp)               :: dlxigp_ip(ndime, porder+1)
          real(rp)               :: dN(ndime, nnode), dN_lagrange(ndime, nnode)
          real(rp)               :: f(ndime)
@@ -60,7 +59,7 @@ module mod_witness_points
 
          xi_0(:) = 0
          xi(:)   = xi_0(:)
-         call set_hex64_lists(atoIJK, listHEX08)
+         call set_hex64_lists(atoIJK)
          isinside = .false.
 
          do ii = 1, maxite
@@ -158,14 +157,13 @@ module mod_witness_points
          real(rp), intent(out) :: witval          ! Output 1: value interpolated at the point
          real(rp)              :: N(nnode), N_lagrange(nnode) 
          integer(4)            :: atoIJK(nnode)
-         integer(4)            :: listHEX08(27,8)
          real(rp)              :: dlxigp_ip(ndime, porder+1)
          real(rp)              :: dN(ndime, nnode), dN_lagrange(ndime, nnode)
          integer(4)           :: ip
          
          witval = 0.0_rp
 
-         call set_hex64_lists(atoIJK, listHEX08)
+         call set_hex64_lists(atoIJK)
          call hex_highorder(xiwit(1), xiwit(2), xiwit(3), atoIJK, N, dN, N_lagrange, dN_lagrange, dlxigp_ip)
          call var_interpolate(elvalues, N, witval)
       end subroutine wit_interpolation
