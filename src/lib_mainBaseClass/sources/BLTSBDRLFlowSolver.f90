@@ -1,8 +1,4 @@
 #define ACTUATION 1
-#define IMPLICIT 0
-#define NEUMANN 1
-#define SB 1
-
 
 module BLTSBDRLFlowSolver_mod
    use mod_arrays
@@ -38,21 +34,23 @@ module BLTSBDRLFlowSolver_mod
    implicit none
    private
 
-   real(rp), allocatable, dimension(:) :: eta_b,f,f_prim ! auxiliary data arrays needs to be here because how cuda works
-   real(rp), allocatable, dimension(:,:) :: rectangleControl ! two point coordinates that define each rectangle
-   integer(4), allocatable, dimension(:) :: actionMask ! mask that contains whether a point is in a rectangle control or not
+   real(rp), allocatable, dimension(:)    :: eta_b,f,f_prim         !auxiliary data arrays needs to be here because how cuda works
+   real(rp), allocatable, dimension(:,:)  :: rectangleControl       ! Two point coordinates that define each rectangle
+   integer(4),  allocatable, dimension(:) :: actionMask             ! Mask that contains whether a point is in a rectangle control or not
+
 
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: BLTSBDRLFlowSolver
+
       real(rp) , public  ::  M, d0, U0, rho0, Red0, Re, to, po, mu, amp_tbs, x_start, x_rise, x_end, x_fall, x_rerise, x_restart, coeff_tbs
       character(len=8), public :: tag="0"
       logical :: db_clustered = .false.
-      character(512), public :: fileControlName ! file that contains the points defining the rectangle controls
-      integer(4), public :: nRectangleControl
+      integer(4), public       :: countPar                                   ! Number of points in a rectangle of control per partition
+      character(512), public   :: fileControlName                            ! Input: path to the file that contains the points defining the rectangle controls
+      integer(4), public         :: nRectangleControl                          ! Number of rectangle control
       real(rp), public :: previousActuationTime, periodActuation, frequencyActuation, timeBeginActuation ! parameters of the actuation
-
    contains
       procedure, public :: fillBCTypes => BLTSBDRLFlowSolver_fill_BC_Types
-      procedure, public :: initializeParameters  => BLTSBDRLFlowSolver_initializeParameters
+      procedure, public :: initializeParameters => BLTSBDRLFlowSolver_initializeParameters
       procedure, public :: evalInitialConditions => BLTSBDRLFlowSolver_evalInitialConditions
       procedure, public :: initialBuffer => BLTSBDRLFlowSolver_initialBuffer
       procedure, public :: fillBlasius => BLTSBDRLFlowSolver_fillBlasius
@@ -66,7 +64,6 @@ module BLTSBDRLFlowSolver_mod
       procedure, public :: smoothControlFunction => BLTSBDRLFlowSolver_smoothControlFunction
 #endif
    end type BLTSBDRLFlowSolver
-
 contains
 
 #ifdef SMARTREDIS
@@ -89,307 +86,28 @@ contains
    end subroutine BLTSBDRLFlowSolver_afterTimeIteration
 #endif
 
-   subroutine BLTSBDRLFlowSolver_fill_BC_Types(this)
-      class(BLTSBDRLFlowSolver), intent(inout) :: this
-#if (ACTUATION)
-      bouCodes2BCType(1) = bc_type_unsteady_inlet ! wall + actuation
-#else
-      bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! wall
-#endif
-#if (NEUMANN)
-      bouCodes2BCType(2) = bc_type_far_field_SB
-#else
-      bouCodes2BCType(2) = bc_type_far_field         ! Upper part of the domain
-#endif
-      bouCodes2BCType(3) = bc_type_far_field          ! inlet part of the domain
-      bouCodes2BCType(4) = bc_type_far_field          ! outlet part of the domain
-      !$acc update device(bouCodes2BCType(:))
-
-   end subroutine BLTSBDRLFlowSolver_fill_BC_Types
-
-   subroutine BLTSBDRLFlowSolver_initializeParameters(this)
-      class(BLTSBDRLFlowSolver), intent(inout) :: this
-      real(rp) :: mur
-      integer :: num_args, equal_pos, iarg, ierr
-      character(len=64) :: arg, output_dir
-      character(len=8) :: restart_step_str="", db_clustered_str="0", frequencyActuation_str="1.0"
-      logical :: output_dir_exists
-
-      ! get command line args, ie: mpirun -n 4 sod2d --tag=12 --restart_step=2500
-      num_args = command_argument_count()
-      do iarg = 1, num_args
-         call get_command_argument(iarg, arg)
-         equal_pos = scan(adjustl(trim(arg)), "=")
-         if (adjustl(trim(arg(:equal_pos-1))) .eq. "--tag") then
-            this%tag = trim(adjustl(arg(equal_pos+1:)))
-         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--restart_step") then
-            restart_step_str = trim(adjustl(arg(equal_pos+1:)))
-         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--db_clustered") then
-            db_clustered_str = trim(adjustl(arg(equal_pos+1:)))
-         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--f_action") then
-            frequencyActuation_str = trim(adjustl(arg(equal_pos+1:)))
-         else
-            stop "Unknown command line argument"
-         end if
-      end do
-
-      if (this%tag == "") this%tag = "0"
-      if (db_clustered_str == "" .or. db_clustered_str == "0") this%db_clustered = .false.
-      read(frequencyActuation_str,*,iostat=ierr) this%frequencyActuation
-      this%periodActuation = 1.0_rp / this%frequencyActuation
-
-      ! create output dir if not existing
-      output_dir = "./output_"//trim(adjustl(this%tag))//"/"
-      inquire(file=trim(adjustl(output_dir)), exist=output_dir_exists)
-      if (.not. output_dir_exists .and. mpi_rank .eq. 0) call execute_command_line("mkdir -p "//trim(adjustl(output_dir)))
-
-      write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "bl_les"
-      write(this%results_h5_file_path,*) "./output_"//trim(adjustl(this%tag))//"/"
-      write(this%results_h5_file_name,*) "results_"//trim(adjustl(this%tag))
-      write(this%io_prepend_path,*) output_dir
-
-      if (mpi_rank .eq. 0) then
-         write(*,*) "Received arguments are:"
-         write(*,*) "--tag:  ", this%tag
-         write(*,*) "--restart_step:  ", restart_step_str
-         write(*,*) "--db_clustered:  ", db_clustered_str
-         write(*,*) "--freq_action:  ", this%frequencyActuation
-      end if
-
-      !----------------------------------------------
-      ! I/O params
-      this%final_istep = 10000001
-      this%maxPhysTime = 1.0_rp
-      this%save_logFile_first = 1
-      this%save_logFile_step  = 50
-#if (IMPLICIT)
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 200
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 200
-#else
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 1000
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 100
-#endif
-
-      if (restart_step_str == "" .or. restart_step_str == "0") then
-         this%loadRestartFile = .false.
-         this%restartFile_to_load = 1 ! not used
-         this%continue_oldLogs = .false.
-      else
-         this%loadRestartFile = .true.
-         read(restart_step_str, *) this%restartFile_to_load ! 1 (start) or 2 (last time step)
-         this%continue_oldLogs = .false.
-      end if
-
-      this%initial_avgTime = 0.0 ! 3000.0_rp
-      this%saveAvgFile = .true.
-      this%loadAvgFile = .false.
-
-      !----------------------------------------------
-      ! Witness points parameters
-      this%have_witness          = .true.
-      this%witness_inp_file_name = "witness.txt"
-      this%witness_h5_file_name  = "resultwit.h5"
-      this%leapwit               = 1
-      this%leapwitsave           = 1
-      this%wit_save              = .false.
-      this%wit_save_u_i          = .false.
-      this%wit_save_pr           = .false.
-      this%wit_save_rho          = .false.
-      this%continue_witness      = .false.
-      ! this%load_step             = 1
-
-      !----------------------------------------------
-      ! Control parameters
-#if (ACTUATION)
-      write(this%fileControlName ,*) "rectangleControl.txt"
-      this%timeBeginActuation = 0.0 ! 2000.0_rp
-#endif
-
-      !----------------------------------------------
-      ! numerical params
-      flag_les = 1
-#if (IMPLICIT)
-      flag_implicit = 1
-      maxIterNonLineal=200
-      tol=1e-3
-      pseudo_cfl =1.95_rp
-      flag_implicit_repeat_dt_if_not_converged = 0
-      flag_use_constant_dt = 1
-      this%dt = 0.5_rp
-#else
-      flag_implicit = 0
-      this%cfl_conv = 1.0_rp !M0.1 1.5, M0.3 0.95
-      this%cfl_diff = 1.0_rp
-#endif
-
-      this%Cp   = 1004.0_rp
-      this%Prt  = 0.71_rp
-      this%M    = 0.1_rp
-      this%d0   = 1.0_rp
-      this%U0   = 1.0_rp
-      this%rho0 = 1.0_rp
-
-      ! Coefficients for the wall-normal boundary condition on the top
-      !this%amp_tbs   = 1.0
-      this%amp_tbs   = 0.5
-      this%x_start   = 200.0_rp   ! x coordinate where 1st step function on the free streamwise velocity starts
-      this%x_rise    = 20.0_rp   ! x length of the smoothing of the 1st step function for the free streamwise velocity
-      this%x_end     = 435.0_rp  ! x coordinate where 2nd step function on the free streamwise velocity ends
-      this%x_fall    = 115.0_rp   ! x half length of the smoothing of the 2nd step function for the free streamwise velocity
-      this%x_rerise  = 100.0_rp   ! x length of the smoothing of the 3rd step function for the free streamwise velocity
-      this%x_restart = 3.0_rp*(this%x_end-this%x_fall) - 2.0_rp*this%x_start - this%x_rise - 0.5_rp*this%x_rerise  ! x coordinate
-      !where 3rd step function on the free streamwise velocity starts. The location is calculated to have a zero vertical mass flow
-      !rate
-      this%coeff_tbs = 0.5_rp
-
-      this%Red0  = 450.0_rp
-      this%gamma_gas = 1.40_rp
-
-      this%mu    = this%rho0*this%d0*this%U0/this%Red0
-
-      this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
-      this%to = this%U0*this%U0/(this%gamma_gas*this%Rgas*this%M*this%M)
-      this%po = this%rho0*this%Rgas*this%to
-      mur = 0.000001458_rp*(this%to**1.50_rp)/(this%to+110.40_rp)
-      flag_mu_factor = this%mu/mur
-
-      nscbc_u_inf = this%U0
-      nscbc_p_inf = this%po
-      nscbc_rho_inf = this%rho0
-      nscbc_gamma_inf = this%gamma_gas
-      nscbc_c_inf = sqrt(this%gamma_gas*this%po/this%rho0)
-      nscbc_Rgas_inf = this%Rgas
-
-
-      flag_buffer_on = .true.
-      ! x outlet
-      flag_buffer_on_east = .true.
-      flag_buffer_e_min = 950.0_rp
-      flag_buffer_e_size = 50.0_rp
-
-      ! x inlet
-      flag_buffer_on_west = .true.
-      flag_buffer_w_min = -50.0_rp
-      flag_buffer_w_size = 50.0_rp
-
-#if (NEUMANN)
-      flag_include_neumann_flux = 1
-#else
-      ! y top
-      flag_buffer_on_north = .true.
-      flag_buffer_n_min =  100.0_rp
-      flag_buffer_n_size = 20.0_rp
-#endif
-
-      ! -------- Instantaneous results file -------------
-      this%save_scalarField_rho        = .true.
-      this%save_scalarField_muFluid    = .false.
-      this%save_scalarField_pressure   = .true.
-      this%save_scalarField_energy     = .false.
-      this%save_scalarField_entropy    = .false.
-      this%save_scalarField_csound     = .false.
-      this%save_scalarField_machno     = .false.
-      this%save_scalarField_divU       = .false.
-      this%save_scalarField_qcrit      = .true.
-      this%save_scalarField_muSgs      = .false.
-      this%save_scalarField_muEnvit    = .false.
-      this%save_vectorField_vel        = .true.
-      this%save_vectorField_gradRho    = .false.
-      this%save_vectorField_curlU      = .true.
-
-      ! -------- Average results file -------------
-      this%save_avgScalarField_rho     = .true.
-      this%save_avgScalarField_pr      = .true.
-      this%save_avgScalarField_mueff   = .false.
-      this%save_avgVectorField_vel     = .true.
-      this%save_avgVectorField_ve2     = .false.
-      this%save_avgVectorField_vex     = .true.
-      this%save_avgVectorField_vtw     = .true.
-
-      !Blasius analytical function
-      call this%fillBlasius()
-   end subroutine BLTSBDRLFlowSolver_initializeParameters
-
-   subroutine BLTSBDRLFlowSolver_getControlNodes(this)
-      class(BLTSBDRLFlowSolver), intent(inout) :: this
-
-      integer(4) :: iNodeL, iRectangleControl, bcode
-      real(rp)   :: xPoint, zPoint, x1RectangleControl, x2RectangleControl, z1RectangleControl, z2RectangleControl
-
-      call this%readControlRectangles()
-      allocate(actionMask(numNodesRankPar))
-      !$acc enter data create(actionMask(:))
-
-      !this%countPar = 0
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
-         actionMask(iNodeL) = 0
-         if (bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) then
-            bcode = bouCodesNodesPar(iNodeL)
-            if (bcode == bc_type_unsteady_inlet) then ! we are on the wall and we need to check if node is in the control rectangle
-               do iRectangleControl = 1,this%nRectangleControl
-                  xPoint = coordPar(iNodeL,1)
-                  zPoint = coordPar(iNodeL,3)
-                  x1RectangleControl = rectangleControl(1,2*iRectangleControl-1)
-                  z1RectangleControl = rectangleControl(2,2*iRectangleControl-1)
-                  x2RectangleControl = rectangleControl(1,2*iRectangleControl  )
-                  z2RectangleControl = rectangleControl(2,2*iRectangleControl  )
-                  if (xPoint >= x1RectangleControl .and. xPoint <= x2RectangleControl .and. zPoint >= z1RectangleControl .and. zPoint <= z2RectangleControl) then
-                     actionMask(iNodeL) = iRectangleControl
-                     !this%countPar = this%countPar + 1
-                     exit
-                  endif
-               end do
-            end if
-         end if
-      end do
-      !$acc end parallel loop
-      !$acc update device(actionMask(:))
-   end subroutine BLTSBDRLFlowSolver_getControlNodes
-
-   subroutine BLTSBDRLFlowSolver_readControlRectangles(this)
-      ! This subroutine reads the file that contains the two points defining a rectangle parallel to the X-Z axis. Several rectangles
-      ! can be introduced. In this rectangles is where control will be applied
-      class(BLTSBDRLFlowSolver), intent(inout) :: this
-
-      integer(rp)                           :: ii
-
-      open(unit=99, file=this%fileControlName, status='old', action='read')
-      read(99,*) this%nRectangleControl
-      allocate(rectangleControl(2,2*this%nRectangleControl))
-      !$acc enter data create(rectangleControl(:,:))
-      do ii = 1, this%nRectangleControl
-         read(99, *) rectangleControl(:,2*ii-1)  ! First point
-         read(99, *) rectangleControl(:,2*ii  )  ! Second point
-         read(99, *)
-      end do
-      close(99)
-
-      !$acc update device(rectangleControl(:,:))
-   end subroutine BLTSBDRLFlowSolver_readControlRectangles
-
    subroutine BLTSBDRLFlowSolver_afterDt(this,istep)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
-      integer(4), intent(in) :: istep
-
-      integer(4) :: iNodeL, bcode, rectangleId
+      integer(4)             , intent(in)   :: istep
+      integer(4) :: iNodeL, bcode,iNodeL2
       real(rp) :: cd, lx, ly, xmin, xmax, f1, f2, f3
-      integer(4) :: k, j, ielem, iCen
-      real(rp) :: dy, fx1, fx2, x
+      integer(4) :: k,j,ielem,iCen,inode,igaus, isoI, isoJ, isoK,ii,jdime,idime
+      real(rp) :: dy,fx1,fx2,xp
+      real(rp) :: mul , yp,yc
+      real(rp)  :: gradIsoV(ndime),gradIsoU(ndime)
+      real(rp)  :: gradV(ndime),vl(ndime),fact,targ,gradU(ndime),ul(ndime)
+      real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
 #if ACTUATION
 #ifdef SMARTREDIS
       real(rp) :: action_global_instant(action_global_size)
 #endif
 #endif
+      ! test with teh new condition
+
       cd = 1.0_rp
-      lx = this%d0*3.5_rp
-      ly = this%d0*3.5_rp
-      xmin = -15.0_rp*this%d0
+      lx = this%d0*2.5_rp
+      ly = this%d0*2.5_rp
+      xmin = -40.0_rp*this%d0
 
       xmax = xmin+lx
 
@@ -409,7 +127,7 @@ contains
       if (this%time .gt. this%timeBeginActuation) then
          ! check if a new action is needed
          if (this%time - this%previousActuationTime .ge. this%periodActuation) then
-            ! save old action values and time - useful for interpolating to new action_global values
+         ! save old action values and time - useful for interpolating to new action_global values
             !$acc kernels
             action_global_previous(:) = action_global(:)
             this%previousActuationTime = this%previousActuationTime + this%periodActuation
@@ -424,7 +142,6 @@ contains
             call flush(443)
 
             ! if the next time that we require actuation value is the last one, write now step_type=0 into database
-            write(*,*) this%time, this%time + 2.0_rp * this%periodActuation, this%maxPhysTime
             if (this%time + 2.0_rp * this%periodActuation .gt. this%maxPhysTime) then
                call write_step_type(client, 0, "step_type")
                write(*,*) "Sod2D wrote step: 0"
@@ -434,16 +151,12 @@ contains
          call this%smoothControlFunction(action_global_instant)
          write(444,'(*(ES12.4,:,","))') action_global_instant(1), this%time
          call flush(444)
-
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
-            if ((bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) .and. (actionMask(iNodeL) .gt. 0)) then
-               bcode = bouCodesNodesPar(iNodeL)
-               if (bcode == bc_type_unsteady_inlet) then
+            if (actionMask(iNodeL) .gt. 0) then
                   u_buffer(iNodeL,1) = 0.0_rp
                   u_buffer(iNodeL,2) = action_global(actionMask(iNodeL))
                   u_buffer(iNodeL,3) = 0.0_rp
-               end if
             end if
          end do
          !$acc end parallel loop
@@ -455,24 +168,94 @@ contains
       end if
 #endif
 #endif
-      if(flag_include_neumann_flux == 1) then
-         !$acc parallel loop
-         do iNodeL = 1,numNodesRankPar
-            if(coordPar(iNodeL,2)  .gt. 100.0_rp) then
-#if (SB)
-               u_buffer_flux(iNodeL,1) = this%mu*((0.158531_rp-0.00110576_rp*coordPar(iNodeL,1)+1.8030232059983043_rp*10.0_rp**(-6.0_rp)*coordPar(iNodeL,1)**2.0_rp)*exp(-0.00008192_rp*(306.641_rp- coordPar(iNodeL,1))**2.0_rp))
-#else
-               x=coordPar(iNodeL,1)
-               fx1 = 0.9_rp*exp(-((x-171.9_rp)/(0.3375_rp*100.0_rp))**2)
-               x=coordPar(iNodeL,1)+11.0_rp
-               fx2 = 0.9_rp*exp(-((x-171.9_rp)/(0.3375_rp*100.0_rp))**2)
+      !$acc parallel loop private(vl,dlxi_ip, dleta_ip, dlzeta_ip,gradIsoV,gradV,gradIsoU,gradU,ul)
+      do iNodeL2 = 1,numWorkingNodesRankPar
+         iNodeL = workingNodesPar(iNodeL2)
+         yp = coordPar(iNodeL,2)
+         xp = coordPar(iNodeL,1)
+         if((xp .gt.-50.0_rp) .and. (xp .lt. 950.0_rp) .and. (yp .gt. 100.0_rp) .and. (yp .lt. 110.0_rp)) then
+               ielem = point2elem(iNodeL)
+               !$acc loop seq
+               do inode = 1,nnode
+                  vl(inode) = u(connecParWork(ielem,inode),2,2)
+                  !ul(inode) = u(connecParWork(ielem,inode),1,2)
+               end do
+               igaus = minloc(abs(connecParWork(ielem,:)-iNodeL),1)
+               !$acc loop seq
+               do ii=1,porder+1
+                  dlxi_ip(ii) = dlxigp_ip(igaus,1,ii)
+                  dleta_ip(ii) = dlxigp_ip(igaus,2,ii)
+                  dlzeta_ip(ii) = dlxigp_ip(igaus,3,ii)
+               end do
+               isoI = gmshAtoI(igaus)
+               isoJ = gmshAtoJ(igaus)
+               isoK = gmshAtoK(igaus)
 
-               u_buffer_flux(iNodeL,1) = this%mu*((fx2-fx1)/11.0_rp)
-#endif
-            end if
-         end do
-         !$acc end parallel loop
+               gradIsoV(:) = 0.0_rp
+              !gradIsoU(:) = 0.0_rp
+               !$acc loop seq
+               do ii=1,porder+1
+                  gradIsoV(1) = gradIsoV(1) + dlxi_ip(ii)*vl(invAtoIJK(ii,isoJ,isoK))
+                  gradIsoV(2) = gradIsoV(2) + dleta_ip(ii)*vl(invAtoIJK(isoI,ii,isoK))
+                  gradIsoV(3) = gradIsoV(3) + dlzeta_ip(ii)*vl(invAtoIJK(isoI,isoJ,ii))
+                  !gradIsoU(1) = gradIsoU(1) + dlxi_ip(ii)*ul(invAtoIJK(ii,isoJ,isoK))
+                  !gradIsoU(2) = gradIsoU(2) + dleta_ip(ii)*ul(invAtoIJK(isoI,ii,isoK))
+                  !gradIsoU(3) = gradIsoU(3) + dlzeta_ip(ii)*ul(invAtoIJK(isoI,isoJ,ii))
+               end do
+
+               gradV(:) = 0.0_rp
+               !gradU(:) = 0.0_rp
+               !$acc loop seq
+               do idime=1, ndime
+                  !$acc loop seq
+                  do jdime=1, ndime
+                     gradV(idime) = gradV(idime) + He(idime,jdime,igaus,ielem) * gradIsoV(jdime)
+                     !gradU(idime) = gradU(idime) + He(idime,jdime,igaus,ielem) * gradIsoU(jdime)
+                  end do
+                end do
+
+               !if(gradU(2) .lt. gradV(1)) then
+               !   u_buffer(iNodeL,1) = u_buffer(iNodeL,1)*1.01_rp
+               !else
+               !   u_buffer(iNodeL,1) = u_buffer(iNodeL,1)*0.99_rp
+               !endif
+               !u_buffer(iNodeL,1) = max(u_buffer(iNodeL,1),-this%U0)
+               !u_buffer(iNodeL,1) = min(u_buffer(iNodeL,1),this%U0)
+               iCen = connecParWork(ielem,atoIJK(64))
+               yc =  coordPar(iCen,2)
+               u_buffer(iNodeL,1) = (gradV(1))*(yp-yc) + u(iCen,1,2)
+         end if
+      end do
+      !$acc end parallel loop
+      !Filtering u buffer at the top of the domain
+      if(mpi_size.ge.2) then
+         call nvtxStartRange("MPI_comms_tI")
+         call mpi_halo_max_boundary_update_real_iSendiRcv(u_buffer(:,1))
+         call nvtxEndRange
       end if
+      !$acc parallel loop gang
+      do ielem = 1, numElemsRankPar
+         iCen = connecParWork(ielem,atoIJK(64))
+         yp = coordPar(iCen,2)
+         xp = coordPar(iCen,1)
+
+         !if((xp .gt.-50.0_rp) .and. (xp .lt. 950.0_rp) .and. (yp .gt. 80.0_rp)) then
+         if((yp .gt. 100.0_rp)) then
+            fact = 0.0_rp
+            !$acc loop vector reduction(+:fact)
+            do inode = 1, nnode
+               fact = fact + u_buffer(connecParWork(ielem,inode),1)
+            end do
+            fact = fact/real(nnode,rp)
+            !$acc loop vector
+            do inode = 1, nnode
+               !$acc atomic write
+               u_buffer(connecParWork(ielem,inode),1) = fact
+               !$acc end atomic
+            end do
+         end if
+      end do
+      !$acc end loop
    end subroutine BLTSBDRLFlowSolver_afterDt
 
 #if ACTUATION
@@ -494,146 +277,79 @@ contains
 #endif
 #endif
 
-   subroutine BLTSBDRLFlowSolver_initialBuffer(this)
+   subroutine BLTSBDRLFlowSolver_readControlRectangles(this)
+      ! This subroutine reads the file that contains the two points defining a rectanle paralel to the X-Z axis. Several rectangles
+      ! can be introduced. In this rectangles is where control will be applied
       class(BLTSBDRLFlowSolver), intent(inout) :: this
-      integer(4) :: iNodeL,k,j,bcode,ielem,iCen
-      real(rp) :: yp,eta_y,f_y,f_prim_y, f1, f2, f3,x,dy
 
+      integer(rp)                           :: ii
+
+      open(unit=99, file=this%fileControlName, status='old', action='read')
+
+      read(99,*) this%nRectangleControl
+      allocate(rectangleControl(2,2*this%nRectangleControl))
+      !$acc enter data create(rectangleControl(:,:))
+      do ii = 1, this%nRectangleControl
+         read(99, *) rectangleControl(:,2*ii-1)  ! First point
+         read(99, *) rectangleControl(:,2*ii  )  ! Second point
+         read(99, *)
+      end do
+      close(99)
+      !$acc update device(rectangleControl(:,:))
+
+   end subroutine BLTSBDRLFlowSolver_readControlRectangles
+
+   subroutine BLTSBDRLFlowSolver_getControlNodes(this)
+      class(BLTSBDRLFlowSolver), intent(inout) :: this
+
+      integer(4) :: iNodeL, iRectangleControl, bcode
+      real(rp)   :: xPoint, zPoint, x1RectangleControl, x2RectangleControl, z1RectangleControl, z2RectangleControl
+
+      call this%readControlRectangles()
+      allocate(actionMask(numNodesRankPar))
+      !$acc enter data create(actionMask(:))
+
+      !this%countPar = 0
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         actionMask(iNodeL) = 0
+         if (bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) then
+            bcode = bouCodesNodesPar(iNodeL)
+            if (bcode == bc_type_unsteady_inlet) then ! we are on the wall and we need to check if node is in the control rectanle
+               do iRectangleControl = 1,this%nRectangleControl
+                  xPoint = coordPar(iNodeL,1)
+                  zPoint = coordPar(iNodeL,3)
+                  x1RectangleControl = rectangleControl(1,2*iRectangleControl-1)
+                  z1RectangleControl = rectangleControl(2,2*iRectangleControl-1)
+                  x2RectangleControl = rectangleControl(1,2*iRectangleControl  )
+                  z2RectangleControl = rectangleControl(2,2*iRectangleControl  )
+                  if (xPoint >= x1RectangleControl .and. xPoint <= x2RectangleControl .and. zPoint >= z1RectangleControl .and. zPoint <= z2RectangleControl) then
+                     actionMask(iNodeL) = iRectangleControl
+                     !this%countPar = this%countPar + 1
+                     exit
+                  endif
+               end do
+            end if
+         end if
+      end do
+      !$acc end parallel loop
+      !$acc update device(actionMask(:))
+
+   end subroutine BLTSBDRLFlowSolver_getControlNodes
+
+   subroutine BLTSBDRLFlowSolver_fill_BC_Types(this)
+      class(BLTSBDRLFlowSolver), intent(inout) :: this
 #if (ACTUATION)
-      call this%getControlNodes()
-#endif
-
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
-         yp = coordPar(iNodeL,2)
-         eta_y = yp !with our normalisation is sqrt(U/(nu x ) is actually 1 for the inlet)
-         j = 45
-         !$acc loop seq
-         label1:do k=1,45
-            if(eta_y<eta_b(k)) then
-               j = k
-               exit label1
-            end if
-         end do label1
-         if(j == 1) then
-            u_buffer(iNodeL,1) = 0.0_rp
-            u_buffer(iNodeL,2) = 0.0_rp
-            u_buffer(iNodeL,3) = 0.0_rp
-         else if(j==45) then
-            u_buffer(iNodeL,1) = this%U0
-            u_buffer(iNodeL,2) = 0.0_rp
-            u_buffer(iNodeL,3) = 0.0_rp
-         else
-            f_y      = f(j-1)      + (f(j)-f(j-1))*(eta_y-eta_b(j-1))/(eta_b(j)-eta_b(j-1))
-            f_prim_y = f_prim(j-1) + (f_prim(j)-f_prim(j-1))*(eta_y-eta_b(j-1))/(eta_b(j)-eta_b(j-1))
-
-            u_buffer(iNodeL,1) = f_prim_y
-            u_buffer(iNodeL,2) = 0.5_rp*sqrt(1.0/(450.0_rp*450.0_rp))*(eta_y*f_prim_y-f_y)
-            u_buffer(iNodeL,3) = 0.0_rp
-         end if
-         if(yp .gt. 100.0_rp) then
-#if (SB)
-            u_buffer(iNodeL,2) =  0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
-                              -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
+      bouCodes2BCType(1) = bc_type_unsteady_inlet ! wall + actuation
 #else
-            u_buffer(iNodeL,2) =  0.9_rp*exp(-((coordPar(iNodeL,1)-171.9_rp)/(0.3375_rp*100.0_rp))**2)
+      bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! wall
 #endif
-         end if
-      end do
-      !$acc end parallel loop
+      bouCodes2BCType(2) = bc_type_far_field         ! Upper part of the domain
+      bouCodes2BCType(3) = bc_type_far_field          ! inlet part of the domain
+      bouCodes2BCType(4) = bc_type_far_field          ! outlet part of the domain
+      !$acc update device(bouCodes2BCType(:))
 
-   end subroutine BLTSBDRLFlowSolver_initialBuffer
-
-   subroutine BLTSBDRLFlowSolver_evalInitialConditions(this)
-      class(BLTSBDRLFlowSolver), intent(inout) :: this
-      integer(4) :: matGidSrlOrdered(numNodesRankPar,2)
-      integer(4) :: iNodeL, idime, j,k,bcode
-      real(rp) :: yp,eta_y,f_y,f_prim_y, f1, f2, f3, x
-      integer(4)   :: iLine,iNodeGSrl,auxCnt
-
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
-         yp = coordPar(iNodeL,2)
-         eta_y = yp !with our normalisation is sqrt(U/(nu x ) is actually 1 for the inlet)
-         j = 45
-         !$acc loop seq
-         label1:do k=1,45
-            if(eta_y<eta_b(k)) then
-               j = k
-               exit label1
-            end if
-         end do label1
-         if(j == 1) then
-            u(iNodeL,1,2) = 0.0_rp
-            u(iNodeL,2,2) = 0.0_rp
-            u(iNodeL,3,2) = 0.0_rp
-         else if(j==45) then
-            u(iNodeL,1,2) = this%U0
-            u(iNodeL,2,2) = 0.0_rp
-            u(iNodeL,3,2) = 0.0_rp
-         else
-            f_y      = f(j-1)      + (f(j)-f(j-1))*(eta_y-eta_b(j-1))/(eta_b(j)-eta_b(j-1))
-            f_prim_y = f_prim(j-1) + (f_prim(j)-f_prim(j-1))*(eta_y-eta_b(j-1))/(eta_b(j)-eta_b(j-1))
-
-            u(iNodeL,1,2) = f_prim_y
-            u(iNodeL,2,2) = 0.5_rp*sqrt(1.0/(450.0_rp*450.0_rp))*(eta_y*f_prim_y-f_y)
-            u(iNodeL,3,2) = 0.0_rp
-         end if
-#if(!NEUMANN)
-         if(yp .gt. 100.0_rp) then
-#if (SB)
-            u(iNodeL,2,2) =  0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
-                              -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
-#else
-            u(iNodeL,2,2) =  0.9_rp*exp(-((coordPar(iNodeL,1)-171.9_rp)/(0.3375_rp*100.0_rp))**2)
-#endif
-         end if
-#endif
-         pr(iNodeL,2) = this%po
-         rho(iNodeL,2) = this%rho0
-         e_int(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp))
-         Tem(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*this%Rgas)
-         E(iNodeL,2) = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))+e_int(iNodeL,2))
-         q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
-         csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
-         eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
-         machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
-
-         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
-         rho(iNodeL,3) = rho(iNodeL,2)
-         E(iNodeL,3) =  E(iNodeL,2)
-         eta(iNodeL,3) = eta(iNodeL,2)
-      end do
-      !$acc end parallel loop
-
-      !$acc kernels
-      mu_e(:,:) = 0.0_rp ! Element syabilization viscosity
-      mu_sgs(:,:) = 0.0_rp
-      kres(:) = 0.0_rp
-      etot(:) = 0.0_rp
-      ax1(:) = 0.0_rp
-      ax2(:) = 0.0_rp
-      ax3(:) = 0.0_rp
-      au(:,:) = 0.0_rp
-      !$acc end kernels
-
-      call nvtxEndRange
-   end subroutine BLTSBDRLFlowSolver_evalInitialConditions
-
-   subroutine BLTSBDRLFlowSolver_smoothStep(this,x,y)
-      class(BLTSBDRLFlowSolver), intent(inout) :: this
-      real(rp), intent(in)  :: x
-      real(rp), intent(out) :: y
-
-      if(x<=0.0_rp) then
-         y = 0.0_rp
-      elseif(x<1.0_rp) then
-         y = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
-      else
-         y = 1
-      end if
-
-   end subroutine BLTSBDRLFlowSolver_smoothStep
+   end subroutine BLTSBDRLFlowSolver_fill_BC_Types
 
    subroutine BLTSBDRLFlowSolver_fillBlasius(this)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
@@ -786,6 +502,325 @@ contains
    !$acc update device(f_prim(:))
 
   end subroutine BLTSBDRLFlowSolver_fillBlasius
+
+   subroutine BLTSBDRLFlowSolver_initializeParameters(this)
+      class(BLTSBDRLFlowSolver), intent(inout) :: this
+      real(rp) :: mur
+      integer :: num_args, equal_pos, iarg, ierr
+      character(len=64) :: arg, output_dir
+      character(len=8) :: restart_step_str="", db_clustered_str="0", frequencyActuation_str="1.0"
+      logical :: output_dir_exists
+
+      ! get command line args, ie: mpirun -n 4 sod2d --tag=12 --restart_step=2500
+      num_args = command_argument_count()
+      do iarg = 1, num_args
+         call get_command_argument(iarg, arg)
+         equal_pos = scan(adjustl(trim(arg)), "=")
+         if (adjustl(trim(arg(:equal_pos-1))) .eq. "--tag") then
+            this%tag = trim(adjustl(arg(equal_pos+1:)))
+         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--restart_step") then
+            restart_step_str = trim(adjustl(arg(equal_pos+1:)))
+         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--db_clustered") then
+            db_clustered_str = trim(adjustl(arg(equal_pos+1:)))
+         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--f_action") then
+            frequencyActuation_str = trim(adjustl(arg(equal_pos+1:)))
+         else
+            stop "Unknown command line argument"
+         end if
+      end do
+
+      if (this%tag == "") this%tag = "0"
+      if (db_clustered_str == "" .or. db_clustered_str == "0") this%db_clustered = .false.
+      read(frequencyActuation_str,*,iostat=ierr) this%frequencyActuation
+      this%periodActuation = 1.0_rp / this%frequencyActuation
+
+      ! create output dir if not existing
+      output_dir = "./output_"//trim(adjustl(this%tag))//"/"
+      inquire(file=trim(adjustl(output_dir)), exist=output_dir_exists)
+      if (.not. output_dir_exists .and. mpi_rank .eq. 0) call execute_command_line("mkdir -p "//trim(adjustl(output_dir)))
+
+      write(this%mesh_h5_file_path,*) ""
+      write(this%mesh_h5_file_name,*) "bl_les"
+      write(this%results_h5_file_path,*) "./output_"//trim(adjustl(this%tag))//"/"
+      write(this%results_h5_file_name,*) "results_"//trim(adjustl(this%tag))
+      write(this%io_prepend_path,*) output_dir
+
+      if (mpi_rank .eq. 0) then
+         write(*,*) "Received arguments are:"
+         write(*,*) "--tag:  ", this%tag
+         write(*,*) "--restart_step:  ", restart_step_str
+         write(*,*) "--db_clustered:  ", db_clustered_str
+         write(*,*) "--freq_action:  ", this%frequencyActuation
+      end if
+
+      !----------------------------------------------
+      !  --------------  I/O params -------------
+      this%final_istep = 10000001
+      this%maxPhysTime = 1.0_rp
+
+      this%save_logFile_first = 1
+      this%save_logFile_step  = 50
+
+      this%save_restartFile_first = 1
+      this%save_restartFile_step = 200
+      this%save_resultsFile_first = 1
+      this%save_resultsFile_step = 35
+
+      if (restart_step_str == "" .or. restart_step_str == "0") then
+         this%loadRestartFile = .false.
+         this%restartFile_to_load = 1 ! not used
+         this%continue_oldLogs = .false.
+      else
+         this%loadRestartFile = .true.
+         read(restart_step_str, *) this%restartFile_to_load ! 1 (start) or 2 (last time step)
+         this%continue_oldLogs = .true. ! TODO: Maybe .false.?
+      end if
+
+      this%initial_avgTime = 0.0 ! 3000.0_rp
+      this%saveAvgFile = .true.
+      this%loadAvgFile = .true. ! .false.
+      !----------------------------------------------
+
+      ! numerical params
+      flag_les = 1
+      flag_implicit = 0
+      this%cfl_conv = 1.0_rp !M0.1 1.5, M0.3 0.95
+      this%cfl_diff = 1.0_rp
+
+      this%Cp   = 1004.0_rp
+      this%Prt  = 0.71_rp
+      this%M    = 0.1_rp
+      this%d0   = 1.0_rp
+      this%U0   = 1.0_rp
+      this%rho0 = 1.0_rp
+
+      ! Coefficients for the wall-normal boundary condition on the top
+      !this%amp_tbs   = 1.0
+      this%amp_tbs   = 0.5
+      this%x_start   = 200.0_rp   ! x coordinate where 1st step function on the free streamwise velocity starts
+      this%x_rise    = 20.0_rp   ! x length of the smoothing of the 1st step function for the free streamwise velocity
+      this%x_end     = 435.0_rp  ! x coordinate where 2nd step function on the free streamwise velocity ends
+      this%x_fall    = 115.0_rp   ! x half length of the smoothing of the 2nd step function for the free streamwise velocity
+      this%x_rerise  = 100.0_rp   ! x length of the smoothing of the 3rd step function for the free streamwise velocity
+      this%x_restart = 3.0_rp*(this%x_end-this%x_fall) - 2.0_rp*this%x_start - this%x_rise - 0.5_rp*this%x_rerise  ! x coordinate
+      !where 3rd step function on the free streamwise velocity starts. The location is calculated to have a zero vertical mass flow
+      !rate
+      this%coeff_tbs = 0.5_rp
+
+      this%Red0  = 450.0_rp
+      this%gamma_gas = 1.40_rp
+
+      this%mu    = this%rho0*this%d0*this%U0/this%Red0
+
+      this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
+      this%to = this%U0*this%U0/(this%gamma_gas*this%Rgas*this%M*this%M)
+      this%po = this%rho0*this%Rgas*this%to
+      mur = 0.000001458_rp*(this%to**1.50_rp)/(this%to+110.40_rp)
+      flag_mu_factor = this%mu/mur
+
+      nscbc_u_inf = this%U0
+      nscbc_p_inf = this%po
+      nscbc_rho_inf = this%rho0
+      nscbc_gamma_inf = this%gamma_gas
+      nscbc_c_inf = sqrt(this%gamma_gas*this%po/this%rho0)
+      nscbc_Rgas_inf = this%Rgas
+
+
+      flag_buffer_on = .true.
+      ! x outlet
+      flag_buffer_on_east = .true.
+      flag_buffer_e_min = 950.0_rp
+      flag_buffer_e_size = 50.0_rp
+
+      !! x inlet
+      flag_buffer_on_west = .true.
+      flag_buffer_w_min = -50.0_rp
+      flag_buffer_w_size = 50.0_rp
+
+      ! y top
+      flag_buffer_on_north = .true.
+      flag_buffer_n_min =  100.0_rp
+      flag_buffer_n_size = 20.0_rp
+
+      ! -------- Instantaneous results file -------------
+      this%save_scalarField_rho        = .true.
+      this%save_scalarField_muFluid    = .false.
+      this%save_scalarField_pressure   = .true.
+      this%save_scalarField_energy     = .false.
+      this%save_scalarField_entropy    = .false.
+      this%save_scalarField_csound     = .false.
+      this%save_scalarField_machno     = .true.
+      this%save_scalarField_divU       = .true.
+      this%save_scalarField_qcrit      = .true.
+      this%save_scalarField_muSgs      = .false.
+      this%save_scalarField_muEnvit    = .false.
+      this%save_vectorField_vel        = .true.
+      this%save_vectorField_gradRho    = .false.
+      this%save_vectorField_curlU      = .true.
+
+      ! -------- Average results file -------------
+      this%save_avgScalarField_rho     = .true.
+      this%save_avgScalarField_pr      = .true.
+      this%save_avgScalarField_mueff   = .true.
+      this%save_avgVectorField_vel     = .true.
+      this%save_avgVectorField_ve2     = .true.
+      this%save_avgVectorField_vex     = .true.
+      this%save_avgVectorField_vtw     = .true.
+
+      ! control parameters
+#if (ACTUATION)
+      write(this%fileControlName ,*) "rectangleControl.txt"
+      ! this%amplitudeActuation = 0.2
+      ! this%frequencyActuation = 0.0025_rp
+      this%timeBeginActuation = 0.0 ! 2000.0_rp
+#endif
+
+      !Blasius analytical function
+      call this%fillBlasius()
+
+      this%have_witness          = .true.
+      this%witness_inp_file_name = "witness.txt"
+      this%witness_h5_file_name  = "resultwit.h5"
+      this%leapwit               = 5 ! cada quants dts sampleja
+      this%leapwitsave           = 50 ! cada quants dt guarda
+      this%wit_save              = .true. ! guardar o no
+      this%wit_save_u_i          = .true.
+      this%wit_save_pr           = .false.
+      this%wit_save_rho          = .false.
+      this%continue_witness      = .false. ! continuar els witness des de un arxiu de witness, pero no se si va gaire be aixo...
+
+   end subroutine BLTSBDRLFlowSolver_initializeParameters
+
+   subroutine BLTSBDRLFlowSolver_initialBuffer(this)
+      class(BLTSBDRLFlowSolver), intent(inout) :: this
+      integer(4) :: iNodeL,k,j,bcode,ielem,iCen
+      real(rp) :: yp,eta_y,f_y,f_prim_y, f1, f2, f3,x,dy
+
+#if (ACTUATION)
+      call this%getControlNodes()
+#endif
+
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         yp = coordPar(iNodeL,2)
+         eta_y = yp !with our normalisation is sqrt(U/(nu x ) is actually 1 for the inlet)
+         j = 45
+         !$acc loop seq
+         label1:do k=1,45
+            if(eta_y<eta_b(k)) then
+               j = k
+               exit label1
+            end if
+         end do label1
+         if(j == 1) then
+            u_buffer(iNodeL,1) = 0.0_rp
+            u_buffer(iNodeL,2) = 0.0_rp
+            u_buffer(iNodeL,3) = 0.0_rp
+         else if(j==45) then
+            u_buffer(iNodeL,1) = this%U0
+            u_buffer(iNodeL,2) = 0.0_rp
+            u_buffer(iNodeL,3) = 0.0_rp
+         else
+            f_y      = f(j-1)      + (f(j)-f(j-1))*(eta_y-eta_b(j-1))/(eta_b(j)-eta_b(j-1))
+            f_prim_y = f_prim(j-1) + (f_prim(j)-f_prim(j-1))*(eta_y-eta_b(j-1))/(eta_b(j)-eta_b(j-1))
+
+            u_buffer(iNodeL,1) = f_prim_y
+            u_buffer(iNodeL,2) = 0.5_rp*sqrt(1.0/(450.0_rp*450.0_rp))*(eta_y*f_prim_y-f_y)
+            u_buffer(iNodeL,3) = 0.0_rp
+         end if
+         if(yp .gt. 100.0_rp) then
+            u_buffer(iNodeL,2) =  0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
+                              -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
+         end if
+      end do
+      !$acc end parallel loop
+
+   end subroutine BLTSBDRLFlowSolver_initialBuffer
+
+   subroutine BLTSBDRLFlowSolver_evalInitialConditions(this)
+      class(BLTSBDRLFlowSolver), intent(inout) :: this
+      integer(4) :: matGidSrlOrdered(numNodesRankPar,2)
+      integer(4) :: iNodeL, idime, j,k,bcode
+      real(rp) :: yp,eta_y,f_y,f_prim_y, f1, f2, f3, x
+      integer(4)   :: iLine,iNodeGSrl,auxCnt
+
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         yp = coordPar(iNodeL,2)
+         eta_y = yp !with our normalisation is sqrt(U/(nu x ) is actually 1 for the inlet)
+         j = 45
+         !$acc loop seq
+         label1:do k=1,45
+            if(eta_y<eta_b(k)) then
+               j = k
+               exit label1
+            end if
+         end do label1
+         if(j == 1) then
+            u(iNodeL,1,2) = 0.0_rp
+            u(iNodeL,2,2) = 0.0_rp
+            u(iNodeL,3,2) = 0.0_rp
+         else if(j==45) then
+            u(iNodeL,1,2) = this%U0
+            u(iNodeL,2,2) = 0.0_rp
+            u(iNodeL,3,2) = 0.0_rp
+         else
+            f_y      = f(j-1)      + (f(j)-f(j-1))*(eta_y-eta_b(j-1))/(eta_b(j)-eta_b(j-1))
+            f_prim_y = f_prim(j-1) + (f_prim(j)-f_prim(j-1))*(eta_y-eta_b(j-1))/(eta_b(j)-eta_b(j-1))
+
+            u(iNodeL,1,2) = f_prim_y
+            u(iNodeL,2,2) = 0.5_rp*sqrt(1.0/(450.0_rp*450.0_rp))*(eta_y*f_prim_y-f_y)
+            u(iNodeL,3,2) = 0.0_rp
+         end if
+         if(yp .gt. 100.0_rp) then
+            u(iNodeL,2,2) =  0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
+                              -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
+         end if
+         pr(iNodeL,2) = this%po
+         rho(iNodeL,2) = this%rho0
+         e_int(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp))
+         Tem(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*this%Rgas)
+         E(iNodeL,2) = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))+e_int(iNodeL,2))
+         q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
+         csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
+         eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
+         machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
+
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+         rho(iNodeL,3) = rho(iNodeL,2)
+         E(iNodeL,3) =  E(iNodeL,2)
+         eta(iNodeL,3) = eta(iNodeL,2)
+      end do
+      !$acc end parallel loop
+
+      !$acc kernels
+      mu_e(:,:) = 0.0_rp ! Element syabilization viscosity
+      mu_sgs(:,:) = 0.0_rp
+      kres(:) = 0.0_rp
+      etot(:) = 0.0_rp
+      ax1(:) = 0.0_rp
+      ax2(:) = 0.0_rp
+      ax3(:) = 0.0_rp
+      au(:,:) = 0.0_rp
+      !$acc end kernels
+
+      call nvtxEndRange
+   end subroutine BLTSBDRLFlowSolver_evalInitialConditions
+
+   subroutine BLTSBDRLFlowSolver_smoothStep(this,x,y)
+      class(BLTSBDRLFlowSolver), intent(inout) :: this
+      real(rp), intent(in)  :: x
+      real(rp), intent(out) :: y
+
+      if(x<=0.0_rp) then
+         y = 0.0_rp
+      elseif(x<1.0_rp) then
+         y = 1.0_rp/(1.0_rp+exp(1.0_rp/(x-1.0_rp)+1.0_rp/x))
+      else
+         y = 1
+      end if
+
+   end subroutine BLTSBDRLFlowSolver_smoothStep
 
 
 end module BLTSBDRLFlowSolver_mod
