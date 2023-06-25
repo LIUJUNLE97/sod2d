@@ -1,4 +1,4 @@
-#define ACTUATION 0
+#define ACTUATION 1
 
 module BLTSBFlowSolver_mod
    use mod_arrays
@@ -156,13 +156,18 @@ contains
                !endif
                !u_buffer(iNodeL,1) = max(u_buffer(iNodeL,1),-this%U0)
                !u_buffer(iNodeL,1) = min(u_buffer(iNodeL,1),this%U0)
-               iCen = connecParWork(ielem,atoIJK(64))
+               iCen = connecParWork(ielem,atoIJK(nnode))
                yc =  coordPar(iCen,2)
                u_buffer(iNodeL,1) = (gradV(1))*(yp-yc) + u(iCen,1,2)
          end if  
       end do
       !$acc end parallel loop
       !Filtering u buffer at the top of the domain
+      if(mpi_size.ge.2) then
+         call nvtxStartRange("MPI_comms_tI")
+         call mpi_halo_max_boundary_update_real_iSendiRcv(u_buffer(:,1))
+         call nvtxEndRange
+      end if
       !$acc parallel loop gang
       do ielem = 1, numElemsRankPar
          iCen = connecParWork(ielem,atoIJK(64))
@@ -186,11 +191,6 @@ contains
          end if
       end do
       !$acc end loop
-      if(mpi_size.ge.2) then
-         call nvtxStartRange("MPI_comms_tI")
-         call mpi_halo_max_boundary_update_real_iSendiRcv(u_buffer(:,1))
-         call nvtxEndRange
-      end if
    end subroutine BLTSBFlowSolver_afterDt
 
    subroutine BLTSBFlowSolver_readControlRectangles(this)
@@ -442,17 +442,17 @@ contains
       this%save_resultsFile_step = 20000
      
 #if (ACTUATION) 
-      this%loadRestartFile = .false.
+      this%loadRestartFile = .true.
 #else
       !this%loadRestartFile = .true.
-      this%loadRestartFile = .true.
+      this%loadRestartFile = .false.
 #endif
       this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .true.
+      this%continue_oldLogs = .false.
 
-      this%initial_avgTime = 3000.0_rp
+      this%initial_avgTime = 1000.0_rp !usually 3000 if is a fresh start
       this%saveAvgFile = .true.
-      this%loadAvgFile = .true.
+      this%loadAvgFile = .false.
       !----------------------------------------------
 
       ! numerical params
@@ -546,7 +546,7 @@ contains
       write(this%fileControlName ,*) "rectangleControl.dat"
       this%amplitudeActuation = 0.2
       this%frequencyActuation = 0.0025_rp 
-      this%timeBeginActuation = 2000.0_rp
+      this%timeBeginActuation = 0.0_rp
 #endif      
       
       !Blasius analytical function
@@ -562,7 +562,7 @@ contains
       this%wit_save_u_i          = .true.
       this%wit_save_pr           = .false.
       this%wit_save_rho          = .false.
-      this%continue_witness      = .true. ! continuar els witness des de un arxiu de witness, pero no se si va gaire be aixo...
+      this%continue_witness      = .false. ! continuar els witness des de un arxiu de witness, pero no se si va gaire be aixo...
 
    end subroutine BLTSBFlowSolver_initializeParameters
 
