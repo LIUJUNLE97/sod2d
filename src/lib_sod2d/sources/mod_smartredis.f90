@@ -109,7 +109,7 @@ module mod_smartredis
       if (mpi_rank .eq. 0) then
          error = client%put_tensor(key, state_global, shape(state_global))
          is_error = client%SR_error_parser(error)
-         if (error /= 0) stop 'Error during SmartRedis state writting.'
+         if (error /= 0) stop 'Error during SmartRedis write_state.'
       end if
    end subroutine write_state
 
@@ -129,18 +129,34 @@ module mod_smartredis
       if (mpi_rank .eq. 0) then
          found = client%poll_tensor(trim(adjustl(key)), interval, tries, exists) ! wait indefinitely for new actions to appear
          is_error = client%SR_error_parser(found)
-         if (found /= 0) stop 'Error in SmartRedis actions reading. Actions array not found.'
+         if (found /= 0) stop 'Error in SmartRedis read_action. Actions array not found.'
          error = client%unpack_tensor(trim(adjustl(key)), action_global, shape(action_global))
          is_error = client%SR_error_parser(error)
-         if (error /= 0) stop 'Error in SmartRedis actions reading. Tensor could not be unpacked.'
+         if (error /= 0) stop 'Error in SmartRedis read_action. Tensor could not be unpacked.'
          error = client%delete_tensor(trim(adjustl(key)))
          is_error = client%SR_error_parser(error)
-         if (error /= 0) stop 'Error in SmartRedis actions reading. Tensor could not be deleted.'
+         if (error /= 0) stop 'Error in SmartRedis read_action. Tensor could not be deleted.'
       end if
 
       ! broadcast rank 0 global action array to all processes
       call mpi_bcast(action_global, action_global_size, mpi_datatype_real, 0, mpi_comm_world, error)
    end subroutine read_action
+
+   ! Writes the reward values: wall shear stress integral for both positive and negative values
+   subroutine write_reward(client, Ftau_neg, Ftau_pos, key)
+      type(client_type), intent(inout) :: client
+      real(rp), intent(in) :: Ftau_neg, Ftau_pos
+      character(len=*), intent(in) :: key
+
+      integer :: error
+      logical :: is_error
+
+      if (mpi_rank .eq. 0) then
+         error = client%put_tensor(key, [Ftau_neg, Ftau_pos], shape([Ftau_neg, Ftau_pos]))
+         is_error = client%SR_error_parser(error)
+         if (error /= 0) stop 'Error in SmartRedis write_reward.'
+      end if
+   end subroutine write_reward
 
    ! Indicate environment time step status -> 1: init time step. 2: mid time step. 0: end time step
    subroutine write_step_type(client, step_type, key)
@@ -154,7 +170,7 @@ module mod_smartredis
       if (mpi_rank .eq. 0) then
          error = client%put_tensor(key, [step_type], shape([step_type]))
          is_error = client%SR_error_parser(error)
-         if (error /= 0) stop 'Error in SmartRedis step_type writing.'
+         if (error /= 0) stop 'Error in SmartRedis write_step_type.'
       end if
       step_type_mod = step_type
    end subroutine write_step_type
@@ -173,7 +189,7 @@ module mod_smartredis
          time_tensor(1) = time
          error = client%put_tensor(key, time_tensor, shape(time_tensor))
          is_error = client%SR_error_parser(error)
-         if (error /= 0) stop 'Error in SmartRedis time writing.'
+         if (error /= 0) stop 'Error in SmartRedis write_time.'
       end if
    end subroutine write_time
 

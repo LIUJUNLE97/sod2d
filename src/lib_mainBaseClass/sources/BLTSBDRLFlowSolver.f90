@@ -47,7 +47,7 @@ module BLTSBDRLFlowSolver_mod
       integer(4), public       :: countPar                                   ! Number of points in a rectangle of control per partition
       character(512), public   :: fileControlName                            ! Input: path to the file that contains the points defining the rectangle controls
       integer(4), public         :: nRectangleControl                          ! Number of rectangle control
-      real(rp), public :: previousActuationTime, periodActuation, frequencyActuation, timeBeginActuation ! parameters of the actuation
+      real(rp), public :: periodEpisode, previousActuationTime, periodActuation, frequencyActuation, timeBeginActuation ! parameters of the actuation
    contains
       procedure, public :: fillBCTypes => BLTSBDRLFlowSolver_fill_BC_Types
       procedure, public :: initializeParameters => BLTSBDRLFlowSolver_initializeParameters
@@ -62,6 +62,7 @@ module BLTSBDRLFlowSolver_mod
       procedure, public :: initSmartRedis  => BLTSBDRLFlowSolver_initSmartRedis
       procedure, public :: afterTimeIteration => BLTSBDRLFlowSolver_afterTimeIteration
       procedure, public :: smoothControlFunction => BLTSBDRLFlowSolver_smoothControlFunction
+      procedure, public :: computeReward => BLTSBDRLFlowSolver_computeReward
 #endif
    end type BLTSBDRLFlowSolver
 contains
@@ -83,6 +84,7 @@ contains
       call write_step_type(client, 0, "step_type")
       close(443)
       close(444)
+      call end_smartredis(client)
    end subroutine BLTSBDRLFlowSolver_afterTimeIteration
 #endif
 
@@ -97,6 +99,7 @@ contains
       real(rp)  :: gradIsoV(ndime),gradIsoU(ndime)
       real(rp)  :: gradV(ndime),vl(ndime),fact,targ,gradU(ndime),ul(ndime)
       real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
+      real(rp) :: Ftau_neg(ndime), Ftau_pos(ndime)
 #if ACTUATION
 #ifdef SMARTREDIS
       real(rp) :: action_global_instant(action_global_size)
@@ -125,6 +128,11 @@ contains
 #if ACTUATION
 #ifdef SMARTREDIS
       if (this%time .gt. this%timeBeginActuation) then
+         if (step_type_mod .eq. 1) then
+            call write_step_type(client, 2, "step_type")
+            write(*,*) "Sod2D wrote step: 2"
+         end if
+
          ! check if a new action is needed
          if (this%time - this%previousActuationTime .ge. this%periodActuation) then
          ! save old action values and time - useful for interpolating to new action_global values
@@ -133,16 +141,20 @@ contains
             this%previousActuationTime = this%previousActuationTime + this%periodActuation
             !$acc end kernels
 
-            write(*,*) "Sod2D to write time: ", this%time
-            call write_time(client, this%time, "time") ! writes current time into database
-            write(*,*) "Sod2D wrote time: ", this%time
+            call write_state(client, buffwit(:, 1, 1), "state") ! the streamwise velocity u
+            write(*,*) "Sod2D wrote state: ", buffwit(:, 1, 1)
+            call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
+            call write_reward(client, Ftau_neg(1), Ftau_pos(1), "reward") ! the streamwise component tw_x
+            write(*,*) "Sod2D wrote reward: ", Ftau_neg(1), Ftau_pos(1)
+
             call read_action(client, "action") ! modifies action_global (the target control values)
             write(*,*) "Sod2D read action: ", action_global
             write(443,'(*(ES12.4,:,","))') action_global(1), this%time+this%periodActuation
             call flush(443)
 
             ! if the next time that we require actuation value is the last one, write now step_type=0 into database
-            if (this%time + 2.0_rp * this%periodActuation .gt. this%maxPhysTime) then
+            ! if (this%time + 2.0_rp * this%periodActuation .gt. this%maxPhysTime) then
+            if (this%time + 1.0_rp * this%periodActuation .gt. this%maxPhysTime) then
                call write_step_type(client, 0, "step_type")
                write(*,*) "Sod2D wrote step: 0"
             end if
@@ -160,11 +172,6 @@ contains
             end if
          end do
          !$acc end parallel loop
-      end if
-
-      if (step_type_mod .eq. 1) then
-         call write_step_type(client, 2, "step_type")
-         write(*,*) "Sod2D wrote step: 2"
       end if
 #endif
 #endif
@@ -221,7 +228,7 @@ contains
                !endif
                !u_buffer(iNodeL,1) = max(u_buffer(iNodeL,1),-this%U0)
                !u_buffer(iNodeL,1) = min(u_buffer(iNodeL,1),this%U0)
-               iCen = connecParWork(ielem,atoIJK(64))
+               iCen = connecParWork(ielem,atoIJK(nnode))
                yc =  coordPar(iCen,2)
                u_buffer(iNodeL,1) = (gradV(1))*(yp-yc) + u(iCen,1,2)
          end if
@@ -274,6 +281,17 @@ contains
       action_global_instant(:) = action_global_previous(:) + f3 * (action_global(:) - action_global_previous(:))
       !$acc end kernels
    end subroutine BLTSBDRLFlowSolver_smoothControlFunction
+
+   subroutine BLTSBDRLFlowSolver_computeReward(this, surfCode, Ftau_neg, Ftau_pos)
+      class(BLTSBDRLFlowSolver), intent(inout) :: this
+      integer(4), intent(in) :: surfCode
+      real(rp), intent(out) :: Ftau_neg(ndime), Ftau_pos(ndime)
+
+      call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, surfCode, connecParWork, boundPar, &
+         point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
+         mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), Ftau_neg, Ftau_pos)
+
+   end subroutine BLTSBDRLFlowSolver_computeReward
 #endif
 #endif
 
@@ -508,7 +526,7 @@ contains
       real(rp) :: mur
       integer :: num_args, equal_pos, iarg, ierr
       character(len=64) :: arg, output_dir
-      character(len=8) :: restart_step_str="", db_clustered_str="0", frequencyActuation_str="1.0"
+      character(len=8) :: restart_step_str="", db_clustered_str="0", frequencyActuation_str="1.0", periodEpisode_str="1.0"
       logical :: output_dir_exists
 
       ! get command line args, ie: mpirun -n 4 sod2d --tag=12 --restart_step=2500
@@ -524,6 +542,8 @@ contains
             db_clustered_str = trim(adjustl(arg(equal_pos+1:)))
          else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--f_action") then
             frequencyActuation_str = trim(adjustl(arg(equal_pos+1:)))
+         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--t_episode") then
+            periodEpisode_str = trim(adjustl(arg(equal_pos+1:)))
          else
             stop "Unknown command line argument"
          end if
@@ -531,13 +551,26 @@ contains
 
       if (this%tag == "") this%tag = "0"
       if (db_clustered_str == "" .or. db_clustered_str == "0") this%db_clustered = .false.
+      if (restart_step_str == "" .or. restart_step_str == "0") &
+         stop "Cannot use RL actuation from cold start. (--restart_step=0 or --restart_step='')"
       read(frequencyActuation_str,*,iostat=ierr) this%frequencyActuation
       this%periodActuation = 1.0_rp / this%frequencyActuation
+      read(periodEpisode_str,*,iostat=ierr) this%periodEpisode
 
-      ! create output dir if not existing
+      ! create output dir if not existing and put soft links to baseline restarts
+      ! when a random restart is selected and it is not the first episode, it will only create a
+      ! soft link for the *_1.h5 file, so that the random selection from python is either 1 (baseline)
+      ! or 2 (last episode result) saved as *_2.h5
       output_dir = "./output_"//trim(adjustl(this%tag))//"/"
       inquire(file=trim(adjustl(output_dir)), exist=output_dir_exists)
-      if (.not. output_dir_exists .and. mpi_rank .eq. 0) call execute_command_line("mkdir -p "//trim(adjustl(output_dir)))
+      if (.not. output_dir_exists .and. mpi_rank .eq. 0) then
+         call execute_command_line("mkdir -p "//trim(adjustl(output_dir)))
+         ! call execute_command_line("ln -s restart/* "//trim(adjustl(output_dir)))
+         call execute_command_line("cp restart/* "//trim(adjustl(output_dir)))
+      elseif (output_dir_exists .and. mpi_rank .eq. 0) then
+         ! call execute_command_line("ln -s restart/*_1.h5 "//trim(adjustl(output_dir)))
+         call execute_command_line("cp restart/*_1.h5 "//trim(adjustl(output_dir)))
+      end if
 
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "bl_les"
@@ -545,40 +578,37 @@ contains
       write(this%results_h5_file_name,*) "results_"//trim(adjustl(this%tag))
       write(this%io_prepend_path,*) output_dir
 
+      read(restart_step_str, *) this%restartFile_to_load ! 1: baseline, 2: last episode
+
       if (mpi_rank .eq. 0) then
          write(*,*) "Received arguments are:"
          write(*,*) "--tag:  ", this%tag
-         write(*,*) "--restart_step:  ", restart_step_str
+         write(*,*) "--restart_step:  ", this%restartFile_to_load
          write(*,*) "--db_clustered:  ", db_clustered_str
          write(*,*) "--freq_action:  ", this%frequencyActuation
+         write(*,*) "--t_episode:  ", this%periodEpisode
       end if
 
       !----------------------------------------------
       !  --------------  I/O params -------------
       this%final_istep = 10000001
-      this%maxPhysTime = 1.0_rp
+      this%maxPhysTime = this%periodEpisode
 
       this%save_logFile_first = 1
       this%save_logFile_step  = 50
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 200
+      this%save_restartFile_step = 250
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 35
+      this%save_resultsFile_step = 250
 
-      if (restart_step_str == "" .or. restart_step_str == "0") then
-         this%loadRestartFile = .false.
-         this%restartFile_to_load = 1 ! not used
-         this%continue_oldLogs = .false.
-      else
-         this%loadRestartFile = .true.
-         read(restart_step_str, *) this%restartFile_to_load ! 1 (start) or 2 (last time step)
-         this%continue_oldLogs = .true. ! TODO: Maybe .false.?
-      end if
+      this%loadRestartFile = .true.
+      ! read(restart_step_str, *) this%restartFile_to_load ! 1: baseline, 2: last episode
+      this%continue_oldLogs = .false.
 
       this%initial_avgTime = 0.0 ! 3000.0_rp
       this%saveAvgFile = .true.
-      this%loadAvgFile = .true. ! .false.
+      this%loadAvgFile = .false. ! .true.
       !----------------------------------------------
 
       ! numerical params
@@ -670,8 +700,6 @@ contains
       ! control parameters
 #if (ACTUATION)
       write(this%fileControlName ,*) "rectangleControl.txt"
-      ! this%amplitudeActuation = 0.2
-      ! this%frequencyActuation = 0.0025_rp
       this%timeBeginActuation = 0.0 ! 2000.0_rp
 #endif
 
@@ -681,8 +709,8 @@ contains
       this%have_witness          = .true.
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
-      this%leapwit               = 5 ! cada quants dts sampleja
-      this%leapwitsave           = 50 ! cada quants dt guarda
+      this%leapwit               = 10 ! 50 ! cada quants dts sampleja
+      this%leapwitsave           = 1 ! quants dts guarda al buffer
       this%wit_save              = .true. ! guardar o no
       this%wit_save_u_i          = .true.
       this%wit_save_pr           = .false.
