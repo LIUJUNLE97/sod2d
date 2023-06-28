@@ -74,6 +74,7 @@ contains
       this%previousActuationTime = this%time
       open(unit=443,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_raw.txt",status='replace')
       open(unit=444,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_smooth.txt",status='replace')
+      open(unit=445,file="./output_"//trim(adjustl(this%tag))//"/"//"tw.txt",status='replace')
       call init_smartredis(client, this%nwitPar, this%nRectangleControl, this%db_clustered)
       call write_step_type(client, 1, "step_type")
    end subroutine BLTSBDRLFlowSolver_initSmartRedis
@@ -84,6 +85,7 @@ contains
       call write_step_type(client, 0, "step_type")
       close(443)
       close(444)
+      close(445)
       call end_smartredis(client)
    end subroutine BLTSBDRLFlowSolver_afterTimeIteration
 #endif
@@ -146,6 +148,8 @@ contains
             call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
             call write_reward(client, Ftau_neg(1), Ftau_pos(1), "reward") ! the streamwise component tw_x
             write(*,*) "Sod2D wrote reward: ", Ftau_neg(1), Ftau_pos(1)
+            write(445,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_neg(2)
+            call flush(445)
 
             call read_action(client, "action") ! modifies action_global (the target control values)
             write(*,*) "Sod2D read action: ", action_global
@@ -565,10 +569,9 @@ contains
       inquire(file=trim(adjustl(output_dir)), exist=output_dir_exists)
       if (.not. output_dir_exists .and. mpi_rank .eq. 0) then
          call execute_command_line("mkdir -p "//trim(adjustl(output_dir)))
-         ! call execute_command_line("ln -s restart/* "//trim(adjustl(output_dir)))
          call execute_command_line("cp restart/* "//trim(adjustl(output_dir)))
+      ! previously run environment, so restart_2 is from last episode and we do not overwrite it
       elseif (output_dir_exists .and. mpi_rank .eq. 0) then
-         ! call execute_command_line("ln -s restart/*_1.h5 "//trim(adjustl(output_dir)))
          call execute_command_line("cp restart/*_1.h5 "//trim(adjustl(output_dir)))
       end if
 
@@ -700,7 +703,7 @@ contains
       ! control parameters
 #if (ACTUATION)
       write(this%fileControlName ,*) "rectangleControl.txt"
-      this%timeBeginActuation = 0.0 ! 2000.0_rp
+      this%timeBeginActuation = 5e-1 ! 2000.0_rp
 #endif
 
       !Blasius analytical function
