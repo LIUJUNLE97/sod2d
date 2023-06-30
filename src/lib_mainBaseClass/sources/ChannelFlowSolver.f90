@@ -241,6 +241,18 @@ contains
          mu_factor(iNodeL) = flag_mu_factor
       end do
       !$acc end parallel loop
+
+      !
+      ! Initialize exponential averaging for wall law 
+      !
+      call nvtxStartRange("Wall Average init")
+      if(flag_walave == 1) then
+         !$acc kernels
+         walave_u(:,:) = u(:,:,2)
+         !$acc end kernels
+      end if
+      call nvtxEndRange
+
    end subroutine ChannelFlowSolver_evalInitialConditions
 
 end module ChannelFlowSolver_mod

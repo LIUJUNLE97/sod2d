@@ -31,6 +31,9 @@ module mod_arrays
       real(rp), allocatable :: impl_rho(:),impl_E(:),impl_eta(:),impl_q(:,:)
       real(rp), allocatable :: impl_envit(:,:),impl_mu_fluid(:),impl_mu_sgs(:,:)
 
+      ! exponential average for wall law
+      real(rp), allocatable :: walave_u(:,:)
+
 end module mod_arrays
 
 module CFDSolverBase_mod
@@ -915,6 +918,12 @@ contains
          allocate(Nwit(this%nwit,nnode))
       end if
 
+      ! Exponential average velocity for wall law
+      if(flag_walave==1) then
+         allocate(walave_u(numNodesRankPar,ndime))
+         !$acc enter data create(walave_u(:,:))
+      end if
+
       call nvtxEndRange
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
@@ -1439,6 +1448,7 @@ contains
       character(4) :: timeStep
       real(8) :: iStepTimeRank,iStepTimeMax,iStepEndTime,iStepStartTime,iStepAvgTime
       real(rp) :: inv_iStep,aux_pseudo_cfl
+      real(rp) :: dtfact,avwei
       logical :: do__iteration
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
@@ -1464,6 +1474,22 @@ contains
          e_int(:,1) = e_int(:,2)
          eta(:,1) = eta(:,2)
          !$acc end kernels
+         call nvtxEndRange
+
+         !
+         ! Exponential averaging for wall law 
+         !
+         call nvtxStartRange("Wall Average "//timeStep,istep)
+         if(flag_walave == 1) then
+            !
+            ! outside acc kernels following pseudo_cfl in next loop
+            !
+            dtfact = this%dt/(this%dt+period_walave)
+            avwei  = 1.0_rp - dtfact
+            !$acc kernels
+            walave_u(:,:) = dtfact*u(:,:,2) + avwei*walave_u(:,:)
+            !$acc end kernels
+         end if
          call nvtxEndRange
 
          call nvtxStartRange("RK4 step "//timeStep,istep)

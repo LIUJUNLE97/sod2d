@@ -79,4 +79,10 @@ module mod_numerical_params
         real(4) :: flag_buffer_b_min = 0.0_rp
         real(4) :: flag_buffer_b_size = 0.0_rp
 
+        !
+        ! Wall model averaging
+        !
+        real(rp)    :: period_walave   = 1.0_rp
+        integer(4)  :: flag_walave     = 0
+
 end module mod_numerical_params
