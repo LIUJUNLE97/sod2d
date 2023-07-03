@@ -922,6 +922,9 @@ contains
       if(flag_walave==1) then
          allocate(walave_u(numNodesRankPar,ndime))
          !$acc enter data create(walave_u(:,:))
+         !$acc kernels
+         walave_u(:,:) = 0.0_rp
+         !$acc end kernels
       end if
 
       call nvtxEndRange
