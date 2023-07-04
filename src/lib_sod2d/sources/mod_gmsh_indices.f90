@@ -133,7 +133,7 @@ module mod_gmsh_indices
                ! Generate volume nodes
                call genHighOrderHex(p-2,tableVolume)
                tableVolume = tableVolume + 1
-               !call joinTables(tableVolume,indexTable)
+               call joinTables([(p-1)**3,2],tableVolume,inode,[(p+1)**3,2],indexTable)
             end if
          end if
       end subroutine genHighOrderHex
@@ -163,10 +163,23 @@ module mod_gmsh_indices
                end do
                call genHighOrderQuad(p-2,tableFace)
                tableFace = tableFace + 1
-               !call joinTables(tableFace,indexTable)
+               call joinTables([(p-1)**2,2],tableFace,inode,[(p+1)**2,2],indexTable)
             end if
          end if
-
       end subroutine genHighOrderQuad
+
+      subroutine joinTables(size1,table1,indexDesti,size2,table2)
+         implicit none
+         integer(4), intent(in)    :: indexDesti, size1(2), size2(2)
+         integer(4), intent(in)    :: table1(size1(1),size1(2))
+         integer(4), intent(inout) :: table2(size2(1),size2(2))
+         integer(4)                :: i, j
+
+         j = indexDesti
+         do i = 1,size1(1)
+            table2(j,:) = table1(i,:)
+            j = j + 1
+         end do
+      end subroutine joinTables
 
 end module mod_gmsh_indices
