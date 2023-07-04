@@ -108,7 +108,7 @@ contains
       flag_implicit_repeat_dt_if_not_converged = 0
        
       period_walave   = 30.0_rp
-      flag_walave     = 1
+      flag_walave     = 0
 
       this%cfl_conv = 100.0_rp !bdf2
       this%cfl_diff = 100.0_rp !bdf2

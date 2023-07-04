@@ -404,11 +404,11 @@ module time_integ
                   !
                   ! Apply bcs after update
                   !
-                  if (noBoundaries .eqv. .false.) then
-                     call nvtxStartRange("BCS_AFTER_UPDATE")
-                     call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,aux_rho(:),aux_q(:,:),aux_u(:,:),aux_pr(:),aux_E(:),u_buffer)
-                     call nvtxEndRange
-                  end if
+                  !if (noBoundaries .eqv. .false.) then
+                  !   call nvtxStartRange("BCS_AFTER_UPDATE")
+                  !   call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,aux_rho(:),aux_q(:,:),aux_u(:,:),aux_pr(:),aux_E(:),u_buffer)
+                  !   call nvtxEndRange
+                  !end if
                   !
                   ! Update velocity and equations of state
                   !
@@ -680,6 +680,7 @@ module time_integ
                res(2) = res(1)            
 
                if(errMax .lt. tol) exit
+               !if(mpi_rank.eq.0) write(111,*)"   non lineal residual ",errMax," non lineal iterations ",itime
             end do
             call nvtxEndRange
 
