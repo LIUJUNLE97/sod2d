@@ -3,6 +3,10 @@ module elem_qua
         use mod_numerical_params
         use mod_maths
 
+        implicit none
+
+        integer(4), parameter :: quad_order_edges(4,2) = reshape([1,2,2,3,3,4,4,1],(/4,2/))
+
         contains
 
                 subroutine qua04(s,t,N,dN) ! QUA04 element
