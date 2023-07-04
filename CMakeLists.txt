@@ -14,6 +14,7 @@ option(USE_HDF5 "Compile using HDF5" ON)
 
 option(TOOL_MESHPART "Compiles tool MeshPart" ON)
 option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
+option(DEVEL_PORDER "Compiles devel_porder_stuff" OFF)
 
 option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
 option(USE_PCPOWER "Compiling in PC-POWER" OFF)
@@ -92,7 +93,9 @@ if(TOOL_COMMPERF)
     add_subdirectory(tool_commsPerformance)
 endif()
 
-add_subdirectory(devel_porder_stuff)
+if(DEVEL_PORDER)
+    add_subdirectory(devel_porder_stuff)
+endif()
 
 #enable folder unitt
 #add_subdirectory(unitt)
