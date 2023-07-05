@@ -4191,6 +4191,10 @@ contains
       ms_dims(1)   = int(numBoundsRankPar,hsize_t)   * int(npbou,hsize_t)
       ms_offset(1) = int((mpiRankBoundStart-1),hssize_t)* int(npbou,hssize_t)
 
+      write(*,*) 'EI! THIS FUNC save_surface_mesh_hdf5_file() in mod_hdf5.f90 NOW DOES NOT WORK! FIX IT!'
+      call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+#if 0
+      !LOOP TO BE FIXED! NOW WE DO NOT HAVE gmsh2ij nor vtk2ij
       do iBound=1,numBoundsRankPar
          do ii=1,npbou
 
@@ -4199,7 +4203,7 @@ contains
             aux_array_i8(jj) = iNodeL - 1
          end do
       end do
-
+#endif
       call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
       deallocate(aux_array_i8)
 

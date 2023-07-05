@@ -7,14 +7,14 @@ module mod_wall_model
 
 contains
 
-   subroutine evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK, bou_code, &
+   subroutine evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_code, &
          bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,ui,tauw,Rdiff)
 
       implicit none
 
       integer(4), intent(in)  :: numBoundsWM,listBoundsWM(numBoundsWM)
       integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun)
-      integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin),atoIJK(nnode)
+      integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin)
       real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
       integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
       real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)

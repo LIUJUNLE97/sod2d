@@ -11,7 +11,6 @@ module mod_meshConversorTool
 
 !-----------------------------------   
 #define _CHECK_ 0
-#define int_size 4
 !-----------------------------------   
 #ifndef GEMPAINTERFACE
    interface
@@ -103,11 +102,11 @@ character(*), parameter :: fmt_csv_deb = '(1x,*(g0,","))'
 
 contains
 
-   subroutine read_gmsh_h5_file_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName,numMshRanks2Part)
+   subroutine read_gmsh_h5_file_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName,mporder,numMshRanks2Part)
       implicit none
       character(500), intent(in)  :: gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName
       logical :: isPeriodic=.false.,isBoundaries=.false.
-      integer(4),intent(in) :: numMshRanks2Part
+      integer(4),intent(in) :: mporder,numMshRanks2Part
 
       integer(4) :: numElemsMpiRank,numNodesMpiRank,numBoundsMpiRank,numLinkedPerElemsSrl,numPerElemsSrl,numMasSlaNodesSrl
       integer(4), allocatable :: listElemsMpiRank(:)
@@ -127,10 +126,13 @@ contains
       integer(8),dimension(0:numMshRanks2Part-1) :: iNodeStartPar_i8
       integer(4),dimension(0:numMshRanks2Part-1) :: vecNumWorkingNodes,vecNumNodesToCommMshRank,vecNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecBndNumMshRanksWithComms
       integer(4),dimension(0:numMshRanks2Part-1) :: vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank
-      real(rp) :: Ngp_l(ngaus,nnode)
+      real(rp),allocatable :: Ngp_l(:,:)
       integer(4) :: iMshRank,mshRank
       integer(hid_t) :: gmsh_h5_fileId, sod2dmsh_h5_fileId
       real(8),dimension(10) :: start_time,end_time,elapsed_time_r
+
+      integer(4) :: mnnode,mngaus,mnpbou
+      integer(4),dimension(:),allocatable :: gmsh2ijk,vtk2ijk,gmsh2ij,vtk2ij
 
       ! ################################################################################################
       ! ----------------- VARS for new Par mesh FORMAT -------------------------------------------------
@@ -181,12 +183,18 @@ contains
        if(mpi_rank.eq.0) write(*,*) "Be Careful! _CHECK_ flag is ON! Debug files (*.csv) will be created!"     
 #endif
 
+      call get_porder_values(mporder,mnnode,mngaus,mnpbou)
+      call set_allocate_hexahedronHO_ijk_indices(mporder,gmsh2ijk,vtk2ijk)
+      call set_allocate_quadrilateralHO_ij_indices(mporder,gmsh2ij,vtk2ij)
+
+      allocate(Ngp_l(mngaus,mnnode))
+
       call open_gmsh_h5_file(gmsh_filePath,gmsh_fileName,gmsh_h5_fileId)
 
       call read_dims_gmsh_h5_file(gmsh_h5_fileId,numElemsGmsh,numNodesGmsh_i8,numBoundFacesGmsh,numPerFacesGmsh,numPerLinkedNodesGmsh,isPeriodic,isBoundaries)
 
       start_time(2) = MPI_Wtime()
-      call read_elems_nodes_gmsh_h5_file_in_parallel(gmsh_h5_fileId,isPeriodic,numElemsGmsh,numNodesGmsh_i8,numPerFacesGmsh,numPerLinkedNodesGmsh,&
+      call read_elems_nodes_gmsh_h5_file_in_parallel(mporder,mnnode,mnpbou,gmsh_h5_fileId,isPeriodic,numElemsGmsh,numNodesGmsh_i8,numPerFacesGmsh,numPerLinkedNodesGmsh,&
                      numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,listNodesMpiRank_i8,connecMpiRank_i8,coordNodesMpiRank,&
                      numLinkedPerElemsSrl,linkedPerElemsSrl,numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl_i8)
       end_time(2) = MPI_Wtime()
@@ -195,7 +203,7 @@ contains
       call distribute_ranks2Part_in_mpiRank(numMshRanks2Part,mshRankInMpiRankStart,mshRankInMpiRankEnd,numMshRanksInMpiRank,maxNumMshRanks,mshRanksInMpiRank,mapMshRankToMpiRank)
  
       start_time(3) = MPI_Wtime()
-      call do_element_partitioning_gempa_in_parallel(gmsh_h5_fileId,isPeriodic,numElemsGmsh,numNodesGmsh_i8,numBoundFacesGmsh,&
+      call do_element_partitioning_gempa_in_parallel(mporder,mnnode,mnpbou,gmsh_h5_fileId,isPeriodic,numElemsGmsh,numNodesGmsh_i8,numBoundFacesGmsh,&
                      numMshRanks2Part,numMshRanksInMpiRank,maxNumMshRanks,mshRanksInMpiRank,mapMshRankToMpiRank,numElemsMpiRank,listElemsMpiRank,&
                      numNodesMpiRank,listNodesMpiRank_i8,connecMpiRank_i8,coordNodesMpiRank,&
                      numLinkedPerElemsSrl,linkedPerElemsSrl,numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl_i8,&
@@ -242,7 +250,8 @@ contains
       do iMshRank=1,numMshRanksInMpiRank
          mshRank = mshRanksInMpiRank(iMshRank) 
 
-         call get_rankPartitionBoundaryNodes_in_parallel(mshRank,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),&
+         call get_rankPartitionBoundaryNodes_in_parallel(mporder,mnnode,mnpbou,gmsh2ijk,&
+                  mshRank,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),&
                   listNodesMshRank_i8_jv%vector(iMshRank)%elems,connecMshRank_i8_jm%matrix(iMshRank)%elems,coordMshRank_jm%matrix(iMshRank)%elems,&
                   listElemsBoundsMshRank_jm%matrix(iMshRank)%elems,listBoundFacesMshRank_jv%vector(iMshRank)%elems,&
                   connecOrigBoundFacesMshRank_i8_jm%matrix(iMshRank)%elems,&
@@ -256,7 +265,7 @@ contains
       call define_parallelNodePartitioning(numMshRanks2Part,numMshRanksInMpiRank,numNodesMshRank,mshRanksInMpiRank,mapMshRankToMpiRank,mshRankNodeStart_i8,mshRankNodeEnd_i8,iNodeStartPar_i8,numNodesParTotal_i8)
 
       !--------------------------------------------------------------------------------------
-      call evalShapeFunctions_Ngp_l(Ngp_l)
+      call evalShapeFunctions_Ngp_l(Ngp_l,mporder,mnnode,mngaus)
 
       allocate(globalIdSrl_i8_jv%vector(numMshRanksInMpiRank))
       allocate(globalIdSrlOrdered_i8_jm%matrix(numMshRanksInMpiRank))
@@ -282,14 +291,14 @@ contains
          allocate(globalIdSrlOrdered_i8_jm%matrix(iMshRank)%elems(numNodesMshRank(iMshRank),2))
          allocate(globalIdPar_i8_jv%vector(iMshRank)%elems(numNodesMshRank(iMshRank)))
 
-         allocate(connecVTK_jv%vector(iMshRank)%elems(numElemsMshRank(iMshRank)*nnode))
-         allocate(connecParOrig_jm%matrix(iMshRank)%elems(numElemsMshRank(iMshRank),nnode))
-         allocate(connecParWork_jm%matrix(iMshRank)%elems(numElemsMshRank(iMshRank),nnode))
+         allocate(connecVTK_jv%vector(iMshRank)%elems(numElemsMshRank(iMshRank)*mnnode))
+         allocate(connecParOrig_jm%matrix(iMshRank)%elems(numElemsMshRank(iMshRank),mnnode))
+         allocate(connecParWork_jm%matrix(iMshRank)%elems(numElemsMshRank(iMshRank),mnnode))
 
          allocate(coordPar_jm%matrix(iMshRank)%elems(numNodesMshRank(iMshRank),3))
 
-         allocate(connecBoundFacesMshRank_jm%matrix(iMshRank)%elems(numBoundFacesMshRank(iMshRank),npbou))
-         allocate(connecOrigBoundFacesMshRank_jm%matrix(iMshRank)%elems(numBoundFacesMshRank(iMshRank),npbou))
+         allocate(connecBoundFacesMshRank_jm%matrix(iMshRank)%elems(numBoundFacesMshRank(iMshRank),mnpbou))
+         allocate(connecOrigBoundFacesMshRank_jm%matrix(iMshRank)%elems(numBoundFacesMshRank(iMshRank),mnpbou))
          allocate(masSlaRankPar_jm%matrix(iMshRank)%elems(numPerNodesMshRank(iMshRank),2))
 
          !$acc kernels
@@ -307,18 +316,19 @@ contains
          !$acc end kernels
 
          !reordering nodes
-         call reorder_nodes_in_mshRank(mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),numPerNodesMshRank(iMshRank),&
+         call reorder_nodes_in_mshRank(mporder,mnnode,mnpbou,gmsh2ijk,vtk2ijk,&
+                        mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),numPerNodesMshRank(iMshRank),&
                         elemGidMshRank_jv%vector(iMshRank)%elems,listNodesMshRank_i8_jv%vector(iMshRank)%elems,connecMshRank_i8_jm%matrix(iMshRank)%elems,iNodeStartPar_i8,&
                         connecOrigBoundFacesMshRank_i8_jm%matrix(iMshRank)%elems,masSlaRankPar_i8_jm%matrix(iMshRank)%elems,&
                         globalIdSrl_i8_jv%vector(iMshRank)%elems,globalIdSrlOrdered_i8_jm%matrix(iMshRank)%elems,globalIdPar_i8_jv%vector(iMshRank)%elems,&
                         connecVTK_jv%vector(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems,&
                         connecOrigBoundFacesMshRank_jm%matrix(iMshRank)%elems,masSlaRankPar_jm%matrix(iMshRank)%elems)
 
-         call set_nodesCoordinates(mshRank,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),globalIdSrl_i8_jv%vector(iMshRank)%elems,&
+         call set_nodesCoordinates(mnnode,mnpbou,mngaus,mshRank,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),globalIdSrl_i8_jv%vector(iMshRank)%elems,&
             listNodesMshRank_i8_jv%vector(iMshRank)%elems,coordMshRank_jm%matrix(iMshRank)%elems,Ngp_l,connecParOrig_jm%matrix(iMshRank)%elems,&
             coordPar_jm%matrix(iMshRank)%elems)
 
-         call create_working_lists_parallel(isPeriodic,mshRank,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),&
+         call create_working_lists_parallel(mnnode,mnpbou,isPeriodic,mshRank,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),&
                connecParOrig_jm%matrix(iMshRank)%elems,numPerNodesMshRank(iMshRank),masSlaRankPar_jm%matrix(iMshRank)%elems,&
                connecParWork_jm%matrix(iMshRank)%elems,connecOrigBoundFacesMshRank_jm%matrix(iMshRank)%elems,connecBoundFacesMshRank_jm%matrix(iMshRank)%elems,&
                numWorkingNodesMshRank(iMshRank),workingNodesPar_jv%vector(iMshRank)%elems)
@@ -348,6 +358,7 @@ contains
 
       !-------------------------------------------------------------------------------------------
 
+      deallocate(Ngp_l)
       deallocate(listElemsMpiRank)
       deallocate(listNodesMpiRank_i8)
       deallocate(connecMpiRank_i8)
@@ -525,13 +536,14 @@ contains
    end subroutine read_dims_gmsh_h5_file
 
 
-   subroutine read_elem_connec_and_nodes_coords_from_gmsh_h5_file(gmsh_h5_fileId,numElemsSrl,numNodesSrl_i8,numElemsInRank,listElemsRank,numNodesInRank,connecRank_i8,listNodesRank_i8,coordNodesRank)
+   subroutine read_elem_connec_and_nodes_coords_from_gmsh_h5_file(mnnode,gmsh_h5_fileId,numElemsSrl,numNodesSrl_i8,numElemsInRank,listElemsRank,numNodesInRank,connecRank_i8,listNodesRank_i8,coordNodesRank)
       implicit none
+      integer(4),intent(in) :: mnnode
       integer(hid_t), intent(in) :: gmsh_h5_fileId
       integer(4),intent(in) :: numElemsSrl,numElemsInRank,listElemsRank(numElemsInRank)
       integer(8),intent(in) :: numNodesSrl_i8
       integer(4),intent(out) :: numNodesInRank
-      integer(8),intent(out) :: connecRank_i8(numElemsInRank,nnode)
+      integer(8),intent(out) :: connecRank_i8(numElemsInRank,mnnode)
       integer(8),allocatable,intent(inout) :: listNodesRank_i8(:)
       real(rp),allocatable,intent(inout) :: coordNodesRank(:,:)
       integer(4) :: iElem,iNode,nodeCnt,iAux,jAux,iDim
@@ -560,7 +572,7 @@ contains
       !haig de jugar amb el ratio fs_dims i ms_dims
 
       !call read_elem_connec_by_coords_selection(dset_id,fspace_id,plist_id,numElemsInRank,listElemsRank,connecRank_i8)
-      call read_elem_connec_by_chunks(dset_id,fspace_id,plist_id,numElemsSrl,numElemsInRank,listElemsRank,connecRank_i8)
+      call read_elem_connec_by_chunks(mnnode,dset_id,fspace_id,plist_id,numElemsSrl,numElemsInRank,listElemsRank,connecRank_i8)
 
       call h5pclose_f(plist_id,h5err)
       call h5sclose_f(fspace_id,h5err)
@@ -582,7 +594,7 @@ contains
       ! add all the iNodeGs of this mpirank
       nodeCnt=0
       do iAux = 1,numElemsInRank
-         do jAux = 1,nnode
+         do jAux = 1,mnnode
             iNodeG_i8 = connecRank_i8(iAux,jAux)
             nodeCnt=nodeCnt+1
             rawNodeListRank_i8(nodeCnt) = iNodeG_i8
@@ -594,7 +606,7 @@ contains
 
       prevNodeG_i8=0
       nodeCnt=0
-      do iAux = 1,(numElemsInRank*nnode)
+      do iAux = 1,(numElemsInRank*mnnode)
          if((rawNodeListRank_i8(iAux)).ne.(prevNodeG_i8)) then
             nodeCnt=nodeCnt+1
             prevNodeG_i8 = rawNodeListRank_i8(iAux)
@@ -613,7 +625,7 @@ contains
 
       prevNodeG_i8=0
       nodeCnt=0
-      do iAux = 1,(numElemsInRank*nnode)
+      do iAux = 1,(numElemsInRank*mnnode)
          if((rawNodeListRank_i8(iAux)).ne.(prevNodeG_i8)) then
             nodeCnt=nodeCnt+1
             listNodesRank_i8(nodeCnt) = rawNodeListRank_i8(iAux)
@@ -660,11 +672,12 @@ contains
 
    end subroutine read_elem_connec_and_nodes_coords_from_gmsh_h5_file
 !-------------------------------------------------------------------------------------------------------------------------------------------
-   subroutine read_elem_connec_by_chunks(dset_id,fspace_id,plist_id,numElemsSrl,numElemsInRank,listElemsRank,connecRank_i8)
+   subroutine read_elem_connec_by_chunks(mnnode,dset_id,fspace_id,plist_id,numElemsSrl,numElemsInRank,listElemsRank,connecRank_i8)
       implicit none
+      integer(4),intent(in) :: mnnode
       integer(hid_t),intent(in) :: dset_id,fspace_id,plist_id
       integer(4),intent(in) :: numElemsSrl,numElemsInRank,listElemsRank(numElemsInRank)
-      integer(8),intent(out) :: connecRank_i8(numElemsInRank,nnode)
+      integer(8),intent(out) :: connecRank_i8(numElemsInRank,mnnode)
       integer(4) :: nextElemToRead,elemCnt,iElem,iElemG
       integer(4) :: maxRows2read,numChunks,iChunk
       !-----------------------------------------------------------
@@ -683,7 +696,7 @@ contains
       numChunks = ceiling(real(numElemsSrl)/real(maxRows2read))
       if(mpi_rank.eq.0) write(*,*) ' -Reading elems by chunks | numChunks',numChunks,'maxRows2read',maxRows2read
 
-      ms_dims(1) = int(nnode,hsize_t)
+      ms_dims(1) = int(mnnode,hsize_t)
       ms_dims(2) = 1
       ms_offset(1) = 0
       ms_offset(2) = 0
@@ -697,7 +710,7 @@ contains
       nextElemToRead=listElemsRank(elemCnt+1)
       ms_offset(2) = 0
       do iChunk=1,numChunks
-         ms_dims(1) = int(nnode,hsize_t)
+         ms_dims(1) = int(mnnode,hsize_t)
          ms_dims(2) = int(vecChunks(iChunk),hsize_t)
          allocate(auxConnec_i8(ms_dims(1),ms_dims(2)))
          !write(*,*) 'iChunk',iChunk,'ms_dims',ms_dims,'ms_offset',ms_offset(2),'+',ms_offset(2) + ms_dims(2)!,'fsdims',fs_dims
@@ -711,7 +724,7 @@ contains
             iElemG=iElemG+1
             if(iElemG.eq.nextElemToRead) then
                elemCnt=elemCnt+1
-               connecRank_i8(elemCnt,1:nnode) = auxConnec_i8(:,iElem)
+               connecRank_i8(elemCnt,1:mnnode) = auxConnec_i8(:,iElem)
                !write(*,*) 'connecRank_i8[',mpi_rank,'](',elemCnt,')',connecRank(elemCnt,:)
                if(elemCnt.lt.numElemsInRank) nextElemToRead=listElemsRank(elemCnt+1)
             end if
@@ -727,11 +740,12 @@ contains
 
    end subroutine read_elem_connec_by_chunks
 !-------------------------------------------------------------------------------------------------------------------------------------------
-   subroutine read_elem_connec_by_coords_selection(dset_id,fspace_id,plist_id,numElemsInRank,listElemsRank,connecRank_i8)
+   subroutine read_elem_connec_by_coords_selection(mnnode,dset_id,fspace_id,plist_id,numElemsInRank,listElemsRank,connecRank_i8)
       implicit none
+      integer(4),intent(in) :: mnnode
       integer(hid_t),intent(in) :: dset_id,fspace_id,plist_id
       integer(4),intent(in) :: numElemsInRank,listElemsRank(numElemsInRank)
-      integer(8),intent(out) :: connecRank_i8(numElemsInRank,nnode)
+      integer(8),intent(out) :: connecRank_i8(numElemsInRank,mnnode)
       !-----------------------------------------------------------------------
       integer(8), allocatable :: auxConnec_i8(:,:)
       integer(4) :: iAux,iElem,iNode,elemToRead
@@ -747,12 +761,12 @@ contains
 
       dtype = h5_datatype_int8
 
-      ms_dims(1) = int(nnode,hsize_t)
+      ms_dims(1) = int(mnnode,hsize_t)
       ms_dims(2) = int(numElemsInRank,hsize_t)
-      ms_numElems = nnode*numElemsInRank
+      ms_numElems = mnnode*numElemsInRank
       !write(*,*) 'ms_numElems(',mpi_rank,')',ms_numElems
-      allocate(ms_coords(ms_rank,nnode*numElemsInRank))
-      allocate(auxConnec_i8(nnode,numElemsInRank))
+      allocate(ms_coords(ms_rank,mnnode*numElemsInRank))
+      allocate(auxConnec_i8(mnnode,numElemsInRank))
 
       call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
 
@@ -763,7 +777,7 @@ contains
       iAux=0
       do iElem=1,numElemsInRank
          elemToRead=listElemsRank(iElem)
-         do iNode=1,nnode
+         do iNode=1,mnnode
             iAux=iAux+1
             ms_coords(1,iAux) = iNode
             ms_coords(2,iAux) = elemToRead
@@ -911,9 +925,10 @@ contains
    end subroutine read_nodes_coords_by_coords_selection
 !-------------------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine read_periodic_faces_and_links_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,listElemsInRank,connecInRank_i8,&
+   subroutine read_periodic_faces_and_links_from_gmsh_h5_file_in_parallel(mporder,mnnode,mnpbou,gmsh_h5_fileId,numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,listElemsInRank,connecInRank_i8,&
                         numLinkedPerElemsSrl,linkedPerElemsSrl,numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl_i8)
       implicit none
+      integer(4), intent(in) :: mporder,mnnode,mnpbou
       integer(hid_t),intent(in) :: gmsh_h5_fileId
       integer(4),intent(in) :: numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,listElemsInRank(numElemsInRank)
       integer(8),intent(in) :: connecInRank_i8(numElemsInRank,nnode)
@@ -932,7 +947,7 @@ contains
 
       start_time(1) = MPI_Wtime()
       dsetname2read = '/periodicFaces'
-      call read_boundaries_for_elemsInRank_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,dsetname2read,numPerFacesSrl,numElemsInRank,listElemsInRank,connecInRank_i8,&
+      call read_boundaries_for_elemsInRank_from_gmsh_h5_file_in_parallel(mporder,mnnode,mnpbou,gmsh_h5_fileId,dsetname2read,numPerFacesSrl,numElemsInRank,listElemsInRank,connecInRank_i8,&
                                                                         numPerFacesInRank,listElemsPerFacesInRank,listPerFacesInRank,connecPerFacesInRank_i8)
       end_time(1) = MPI_Wtime()
       elapsed_time(1) = end_time(1) - start_time(1)
@@ -940,7 +955,7 @@ contains
       if(mpi_rank.eq.0) write(*,*) "--| Reading periodic links..."
 
       start_time(2) = MPI_Wtime()
-      call read_periodic_links_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,numPerFacesInRank,&
+      call read_periodic_links_from_gmsh_h5_file_in_parallel(mporder,gmsh_h5_fileId,numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,numPerFacesInRank,&
                      listElemsInRank,listElemsPerFacesInRank,listPerFacesInRank,connecPerFacesInRank_i8,numLinkedPerElemsSrl,linkedPerElemsSrl,&
                      numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl_i8)
       end_time(2) = MPI_Wtime()
@@ -956,22 +971,27 @@ contains
 
    end subroutine read_periodic_faces_and_links_from_gmsh_h5_file_in_parallel
 
-   subroutine read_boundaries_for_elemsInRank_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,dsetname,numFacesSrl,numElemsInRank,listElemsInRank,connecInRank_i8,numFacesInRank,listElemsFacesInRank,listFacesInRank,connecFacesInRank_i8)
+   subroutine read_boundaries_for_elemsInRank_from_gmsh_h5_file_in_parallel(mporder,mnnode,mnpbou,gmsh_h5_fileId,dsetname,numFacesSrl,numElemsInRank,listElemsInRank,connecInRank_i8,numFacesInRank,listElemsFacesInRank,listFacesInRank,connecFacesInRank_i8)
       implicit none
+      integer(4), intent(in) :: mporder,mnnode,mnpbou
       integer(hid_t), intent(in) :: gmsh_h5_fileId
       character(*), intent(in) :: dsetname
       integer(4), intent(in) :: numFacesSrl,numElemsInRank,listElemsInRank(numElemsInRank)
-      integer(8), intent(in) :: connecInRank_i8(numElemsInRank,nnode)
+      integer(8), intent(in) :: connecInRank_i8(numElemsInRank,mnnode)
       integer(4), intent(out) :: numFacesInRank
       integer(4), allocatable, intent(inout) :: listElemsFacesInRank(:,:),listFacesInRank(:)
       integer(8), allocatable, intent(inout) :: connecFacesInRank_i8(:,:)
 
       integer(4) :: iFace,iChunk,iFaceG,numFacesToRead,iElem,iVert,ind_gmsh,iElemG,iAux,jAux,nodeCnt
       integer(4) :: faces2readInChunk,maxFaces2read
-      integer(8) :: iNodeG_inFace,iNodeG_inElem,iFaceNodes_i8(npbou)
+      integer(8) :: iNodeG_inFace,iNodeG_inElem,iFaceNodes_i8(mnpbou)
       integer(8),allocatable :: auxFacesInRank_i8(:,:)
-      integer(8) :: f_iNodeG_i8(4),e_iNodeG_i8(8) !for the vertex of squares of the face and the element
       logical :: vertexFound
+
+      integer(4),parameter :: numQuadVert=4,numHexaVert=8
+      integer(8) :: f_iNodeG_i8(numQuadVert),e_iNodeG_i8(numHexaVert) !for the vertex of squares of the face and the element
+      integer(4) :: gmshQuadVertInd(numQuadVert),gmshHexVertInd(numHexaVert)
+
 
       integer(4),parameter :: ms_rank=2,ds_rank=2
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
@@ -1001,14 +1021,14 @@ contains
       maxFaces2read =1000
 
       dtype = h5_datatype_int8
-      ms_dims(1) = int(npbou,hsize_t)
+      ms_dims(1) = int(mnpbou,hsize_t)
       ms_dims(2) = 0
       ms_offset(1) = 0
       ms_offset(2) = 0
       !do iChunk=1,numChunks
 
       faces2readInChunk=numFacesSrl
-      allocate(auxFacesInRank_i8(npbou+1,faces2readInChunk))
+      allocate(auxFacesInRank_i8(mnpbou+1,faces2readInChunk))
       auxFacesInRank_i8(:,:) = 0
 
       ms_dims(2) = int(faces2readInChunk,hsize_t)
@@ -1024,7 +1044,7 @@ contains
 
       call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
       !call h5dread_f(dset_id,dtype,connecRank(iElem,:),ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id)
-      call h5dread_f(dset_id,dtype,auxFacesInRank_i8(1:npbou,1:faces2readInChunk),ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+      call h5dread_f(dset_id,dtype,auxFacesInRank_i8(1:mnpbou,1:faces2readInChunk),ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
       call h5pclose_f(plist_id,h5err)
       call h5sclose_f(mspace_id,h5err)
@@ -1033,6 +1053,9 @@ contains
 
       end_time(1) = MPI_Wtime()
       elapsed_time(1) = end_time(1) - start_time(1)
+
+      call get_gmshQuadHOVertIndex(mporder,gmshQuadVertInd)
+      call get_gmshHexHOVertIndex(mporder,gmshHexVertInd)
 
       start_time(2) = MPI_Wtime()
       !read the chunk
@@ -1043,10 +1066,10 @@ contains
          !ms_offset(2) = iFace-1
          !call read_dataspace_int4_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_rank,ms_dims,ms_offset,iFaceNodes)
          !-----------------------------------------------------
-         iFaceNodes_i8(:)=auxFacesInRank_i8(1:npbou,iFace)
+         iFaceNodes_i8(:)=auxFacesInRank_i8(1:mnpbou,iFace)
          !fill the corners of the face to check
-         do iVert=1,4
-            ind_gmsh = gmsh2ij_vertices(iVert)
+         do iVert=1,numQuadVert
+            ind_gmsh = gmshQuadVertInd(iVert) !gmsh2ij_vertices(iVert)
             f_iNodeG_i8(iVert) = iFaceNodes_i8(ind_gmsh)
          end do
          !write(*,*) '[',mpi_rank,']iFace',iFace,' -> f_iNodeG ',f_iNodeG(:)
@@ -1056,15 +1079,15 @@ contains
             nodeCnt=0
             iElemG=listElemsInRank(iElem)
             !fill the corners of the element 
-            do iVert=1,8
-               ind_gmsh = gmsh2ijk_vertices(iVert)
+            do iVert=1,numHexaVert
+               ind_gmsh = gmshHexVertInd(iVert) !gmsh2ijk_vertices(iVert)
                e_iNodeG_i8(iVert) = connecInRank_i8(iElem,ind_gmsh)
             end do
 
-            fLoop: do iVert=1,4
+            fLoop: do iVert=1,numQuadVert
                vertexFound=.false.
                iNodeG_inFace = f_iNodeG_i8(iVert)
-               eLoop: do jAux=1,8
+               eLoop: do jAux=1,numHexaVert
                   iNodeG_inElem = e_iNodeG_i8(jAux)
                   if(iNodeG_inFace .eq. iNodeG_inElem) then
                      nodeCnt=nodeCnt+1
@@ -1077,7 +1100,7 @@ contains
             if(nodeCnt.ge.4) then
                numFacesInRank=numFacesInRank+1
                !write(*,*) '[',mpi_rank,']iFace',iFace,' -> elem ',iElemG
-               auxFacesInRank_i8(npbou+1,iFace)=iFaceG!numFacesInRank! iFaceNodes(1:npbou)
+               auxFacesInRank_i8(mnpbou+1,iFace)=iFaceG!numFacesInRank! iFaceNodes(1:npbou)
 
                addLoop : do iAux = 1,maxBoundsPerElem
                   if(listElemsFacesInRank(iElem,iAux).eq.0) then
@@ -1096,13 +1119,13 @@ contains
       !write(*,*) 'numFacesInRank',numFacesInRank
 
       allocate(listFacesInRank(numFacesInRank))
-      allocate(connecFacesInRank_i8(numFacesInRank,npbou))
+      allocate(connecFacesInRank_i8(numFacesInRank,mnpbou))
 
       start_time(3) = MPI_Wtime()
 
       iAux=0
       do iFace=1,faces2readInChunk
-         iFaceG=auxFacesInRank_i8(npbou+1,iFace)
+         iFaceG=auxFacesInRank_i8(mnpbou+1,iFace)
          if(iFaceG.ne.0) then
             iAux=iAux+1
             listFacesInRank(iAux)        = iFaceG
@@ -1200,26 +1223,30 @@ contains
 
    end subroutine read_boundaries_boundCodes_from_gmsh_h5_file_in_parallel
 
-   subroutine read_periodic_links_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,numPerFacesInRank,&
+   subroutine read_periodic_links_from_gmsh_h5_file_in_parallel(mporder,gmsh_h5_fileId,numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,numPerFacesInRank,&
                listElemsInRank,listElemsPerFacesInRank,listPerFacesInRank,connecPerFacesInRank_i8,numLinkedPerElemsSrl,linkedPerElemsAll,&
                numPerElemsSrl,listPerElemsAll,numMasSlaNodesSrl,masSlaNodesAll_i8)
       implicit none
-      integer(hid_t), intent(in) :: gmsh_h5_fileId
+      integer(4),intent(in) :: mporder
+      integer(hid_t),intent(in) :: gmsh_h5_fileId
       integer(4),intent(in) :: numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,numPerFacesInRank
       integer(4),intent(in) :: listElemsInRank(numElemsInRank),listElemsPerFacesInRank(numElemsInRank,maxBoundsPerElem),listPerFacesInRank(numPerFacesInRank)
       integer(8),intent(in) :: connecPerFacesInRank_i8(numPerFacesInRank,npbou)
       integer(4),intent(out) :: numLinkedPerElemsSrl,numPerElemsSrl,numMasSlaNodesSrl
-      integer(4), allocatable,intent(inout) :: linkedPerElemsAll(:,:),listPerElemsAll(:)
-      integer(8), allocatable,intent(inout) :: masSlaNodesAll_i8(:,:)
+      integer(4),allocatable,intent(inout) :: linkedPerElemsAll(:,:),listPerElemsAll(:)
+      integer(8),allocatable,intent(inout) :: masSlaNodesAll_i8(:,:)
 
       integer(4), allocatable ::listPerElemsInRank(:)
 
-      integer(4), parameter :: numVert = 4
+      !integer(4), parameter :: numVert = 4
       character(128) :: dsetname
-      integer(4), allocatable :: perFaceElemInRank(:),perFaceElemAll(:),listPerFacesAll(:)!,mpiRankPerFacesAll(:)
-      integer(8), allocatable :: refNodesPerFacesInRank_i8(:),refNodesPerFacesAll_i8(:)
-      logical, allocatable :: masterPerFacesInRank(:),masterPerFacesAll(:)
-      integer(4), dimension(0:mpi_size-1) :: vecNumPerFacesInRank,vecNumPerElemsInRank
+      integer(4),allocatable :: perFaceElemInRank(:),perFaceElemAll(:),listPerFacesAll(:)!,mpiRankPerFacesAll(:)
+      integer(8),allocatable :: refNodesPerFacesInRank_i8(:),refNodesPerFacesAll_i8(:)
+      logical,allocatable :: masterPerFacesInRank(:),masterPerFacesAll(:)
+      integer(4),dimension(0:mpi_size-1) :: vecNumPerFacesInRank,vecNumPerElemsInRank
+
+      integer(4),parameter :: numQuadVert=4
+      integer(4):: gmshQuadInnerVertInd(numQuadVert)
 
       integer(4) :: iLink,iElem,iPerFace,iFaceG,iBound,ind_gmsh,iElemG,iPos,iPosFace
       integer(4) :: iFaceMaster,iFaceSlave,iFaceGmstr,iFaceGslv,elemGidPerFaceM,elemGidPerFaceS
@@ -1244,10 +1271,10 @@ contains
       !----------------------------------------------------------------------------------------------------------
       !  0. Allocate vectors
 
-      allocate(refNodesPerFacesInRank_i8(numPerFacesInRank*numVert))
+      allocate(refNodesPerFacesInRank_i8(numPerFacesInRank*numQuadVert))
       allocate(perFaceElemInRank(numPerFacesInRank))
       allocate(masterPerFacesInRank(numPerFacesInRank))
-      allocate(refNodesPerFacesAll_i8(numPerFacesSrl*numVert))
+      allocate(refNodesPerFacesAll_i8(numPerFacesSrl*numQuadVert))
       allocate(perFaceElemAll(numPerFacesSrl))
       allocate(masterPerFacesAll(numPerFacesSrl))
       allocate(listPerFacesAll(numPerFacesSrl))
@@ -1315,6 +1342,8 @@ contains
       end_time(2) = MPI_Wtime()
       elapsed_time(2) = end_time(2) - start_time(2)
 
+      call get_gmshQuadHOInnerVertIndex(mporder,gmshQuadInnerVertInd)
+
       !----------------------------------------------------------------------------------------------------------
       !  3. Fill the refNodesPerFacesAll_i8 matrix
       if(mpi_rank.eq.0) write(*,*) "  |-> Filling refNodesPerFacesAll..."
@@ -1322,10 +1351,10 @@ contains
       call quicksort_matrix_int8(matPerLinkNodes_i8,1)
 
       do iPerFace=1,numPerFacesInRank
-         perFaceLoop : do iVert=1,numVert
-            ind_gmsh = gmsh2ij_vertInnerNodes(iVert)
+         perFaceLoop : do iVert=1,numQuadVert
+            ind_gmsh = gmshQuadInnerVertInd(iVert)!gmsh2ij_vertInnerNodes(iVert)
             iNodeG = connecPerFacesInRank_i8(iPerFace,ind_gmsh)
-            iAux = (iPerFace-1)*numVert + iVert
+            iAux = (iPerFace-1)*numQuadVert + iVert
             iPos = binarySearch_int_i8(matPerLinkNodes_i8(:,1),iNodeG)
             !write(*,*) 'ipf',iPerFace,'iAux',iAux,'iNodeG',iNodeG,'iPos',iPos
             if(iPos.ne.0) then !found
@@ -1344,10 +1373,10 @@ contains
 
       do iPerFace=1,numPerFacesInRank
          if(.not.(masterPerFacesInRank(iPerFace))) then
-            do iVert=1,numVert
-               ind_gmsh = gmsh2ij_vertInnerNodes(iVert)
+            do iVert=1,numQuadVert
+               ind_gmsh = gmshQuadInnerVertInd(iVert)!gmsh2ij_vertInnerNodes(iVert)
                iNodeG = connecPerFacesInRank_i8(iPerFace,ind_gmsh)
-               iAux = (iPerFace-1)*numVert + iVert
+               iAux = (iPerFace-1)*numQuadVert + iVert
                iPos = binarySearch_int_i8(matPerLinkNodes_i8(:,2),iNodeG)
                refNodesPerFacesInRank_i8(iAux) = matPerLinkNodes_i8(iPos,1)
             end do
@@ -1518,14 +1547,14 @@ contains
       !---------------------------------------------------------------------------------------------------------------------------------------
       !---------------------------------------------------------------------------------------------------------------------------------------
       !---------------------------------------------------------------------------------------------------------------------------------------
-      win_buffer_size1 = mpi_int8_size*(numPerFacesInRank*numVert)
+      win_buffer_size1 = mpi_int8_size*(numPerFacesInRank*numQuadVert)
       call MPI_Win_create(refNodesPerFacesInRank_i8,win_buffer_size1,mpi_int8_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
       call MPI_Win_fence(0,window_id1,mpi_err)
 
       memPos = 1
       trgt_disp = 0
       do iMpiRank=0,mpi_size-1
-         memSize   = vecNumPerFacesInRank(iMpiRank)*numVert
+         memSize   = vecNumPerFacesInRank(iMpiRank)*numQuadVert
          call MPI_Get(refNodesPerFacesAll_i8(memPos),memSize,mpi_datatype_int8,iMpiRank,trgt_disp,memSize,mpi_datatype_int8,window_id1,mpi_err)
          memPos = memPos + memSize
       end do
@@ -1672,12 +1701,12 @@ contains
             id2loop: do iFaceSlave=1,numPerFacesSrl
                if(.not.(masterPerFacesAll(iFaceSlave))) then
                   vertNodeCnt=0
-                  iVertLoop: do iVert=1,numVert
-                     iAux = (iFaceMaster-1)*numVert + iVert
+                  iVertLoop: do iVert=1,numQuadVert
+                     iAux = (iFaceMaster-1)*numQuadVert + iVert
                      vertNodeFound = .false.
                      iNodeGM = refNodesPerFacesAll_i8(iAux)
-                     jVertLoop: do jVert=1,numVert
-                        jAux = (iFaceSlave-1)*numVert + jVert
+                     jVertLoop: do jVert=1,numQuadVert
+                        jAux = (iFaceSlave-1)*numQuadVert + jVert
                         iNodeGS = refNodesPerFacesAll_i8(jAux)
                         if(iNodeGM.eq.iNodeGS) then
                            vertNodeFound = .true.
@@ -1905,10 +1934,11 @@ contains
    end subroutine find_masterNode_recursive
 
 
-   subroutine read_elems_nodes_gmsh_h5_file_in_parallel(gmsh_h5_fileId,isPeriodic,numElemsSrl,numNodesSrl_i8,numPerFacesSrl,numPerLinkedNodesSrl,&
+   subroutine read_elems_nodes_gmsh_h5_file_in_parallel(mporder,mnnode,mnpbou,gmsh_h5_fileId,isPeriodic,numElemsSrl,numNodesSrl_i8,numPerFacesSrl,numPerLinkedNodesSrl,&
                      numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,listNodesMpiRank_i8,connecMpiRank_i8,coordNodesMpiRank,&
                      numLinkedPerElemsSrl,linkedPerElemsSrl,numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl_i8)
       implicit none
+      integer(4)                 :: mporder,mnnode,mnpbou
       integer(hid_t), intent(in) :: gmsh_h5_fileId
       logical, intent(in)        :: isPeriodic
       integer(4),intent(in)      :: numElemsSrl,numPerFacesSrl,numPerLinkedNodesSrl
@@ -1931,7 +1961,7 @@ contains
 
       ! Connectivity table section
       !------------------------------------------------------------------------------------------
-      allocate(connecMpiRank_i8(numElemsMpiRank,nnode))
+      allocate(connecMpiRank_i8(numElemsMpiRank,mnnode))
       allocate(listElemsMpiRank(numElemsMpiRank))
 
       !$acc kernels
@@ -1948,7 +1978,7 @@ contains
       call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
       start_time(1) = MPI_Wtime()
       if(mpi_rank.eq.0)write(*,*) "--| Reading element table and coordinates for Mpi Ranks"
-      call read_elem_connec_and_nodes_coords_from_gmsh_h5_file(gmsh_h5_fileId,numElemsSrl,numNodesSrl_i8,numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,connecMpiRank_i8,listNodesMpiRank_i8,coordNodesMpiRank)
+      call read_elem_connec_and_nodes_coords_from_gmsh_h5_file(mnnode,gmsh_h5_fileId,numElemsSrl,numNodesSrl_i8,numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,connecMpiRank_i8,listNodesMpiRank_i8,coordNodesMpiRank)
       end_time(1) = MPI_Wtime()
 
       !------------------------------------------------------------------------------------------
@@ -1956,7 +1986,7 @@ contains
 
       start_time(2) = MPI_Wtime()
       if(isPeriodic) then
-         call read_periodic_faces_and_links_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,numPerFacesSrl,numPerLinkedNodesSrl,numElemsMpiRank,listElemsMpiRank,connecMpiRank_i8,&
+         call read_periodic_faces_and_links_from_gmsh_h5_file_in_parallel(mporder,mnnode,mnpbou,gmsh_h5_fileId,numPerFacesSrl,numPerLinkedNodesSrl,numElemsMpiRank,listElemsMpiRank,connecMpiRank_i8,&
                      numLinkedPerElemsSrl,linkedPerElemsSrl,numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl_i8)
       else
          numLinkedPerElemsSrl = 0
@@ -1980,7 +2010,7 @@ contains
    end subroutine read_elems_nodes_gmsh_h5_file_in_parallel
 
 
-   subroutine do_element_partitioning_gempa_in_parallel(gmsh_h5_fileId,isPeriodic,numElemsSrl,numNodesSrl_i8,numBoundFacesSrl,&
+   subroutine do_element_partitioning_gempa_in_parallel(mporder,mnnode,mnpbou,gmsh_h5_fileId,isPeriodic,numElemsSrl,numNodesSrl_i8,numBoundFacesSrl,&
                   numMshRanks2Part,numMshRanksInMpiRank,maxNumMshRanks,mshRanksInMpiRank,mapMshRankToMpiRank,numElemsMpiRank,listElemsMpiRank,&
                   numNodesMpiRank,listNodesMpiRank_i8,connecMpiRank_i8,coordNodesMpiRank,&
                   numLinkedPerElemsSrl,linkedPerElemsSrl,numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl_i8,&
@@ -1988,7 +2018,8 @@ contains
                   elemGid_jv,listNodesMshRank_i8_jv,connecMshRank_i8_jm,listElemsBoundsMshRank_jm,listBoundFacesMshRank_jv,boundFacesCodesMshRank_jv,&
                   connecBoundFacesMshRank_i8_jm,coordMshRank_jm,masSlaRankPar_i8_jm)
       implicit none
-      integer(hid_t), intent(in) :: gmsh_h5_fileId
+      integer(4),intent(in)     :: mporder,mnnode,mnpbou
+      integer(hid_t),intent(in) :: gmsh_h5_fileId
       logical,intent(in) :: isPeriodic
       integer(4),intent(in) :: numElemsSrl,numBoundFacesSrl
       integer(8),intent(in) :: numNodesSrl_i8
@@ -1996,7 +2027,7 @@ contains
       integer(4),intent(in) :: numMshRanksInMpiRank,maxNumMshRanks,mshRanksInMpiRank(numMshRanksInMpiRank),mapMshRankToMpiRank(numMshRanks2Part)
       integer(4),intent(in) :: listElemsMpiRank(numElemsMpiRank)
       integer(4),intent(in) :: linkedPerElemsSrl(numLinkedPerElemsSrl,2),listPerElemsSrl(numPerElemsSrl)
-      integer(8),intent(in) :: listNodesMpiRank_i8(numNodesMpiRank),connecMpiRank_i8(numElemsMpiRank,nnode),masSlaNodesSrl_i8(numMasSlaNodesSrl,2)
+      integer(8),intent(in) :: listNodesMpiRank_i8(numNodesMpiRank),connecMpiRank_i8(numElemsMpiRank,mnnode),masSlaNodesSrl_i8(numMasSlaNodesSrl,2)
       real(rp),intent(in) :: coordNodesMpiRank(numNodesMpiRank,ndime)
       integer(4),intent(out) :: maxBoundCode
       integer(4),intent(out),allocatable :: numElemsMshRank(:),mshRankElemStart(:),mshRankElemEnd(:),numNodesMshRank(:),numBoundFacesMshRank(:),numPerNodesMshRank(:)
@@ -2015,7 +2046,10 @@ contains
       integer(4), allocatable :: listElems2Part(:),weightElems2Part(:),unfoldedElems(:)
       integer(4), allocatable :: linkedElems(:,:),elemPart(:,:),elemPartAux(:,:)
 
-      integer(4) :: ii,jj,kk,m,iElem,iElem2Part,iNode,iElemG,iBound,iPos
+      integer(4),parameter :: numHexaVert=8
+      integer(4) :: gmshHexVertInd(numHexaVert)
+
+      integer(4) :: ii,jj,kk,m,iVert,iElem,iElem2Part,iNode,iElemG,iBound,iPos
       integer(8) :: iNodeG
       integer(4) :: mshRank,mpiRank,iMshRank,iMpiRank
       integer(4) :: numElems2Part,numValues2get,aux_numElemsMshRank,aux_sum_NBP,aux_sum_NB_mpiRank
@@ -2043,6 +2077,8 @@ contains
       allocate(y(numElems2Part))
       allocate(z(numElems2Part))
 
+      call get_gmshHexHOVertIndex(mporder,gmshHexVertInd)
+
       do iElem2Part=1,numElems2Part
          elemPart(iElem2Part,1) = listElems2Part(iElem2Part)
          elemPart(iElem2Part,3) = weightElems2Part(iElem2Part)
@@ -2053,8 +2089,8 @@ contains
          x_a=0.0_rp
          y_a=0.0_rp
          z_a=0.0_rp
-         do ii=1,8
-            m = gmsh2ijk_vertices(ii)
+         do iVert=1,numHexaVert
+            m = gmshHexVertInd(iVert)!gmsh2ijk_vertices(ii)
             iNodeG = connecMpiRank_i8(iElem,m)
 
             iPos = binarySearch_int_i8(listNodesMpiRank_i8,iNodeG)
@@ -2345,11 +2381,11 @@ contains
          mshRank= mshRanksInMpiRank(iMshRank)
          !write(*,*) '#Reading stuff for mshRank',mshRank,'in mpi_rank',mpi_rank,'(iMshRank',iMshRank,')','aux_numElemsMshRank',aux_numElemsMshRank
 
-         allocate(connecMshRank_i8_jm%matrix(iMshRank)%elems(aux_numElemsMshRank,nnode))
+         allocate(connecMshRank_i8_jm%matrix(iMshRank)%elems(aux_numElemsMshRank,mnnode))
 
          call quicksort_array_int4(elemGid_jv%vector(iMshRank)%elems)
 
-         call read_elem_connec_and_nodes_coords_from_gmsh_h5_file(gmsh_h5_fileId,numElemsSrl,numNodesSrl_i8,aux_numElemsMshRank,elemGid_jv%vector(iMshRank)%elems,numNodesMshRank(iMshRank),&
+         call read_elem_connec_and_nodes_coords_from_gmsh_h5_file(mnnode,gmsh_h5_fileId,numElemsSrl,numNodesSrl_i8,aux_numElemsMshRank,elemGid_jv%vector(iMshRank)%elems,numNodesMshRank(iMshRank),&
                                           connecMshRank_i8_jm%matrix(iMshRank)%elems,listNodesMshRank_i8_jv%vector(iMshRank)%elems,coordMshRank_jm%matrix(iMshRank)%elems)
 
 
@@ -2357,7 +2393,7 @@ contains
          if(numBoundFacesSrl.ne.0) then
 
             dsetname2read = '/boundFaces'
-            call read_boundaries_for_elemsInRank_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,dsetname2read,numBoundFacesSrl,aux_numElemsMshRank,&
+            call read_boundaries_for_elemsInRank_from_gmsh_h5_file_in_parallel(mporder,mnnode,mnpbou,gmsh_h5_fileId,dsetname2read,numBoundFacesSrl,aux_numElemsMshRank,&
                      elemGid_jv%vector(iMshRank)%elems,connecMshRank_i8_jm%matrix(iMshRank)%elems,&
                      numBoundFacesMshRank(iMshRank),listElemsBoundsMshRank_jm%matrix(iMshRank)%elems,listBoundFacesMshRank_jv%vector(iMshRank)%elems,connecBoundFacesMshRank_i8_jm%matrix(iMshRank)%elems)
 
@@ -2380,17 +2416,17 @@ contains
       aux_numElemsMshRank=1
       allocate(dummyListElems(1))
       dummyListElems(1)=1
-      allocate(dummyConnec(1,nnode))
+      allocate(dummyConnec(1,mnnode))
 
       do iMshRank=(numMshRanksInMpiRank+1),maxNumMshRanks
          !write(*,*) 'FAKE-rank[',mpi_rank,']doing',iMshRank,'max',maxNumMshRanks
 
-         call read_elem_connec_and_nodes_coords_from_gmsh_h5_file(gmsh_h5_fileId,numElemsSrl,numNodesSrl_i8,aux_numElemsMshRank,dummyListElems,dummyNumNodes,&
+         call read_elem_connec_and_nodes_coords_from_gmsh_h5_file(mnnode,gmsh_h5_fileId,numElemsSrl,numNodesSrl_i8,aux_numElemsMshRank,dummyListElems,dummyNumNodes,&
                                           dummyConnec,dummyListNodes,dummyCoordNodes)
 
          if(numBoundFacesSrl.ne.0) then
             dsetname2read = '/boundFaces'
-            call read_boundaries_for_elemsInRank_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,dsetname2read,numBoundFacesSrl,aux_numElemsMshRank,&
+            call read_boundaries_for_elemsInRank_from_gmsh_h5_file_in_parallel(mporder,mnnode,mnpbou,gmsh_h5_fileId,dsetname2read,numBoundFacesSrl,aux_numElemsMshRank,&
                      dummyListElems,dummyConnec,dummyNumBoundFaces,dummyListElemsBounds,dummyListBoundFaces,dummyConnecBoundFaces)
 
             dsetname2read = '/boundFacesId'
@@ -2689,13 +2725,15 @@ contains
 
    end subroutine distribute_ranks2Part_in_mpiRank
 
-   subroutine get_rankPartitionBoundaryNodes_in_parallel(mshRank,numElemsInRank,numNodesInRank,numBoundsInRank,listNodesInRank_i8,connecInRank_i8,coordInRank,&
+   subroutine get_rankPartitionBoundaryNodes_in_parallel(mporder,mnnode,mnpbou,gmsh2ijk,mshRank,numElemsInRank,numNodesInRank,numBoundsInRank,listNodesInRank_i8,connecInRank_i8,coordInRank,&
                listElemsBoundsInRank,listBoundFacesInRank,connecBoundFacesInRank_i8,numMasSlaNodesInRank,masSlaNodesInRank_i8,&
                numMshBoundNodesRankPar,numMpiBoundNodesRankPar,numInnerNodesRankPar,mpiBoundaryNodes_i8,mshBoundaryNodes_i8)
       implicit none
+      integer(4), intent(in) :: mporder,mnnode,mnpbou
+      integer(4), intent(in) :: gmsh2ijk(mnnode)
       integer(4), intent(in) :: mshRank,numElemsInRank,numNodesInRank,numBoundsInRank,numMasSlaNodesInRank
       integer(4), intent(in) :: listElemsBoundsInRank(numElemsInRank,maxBoundsPerElem),listBoundFacesInRank(numBoundsInRank)
-      integer(8), intent(in) :: listNodesInRank_i8(numNodesInRank),connecInRank_i8(numElemsInRank,nnode),connecBoundFacesInRank_i8(numBoundsInRank,npbou),masSlaNodesInRank_i8(numMasSlaNodesInRank,2)
+      integer(8), intent(in) :: listNodesInRank_i8(numNodesInRank),connecInRank_i8(numElemsInRank,mnnode),connecBoundFacesInRank_i8(numBoundsInRank,mnpbou),masSlaNodesInRank_i8(numMasSlaNodesInRank,2)
       real(rp),intent(in) :: coordInRank(numNodesInRank,3)
       
       integer(4), intent(out) :: numMshBoundNodesRankPar,numMpiBoundNodesRankPar,numInnerNodesRankPar
@@ -2707,7 +2745,7 @@ contains
       integer(8) :: iNodeG,iNodeG_inFace
       integer(4) :: auxCnt,mpiAuxCnt,mshAuxCnt
       integer(4) :: iBound,numBoundFacesToCheck,boundFacesToCheck(maxBoundsPerElem)
-      integer(4), parameter :: checkFacePos = 6
+      integer(4),dimension(mnpbou) :: gmshHexFaceFrontInd,gmshHexFaceBackInd,gmshHexFaceBottomInd,gmshHexFaceTopInd,gmshHexFaceLeftInd,gmshHexFaceRightInd
       !-------------------------------------------
 
       !$acc kernels
@@ -2719,7 +2757,7 @@ contains
       !$acc end kernels
 
       do iElemL=1,numElemsInRank
-         do ind = 1,nnode
+         do ind = 1,mnnode
             iNodeG = connecInRank_i8(iElemL,ind)
             indexNode = binarySearch_int_i8(listNodesInRank_i8,iNodeG)
             nodeOwnedCnt(indexNode) = nodeOwnedCnt(indexNode) + 1
@@ -2738,6 +2776,8 @@ contains
 
       !check if face is in boundary
 
+      call get_gmshHexHOFacesIndex(mporder,mnpbou,gmshHexFaceFrontInd,gmshHexFaceBackInd,gmshHexFaceBottomInd,gmshHexFaceTopInd,gmshHexFaceLeftInd,gmshHexFaceRightInd)
+
       do iElemL=1,numElemsInRank
 
          numBoundFacesToCheck=0
@@ -2748,23 +2788,21 @@ contains
             end if
          end do
 
-         call find_mpi_and_msh_boundaries(numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,faceFront2ijk, listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
-         call find_mpi_and_msh_boundaries(numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,faceLeft2ijk,  listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
-         call find_mpi_and_msh_boundaries(numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,faceTop2ijk,   listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
-         call find_mpi_and_msh_boundaries(numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,faceBack2ijk,  listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
-         call find_mpi_and_msh_boundaries(numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,faceRight2ijk, listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
-         call find_mpi_and_msh_boundaries(numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,faceBottom2ijk,listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
+         call find_mpi_and_msh_boundaries(mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceFrontInd, listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
+         call find_mpi_and_msh_boundaries(mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceLeftInd,  listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
+         call find_mpi_and_msh_boundaries(mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceTopInd,   listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
+         call find_mpi_and_msh_boundaries(mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceBackInd,  listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
+         call find_mpi_and_msh_boundaries(mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceRightInd, listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
+         call find_mpi_and_msh_boundaries(mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceBottomInd,listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
 
       end do
 
-      !numBoundNodesRankPar=0
       numMshBoundNodesRankPar=0
       numMpiBoundNodesRankPar=0
       numInnerNodesRankPar=0
 
       do iNode=1,numNodesInRank
          if(nodeInBoundary(iNode)) then !node is boundary
-            !numBoundNodesRankPar=numBoundNodesRankPar+1
             if(nodeInMshBoundary(iNode)) numMshBoundNodesRankPar=numMshBoundNodesRankPar+1
             if(nodeInMpiBoundary(iNode)) numMpiBoundNodesRankPar=numMpiBoundNodesRankPar+1
          else !node is inner
@@ -2773,7 +2811,6 @@ contains
       end do
 
       !write(*,*) '1.#rank[',mpi_rank,'] numNodesInRank',numNodesInRank,'bMshN',numMshBoundNodesRankPar,'bMpiN',numMpiBoundNodesRankPar,'iN',numInnerNodesRankPar
-      !allocate(boundaryNodes(numBoundNodesRankPar))
       allocate(mpiBoundaryNodes_i8(numMpiBoundNodesRankPar))
       allocate(mshBoundaryNodes_i8(numMshBoundNodesRankPar))
 
@@ -2784,7 +2821,6 @@ contains
          iNodeG=listNodesInRank_i8(iNode)
          if(nodeInBoundary(iNode)) then !node is boundary
             auxCnt=auxCnt+1
-            !boundaryNodes(auxCnt) = iNodeG
             if(nodeInMshBoundary(iNode)) then
                mshAuxCnt=mshAuxCnt+1
                mshBoundaryNodes_i8(mshAuxCnt) = iNodeG
@@ -2802,16 +2838,6 @@ contains
 #if _CHECK_
       write(aux_string_mpirank_deb,'(I0)') mpi_rank
       write(aux_string_mshrank_deb,'(I0)') mshRank
-      !file_name_deb = 'boundaryNodes_mpiRank'//trim(aux_string_mpirank_deb)//'_mshRank_'//trim(aux_string_mshrank_deb)//'.csv'
-      !open(1, file=file_name_deb)
-      !write(1,*) 'X,Y,Z,iNodeG'
-      !do iNode=1,numBoundNodesRankPar
-      !   iNodeG=boundaryNodes(iNode)
-      !   indexNode = binarySearch_int_i(listNodesInRank,iNodeG)
-      !   
-      !   write(1,fmt_csv_deb) coordInRank(indexNode,1),coordInRank(indexNode,2),coordInRank(indexNode,3),iNodeG
-      !end do
-      !close(1)
 
       file_name_deb = 'boundaryMpiNodes_mpiRank'//trim(aux_string_mpirank_deb)//'_mshRank_'//trim(aux_string_mshrank_deb)//'.csv'
       open(1, file=file_name_deb)
@@ -2838,18 +2864,19 @@ contains
 #endif
    end subroutine get_rankPartitionBoundaryNodes_in_parallel
 
-   subroutine find_mpi_and_msh_boundaries(numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,face2ijk,listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundsInRank,boundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
+   subroutine find_mpi_and_msh_boundaries(mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,face2ijk,listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundsInRank,boundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
       implicit none
+      integer(4),intent(in) :: mnnode,mnpbou
       integer(4),intent(in) :: numElemsInRank,numNodesInRank,numBoundsInRank
-      integer(4),intent(in) :: iElemL,face2ijk(npbou),nodeOwnedCnt(numNodesInRank),listBoundsInRank(numBoundsInRank)
-      integer(8),intent(in) :: listNodesInRank_i8(numNodesInRank),connecInRank_i8(numElemsInRank,nnode),boundFacesInRank_i8(numBoundsInRank,npbou)
+      integer(4),intent(in) :: iElemL,gmsh2ijk(mnnode),face2ijk(mnpbou),nodeOwnedCnt(numNodesInRank),listBoundsInRank(numBoundsInRank)
+      integer(8),intent(in) :: listNodesInRank_i8(numNodesInRank),connecInRank_i8(numElemsInRank,mnnode),boundFacesInRank_i8(numBoundsInRank,mnpbou)
       integer(4),intent(in) :: numBoundFacesToCheck,boundFacesToCheck(maxBoundsPerElem)
       logical,intent(out) :: nodeInBoundary(numNodesInRank),nodeInMshBoundary(numNodesInRank),nodeInMpiBoundary(numNodesInRank)
       integer(4) :: ii,jj,ind,ind_f,iFace,indexNode,indexNode_inFace
       integer(8) :: iNodeG,iNodeG_inFace,iNodeG_ToCheck
       integer(4) :: iBound,iBoundG,iElemG,indexBound
       logical :: isMshBound
-      integer(4), parameter :: checkFacePos = 6
+      integer(4), parameter :: checkFacePos = 5!6
       
       !# 1.Whatever face ------------------------------------------------------
       ind = face2ijk(checkFacePos)
@@ -2874,7 +2901,7 @@ contains
          end do
          !----------------------------------------------------------------
          !----------------------------------------------------------------
-         do iFace=1,npbou
+         do iFace=1,mnpbou
             ind_f = gmsh2ijk(face2ijk(iFace))
             iNodeG = connecInRank_i8(iElemL,ind_f)
             indexNode = binarySearch_int_i8(listNodesInRank_i8,iNodeG)
@@ -2924,28 +2951,30 @@ contains
       end do
    end subroutine define_parallelNodePartitioning
 
-   subroutine reorder_nodes_in_mshRank(mshRank,numMshRanks2Part,numElemsInRank,numNodesInRank,numBoundsInRank,numMasSlaNodesInRank,elemGidInRank,listNodesInRank_i8,connecInRank_i8,iNodeStartPar_i8,&
+   subroutine reorder_nodes_in_mshRank(mporder,mnnode,mnpbou,gmsh2ijk,vtk2ijk,mshRank,numMshRanks2Part,numElemsInRank,numNodesInRank,numBoundsInRank,numMasSlaNodesInRank,elemGidInRank,listNodesInRank_i8,connecInRank_i8,iNodeStartPar_i8,&
                boundFacesInRank_i8,masSlaNodesInRank_i8,globalIdSrlInRank_i8,globalIdSrlOrderedInRank_i8,globalIdParInRank_i8,connecVTKInRank,connecParOrigInRank,boundFacesInRank,masSlaNodesInRank)
       implicit none
+      integer(4),intent(in) :: mporder,mnnode,mnpbou
+      integer(4),intent(in) :: gmsh2ijk(mnnode),vtk2ijk(mnnode)
       integer(4),intent(in) :: mshRank,numMshRanks2Part,numElemsInRank,numNodesInRank,numBoundsInRank,numMasSlaNodesInRank
       integer(4),intent(in) :: elemGidInRank(numElemsInRank)
-      integer(8),intent(in) :: listNodesInRank_i8(numNodesInRank),connecInRank_i8(numElemsInRank,nnode)
+      integer(8),intent(in) :: listNodesInRank_i8(numNodesInRank),connecInRank_i8(numElemsInRank,mnnode)
       integer(8),dimension(0:numMshRanks2Part-1),intent(in) :: iNodeStartPar_i8
-      integer(8),intent(in) :: boundFacesInRank_i8(numBoundsInRank,npbou),masSlaNodesInRank_i8(numMasSlaNodesInRank,2)
+      integer(8),intent(in) :: boundFacesInRank_i8(numBoundsInRank,mnpbou),masSlaNodesInRank_i8(numMasSlaNodesInRank,2)
 
       integer(8),intent(out) :: globalIdSrlInRank_i8(numNodesInRank),globalIdParInRank_i8(numNodesInRank)
       integer(8),intent(out),dimension(numNodesInRank,2) :: globalIdSrlOrderedInRank_i8
-      integer(4),intent(out) :: connecVTKInRank(numElemsInRank*nnode),connecParOrigInRank(numElemsInRank,nnode)
-      integer(4),intent(out) :: boundFacesInRank(numBoundsInRank,npbou),masSlaNodesInRank(numMasSlaNodesInRank,2)
+      integer(4),intent(out) :: connecVTKInRank(numElemsInRank*mnnode),connecParOrigInRank(numElemsInRank,mnnode)
+      integer(4),intent(out) :: boundFacesInRank(numBoundsInRank,mnpbou),masSlaNodesInRank(numMasSlaNodesInRank,2)
 
       integer(4) :: m,indConn,indexIJK,indexVTK,indexGMSH,indexNew,nodeIndexCnt,indPosListNodes
       integer(4) :: iNodeL,iElemL,iElemG,iNode,iBound,iLink
       integer(8) :: iNodeGsrl,iNodeGpar
 
-      integer(8),dimension(nnode) :: auxNodeNewOrderInElem_i8
-      integer(4),dimension(nnode) :: auxNewOrderIndex,auxVTKorder
+      integer(8),dimension(mnnode) :: auxNodeNewOrderInElem_i8
+      integer(4),dimension(mnnode) :: auxNewOrderIndex,auxVTKorder
       integer(4),dimension(numNodesInRank) :: isNodeAdded
-      integer(4) :: aux_ibound_GtoL(npbou), aux_iMasSla_GtoL(2)
+      integer(4) :: aux_ibound_GtoL(mnpbou), aux_iMasSla_GtoL(2)
 
       !$acc kernels
       isNodeAdded(:)=-1
@@ -2962,9 +2991,8 @@ contains
       ! first do a first migration of the code and once it work, think how to allow different node ordering
       ! BUT FIX IT!!!!!!
 
-      call generate_new_nodeOrder_and_connectivity(gmsh2ijk,auxNewOrderIndex,auxVTKorder)
-      !call generate_new_nodeOrder_and_connectivity(cgns2ijk,auxNewOrderIndex,auxCGNSorder)
-      !call generate_new_nodeOrder_and_connectivity(dummy2ijk,auxNewOrderIndex,auxCGNSorder)
+      !call generate_new_nodeOrder_and_connectivity(gmsh2ijk,auxNewOrderIndex,auxVTKorder)
+      call generate_new_nodeOrder_and_connectivity(mporder,mnnode,gmsh2ijk,vtk2ijk,gmsh2ijk,auxNewOrderIndex,auxVTKorder)
 
       !----------------------------------------------------------------------------------------------------------
 
@@ -2973,7 +3001,7 @@ contains
          iElemG = elemGidInRank(iElemL)
          auxNodeNewOrderInElem_i8(:)=0
 
-         do indexIJK=1,nnode
+         do indexIJK=1,mnnode
             indexGMSH = gmsh2ijk(indexIJK)
             iNodeGsrl = connecInRank_i8(iElemL,indexGMSH)
 
@@ -2982,7 +3010,7 @@ contains
             auxNodeNewOrderInElem_i8(indexNew) = iNodeGsrl
          end do
 
-         do m=1,nnode
+         do m=1,mnnode
             iNodeGsrl = auxNodeNewOrderInElem_i8(m)
             indPosListNodes = binarySearch_int_i8(listNodesInRank_i8,iNodeGsrl)
 
@@ -3007,7 +3035,7 @@ contains
             connecParOrigInRank(iElemL,m) = iNodeL
 
             indexVTK = auxVTKorder(m)
-            indConn = (iElemL-1)*nnode + indexVTK
+            indConn = (iElemL-1)*mnnode + indexVTK
             connecVTKInRank(indConn) = iNodeL
          end do
          !write(*,*) '[',mpi_rank,']iElemG ',iElemG,' connecParOrig ',connecParOrig(iElemL,:)
@@ -3016,10 +3044,11 @@ contains
 
       call quicksort_matrix_int8(globalIdSrlOrderedInRank_i8,1)
 
+      !@TODO: REORDER THE BOUNDARIES ALSO!
       do iBound=1,numBoundsInRank
          aux_ibound_GtoL(:) = 0
          !write(*,*) '1.reorder ibound[',mpi_rank,']npbouG',boundFacesInRank(iBound,:)
-         do iNode=1,npbou
+         do iNode=1,mnpbou
             iNodeGsrl = boundFacesInRank_i8(iBound,iNode)
             indexNew = binarySearch_int_i8(globalIdSrlOrderedInRank_i8(:,1),iNodeGsrl)
             iNodeL = globalIdSrlOrderedInRank_i8(indexNew,2)
@@ -3054,16 +3083,16 @@ contains
 
    end subroutine reorder_nodes_in_mshRank
 
-   subroutine generate_new_nodeOrder_and_connectivity(newOrderIJK,auxNewOrderIndex,auxVTKorder)
-      integer,intent(in)  :: newOrderIJK(:)
-      integer,intent(out) :: auxNewOrderIndex(:),auxVTKorder(:)
-      integer :: i,j,k,indexIJK,indexNew,indexVTK,indexCGNS
+   subroutine generate_new_nodeOrder_and_connectivity(mporder,mnnode,gmsh2ijk,vtk2ijk,newOrderIJK,auxNewOrderIndex,auxVTKorder)
+      integer(4),intent(in) :: mporder,mnnode
+      integer(4),intent(in) :: gmsh2ijk(mnnode),vtk2ijk(mnnode),newOrderIJK(mnnode)
+      integer(4),intent(out) :: auxNewOrderIndex(mnnode),auxVTKorder(mnnode)
+      integer(4) :: i,j,k,indexIJK,indexNew,indexVTK,indexCGNS
 
-      !!!$acc kernels
-      do k = 0,porder
-         do i = 0,porder
-            do j = 0,porder
-               indexIJK = ((porder+1)**2)*k+(porder+1)*i+j+1
+      do k = 0,mporder
+         do i = 0,mporder
+            do j = 0,mporder
+               indexIJK = ((mporder+1)**2)*k+(mporder+1)*i+j+1
 
                indexNew = newOrderIJK(indexIJK)
                indexVTK = vtk2ijk(indexIJK)
@@ -3075,7 +3104,7 @@ contains
             end do
          end do
       end do
-      !!!$acc end kernels
+
    end subroutine generate_new_nodeOrder_and_connectivity
 
 #define _NEWMETHOD_ 1
@@ -3088,7 +3117,7 @@ contains
       type(jagged_vector_int8),intent(in) :: mpiBoundaryNodes_i8_jv,globalIdSrl_i8_jv
       type(jagged_matrix_int8),intent(in) :: globalIdSrlOrdered_i8_jm
       type(jagged_vector_int4),intent(inout) :: nodesToComm_jv,commsMemPosInLoc_jv,commsMemSize_jv,commsMemPosInNgb_jv,ranksToComm_jv
-      integer(int_size),allocatable,intent(inout) :: numNodesToCommMshRank(:),numMshRanksWithComms(:)
+      integer(4),allocatable,intent(inout) :: numNodesToCommMshRank(:),numMshRanksWithComms(:)
 
       integer(4) :: iMshRank,mshRank,iMshRankTrgt,mpiRank,iAux,memPos,memSize,memDisp
       integer(4) :: mshRankOrig,mshRankTrgt,numBNOrig,numBNTrgt,mpiRankTrgt
@@ -3858,11 +3887,12 @@ contains
 
 !------------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine set_nodesCoordinates(mshRank,numElemsInRank,numNodesInRank,globalIdSrlInRank_i8,listNodesInRank_i8,coordInRank,Ngp_l,connecParOrigMshRank,coordParMshRank)
+   subroutine set_nodesCoordinates(mnnode,mnpbou,mngaus,mshRank,numElemsInRank,numNodesInRank,globalIdSrlInRank_i8,listNodesInRank_i8,coordInRank,Ngp_l,connecParOrigMshRank,coordParMshRank)
       implicit none
-      integer(4),intent(in) :: mshRank,numElemsInRank,numNodesInRank,connecParOrigMshRank(numElemsInRank,nnode)
+      integer(4),intent(in) :: mnnode,mnpbou,mngaus
+      integer(4),intent(in) :: mshRank,numElemsInRank,numNodesInRank,connecParOrigMshRank(numElemsInRank,mnnode)
       integer(8),intent(in) :: globalIdSrlInRank_i8(numNodesInRank),listNodesInRank_i8(numNodesInRank)
-      real(rp),intent(in) :: coordInRank(numNodesInRank,3),Ngp_l(ngaus,nnode)
+      real(rp),intent(in) :: coordInRank(numNodesInRank,3),Ngp_l(mngaus,mnnode)
       real(rp),intent(out) :: coordParMshRank(numNodesInRank,3)
       integer(4) :: iPos,iNodeL
       integer(8) :: iNodeGsrl
@@ -3882,13 +3912,15 @@ contains
       end do
       !!!$acc end parallel loop
 
-      call interpolateOriginalCoordinates(numElemsInRank,numNodesInRank,Ngp_l,connecParOrigMshRank,coordParMshRank)
+      call interpolateOriginalCoordinates(mnnode,mnpbou,mngaus,numElemsInRank,numNodesInRank,Ngp_l,connecParOrigMshRank,coordParMshRank)
 
    end subroutine set_nodesCoordinates
 
-   subroutine interpolateOriginalCoordinates(numElemsInRank,numNodesInRank,Ngp_l,connecParOrigMshRank,coordParMshRank)
-      integer(4),intent(in) :: numElemsInRank,numNodesInRank,connecParOrigMshRank(numElemsInRank,nnode)
-      real(rp),intent(in) :: Ngp_l(ngaus,nnode)
+   subroutine interpolateOriginalCoordinates(mnnode,mnpbou,mngaus,numElemsInRank,numNodesInRank,Ngp_l,connecParOrigMshRank,coordParMshRank)
+      implicit none
+      integer(4),intent(in) :: mnnode,mnpbou,mngaus
+      integer(4),intent(in) :: numElemsInRank,numNodesInRank,connecParOrigMshRank(numElemsInRank,mnnode)
+      real(rp),intent(in) :: Ngp_l(mngaus,mnnode)
       real(rp),intent(inout) :: coordParMshRank(numNodesInRank,3)
       real(rp), allocatable :: aux_1(:,:)
       integer(4) :: iElem,iNode,idime
@@ -3897,7 +3929,7 @@ contains
       allocate(aux_1(numNodesInRank,ndime))
       aux_1(:,:) = coordParMshRank(:,:)
       do ielem = 1,numElemsInRank
-         do inode = (2**ndime)+1,nnode
+         do inode = (2**ndime)+1,mnnode
             do idime = 1,ndime
                call var_interpolate(aux_1(connecParOrigMshRank(ielem,:),idime),Ngp_l(inode,:),coordParMshRank(connecParOrigMshRank(ielem,inode),idime))
             end do
@@ -3907,13 +3939,14 @@ contains
 
    end subroutine interpolateOriginalCoordinates
 
-   subroutine create_working_lists_parallel(isPeriodic,mshRank,numElemsInRank,numNodesInRank,numBoundFacesInRank,connecParOrigInRank,&
+   subroutine create_working_lists_parallel(mnnode,mnpbou,isPeriodic,mshRank,numElemsInRank,numNodesInRank,numBoundFacesInRank,connecParOrigInRank,&
             nPerInRank,masSlaInRank,connecParWorkInRank,connecOrigBoundFacesInRank,connecBoundFacesInRank,numWorkingNodesInRank,workingNodesInRank)
       implicit none
+      integer(4),intent(in) :: mnnode,mnpbou
       logical,intent(in) :: isPeriodic
-      integer,intent(in) :: mshRank,numElemsInRank,numNodesInRank,numBoundFacesInRank,connecParOrigInRank(numElemsInRank,nnode),connecOrigBoundFacesInRank(numBoundFacesInRank,npbou)
+      integer,intent(in) :: mshRank,numElemsInRank,numNodesInRank,numBoundFacesInRank,connecParOrigInRank(numElemsInRank,mnnode),connecOrigBoundFacesInRank(numBoundFacesInRank,mnpbou)
       integer,intent(in) :: nPerInRank,masSlaInRank(nPerInRank,2)
-      integer,intent(out) :: connecParWorkInRank(numElemsInRank,nnode),numWorkingNodesInRank,connecBoundFacesInRank(numBoundFacesInRank,npbou)
+      integer,intent(out) :: connecParWorkInRank(numElemsInRank,mnnode),numWorkingNodesInRank,connecBoundFacesInRank(numBoundFacesInRank,mnpbou)
       integer,intent(inout),allocatable :: workingNodesInRank(:)
       integer :: iNode,iNodeL,iElem,iBound,iPer,iAux,iPos
       integer :: iNodeL_Per,iNodeL_Per_Pair
@@ -3933,7 +3966,7 @@ contains
 
 #if 1
          do iElem = 1,numElemsInRank
-            do iNode = 1,nnode
+            do iNode = 1,mnnode
                iNodeL = connecParWorkInRank(iElem,iNode)
                iPos = binarySearch_int_i4(masSlaInRank(:,2),iNodeL)
                if(iPos.ne.0) then !this node is slave, change!
@@ -3961,7 +3994,7 @@ contains
 #endif
 
          do iBound = 1,numBoundFacesInRank
-            do iNode = 1,npbou
+            do iNode = 1,mnpbou
                iNodeL = connecBoundFacesInRank(iBound,iNode)
                iPos = binarySearch_int_i4(masSlaInRank(:,2),iNodeL)
                if(iPos.ne.0) then !this node is slave, change!
@@ -4073,20 +4106,21 @@ contains
 
    end subroutine get_vector_with_mshRank_values_for_numMshRanks2Part
 
-   subroutine evalShapeFunctions_Ngp_l(Ngp_l)
-      real(rp),intent(out) :: Ngp_l(ngaus,nnode)
+   subroutine evalShapeFunctions_Ngp_l(Ngp_l,mporder,mnnode,mngaus)
+      integer(4) :: mporder,mnnode,mngaus
+      real(rp),intent(out) :: Ngp_l(mngaus,mnnode)
       real(rp) :: s, t, z
       integer(4) :: igaus
-      integer(4) :: atoIJK(nnode)
-      real(rp) :: xgp(ngaus,ndime), wgp(ngaus)
-      real(rp) :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1),dNgp_l(ndime,nnode,ngaus)
+      integer(4) :: atoIJK(mnnode)
+      real(rp) :: xgp(mngaus,ndime), wgp(mngaus)
+      real(rp) :: Ngp(mngaus,nnode), dNgp(ndime,mnnode,mngaus),dlxigp_ip(mngaus,ndime,mporder+1),dNgp_l(ndime,mnnode,mngaus)
 
       !*********************************************************
 
       call set_hex64_lists(atoIJK)
       call GaussLobattoLegendre_hex(atoIJK,xgp,wgp)
 
-      do igaus = 1,ngaus
+      do igaus = 1,mngaus
          s = xgp(igaus,1)
          t = xgp(igaus,2)
          z = xgp(igaus,3)

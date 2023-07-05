@@ -6,10 +6,10 @@ module mod_ijk_indices
 
    !--------------------------------------------------------------------------------------------
    ! GMSH Indices
-   integer(4) :: gmsh2ijk(nnode),gmsh2ij(npbou) 
-   integer(4),dimension(npbou) :: faceFront2ijk,faceLeft2ijk,faceTop2ijk,faceBack2ijk,faceRight2ijk,faceBottom2ijk
+!   integer(4) :: gmsh2ijk(nnode),gmsh2ij(npbou) 
+!   integer(4),dimension(npbou) :: faceFront2ijk,faceLeft2ijk,faceTop2ijk,faceBack2ijk,faceRight2ijk,faceBottom2ijk
 
-   integer(4) :: gmsh2ij_vertices(4),gmsh2ijk_vertices(8),gmsh2ij_vertInnerNodes(4)
+   !integer(4) :: gmsh2ij_vertices(4),gmsh2ijk_vertices(8),gmsh2ij_vertInnerNodes(4)
 
    !integer(4),parameter :: gmsh2ij_vertices(4) = [1,2,3,4]
    !integer(4),parameter :: gmsh2ijk_vertices(8) = [1,2,3,4,5,6,7,8]
@@ -17,276 +17,373 @@ module mod_ijk_indices
 
    !--------------------------------------------------------------------------------------------
    ! VTK Indices
-   integer(4):: vtk2ijk(nnode),vtk2ij(npbou) 
+   !integer(4):: vtk2ijk(nnode),vtk2ij(npbou) 
 
 contains
 
-   subroutine set_ijk_indices()
+   subroutine get_porder_values(mporder,mnnode,mngaus,mnpbou)
       implicit none
-      integer(4) :: i,j,k,gmshCnt,vtkCnt,gmshIndex,vtkIndex
+      integer(4),intent(in) :: mporder
+      integer(4),intent(out) :: mnnode,mngaus,mnpbou
 
-      if(porder.le.2) then
-         write(*,*) 'SOD2D is not ready to work for porder <= 2... You know, #gobigorgohome and set proder >= 3'
+      mnnode = (mporder+1)**3
+      mngaus = mnnode
+      mnpbou = (mporder+1)**2
+
+   end subroutine get_porder_values
+
+   subroutine get_allocate_array_ijk_sod2d_criteria(mporder,array_ijk_order)
+      implicit none
+      integer(4),intent(in) :: mporder
+      integer(4),intent(inout),allocatable :: array_ijk_order(:)
+      integer(4) :: i,j
+
+      !--------------------------------------------------------------------
+      !defining criteria for ijk
+      allocate(array_ijk_order(mporder+1))
+      i=1
+      array_ijk_order(i) = 0
+      i=i+1
+      array_ijk_order(i) = mporder
+
+      do j=1,(mporder-1)
+         i=i+1
+         array_ijk_order(i)=j
+      end do
+   end subroutine get_allocate_array_ijk_sod2d_criteria
+
+   !subroutine set_allocate_hexahedronHO_ijk_indices(mporder,gmsh2ijk,vtk2ijk,a2ijk,a2i,a2j,a2k,ijk2a)
+   subroutine set_allocate_hexahedronHO_ijk_indices(mporder,gmsh2ijk,vtk2ijk)
+      implicit none
+      integer(4),intent(in) :: mporder
+      integer(4),allocatable,dimension(:),intent(inout) :: gmsh2ijk,vtk2ijk!,a2ijk,a2i,a2j,a2k
+      !integer(4),allocatable,intent(inout) :: ijk2a(:,:,:)
+      integer(4) :: mnnode,mngaus,mnpbou
+      integer(4) :: i,j,k,ip,jp,kp,gmshCnt,vtkCnt,gmshIndex,vtkIndex,pIndex
+      integer(4),allocatable :: array_ijk_order(:)
+
+      !-----------------------------------------------------------------------------------------
+
+      call get_porder_values(mporder,mnnode,mngaus,mnpbou)
+      if(mpi_rank.eq.0) write(*,*) 'mporder',mporder,'mnnode',mnnode,'mngaus',mngaus,'mnpbou',mnpbou
+
+      call get_allocate_array_ijk_sod2d_criteria(mporder,array_ijk_order)
+      !-----------------------------------------------------------------------------------------
+
+      allocate(gmsh2ijk(mnnode))
+      allocate(vtk2ijk(mnnode))
+      !allocate(a2ijk(mnnode))
+      !allocate(a2i(mnnode))
+      !allocate(a2j(mnnode))
+      !allocate(a2k(mnnode))
+      !allocate(ijk2a(1:mporder+1,1:mporder+1,1:mporder+1))
+
+      if(mporder.le.2) then
+         write(*,*) 'SOD2D is not ready to work for mporder <= 2... You know, #gobigorgohome and set mporder >= 3'
          call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-      elseif(porder .eq. 3) then
-
-         do i=1,nnode_hexa_p3
-            gmsh2ijk(i) = gmsh2ijk_p3(i)
-            vtk2ijk(i) = vtk2ijk_p3(i)
-         end do
-
-         do i=1,npbou_hexa_p3
-            gmsh2ij(i)  = gmsh2ij_p3(i)
-            vtk2ij(i)  = vtk2ij_p3(i)
-
-            faceFront2ijk(i) =  faceFront2ijk_p3(i)
-            faceLeft2ijk(i) =   faceLeft2ijk_p3(i)
-            faceTop2ijk(i) =    faceTop2ijk_p3(i)
-            faceBack2ijk(i) =   faceBack2ijk_p3(i)
-            faceRight2ijk(i) =  faceRight2ijk_p3(i)
-            faceBottom2ijk(i) = faceBottom2ijk_p3(i)
-         end do
-
-         gmsh2ij_vertices(:)       = gmsh2ij_vertices_p3(:)
-         gmsh2ijk_vertices(:)      = gmsh2ijk_vertices_p3(:)
-         gmsh2ij_vertInnerNodes(:) = gmsh2ij_vertInnerNodes_p3(:)
-
-      else 
-         write(*,*) 'porder >= 4 not yet implemented'
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-
-         !--------------------------------------------------------------------
-         !Filling high order hexahedra 
-         gmshCnt=0
-         vtkCnt=0
-         do i=0,porder
-            do j=0,porder
-               do k=0,porder
-
-                  call vtkHigherOrderHexahedron_pointIndexFromIJK(i,j,k,vtkIndex)
-                  call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
-
-                  gmshCnt = gmshCnt+1
-                  gmsh2ijk(gmshCnt) = gmshIndex
-
-                  vtkCnt  = vtkCnt+1
-                  vtk2ijk(vtkCnt) = vtkIndex
-
-               end do
-            end do
-         end do
-         !--------------------------------------------------------------------
-
-         !--------------------------------------------------------------------
-         !Filling gmsh2ijk_vertices(:) 
-         !--------------------------------------------------------------------
-         i=0
-         j=0
-         k=0
-         call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
-         gmsh2ijk_vertices(1) = gmshIndex
-         !--------------------------------------------------------------------
-         i=porder
-         j=0
-         k=0
-         call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
-         gmsh2ijk_vertices(2) = gmshIndex
-         !--------------------------------------------------------------------
-         i=porder
-         j=porder
-         k=0
-         call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
-         gmsh2ijk_vertices(3) = gmshIndex
-         !--------------------------------------------------------------------
-         i=0
-         j=porder
-         k=0
-         call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
-         gmsh2ijk_vertices(4) = gmshIndex
-         !--------------------------------------------------------------------
-         i=0
-         j=0
-         k=porder
-         call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
-         gmsh2ijk_vertices(5) = gmshIndex
-         !--------------------------------------------------------------------
-         i=porder
-         j=0
-         k=porder
-         call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
-         gmsh2ijk_vertices(6) = gmshIndex
-         !--------------------------------------------------------------------
-         i=porder
-         j=porder
-         k=porder
-         call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
-         gmsh2ijk_vertices(7) = gmshIndex
-         !--------------------------------------------------------------------
-         i=0
-         j=porder
-         k=porder
-         call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
-         gmsh2ijk_vertices(8) = gmshIndex
-         !--------------------------------------------------------------------
-
-         !--------------------------------------------------------------------
-         !Filling faceFront2ijk(:)
-         gmshCnt=0
-         j=0
-         do i=0,porder
-            do k=0,porder
-               call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
-               
-               gmshCnt = gmshCnt+1
-               faceFront2ijk(gmshCnt) = gmshIndex
-            end do
-         end do
-         !--------------------------------------------------------------------
-         !Filling faceBack2ijk(:)
-         gmshCnt=0
-         j=porder
-         do i=0,porder
-            do k=0,porder
-               call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
-               
-               gmshCnt = gmshCnt+1
-               faceBack2ijk(gmshCnt) = gmshIndex
-            end do
-         end do
-         !--------------------------------------------------------------------
-         !Filling faceBottom2ijk(:)
-         gmshCnt=0
-         k=0
-         do i=0,porder
-            do j=0,porder
-               call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
-               
-               gmshCnt = gmshCnt+1
-               faceBottom2ijk(gmshCnt) = gmshIndex
-            end do
-         end do
-         !--------------------------------------------------------------------
-         !Filling faceTop2ijk(:)
-         gmshCnt=0
-         k=porder
-         do i=0,porder
-            do j=0,porder
-               call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
-               
-               gmshCnt = gmshCnt+1
-               faceTop2ijk(gmshCnt) = gmshIndex
-            end do
-         end do
-         !--------------------------------------------------------------------
-         !Filling faceLeft2ijk(:)
-         gmshCnt=0
-         i=0
-         do j=0,porder
-            do k=0,porder
-               call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
-               
-               gmshCnt = gmshCnt+1
-               faceLeft2ijk(gmshCnt) = gmshIndex
-            end do
-         end do
-         !--------------------------------------------------------------------
-         !Filling faceRight2ijk(:)
-         gmshCnt=0
-         i=porder
-         do j=0,porder
-            do k=0,porder
-               call gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,gmshIndex)
-               
-               gmshCnt = gmshCnt+1
-               faceRight2ijk(gmshCnt) = gmshIndex
-            end do
-         end do
-         !--------------------------------------------------------------------
-
-         !--------------------------------------------------------------------
-         !filling high order quads
-         do i=0,porder
-            do j=0,porder
-               call vtkHigherOrderQuadrilateral_pointIndexFromIJ(i,j,vtkIndex)
-               call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
-            end do
-         end do
-
-         !--------------------------------------------------------------------
-         !Filling gmsh2ij_vertices(:) 
-         !--------------------------------------------------------------------
-         i=0
-         j=0
-         call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
-         gmsh2ij_vertices(1) = gmshIndex
-         !--------------------------------------------------------------------
-         i=porder
-         j=0
-         call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
-         gmsh2ij_vertices(2) = gmshIndex
-         !--------------------------------------------------------------------
-         i=porder
-         j=porder
-         call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
-         gmsh2ij_vertices(3) = gmshIndex
-         !--------------------------------------------------------------------
-         i=0
-         j=porder
-         call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
-         gmsh2ij_vertices(4) = gmshIndex
-         !--------------------------------------------------------------------
-
-         !--------------------------------------------------------------------
-         !Filling gmsh2ij_vertInnerNodes(:)
-         !--------------------------------------------------------------------
-         i=1
-         j=1
-         call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
-         gmsh2ij_vertInnerNodes(1) = gmshIndex
-         !--------------------------------------------------------------------
-         i=porder-1
-         j=1
-         call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
-         gmsh2ij_vertInnerNodes(2) = gmshIndex
-         !--------------------------------------------------------------------
-         i=porder-1
-         j=porder-1
-         call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
-         gmsh2ij_vertInnerNodes(3) = gmshIndex
-         !--------------------------------------------------------------------
-         i=1
-         j=porder-1
-         call gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,gmshIndex)
-         gmsh2ij_vertInnerNodes(4) = gmshIndex
-         !--------------------------------------------------------------------
-         
-
       end if
 
-   end subroutine set_ijk_indices
+      !--------------------------------------------------------------------
+      !Filling high order hexahedra 
+      pIndex=0
+      do kp=1,mporder+1
+         k=array_ijk_order(kp)
+         do ip=1,mporder+1
+            i=array_ijk_order(ip)
+            do jp=1,mporder+1
+               j=array_ijk_order(jp)
 
-   subroutine vtkHigherOrderHexahedron_pointIndexFromIJK(i,j,k,pointIndex)
+               write(*,*) 'i,j,k',i,j,k,'ip,jp,kp',ip,jp,kp
+
+               call vtkHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,vtkIndex)
+               call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
+
+               pIndex               = pIndex + 1
+               gmsh2ijk(pIndex)     = gmshIndex
+               vtk2ijk(pIndex)      = vtkIndex
+               !a2ijk(pIndex)        = gmshIndex!pIndex
+               !a2i(gmshIndex)       = i+1
+               !a2j(gmshIndex)       = j+1
+               !a2k(gmshIndex)       = k+1
+               !ijk2a(i+1,j+1,k+1)   = gmshIndex
+
+            end do
+         end do
+      end do
+      !--------------------------------------------------------------------
+
+      deallocate(array_ijk_order)
+
+   end subroutine set_allocate_hexahedronHO_ijk_indices
+
+   subroutine set_allocate_quadrilateralHO_ij_indices(mporder,gmsh2ij,vtk2ij)
       implicit none
-      integer(4),intent(in) :: i,j,k
+      integer(4),intent(in) :: mporder
+      integer(4),allocatable,dimension(:),intent(inout) :: gmsh2ij,vtk2ij
+      integer(4) :: mnnode,mngaus,mnpbou
+      integer(4) :: i,j,ip,jp,gmshCnt,vtkCnt,gmshIndex,vtkIndex,pIndex
+      integer(4),allocatable :: array_ijk_order(:)
+
+      !-----------------------------------------------------------------------------------------
+      call get_porder_values(mporder,mnnode,mngaus,mnpbou)
+      if(mpi_rank.eq.0) write(*,*) 'mporder',mporder,'mnnode',mnnode,'mngaus',mngaus,'mnpbou',mnpbou
+
+      call get_allocate_array_ijk_sod2d_criteria(mporder,array_ijk_order)
+      !-----------------------------------------------------------------------------------------
+
+      allocate(gmsh2ij(mnpbou))
+      allocate(vtk2ij(mnpbou))
+
+      !--------------------------------------------------------------------
+      !filling high order quads
+      pIndex=0
+      do ip=1,mporder+1
+         i=array_ijk_order(ip)
+         do jp=1,mporder+1
+            j=array_ijk_order(jp)
+            call vtkHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,vtkIndex)
+            call gmshHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,gmshIndex)
+
+            pIndex = pIndex + 1
+            gmsh2ij(pIndex) = gmshIndex
+            vtk2ij(pIndex)  = vtkIndex
+
+         end do
+      end do
+
+      deallocate(array_ijk_order)
+
+   end subroutine set_allocate_quadrilateralHO_ij_indices
+
+   subroutine get_gmshHexHOVertIndex(mporder,gmshHexVertInd)
+      implicit none
+      integer(4),intent(in) :: mporder
+      integer(4),intent(inout) :: gmshHexVertInd(8)
+      integer(4) :: i,j,k,gmshIndex
+
+      !--------------------------------------------------------------------
+      !Filling gmshHexVertInd(:) 
+      !--------------------------------------------------------------------
+      i=0
+      j=0
+      k=0
+      call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
+      gmshHexVertInd(1) = gmshIndex
+      !--------------------------------------------------------------------
+      i=mporder
+      j=0
+      k=0
+      call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
+      gmshHexVertInd(2) = gmshIndex
+      !--------------------------------------------------------------------
+      i=mporder
+      j=mporder
+      k=0
+      call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
+      gmshHexVertInd(3) = gmshIndex
+      !--------------------------------------------------------------------
+      i=0
+      j=mporder
+      k=0
+      call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
+      gmshHexVertInd(4) = gmshIndex
+      !--------------------------------------------------------------------
+      i=0
+      j=0
+      k=mporder
+      call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
+      gmshHexVertInd(5) = gmshIndex
+      !--------------------------------------------------------------------
+      i=mporder
+      j=0
+      k=mporder
+      call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
+      gmshHexVertInd(6) = gmshIndex
+      !--------------------------------------------------------------------
+      i=mporder
+      j=mporder
+      k=mporder
+      call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
+      gmshHexVertInd(7) = gmshIndex
+      !--------------------------------------------------------------------
+      i=0
+      j=mporder
+      k=mporder
+      call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
+      gmshHexVertInd(8) = gmshIndex
+      !--------------------------------------------------------------------
+
+   end subroutine get_gmshHexHOVertIndex
+
+   subroutine get_gmshHexHOFacesIndex(mporder,mnpbou,gmshHexFaceFrontInd,gmshHexFaceBackInd,gmshHexFaceBottomInd,gmshHexFaceTopInd,gmshHexFaceLeftInd,gmshHexFaceRightInd)
+      implicit none
+      integer(4),intent(in) :: mporder,mnpbou
+      integer(4),intent(inout),dimension(mnpbou) :: gmshHexFaceFrontInd,gmshHexFaceBackInd,gmshHexFaceBottomInd,gmshHexFaceTopInd,gmshHexFaceLeftInd,gmshHexFaceRightInd
+      integer(4) :: i,j,k,gmshIndex,gmshCnt
+
+      !--------------------------------------------------------------------
+      !Filling faceFront2ijk(:)
+      gmshCnt=0
+      j=0
+      do i=0,mporder
+         do k=0,mporder
+            call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
+            
+            gmshCnt = gmshCnt+1
+            gmshHexFaceFrontInd(gmshCnt) = gmshIndex
+         end do
+      end do
+      !--------------------------------------------------------------------
+      !Filling faceBack2ijk(:)
+      gmshCnt=0
+      j=mporder
+      do i=0,mporder
+         do k=0,mporder
+            call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
+            
+            gmshCnt = gmshCnt+1
+            gmshHexFaceBackInd(gmshCnt) = gmshIndex
+         end do
+      end do
+      !--------------------------------------------------------------------
+      !Filling faceBottom2ijk(:)
+      gmshCnt=0
+      k=0
+      do i=0,mporder
+         do j=0,mporder
+            call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
+            
+            gmshCnt = gmshCnt+1
+            gmshHexFaceBottomInd(gmshCnt) = gmshIndex
+         end do
+      end do
+      !--------------------------------------------------------------------
+      !Filling faceTop2ijk(:)
+      gmshCnt=0
+      k=mporder
+      do i=0,mporder
+         do j=0,mporder
+            call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
+            
+            gmshCnt = gmshCnt+1
+            gmshHexFaceTopInd(gmshCnt) = gmshIndex
+         end do
+      end do
+      !--------------------------------------------------------------------
+      !Filling faceLeft2ijk(:)
+      gmshCnt=0
+      i=0
+      do j=0,mporder
+         do k=0,mporder
+            call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
+            
+            gmshCnt = gmshCnt+1
+            gmshHexFaceLeftInd(gmshCnt) = gmshIndex
+         end do
+      end do
+      !--------------------------------------------------------------------
+      !Filling faceRight2ijk(:)
+      gmshCnt=0
+      i=mporder
+      do j=0,mporder
+         do k=0,mporder
+            call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
+            
+            gmshCnt = gmshCnt+1
+            gmshHexFaceRightInd(gmshCnt) = gmshIndex
+         end do
+      end do
+      !--------------------------------------------------------------------
+
+   end subroutine get_gmshHexHOFacesIndex
+
+   subroutine get_gmshQuadHOVertIndex(mporder,gmshQuadVertInd)
+      implicit none
+      integer(4),intent(in) :: mporder
+      integer(4),intent(inout) :: gmshQuadVertInd(4)
+      integer(4) :: i,j,gmshIndex
+
+      i=0
+      j=0
+      call gmshHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,gmshIndex)
+      gmshQuadVertInd(1) = gmshIndex
+      !--------------------------------------------------------------------
+      i=mporder
+      j=0
+      call gmshHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,gmshIndex)
+      gmshQuadVertInd(2) = gmshIndex
+      !--------------------------------------------------------------------
+      i=mporder
+      j=mporder
+      call gmshHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,gmshIndex)
+      gmshQuadVertInd(3) = gmshIndex
+      !--------------------------------------------------------------------
+      i=0
+      j=mporder
+      call gmshHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,gmshIndex)
+      gmshQuadVertInd(4) = gmshIndex
+      !--------------------------------------------------------------------
+
+   end subroutine get_gmshQuadHOVertIndex
+
+   subroutine get_gmshQuadHOInnerVertIndex(mporder,gmshQuadInnerVertInd)
+      implicit none
+      integer(4),intent(in) :: mporder
+      integer(4),intent(inout) :: gmshQuadInnerVertInd(4)
+      integer(4) :: i,j,gmshIndex
+
+
+      !--------------------------------------------------------------------
+      !Filling gmshQuadInnerVertInd(:)
+      !--------------------------------------------------------------------
+      i=1
+      j=1
+      call gmshHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,gmshIndex)
+      gmshQuadInnerVertInd(1) = gmshIndex
+      !--------------------------------------------------------------------
+      i=mporder-1
+      j=1
+      call gmshHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,gmshIndex)
+      gmshQuadInnerVertInd(2) = gmshIndex
+      !--------------------------------------------------------------------
+      i=mporder-1
+      j=mporder-1
+      call gmshHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,gmshIndex)
+      gmshQuadInnerVertInd(3) = gmshIndex
+      !--------------------------------------------------------------------
+      i=1
+      j=mporder-1
+      call gmshHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,gmshIndex)
+      gmshQuadInnerVertInd(4) = gmshIndex
+      !--------------------------------------------------------------------
+
+   end subroutine get_gmshQuadHOInnerVertIndex
+
+
+
+
+   subroutine vtkHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,pointIndex)
+      implicit none
+      integer(4),intent(in) :: mporder,i,j,k
       integer(4),intent(out) :: pointIndex
       integer(4) :: ibdy,jbdy,kbdy,nbdy
       integer(4) :: aux_pi
 
       !----------------------------------------------------------------------------
       
-      if((i.eq.0).or.(i.eq.porder)) then
+      if((i.eq.0).or.(i.eq.mporder)) then
          ibdy = 1
       else 
          ibdy = 0
       endif
 
-      if((j.eq.0).or.(j.eq.porder)) then
+      if((j.eq.0).or.(j.eq.mporder)) then
          jbdy = 1
       else 
          jbdy = 0
       endif
 
-      if((k.eq.0).or.(k.eq.porder)) then
+      if((k.eq.0).or.(k.eq.mporder)) then
          kbdy = 1
       else 
          kbdy = 0
@@ -326,26 +423,26 @@ contains
             !return (i - 1) + (j ? order[0] + order[1] - 2 : 0) + (k ? 2 * (order[0] + order[1] - 2) : 0) + offset;
             pointIndex = pointIndex + (i-1)
             if(j.ne.0) then
-               pointIndex = pointIndex + (porder*2 - 2)
+               pointIndex = pointIndex + (mporder*2 - 2)
             end if
             if(k.ne.0) then
-               pointIndex = pointIndex + 2*(porder*2 - 2)
+               pointIndex = pointIndex + 2*(mporder*2 - 2)
             end if
          else if(jbdy.eq.0) then !jaxis
             !return (j - 1) + (i ? order[0] - 1 : 2 * (order[0] - 1) + order[1] - 1) + (k ? 2 * (order[0] + order[1] - 2) : 0) + offset;
             pointIndex = pointIndex + (j-1)
             if(i.ne.0) then
-               pointIndex = pointIndex + (porder - 1)
+               pointIndex = pointIndex + (mporder - 1)
             else 
-                pointIndex = pointIndex + (2*(porder - 1) + porder - 1)
+                pointIndex = pointIndex + (2*(mporder - 1) + mporder - 1)
             end if
             if(k.ne.0) then
-               pointIndex = pointIndex + 2*(2*porder - 2)
+               pointIndex = pointIndex + 2*(2*mporder - 2)
             end if
          else !kaxis
             !offset += 4 * (order[0] - 1) + 4 * (order[1] - 1);
             !return (k - 1) + (order[2] - 1) * (i ? (j ? 2 : 1) : (j ? 3 : 0)) + offset;
-            pointIndex = pointIndex + 4*(porder-1)+ 4*(porder-1)
+            pointIndex = pointIndex + 4*(mporder-1)+ 4*(mporder-1)
 
             aux_pi = 0
             if(i.ne.0) then
@@ -360,63 +457,63 @@ contains
                end if
             end if
 
-            pointIndex = pointIndex + (k-1) + (porder - 1)*aux_pi
+            pointIndex = pointIndex + (k-1) + (mporder - 1)*aux_pi
          end if
 
          return
       end if
 
-      pointIndex = pointIndex + 4*(3*porder - 3)
+      pointIndex = pointIndex + 4*(3*mporder - 3)
       if(nbdy .eq. 1) then !Face
          if(ibdy.ne.0) then ! on i-normal face
-            pointIndex = pointIndex + (j-1) + ((porder-1)*(k-1))
+            pointIndex = pointIndex + (j-1) + ((mporder-1)*(k-1))
             if(i.ne.0) then
-               pointIndex = pointIndex + (porder-1)*(porder-1)
+               pointIndex = pointIndex + (mporder-1)*(mporder-1)
             end if
             return
          end if
 
-         pointIndex = pointIndex + 2*(porder-1)*(porder-1)
+         pointIndex = pointIndex + 2*(mporder-1)*(mporder-1)
          if(jbdy.ne.0) then! on j-normal face
-            pointIndex = pointIndex + (i-1) + ((porder-1)*(k-1))
+            pointIndex = pointIndex + (i-1) + ((mporder-1)*(k-1))
             if(j.ne.0) then
-               pointIndex = pointIndex + (porder-1)*(porder-1)
+               pointIndex = pointIndex + (mporder-1)*(mporder-1)
             end if
             return
          end if
 
          ! on k-normal face
-         pointIndex = pointIndex + 2*(porder-1)*(porder-1)
-         pointIndex = pointIndex + (i-1) + ((porder-1)*(j-1))
+         pointIndex = pointIndex + 2*(mporder-1)*(mporder-1)
+         pointIndex = pointIndex + (i-1) + ((mporder-1)*(j-1))
          if(k.ne.0) then
-            pointIndex = pointIndex + (porder-1)*(porder-1)
+            pointIndex = pointIndex + (mporder-1)*(mporder-1)
          end if
          return
 
       end if
 
       ! nbdy == 0: Body DOF
-      pointIndex = pointIndex + 2* ((porder-1)*(porder-1)+(porder-1)*(porder-1)+(porder-1)*(porder-1))
-      pointIndex = pointIndex + (i-1)+(porder-1)*((j-1)+(porder-1)*((k - 1)))
+      pointIndex = pointIndex + 2* ((mporder-1)*(mporder-1)+(mporder-1)*(mporder-1)+(mporder-1)*(mporder-1))
+      pointIndex = pointIndex + (i-1)+(mporder-1)*((j-1)+(mporder-1)*((k - 1)))
 
    end subroutine vtkHigherOrderHexahedron_pointIndexFromIJK
 
-   subroutine vtkHigherOrderQuadrilateral_pointIndexFromIJ(i,j,pointIndex)
+   subroutine vtkHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,pointIndex)
       implicit none
-      integer(4),intent(in) :: i,j
+      integer(4),intent(in) :: mporder,i,j
       integer(4),intent(out) :: pointIndex
       integer(4) :: ibdy,jbdy,nbdy
       integer(4) :: aux_pi
 
       !----------------------------------------------------------------------------
       
-      if((i.eq.0).or.(i.eq.porder)) then
+      if((i.eq.0).or.(i.eq.mporder)) then
          ibdy = 1
       else 
          ibdy = 0
       endif
 
-      if((j.eq.0).or.(j.eq.porder)) then
+      if((j.eq.0).or.(j.eq.mporder)) then
          jbdy = 1
       else 
          jbdy = 0
@@ -453,7 +550,7 @@ contains
 
             pointIndex = pointIndex + (i-1)
             if(j.ne.0) then
-              pointIndex = pointIndex + (porder*2 - 2)
+              pointIndex = pointIndex + (mporder*2 - 2)
             end if
 
          else !jaxis
@@ -461,9 +558,9 @@ contains
 
             pointIndex = pointIndex + (j-1)
             if(i.ne.0) then
-               pointIndex = pointIndex + (porder - 1)
+               pointIndex = pointIndex + (mporder - 1)
             else 
-                pointIndex = pointIndex + (2*(porder - 1) + porder - 1)
+                pointIndex = pointIndex + (2*(mporder - 1) + mporder - 1)
             end if
 
          end if
@@ -472,22 +569,22 @@ contains
       end if
 
       ! nbdy == 0: Body DOF
-      pointIndex = pointIndex + (4*porder-4)
-      pointIndex = pointIndex + (i-1)+(porder-1)*(j-1)
+      pointIndex = pointIndex + (4*mporder-4)
+      pointIndex = pointIndex + (i-1)+(mporder-1)*(j-1)
 
    end subroutine vtkHigherOrderQuadrilateral_pointIndexFromIJ
 
-   subroutine gmshHigherOrderHexahedron_pointIndexFromIJK(i,j,k,pointIndex)
+   subroutine gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,pointIndex)
       implicit none
-      integer(4),intent(in) :: i,j,k
+      integer(4),intent(in) :: mporder,i,j,k
       integer(4),intent(out) :: pointIndex
 
       !YET TO BE IMPLEMENTED! COME ON BENET!
    end subroutine gmshHigherOrderHexahedron_pointIndexFromIJK
 
-   subroutine gmshHigherOrderQuadrilateral_pointIndexFromIJ(i,j,pointIndex)
+   subroutine gmshHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,pointIndex)
       implicit none
-      integer(4),intent(in) :: i,j
+      integer(4),intent(in) :: mporder,i,j
       integer(4),intent(out) :: pointIndex
 
       !YET TO BE IMPLEMENTED! COME ON BENET!

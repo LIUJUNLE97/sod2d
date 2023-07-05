@@ -1981,9 +1981,6 @@ contains
       ! Init HDF5 interface
       call init_hdf5_interface()
 
-      ! Set ijk indices (depending on porder)
-      call set_ijk_indices()
-
       ! Main simulation parameters
       call this%initializeDefaultParameters()         
       call this%initializeParameters()

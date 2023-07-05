@@ -29,27 +29,34 @@ program devel_porder
    integer(1),allocatable :: aux_array_i1(:)
    integer(8),allocatable :: aux_array_i8(:)
    integer(4) :: ii,jj,iBound,iRank,iNodeL
+   integer(4) :: mporder,mnnode,mngaus,mnpbou
+   integer(4),dimension(:),allocatable :: gmsh2ijk,vtk2ijk,gmsh2ij,vtk2ij
 
    !------------------------------------------------------------
 
    call init_mpi()
-   if(mpi_rank.eq.0) write(*,*) 'testing stuff for porder!'
-
    call init_hdf5_interface()
 
    !-----------------------------------------------------------------------------
 
-   allocate(coordsHex(nnode,ndime))
-   allocate(coordsQuad(npbou,ndime))
+   mporder = 5
+   if(mpi_rank.eq.0) write(*,*) 'testing stuff for porder! mporder',mporder
+
+   call get_porder_values(mporder,mnnode,mngaus,mnpbou)
+   call set_allocate_hexahedronHO_ijk_indices(mporder,gmsh2ijk,vtk2ijk)
+   call set_allocate_quadrilateralHO_ij_indices(mporder,gmsh2ij,vtk2ij)
+
+   allocate(coordsHex(mnnode,ndime))
+   allocate(coordsQuad(mnpbou,ndime))
 
    auxCnt = 1
-   do i=0,(porder)
-      x = real(i)/real(porder)*1.0_rp
-      do j=0,(porder)
-         y = real(j)/real(porder)*1.0_rp
-         do k=0,(porder)
-            z = real(k)/real(porder)*1.0_rp
-            call vtkHigherOrderHexahedron_pointIndexFromIJK(i,j,k,pIndex)
+   do i=0,(mporder)
+      x = real(i)/real(mporder)*1.0_rp
+      do j=0,(mporder)
+         y = real(j)/real(mporder)*1.0_rp
+         do k=0,(mporder)
+            z = real(k)/real(mporder)*1.0_rp
+            call vtkHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,pIndex)
             coordsHex(pIndex,1) = x
             coordsHex(pIndex,2) = y
             coordsHex(pIndex,3) = z
@@ -62,12 +69,12 @@ program devel_porder
 
    auxCnt = 1
    z = 0.0_rp
-   do i=0,(porder)
-      x = real(i)/real(porder)*1.0_rp
-      do j=0,(porder)
-         y = real(j)/real(porder)*1.0_rp
+   do i=0,(mporder)
+      x = real(i)/real(mporder)*1.0_rp
+      do j=0,(mporder)
+         y = real(j)/real(mporder)*1.0_rp
 
-         call vtkHigherOrderQuadrilateral_pointIndexFromIJ(i,j,pIndex)
+         call vtkHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,pIndex)
          coordsQuad(pIndex,1) = x
          coordsQuad(pIndex,2) = y
          coordsQuad(pIndex,3) = z
@@ -80,7 +87,7 @@ program devel_porder
 
    !-----------------------------------------------------------------------------
 
-   write(aux_porder,'(I0)') porder
+   write(aux_porder,'(I0)') mporder
    outputfilename = 'hexaedra_vtkhdf_p'//trim(aux_porder)//'.hdf'
    call create_hdf5_file(outputfilename,hdf5_fileId)
    call set_vtkhdf_attributes_and_basic_groups(hdf5_fileId)
@@ -94,7 +101,7 @@ program devel_porder
    allocate(aux_array_i8(1))
 
    dsetname = '/VTKHDF/NumberOfPoints'
-   aux_array_i8(1) = nnode
+   aux_array_i8(1) = mnnode
    call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
    call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
 
@@ -104,7 +111,7 @@ program devel_porder
    call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
 
    dsetname = '/VTKHDF/NumberOfConnectivityIds'
-   aux_array_i8(1) = 1*nnode
+   aux_array_i8(1) = 1*mnnode
    call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
    call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
 
@@ -117,19 +124,19 @@ program devel_porder
 
    dsetname = '/VTKHDF/Offsets'
    aux_array_i8(1) = 0
-   aux_array_i8(2) = aux_array_i8(1)+nnode
+   aux_array_i8(2) = aux_array_i8(1)+mnnode
    call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
    call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
 
    deallocate(aux_array_i8)
    !-----------------------------------------------------------------------------
-   allocate(aux_array_i8(nnode))
+   allocate(aux_array_i8(mnnode))
 
-   ds_dims(1)   = nnode
-   ms_dims(1)   = nnode
+   ds_dims(1)   = mnnode
+   ms_dims(1)   = mnnode
    ms_offset(1) = 0
 
-   do ii = 1,nnode
+   do ii = 1,mnnode
       aux_array_i8(ii) = vtk2ijk(ii)-1
    end do
 
@@ -153,9 +160,9 @@ program devel_porder
    deallocate(aux_array_i1)
    !--------------------------------------------------------------------------------
    ds_dims2d(1) = int(ndime,hsize_t)
-   ds_dims2d(2) = int(nnode,hsize_t)
+   ds_dims2d(2) = int(mnnode,hsize_t)
    ms_dims2d(1) = int(ndime,hsize_t)
-   ms_dims2d(2) = int(nnode,hsize_t)
+   ms_dims2d(2) = int(mnnode,hsize_t)
    ms_offset2d(1) = 0
    ms_offset2d(2) = 0!int(0,hssize_t)-1
 
@@ -181,7 +188,7 @@ program devel_porder
    allocate(aux_array_i8(1))
 
    dsetname = '/VTKHDF/NumberOfPoints'
-   aux_array_i8(1) = npbou
+   aux_array_i8(1) = mnpbou
    call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
    call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
 
@@ -191,7 +198,7 @@ program devel_porder
    call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
 
    dsetname = '/VTKHDF/NumberOfConnectivityIds'
-   aux_array_i8(1) = 1*npbou
+   aux_array_i8(1) = 1*mnpbou
    call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
    call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
 
@@ -204,19 +211,19 @@ program devel_porder
 
    dsetname = '/VTKHDF/Offsets'
    aux_array_i8(1) = 0
-   aux_array_i8(2) = aux_array_i8(1)+npbou
+   aux_array_i8(2) = aux_array_i8(1)+mnpbou
    call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
    call write_dataspace_1d_int8_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
 
    deallocate(aux_array_i8)
    !-----------------------------------------------------------------------------
-   allocate(aux_array_i8(npbou))
+   allocate(aux_array_i8(mnpbou))
 
-   ds_dims(1)   = npbou
-   ms_dims(1)   = npbou
+   ds_dims(1)   = mnpbou
+   ms_dims(1)   = mnpbou
    ms_offset(1) = 0
 
-   do ii = 1,npbou
+   do ii = 1,mnpbou
       aux_array_i8(ii) = vtk2ij(ii)-1
    end do
 
@@ -238,9 +245,9 @@ program devel_porder
    call write_dataspace_1d_uint1_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,aux_array_i1)
    !--------------------------------------------------------------------------------
    ds_dims2d(1) = int(ndime,hsize_t)
-   ds_dims2d(2) = int(npbou,hsize_t)
+   ds_dims2d(2) = int(mnpbou,hsize_t)
    ms_dims2d(1) = int(ndime,hsize_t)
-   ms_dims2d(2) = int(npbou,hsize_t)
+   ms_dims2d(2) = int(mnpbou,hsize_t)
    ms_offset2d(1) = 0
    ms_offset2d(2) = 0!int(0,hssize_t)-1
 
