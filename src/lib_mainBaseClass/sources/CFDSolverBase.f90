@@ -942,7 +942,7 @@ contains
 
       if(this%loadRestartFile) then
          if(mpi_rank.eq.0) write(111,*) "--| Loading restart file ",this%restartFile_to_load
-         call load_hdf5_restartFile(this%restartFile_to_load,this%load_step,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs)
+         call load_hdf5_restartFile(this%restartFile_to_load,this%load_step,flag_walave,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
 
          if((flag_les.eq.0).and.(flag_les_ilsa.eq.0)) then
             !$acc kernels
@@ -1358,7 +1358,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
       
-      call save_hdf5_restartFile(this%restartFileCnt,istep,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs)
+      call save_hdf5_restartFile(this%restartFileCnt,istep,flag_walave,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
 
       if(this%restartFileCnt .eq. 1) then
          this%restartFileCnt = 2
@@ -1850,6 +1850,7 @@ contains
          write(111,*) "    flag_solver_type: ",         flag_solver_type
          write(111,*) "    flag_spectralElem: ",        flag_spectralElem
          write(111,*) "    flag_normalise_entropy: ",   flag_normalise_entropy
+         write(111,*) "    flag_walave: ",              flag_walave
          write(111,*) "--------------------------------------"
          write(111,*) "    ce: ",      ce
          write(111,*) "    cmax: ",    cmax
