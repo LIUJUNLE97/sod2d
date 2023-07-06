@@ -39,12 +39,16 @@ program devel_porder
 
    !-----------------------------------------------------------------------------
 
-   mporder = 5
+   mporder = 3
    if(mpi_rank.eq.0) write(*,*) 'testing stuff for porder! mporder',mporder
+
+   call initGmshIJKTables(mporder)
 
    call get_porder_values(mporder,mnnode,mngaus,mnpbou)
    call set_allocate_hexahedronHO_ijk_indices(mporder,gmsh2ijk,vtk2ijk)
    call set_allocate_quadrilateralHO_ij_indices(mporder,gmsh2ij,vtk2ij)
+
+
 
    allocate(coordsHex(mnnode,ndime))
    allocate(coordsQuad(mnpbou,ndime))

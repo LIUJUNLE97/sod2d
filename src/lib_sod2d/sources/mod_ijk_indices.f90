@@ -6,6 +6,9 @@ module mod_ijk_indices
 
    !--------------------------------------------------------------------------------------------
    ! GMSH Indices
+   integer(4),allocatable :: gmshHexahedraHO_ijkTable(:,:,:),gmshQuadrilateralHO_ijTable(:,:)
+   integer(4) :: gmsh_porder=0
+   !logical :: gmshTablesGenerated=false
 !   integer(4) :: gmsh2ijk(nnode),gmsh2ij(npbou) 
 !   integer(4),dimension(npbou) :: faceFront2ijk,faceLeft2ijk,faceTop2ijk,faceBack2ijk,faceRight2ijk,faceBottom2ijk
 
@@ -574,12 +577,81 @@ contains
 
    end subroutine vtkHigherOrderQuadrilateral_pointIndexFromIJ
 
+   subroutine initGmshIJKTables(mporder)
+      implicit none
+      integer(4),intent(in) :: mporder
+      integer(4) :: mnnode,mngaus,mnpbou,pIndex,i,j,k
+      integer(4),allocatable :: auxHexHOtable(:,:),auxQuadHOtable(:,:)
+
+      call get_porder_values(mporder,mnnode,mngaus,mnpbou)
+      if(mpi_rank.eq.0) write(*,*) 'mporder',mporder,'mnnode',mnnode,'mngaus',mngaus,'mnpbou',mnpbou
+
+      if(gmsh_porder.eq.0) then !arrays not initialized
+         if(mpi_rank.eq.0) write(*,*) 'Initialising GMSH IJK Tables to order',mporder
+
+      else if(gmsh_porder.eq.mporder) then !arrays already initalized to current order, do nothing and exit!
+         if(mpi_rank.eq.0) write(*,*) 'GMSH IJK Tables already initialised to order',mporder,'doing nothing! :)'
+         return
+      else !arrays initalized to another other
+         if(mpi_rank.eq.0) write(*,*) 'GMSH IJK Tables initialised to order',gmsh_porder,'! -> changing to order',mporder
+
+         deallocate(gmshHexahedraHO_ijkTable)
+         deallocate(gmshQuadrilateralHO_ijTable)
+      end if
+
+      allocate(auxHexHOtable(mnnode,3))
+      allocate(auxQuadHOtable(mnpbou,2))
+
+      allocate(gmshHexahedraHO_ijkTable(0:mporder,0:mporder,0:mporder))
+      allocate(gmshQuadrilateralHO_ijTable(0:mporder,0:mporder) )
+
+      call genHighOrderHex(mporder,auxHexHOtable)
+      call genHighOrderQuad(mporder,auxQuadHOtable)
+
+      gmsh_porder = mporder
+
+      write(*,*) 'generating HexHO_ijktable'
+
+      do pIndex=1,mnnode
+
+         i = auxHexHOtable(pIndex,1)
+         j = auxHexHOtable(pIndex,2)
+         k = auxHexHOtable(pIndex,3)
+
+         write(*,*) 'ijk',i,j,k,'pI',pIndex
+
+         !gmshHexahedraHO_ijkTable(i,j,k) = pIndex
+      end do
+
+      write(*,*) 'generating QuadHO_ijtable'
+
+      do pIndex=1,mnpbou
+         i = auxQuadHOtable(pIndex,1)
+         j = auxQuadHOtable(pIndex,2)
+
+         write(*,*) 'ij',i,j,'pI',pIndex
+
+         !gmshHexahedraHO_ijkTable(i,j,k) = pIndex
+      end do
+
+      deallocate(auxHexHOtable)
+      deallocate(auxQuadHOtable)
+
+   end subroutine initGmshIJKTables
+
    subroutine gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,pointIndex)
       implicit none
       integer(4),intent(in) :: mporder,i,j,k
       integer(4),intent(out) :: pointIndex
 
-      !YET TO BE IMPLEMENTED! COME ON BENET!
+      if(gmsh_porder.ne.mporder) then !arrays not initialized
+         if(mpi_rank.eq.0) write(*,*) 'ERROR! GMSH IJK TABLES NOT PROPERLY INITALISED!! gmsh_porder',gmsh_porder,'!= mporder',mporder
+         pointIndex = 0
+         return
+      end if
+
+      pointIndex = gmshHexahedraHO_ijkTable(i,j,k)
+
    end subroutine gmshHigherOrderHexahedron_pointIndexFromIJK
 
    subroutine gmshHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,pointIndex)
@@ -587,7 +659,14 @@ contains
       integer(4),intent(in) :: mporder,i,j
       integer(4),intent(out) :: pointIndex
 
-      !YET TO BE IMPLEMENTED! COME ON BENET!
+      if(gmsh_porder.ne.mporder) then !arrays not initialized
+         if(mpi_rank.eq.0) write(*,*) 'ERROR! GMSH IJK TABLES NOT PROPERLY INITALISED!! gmsh_porder',gmsh_porder,'!= mporder',mporder
+         pointIndex = 0
+         return
+      end if
+
+      pointIndex = gmshQuadrilateralHO_ijTable(i,j)
+
    end subroutine gmshHigherOrderQuadrilateral_pointIndexFromIJ
 
 #if 0
