@@ -45,8 +45,8 @@ contains
    subroutine ChannelFlowSolver_fill_BC_Types(this)
       class(ChannelFlowSolver), intent(inout) :: this
 
-      bouCodes2BCType(1) = bc_type_slip_wall_model
-      !bouCodes2BCType(1) = bc_type_slip_adiabatic
+      !bouCodes2BCType(1) = bc_type_slip_wall_model
+      bouCodes2BCType(1) = bc_type_non_slip_adiabatic
       !$acc update device(bouCodes2BCType(:))
 
    end subroutine ChannelFlowSolver_fill_BC_Types
@@ -84,10 +84,10 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 100
+      this%save_resultsFile_step = 200
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 100
+      this%save_restartFile_step = 200
       this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
@@ -107,8 +107,8 @@ contains
       tol = 1e-3
       flag_implicit_repeat_dt_if_not_converged = 0
        
-      period_walave   = 30.0_rp
-      flag_walave     = 0
+      !period_walave   = 30.0_rp
+      !flag_walave     = 1
 
       this%cfl_conv = 100.0_rp !bdf2
       this%cfl_diff = 100.0_rp !bdf2
