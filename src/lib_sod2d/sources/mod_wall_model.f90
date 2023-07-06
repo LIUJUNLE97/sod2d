@@ -65,14 +65,14 @@ contains
             if(isoI ==1) then
                isoI = convertIJK(1+flag_walex)
             else
-               isoI = convertIJK(1+flag_walex)
+               isoI = convertIJK(porder+1-flag_walex)
             end if
          else if (isoJ == 1 .or. isoJ == 2) then
             type_ijk = 2
             if(isoJ ==1) then
                isoJ = convertIJK(1+flag_walex)
             else
-               isoJ = convertIJK(1+flag_walex)
+               isoJ = convertIJK(porder+1-flag_walex)
             end if            
          else
             type_ijk = 3
