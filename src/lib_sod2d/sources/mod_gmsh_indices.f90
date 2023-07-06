@@ -133,7 +133,6 @@ module mod_gmsh_indices
                ! Generate volume nodes
                call genHighOrderHex(p-2,tableVolume)
                tableVolume = tableVolume + 1
-               print*, "tableVolume = ", tableVolume
                call joinTables([(p-1)**3,3],tableVolume,inode,[(p+1)**3,3],indexTable)
             end if
          end if
