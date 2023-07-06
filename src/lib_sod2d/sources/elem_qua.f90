@@ -5,7 +5,7 @@ module elem_qua
 
         implicit none
 
-        integer(4), parameter :: quad_order_edges(4,2) = reshape([1,2,2,3,3,4,4,1],(/4,2/))
+        integer(4), parameter :: quad_order_edges(4,2) = transpose(reshape([1,2,2,3,3,4,4,1],(/2,4/)))
 
         contains
 

@@ -6,8 +6,8 @@ module elem_hex
 
    implicit none
 
-   integer(4), parameter :: hex_order_edges(12,2) = reshape([1,2,1,4,1,5,2,3,2,6,3,4,3,7,4,8,5,6,5,8,6,7,7,8],(/12,2/))
-   integer(4), parameter :: hex_order_faces(6,4)  = reshape([1,4,3,2,1,2,6,5,1,5,8,4,2,3,7,6,3,4,8,7,5,6,7,8],(/6,4/))
+   integer(4), parameter :: hex_order_edges(12,2) = transpose(reshape([1,2,1,4,1,5,2,3,2,6,3,4,3,7,4,8,5,6,5,8,6,7,7,8],(/2,12/)))
+   integer(4), parameter :: hex_order_faces(6,4)  = transpose(reshape([1,4,3,2,1,2,6,5,1,5,8,4,2,3,7,6,3,4,8,7,5,6,7,8],(/4,6/)))
 
    contains  
 
