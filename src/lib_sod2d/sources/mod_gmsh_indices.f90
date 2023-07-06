@@ -126,7 +126,7 @@ module mod_gmsh_indices
                   u(:) = (indexTable(i1,:) - indexTable(i0,:))/p
                   v(:) = (indexTable(i3,:) - indexTable(i0,:))/p
                   do i = 1,((p-1)**2)
-                     indexTable(inode,:) = indexTable(i0,:) + u(:)*tableFace(i,0) + v(:)*tableFace(i,1)
+                     indexTable(inode,:) = indexTable(i0,:) + u(:)*tableFace(i,1) + v(:)*tableFace(i,2)
                      inode = inode + 1
                   end do
                end do
