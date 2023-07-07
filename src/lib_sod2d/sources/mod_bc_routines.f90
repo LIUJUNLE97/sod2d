@@ -156,6 +156,8 @@ module mod_bc_routines
                      aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
 
                   else if ((bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic)) then ! slip
+                     aux_E(inode) = aux_E(inode) - &
+                                    aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
                      norm = (normalsAtNodes(inode,1)*aux_q(inode,1)) + (normalsAtNodes(inode,2)*aux_q(inode,2)) + (normalsAtNodes(inode,3)*aux_q(inode,3))
                      !$acc loop seq
                      do idime = 1,ndime     
@@ -167,7 +169,7 @@ module mod_bc_routines
                      aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
                      aux_u(inode,3) = aux_q(inode,3)/aux_rho(inode)
 
-                     aux_E(inode) = aux_p(inode)/(nscbc_gamma_inf-1.0_rp) + &
+                     aux_E(inode) = aux_E(inode) + &
                                     aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
 
                   end if

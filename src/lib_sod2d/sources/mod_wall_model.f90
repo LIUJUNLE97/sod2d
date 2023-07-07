@@ -4,6 +4,7 @@ module mod_wall_model
    use mod_veclen
    use mod_nvtx
    use mod_mpi
+   use elem_qua
 
 contains
 
@@ -28,12 +29,22 @@ contains
       real(rp)                :: aux(ndime)
       ! wall law stuff
       real(rp)                :: y,ul,nul,uistar,tvelo(ndime),uiex(ndime),auxmag,auxvn,surf
-      integer(4)              :: itera
+      integer(4)              :: itera,isoI,isoJ,isoK,jgaus,type_ijk,ii,isoII,isoJJ,isoKK
       real(rp)                :: xmuit,fdvfr,devfr,point(ndime),pointF(ndime),normalF(ndime)
       real(rp)                :: vkinv,diffd,parco,yplus,onovu,yplu2
       real(rp)                :: ypele,expye,expyt,oneoe,firsl,ypel2
       real(rp)                :: pplus,densi,gradp,grpr2,py,sq,inv,ln4,uplus,vol
       real(rp)                :: ux,uy,uz,px,pz
+      integer(4)              :: atoIJ(16)
+      integer(4)              :: convertIJK(porder+1)
+
+      do iAux=3,porder
+         convertIJK(iAux) = iAux
+      end do 
+      convertIJK(1) = 1
+      convertIJK(porder+1) = 2
+
+      call set_qua16_lists(atoIJ)
 
       !$acc parallel loop gang private(bnorm,uiex,point)
       do iAux = 1,numBoundsWM
@@ -41,36 +52,56 @@ contains
          bnorm(1:npbou*ndime) = bounorm(iBound,1:npbou*ndime)
          point(1:ndime) = 0.0_rp
          uiex(1:ndime) = 0.0_rp
-         iElem = point2elem(bound(iBound,npbou)) ! I use an internal face node to be sure is the correct element
-#if 1
-         px = 0.0_rp
-         py = 0.0_rp
-         pz = 0.0_rp
-         ux = 0.0_rp
-         uy = 0.0_rp
-         uz = 0.0_rp
-         !$acc loop vector reduction(+:px,py,pz,ux,uy,uz)
-         do igaus = 1,nnode
-            px = px + coord(connec(iElem,igaus),1)
-            py = py + coord(connec(iElem,igaus),2)
-            pz = pz + coord(connec(iElem,igaus),3)
-            ux = ux + ui(connec(iElem,igaus),1)
-            uy = uy + ui(connec(iElem,igaus),2)
-            uz = uz + ui(connec(iElem,igaus),3)
-         end do
-         point(1) = px/real(nnode,rp)
-         point(2) = py/real(nnode,rp)
-         point(3) = pz/real(nnode,rp)
-         uiex(1) = ux/real(nnode,rp)
-         uiex(2) = uy/real(nnode,rp)
-         uiex(3) = uz/real(nnode,rp)
-#else
-         point(1:ndime) =coord(connec(iElem,nnode),1:ndime)
-         uiex(1:ndime) = ui(connec(iElem,nnode),1:ndime)
-#endif         
+         iElem = point2elem(bound(iBound,atoIJ(npbou))) ! I use an internal face node to be sure is the correct element
+
+         jgaus = minloc(abs(connec(iElem,:)-bound(iBound,atoIJ(npbou))),1)
+
+         isoI = gmshAtoI(jgaus) 
+         isoJ = gmshAtoJ(jgaus) 
+         isoK = gmshAtoK(jgaus)
+         type_ijk = 0
+         if(isoI == 1 .or. isoI == 2) then
+            type_ijk = 1
+            if(isoI ==1) then
+               isoI = convertIJK(1+flag_walex)
+            else
+               isoI = convertIJK(porder+1-flag_walex)
+            end if
+         else if (isoJ == 1 .or. isoJ == 2) then
+            type_ijk = 2
+            if(isoJ ==1) then
+               isoJ = convertIJK(1+flag_walex)
+            else
+               isoJ = convertIJK(porder+1-flag_walex)
+            end if            
+         else
+            type_ijk = 3
+            if(isoK ==1) then
+               isoK = convertIJK(1+flag_walex)
+            else
+               isoK = convertIJK(porder+1-flag_walex)
+            end if            
+         end if      
 
          !$acc loop vector private(aux,pointF,normalF,tvelo)
          do igaus = 1,npbou
+            jgaus = minloc(abs(connec(iElem,:)-bound(iBound,igaus)),1)
+
+            isoII = gmshAtoI(jgaus) 
+            isoJJ = gmshAtoJ(jgaus) 
+            isoKK = gmshAtoK(jgaus)
+            !print *,isoII,isoJJ,isoKK," type ",type_ijk
+
+            if(type_ijk ==1) then
+               point(1:ndime) =coord(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
+               uiex(1:ndime) = ui(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
+            else if(type_ijk ==2) then
+               point(1:ndime) =coord(connec(iElem,invAtoIJK(isoII,isoJ,isoKK)),1:ndime)
+               uiex(1:ndime) = ui(connec(iElem,invAtoIJK(isoII,isoJ,isoKK)),1:ndime)
+            else 
+               point(1:ndime) =coord(connec(iElem,invAtoIJK(isoII,isoJJ,isoK)),1:ndime)
+               uiex(1:ndime) = ui(connec(iElem,invAtoIJK(isoII,isoJJ,isoK)),1:ndime)
+            end if          
 
             pointF(1:ndime) = 0.0_rp
             normalF(1:ndime) = 0.0_rp

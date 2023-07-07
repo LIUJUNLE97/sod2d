@@ -31,6 +31,9 @@ module mod_arrays
       real(rp), allocatable :: impl_rho(:),impl_E(:),impl_eta(:),impl_q(:,:)
       real(rp), allocatable :: impl_envit(:,:),impl_mu_fluid(:),impl_mu_sgs(:,:)
 
+      ! exponential average for wall law
+      real(rp), allocatable :: walave_u(:,:)
+
 end module mod_arrays
 
 module CFDSolverBase_mod
@@ -915,6 +918,15 @@ contains
          allocate(Nwit(this%nwit,nnode))
       end if
 
+      ! Exponential average velocity for wall law
+      if(flag_walave==1) then
+         allocate(walave_u(numNodesRankPar,ndime))
+         !$acc enter data create(walave_u(:,:))
+         !$acc kernels
+         walave_u(:,:) = 0.0_rp
+         !$acc end kernels
+      end if
+
       call nvtxEndRange
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
@@ -930,7 +942,7 @@ contains
 
       if(this%loadRestartFile) then
          if(mpi_rank.eq.0) write(111,*) "--| Loading restart file ",this%restartFile_to_load
-         call load_hdf5_restartFile(this%restartFile_to_load,this%load_step,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs)
+         call load_hdf5_restartFile(this%restartFile_to_load,this%load_step,flag_walave,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
 
          if((flag_les.eq.0).and.(flag_les_ilsa.eq.0)) then
             !$acc kernels
@@ -1346,7 +1358,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
       
-      call save_hdf5_restartFile(this%restartFileCnt,istep,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs)
+      call save_hdf5_restartFile(this%restartFileCnt,istep,flag_walave,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
 
       if(this%restartFileCnt .eq. 1) then
          this%restartFileCnt = 2
@@ -1439,6 +1451,7 @@ contains
       character(4) :: timeStep
       real(8) :: iStepTimeRank,iStepTimeMax,iStepEndTime,iStepStartTime,iStepAvgTime
       real(rp) :: inv_iStep,aux_pseudo_cfl
+      real(rp) :: dtfact,avwei
       logical :: do__iteration
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
@@ -1464,6 +1477,22 @@ contains
          e_int(:,1) = e_int(:,2)
          eta(:,1) = eta(:,2)
          !$acc end kernels
+         call nvtxEndRange
+
+         !
+         ! Exponential averaging for wall law 
+         !
+         call nvtxStartRange("Wall Average "//timeStep,istep)
+         if(flag_walave == 1) then
+            !
+            ! outside acc kernels following pseudo_cfl in next loop
+            !
+            dtfact = this%dt/(this%dt+period_walave)
+            avwei  = 1.0_rp - dtfact
+            !$acc kernels
+            walave_u(:,:) = dtfact*u(:,:,2) + avwei*walave_u(:,:)
+            !$acc end kernels
+         end if
          call nvtxEndRange
 
          call nvtxStartRange("RK4 step "//timeStep,istep)
@@ -1821,6 +1850,7 @@ contains
          write(111,*) "    flag_solver_type: ",         flag_solver_type
          write(111,*) "    flag_spectralElem: ",        flag_spectralElem
          write(111,*) "    flag_normalise_entropy: ",   flag_normalise_entropy
+         write(111,*) "    flag_walave: ",              flag_walave
          write(111,*) "--------------------------------------"
          write(111,*) "    ce: ",      ce
          write(111,*) "    cmax: ",    cmax
