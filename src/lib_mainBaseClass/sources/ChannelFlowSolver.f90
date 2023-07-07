@@ -84,11 +84,11 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 200
+      this%save_resultsFile_step = 20000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 200
-      this%loadRestartFile = .true.
+      this%save_restartFile_step = 20000
+      this%loadRestartFile = .false.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
@@ -100,18 +100,18 @@ contains
 
       ! numerical params
       flag_les = 1
-      flag_implicit = 1
+      flag_implicit = 0
       maxIterNonLineal=200
       implicit_solver = implicit_solver_bdf2_rk10
       pseudo_cfl = 1.95_rp !esdirk
       tol = 1e-3
       flag_implicit_repeat_dt_if_not_converged = 0
        
-      !period_walave   = 30.0_rp
+      !period_walave   = 1.0_rp
       !flag_walave     = 1
 
-      this%cfl_conv = 100.0_rp !bdf2
-      this%cfl_diff = 100.0_rp !bdf2
+      this%cfl_conv = 1.9_rp !bdf2
+      this%cfl_diff = 1.9_rp !bdf2
       !this%cfl_conv = 0.15_rp !exp
       !this%cfl_diff = 0.15_rp !exp
 
