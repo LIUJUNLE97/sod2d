@@ -67,7 +67,7 @@ contains
 
       ! numerical params
       flag_les = 1
-      flag_implicit = 1
+      flag_implicit = 0
       flag_les_ilsa=0
       implicit_solver = implicit_solver_bdf2_rk10
       flag_rk_order=4
@@ -77,8 +77,8 @@ contains
       maxIterNonLineal=300
       tol=1e-3
 
-      this%cfl_conv = 100.0_rp 
-      this%cfl_diff = 100.0_rp 
+      this%cfl_conv = 0.5_rp 
+      this%cfl_diff = 0.5_rp 
 
       !----------------------------------------------
       !  --------------  I/O params -------------
@@ -102,13 +102,12 @@ contains
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
-      this%vo = 1.0_rp
-      this%M  = 0.2_rp
+      this%vo = 2.0_rp
+      this%M  = 1_rp
       this%delta  = 1.0_rp
       this%rho0   = 1.0_rp
       this%gamma_gas = 1.40_rp
-      this%Re     =  3300.0_rp
-      !this%Re     =  100000.0_rp
+      this%Re     =  10000.0_rp
 
       mul    = (this%rho0*this%delta*this%vo)/this%Re
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
@@ -125,7 +124,7 @@ contains
       nscbc_Rgas_inf = this%Rgas
 
       !Witness points parameters
-      this%have_witness          = .true.
+      this%have_witness          = .false.
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
       this%leapwit               = 1
@@ -138,19 +137,19 @@ contains
       flag_buffer_on = .true.
      !cylinder
      flag_buffer_on_east = .true.
-     flag_buffer_e_min = 100.0_rp
+     flag_buffer_e_min = 40.0_rp
      flag_buffer_e_size = 10.0_rp
 
      flag_buffer_on_west = .true.
-     flag_buffer_w_min = -15.0_rp
+     flag_buffer_w_min = -20.0_rp
      flag_buffer_w_size = 10.0_rp
 
      flag_buffer_on_north = .true.
-     flag_buffer_n_min = 15.0_rp
+     flag_buffer_n_min = 20.0_rp
      flag_buffer_n_size = 10.0_rp
 
      flag_buffer_on_south = .true.
-     flag_buffer_s_min = -15.0_rp
+     flag_buffer_s_min = -20.0_rp
      flag_buffer_s_size = 10.0_rp
 
       !naca

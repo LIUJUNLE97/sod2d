@@ -117,10 +117,10 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 200
+      this%save_resultsFile_step = 20000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 200
+      this%save_restartFile_step = 20000
       this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
@@ -132,20 +132,20 @@ contains
 
       ! numerical params
       flag_les = 1
-      flag_implicit = 1
+      flag_implicit = 0
       implicit_solver = implicit_solver_bdf2_rk10
       flag_rk_order=4
       flag_implicit_repeat_dt_if_not_converged = 0
 #if CRM    
       pseudo_cfl =0.95_rp 
 #else
-      pseudo_cfl =0.5_rp 
+      pseudo_cfl =0.95_rp 
 #endif
       pseudo_ftau= 6.0_rp
       maxIterNonLineal=200
       tol=1e-3
 
-      period_walave   = 0.2_rp
+      period_walave   = 0.5_rp
       flag_walave     = 1
 
 #if CRM
@@ -153,9 +153,11 @@ contains
      !flag_use_constant_dt = 1
       this%cfl_conv = 100.0_rp 
       this%cfl_diff = 100.0_rp 
-#else   
-      this%cfl_conv = 100.0_rp
-      this%cfl_diff = 100.0_rp
+#else  
+      !this%dt = 5e-3
+      !flag_use_constant_dt = 1 
+      this%cfl_conv = 0.5_rp
+      this%cfl_diff = 0.5_rp
 #endif
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
