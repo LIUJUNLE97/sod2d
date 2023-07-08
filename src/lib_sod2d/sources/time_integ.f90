@@ -657,13 +657,16 @@ module time_integ
                end do
                !$acc end parallel loop
                call nvtxEndRange
-
+               
+               if (noBoundaries .eqv. .false.) then
+                  call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Reta)
+               end if
                !
                ! Compute entropy viscosity
                !
                call nvtxStartRange("Entropy viscosity evaluation")
                call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
-                  gamma_gas,rho(:,pos),u(:,:,pos),csound,Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e)
+                  gamma_gas,rho(:,pos),u(:,:,pos),csound,Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
                call nvtxEndRange
 
                call nvtxStartRange("Accumullate aux2 in res(1)")
@@ -1029,7 +1032,9 @@ module time_integ
             end do
             !$acc end parallel loop
             call nvtxEndRange
-
+            if (noBoundaries .eqv. .false.) then
+               call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Reta)
+            end if
             !
             ! If using Sutherland viscosity model:
             !
@@ -1044,7 +1049,7 @@ module time_integ
             ! Compute entropy viscosity
             !
             call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
-               gamma_gas,rho(:,pos),u(:,:,pos),csound,Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e)
+               gamma_gas,rho(:,pos),u(:,:,pos),csound,Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
             call nvtxEndRange
             !
             ! Compute subgrid viscosity if active

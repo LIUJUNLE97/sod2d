@@ -38,8 +38,8 @@ contains
       integer(4)              :: atoIJ(16)
       integer(4)              :: convertIJK(porder+1)
 
-      do iAux=3,porder
-         convertIJK(iAux) = iAux
+      do iAux=3,porder+1
+         convertIJK(iAux-1) = iAux
       end do 
       convertIJK(1) = 1
       convertIJK(porder+1) = 2
