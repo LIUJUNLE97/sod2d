@@ -657,7 +657,10 @@ module time_integ
                end do
                !$acc end parallel loop
                call nvtxEndRange
-
+               
+               if (noBoundaries .eqv. .false.) then
+                  call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Reta)
+               end if
                !
                ! Compute entropy viscosity
                !
@@ -1029,7 +1032,9 @@ module time_integ
             end do
             !$acc end parallel loop
             call nvtxEndRange
-
+            if (noBoundaries .eqv. .false.) then
+               call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Reta)
+            end if
             !
             ! If using Sutherland viscosity model:
             !

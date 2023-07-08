@@ -67,7 +67,7 @@ contains
 
       ! numerical params
       flag_les = 1
-      flag_implicit = 0
+      flag_implicit = 1
       flag_les_ilsa=0
       implicit_solver = implicit_solver_bdf2_rk10
       flag_rk_order=4
@@ -77,8 +77,8 @@ contains
       maxIterNonLineal=300
       tol=1e-3
 
-      this%cfl_conv = 0.5_rp 
-      this%cfl_diff = 0.5_rp 
+      this%cfl_conv = 100.0_rp 
+      this%cfl_diff = 100.0_rp 
 
       !----------------------------------------------
       !  --------------  I/O params -------------
@@ -88,10 +88,10 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 10000
+      this%save_resultsFile_step = 100
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 10000
+      this%save_restartFile_step = 100
       this%loadRestartFile = .false.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
