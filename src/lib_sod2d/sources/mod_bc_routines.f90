@@ -261,4 +261,32 @@ subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound
             !$acc end parallel loop
 
          end subroutine bc_fix_dirichlet_Jacobian
+
+         subroutine bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,R)
+
+            implicit none
+
+            integer(4), intent(in)     :: npoin, nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
+            integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou),lnbn_nodes(npoin)
+            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
+            real(rp),    intent(inout) :: R(npoin)
+            integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
+
+         
+            !$acc parallel loop  
+            do inode = 1,npoin
+               if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
+                  bcode = bou_codes_nodes(inode) ! Boundary element code
+                  if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic                  
+                     R(inode) = 0.0_rp
+                  else if (bcode == bc_type_non_slip_hot) then ! non_slip wall hot
+                     R(inode) = 0.0_rp
+                  else if (bcode == bc_type_non_slip_cold) then ! non_slip wall cold
+                     R(inode) = 0.0_rp
+                  end if
+               end if
+            end do
+            !$acc end parallel loop
+
+         end subroutine bc_fix_dirichlet_residual_entropy
       end module mod_bc_routines

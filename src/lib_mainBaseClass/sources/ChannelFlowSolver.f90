@@ -88,7 +88,7 @@ contains
 
       this%save_restartFile_first = 1
       this%save_restartFile_step = 20000
-      this%loadRestartFile = .false.
+      this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 

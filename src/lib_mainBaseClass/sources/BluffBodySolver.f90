@@ -88,10 +88,10 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 50000
+      this%save_resultsFile_step = 100
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 50000
+      this%save_restartFile_step = 100
       this%loadRestartFile = .false.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
@@ -125,15 +125,15 @@ contains
       nscbc_Rgas_inf = this%Rgas
 
       !Witness points parameters
-      this%have_witness          = .true.
-      this%witness_inp_file_name = "witness.txt"
-      this%witness_h5_file_name  = "resultwit.h5"
-      this%leapwit               = 1
-      this%nwit                  = 17986
-      this%wit_save_u_i          = .true.
-      this%wit_save_pr           = .true.
-      this%wit_save_rho          = .true.
-      this%continue_witness      = .false.     
+      !this%have_witness          = .true.
+      !this%witness_inp_file_name = "witness.txt"
+      !this%witness_h5_file_name  = "resultwit.h5"
+      !this%leapwit               = 1
+      !this%nwit                  = 17986
+      !this%wit_save_u_i          = .true.
+      !this%wit_save_pr           = .true.
+      !this%wit_save_rho          = .true.
+      !this%continue_witness      = .false.     
  
       flag_buffer_on = .true.
      !cylinder
