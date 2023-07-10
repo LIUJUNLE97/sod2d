@@ -229,7 +229,7 @@ module mod_entropy_viscosity
                       real(rp)                 :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas, maxV, maxC
                       real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe, M, ceM
                       integer(4)              :: convertIJK(0:porder+2),ii,jj,kk,mm,nn,ll
-                      real(rp)                :: mue_l(nelem,nnode)
+                      real(rp)                :: mue_l(nelem,nnode),al(-1:1),am(-1:1),an(-1:1)
 
                       do ii=3,porder+1
                         convertIJK(ii-1) = ii
@@ -239,6 +239,17 @@ module mod_entropy_viscosity
                      convertIJK(porder+1) = 2
                      convertIJK(porder+2) = porder
 
+                     al(-1) = 1.0_rp/4.0_rp
+                     al(0)  = 2.0_rp/4.0_rp
+                     al(1)  = 1.0_rp/4.0_rp
+
+                     am(-1) = 1.0_rp/4.0_rp
+                     am(0)  = 2.0_rp/4.0_rp
+                     am(1)  = 1.0_rp/4.0_rp
+                     
+                     an(-1) = 1.0_rp/4.0_rp
+                     an(0)  = 2.0_rp/4.0_rp
+                     an(1)  = 1.0_rp/4.0_rp
 
                      Rgas = nscbc_Rgas_inf
 
@@ -288,7 +299,6 @@ module mod_entropy_viscosity
                         ceM = max(tanh((M**15)*v_pi),ce)
                         ced = max(1.0_rp-(minJe/maxJe)**8,ce)
                         ced = max(ced,ceM) 
-                        !ced = ce
 
                         mu = 0.0_rp
                         betae = 0.0_rp
@@ -307,6 +317,7 @@ module mod_entropy_viscosity
                         end do
 
 #if 1
+#if 0
                         !$acc loop vector collapse(3)
                         do ii=1,porder+1
                            do jj=1,porder+1
@@ -324,6 +335,42 @@ module mod_entropy_viscosity
                               end do
                            end do 
                         end do
+#else
+                        !$acc loop vector collapse(3)
+                        do ii=1,porder+1
+                           do jj=1,porder+1
+                              do kk=1,porder+1           
+                                 aux1 = 0.00_rp
+                                 !$acc loop seq
+                                 do ll=-1,1
+                                    !$acc loop seq
+                                    do mm=-1,1
+                                       !$acc loop seq
+                                       do nn=-1,1           
+                                          aux1 =   aux1 +  al(ll)*am(mm)*an(nn)*mue_l(ielem,invAtoIJK(convertIJK(ii+ll),convertIJK(jj+mm),convertIJK(kk+nn)))
+                                       end do
+                                    end do 
+                                 end do
+                                 mu_e(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk))) = aux1
+                              end do
+                           end do 
+                        end do
+                     !!$acc loop vector 
+                     !do inode = 1,nnode
+                     !   mu_e(ielem,inode) = mue_l(ielem,inode)
+                     !end do
+#endif                        
+#else
+                        aux1 = 0.0_rp
+                        !$acc loop vector reduction(+:aux1)
+                        do inode = 1,nnode
+                           aux1 = aux1 + mue_l(ielem,inode)/real(nnode,rp)
+                        end do       
+                        !$acc loop vector 
+                        do inode = 1,nnode
+                           mu_e(ielem,inode) = aux1
+                        end do
+
 #endif
                       end do
                       !$acc end parallel loop
