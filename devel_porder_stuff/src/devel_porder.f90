@@ -48,6 +48,9 @@ program devel_porder
    call set_allocate_hexahedronHO_ijk_indices(mporder,gmsh2ijk,vtk2ijk)
    call set_allocate_quadrilateralHO_ij_indices(mporder,gmsh2ij,vtk2ij)
 
+   do pIndex=1,mnnode
+      write(*,*) 'pI',pIndex,'new',gmsh2ijk(pIndex),'old',gmsh2ijk_p3(pIndex)
+   end do
 
 
    allocate(coordsHex(mnnode,ndime))

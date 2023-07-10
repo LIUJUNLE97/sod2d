@@ -96,7 +96,7 @@ contains
             do jp=1,mporder+1
                j=array_ijk_order(jp)
 
-               write(*,*) 'i,j,k',i,j,k,'ip,jp,kp',ip,jp,kp
+
 
                call vtkHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,vtkIndex)
                call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
@@ -104,6 +104,9 @@ contains
                pIndex               = pIndex + 1
                gmsh2ijk(pIndex)     = gmshIndex
                vtk2ijk(pIndex)      = vtkIndex
+
+               !write(*,*) 'i,j,k',i,j,k,'ip,jp,kp',ip,jp,kp,'pI',pIndex,'gmsh',gmshIndex,'vtk',vtkIndex
+
                !a2ijk(pIndex)        = gmshIndex!pIndex
                !a2i(gmshIndex)       = i+1
                !a2j(gmshIndex)       = j+1
@@ -584,7 +587,7 @@ contains
       integer(4),allocatable :: auxHexHOtable(:,:),auxQuadHOtable(:,:)
 
       call get_porder_values(mporder,mnnode,mngaus,mnpbou)
-      if(mpi_rank.eq.0) write(*,*) 'mporder',mporder,'mnnode',mnnode,'mngaus',mngaus,'mnpbou',mnpbou
+      !if(mpi_rank.eq.0) write(*,*) 'mporder',mporder,'mnnode',mnnode,'mngaus',mngaus,'mnpbou',mnpbou
 
       if(gmsh_porder.eq.0) then !arrays not initialized
          if(mpi_rank.eq.0) write(*,*) 'Initialising GMSH IJK Tables to order',mporder
@@ -610,7 +613,7 @@ contains
 
       gmsh_porder = mporder
 
-      write(*,*) 'generating HexHO_ijktable'
+      !write(*,*) 'generating HexHO_ijktable'
 
       do pIndex=1,mnnode
 
@@ -618,20 +621,19 @@ contains
          j = auxHexHOtable(pIndex,2)
          k = auxHexHOtable(pIndex,3)
 
-         write(*,*) 'ijk',i,j,k,'pI',pIndex
+         !write(*,*) 'ijk',i,j,k,'pI',pIndex
 
-         !gmshHexahedraHO_ijkTable(i,j,k) = pIndex
+         gmshHexahedraHO_ijkTable(i,j,k) = pIndex
       end do
 
-      write(*,*) 'generating QuadHO_ijtable'
+      !write(*,*) 'generating QuadHO_ijtable'
 
       do pIndex=1,mnpbou
          i = auxQuadHOtable(pIndex,1)
          j = auxQuadHOtable(pIndex,2)
 
-         write(*,*) 'ij',i,j,'pI',pIndex
-
-         !gmshHexahedraHO_ijkTable(i,j,k) = pIndex
+         !write(*,*) 'ij',i,j,'pI',pIndex
+         gmshQuadrilateralHO_ijTable(i,j) = pIndex
       end do
 
       deallocate(auxHexHOtable)

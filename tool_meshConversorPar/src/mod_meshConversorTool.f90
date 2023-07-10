@@ -132,7 +132,8 @@ contains
       real(8),dimension(10) :: start_time,end_time,elapsed_time_r
 
       integer(4) :: mnnode,mngaus,mnpbou
-      integer(4),dimension(:),allocatable :: gmsh2ijk,vtk2ijk,gmsh2ij,vtk2ij
+      integer(4),dimension(:),allocatable :: gmsh2ijk,vtk2ijk,gmsh2ij,vtk2ij,a2ijk,a2ij
+      integer(4),dimension(:),allocatable :: auxNewOrderIndex,auxVTKorder
 
       ! ################################################################################################
       ! ----------------- VARS for new Par mesh FORMAT -------------------------------------------------
@@ -183,9 +184,17 @@ contains
        if(mpi_rank.eq.0) write(*,*) "Be Careful! _CHECK_ flag is ON! Debug files (*.csv) will be created!"     
 #endif
 
+      call initGmshIJKTables(mporder)
       call get_porder_values(mporder,mnnode,mngaus,mnpbou)
       call set_allocate_hexahedronHO_ijk_indices(mporder,gmsh2ijk,vtk2ijk)
       call set_allocate_quadrilateralHO_ij_indices(mporder,gmsh2ij,vtk2ij)
+
+      allocate(a2ijk(mnnode))
+      allocate(a2ij(mnpbou))
+
+      !for the moment we set that the a2ijk is the gmsh2ijk
+      a2ijk(:) = gmsh2ijk(:)
+      a2ij(:)  = gmsh2ij(:)
 
       allocate(Ngp_l(mngaus,mnnode))
 
@@ -201,7 +210,7 @@ contains
       elapsed_time_r(2) = end_time(2) - start_time(2)
 
       call distribute_ranks2Part_in_mpiRank(numMshRanks2Part,mshRankInMpiRankStart,mshRankInMpiRankEnd,numMshRanksInMpiRank,maxNumMshRanks,mshRanksInMpiRank,mapMshRankToMpiRank)
- 
+
       start_time(3) = MPI_Wtime()
       call do_element_partitioning_gempa_in_parallel(mporder,mnnode,mnpbou,gmsh_h5_fileId,isPeriodic,numElemsGmsh,numNodesGmsh_i8,numBoundFacesGmsh,&
                      numMshRanks2Part,numMshRanksInMpiRank,maxNumMshRanks,mshRanksInMpiRank,mapMshRankToMpiRank,numElemsMpiRank,listElemsMpiRank,&
@@ -265,7 +274,11 @@ contains
       call define_parallelNodePartitioning(numMshRanks2Part,numMshRanksInMpiRank,numNodesMshRank,mshRanksInMpiRank,mapMshRankToMpiRank,mshRankNodeStart_i8,mshRankNodeEnd_i8,iNodeStartPar_i8,numNodesParTotal_i8)
 
       !--------------------------------------------------------------------------------------
-      call evalShapeFunctions_Ngp_l(Ngp_l,mporder,mnnode,mngaus)
+      allocate(auxNewOrderIndex(mnnode))
+      allocate(auxVTKorder(mnnode))
+      call generate_new_nodeOrder_and_connectivity(mporder,mnnode,gmsh2ijk,vtk2ijk,a2ijk,auxNewOrderIndex,auxVTKorder)
+      call evalShapeFunctions_Ngp_l(Ngp_l,mporder,mnnode,mngaus,a2ijk)
+
 
       allocate(globalIdSrl_i8_jv%vector(numMshRanksInMpiRank))
       allocate(globalIdSrlOrdered_i8_jm%matrix(numMshRanksInMpiRank))
@@ -316,7 +329,7 @@ contains
          !$acc end kernels
 
          !reordering nodes
-         call reorder_nodes_in_mshRank(mporder,mnnode,mnpbou,gmsh2ijk,vtk2ijk,&
+         call reorder_nodes_in_mshRank(mporder,mnnode,mnpbou,gmsh2ijk,vtk2ijk,auxNewOrderIndex,auxVTKorder,&
                         mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),numPerNodesMshRank(iMshRank),&
                         elemGidMshRank_jv%vector(iMshRank)%elems,listNodesMshRank_i8_jv%vector(iMshRank)%elems,connecMshRank_i8_jm%matrix(iMshRank)%elems,iNodeStartPar_i8,&
                         connecOrigBoundFacesMshRank_i8_jm%matrix(iMshRank)%elems,masSlaRankPar_i8_jm%matrix(iMshRank)%elems,&
@@ -334,6 +347,8 @@ contains
                numWorkingNodesMshRank(iMshRank),workingNodesPar_jv%vector(iMshRank)%elems)
 
       end do
+
+
 
       end_time(5) = MPI_Wtime()
       elapsed_time_r(5) = end_time(5) - start_time(5)
@@ -393,16 +408,16 @@ contains
       call create_hdf5_file(meshFile_h5_name,sod2dmsh_h5_fileId)
       !call create_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId)
 
-      call create_hdf5_groups_datasets_in_meshFile_from_tool(sod2dmsh_h5_fileId,isPeriodic,isBoundaries,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
+      call create_hdf5_groups_datasets_in_meshFile_from_tool(mnnode,mnpbou,sod2dmsh_h5_fileId,isPeriodic,isBoundaries,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
                vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank)
 
-      call create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(sod2dmsh_h5_fileId,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8)
+      call create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mnnode,sod2dmsh_h5_fileId,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8)
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
       do iMshRank=1,numMshRanksInMpiRank
          mshRank = mshRanksInMpiRank(iMshRank)
-         call write_mshRank_data_in_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,numElemsGmsh,numBoundFacesGmsh,&
+         call write_mshRank_data_in_hdf5_meshFile_from_tool(mnnode,mnpbou,sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,numElemsGmsh,numBoundFacesGmsh,&
             numElemsMshRank(iMshRank),mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),&
             mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),numWorkingNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),numBoundaryNodesMshRank(iMshRank),numDoFMshRank(iMshRank),maxBoundCode,&
             elemGidMshRank_jv%vector(iMshRank)%elems,globalIdSrl_i8_jv%vector(iMshRank)%elems,globalIdPar_i8_jv%vector(iMshRank)%elems,&
@@ -415,7 +430,7 @@ contains
             bnd_commsMemSize_jv%vector(iMshRank)%elems,bnd_commsMemPosInNgb_jv%vector(iMshRank)%elems,bnd_ranksToComm_jv%vector(iMshRank)%elems,&
             vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank) 
 
-         call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),&
+         call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mnnode,sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),&
             mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),&
             coordPar_jm%matrix(iMshRank)%elems,connecVTK_jv%vector(iMshRank)%elems)
       end do
@@ -453,7 +468,8 @@ contains
          write(*,*) ' -DoF & BoundCommScheme',elapsed_time_r(7)
          write(*,*) ' -SavingHDF5',elapsed_time_r(8)
       end if
-
+#if 0
+#endif
       call end_hdf5_interface()
 
    end subroutine read_gmsh_h5_file_and_do_partitioning_in_parallel
@@ -586,7 +602,7 @@ contains
       !----------------------------------------------------------------------------------------------------------
       ! REORDERING NODE LIST
 
-      allocate(rawNodeListRank_i8(numElemsInRank*nnode))
+      allocate(rawNodeListRank_i8(numElemsInRank*mnnode))
       !$acc kernels
       rawNodeListRank_i8(:) = 0
       !$acc end kernels
@@ -696,6 +712,7 @@ contains
       numChunks = ceiling(real(numElemsSrl)/real(maxRows2read))
       if(mpi_rank.eq.0) write(*,*) ' -Reading elems by chunks | numChunks',numChunks,'maxRows2read',maxRows2read
 
+
       ms_dims(1) = int(mnnode,hsize_t)
       ms_dims(2) = 1
       ms_offset(1) = 0
@@ -704,6 +721,8 @@ contains
 
       allocate(vecChunks(numChunks))
       call distribution_algorithm(numElemsSrl,numChunks,vecChunks)
+
+write(*,*) 'mnnode',mnnode,'msdims',ms_dims(:)
 
       elemCnt=0
       iElemG=0
@@ -931,7 +950,7 @@ contains
       integer(4), intent(in) :: mporder,mnnode,mnpbou
       integer(hid_t),intent(in) :: gmsh_h5_fileId
       integer(4),intent(in) :: numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,listElemsInRank(numElemsInRank)
-      integer(8),intent(in) :: connecInRank_i8(numElemsInRank,nnode)
+      integer(8),intent(in) :: connecInRank_i8(numElemsInRank,mnnode)
       integer(4),intent(out) :: numLinkedPerElemsSrl,numPerElemsSrl,numMasSlaNodesSrl
       integer(4),allocatable,intent(inout) :: linkedPerElemsSrl(:,:),listPerElemsSrl(:)
       integer(8),allocatable,intent(inout) :: masSlaNodesSrl_i8(:,:)
@@ -953,14 +972,14 @@ contains
       elapsed_time(1) = end_time(1) - start_time(1)
 
       if(mpi_rank.eq.0) write(*,*) "--| Reading periodic links..."
-
+#if 1
       start_time(2) = MPI_Wtime()
-      call read_periodic_links_from_gmsh_h5_file_in_parallel(mporder,gmsh_h5_fileId,numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,numPerFacesInRank,&
+      call read_periodic_links_from_gmsh_h5_file_in_parallel(mporder,mnpbou,gmsh_h5_fileId,numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,numPerFacesInRank,&
                      listElemsInRank,listElemsPerFacesInRank,listPerFacesInRank,connecPerFacesInRank_i8,numLinkedPerElemsSrl,linkedPerElemsSrl,&
                      numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl_i8)
       end_time(2) = MPI_Wtime()
       elapsed_time(2) = end_time(2) - start_time(2)
-
+#endif
       call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),2,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD,h5err)
 
       if(mpi_rank.eq.0) then
@@ -991,7 +1010,6 @@ contains
       integer(4),parameter :: numQuadVert=4,numHexaVert=8
       integer(8) :: f_iNodeG_i8(numQuadVert),e_iNodeG_i8(numHexaVert) !for the vertex of squares of the face and the element
       integer(4) :: gmshQuadVertInd(numQuadVert),gmshHexVertInd(numHexaVert)
-
 
       integer(4),parameter :: ms_rank=2,ds_rank=2
       integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
@@ -1129,7 +1147,7 @@ contains
          if(iFaceG.ne.0) then
             iAux=iAux+1
             listFacesInRank(iAux)        = iFaceG
-            connecFacesInRank_i8(iAux,:) = auxFacesInRank_i8(1:npbou,iFace)
+            connecFacesInRank_i8(iAux,:) = auxFacesInRank_i8(1:mnpbou,iFace)
          end if
       end do
       end_time(3) = MPI_Wtime()
@@ -1223,15 +1241,15 @@ contains
 
    end subroutine read_boundaries_boundCodes_from_gmsh_h5_file_in_parallel
 
-   subroutine read_periodic_links_from_gmsh_h5_file_in_parallel(mporder,gmsh_h5_fileId,numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,numPerFacesInRank,&
+   subroutine read_periodic_links_from_gmsh_h5_file_in_parallel(mporder,mnpbou,gmsh_h5_fileId,numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,numPerFacesInRank,&
                listElemsInRank,listElemsPerFacesInRank,listPerFacesInRank,connecPerFacesInRank_i8,numLinkedPerElemsSrl,linkedPerElemsAll,&
                numPerElemsSrl,listPerElemsAll,numMasSlaNodesSrl,masSlaNodesAll_i8)
       implicit none
-      integer(4),intent(in) :: mporder
+      integer(4),intent(in) :: mporder,mnpbou
       integer(hid_t),intent(in) :: gmsh_h5_fileId
       integer(4),intent(in) :: numPerFacesSrl,numPerLinkedNodesSrl,numElemsInRank,numPerFacesInRank
       integer(4),intent(in) :: listElemsInRank(numElemsInRank),listElemsPerFacesInRank(numElemsInRank,maxBoundsPerElem),listPerFacesInRank(numPerFacesInRank)
-      integer(8),intent(in) :: connecPerFacesInRank_i8(numPerFacesInRank,npbou)
+      integer(8),intent(in) :: connecPerFacesInRank_i8(numPerFacesInRank,mnpbou)
       integer(4),intent(out) :: numLinkedPerElemsSrl,numPerElemsSrl,numMasSlaNodesSrl
       integer(4),allocatable,intent(inout) :: linkedPerElemsAll(:,:),listPerElemsAll(:)
       integer(8),allocatable,intent(inout) :: masSlaNodesAll_i8(:,:)
@@ -1938,12 +1956,12 @@ contains
                      numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,listNodesMpiRank_i8,connecMpiRank_i8,coordNodesMpiRank,&
                      numLinkedPerElemsSrl,linkedPerElemsSrl,numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl_i8)
       implicit none
-      integer(4)                 :: mporder,mnnode,mnpbou
-      integer(hid_t), intent(in) :: gmsh_h5_fileId
-      logical, intent(in)        :: isPeriodic
-      integer(4),intent(in)      :: numElemsSrl,numPerFacesSrl,numPerLinkedNodesSrl
-      integer(8),intent(in)      :: numNodesSrl_i8
-      integer(4),intent(out)     :: numElemsMpiRank,numNodesMpiRank,numLinkedPerElemsSrl,numPerElemsSrl,numMasSlaNodesSrl
+      integer(4),intent(in)     :: mporder,mnnode,mnpbou
+      integer(hid_t),intent(in) :: gmsh_h5_fileId
+      logical,intent(in)        :: isPeriodic
+      integer(4),intent(in)     :: numElemsSrl,numPerFacesSrl,numPerLinkedNodesSrl
+      integer(8),intent(in)     :: numNodesSrl_i8
+      integer(4),intent(out)    :: numElemsMpiRank,numNodesMpiRank,numLinkedPerElemsSrl,numPerElemsSrl,numMasSlaNodesSrl
       integer(8),allocatable,intent(inout) :: listNodesMpiRank_i8(:),connecMpiRank_i8(:,:),masSlaNodesSrl_i8(:,:)
       integer(4),allocatable,intent(inout) :: listElemsMpiRank(:),linkedPerElemsSrl(:,:),listPerElemsSrl(:)
       real(rp), allocatable, intent(inout) :: coordNodesMpiRank(:,:)
@@ -2406,7 +2424,7 @@ contains
          else
             allocate(listBoundFacesMshRank_jv%vector(iMshRank)%elems(numBoundFacesMshRank(iMshRank)))
             allocate(boundFacesCodesMshRank_jv%vector(iMshRank)%elems(numBoundFacesMshRank(iMshRank)))
-            allocate(connecBoundFacesMshRank_i8_jm%matrix(iMshRank)%elems(numBoundFacesMshRank(iMshRank),npbou))
+            allocate(connecBoundFacesMshRank_i8_jm%matrix(iMshRank)%elems(numBoundFacesMshRank(iMshRank),mnpbou))
             allocate(listElemsBoundsMshRank_jm%matrix(iMshRank)%elems(numElemsMshRank(iMshRank),maxBoundsPerElem))
             listElemsBoundsMshRank_jm%matrix(iMshRank)%elems(:,:) = 0
          end if
@@ -2951,11 +2969,11 @@ contains
       end do
    end subroutine define_parallelNodePartitioning
 
-   subroutine reorder_nodes_in_mshRank(mporder,mnnode,mnpbou,gmsh2ijk,vtk2ijk,mshRank,numMshRanks2Part,numElemsInRank,numNodesInRank,numBoundsInRank,numMasSlaNodesInRank,elemGidInRank,listNodesInRank_i8,connecInRank_i8,iNodeStartPar_i8,&
+   subroutine reorder_nodes_in_mshRank(mporder,mnnode,mnpbou,gmsh2ijk,vtk2ijk,auxNewOrderIndex,auxVTKorder,mshRank,numMshRanks2Part,numElemsInRank,numNodesInRank,numBoundsInRank,numMasSlaNodesInRank,elemGidInRank,listNodesInRank_i8,connecInRank_i8,iNodeStartPar_i8,&
                boundFacesInRank_i8,masSlaNodesInRank_i8,globalIdSrlInRank_i8,globalIdSrlOrderedInRank_i8,globalIdParInRank_i8,connecVTKInRank,connecParOrigInRank,boundFacesInRank,masSlaNodesInRank)
       implicit none
       integer(4),intent(in) :: mporder,mnnode,mnpbou
-      integer(4),intent(in) :: gmsh2ijk(mnnode),vtk2ijk(mnnode)
+      integer(4),intent(in),dimension(mnnode) :: gmsh2ijk,vtk2ijk,auxNewOrderIndex,auxVTKorder
       integer(4),intent(in) :: mshRank,numMshRanks2Part,numElemsInRank,numNodesInRank,numBoundsInRank,numMasSlaNodesInRank
       integer(4),intent(in) :: elemGidInRank(numElemsInRank)
       integer(8),intent(in) :: listNodesInRank_i8(numNodesInRank),connecInRank_i8(numElemsInRank,mnnode)
@@ -2972,7 +2990,7 @@ contains
       integer(8) :: iNodeGsrl,iNodeGpar
 
       integer(8),dimension(mnnode) :: auxNodeNewOrderInElem_i8
-      integer(4),dimension(mnnode) :: auxNewOrderIndex,auxVTKorder
+      !integer(4),dimension(mnnode) :: auxNewOrderIndex,auxVTKorder
       integer(4),dimension(numNodesInRank) :: isNodeAdded
       integer(4) :: aux_ibound_GtoL(mnpbou), aux_iMasSla_GtoL(2)
 
@@ -2992,7 +3010,7 @@ contains
       ! BUT FIX IT!!!!!!
 
       !call generate_new_nodeOrder_and_connectivity(gmsh2ijk,auxNewOrderIndex,auxVTKorder)
-      call generate_new_nodeOrder_and_connectivity(mporder,mnnode,gmsh2ijk,vtk2ijk,gmsh2ijk,auxNewOrderIndex,auxVTKorder)
+      !call generate_new_nodeOrder_and_connectivity(mporder,mnnode,gmsh2ijk,vtk2ijk,gmsh2ijk,auxNewOrderIndex,auxVTKorder)
 
       !----------------------------------------------------------------------------------------------------------
 
@@ -3931,7 +3949,7 @@ contains
       do ielem = 1,numElemsInRank
          do inode = (2**ndime)+1,mnnode
             do idime = 1,ndime
-               call var_interpolate(aux_1(connecParOrigMshRank(ielem,:),idime),Ngp_l(inode,:),coordParMshRank(connecParOrigMshRank(ielem,inode),idime))
+               call var_interpolate(mnnode,aux_1(connecParOrigMshRank(ielem,:),idime),Ngp_l(inode,:),coordParMshRank(connecParOrigMshRank(ielem,inode),idime))
             end do
          end do
       end do
@@ -4106,25 +4124,25 @@ contains
 
    end subroutine get_vector_with_mshRank_values_for_numMshRanks2Part
 
-   subroutine evalShapeFunctions_Ngp_l(Ngp_l,mporder,mnnode,mngaus)
-      integer(4) :: mporder,mnnode,mngaus
+   subroutine evalShapeFunctions_Ngp_l(Ngp_l,mporder,mnnode,mngaus,a2ijk)
+      integer(4),intent(in) :: mporder,mnnode,mngaus
+      integer(4),intent(in) :: a2ijk(mnnode)
       real(rp),intent(out) :: Ngp_l(mngaus,mnnode)
       real(rp) :: s, t, z
       integer(4) :: igaus
-      integer(4) :: atoIJK(mnnode)
+      !integer(4) :: atoIJK(mnnode)
       real(rp) :: xgp(mngaus,ndime), wgp(mngaus)
-      real(rp) :: Ngp(mngaus,nnode), dNgp(ndime,mnnode,mngaus),dlxigp_ip(mngaus,ndime,mporder+1),dNgp_l(ndime,mnnode,mngaus)
+      real(rp) :: Ngp(mngaus,mnnode), dNgp(ndime,mnnode,mngaus),dlxigp_ip(mngaus,ndime,mporder+1),dNgp_l(ndime,mnnode,mngaus)
 
       !*********************************************************
 
-      call set_hex64_lists(atoIJK)
-      call GaussLobattoLegendre_hex(atoIJK,xgp,wgp)
+      call GaussLobattoLegendre_hex(mporder,mngaus,a2ijk,xgp,wgp)
 
       do igaus = 1,mngaus
          s = xgp(igaus,1)
          t = xgp(igaus,2)
          z = xgp(igaus,3)
-         call hex_highorder(s,t,z,atoIJK,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
+         call hex_highorder(mporder,mnnode,s,t,z,a2ijk,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
       end do
 
    end subroutine evalShapeFunctions_Ngp_l

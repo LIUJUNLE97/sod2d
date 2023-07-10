@@ -539,14 +539,14 @@ contains
       this%useIntInComms=.true.
       this%useRealInComms=.true.
 
-      call load_hdf5_meshfile()
+      call load_hdf5_meshfile(nnode,npbou)
       ! init comms
       call init_comms(this%useIntInComms,this%useRealInComms)
       ! init comms boundaries
       call init_comms_bnd(this%useIntInComms,this%useRealInComms)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
-         call save_surface_mesh_hdf5_file()
+         call save_surface_mesh_hdf5_file(npbou)
       end if
 
       call nvtxEndRange
@@ -930,7 +930,7 @@ contains
 
       if(this%loadRestartFile) then
          if(mpi_rank.eq.0) write(111,*) "--| Loading restart file ",this%restartFile_to_load
-         call load_hdf5_restartFile(this%restartFile_to_load,this%load_step,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs)
+         call load_hdf5_restartFile(nnode,ngaus,this%restartFile_to_load,this%load_step,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs)
 
          if((flag_les.eq.0).and.(flag_les_ilsa.eq.0)) then
             !$acc kernels
@@ -958,7 +958,7 @@ contains
 
             if(this%loadAvgFile) then
                if(mpi_rank.eq.0) write(111,*) "--| Loading Avg Results File (TO IMPLEMENT)",this%restartFile_to_load
-               call load_avgResults_hdf5_file(this%restartFile_to_load,this%initial_avgTime,this%elapsed_avgTime,&
+               call load_avgResults_hdf5_file(nnode,this%restartFile_to_load,this%initial_avgTime,this%elapsed_avgTime,&
                                        this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
                                        this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
                                        this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
@@ -1110,13 +1110,14 @@ contains
       !$acc enter data create(dlxigp_ip(:,:,:))
       !*********************************************************
 
-      call set_hex64_lists(atoIJK)
-      call set_qua16_lists(atoIJ)
+      write(*,*) 'CFDSolberBase lines 1113 and below have to be rewritten properly!!'
+      !call set_hex64_lists(atoIJK)
+      !call set_qua16_lists(atoIJ)
 
       if(mpi_rank.eq.0) write(111,*) "  --| Generating Gauss-Lobatto-Legendre table..."
-      call GaussLobattoLegendre_hex(atoIJK,xgp,wgp)
+      call GaussLobattoLegendre_hex(porder,ngaus,atoIJK,xgp,wgp)
       !$acc update device(wgp(:))
-      call GaussLobattoLegendre_qua(atoIJ,xgp_b,wgp_b)
+      call GaussLobattoLegendre_qua(porder,ngaus,atoIJ,xgp_b,wgp_b)
       !$acc update device(wgp_b(:))
 
       call nvtxEndRange
@@ -1134,7 +1135,7 @@ contains
          s = xgp(igaus,1)
          t = xgp(igaus,2)
          z = xgp(igaus,3)
-         call hex_highorder(s,t,z,atoIJK,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
+         call hex_highorder(porder,nnode,s,t,z,atoIJK,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
       end do
       !$acc update device(Ngp(:,:))
       !$acc update device(dNgp(:,:,:))
@@ -1145,7 +1146,7 @@ contains
       do igaus = 1,npbou
          s = xgp_b(igaus,1)
          t = xgp_b(igaus,2)
-         call quad_highorder(s,t,atoIJ,Ngp_b(igaus,:),dNgp_b(:,:,igaus))
+         call quad_highorder(porder,npbou,s,t,atoIJ,Ngp_b(igaus,:),dNgp_b(:,:,igaus))
       end do
       !$acc update device(Ngp_b(:,:))
       !$acc update device(dNgp_b(:,:,:))
@@ -1344,7 +1345,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
       
-      call save_hdf5_restartFile(this%restartFileCnt,istep,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs)
+      call save_hdf5_restartFile(nnode,ngaus,this%restartFileCnt,istep,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs)
 
       if(this%restartFileCnt .eq. 1) then
          this%restartFileCnt = 2
@@ -1369,7 +1370,7 @@ contains
       !$acc update host(avmueff(:))
       !$acc update host(avtw(:,:))
 
-      call save_avgResults_hdf5_file(this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
+      call save_avgResults_hdf5_file(nnode,this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
                this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
                this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
                this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
@@ -1402,7 +1403,7 @@ contains
       !$acc update host(mu_e(:,:))
       !$acc update host(mu_sgs(:,:))
       
-      call save_instResults_hdf5_file(iStep,this%time,&
+      call save_instResults_hdf5_file(nnode,iStep,this%time,&
                this%numNodeScalarFields2save,this%nodeScalarFields2save,this%nameNodeScalarFields2save,&
                this%numNodeVectorFields2save,this%nodeVectorFields2save,this%nameNodeVectorFields2save,&
                this%numElemGpScalarFields2save,this%elemGpScalarFields2save,this%nameElemGpScalarFields2save)
@@ -1776,7 +1777,7 @@ contains
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
-      call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      call create_witness_hdf5(this%witness_h5_file_name, nnode, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
       if(mpi_rank.eq.0) then
          write(*,*) "--| End of preprocessing witness points"
       end if
@@ -1786,7 +1787,7 @@ contains
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       
-      call load_witness_hdf5(this%witness_h5_file_name, this%nwit, this%load_step, this%load_stepwit, this%nwitPar, witel, witxi, Nwit)
+      call load_witness_hdf5(this%witness_h5_file_name, nnode, this%nwit, this%load_step, this%load_stepwit, this%nwitPar, witel, witxi, Nwit)
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))

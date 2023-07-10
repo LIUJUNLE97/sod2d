@@ -15,11 +15,12 @@ module mod_maths
    contains
 
       !----------------------------------------------------------------------------------
-      subroutine getGaussLobattoLegendre_roots(roots)
-         real(rp),dimension(porder+1),intent(out) :: roots
-         real(8),dimension(porder+1) :: roots_d,legendre_aux
+      subroutine getGaussLobattoLegendre_roots(mporder,roots)
+         integer(4),intent(in) :: mporder
+         real(rp),dimension(mporder+1),intent(out) :: roots
+         real(8),dimension(mporder+1) :: roots_d,legendre_aux
 
-         call ZELEGL(porder,roots_d,legendre_aux)
+         call ZELEGL(mporder,roots_d,legendre_aux)
 
          roots = real(roots_d)
 
@@ -27,12 +28,13 @@ module mod_maths
       !----------------------------------------------------------------------------------
 
       !----------------------------------------------------------------------------------
-      subroutine getGaussLobattoLegendre_weights_and_roots(weights,roots)
-         real(rp),dimension(porder+1),intent(out) :: weights,roots
-         real(8),dimension(porder+1) :: roots_d,weights_d,legendre_aux
+      subroutine getGaussLobattoLegendre_weights_and_roots(mporder,weights,roots)
+         integer(4),intent(in) :: mporder
+         real(rp),dimension(mporder+1),intent(out) :: weights,roots
+         real(8),dimension(mporder+1) :: roots_d,weights_d,legendre_aux
 
-         call ZELEGL(porder,roots_d,legendre_aux)
-         call WELEGL(porder,roots_d,legendre_aux,weights_d)
+         call ZELEGL(mporder,roots_d,legendre_aux)
+         call WELEGL(mporder,roots_d,legendre_aux,weights_d)
 
          roots = real(roots_d)
          weights = real(weights_d)
@@ -150,7 +152,7 @@ module mod_maths
       end subroutine VALEPO
 !----------------------------------------------------------------------------------------------
 
-      pure subroutine getEquispaced_roots(xi_equi)
+      pure subroutine getEquispaced_roots(mporder,xi_equi)
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          ! Computes the equispaced loci for the Lagrange    !
@@ -163,17 +165,17 @@ module mod_maths
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          !
          implicit none
-
-         real(rp),intent(out) :: xi_equi(porder+1)
+         integer(4),intent(in) :: mporder
+         real(rp),intent(out) :: xi_equi(mporder+1)
          integer(4) :: i
 
-         do i = 1,porder+1
-            xi_equi(i) = -1.0_rp+(2.0_rp*real(i-1,rp)/real(porder,rp))
+         do i = 1,mporder+1
+            xi_equi(i) = -1.0_rp+(2.0_rp*real(i-1,rp)/real(mporder,rp))
          end do
 
       end subroutine getEquispaced_roots
 
-      pure subroutine eval_lagrangePoly(xi,xi_p,l_ip)
+      pure subroutine eval_lagrangePoly(mporder,xi,xi_p,l_ip)
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          ! Evaluates the Lagrange poly of order N at a      !
@@ -190,20 +192,19 @@ module mod_maths
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
          implicit none
-
-
-         real(rp),    intent(in)  :: xi(porder+1), xi_p
-         real(rp),    intent(out) :: l_ip(porder+1)
-         integer(4)              :: i, j, lorder(porder+1)
+         integer(4),intent(in) :: mporder
+         real(rp),intent(in)   :: xi(mporder+1), xi_p
+         real(rp),intent(out)  :: l_ip(mporder+1)
+         integer(4)            :: i, j, lorder(mporder+1)
 
          lorder(1) = 1
-         lorder(2) = porder+1
-         do i = 3,porder+1
+         lorder(2) = mporder+1
+         do i = 3,mporder+1
             lorder(i) = i-1
          end do
-         do i = 0,porder ! Nodal loop
+         do i = 0,mporder ! Nodal loop
             l_ip(i+1) = 1.0_rp
-            do j = 0,porder ! Product series
+            do j = 0,mporder ! Product series
                if (j .ne. (lorder(i+1)-1)) then
                   l_ip(i+1) = l_ip(i+1)*((xi_p-xi(j+1))/(xi(lorder(i+1))-xi(j+1)))
                end if
@@ -212,7 +213,7 @@ module mod_maths
 
       end subroutine eval_lagrangePoly
 
-      pure subroutine eval_lagrangePolyDeriv(xi,xi_p,dl_ip)
+      pure subroutine eval_lagrangePolyDeriv(mporder,xi,xi_p,dl_ip)
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          ! Evaluates the derivative of the Lagrange poly    !
@@ -228,23 +229,23 @@ module mod_maths
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
          implicit none
-
-         real(rp),    intent(in)  :: xi(porder+1), xi_p
-         real(rp),    intent(out) :: dl_ip(porder+1)
-         integer(4)              :: i, j, m, lorder(porder+1)
-         real(rp)                 :: aux
+         integer(4),intent(in) :: mporder
+         real(rp),intent(in)   :: xi(mporder+1), xi_p
+         real(rp),intent(out)  :: dl_ip(mporder+1)
+         integer(4)            :: i, j, m, lorder(mporder+1)
+         real(rp)              :: aux
 
          lorder(1) = 1
-         lorder(2) = porder+1
-         do i = 3,porder+1
+         lorder(2) = mporder+1
+         do i = 3,mporder+1
             lorder(i) = i-1
          end do
-         do i = 0,porder ! Nodal loop
+         do i = 0,mporder ! Nodal loop
             dl_ip(i+1) = 0.0_rp
-            do j = 0,porder ! Product series
+            do j = 0,mporder ! Product series
                aux = 1.0_rp
                if (j .ne. (lorder(i+1)-1)) then
-                  do m = 0,porder
+                  do m = 0,mporder
                      if (m .ne. j .and. m .ne. lorder(i+1)-1) then
                         aux = aux * (xi_p-xi(m+1))/(xi(lorder(i+1))-xi(m+1))
                      end if
@@ -256,24 +257,24 @@ module mod_maths
 
       end subroutine eval_lagrangePolyDeriv
 
-      pure subroutine TripleTensorProduct(xi_grid,s,t,z,atoIJK,N,dN,dlxigp_ip)
+      pure subroutine TripleTensorProduct(mporder,mnnode,xi_grid,s,t,z,atoIJK,N,dN,dlxigp_ip)
 
          implicit none
 
-         integer(4), intent(in)       :: atoIJK(nnode)
-         real(rp), intent(in)          :: s, t, z, xi_grid(porder+1)
-         real(rp), intent(out)         :: N(nnode), dN(ndime,nnode)
-         real(rp),    optional, intent(out) :: dlxigp_ip(ndime,porder+1)
-         integer(4)                   :: i, j, k, c
-         real(rp), dimension(porder+1) :: lxi_ip, leta_ip, lzeta_ip
-         real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
+         integer(4),intent(in)         :: mporder,mnnode,atoIJK(mnnode)
+         real(rp),intent(in)           :: s,t,z,xi_grid(mporder+1)
+         real(rp),intent(out)          :: N(mnnode),dN(ndime,mnnode)
+         real(rp),optional,intent(out) :: dlxigp_ip(ndime,mporder+1)
+         integer(4)                    :: i,j,k,c
+         real(rp),dimension(mporder+1) :: lxi_ip, leta_ip, lzeta_ip
+         real(rp),dimension(mporder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
 
-         call eval_lagrangePoly(xi_grid,s,lxi_ip)
-         call eval_lagrangePoly(xi_grid,t,leta_ip)
-         call eval_lagrangePoly(xi_grid,z,lzeta_ip)
-         call eval_lagrangePolyDeriv(xi_grid,s,dlxi_ip)
-         call eval_lagrangePolyDeriv(xi_grid,t,dleta_ip)
-         call eval_lagrangePolyDeriv(xi_grid,z,dlzeta_ip)
+         call eval_lagrangePoly(mporder,xi_grid,s,lxi_ip)
+         call eval_lagrangePoly(mporder,xi_grid,t,leta_ip)
+         call eval_lagrangePoly(mporder,xi_grid,z,lzeta_ip)
+         call eval_lagrangePolyDeriv(mporder,xi_grid,s,dlxi_ip)
+         call eval_lagrangePolyDeriv(mporder,xi_grid,t,dleta_ip)
+         call eval_lagrangePolyDeriv(mporder,xi_grid,z,dlzeta_ip)
 
          if(present(dlxigp_ip)) then
             dlxigp_ip(1,:) = dlxi_ip(:)
@@ -282,9 +283,9 @@ module mod_maths
          end if
 
          c = 0
-         do k = 1,porder+1
-            do i = 1,porder+1
-               do j = 1,porder+1
+         do k = 1,mporder+1
+            do i = 1,mporder+1
+               do j = 1,mporder+1
                   c = c+1
                   N(atoIJK(c)) = lxi_ip(i)*leta_ip(j)*lzeta_ip(k)
                   dN(1,atoIJK(c)) = dlxi_ip(i)*leta_ip(j)*lzeta_ip(k)
@@ -306,25 +307,25 @@ module mod_maths
       !> @param [in] atoIJ The node a to IJ relationship
       !> @param [out] N The shape functions
       !> @param [out] dN The derivatives of the shape functions
-      pure subroutine DoubleTensorProduct(xi_grid,s,t,atoIJ,N,dN)
+      pure subroutine DoubleTensorProduct(mporder,mnpbou,xi_grid,s,t,atoIJ,N,dN)
 
          implicit none
 
-         integer(4), intent(in)       :: atoIJ(npbou)
-         real(rp), intent(in)          :: s, t, xi_grid(porder+1)
-         real(rp), intent(out)         :: N(npbou), dN(ndime-1,npbou)
+         integer(4), intent(in)       :: mporder,mnpbou,atoIJ(mnpbou)
+         real(rp), intent(in)         :: s, t, xi_grid(mporder+1)
+         real(rp), intent(out)        :: N(mnpbou), dN(ndime-1,mnpbou)
          integer(4)                   :: i, j, c
-         real(rp), dimension(porder+1) :: lxi_ip, leta_ip
-         real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip
+         real(rp), dimension(mporder+1) :: lxi_ip, leta_ip
+         real(rp), dimension(mporder+1) :: dlxi_ip, dleta_ip
 
-         call eval_lagrangePoly(xi_grid,s,lxi_ip)
-         call eval_lagrangePoly(xi_grid,t,leta_ip)
-         call eval_lagrangePolyDeriv(xi_grid,s,dlxi_ip)
-         call eval_lagrangePolyDeriv(xi_grid,t,dleta_ip)
+         call eval_lagrangePoly(mporder,xi_grid,s,lxi_ip)
+         call eval_lagrangePoly(mporder,xi_grid,t,leta_ip)
+         call eval_lagrangePolyDeriv(mporder,xi_grid,s,dlxi_ip)
+         call eval_lagrangePolyDeriv(mporder,xi_grid,t,dleta_ip)
 
          c = 0
-         do i = 1,porder+1
-            do j = 1,porder+1
+         do i = 1,mporder+1
+            do j = 1,mporder+1
                c = c+1
                N(atoIJ(c)) = lxi_ip(i)*leta_ip(j)
                dN(1,atoIJ(c)) = dlxi_ip(i)*leta_ip(j)
@@ -334,7 +335,7 @@ module mod_maths
 
       end subroutine DoubleTensorProduct
       
-      pure subroutine var_interpolate(var,Neval,var_a)
+      pure subroutine var_interpolate(mnnode,var,Neval,var_a)
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          ! Interpolates a variable using element shape      !
@@ -351,12 +352,13 @@ module mod_maths
          
          implicit none
 
-         real(rp), intent(in)  :: var(nnode), Neval(nnode)
-         real(rp), intent(out) :: var_a
-         integer(4)           :: inode
+         integer(4),intent(in) :: mnnode
+         real(rp),intent(in)   :: var(mnnode),Neval(mnnode)
+         real(rp),intent(out)  :: var_a
+         integer(4)            :: inode
 
          var_a = 0.0_rp
-         do inode = 1,nnode
+         do inode = 1,mnnode
             var_a = var_a+Neval(inode)*var(inode)
          end do
 

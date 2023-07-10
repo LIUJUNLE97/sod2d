@@ -289,7 +289,7 @@ module elem_hex
 
 
       end subroutine hex27
-
+#if 1
       subroutine set_hex64_lists(atoIJK)
          implicit none
          integer(4), intent(out) :: atoIJK(64)
@@ -300,8 +300,8 @@ module elem_hex
                    14,24,42,43,18,22,48,47,40,51,61,64,39,52,62,63]
 
       end subroutine set_hex64_lists
-
-      subroutine hex_highorder(xi,eta,zeta,atoIJK,N,dN,N_lagrange,dN_lagrange,dlxigp_ip)
+#endif
+      subroutine hex_highorder(mporder,mnnode,xi,eta,zeta,atoIJK,N,dN,N_lagrange,dN_lagrange,dlxigp_ip)
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          ! Lagrangian HEX64 element model. Built using    !
@@ -310,19 +310,20 @@ module elem_hex
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
          implicit none
+         integer(4),intent(in) :: mporder,mnnode
          real(rp),intent(in)   :: xi, eta, zeta
-         integer(4),intent(in) :: atoIJK(nnode)
-         real(rp),intent(out)  :: N(nnode), dN(ndime,nnode),dlxigp_ip(ndime,porder+1)
-         real(rp),intent(out)  :: N_lagrange(nnode), dN_lagrange(ndime,nnode)
-         real(rp)              :: xi_grid(porder+1)
+         integer(4),intent(in) :: atoIJK(mnnode)
+         real(rp),intent(out)  :: N(mnnode), dN(ndime,mnnode),dlxigp_ip(ndime,mporder+1)
+         real(rp),intent(out)  :: N_lagrange(mnnode), dN_lagrange(ndime,mnnode)
+         real(rp)              :: xi_grid(mporder+1)
 
-         call getEquispaced_roots(xi_grid)
-         call tripleTensorProduct(xi_grid,xi,eta,zeta,atoIJK,N,dN)
+         call getEquispaced_roots(mporder,xi_grid)
+         call TripleTensorProduct(mporder,mnnode,xi_grid,xi,eta,zeta,atoIJK,N,dN)
          if (flag_spectralElem == 1) then
             N_lagrange(:) = N(:)
             dN_lagrange(:,:) = dN(:,:)
-            call getGaussLobattoLegendre_roots(xi_grid)
-            call tripleTensorProduct(xi_grid,xi,eta,zeta,atoIJK,N,dN,dlxigp_ip)
+            call getGaussLobattoLegendre_roots(mporder,xi_grid)
+            call TripleTensorProduct(mporder,mnnode,xi_grid,xi,eta,zeta,atoIJK,N,dN,dlxigp_ip)
          end if
       end subroutine hex_highorder
 

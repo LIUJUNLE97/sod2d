@@ -121,8 +121,9 @@ gsmh2Nodes = {
 #29: 20-node third order tetrahedron (4 nodes associated with the vertices, 12 with the edges, 4 with the faces)
 #30: 35-node fourth order tetrahedron (4 nodes associated with the vertices, 18 with the edges, 12 with the faces, 1 in the volume)
 #31: 56-node fifth order tetrahedron (4 nodes associated with the vertices, 24 with the edges, 24 with the faces, 4 in the volume)
-    36 : 16, #16-node spectral p3 quad
+   36 : 16, #16-node spectral p3 quad
 	92 : 64, #92: 64-node third order hexahedron (8 nodes associated with the vertices, 24 with the edges, 24 with the faces, 8 in the volume) 
+	93 : 125
 }
 
 def _reduce(v1,v2,dtype):
@@ -205,6 +206,7 @@ def h5_save_field_serial(fname,xyz,varDict,metadata={}):
 argpar = argparse.ArgumentParser(prog='pyalya_gmsh2alya', description='Export a mesh from GMSH to Alya format')
 argpar.add_argument('mesh_file',type=str,help='GMSH input file')
 argpar.add_argument('-o','--output',type=str,help='output file name')
+argpar.add_argument('-r','--order',type=int,help='mesh order')
 argpar.add_argument('-s','--size',type=int,help='maximum size of the data block to read')
 argpar.add_argument('-p','--periodic',type=str,help='codes of periodic boundaries, if any, as a string')
 argpar.add_argument('--scale',type=str,help='scaling vector (default: 1,1,1)')
@@ -215,6 +217,7 @@ args = argpar.parse_args()
 if not args.output:   args.output = args.mesh_file
 if not args.periodic: args.periodic = []
 else:                 args.periodic = [int(i) for i in args.periodic.split(',')]
+if not args.order:    args.order 	= 3
 if not args.scale:    args.scale    = '1,1,1'
 
 args.scale   = [float(i) for i in args.scale.split(',')]
@@ -252,6 +255,13 @@ print('--|',flush=True)
 if not vers[0] == 2.2:
 	raiseError('This parser can only understand version 2.2 of the Gmsh file format')
 # At this point we have checked that the file version is 2.2
+
+# Order of the mesh
+porder = args.order
+nnode = (porder+1)**3
+npbou = (porder+1)**2
+print('--|')
+print('--| Order: <%d>, nnode: <%d>, npbou: <%d> '%(porder,nnode,npbou),end='',flush=True)
 
 # Read the number of zones
 nzones = int(np.genfromtxt(mshFile,comments='$',max_rows=1)) #if pyAlya.utils.is_rank_or_serial() else None
@@ -374,9 +384,9 @@ for ibatch in range(numBatches):
 	eltyb = -np.ones((nread,),np.int32)
 	eltyp = -np.ones((nread,),np.int32)
 	codeb = -np.ones((nread,),np.int32)
-	lnods = np.zeros((nread,64),np.int32) # 64 as the maximum order element that we can have
-	lnodb = np.zeros((nread,16),np.int32) # 16 as the maximum order element that we can have
-	lnodp = np.zeros((nread,16),np.int32) # 16 as the maximum order element that we can have
+	lnods = np.zeros((nread,nnode),np.int32) # 64 as the maximum order element that we can have
+	lnodb = np.zeros((nread,npbou),np.int32) # 16 as the maximum order element that we can have
+	lnodp = np.zeros((nread,npbou),np.int32) # 16 as the maximum order element that we can have
 	# Read the file line by line
 	for iline in range(nread):
 		# Read one line
@@ -386,27 +396,37 @@ for ibatch in range(numBatches):
 		eltype = line[1]
 		elkind = line[3]
 		conec  = line[5:]
+		#print('eltype <%d> len(connec) <%d>'%(eltype,len(conec)),flush=True)
 		# Skip the element in case of periodicity
 		if elkind in args.periodic:
 			# Periodic element
-			eltyp[iel_periodic]             = gsmh2AlyaCellTypes[eltype]
+			if len(conec)!=npbou:
+				raiseError('Error! len(conec)!=npbou in periodic element!!')
+			eltyp[iel_periodic]             = eltype #gsmh2AlyaCellTypes[eltype]
 			lnodp[iel_periodic,:len(conec)] = conec
 			#codeb[iel_periodic]             = elkind
-			lnodp_ndim                      = max(lnodp_ndim,gsmh2Nodes[eltype])
+			#lnodp_ndim                      = max(lnodp_ndim,gsmh2Nodes[eltype])
+			lnodp_ndim                      = max(lnodp_ndim,npbou)
 			iel_periodic 						 += 1
 		# We need to find we are interior or boundary
 		elif elkind == id_interior:
 			# Interior element
-			eltyi[iel_interior]             = gsmh2AlyaCellTypes[eltype]
+			if len(conec)!=nnode:
+				raiseError('Error! len(conec)!=nnode in interior element!!')
+			eltyi[iel_interior]             = eltype #gsmh2AlyaCellTypes[eltype]
 			lnods[iel_interior,:len(conec)] = conec
-			lnods_ndim                      = max(lnods_ndim,gsmh2Nodes[eltype])
+			#lnods_ndim                      = max(lnods_ndim,gsmh2Nodes[eltype])
+			lnods_ndim                      = max(lnods_ndim,nnode)
 			iel_interior                   += 1
 		else:
 			# Boundary element
-			eltyb[iel_boundary]             = gsmh2AlyaCellTypes[eltype]
+			if len(conec)!=npbou:
+				raiseError('Error! len(conec)!=npbou in boundary element!!')
+			eltyb[iel_boundary]             = eltype #gsmh2AlyaCellTypes[eltype]
 			lnodb[iel_boundary,:len(conec)] = conec
 			codeb[iel_boundary]             = elkind
-			lnodb_ndim                      = max(lnodb_ndim,gsmh2Nodes[eltype])
+			#lnodb_ndim                      = max(lnodb_ndim,gsmh2Nodes[eltype])
+			lnodb_ndim                      = max(lnodb_ndim,npbou)
 			iel_boundary                   += 1
 	# Finish the batch read
 	nel_interior += iel_interior

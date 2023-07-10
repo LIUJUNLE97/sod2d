@@ -59,11 +59,13 @@ module mod_witness_points
 
          xi_0(:) = 0
          xi(:)   = xi_0(:)
-         call set_hex64_lists(atoIJK)
+         write(*,*) 'TODO mod_witness_points.f90 line 62'
+         !call set_hex64_lists(atoIJK)
          isinside = .false.
 
          do ii = 1, maxite
-            call hex_highorder(xi(1), xi(2), xi(3), atoIJK, N, dN, N_lagrange, dN_lagrange, dlxigp_ip)
+            write(*,*) 'TODO mod_witness_points.f90 line 67'
+            !call hex_highorder(xi(1), xi(2), xi(3), atoIJK, N, dN, N_lagrange, dN_lagrange, dlxigp_ip)
             f(:)   = wit(:)
             j(:,:) = 0
             do ip = 1, nnode
@@ -146,7 +148,7 @@ module mod_witness_points
             end if
          end do
       end subroutine isocoords
-
+#if 0
       subroutine wit_interpolation(xiwit, elvalues, witval)
          !
          ! Subroutine which interpolates the values from the element nodes to any point inside the element
@@ -167,4 +169,5 @@ module mod_witness_points
          call hex_highorder(xiwit(1), xiwit(2), xiwit(3), atoIJK, N, dN, N_lagrange, dN_lagrange, dlxigp_ip)
          call var_interpolate(elvalues, N, witval)
       end subroutine wit_interpolation
+#endif
 end module mod_witness_points
