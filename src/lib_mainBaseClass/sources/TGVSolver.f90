@@ -45,7 +45,7 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube"
+      write(this%mesh_h5_file_name,*) "cube_per10_order3"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -56,14 +56,14 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 2001
+      this%final_istep = 100000
       this%maxPhysTime = 20.0_rp
 
       this%save_logFile_first = 1 
-      this%save_logFile_step  = 10
+      this%save_logFile_step  = 1
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 1000
+      this%save_resultsFile_step = 500
 
       this%save_restartFile_first = 1
       this%save_restartFile_step = 500
@@ -71,7 +71,7 @@ contains
       this%restartFile_to_load = 2 !1 or 2
       this%continue_oldLogs = .false.
 
-      this%saveAvgFile = .true.
+      this%saveAvgFile = .false.
       this%loadAvgFile = .false.
       !----------------------------------------------
 

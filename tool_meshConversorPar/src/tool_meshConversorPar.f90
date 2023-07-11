@@ -10,7 +10,7 @@ program tool_meshConversorPar
     character(512) :: gmsh_filePath,gmsh_fileName
     character(512) :: mesh_h5_filePath,mesh_h5_fileName
     character(256) :: parameter2read
-    integer(4) :: lineCnt,mesh_porder,num_partitions
+    integer(4) :: lineCnt,mesh_order,num_partitions
 
 !------------------------------------------------------------------------------------------------------
 
@@ -52,9 +52,9 @@ program tool_meshConversorPar
     parameter2read = 'mesh_h5_fileName'
     call read_inputFile_string(lineCnt,parameter2read,mesh_h5_fileName)
 
-    !5. mesh_porder--------------------------------------------------------------
-    parameter2read = 'mesh_porder'
-    call read_inputFile_integer(lineCnt,parameter2read,mesh_porder)
+    !5. gmsh_porder--------------------------------------------------------------
+    parameter2read = 'mesh_order'
+    call read_inputFile_integer(lineCnt,parameter2read,mesh_order)
 
     !6. num_partitions--------------------------------------------------------------------------
     parameter2read = 'num_partitions'
@@ -65,7 +65,7 @@ program tool_meshConversorPar
 
 !---------------------------------------------------------------------------------------------------------
 
-    call read_gmsh_h5_file_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName,mesh_porder,num_partitions)
+    call read_gmsh_h5_file_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName,mesh_order,num_partitions)
 
 !---------------------------------------------------------------------------------------------------------
 

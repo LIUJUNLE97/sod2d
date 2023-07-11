@@ -10,7 +10,7 @@ module elem_hex
    integer(4), parameter :: hex_order_faces(6,4)  = transpose(reshape([1,4,3,2,1,2,6,5,1,5,8,4,2,3,7,6,3,4,8,7,5,6,7,8],(/4,6/)))
 
    contains  
-
+#if 0
       subroutine hex08(xi,eta,zeta,N,dN) ! HEX08 element     
 
          implicit none
@@ -289,7 +289,7 @@ module elem_hex
 
 
       end subroutine hex27
-#if 1
+
       subroutine set_hex64_lists(atoIJK)
          implicit none
          integer(4), intent(out) :: atoIJK(64)
@@ -327,15 +327,15 @@ module elem_hex
          end if
       end subroutine hex_highorder
 
-      subroutine hexa_edges(ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
+      subroutine hexa_edges(mnnode,ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
          implicit none
          
-         integer(4), intent(in)   :: iElem, nelem, npoin
-         integer(4), intent(in)   :: connec(nelem,nnode)
+         integer(4), intent(in)   :: mnnode,iElem, nelem, npoin
+         integer(4), intent(in)   :: connec(nelem,mnnode)
          real(rp),   intent(in)   :: coord(npoin,ndime)
-         integer(4), intent(out)  :: ncorner, nedge
+         integer(4), intent(out)  :: ncorner,nedge
          real(rp),   intent(out)  :: dist(12,ndime)
-         integer(4)               :: ind(nnode)
+         integer(4)               :: ind(mnnode)
          real(rp)                 :: xp(12,ndime)
          
          ind = connec(ielem,:)

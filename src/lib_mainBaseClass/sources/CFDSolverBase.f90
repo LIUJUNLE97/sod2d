@@ -540,6 +540,11 @@ contains
       this%useRealInComms=.true.
 
       call load_hdf5_meshfile(nnode,npbou)
+
+      if(mesh_porder .ne. porder) then
+         write(*,*) 'FATAL ERROR! mesh_porder',mesh_porder,' different to porder',porder
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
       ! init comms
       call init_comms(this%useIntInComms,this%useRealInComms)
       ! init comms boundaries
@@ -742,7 +747,7 @@ contains
       allocate(helem(numElemsRankPar))
       !$acc enter data create(helem(:))
       do iElem = 1,numElemsRankPar
-         call char_length(iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,he_aux)
+         call char_length(nnode,iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,he_aux)
          helem(iElem) = he_aux
       end do
       !$acc update device(helem(:))
@@ -1089,8 +1094,8 @@ contains
 
       !*********************************************************
       !           Allocating required arrays!
-      allocate(atoIJ(16))
-      allocate(atoIJK(64))
+      allocate(atoIJ(npbou))
+      allocate(atoIJK(nnode))
 
       allocate(xgp(ngaus,ndime))
       allocate(wgp(ngaus))
@@ -1110,14 +1115,17 @@ contains
       !$acc enter data create(dlxigp_ip(:,:,:))
       !*********************************************************
 
-      write(*,*) 'CFDSolberBase lines 1113 and below have to be rewritten properly!!'
+      atoIJK(:) = mesh_a2ijk(:)
+      atoIJ(:)  = mesh_a2ij(:)
+
+      write(*,*) 'atoIJK',atoIJK(:)
       !call set_hex64_lists(atoIJK)
       !call set_qua16_lists(atoIJ)
 
       if(mpi_rank.eq.0) write(111,*) "  --| Generating Gauss-Lobatto-Legendre table..."
       call GaussLobattoLegendre_hex(porder,ngaus,atoIJK,xgp,wgp)
       !$acc update device(wgp(:))
-      call GaussLobattoLegendre_qua(porder,ngaus,atoIJ,xgp_b,wgp_b)
+      call GaussLobattoLegendre_qua(porder,npbou,atoIJ,xgp_b,wgp_b)
       !$acc update device(wgp_b(:))
 
       call nvtxEndRange
@@ -1176,7 +1184,7 @@ contains
          allocate(boundNormalPar(numBoundsRankPar,ndime*npbou))
          !$acc enter data create(boundNormalPar(:,:))
          call nvtxStartRange("Bou normals")
-         call boundary_normals(numNodesRankPar,numBoundsRankPar,boundParOrig,this%leviCivi,coordPar,dNgp_b,boundNormalPar)
+         call boundary_normals(npbou,numNodesRankPar,numBoundsRankPar,boundParOrig,this%leviCivi,coordPar,dNgp_b,boundNormalPar)
          call nvtxEndRange
          !$acc update device(boundNormalPar(:,:))
       end if
@@ -1236,7 +1244,7 @@ contains
       !$acc enter data create(gmshAtoJ(:))
       !$acc enter data create(gmshAtoK(:))
 
-      call atoIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+      call atoIJKInverse(porder,nnode,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
       !$acc update device(invAtoIJK(:,:,:))
       !$acc update device(gmshAtoI(:))
       !$acc update device(gmshAtoJ(:))
@@ -1258,14 +1266,14 @@ contains
       allocate(point2elem(numNodesRankPar))
       !$acc enter data create(point2elem(:))
       if(mpi_rank.eq.0) write(111,*) '  --| Evaluating point2elem array...'
-      call elemPerNode(numElemsRankPar,numNodesRankPar,connecParWork,lelpn,point2elem)
+      call elemPerNode(nnode,numElemsRankPar,numNodesRankPar,connecParWork,lelpn,point2elem)
 
       if(mpi_rank.eq.0) write(111,*) '  --| Evaluating lnbn & lnbnNodes arrays...'
       allocate(lnbn(numBoundsRankPar,npbou))
       !$acc enter data create(lnbn(:,:))
       allocate(lnbnNodes(numNodesRankPar))
       !$acc enter data create(lnbnNodes(:))
-      call nearBoundaryNode(numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
+      call nearBoundaryNode(porder,nnode,npbou,numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
 
@@ -1291,7 +1299,7 @@ contains
       allocate(helem_l(numElemsRankPar,nnode))
       !$acc enter data create(helem_l(:,:))
       do iElem = 1,numElemsRankPar
-         call char_length_spectral(iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,Ml,helem_l)
+         call char_length_spectral(nnode,iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,Ml,helem_l)
       end do
       !$acc update device(helem_l(:,:))
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)

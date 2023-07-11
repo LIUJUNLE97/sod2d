@@ -10,15 +10,15 @@ module mod_geom
 
       contains
 
-         subroutine char_length(iElem,nelem,npoin,connec,coord,he)
+         subroutine char_length(mnnode,iElem,nelem,npoin,connec,coord,he)
             implicit none
-            integer(4), intent(in)  :: iElem, nelem, npoin
-            integer(4), intent(in)  :: connec(nelem,nnode)
-            real(rp),   intent(in)  :: coord(npoin,ndime)
-            real(rp),   intent(out) :: he
-            integer(4)              :: iedge, ncorner, nedge
-                 integer(4)              :: inode, jnode,idime
-            real(rp)                :: dist(12,ndime), dist2, aux
+            integer(4),intent(in) :: mnnode,iElem,nelem,npoin
+            integer(4),intent(in) :: connec(nelem,mnnode)
+            real(rp),intent(in)   :: coord(npoin,ndime)
+            real(rp),intent(out)  :: he
+            integer(4)            :: iedge,ncorner,nedge
+            integer(4)            :: inode,jnode,idime
+            real(rp)              :: dist(12,ndime), dist2, aux
             !   real(rp)                :: aux,dist(ndime),dist2
 
                  !
@@ -47,7 +47,7 @@ module mod_geom
                     write(*,*) "BY SIGMAR NO!"
                  end if
 #endif
-                 call hexa_edges(iElem,nelem,npoin,connec,coord,ncorner,nedge,dist(1:12,1:ndime))
+                 call hexa_edges(mnnode,iElem,nelem,npoin,connec,coord,ncorner,nedge,dist(1:12,1:ndime))
                  !
                  ! Obtain ||dist||_2 for all edges and select minimum size as elem. characteristic size
                  !
@@ -71,15 +71,15 @@ module mod_geom
 
          end subroutine char_length
 
-         subroutine char_length_spectral(ielem,nelem,npoin,connec,coord,Ml,he_l)
+         subroutine char_length_spectral(mnnode,ielem,nelem,npoin,connec,coord,Ml,he_l)
 
                  implicit none
 
-                 integer(4), intent(in)  :: ielem, nelem, npoin, connec(nelem,nnode)
-                 real(rp), intent(in)    :: coord(npoin,ndime), Ml(npoin)
-                 real(rp), intent(inout) :: he_l(nelem,nnode)
-                 integer(4)              :: inode, jnode,idime
-                 real(rp)                :: aux,dist(ndime),dist2
+                 integer(4),intent(in)  :: mnnode,ielem,nelem,npoin,connec(nelem,mnnode)
+                 real(rp),intent(in)    :: coord(npoin,ndime),Ml(npoin)
+                 real(rp),intent(inout) :: he_l(nelem,mnnode)
+                 integer(4)             :: inode,jnode,idime
+                 real(rp)               :: aux,dist(ndime),dist2
 
                  !
                  ! Compute r = x2-x1 for all element nodes
@@ -100,11 +100,12 @@ module mod_geom
                  !do inode = 1,nnode
                  !   he_l(ielem,inode) = aux
                  !end do
-                 do inode = 1,nnode
+                 do inode = 1,mnnode
                     he_l(ielem,inode) = Ml(connec(ielem,inode))**(1.0_rp/real(ndime,rp))
                  end do
          end subroutine char_length_spectral
 
+#if 0
          subroutine create_connecVTK(nelem,connec,atoIJK,vtk_atoIJK,connecVTKout)
 
             implicit none
@@ -129,14 +130,14 @@ module mod_geom
             !$acc end parallel loop
 
          end subroutine create_connecVTK
-
-         subroutine elemPerNode(numElems,numNodes,connec,lelpn,point2elem)
+#endif
+         subroutine elemPerNode(mnnode,numElems,numNodes,connec,lelpn,point2elem)
 
             implicit none
 
-            integer(4), intent(in)  :: numElems,numNodes,connec(numElems,nnode)
-            integer(4), intent(inout) :: lelpn(numNodes),point2elem(numNodes)
-            integer(4)              :: iNode,iNodeL,iElem
+            integer(4),intent(in)    :: mnnode,numElems,numNodes,connec(numElems,mnnode)
+            integer(4),intent(inout) :: lelpn(numNodes),point2elem(numNodes)
+            integer(4)               :: iNode,iNodeL,iElem
 
             !$acc kernels
             lelpn(:) = 0
@@ -145,7 +146,7 @@ module mod_geom
             !$acc parallel loop gang
             do iElem = 1,numElems
                !$acc loop seq
-               do iNode = 1,nnode
+               do iNode = 1,mnnode
                   iNodeL = connec(iElem,iNode)
                   point2elem(iNodeL) = iElem
                   !$acc atomic update
@@ -161,25 +162,26 @@ module mod_geom
 
          end subroutine elemPerNode
 
-         subroutine nearBoundaryNode(nelem,npoin,nboun,connec,coord,bound,bouCodesNodes,point2elem,atoIJK,lnbn,lnbnNodes)
+         subroutine nearBoundaryNode(mporder,mnnode,mnpbou,nelem,npoin,nboun,connec,coord,bound,bouCodesNodes,point2elem,atoIJK,lnbn,lnbnNodes)
 
             implicit none
 
-            integer(4), intent(in)  :: nelem,npoin,nboun,connec(nelem,nnode),bound(nboun,npbou),bouCodesNodes(npoin),point2elem(npoin),atoIJK(nnode)
-            real(rp), intent(in) :: coord(npoin,ndime)
-            integer(4), intent(inout) :: lnbn(nboun,npbou)
-            integer(4), intent(inout) :: lnbnNodes(npoin)
-            integer(4)              :: ipoin, inode,ielem,bnode,ipbou,iboun,rnode,c,i,j,k,innode
-            integer(4)              :: aux1, aux2
+            integer(4),intent(in)    :: mporder,mnnode,mnpbou
+            integer(4),INTENT(IN)    :: nelem,npoin,nboun,connec(nelem,mnnode),bound(nboun,mnpbou),bouCodesNodes(npoin),point2elem(npoin),atoIJK(mnnode)
+            real(rp),intent(in)      :: coord(npoin,ndime)
+            integer(4),intent(inout) :: lnbn(nboun,mnpbou)
+            integer(4),intent(inout) :: lnbnNodes(npoin)
+            integer(4)               :: ipoin, inode,ielem,bnode,ipbou,iboun,rnode,c,i,j,k,innode
+            integer(4)               :: aux1, aux2
 
             !$acc parallel loop gang
             do iboun = 1,nboun
                !$acc loop seq
-               do ipbou = 1,npbou
+               do ipbou = 1,mnpbou
                   bnode = bound(iboun,ipbou)
                   ielem = point2elem(bnode)
                   !$acc loop seq
-                  do inode = 1,nnode
+                  do inode = 1,mnnode
                      if(connec(ielem,inode) .eq. bnode) then 
                         aux1=inode
                         exit
@@ -187,9 +189,9 @@ module mod_geom
                   end do
                   c = 0
                   !$acc loop seq
-                  outer: do k = 1,porder+1
-                     do i = 1,porder+1
-                        do j = 1,porder+1
+                  outer: do k = 1,mporder+1
+                     do i = 1,mporder+1
+                        do j = 1,mporder+1
                            c = c+1
                            if(atoIJK(c) .eq. aux1) then
                               aux2=c
@@ -209,26 +211,25 @@ module mod_geom
             do inode = 1,npoin
                if(bouCodesNodes(inode) .lt. max_num_bou_codes) then
                   ielem = point2elem(inode)
-                  lnbnNodes(inode) = connec(ielem,atoIJK(64))
+                  lnbnNodes(inode) = connec(ielem,atoIJK(mnnode)) !this can be done better... using the last node for the moment
                end if
             end do
             !$acc end parallel loop
 
          end subroutine nearBoundaryNode
 
-         subroutine atoIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+         subroutine atoIJKInverse(mporder,mnnode,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
 
             implicit none
-
-            integer(4), intent(in)  :: atoIJK(nnode)
-            integer(4), intent(out) :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            integer(4)              :: i,j,k,c
+            integer(4),intent(in)  :: mporder,mnnode,atoIJK(mnnode)
+            integer(4),intent(out) :: invAtoIJK(mporder+1,mporder+1,mporder+1),gmshAtoI(mnnode),gmshAtoJ(mnnode),gmshAtoK(mnnode)
+            integer(4)             :: i,j,k,c
 
             c=0
             !$acc loop seq
-            do k = 1,porder+1
-               do i = 1,porder+1
-                  do j = 1,porder+1
+            do k = 1,mporder+1
+               do i = 1,mporder+1
+                  do j = 1,mporder+1
                      c = c+1
                      invAtoIJK(i,j,k) = atoIJK(c)
                      gmshAtoI(atoIJK(c)) = i
@@ -239,24 +240,25 @@ module mod_geom
             end do
          end subroutine atoIJKInverse
 
-			subroutine boundary_normals(npoin,nboun,bound,leviCivi,coord,dNgp_b,bounorm)
+			subroutine boundary_normals(mnpbou,npoin,nboun,bound,leviCivi,coord,dNgp_b,bounorm)
 				implicit none
-				integer(4), intent(in)  :: npoin, nboun, bound(nboun,npbou)
-				real(rp),    intent(in)  :: coord(npoin,ndime), dNgp_b(ndime-1,npbou,npbou), leviCivi(ndime,ndime,ndime)
-				real(rp),    intent(out) :: bounorm(nboun,ndime*npbou)
-				integer(4)              :: iboun, inode, jnode, idime, jdime, kdime
-				real(rp)                 :: xyz(npbou,ndime), u(ndime), v(ndime), aux1, aux2
+				integer(4),intent(in) :: mnpbou,npoin,nboun,bound(nboun,mnpbou)
+				real(rp),intent(in)   :: coord(npoin,ndime),dNgp_b(ndime-1,mnpbou,mnpbou),leviCivi(ndime,ndime,ndime)
+				real(rp),intent(out)  :: bounorm(nboun,ndime*mnpbou)
+				integer(4)            :: iboun,inode,jnode,idime,jdime,kdime
+				real(rp)              :: xyz(mnpbou,ndime),u(ndime),v(ndime),aux1,aux2
+
 				do iboun = 1,nboun
 					do idime = 1,ndime
-						do inode = 1,npbou
+						do inode = 1,mnpbou
 							xyz(inode,idime) = coord(bound(iboun,inode),idime)
 						end do
 					end do
-					do inode = 1,npbou
+					do inode = 1,mnpbou
 						do idime = 1,ndime
 							aux1 = 0.0_rp
 							aux2 = 0.0_rp
-							do jnode = 1,npbou
+							do jnode = 1,mnpbou
 								aux1 = aux1+dNgp_b(1,jnode,inode)*xyz(jnode,idime)
 								aux2 = aux2+dNgp_b(2,jnode,inode)*xyz(jnode,idime)
 							end do

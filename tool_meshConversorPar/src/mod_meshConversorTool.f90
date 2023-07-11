@@ -10,7 +10,7 @@ module mod_meshConversorTool
    implicit none
 
 !-----------------------------------   
-#define _CHECK_ 0
+#define _CHECK_ 1
 !-----------------------------------   
 #ifndef GEMPAINTERFACE
    interface
@@ -417,9 +417,9 @@ contains
 
       do iMshRank=1,numMshRanksInMpiRank
          mshRank = mshRanksInMpiRank(iMshRank)
-         call write_mshRank_data_in_hdf5_meshFile_from_tool(mnnode,mnpbou,sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,numElemsGmsh,numBoundFacesGmsh,&
+         call write_mshRank_data_in_hdf5_meshFile_from_tool(mporder,mnnode,mnpbou,sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,numElemsGmsh,numBoundFacesGmsh,&
             numElemsMshRank(iMshRank),mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),&
-            mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),numWorkingNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),numBoundaryNodesMshRank(iMshRank),numDoFMshRank(iMshRank),maxBoundCode,&
+            mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),numWorkingNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),numBoundaryNodesMshRank(iMshRank),numDoFMshRank(iMshRank),maxBoundCode,a2ijk,a2ij,&
             elemGidMshRank_jv%vector(iMshRank)%elems,globalIdSrl_i8_jv%vector(iMshRank)%elems,globalIdPar_i8_jv%vector(iMshRank)%elems,&
             connecVTK_jv%vector(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems,connecParWork_jm%matrix(iMshRank)%elems,coordPar_jm%matrix(iMshRank)%elems,workingNodesPar_jv%vector(iMshRank)%elems,&
             boundaryNodes_jv%vector(iMshRank)%elems,dofNodes_jv%vector(iMshRank)%elems,boundFacesCodesMshRank_jv%vector(iMshRank)%elems,connecOrigBoundFacesMshRank_jm%matrix(iMshRank)%elems,connecBoundFacesMshRank_jm%matrix(iMshRank)%elems,&
@@ -450,6 +450,9 @@ contains
 
       call close_hdf5_file(sod2dmsh_h5_fileId)
       !call close_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId)
+
+      deallocate(a2ijk)
+      deallocate(a2ij)
 
       end_time(8) = mpi_wtime()
       elapsed_time_r(8) = end_time(8) - start_time(8)
@@ -2187,8 +2190,8 @@ write(*,*) 'mnnode',mnnode,'msdims',ms_dims(:)
          x_a=0.
          y_a=0.
          z_a=0.
-         do jj=1,8
-            m = gmsh2ijk_vertices(jj)
+         do jj=1,numHexaVert
+            m = gmshHexVertInd(jj)!gmsh2ijk_vertices(jj)
             iNodeG = connecMpiRank_i8(iElem,m)
 
             iPos = binarySearch_int_i8(listNodesMpiRank_i8,iNodeG)
@@ -2249,8 +2252,8 @@ write(*,*) 'mnnode',mnnode,'msdims',ms_dims(:)
          x_a=0.
          y_a=0.
          z_a=0.
-         do jj=1,8
-            m = gmsh2ijk_vertices(jj)
+         do jj=1,numHexaVert
+            m = gmshHexVertInd(jj)!gmsh2ijk_vertices(jj)
             iNodeG = connecMpiRank_i8(iElem,m)
 
             iPos = binarySearch_int_i8(listNodesMpiRank_i8,iNodeG)
@@ -2764,6 +2767,7 @@ write(*,*) 'mnnode',mnnode,'msdims',ms_dims(:)
       integer(4) :: auxCnt,mpiAuxCnt,mshAuxCnt
       integer(4) :: iBound,numBoundFacesToCheck,boundFacesToCheck(maxBoundsPerElem)
       integer(4),dimension(mnpbou) :: gmshHexFaceFrontInd,gmshHexFaceBackInd,gmshHexFaceBottomInd,gmshHexFaceTopInd,gmshHexFaceLeftInd,gmshHexFaceRightInd
+      integer(4):: gmshQuadInnerVertInd(4)
       !-------------------------------------------
 
       !$acc kernels
@@ -2795,6 +2799,7 @@ write(*,*) 'mnnode',mnnode,'msdims',ms_dims(:)
       !check if face is in boundary
 
       call get_gmshHexHOFacesIndex(mporder,mnpbou,gmshHexFaceFrontInd,gmshHexFaceBackInd,gmshHexFaceBottomInd,gmshHexFaceTopInd,gmshHexFaceLeftInd,gmshHexFaceRightInd)
+      call get_gmshQuadHOInnerVertIndex(mporder,gmshQuadInnerVertInd)
 
       do iElemL=1,numElemsInRank
 
@@ -2806,12 +2811,12 @@ write(*,*) 'mnnode',mnnode,'msdims',ms_dims(:)
             end if
          end do
 
-         call find_mpi_and_msh_boundaries(mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceFrontInd, listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
-         call find_mpi_and_msh_boundaries(mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceLeftInd,  listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
-         call find_mpi_and_msh_boundaries(mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceTopInd,   listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
-         call find_mpi_and_msh_boundaries(mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceBackInd,  listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
-         call find_mpi_and_msh_boundaries(mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceRightInd, listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
-         call find_mpi_and_msh_boundaries(mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceBottomInd,listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
+         call find_mpi_and_msh_boundaries(mporder,mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceFrontInd, listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary,gmshQuadInnerVertInd)
+         call find_mpi_and_msh_boundaries(mporder,mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceLeftInd,  listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary,gmshQuadInnerVertInd)
+         call find_mpi_and_msh_boundaries(mporder,mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceTopInd,   listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary,gmshQuadInnerVertInd)
+         call find_mpi_and_msh_boundaries(mporder,mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceBackInd,  listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary,gmshQuadInnerVertInd)
+         call find_mpi_and_msh_boundaries(mporder,mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceRightInd, listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary,gmshQuadInnerVertInd)
+         call find_mpi_and_msh_boundaries(mporder,mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,gmshHexFaceBottomInd,listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundFacesInRank,connecBoundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary,gmshQuadInnerVertInd)
 
       end do
 
@@ -2882,23 +2887,25 @@ write(*,*) 'mnnode',mnnode,'msdims',ms_dims(:)
 #endif
    end subroutine get_rankPartitionBoundaryNodes_in_parallel
 
-   subroutine find_mpi_and_msh_boundaries(mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,face2ijk,listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundsInRank,boundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary)
+   subroutine find_mpi_and_msh_boundaries(mporder,mnnode,mnpbou,numElemsInRank,numNodesInRank,numBoundsInRank,iElemL,gmsh2ijk,face2ijk,listNodesInRank_i8,connecInRank_i8,nodeOwnedCnt,listBoundsInRank,boundFacesInRank_i8,numBoundFacesToCheck,boundFacesToCheck,nodeInBoundary,nodeInMshBoundary,nodeInMpiBoundary,gmshQuadInnerVertInd)
       implicit none
-      integer(4),intent(in) :: mnnode,mnpbou
+      integer(4),intent(in) :: mporder,mnnode,mnpbou
       integer(4),intent(in) :: numElemsInRank,numNodesInRank,numBoundsInRank
       integer(4),intent(in) :: iElemL,gmsh2ijk(mnnode),face2ijk(mnpbou),nodeOwnedCnt(numNodesInRank),listBoundsInRank(numBoundsInRank)
       integer(8),intent(in) :: listNodesInRank_i8(numNodesInRank),connecInRank_i8(numElemsInRank,mnnode),boundFacesInRank_i8(numBoundsInRank,mnpbou)
       integer(4),intent(in) :: numBoundFacesToCheck,boundFacesToCheck(maxBoundsPerElem)
+      integer(4),intent(in) :: gmshQuadInnerVertInd(4)
       logical,intent(out) :: nodeInBoundary(numNodesInRank),nodeInMshBoundary(numNodesInRank),nodeInMpiBoundary(numNodesInRank)
-      integer(4) :: ii,jj,ind,ind_f,iFace,indexNode,indexNode_inFace
+      integer(4) :: ii,jj,ind,ind_f,iFace,indexNode,indexNode_inFace,ind_gmsh
       integer(8) :: iNodeG,iNodeG_inFace,iNodeG_ToCheck
       integer(4) :: iBound,iBoundG,iElemG,indexBound
       logical :: isMshBound
-      integer(4), parameter :: checkFacePos = 5!6
+      !integer(4) :: checkFacePos = mporder+3!5!6
       
       !# 1.Whatever face ------------------------------------------------------
-      ind = face2ijk(checkFacePos)
-      iNodeG_inFace = connecInRank_i8(iElemL,gmsh2ijk(ind))
+      ind = face2ijk(mporder+3)
+      iNodeG_inFace = connecInRank_i8(iElemL,ind)
+      !iNodeG_inFace = connecInRank_i8(iElemL,gmsh2ijk(ind))
       indexNode_inFace = binarySearch_int_i8(listNodesInRank_i8,iNodeG_inFace)
       if(nodeOwnedCnt(indexNode_inFace).eq.1) then !this face is boundary
 
@@ -2907,8 +2914,10 @@ write(*,*) 'mnnode',mnnode,'msdims',ms_dims(:)
          do iBound=1,numBoundFacesToCheck
             iBoundG = boundFacesToCheck(iBound)
             indexBound = binarySearch_int_i4(listBoundsInRank,iBoundG)
-            checkLoop: do jj=13,16
-               iNodeG_ToCheck=boundFacesInRank_i8(indexBound,jj)
+            !checkLoop: do jj=13,16
+            checkLoop: do jj=1,4
+               ind_gmsh = gmshQuadInnerVertInd(jj)
+               iNodeG_ToCheck=boundFacesInRank_i8(indexBound,ind_gmsh)
                if(iNodeG_inFace.eq.iNodeG_ToCheck) then
                   isMshBound = .true.
                   exit checkLoop
@@ -2920,7 +2929,8 @@ write(*,*) 'mnnode',mnnode,'msdims',ms_dims(:)
          !----------------------------------------------------------------
          !----------------------------------------------------------------
          do iFace=1,mnpbou
-            ind_f = gmsh2ijk(face2ijk(iFace))
+            !ind_f = gmsh2ijk(face2ijk(iFace))
+            ind_f = face2ijk(iFace)
             iNodeG = connecInRank_i8(iElemL,ind_f)
             indexNode = binarySearch_int_i8(listNodesInRank_i8,iNodeG)
             nodeInBoundary(indexNode) = .true.

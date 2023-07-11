@@ -36,6 +36,9 @@ integer(4), allocatable :: boundPar(:,:), boundParOrig(:,:),bouCodesPar(:), ldof
 real(rp), allocatable :: boundNormalPar(:,:)
 logical :: isMeshBoundaries
 
+integer(4) :: mesh_porder
+integer(4),allocatable :: mesh_a2ijk(:),mesh_a2ij(:)
+
 !For WallModels
 integer(4) :: numBoundsWMRankPar
 integer(4), allocatable :: listBoundsWallModel(:)
