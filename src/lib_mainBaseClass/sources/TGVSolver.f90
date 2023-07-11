@@ -45,7 +45,7 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube_per10_order3"
+      write(this%mesh_h5_file_name,*) "cube_per10_order5"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -63,7 +63,7 @@ contains
       this%save_logFile_step  = 1
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 500
+      this%save_resultsFile_step = 50
 
       this%save_restartFile_first = 1
       this%save_restartFile_step = 1000
