@@ -3503,13 +3503,13 @@ contains
 
 !----------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine save_hdf5_restartFile(mnnode,mngaus,restartCnt,iStep,time,rho,u,pr,E,mu_e,mu_t)
+   subroutine save_hdf5_restartFile(mnnode,mngaus,restartCnt,iStep,flag_walave,time,rho,u,pr,E,mu_e,mu_t,walave_u)
       implicit none
       integer(4),intent(in) :: mnnode,mngaus
-      integer(4),intent(in) :: restartCnt,iStep
+      integer(4),intent(in) :: restartCnt,iStep,flag_walave
       real(rp),intent(in) :: time
       real(rp),intent(inout),dimension(numNodesRankPar)       :: rho,pr,E
-      real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u
+      real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u,walave_u
       real(rp),intent(inout),dimension(numElemsRankPar,mngaus) :: mu_e,mu_t
 
       integer(hid_t) :: file_id,plist_id,dtype
@@ -3536,6 +3536,9 @@ contains
       !$acc update host(u(:,:))
       !$acc update host(pr(:))
       !$acc update host(E(:))
+      if(flag_walave == 1) then
+         !$acc update host(walave_u(:,:))
+      end if
 
       !-----------------------------------------------------------------------------------------------
       ! Writing HDF5 Files
@@ -3574,6 +3577,17 @@ contains
       dsetname = 'mut'
       call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_mu_t)
 
+      if(flag_walave == 1) then
+         dsetname = 'walave_u_x'
+         call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,walave_u(:,1))
+
+         dsetname = 'walave_u_y'
+         call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,walave_u(:,2))
+
+         dsetname = 'walave_u_z'
+         call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,walave_u(:,3))
+      end if
+
       !-----------------------------------------------------------------------------------------------
       ! ----  time  -----
       dsetname = 'time'
@@ -3606,15 +3620,15 @@ contains
 
    end subroutine save_hdf5_restartFile
 
-   subroutine load_hdf5_restartFile(mnnode,mngaus,restartCnt,load_step,time,rho,u,pr,E,mu_e,mu_t)
+   subroutine load_hdf5_restartFile(mnnode,mngaus,restartCnt,load_step,flag_walave,time,rho,u,pr,E,mu_e,mu_t,walave_u)
       implicit none
-      integer(4),intent(in) :: mnnode,mngaus,restartCnt
+      integer(4),intent(in) :: mnnode,mngaus,restartCnt,flag_walave
       integer(4),intent(inout) :: load_step
       real(rp),intent(inout) :: time
       real(rp),intent(inout),dimension(numNodesRankPar)       :: rho,pr,E
-      real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u
+      real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u,walave_u
       real(rp),intent(inout),dimension(numElemsRankPar,mngaus) :: mu_e,mu_t
-      
+
       character(512) :: full_restartFileName
       integer(hid_t) :: file_id,plist_id
       integer(hsize_t),dimension(1) :: ms_dims
@@ -3627,6 +3641,7 @@ contains
 
       real(rp),dimension(numNodesRankPar) :: aux_mu_e,aux_mu_t
       integer(4) :: iElem,iNode
+      logical    :: link_exists
 
       !----------------------------------------------------------------------------------------------------------------------
 
@@ -3684,6 +3699,29 @@ contains
       dsetname = 'mut'
       call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_mu_t)
 
+      if(flag_walave==1) then
+         dsetname = 'walave_u_x'
+         call h5lexists_f(file_id,dsetname, link_exists, h5err)
+         if(h5err /= 0) then
+            write(*,*) ' error checking if walave_u_x exists in restart file'
+            call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+         end if
+      
+         if(link_exists) then
+            if(mpi_rank.eq.0) write(111,*) ' walave_u exists'
+            call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,walave_u(:,1))
+            ! I suposse that if walave_u_x exists then y and z also exist - no need to check again
+            dsetname = 'walave_u_y'
+            call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,walave_u(:,2))
+            dsetname = 'walave_u_z'
+            call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,walave_u(:,3))
+         else
+            if(mpi_rank.eq.0) write(111,*) ' walave_u does not exist - using u'
+            walave_u(:,:) = u(:,:)
+         end if
+         !$acc update device(walave_u(:,:))
+      end if
+
       !$acc update device(rho(:))
       !$acc update device(pr(:))
       !$acc update device(E(:))
@@ -3712,6 +3750,15 @@ contains
             E(masSlaRankPar(iPer,2))   = E(masSlaRankPar(iPer,1))
          end do
          !$acc end parallel loop
+         if(flag_walave == 1) then
+            !$acc parallel loop
+            do iPer = 1,nPerRankPar
+               walave_u(masSlaRankPar(iPer,2),1) = walave_u(masSlaRankPar(iPer,1),1)
+               walave_u(masSlaRankPar(iPer,2),2) = walave_u(masSlaRankPar(iPer,1),2)
+               walave_u(masSlaRankPar(iPer,2),3) = walave_u(masSlaRankPar(iPer,1),3)
+            end do
+            !$acc end parallel loop
+         end if
       end if
 
       call close_hdf5_file(file_id)

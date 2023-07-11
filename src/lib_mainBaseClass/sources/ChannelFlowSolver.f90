@@ -45,6 +45,7 @@ contains
    subroutine ChannelFlowSolver_fill_BC_Types(this)
       class(ChannelFlowSolver), intent(inout) :: this
 
+      !bouCodes2BCType(1) = bc_type_slip_wall_model
       bouCodes2BCType(1) = bc_type_non_slip_adiabatic
       !$acc update device(bouCodes2BCType(:))
 
@@ -77,39 +78,42 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 11
+      this%final_istep = 10000001
 
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 10
+      this%save_resultsFile_step = 20000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 10
-      this%loadRestartFile = .false.
+      this%save_restartFile_step = 20000
+      this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
-      this%saveAvgFile = .false.
+      this%saveAvgFile = .true.
       this%loadAvgFile = .false.
 
       this%saveSurfaceResults = .true.
       !----------------------------------------------
 
       ! numerical params
-      flag_les = 0
+      flag_les = 1
       flag_implicit = 0
       maxIterNonLineal=200
       implicit_solver = implicit_solver_bdf2_rk10
-      pseudo_cfl =   1.95_rp !esdirk
+      pseudo_cfl = 1.95_rp !esdirk
       tol = 1e-3
-      flag_rk_order=4
+      flag_implicit_repeat_dt_if_not_converged = 0
+       
+      !period_walave   = 1.0_rp
+      !flag_walave     = 1
 
-      !this%cfl_conv = 100.0_rp !bdf2
-      !this%cfl_diff = 100.0_rp !bdf2
-      this%cfl_conv = 0.15_rp !exp
-      this%cfl_diff = 0.15_rp !exp
+      this%cfl_conv = 1.9_rp !bdf2
+      this%cfl_diff = 1.9_rp !bdf2
+      !this%cfl_conv = 0.15_rp !exp
+      !this%cfl_diff = 0.15_rp !exp
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -146,7 +150,7 @@ contains
       logical :: readFiles
       character(512) :: initialField_filePath
 
-      readFiles = .false.
+      readFiles = .true.
 
       if(readFiles) then
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
@@ -241,6 +245,18 @@ contains
          mu_factor(iNodeL) = flag_mu_factor
       end do
       !$acc end parallel loop
+
+      !
+      ! Initialize exponential averaging for wall law 
+      !
+      call nvtxStartRange("Wall Average init")
+      if(flag_walave == 1) then
+         !$acc kernels
+         walave_u(:,:) = u(:,:,2)
+         !$acc end kernels
+      end if
+      call nvtxEndRange
+
    end subroutine ChannelFlowSolver_evalInitialConditions
 
 end module ChannelFlowSolver_mod

@@ -56,7 +56,7 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 100000
+      this%final_istep = 20000001
       this%maxPhysTime = 20.0_rp
 
       this%save_logFile_first = 1 
@@ -66,7 +66,7 @@ contains
       this%save_resultsFile_step = 500
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 500
+      this%save_restartFile_step = 1000
       this%loadRestartFile = .false.
       this%restartFile_to_load = 2 !1 or 2
       this%continue_oldLogs = .false.
