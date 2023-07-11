@@ -45,6 +45,7 @@ contains
    subroutine ChannelFlowSolver_fill_BC_Types(this)
       class(ChannelFlowSolver), intent(inout) :: this
 
+      !bouCodes2BCType(1) = bc_type_slip_wall_model
       bouCodes2BCType(1) = bc_type_non_slip_adiabatic
       !$acc update device(bouCodes2BCType(:))
 
@@ -77,35 +78,40 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 900000000 
+      this%final_istep = 10000001
 
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 1000
+      this%save_resultsFile_step = 20000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 250
+      this%save_restartFile_step = 20000
       this%loadRestartFile = .true.
-      this%restartFile_to_load = 2 !1 or 2
-      this%continue_oldLogs = .true.
+      this%restartFile_to_load = 1 !1 or 2
+      this%continue_oldLogs = .false.
 
       this%saveAvgFile = .true.
-      this%loadAvgFile = .true.
+      this%loadAvgFile = .false.
+
+      this%saveSurfaceResults = .true.
       !----------------------------------------------
 
       ! numerical params
-      flag_les = 0
-      flag_implicit = 1
+      flag_les = 1
+      flag_implicit = 0
       maxIterNonLineal=200
       implicit_solver = implicit_solver_bdf2_rk10
-      pseudo_cfl =   1.95_rp !esdirk
+      pseudo_cfl = 1.95_rp !esdirk
       tol = 1e-3
-      flag_rk_order=4
+      flag_implicit_repeat_dt_if_not_converged = 0
+       
+      !period_walave   = 1.0_rp
+      !flag_walave     = 1
 
-      this%cfl_conv = 100.0_rp !bdf2
-      this%cfl_diff = 100.0_rp !bdf2
+      this%cfl_conv = 1.9_rp !bdf2
+      this%cfl_diff = 1.9_rp !bdf2
       !this%cfl_conv = 0.15_rp !exp
       !this%cfl_diff = 0.15_rp !exp
 
@@ -171,7 +177,7 @@ contains
       else
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
          auxCnt = 1
-         !!$acc parallel loop
+         !!!!$acc parallel loop 
          serialLoop : do iLine = 1,totalNumNodesSrl
             call random_number(rti)
             if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
@@ -193,8 +199,11 @@ contains
                exit serialLoop
             end if
          end do serialLoop
-         !!$acc end parallel loop
-         !!$acc parallel loop
+         !!!!$acc end parallel loop
+
+         !$acc update device(u(:,:,:))
+
+         !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             pr(iNodeL,2) = this%po
             rho(iNodeL,2) = this%po/this%Rgas/this%to
@@ -205,12 +214,12 @@ contains
             csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
             eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
                     
-         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
-         rho(iNodeL,3) = rho(iNodeL,2)
-          E(iNodeL,3) =  E(iNodeL,2)
-          eta(iNodeL,3) = eta(iNodeL,2) 
+            q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+            rho(iNodeL,3) = rho(iNodeL,2)
+            E(iNodeL,3) =  E(iNodeL,2)
+            eta(iNodeL,3) = eta(iNodeL,2) 
          end do
-         !!$acc end parallel loop
+         !$acc end parallel loop
       end if
 
       !$acc parallel loop
@@ -236,6 +245,18 @@ contains
          mu_factor(iNodeL) = flag_mu_factor
       end do
       !$acc end parallel loop
+
+      !
+      ! Initialize exponential averaging for wall law 
+      !
+      call nvtxStartRange("Wall Average init")
+      if(flag_walave == 1) then
+         !$acc kernels
+         walave_u(:,:) = u(:,:,2)
+         !$acc end kernels
+      end if
+      call nvtxEndRange
+
    end subroutine ChannelFlowSolver_evalInitialConditions
 
 end module ChannelFlowSolver_mod

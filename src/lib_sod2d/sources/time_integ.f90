@@ -93,7 +93,7 @@ module time_integ
          !$acc enter data create(a_ij(:,:))
          !$acc enter data create(b_i(:))
          !$acc enter data create(b_i2(:))
-         if (pseudo_steps == 10) then  
+         if (pseudo_steps == 10) then
             a_ij(:,:) = 0.0_rp
 
             a_ij(2,1) = 0.1111111111_rp
@@ -112,7 +112,7 @@ module time_integ
 
             a_ij(7,1) = 0.5247721825_rp
             a_ij(7,6) = 0.1418944841_rp
-            
+
             a_ij(8,1) = 0.5874505094_rp
             a_ij(8,7) = 0.1903272683_rp
 
@@ -249,7 +249,7 @@ module time_integ
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
-                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_buffer_flux,tauw,source_term)  ! Optional args
+                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_buffer_flux,tauw,source_term,walave_u)  ! Optional args
 
             implicit none
 
@@ -298,6 +298,7 @@ module time_integ
             real(rp), optional,   intent(in)    :: u_buffer_flux(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
             real(rp), optional, intent(in)      :: source_term(npoin,ndime)
+            real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
             integer(4)                          :: pos,maxIterL
             integer(4)                          :: istep, ipoin, idime,icode,itime,jstep,inode,ielem,npoin_w_g
             real(rp),    dimension(npoin)       :: Rrho
@@ -354,7 +355,7 @@ module time_integ
                   aux_u(ipoin,idime) = 0.0_rp
                   aux_q(ipoin,idime) = 0.0_rp
                   Rdiff_mom(ipoin,idime) = 0.0_rp
-               
+
                   Rmom(ipoin,idime) = 0.0_rp
                   Rmom_sum(ipoin,idime) = 0.0_rp
                   aijKjMom(ipoin,idime,1:11) = 0.0_rp
@@ -462,11 +463,16 @@ module time_integ
                   end if
                   !
                   ! Evaluate wall models
-      
+
                   if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
                      call nvtxStartRange("WALL MODEL")
-                     call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK,bou_codes,&
-                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),aux_u(:,:),tauw,Rdiff_mom)
+                     if(flag_walave == 0) then
+                        call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK,bou_codes,&
+                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),aux_u(:,:),tauw,Rdiff_mom)
+                     else
+                        call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK,bou_codes,&
+                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),walave_u(:,:),tauw,Rdiff_mom)
+                     end if
                      call nvtxEndRange
                   end if
 
@@ -514,7 +520,7 @@ module time_integ
                   !
                   call nvtxStartRange("Accumulate residuals")
 
-                  !$acc parallel loop 
+                  !$acc parallel loop
                   do ipoin = 1,npoin
                      alfa_pt(1) = 1.0_rp+b_i(istep)*pt(ipoin,1)/(dt*2.0_rp/3.0_rp)
                      alfa_pt(2) = 1.0_rp+b_i(istep)*pt(ipoin,2)/(dt*2.0_rp/3.0_rp)
@@ -544,7 +550,7 @@ module time_integ
                               aijKjMom(ipoin,idime,jstep) = aijKjMom(ipoin,idime,jstep) + a_ij(jstep,istep)*RMom(ipoin,idime)
                            end do
                         end do
-                     else 
+                     else
                         aijKjMass(ipoin,istep+1) = aijKjMass(ipoin,istep+1) + a_ij(istep+1,istep)*Rmass(ipoin)
                         aijKjEner(ipoin,istep+1) = aijKjEner(ipoin,istep+1) + a_ij(istep+1,istep)*Rener(ipoin)
                         !$acc loop seq
@@ -573,7 +579,7 @@ module time_integ
                      q(ipoin,idime,pos) = q(ipoin,idime,pos)+pt(ipoin,idime+2)*Rmom_sum(ipoin,idime)
                      aux2 = aux2 + real(Rmom_sum(ipoin,idime),8)**2
                   end do
-                  
+
                  ! pseudo stepping
                   aux = ((sigMass(ipoin,2))**(-phi))*((sigMass(ipoin,1))**(-xi))
                   aux = min(f_max,max(f_min,f_save*aux))
@@ -625,7 +631,7 @@ module time_integ
                   umag = sqrt(umag)
                   machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
                   Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
-                  aux_eta(lpoin_w(ipoin)) = eta(lpoin_w(ipoin),pos) 
+                  aux_eta(lpoin_w(ipoin)) = eta(lpoin_w(ipoin),pos)
                   eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0_rp))* &
                   log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
                   !$acc loop seq
@@ -661,12 +667,15 @@ module time_integ
                !$acc end parallel loop
                call nvtxEndRange
 
+               if (noBoundaries .eqv. .false.) then
+                  call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Reta)
+               end if
                !
                ! Compute entropy viscosity
                !
                call nvtxStartRange("Entropy viscosity evaluation")
                call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
-                  gamma_gas,rho(:,pos),u(:,:,pos),csound,Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e)
+                  gamma_gas,rho(:,pos),u(:,:,pos),csound,Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
                call nvtxEndRange
 
                call nvtxStartRange("Accumullate aux2 in res(1)")
@@ -680,9 +689,10 @@ module time_integ
                endif
                errMax = abs(res(1)-res(2))/abs(res_ini)
 
-               res(2) = res(1)            
+               res(2) = res(1)
 
                if(errMax .lt. tol) exit
+               !if(mpi_rank.eq.0) write(111,*)"   non lineal residual ",errMax," non lineal iterations ",itime
             end do
             call nvtxEndRange
 
@@ -703,7 +713,7 @@ module time_integ
             if(flag_les == 1) then
                call nvtxStartRange("MU_SGS")
                if(flag_les_ilsa == 1) then
-                  call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,rho(:,pos),u(:,:,pos),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
+                  call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,rho(:,pos),u(:,:,pos),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3)
                else
                   call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,pos),u(:,:,pos),Ml,mu_sgs)
                end if
@@ -718,7 +728,7 @@ module time_integ
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
-                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_buffer_flux,tauw,source_term)  ! Optional args
+                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_buffer_flux,tauw,source_term,walave_u)  ! Optional args
 
             implicit none
 
@@ -730,7 +740,7 @@ module time_integ
             real(rp),             intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
             real(rp),             intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
-            real(rp),             intent(in)    :: dt, helem(nelem) 
+            real(rp),             intent(in)    :: dt, helem(nelem)
             real(rp),             intent(in)    :: helem_l(nelem,nnode)
             real(rp),             intent(in)    :: Ml(npoin)
             real(rp),             intent(in)    :: mu_factor(npoin)
@@ -765,6 +775,7 @@ module time_integ
             real(rp), optional,   intent(in)    :: u_buffer_flux(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
             real(rp), optional, intent(in)      :: source_term(npoin,ndime)
+            real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
             integer(4)                          :: pos
             integer(4)                          :: istep, ipoin, idime,icode
             real(rp),    dimension(npoin)       :: Rrho
@@ -833,6 +844,21 @@ module time_integ
 
                if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,aux_rho,aux_q,u_buffer)
 
+               if (noBoundaries .eqv. .false.) then
+                  call nvtxStartRange("BCS_AFTER_UPDATE")
+                  call temporary_bc_routine_dirichlet_prim(npoin,nboun,coord,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,aux_rho(:),aux_q(:,:),aux_u(:,:),aux_pr(:),aux_E(:),u_buffer)
+                  call nvtxEndRange
+               end if
+
+               !
+               ! Apply bcs after update
+               !
+               if (noBoundaries .eqv. .false.) then
+                  call nvtxStartRange("BCS_AFTER_UPDATE")
+                  call temporary_bc_routine_dirichlet_prim(npoin,nboun,coord,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,aux_rho(:),aux_q(:,:),aux_u(:,:),aux_pr(:),aux_E(:),u_buffer)
+                  call nvtxEndRange
+               end if
+
                !
                ! Update velocity and equations of state
                !
@@ -879,19 +905,24 @@ module time_integ
                end if
                !
                ! Evaluate wall models
-     
+
                if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
                   call nvtxStartRange("WALL MODEL")
-                  call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK,bou_codes,&
-                     bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),aux_u(:,:),tauw,Rdiff_mom)
+                  if(flag_walave == 0) then
+                     call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),aux_u(:,:),tauw,Rdiff_mom)
+                  else
+                     call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),walave_u(:,:),tauw,Rdiff_mom)
+                  end if
                   call nvtxEndRange
                end if
-               
+
                ! include user defined neumann corrections
                if(flag_include_neumann_flux == 1) then
                   call evalCorrectNeumann(nelem,npoin,nboun,connec,bound,point2elem,atoIJK, bou_codes, &
                      bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,mu_fluid,aux_u(:,:),Rdiff_mom)
-               end if   
+               end if
 
                !
                !
@@ -976,7 +1007,7 @@ module time_integ
             ! Update velocity and equations of state
             !
             call nvtxStartRange("Update u and EOS")
-            
+
             !$acc parallel loop
             do ipoin = 1,npoin_w
                umag = 0.0_rp
@@ -1019,11 +1050,13 @@ module time_integ
 
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))!-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+               Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
             end do
             !$acc end parallel loop
             call nvtxEndRange
-
+            if (noBoundaries .eqv. .false.) then
+               call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Reta)
+            end if
             !
             ! If using Sutherland viscosity model:
             !
@@ -1038,7 +1071,7 @@ module time_integ
             ! Compute entropy viscosity
             !
             call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
-               gamma_gas,rho(:,pos),u(:,:,pos),csound,Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e)
+               gamma_gas,rho(:,pos),u(:,:,pos),csound,Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
             call nvtxEndRange
             !
             ! Compute subgrid viscosity if active
@@ -1046,7 +1079,7 @@ module time_integ
             if(flag_les == 1) then
                call nvtxStartRange("MU_SGS")
                if(flag_les_ilsa == 1) then
-                  call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,rho(:,pos),u(:,:,pos),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
+                  call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,rho(:,pos),u(:,:,pos),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3)
                else
                   call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,pos),u(:,:,pos),Ml,mu_sgs)
                end if
@@ -1072,7 +1105,7 @@ module time_integ
             !$acc parallel loop
             do ipoin = 1,npoin
                xi = 1.0_rp
-               !east 
+               !east
                if(flag_buffer_on_east .eqv. .true.) then
                   xs = coord(ipoin,1)
                   if(xs>flag_buffer_e_min) then
@@ -1080,7 +1113,7 @@ module time_integ
                      xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
-               !west 
+               !west
                if(flag_buffer_on_west .eqv. .true.) then
                   xs = coord(ipoin,1)
                   if(xs<flag_buffer_w_min) then
@@ -1088,12 +1121,12 @@ module time_integ
                      xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
-               !north 
+               !north
                if(flag_buffer_on_north .eqv. .true.) then
                   xs = coord(ipoin,2)
                   if(xs>flag_buffer_n_min) then
                      xb = (xs-flag_buffer_n_min)/flag_buffer_n_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi) 
+                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
                !south
@@ -1101,15 +1134,15 @@ module time_integ
                   xs = coord(ipoin,2)
                   if(xs<flag_buffer_s_min) then
                      xb = (flag_buffer_s_min-xs)/flag_buffer_s_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi) 
+                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
-               !north 
+               !north
                if(flag_buffer_on_top .eqv. .true.) then
                   xs = coord(ipoin,3)
                   if(xs>flag_buffer_t_min) then
                      xb = (xs-flag_buffer_t_min)/flag_buffer_t_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi) 
+                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
                !bottom
@@ -1117,7 +1150,7 @@ module time_integ
                   xs = coord(ipoin,3)
                   if(xs<flag_buffer_b_min) then
                      xb = (flag_buffer_b_min-xs)/flag_buffer_b_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi) 
+                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
 

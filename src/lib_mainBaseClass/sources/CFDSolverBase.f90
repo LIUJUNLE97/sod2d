@@ -21,7 +21,6 @@ module mod_arrays
       real(rp), target,allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:),tauw(:,:)
       real(rp), target,allocatable :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:)
 
-      !real(rp), allocatable :: acurho(:), acupre(:), acuvel(:,:), acuve2(:,:), acumueff(:),acuvex(:,:),acutw(:,:)
       real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:),avvex(:,:),avtw(:,:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
@@ -34,6 +33,9 @@ module mod_arrays
       ! implicit auxiliar fields
       real(rp), allocatable :: impl_rho(:),impl_E(:),impl_eta(:),impl_q(:,:)
       real(rp), allocatable :: impl_envit(:,:),impl_mu_fluid(:),impl_mu_sgs(:,:)
+
+      ! exponential average for wall law
+      real(rp), allocatable :: walave_u(:,:)
 
 end module mod_arrays
 
@@ -89,7 +91,7 @@ module CFDSolverBase_mod
       integer(4), public :: nvarwit=5 !Default value, only to be substituted if function update_witness is modified to
 
       ! main logical parameters
-      logical, public :: loadRestartFile=.false.,saveAvgFile=.false.,loadAvgFile=.false.,saveInitialField=.false.,continue_oldLogs=.false.
+      logical, public :: loadRestartFile=.false.,saveAvgFile=.false.,loadAvgFile=.false.,saveInitialField=.false.,saveSurfaceResults=.false.,continue_oldLogs=.false.
       logical, public :: doGlobalAnalysis=.false.,isFreshStart=.true.,doTimerAnalysis=.false.,isWallModelOn=.false.,isSymmetryOn=.false.
       logical, public :: useIntInComms=.false.,useRealInComms=.false.
       logical, public :: have_witness=.false.,wit_save=.true.,continue_witness=.false.
@@ -155,8 +157,8 @@ module CFDSolverBase_mod
       procedure, public :: evalTimeIteration =>CFDSolverBase_evalTimeIteration
       procedure, public :: callTimeIntegration =>CFDSolverBase_callTimeIntegration
       procedure, public :: saveRestartFile =>CFDSolverBase_saveRestartFile
-      procedure, public :: saveAverages =>CFDSolverBase_saveAverages
-      procedure, public :: savePosprocessingFields =>CFDSolverBase_savePosprocessingFields
+      procedure, public :: saveAvgResultsFiles =>CFDSolverBase_saveAvgResultsFiles
+      procedure, public :: saveInstResultsFiles =>CFDSolverBase_saveInstResultsFiles
       procedure, public :: afterDt =>CFDSolverBase_afterDt
       procedure, public :: afterTimeIteration =>CFDSolverBase_afterTimeIteration
       procedure, public :: update_witness =>CFDSolverBase_update_witness
@@ -253,6 +255,7 @@ contains
       this%doTimerAnalysis    = .false.
       this%isFreshStart       = .true.
       this%saveInitialField   = .false.
+      this%saveSurfaceResults = .false.
       this%isWallModelOn      = .false.
       this%isSymmetryOn=.false.
       !@JORDI: discuss which other parameters can be set as default....
@@ -489,11 +492,11 @@ contains
       !-------------    elemGpScalars   -------------------------------------
       !----------------------------------------------------------------------
       if(this%save_scalarField_muSgs) then !mu_sgs(numElemsRankPar,ngaus)
-         call this%add_elemGpScalarField2save('mu_sgs',mu_sgs(:,:))
+         call this%add_elemGpScalarField2save('mut',mu_sgs(:,:))
       end if
       !----------------------------------------------------------------------
       if(this%save_scalarField_muEnvit) then !mu_e(numElemsRankPar,ngaus)
-         call this%add_elemGpScalarField2save('mu_e',mu_e(:,:))
+         call this%add_elemGpScalarField2save('mue',mu_e(:,:))
       end if
       !----------------------------------------------------------------------
 
@@ -560,6 +563,10 @@ contains
       call init_comms(this%useIntInComms,this%useRealInComms)
       ! init comms boundaries
       call init_comms_bnd(this%useIntInComms,this%useRealInComms)
+
+      if (isMeshBoundaries .and. this%saveSurfaceResults) then
+         call save_surface_mesh_hdf5_file()
+      end if
 
       call nvtxEndRange
 
@@ -899,31 +906,6 @@ contains
       Qcrit(:) = 0.0_rp
       !$acc end kernels
 
-      !*********************************************************************!
-      ! Allocate accumulators for averaging process                         !
-      !*********************************************************************!
-      !!!!!!allocate(acurho(numNodesRankPar))
-      !!!!!!allocate(acupre(numNodesRankPar))
-      !!!!!!allocate(acumueff(numNodesRankPar))
-      !!!!!!allocate(acuvel(numNodesRankPar,ndime))
-      !!!!!!allocate(acuve2(numNodesRankPar,ndime))
-      !!!!!!allocate(acuvex(numNodesRankPar,ndime))
-      !!!!!!allocate(acutw(numNodesRankPar,ndime))
-      !!!!!!$acc enter data create(acurho(:))
-      !!!!!!$acc enter data create(acupre(:))
-      !!!!!!$acc enter data create(acumueff(:))
-      !!!!!!$acc enter data create(acuvel(:,:))
-      !!!!!!$acc enter data create(acuve2(:,:))
-      !!!!!!$acc enter data create(acuvex(:,:))
-      !!!!!!$acc enter data create(acutw(:,:))
-      !!!!!!acurho(:) = 0.0_rp
-      !!!!!!acupre(:) = 0.0_rp
-      !!!!!!acumueff(:) = 0.0_rp
-      !!!!!!acuvel(:,:) = 0.0_rp
-      !!!!!!acuve2(:,:) = 0.0_rp
-      !!!!!!acuvex(:,:) = 0.0_rp
-      !!!!!!acutw(:,:) = 0.0_rp
-
       allocate(avrho(numNodesRankPar))
       allocate(avpre(numNodesRankPar))
       allocate(avmueff(numNodesRankPar))
@@ -949,6 +931,14 @@ contains
       avtw(:,:) = 0.0_rp
       !$acc end kernels
 
+      ! Exponential average velocity for wall law
+      if(flag_walave==1) then
+         allocate(walave_u(numNodesRankPar,ndime))
+         !$acc enter data create(walave_u(:,:))
+         !$acc kernels
+         walave_u(:,:) = 0.0_rp
+         !$acc end kernels
+      end if
       call nvtxEndRange
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
@@ -961,11 +951,10 @@ contains
       this%save_logFile_next = this%save_logFile_first
       this%save_restartFile_next = this%save_restartFile_first
       this%save_resultsFile_next = this%save_resultsFile_first
-      !this%save_avgResultsFile_next = this%save_avgResultsFile_first
 
       if(this%loadRestartFile) then
          if(mpi_rank.eq.0) write(111,*) "--| Loading restart file ",this%restartFile_to_load
-         call load_hdf5_restartFile(this%restartFile_to_load,this%load_step,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs)
+         call load_hdf5_restartFile(this%restartFile_to_load,this%load_step,flag_walave,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
 
          if((flag_les.eq.0).and.(flag_les_ilsa.eq.0)) then
             !$acc kernels
@@ -1340,7 +1329,7 @@ contains
       integer(4) :: iCode
 
       if(this%saveInitialField) then
-         call this%savePosprocessingFields(0)
+         call this%saveInstResultsFiles(0)
       end if
       !*********************************************************************!
       ! Compute surface forces and area                                                                !
@@ -1381,7 +1370,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
 
-      call save_hdf5_restartFile(this%restartFileCnt,istep,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs)
+      call save_hdf5_restartFile(this%restartFileCnt,istep,flag_walave,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
 
       if(this%restartFileCnt .eq. 1) then
          this%restartFileCnt = 2
@@ -1394,10 +1383,8 @@ contains
 
    end subroutine CFDSolverBase_saveRestartFile
 
-
-   subroutine CFDSolverBase_saveAverages(this,istep)
+   subroutine CFDSolverBase_saveAvgResultsFiles(this)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4), intent(in) :: istep
 
       !TO REVIEW
       !$acc update host(avvel(:,:))
@@ -1413,20 +1400,21 @@ contains
                this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
                this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
 
-   end subroutine CFDSolverBase_saveAverages
+      if (isMeshBoundaries .and. this%saveSurfaceResults) then
+         call save_surface_avgResults_hdf5_file(this%restartFileCnt,&
+                  this%numAvgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
+                  this%numAvgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
+                  this%numAvgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
+      end if
 
-   subroutine CFDSolverBase_afterDt(this,istep)
-      class(CFDSolverBase), intent(inout) :: this
-      integer(4), intent(in) :: istep
-
-   end subroutine CFDSolverBase_afterDt
+   end subroutine CFDSolverBase_saveAvgResultsFiles
 
    subroutine CFDSolverBase_afterTimeIteration(this)
       class(CFDSolverBase), intent(inout) :: this
 
    end subroutine CFDSolverBase_afterTimeIteration
 
-   subroutine CFDSolverBase_savePosprocessingFields(this,istep)
+   subroutine CFDSolverBase_saveInstResultsFiles(this,istep)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
 
@@ -1450,7 +1438,20 @@ contains
                this%numNodeVectorFields2save,this%nodeVectorFields2save,this%nameNodeVectorFields2save,&
                this%numElemGpScalarFields2save,this%elemGpScalarFields2save,this%nameElemGpScalarFields2save)
 
-   end subroutine CFDSolverBase_savePosprocessingFields
+      if (isMeshBoundaries .and. this%saveSurfaceResults) then
+         call save_surface_instResults_hdf5_file(istep,&
+               this%numNodeScalarFields2save,this%nameNodeScalarFields2save,&
+               this%numNodeVectorFields2save,this%nameNodeVectorFields2save,&
+               this%numElemGpScalarFields2save,this%nameElemGpScalarFields2save)
+      end if
+
+   end subroutine CFDSolverBase_saveInstResultsFiles
+
+   subroutine CFDSolverBase_afterDt(this,istep)
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4), intent(in) :: istep
+
+   end subroutine CFDSolverBase_afterDt
 
    subroutine CFDSolverBase_initialBuffer(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -1467,6 +1468,7 @@ contains
       character(4) :: timeStep
       real(8) :: iStepTimeRank,iStepTimeMax,iStepEndTime,iStepStartTime,iStepAvgTime
       real(rp) :: inv_iStep,aux_pseudo_cfl
+      real(rp) :: dtfact,avwei
       logical :: do__iteration
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
@@ -1492,6 +1494,22 @@ contains
          e_int(:,1) = e_int(:,2)
          eta(:,1) = eta(:,2)
          !$acc end kernels
+         call nvtxEndRange
+
+         !
+         ! Exponential averaging for wall law
+         !
+         call nvtxStartRange("Wall Average "//timeStep,istep)
+         if(flag_walave == 1) then
+            !
+            ! outside acc kernels following pseudo_cfl in next loop
+            !
+            dtfact = this%dt/(this%dt+period_walave)
+            avwei  = 1.0_rp - dtfact
+            !$acc kernels
+            walave_u(:,:) = dtfact*u(:,:,2) + avwei*walave_u(:,:)
+            !$acc end kernels
+         end if
          call nvtxEndRange
 
          call nvtxStartRange("RK4 step "//timeStep,istep)
@@ -1592,9 +1610,6 @@ contains
 
                call eval_average_iter(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,this%dt,this%elapsed_avgTime,&
                                  rho,u,pr,mu_fluid,mu_e,mu_sgs,tauw,avrho,avpre,avvel,avve2,avvex,avmueff,avtw)
-
-               !call favre_average(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,this%dt,rho,u,pr, &
-               !                   mu_fluid,mu_e,mu_sgs,tauw,this%acutim,acurho,acupre,acuvel,acuve2,acuvex,acumueff,acutw)
                call nvtxEndRange
             end if
          end if
@@ -1623,7 +1638,7 @@ contains
             if(this%saveAvgFile) then
                if (mpi_rank.eq.0) write(111,*) '   - Saving avgResults file step:',this%restartFileCnt
                call nvtxStartRange("Output AVG"//timeStep,istep)
-               call this%saveAverages(istep)
+               call this%saveAvgResultsFiles
                call nvtxEndRange
             end if
 
@@ -1632,14 +1647,6 @@ contains
             call nvtxEndRange
 
          end if
-         ! ---- SAVING AVG RESULTS FILE -----------------------------------------------------------------------
-         !if (this%save_avgResultsFile_next == istep) then
-         !   this%save_avgResultsFile_next = this%save_avgResultsFile_next + this%save_avgResultsFile_step
-         !   if (mpi_rank.eq.0) write(111,*) ' - Saving avgResults file step:',istep,'(next to save',this%save_avgResultsFile_next,')'
-         !   call nvtxStartRange("Output AVG"//timeStep,istep)
-         !   call this%saveAverages(istep)
-         !   call nvtxEndRange
-         !end if
 
          ! ---- SAVING INST RESULTS FILE -----------------------------------------------------------------------
          if (this%save_resultsFile_next == istep) then
@@ -1647,7 +1654,7 @@ contains
             if (mpi_rank.eq.0) write(111,*) ' - Saving results file step:',istep,'(next to save',this%save_resultsFile_next,')'
             call nvtxStartRange("Output "//timeStep,istep)
             call compute_fieldDerivs(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
-            call this%savePosprocessingFields(istep)
+            call this%saveInstResultsFiles(istep)
             call nvtxEndRange
          end if
 
@@ -1906,6 +1913,7 @@ contains
          write(111,*) "    flag_solver_type: ",         flag_solver_type
          write(111,*) "    flag_spectralElem: ",        flag_spectralElem
          write(111,*) "    flag_normalise_entropy: ",   flag_normalise_entropy
+         write(111,*) "    flag_walave: ",              flag_walave
          write(111,*) "--------------------------------------"
          write(111,*) "    ce: ",      ce
          write(111,*) "    cmax: ",    cmax

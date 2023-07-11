@@ -84,4 +84,11 @@ module mod_numerical_params
 
         integer(4)  :: flag_include_neumann_flux=0
 
+        !
+        ! Wall model averaging
+        !
+        real(rp)    :: period_walave   = 1.0_rp
+        integer(4)  :: flag_walave     = 0
+        integer(4)  :: flag_walex      = 3
+
 end module mod_numerical_params

@@ -3,7 +3,7 @@ module CFDSolverPeriodicWithBoundaries_mod
    use mod_nvtx
 #ifndef NOACC
    use cudafor
-#endif   
+#endif
    use mod_veclen
 
    use elem_qua
@@ -37,7 +37,7 @@ contains
 
    subroutine CFDSolverPeriodicWithBoundaries_fill_BC_Types(this)
       class(CFDSolverPeriodicWithBoundaries), intent(inout) :: this
-   
+
       if(mpi_rank.eq.0) write(111,*) "--| Boundary types must be defined "
       stop 1
    end subroutine CFDSolverPeriodicWithBoundaries_fill_BC_Types
