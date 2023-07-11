@@ -14,9 +14,10 @@ module mod_smartredis
 
    ! Initialise SmartRedis client
    ! State is stored in arrays of different sizes on each MPI rank. Actions is a global array living in all processes.
-   subroutine init_smartredis(client, state_local_size2, action_global_size2, db_clustered)
+   subroutine init_smartredis(client, state_local_size2, action_global_size2, tag, db_clustered)
       type(client_type), intent(inout) :: client
       integer, intent(in) :: state_local_size2, action_global_size2
+      character(len=*), intent(in) :: tag
       logical, intent(in) :: db_clustered
 
       integer :: state_counter, error, i, state_global_size_tensor(1), action_global_size_tensor(1)
@@ -68,13 +69,15 @@ module mod_smartredis
          state_global_size_tensor(1) = state_global_size
          action_global_size_tensor(1) = action_global_size
 
-         error = client%put_tensor("state_size", state_global_size_tensor, shape(state_global_size_tensor))
-         is_error = client%SR_error_parser(error)
-         if (error /= 0) stop 'Error during SmartRedis state size writting.'
+         ! if (tag == "0") then
+            error = client%put_tensor("state_size", state_global_size_tensor, shape(state_global_size_tensor))
+            is_error = client%SR_error_parser(error)
+            if (error /= 0) stop 'Error during SmartRedis state size writting.'
 
-         error = client%put_tensor("action_size", action_global_size_tensor, shape(action_global_size_tensor))
-         is_error = client%SR_error_parser(error)
-         if (error /= 0) stop 'Error during SmartRedis state size writting.'
+            error = client%put_tensor("action_size", action_global_size_tensor, shape(action_global_size_tensor))
+            is_error = client%SR_error_parser(error)
+            if (error /= 0) stop 'Error during SmartRedis state size writting.'
+         ! end if
       end if
    end subroutine init_smartredis
 

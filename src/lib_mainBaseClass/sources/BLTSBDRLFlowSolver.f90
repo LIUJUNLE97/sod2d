@@ -75,14 +75,14 @@ contains
       open(unit=443,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_raw.txt",status='replace')
       open(unit=444,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_smooth.txt",status='replace')
       open(unit=445,file="./output_"//trim(adjustl(this%tag))//"/"//"tw.txt",status='replace')
-      call init_smartredis(client, this%nwitPar, this%nRectangleControl, this%db_clustered)
-      call write_step_type(client, 1, "step_type")
+      call init_smartredis(client, this%nwitPar, this%nRectangleControl, trim(adjustl(this%tag)), this%db_clustered)
+      call write_step_type(client, 1, "ensemble_"//trim(adjustl(this%tag))//".step_type")
    end subroutine BLTSBDRLFlowSolver_initSmartRedis
 
    subroutine BLTSBDRLFlowSolver_afterTimeIteration(this)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
 
-      call write_step_type(client, 0, "step_type")
+      call write_step_type(client, 0, "ensemble_"//trim(adjustl(this%tag))//".step_type")
       close(443)
       close(444)
       close(445)
@@ -131,7 +131,7 @@ contains
 #ifdef SMARTREDIS
       if (this%time .gt. this%timeBeginActuation) then
          if (step_type_mod .eq. 1) then
-            call write_step_type(client, 2, "step_type")
+            call write_step_type(client, 2, "ensemble_"//trim(adjustl(this%tag))//".step_type")
             write(*,*) "Sod2D wrote step: 2"
          end if
 
@@ -143,15 +143,15 @@ contains
             this%previousActuationTime = this%previousActuationTime + this%periodActuation
             !$acc end kernels
 
-            call write_state(client, buffwit(:, 1, 1), "state") ! the streamwise velocity u
-            write(*,*) "Sod2D wrote state: ", buffwit(:, 1, 1)
+            call write_state(client, buffwit(:, 1, 1), "ensemble_"//trim(adjustl(this%tag))//".state") ! the streamwise velocity u
+            write(*,*) "Sod2D wrote state(1:5): ", buffwit(1:5, 1, 1)
             call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
-            call write_reward(client, Ftau_neg(1), Ftau_pos(1), "reward") ! the streamwise component tw_x
+            call write_reward(client, Ftau_neg(1), Ftau_pos(1), "ensemble_"//trim(adjustl(this%tag))//".reward") ! the streamwise component tw_x
             write(*,*) "Sod2D wrote reward: ", Ftau_neg(1), Ftau_pos(1)
             write(445,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_neg(2)
             call flush(445)
 
-            call read_action(client, "action") ! modifies action_global (the target control values)
+            call read_action(client, "ensemble_"//trim(adjustl(this%tag))//".action") ! modifies action_global (the target control values)
             write(*,*) "Sod2D read action: ", action_global
             write(443,'(*(ES12.4,:,","))') action_global(1), this%time+this%periodActuation
             call flush(443)
@@ -159,7 +159,7 @@ contains
             ! if the next time that we require actuation value is the last one, write now step_type=0 into database
             ! if (this%time + 2.0_rp * this%periodActuation .gt. this%maxPhysTime) then
             if (this%time + 1.0_rp * this%periodActuation .gt. this%maxPhysTime) then
-               call write_step_type(client, 0, "step_type")
+               call write_step_type(client, 0, "ensemble_"//trim(adjustl(this%tag))//".step_type")
                write(*,*) "Sod2D wrote step: 0"
             end if
          end if
@@ -306,7 +306,7 @@ contains
 
       integer(rp)                           :: ii
 
-      open(unit=99, file=this%fileControlName, status='old', action='read')
+      open(unit=99, file=trim(adjustl(this%fileControlName)), status='old', action='read')
 
       read(99,*) this%nRectangleControl
       allocate(rectangleControl(2,2*this%nRectangleControl))
@@ -585,11 +585,11 @@ contains
 
       if (mpi_rank .eq. 0) then
          write(*,*) "Received arguments are:"
-         write(*,*) "--tag:  ", this%tag
-         write(*,*) "--restart_step:  ", this%restartFile_to_load
-         write(*,*) "--db_clustered:  ", db_clustered_str
-         write(*,*) "--freq_action:  ", this%frequencyActuation
-         write(*,*) "--t_episode:  ", this%periodEpisode
+         write(*,*) "--tag: ", adjustl(trim(this%tag))
+         write(*,*) "--restart_step: ", this%restartFile_to_load
+         write(*,*) "--db_clustered: ", db_clustered_str
+         write(*,*) "--freq_action: ", this%frequencyActuation
+         write(*,*) "--t_episode: ", this%periodEpisode
       end if
 
       !----------------------------------------------
@@ -598,12 +598,12 @@ contains
       this%maxPhysTime = this%periodEpisode
 
       this%save_logFile_first = 1
-      this%save_logFile_step  = 50
+      this%save_logFile_step = 1 ! 250
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 250
+      this%save_restartFile_step = 2500
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 250
+      this%save_resultsFile_step = 2500
 
       this%loadRestartFile = .true.
       ! read(restart_step_str, *) this%restartFile_to_load ! 1: baseline, 2: last episode
@@ -703,7 +703,7 @@ contains
       ! control parameters
 #if (ACTUATION)
       write(this%fileControlName ,*) "rectangleControl.txt"
-      this%timeBeginActuation = 5e-1 ! 2000.0_rp
+      this%timeBeginActuation = 0.0 ! 5e-1 ! 2000.0_rp
 #endif
 
       !Blasius analytical function
@@ -712,9 +712,9 @@ contains
       this%have_witness          = .true.
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
-      this%leapwit               = 10 ! 50 ! cada quants dts sampleja
+      this%leapwit               = 100 ! 10 ! 50 ! cada quants dts sampleja
       this%leapwitsave           = 1 ! quants dts guarda al buffer
-      this%wit_save              = .true. ! guardar o no
+      this%wit_save              = .false. ! guardar o no
       this%wit_save_u_i          = .true.
       this%wit_save_pr           = .false.
       this%wit_save_rho          = .false.
