@@ -54,14 +54,14 @@ contains
         end if
 
 
-        call MPI_Comm_group(MPI_COMM_WORLD,bnd_worldGroup,mpi_err)
+        call MPI_Comm_group(app_comm,bnd_worldGroup,mpi_err)
         call MPI_Group_incl(bnd_worldGroup,bnd_numRanksWithComms,bnd_ranksToComm,bnd_commGroup,mpi_err);
 
         !useFenceFlags=.false. !by default
         !useAssertNoCheckFlags=.true. !by default
         !isPSCWBarrier=.true.!si faig molts loops amb aquesta opció a false la comm queda bloquejada
         !useLockBarrier=.true.!.false. with false it fails!
-        !call setFenceFlags(useFenceFlags) 
+        !call setFenceFlags(useFenceFlags)
         !call setPSCWAssertNoCheckFlags(useAssertNoCheckFlags)
         !call setLockBarrier(useLockBarrier)
 
@@ -76,7 +76,7 @@ contains
             deallocate(aux_bnd_intField_s)
             deallocate(aux_bnd_intField_r)
 
-            !call close_window_intField_bnd()            
+            !call close_window_intField_bnd()
         end if
 
         if(bnd_isReal) then
@@ -96,12 +96,12 @@ contains
         implicit none
 
         window_buffer_size = mpi_integer_size*bnd_numNodesToComm
-        call MPI_Win_create(aux_bnd_intField_r,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_bnd_int,mpi_err)
+        call MPI_Win_create(aux_bnd_intField_r,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id_bnd_int,mpi_err)
     end subroutine init_window_intField_bnd
 
     subroutine close_window_intField_bnd()
         implicit none
-        
+
         call MPI_Win_free(window_id_bnd_int,mpi_err)
     end subroutine close_window_intField_bnd
 !-------------------------------------------------------------------------------------
@@ -110,12 +110,12 @@ contains
         implicit none
 
         window_buffer_size = mpi_real_size*bnd_numNodesToComm
-        call MPI_Win_create(aux_bnd_realField_r,window_buffer_size,mpi_real_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_bnd_real,mpi_err)
+        call MPI_Win_create(aux_bnd_realField_r,window_buffer_size,mpi_real_size,MPI_INFO_NULL,app_comm,window_id_bnd_real,mpi_err)
     end subroutine init_window_realField_bnd
 
     subroutine close_window_realField_bnd()
         implicit none
-        
+
         call MPI_Win_free(window_id_bnd_real,mpi_err)
     end subroutine close_window_realField_bnd
 
@@ -271,9 +271,9 @@ contains
             memSize  = bnd_commsMemSize(i)
 
             ireq = ireq+1
-            call MPI_Irecv(aux_bnd_intField_r(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_Irecv(aux_bnd_intField_r(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
             ireq = ireq+1
-            call MPI_ISend(aux_bnd_intField_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_ISend(aux_bnd_intField_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
         end do
         !$acc end host_data
 
@@ -300,9 +300,9 @@ contains
             memSize  = bnd_commsMemSize(i)
 
             ireq = ireq+1
-            call MPI_Irecv(aux_bnd_realField_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_Irecv(aux_bnd_realField_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
             ireq = ireq+1
-            call MPI_ISend(aux_bnd_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_ISend(aux_bnd_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
         end do
         !$acc end host_data
 
@@ -331,9 +331,9 @@ contains
             memSize  = bnd_commsMemSize(i)
 
             ireq = ireq+1
-            call MPI_Irecv(aux_bnd_intField_r(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_Irecv(aux_bnd_intField_r(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
             ireq = ireq+1
-            call MPI_ISend(aux_bnd_intField_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_ISend(aux_bnd_intField_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
         end do
         !$acc end host_data
 
@@ -361,9 +361,9 @@ contains
             memSize  = bnd_commsMemSize(i)
 
             ireq = ireq+1
-            call MPI_Irecv(aux_bnd_realField_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_Irecv(aux_bnd_realField_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
             ireq = ireq+1
-            call MPI_ISend(aux_bnd_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_ISend(aux_bnd_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
         end do
         !$acc end host_data
 

@@ -6,7 +6,8 @@ module mod_mpi
 #endif
    implicit none
 
-   integer :: mpi_rank, mpi_size, mpi_err   
+   integer :: mpi_rank, mpi_size, mpi_err
+   integer :: mpi_world_rank, mpi_world_size
    integer :: mpi_integer_size,mpi_int4_size,mpi_int8_size
    integer :: mpi_real_size,mpi_real4_size,mpi_real8_size
    integer :: mpi_datatype_int,mpi_datatype_int4,mpi_datatype_int8
@@ -14,16 +15,34 @@ module mod_mpi
 
    integer :: smNode_comm,smNode_rank,smNode_size
    integer :: num_devices, id_device
+   integer :: app_comm
 
    contains
 
    subroutine init_mpi()
-      implicit none
+      integer :: num_args, equal_pos, iarg, ierr, color
+      character(len=16) :: arg, color_str="0"
 
+      ! Get color for communicator if --tag is passed as command line argument
+      num_args = command_argument_count()
+      do iarg = 1, num_args
+         call get_command_argument(iarg, arg)
+         equal_pos = scan(adjustl(trim(arg)), "=")
+         if (adjustl(trim(arg(:equal_pos-1))) .eq. "--tag") then
+            color_str = trim(adjustl(arg(equal_pos+1:)))
+         end if
+      end do
+      read(color_str, *) color
+
+      ! Init MPI_COMM_WORLD communicator (shared accros all applications launched with mpirun ... : ...)
       call mpi_init(mpi_err)
-      call mpi_comm_rank(MPI_COMM_WORLD, mpi_rank, mpi_err)
-      call mpi_comm_size(MPI_COMM_WORLD, mpi_size, mpi_err)
-      
+      call mpi_comm_rank(MPI_COMM_WORLD, mpi_world_rank, mpi_err)
+      call mpi_comm_size(MPI_COMM_WORLD, mpi_world_size, mpi_err)
+      ! Split MPI_COMM_WORLD and create a communicator for this app only (color must be unique for each application)
+      call MPI_Comm_split (MPI_COMM_WORLD, color, mpi_world_rank, app_comm, mpi_err)
+      call MPI_Comm_rank (app_comm, mpi_rank, mpi_err)
+      call MPI_Comm_size (app_comm, mpi_size , mpi_err)
+
       mpi_datatype_int = MPI_INTEGER
       mpi_datatype_int4 = MPI_INTEGER4
       mpi_datatype_int8 = MPI_INTEGER8
@@ -36,8 +55,8 @@ module mod_mpi
          mpi_datatype_real = MPI_REAL8
       else
          write(*,*) 'Fatal error in init_mpi()! rp is not 4 or 8 >> CRASH!'
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-      end if   
+         call MPI_Abort(app_comm,-1,mpi_err)
+      end if
 
       call MPI_Type_size(mpi_datatype_int,mpi_integer_size, mpi_err)
       call MPI_Type_size(mpi_datatype_int4,mpi_int4_size, mpi_err)
@@ -53,7 +72,7 @@ module mod_mpi
 
    subroutine init_sharedMemoryNode_comm()
       implicit none
-      call MPI_Comm_split_type(MPI_COMM_WORLD,MPI_COMM_TYPE_SHARED,0,MPI_INFO_NULL,smNode_comm,mpi_err)
+      call MPI_Comm_split_type(app_comm,MPI_COMM_TYPE_SHARED,0,MPI_INFO_NULL,smNode_comm,mpi_err)
 
       call mpi_comm_rank(smNode_comm, smNode_rank, mpi_err)
       call mpi_comm_size(smNode_comm, smNode_size, mpi_err)
