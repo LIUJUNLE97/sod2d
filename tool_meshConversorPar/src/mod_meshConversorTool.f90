@@ -418,7 +418,8 @@ contains
          mshRank = mshRanksInMpiRank(iMshRank)
          call write_mshRank_data_in_hdf5_meshFile_from_tool(mporder,mnnode,mnpbou,sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,numElemsGmsh,numBoundFacesGmsh,&
             numElemsMshRank(iMshRank),mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),&
-            mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),numWorkingNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),numBoundaryNodesMshRank(iMshRank),numDoFMshRank(iMshRank),maxBoundCode,a2ijk,a2ij,&
+            mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),numWorkingNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),numBoundaryNodesMshRank(iMshRank),numDoFMshRank(iMshRank),maxBoundCode,&
+            a2ijk,a2ij,gmsh2ijk,gmsh2ij,vtk2ijk,vtk2ij,&
             elemGidMshRank_jv%vector(iMshRank)%elems,globalIdSrl_i8_jv%vector(iMshRank)%elems,globalIdPar_i8_jv%vector(iMshRank)%elems,&
             connecVTK_jv%vector(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems,connecParWork_jm%matrix(iMshRank)%elems,coordPar_jm%matrix(iMshRank)%elems,workingNodesPar_jv%vector(iMshRank)%elems,&
             boundaryNodes_jv%vector(iMshRank)%elems,dofNodes_jv%vector(iMshRank)%elems,boundFacesCodesMshRank_jv%vector(iMshRank)%elems,connecOrigBoundFacesMshRank_jm%matrix(iMshRank)%elems,connecBoundFacesMshRank_jm%matrix(iMshRank)%elems,&
@@ -451,6 +452,10 @@ contains
 
       deallocate(a2ijk)
       deallocate(a2ij)
+      deallocate(gmsh2ijk)
+      deallocate(gmsh2ij)
+      deallocate(vtk2ijk)
+      deallocate(vtk2ij)
 
       end_time(8) = mpi_wtime()
       elapsed_time_r(8) = end_time(8) - start_time(8)

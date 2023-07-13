@@ -554,7 +554,7 @@ contains
       call init_comms_bnd(this%useIntInComms,this%useRealInComms)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
-         call save_surface_mesh_hdf5_file(npbou)
+         call save_surface_mesh_hdf5_file(npbou,mesh_gmsh2ij,mesh_vtk2ij)
       end if
 
       call nvtxEndRange
@@ -1129,10 +1129,6 @@ contains
 
       atoIJK(:) = mesh_a2ijk(:)
       atoIJ(:)  = mesh_a2ij(:)
-
-      write(*,*) 'atoIJK',atoIJK(:)
-      !call set_hex64_lists(atoIJK)
-      !call set_qua16_lists(atoIJ)
 
       if(mpi_rank.eq.0) write(111,*) "  --| Generating Gauss-Lobatto-Legendre table..."
       call GaussLobattoLegendre_hex(porder,ngaus,atoIJK,xgp,wgp)

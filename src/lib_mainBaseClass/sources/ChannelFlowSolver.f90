@@ -71,7 +71,7 @@ contains
       real(rp) :: mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "channel"
+      write(this%mesh_h5_file_name,*) "channel_order4"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -84,11 +84,11 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 20000
+      this%save_resultsFile_step = 10
 
       this%save_restartFile_first = 1
       this%save_restartFile_step = 20000
-      this%loadRestartFile = .true.
+      this%loadRestartFile = .false.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
@@ -150,7 +150,7 @@ contains
       logical :: readFiles
       character(512) :: initialField_filePath
 
-      readFiles = .true.
+      readFiles = .false.
 
       if(readFiles) then
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
