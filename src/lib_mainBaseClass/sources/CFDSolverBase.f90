@@ -557,7 +557,7 @@ contains
 
       call nvtxEndRange
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_openMesh
 
@@ -681,7 +681,7 @@ contains
 
       !$acc update host(normalsAtNodes(:,:)) !!just in case
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_normalFacesToNodes
 
@@ -735,7 +735,7 @@ contains
       !$acc exit data delete(aux1(:))
       deallocate(aux1)
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_boundaryFacesToNodes
 
@@ -754,7 +754,7 @@ contains
       !$acc update device(helem(:))
       call nvtxEndRange
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_evalCharLength
 
@@ -932,7 +932,7 @@ contains
 
       call nvtxEndRange
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_allocateVariables
 
@@ -1009,7 +1009,7 @@ contains
          call this%evalInitialConditions()
       end if
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_evalOrLoadInitialConditions
 
@@ -1036,7 +1036,7 @@ contains
            stop 1
         end if
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_evalInitialViscosity
 
@@ -1087,7 +1087,7 @@ contains
       end if
       if(mpi_rank.eq.0) write(111,*) "--| Initial time-step dt := ",this%dt,"s"
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_evalInitialDt
 
@@ -1180,7 +1180,7 @@ contains
       this%leviCivi(1,2,3) =  1.0_rp
       this%leviCivi(2,1,3) = -1.0_rp
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_evalShapeFunctions
 
@@ -1197,7 +1197,7 @@ contains
          !$acc update device(boundNormalPar(:,:))
       end if
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_evalBoundaryNormals
 
@@ -1231,11 +1231,11 @@ contains
       end do
       !$acc end parallel loop
 
-      call MPI_Allreduce(vol_rank,vol_tot_d,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(vol_rank,vol_tot_d,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
       this%VolTot = real(vol_tot_d,rp)
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       if(mpi_rank.eq.0) write(111,*) '--| DOMAIN VOLUME := ',this%VolTot
 
    end subroutine CFDSolverBase_evalJacobians
@@ -1283,7 +1283,7 @@ contains
       !$acc enter data create(lnbnNodes(:))
       call nearBoundaryNode(numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode
 
@@ -1310,7 +1310,7 @@ contains
          call char_length_spectral(iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,Ml,helem_l)
       end do
       !$acc update device(helem_l(:,:))
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_evalMass
 
@@ -1457,7 +1457,7 @@ contains
       real(rp) :: dtfact,avwei
       logical :: do__iteration
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
       call nvtxStartRange("Start RK4")
       if(mpi_rank.eq.0) then
@@ -1556,7 +1556,7 @@ contains
          if(this%doTimerAnalysis) then
             iStepEndTime = MPI_Wtime()
             iStepTimeRank = iStepEndTime - iStepStartTime
-            call MPI_Allreduce(iStepTimeRank,iStepTimeMax,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+            call MPI_Allreduce(iStepTimeRank,iStepTimeMax,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
             inv_iStep = 1.0_rp/real(istep)
             iStepAvgTime = (iStepAvgTime*(istep-1)+iStepTimeMax)*inv_iStep
 
