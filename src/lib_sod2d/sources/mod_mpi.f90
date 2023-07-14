@@ -15,7 +15,7 @@ module mod_mpi
 
    integer :: smNode_comm,smNode_rank,smNode_size
    integer :: num_devices, id_device
-   integer :: app_comm
+   integer :: app_comm,world_comm
 
    contains
 
@@ -36,12 +36,13 @@ module mod_mpi
 
       ! Init MPI_COMM_WORLD communicator (shared accros all applications launched with mpirun ... : ...)
       call mpi_init(mpi_err)
-      call mpi_comm_rank(MPI_COMM_WORLD, mpi_world_rank, mpi_err)
-      call mpi_comm_size(MPI_COMM_WORLD, mpi_world_size, mpi_err)
+      world_comm = MPI_COMM_WORLD
+      call mpi_comm_rank(world_comm, mpi_world_rank, mpi_err)
+      call mpi_comm_size(world_comm, mpi_world_size, mpi_err)
       ! Split MPI_COMM_WORLD and create a communicator for this app only (color must be unique for each application)
-      call MPI_Comm_split (MPI_COMM_WORLD, color, mpi_world_rank, app_comm, mpi_err)
-      call MPI_Comm_rank (app_comm, mpi_rank, mpi_err)
-      call MPI_Comm_size (app_comm, mpi_size , mpi_err)
+      call MPI_Comm_split(world_comm, color, mpi_world_rank, app_comm, mpi_err)
+      call MPI_Comm_rank(app_comm, mpi_rank, mpi_err)
+      call MPI_Comm_size(app_comm, mpi_size , mpi_err)
 
       mpi_datatype_int = MPI_INTEGER
       mpi_datatype_int4 = MPI_INTEGER4
@@ -72,16 +73,21 @@ module mod_mpi
 
    subroutine init_sharedMemoryNode_comm()
       implicit none
-      call MPI_Comm_split_type(app_comm,MPI_COMM_TYPE_SHARED,0,MPI_INFO_NULL,smNode_comm,mpi_err)
+      !call MPI_Comm_split_type(app_comm,MPI_COMM_TYPE_SHARED,0,MPI_INFO_NULL,smNode_comm,mpi_err)
+      call MPI_Comm_split_type(world_comm,MPI_COMM_TYPE_SHARED,0,MPI_INFO_NULL,smNode_comm,mpi_err)
 
       call mpi_comm_rank(smNode_comm, smNode_rank, mpi_err)
       call mpi_comm_size(smNode_comm, smNode_size, mpi_err)
+
+
 #ifndef NOACC
       num_devices = acc_get_num_devices(acc_device_nvidia);
       if(num_devices.ge.1) then
+
          id_device   = mod(smNode_rank,num_devices)
          call acc_set_device_num(id_device, acc_device_nvidia);
-         write(*,*) 'rank ',smNode_rank,' num_devices ',num_devices,' id_device ',id_device
+         write(*,*) 'r(w)',mpi_world_rank,'s(w)',mpi_world_size,'r(app)',mpi_rank,'s(app)',mpi_size,'r(sm)',smNode_rank,'s(sm)',smNode_size,'num_devices',num_devices,'id_device',id_device
+         !write(*,*) 'rank ',smNode_rank,' num_devices ',num_devices,' id_device ',id_device
       else
          id_device = 0
          write(*,*) 'NO GPU FOUND IN THIS NODE!'
