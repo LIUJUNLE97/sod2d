@@ -1,11 +1,5 @@
 # SOD2D
 
-## IMPORTANT!!!!
-
-SOD2D is moving today to a new location. By 15h, if a local change is not pushed to the repo, it will be lost! Please, make sure you have all your important commits pushed before.
-
-Transfer completed! check the issue on how to update the local remote.
-
 **SOD2D**: **S**pectral high-**O**rder co**D**e **2** solve partial **D**ifferential equations
 
 ## Description
@@ -54,6 +48,6 @@ The code is run using the `sod2d` executable, found in the `build` directory. Th
 ## Acknowledgements
 
 The research leading to this software has received funding from the European High-Performance Computing Joint Undertaking (JU) under grant agreement No 956104. The JU receives support from the European Union’s Horizon 2020 research and innovation programme and Spain, France, Germany.
-O. Lehmkuhl work is financed by a Ramón y Cajal postdoctoral contract by the Ministerio de Economía y Competitividad, Secretaría de Estado de Investigación, Desarrollo e Innovación, Spain (RYC2018-025949-I)).
+O. Lehmkuhl work is financed by a Ramón y Cajal postdoctoral contract by the Ministerio de Economía y Competitividad, Secretaría de Estado de Investigación, Desarrollo e Innovación, Spain (RYC2018-025949-I).
 
 
