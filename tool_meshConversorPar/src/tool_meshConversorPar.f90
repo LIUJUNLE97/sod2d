@@ -3,7 +3,6 @@ program tool_meshConversorPar
     use mod_mpi
     use mod_read_inputFile
     use mod_meshConversorTool
-    !use mod_hdf5
 
     implicit none
 
@@ -11,9 +10,7 @@ program tool_meshConversorPar
     character(512) :: gmsh_filePath,gmsh_fileName
     character(512) :: mesh_h5_filePath,mesh_h5_fileName
     character(256) :: parameter2read
-    integer :: lineCnt
-
-    integer :: num_partitions
+    integer(4) :: lineCnt,num_partitions
 
 !------------------------------------------------------------------------------------------------------
 
@@ -55,7 +52,7 @@ program tool_meshConversorPar
     parameter2read = 'mesh_h5_fileName'
     call read_inputFile_string(lineCnt,parameter2read,mesh_h5_fileName)
 
-    !6. num_partitions--------------------------------------------------------------------------
+    !5. num_partitions--------------------------------------------------------------------------
     parameter2read = 'num_partitions'
     call read_inputFile_integer(lineCnt,parameter2read,num_partitions)
 

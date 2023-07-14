@@ -4,8 +4,13 @@ module elem_hex
    use mod_numerical_params
    use mod_maths
 
-   contains  
+   implicit none
 
+   integer(4), parameter :: hex_order_edges(12,2) = transpose(reshape([1,2,1,4,1,5,2,3,2,6,3,4,3,7,4,8,5,6,5,8,6,7,7,8],(/2,12/)))
+   integer(4), parameter :: hex_order_faces(6,4)  = transpose(reshape([1,4,3,2,1,2,6,5,1,5,8,4,2,3,7,6,3,4,8,7,5,6,7,8],(/4,6/)))
+
+   contains  
+#if 0
       subroutine hex08(xi,eta,zeta,N,dN) ! HEX08 element     
 
          implicit none
@@ -285,46 +290,18 @@ module elem_hex
 
       end subroutine hex27
 
-      subroutine set_hex64_lists(atoIJK,listHEX08)
+      subroutine set_hex64_lists(atoIJK)
          implicit none
          integer(4), intent(out) :: atoIJK(64)
-         integer(4), intent(out) :: listHEX08(27,8)
 
          atoIJK = [1,4,11,12,2,3,15,16,9,20,33,34,10,19,36,35, &
                    5,8,27,28,6,7,29,30,25,32,53,56,26,31,54,55, &
                    13,23,41,44,17,21,45,46,37,50,57,60,38,49,58,59, &
                    14,24,42,43,18,22,48,47,40,51,61,64,39,52,62,63]
-   
-         listHEX08( 1,1:8) = [1,9,33,11,13,37,57,41]
-         listHEX08( 2,1:8) = [9,10,36,33,37,38,58,57]
-         listHEX08( 3,1:8) = [10,2,15,36,38,17,45,58]
-         listHEX08( 4,1:8) = [11,33,34,12,41,57,60,44]
-         listHEX08( 5,1:8) = [33,36,35,34,57,58,59,60]
-         listHEX08( 6,1:8) = [36,15,16,35,58,45,46,59]
-         listHEX08( 7,1:8) = [12,34,20,4,44,60,50,23]
-         listHEX08( 8,1:8) = [34,35,19,20,60,59,49,50]
-         listHEX08( 9,1:8) = [35,16,3,19,59,46,21,49]
-         listHEX08(10,1:8) = [13,37,57,41,14,40,61,42]
-         listHEX08(11,1:8) = [37,38,58,57,40,39,62,61]
-         listHEX08(12,1:8) = [38,17,45,58,39,18,48,62]
-         listHEX08(13,1:8) = [41,57,60,44,42,61,64,43]
-         listHEX08(14,1:8) = [57,58,59,60,61,62,63,64]
-         listHEX08(15,1:8) = [58,45,46,59,62,48,47,63]
-         listHEX08(16,1:8) = [44,60,50,23,43,64,51,24]
-         listHEX08(17,1:8) = [60,59,49,50,64,63,52,51]
-         listHEX08(18,1:8) = [59,46,21,49,63,47,22,52]
-         listHEX08(19,1:8) = [14,40,61,42,5,25,53,27]
-         listHEX08(20,1:8) = [40,39,62,61,25,26,54,53]
-         listHEX08(21,1:8) = [39,18,48,62,26,6,29,54]
-         listHEX08(22,1:8) = [42,61,64,43,27,53,56,28]
-         listHEX08(23,1:8) = [61,62,63,64,53,54,55,56]
-         listHEX08(24,1:8) = [62,48,47,63,54,29,30,55]
-         listHEX08(25,1:8) = [43,64,51,24,28,56,32,8]
-         listHEX08(26,1:8) = [64,63,52,51,56,55,31,32]
-         listHEX08(27,1:8) = [63,47,22,52,55,30,7,31]
-      end subroutine set_hex64_lists
 
-      subroutine hex64(xi,eta,zeta,atoIJK,N,dN,N_lagrange,dN_lagrange,dlxigp_ip)
+      end subroutine set_hex64_lists
+#endif
+      subroutine hex_highorder(mporder,mnnode,xi,eta,zeta,atoIJK,N,dN,N_lagrange,dN_lagrange,dlxigp_ip)
 
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          ! Lagrangian HEX64 element model. Built using    !
@@ -333,31 +310,32 @@ module elem_hex
          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
          implicit none
+         integer(4),intent(in) :: mporder,mnnode
          real(rp),intent(in)   :: xi, eta, zeta
-         integer(4),intent(in) :: atoIJK(64)
-         real(rp),intent(out)  :: N(nnode), dN(ndime,nnode),dlxigp_ip(ndime,porder+1)
-         real(rp),intent(out)  :: N_lagrange(nnode), dN_lagrange(ndime,nnode)
-         real(rp)              :: xi_grid(porder+1)
+         integer(4),intent(in) :: atoIJK(mnnode)
+         real(rp),intent(out)  :: N(mnnode), dN(ndime,mnnode),dlxigp_ip(ndime,mporder+1)
+         real(rp),intent(out)  :: N_lagrange(mnnode), dN_lagrange(ndime,mnnode)
+         real(rp)              :: xi_grid(mporder+1)
 
-         call getEquispaced_roots(xi_grid)
-         call tripleTensorProduct(xi_grid,xi,eta,zeta,atoIJK,N,dN)
+         call getEquispaced_roots(mporder,xi_grid)
+         call TripleTensorProduct(mporder,mnnode,xi_grid,xi,eta,zeta,atoIJK,N,dN)
          if (flag_spectralElem == 1) then
             N_lagrange(:) = N(:)
             dN_lagrange(:,:) = dN(:,:)
-            call getGaussLobattoLegendre_roots(xi_grid)
-            call tripleTensorProduct(xi_grid,xi,eta,zeta,atoIJK,N,dN,dlxigp_ip)
+            call getGaussLobattoLegendre_roots(mporder,xi_grid)
+            call TripleTensorProduct(mporder,mnnode,xi_grid,xi,eta,zeta,atoIJK,N,dN,dlxigp_ip)
          end if
-      end subroutine hex64
+      end subroutine hex_highorder
 
-      subroutine hexa_edges(ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
+      subroutine hexa_edges(mnnode,ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
          implicit none
          
-         integer(4), intent(in)   :: iElem, nelem, npoin
-         integer(4), intent(in)   :: connec(nelem,nnode)
+         integer(4), intent(in)   :: mnnode,iElem, nelem, npoin
+         integer(4), intent(in)   :: connec(nelem,mnnode)
          real(rp),   intent(in)   :: coord(npoin,ndime)
-         integer(4), intent(out)  :: ncorner, nedge
+         integer(4), intent(out)  :: ncorner,nedge
          real(rp),   intent(out)  :: dist(12,ndime)
-         integer(4)               :: ind(nnode)
+         integer(4)               :: ind(mnnode)
          real(rp)                 :: xp(12,ndime)
          
          ind = connec(ielem,:)

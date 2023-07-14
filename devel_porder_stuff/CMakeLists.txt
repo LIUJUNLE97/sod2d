@@ -3,12 +3,12 @@ cmake_minimum_required(VERSION 3.15)
 
 #----------------OPTIONS------------------------------------------------------------------
 
-message(" # Setting CMake Tool Mesh Partitioner")
+message(" # Setting CMake Devel Code For P-order")
 
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
 # Set project name, version and languages
-project(tool_meshConversorPar LANGUAGES C CXX Fortran)
+project(devel_porder LANGUAGES C CXX Fortran)
 
 # Configure MPI module
 include(mpi)
@@ -27,30 +27,26 @@ file(GLOB SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_const
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_numerical_params.f90 
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_mpi.f90 
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_utils.f90
+   ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/elem_qua.f90
+   ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/elem_hex.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_gmsh_indices.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_ijk_indices.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_custom_types.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_maths.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/quadrature_rules.f90
-   ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/elem_qua.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/elem_hex.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_mpi_mesh.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_comms.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_comms_boundaries.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_hdf5.f90
-   ${CMAKE_CURRENT_LIST_DIR}/src/mod_meshConversorTool.f90
-   ${CMAKE_CURRENT_LIST_DIR}/src/tool_meshConversorPar.f90) 
+   ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_nvtx.f90
+   ${CMAKE_CURRENT_LIST_DIR}/src/devel_porder.f90) 
 
 add_executable(${PROJECT_NAME} ${SRC_FILES})   # Build executable from listed sources
 set_property(TARGET ${PROJECT_NAME} PROPERTY LINKER_LANGUAGE Fortran)
 
-add_subdirectory(lib_gempaInterface)
-
 set_mpi()
-set_gempa()
 set_hdf5()
-
-target_link_libraries(${PROJECT_NAME} lib_gempaInterface)
 
 #-----------------------------------------------------------------------------------
 
@@ -62,3 +58,4 @@ set (CMAKE_INSTALL_PREFIX ${default_prefix} CACHE STRING
 
 # FFLAGS depend on the compiler
 get_filename_component (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
+

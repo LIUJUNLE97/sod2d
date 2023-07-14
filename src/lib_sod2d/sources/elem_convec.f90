@@ -902,7 +902,7 @@ module elem_convec
 
               end subroutine full_convec
 
-              subroutine full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,q,rho,pr,E,Rmass,Rmom,Rener)
+              subroutine full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,q,rho,pr,E,Rmass,Rmom,Rener)
 
                  implicit none
 
@@ -911,7 +911,7 @@ module elem_convec
                  real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                  real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
                  real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
-                 integer(4), intent(in)  :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+                 integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
                  real(rp),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), rho(npoin),pr(npoin), E(npoin)
                  real(rp),    intent(out) :: Rmass(npoin)
                  real(rp),    intent(out) :: Rmom(npoin,ndime)
@@ -1079,7 +1079,7 @@ module elem_convec
               end subroutine full_convec_ijk
 
               subroutine generic_scalar_convec_ijk(nelem,npoin,connec,Ngp, &
-                    dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,q,eta,u,Rconvec,alpha)
+                    dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,q,eta,u,Rconvec,alpha)
 
                  implicit none
 
@@ -1088,7 +1088,7 @@ module elem_convec
                  real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
                  real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
                  real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
-                 integer(4), intent(in)  :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+                 integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
                  real(rp),    intent(in)  :: q(npoin,ndime)
                  real(rp),    intent(in)  :: eta(npoin)
                  real(rp),    intent(in)  :: u(npoin,ndime)
@@ -1185,26 +1185,26 @@ module elem_convec
               end subroutine generic_scalar_convec_ijk
 
 
-               subroutine full_convec_ijk_jacobian(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,q,rho,pr,E,Rmass,Rmom,Rener)
+               subroutine full_convec_ijk_jacobian(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,q,rho,pr,E,Rmass,Rmom,Rener)
 
                  implicit none
 
                  integer(4), intent(in)  :: nelem, npoin
                  integer(4), intent(in)  :: connec(nelem,nnode)
-                 real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                 real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
-                 real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
-                 integer(4), intent(in)  :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-                 real(rp),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), rho(npoin),pr(npoin), E(npoin)
-                 real(rp),    intent(out) :: Rmass(npoin)
-                 real(rp),    intent(out) :: Rmom(npoin,ndime)
-                 real(rp),    intent(out) :: Rener(npoin)
+                 real(rp),   intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                 real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
+                 real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
+                 integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+                 real(rp),   intent(in)  :: q(npoin,ndime), u(npoin,ndime), rho(npoin),pr(npoin), E(npoin)
+                 real(rp),   intent(out) :: Rmass(npoin)
+                 real(rp),   intent(out) :: Rmom(npoin,ndime)
+                 real(rp),   intent(out) :: Rener(npoin)
                  integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,kdime,ii
-                 real(rp)                 :: Re_mom(nnode,ndime)
-                 real(rp)                 :: Re_mass(nnode), Re_ener(nnode)
-                 real(rp)                 :: gradIsoRho(ndime),gradIsoP(ndime), gradIsoE(ndime),gradIsoU(ndime,ndime), gradIsoF(ndime,ndime,ndime), gradIsoQ(ndime,ndime), gradIsoFe(ndime,ndime)
-                 real(rp)                 :: gradRho(ndime),gradP(ndime),gradE(ndime),gradU(ndime,ndime),divF(ndime),divU,divFe,divQ
-                 real(rp)                 :: ul(nnode,ndime), ql(nnode,ndime), rhol(nnode), prl(nnode),El(nnode),fel(nnode,ndime),fl(nnode,ndime,ndime)
+                 real(rp)                :: Re_mom(nnode,ndime)
+                 real(rp)                :: Re_mass(nnode), Re_ener(nnode)
+                 real(rp)                :: gradIsoRho(ndime),gradIsoP(ndime), gradIsoE(ndime),gradIsoU(ndime,ndime), gradIsoF(ndime,ndime,ndime), gradIsoQ(ndime,ndime), gradIsoFe(ndime,ndime)
+                 real(rp)                :: gradRho(ndime),gradP(ndime),gradE(ndime),gradU(ndime,ndime),divF(ndime),divU,divFe,divQ
+                 real(rp)                :: ul(nnode,ndime), ql(nnode,ndime), rhol(nnode), prl(nnode),El(nnode),fel(nnode,ndime),fl(nnode,ndime,ndime)
                  real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
 
                  call nvtxStartRange("Full convection")

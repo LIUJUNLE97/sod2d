@@ -2,7 +2,7 @@ module mod_mpi_mesh
    use mod_constants
    use mod_mpi
    use mod_utils
-   use mod_gmsh_indices !potser en el futur pot volar!
+   use mod_ijk_indices !potser en el futur pot volar!
    use iso_c_binding
    implicit none
 !-----------------------------------   
@@ -35,6 +35,9 @@ integer(4) :: ndofRankPar, numBoundaryNodesRankPar
 integer(4), allocatable :: boundPar(:,:), boundParOrig(:,:),bouCodesPar(:), ldofPar(:), lbnodesPar(:), bouCodesNodesPar(:)
 real(rp), allocatable :: boundNormalPar(:,:)
 logical :: isMeshBoundaries
+
+integer(4) :: mesh_porder
+integer(4),allocatable :: mesh_a2ijk(:),mesh_a2ij(:),mesh_gmsh2ijk(:),mesh_gmsh2ij(:),mesh_vtk2ijk(:),mesh_vtk2ij(:)
 
 !For WallModels
 integer(4) :: numBoundsWMRankPar

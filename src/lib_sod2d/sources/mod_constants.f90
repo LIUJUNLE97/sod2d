@@ -13,15 +13,10 @@ module mod_constants
       !
       ! Element characteristics
       !
-      integer(4), parameter :: nnode=64
-      integer(4), parameter :: porder=3
-      integer(4), parameter :: npbou=16
-      integer(4), parameter :: ngaus=64
-
-      !integer(4), parameter :: nnode=8
-      !integer(4), parameter :: porder=1
-      !integer(4), parameter :: npbou=4
-      !integer(4), parameter :: ngaus=8
+      integer(4), parameter :: porder=4
+      integer(4), parameter :: nnode=(porder+1)**3
+      integer(4), parameter :: ngaus=nnode
+      integer(4), parameter :: npbou=(porder+1)**2
 
       !
       ! Flags
@@ -39,6 +34,9 @@ module mod_constants
 
       ! No of max saved fields (size of pointer arrays)
       integer(4), parameter :: max_num_saved_fields = 50
+
+      ! No of max boundaries per elements (used in mesh_conversion_tool)
+      integer(4),parameter :: maxBoundsPerElem = 4
 
       !
       ! Boundary Conditions Types

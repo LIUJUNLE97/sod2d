@@ -199,7 +199,7 @@ module inicond_reader
       aux_2(:) = rho(:)
       do iElem = 1,numElemsRank
          do igp = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecPar(iElem,:)),Ngp_l(igp,:),rho(connecPar(iElem,igp)))
+            call var_interpolate(nnode,aux_2(connecPar(iElem,:)),Ngp_l(igp,:),rho(connecPar(iElem,igp)))
          end do
       end do
 
@@ -256,7 +256,7 @@ module inicond_reader
       do iElem = 1,numElemsRank
          do igp = (2**ndime)+1,nnode
             do idime = 1,ndime
-               call var_interpolate(aux_1(connecPar(iElem,:),idime),Ngp_l(igp,:),u(connecPar(iElem,igp),idime))
+               call var_interpolate(nnode,aux_1(connecPar(iElem,:),idime),Ngp_l(igp,:),u(connecPar(iElem,igp),idime))
             end do
          end do
       end do
@@ -306,7 +306,7 @@ module inicond_reader
       aux_2(:) = pr(:)
       do iElem = 1,numElemsRank
          do igp = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecPar(iElem,:)),Ngp_l(igp,:),pr(connecPar(iElem,igp)))
+            call var_interpolate(nnode,aux_2(connecPar(iElem,:)),Ngp_l(igp,:),pr(connecPar(iElem,igp)))
          end do
       end do
 
@@ -355,7 +355,7 @@ module inicond_reader
       aux_2(:) = temp(:)
       do iElem = 1,numElemsRank
          do igp = (2**ndime)+1,nnode
-            call var_interpolate(aux_2(connecPar(iElem,:)),Ngp_l(igp,:),temp(connecPar(iElem,igp)))
+            call var_interpolate(nnode,aux_2(connecPar(iElem,:)),Ngp_l(igp,:),temp(connecPar(iElem,igp)))
          end do
       end do
 
