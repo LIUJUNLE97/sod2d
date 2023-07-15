@@ -1543,7 +1543,7 @@ contains
             end if
          end do
 
-         if(flag_implicit == 1) then 
+         !if(flag_implicit == 1) then 
             !$acc kernels
             rho(:,3) = rho(:,1)
             E(:,3) = E(:,1)
@@ -1551,7 +1551,7 @@ contains
             eta(:,3) = eta(:,1)
             !$acc end kernels
             pseudo_cfl = aux_pseudo_cfl
-         end if
+         !end if
 
          if(this%doTimerAnalysis) then
             iStepEndTime = MPI_Wtime()
