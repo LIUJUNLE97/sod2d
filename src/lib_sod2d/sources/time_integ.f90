@@ -829,12 +829,6 @@ module time_integ
 
                if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,aux_rho,aux_q,u_buffer)
 
-               if (noBoundaries .eqv. .false.) then
-                     call nvtxStartRange("BCS_AFTER_UPDATE")
-                     call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,aux_rho(:),aux_q(:,:),aux_u(:,:),aux_pr(:),aux_E(:),u_buffer)
-                     call nvtxEndRange
-               end if
-
                !
                ! Apply bcs after update
                !
@@ -859,10 +853,33 @@ module time_integ
                   aux_e_int(lpoin_w(ipoin)) = (aux_E(lpoin_w(ipoin))/aux_rho(lpoin_w(ipoin)))-0.5_rp*umag
                   aux_pr(lpoin_w(ipoin)) = aux_rho(lpoin_w(ipoin))*(gamma_gas-1.0_rp)*aux_e_int(lpoin_w(ipoin))
                   aux_Tem(lpoin_w(ipoin)) = aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))*Rgas)
+                  aux_eta(lpoin_w(ipoin)) = (aux_rho(lpoin_w(ipoin))/(gamma_gas-1.0_rp))* &
+                  log(aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))**gamma_gas))
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     f_eta(lpoin_w(ipoin),idime) = aux_u(lpoin_w(ipoin),idime)*aux_eta(lpoin_w(ipoin))
+                  end do
                end do
                !$acc end parallel loop
+
+               call nvtxEndRange
+               call nvtxStartRange("Entropy convection")
+               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,aux_eta(:),aux_u(:,:),Reta(:),alpha)
                call nvtxEndRange
 
+               if(mpi_size.ge.2) then
+                  call nvtxStartRange("MPI_comms_tI")
+                  call mpi_halo_atomic_update_real(Reta(:))
+                  call nvtxEndRange
+               end if
+
+               if (noBoundaries .eqv. .false.) then
+                  call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Reta)
+               end if
+
+               call nvtxStartRange("Entropy Residual")
+               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
                !
                ! Compute viscosities and diffusion
                !
@@ -945,6 +962,7 @@ module time_integ
                do ipoin = 1,npoin
                   Rmass_sum(ipoin) = Rmass_sum(ipoin) + b_i(istep)*Rmass(ipoin)
                   Rener_sum(ipoin) = Rener_sum(ipoin) + b_i(istep)*Rener(ipoin)
+                  Reta_sum(ipoin)  = Reta_sum(ipoin)  + b_i(istep)*Reta(ipoin)
                   !$acc loop seq
                   do idime = 1,ndime
                      Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)
@@ -1003,34 +1021,13 @@ module time_integ
                Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
                eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0_rp))* &
                   log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
-               !$acc loop seq
-               do idime = 1,ndime
-                  f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,2)*eta(lpoin_w(ipoin),2)
-               end do
             end do
             !$acc end parallel loop
             call nvtxEndRange
 
-            call nvtxStartRange("Entropy convection")
-            call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,2),u(:,:,2),Reta(:),alpha)
-            call nvtxEndRange
-
-
-            if(mpi_size.ge.2) then
-               call nvtxStartRange("MPI_comms_tI")
-               call mpi_halo_atomic_update_real(Reta(:))
-               call nvtxEndRange
-            end if
-
-            call nvtxStartRange("Entropy Residual")
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
-
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin)) &
-                                          -(3.0_rp*eta(lpoin_w(ipoin),2)-4.0_rp*eta(lpoin_w(ipoin),1)+eta(lpoin_w(ipoin),3))/(2.0_rp*dt)
-               !-Reta(lpoin_w(ipoin))-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+               Reta(lpoin_w(ipoin)) = -Reta_sum(lpoin_w(ipoin))-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
             end do
             !$acc end parallel loop
             call nvtxEndRange
