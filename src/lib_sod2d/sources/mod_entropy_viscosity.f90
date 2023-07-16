@@ -296,9 +296,11 @@ module mod_entropy_viscosity
                            maxC = max(maxC,csound(connec(ielem,igaus)))
                         end do
                         M = maxV/maxC
-                        ceM = max(tanh((M**15)*v_pi),ce)
-                        ced = max(1.0_rp-(minJe/maxJe)**2,ce)
-                        ced = max(ced,ceM) 
+                        ced = max(tanh((M**15)*v_pi),ce)
+                        !ceM = max(tanh((M**15)*v_pi),ce)
+                        !ced = max(1.0_rp-(minJe/maxJe)**2,ce)
+                        !ced = max(ced,ceM) 
+                        !ced = max(ce,ceM) 
 
                         mu = 0.0_rp
                         betae = 0.0_rp
