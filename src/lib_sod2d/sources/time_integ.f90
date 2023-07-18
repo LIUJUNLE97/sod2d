@@ -861,8 +861,8 @@ module time_integ
                   end do
                end do
                !$acc end parallel loop
-
                call nvtxEndRange
+
                call nvtxStartRange("Entropy convection")
                call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
                   gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,aux_eta(:),aux_u(:,:),Reta(:),alpha)
@@ -878,8 +878,9 @@ module time_integ
                   call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Reta)
                end if
 
-               call nvtxStartRange("Entropy Residual")
+               call nvtxStartRange("Lumped solver")
                call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
+               call nvtxEndRange
                !
                ! Compute viscosities and diffusion
                !
@@ -1025,14 +1026,18 @@ module time_integ
             !$acc end parallel loop
             call nvtxEndRange
 
+            call nvtxStartRange("Entropy residual")
             !$acc parallel loop
             do ipoin = 1,npoin_w
                Reta(lpoin_w(ipoin)) = -Reta_sum(lpoin_w(ipoin))-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
             end do
             !$acc end parallel loop
             call nvtxEndRange
+
             if (noBoundaries .eqv. .false.) then
+               call nvtxStartRange("BCS_AFTER_UPDATE")
                call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Reta)
+               call nvtxEndRange
             end if
             !
             ! If using Sutherland viscosity model:
@@ -1079,6 +1084,7 @@ module time_integ
             c1 = 0.01_rp
             c2 = 10.0_rp
 
+            call nvtxStartRange("Update buffer")
             !$acc parallel loop
             do ipoin = 1,npoin_w
                xi = 1.0_rp
@@ -1137,6 +1143,7 @@ module time_integ
 
             end do
             !$acc end parallel loop
+            call nvtxEndRange
          end subroutine updateBuffer
 
       end module time_integ
