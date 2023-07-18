@@ -15,34 +15,34 @@ module mod_mpi
 
    integer :: smNode_comm,smNode_rank,smNode_size
    integer :: num_devices, id_device
-   integer :: app_comm,world_comm
+   integer :: app_comm, app_color, world_comm
 
    contains
 
    subroutine init_mpi()
-      integer :: num_args, equal_pos, iarg, ierr, color
-      character(len=16) :: arg, color_str="0"
+      integer(mpi_address_kind) :: color_ptr
+      logical :: mpi_app_num_flag
 
-      ! Get color for communicator if --tag is passed as command line argument
-      num_args = command_argument_count()
-      do iarg = 1, num_args
-         call get_command_argument(iarg, arg)
-         equal_pos = scan(adjustl(trim(arg)), "=")
-         if (adjustl(trim(arg(:equal_pos-1))) .eq. "--tag") then
-            color_str = trim(adjustl(arg(equal_pos+1:)))
-         end if
-      end do
-      read(color_str, *) color
-
-      ! Init MPI_COMM_WORLD communicator (shared accros all applications launched with mpirun ... : ...)
+      ! Init MPI_COMM_WORLD communicator (shared accros all applications launched with mpirun MPMD)
       call mpi_init(mpi_err)
       world_comm = MPI_COMM_WORLD
       call mpi_comm_rank(world_comm, mpi_world_rank, mpi_err)
       call mpi_comm_size(world_comm, mpi_world_size, mpi_err)
+
+      ! Get the app number (color)
+      call MPI_Comm_get_attr(world_comm, MPI_APPNUM, color_ptr, mpi_app_num_flag, mpi_err)
+      app_color = color_ptr ! necessary to get integer from pointer
+
       ! Split MPI_COMM_WORLD and create a communicator for this app only (color must be unique for each application)
-      call MPI_Comm_split(world_comm, color, mpi_world_rank, app_comm, mpi_err)
-      call MPI_Comm_rank(app_comm, mpi_rank, mpi_err)
-      call MPI_Comm_size(app_comm, mpi_size , mpi_err)
+      if (mpi_app_num_flag) then
+         call MPI_Comm_split(world_comm, app_color, mpi_world_rank, app_comm, mpi_err)
+         call MPI_Comm_rank(app_comm, mpi_rank, mpi_err)
+         call MPI_Comm_size(app_comm, mpi_size, mpi_err)
+      else
+         write(*,*) 'Fatal error in init_mpi()! Cannot find MPI_APPNUM.'
+         call MPI_Abort(world_comm,-1,mpi_err)
+      end if
+      print*, "app_color ", app_color, "mpi_rank ", mpi_rank, "mpi_world_rank ", mpi_world_rank, "mpi_app_num_flag ", mpi_app_num_flag
 
       mpi_datatype_int = MPI_INTEGER
       mpi_datatype_int4 = MPI_INTEGER4
@@ -73,7 +73,6 @@ module mod_mpi
 
    subroutine init_sharedMemoryNode_comm()
       implicit none
-      !call MPI_Comm_split_type(app_comm,MPI_COMM_TYPE_SHARED,0,MPI_INFO_NULL,smNode_comm,mpi_err)
       call MPI_Comm_split_type(world_comm,MPI_COMM_TYPE_SHARED,0,MPI_INFO_NULL,smNode_comm,mpi_err)
 
       call mpi_comm_rank(smNode_comm, smNode_rank, mpi_err)
@@ -87,7 +86,6 @@ module mod_mpi
          id_device   = mod(smNode_rank,num_devices)
          call acc_set_device_num(id_device, acc_device_nvidia);
          write(*,*) 'r(w)',mpi_world_rank,'s(w)',mpi_world_size,'r(app)',mpi_rank,'s(app)',mpi_size,'r(sm)',smNode_rank,'s(sm)',smNode_size,'num_devices',num_devices,'id_device',id_device
-         !write(*,*) 'rank ',smNode_rank,' num_devices ',num_devices,' id_device ',id_device
       else
          id_device = 0
          write(*,*) 'NO GPU FOUND IN THIS NODE!'
