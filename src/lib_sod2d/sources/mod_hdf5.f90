@@ -178,7 +178,7 @@ contains
       integer(4),intent(in),dimension(0:numMshRanks2Part-1) :: vecNumPerNodesMshRank
       integer(hid_t) :: dset_id,dspace_id,group_id
       integer(hid_t) :: dtype
-      integer(HSIZE_T), dimension(1) :: ds_dims
+      integer(hsize_t) :: ds_dims(1),ds_dims2d(2)
       integer(4) :: ds_rank,h5err
       character(256) :: groupname,dsetname
 
@@ -200,7 +200,17 @@ contains
       ds_dims(1) = numElemsGmsh
       dsetname = '/globalIds/elemGid'
       call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
+      !--------------------------------------------------------------------------------
+      call select_dtype_rp(dtype)
+      ds_rank = 2
+      ds_dims2d(1) = ndime
+      ds_dims2d(2) = numNodesParTotal_i8
 
+      groupname = '/Coords'
+      call create_group_hdf5(hdf5_file_id,groupname)
+      dsetname = '/Coords/Points'
+      call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims2d,dtype)
+      !--------------------------------------------------------------------------------
       call create_groups_datasets_connectivity_workingNodes_hdf5(mnnode,hdf5_file_id,numMshRanks2Part,numElemsGmsh,vecNumWorkingNodes)
 
       if(isBoundaries) then
@@ -226,6 +236,7 @@ contains
       groupname = '/order'
       call create_group_hdf5(hdf5_file_id,groupname)
 
+      ds_rank = 1
       ds_dims(1) = 1
       dsetname = '/order/porder'
       call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
@@ -564,15 +575,15 @@ contains
       integer,intent(in),dimension(0:numMshRanks2Part-1) :: vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank
       !-------------------------------------------------------------------------------------------------------------------------------
       character(128) :: dsetname
-      integer(hsize_t), dimension(1) :: ms_dims
+      integer(hsize_t) :: ms_dims(1),ms_dims2d(2)
       integer(4) :: i,m,iBound,iElemL
-      integer(hssize_t), dimension(1) :: ms_offset 
+      integer(hssize_t) :: ms_offset(1),ms_offset2d(2)
       integer(4),allocatable :: aux_array(:)
       integer(8),allocatable :: aux_array_i8(:)
       !-------------------------------------------------------------------------------------------------------------------------------
 
       ms_dims(1) = int(numNodesMshRank,hsize_t)
-      ms_offset(1) = mshRankNodeStart_i8-1
+      ms_offset(1) = int(mshRankNodeStart_i8,hssize_t)-1
 
       dsetname = '/globalIds/globalIdSrl'
       call write_dataspace_1d_int8_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,globalIdSrlMshRank_i8)
@@ -585,6 +596,16 @@ contains
 
       dsetname = '/globalIds/elemGid'
       call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,elemGidMshRank)
+
+      !---------------------------------------------------------------------------------------------------------------------
+      ms_dims2d(1) = ndime
+      ms_dims2d(2) = int(numNodesMshRank,hsize_t)
+      ms_offset2d(1) = 0
+      ms_offset2d(2) = int(mshRankNodeStart_i8,hssize_t)-1
+
+      dsetname = '/Coords/Points'
+      call write_dataspace_2d_tr_real_rp_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims2d,ms_offset2d,coordParMshRank)
+      !---------------------------------------------------------------------------------------------------------------------
 
       !---------------------------------------------------------------------------------------------------------------------
       if(numMshRanks2Part.ge.2) then
@@ -967,19 +988,26 @@ contains
       integer(4),intent(in) :: numMshRanks2Part
       !-------------------------------------------------------------------------------------------------------------------------------
       character(128) :: dsetname
-      integer(hsize_t), dimension(1) :: ms_dims
-      integer(hssize_t), dimension(1) :: ms_offset 
+      integer(hsize_t) :: ms_dims(1),ms_dims2d(2)
+      integer(hssize_t) :: ms_offset(1),ms_offset2d(2) 
       integer(4),allocatable :: empty_array_i4(:)
       integer(8),allocatable :: empty_array_i8(:)
-      real(rp),allocatable :: empty_array_rp(:)
+      real(rp),allocatable :: empty_array_rp(:),empty_array2d_rp(:,:)
 
       !-------------------------------------------------------------------------------------------------------------------------------
 
       allocate(empty_array_i4(0))
       allocate(empty_array_i8(0))
       allocate(empty_array_rp(0))
+      allocate(empty_array2d_rp(0,0))
+
       ms_dims(1) = 0
       ms_offset(1) = 0
+
+      ms_dims2d(1) = 0
+      ms_dims2d(2) = 0
+      ms_offset2d(1) = 0
+      ms_offset2d(2) = 0
 
       dsetname = '/globalIds/globalIdSrl'
       call write_dataspace_1d_int8_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i8)
@@ -991,16 +1019,10 @@ contains
       call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
 
       !---------------------------------------------------------------------------------------------------------------------
-#if 0      
-      dsetname = '/Coords/X'
-      call write_dataspace_1d_real_rp_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_rp)
 
-      dsetname = '/Coords/Y'
-      call write_dataspace_1d_real_rp_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_rp)
+      dsetname = '/Coords/Points'
+      call write_dataspace_2d_tr_real_rp_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims2d,ms_offset2d,empty_array2d_rp)
 
-      dsetname = '/Coords/Z'
-      call write_dataspace_1d_real_rp_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_rp)
-#endif
       !---------------------------------------------------------------------------------------------------------------------
       if(numMshRanks2Part.ge.2) then
          dsetname = '/Parallel_data/rankNodeStart'
@@ -1160,6 +1182,7 @@ contains
       deallocate(empty_array_i4)
       deallocate(empty_array_i8)
       deallocate(empty_array_rp)
+      deallocate(empty_array2d_rp)
 
    end subroutine dummy_write_mshRank_data_in_hdf5_meshFile_from_tool
 
@@ -3116,7 +3139,8 @@ contains
       ms_offset2d(1) = 0
       ms_offset2d(2) = int(rankNodeStart,hssize_t)-1
 
-      dsetname = '/VTKHDF/Points'
+      !dsetname = '/VTKHDF/Points'
+      dsetname = '/Coords/Points'
       call read_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims2d,ms_offset2d,coordPar)
 
       !$acc update device(coordPar(:,:))
@@ -3991,11 +4015,67 @@ contains
    end subroutine save_hdf5_resultsFile_old
 #endif 
 
-   subroutine save_hdf5_resultsFile_baseFunc(mnnode,hdf5_fileId,numNodeScalarFields2save,nodeScalarFields2save,nameNodeScalarFields2save,&
+   subroutine interpolate_scalarField_in_nodes(mnnode,mngaus,numElemsInRank,numNodesInRank,Ngp,connecPar,origNodeScalarField,interpNodeScalarField)
+      implicit none
+      integer(4),intent(in) :: mnnode,mngaus
+      integer(4),intent(in) :: numElemsInRank,numNodesInRank,connecPar(numElemsInRank,mnnode)
+      real(rp),intent(in) :: Ngp(mngaus,mnnode)
+      real(rp),intent(in) :: origNodeScalarField(numNodesInRank)
+      real(rp),intent(out) :: interpNodeScalarField(numNodesInRank)
+      integer(4) :: iElem,igp
+      
+      do iElem = 1,numElemsInRank
+#if 1
+         do igp = 1,mngaus
+            call var_interpolate(mnnode,origNodeScalarField(connecPar(iElem,:)),Ngp(igp,:),interpNodeScalarField(connecPar(iElem,igp)))
+         end do
+#else
+         do igp = 1,(2**ndime)
+            interpNodeScalarField(connecPar(iElem,igp)) = origNodeScalarField(connecPar(iElem,igp))
+         end do
+         do igp = (2**ndime)+1,mngaus
+            call var_interpolate(mnnode,origNodeScalarField(connecPar(iElem,:)),Ngp(igp,:),interpNodeScalarField(connecPar(iElem,igp)))
+         end do
+#endif
+      end do
+
+   end subroutine interpolate_scalarField_in_nodes
+
+   subroutine interpolate_vectorField_in_nodes(mnnode,mngaus,numElemsInRank,numNodesInRank,Ngp,connecPar,origNodeVectorField,interpNodeVectorField)
+      implicit none
+      integer(4),intent(in) :: mnnode,mngaus
+      integer(4),intent(in) :: numElemsInRank,numNodesInRank,connecPar(numElemsInRank,mnnode)
+      real(rp),intent(in) :: Ngp(mngaus,mnnode)
+      real(rp),intent(in) :: origNodeVectorField(numNodesInRank,ndime)
+      real(rp),intent(out) :: interpNodeVectorField(numNodesInRank,ndime)
+      integer(4) :: iElem,igp,idime
+      
+      do iElem = 1,numElemsInRank
+#if 1
+         do igp = 1,mngaus
+            do idime = 1,ndime
+               call var_interpolate(mnnode,origNodeVectorField(connecPar(iElem,:),idime),Ngp(igp,:),interpNodeVectorField(connecPar(iElem,igp),idime))
+            end do
+         end do
+#else
+         do igp = 1,(2**ndime)
+            interpNodeScalarField(connecPar(iElem,igp)) = origNodeScalarField(connecPar(iElem,igp))
+         end do
+         do igp = (2**ndime)+1,mngaus
+            call var_interpolate(mnnode,origNodeScalarField(connecPar(iElem,:)),Ngp(igp,:),interpNodeScalarField(connecPar(iElem,igp)))
+         end do
+#endif
+      end do
+
+   end subroutine interpolate_vectorField_in_nodes
+
+
+   subroutine save_hdf5_resultsFile_baseFunc(mnnode,mngaus,Ngp,hdf5_fileId,numNodeScalarFields2save,nodeScalarFields2save,nameNodeScalarFields2save,&
                                              numNodeVectorFields2save,nodeVectorFields2save,nameNodeVectorFields2save,&
                                              numElemGpScalarFields2save,elemGpScalarFields2save,nameElemGpScalarFields2save)
       implicit none
-      integer(4),intent(in) :: mnnode
+      integer(4),intent(in) :: mnnode,mngaus
+      real(rp),intent(in) :: Ngp(mngaus,mnnode)
       integer(hid_t),intent(in) :: hdf5_fileId
       integer(4),intent(in) :: numNodeScalarFields2save,numNodeVectorFields2save,numElemGpScalarFields2save
       type(ptr_array1d_rp),intent(in) :: nodeScalarFields2save(:)
@@ -4008,7 +4088,7 @@ contains
       integer(4) :: h5err
       character(512) :: groupname,dsetname
       integer(4) :: iElem,iGp,iPer,iField
-      real(rp) :: aux_nodeScalarField(numNodesRankPar)
+      real(rp) :: aux_nodeScalarField(numNodesRankPar),interpNodeScalarField(numNodesRankPar),interpNodeVectorField(numNodesRankPar,ndime)
 
       !-----------------------------------------------------------------------------------------------
       !   Creating the VTK-HDF structure
@@ -4037,7 +4117,10 @@ contains
             end do
             !!!!$acc end parallel loop
          end if
-         call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,nodeScalarFields2save(iField)%ptr)
+         
+         call interpolate_scalarField_in_nodes(mnnode,mngaus,numElemsRankPar,numNodesRankPar,Ngp,connecParOrig,nodeScalarFields2save(iField)%ptr,interpNodeScalarField)
+         call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,interpNodeScalarField)
+         !call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,nodeScalarFields2save(iField)%ptr)
       end do
 
       !--------------------------------------------------------------------------------------------------------------------------------------
@@ -4061,7 +4144,9 @@ contains
             end do
             !!!!$acc end parallel loop
          end if
-         call save_array2D_tr_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,nodeVectorFields2save(iField)%ptr)
+         call interpolate_vectorField_in_nodes(mnnode,mngaus,numElemsRankPar,numNodesRankPar,Ngp,connecParOrig,nodeVectorFields2save(iField)%ptr,interpNodeVectorField)
+         call save_array2D_tr_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,interpNodeVectorField)
+         !call save_array2D_tr_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,nodeVectorFields2save(iField)%ptr)
       end do
 
       do iField=1,numElemGpScalarFields2save
@@ -4084,7 +4169,9 @@ contains
             !!!!$acc end parallel loop
          end if
 
-         call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,aux_nodeScalarField)
+         call interpolate_scalarField_in_nodes(mnnode,mngaus,numElemsRankPar,numNodesRankPar,Ngp,connecParOrig,aux_nodeScalarField,interpNodeScalarField)
+         call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,interpNodeScalarField)
+         !call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,aux_nodeScalarField)
       end do
 
    end subroutine save_hdf5_resultsFile_baseFunc
@@ -4158,11 +4245,12 @@ contains
 
    end subroutine load_hdf5_resultsFile_baseFunc
 
-   subroutine save_instResults_hdf5_file(mnnode,iStep,time,numNodeScalarFields2save,nodeScalarFields2save,nameNodeScalarFields2save,&
+   subroutine save_instResults_hdf5_file(mnnode,mngaus,Ngp,iStep,time,numNodeScalarFields2save,nodeScalarFields2save,nameNodeScalarFields2save,&
                                           numNodeVectorFields2save,nodeVectorFields2save,nameNodeVectorFields2save,&
                                           numElemGpScalarFields2save,elemGpScalarFields2save,nameElemGpScalarFields2save)
       implicit none
-      integer(4), intent(in) :: mnnode,iStep
+      integer(4), intent(in) :: mnnode,mngaus,iStep
+      real(rp),intent(in) :: Ngp(mngaus,mnnode)
       real(rp),intent(in) :: time
       integer(4),intent(in) :: numNodeScalarFields2save,numNodeVectorFields2save,numElemGpScalarFields2save
       type(ptr_array1d_rp),intent(in) :: nodeScalarFields2save(:)
@@ -4178,7 +4266,7 @@ contains
 
       call create_hdf5_file(full_hdf5_fileName,hdf5_fileId)
 
-      call save_hdf5_resultsFile_baseFunc(mnnode,hdf5_fileId,numNodeScalarFields2save,nodeScalarFields2save,nameNodeScalarFields2save,&
+      call save_hdf5_resultsFile_baseFunc(mnnode,mngaus,Ngp,hdf5_fileId,numNodeScalarFields2save,nodeScalarFields2save,nameNodeScalarFields2save,&
                                           numNodeVectorFields2save,nodeVectorFields2save,nameNodeVectorFields2save,&
                                           numElemGpScalarFields2save,elemGpScalarFields2save,nameElemGpScalarFields2save)
 
@@ -4191,11 +4279,12 @@ contains
 
    end subroutine save_instResults_hdf5_file
 
-   subroutine save_avgResults_hdf5_file(mnnode,restartCnt,initial_avgTime,elapsed_avgTime,numAvgNodeScalarFields2save,avgNodeScalarFields2save,nameAvgNodeScalarFields2save,&
+   subroutine save_avgResults_hdf5_file(mnnode,mngaus,Ngp,restartCnt,initial_avgTime,elapsed_avgTime,numAvgNodeScalarFields2save,avgNodeScalarFields2save,nameAvgNodeScalarFields2save,&
                                        numAvgNodeVectorFields2save,avgNodeVectorFields2save,nameAvgNodeVectorFields2save,&
                                        numAvgElemGpScalarFields2save,avgElemGpScalarFields2save,nameAvgElemGpScalarFields2save)
       implicit none
-      integer(4), intent(in) :: mnnode,restartCnt
+      integer(4), intent(in) :: mnnode,mngaus,restartCnt
+      real(rp),intent(in) :: Ngp(mngaus,mnnode)
       real(rp),intent(in) :: initial_avgTime,elapsed_avgTime
       integer(4),intent(in) :: numAvgNodeScalarFields2save,numAvgNodeVectorFields2save,numAvgElemGpScalarFields2save
       type(ptr_array1d_rp),intent(in) :: avgNodeScalarFields2save(:)
@@ -4212,7 +4301,7 @@ contains
       
       call create_hdf5_file(full_hdf5_fileName,hdf5_fileId)
 
-      call save_hdf5_resultsFile_baseFunc(mnnode,hdf5_fileId,numAvgNodeScalarFields2save,avgNodeScalarFields2save,nameAvgNodeScalarFields2save,&
+      call save_hdf5_resultsFile_baseFunc(mnnode,mngaus,Ngp,hdf5_fileId,numAvgNodeScalarFields2save,avgNodeScalarFields2save,nameAvgNodeScalarFields2save,&
                                           numAvgNodeVectorFields2save,avgNodeVectorFields2save,nameAvgNodeVectorFields2save,&
                                           numAvgElemGpScalarFields2save,avgElemGpScalarFields2save,nameAvgElemGpScalarFields2save)
       dsetname = 'elapsed_avgTime'
@@ -4946,14 +5035,14 @@ contains
 
    end subroutine create_groups_datasets_vtkhdf_unstructuredGrid_meshFile
 
-   subroutine write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mnnode,file_id,mshRank,numMshRanks2Part,numElemsMshRank,mshRankElemStart,mshRankElemEnd,mshRankNodeStart_i8,mshRankNodeEnd_i8,numNodesMshRank,coordParMshRank,connecVTKMshRank)
+   subroutine write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mnnode,file_id,mshRank,numMshRanks2Part,numElemsMshRank,mshRankElemStart,mshRankElemEnd,mshRankNodeStart_i8,mshRankNodeEnd_i8,numNodesMshRank,coordVTKMshRank,connecVTKMshRank)
       implicit none
       integer(hid_t),intent(in) :: file_id
       integer(4),intent(in) :: mnnode,mshRank,numMshRanks2Part
       integer(4),intent(in) :: numElemsMshRank,mshRankElemStart,mshRankElemEnd
       integer(8),intent(in) :: mshRankNodeStart_i8,mshRankNodeEnd_i8
       integer(4),intent(in) :: numNodesMshRank
-      real(rp),intent(in)   :: coordParMshRank(numNodesMshRank,3)
+      real(rp),intent(in)   :: coordVTKMshRank(numNodesMshRank,3)
       integer(4),intent(in) :: connecVTKMshRank(numElemsMshRank*mnnode)
 
       integer(hsize_t), dimension(1) :: ms_dims
@@ -4973,7 +5062,7 @@ contains
       !--------------------------------------------------------------------------------
 
       dsetname = '/VTKHDF/Points'
-      call write_dataspace_2d_tr_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims2d,ms_offset2d,coordParMshRank)
+      call write_dataspace_2d_tr_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims2d,ms_offset2d,coordVTKMshRank)
       !-------------------------------------------------------------------------------- 
 
       !-----------------------------------------------------------------------------

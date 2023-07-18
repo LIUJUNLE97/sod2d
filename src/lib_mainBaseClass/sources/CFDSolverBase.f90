@@ -1386,7 +1386,7 @@ contains
       !$acc update host(avmueff(:))
       !$acc update host(avtw(:,:))
 
-      call save_avgResults_hdf5_file(nnode,this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
+      call save_avgResults_hdf5_file(nnode,ngaus,Ngp,this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
                this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
                this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
                this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
@@ -1419,7 +1419,7 @@ contains
       !$acc update host(mu_e(:,:))
       !$acc update host(mu_sgs(:,:))
       
-      call save_instResults_hdf5_file(nnode,iStep,this%time,&
+      call save_instResults_hdf5_file(nnode,ngaus,Ngp,iStep,this%time,&
                this%numNodeScalarFields2save,this%nodeScalarFields2save,this%nameNodeScalarFields2save,&
                this%numNodeVectorFields2save,this%nodeVectorFields2save,this%nameNodeVectorFields2save,&
                this%numElemGpScalarFields2save,this%elemGpScalarFields2save,this%nameElemGpScalarFields2save)
