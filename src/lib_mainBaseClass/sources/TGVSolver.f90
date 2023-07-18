@@ -45,7 +45,7 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube_per10_order4"
+      write(this%mesh_h5_file_name,*) "cube"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -63,12 +63,12 @@ contains
       this%save_logFile_step  = 1
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 50
+      this%save_resultsFile_step = 10
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 1000
+      this%save_restartFile_step = 10
       this%loadRestartFile = .false.
-      this%restartFile_to_load = 2 !1 or 2
+      this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
       this%saveAvgFile = .false.
@@ -77,18 +77,18 @@ contains
 
       ! numerical params
       flag_les = 0
-      flag_implicit = 0
+      flag_implicit = 1
       implicit_solver = implicit_solver_bdf2_rk10
 
       maxIterNonLineal=500
-      tol=1e-4
-      pseudo_cfl =1.95_rp
+      tol=1e-3
+      pseudo_cfl =0.95_rp
       flag_rk_order=4
 
-      this%cfl_conv = 0.9_rp
-      this%cfl_diff = 0.9_rp
-      !this%cfl_conv = 100.0_rp
-      !this%cfl_diff = 100.0_rp
+      !this%cfl_conv = 0.95_rp
+      !this%cfl_diff = 0.95_rp
+      this%cfl_conv = 100.0_rp
+      this%cfl_diff = 100.0_rp
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
