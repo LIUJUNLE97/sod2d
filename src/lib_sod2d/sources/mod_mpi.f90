@@ -73,13 +73,11 @@ module mod_mpi
 
    subroutine init_sharedMemoryNode_comm()
       implicit none
+#ifndef NOACC
       call MPI_Comm_split_type(world_comm,MPI_COMM_TYPE_SHARED,0,MPI_INFO_NULL,smNode_comm,mpi_err)
-
       call mpi_comm_rank(smNode_comm, smNode_rank, mpi_err)
       call mpi_comm_size(smNode_comm, smNode_size, mpi_err)
 
-
-#ifndef NOACC
       num_devices = acc_get_num_devices(acc_device_nvidia);
       if(num_devices.ge.1) then
 
@@ -94,7 +92,6 @@ module mod_mpi
       num_devices = 0
       id_device = 0
 #endif
-
     end subroutine init_sharedMemoryNode_comm
 
     subroutine end_mpi()
