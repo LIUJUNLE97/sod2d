@@ -3991,7 +3991,6 @@ contains
       real(rp),intent(out) :: Ngp_l(mngaus,mnnode)
       real(rp) :: s, t, z
       integer(4) :: igaus
-      !integer(4) :: atoIJK(mnnode)
       real(rp) :: xgp(mngaus,ndime), wgp(mngaus)
       real(rp) :: Ngp(mngaus,mnnode), dNgp(ndime,mnnode,mngaus),dlxigp_ip(mngaus,ndime,mporder+1),dNgp_l(ndime,mnnode,mngaus)
 

@@ -1138,8 +1138,7 @@ contains
       !$acc update device(wgp_b(:))
 
       !-------------------------------------------------------------------------------
-      !allocate(xi_gll(porder+1))
-      !allocate(xgp_equi(ngaus,ndime))
+      ! Generating Ngp_equi to interpolate from GLL nodes mesh to Equispace nodes mesh
       allocate(Ngp_equi(ngaus,nnode))
       allocate(dNgp_equi(ndime,nnode,ngaus))
       !$acc enter data create(Ngp_equi(:,:))
@@ -1147,17 +1146,14 @@ contains
 
       call getGaussPoints_equispaced_hex(porder,ngaus,atoIJK,xgp_equi)
       call getGaussLobattoLegendre_roots(porder,xi_gll)
-      if(mpi_rank.eq.0) write(*,*) 'xi_gll',xi_gll(:),'xgp_equi',xgp_equi(:,:)
+
       do igaus = 1,ngaus
          s = xgp_equi(igaus,1)
          t = xgp_equi(igaus,2)
          z = xgp_equi(igaus,3)
 
          call TripleTensorProduct(porder,nnode,xi_gll,s,t,z,atoIJK,Ngp_equi(igaus,:),dNgp_equi(:,:,igaus))
-         !call TripleTensorProduct(mporder,mnnode,xi_grid,xi,eta,zeta,atoIJK,Ngp_equi,dN)
       end do
-
-      if(mpi_rank.eq.0) write(*,*) 'xgp_equi',xgp_equi(:,:),'Ngp_equi',Ngp_equi(:,:)
 
       !-------------------------------------------------------------------------------
 

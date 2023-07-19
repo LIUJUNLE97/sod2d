@@ -54,7 +54,7 @@ module mod_witness_points
          real(rp)               :: j(ndime, ndime), k(ndime, ndime)
          real(rp)               :: detJ
          integer(4)            :: ii, ip
-         real(rp), parameter    :: tol = 1e-10, alpha = 1, div = 100
+         real(rp), parameter    :: tol_wp = 1e-10, alpha = 1, div = 100
          integer(4), parameter :: maxite = 50
 
          xi_0(:) = 0
@@ -138,7 +138,7 @@ module mod_witness_points
             !
             xi_n(:) = xi(:) - alpha*matmul(k, f)
             xi(:)   = xi_n(:)
-            if (dot_product(f, f) < tol) then
+            if (dot_product(f, f) < tol_wp) then
                isinside = .true.
                Niwit    = N
                exit
@@ -161,8 +161,6 @@ module mod_witness_points
          
          witval = 0.0_rp
 
-         !call set_hex64_lists(atoIJK)
-         !call hex_highorder(xiwit(1), xiwit(2), xiwit(3), atoIJK, N, dN, N_lagrange, dN_lagrange, dlxigp_ip)
          call var_interpolate(nnode,elvalues,N,witval)
       end subroutine wit_interpolation
 
