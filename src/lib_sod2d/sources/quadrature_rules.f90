@@ -81,4 +81,44 @@ module quadrature_rules
 
       end subroutine GaussLobattoLegendre_hex
 
+      subroutine getGaussPoints_equispaced_hex(mporder,mngaus,atoIJK,xgp)
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         ! Closed rule quadrature that uses the     !
+         ! Chebyshev grid+enddpoints as abcissas.   !
+         ! Weights are obtained by evaluating       !
+         ! w_j = int(l^n_i(xi_j),-1,1).             !
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         implicit none
+         integer(4),intent(in) :: mporder,mngaus,atoIJK(mngaus)
+         real(rp),intent(out)  :: xgp(mngaus,ndime)
+         integer(4)            :: inode,i,j,k,lorder(mporder+1)
+         !real(rp)              :: xi(mporder+1),w1d(mporder+1),w0,w1,w2,w3
+         real(rp)              :: xi_equi(mporder+1)
+
+         call getEquispaced_roots(mporder,xi_equi)
+
+			!write(*,*) 'xi_equi',xi_equi
+
+         lorder(1) = 1
+         lorder(2) = mporder+1
+         do i = 3,mporder+1
+            lorder(i) = i-1
+         end do
+
+         inode = 0
+         do k = 1,mporder+1
+            do i = 1,mporder+1
+               do j = 1,mporder+1
+                  inode = inode + 1
+                  xgp(atoIJK(inode),1:3) = [xi_equi(lorder(i)), xi_equi(lorder(j)), xi_equi(lorder(k))]
+               end do
+            end do
+         end do
+
+			!write(*,*) 'xgp',xgp(:,:)
+
+      end subroutine getGaussPoints_equispaced_hex
+
+
+
 end module quadrature_rules

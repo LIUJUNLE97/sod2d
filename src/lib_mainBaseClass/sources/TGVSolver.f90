@@ -48,7 +48,7 @@ contains
       write(this%mesh_h5_file_name,*) "cube_per10_order4"
 
       write(this%results_h5_file_path,*) ""
-      write(this%results_h5_file_name,*) "results"
+      write(this%results_h5_file_name,*) "results_equi"
 
       this%doGlobalAnalysis = .true.
       this%doTimerAnalysis = .true.
@@ -56,14 +56,14 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 20000001
+      this%final_istep = 2001
       this%maxPhysTime = 20.0_rp
 
       this%save_logFile_first = 1 
-      this%save_logFile_step  = 1
+      this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 50
+      this%save_resultsFile_step = 100
 
       this%save_restartFile_first = 1
       this%save_restartFile_step = 1000

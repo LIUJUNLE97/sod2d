@@ -15,6 +15,7 @@ module mod_arrays
       real(rp), allocatable :: xgp(:,:), wgp(:), xgp_b(:,:), wgp_b(:)
       real(rp), allocatable :: Ngp(:,:), dNgp(:,:,:), Ngp_b(:,:), dNgp_b(:,:,:)
       real(rp), allocatable :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
+      real(rp), allocatable :: Ngp_equi(:,:), dNgp_equi(:,:,:)
       real(rp), allocatable :: gpvol(:,:,:),Je(:,:), He(:,:,:,:), bou_norm(:,:),Ml(:),mu_factor(:),source_term(:,:)
 
       real(rp), target,allocatable :: gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
@@ -1095,7 +1096,7 @@ contains
 
    subroutine CFDSolverBase_evalShapeFunctions(this)
       class(CFDSolverBase), intent(inout) :: this
-      real(rp)                    :: s, t, z
+      real(rp)   :: s,t,z,xi_gll(porder+1),xgp_equi(ngaus,ndime)
       integer(4) :: igaus
 
       !*********************************************************************!
@@ -1135,6 +1136,30 @@ contains
       !$acc update device(wgp(:))
       call GaussLobattoLegendre_qua(porder,npbou,atoIJ,xgp_b,wgp_b)
       !$acc update device(wgp_b(:))
+
+      !-------------------------------------------------------------------------------
+      !allocate(xi_gll(porder+1))
+      !allocate(xgp_equi(ngaus,ndime))
+      allocate(Ngp_equi(ngaus,nnode))
+      allocate(dNgp_equi(ndime,nnode,ngaus))
+      !$acc enter data create(Ngp_equi(:,:))
+      !$acc enter data create(dNgp_equi(:,:,:))
+
+      call getGaussPoints_equispaced_hex(porder,ngaus,atoIJK,xgp_equi)
+      call getGaussLobattoLegendre_roots(porder,xi_gll)
+      if(mpi_rank.eq.0) write(*,*) 'xi_gll',xi_gll(:),'xgp_equi',xgp_equi(:,:)
+      do igaus = 1,ngaus
+         s = xgp_equi(igaus,1)
+         t = xgp_equi(igaus,2)
+         z = xgp_equi(igaus,3)
+
+         call TripleTensorProduct(porder,nnode,xi_gll,s,t,z,atoIJK,Ngp_equi(igaus,:),dNgp_equi(:,:,igaus))
+         !call TripleTensorProduct(mporder,mnnode,xi_grid,xi,eta,zeta,atoIJK,Ngp_equi,dN)
+      end do
+
+      if(mpi_rank.eq.0) write(*,*) 'xgp_equi',xgp_equi(:,:),'Ngp_equi',Ngp_equi(:,:)
+
+      !-------------------------------------------------------------------------------
 
       call nvtxEndRange
 
@@ -1386,7 +1411,7 @@ contains
       !$acc update host(avmueff(:))
       !$acc update host(avtw(:,:))
 
-      call save_avgResults_hdf5_file(nnode,ngaus,Ngp,this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
+      call save_avgResults_hdf5_file(nnode,ngaus,Ngp_equi,this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
                this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
                this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
                this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
@@ -1419,7 +1444,7 @@ contains
       !$acc update host(mu_e(:,:))
       !$acc update host(mu_sgs(:,:))
       
-      call save_instResults_hdf5_file(nnode,ngaus,Ngp,iStep,this%time,&
+      call save_instResults_hdf5_file(nnode,ngaus,Ngp_equi,iStep,this%time,&
                this%numNodeScalarFields2save,this%nodeScalarFields2save,this%nameNodeScalarFields2save,&
                this%numNodeVectorFields2save,this%nodeVectorFields2save,this%nameNodeVectorFields2save,&
                this%numElemGpScalarFields2save,this%elemGpScalarFields2save,this%nameElemGpScalarFields2save)
