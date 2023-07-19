@@ -505,28 +505,28 @@ module elem_diffu
 
               end subroutine full_diffusion
 
-              subroutine full_diffusion_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Pr,rho,u,Tem,mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener)
+              subroutine full_diffusion_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Pr,rho,u,Tem,mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener)
                       implicit none
 
                       integer(4), intent(in)  :: nelem, npoin
                       integer(4), intent(in)  :: connec(nelem,nnode)
-                      real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-                      real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
-                      real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
-                      integer(4), intent(in)  :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-                      real(rp),    intent(in)  :: Cp,Pr,rho(npoin),u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus),Ml(npoin)
-                      real(rp),    intent(in)  :: mu_fluid(npoin)
-                      real(rp),    intent(out) :: Rmass(npoin)
-                      real(rp),    intent(out) :: Rmom(npoin,ndime)
-                      real(rp),    intent(out) :: Rener(npoin)
+                      real(rp),   intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+                      real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
+                      real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
+                      integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+                      real(rp),   intent(in)  :: Cp,Pr,rho(npoin),u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus),Ml(npoin)
+                      real(rp),   intent(in)  :: mu_fluid(npoin)
+                      real(rp),   intent(out) :: Rmass(npoin)
+                      real(rp),   intent(out) :: Rmom(npoin,ndime)
+                      real(rp),   intent(out) :: Rener(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
-                      real(rp)                 :: kappa_e, mu_fgp, mu_egp,divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
-                      real(rp)                 :: gradU(ndime,ndime), gradT(ndime),tmp1,vol,arho
-                      real(rp)                 :: gradIsoRho(ndime),gradIsoT(ndime),gradIsoU(ndime,ndime)
-                      real(rp)                 :: gradRho(ndime),divDm(ndime),divDr,divDe
-                      real(rp)                 :: ul(nnode,ndime), rhol(nnode),Teml(nnode),mufluidl(nnode)
-                      real(rp)                 :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
-                      real(rp)                 :: gradTl(nnode,ndime),gradRhol(nnode,ndime),tauUl(nnode,ndime)
+                      real(rp)                :: kappa_e, mu_fgp, mu_egp,divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
+                      real(rp)                :: gradU(ndime,ndime), gradT(ndime),tmp1,vol,arho
+                      real(rp)                :: gradIsoRho(ndime),gradIsoT(ndime),gradIsoU(ndime,ndime)
+                      real(rp)                :: gradRho(ndime),divDm(ndime),divDr,divDe
+                      real(rp)                :: ul(nnode,ndime), rhol(nnode),Teml(nnode),mufluidl(nnode)
+                      real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
+                      real(rp)                :: gradTl(nnode,ndime),gradRhol(nnode,ndime),tauUl(nnode,ndime)
 
                       call nvtxStartRange("Full diffusion")
                       twoThirds = 2.0_rp/3.0_rp

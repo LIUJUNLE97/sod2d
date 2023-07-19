@@ -10,25 +10,50 @@ contains
 
    ! it implents the Vreman SGS
 
-   subroutine sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+   subroutine sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
          rho,u,Ml,mu_sgs)
 
       implicit none
 
       integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
-      real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-      real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem)
-      real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
-      real(rp),    intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1)
-      integer(4), intent(in)  :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-      real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime),Ml(npoin)
-      real(rp),    intent(out) :: mu_sgs(nelem,ngaus)
-      integer(4)              :: ielem, inode, igaus, kdime, idime, jdime,isoI, isoJ, isoK , ii
-      real(rp)                 :: hLES, evol,gpcar(ndime,nnode), aux, mue(npoin), ave(npoin)
-      real(rp)                 :: gradU(ndime,ndime),gradV2(ndime,ndime),Bbeta, alpha, tau, aux2
-      real(rp)                 :: gradIsoU(ndime,ndime)
-      real(rp)                 :: ul(nnode,ndime)
+      real(rp),   intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+      real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem)
+      real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
+      real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1)
+      integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+      real(rp),   intent(in)  :: rho(npoin), u(npoin,ndime),Ml(npoin)
+      real(rp),   intent(out) :: mu_sgs(nelem,ngaus)
+      integer(4)              :: ielem, inode, igaus, kdime, idime, jdime,isoI, isoJ, isoK 
+      real(rp)                :: hLES, evol,gpcar(ndime,nnode), aux, mue(npoin), ave(npoin)
+      real(rp)                :: gradU(ndime,ndime),gradV2(ndime,ndime),Bbeta, alpha, tau, aux2
+      real(rp)                :: gradIsoU(ndime,ndime)
+      real(rp)                :: ul(nnode,ndime)
+      integer(4)              :: convertIJK(0:porder+2),ii,jj,kk,mm,nn,ll
+      real(rp)                :: mue_l(nelem,nnode),al(-1:1),am(-1:1),an(-1:1),aux1
 
+      do ii=3,porder+1
+         convertIJK(ii-1) = ii
+      end do 
+      convertIJK(0) = 3
+      convertIJK(1) = 1
+      convertIJK(porder+1) = 2
+      convertIJK(porder+2) = porder
+
+      al(-1) = 1.0_rp/4.0_rp
+      al(0)  = 2.0_rp/4.0_rp
+      al(1)  = 1.0_rp/4.0_rp
+
+      am(-1) = 1.0_rp/4.0_rp
+      am(0)  = 2.0_rp/4.0_rp
+      am(1)  = 1.0_rp/4.0_rp
+      
+      an(-1) = 1.0_rp/4.0_rp
+      an(0)  = 2.0_rp/4.0_rp
+      an(1)  = 1.0_rp/4.0_rp
+
+      !$acc kernels
+      mue_l(:,:) = mu_sgs(:,:)
+      !$acc end kernels
 
       !$acc parallel loop gang private(ul) 
       do ielem = 1,nelem
@@ -93,14 +118,27 @@ contains
             Bbeta = gradV2(1,1)*gradV2(2,2) + gradV2(1,1)*gradV2(3,3) + gradV2(2,2)*gradV2(3,3) &
                - gradV2(1,2)*gradV2(1,2) - gradV2(1,3)*gradV2(1,3) - gradV2(2,3)*gradV2(2,3)
             if(alpha > 1.0e-10) then
-               aux2 = aux2 + c_sgs*sqrt(max(Bbeta,1.0e-10)/alpha)
-               !mu_sgs(ielem,igaus) = c_sgs*sqrt(max(Bbeta,1.0e-10)/alpha)
+               mue_l(ielem,igaus) = c_sgs*sqrt(max(Bbeta,1.0e-10)/alpha)
             end if
          end do
-         aux2 = aux2/real(nnode,rp)
-         !$acc loop vector
-         do inode = 1,nnode
-            mu_sgs(ielem,inode) = aux2
+         !$acc loop vector collapse(3)
+         do ii=1,porder+1
+            do jj=1,porder+1
+               do kk=1,porder+1           
+                  aux1 = 0.00_rp
+                  !$acc loop seq
+                  do ll=-1,1
+                     !$acc loop seq
+                     do mm=-1,1
+                        !$acc loop seq
+                        do nn=-1,1           
+                           aux1 =   aux1 +  al(ll)*am(mm)*an(nn)*mue_l(ielem,invAtoIJK(convertIJK(ii+ll),convertIJK(jj+mm),convertIJK(kk+nn)))
+                        end do
+                     end do 
+                  end do
+                  mu_sgs(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk))) = aux1
+               end do
+            end do 
          end do
 
       end do

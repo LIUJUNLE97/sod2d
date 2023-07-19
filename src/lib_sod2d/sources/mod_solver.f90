@@ -526,7 +526,7 @@ module mod_solver
                   if(istep == 1) then
                      call nvtxStartRange("GMRES: form_approx_Jy initial")
                      call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
-                        atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                        invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                         noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,&
                         rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                         mass_sol,mom_sol,ener_sol,.true.)
@@ -745,7 +745,7 @@ module mod_solver
                   !$acc end kernels
                   call nvtxStartRange("Arnoldi: J*Q")
                   call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
-                                      atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                                      invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                       noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,&
                                       rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                                       zmass,zmom,zener,.false.)
@@ -947,7 +947,7 @@ module mod_solver
               end subroutine givens_rotation_full
 
               subroutine form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
-                                        atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                                        invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                         noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,&
                                         rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                                         zmass,zmom,zener,flag_gmres_form_fix)
@@ -957,7 +957,7 @@ module mod_solver
                   implicit none
                   logical   , intent(in) :: flag_gmres_form_fix
                   integer(4), intent(in) :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w)
-                  integer(4), intent(in) :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+                  integer(4), intent(in) :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
                   real(rp)  , intent(in) :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus), gpvol(1,ngaus,nelem), xgp(ngaus,ndime)
                   real(rp)  , intent(in) :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1), Ml(npoin)
                   real(rp)  , intent(in) :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin), Rgas,gamma_gas,Cp, Prt
@@ -974,7 +974,7 @@ module mod_solver
 
                   ! Form the R(u^n) arrays if not formed already
                   if (flag_gmres_form_fix .eqv. .true.) then
-                     call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                     call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, invAtoIJK, &
                         gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho, pr, E, Rmass_fix, Rmom_fix, Rener_fix)
                   end if
 
@@ -988,8 +988,8 @@ module mod_solver
                      end do
                   end do
                   !$acc end parallel loop
-
-                  call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                  
+                  call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, invAtoIJK, &
                      gmshAtoI, gmshAtoJ, gmshAtoK, u, auxQ, auxRho, pr, auxE, SRmass, SRmom, SRener)
 
                   ! Form the J*y arrays

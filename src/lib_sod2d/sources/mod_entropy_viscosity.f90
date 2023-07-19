@@ -296,9 +296,11 @@ module mod_entropy_viscosity
                            maxC = max(maxC,csound(connec(ielem,igaus)))
                         end do
                         M = maxV/maxC
-                        ceM = max(tanh((M**15)*v_pi),ce)
-                        ced = max(1.0_rp-(minJe/maxJe)**8,ce)
-                        ced = max(ced,ceM)
+                        ced = max(tanh((M**15)*v_pi),ce)
+                        !ceM = max(tanh((M**15)*v_pi),ce)
+                        !ced = max(1.0_rp-(minJe/maxJe)**2,ce)
+                        !ced = max(ced,ceM) 
+                        !ced = max(ce,ceM) 
 
                         mu = 0.0_rp
                         betae = 0.0_rp
@@ -315,27 +317,6 @@ module mod_entropy_viscosity
                            Ve = ced*R1*(helem(ielem,inode))**2
                            mue_l(ielem,inode) = cglob*min(Ve,betae)
                         end do
-
-#if 1
-#if 0
-                        !$acc loop vector collapse(3)
-                        do ii=1,porder+1
-                           do jj=1,porder+1
-                              do kk=1,porder+1
-                                 aux1 =   1.0_rp/4.0_rp*(mue_l(ielem,invAtoIJK(convertIJK(ii-1),convertIJK(jj),convertIJK(kk)))+&
-                                                         mue_l(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj-1),convertIJK(kk)))+&
-                                                         mue_l(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk-1))))&
-                                        + 2.0_rp/4.0_rp*(mue_l(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk)))+&
-                                                         mue_l(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk)))+&
-                                                         mue_l(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk))))&
-                                        + 1.0_rp/4.0_rp*(mue_l(ielem,invAtoIJK(convertIJK(ii+1),convertIJK(jj),convertIJK(kk)))+&
-                                                         mue_l(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj+1),convertIJK(kk)))+&
-                                                         mue_l(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk+1))))
-                                 mu_e(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk))) = aux1/3.0_rp
-                              end do
-                           end do
-                        end do
-#else
                         !$acc loop vector collapse(3)
                         do ii=1,porder+1
                            do jj=1,porder+1
@@ -355,23 +336,6 @@ module mod_entropy_viscosity
                               end do
                            end do
                         end do
-                     !!$acc loop vector
-                     !do inode = 1,nnode
-                     !   mu_e(ielem,inode) = mue_l(ielem,inode)
-                     !end do
-#endif
-#else
-                        aux1 = 0.0_rp
-                        !$acc loop vector reduction(+:aux1)
-                        do inode = 1,nnode
-                           aux1 = aux1 + mue_l(ielem,inode)/real(nnode,rp)
-                        end do
-                        !$acc loop vector
-                        do inode = 1,nnode
-                           mu_e(ielem,inode) = aux1
-                        end do
-
-#endif
                       end do
                       !$acc end parallel loop
               end subroutine smart_visc_spectral

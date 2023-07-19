@@ -156,7 +156,7 @@ contains
       res_rfield(:) = 10.0_rp
       call mpi_halo_atomic_update_real(res_rfield) !using default method
 
-      call save_vtkhdf_realFieldFile(res_rfield)
+      call save_vtkhdf_realFieldFile(nnode,res_rfield)
 
    end subroutine debug_comms_real
 
