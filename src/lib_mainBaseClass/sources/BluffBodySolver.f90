@@ -77,8 +77,8 @@ contains
       maxIterNonLineal=300
       tol=1e-3
 
-      this%cfl_conv = 1.5_rp 
-      this%cfl_diff = 1.5_rp 
+      this%cfl_conv = 0.5_rp 
+      this%cfl_diff = 0.5_rp 
 
       !----------------------------------------------
       !  --------------  I/O params -------------
@@ -94,7 +94,7 @@ contains
       this%save_restartFile_step = 10000
       this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
+      this%continue_oldLogs = .true.
 
       this%saveAvgFile = .true.
       this%loadAvgFile = .false.
@@ -102,8 +102,8 @@ contains
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
-      this%vo = 1.0_rp
-      this%M  = 0.2_rp
+      this%vo = 2.0_rp
+      this%M  = 1.0_rp
       this%delta  = 1.0_rp
       this%rho0   = 1.0_rp
       this%gamma_gas = 1.40_rp
