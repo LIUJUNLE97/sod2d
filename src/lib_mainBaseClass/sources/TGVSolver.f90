@@ -56,7 +56,7 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 20000001
+      this%final_istep = 2001
       this%maxPhysTime = 20.0_rp
 
       this%save_logFile_first = 1 
