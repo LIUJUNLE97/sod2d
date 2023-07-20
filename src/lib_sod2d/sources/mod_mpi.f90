@@ -42,7 +42,8 @@ module mod_mpi
          write(*,*) 'Fatal error in init_mpi()! Cannot find MPI_APPNUM.'
          call MPI_Abort(world_comm,-1,mpi_err)
       end if
-      print*, "app_color ", app_color, "mpi_rank ", mpi_rank, "mpi_world_rank ", mpi_world_rank, "mpi_app_num_flag ", mpi_app_num_flag
+      write(*,982), app_color, mpi_rank, mpi_world_rank, mpi_app_num_flag
+      982 format ('app_color = ',I2,'; mpi_world_rank = ',I4,'; mpi_rank = ',I4,'; mpi_app_num_flag = ',L)
 
       mpi_datatype_int = MPI_INTEGER
       mpi_datatype_int4 = MPI_INTEGER4
@@ -78,12 +79,14 @@ module mod_mpi
       call mpi_comm_rank(smNode_comm, smNode_rank, mpi_err)
       call mpi_comm_size(smNode_comm, smNode_size, mpi_err)
 
-      num_devices = acc_get_num_devices(acc_device_nvidia);
+      num_devices = acc_get_num_devices(acc_device_nvidia)
       if(num_devices.ge.1) then
 
          id_device   = mod(smNode_rank,num_devices)
-         call acc_set_device_num(id_device, acc_device_nvidia);
-         write(*,*) 'r(w)',mpi_world_rank,'s(w)',mpi_world_size,'r(app)',mpi_rank,'s(app)',mpi_size,'r(sm)',smNode_rank,'s(sm)',smNode_size,'num_devices',num_devices,'id_device',id_device
+         call acc_set_device_num(id_device, acc_device_nvidia)
+         write(*,736) mpi_world_rank,mpi_world_size,mpi_rank,mpi_size,smNode_rank,smNode_size,num_devices,id_device
+         736 format ('r(w) = ',I4,'; s(w) = ',I4,'; r(app) = ',I4,'; s(app) = ',I4,'; r(sm) = ',I4,'; s(sm) = ',I4,'; num_devices = ',I4,'; id_device = ' I4)
+
       else
          id_device = 0
          write(*,*) 'NO GPU FOUND IN THIS NODE!'

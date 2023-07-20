@@ -32,8 +32,7 @@ module TGVMultiSolver_mod
 
    type, public, extends(CFDSolverPeriodic) :: TGVMultiSolver
 
-      real(rp) , public  ::  M, rho0,Re,to, po
-      character(len=8), public :: tag="0"
+      real(rp) , public  ::  M, rho0, Re, to, po
 
    contains
       procedure, public :: initializeParameters  => TGVMultiSolver_initializeParameters
@@ -44,35 +43,22 @@ contains
    subroutine TGVMultiSolver_initializeParameters(this)
       class(TGVMultiSolver), intent(inout) :: this
       real(rp) :: mul, mur
-      integer :: num_args, equal_pos, iarg
-      character(len=64) :: arg, output_dir
+      character(len=64) :: output_dir, tag
       logical :: output_dir_exists
 
-      ! get tag command line arg for MPMD, ie: mpirun -n 4 sod2d --tag=0 : -n 4 sod2d --tag=1
-      num_args = command_argument_count()
-      do iarg = 1, num_args
-         call get_command_argument(iarg, arg)
-         equal_pos = scan(adjustl(trim(arg)), "=")
-         if (adjustl(trim(arg(:equal_pos-1))) .eq. "--tag") then
-            this%tag = trim(adjustl(arg(equal_pos+1:)))
-         else
-            stop "Unknown command line argument"
-         end if
-      end do
-
-      if (this%tag == "") this%tag = "0"
-      output_dir = "./output_"//trim(adjustl(this%tag))//"/"
+      write(tag, *) app_color
+      output_dir = "./output_"//trim(adjustl(tag))//"/"
       inquire(file=trim(adjustl(output_dir)), exist=output_dir_exists)
       if (.not. output_dir_exists .and. mpi_rank .eq. 0) then
-         call execute_command_line("mkdir -p "//trim(adjustl(output_dir)))
+         call system("mkdir -p "//trim(adjustl(output_dir)))
       end if
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube_per"
+      write(this%mesh_h5_file_name,*) "cube_per_96"
 
-      write(this%results_h5_file_path,*) "./output_"//trim(adjustl(this%tag))//"/"
+      write(this%results_h5_file_path,*) trim(adjustl(output_dir))
       write(this%results_h5_file_name,*) "results"
-      write(this%io_prepend_path,*) output_dir
+      write(this%io_prepend_path,*) trim(adjustl(output_dir))
 
       this%doGlobalAnalysis = .true.
       this%doTimerAnalysis = .true.
