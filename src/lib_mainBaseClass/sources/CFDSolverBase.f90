@@ -544,10 +544,6 @@ contains
 
       call load_hdf5_meshfile(nnode,npbou)
 
-      if(mesh_porder .ne. porder) then
-         write(*,*) 'FATAL ERROR! mesh_porder',mesh_porder,' different to porder',porder
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-      end if
       ! init comms
       call init_comms(this%useIntInComms,this%useRealInComms)
       ! init comms boundaries

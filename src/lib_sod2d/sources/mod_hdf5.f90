@@ -1203,6 +1203,10 @@ contains
 
       !write(*,*) 'totalNumNodesPar ',totalNumNodesPar,' totalNumElements ',totalNumElements
 
+      !--------------------------------------------------------------------------------
+      !load porder
+      call load_porder_hdf5(file_id,mnnode,mnpbou)
+
       !-----------------------------------------------------------------------------------------------
       !load the parallel data
       if(mpi_size.ge.2) then
@@ -1254,10 +1258,6 @@ contains
       !--------------------------------------------------------------------------------
       !load globalIds
       call load_globalIds_hdf5(file_id)
-
-      !--------------------------------------------------------------------------------
-      !load porder
-      call load_porder_hdf5(file_id,mnnode,mnpbou)
 
       !close h5 file
       call close_hdf5_file(file_id)
@@ -3185,6 +3185,11 @@ contains
 
       mesh_porder = aux_array(1)
       deallocate(aux_array)
+
+      if(mesh_porder .ne. porder) then
+         write(*,*) 'FATAL ERROR! mesh_porder',mesh_porder,' different to porder',porder
+         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      end if
 
       !------------------------------------------------------------------------------------------------
       allocate(mesh_a2ijk(mnnode))
