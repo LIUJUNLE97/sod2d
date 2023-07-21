@@ -11,6 +11,8 @@ module mod_mpi_mesh
 ! ----------------- VARS for new Par mesh FORMAT -------------------------------------------------
 ! ################################################################################################
 
+logical :: mesh_isLoaded = .false.
+
 integer(4) :: numNodesRankPar,numElemsRankPar,totalNumElements
 integer(4) :: rankNodeStart,rankNodeEnd,rankElemStart,rankElemEnd
 integer(8) :: totalNumNodesPar, totalNumNodesSrl

@@ -1150,6 +1150,7 @@ contains
 
          call TripleTensorProduct(porder,nnode,xi_gll,s,t,z,atoIJK,Ngp_equi(igaus,:),dNgp_equi(:,:,igaus))
       end do
+      !$acc update device(Ngp_equi(:,:))
 
       !-------------------------------------------------------------------------------
 
@@ -1394,14 +1395,14 @@ contains
    subroutine CFDSolverBase_saveAvgResultsFiles(this)
       class(CFDSolverBase), intent(inout) :: this
 
-      !TO REVIEW
-      !$acc update host(avvel(:,:))
-      !$acc update host(avve2(:,:))
-      !$acc update host(avvex(:,:))
-      !$acc update host(avrho(:))
-      !$acc update host(avpre(:))
-      !$acc update host(avmueff(:))
-      !$acc update host(avtw(:,:))
+      !!!!!!TO REVIEW
+      !!!!!!$acc update host(avvel(:,:))
+      !!!!!!$acc update host(avve2(:,:))
+      !!!!!!$acc update host(avvex(:,:))
+      !!!!!!$acc update host(avrho(:))
+      !!!!!!$acc update host(avpre(:))
+      !!!!!!$acc update host(avmueff(:))
+      !!!!!!$acc update host(avtw(:,:))
 
       call save_avgResults_hdf5_file(nnode,ngaus,Ngp_equi,this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
                this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
@@ -1421,20 +1422,20 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
 
-      !$acc update host(rho(:,:))
-      !$acc update host(u(:,:,:))
-      !$acc update host(pr(:,:))
-      !$acc update host(E(:,:))
-      !$acc update host(eta(:,:))
-      !$acc update host(csound(:))
-      !$acc update host(machno(:))
-      !$acc update host(gradRho(:,:))
-      !$acc update host(curlU(:,:))
-      !$acc update host(divU(:))
-      !$acc update host(Qcrit(:))
-      !$acc update host(mu_fluid(:))
-      !$acc update host(mu_e(:,:))
-      !$acc update host(mu_sgs(:,:))
+      !!!!!$acc update host(rho(:,:))
+      !!!!!$acc update host(u(:,:,:))
+      !!!!!$acc update host(pr(:,:))
+      !!!!!$acc update host(E(:,:))
+      !!!!!$acc update host(eta(:,:))
+      !!!!!$acc update host(csound(:))
+      !!!!!$acc update host(machno(:))
+      !!!!!$acc update host(gradRho(:,:))
+      !!!!!$acc update host(curlU(:,:))
+      !!!!!$acc update host(divU(:))
+      !!!!!$acc update host(Qcrit(:))
+      !!!!!$acc update host(mu_fluid(:))
+      !!!!!$acc update host(mu_e(:,:))
+      !!!!!$acc update host(mu_sgs(:,:))
       
       call save_instResults_hdf5_file(nnode,ngaus,Ngp_equi,iStep,this%time,&
                this%numNodeScalarFields2save,this%nodeScalarFields2save,this%nameNodeScalarFields2save,&
@@ -2046,6 +2047,9 @@ contains
       ! read the mesh
       call this%openMesh()
 
+      ! Init hdf5 auxiliar saving arrays
+      call init_hdf5_auxiliar_saving_arrays()
+
       ! Open analysis files
       call this%open_analysis_files
 
@@ -2117,6 +2121,9 @@ contains
 
       call this%close_log_file()
       call this%close_analysis_files()
+
+      ! End hdf5 auxiliar saving arrays
+      call end_hdf5_auxiliar_saving_arrays()
 
       ! End hdf5 interface
       call end_hdf5_interface()
