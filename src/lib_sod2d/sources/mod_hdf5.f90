@@ -15,9 +15,6 @@ module mod_hdf5
    integer(hid_t) :: h5_datatype_real4,h5_datatype_real8
 
    real(rp), allocatable :: interpNodeScalarField(:),interpNodeVectorField(:,:)
-   !real(rp), allocatable, dimension(:) :: origNodeScalarField,interpNodeScalarField
-   !real(rp), allocatable, dimension(:,:) :: origNodeVectorField,interpNodeVectorField
-
 
 contains
 
@@ -49,15 +46,10 @@ contains
    subroutine init_hdf5_auxiliar_saving_arrays()
       implicit none
 
-      if(mesh_isLoaded .eq. .false.) then
+      if(mesh_isLoaded .eqv. .false.) then
          write(*,*) 'FATAL ERROR! Mesh not loaded when calling init_hdf5_auxiliar_saving_arrays()! CRASHING!'
          call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
       end if
-
-      !!!!!!allocate(origNodeScalarField(numNodesRankPar))
-      !!!!!!allocate(origNodeVectorField(numNodesRankPar,ndime))
-      !!!!!!!$acc enter data create(origNodeScalarField(:))
-      !!!!!!!$acc enter data create(origNodeVectorField(:,:))
 
       allocate(interpNodeScalarField(numNodesRankPar))
       allocate(interpNodeVectorField(numNodesRankPar,ndime))
@@ -69,11 +61,6 @@ contains
    subroutine end_hdf5_auxiliar_saving_arrays()
       implicit none
 
-      !!!!$acc exit data delete(origNodeScalarField(:))
-      !!!!$acc exit data delete(origNodeVectorField(:,:))
-      !!!!deallocate(origNodeScalarField)
-      !!!!deallocate(origNodeVectorField)
-      
       !$acc exit data delete(interpNodeScalarField(:))
       !$acc exit data delete(interpNodeVectorField(:,:))
       deallocate(interpNodeScalarField)
