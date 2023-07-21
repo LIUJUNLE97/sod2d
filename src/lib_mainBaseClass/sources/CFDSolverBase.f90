@@ -545,10 +545,6 @@ contains
 
       call load_hdf5_meshfile(nnode,npbou)
 
-      if(mesh_porder .ne. porder) then
-         write(*,*) 'FATAL ERROR! mesh_porder',mesh_porder,' different to porder',porder
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-      end if
       ! init comms
       call init_comms(this%useIntInComms,this%useRealInComms)
       ! init comms boundaries
@@ -1138,8 +1134,7 @@ contains
       !$acc update device(wgp_b(:))
 
       !-------------------------------------------------------------------------------
-      !allocate(xi_gll(porder+1))
-      !allocate(xgp_equi(ngaus,ndime))
+      ! Generating Ngp_equi to interpolate from GLL nodes mesh to Equispace nodes mesh
       allocate(Ngp_equi(ngaus,nnode))
       allocate(dNgp_equi(ndime,nnode,ngaus))
       !$acc enter data create(Ngp_equi(:,:))
@@ -1147,17 +1142,15 @@ contains
 
       call getGaussPoints_equispaced_hex(porder,ngaus,atoIJK,xgp_equi)
       call getGaussLobattoLegendre_roots(porder,xi_gll)
-      if(mpi_rank.eq.0) write(*,*) 'xi_gll',xi_gll(:),'xgp_equi',xgp_equi(:,:)
+
       do igaus = 1,ngaus
          s = xgp_equi(igaus,1)
          t = xgp_equi(igaus,2)
          z = xgp_equi(igaus,3)
 
          call TripleTensorProduct(porder,nnode,xi_gll,s,t,z,atoIJK,Ngp_equi(igaus,:),dNgp_equi(:,:,igaus))
-         !call TripleTensorProduct(mporder,mnnode,xi_grid,xi,eta,zeta,atoIJK,Ngp_equi,dN)
       end do
-
-      if(mpi_rank.eq.0) write(*,*) 'xgp_equi',xgp_equi(:,:),'Ngp_equi',Ngp_equi(:,:)
+      !$acc update device(Ngp_equi(:,:))
 
       !-------------------------------------------------------------------------------
 
@@ -1402,14 +1395,14 @@ contains
    subroutine CFDSolverBase_saveAvgResultsFiles(this)
       class(CFDSolverBase), intent(inout) :: this
 
-      !TO REVIEW
-      !$acc update host(avvel(:,:))
-      !$acc update host(avve2(:,:))
-      !$acc update host(avvex(:,:))
-      !$acc update host(avrho(:))
-      !$acc update host(avpre(:))
-      !$acc update host(avmueff(:))
-      !$acc update host(avtw(:,:))
+      !!!!!!TO REVIEW
+      !!!!!!$acc update host(avvel(:,:))
+      !!!!!!$acc update host(avve2(:,:))
+      !!!!!!$acc update host(avvex(:,:))
+      !!!!!!$acc update host(avrho(:))
+      !!!!!!$acc update host(avpre(:))
+      !!!!!!$acc update host(avmueff(:))
+      !!!!!!$acc update host(avtw(:,:))
 
       call save_avgResults_hdf5_file(nnode,ngaus,Ngp_equi,this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
                this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
@@ -1429,20 +1422,20 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
 
-      !$acc update host(rho(:,:))
-      !$acc update host(u(:,:,:))
-      !$acc update host(pr(:,:))
-      !$acc update host(E(:,:))
-      !$acc update host(eta(:,:))
-      !$acc update host(csound(:))
-      !$acc update host(machno(:))
-      !$acc update host(gradRho(:,:))
-      !$acc update host(curlU(:,:))
-      !$acc update host(divU(:))
-      !$acc update host(Qcrit(:))
-      !$acc update host(mu_fluid(:))
-      !$acc update host(mu_e(:,:))
-      !$acc update host(mu_sgs(:,:))
+      !!!!!$acc update host(rho(:,:))
+      !!!!!$acc update host(u(:,:,:))
+      !!!!!$acc update host(pr(:,:))
+      !!!!!$acc update host(E(:,:))
+      !!!!!$acc update host(eta(:,:))
+      !!!!!$acc update host(csound(:))
+      !!!!!$acc update host(machno(:))
+      !!!!!$acc update host(gradRho(:,:))
+      !!!!!$acc update host(curlU(:,:))
+      !!!!!$acc update host(divU(:))
+      !!!!!$acc update host(Qcrit(:))
+      !!!!!$acc update host(mu_fluid(:))
+      !!!!!$acc update host(mu_e(:,:))
+      !!!!!$acc update host(mu_sgs(:,:))
       
       call save_instResults_hdf5_file(nnode,ngaus,Ngp_equi,iStep,this%time,&
                this%numNodeScalarFields2save,this%nodeScalarFields2save,this%nameNodeScalarFields2save,&
@@ -2054,6 +2047,9 @@ contains
       ! read the mesh
       call this%openMesh()
 
+      ! Init hdf5 auxiliar saving arrays
+      call init_hdf5_auxiliar_saving_arrays()
+
       ! Open analysis files
       call this%open_analysis_files
 
@@ -2125,6 +2121,9 @@ contains
 
       call this%close_log_file()
       call this%close_analysis_files()
+
+      ! End hdf5 auxiliar saving arrays
+      call end_hdf5_auxiliar_saving_arrays()
 
       ! End hdf5 interface
       call end_hdf5_interface()
