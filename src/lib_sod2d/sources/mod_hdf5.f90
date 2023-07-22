@@ -4060,17 +4060,21 @@ contains
       integer(4) :: iElem,igp,inode
       real(rp) :: var_a
 
-      !$acc kernels
+      !$acc parallel loop gang
       do iElem = 1,numElemsRankPar
+         !$acc loop vector
          do igp = 1,mngaus
             var_a = 0.0_rp
+            !$acc loop seq
             do inode = 1,mnnode
                var_a = var_a+Ngp_equi(igp,inode)*origNodeScalarField(connecParW(iElem,inode))
             end do
+            !$acc atomic write
             interpNodeScalarField(connecParO(iElem,igp)) = var_a
+            !$acc end atomic
          end do
       end do
-      !$acc end kernels
+      !$acc end parallel loop
 
    end subroutine interpolate_scalarField_in_nodes
 
@@ -4078,22 +4082,26 @@ contains
       implicit none
       integer(4),intent(in) :: mnnode,mngaus,connecParW(numElemsRankPar,mnnode),connecParO(numElemsRankPar,mnnode)
       real(rp),intent(in) :: Ngp_equi(mngaus,mnnode),origNodeVectorField(numNodesRankPar,ndime)
-      integer(4) :: iElem,igp,inode
-      real(rp) :: var_a(ndime)
+      integer(4) :: iElem,igp,inode,idime
+      real(rp) :: var_a
       
-      !$acc kernels
+      !$acc parallel loop gang 
       do iElem = 1,numElemsRankPar
+         !$acc loop vector collapse(2)
          do igp = 1,mngaus
-            !do idime = 1,ndime
-            var_a(:) = 0.0_rp
-            do inode = 1,mnnode
-               var_a(:) = var_a(:)+Ngp_equi(igp,inode)*origNodeVectorField(connecParW(iElem,inode),:)
+            do idime = 1,ndime
+               var_a = 0.0_rp
+               !$acc loop seq
+               do inode = 1,mnnode
+                  var_a = var_a+Ngp_equi(igp,inode)*origNodeVectorField(connecParW(iElem,inode),idime)
+               end do
+               !$acc atomic write
+               interpNodeVectorField(connecParO(iElem,igp),idime) = var_a
+               !$acc end atomic
             end do
-            interpNodeVectorField(connecParO(iElem,igp),:) = var_a(:)
-            !end do
          end do
       end do
-      !$acc end kernels
+      !$acc end parallel loop
 
    end subroutine interpolate_vectorField_in_nodes
 
@@ -4104,17 +4112,22 @@ contains
       integer(4) :: iElem,igp,inode,iPer
       real(rp) :: var_a
 
-      !$acc kernels
+      !$acc parallel loop gang 
       do iElem = 1,numElemsRankPar
+
+         !$acc loop vector 
          do igp = 1,mngaus
             var_a = 0.0_rp
+            !$acc loop seq
             do inode = 1,mnnode
                var_a = var_a+Ngp_equi(igp,inode)*origElemGpScalarField(iElem,inode)
             end do
+            !$acc atomic write
             interpNodeScalarField(connecParO(iElem,igp)) = var_a
+            !$acc end atomic
          end do
       end do
-      !$acc end kernels
+      !$acc end parallel loop
 
       if(isMeshPeriodic) then
          !$acc parallel loop
