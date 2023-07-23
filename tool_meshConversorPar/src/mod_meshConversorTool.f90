@@ -152,7 +152,7 @@ contains
       type(jagged_vector_int4) :: connecVTK_jv
       type(jagged_matrix_int4) :: connecParOrig_jm,connecParWork_jm
 
-      type(jagged_matrix_rp) :: coordPar_jm
+      type(jagged_matrix_rp) :: coordPar_jm,coordVTK_jm
 
       type(jagged_vector_int4) :: workingNodesPar_jv
       integer(4),allocatable :: numWorkingNodesMshRank(:)
@@ -287,6 +287,7 @@ contains
       allocate(connecParOrig_jm%matrix(numMshRanksInMpiRank))
       allocate(connecParWork_jm%matrix(numMshRanksInMpiRank))
       allocate(coordPar_jm%matrix(numMshRanksInMpiRank))
+      allocate(coordVTK_jm%matrix(numMshRanksInMpiRank))
       allocate(numWorkingNodesMshRank(numMshRanksInMpiRank))
       allocate(workingNodesPar_jv%vector(numMshRanksInMpiRank))
       allocate(connecBoundFacesMshRank_jm%matrix(numMshRanksInMpiRank))
@@ -309,6 +310,7 @@ contains
          allocate(connecParWork_jm%matrix(iMshRank)%elems(numElemsMshRank(iMshRank),mnnode))
 
          allocate(coordPar_jm%matrix(iMshRank)%elems(numNodesMshRank(iMshRank),3))
+         allocate(coordVTK_jm%matrix(iMshRank)%elems(numNodesMshRank(iMshRank),3))
 
          allocate(connecBoundFacesMshRank_jm%matrix(iMshRank)%elems(numBoundFacesMshRank(iMshRank),mnpbou))
          allocate(connecOrigBoundFacesMshRank_jm%matrix(iMshRank)%elems(numBoundFacesMshRank(iMshRank),mnpbou))
@@ -322,6 +324,7 @@ contains
          connecParOrig_jm%matrix(iMshRank)%elems(:,:) = 0
          connecParWork_jm%matrix(iMshRank)%elems(:,:) = 0
          coordPar_jm%matrix(iMshRank)%elems(:,:) = 0.0_rp
+         coordVTK_jm%matrix(iMshRank)%elems(:,:) = 0.0_rp
          connecBoundFacesMshRank_jm%matrix(iMshRank)%elems(:,:) = 0
 
          connecOrigBoundFacesMshRank_jm%matrix(iMshRank)%elems(:,:) = 0
@@ -339,7 +342,7 @@ contains
 
          call set_nodesCoordinates(mnnode,mnpbou,mngaus,mshRank,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),globalIdSrl_i8_jv%vector(iMshRank)%elems,&
             listNodesMshRank_i8_jv%vector(iMshRank)%elems,coordMshRank_jm%matrix(iMshRank)%elems,Ngp_l,connecParOrig_jm%matrix(iMshRank)%elems,&
-            coordPar_jm%matrix(iMshRank)%elems)
+            coordPar_jm%matrix(iMshRank)%elems,coordVTK_jm%matrix(iMshRank)%elems)
 
          call create_working_lists_parallel(mnnode,mnpbou,isPeriodic,mshRank,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),&
                connecParOrig_jm%matrix(iMshRank)%elems,numPerNodesMshRank(iMshRank),masSlaRankPar_jm%matrix(iMshRank)%elems,&
@@ -430,15 +433,15 @@ contains
             bnd_commsMemSize_jv%vector(iMshRank)%elems,bnd_commsMemPosInNgb_jv%vector(iMshRank)%elems,bnd_ranksToComm_jv%vector(iMshRank)%elems,&
             vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank) 
 
-         call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mnnode,sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),&
-            mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),&
-            coordPar_jm%matrix(iMshRank)%elems,connecVTK_jv%vector(iMshRank)%elems)
+        call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mnnode,sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),&
+           mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),&
+           coordVTK_jm%matrix(iMshRank)%elems,connecVTK_jv%vector(iMshRank)%elems)
       end do
 
       do iMshRank=(numMshRanksInMpiRank+1),maxNumMshRanks
-         call dummy_write_mshRank_data_in_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId,numMshRanks2Part,isPeriodic,isBoundaries)
+        call dummy_write_mshRank_data_in_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId,numMshRanks2Part,isPeriodic,isBoundaries)
 
-         call dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(sod2dmsh_h5_fileId,numMshRanks2Part)
+        call dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(sod2dmsh_h5_fileId,numMshRanks2Part)
       end do
 
       call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
@@ -3789,13 +3792,13 @@ contains
 
 !------------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine set_nodesCoordinates(mnnode,mnpbou,mngaus,mshRank,numElemsInRank,numNodesInRank,globalIdSrlInRank_i8,listNodesInRank_i8,coordInRank,Ngp_l,connecParOrigMshRank,coordParMshRank)
+   subroutine set_nodesCoordinates(mnnode,mnpbou,mngaus,mshRank,numElemsInRank,numNodesInRank,globalIdSrlInRank_i8,listNodesInRank_i8,coordInRank,Ngp_l,connecParOrigMshRank,coordParMshRank,coordVTKMshRank)
       implicit none
       integer(4),intent(in) :: mnnode,mnpbou,mngaus
       integer(4),intent(in) :: mshRank,numElemsInRank,numNodesInRank,connecParOrigMshRank(numElemsInRank,mnnode)
       integer(8),intent(in) :: globalIdSrlInRank_i8(numNodesInRank),listNodesInRank_i8(numNodesInRank)
       real(rp),intent(in) :: coordInRank(numNodesInRank,3),Ngp_l(mngaus,mnnode)
-      real(rp),intent(out) :: coordParMshRank(numNodesInRank,3)
+      real(rp),intent(out) :: coordParMshRank(numNodesInRank,3),coordVTKMshRank(numNodesInRank,3)
       integer(4) :: iPos,iNodeL
       integer(8) :: iNodeGsrl
 
@@ -3811,6 +3814,10 @@ contains
          coordParMshRank(iNodeL,1) = coordInRank(iPos,1)
          coordParMshRank(iNodeL,2) = coordInRank(iPos,2)
          coordParMshRank(iNodeL,3) = coordInRank(iPos,3)
+
+         coordVTKMshRank(iNodeL,1) = coordInRank(iPos,1)
+         coordVTKMshRank(iNodeL,2) = coordInRank(iPos,2)
+         coordVTKMshRank(iNodeL,3) = coordInRank(iPos,3)
       end do
       !!!$acc end parallel loop
 
@@ -3984,7 +3991,6 @@ contains
       real(rp),intent(out) :: Ngp_l(mngaus,mnnode)
       real(rp) :: s, t, z
       integer(4) :: igaus
-      !integer(4) :: atoIJK(mnnode)
       real(rp) :: xgp(mngaus,ndime), wgp(mngaus)
       real(rp) :: Ngp(mngaus,mnnode), dNgp(ndime,mnnode,mngaus),dlxigp_ip(mngaus,ndime,mporder+1),dNgp_l(ndime,mnnode,mngaus)
 
