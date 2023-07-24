@@ -54,7 +54,7 @@ module mod_witness_points
          real(rp)               :: j(ndime, ndime), k(ndime, ndime)
          real(rp)               :: detJ
          integer(4)            :: ii, ip
-         real(rp), parameter    :: tol = 1e-10, alpha = 1, div = 100
+         real(rp), parameter    :: tol_wp = 1e-10, alpha = 1, div = 100
          integer(4), parameter :: maxite = 50
 
          xi_0(:) = 0
@@ -138,7 +138,7 @@ module mod_witness_points
             !
             xi_n(:) = xi(:) - alpha*matmul(k, f)
             xi(:)   = xi_n(:)
-            if (dot_product(f, f) < tol) then
+            if (dot_product(f, f) < tol_wp) then
                isinside = .true.
                Niwit    = N
                exit
@@ -148,26 +148,20 @@ module mod_witness_points
             end if
          end do
       end subroutine isocoords
-#if 0
-      subroutine wit_interpolation(xiwit, elvalues, witval)
+
+      subroutine wit_interpolation(xiwit,elvalues,N,witval)
          !
          ! Subroutine which interpolates the values from the element nodes to any point inside the element
          !
          implicit none
-         real(rp), intent(in)  :: xiwit(ndime)    ! Input 1: isoparametric coordinates of the point we want to interpolate to
-         real(rp), intent(in)  :: elvalues(nnode) ! Input 2: values of the magnitude at the element nodes 
-         real(rp), intent(out) :: witval          ! Output 1: value interpolated at the point
-         real(rp)              :: N(nnode), N_lagrange(nnode) 
-         integer(4)            :: atoIJK(nnode)
-         real(rp)              :: dlxigp_ip(ndime, porder+1)
-         real(rp)              :: dN(ndime, nnode), dN_lagrange(ndime, nnode)
-         integer(4)           :: ip
+         real(rp),intent(in)   :: xiwit(ndime)    ! Input 1: isoparametric coordinates of the point we want to interpolate to
+         real(rp),intent(in)   :: elvalues(nnode) ! Input 2: values of the magnitude at the element nodes 
+         real(rp),intent(in)   :: N(nnode)
+         real(rp),intent(out)  :: witval          ! Output 1: value interpolated at the point
          
          witval = 0.0_rp
 
-         call set_hex64_lists(atoIJK)
-         call hex_highorder(xiwit(1), xiwit(2), xiwit(3), atoIJK, N, dN, N_lagrange, dN_lagrange, dlxigp_ip)
-         call var_interpolate(elvalues, N, witval)
+         call var_interpolate(nnode,elvalues,N,witval)
       end subroutine wit_interpolation
-#endif
+
 end module mod_witness_points

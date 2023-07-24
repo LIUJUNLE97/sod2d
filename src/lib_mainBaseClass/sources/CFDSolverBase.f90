@@ -15,6 +15,7 @@ module mod_arrays
       real(rp), allocatable :: xgp(:,:), wgp(:), xgp_b(:,:), wgp_b(:)
       real(rp), allocatable :: Ngp(:,:), dNgp(:,:,:), Ngp_b(:,:), dNgp_b(:,:,:)
       real(rp), allocatable :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
+      real(rp), allocatable :: Ngp_equi(:,:), dNgp_equi(:,:,:)
       real(rp), allocatable :: gpvol(:,:,:),Je(:,:), He(:,:,:,:), bou_norm(:,:),Ml(:),mu_factor(:),source_term(:,:)
 
       real(rp), target,allocatable :: gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
@@ -547,10 +548,6 @@ contains
 
       call load_hdf5_meshfile(nnode,npbou)
 
-      if(mesh_porder .ne. porder) then
-         write(*,*) 'FATAL ERROR! mesh_porder',mesh_porder,' different to porder',porder
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
-      end if
       ! init comms
       call init_comms(this%useIntInComms,this%useRealInComms)
       ! init comms boundaries
@@ -1098,7 +1095,7 @@ contains
 
    subroutine CFDSolverBase_evalShapeFunctions(this)
       class(CFDSolverBase), intent(inout) :: this
-      real(rp)                    :: s, t, z
+      real(rp)   :: s,t,z,xi_gll(porder+1),xgp_equi(ngaus,ndime)
       integer(4) :: igaus
 
       !*********************************************************************!
@@ -1138,6 +1135,27 @@ contains
       !$acc update device(wgp(:))
       call GaussLobattoLegendre_qua(porder,npbou,atoIJ,xgp_b,wgp_b)
       !$acc update device(wgp_b(:))
+
+      !-------------------------------------------------------------------------------
+      ! Generating Ngp_equi to interpolate from GLL nodes mesh to Equispace nodes mesh
+      allocate(Ngp_equi(ngaus,nnode))
+      allocate(dNgp_equi(ndime,nnode,ngaus))
+      !$acc enter data create(Ngp_equi(:,:))
+      !$acc enter data create(dNgp_equi(:,:,:))
+
+      call getGaussPoints_equispaced_hex(porder,ngaus,atoIJK,xgp_equi)
+      call getGaussLobattoLegendre_roots(porder,xi_gll)
+
+      do igaus = 1,ngaus
+         s = xgp_equi(igaus,1)
+         t = xgp_equi(igaus,2)
+         z = xgp_equi(igaus,3)
+
+         call TripleTensorProduct(porder,nnode,xi_gll,s,t,z,atoIJK,Ngp_equi(igaus,:),dNgp_equi(:,:,igaus))
+      end do
+      !$acc update device(Ngp_equi(:,:))
+
+      !-------------------------------------------------------------------------------
 
       call nvtxEndRange
 
@@ -1380,16 +1398,16 @@ contains
    subroutine CFDSolverBase_saveAvgResultsFiles(this)
       class(CFDSolverBase), intent(inout) :: this
 
-      !TO REVIEW
-      !$acc update host(avvel(:,:))
-      !$acc update host(avve2(:,:))
-      !$acc update host(avvex(:,:))
-      !$acc update host(avrho(:))
-      !$acc update host(avpre(:))
-      !$acc update host(avmueff(:))
-      !$acc update host(avtw(:,:))
+      !!!!!!TO REVIEW
+      !!!!!!$acc update host(avvel(:,:))
+      !!!!!!$acc update host(avve2(:,:))
+      !!!!!!$acc update host(avvex(:,:))
+      !!!!!!$acc update host(avrho(:))
+      !!!!!!$acc update host(avpre(:))
+      !!!!!!$acc update host(avmueff(:))
+      !!!!!!$acc update host(avtw(:,:))
 
-      call save_avgResults_hdf5_file(nnode,this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
+      call save_avgResults_hdf5_file(nnode,ngaus,Ngp_equi,this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
                this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
                this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
                this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
@@ -1407,22 +1425,22 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
 
-      !$acc update host(rho(:,:))
-      !$acc update host(u(:,:,:))
-      !$acc update host(pr(:,:))
-      !$acc update host(E(:,:))
-      !$acc update host(eta(:,:))
-      !$acc update host(csound(:))
-      !$acc update host(machno(:))
-      !$acc update host(gradRho(:,:))
-      !$acc update host(curlU(:,:))
-      !$acc update host(divU(:))
-      !$acc update host(Qcrit(:))
-      !$acc update host(mu_fluid(:))
-      !$acc update host(mu_e(:,:))
-      !$acc update host(mu_sgs(:,:))
+      !!!!!$acc update host(rho(:,:))
+      !!!!!$acc update host(u(:,:,:))
+      !!!!!$acc update host(pr(:,:))
+      !!!!!$acc update host(E(:,:))
+      !!!!!$acc update host(eta(:,:))
+      !!!!!$acc update host(csound(:))
+      !!!!!$acc update host(machno(:))
+      !!!!!$acc update host(gradRho(:,:))
+      !!!!!$acc update host(curlU(:,:))
+      !!!!!$acc update host(divU(:))
+      !!!!!$acc update host(Qcrit(:))
+      !!!!!$acc update host(mu_fluid(:))
+      !!!!!$acc update host(mu_e(:,:))
+      !!!!!$acc update host(mu_sgs(:,:))
       
-      call save_instResults_hdf5_file(nnode,iStep,this%time,&
+      call save_instResults_hdf5_file(nnode,ngaus,Ngp_equi,iStep,this%time,&
                this%numNodeScalarFields2save,this%nodeScalarFields2save,this%nameNodeScalarFields2save,&
                this%numNodeVectorFields2save,this%nodeVectorFields2save,this%nameNodeVectorFields2save,&
                this%numElemGpScalarFields2save,this%elemGpScalarFields2save,this%nameElemGpScalarFields2save)
@@ -2032,6 +2050,9 @@ contains
       ! read the mesh
       call this%openMesh()
 
+      ! Init hdf5 auxiliar saving arrays
+      call init_hdf5_auxiliar_saving_arrays()
+
       ! Open analysis files
       call this%open_analysis_files
 
@@ -2103,6 +2124,9 @@ contains
 
       call this%close_log_file()
       call this%close_analysis_files()
+
+      ! End hdf5 auxiliar saving arrays
+      call end_hdf5_auxiliar_saving_arrays()
 
       ! End hdf5 interface
       call end_hdf5_interface()
