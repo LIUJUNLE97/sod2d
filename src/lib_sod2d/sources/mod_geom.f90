@@ -87,22 +87,20 @@ module mod_geom
                  !
                  ! Obtain ||dist||_2 for all edges and select minimum size as elem. characteristic size
                  !
-                 !aux = 1000000000000.0_rp
-                 !do inode = 1,nnode
-                 !   do jnode = 1,nnode
-                 !      if(inode .ne. jnode) then 
-                 !         dist = coord(connec(ielem,inode),:)-coord(connec(ielem,jnode),:)
-                 !         dist2 = sqrt(dot_product(dist(:),dist(:)))
-                 !         aux = min(dist2,aux)
-                 !      end if
-                 !   end do
-                 !end do
-                 !do inode = 1,nnode
-                 !   he_l(ielem,inode) = aux
-                 !end do
-                 do inode = 1,mnnode
-                    he_l(ielem,inode) = Ml(connec(ielem,inode))**(1.0_rp/real(ndime,rp))
+                 do inode = 1,nnode
+                     aux = 1000000000000.0_rp
+                    do jnode = 1,nnode
+                       if(inode .ne. jnode) then 
+                          dist = coord(connec(ielem,inode),:)-coord(connec(ielem,jnode),:)
+                          dist2 = sqrt(dot_product(dist(:),dist(:)))
+                          aux = min(dist2,aux)
+                       end if
+                    end do
+                    he_l(ielem,inode) = aux
                  end do
+                 !do inode = 1,mnnode
+                 !   he_l(ielem,inode) = Ml(connec(ielem,inode))**(1.0_rp/real(ndime,rp))
+                 !end do
          end subroutine char_length_spectral
 
 #if 0
