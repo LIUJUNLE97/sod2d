@@ -33,7 +33,7 @@ module mod_mpi
       call MPI_Comm_get_attr(world_comm, MPI_APPNUM, color_ptr, mpi_app_num_flag, mpi_err)
       app_color = color_ptr ! necessary to get integer from pointer
 
-      ! Split MPI_COMM_WORLD and create a communicator for this app only (color must be unique for each application)
+      ! Split world_comm and create a communicator for this app only (color must be unique for each application)
       if (mpi_app_num_flag) then
          call MPI_Comm_split(world_comm, app_color, mpi_world_rank, app_comm, mpi_err)
          call MPI_Comm_rank(app_comm, mpi_rank, mpi_err)
