@@ -54,7 +54,7 @@ contains
       end if
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube_per_96"
+      write(this%mesh_h5_file_name,*) "cube_per_64"
 
       write(this%results_h5_file_path,*) trim(adjustl(output_dir))
       write(this%results_h5_file_name,*) "results"

@@ -48,7 +48,7 @@ contains
 
       if(mesh_isLoaded .eqv. .false.) then
          write(*,*) 'FATAL ERROR! Mesh not loaded when calling init_hdf5_auxiliar_saving_arrays()! CRASHING!'
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+         call MPI_Abort(app_comm,-1,mpi_err)
       end if
 
       allocate(interpNodeScalarField(numNodesRankPar))
@@ -3245,7 +3245,7 @@ contains
 
       if(mesh_porder .ne. porder) then
          write(*,*) 'FATAL ERROR! mesh_porder',mesh_porder,' different to porder',porder
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+         call MPI_Abort(app_comm,-1,mpi_err)
       end if
 
       !------------------------------------------------------------------------------------------------
@@ -4580,7 +4580,7 @@ contains
       ms_offset(1) = int((mpiRankBoundStart-1),hssize_t)* int(mnpbou,hssize_t)
 
       !write(*,*) 'EI! THIS FUNC save_surface_mesh_hdf5_file() in mod_hdf5.f90 NOW DOES NOT WORK! FIX IT!'
-      !call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      !call MPI_Abort(app_comm,-1,mpi_err)
 
       do iBound=1,numBoundsRankPar
          do ii=1,mnpbou
