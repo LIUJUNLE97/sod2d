@@ -4630,6 +4630,8 @@ contains
 
       deallocate(aux_array_i1)
 
+      call close_hdf5_file(hdf5_fileId)
+
    end subroutine save_surface_mesh_hdf5_file
 
 #if 0
