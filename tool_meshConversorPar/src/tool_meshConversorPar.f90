@@ -11,6 +11,7 @@ program tool_meshConversorPar
     character(512) :: mesh_h5_filePath,mesh_h5_fileName
     character(256) :: parameter2read
     integer(4) :: lineCnt,num_partitions
+    logical :: lineal_output
 
 !------------------------------------------------------------------------------------------------------
 
@@ -56,12 +57,16 @@ program tool_meshConversorPar
     parameter2read = 'num_partitions'
     call read_inputFile_integer(lineCnt,parameter2read,num_partitions)
 
+    !6. lineal_output--------------------------------------------------------------------------
+    parameter2read = 'lineal_output'
+    call read_inputFile_logical(lineCnt,parameter2read,lineal_output)
+
     close(99)
     if(mpi_rank.eq.0) write(*,*) '## End of Reading input file: ',trim(adjustl(input_file))
 
 !---------------------------------------------------------------------------------------------------------
 
-    call read_gmsh_h5_file_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName,num_partitions)
+    call read_gmsh_h5_file_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName,num_partitions,lineal_output)
 
 !---------------------------------------------------------------------------------------------------------
 

@@ -191,13 +191,13 @@ contains
       call h5fclose_f(hdf5_file_id,h5err)
    end subroutine close_hdf5_meshFile_from_tool
 #endif
-   subroutine create_hdf5_groups_datasets_in_meshFile_from_tool(mnnode,mnpbou,hdf5_file_id,isPeriodic,isBoundaries,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
+   subroutine create_hdf5_groups_datasets_in_meshFile_from_tool(mnnode,mnpbou,hdf5_file_id,isPeriodic,isBoundaries,isLinealOutput,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
                vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,&
                vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank)
       implicit none
       integer(4),intent(in) :: mnnode,mnpbou
       integer(hid_t),intent(in) :: hdf5_file_id
-      logical,intent(in) :: isPeriodic,isBoundaries
+      logical,intent(in) :: isPeriodic,isBoundaries,isLinealOutput
       integer(4),intent(in) :: numMshRanks2Part,numElemsGmsh
       integer(8),intent(in) :: numNodesParTotal_i8
       integer(4),intent(in),dimension(0:numMshRanks2Part-1) :: vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank
@@ -229,15 +229,17 @@ contains
       dsetname = '/globalIds/elemGid'
       call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
       !--------------------------------------------------------------------------------
-      call select_dtype_rp(dtype)
-      ds_rank = 2
-      ds_dims2d(1) = ndime
-      ds_dims2d(2) = numNodesParTotal_i8
+      if(.not.(isLinealOutput)) then
+         call select_dtype_rp(dtype)
+         ds_rank = 2
+         ds_dims2d(1) = ndime
+         ds_dims2d(2) = numNodesParTotal_i8
 
-      groupname = '/Coords'
-      call create_group_hdf5(hdf5_file_id,groupname)
-      dsetname = '/Coords/Points'
-      call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims2d,dtype)
+         groupname = '/Coords'
+         call create_group_hdf5(hdf5_file_id,groupname)
+         dsetname = '/Coords/Points'
+         call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims2d,dtype)
+      end if
       !--------------------------------------------------------------------------------
       call create_groups_datasets_connectivity_workingNodes_hdf5(mnnode,hdf5_file_id,numMshRanks2Part,numElemsGmsh,vecNumWorkingNodes)
 
@@ -284,6 +286,36 @@ contains
       call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
       dsetname = '/order/vtk2ij'
       call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
+
+      !---------------------------------------------------------
+      ! meshOutputInfo
+
+      groupname = '/meshOutputInfo'
+      call create_group_hdf5(hdf5_file_id,groupname)
+
+      dtype = h5_datatype_uint1
+
+      ds_rank = 1
+      ds_dims(1) = 1
+      dsetname = '/meshOutputInfo/isLinealOutput'
+      call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
+
+      dtype = h5_datatype_int4
+
+      dsetname = '/meshOutputInfo/nnodeVTK'
+      call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
+
+      dsetname = '/meshOutputInfo/numVTKElemsPerMshElem'
+      call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
+
+      ds_dims(1) = numMshRanks2Part
+
+      dsetname = '/meshOutputInfo/numElemsVTKMshRank'
+      call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
+
+      dsetname = '/meshOutputInfo/sizeConnecVTKMshRank'
+      call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
+
 
    end subroutine create_hdf5_groups_datasets_in_meshFile_from_tool
 
@@ -565,29 +597,29 @@ contains
       !--------------------------------------------------------------------------------------------------------
    end subroutine create_groups_datasets_boundary_data_hdf5
 
-   subroutine write_mshRank_data_in_hdf5_meshFile_from_tool(mporder,mnnode,mnpbou,hdf5_file_id,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,numElemsGmsh,numBoundFacesGmsh,&
+   subroutine write_mshRank_data_in_hdf5_meshFile_from_tool(mporder,mnnode,mnpbou,hdf5_file_id,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,isLinealOutput,numElemsGmsh,numBoundFacesGmsh,&
          numElemsMshRank,mshRankElemStart,mshRankElemEnd,mshRankNodeStart_i8,mshRankNodeEnd_i8,numNodesMshRank,numWorkingNodesMshRank,numBoundFacesMshRank,numBoundaryNodesMshRank,numDoFMshRank,maxBoundCode,&
+         numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,&
          a2ijk,a2ij,gmsh2ijk,gmsh2ij,vtk2ijk,vtk2ij,&
-         elemGidMshRank,globalIdSrlMshRank_i8,globalIdParMshRank_i8,connecVTKMshRank,connecParOrigMshRank,connecParWorkMshRank,coordParMshRank,workingNodesMshRank,&
+         elemGidMshRank,globalIdSrlMshRank_i8,globalIdParMshRank_i8,connecParOrigMshRank,connecParWorkMshRank,coordParMshRank,workingNodesMshRank,&
          boundaryNodesMshRank,dofNodesMshRank,boundFacesCodesMshRank,boundFacesOrigMshRank,boundFacesMshRank,numPerNodesMshRank,masSlaNodesMshRank,&
          numNodesToCommMshRank,numMshRanksWithComms,nodesToCommMshRank,commsMemPosInLocMshRank,commsMemSizeMshRank,commsMemPosInNgbMshRank,ranksToCommMshRank,&
          bnd_numNodesToCommMshRank,bnd_numMshRanksWithComms,bnd_nodesToCommMshRank,bnd_commsMemPosInLocMshRank,bnd_commsMemSizeMshRank,bnd_commsMemPosInNgbMshRank,bnd_ranksToCommMshRank,&
          vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank)
       implicit none
       integer(hid_t),intent(in) :: hdf5_file_id
-      logical,intent(in) :: isPeriodic,isBoundaries
+      logical,intent(in) :: isPeriodic,isBoundaries,isLinealOutput
       integer(4),intent(in) :: mporder,mnnode,mnpbou,mshRank,numMshRanks2Part,numElemsGmsh,numBoundFacesGmsh
       integer(4),intent(in) :: numElemsMshRank,mshRankElemStart,mshRankElemEnd
       integer(8),intent(in) :: mshRankNodeStart_i8,mshRankNodeEnd_i8
       integer(4),intent(in) :: numNodesMshRank,numWorkingNodesMshRank,numPerNodesMshRank
       integer(4),intent(in) :: numBoundFacesMshRank,numBoundaryNodesMshRank,numDoFMshRank
-      integer(4),intent(in) :: maxBoundCode
+      integer(4),intent(in) :: maxBoundCode,numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem
 
       integer(4),intent(in),dimension(mnnode) :: a2ijk,gmsh2ijk,vtk2ijk
       integer(4),intent(in),dimension(mnpbou) :: a2ij,gmsh2ij,vtk2ij
       integer(4),intent(in) :: elemGidMshRank(numElemsMshRank),workingNodesMshRank(numWorkingNodesMshRank)
       integer(8),intent(in) :: globalIdSrlMshRank_i8(numNodesMshRank),globalIdParMshRank_i8(numNodesMshRank)
-      integer(4),intent(in) :: connecVTKMshRank(numElemsMshRank*mnnode)
       integer(4),intent(in) :: connecParOrigMshRank(numElemsMshRank,mnnode),connecParWorkMshRank(numElemsMshRank,mnnode)
       real(rp),intent(in)   :: coordParMshRank(numNodesMshRank,3)
 
@@ -606,7 +638,8 @@ contains
       integer(hsize_t) :: ms_dims(1),ms_dims2d(2)
       integer(4) :: i,m,iBound,iElemL
       integer(hssize_t) :: ms_offset(1),ms_offset2d(2)
-      integer(4),allocatable :: aux_array(:)
+      integer(1),allocatable :: aux_array_i1(:)
+      integer(4),allocatable :: aux_array_i4(:)
       integer(8),allocatable :: aux_array_i8(:)
       !-------------------------------------------------------------------------------------------------------------------------------
 
@@ -626,13 +659,15 @@ contains
       call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,elemGidMshRank)
 
       !---------------------------------------------------------------------------------------------------------------------
-      ms_dims2d(1) = ndime
-      ms_dims2d(2) = int(numNodesMshRank,hsize_t)
-      ms_offset2d(1) = 0
-      ms_offset2d(2) = int(mshRankNodeStart_i8,hssize_t)-1
+      if(.not.(isLinealOutput)) then
+         ms_dims2d(1) = ndime
+         ms_dims2d(2) = int(numNodesMshRank,hsize_t)
+         ms_offset2d(1) = 0
+         ms_offset2d(2) = int(mshRankNodeStart_i8,hssize_t)-1
 
-      dsetname = '/Coords/Points'
-      call write_dataspace_2d_tr_real_rp_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims2d,ms_offset2d,coordParMshRank)
+         dsetname = '/Coords/Points'
+         call write_dataspace_2d_tr_real_rp_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims2d,ms_offset2d,coordParMshRank)
+      end if
       !---------------------------------------------------------------------------------------------------------------------
 
       !---------------------------------------------------------------------------------------------------------------------
@@ -650,25 +685,25 @@ contains
          call write_dataspace_1d_int8_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
 
          deallocate(aux_array_i8)
-         allocate(aux_array(1))
+         allocate(aux_array_i4(1))
 
          dsetname = '/Parallel_data/rankElemStart'
-         aux_array(1)=mshRankElemStart
-         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+         aux_array_i4(1)=mshRankElemStart
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
          dsetname = '/Parallel_data/rankElemEnd'
-         aux_array(1)=mshRankElemEnd
-         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+         aux_array_i4(1)=mshRankElemEnd
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
          dsetname = '/Parallel_data/numRanksWithComms'
-         aux_array(1)=numMshRanksWithComms
-         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+         aux_array_i4(1)=numMshRanksWithComms
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
          dsetname = '/Parallel_data/numNodesToComm'
-         aux_array(1)=numNodesToCommMshRank
-         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+         aux_array_i4(1)=numNodesToCommMshRank
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
-         deallocate(aux_array)
+         deallocate(aux_array_i4)
 
          ms_offset(1)=0
          do i=0,mshRank-1 !from rank 0 mpi_rank-1
@@ -708,37 +743,37 @@ contains
          if(mshRank.eq.0) then
             ms_dims(1) = 1
             ms_offset(1) = int(mshRank,hssize_t)
-            allocate(aux_array(1))
-            aux_array(1)=maxBoundCode
+            allocate(aux_array_i4(1))
+            aux_array_i4(1)=maxBoundCode
 
-            call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
-            deallocate(aux_array)
+            call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+            deallocate(aux_array_i4)
          else
             ms_dims(1) = 0
             ms_offset(1) = 0
-            allocate(aux_array(0))
+            allocate(aux_array_i4(0))
 
-            call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
-            deallocate(aux_array)
+            call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+            deallocate(aux_array_i4)
          end if
 
          ms_dims(1) = 1
          ms_offset(1) = int(mshRank,hssize_t)
-         allocate(aux_array(1))
+         allocate(aux_array_i4(1))
 
          dsetname = '/Boundary_data/numBoundsRankPar'
-         aux_array(1)=numBoundFacesMshRank
-         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+         aux_array_i4(1)=numBoundFacesMshRank
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
          dsetname = '/Boundary_data/ndofRankPar'
-         aux_array(1)=numDoFMshRank
-         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+         aux_array_i4(1)=numDoFMshRank
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
          dsetname = '/Boundary_data/numBoundaryNodesRankPar'
-         aux_array(1)=numBoundaryNodesMshRank
-         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+         aux_array_i4(1)=numBoundaryNodesMshRank
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
-         deallocate(aux_array)
+         deallocate(aux_array_i4)
          !------------------------------------------------------------------------------------------------------------------------
          ms_offset(1)=0
          do i=0,mshRank-1 !from rank 0 mpi_rank-1
@@ -767,12 +802,12 @@ contains
          dsetname = '/Boundary_data/bouCodesPar'
          call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,boundFacesCodesMshRank)
          !------------------------------------------------------------------------------------------------------------------------
-         allocate(aux_array(numBoundFacesMshRank*mnpbou))
+         allocate(aux_array_i4(numBoundFacesMshRank*mnpbou))
 
          i=1
          do iBound=1,numBoundFacesMshRank
             do m=1,mnpbou
-               aux_array(i)=boundFacesMshRank(iBound,m)
+               aux_array_i4(i)=boundFacesMshRank(iBound,m)
                i=i+1
             end do
          end do
@@ -781,37 +816,37 @@ contains
          ms_offset(1) = ms_offset(1)*int(mnpbou,hssize_t)
 
          dsetname = '/Boundary_data/boundPar'
-         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
          i=1
          do iBound=1,numBoundFacesMshRank
             do m=1,mnpbou
-               aux_array(i)=boundFacesOrigMshRank(iBound,m)
+               aux_array_i4(i)=boundFacesOrigMshRank(iBound,m)
                i=i+1
             end do
          end do
 
          dsetname = '/Boundary_data/boundParOrig'
-         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
-         deallocate(aux_array)
+         deallocate(aux_array_i4)
       !------------------------------------------------------------------------------------------------------------------------
 
       !---------------------------------------------------------------------------------------------------------------------
          if(numMshRanks2Part.ge.2) then
             ms_dims(1) = 1
             ms_offset(1) = int(mshRank,hssize_t)
-            allocate(aux_array(1))
+            allocate(aux_array_i4(1))
 
             dsetname = '/Parallel_data_boundary/numRanksWithComms'
-            aux_array(1)=bnd_numMshRanksWithComms
-            call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+            aux_array_i4(1)=bnd_numMshRanksWithComms
+            call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
             dsetname = '/Parallel_data_boundary/numNodesToComm'
-            aux_array(1)=bnd_numNodesToCommMshRank
-            call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+            aux_array_i4(1)=bnd_numNodesToCommMshRank
+            call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
-            deallocate(aux_array)
+            deallocate(aux_array_i4)
 
             ms_offset(1)=0
             do i=0,mshRank-1 !from rank 0 mpi_rank-1
@@ -848,45 +883,42 @@ contains
       !---------------------------------------------------------------------------------------------------------------------
       ms_dims(1) = 1
       ms_offset(1) = int(mshRank,hssize_t)
-      allocate(aux_array(1))
+      allocate(aux_array_i4(1))
 
       dsetname = '/Connectivity/numWorkingNodesRankPar'
-      aux_array(1)=numWorkingNodesMshRank
-      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
-      deallocate(aux_array)
+      aux_array_i4(1)=numWorkingNodesMshRank
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+      deallocate(aux_array_i4)
       !------------------------------------------------------------------------------------------------------------------------
       !  SAVING connecParOrig(:,:)
-      allocate(aux_array(numElemsMshRank*mnnode))
+      allocate(aux_array_i4(numElemsMshRank*mnnode))
       ms_dims(1) = int(numElemsMshRank,hsize_t)*int(mnnode,hsize_t)
       ms_offset(1) = int((mshRankElemStart-1),hssize_t)*int(mnnode,hssize_t)
       !-----------------------------------------------------------------------------------------------------
       i=1
       do iElemL=1,numElemsMshRank
          do m=1,mnnode
-            aux_array(i)=connecParOrigMshRank(iElemL,m)
+            aux_array_i4(i)=connecParOrigMshRank(iElemL,m)
             i=i+1
          end do
       end do
 
       dsetname = '/Connectivity/connecParOrig'
-      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
       !-----------------------------------------------------------------------------------------------------
       !  SAVING connecParWork(:,:)
       i=1
       do iElemL=1,numElemsMshRank
          do m=1,mnnode
-            aux_array(i)=connecParWorkMshRank(iElemL,m)
+            aux_array_i4(i)=connecParWorkMshRank(iElemL,m)
             i=i+1
          end do
       end do
 
       dsetname = '/Connectivity/connecParWork'
-      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
-      deallocate(aux_array)
-      !-----------------------------------------------------------------------------------------------------
-      !  SAVING connecParVTK(:)
-      !dsetname = '/Connectivity/connecVTK'
-      !call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,connecVTKMshRank)
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+      deallocate(aux_array_i4)
+
       !-----------------------------------------------------------------------------------------------------
       ms_offset(1)=0
       do i=0,mshRank-1 !from rank 0 mpi_rank-1
@@ -902,13 +934,13 @@ contains
       if(isPeriodic) then
          ms_dims(1) = 1
          ms_offset(1) = int(mshRank,hssize_t)
-         allocate(aux_array(1))
+         allocate(aux_array_i4(1))
 
          dsetname = '/Periodic_data/nPerRankPar'
-         aux_array(1)= numPerNodesMshRank
-         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+         aux_array_i4(1)= numPerNodesMshRank
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
-         deallocate(aux_array)
+         deallocate(aux_array_i4)
 
          ms_offset(1)=0
          do i=0,mshRank-1 !from rank 0 mpi_rank-1
@@ -932,15 +964,15 @@ contains
          ms_dims(1) = 1
       endif
 
-      allocate(aux_array(ms_dims(1)))
+      allocate(aux_array_i4(ms_dims(1)))
 
       if(mshRank.eq.0) then
-         aux_array(1) = mporder
+         aux_array_i4(1) = mporder
       end if
 
-      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
-      deallocate(aux_array)
+      deallocate(aux_array_i4)
 
       !--------------------------------------
 
@@ -951,29 +983,29 @@ contains
          ms_dims(1) = mnnode
       endif
 
-      allocate(aux_array(ms_dims(1)))
+      allocate(aux_array_i4(ms_dims(1)))
 
       !-----------------------------
       dsetname = '/order/a2ijk'
       if(mshRank.eq.0) then
-         aux_array(:) = a2ijk(:)
+         aux_array_i4(:) = a2ijk(:)
       end if
-      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
       !-----------------------------
       dsetname = '/order/gmsh2ijk'
       if(mshRank.eq.0) then
-         aux_array(:) = gmsh2ijk(:)
+         aux_array_i4(:) = gmsh2ijk(:)
       end if
-      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
       !-----------------------------
       dsetname = '/order/vtk2ijk'
       if(mshRank.eq.0) then
-         aux_array(:) = vtk2ijk(:)
+         aux_array_i4(:) = vtk2ijk(:)
       end if
-      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)     
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)     
       !-----------------------------
 
-      deallocate(aux_array)
+      deallocate(aux_array_i4)
       !--------------------------------------
 
       ms_dims(1) = 0
@@ -982,48 +1014,97 @@ contains
          ms_dims(1) = mnpbou
       endif
 
-      allocate(aux_array(ms_dims(1)))
+      allocate(aux_array_i4(ms_dims(1)))
 
       !-----------------------------
       dsetname = '/order/a2ij'
       if(mshRank.eq.0) then
-         aux_array(:) = a2ij(:)
+         aux_array_i4(:) = a2ij(:)
       end if
-      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
       !-----------------------------
       dsetname = '/order/gmsh2ij'
       if(mshRank.eq.0) then
-         aux_array(:) = gmsh2ij(:)
+         aux_array_i4(:) = gmsh2ij(:)
       end if
-      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
       !-----------------------------
       dsetname = '/order/vtk2ij'
       if(mshRank.eq.0) then
-         aux_array(:) = vtk2ij(:)
+         aux_array_i4(:) = vtk2ij(:)
       end if
-      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array)
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
       !-----------------------------
 
-      deallocate(aux_array)
+      deallocate(aux_array_i4)
+      !------------------------------------------------------------------------------------------------------------------------
+
+      !------------------------------------------------------------------------------------------------------------------------
+
+      ms_dims(1) = 0
+      ms_offset(1) = 0
+      if(mshRank.eq.0) then
+         ms_dims(1) = 1
+      endif
+
+      allocate(aux_array_i1(ms_dims(1)))
+
+      dsetname = '/meshOutputInfo/isLinealOutput'
+      if(mshRank.eq.0) then
+         aux_array_i1(1) = 0
+         if(isLinealOutput) aux_array_i1(1) = 1
+      end if
+      call write_dataspace_1d_uint1_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i1)
+
+      deallocate(aux_array_i1)
+
+      allocate(aux_array_i4(ms_dims(1)))
+
+      dsetname = '/meshOutputInfo/nnodeVTK'
+      if(mshRank.eq.0) then
+         aux_array_i4(1) = mnnodeVTK
+      end if
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+
+      dsetname = '/meshOutputInfo/numVTKElemsPerMshElem'
+      if(mshRank.eq.0) then
+         aux_array_i4(1) = numVTKElemsPerMshElem
+      end if
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+
+      ms_dims(1) = 1
+      ms_offset(1) = int(mshRank,hssize_t)
+
+      dsetname = '/meshOutputInfo/numElemsVTKMshRank'
+      aux_array_i4(1) = numElemsVTKMshRank
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+
+      dsetname = '/meshOutputInfo/sizeConnecVTKMshRank'
+      aux_array_i4(1) = sizeConnecVTKMshRank
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+
+      deallocate(aux_array_i4)
       !------------------------------------------------------------------------------------------------------------------------
 
    end subroutine write_mshRank_data_in_hdf5_meshFile_from_tool
 
-   subroutine dummy_write_mshRank_data_in_hdf5_meshFile_from_tool(hdf5_file_id,numMshRanks2Part,isPeriodic,isBoundaries)
+   subroutine dummy_write_mshRank_data_in_hdf5_meshFile_from_tool(hdf5_file_id,numMshRanks2Part,isPeriodic,isBoundaries,isLinealOutput)
       implicit none
       integer(hid_t),intent(in) :: hdf5_file_id
-      logical,intent(in) :: isPeriodic,isBoundaries
+      logical,intent(in) :: isPeriodic,isBoundaries,isLinealOutput
       integer(4),intent(in) :: numMshRanks2Part
       !-------------------------------------------------------------------------------------------------------------------------------
       character(128) :: dsetname
       integer(hsize_t) :: ms_dims(1),ms_dims2d(2)
-      integer(hssize_t) :: ms_offset(1),ms_offset2d(2) 
+      integer(hssize_t) :: ms_offset(1),ms_offset2d(2)
+      integer(1),allocatable :: empty_array_i1(:)
       integer(4),allocatable :: empty_array_i4(:)
       integer(8),allocatable :: empty_array_i8(:)
       real(rp),allocatable :: empty_array_rp(:),empty_array2d_rp(:,:)
 
       !-------------------------------------------------------------------------------------------------------------------------------
 
+      allocate(empty_array_i1(0))
       allocate(empty_array_i4(0))
       allocate(empty_array_i8(0))
       allocate(empty_array_rp(0))
@@ -1047,10 +1128,10 @@ contains
       call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
 
       !---------------------------------------------------------------------------------------------------------------------
-
-      dsetname = '/Coords/Points'
-      call write_dataspace_2d_tr_real_rp_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims2d,ms_offset2d,empty_array2d_rp)
-
+      if(.not.(isLinealOutput)) then
+         dsetname = '/Coords/Points'
+         call write_dataspace_2d_tr_real_rp_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims2d,ms_offset2d,empty_array2d_rp)
+      end if
       !---------------------------------------------------------------------------------------------------------------------
       if(numMshRanks2Part.ge.2) then
          dsetname = '/Parallel_data/rankNodeStart'
@@ -1207,6 +1288,24 @@ contains
       call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
       !------------------------------------------------------------------------------------------------------------------------
 
+      dsetname = '/meshOutputInfo/isLinealOutput'
+      call write_dataspace_1d_uint1_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i1)
+
+      dsetname = '/meshOutputInfo/nnodeVTK'
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
+
+      dsetname = '/meshOutputInfo/numVTKElemsPerMshElem'
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
+
+      dsetname = '/meshOutputInfo/numElemsVTKMshRank'
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
+
+      dsetname = '/meshOutputInfo/sizeConnecVTKMshRank'
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
+
+      !------------------------------------------------------------------------------------------------------------------------
+
+      deallocate(empty_array_i1)
       deallocate(empty_array_i4)
       deallocate(empty_array_i8)
       deallocate(empty_array_rp)
@@ -1221,6 +1320,7 @@ contains
       integer(hid_t) :: file_id,dset_id,fspace_id
       integer(4) :: h5err
       integer(hsize_t),dimension(1) :: fs_dims,fs_maxdims
+      integer(1) :: aux_array_i1(1)
 
       if(mpi_rank.eq.0) write(*,*) '# Loading hdf5 mesh: ',meshFile_h5_name
 
@@ -1254,7 +1354,11 @@ contains
 
       !write(*,*) 'totalNumNodesPar ',totalNumNodesPar,' totalNumElements ',totalNumElements
 
-      !--------------------------------------------------------------------------------
+      !-----------------------------------------------------------------------------------------------
+      ! meshOutputInfo
+      call load_meshOutputInfo_hdf5(file_id)
+
+      !-----------------------------------------------------------------------------------------------
       !load porder
       call load_porder_hdf5(file_id,mnnode,mnpbou)
 
@@ -3172,8 +3276,11 @@ contains
       ms_offset2d(1) = 0
       ms_offset2d(2) = int(rankNodeStart,hssize_t)-1
 
-      !dsetname = '/VTKHDF/Points'
-      dsetname = '/Coords/Points'
+      if(isMeshLinealOutput) then
+         dsetname = '/VTKHDF/Points'
+      else
+         dsetname = '/Coords/Points'
+      end if
       call read_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims2d,ms_offset2d,coordPar)
 
       !$acc update device(coordPar(:,:))
@@ -3222,6 +3329,51 @@ contains
       !write(*,*) 'setting totalNumNodesSrl ',totalNumNodesSrl
       !--------------------------------------------------------------------------------------------------
    end subroutine load_globalIds_hdf5
+
+   subroutine load_meshOutputInfo_hdf5(file_id)
+      implicit none
+      integer(hid_t),intent(in) :: file_id
+      character(128) :: dsetname
+      integer(hsize_t), dimension(1) :: ms_dims
+      integer(hssize_t), dimension(1) :: ms_offset 
+      integer(1) :: aux_array_i1(1)
+      integer(4) :: aux_array_i4(1)
+
+      ms_dims(1) = 1
+      ms_offset(1) = 0
+
+      dsetname = '/meshOutputInfo/isLinealOutput'
+      call read_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i1)
+
+      isMeshLinealOutput = 0
+      if(aux_array_i1(1).eq.1) isMeshLinealOutput = 1
+
+      write(*,*) 'isMeshLinOutput',isMeshLinealOutput
+
+      dsetname = '/meshOutputInfo/nnodeVTK'
+      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+      mesh_VTKnnode = aux_array_i4(1)
+      write(*,*) 'mesh_VTKnnode',mesh_VTKnnode
+
+      dsetname = '/meshOutputInfo/numVTKElemsPerMshElem'
+      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+      mesh_numVTKElemsPerMshElem = aux_array_i4(1)
+      write(*,*) 'mesh_numVTKElems',mesh_numVTKElemsPerMshElem
+
+      ms_dims(1) = 1
+      ms_offset(1) = int(mpi_rank,hssize_t)
+
+      dsetname = '/meshOutputInfo/numElemsVTKMshRank'
+      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+      numElemsVTKRankPar = aux_array_i4(1)
+      write(*,*) 'numElemsVTKRankPar',numElemsVTKRankPar
+
+      dsetname = '/meshOutputInfo/sizeConnecVTKMshRank'
+      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+      sizeConnecVTKRankPar = aux_array_i4(1)
+      write(*,*) 'sizeConnecVTKRankPar',sizeConnecVTKRankPar
+
+   end subroutine load_meshOutputInfo_hdf5
 
    subroutine load_porder_hdf5(file_id,mnnode,mnpbou)
       implicit none
@@ -4168,6 +4320,83 @@ contains
 
    end subroutine interpolate_scalarField_in_elemGp
 
+   subroutine copyPeriodicNodes_scalarField(nodeScalarField)
+      implicit none
+      real(rp),intent(inout) :: nodeScalarField(numNodesRankPar)
+      integer(4) :: iPer
+
+      if(isMeshPeriodic) then
+         !$acc parallel loop
+         do iPer = 1,nPerRankPar
+            nodeScalarField(masSlaRankPar(iPer,2)) = nodeScalarField(masSlaRankPar(iPer,1))
+         end do
+         !$acc end parallel loop
+      end if
+   end subroutine copyPeriodicNodes_scalarField
+
+   subroutine copyPeriodicNodes_vectorField(nodeVectorField)
+      implicit none
+      real(rp),intent(inout) :: nodeVectorField(numNodesRankPar,ndime)
+      integer(4) :: iPer
+
+      if(isMeshPeriodic) then
+         !$acc parallel loop
+         do iPer = 1,nPerRankPar
+            nodeVectorField(masSlaRankPar(iPer,2),1) = nodeVectorField(masSlaRankPar(iPer,1),1)
+            nodeVectorField(masSlaRankPar(iPer,2),2) = nodeVectorField(masSlaRankPar(iPer,1),2)
+            nodeVectorField(masSlaRankPar(iPer,2),3) = nodeVectorField(masSlaRankPar(iPer,1),3)
+         end do
+         !$acc end parallel loop
+      end if
+   end subroutine copyPeriodicNodes_vectorField
+
+   subroutine copy_elemGpScalarField_in_nodes(mnnode,connecParW,connecParO,origElemGpScalarField,interpNodeScalarField)
+      implicit none
+      integer(4),intent(in) :: mnnode,connecParW(numElemsRankPar,mnnode),connecParO(numElemsRankPar,mnnode)
+      real(rp),intent(in) :: origElemGpScalarField(numElemsRankPar,mnnode)
+      real(rp),intent(out) :: interpNodeScalarField(numNodesRankPar)
+      integer(4) :: iElem,inode,iPer
+
+      !$acc parallel loop gang 
+      do iElem = 1,numElemsRankPar
+         !$acc loop vector
+         do inode = 1,mnnode
+            interpNodeScalarField(connecParO(iElem,inode)) = origElemGpScalarField(iElem,inode)
+         end do
+      end do
+      !$acc end parallel loop
+
+      if(isMeshPeriodic) then
+         !$acc parallel loop
+         do iPer = 1,nPerRankPar
+            interpNodeScalarField(masSlaRankPar(iPer,2)) = interpNodeScalarField(masSlaRankPar(iPer,1))
+         end do
+         !$acc end parallel loop
+      end if
+
+   end subroutine copy_elemGpScalarField_in_nodes
+
+   subroutine copy_scalarField_in_elemGp(mnnode,connecParW,connecParO,origNodeScalarField,interpElemGpScalarField)
+      implicit none
+      integer(4),intent(in) :: mnnode,connecParW(numElemsRankPar,mnnode),connecParO(numElemsRankPar,mnnode)
+      real(rp),intent(in) :: origNodeScalarField(numNodesRankPar)
+      real(rp),intent(out) :: interpElemGpScalarField(numElemsRankPar,mnnode)
+      integer(4) :: iElem,inode
+
+      !$acc parallel loop gang
+      do iElem = 1,numElemsRankPar
+         !$acc loop vector
+         do inode = 1,mnnode
+            interpElemGpScalarField(iElem,inode) = origNodeScalarField(connecParO(iElem,inode))
+         end do
+      end do
+      !$acc end parallel loop
+
+   end subroutine copy_scalarField_in_elemGp
+
+
+
+
    subroutine save_hdf5_resultsFile_baseFunc(mnnode,mngaus,Ngp_equi,hdf5_fileId,numNodeScalarFields2save,nodeScalarFields2save,nameNodeScalarFields2save,&
                                              numNodeVectorFields2save,nodeVectorFields2save,nameNodeVectorFields2save,&
                                              numElemGpScalarFields2save,elemGpScalarFields2save,nameElemGpScalarFields2save)
@@ -4204,13 +4433,17 @@ contains
       !--------------------------------------------------------------------------------------------------------------------------------------
       do iField=1,numNodeScalarFields2save
          !if(mpi_rank.eq.0) write(*,*) 'saving field',iField,'name',dsetname
-
-         call interpolate_scalarField_in_nodes(mnnode,mngaus,Ngp_equi,connecParWork,connecParOrig,nodeScalarFields2save(iField)%ptr,auxInterpNodeScalarField)
-
-         !$acc update host(auxInterpNodeScalarField(:))
-
          dsetname = trim(adjustl(groupname))//trim(nameNodeScalarFields2save(iField))
-         call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,auxInterpNodeScalarField)
+
+         if(isMeshLinealOutput) then
+            call copyPeriodicNodes_scalarField(nodeScalarFields2save(iField)%ptr)
+            !$acc update host(nodeScalarFields2save(iField)%ptr(:))
+            call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,nodeScalarFields2save(iField)%ptr)
+         else
+            call interpolate_scalarField_in_nodes(mnnode,mngaus,Ngp_equi,connecParWork,connecParOrig,nodeScalarFields2save(iField)%ptr,auxInterpNodeScalarField)
+            !$acc update host(auxInterpNodeScalarField(:))
+            call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,auxInterpNodeScalarField)
+         end if
 
       end do
 
@@ -4226,23 +4459,28 @@ contains
       !-----------------------------------------------------------------------------------------------
 
       do iField=1,numNodeVectorFields2save
-
-         call interpolate_vectorField_in_nodes(mnnode,mngaus,Ngp_equi,connecParWork,connecParOrig,nodeVectorFields2save(iField)%ptr,auxInterpNodeVectorField)
-
-         !$acc update host(auxInterpNodeVectorField(:,:))
-
          dsetname = trim(adjustl(groupname))//trim(nameNodeVectorFields2save(iField))
-         call save_array2D_tr_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxInterpNodeVectorField)
+
+         if(isMeshLinealOutput) then
+            call copyPeriodicNodes_vectorField(nodeVectorFields2save(iField)%ptr)
+            !$acc update host(nodeVectorFields2save(iField)%ptr(:,:))
+            call save_array2D_tr_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,nodeVectorFields2save(iField)%ptr)
+         else
+            call interpolate_vectorField_in_nodes(mnnode,mngaus,Ngp_equi,connecParWork,connecParOrig,nodeVectorFields2save(iField)%ptr,auxInterpNodeVectorField)
+            !$acc update host(auxInterpNodeVectorField(:,:))
+            call save_array2D_tr_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,auxInterpNodeVectorField)
+         end if
       end do
 
       do iField=1,numElemGpScalarFields2save
-         !if(mpi_rank.eq.0) write(*,*) 'saving field',iField,'name',dsetname
-
-         call interpolate_elemGpScalarField_in_nodes(mnnode,mngaus,Ngp_equi,connecParWork,connecParOrig,elemGpScalarFields2save(iField)%ptr,auxInterpNodeScalarField)
-
-         !$acc update host(auxInterpNodeScalarField(:))
-
          dsetname = trim(adjustl(groupname))//trim(nameElemGpScalarFields2save(iField))
+
+         if(isMeshLinealOutput) then
+            call copy_elemGpScalarField_in_nodes(mnnode,connecParWork,connecParOrig,elemGpScalarFields2save(iField)%ptr,auxInterpNodeScalarField)
+         else
+            call interpolate_elemGpScalarField_in_nodes(mnnode,mngaus,Ngp_equi,connecParWork,connecParOrig,elemGpScalarFields2save(iField)%ptr,auxInterpNodeScalarField)
+         end if
+         !$acc update host(auxInterpNodeScalarField(:))
          call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,auxInterpNodeScalarField)
 
       end do
@@ -4282,10 +4520,14 @@ contains
       do iField=1,numNodeScalarFields2load
          dsetname = trim(adjustl(groupname))//trim(nameNodeScalarFields2load(iField))
 
-         call read_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ms_dims,ms_offset,auxInterpNodeScalarField)
-         !$acc update device(auxInterpNodeScalarField(:))
-
-         call interpolate_scalarField_in_nodes(mnnode,mngaus,Ngp,connecParWork,connecParOrig,auxInterpNodeScalarField,nodeScalarFields2load(iField)%ptr)
+         if(isMeshLinealOutput) then
+            call read_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ms_dims,ms_offset,nodeScalarFields2load(iField)%ptr)
+            !$acc update device(nodeScalarFields2load(iField)%ptr(:))
+         else
+            call read_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ms_dims,ms_offset,auxInterpNodeScalarField)
+            !$acc update device(auxInterpNodeScalarField(:))
+            call interpolate_scalarField_in_nodes(mnnode,mngaus,Ngp,connecParWork,connecParOrig,auxInterpNodeScalarField,nodeScalarFields2load(iField)%ptr)
+         end if
 
       end do
 
@@ -4303,10 +4545,14 @@ contains
       do iField=1,numNodeVectorFields2load
          dsetname = trim(adjustl(groupname))//trim(nameNodeVectorFields2load(iField))
 
-         call read_array2D_tr_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ms_dims2d,ms_offset2d,auxInterpNodeVectorField)
-         !$acc update device(auxInterpNodeVectorField(:,:))
-
-         call interpolate_vectorField_in_nodes(mnnode,mngaus,Ngp,connecParWork,connecParOrig,auxInterpNodeVectorField,nodeVectorFields2load(iField)%ptr)
+         if(isMeshLinealOutput) then
+            call read_array2D_tr_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ms_dims2d,ms_offset2d,nodeVectorFields2load(iField)%ptr)
+            !$acc update device(nodeVectorFields2load(iField)%ptr(:,:))
+         else
+            call read_array2D_tr_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ms_dims2d,ms_offset2d,auxInterpNodeVectorField)
+            !$acc update device(auxInterpNodeVectorField(:,:))
+            call interpolate_vectorField_in_nodes(mnnode,mngaus,Ngp,connecParWork,connecParOrig,auxInterpNodeVectorField,nodeVectorFields2load(iField)%ptr)
+         end if
 
       end do
 
@@ -4318,7 +4564,11 @@ contains
          call read_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ms_dims,ms_offset,auxInterpNodeScalarField)
          !$acc update device(auxInterpNodeScalarField(:))
 
-         call interpolate_scalarField_in_elemGp(mnnode,mngaus,Ngp,connecParWork,connecParOrig,auxInterpNodeScalarField,elemGpScalarFields2load(iField)%ptr)
+         if(isMeshLinealOutput) then
+            call copy_scalarField_in_elemGp(mnnode,connecParWork,connecParOrig,auxInterpNodeScalarField,elemGpScalarFields2load(iField)%ptr)
+         else
+            call interpolate_scalarField_in_elemGp(mnnode,mngaus,Ngp,connecParWork,connecParOrig,auxInterpNodeScalarField,elemGpScalarFields2load(iField)%ptr)
+         end if
 
       end do
 
@@ -5055,13 +5305,14 @@ contains
 
 !-------------------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mnnode,file_id,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8)
+   subroutine create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,file_id,isLinealOutput,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,mnnodeVTK,numVTKElemsPerMshElem)
       implicit none
       integer(hid_t),intent(in) :: file_id
-      integer(4),intent(in) :: mnnode,numMshRanks2Part,numElemsGmsh
+      logical,intent(in) :: isLinealOutput
+      integer(4),intent(in) :: mporder,mnnode,numMshRanks2Part,numElemsGmsh,mnnodeVTK,numVTKElemsPerMshElem
       integer(8),intent(in) :: numNodesParTotal_i8
       integer(hid_t) :: dtype
-      integer(hsize_t) :: ds_dims(1),ds_dims2d(2)
+      integer(hsize_t) :: ds_dims(1),ds_dims2d(2),aux_ds_dims
       integer(4) :: ds_rank,h5err
       character(512) :: dsetname
       !--------------------------------------------------------------------------------
@@ -5093,19 +5344,23 @@ contains
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
 
       !-----------------------------------------------------------------------------
-      ds_dims(1)   = int(numElemsGmsh,hsize_t) + int(numMshRanks2Part,hsize_t)
+      ds_dims(1) = int(numElemsGmsh*numVTKElemsPerMshElem+numMshRanks2Part,hsize_t)
+      write(*,*) 'offsets dsdims',ds_dims
 
       dsetname = '/VTKHDF/Offsets'
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
 
       !-----------------------------------------------------------------------------
-      ds_dims(1)   = int(numElemsGmsh,hsize_t)  * int(mnnode,hsize_t)
+      ds_dims(1) = int(numElemsGmsh*numVTKElemsPerMshElem,hsize_t)*int(mnnodeVTK,hsize_t)
+      write(*,*) 'connec dsdims',ds_dims
 
       dsetname = '/VTKHDF/Connectivity'
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
 
       !-----------------------------------------------------------------------------
-      ds_dims(1)   = int(numElemsGmsh,hsize_t)
+      ds_dims(1) = int(numElemsGmsh*numVTKElemsPerMshElem,hsize_t)
+      write(*,*) 'types dsdims',ds_dims
+
       dtype = h5_datatype_uint1
 
       dsetname = '/VTKHDF/Types'
@@ -5117,20 +5372,18 @@ contains
 
    end subroutine create_groups_datasets_vtkhdf_unstructuredGrid_meshFile
 
-   subroutine write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mnnode,file_id,mshRank,numMshRanks2Part,numElemsMshRank,mshRankElemStart,mshRankElemEnd,mshRankNodeStart_i8,mshRankNodeEnd_i8,numNodesMshRank,coordVTKMshRank,connecVTKMshRank)
+   subroutine write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,file_id,mshRank,numMshRanks2Part,numElemsMshRank,numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,mshRankElemStart,mshRankElemEnd,mshRankNodeStart_i8,mshRankNodeEnd_i8,numNodesMshRank,coordVTKMshRank,connecVTKMshRank)
       implicit none
       integer(hid_t),intent(in) :: file_id
-      integer(4),intent(in) :: mnnode,mshRank,numMshRanks2Part
-      integer(4),intent(in) :: numElemsMshRank,mshRankElemStart,mshRankElemEnd
+      integer(4),intent(in) :: mporder,mnnode,mshRank,numMshRanks2Part
+      integer(4),intent(in) :: numElemsMshRank,numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,mshRankElemStart,mshRankElemEnd
       integer(8),intent(in) :: mshRankNodeStart_i8,mshRankNodeEnd_i8
       integer(4),intent(in) :: numNodesMshRank
       real(rp),intent(in)   :: coordVTKMshRank(numNodesMshRank,3)
-      integer(4),intent(in) :: connecVTKMshRank(numElemsMshRank*mnnode)
+      integer(4),intent(in) :: connecVTKMshRank(sizeConnecVTKMshRank)
 
-      integer(hsize_t), dimension(1) :: ms_dims
-      integer(hsize_t), dimension(2) :: ms_dims2d
-      integer(hssize_t), dimension(1) :: ms_offset 
-      integer(hssize_t), dimension(2) :: ms_offset2d
+      integer(hsize_t) :: ms_dims(1),ms_dims2d(2),aux_ms_dims
+      integer(hssize_t) :: ms_offset(1),ms_offset2d(2),aux_ms_offset
       character(512) :: dsetname
       integer(4) :: ii,iElemL
       integer(1),allocatable :: aux_array_i1(:)
@@ -5154,62 +5407,79 @@ contains
       allocate(aux_array_i8(1))
 
       dsetname = '/VTKHDF/NumberOfPoints'
-      aux_array_i8(1) = numNodesMshRank
+      aux_array_i8(1) = int(numNodesMshRank,8)
       call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
 
       dsetname = '/VTKHDF/NumberOfCells'
-      aux_array_i8(1) = numElemsMshRank
+      aux_array_i8(1) = int(numElemsVTKMshRank,8) !numElemsMshRank
       call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
 
       dsetname = '/VTKHDF/NumberOfConnectivityIds'
-      aux_array_i8(1) = numElemsMshRank*mnnode
+      !aux_array_i8(1) = numElemsMshRank*mnnode
+      aux_array_i8(1) = sizeConnecVTKMshRank
       call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
 
       !-----------------------------------------------------------------------------
       deallocate(aux_array_i8)
-      allocate(aux_array_i8(numElemsMshRank+1))
-
-      ms_dims(1)   = int(numElemsMshRank,hsize_t)  + 1
-      ms_offset(1) = int(mshRankElemStart,hssize_t)   - 1 + int(mshRank,hssize_t)
 
       dsetname = '/VTKHDF/Offsets'
+
+      aux_ms_dims   = int(numElemsVTKMshRank + 1,hsize_t)
+      aux_ms_offset = int((mshRankElemStart-1)*(numVTKElemsPerMshElem) + mshRank,hssize_t)
+      write(*,*) 'offsets|ms_dims',aux_ms_dims,'ms_off',aux_ms_offset,'vtk_off',mnnodeVTK
+
+      allocate(aux_array_i8(aux_ms_dims))
       aux_array_i8(1) = 0
-      do iElemL = 2,(numElemsMshRank+1)
-         aux_array_i8(iElemL) = aux_array_i8(iElemL-1)+mnnode
+      do iElemL = 2,aux_ms_dims
+         aux_array_i8(iElemL) = aux_array_i8(iElemL-1)+int(mnnodeVTK,8)
       end do
+
+      ms_dims(1)   = aux_ms_dims
+      ms_offset(1) = aux_ms_offset
 
       call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
       deallocate(aux_array_i8)
       !-----------------------------------------------------------------------------
-      allocate(aux_array_i8(numElemsMshRank*mnnode))
+      allocate(aux_array_i8(sizeConnecVTKMshRank))
 
-      ms_dims(1)   = int(numElemsMshRank,hsize_t)   * int(mnnode,hsize_t)
-      ms_offset(1) = int((mshRankElemStart-1),hssize_t)* int(mnnode,hssize_t)
+      dsetname = '/VTKHDF/Connectivity'
 
-      do ii = 1,numElemsMshRank*mnnode
+      aux_ms_dims   = int(sizeConnecVTKMshRank,hsize_t)
+      aux_ms_offset = int((mshRankElemStart-1)*numVTKElemsPerMshElem,hssize_t)*int(mnnodeVTK,hssize_t)
+      !write(*,*) 'connectivity|ms_dims',aux_ms_dims,'ms_off',aux_ms_offset
+
+      ms_dims(1)   = aux_ms_dims   !int(numElemsMshRank,hsize_t)   * int(mnnode,hsize_t)
+      ms_offset(1) = aux_ms_offset !int((mshRankElemStart-1),hssize_t)* int(mnnode,hssize_t)
+
+      do ii = 1,sizeConnecVTKMshRank!numElemsMshRank*mnnode
          aux_array_i8(ii) = connecVTKMshRank(ii)-1
       end do
 
-      dsetname = '/VTKHDF/Connectivity'
       call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
       deallocate(aux_array_i8)
 
       !-----------------------------------------------------------------------------
-      allocate(aux_array_i1(numElemsMshRank))
       dsetname = '/VTKHDF/Types'
+
+      aux_ms_dims   = int(numElemsMshRank*numVTKElemsPerMshElem,hsize_t)
+      aux_ms_offset = int((mshRankElemStart-1)*numVTKElemsPerMshElem,hssize_t)
+
+      allocate(aux_array_i1(aux_ms_dims))
+
       !$acc kernels
       aux_array_i1(:) = 72
       !$acc end kernels
 
-      ms_dims(1)   = int(numElemsMshRank ,hsize_t)
-      ms_offset(1) = int(mshRankElemStart,hssize_t) - 1
+      ms_dims(1)   = aux_ms_dims
+      ms_offset(1) = aux_ms_offset
+      !write(*,*) 'types|ms_dims',aux_ms_dims,'ms_off',aux_ms_offset
 
       call write_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i1)
 
       !------------------------------------------------------------------------------------------------------
       ! ## mpi_rank ##
       dsetname = '/VTKHDF/CellData/mpi_rank'
-      do iElemL = 1,numElemsMshRank
+      do iElemL = 1,numElemsVTKMshRank
          aux_array_i1(iElemL) = mshRank
       end do
       call write_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i1)
@@ -5297,15 +5567,6 @@ contains
       call set_vtkhdf_attributes_and_basic_groups(file_id)
 
       !--------------------------------------------------------------------------------
-      !--------------------------------------------------------------------------------
-      !dtype = h5_datatype_real8
-      !ds_dims2d(1) = 3
-      !ms_dims2d(1) = 1
-      !ds_dims2d(2) = totalNumNodesPar
-      !ms_dims2d(2) = numNodesRankPar
-      !ms_offset2d(1) = 0
-      !ms_offset2d(2) = rankNodeStart-1
-!--------------------------------------------------------------------------------
       call h5lcreate_external_f(meshFile_h5_name,'/VTKHDF/Points',file_id,'/VTKHDF/Points',h5err) 
 
       !-----------------------------------------------------------------------------
@@ -5317,17 +5578,17 @@ contains
       allocate(aux_array_i8(1))
 
       dsetname = '/VTKHDF/NumberOfPoints'
-      aux_array_i8(1) = numNodesRankPar
+      aux_array_i8(1) = int(numNodesRankPar,8)
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
 
       dsetname = '/VTKHDF/NumberOfCells'
-      aux_array_i8(1) = numElemsRankPar
+      aux_array_i8(1) = int(numElemsVTKRankPar,8)!numElemsRankPar
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
 
       dsetname = '/VTKHDF/NumberOfConnectivityIds'
-      aux_array_i8(1) = numElemsRankPar*mnnode
+      aux_array_i8(1) = int(sizeConnecVTKRankPar,8)!numElemsRankPar*mnnode
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
 

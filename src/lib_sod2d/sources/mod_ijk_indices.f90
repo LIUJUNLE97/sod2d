@@ -35,51 +35,62 @@ contains
 
    end subroutine get_porder_values
 
-   subroutine get_allocate_array_ijk_sod2d_criteria(mporder,array_ijk_order)
+   subroutine set_allocate_array_ijk_sod2d_criteria(mporder,ijk_sod2d_to_gmsh,ijk_gmsh_to_sod2d)
       implicit none
       integer(4),intent(in) :: mporder
-      integer(4),intent(inout),allocatable :: array_ijk_order(:)
+      integer(4),intent(inout),dimension(:),allocatable :: ijk_sod2d_to_gmsh,ijk_gmsh_to_sod2d
       integer(4) :: i,j
 
       !--------------------------------------------------------------------
       !defining criteria for ijk
-      allocate(array_ijk_order(mporder+1))
+      allocate(ijk_sod2d_to_gmsh(mporder+1))
+      allocate(ijk_gmsh_to_sod2d(0:mporder))
+
       i=1
-      array_ijk_order(i) = 0
+      ijk_sod2d_to_gmsh(i) = 0
+      ijk_gmsh_to_sod2d(ijk_sod2d_to_gmsh(i)) = i
+
       i=i+1
-      array_ijk_order(i) = mporder
+      ijk_sod2d_to_gmsh(i) = mporder
+      ijk_gmsh_to_sod2d(ijk_sod2d_to_gmsh(i)) = i
 
       do j=1,(mporder-1)
          i=i+1
-         array_ijk_order(i)=j
+         ijk_sod2d_to_gmsh(i)=j
+         ijk_gmsh_to_sod2d(ijk_sod2d_to_gmsh(i)) = i
       end do
-   end subroutine get_allocate_array_ijk_sod2d_criteria
+   end subroutine set_allocate_array_ijk_sod2d_criteria
 
-   !subroutine set_allocate_hexahedronHO_ijk_indices(mporder,gmsh2ijk,vtk2ijk,a2ijk,a2i,a2j,a2k,ijk2a)
-   subroutine set_allocate_hexahedronHO_ijk_indices(mporder,gmsh2ijk,vtk2ijk)
+   function get_indexIJK_sod2d(mporder,i,j,k) result(indexIJK)
+      implicit none
+      integer(4),intent(in) :: mporder,i,j,k
+      integer :: indexIJK
+      
+      indexIJK = ((mporder+1)**2)*k+(mporder+1)*i+j+1
+   end function get_indexIJK_sod2d
+
+   subroutine set_allocate_hexahedronHO_ijk_indices(mporder,gmsh2ijk,vtk2ijk,ijk2gmsh,ijk2vtk)
       implicit none
       integer(4),intent(in) :: mporder
-      integer(4),allocatable,dimension(:),intent(inout) :: gmsh2ijk,vtk2ijk!,a2ijk,a2i,a2j,a2k
-      !integer(4),allocatable,intent(inout) :: ijk2a(:,:,:)
+      integer(4),allocatable,dimension(:),intent(inout) :: gmsh2ijk,vtk2ijk
+      integer(4),allocatable,intent(inout),optional :: ijk2gmsh(:,:,:),ijk2vtk(:,:,:)
       integer(4) :: mnnode,mngaus,mnpbou
       integer(4) :: i,j,k,ip,jp,kp,gmshCnt,vtkCnt,gmshIndex,vtkIndex,pIndex
-      integer(4),allocatable :: array_ijk_order(:)
+      integer(4),allocatable :: ijk_sod2d_to_gmsh(:),ijk_gmsh_to_sod2d(:)
 
       !-----------------------------------------------------------------------------------------
 
       call get_porder_values(mporder,mnnode,mngaus,mnpbou)
       if(mpi_rank.eq.0) write(*,*) 'mporder',mporder,'mnnode',mnnode,'mngaus',mngaus,'mnpbou',mnpbou
 
-      call get_allocate_array_ijk_sod2d_criteria(mporder,array_ijk_order)
+      call set_allocate_array_ijk_sod2d_criteria(mporder,ijk_sod2d_to_gmsh,ijk_gmsh_to_sod2d)
       !-----------------------------------------------------------------------------------------
 
       allocate(gmsh2ijk(mnnode))
       allocate(vtk2ijk(mnnode))
-      !allocate(a2ijk(mnnode))
-      !allocate(a2i(mnnode))
-      !allocate(a2j(mnnode))
-      !allocate(a2k(mnnode))
-      !allocate(ijk2a(1:mporder+1,1:mporder+1,1:mporder+1))
+
+      if(present(ijk2gmsh)) allocate(ijk2gmsh(0:porder,0:porder,0:porder))
+      if(present(ijk2vtk))  allocate(ijk2vtk(0:porder,0:porder,0:porder))
 
       if(mporder.le.2) then
          write(*,*) 'SOD2D is not ready to work for mporder <= 2... You know, #gobigorgohome and set mporder >= 3'
@@ -90,13 +101,11 @@ contains
       !Filling high order hexahedra 
       pIndex=0
       do kp=1,mporder+1
-         k=array_ijk_order(kp)
+         k=ijk_sod2d_to_gmsh(kp)
          do ip=1,mporder+1
-            i=array_ijk_order(ip)
+            i=ijk_sod2d_to_gmsh(ip)
             do jp=1,mporder+1
-               j=array_ijk_order(jp)
-
-
+               j=ijk_sod2d_to_gmsh(jp)
 
                call vtkHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,vtkIndex)
                call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
@@ -104,6 +113,14 @@ contains
                pIndex               = pIndex + 1
                gmsh2ijk(pIndex)     = gmshIndex
                vtk2ijk(pIndex)      = vtkIndex
+
+               if(present(ijk2gmsh)) then
+
+               end if
+
+               if(present(ijk2vtk)) then
+
+               end if
 
                !write(*,*) 'i,j,k',i,j,k,'ip,jp,kp',ip,jp,kp,'pI',pIndex,'gmsh',gmshIndex,'vtk',vtkIndex
 
@@ -118,7 +135,8 @@ contains
       end do
       !--------------------------------------------------------------------
 
-      deallocate(array_ijk_order)
+      deallocate(ijk_sod2d_to_gmsh)
+      deallocate(ijk_gmsh_to_sod2d)
 
    end subroutine set_allocate_hexahedronHO_ijk_indices
 
@@ -128,13 +146,13 @@ contains
       integer(4),allocatable,dimension(:),intent(inout) :: gmsh2ij,vtk2ij
       integer(4) :: mnnode,mngaus,mnpbou
       integer(4) :: i,j,ip,jp,gmshCnt,vtkCnt,gmshIndex,vtkIndex,pIndex
-      integer(4),allocatable :: array_ijk_order(:)
+      integer(4),allocatable :: ijk_sod2d_to_gmsh(:),ijk_gmsh_to_sod2d(:)
 
       !-----------------------------------------------------------------------------------------
       call get_porder_values(mporder,mnnode,mngaus,mnpbou)
       if(mpi_rank.eq.0) write(*,*) 'mporder',mporder,'mnnode',mnnode,'mngaus',mngaus,'mnpbou',mnpbou
 
-      call get_allocate_array_ijk_sod2d_criteria(mporder,array_ijk_order)
+      call set_allocate_array_ijk_sod2d_criteria(mporder,ijk_sod2d_to_gmsh,ijk_gmsh_to_sod2d)
       !-----------------------------------------------------------------------------------------
 
       allocate(gmsh2ij(mnpbou))
@@ -144,9 +162,9 @@ contains
       !filling high order quads
       pIndex=0
       do ip=1,mporder+1
-         i=array_ijk_order(ip)
+         i=ijk_sod2d_to_gmsh(ip)
          do jp=1,mporder+1
-            j=array_ijk_order(jp)
+            j=ijk_sod2d_to_gmsh(jp)
             call vtkHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,vtkIndex)
             call gmshHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,gmshIndex)
 
@@ -157,7 +175,8 @@ contains
          end do
       end do
 
-      deallocate(array_ijk_order)
+      deallocate(ijk_sod2d_to_gmsh)
+      deallocate(ijk_gmsh_to_sod2d)
 
    end subroutine set_allocate_quadrilateralHO_ij_indices
 
