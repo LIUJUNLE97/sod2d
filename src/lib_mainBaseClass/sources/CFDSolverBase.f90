@@ -975,19 +975,10 @@ contains
 
             if(this%loadAvgFile) then
                if(mpi_rank.eq.0) write(111,*) "--| Loading Avg Results File (TO IMPLEMENT)",this%restartFile_to_load
-               call load_avgResults_hdf5_file(nnode,this%restartFile_to_load,this%initial_avgTime,this%elapsed_avgTime,&
+               call load_avgResults_hdf5_file(nnode,ngaus,Ngp_l,this%restartFile_to_load,this%initial_avgTime,this%elapsed_avgTime,&
                                        this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
                                        this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
                                        this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
-
-               !TO REVIEW
-               !$acc update device(avvel(:,:))
-               !$acc update device(avve2(:,:))
-               !$acc update device(avvex(:,:))
-               !$acc update device(avrho(:))
-               !$acc update device(avpre(:))
-               !$acc update device(avmueff(:))
-               !$acc update device(avtw(:,:))
 
                if(mpi_rank.eq.0) write(111,*) "   --| Loaded Avg results! Setting initial_avgTime",this%initial_avgTime,"elapsed_avgTime",this%elapsed_avgTime
             end if
@@ -1122,6 +1113,8 @@ contains
       allocate(dlxigp_ip(ngaus,ndime,porder+1))
       !$acc enter data create(Ngp(:,:))
       !$acc enter data create(dNgp(:,:,:))
+      !$acc enter data create(Ngp_l(:,:))
+      !$acc enter data create(dNgp_l(:,:,:))
       !$acc enter data create(Ngp_b(:,:))
       !$acc enter data create(dNgp_b(:,:,:))
       !$acc enter data create(dlxigp_ip(:,:,:))
@@ -1176,6 +1169,8 @@ contains
       end do
       !$acc update device(Ngp(:,:))
       !$acc update device(dNgp(:,:,:))
+      !$acc update device(Ngp_l(:,:))
+      !$acc update device(dNgp_l(:,:,:))
       !$acc update device(dlxigp_ip(:,:,:))
       !
       ! Compute N andd dN for boundary elements
@@ -1398,15 +1393,6 @@ contains
    subroutine CFDSolverBase_saveAvgResultsFiles(this)
       class(CFDSolverBase), intent(inout) :: this
 
-      !!!!!!TO REVIEW
-      !!!!!!$acc update host(avvel(:,:))
-      !!!!!!$acc update host(avve2(:,:))
-      !!!!!!$acc update host(avvex(:,:))
-      !!!!!!$acc update host(avrho(:))
-      !!!!!!$acc update host(avpre(:))
-      !!!!!!$acc update host(avmueff(:))
-      !!!!!!$acc update host(avtw(:,:))
-
       call save_avgResults_hdf5_file(nnode,ngaus,Ngp_equi,this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
                this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
                this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
@@ -1425,21 +1411,6 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
 
-      !!!!!$acc update host(rho(:,:))
-      !!!!!$acc update host(u(:,:,:))
-      !!!!!$acc update host(pr(:,:))
-      !!!!!$acc update host(E(:,:))
-      !!!!!$acc update host(eta(:,:))
-      !!!!!$acc update host(csound(:))
-      !!!!!$acc update host(machno(:))
-      !!!!!$acc update host(gradRho(:,:))
-      !!!!!$acc update host(curlU(:,:))
-      !!!!!$acc update host(divU(:))
-      !!!!!$acc update host(Qcrit(:))
-      !!!!!$acc update host(mu_fluid(:))
-      !!!!!$acc update host(mu_e(:,:))
-      !!!!!$acc update host(mu_sgs(:,:))
-      
       call save_instResults_hdf5_file(nnode,ngaus,Ngp_equi,iStep,this%time,&
                this%numNodeScalarFields2save,this%nodeScalarFields2save,this%nameNodeScalarFields2save,&
                this%numNodeVectorFields2save,this%nodeVectorFields2save,this%nameNodeVectorFields2save,&
