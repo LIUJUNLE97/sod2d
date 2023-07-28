@@ -27,7 +27,7 @@ program tool_commsPerfomance
         if(mpi_rank.eq.0) write(*,*) '# Input file: ',trim(adjustl(input_file))
     else
         if(mpi_rank.eq.0) write(*,*) 'You must call Tool COMMS PERFROMANCE with an input file!'
-        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+        call MPI_Abort(app_comm,-1,mpi_err)
     endif
     !------------------------------------------------------------------------------
     ! Reading the parameters
@@ -77,8 +77,8 @@ program tool_commsPerfomance
        if(mpi_rank.eq.0) write(*,*) 'numNodesSrl ',numNodesSrl,' numNodesB_1r ',numNodesB_1r,' numIters ',numIters
 
     end if
-     
-    call close_inputFile() 
+
+    call close_inputFile()
 
     if(useMesh) then
 
@@ -88,7 +88,7 @@ program tool_commsPerfomance
         call init_hdf5_interface()
         call set_hdf5_meshFile_name(mesh_h5_file_path,mesh_h5_file_name,mpi_size)
         call load_hdf5_meshfile()
-    else    
+    else
         call create_dummy_1Dmesh(numNodesSrl,numNodesB_1r)
     end if
 

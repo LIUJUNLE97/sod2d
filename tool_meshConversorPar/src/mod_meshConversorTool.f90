@@ -9,9 +9,9 @@ module mod_meshConversorTool
    use iso_c_binding
    implicit none
 
-!-----------------------------------   
+!-----------------------------------
 #define _CHECK_ 0
-!-----------------------------------   
+!-----------------------------------
 #ifndef GEMPAINTERFACE
    interface
       subroutine gempa_do_partition(numElemsMpiRankToPart,numMshRanksToPart,x,y,z,weights,part) bind(c)
@@ -26,7 +26,7 @@ module mod_meshConversorTool
       end subroutine gempa_do_partition
    end interface
 #endif
-!-----------------------------------   
+!-----------------------------------
 
 type :: vector_int4
    integer(4),dimension(:), allocatable :: elems
@@ -183,7 +183,7 @@ contains
       call init_hdf5_interface()
 
 #if _CHECK_
-       if(mpi_rank.eq.0) write(*,*) "Be Careful! _CHECK_ flag is ON! Debug files (*.csv) will be created!"     
+       if(mpi_rank.eq.0) write(*,*) "Be Careful! _CHECK_ flag is ON! Debug files (*.csv) will be created!"
 #endif
 
       call open_gmsh_h5_file(gmsh_filePath,gmsh_fileName,gmsh_h5_fileId)
@@ -261,7 +261,7 @@ contains
       start_time(4) = MPI_Wtime()
       if(mpi_rank.eq.0)write(*,*) "--| Reading Msh Partitions Boundary Nodes"
       do iMshRank=1,numMshRanksInMpiRank
-         mshRank = mshRanksInMpiRank(iMshRank) 
+         mshRank = mshRanksInMpiRank(iMshRank)
 
          call get_rankPartitionBoundaryNodes_in_parallel(mporder,mnnode,mnpbou,gmsh2ijk,&
                   mshRank,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),&
@@ -400,7 +400,7 @@ contains
       deallocate(connecMpiRank_i8)
       deallocate(coordNodesMpiRank)
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       !----------------------------------------------------------------------------------------------
       call get_vector_with_mshRank_values_for_numMshRanks2Part(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numWorkingNodesMshRank,vecNumWorkingNodes)
       call get_vector_with_mshRank_values_for_numMshRanks2Part(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numNodesToCommMshRank,vecNumNodesToCommMshRank)
@@ -424,7 +424,7 @@ contains
 
       call set_hdf5_meshFile_name(mesh_h5_filePath,mesh_h5_fileName,numMshRanks2Part)
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
       call create_hdf5_file(meshFile_h5_name,sod2dmsh_h5_fileId)
 
@@ -433,7 +433,7 @@ contains
 
       call create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,sod2dmsh_h5_fileId,isLinealOutput,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,mnnodeVTK,numVTKElemsPerMshElem)
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
       do iMshRank=1,numMshRanksInMpiRank
          mshRank = mshRanksInMpiRank(iMshRank)
@@ -450,7 +450,7 @@ contains
             commsMemSize_jv%vector(iMshRank)%elems,commsMemPosInNgb_jv%vector(iMshRank)%elems,ranksToComm_jv%vector(iMshRank)%elems,&
             bnd_numNodesToCommMshRank(iMshRank),bnd_numMshRanksWithComms(iMshRank),bnd_nodesToComm_jv%vector(iMshRank)%elems,bnd_commsMemPosInLoc_jv%vector(iMshRank)%elems,&
             bnd_commsMemSize_jv%vector(iMshRank)%elems,bnd_commsMemPosInNgb_jv%vector(iMshRank)%elems,bnd_ranksToComm_jv%vector(iMshRank)%elems,&
-            vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank) 
+            vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank)
 
         call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),&
             numElemsVTKMshRank(iMshRank),sizeConnecVTKMshRank(iMshRank),mnnodeVTK,numVTKElemsPerMshElem,&
@@ -464,11 +464,11 @@ contains
         call dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(sod2dmsh_h5_fileId,numMshRanks2Part)
       end do
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       !--------------------------------------------------------------------------------------------------------------------------------
 
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       !--------------------------------------------------------------------------------------------------------------------------------
 
       call close_hdf5_file(sod2dmsh_h5_fileId)
@@ -514,21 +514,21 @@ contains
 
       ! Setup file access property list with parallel I/O access.
       call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
-      call h5pset_fapl_mpio_f(plist_id,MPI_COMM_WORLD,MPI_INFO_NULL,h5err)
+      call h5pset_fapl_mpio_f(plist_id,app_comm,MPI_INFO_NULL,h5err)
 
       if(mpi_rank.eq.0) write(*,*) '# Opening gmsh h5 mesh file:', gmsh_h5_fullFileName
 
       call h5fopen_f(gmsh_h5_fullFileName, H5F_ACC_RDWR_F,gmsh_h5_fileId,h5err,access_prp=plist_id)
       if(h5err .ne. 0) then
          write(*,*) 'FATAL ERROR! Cannot open h5 meshfile ',trim(adjustl(gmsh_h5_fullFileName))
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+         call MPI_Abort(app_comm,-1,mpi_err)
       end if
       call h5pclose_f(plist_id, h5err)
 
    end subroutine open_gmsh_h5_file
 
    subroutine read_dims_gmsh_h5_file(gmsh_h5_fileId,mporder,numElems,numNodes_i8,numBoundFaces,numPerFaces,numPerLinks,isPeriodic,isBoundaries)
-      implicit none     
+      implicit none
       integer(hid_t), intent(in) :: gmsh_h5_fileId
       integer(4),intent(out) :: mporder,numElems,numBoundFaces,numPerFaces,numPerLinks
       integer(8),intent(out) :: numNodes_i8
@@ -538,7 +538,7 @@ contains
       integer(hsize_t), dimension(1) :: ms_dims
       integer(hid_t) :: dtype
       integer(4) :: h5err
-      integer(HSSIZE_T), dimension(1) :: ms_offset 
+      integer(HSSIZE_T), dimension(1) :: ms_offset
       integer(8),allocatable :: aux_array_i8(:)
 
       !write(*,*) 'Loading parallel data hdf5...'
@@ -578,7 +578,7 @@ contains
       if(mpi_rank.eq.0) write(*,*) 'mporder',mporder,'numNodes',numNodes_i8,'numElems',numElems,'numBoundFaces',numBoundFaces,'numPerFaces',numPerFaces,'numPerLinks',numPerLinks
 
       deallocate(aux_array_i8)
-    
+
    end subroutine read_dims_gmsh_h5_file
 
 
@@ -707,7 +707,7 @@ contains
       end_time(3) = MPI_Wtime()
       elapsed_time(3) = end_time(3) - start_time(3)
 
-      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),3,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD,h5err)
+      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),3,MPI_DOUBLE,MPI_MAX,0,app_comm,h5err)
 
       if(mpi_rank.eq.0) then
          write(*,*) '   1.Read Elems',elapsed_time_m(1)
@@ -761,7 +761,7 @@ contains
          allocate(auxConnec_i8(ms_dims(1),ms_dims(2)))
          !write(*,*) 'iChunk',iChunk,'ms_dims',ms_dims,'ms_offset',ms_offset(2),'+',ms_offset(2) + ms_dims(2)!,'fsdims',fs_dims
 
-         call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+         call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file.
          call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
          call h5dread_f(dset_id,dtype,auxConnec_i8,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
          call h5sclose_f(mspace_id,h5err)
@@ -814,7 +814,7 @@ contains
       allocate(ms_coords(ms_rank,mnnode*numElemsInRank))
       allocate(auxConnec_i8(mnnode,numElemsInRank))
 
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file.
 
       !default
       ms_coords(1,:) = 1
@@ -830,7 +830,7 @@ contains
          end do
       end do
 
-      call h5sselect_elements_f(fspace_id,H5S_SELECT_SET_F,ms_rank,ms_numElems,ms_coords,h5err) 
+      call h5sselect_elements_f(fspace_id,H5S_SELECT_SET_F,ms_rank,ms_numElems,ms_coords,h5err)
       call h5dread_f(dset_id,dtype,auxConnec_i8,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
       do iElem=1,numElemsInRank
@@ -930,7 +930,7 @@ contains
       integer(hsize_t) :: ms_numElems
       integer(hsize_t),allocatable :: ms_coords(:,:)
       !-----------------------------------------------------------------------
-      
+
       dtype = h5_datatype_real8
 
       ms_dims(1) = int(ndime,hsize_t)
@@ -940,7 +940,7 @@ contains
       allocate(ms_coords(ms_rank,ms_dims(1)*ms_dims(2)))
       allocate(auxCoords(ms_dims(1),ms_dims(2)))
 
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file.
 
       !default
       ms_coords(1,:) = 1
@@ -956,7 +956,7 @@ contains
          end do
       end do
 
-      call h5sselect_elements_f(fspace_id,H5S_SELECT_SET_F,ms_rank,ms_numElems,ms_coords,h5err) 
+      call h5sselect_elements_f(fspace_id,H5S_SELECT_SET_F,ms_rank,ms_numElems,ms_coords,h5err)
       call h5dread_f(dset_id,dtype,auxCoords,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
       do iNode=1,numNodesInRank
@@ -1007,7 +1007,7 @@ contains
       end_time(2) = MPI_Wtime()
       elapsed_time(2) = end_time(2) - start_time(2)
 
-      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),2,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD,h5err)
+      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),2,MPI_DOUBLE,MPI_MAX,0,app_comm,h5err)
 
       if(mpi_rank.eq.0) then
          write(*,*) '   1.Time ReadPerBounds',elapsed_time(1)
@@ -1083,7 +1083,7 @@ contains
       call h5dopen_f(gmsh_h5_fileId,dsetname,dset_id,h5err)
       call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
       call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file.
       call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
       call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
 
@@ -1122,7 +1122,7 @@ contains
          do iElem=1,numElemsInRank
             nodeCnt=0
             iElemG=listElemsInRank(iElem)
-            !fill the corners of the element 
+            !fill the corners of the element
             do iVert=1,numHexaVert
                ind_gmsh = gmshHexVertInd(iVert)
                e_iNodeG_i8(iVert) = connecInRank_i8(iElem,ind_gmsh)
@@ -1138,9 +1138,9 @@ contains
                      vertexFound=.true.
                      exit eLoop
                   end if
-               end do eLoop              
+               end do eLoop
                if(.not.(vertexFound)) exit fLoop
-            end do fLoop     
+            end do fLoop
             if(nodeCnt.ge.4) then
                numFacesInRank=numFacesInRank+1
                !write(*,*) '[',mpi_rank,']iFace',iFace,' -> elem ',iElemG
@@ -1181,7 +1181,7 @@ contains
 
       deallocate(auxFacesInRank_i8)
 
-      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),3,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD,h5err)
+      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),3,MPI_DOUBLE,MPI_MAX,0,app_comm,h5err)
 
       if(mpi_rank.eq.0) then
          write(*,*) '     1.Bounds(readHDF5)',elapsed_time_m(1)
@@ -1198,9 +1198,9 @@ contains
       integer(4),intent(in) :: numBoundsInRank,listBoundFacesInRank(numBoundsInRank)
       integer(4),intent(out) :: maxBoundCodeInRank
       integer,allocatable,intent(inout) :: boundFacesCodesInRank(:)
-      
+
       integer(8),allocatable :: boundFacesCodesInRank_i8(:)
-      integer(4) :: iBound     
+      integer(4) :: iBound
 
       !-----------------------------------------------------------
       integer(4),parameter :: ms_rank=1,ds_rank=1
@@ -1239,11 +1239,11 @@ contains
       call h5dopen_f(gmsh_h5_fileId,dsetname,dset_id,h5err)
       call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
       call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file.
       call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
       call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
 
-      call h5sselect_elements_f(fspace_id,H5S_SELECT_SET_F,ms_rank,ms_numElems,ms_coords,h5err) 
+      call h5sselect_elements_f(fspace_id,H5S_SELECT_SET_F,ms_rank,ms_numElems,ms_coords,h5err)
       call h5dread_f(dset_id,dtype,boundFacesCodesInRank_i8,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
       deallocate(ms_coords)
@@ -1258,7 +1258,7 @@ contains
 
       boundFacesCodesInRank(:) = int(boundFacesCodesInRank_i8(:),4)
       deallocate(boundFacesCodesInRank_i8)
-      
+
       maxBoundCodeInRank = 0
       do iBound = 1,numBoundsInRank
          maxBoundCodeInRank = max(maxBoundCodeInRank,boundFacesCodesInRank(iBound))
@@ -1333,7 +1333,7 @@ contains
 
       !----------------------------------------------------------------------------------------------------------
 
-      call MPI_Allgather(numPerFacesInRank,1,MPI_INTEGER,vecNumPerFacesInRank,1,MPI_INTEGER,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allgather(numPerFacesInRank,1,MPI_INTEGER,vecNumPerFacesInRank,1,MPI_INTEGER,app_comm,mpi_err)
       !write(*,*) '2.vecNumPerFaces',vecNumPerFacesInRank(:)
       !write(*,*) '[',mpi_rank,']',listPerFacesInRank(:)
       !if(mpi_rank.eq.0) write(*,*) '1.refNodesPerFacesAll',refNodesPerFacesAll_i8(:)
@@ -1361,7 +1361,7 @@ contains
       call h5dopen_f(gmsh_h5_fileId,dsetname,dset_id,h5err)
       call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
       call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file.
       call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
       call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
 
@@ -1404,7 +1404,7 @@ contains
                exit perFaceLoop
             end if
          end do perFaceLoop
-      end do 
+      end do
 
       !write(*,*) '[',mpi_rank,']list',listPerFacesInRank(:),'masterPerFace',masterPerFacesInRank(:)
       !then, the one not founds in master, must be in the 'slave column'
@@ -1434,7 +1434,7 @@ contains
       do iLink=1,numPerLinkedNodesSrl
          iNodeG = matPerLinkNodes_i8(iLink,1)
          call find_masterNode_recursive(iNodeG,numPerLinkedNodesSrl,matPerLinkNodes_i8,iNodeGtoReplace)
-         
+
          if(iNodeGtoReplace.ne.0) then
             matPerLinkNodes_i8(iLink,1) = iNodeGtoReplace
          end if
@@ -1450,7 +1450,7 @@ contains
 
       allocate(masSlaNodesAll_i8(numMasSlaNodesSrl,2))
 
-      iAux  = 1 
+      iAux  = 1
       iLink = 1
       masSlaNodesAll_i8(iAux,:) = matPerLinkNodes_i8(iLink,:)
       !write(*,*) 'iAux',iAux,'msns',masSlaNodesAll(iAux,:)
@@ -1486,8 +1486,8 @@ contains
          end if
       end do
 
-      call MPI_Allgather(numPerElemsInRank,1,MPI_INTEGER,vecNumPerElemsInRank,1,MPI_INTEGER,MPI_COMM_WORLD,mpi_err)
-      
+      call MPI_Allgather(numPerElemsInRank,1,MPI_INTEGER,vecNumPerElemsInRank,1,MPI_INTEGER,app_comm,mpi_err)
+
       numPerElemsSrl=0
       do iMpiRank=0,mpi_size-1
          numPerElemsSrl=numPerElemsSrl+vecNumPerElemsInRank(iMpiRank)
@@ -1496,18 +1496,18 @@ contains
 #if 0
       write(*,*) '[',mpi_rank,']nPFiR',numPerFacesInRank,'nPFS',numPerFacesSrl
       write(*,*) '[',mpi_rank,']nPEiR',numPerElemsInRank,'nPES',numPerElemsSrl
-      call MPI_Barrier(MPI_COMM_WORLD,h5err)
+      call MPI_Barrier(app_comm,h5err)
       if(mpi_rank.eq.0) then
          write(*,*) 'list(:)',listPerFacesInRank
          write(*,*) 'perFaceElemInRank(:)',perFaceElemInRank
       end if
-      call MPI_Barrier(MPI_COMM_WORLD,h5err)
+      call MPI_Barrier(app_comm,h5err)
       if(mpi_rank.eq.3) then
          write(*,*) 'list(:)',listPerFacesInRank
          write(*,*) 'perFaceElemInRank(:)',perFaceElemInRank
       end if
-      call MPI_Barrier(MPI_COMM_WORLD,h5err)
-      call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      call MPI_Barrier(app_comm,h5err)
+      call MPI_Abort(app_comm,-1,mpi_err)
 #endif
 
       end_time(5) = MPI_Wtime()
@@ -1530,7 +1530,7 @@ contains
       !write(*,*) '[',mpi_rank,']lPEiR',listPerElemsInRank(:)
       !---------------------------------------------------------------------------------------------------------------------------------------
       win_buffer_size1 = mpi_integer_size*numPerElemsInRank
-      call MPI_Win_create(listPerElemsInRank,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
+      call MPI_Win_create(listPerElemsInRank,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id1,mpi_err)
       call MPI_Win_fence(0,window_id1,mpi_err)
 
       memPos = 1
@@ -1555,7 +1555,7 @@ contains
       !---------------------------------------------------------------------------------------------------------------------------------------
       !---------------------------------------------------------------------------------------------------------------------------------------
       win_buffer_size1 = mpi_int8_size*(numPerFacesInRank*numQuadVert)
-      call MPI_Win_create(refNodesPerFacesInRank_i8,win_buffer_size1,mpi_int8_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
+      call MPI_Win_create(refNodesPerFacesInRank_i8,win_buffer_size1,mpi_int8_size,MPI_INFO_NULL,app_comm,window_id1,mpi_err)
       call MPI_Win_fence(0,window_id1,mpi_err)
 
       memPos = 1
@@ -1575,7 +1575,7 @@ contains
       !---------------------------------------------------------------------------------------------------------------------------------------
       !---------------------------------------------------------------------------------------------------------------------------------------
       win_buffer_size1 = mpi_integer_size*numPerFacesInRank
-      call MPI_Win_create(perFaceElemInRank,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
+      call MPI_Win_create(perFaceElemInRank,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id1,mpi_err)
       call MPI_Win_fence(0,window_id1,mpi_err)
 
       memPos = 1
@@ -1595,7 +1595,7 @@ contains
       !---------------------------------------------------------------------------------------------------------------------------------------
       !---------------------------------------------------------------------------------------------------------------------------------------
       win_buffer_size1 = mpi_integer_size*numPerFacesInRank
-      call MPI_Win_create(masterPerFacesInRank,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
+      call MPI_Win_create(masterPerFacesInRank,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id1,mpi_err)
       call MPI_Win_fence(0,window_id1,mpi_err)
 
       memPos = 1
@@ -1616,7 +1616,7 @@ contains
       !---------------------------------------------------------------------------------------------------------------------------------------
       !---------------------------------------------------------------------------------------------------------------------------------------
       win_buffer_size1 = mpi_integer_size*numPerFacesInRank
-      call MPI_Win_create(listPerFacesInRank,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id1,mpi_err)
+      call MPI_Win_create(listPerFacesInRank,win_buffer_size1,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id1,mpi_err)
       call MPI_Win_fence(0,window_id1,mpi_err)
 
       memPos = 1
@@ -1652,7 +1652,7 @@ contains
 
       linkedPerElemsCnt=0
       do iFaceMaster=1,numPerFacesSrl
-         if(masterPerFacesAll(iFaceMaster)) then 
+         if(masterPerFacesAll(iFaceMaster)) then
             id2loop: do iFaceSlave=1,numPerFacesSrl
                if(.not.(masterPerFacesAll(iFaceSlave))) then
                   vertNodeCnt=0
@@ -1691,7 +1691,7 @@ contains
       if(linkedPerElemsCnt.ne.numLinkedPerElemsSrl) then
          write(*,*) 'ERROR! Crashing in read_periodic_links_from_gmsh_h5_file_in_parallel! EXIT!'
          write(*,*) 'linkedPerElemsCnt',linkedPerElemsCnt,'NOT EQUAL TO numLinkedPerElemsSrl',numLinkedPerElemsSrl
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+         call MPI_Abort(app_comm,-1,mpi_err)
       end if
 
       call quicksort_matrix_int4(linkedPerElemsAll,1)
@@ -1702,7 +1702,7 @@ contains
             write(*,*) '0.lPES',linkedPerElemsAll(iPos,:)
          end do
       end if
-      call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+      call MPI_Barrier(app_comm, mpi_err)
       if(mpi_rank.eq.1) then
          do iPos=1,numLinkedPerElemsSrl
             write(*,*) '1.lPES',linkedPerElemsAll(iPos,:)
@@ -1724,7 +1724,7 @@ contains
       elapsed_time(2) = end_time(2) - start_time(2)
       elapsed_time(3) = end_time(3) - start_time(3)
       elapsed_time(4) = end_time(4) - start_time(4)
-      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),7,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD,h5err)
+      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),7,MPI_DOUBLE,MPI_MAX,0,app_comm,h5err)
 
       if(mpi_rank.eq.0) then
          write(*,*) '     1.PerLinks(s1)',elapsed_time_m(1)
@@ -1806,7 +1806,7 @@ contains
       integer, intent(in) :: mshRank,iElemG,numLinkedPerElemsSrl,numPerElemsSrl,linkedPerElemsSrl(numLinkedPerElemsSrl,2),listPerElemsSrl(numPerElemsSrl)
       integer, intent(inout) :: unfoldedElems(numPerElemsSrl),numAddElemsInRank
       integer :: iPosEL1ref,iPosEL1ini,iPosEL1end,iPosEL1,iPosEL2,iElemGLink!,iEL2
-      logical :: keepLooping         
+      logical :: keepLooping
 
       iPosEL1ref = binarySearch_int_i4(linkedPerElemsSrl(:,1),iElemG)
 
@@ -1846,13 +1846,13 @@ contains
             iElemGLink = linkedPerElemsSrl(iPosEL1,2)
             !write(*,*) 'iElemG',iElemG,'iPosEl1',iPosEL1,'El',linkedPerElemsSrl(iPosEL1,1),'+1',linkedPerElemsSrl(iPosEL1+1,1)
             !write(*,*) 'iElemG',iElemG,'linked to', iElemGLink
-         
+
             iPosEL2 = binarySearch_int_i4(listPerElemsSrl,iElemGLink)
             if(unfoldedElems(iPosEL2).le.0) then
                unfoldedElems(iPosEL2) = mshRank
                numAddElemsInRank=numAddElemsInRank+1
                call find_linked_elems_inPar(mshRank,iElemGLink,numLinkedPerElemsSrl,numPerElemsSrl,linkedPerElemsSrl,listPerElemsSrl,unfoldedElems,numAddElemsInRank)
-            end if        
+            end if
          end do
 
       end if
@@ -1925,7 +1925,7 @@ contains
          listElemsMpiRank(auxCnt) = iElem
       end do
 
-      call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+      call MPI_Barrier(app_comm, mpi_err)
       start_time(1) = MPI_Wtime()
       if(mpi_rank.eq.0)write(*,*) "--| Reading element table and coordinates for Mpi Ranks"
       call read_elem_connec_and_nodes_coords_from_gmsh_h5_file(mnnode,gmsh_h5_fileId,numElemsSrl,numNodesSrl_i8,numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,connecMpiRank_i8,listNodesMpiRank_i8,coordNodesMpiRank)
@@ -1950,7 +1950,7 @@ contains
 
       elapsed_time(1) = end_time(1) - start_time(1)
       elapsed_time(2) = end_time(2) - start_time(2)
-      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),2,MPI_DOUBLE,MPI_MAX,0,MPI_COMM_WORLD,h5err)
+      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),2,MPI_DOUBLE,MPI_MAX,0,app_comm,h5err)
 
       if(mpi_rank.eq.0) then
          write(*,*) ' 1.Time ReadElemNode',elapsed_time_m(1)
@@ -2065,7 +2065,7 @@ contains
       !---------------------------------------------------------------------
 #else
       write(*,*) 'FATAL ERROR! Trying to call do_element_partitioning_gempa() for program compiled with flag GEMPAINTERFACE!'
-      call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+      call MPI_Abort(app_comm,-1,mpi_err)
 #endif
 
 #if _CHECK_
@@ -2112,7 +2112,7 @@ contains
       write(1,*) 'X,Y,Z,iElemG,rank,iElem'
       do ii=1,numElems2Part
          iElemG   = elemPart(ii,1)
-         mshRank  = elemPart(ii,2)-1 
+         mshRank  = elemPart(ii,2)-1
          !iElem    = elemPart(ii,4)
 
          x_a=0.
@@ -2140,7 +2140,7 @@ contains
 
       !--------------------------------------------------------------------------------------
       win_buffer_size = mpi_integer_size*numMshRanks2Part
-      call MPI_Win_create(numElems2mshRankInMpiRank,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+      call MPI_Win_create(numElems2mshRankInMpiRank,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
 
       target_displacement=0
@@ -2225,7 +2225,7 @@ contains
       !--------------------------------------------------------------------------------------
       win_buffer_size = mpi_integer_size*numElems2Part
 
-      call MPI_Win_create(elemPart(:,1),win_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+      call MPI_Win_create(elemPart(:,1),win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
 
       do iMshRank=1,numMshRanksInMpiRank
@@ -2300,7 +2300,7 @@ contains
       allocate(listNodesMshRank_i8_jv%vector(numMshRanksInMpiRank))
       allocate(connecMshRank_i8_jm%matrix(numMshRanksInMpiRank))!,boundMshRank_jm,bou_codesMshRank_jm
       allocate(coordMshRank_jm%matrix(numMshRanksInMpiRank))
-      
+
       allocate(numPerNodesMshRank(numMshRanksInMpiRank))
       allocate(masSlaRankPar_i8_jm%matrix(numMshRanksInMpiRank))
 
@@ -2393,7 +2393,7 @@ contains
       deallocate(dummyListElems)
       deallocate(dummyConnec)
 
-      call MPI_Allreduce(maxBoundCodeMpiRank,maxBoundCode,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(maxBoundCodeMpiRank,maxBoundCode,1,MPI_INT,MPI_MAX,app_comm,mpi_err)
 
       !fer el check aqui de que s'han llegit correctament totes les boundaries
       if(numBoundFacesSrl.ne.0) then
@@ -2402,11 +2402,11 @@ contains
             aux_sum_NB_mpiRank = aux_sum_NB_mpiRank + numBoundFacesMshRank(iMshRank)
          end do
 
-         call MPI_Allreduce(aux_sum_NB_mpiRank,aux_sum_NBP,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+         call MPI_Allreduce(aux_sum_NB_mpiRank,aux_sum_NBP,1,MPI_INT,MPI_SUM,app_comm,mpi_err)
 
          if(aux_sum_NBP.ne.numBoundFacesSrl) then
             write(*,*) '[',mpi_rank,']Error in do_element_partitioning_gempa_in_parallel(..) after read_boundaries(..): aux_sum_NBP',aux_sum_NBP,' not equal to  numBoundFacesSrl',numBoundFacesSrl
-            call MPI_Abort(MPI_COMM_WORLD, -1, mpi_err)
+            call MPI_Abort(app_comm, -1, mpi_err)
          end if
       end if
 
@@ -2506,7 +2506,7 @@ contains
       if(numElems2Par.lt.mpi_size) then
          write(*,*) 'ERROR! The total number of elements to par:',numElems2Par,'is bigger than the number of cpus used to do the partition',mpi_size,&
                      'this is CRAZY BRO! The tool is going to crash! Use a reasonable number of CPUs (smaller than num of elements)'
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+         call MPI_Abort(app_comm,-1,mpi_err)
       end if
 
       call distribution_algorithm(numElems2Par,mpi_size,vecElemsInMpiRank)
@@ -2612,7 +2612,7 @@ contains
          numRanksMpiRank = vecRanksMpiRank(mpi_rank)
          iMshRankStart=0
          do iMpiRank=0,(mpi_rank-1) !find the iMshRankStart
-            iMshRankStart = iMshRankStart + vecRanksMpiRank(iMpiRank)           
+            iMshRankStart = iMshRankStart + vecRanksMpiRank(iMpiRank)
          end do
          iMshRankEnd = iMshRankStart + (numRanksMpiRank - 1)
 
@@ -2676,10 +2676,10 @@ contains
       integer(4), intent(in) :: listElemsBoundsInRank(numElemsInRank,maxBoundsPerElem),listBoundFacesInRank(numBoundsInRank)
       integer(8), intent(in) :: listNodesInRank_i8(numNodesInRank),connecInRank_i8(numElemsInRank,mnnode),connecBoundFacesInRank_i8(numBoundsInRank,mnpbou),masSlaNodesInRank_i8(numMasSlaNodesInRank,2)
       real(rp),intent(in) :: coordInRank(numNodesInRank,3)
-      
+
       integer(4), intent(out) :: numMshBoundNodesRankPar,numMpiBoundNodesRankPar,numInnerNodesRankPar
       integer(8), allocatable, intent(inout) :: mpiBoundaryNodes_i8(:),mshBoundaryNodes_i8(:)
-      
+
       integer(4) :: nodeOwnedCnt(numNodesInRank)
       logical :: nodeInBoundary(numNodesInRank),nodeInMshBoundary(numNodesInRank),nodeInMpiBoundary(numNodesInRank)
       integer(4) :: i,ind,ind_f,iElemL,iElemG,iNode,indexNode,indexNode_inFace
@@ -2724,7 +2724,7 @@ contains
 
          numBoundFacesToCheck=0
          do iBound=1,maxBoundsPerElem
-            if(listElemsBoundsInRank(iElemL,iBound).ne.0) then 
+            if(listElemsBoundsInRank(iElemL,iBound).ne.0) then
                numBoundFacesToCheck=numBoundFacesToCheck+1
                boundFacesToCheck(numBoundFacesToCheck) = listElemsBoundsInRank(iElemL,iBound)
             end if
@@ -2787,7 +2787,7 @@ contains
       do iNode=1,numMpiBoundNodesRankPar
          iNodeG=mpiBoundaryNodes_i8(iNode)
          indexNode = binarySearch_int_i8(listNodesInRank_i8,iNodeG)
-         
+
          write(1,fmt_csv_deb) coordInRank(indexNode,1),coordInRank(indexNode,2),coordInRank(indexNode,3),iNodeG
       end do
       close(1)
@@ -2798,7 +2798,7 @@ contains
       do iNode=1,numMshBoundNodesRankPar
          iNodeG=mshBoundaryNodes_i8(iNode)
          indexNode = binarySearch_int_i8(listNodesInRank_i8,iNodeG)
-         
+
          write(1,fmt_csv_deb) coordInRank(indexNode,1),coordInRank(indexNode,2),coordInRank(indexNode,3),iNodeG
       end do
       close(1)
@@ -2819,7 +2819,7 @@ contains
       integer(8) :: iNodeG,iNodeG_inFace,iNodeG_ToCheck
       integer(4) :: iBound,iBoundG,iElemG,indexBound
       logical :: isMshBound
-      
+
       !# 1.Whatever face ------------------------------------------------------
       ind = face2ijk(mporder+3)
       iNodeG_inFace = connecInRank_i8(iElemL,ind)
@@ -2851,7 +2851,7 @@ contains
             nodeInBoundary(indexNode) = .true.
             if(isMshBound) then
                nodeInMshBoundary(indexNode) = .true.
-            else 
+            else
                nodeInMpiBoundary(indexNode) = .true.
             end if
          end do
@@ -2940,7 +2940,7 @@ contains
             iNodeGsrl = connecInRank_i8(iElemL,indexGMSH)
 
             indexNew = auxNewOrderIndex(indexIJK)
-            
+
             auxNodeNewOrderInElem_i8(indexNew) = iNodeGsrl
          end do
 
@@ -2961,7 +2961,7 @@ contains
 
                globalIdSrlOrderedInRank_i8(iNodeL,1) = iNodeGsrl
                globalIdSrlOrderedInRank_i8(iNodeL,2) = iNodeL
-            else 
+            else
                iNodeL = isNodeAdded(indPosListNodes)
             endif
 
@@ -3155,7 +3155,7 @@ contains
       integer(4), dimension(0:numMshRanks2Part-1) :: vecNumMpiBN,vecMemDispMpiBN
       integer(8),allocatable :: arrayMpiBNInMpiRank_i8(:),auxMpiBNMshRank_i8(:)
       integer(4) :: numMpiBNInMpiRank,auxMemDispMpiBN
-      
+
       integer(4) :: window_id
       integer(KIND=MPI_ADDRESS_KIND) :: win_buffer_size
       integer(KIND=MPI_ADDRESS_KIND) :: target_displacement
@@ -3178,7 +3178,7 @@ contains
          if(iMshRank.ne.1) auxMemDispMpiBN = auxMemDispMpiBN + numMpiBoundaryNodes(iMshRank-1)
          vecMemDispMpiBN(mshRank) = auxMemDispMpiBN
       end do
-      
+
       !if(mpi_rank.eq.7) then
       !   write(*,*) 'numMpiBNInMpiRank',numMpiBNInMpiRank
       !   write(*,*) 'vecNumMpiBN(',mpi_rank,')',vecNumMpiBN(:)
@@ -3202,7 +3202,7 @@ contains
       !--------------------------------------------------------------------------------------
       win_buffer_size = mpi_integer_size*numMshRanks2Part
 
-      call MPI_Win_create(vecNumMpiBN,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+      call MPI_Win_create(vecNumMpiBN,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
 
       target_displacement=0
@@ -3217,7 +3217,7 @@ contains
       call MPI_Win_fence(0, window_id, mpi_err)
       call MPI_Win_free(window_id, mpi_err)
       !--------------------------------------------------------------------------------------
-      call MPI_Win_create(vecMemDispMpiBN,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+      call MPI_Win_create(vecMemDispMpiBN,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
 
       target_displacement=0
@@ -3245,12 +3245,12 @@ contains
       allocate(auxCommSchemeMemPos(numMshRanksInMpiRank,numMshRanks2Part))
 
       !--------------------------------------------------------------------------------------------
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
       win_buffer_size = mpi_int8_size*numMpiBNInMpiRank
-      call MPI_Win_create(arrayMpiBNInMpiRank_i8,win_buffer_size,mpi_int8_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+      call MPI_Win_create(arrayMpiBNInMpiRank_i8,win_buffer_size,mpi_int8_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
       do iMshRank=1,numMshRanksInMpiRank
          mshRankOrig = mshRanksInMpiRank(iMshRank)
@@ -3367,7 +3367,7 @@ contains
                   iPos = binarySearch_int_i8(auxMpiBNMshRank_i8,iNodeGSrl)
                   if(iPos.ne.0) then
                      iAux=iAux+1
-                     
+
                      iNodeLPos = binarySearch_int_i8(globalIdSrlOrdered_i8_jm%matrix(iMshRank)%elems(:,1),iNodeGSrl)
                      iNodeL = globalIdSrlOrdered_i8_jm%matrix(iMshRank)%elems(iNodeLPos,2)
                      !write(*,*) 'iNodeL',iNodeL,'iNodeG',iNodeGSrl,'mshRank',mshRankTrgt
@@ -3402,7 +3402,7 @@ contains
       !--------------------------------------------------------------------------------------
       win_buffer_size = mpi_integer_size*(numMshRanks2Part**2)
 
-      call MPI_Win_create(auxCommSchemeMemPosAll,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+      call MPI_Win_create(auxCommSchemeMemPosAll,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
 
       target_displacement=0
@@ -3505,7 +3505,7 @@ contains
       !--------------------------------------------------------------------------------------
       win_buffer_size = mpi_integer_size*numMshRanks2Part
 
-      call MPI_Win_create(vecNumMshBN,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+      call MPI_Win_create(vecNumMshBN,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
 
       target_displacement=0
@@ -3520,7 +3520,7 @@ contains
       call MPI_Win_fence(0, window_id, mpi_err)
       call MPI_Win_free(window_id, mpi_err)
       !--------------------------------------------------------------------------------------
-      call MPI_Win_create(vecMemDispMshBN,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+      call MPI_Win_create(vecMemDispMshBN,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
 
       target_displacement=0
@@ -3540,13 +3540,13 @@ contains
       !lets determine ALL the boundary nodes in each rank
       !the boundary nodes in a rank will be:
       ! 1. the boundary nodes in the container mshBoundaryNodes_jv of each rank
-      ! 2. plus the nodes that are in mpiBoundaryNode_jv in the rank and in the boundary nodes container mshBoundaryNodes_jv in the other ranks 
+      ! 2. plus the nodes that are in mpiBoundaryNode_jv in the rank and in the boundary nodes container mshBoundaryNodes_jv in the other ranks
 
       !--------------------------------------------------------------------------------------------
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       win_buffer_size = mpi_int8_size*numMshBNInMpiRank
-      call MPI_Win_create(arrayMshBNInMpiRank_i8,win_buffer_size,mpi_int8_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Win_create(arrayMshBNInMpiRank_i8,win_buffer_size,mpi_int8_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
       do iMshRank=1,numMshRanksInMpiRank
          mshRankOrig = mshRanksInMpiRank(iMshRank)
@@ -3562,7 +3562,7 @@ contains
             iNodeGSrl = mshBoundaryNodes_i8_jv%vector(iMshRank)%elems(iNode)
             iNodeLPos = binarySearch_int_i8(globalIdSrlOrdered_i8_jm%matrix(iMshRank)%elems(:,1),iNodeGSrl)
             iNodeL    = globalIdSrlOrdered_i8_jm%matrix(iMshRank)%elems(iNodeLPos,2)
-            
+
             auxListBN(iNodeL) = .true.
             auxCntBoundaryNode = auxCntBoundaryNode + 1
          end do
@@ -3636,7 +3636,7 @@ contains
       !vaja, straightforward! :)
 
       do iMshRank=1,numMshRanksInMpiRank
-         
+
          allocate(auxListBN(numBoundaryNodesMshRank(iMshRank)))
          auxListBN(:) = .false.
          auxCnt1=0
@@ -3644,14 +3644,14 @@ contains
             iNodeL = boundaryNodes_jv%vector(iMshRank)%elems(iNodeBnd)
             iNodeGSrl = globalIdSrl_i8_jv%vector(iMshRank)%elems(iNodeL)
             iPos = binarySearch_int_i8(mpiBoundaryNodes_i8_jv%vector(iMshRank)%elems,iNodeGSrl)
-            if(iPos.ne.0) then   
+            if(iPos.ne.0) then
                auxCnt1=auxCnt1+1
                auxListBN(iNodeBnd) = .true.
             end if
          end do
          numBndMpiBoundaryNodes(iMshRank) = auxCnt1
          !write(*,*) 'mshRankO',mshRankOrig,'numBndMpi',numBndMpiBoundaryNodes(iMshRank)
-      
+
          allocate(bndMpiBoundaryNodes_i8_jv%vector(iMshRank)%elems(numBndMpiBoundaryNodes(iMshRank)))
 
          auxCnt1=0
@@ -3697,7 +3697,7 @@ contains
       !--------------------------------------------------------------------------------------
       win_buffer_size = mpi_integer_size*numMshRanks2Part
 
-      call MPI_Win_create(vecNumBndMpiBN,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+      call MPI_Win_create(vecNumBndMpiBN,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
 
       target_displacement=0
@@ -3712,7 +3712,7 @@ contains
       call MPI_Win_fence(0, window_id, mpi_err)
       call MPI_Win_free(window_id, mpi_err)
       !--------------------------------------------------------------------------------------
-      call MPI_Win_create(vecMemDispBndMpiBN,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+      call MPI_Win_create(vecMemDispBndMpiBN,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
 
       target_displacement=0
@@ -3740,10 +3740,10 @@ contains
       allocate(bnd_auxCommSchemeMemPos(numMshRanksInMpiRank,numMshRanks2Part))
 
       !---------------------------------------------------------------------------------------------------------------
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       win_buffer_size = mpi_int8_size*numBndMpiBNInMpiRank
-      call MPI_Win_create(arrayBndMpiBNInMpiRank_i8,win_buffer_size,mpi_int8_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Win_create(arrayBndMpiBNInMpiRank_i8,win_buffer_size,mpi_int8_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       !---------------------------------------------------------------------------------------------------------------
 
       do iMshRank=1,numMshRanksInMpiRank
@@ -3756,7 +3756,7 @@ contains
 
          do iMshRankTrgt=1,numMshRanks2Part
             mshRankTrgt = iMshRankTrgt-1
-               
+
             if(mshRankTrgt.ne.mshRankOrig) then
                mpiRankTrgt = mapMshRankToMpiRank(iMshRankTrgt)
 
@@ -3874,7 +3874,7 @@ contains
       !--------------------------------------------------------------------------------------
       win_buffer_size = mpi_integer_size*(numMshRanks2Part**2)
 
-      call MPI_Win_create(bnd_auxCommSchemeMemPosAll,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+      call MPI_Win_create(bnd_auxCommSchemeMemPosAll,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
 
       target_displacement=0
@@ -3959,7 +3959,7 @@ contains
       real(rp),intent(inout) :: coordParMshRank(numNodesInRank,3)
       real(rp), allocatable :: aux_1(:,:)
       integer(4) :: iElem,iNode,idime
-      
+
       !if(mpi_rank.eq.0) write(*,*) "--| Interpolating nodes coordinates..."
       allocate(aux_1(numNodesInRank,ndime))
       aux_1(:,:) = coordParMshRank(:,:)
@@ -3990,8 +3990,8 @@ contains
       !if(mpi_rank.eq.0) write(*,*) ' # Creating working lists...'
 
       !$acc kernels
-      connecParWorkInRank(:,:)    = connecParOrigInRank(:,:) 
-      connecBoundFacesInRank(:,:) = connecOrigBoundFacesInRank(:,:)   
+      connecParWorkInRank(:,:)    = connecParOrigInRank(:,:)
+      connecBoundFacesInRank(:,:) = connecOrigBoundFacesInRank(:,:)
       !$acc end kernels
 
       if(isPeriodic) then !do all stuff in case mesh is periodic
@@ -4091,7 +4091,7 @@ contains
       !--------------------------------------------------------------------------------------
       win_buffer_size = mpi_integer_size*numMshRanks2Part
 
-      call MPI_Win_create(auxVector2send(0),win_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+      call MPI_Win_create(auxVector2send(0),win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
 
       target_displacement=0
@@ -4143,7 +4143,7 @@ BEGIN WHEN READING LINE BY LINE.. FUCKING SLOW
       call h5dopen_f(gmsh_h5_fileId,dsetname,dset_id,h5err)
       call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
       call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file.
       !call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
 
       do iElem=1,numElemsInRank
@@ -4171,7 +4171,7 @@ BEGIN WHEN READING LINE BY LINE.. FUCKING SLOW
       call h5dopen_f(gmsh_h5_fileId,dsetname,dset_id,h5err)
       call h5dget_space_f(dset_id,fspace_id,h5err)!get filespace of the dataset
       call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)!get dimensions of the filespace
-      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file. 
+      call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err) ! Each process defines dataset in memory and writes it to the hyperslab in the file.
       !call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err) ! Create property list for collective dataset write
 
       do iNode=1,numNodesInRank
@@ -4194,10 +4194,10 @@ END WHEN READING LINE BY LINE.. FUCKING SLOW
 
 
    subroutine read_dims_file(file_path,file_name,numElems,numNodes,numBounds)
-      implicit none     
+      implicit none
       character(500), intent(in) :: file_path, file_name
       integer(4), intent(out) :: numElems,numNodes,numBounds
-      character(500) :: file_type, line  
+      character(500) :: file_type, line
 
       write(file_type,*) ".dims.dat"
 
@@ -4211,7 +4211,7 @@ END WHEN READING LINE BY LINE.. FUCKING SLOW
       if(mpi_rank.eq.0)write(*,*) "--| Boundary faces on mesh : ",numBounds
       if(mpi_rank.eq.0)write(*,*) "--| End of dims.dat file!"
       close(unit=fileId_dims)
-    
+
    end subroutine read_dims_file
 !---------------------------------------------------------------------------------------------------------------------------
    subroutine open_geo_dat_file(file_path,file_name)
@@ -4321,7 +4321,7 @@ END WHEN READING LINE BY LINE.. FUCKING SLOW
       if(isPeriodic) then
          if(mpi_rank.eq.0)write(*,*) "--| Shit for periodic...."
          write(*,*) 'ABORTING, SHIT FOR PERIODIC YET TO BE IMPLEMENTED!'
-         call MPI_Abort(MPI_COMM_WORLD, -1, mpi_err)
+         call MPI_Abort(app_comm, -1, mpi_err)
          !call open_fix_bou_file(file_path,file_name)
          !call read_boundaries(numBoundFacesSrl,numElemsMpiRank,listElemsMpiRank,connecMpiRank,numBoundsMpiRank,listElemsBoundsMpiRank,boundFacesMpiRank)
 
@@ -4334,7 +4334,7 @@ END WHEN READING LINE BY LINE.. FUCKING SLOW
 
       if(mpi_rank.eq.0)write(*,*) "--| End of reading GEO.DAT file in parallel!"
       if(mpi_rank.eq.0)write(*,*) "--------------------------------------------"
-    
+
    end subroutine read_geo_dat_file_in_parallel
 
    subroutine read_elem_connec_and_nodes_coords_from_geo_file(numElemsSrl,numNodesSrl,numElemsInRank,listElemsRank,numNodesInRank,connecRank,listNodesRank,coordNodesRank)
@@ -4366,7 +4366,7 @@ END WHEN READING LINE BY LINE.. FUCKING SLOW
 
             !write(*,*) 'connecRank[',mpi_rank,'](',elemCnt,')'
             connecRank(elemCnt,1:nnode) = auxConnec(2:nnode+1)
-            
+
             if(elemCnt.lt.numElemsInRank) nextElemToRead=listElemsRank(elemCnt+1)
             !if(mpi_rank.eq.0) write(*,*) iElem,connecRank(elemCnt,:)
          end if
@@ -4427,7 +4427,7 @@ END WHEN READING LINE BY LINE.. FUCKING SLOW
       if(mpi_rank.eq.0)write(*,*) "--| Reading coordinates..."
       if (ndime .ne. 3) then
          write(*,*) 'Crashing in read_elem_connec_and_nodes_coords_from_geo_file! ndime is not 3! EXIT!'
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+         call MPI_Abort(app_comm,-1,mpi_err)
       end if
 
       nodeCnt=0
@@ -4439,7 +4439,7 @@ END WHEN READING LINE BY LINE.. FUCKING SLOW
          if(iNode.eq.nextNodeToRead) then
             nodeCnt=nodeCnt+1
             coordNodesRank(nodeCnt,1)=real(x,rp)
-            coordNodesRank(nodeCnt,2)=real(y,rp) 
+            coordNodesRank(nodeCnt,2)=real(y,rp)
             coordNodesRank(nodeCnt,3)=real(z,rp)
 
             if(nodeCnt.lt.numNodesInRank) nextNodeToRead=listNodesRank(nodeCnt+1)
@@ -4493,7 +4493,7 @@ END WHEN READING LINE BY LINE.. FUCKING SLOW
 
          if(iBound.ne.iBoundBou) then
             write(*,*) 'Error in read_boundaries: iBound',iBound,' not equal to iBoundBou',iBoundBou
-            call MPI_Abort(MPI_COMM_WORLD, -1, mpi_err)
+            call MPI_Abort(app_comm, -1, mpi_err)
          end if
          !write(*,*) 'iBound',iBound,'iBoundBou',iBoundBou,'bouCode',bou_code_aux,'iBoundNodes',iBoundNodes
 
@@ -4508,7 +4508,7 @@ END WHEN READING LINE BY LINE.. FUCKING SLOW
          do iElem=1,numElemsInRank
             nodeCnt=0
             iElemG=listElemsInRank(iElem)
-            !fill the corners of the element 
+            !fill the corners of the element
             do iAux=1,8
                ind_gmsh = gmsh2ijk(posElemVertices(iAux))
                e_iNodeG(iAux) = connecInRank(iElem,ind_gmsh)
@@ -4525,9 +4525,9 @@ END WHEN READING LINE BY LINE.. FUCKING SLOW
                      vertexFound=.true.
                      exit eLoop
                   end if
-               end do eLoop              
+               end do eLoop
                if(.not.(vertexFound)) exit fLoop
-            end do fLoop     
+            end do fLoop
             if(nodeCnt.ge.4) then
                !isBoundInElem=.true.
                numBoundsInRank=numBoundsInRank+1

@@ -94,7 +94,7 @@ contains
 
       if(mporder.le.2) then
          write(*,*) 'SOD2D is not ready to work for mporder <= 2... You know, #gobigorgohome and set mporder >= 3'
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+         call MPI_Abort(app_comm,-1,mpi_err)
       end if
 
       !--------------------------------------------------------------------
