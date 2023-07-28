@@ -20,6 +20,8 @@ module mod_mpi
    contains
 
    subroutine init_mpi()
+      implicit none
+
       integer(mpi_address_kind) :: color_ptr
       logical :: mpi_app_num_flag
 
