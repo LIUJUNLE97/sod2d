@@ -9,7 +9,8 @@
 program main
    use mod_numerical_params
 #if _tgv_
-   use TGVSolver_mod
+   ! use TGVSolver_mod
+   use TGVMultiSolver_mod
 #endif
 #if _channel_
    use ChannelFlowSolver_mod
@@ -27,8 +28,10 @@ program main
    implicit none
 
 #if _tgv_
-   type(TGVSolver)  :: tgv
-   call tgv%run()
+   ! type(TGVSolver)  :: tgv
+   type(TGVMultiSolver)  :: tgv_multi
+   ! call tgv%run()
+   call tgv_multi%run()
 #endif
 #if _channel_
    !type(ThermalChannelFlowSolver) :: channel

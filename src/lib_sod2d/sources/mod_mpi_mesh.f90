@@ -5,7 +5,7 @@ module mod_mpi_mesh
    use mod_ijk_indices !potser en el futur pot volar!
    use iso_c_binding
    implicit none
-!-----------------------------------   
+!-----------------------------------
 
 ! ################################################################################################
 ! ----------------- VARS for new Par mesh FORMAT -------------------------------------------------
@@ -138,7 +138,7 @@ contains
       window_buffer_size = mpi_integer_size*1
 
       call MPI_Win_create(numNodesRankPar, window_buffer_size, mpi_integer_size,&
-                         MPI_INFO_NULL, MPI_COMM_WORLD, window_id, mpi_err)
+                         MPI_INFO_NULL, app_comm, window_id, mpi_err)
       call MPI_Win_fence(0, window_id, mpi_err)
 
       target_displacement=0
@@ -186,7 +186,7 @@ contains
       integer :: numRanksCnt,auxCnt,auxPos
 
       ! getting a serial partitioning of the nodes without overlaping
-      ! just to do the boundary calc in parallel 
+      ! just to do the boundary calc in parallel
       call get_serialNodePartitioning(numNodesRankSrl,iNodeStartSrl,iNodeEndSrl)
 
       !write(*,*) 'totalNumNodesSrl ', totalNumNodesSrl, ' numNodesRankSrl ', numNodesRankSrl,' mpi_size ', mpi_size
@@ -210,7 +210,7 @@ contains
       !--------------------------------------------------------------------------------------
       window_buffer_size = mpi_integer_size*totalNumNodesSrl
 
-      call MPI_Win_create(vectorBN, window_buffer_size, mpi_integer_size, MPI_INFO_NULL, MPI_COMM_WORLD, window_id, mpi_err)
+      call MPI_Win_create(vectorBN, window_buffer_size, mpi_integer_size, MPI_INFO_NULL, app_comm, window_id, mpi_err)
       call MPI_Win_fence(0, window_id, mpi_err)
 
       target_displacement = iNodeStartSrl(mpi_rank)-1
@@ -218,7 +218,7 @@ contains
       do iRank=0,mpi_size-1
          call MPI_Get(matrixBN(:,iRank),numNodesRankSrl,mpi_datatype_int,iRank,target_displacement,numNodesRankSrl,mpi_datatype_int,window_id,mpi_err)
       end do
-    
+
       !!! Wait for the MPI_Get issued to complete before going any further
       call MPI_Win_fence(0, window_id, mpi_err)
       call MPI_Win_free(window_id, mpi_err)
@@ -242,16 +242,16 @@ contains
       end do
 
       !write(*,*) '[',mpi_rank,']auxCnt ',auxCnt
-      
+
       !--------------------------------------------------------------------------------------
       !lets share how many memory position each rank needs!
-      vecAuxCnt(mpi_rank) = auxCnt 
+      vecAuxCnt(mpi_rank) = auxCnt
 
       window_buffer_size = mpi_integer_size*1
 
-      call MPI_Win_create(vecAuxCnt(mpi_rank),window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+      call MPI_Win_create(vecAuxCnt(mpi_rank),window_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
-   
+
       do iRank=0,mpi_size-1
          target_displacement = 0
          if(iRank .ne. mpi_rank) then
@@ -259,7 +259,7 @@ contains
          else
          end if
       end do
-   
+
       !! Wait for the MPI_Get issued to complete before going any further
       call MPI_Win_fence(0,window_id,mpi_err)
       call MPI_Win_free(window_id,mpi_err)
@@ -281,7 +281,7 @@ contains
                numRanksCnt=numRanksCnt+1
             end if
          end do
-         if(numRanksCnt.ge.2) then           
+         if(numRanksCnt.ge.2) then
             auxCnt=auxCnt+1
             vecSharedBN_part(auxCnt) = iNodeGSrl
             auxCnt=auxCnt+1
@@ -302,7 +302,7 @@ contains
       do iRank=0,mpi_size-1
          auxCnt=auxCnt+vecAuxCnt(iRank)
       end do
-      
+
       allocate(vecSharedBN_full(auxCnt))
       if(auxCnt.gt.0) then
          !--------------------------------------------------------------------------------------
@@ -310,10 +310,10 @@ contains
 
          window_buffer_size = mpi_integer_size*vecAuxCnt(mpi_rank)
 
-         call MPI_Win_create(vecSharedBN_part,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
-         !call MPI_Win_create(vecSharedBN_part(1),window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+         call MPI_Win_create(vecSharedBN_part,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
+         !call MPI_Win_create(vecSharedBN_part(1),window_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id,mpi_err)
          call MPI_Win_fence(0,window_id,mpi_err)
-   
+
          auxCnt=1
          do iRank=0,mpi_size-1
             target_displacement = 0
@@ -321,7 +321,7 @@ contains
             call MPI_Get(vecSharedBN_full(auxCnt),vecAuxCnt(iRank),mpi_datatype_int,iRank,target_displacement,vecAuxCnt(iRank),mpi_datatype_int,window_id,mpi_err)
             auxCnt=auxCnt+vecAuxCnt(iRank)
          end do
-   
+
          !! Wait for the MPI_Get issued to complete before going any further
          call MPI_Win_fence(0,window_id,mpi_err)
          call MPI_Win_free(window_id,mpi_err)
@@ -337,12 +337,12 @@ contains
       integer(4), allocatable :: auxVecRanks(:),matrixCommScheme(:,:)
       integer(4), dimension(0:mpi_size-1) :: commSchemeNumNodes
       integer(4), dimension(mpi_size*2) :: commSchemeStartEndNodes
-      
+
       logical :: imIn
       integer(4) :: i,j,k,iNodeL,iRank,numRanksCnt
       integer(4) :: iNodeGsrl
       integer(4) :: window_id
-      
+
       integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size
       integer(KIND=MPI_ADDRESS_KIND) :: target_displacement
 
@@ -464,9 +464,9 @@ contains
       window_buffer_size = mpi_integer_size*(mpi_size*2)
 
       call MPI_Win_create(commSchemeStartEndNodes,window_buffer_size,mpi_integer_size,&
-                         MPI_INFO_NULL,MPI_COMM_WORLD,window_id,mpi_err)
+                         MPI_INFO_NULL,app_comm,window_id,mpi_err)
       call MPI_Win_fence(0,window_id,mpi_err)
-   
+
       j=0
       do i=1,numRanksWithComms
          iRank=ranksToComm(i)
@@ -476,7 +476,7 @@ contains
          call MPI_Get(commsMemPosInNgb(j),1,mpi_datatype_int,iRank,target_displacement,1,mpi_datatype_int,window_id,mpi_err)
 
       end do
-   
+
       !! Wait for the MPI_Get issued to complete before going any further
       call MPI_Win_fence(0,window_id,mpi_err)
       call MPI_Win_free(window_id,mpi_err)

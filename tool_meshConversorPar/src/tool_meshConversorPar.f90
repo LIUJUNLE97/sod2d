@@ -28,7 +28,7 @@ program tool_meshConversorPar
         if(mpi_rank.eq.0) write(*,*) 'Input file: ',trim(adjustl(input_file))
     else
         if(mpi_rank.eq.0) write(*,*) 'You must call this amazing tool with an input file!!!'
-        call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+        call MPI_Abort(app_comm,-1,mpi_err)
     endif
     !------------------------------------------------------------------------------
     !------------------------------------------------------------------------------
