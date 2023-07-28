@@ -69,11 +69,11 @@ contains
       indexIJK = ((mporder+1)**2)*k+(mporder+1)*i+j+1
    end function get_indexIJK_sod2d
 
-   subroutine set_allocate_hexahedronHO_ijk_indices(mporder,gmsh2ijk,vtk2ijk,ijk2gmsh,ijk2vtk)
+   subroutine set_allocate_hexahedronHO_ijk_indices(mporder,gmsh2ijk,vtk2ijk)
       implicit none
       integer(4),intent(in) :: mporder
       integer(4),allocatable,dimension(:),intent(inout) :: gmsh2ijk,vtk2ijk
-      integer(4),allocatable,intent(inout),optional :: ijk2gmsh(:,:,:),ijk2vtk(:,:,:)
+      !integer(4),allocatable,intent(inout),optional :: ijk2gmsh(:,:,:),ijk2vtk(:,:,:)
       integer(4) :: mnnode,mngaus,mnpbou
       integer(4) :: i,j,k,ip,jp,kp,gmshCnt,vtkCnt,gmshIndex,vtkIndex,pIndex
       integer(4),allocatable :: ijk_sod2d_to_gmsh(:),ijk_gmsh_to_sod2d(:)
@@ -81,7 +81,7 @@ contains
       !-----------------------------------------------------------------------------------------
 
       call get_porder_values(mporder,mnnode,mngaus,mnpbou)
-      if(mpi_rank.eq.0) write(*,*) 'mporder',mporder,'mnnode',mnnode,'mngaus',mngaus,'mnpbou',mnpbou
+      !if(mpi_rank.eq.0) write(*,*) 'mporder',mporder,'mnnode',mnnode,'mngaus',mngaus,'mnpbou',mnpbou
 
       call set_allocate_array_ijk_sod2d_criteria(mporder,ijk_sod2d_to_gmsh,ijk_gmsh_to_sod2d)
       !-----------------------------------------------------------------------------------------
@@ -89,8 +89,8 @@ contains
       allocate(gmsh2ijk(mnnode))
       allocate(vtk2ijk(mnnode))
 
-      if(present(ijk2gmsh)) allocate(ijk2gmsh(0:porder,0:porder,0:porder))
-      if(present(ijk2vtk))  allocate(ijk2vtk(0:porder,0:porder,0:porder))
+      !if(present(ijk2gmsh)) allocate(ijk2gmsh(0:porder,0:porder,0:porder))
+      !if(present(ijk2vtk))  allocate(ijk2vtk(0:porder,0:porder,0:porder))
 
       if(mporder.le.2) then
          write(*,*) 'SOD2D is not ready to work for mporder <= 2... You know, #gobigorgohome and set mporder >= 3'
@@ -114,22 +114,6 @@ contains
                gmsh2ijk(pIndex)     = gmshIndex
                vtk2ijk(pIndex)      = vtkIndex
 
-               if(present(ijk2gmsh)) then
-
-               end if
-
-               if(present(ijk2vtk)) then
-
-               end if
-
-               !write(*,*) 'i,j,k',i,j,k,'ip,jp,kp',ip,jp,kp,'pI',pIndex,'gmsh',gmshIndex,'vtk',vtkIndex
-
-               !a2ijk(pIndex)        = gmshIndex!pIndex
-               !a2i(gmshIndex)       = i+1
-               !a2j(gmshIndex)       = j+1
-               !a2k(gmshIndex)       = k+1
-               !ijk2a(i+1,j+1,k+1)   = gmshIndex
-
             end do
          end do
       end do
@@ -150,7 +134,7 @@ contains
 
       !-----------------------------------------------------------------------------------------
       call get_porder_values(mporder,mnnode,mngaus,mnpbou)
-      if(mpi_rank.eq.0) write(*,*) 'mporder',mporder,'mnnode',mnnode,'mngaus',mngaus,'mnpbou',mnpbou
+      !if(mpi_rank.eq.0) write(*,*) 'mporder',mporder,'mnnode',mnnode,'mngaus',mngaus,'mnpbou',mnpbou
 
       call set_allocate_array_ijk_sod2d_criteria(mporder,ijk_sod2d_to_gmsh,ijk_gmsh_to_sod2d)
       !-----------------------------------------------------------------------------------------

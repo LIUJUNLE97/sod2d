@@ -1322,7 +1322,7 @@ contains
       integer(hsize_t),dimension(1) :: fs_dims,fs_maxdims
       integer(1) :: aux_array_i1(1)
 
-      if(mpi_rank.eq.0) write(*,*) '# Loading hdf5 mesh: ',meshFile_h5_name
+      if(mpi_rank.eq.0) write(*,*) '# Loading hdf5 mesh:',trim(adjustl(meshFile_h5_name))
 
       call open_hdf5_file(meshFile_h5_name,file_id)
 
@@ -1417,7 +1417,7 @@ contains
       !close h5 file
       call close_hdf5_file(file_id)
 
-      if(mpi_rank.eq.0) write(*,*) '# Mesh ',meshFile_h5_name,'succesfully loaded!'
+      if(mpi_rank.eq.0) write(*,*) '# Mesh',trim(adjustl(meshFile_h5_name)),'succesfully loaded!'
       mesh_isLoaded = .true.
 
    end subroutine load_hdf5_meshFile
@@ -3347,18 +3347,17 @@ contains
 
       isMeshLinealOutput = 0
       if(aux_array_i1(1).eq.1) isMeshLinealOutput = 1
-
-      write(*,*) 'isMeshLinOutput',isMeshLinealOutput
+      if(mpi_rank.eq.0) write(*,*) 'Lineal Output:',isMeshLinealOutput
 
       dsetname = '/meshOutputInfo/nnodeVTK'
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
       mesh_VTKnnode = aux_array_i4(1)
-      write(*,*) 'mesh_VTKnnode',mesh_VTKnnode
+      !write(*,*) 'mesh_VTKnnode',mesh_VTKnnode
 
       dsetname = '/meshOutputInfo/numVTKElemsPerMshElem'
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
       mesh_numVTKElemsPerMshElem = aux_array_i4(1)
-      write(*,*) 'mesh_numVTKElems',mesh_numVTKElemsPerMshElem
+      !write(*,*) 'mesh_numVTKElems',mesh_numVTKElemsPerMshElem
 
       ms_dims(1) = 1
       ms_offset(1) = int(mpi_rank,hssize_t)
@@ -3366,12 +3365,12 @@ contains
       dsetname = '/meshOutputInfo/numElemsVTKMshRank'
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
       numElemsVTKRankPar = aux_array_i4(1)
-      write(*,*) 'numElemsVTKRankPar',numElemsVTKRankPar
+      !write(*,*) 'numElemsVTKRankPar',numElemsVTKRankPar
 
       dsetname = '/meshOutputInfo/sizeConnecVTKMshRank'
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
       sizeConnecVTKRankPar = aux_array_i4(1)
-      write(*,*) 'sizeConnecVTKRankPar',sizeConnecVTKRankPar
+      !write(*,*) 'sizeConnecVTKRankPar',sizeConnecVTKRankPar
 
    end subroutine load_meshOutputInfo_hdf5
 
@@ -5345,21 +5344,18 @@ contains
 
       !-----------------------------------------------------------------------------
       ds_dims(1) = int(numElemsGmsh*numVTKElemsPerMshElem+numMshRanks2Part,hsize_t)
-      write(*,*) 'offsets dsdims',ds_dims
 
       dsetname = '/VTKHDF/Offsets'
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
 
       !-----------------------------------------------------------------------------
       ds_dims(1) = int(numElemsGmsh*numVTKElemsPerMshElem,hsize_t)*int(mnnodeVTK,hsize_t)
-      write(*,*) 'connec dsdims',ds_dims
 
       dsetname = '/VTKHDF/Connectivity'
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
 
       !-----------------------------------------------------------------------------
       ds_dims(1) = int(numElemsGmsh*numVTKElemsPerMshElem,hsize_t)
-      write(*,*) 'types dsdims',ds_dims
 
       dtype = h5_datatype_uint1
 
@@ -5411,11 +5407,10 @@ contains
       call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
 
       dsetname = '/VTKHDF/NumberOfCells'
-      aux_array_i8(1) = int(numElemsVTKMshRank,8) !numElemsMshRank
+      aux_array_i8(1) = int(numElemsVTKMshRank,8)
       call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
 
       dsetname = '/VTKHDF/NumberOfConnectivityIds'
-      !aux_array_i8(1) = numElemsMshRank*mnnode
       aux_array_i8(1) = sizeConnecVTKMshRank
       call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
 
@@ -5426,7 +5421,6 @@ contains
 
       aux_ms_dims   = int(numElemsVTKMshRank + 1,hsize_t)
       aux_ms_offset = int((mshRankElemStart-1)*(numVTKElemsPerMshElem) + mshRank,hssize_t)
-      write(*,*) 'offsets|ms_dims',aux_ms_dims,'ms_off',aux_ms_offset,'vtk_off',mnnodeVTK
 
       allocate(aux_array_i8(aux_ms_dims))
       aux_array_i8(1) = 0
@@ -5446,12 +5440,11 @@ contains
 
       aux_ms_dims   = int(sizeConnecVTKMshRank,hsize_t)
       aux_ms_offset = int((mshRankElemStart-1)*numVTKElemsPerMshElem,hssize_t)*int(mnnodeVTK,hssize_t)
-      !write(*,*) 'connectivity|ms_dims',aux_ms_dims,'ms_off',aux_ms_offset
 
-      ms_dims(1)   = aux_ms_dims   !int(numElemsMshRank,hsize_t)   * int(mnnode,hsize_t)
-      ms_offset(1) = aux_ms_offset !int((mshRankElemStart-1),hssize_t)* int(mnnode,hssize_t)
+      ms_dims(1)   = aux_ms_dims
+      ms_offset(1) = aux_ms_offset
 
-      do ii = 1,sizeConnecVTKMshRank!numElemsMshRank*mnnode
+      do ii = 1,sizeConnecVTKMshRank
          aux_array_i8(ii) = connecVTKMshRank(ii)-1
       end do
 
@@ -5472,7 +5465,6 @@ contains
 
       ms_dims(1)   = aux_ms_dims
       ms_offset(1) = aux_ms_offset
-      !write(*,*) 'types|ms_dims',aux_ms_dims,'ms_off',aux_ms_offset
 
       call write_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i1)
 
