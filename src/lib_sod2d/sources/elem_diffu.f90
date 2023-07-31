@@ -537,7 +537,7 @@ module elem_diffu
                       Rener(:) = 0.0_rp
                       !$acc end kernels
 
-                      !$acc parallel loop gang  private(ul,Teml,rhol,mufluidl,gradRhol,gradTl,tauUl,tauXl,tauYl,tauZl)
+                      !$acc parallel loop gang  private(ipoin,ul,Teml,rhol,mufluidl,gradRhol,gradTl,tauUl,tauXl,tauYl,tauZl)
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
