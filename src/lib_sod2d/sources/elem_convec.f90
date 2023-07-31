@@ -917,6 +917,7 @@ module elem_convec
                  real(rp),    intent(out) :: Rmom(npoin,ndime)
                  real(rp),    intent(out) :: Rener(npoin)
                  integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,kdime,ii
+                 integer(4)              :: ipoin(nnode)
                  real(rp)                 :: Re_mom(nnode,ndime)
                  real(rp)                 :: Re_mass(nnode), Re_ener(nnode)
                  real(rp)                 :: gradIsoRho(ndime),gradIsoP(ndime), gradIsoE(ndime),gradIsoU(ndime,ndime), gradIsoF(ndime,ndime,ndime), gradIsoQ(ndime,ndime), gradIsoFe(ndime,ndime)
@@ -931,29 +932,33 @@ module elem_convec
                  Rener(:) = 0.0_rp
                  !$acc end kernels
 
-                 !$acc parallel loop gang private(Re_ener,Re_mass,Re_mom,ul,ql,rhol,prl,El,fl,fel) !!vector_length(vecLength)
+                 !$acc parallel loop gang private(ipoin,Re_ener,Re_mass,Re_mom,ul,ql,rhol,prl,El,fl,fel) !!vector_length(vecLength)
                  do ielem = 1,nelem
+                    !$acc loop vector
+                    do inode = 1,nnode
+                       ipoin(inode) = connec(ielem,inode)
+                    end do
                     !$acc loop vector collapse(2)
                     do idime = 1,ndime
                        do inode = 1,nnode
-                          ul(inode,idime) = u(connec(ielem,inode),idime)
-                          ql(inode,idime) = q(connec(ielem,inode),idime)
-                          fel(inode,idime) = (E(connec(ielem,inode))+pr(connec(ielem,inode)))*u(connec(ielem,inode),idime)
+                          ul(inode,idime) = u(ipoin(inode),idime)
+                          ql(inode,idime) = q(ipoin(inode),idime)
+                          fel(inode,idime) = (E(ipoin(inode))+pr(ipoin(inode)))*u(ipoin(inode),idime)
                        end do
                     end do
                     !$acc loop vector collapse(3)
                     do idime = 1,ndime
                        do jdime = 1,ndime
                           do inode = 1,nnode
-                             fl(inode,idime,jdime)  = q(connec(ielem,inode),idime)*u(connec(ielem,inode),jdime)
+                             fl(inode,idime,jdime)  = q(ipoin(inode),idime)*u(ipoin(inode),jdime)
                           end do
                        end do
                     end do
                     !$acc loop vector
                     do inode = 1,nnode
-                       rhol(inode) = rho(connec(ielem,inode))
-                       El(inode) = E(connec(ielem,inode))
-                       prl(inode) = pr(connec(ielem,inode))
+                       rhol(inode) = rho(ipoin(inode))
+                       El(inode) = E(ipoin(inode))
+                       prl(inode) = pr(ipoin(inode))
                     end do
                     !$acc loop vector private(dlxi_ip,dleta_ip,dlzeta_ip, gradIsoRho,gradIsoP, gradIsoE,gradIsoU, gradIsoF, gradIsoQ, gradIsoFe,gradRho,gradP,gradE,gradU,divF,divU,divQ,divFe)
                     do igaus = 1,ngaus
@@ -1059,17 +1064,17 @@ module elem_convec
                     do idime = 1,ndime
                        do inode = 1,nnode
                           !$acc atomic update
-                          Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)+Re_mom(inode,idime)
+                          Rmom(ipoin(inode),idime) = Rmom(ipoin(inode),idime)+Re_mom(inode,idime)
                           !$acc end atomic
                        end do
                     end do
                     !$acc loop vector
                     do inode = 1,nnode
                        !$acc atomic update
-                       Rmass(connec(ielem,inode)) = Rmass(connec(ielem,inode))+Re_mass(inode)
+                       Rmass(ipoin(inode)) = Rmass(ipoin(inode))+Re_mass(inode)
                        !$acc end atomic
                        !$acc atomic update
-                       Rener(connec(ielem,inode)) = Rener(connec(ielem,inode))+Re_ener(inode)
+                       Rener(ipoin(inode)) = Rener(ipoin(inode))+Re_ener(inode)
                        !$acc end atomic
                     end do
                  end do
@@ -1095,6 +1100,7 @@ module elem_convec
                  real(rp),    intent(in)  :: alpha(npoin)
                  real(rp),    intent(out) :: Rconvec(npoin)
                  integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ii
+                 integer(4)               :: ipoin(nnode)
                  real(rp)                 :: gradIsoE(ndime),gradIsoU(ndime,ndime),gradIsoFe(ndime,ndime)
                  real(rp)                 :: gradE(ndime),gradU(ndime,ndime),divU,divFe
                  real(rp)                 :: ul(nnode,ndime), fel(nnode,ndime), etal(nnode), Re(nnode)
@@ -1104,18 +1110,22 @@ module elem_convec
                  !$acc kernels
                  Rconvec(:) = 0.0_rp
                  !$acc end kernels
-                 !$acc parallel loop gang  private(Re,ul,fel,etal) !!vector_length(vecLength)
+                 !$acc parallel loop gang  private(ipoin,Re,ul,fel,etal) !!vector_length(vecLength)
                  do ielem = 1,nelem
+                    !$acc loop vector
+                    do inode = 1,nnode
+                       ipoin(inode) = connec(ielem,inode)
+                    end do
                     !$acc loop vector collapse(2)
                     do idime = 1,ndime
                        do inode = 1,nnode
-                          ul(inode,idime) = u(connec(ielem,inode),idime)
-                          fel(inode,idime) = q(connec(ielem,inode),idime)
+                          ul(inode,idime) = u(ipoin(inode),idime)
+                          fel(inode,idime) = q(ipoin(inode),idime)
                        end do
                     end do
                     !$acc loop vector
                     do inode = 1,nnode
-                       etal(inode) = eta(connec(ielem,inode))
+                       etal(inode) = eta(ipoin(inode))
                     end do
                     !$acc loop vector private(gradIsoE,gradIsoU,gradIsoFe,gradE,gradU,divU,divFe, dlxi_ip, dleta_ip, dlzeta_ip)
                     do igaus = 1,ngaus
@@ -1175,7 +1185,7 @@ module elem_convec
                     !$acc loop vector
                     do inode = 1,nnode
                        !$acc atomic update
-                       Rconvec(connec(ielem,inode)) = Rconvec(connec(ielem,inode))+Re(inode)
+                       Rconvec(ipoin(inode)) = Rconvec(ipoin(inode))+Re(inode)
                        !$acc end atomic
                     end do
                  end do

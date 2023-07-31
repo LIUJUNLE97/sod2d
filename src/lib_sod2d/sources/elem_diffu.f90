@@ -520,6 +520,7 @@ module elem_diffu
                       real(rp),   intent(out) :: Rmom(npoin,ndime)
                       real(rp),   intent(out) :: Rener(npoin)
                       integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
+                      integer(4)              :: ipoin(nnode)
                       real(rp)                :: kappa_e, mu_fgp, mu_egp,divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
                       real(rp)                :: gradU(ndime,ndime), gradT(ndime),tmp1,vol,arho
                       real(rp)                :: gradIsoRho(ndime),gradIsoT(ndime),gradIsoU(ndime,ndime)
@@ -540,14 +541,18 @@ module elem_diffu
                       do ielem = 1,nelem
                          !$acc loop vector
                          do inode = 1,nnode
-                            rhol(inode) = rho(connec(ielem,inode))
-                            Teml(inode) = Tem(connec(ielem,inode))
-                            mufluidl(inode) = mu_fluid(connec(ielem,inode))
+                            ipoin(inode) = connec(ielem,inode)
+                         end do
+                         !$acc loop vector
+                         do inode = 1,nnode
+                            rhol(inode) = rho(ipoin(inode))
+                            Teml(inode) = Tem(ipoin(inode))
+                            mufluidl(inode) = mu_fluid(ipoin(inode))
                          end do
                          !$acc loop vector collapse(2)
                          do inode = 1,nnode
                             do idime = 1,ndime
-                               ul(inode,idime) = u(connec(ielem,inode),idime)
+                               ul(inode,idime) = u(ipoin(inode),idime)
                             end do
                          end do
                          tauXl(:,:) = 0.0_rp
@@ -673,14 +678,14 @@ module elem_diffu
                             end do
 
                             !$acc atomic update
-                            Rmass(connec(ielem,igaus)) = Rmass(connec(ielem,igaus))+nu_e*divDr
+                            Rmass(ipoin(igaus)) = Rmass(ipoin(igaus))+nu_e*divDr
                             !$acc end atomic
                             !$acc atomic update
-                            Rener(connec(ielem,igaus)) = Rener(connec(ielem,igaus))+divDe
+                            Rener(ipoin(igaus)) = Rener(ipoin(igaus))+divDe
                             !$acc end atomic
                             do idime = 1,ndime
                                !$acc atomic update
-                               Rmom(connec(ielem,igaus),idime) = Rmom(connec(ielem,igaus),idime)+divDm(idime)
+                               Rmom(ipoin(igaus),idime) = Rmom(ipoin(igaus),idime)+divDm(idime)
                                !$acc end atomic
                             end do
                          end do
