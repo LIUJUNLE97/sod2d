@@ -36,7 +36,7 @@ module mod_analysis
          !$acc end parallel loop
          EK_l = EK_l/real(rho0*((2.0_rp*3.14159_rp)**3.0_rp),8)
 
-         call MPI_Allreduce(EK_l,EK_d,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+         call MPI_Allreduce(EK_l,EK_d,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
          EK = real(EK_d, rp)
 
          call nvtxEndRange
@@ -137,8 +137,8 @@ module mod_analysis
          !!$acc end parallel loop
          call nvtxEndRange
 
-         call MPI_Allreduce(eps_S_l,eps_S_d,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
-         call MPI_Allreduce(eps_D_l,eps_D_d,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+         call MPI_Allreduce(eps_S_l,eps_S_d,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
+         call MPI_Allreduce(eps_D_l,eps_D_d,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
          alpha = 1.0_rp/(rho0*volT)
          eps_S_d = eps_S_d*real(alpha,8)
@@ -169,7 +169,7 @@ module mod_analysis
          end do
          !$acc end parallel loop
 
-         call MPI_Allreduce(maxmachno_l,maxmachno,1,mpi_datatype_real,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+         call MPI_Allreduce(maxmachno_l,maxmachno,1,mpi_datatype_real,MPI_MAX,app_comm,mpi_err)
 
       end subroutine maxMach
 
@@ -319,7 +319,7 @@ module mod_analysis
 					end do
                !$acc loop seq
                do idime = 1,ndime
-                  !$acc loop seq 
+                  !$acc loop seq
                   do jdime = 1,ndime
                      !$acc atomic update
                      Ftau_l(idime) = Ftau_l(idime)+wgp_b(igaus)*tau(idime,jdime)*bnorm((igaus-1)*ndime+jdime)*sig
@@ -333,12 +333,12 @@ module mod_analysis
          !$acc end parallel loop
 			deallocate(lelbo)
 
-         call MPI_Allreduce(surfArea_l,surfArea,1,mpi_datatype_real,MPI_SUM,MPI_COMM_WORLD,mpi_err)
-         call MPI_Allreduce(Fpr_l,Fpr,ndime,mpi_datatype_real,MPI_SUM,MPI_COMM_WORLD,mpi_err)
-         call MPI_Allreduce(Ftau_l,Ftau,ndime,mpi_datatype_real,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+         call MPI_Allreduce(surfArea_l,surfArea,1,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
+         call MPI_Allreduce(Fpr_l,Fpr,ndime,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
+         call MPI_Allreduce(Ftau_l,Ftau,ndime,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
 
          !write(*,*) '(',mpi_rank,')surfCode',surfCode,'t',time, ",", dble(surfArea), ",", dble(Fpr(1)), ",", dble(Fpr(2)), ",", dble(Fpr(3)), ",", dble(Ftau(1)), ",", dble(Ftau(2)), ",", dble(Ftau(3))
-         
+
          if(mpi_rank.eq.0) then
             write(888+surfCode,"(I8,1X,A)",ADVANCE="NO") iter, ","
             write(888+surfCode,50) time, ",", dble(surfArea), ",", dble(Fpr(1)), ",", dble(Fpr(2)), ",", dble(Fpr(3)), ",", dble(Ftau(1)), ",", dble(Ftau(2)), ",", dble(Ftau(3)), ""
@@ -455,7 +455,7 @@ module mod_analysis
                nmag = sqrt(nmag)
                !$acc loop seq
                do idime = 1,ndime
-                  !$acc loop seq 
+                  !$acc loop seq
                   do jdime = 1,ndime
                      tau_aux =  wgp_b(igaus)*tau(idime,jdime)*bnorm((igaus-1)*ndime+jdime)*sig
                      if(tau_aux .lt. 0) then
@@ -474,8 +474,8 @@ module mod_analysis
          !$acc end parallel loop
 			deallocate(lelbo)
 
-         call MPI_Allreduce(Ftau_n_l,Ftau_neg,ndime,mpi_datatype_real,MPI_SUM,MPI_COMM_WORLD,mpi_err)
-         call MPI_Allreduce(Ftau_p_l,Ftau_pos,ndime,mpi_datatype_real,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+         call MPI_Allreduce(Ftau_n_l,Ftau_neg,ndime,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
+         call MPI_Allreduce(Ftau_p_l,Ftau_pos,ndime,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
 
       end subroutine twInfo
 end module mod_analysis

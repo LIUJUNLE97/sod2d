@@ -451,7 +451,7 @@ module time_integ
                   ! Compute diffusion terms with values at current substep
                   !
                   call nvtxStartRange("DIFFUSIONS")
-                  call full_diffusion_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,aux_rho,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass,Rdiff_mom,Rdiff_ener)
+                  call full_diffusion_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,aux_rho,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass,Rdiff_mom,Rdiff_ener)
                   call nvtxEndRange
                   !
                   ! Call source term if applicable
@@ -467,10 +467,10 @@ module time_integ
                   if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
                      call nvtxStartRange("WALL MODEL")
                      if(flag_walave == 0) then
-                        call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK,bou_codes,&
+                        call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                            bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),aux_u(:,:),tauw,Rdiff_mom)
                      else
-                        call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK,bou_codes,&
+                        call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                            bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),walave_u(:,:),tauw,Rdiff_mom)
                      end if
                      call nvtxEndRange
@@ -481,7 +481,7 @@ module time_integ
                   ! Compute convective terms
                   !
                   call nvtxStartRange("CONVECTIONS")
-                  call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_u,aux_q,aux_rho,aux_pr,aux_E,Rmass(:),Rmom(:,:),Rener(:))
+                  call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_u,aux_q,aux_rho,aux_pr,aux_E,Rmass(:),Rmom(:,:),Rener(:))
                   call nvtxEndRange
 
                   ! entropy advection
@@ -644,7 +644,7 @@ module time_integ
 
                call nvtxStartRange("Update generic convection")
                call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta(:),alpha)
+                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta(:),alpha)
                call nvtxEndRange
 
                if(mpi_size.ge.2) then
@@ -679,7 +679,7 @@ module time_integ
                call nvtxEndRange
 
                call nvtxStartRange("Accumullate aux2 in res(1)")
-               call MPI_Allreduce(aux2,res(1),1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+               call MPI_Allreduce(aux2,res(1),1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
                call nvtxEndRange
 
                res(1) = sqrt(res(1))
@@ -713,9 +713,9 @@ module time_integ
             if(flag_les == 1) then
                call nvtxStartRange("MU_SGS")
                if(flag_les_ilsa == 1) then
-                  call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,rho(:,pos),u(:,:,pos),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3)
+                  call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,rho(:,pos),u(:,:,pos),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3)
                else
-                  call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,pos),u(:,:,pos),Ml,mu_sgs)
+                  call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,pos),u(:,:,pos),Ml,mu_sgs)
                end if
                call nvtxEndRange
             end if
@@ -844,12 +844,6 @@ module time_integ
 
                if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,aux_rho,aux_q,u_buffer)
 
-               if (noBoundaries .eqv. .false.) then
-                  call nvtxStartRange("BCS_AFTER_UPDATE")
-                  call temporary_bc_routine_dirichlet_prim(npoin,nboun,coord,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,aux_rho(:),aux_q(:,:),aux_u(:,:),aux_pr(:),aux_E(:),u_buffer)
-                  call nvtxEndRange
-               end if
-
                !
                ! Apply bcs after update
                !
@@ -874,10 +868,34 @@ module time_integ
                   aux_e_int(lpoin_w(ipoin)) = (aux_E(lpoin_w(ipoin))/aux_rho(lpoin_w(ipoin)))-0.5_rp*umag
                   aux_pr(lpoin_w(ipoin)) = aux_rho(lpoin_w(ipoin))*(gamma_gas-1.0_rp)*aux_e_int(lpoin_w(ipoin))
                   aux_Tem(lpoin_w(ipoin)) = aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))*Rgas)
+                  aux_eta(lpoin_w(ipoin)) = (aux_rho(lpoin_w(ipoin))/(gamma_gas-1.0_rp))* &
+                  log(aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))**gamma_gas))
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     f_eta(lpoin_w(ipoin),idime) = aux_u(lpoin_w(ipoin),idime)*aux_eta(lpoin_w(ipoin))
+                  end do
                end do
                !$acc end parallel loop
                call nvtxEndRange
 
+               call nvtxStartRange("Entropy convection")
+               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,aux_eta(:),aux_u(:,:),Reta(:),alpha)
+               call nvtxEndRange
+
+               if(mpi_size.ge.2) then
+                  call nvtxStartRange("MPI_comms_tI")
+                  call mpi_halo_atomic_update_real(Reta(:))
+                  call nvtxEndRange
+               end if
+
+               if (noBoundaries .eqv. .false.) then
+                  call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Reta)
+               end if
+
+               call nvtxStartRange("Lumped solver")
+               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
+               call nvtxEndRange
                !
                ! Compute viscosities and diffusion
                !
@@ -893,7 +911,7 @@ module time_integ
                ! Compute diffusion terms with values at current substep
                !
                call nvtxStartRange("DIFFUSIONS")
-               call full_diffusion_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,aux_rho,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass,Rdiff_mom,Rdiff_ener)
+               call full_diffusion_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,aux_rho,aux_u,aux_Tem,mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass,Rdiff_mom,Rdiff_ener)
                call nvtxEndRange
                !
                ! Call source term if applicable
@@ -909,10 +927,10 @@ module time_integ
                if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
                   call nvtxStartRange("WALL MODEL")
                   if(flag_walave == 0) then
-                     call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK,bou_codes,&
+                     call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                         bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),aux_u(:,:),tauw,Rdiff_mom)
                   else
-                     call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK,bou_codes,&
+                     call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                         bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,aux_rho(:),walave_u(:,:),tauw,Rdiff_mom)
                   end if
                   call nvtxEndRange
@@ -929,7 +947,7 @@ module time_integ
                ! Compute convective terms
                !
                call nvtxStartRange("CONVECTIONS")
-               call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_u,aux_q,aux_rho,aux_pr,aux_E,Rmass(:),Rmom(:,:),Rener(:))
+               call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_u,aux_q,aux_rho,aux_pr,aux_E,Rmass(:),Rmom(:,:),Rener(:))
                call nvtxEndRange
 
                call nvtxStartRange("Add convection and diffusion")
@@ -967,6 +985,7 @@ module time_integ
                do ipoin = 1,npoin
                   Rmass_sum(ipoin) = Rmass_sum(ipoin) + b_i(istep)*Rmass(ipoin)
                   Rener_sum(ipoin) = Rener_sum(ipoin) + b_i(istep)*Rener(ipoin)
+                  Reta_sum(ipoin)  = Reta_sum(ipoin)  + b_i(istep)*Reta(ipoin)
                   !$acc loop seq
                   do idime = 1,ndime
                      Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)
@@ -1025,37 +1044,22 @@ module time_integ
                Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
                eta(lpoin_w(ipoin),pos) = (rho(lpoin_w(ipoin),pos)/(gamma_gas-1.0_rp))* &
                   log(pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)**gamma_gas))
-               !$acc loop seq
-               do idime = 1,ndime
-                  f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,pos)*eta(lpoin_w(ipoin),pos)
-               end do
             end do
             !$acc end parallel loop
             call nvtxEndRange
 
-            call nvtxStartRange("Entropy convection")
-            call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-               gpvol,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta(:),alpha)
-            call nvtxEndRange
-
-
-            if(mpi_size.ge.2) then
-               call nvtxStartRange("MPI_comms_tI")
-               call mpi_halo_atomic_update_real(Reta(:))
-               call nvtxEndRange
-            end if
-
-            call nvtxStartRange("Entropy Residual")
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
-
+            call nvtxStartRange("Entropy residual")
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+               Reta(lpoin_w(ipoin)) =  -Reta_sum(lpoin_w(ipoin))!-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
             end do
             !$acc end parallel loop
             call nvtxEndRange
+
             if (noBoundaries .eqv. .false.) then
+               call nvtxStartRange("BCS_AFTER_UPDATE")
                call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Reta)
+               call nvtxEndRange
             end if
             !
             ! If using Sutherland viscosity model:
@@ -1079,9 +1083,9 @@ module time_integ
             if(flag_les == 1) then
                call nvtxStartRange("MU_SGS")
                if(flag_les_ilsa == 1) then
-                  call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,rho(:,pos),u(:,:,pos),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3)
+                  call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,rho(:,pos),u(:,:,pos),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3)
                else
-                  call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,pos),u(:,:,pos),Ml,mu_sgs)
+                  call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,pos),u(:,:,pos),Ml,mu_sgs)
                end if
                call nvtxEndRange
             end if
@@ -1102,6 +1106,7 @@ module time_integ
             c1 = 0.01_rp
             c2 = 10.0_rp
 
+            call nvtxStartRange("Update buffer")
             !$acc parallel loop
             do ipoin = 1,npoin
                xi = 1.0_rp
@@ -1160,6 +1165,7 @@ module time_integ
 
             end do
             !$acc end parallel loop
+            call nvtxEndRange
          end subroutine updateBuffer
 
       end module time_integ

@@ -42,7 +42,7 @@ module BLTSBDRLFlowSolver_mod
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: BLTSBDRLFlowSolver
 
       real(rp) , public  ::  M, d0, U0, rho0, Red0, Re, to, po, mu, amp_tbs, x_start, x_rise, x_end, x_fall, x_rerise, x_restart, coeff_tbs
-      character(len=8), public :: tag="0"
+      character(len=64), public :: tag
       logical :: db_clustered = .false.
       integer(4), public       :: countPar                                   ! Number of points in a rectangle of control per partition
       character(512), public   :: fileControlName                            ! Input: path to the file that contains the points defining the rectangle controls
@@ -132,40 +132,41 @@ contains
       if (this%time .gt. this%timeBeginActuation) then
          if (step_type_mod .eq. 1) then
             call write_step_type(client, 2, "ensemble_"//trim(adjustl(this%tag))//".step_type")
-            write(*,*) "Sod2D wrote step: 2"
+            ! write(*,*) "Sod2D wrote step: 2"
          end if
 
          ! check if a new action is needed
          if (this%time - this%previousActuationTime .ge. this%periodActuation) then
-         ! save old action values and time - useful for interpolating to new action_global values
+            if (mpi_rank .eq. 0) write(111, *) "Performing SmartRedis communiations."
+            ! save old action values and time - useful for interpolating to new action_global values
             !$acc kernels
             action_global_previous(:) = action_global(:)
             this%previousActuationTime = this%previousActuationTime + this%periodActuation
             !$acc end kernels
 
+            call this%update_witness(istep, 1) ! manual update of witness points
             call write_state(client, buffwit(:, 1, 1), "ensemble_"//trim(adjustl(this%tag))//".state") ! the streamwise velocity u
-            write(*,*) "Sod2D wrote state(1:5): ", buffwit(1:5, 1, 1)
+            ! write(*,*) "Sod2D wrote state(1:5): ", buffwit(1:5, 1, 1)
             call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
             call write_reward(client, Ftau_neg(1), Ftau_pos(1), "ensemble_"//trim(adjustl(this%tag))//".reward") ! the streamwise component tw_x
-            write(*,*) "Sod2D wrote reward: ", Ftau_neg(1), Ftau_pos(1)
+            ! write(*,*) "Sod2D wrote reward: ", Ftau_neg(1), Ftau_pos(1)
             write(445,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_neg(2)
             call flush(445)
 
             call read_action(client, "ensemble_"//trim(adjustl(this%tag))//".action") ! modifies action_global (the target control values)
-            write(*,*) "Sod2D read action: ", action_global
-            write(443,'(*(ES12.4,:,","))') action_global(1), this%time+this%periodActuation
+            ! write(*,*) "Sod2D read action: ", action_global
+            write(443,'(*(ES12.4,:,","))') this%time+this%periodActuation, action_global(1)
             call flush(443)
 
             ! if the next time that we require actuation value is the last one, write now step_type=0 into database
-            ! if (this%time + 2.0_rp * this%periodActuation .gt. this%maxPhysTime) then
-            if (this%time + 1.0_rp * this%periodActuation .gt. this%maxPhysTime) then
+            if (this%time + this%periodActuation .gt. this%maxPhysTime) then
                call write_step_type(client, 0, "ensemble_"//trim(adjustl(this%tag))//".step_type")
-               write(*,*) "Sod2D wrote step: 0"
+               ! write(*,*) "Sod2D wrote step: 0"
             end if
          end if
 
          call this%smoothControlFunction(action_global_instant)
-         write(444,'(*(ES12.4,:,","))') action_global_instant(1), this%time
+         write(444,'(*(ES12.4,:,","))') this%time, action_global_instant(1)
          call flush(444)
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
@@ -538,9 +539,7 @@ contains
       do iarg = 1, num_args
          call get_command_argument(iarg, arg)
          equal_pos = scan(adjustl(trim(arg)), "=")
-         if (adjustl(trim(arg(:equal_pos-1))) .eq. "--tag") then
-            this%tag = trim(adjustl(arg(equal_pos+1:)))
-         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--restart_step") then
+         if (adjustl(trim(arg(:equal_pos-1))) .eq. "--restart_step") then
             restart_step_str = trim(adjustl(arg(equal_pos+1:)))
          else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--db_clustered") then
             db_clustered_str = trim(adjustl(arg(equal_pos+1:)))
@@ -553,7 +552,7 @@ contains
          end if
       end do
 
-      if (this%tag == "") this%tag = "0"
+      write(this%tag, *) app_color
       if (db_clustered_str == "" .or. db_clustered_str == "0") this%db_clustered = .false.
       if (restart_step_str == "" .or. restart_step_str == "0") &
          stop "Cannot use RL actuation from cold start. (--restart_step=0 or --restart_step='')"
@@ -561,18 +560,18 @@ contains
       this%periodActuation = 1.0_rp / this%frequencyActuation
       read(periodEpisode_str,*,iostat=ierr) this%periodEpisode
 
-      ! create output dir if not existing and put soft links to baseline restarts
+      ! create output dir if not existing and copy the baseline restarts.
       ! when a random restart is selected and it is not the first episode, it will only create a
-      ! soft link for the *_1.h5 file, so that the random selection from python is either 1 (baseline)
+      ! copy of the *_1.h5 file, so that the random selection from python is either 1 (baseline)
       ! or 2 (last episode result) saved as *_2.h5
       output_dir = "./output_"//trim(adjustl(this%tag))//"/"
       inquire(file=trim(adjustl(output_dir)), exist=output_dir_exists)
       if (.not. output_dir_exists .and. mpi_rank .eq. 0) then
-         call execute_command_line("mkdir -p "//trim(adjustl(output_dir)))
-         call execute_command_line("cp restart/* "//trim(adjustl(output_dir)))
+         call system("mkdir -p "//trim(adjustl(output_dir)))
+         call system("cp restart/* "//trim(adjustl(output_dir)))
       ! previously run environment, so restart_2 is from last episode and we do not overwrite it
       elseif (output_dir_exists .and. mpi_rank .eq. 0) then
-         call execute_command_line("cp restart/*_1.h5 "//trim(adjustl(output_dir)))
+         call system("cp restart/*_1.h5 "//trim(adjustl(output_dir)))
       end if
 
       write(this%mesh_h5_file_path,*) ""
@@ -712,13 +711,13 @@ contains
       this%have_witness          = .true.
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
-      this%leapwit               = 100 ! 10 ! 50 ! cada quants dts sampleja
-      this%leapwitsave           = 1 ! quants dts guarda al buffer
-      this%wit_save              = .false. ! guardar o no
-      this%wit_save_u_i          = .true.
+      this%leapwit               = 10000001 ! (update witness ever n dts) | in this class, we update the witness points manually
+      this%leapwitsave           = 1 ! how many dts are stored in buffer
+      this%wit_save              = .false. ! save witness or not
+      this%wit_save_u_i          = .false.
       this%wit_save_pr           = .false.
       this%wit_save_rho          = .false.
-      this%continue_witness      = .false. ! continuar els witness des de un arxiu de witness, pero no se si va gaire be aixo...
+      this%continue_witness      = .false.
 
    end subroutine BLTSBDRLFlowSolver_initializeParameters
 

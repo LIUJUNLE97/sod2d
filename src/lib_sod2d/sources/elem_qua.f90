@@ -3,8 +3,12 @@ module elem_qua
         use mod_numerical_params
         use mod_maths
 
-        contains
+        implicit none
 
+        integer(4), parameter :: quad_order_edges(4,2) = transpose(reshape([1,2,2,3,3,4,4,1],(/2,4/)))
+
+        contains
+#if 0
                 subroutine qua04(s,t,N,dN) ! QUA04 element
 
                         implicit none
@@ -62,6 +66,7 @@ module elem_qua
 		!> @param[in] eta The isoparametric coordinate in eta-direction
 		!> @param[out] N The shape functions and their derivatives
 		!> @param[out] atoIJ Node a to IJ relationship
+
                 subroutine set_qua16_lists(atoIJ)
                         implicit none
 			integer(4), intent(out) :: atoIJ(16)
@@ -69,18 +74,19 @@ module elem_qua
 			atoIJ = [1,4,12,11,2,3,7,8,5,10,13,16,6,9,14,15]
 
                 end subroutine set_qua16_lists
-
-		subroutine qua16(xi,eta,atoIJ,N,dN) ! QUA16 element
+#endif
+		subroutine quad_highorder(mporder,mnpbou,xi,eta,atoIJ,N,dN) ! QUA16 element
 			implicit none
-			real(rp), intent(in)   :: xi, eta
-			integer(4), intent(in) :: atoIJ(16)
-			real(rp), intent(out)  :: N(16), dN(2,16)
-			real(rp)               :: xi_grid(porder+1)
+                        integer(4),intent(in) :: mporder,mnpbou
+			real(rp),intent(in)   :: xi,eta
+			integer(4),intent(in) :: atoIJ(mnpbou)
+			real(rp),intent(out)  :: N(mnpbou), dN(2,mnpbou)
+			real(rp)              :: xi_grid(mporder+1)
 
-			call getGaussLobattoLegendre_roots(xi_grid)
-			call DoubleTensorProduct(xi_grid,xi,eta,atoIJ,N,dN)
-		end subroutine qua16
-
+			call getGaussLobattoLegendre_roots(mporder,xi_grid)
+			call DoubleTensorProduct(mporder,mnpbou,xi_grid,xi,eta,atoIJ,N,dN)
+		end subroutine quad_highorder
+#if 0
                 subroutine quad_edges(ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
 
                         implicit none
@@ -104,5 +110,5 @@ module elem_qua
                         dist(4,:) = xp(1,:)-xp(4,:)
 
                 end subroutine quad_edges
-
+#endif
 end module

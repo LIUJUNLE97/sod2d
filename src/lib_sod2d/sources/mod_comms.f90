@@ -70,14 +70,14 @@ contains
             call init_window_realField()
         end if
 
-        call MPI_Comm_group(MPI_COMM_WORLD,worldGroup,mpi_err)
+        call MPI_Comm_group(app_comm,worldGroup,mpi_err)
 	    call MPI_Group_incl(worldGroup,numRanksWithComms,ranksToComm,commGroup,mpi_err);
 
         useFenceFlags=.false. !by default
         useAssertNoCheckFlags=.true. !by default
         isPSCWBarrier=.true.!si faig molts loops amb aquesta opció a false la comm queda bloquejada
         useLockBarrier=.true.!.false. with false it fails!
-        call setFenceFlags(useFenceFlags) 
+        call setFenceFlags(useFenceFlags)
         call setPSCWAssertNoCheckFlags(useAssertNoCheckFlags)
         call setLockBarrier(useLockBarrier)
 
@@ -92,7 +92,7 @@ contains
             deallocate(aux_intField_s)
             deallocate(aux_intField_r)
 
-            call close_window_intField()            
+            call close_window_intField()
         end if
 
         if(isreal) then
@@ -105,7 +105,7 @@ contains
         end if
 
     end subroutine end_comms
-    
+
     subroutine setFenceFlags(useFenceFlags)
         implicit none
         logical,intent(in) :: useFenceFlags
@@ -147,13 +147,13 @@ contains
 
         window_buffer_size = mpi_integer_size*numNodesToComm
         !$acc host_data use_device(aux_intField_r(:),aux_intField_s(:))
-        call MPI_Win_create(aux_intField_r,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_int,mpi_err)
+        call MPI_Win_create(aux_intField_r,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id_int,mpi_err)
         !$acc end host_data
     end subroutine init_window_intField
 
     subroutine close_window_intField()
         implicit none
-        
+
         call MPI_Win_free(window_id_int,mpi_err)
     end subroutine close_window_intField
 !-------------------------------------------------------------------------------------
@@ -163,13 +163,13 @@ contains
 
         window_buffer_size = mpi_real_size*numNodesToComm
         !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
-        call MPI_Win_create(aux_realField_r,window_buffer_size,mpi_real_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_real,mpi_err)
+        call MPI_Win_create(aux_realField_r,window_buffer_size,mpi_real_size,MPI_INFO_NULL,app_comm,window_id_real,mpi_err)
         !$acc end host_data
     end subroutine init_window_realField
 
     subroutine close_window_realField()
         implicit none
-        
+
         call MPI_Win_free(window_id_real,mpi_err)
     end subroutine close_window_realField
 
@@ -329,8 +329,8 @@ contains
         !$acc parallel loop
         do i=1,numNodesToComm
            iNodeL = nodesToComm(i)
-           if(abs(aux_realField_r(i)).gt. cond) then 
-              if(abs(realField(iNodeL)).gt. cond) then 
+           if(abs(aux_realField_r(i)).gt. cond) then
+              if(abs(realField(iNodeL)).gt. cond) then
                  !$acc atomic update
                  realField(iNodeL) = realField(iNodeL)+aux_realField_r(i)
                  !$acc end atomic
@@ -397,7 +397,7 @@ contains
 
             call MPI_Sendrecv(aux_intField_s(mempos_l), memSize, mpi_datatype_int, ngbRank, tagComm, &
                               aux_intField_r(mempos_l), memSize, mpi_datatype_int, ngbRank, tagComm, &
-                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+                              app_comm, MPI_STATUS_IGNORE, mpi_err)
         end do
         !$acc end host_data
 
@@ -421,7 +421,7 @@ contains
 
             call MPI_Sendrecv(aux_realField_s(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
                               aux_realField_r(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
-                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+                              app_comm, MPI_STATUS_IGNORE, mpi_err)
         end do
         !$acc end host_data
 
@@ -446,7 +446,7 @@ contains
 
             call MPI_Sendrecv(aux_realField_s(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
                               aux_realField_r(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
-                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+                              app_comm, MPI_STATUS_IGNORE, mpi_err)
         end do
         !$acc end host_data
 
@@ -474,9 +474,9 @@ contains
             memSize  = commsMemSize(i)
 
             ireq = ireq+1
-            call MPI_Irecv(aux_intField_r(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_Irecv(aux_intField_r(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
             ireq = ireq+1
-            call MPI_ISend(aux_intField_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_ISend(aux_intField_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
         end do
         !$acc end host_data
 
@@ -503,9 +503,9 @@ contains
             memSize  = commsMemSize(i)
 
             ireq = ireq+1
-            call MPI_Irecv(aux_realField_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_Irecv(aux_realField_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
             ireq = ireq+1
-            call MPI_ISend(aux_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_ISend(aux_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
         end do
         !$acc end host_data
 
@@ -535,9 +535,9 @@ contains
             memSize  = commsMemSize(i)
 
             ireq = ireq+1
-            call MPI_Irecv(aux_realfield_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_Irecv(aux_realfield_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
             ireq = ireq+1
-            call MPI_ISend(aux_realfield_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,MPI_COMM_WORLD,requests(ireq),mpi_err)
+            call MPI_ISend(aux_realfield_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
         end do
         !$acc end host_data
 
@@ -608,7 +608,7 @@ contains
 
         call fill_sendBuffer_int(intField)
 
-        if(isPSCWBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+        if(isPSCWBarrier) call MPI_Barrier(app_comm,mpi_err)
 	    call MPI_Win_post(commGroup,postAssert,window_id_int,mpi_err);
 	    call MPI_Win_start(commGroup,startAssert,window_id_int,mpi_err);
 
@@ -637,7 +637,7 @@ contains
 
         call fill_sendBuffer_real(realField)
 
-        if(isPSCWBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+        if(isPSCWBarrier) call MPI_Barrier(app_comm,mpi_err)
 	    call MPI_Win_post(commGroup,postAssert,window_id_real,mpi_err);
 	    call MPI_Win_start(commGroup,startAssert,window_id_real,mpi_err);
 
@@ -674,14 +674,14 @@ contains
             memPos_l = commsMemPosInLoc(i)
             memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
             memSize  = commsMemSize(i)
-		
+
             call MPI_Win_lock(MPI_LOCK_SHARED,ngbRank,0,window_id_int,mpi_err); !May we can try MPI_LOCK_EXCLSUIVE
             call MPI_Put(aux_intField_s(memPos_l),memSize,mpi_datatype_int,ngbRank,memPos_t,memSize,mpi_datatype_int,window_id_int,mpi_err)
             call MPI_Win_unlock(ngbRank,window_id_int,mpi_err)
         end do
         !$acc end host_data
 
-        if(isLockBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+        if(isLockBarrier) call MPI_Barrier(app_comm,mpi_err)
 
         call copy_from_rcvBuffer_int(intField)
     end subroutine mpi_halo_atomic_update_int_put_lock
@@ -700,14 +700,14 @@ contains
             memPos_l = commsMemPosInLoc(i)
             memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
             memSize  = commsMemSize(i)
-		
+
             call MPI_Win_lock(MPI_LOCK_SHARED,ngbRank,0,window_id_real,mpi_err); !May we can try MPI_LOCK_EXCLSUIVE
             call MPI_Put(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,memPos_t,memSize,mpi_datatype_real,window_id_real,mpi_err)
             call MPI_Win_unlock(ngbRank,window_id_real,mpi_err)
         end do
         !$acc end host_data
 
-        if(isLockBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+        if(isLockBarrier) call MPI_Barrier(app_comm,mpi_err)
 
         call copy_from_rcvBuffer_real(realField)
     end subroutine mpi_halo_atomic_update_real_put_lock
@@ -776,7 +776,7 @@ contains
 
         call fill_sendBuffer_get_int(intField)
 
-        if(isPSCWBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+        if(isPSCWBarrier) call MPI_Barrier(app_comm,mpi_err)
 	    call MPI_Win_post(commGroup,postAssert,window_id_int,mpi_err);
 	    call MPI_Win_start(commGroup,startAssert,window_id_int,mpi_err);
 
@@ -805,7 +805,7 @@ contains
 
         call fill_sendBuffer_get_real(realField)
 
-        if(isPSCWBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+        if(isPSCWBarrier) call MPI_Barrier(app_comm,mpi_err)
 	    call MPI_Win_post(commGroup,postAssert,window_id_real,mpi_err);
 	    call MPI_Win_start(commGroup,startAssert,window_id_real,mpi_err);
 
@@ -842,14 +842,14 @@ contains
             memPos_l = commsMemPosInLoc(i)
             memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
             memSize  = commsMemSize(i)
-		
+
             call MPI_Win_lock(MPI_LOCK_SHARED,ngbRank,0,window_id_int,mpi_err); !May we can try MPI_LOCK_EXCLSUIVE
             call MPI_Get(aux_intField_s(memPos_l),memSize,mpi_datatype_int,ngbRank,memPos_t,memSize,mpi_datatype_int,window_id_int,mpi_err)
             call MPI_Win_unlock(ngbRank,window_id_int,mpi_err)
         end do
         !$acc end host_data
 
-        if(isLockBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+        if(isLockBarrier) call MPI_Barrier(app_comm,mpi_err)
 
         call copy_from_rcvBuffer_get_int(intField)
     end subroutine mpi_halo_atomic_update_int_get_lock
@@ -868,14 +868,14 @@ contains
             memPos_l = commsMemPosInLoc(i)
             memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
             memSize  = commsMemSize(i)
-		
+
             call MPI_Win_lock(MPI_LOCK_SHARED,ngbRank,0,window_id_real,mpi_err); !May we can try MPI_LOCK_EXCLSUIVE
             call MPI_Get(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,memPos_t,memSize,mpi_datatype_real,window_id_real,mpi_err)
             call MPI_Win_unlock(ngbRank,window_id_real,mpi_err)
         end do
         !$acc end host_data
 
-        if(isLockBarrier) call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+        if(isLockBarrier) call MPI_Barrier(app_comm,mpi_err)
 
         call copy_from_rcvBuffer_get_real(realField)
     end subroutine mpi_halo_atomic_update_real_get_lock
@@ -883,7 +883,7 @@ contains
 !------------- ONLY BUFFERS -------------------------------------------
 !for testing and devel stuff
     !INTEGER ---------------------------------------------------------
-    subroutine mpi_halo_atomic_update_int_onlybuffers(intfield) 
+    subroutine mpi_halo_atomic_update_int_onlybuffers(intfield)
         implicit none
         integer(4), intent(inout) :: intfield(:)
         integer(4) :: i,ngbrank,tagcomm
@@ -894,7 +894,7 @@ contains
 
     end subroutine mpi_halo_atomic_update_int_onlybuffers
     !REAL ---------------------------------------------------------
-    subroutine mpi_halo_atomic_update_real_onlybuffers(realfield) 
+    subroutine mpi_halo_atomic_update_real_onlybuffers(realfield)
         implicit none
         real(rp), intent(inout) :: realfield(:)
         integer(4) :: i,ngbrank,tagcomm
@@ -925,7 +925,7 @@ contains
         aux_doubleField_r(:)=0.
 
         !window_buffer_size = mpi_double_size*numNodesToComm
-        !call MPI_Win_create(aux_doubleField_r,window_buffer_size,mpi_double_size,MPI_INFO_NULL,MPI_COMM_WORLD,window_id_double,mpi_err)
+        !call MPI_Win_create(aux_doubleField_r,window_buffer_size,mpi_double_size,MPI_INFO_NULL,app_comm,window_id_double,mpi_err)
         call MPI_Win_fence(0,window_id_double,mpi_err)
 
         do i=1,numRanksWithComms
@@ -951,7 +951,7 @@ contains
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
             !$acc atomic update
-            doubleField(iNodeL) = doubleField(iNodeL) + aux_doubleField_r(i) 
+            doubleField(iNodeL) = doubleField(iNodeL) + aux_doubleField_r(i)
             !$acc end atomic
         end do
 
@@ -962,7 +962,7 @@ contains
         real(4), intent(inout) :: floatField(:)
         integer :: i,iNodeL,iRank
         integer :: memPos_l,memSize
- 
+
         !$acc parallel loop
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
@@ -1018,13 +1018,13 @@ contains
         real(4), intent(inout) :: fmomx(numNodesInRank),fmomy(numNodesInRank),fmomz(numNodesInRank)
         integer :: i,iRank,iNodeL,ngbRank,tagComm
         integer :: memPos_l,memSize,numFields,origMemPos,newMemPos
-        
+
         numFields=5
 
         !$acc kernels
         do iRank=1,numRanksWithComms
             ngbRank=ranksToComm(iRank)
-            
+
             origMemPos = commsMemPosInLoc(iRank)-1
             newMemPos  = (commsMemPosInLoc(iRank)-1)*numFields
             memSize    = commsMemSize(iRank)
@@ -1037,7 +1037,7 @@ contains
                 aux_floatField_5s(newMemPos+i+memSize*2) = fmomx(iNodeL)
                 aux_floatField_5s(newMemPos+i+memSize*3) = fmomy(iNodeL)
                 aux_floatField_5s(newMemPos+i+memSize*4) = fmomz(iNodeL)
-            end do 
+            end do
         end do
 
         aux_floatField_5r(:)=0.
@@ -1081,7 +1081,7 @@ contains
                 !$acc atomic update
                 fmomz(iNodeL) = fmomz(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*4)
                 !$acc end atomic
-            end do 
+            end do
         end do
         !$acc end kernels
 
@@ -1092,9 +1092,9 @@ contains
         real(4), intent(inout) :: floatField(:)
         integer :: i,iNodeL,ngbRank,tagComm
         integer :: memPos_l,memSize
- 
+
         !$acc data present(aux_floatField_s(:),aux_floatField_r(:))
-        !$acc parallel loop 
+        !$acc parallel loop
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
             aux_floatField_s(i) = floatField(iNodeL)
@@ -1117,10 +1117,10 @@ contains
           !$acc host_data use_device (aux_floatField_s,aux_floatField_r)
             call MPI_Sendrecv(aux_floatfield_s(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
                               aux_floatfield_r(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
-                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+                              app_comm, MPI_STATUS_IGNORE, mpi_err)
 !            call MPI_Sendrecv(aux_floatField_s, memSize, mpi_datatype_real, ngbRank, tagComm, &
 !                              aux_floatField_r, memSize, mpi_datatype_real, ngbRank, tagComm, &
-!                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+!                              app_comm, MPI_STATUS_IGNORE, mpi_err)
           !$acc end host_data
         end do
 
@@ -1141,7 +1141,7 @@ contains
         real(4), intent(inout) :: floatField(:)
         integer :: i,iNodeL,ngbRank,tagComm
         integer :: memPos_l,memSize
- 
+
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
             aux_floatField_s(i) = floatField(iNodeL)
@@ -1156,7 +1156,7 @@ contains
 
             call MPI_Sendrecv(aux_floatfield_s(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
                               aux_floatfield_r(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
-                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+                              app_comm, MPI_STATUS_IGNORE, mpi_err)
         end do
 
         do i=1,numNodesToComm
@@ -1172,7 +1172,7 @@ contains
         real(4) :: aux_ff_s(numNodesToComm), aux_ff_r(numNodesToComm)
         integer :: i,iNodeL,ngbRank,tagComm
         integer :: memPos_l,memSize
- 
+
         !$acc parallel loop copyin(floatField(:),matrixCommScheme(:,:)) copyout(aux_ff_s(:))
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
@@ -1182,7 +1182,7 @@ contains
         !$acc kernels copyout(aux_ff_r(:))
         aux_ff_r(:)=0.0_rp
         !$acc end kernels
-        call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+        call MPI_Barrier(app_comm,mpi_err)
         do i=1,numRanksWithComms
             ngbRank=ranksToComm(i)
             tagComm=0
@@ -1191,10 +1191,10 @@ contains
 
             call MPI_Sendrecv(aux_ff_s(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
                               aux_ff_r(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
-                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+                              app_comm, MPI_STATUS_IGNORE, mpi_err)
         end do
-        call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
-        !$acc parallel loop copyin(aux_ff_r(:),matrixCommScheme(:,:)) copy(floatField(:)) 
+        call MPI_Barrier(app_comm,mpi_err)
+        !$acc parallel loop copyin(aux_ff_r(:),matrixCommScheme(:,:)) copy(floatField(:))
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
             !$acc atomic update
@@ -1211,13 +1211,13 @@ contains
         real(4), intent(inout) :: fmomx(numNodesInRank),fmomy(numNodesInRank),fmomz(numNodesInRank)
         integer :: i,iRank,iNodeL,ngbRank,tagComm
         integer :: memPos_l,memSize,numFields,origMemPos,newMemPos
- 
+
         numFields=5
 
         !$acc kernels
         do iRank=1,numRanksWithComms
             ngbRank=ranksToComm(iRank)
-            
+
             origMemPos = commsMemPosInLoc(iRank)-1
             newMemPos  = (commsMemPosInLoc(iRank)-1)*numFields
             memSize    = commsMemSize(iRank)
@@ -1230,7 +1230,7 @@ contains
                 aux_floatField_5s(newMemPos+i+memSize*2) = fmomx(iNodeL)
                 aux_floatField_5s(newMemPos+i+memSize*3) = fmomy(iNodeL)
                 aux_floatField_5s(newMemPos+i+memSize*4) = fmomz(iNodeL)
-            end do 
+            end do
         end do
 
         aux_floatField_5r(:)=0.
@@ -1244,7 +1244,7 @@ contains
 
             call MPI_Sendrecv(aux_floatField_5s(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
                               aux_floatField_5r(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
-                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+                              app_comm, MPI_STATUS_IGNORE, mpi_err)
         end do
 
         !$acc kernels
@@ -1270,7 +1270,7 @@ contains
                 !$acc atomic update
                 fmomz(iNodeL) = fmomz(iNodeL) + aux_floatField_5r(newMemPos+i+memSize*4)
                 !$acc end atomic
-            end do 
+            end do
         end do
         !$acc end kernels
 
@@ -1281,9 +1281,9 @@ contains
         integer(4), intent(inout) :: intField(:)
         integer :: i,iNodeL,ngbRank,tagComm
         integer :: memPos_l,memSize
- 
+
         !$acc data present(aux_intField_s(:),aux_intField_r(:))
-        !$acc parallel loop 
+        !$acc parallel loop
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
             aux_intField_s(i) = intField(iNodeL)
@@ -1301,7 +1301,7 @@ contains
           !$acc host_data use_device (aux_floatField_s,aux_floatField_r)
             call MPI_Sendrecv(aux_intField_s(mempos_l), memSize, mpi_datatype_int, ngbRank, tagComm, &
                               aux_intField_r(mempos_l), memSize, mpi_datatype_int, ngbRank, tagComm, &
-                              MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+                              app_comm, MPI_STATUS_IGNORE, mpi_err)
           !$acc end host_data
         end do
 
@@ -1322,7 +1322,7 @@ contains
         integer(4), intent(inout) :: intField(:)
         integer :: i,iNodeL,iRank
         integer :: memPos_l,memSize
- 
+
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
             aux_intField_s(i) = intField(iNodeL)
@@ -1358,14 +1358,14 @@ contains
 
         !1.creating new world with shared mem
         !if all procs have shared mem we do not need it but... keep it for now
-        !call MPI_Comm_split_type(MPI_COMM_WORLD,MPI_COMM_TYPE_SHARED,0,MPI_INFO_NULL,ms_newComm,mpi_err)
+        !call MPI_Comm_split_type(app_comm,MPI_COMM_TYPE_SHARED,0,MPI_INFO_NULL,ms_newComm,mpi_err)
         !call mpi_comm_rank(ms_newComm, ms_rank, mpi_err)
         !call mpi_comm_size(ms_newComm, ms_size, mpi_err)
 
         !if (ms_newComm .ne. MPI_COMM_NULL) then
         !    write(*,*) 'New comm created! old rank', mpi_rank, ' ms_rank ', ms_rank,' ms_size ',ms_size
         !end if
-        
+
         window_buffer_size = mpi_float_size*numNodesToComm
         call MPI_Win_allocate_shared(window_buffer_size,mpi_float_size,MPI_INFO_NULL,&
                                      smNode_comm,c_ms_ptr,window_id_sm,mpi_err)
@@ -1440,7 +1440,7 @@ contains
         real(4), intent(inout) :: floatField(:)
         integer :: i,iNodeL,iRank
         integer :: memPos_l,memSize
- 
+
         do i=1,numNodesToComm
             iNodeL = matrixCommScheme(i,1)
             aux_floatField_s(i) = (mpi_rank+1)*0.1!floatField(iNodeL)
@@ -1478,16 +1478,16 @@ contains
         type(c_ptr) :: c_window_ptr
         integer, pointer :: f_window_ptr(:)
         integer(KIND=MPI_ADDRESS_KIND) :: ssize
-        !call MPI_COMM_TYPE_SHARED(MPI_COMM_WORLD,MPI_COMM_TYPE_SHARED,mpi_key,MPI_INFO_NULL,mpi_newcomm,mpi_err)
-        !call MPI_Comm_split_type(MPI_COMM_WORLD,MPI_COMM_TYPE_SHARED,0,MPI_INFO_NULL,mpi_newcomm,mpi_err)
-        
-        call MPI_Comm_split_type(MPI_COMM_WORLD,MPI_COMM_TYPE_SHARED,0,MPI_INFO_NULL,mpi_newcomm,mpi_err)
-        
+        !call MPI_COMM_TYPE_SHARED(app_comm,MPI_COMM_TYPE_SHARED,mpi_key,MPI_INFO_NULL,mpi_newcomm,mpi_err)
+        !call MPI_Comm_split_type(app_comm,MPI_COMM_TYPE_SHARED,0,MPI_INFO_NULL,mpi_newcomm,mpi_err)
+
+        call MPI_Comm_split_type(app_comm,MPI_COMM_TYPE_SHARED,0,MPI_INFO_NULL,mpi_newcomm,mpi_err)
+
         call mpi_comm_rank(mpi_newcomm, newRank, mpi_err)
         call mpi_comm_size(mpi_newcomm, newSize, mpi_err)
 
         if (mpi_newcomm .ne. MPI_COMM_NULL) then
-            write(*,*) 'NEW COMM NOT NULL! mpi_newcomm ',mpi_newcomm,' old_comm ',MPI_COMM_WORLD
+            write(*,*) 'NEW COMM NOT NULL! mpi_newcomm ',mpi_newcomm,' old_comm ',app_comm
             write(*,*) 'old rank', mpi_rank, ' new_rank ', newRank,' new_size ',newSize
         end if
 

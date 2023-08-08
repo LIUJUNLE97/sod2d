@@ -6,7 +6,7 @@ module mod_arrays
       ! main allocatable arrays
       ! integer ---------------------------------------------------
       integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
-      integer(4), allocatable :: atoIJ(:),atoIJK(:),listHEX08(:,:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
+      integer(4), allocatable :: atoIJ(:),atoIJK(:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
       integer(4), allocatable :: witel(:), buffstep(:)
 
       ! real ------------------------------------------------------
@@ -15,6 +15,7 @@ module mod_arrays
       real(rp), allocatable :: xgp(:,:), wgp(:), xgp_b(:,:), wgp_b(:)
       real(rp), allocatable :: Ngp(:,:), dNgp(:,:,:), Ngp_b(:,:), dNgp_b(:,:,:)
       real(rp), allocatable :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
+      real(rp), allocatable :: Ngp_equi(:,:), dNgp_equi(:,:,:)
       real(rp), allocatable :: gpvol(:,:,:),Je(:,:), He(:,:,:,:), bou_norm(:,:),Ml(:),mu_factor(:),source_term(:,:)
 
       real(rp), target,allocatable :: gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
@@ -558,19 +559,20 @@ contains
       this%useIntInComms=.true.
       this%useRealInComms=.true.
 
-      call load_hdf5_meshfile()
+      call load_hdf5_meshfile(nnode,npbou)
+
       ! init comms
       call init_comms(this%useIntInComms,this%useRealInComms)
       ! init comms boundaries
       call init_comms_bnd(this%useIntInComms,this%useRealInComms)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
-         call save_surface_mesh_hdf5_file()
+         call save_surface_mesh_hdf5_file(npbou,mesh_gmsh2ij,mesh_vtk2ij)
       end if
 
       call nvtxEndRange
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_openMesh
 
@@ -694,7 +696,7 @@ contains
 
       !$acc update host(normalsAtNodes(:,:)) !!just in case
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_normalFacesToNodes
 
@@ -748,7 +750,7 @@ contains
       !$acc exit data delete(aux1(:))
       deallocate(aux1)
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_boundaryFacesToNodes
 
@@ -761,13 +763,13 @@ contains
       allocate(helem(numElemsRankPar))
       !$acc enter data create(helem(:))
       do iElem = 1,numElemsRankPar
-         call char_length(iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,he_aux)
+         call char_length(nnode,iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,he_aux)
          helem(iElem) = he_aux
       end do
       !$acc update device(helem(:))
       call nvtxEndRange
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_evalCharLength
 
@@ -941,7 +943,7 @@ contains
       end if
       call nvtxEndRange
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_allocateVariables
 
@@ -954,7 +956,7 @@ contains
 
       if(this%loadRestartFile) then
          if(mpi_rank.eq.0) write(111,*) "--| Loading restart file ",this%restartFile_to_load
-         call load_hdf5_restartFile(this%restartFile_to_load,this%load_step,flag_walave,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
+         call load_hdf5_restartFile(nnode,ngaus,this%restartFile_to_load,this%load_step,flag_walave,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
 
          if((flag_les.eq.0).and.(flag_les_ilsa.eq.0)) then
             !$acc kernels
@@ -982,19 +984,10 @@ contains
 
             if(this%loadAvgFile) then
                if(mpi_rank.eq.0) write(111,*) "--| Loading Avg Results File (TO IMPLEMENT)",this%restartFile_to_load
-               call load_avgResults_hdf5_file(this%restartFile_to_load,this%initial_avgTime,this%elapsed_avgTime,&
+               call load_avgResults_hdf5_file(nnode,ngaus,Ngp_l,this%restartFile_to_load,this%initial_avgTime,this%elapsed_avgTime,&
                                        this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
                                        this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
                                        this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
-
-               !TO REVIEW
-               !$acc update device(avvel(:,:))
-               !$acc update device(avve2(:,:))
-               !$acc update device(avvex(:,:))
-               !$acc update device(avrho(:))
-               !$acc update device(avpre(:))
-               !$acc update device(avmueff(:))
-               !$acc update device(avtw(:,:))
 
                if(mpi_rank.eq.0) write(111,*) "   --| Loaded Avg results! Setting initial_avgTime",this%initial_avgTime,"elapsed_avgTime",this%elapsed_avgTime
             end if
@@ -1018,7 +1011,7 @@ contains
          call this%evalInitialConditions()
       end if
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_evalOrLoadInitialConditions
 
@@ -1045,7 +1038,7 @@ contains
            stop 1
         end if
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_evalInitialViscosity
 
@@ -1073,9 +1066,9 @@ contains
       call nvtxStartRange("MU_SGS")
       if(flag_les_ilsa == 1) then
          this%dt = 1.0_rp !To avoid 0.0 division inside sgs_ilsa_visc calc
-         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3)
+         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3)
       else
-         call sgs_visc(numElemsRankPar,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
+         call sgs_visc(numElemsRankPar,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
       end if
       call nvtxEndRange
 
@@ -1096,13 +1089,13 @@ contains
       end if
       if(mpi_rank.eq.0) write(111,*) "--| Initial time-step dt := ",this%dt,"s"
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_evalInitialDt
 
    subroutine CFDSolverBase_evalShapeFunctions(this)
       class(CFDSolverBase), intent(inout) :: this
-      real(rp)                    :: s, t, z
+      real(rp)   :: s,t,z,xi_gll(porder+1),xgp_equi(ngaus,ndime)
       integer(4) :: igaus
 
       !*********************************************************************!
@@ -1113,10 +1106,8 @@ contains
 
       !*********************************************************
       !           Allocating required arrays!
-      allocate(atoIJ(16))
-      allocate(atoIJK(64))
-      !allocate(vtk_atoIJK(64))
-      allocate(listHEX08((porder**ndime),2**ndime))
+      allocate(atoIJ(npbou))
+      allocate(atoIJK(nnode))
 
       allocate(xgp(ngaus,ndime))
       allocate(wgp(ngaus))
@@ -1131,19 +1122,42 @@ contains
       allocate(dlxigp_ip(ngaus,ndime,porder+1))
       !$acc enter data create(Ngp(:,:))
       !$acc enter data create(dNgp(:,:,:))
+      !$acc enter data create(Ngp_l(:,:))
+      !$acc enter data create(dNgp_l(:,:,:))
       !$acc enter data create(Ngp_b(:,:))
       !$acc enter data create(dNgp_b(:,:,:))
       !$acc enter data create(dlxigp_ip(:,:,:))
       !*********************************************************
 
-      call set_hex64_lists(atoIJK,listHEX08)
-      call set_qua16_lists(atoIJ)
+      atoIJK(:) = mesh_a2ijk(:)
+      atoIJ(:)  = mesh_a2ij(:)
 
       if(mpi_rank.eq.0) write(111,*) "  --| Generating Gauss-Lobatto-Legendre table..."
-      call GaussLobattoLegendre_hex(atoIJK,xgp,wgp)
+      call GaussLobattoLegendre_hex(porder,ngaus,atoIJK,xgp,wgp)
       !$acc update device(wgp(:))
-      call GaussLobattoLegendre_qua(atoIJ,xgp_b,wgp_b)
+      call GaussLobattoLegendre_qua(porder,npbou,atoIJ,xgp_b,wgp_b)
       !$acc update device(wgp_b(:))
+
+      !-------------------------------------------------------------------------------
+      ! Generating Ngp_equi to interpolate from GLL nodes mesh to Equispace nodes mesh
+      allocate(Ngp_equi(ngaus,nnode))
+      allocate(dNgp_equi(ndime,nnode,ngaus))
+      !$acc enter data create(Ngp_equi(:,:))
+      !$acc enter data create(dNgp_equi(:,:,:))
+
+      call getGaussPoints_equispaced_hex(porder,ngaus,atoIJK,xgp_equi)
+      call getGaussLobattoLegendre_roots(porder,xi_gll)
+
+      do igaus = 1,ngaus
+         s = xgp_equi(igaus,1)
+         t = xgp_equi(igaus,2)
+         z = xgp_equi(igaus,3)
+
+         call TripleTensorProduct(porder,nnode,xi_gll,s,t,z,atoIJK,Ngp_equi(igaus,:),dNgp_equi(:,:,igaus))
+      end do
+      !$acc update device(Ngp_equi(:,:))
+
+      !-------------------------------------------------------------------------------
 
       call nvtxEndRange
 
@@ -1160,10 +1174,12 @@ contains
          s = xgp(igaus,1)
          t = xgp(igaus,2)
          z = xgp(igaus,3)
-         call hex64(s,t,z,atoIJK,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
+         call hex_highorder(porder,nnode,s,t,z,atoIJK,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
       end do
       !$acc update device(Ngp(:,:))
       !$acc update device(dNgp(:,:,:))
+      !$acc update device(Ngp_l(:,:))
+      !$acc update device(dNgp_l(:,:,:))
       !$acc update device(dlxigp_ip(:,:,:))
       !
       ! Compute N andd dN for boundary elements
@@ -1171,7 +1187,7 @@ contains
       do igaus = 1,npbou
          s = xgp_b(igaus,1)
          t = xgp_b(igaus,2)
-         call qua16(s,t,atoIJ,Ngp_b(igaus,:),dNgp_b(:,:,igaus))
+         call quad_highorder(porder,npbou,s,t,atoIJ,Ngp_b(igaus,:),dNgp_b(:,:,igaus))
       end do
       !$acc update device(Ngp_b(:,:))
       !$acc update device(dNgp_b(:,:,:))
@@ -1189,7 +1205,7 @@ contains
       this%leviCivi(1,2,3) =  1.0_rp
       this%leviCivi(2,1,3) = -1.0_rp
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_evalShapeFunctions
 
@@ -1201,12 +1217,12 @@ contains
          allocate(boundNormalPar(numBoundsRankPar,ndime*npbou))
          !$acc enter data create(boundNormalPar(:,:))
          call nvtxStartRange("Bou normals")
-         call boundary_normals(numNodesRankPar,numBoundsRankPar,boundParOrig,this%leviCivi,coordPar,dNgp_b,boundNormalPar)
+         call boundary_normals(npbou,numNodesRankPar,numBoundsRankPar,boundParOrig,this%leviCivi,coordPar,dNgp_b,boundNormalPar)
          call nvtxEndRange
          !$acc update device(boundNormalPar(:,:))
       end if
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_evalBoundaryNormals
 
@@ -1240,11 +1256,11 @@ contains
       end do
       !$acc end parallel loop
 
-      call MPI_Allreduce(vol_rank,vol_tot_d,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(vol_rank,vol_tot_d,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
       this%VolTot = real(vol_tot_d,rp)
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       if(mpi_rank.eq.0) write(111,*) '--| DOMAIN VOLUME := ',this%VolTot
 
    end subroutine CFDSolverBase_evalJacobians
@@ -1261,7 +1277,7 @@ contains
       !$acc enter data create(gmshAtoJ(:))
       !$acc enter data create(gmshAtoK(:))
 
-      call atioIJKInverse(atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+      call atoIJKInverse(porder,nnode,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
       !$acc update device(invAtoIJK(:,:,:))
       !$acc update device(gmshAtoI(:))
       !$acc update device(gmshAtoJ(:))
@@ -1283,16 +1299,16 @@ contains
       allocate(point2elem(numNodesRankPar))
       !$acc enter data create(point2elem(:))
       if(mpi_rank.eq.0) write(111,*) '  --| Evaluating point2elem array...'
-      call elemPerNode(numElemsRankPar,numNodesRankPar,connecParWork,lelpn,point2elem)
+      call elemPerNode(nnode,numElemsRankPar,numNodesRankPar,connecParWork,lelpn,point2elem)
 
       if(mpi_rank.eq.0) write(111,*) '  --| Evaluating lnbn & lnbnNodes arrays...'
       allocate(lnbn(numBoundsRankPar,npbou))
       !$acc enter data create(lnbn(:,:))
       allocate(lnbnNodes(numNodesRankPar))
       !$acc enter data create(lnbnNodes(:))
-      call nearBoundaryNode(numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
+      call nearBoundaryNode(porder,nnode,npbou,numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode
 
@@ -1316,10 +1332,10 @@ contains
       allocate(helem_l(numElemsRankPar,nnode))
       !$acc enter data create(helem_l(:,:))
       do iElem = 1,numElemsRankPar
-         call char_length_spectral(iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,Ml,helem_l)
+         call char_length_spectral(nnode,iElem,numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,Ml,helem_l)
       end do
       !$acc update device(helem_l(:,:))
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_evalMass
 
@@ -1370,7 +1386,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
 
-      call save_hdf5_restartFile(this%restartFileCnt,istep,flag_walave,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
+      call save_hdf5_restartFile(nnode,ngaus,this%restartFileCnt,istep,flag_walave,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
 
       if(this%restartFileCnt .eq. 1) then
          this%restartFileCnt = 2
@@ -1386,16 +1402,7 @@ contains
    subroutine CFDSolverBase_saveAvgResultsFiles(this)
       class(CFDSolverBase), intent(inout) :: this
 
-      !TO REVIEW
-      !$acc update host(avvel(:,:))
-      !$acc update host(avve2(:,:))
-      !$acc update host(avvex(:,:))
-      !$acc update host(avrho(:))
-      !$acc update host(avpre(:))
-      !$acc update host(avmueff(:))
-      !$acc update host(avtw(:,:))
-
-      call save_avgResults_hdf5_file(this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
+      call save_avgResults_hdf5_file(nnode,ngaus,Ngp_equi,this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
                this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
                this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
                this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
@@ -1418,22 +1425,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
 
-      !$acc update host(rho(:,:))
-      !$acc update host(u(:,:,:))
-      !$acc update host(pr(:,:))
-      !$acc update host(E(:,:))
-      !$acc update host(eta(:,:))
-      !$acc update host(csound(:))
-      !$acc update host(machno(:))
-      !$acc update host(gradRho(:,:))
-      !$acc update host(curlU(:,:))
-      !$acc update host(divU(:))
-      !$acc update host(Qcrit(:))
-      !$acc update host(mu_fluid(:))
-      !$acc update host(mu_e(:,:))
-      !$acc update host(mu_sgs(:,:))
-
-      call save_instResults_hdf5_file(iStep,this%time,&
+      call save_instResults_hdf5_file(nnode,ngaus,Ngp_equi,iStep,this%time,&
                this%numNodeScalarFields2save,this%nodeScalarFields2save,this%nameNodeScalarFields2save,&
                this%numNodeVectorFields2save,this%nodeVectorFields2save,this%nameNodeVectorFields2save,&
                this%numElemGpScalarFields2save,this%elemGpScalarFields2save,this%nameElemGpScalarFields2save)
@@ -1471,7 +1463,7 @@ contains
       real(rp) :: dtfact,avwei
       logical :: do__iteration
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
 
       call nvtxStartRange("Start RK4")
       if(mpi_rank.eq.0) then
@@ -1557,7 +1549,7 @@ contains
             end if
          end do
 
-         if(flag_implicit == 1) then
+         !if(flag_implicit == 1) then
             !$acc kernels
             rho(:,3) = rho(:,1)
             E(:,3) = E(:,1)
@@ -1565,12 +1557,12 @@ contains
             eta(:,3) = eta(:,1)
             !$acc end kernels
             pseudo_cfl = aux_pseudo_cfl
-         end if
+         !end if
 
          if(this%doTimerAnalysis) then
             iStepEndTime = MPI_Wtime()
             iStepTimeRank = iStepEndTime - iStepStartTime
-            call MPI_Allreduce(iStepTimeRank,iStepTimeMax,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+            call MPI_Allreduce(iStepTimeRank,iStepTimeMax,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
             inv_iStep = 1.0_rp/real(istep)
             iStepAvgTime = (iStepAvgTime*(istep-1)+iStepTimeMax)*inv_iStep
 
@@ -1779,7 +1771,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer                             :: iwit, ielem, inode, ifound, nwitParCand, icand, ifoundsum
       real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode)
-      real(rp), parameter                 :: wittol=1e-6
+      real(rp), parameter                 :: wittol=1e-7
       logical                             :: isinside
 
       if(mpi_rank.eq.0) then
@@ -1826,6 +1818,7 @@ contains
          center(ielem,1) = aux1/nnode
          center(ielem,2) = aux2/nnode
          center(ielem,3) = aux3/nnode
+         ! helemmax(ielem) = auxvol**(1.0/3.0)
          helemmax(ielem) = 2.0_rp*auxvol**(1.0/3.0) ! safety factor of x2
       end do
       !$acc end loop
@@ -1836,7 +1829,7 @@ contains
          !$acc end kernels
          do ielem = 1, numElemsRankPar
             if (radwit(ielem) < 0) then
-               call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzParCand(iwit,:), xi, isinside, Niwit)
+               call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzParCand(iwit,:), atoIJK, xi, isinside, Niwit)
                if (isinside .AND. (abs(xi(1)) < 1.0_rp+wittol) .AND. (abs(xi(2)) < 1.0_rp+wittol) .AND. (abs(xi(3)) < 1.0_rp+wittol)) then
                   ifound = ifound+1
                   witel(ifound)   = ielem
@@ -1852,19 +1845,16 @@ contains
       this%nwitPar = ifound
 
       ! Assert all witness points have been found
-      call mpi_allreduce(ifound, ifoundsum, 1, mpi_integer, mpi_sum, mpi_comm_world, mpi_err)
+      call mpi_allreduce(ifound, ifoundsum, 1, mpi_integer, mpi_sum, app_comm, mpi_err)
       if (ifoundsum .ne. this%nwit) then
-         if(mpi_rank.eq.0) stop "Number of witness points found differs from witness points file. &
+         if (mpi_rank.eq.0) stop "Number of witness points found differs from witness points file. &
          Change Newton-Rapson tolerances or slightly move the points."
       end if
 
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
-      if (this%wit_save) then
-         call create_witness_hdf5(this%witness_h5_file_name, witxyzPar, witel, witxi, Nwit, &
-            this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
-      end if
+      call create_witness_hdf5(this%witness_h5_file_name, nnode, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
       if(mpi_rank.eq.0) then
          write(*,*) "--| End of preprocessing witness points"
       end if
@@ -1880,7 +1870,7 @@ contains
       ! Allocate witness points vars
       call this%allocateWitnessPointsVariables()
 
-      call load_witness_hdf5(this%witness_h5_file_name, this%nwit, this%load_step, this%load_stepwit, this%nwitPar, witel, witxi, Nwit)
+      call load_witness_hdf5(this%witness_h5_file_name, nnode, this%nwit, this%load_step, this%load_stepwit, this%nwitPar, witel, witxi, Nwit)
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
@@ -1947,7 +1937,7 @@ contains
          end if
 
          if(this%doTimerAnalysis) then
-            fileNameTimer = 'timer_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
+            fileNameTimer = trim(adjustl(this%io_prepend_path))//'timer_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
             open(unit=123,file=fileNameTimer,status='replace')
             write(123,*) "iter iteTime iteTimeAvg"
          end if
@@ -2089,6 +2079,9 @@ contains
       ! read the mesh
       call this%openMesh()
 
+      ! Init hdf5 auxiliar saving arrays
+      call init_hdf5_auxiliar_saving_arrays()
+
       ! Open analysis files
       call this%open_analysis_files
 
@@ -2168,6 +2161,9 @@ contains
 
       call this%close_log_file()
       call this%close_analysis_files()
+
+      ! End hdf5 auxiliar saving arrays
+      call end_hdf5_auxiliar_saving_arrays()
 
       ! End hdf5 interface
       call end_hdf5_interface()

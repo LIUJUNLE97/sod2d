@@ -29,7 +29,7 @@ contains
       dt_l    = 100000000000000.0_rp
 
       if(flag_use_constant_dt == 0) then
-         !$acc parallel loop gang  reduction(min:dt_conv,dt_diff,dt_l) 
+         !$acc parallel loop gang  reduction(min:dt_conv,dt_diff,dt_l)
          do ielem = 1,nelem
             L3 = 0.0_rp
             !$acc loop vector reduction(max:L3)
@@ -58,7 +58,7 @@ contains
             dt_l = min(dt_conv,dt_diff)
          end do
          !$acc end parallel loop
-         call MPI_Allreduce(dt_l,dt,1,mpi_datatype_real,MPI_MIN,MPI_COMM_WORLD,mpi_err)
+         call MPI_Allreduce(dt_l,dt,1,mpi_datatype_real,MPI_MIN,app_comm,mpi_err)
       end if
       call nvtxEndRange
 
@@ -84,7 +84,7 @@ contains
       dt(:) = 100000000000000.0_rp
       !$acc end kernels
 
-      !$acc parallel loop gang 
+      !$acc parallel loop gang
       do ielem = 1,nelem
          !$acc loop vector
          do inode = 1,nnode
@@ -136,7 +136,7 @@ subroutine expl_adapt_dt_cfl(nelem,npoin,connec,helem,u,csound,cfl_conv,dt,cfl_d
       dt_l    = 100000000000000.0_rp
 
 
-      !$acc parallel loop gang  reduction(min:dt_conv,dt_diff,dt_l) 
+      !$acc parallel loop gang  reduction(min:dt_conv,dt_diff,dt_l)
       do ielem = 1,nelem
          L3 = 0.0_rp
          !$acc loop vector reduction(max:L3)
@@ -165,7 +165,7 @@ subroutine expl_adapt_dt_cfl(nelem,npoin,connec,helem,u,csound,cfl_conv,dt,cfl_d
          dt_l = min(dt_conv,dt_diff)
       end do
       !$acc end parallel loop
-      call MPI_Allreduce(dt_l,dt,1,mpi_datatype_real,MPI_MIN,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(dt_l,dt,1,mpi_datatype_real,MPI_MIN,app_comm,mpi_err)
       call nvtxEndRange
 
    end subroutine expl_adapt_dt_cfl

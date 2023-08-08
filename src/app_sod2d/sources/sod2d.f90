@@ -1,6 +1,6 @@
 ! main.f90
 
-#define _tgv_ 0
+#define _tgv_ 0 
 #define _channel_ 0
 #define _bluff_ 0
 #define _bluff3d_ 0
@@ -10,7 +10,8 @@
 program main
    use mod_numerical_params
 #if _tgv_
-   use TGVSolver_mod
+   ! use TGVSolver_mod
+   use TGVMultiSolver_mod
 #endif
 #if _channel_
    use ChannelFlowSolver_mod
@@ -28,14 +29,16 @@ program main
    use BLAPGFlowSolver_mod
 #endif
 #if _tsb_
-   use BLTSBFlowSolver_mod
-   !use BLTSBDRLFlowSolver_mod
+   ! use BLTSBFlowSolver_mod
+   use BLTSBDRLFlowSolver_mod
 #endif
    implicit none
 
 #if _tgv_
-   type(TGVSolver)  :: tgv
-   call tgv%run()
+   ! type(TGVSolver)  :: tgv
+   type(TGVMultiSolver)  :: tgv_multi
+   ! call tgv%run()
+   call tgv_multi%run()
 #endif
 #if _channel_
    !type(ThermalChannelFlowSolver) :: channel
@@ -59,10 +62,10 @@ program main
 #endif
 
 #if _tsb_
-    type(BLTSBFlowSolver)  :: bltsbflow
-   !type(BLTSBDRLFlowSolver)  :: bltsbdrlflow
-    call bltsbflow%run()
-   !call bltsbdrlflow%run()
+   !  type(BLTSBFlowSolver)  :: bltsbflow
+   type(BLTSBDRLFlowSolver)  :: bltsbdrlflow
+   !  call bltsbflow%run()
+   call bltsbdrlflow%run()
 #endif
 
 

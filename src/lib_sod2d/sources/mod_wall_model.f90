@@ -4,18 +4,19 @@ module mod_wall_model
    use mod_veclen
    use mod_nvtx
    use mod_mpi
+   use mod_mpi_mesh,only:mesh_a2ij
    use elem_qua
 
 contains
 
-   subroutine evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,atoIJK, bou_code, &
+   subroutine evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_code, &
          bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,ui,tauw,Rdiff)
 
       implicit none
 
       integer(4), intent(in)  :: numBoundsWM,listBoundsWM(numBoundsWM)
       integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun)
-      integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin),atoIJK(nnode)
+      integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin)
       real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
       integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
       real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)
@@ -35,7 +36,7 @@ contains
       real(rp)                :: ypele,expye,expyt,oneoe,firsl,ypel2
       real(rp)                :: pplus,densi,gradp,grpr2,py,sq,inv,ln4,uplus,vol
       real(rp)                :: ux,uy,uz,px,pz
-      integer(4)              :: atoIJ(16)
+      integer(4)              :: atoIJ(npbou)
       integer(4)              :: convertIJK(porder+1)
 
       do iAux=3,porder+1
@@ -44,7 +45,7 @@ contains
       convertIJK(1) = 1
       convertIJK(porder+1) = 2
 
-      call set_qua16_lists(atoIJ)
+      atoIJ(:) = mesh_a2ij(:)
 
       !$acc parallel loop gang private(bnorm,uiex,point)
       do iAux = 1,numBoundsWM

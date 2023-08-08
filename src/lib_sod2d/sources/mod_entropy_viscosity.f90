@@ -151,7 +151,7 @@ module mod_entropy_viscosity
                !   !$acc end parallel loop
                !   maxEta = maxEta/vol
 
-                !  !$acc parallel loop 
+                !  !$acc parallel loop
                 !  do ipoin = 1,npoin_w
                 !     Reta(lpoin_w(ipoin)) = abs(Reta(lpoin_w(ipoin)))/abs(maxEta)
                 !     !Reta(lpoin_w(ipoin)) = abs(Reta(lpoin_w(ipoin)))/abs(maxEta-eta(lpoin_w(ipoin)))
@@ -161,9 +161,9 @@ module mod_entropy_viscosity
 
               subroutine smart_visc(nelem,npoin,connec,Reta,Rrho,Ngp, &
                                     gamma_gas,rho,u,Tem,helem,mu_e)
-              
+
                       ! TODO: Compute element size h
-              
+
                       implicit none
 
                       integer(4), intent(in)  :: nelem, npoin, connec(nelem,nnode)
@@ -210,9 +210,9 @@ module mod_entropy_viscosity
 
               subroutine smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
                                     gamma_gas,rho,u,csound,Tem,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
-              
+
                       ! TODO: Compute element size h
-              
+
                       implicit none
 
                       integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
@@ -233,7 +233,7 @@ module mod_entropy_viscosity
 
                       do ii=3,porder+1
                         convertIJK(ii-1) = ii
-                     end do 
+                     end do
                      convertIJK(0) = 3
                      convertIJK(1) = 1
                      convertIJK(porder+1) = 2
@@ -246,7 +246,7 @@ module mod_entropy_viscosity
                      am(-1) = 1.0_rp/4.0_rp
                      am(0)  = 2.0_rp/4.0_rp
                      am(1)  = 1.0_rp/4.0_rp
-                     
+
                      an(-1) = 1.0_rp/4.0_rp
                      an(0)  = 2.0_rp/4.0_rp
                      an(1)  = 1.0_rp/4.0_rp
@@ -265,8 +265,8 @@ module mod_entropy_viscosity
                          end do
                          !$acc end parallel loop
 
-                         call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real,MPI_SUM,MPI_COMM_WORLD,mpi_err)
-                         call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                         call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
+                         call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,app_comm,mpi_err)
 
                          maxEta = maxEta/real(npoin_w_g,rp)
 
@@ -277,7 +277,7 @@ module mod_entropy_viscosity
                          end do
                          !$acc end parallel loop
 
-                         call MPI_Allreduce(norm_r,norm,1,mpi_datatype_real,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+                         call MPI_Allreduce(norm_r,norm,1,mpi_datatype_real,MPI_MAX,app_comm,mpi_err)
                       else
                          norm = 1.0_rp
                       end if
@@ -296,8 +296,9 @@ module mod_entropy_viscosity
                            maxC = max(maxC,csound(connec(ielem,igaus)))
                         end do
                         M = maxV/maxC
+                        ced = max(tanh((M**15)*v_pi),ce)
                         ceM = max(tanh((M**15)*v_pi),ce)
-                        ced = max(1.0_rp-(minJe/maxJe)**8,ce)
+                        ced = max(1.0_rp-(minJe/maxJe)**2,ce)
                         ced = max(ced,ceM) 
 
                         mu = 0.0_rp
@@ -309,69 +310,31 @@ module mod_entropy_viscosity
                            aux1 = aux2+aux3
                            betae = max(betae,(rho(connec(ielem,inode))*helem_k(ielem))*(cmax/real(porder,rp))*aux1)
                         end do
-                        !$acc loop vector 
+                        !$acc loop vector
                         do inode = 1,nnode
                            R1 = rho(connec(ielem,inode))*abs(Reta(connec(ielem,inode)))/norm
                            Ve = ced*R1*(helem(ielem,inode))**2
                            mue_l(ielem,inode) = cglob*min(Ve,betae)
                         end do
-
-#if 1
-#if 0
                         !$acc loop vector collapse(3)
                         do ii=1,porder+1
                            do jj=1,porder+1
-                              do kk=1,porder+1           
-                                 aux1 =   1.0_rp/4.0_rp*(mue_l(ielem,invAtoIJK(convertIJK(ii-1),convertIJK(jj),convertIJK(kk)))+&
-                                                         mue_l(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj-1),convertIJK(kk)))+&
-                                                         mue_l(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk-1))))&
-                                        + 2.0_rp/4.0_rp*(mue_l(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk)))+&
-                                                         mue_l(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk)))+&
-                                                         mue_l(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk))))&
-                                        + 1.0_rp/4.0_rp*(mue_l(ielem,invAtoIJK(convertIJK(ii+1),convertIJK(jj),convertIJK(kk)))+&
-                                                         mue_l(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj+1),convertIJK(kk)))+&
-                                                         mue_l(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk+1))))                                                            
-                                 mu_e(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk))) = aux1/3.0_rp
-                              end do
-                           end do 
-                        end do
-#else
-                        !$acc loop vector collapse(3)
-                        do ii=1,porder+1
-                           do jj=1,porder+1
-                              do kk=1,porder+1           
+                              do kk=1,porder+1
                                  aux1 = 0.00_rp
                                  !$acc loop seq
                                  do ll=-1,1
                                     !$acc loop seq
                                     do mm=-1,1
                                        !$acc loop seq
-                                       do nn=-1,1           
+                                       do nn=-1,1
                                           aux1 =   aux1 +  al(ll)*am(mm)*an(nn)*mue_l(ielem,invAtoIJK(convertIJK(ii+ll),convertIJK(jj+mm),convertIJK(kk+nn)))
                                        end do
-                                    end do 
+                                    end do
                                  end do
                                  mu_e(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk))) = aux1
                               end do
-                           end do 
+                           end do
                         end do
-                     !!$acc loop vector 
-                     !do inode = 1,nnode
-                     !   mu_e(ielem,inode) = mue_l(ielem,inode)
-                     !end do
-#endif                        
-#else
-                        aux1 = 0.0_rp
-                        !$acc loop vector reduction(+:aux1)
-                        do inode = 1,nnode
-                           aux1 = aux1 + mue_l(ielem,inode)/real(nnode,rp)
-                        end do       
-                        !$acc loop vector 
-                        do inode = 1,nnode
-                           mu_e(ielem,inode) = aux1
-                        end do
-
-#endif
                       end do
                       !$acc end parallel loop
               end subroutine smart_visc_spectral

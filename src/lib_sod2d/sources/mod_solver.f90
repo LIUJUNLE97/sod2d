@@ -445,7 +445,7 @@ module mod_solver
 
                   b = sqrt(eps)
                   errTol = gmresTol
-                  !call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                  !call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,app_comm,mpi_err)
 
                   ! Allocate the memory for the gmres solver if not yet allocated
                   if (flag_gmres_mem_alloc .eqv. .true.) then
@@ -502,7 +502,7 @@ module mod_solver
                   call nvtxEndRange()
 
                   call nvtxStartRange("GMRES: Update auxN2")
-                  call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                  call MPI_Allreduce(auxN,auxN2,5,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
                   call nvtxEndRange()
 
                   if(auxN2(1)<epsilon(errTol)) auxN2(1) = 1.0_rp
@@ -523,10 +523,10 @@ module mod_solver
                   epsQ(2) = b
                   epsQ(3) = b
 
-                  if(istep == 1) then 
+                  if(istep == 1) then
                      call nvtxStartRange("GMRES: form_approx_Jy initial")
                      call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
-                        atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                        invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                         noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,&
                         rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                         mass_sol,mom_sol,ener_sol,.true.)
@@ -567,14 +567,14 @@ module mod_solver
                      call nvtxEndRange()
 
                      call nvtxStartRange("GMRES: update betas and errors")
-                     beta_mass(ik+1) = -sn_mass(ik)*beta_mass(ik) 
+                     beta_mass(ik+1) = -sn_mass(ik)*beta_mass(ik)
                      beta_mass(ik) = cs_mass(ik)*beta_mass(ik)
                      err_mass = abs(beta_mass(ik+1))/norm_bmass
-                     beta_ener(ik+1) = -sn_ener(ik)*beta_ener(ik) 
+                     beta_ener(ik+1) = -sn_ener(ik)*beta_ener(ik)
                      beta_ener(ik) = cs_ener(ik)*beta_ener(ik)
                      err_ener = abs(beta_ener(ik+1))/norm_bener
                      do idime = 1,ndime
-                        beta_mom(ik+1,idime) = -sn_mom(ik,idime)*beta_mom(ik,idime) 
+                        beta_mom(ik+1,idime) = -sn_mom(ik,idime)*beta_mom(ik,idime)
                         beta_mom(ik,idime) = cs_mom(ik,idime)*beta_mom(ik,idime)
                         err_mom(idime) = abs(beta_mom(ik+1,idime))/norm_bmom(idime)
                      end do
@@ -736,7 +736,7 @@ module mod_solver
                   integer(4)                :: idime, jk, ipoin
                   real(rp)                  :: zmass(npoin), zmom(npoin,ndime), zener(npoin)
                   real(8)                  :: aux(5),aux2(5), auxDot
-                  
+
                   ! Compute the new J*Q(:,ik) arrays
                   !$acc kernels
                   zmass(:) = pMass(:)
@@ -745,7 +745,7 @@ module mod_solver
                   !$acc end kernels
                   call nvtxStartRange("Arnoldi: J*Q")
                   call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
-                                      atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                                      invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                       noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,&
                                       rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                                       zmass,zmom,zener,.false.)
@@ -796,7 +796,7 @@ module mod_solver
                         aux(idime+2) = auxDot
                      end do
 
-                     call MPI_Allreduce(aux,aux2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                     call MPI_Allreduce(aux,aux2,5,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
                      call nvtxEndRange()
 
                      call nvtxStartRange("Arnoldi: Update H and Q")
@@ -848,7 +848,7 @@ module mod_solver
                      aux(idime+2) = auxDot
                   end do
 
-                  call MPI_Allreduce(aux,aux2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                  call MPI_Allreduce(aux,aux2,5,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
                   call nvtxEndRange()
 
                   call nvtxStartRange("Arnoldi: Update H")
@@ -872,7 +872,7 @@ module mod_solver
                   end do
                   !$acc end parallel loop
                   call nvtxEndRange()
-                  
+
               end subroutine arnoldi_iter
 
               subroutine apply_givens_rotation(ik)
@@ -938,7 +938,7 @@ module mod_solver
                   tener = sqrt(v2ener**2 + v1ener**2)
                   cs_ener(ik) = v1ener/tener
                   sn_ener(ik) = v2ener/tener
-                  
+
                   do idime = 1,ndime
                      tmom= sqrt(v2mom(idime)**2 + v1mom(idime)**2)
                      cs_mom(ik,idime) = v1mom(idime)/tmom
@@ -947,7 +947,7 @@ module mod_solver
               end subroutine givens_rotation_full
 
               subroutine form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
-                                        atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                                        invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
                                         noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,&
                                         rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
                                         zmass,zmom,zener,flag_gmres_form_fix)
@@ -957,7 +957,7 @@ module mod_solver
                   implicit none
                   logical   , intent(in) :: flag_gmres_form_fix
                   integer(4), intent(in) :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w)
-                  integer(4), intent(in) :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+                  integer(4), intent(in) :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
                   real(rp)  , intent(in) :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus), gpvol(1,ngaus,nelem), xgp(ngaus,ndime)
                   real(rp)  , intent(in) :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1), Ml(npoin)
                   real(rp)  , intent(in) :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin), Rgas,gamma_gas,Cp, Prt
@@ -966,7 +966,7 @@ module mod_solver
                   integer(4), intent(in)     :: nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
                   integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou),lnbn_nodes(npoin)
                   logical,              intent(in)   :: noBoundaries
-                  real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)                  
+                  real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
                   real(rp)               :: zu(npoin,ndime)
                   real(rp)               :: auxQ(npoin,ndime),auxE(npoin),auxRho(npoin)
                   integer(4)             :: idime,ipoin
@@ -974,7 +974,7 @@ module mod_solver
 
                   ! Form the R(u^n) arrays if not formed already
                   if (flag_gmres_form_fix .eqv. .true.) then
-                     call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                     call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, invAtoIJK, &
                         gmshAtoI, gmshAtoJ, gmshAtoK, u, q, rho, pr, E, Rmass_fix, Rmom_fix, Rener_fix)
                   end if
 
@@ -985,11 +985,11 @@ module mod_solver
                      !$acc loop seq
                      do idime = 1,ndime
                         auxQ(lpoin_w(ipoin),idime) = q(lpoin_w(ipoin),idime)+epsQ(idime)*zmom(lpoin_w(ipoin),idime)
-                     end do 
+                     end do
                   end do
                   !$acc end parallel loop
                   
-                  call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, atoIJK, invAtoIJK, &
+                  call full_convec_ijk(nelem, npoin, connec, Ngp, dNgp, He, gpvol, dlxigp_ip, xgp, invAtoIJK, &
                      gmshAtoI, gmshAtoJ, gmshAtoK, u, auxQ, auxRho, pr, auxE, SRmass, SRmom, SRener)
 
                   ! Form the J*y arrays
@@ -1118,14 +1118,14 @@ module mod_solver
                      aux(idime+2) = aux3
                   end do
 
-                  call MPI_Allreduce(aux,aux2,5,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                  call MPI_Allreduce(aux,aux2,5,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
                   if(aux2(1)<1e-10) aux2(1) = 1.0_rp
                   if(aux2(2)<1e-10) aux2(2) = 1.0_rp
                   if(aux2(3)<1e-10) aux2(3) = 1.0_rp
                   if(aux2(4)<1e-10) aux2(4) = 1.0_rp
                   if(aux2(5)<1e-10) aux2(5) = 1.0_rp
-                  
+
                   !$acc kernels
                   beta_mass(:) = sqrt(real(aux2(1),rp))*e1_mass(:)
                   beta_ener(:) = sqrt(real(aux2(2),rp))*e1_ener(:)

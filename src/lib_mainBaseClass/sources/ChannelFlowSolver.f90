@@ -95,7 +95,7 @@ contains
       this%saveAvgFile = .true.
       this%loadAvgFile = .false.
 
-      this%saveSurfaceResults = .true.
+      this%saveSurfaceResults = .false.
       !----------------------------------------------
 
       ! numerical params
@@ -150,7 +150,7 @@ contains
       logical :: readFiles
       character(512) :: initialField_filePath
 
-      readFiles = .true.
+      readFiles = .false.
 
       if(readFiles) then
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)

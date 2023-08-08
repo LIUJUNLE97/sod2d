@@ -156,7 +156,7 @@ contains
       res_rfield(:) = 10.0_rp
       call mpi_halo_atomic_update_real(res_rfield) !using default method
 
-      call save_vtkhdf_realFieldFile(res_rfield)
+      call save_vtkhdf_realFieldFile(nnode,res_rfield)
 
    end subroutine debug_comms_real
 
@@ -172,31 +172,31 @@ contains
 
       iter2check = 5
       refValue2check = 1.0_rp
-   
+
       call evalNumRanksNodeCnt(numRanksNodeCnt)
 
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       iTimer = 0
 #if _ONLYBUFFERS_
       !---------------------------------------------------------------
       !$acc kernels
           res_rfield(:) = 0.0_4
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_onlyBuffers(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_onlyBuffers(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
@@ -211,21 +211,21 @@ contains
       !$acc kernels
           res_rfield(:) = 0.0_rp
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_onlyBuffers(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_onlyBuffers(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
@@ -240,21 +240,21 @@ contains
       !$acc kernels
           res_rfield(:) = 0.0_4
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_sendRcv(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_sendRcv(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
@@ -269,21 +269,21 @@ contains
       !$acc kernels
           res_rfield(:) = 0.0_4
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_iSendiRcv(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_iSendiRcv(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
@@ -299,26 +299,26 @@ contains
           res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setFenceFlags(.false.)
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_put_fence(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_put_fence(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
       end do
-      call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)  
+      call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
       !----------------------------!
       if(mpi_rank.eq.0) write(*,*) 'PUT(Fence-flagsOFF) real time:',elapsed_time,'isOk',isOk
       !---------------------------------------------------------------
@@ -329,21 +329,21 @@ contains
           res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setFenceFlags(.true.)
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_put_fence(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_put_fence(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
@@ -359,21 +359,21 @@ contains
           res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setPSCWAssertNoCheckFlags(.true.)
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_put_pscw(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_put_pscw(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
@@ -386,21 +386,21 @@ contains
 #if _PUTPSCWOFF_
       !$acc end kernels
       call setPSCWAssertNoCheckFlags(.false.)
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_put_pscw(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_put_pscw(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
@@ -416,21 +416,21 @@ contains
           res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setLockBarrier(.true.)
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_put_lock(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_put_lock(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
@@ -446,21 +446,21 @@ contains
           res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setLockBarrier(.false.)
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_put_lock(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_put_lock(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
@@ -476,21 +476,21 @@ contains
           res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setFenceFlags(.false.)
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_get_fence(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_get_fence(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
@@ -506,21 +506,21 @@ contains
           res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setFenceFlags(.true.)
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_get_fence(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_get_fence(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
@@ -536,21 +536,21 @@ contains
           res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setPSCWAssertNoCheckFlags(.true.)
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_get_pscw(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_get_pscw(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
@@ -566,21 +566,21 @@ contains
           res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setPSCWAssertNoCheckFlags(.false.)
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_get_pscw(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_get_pscw(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
@@ -596,21 +596,21 @@ contains
           res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setLockBarrier(.true.)
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_get_lock(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_get_lock(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
@@ -626,21 +626,21 @@ contains
           res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setLockBarrier(.false.)
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_get_lock(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_get_lock(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
@@ -655,21 +655,21 @@ contains
       !$acc kernels
           res_rfield(:) = 0.0_rp
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
       do iter=1,numIters
          call mpi_halo_atomic_update_real_onlyBuffers(res_rfield)
       end do
       end_time = MPI_Wtime()
       elapsed_time_r = end_time - start_time
-      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,MPI_COMM_WORLD,mpi_err)
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
       iTimer=iTimer+1
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
           res_rfield(:) = refValue2check
       !$acc end kernels
-      call MPI_Barrier(MPI_COMM_WORLD,mpi_err)
+      call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
          call mpi_halo_atomic_update_real_onlyBuffers(res_rfield)
          call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
@@ -717,7 +717,7 @@ contains
       do i= 1,numNodesToComm
          iNodeL = nodesToComm(i)
          numRanksNodeCnt(iNodeL) = numRanksNodeCnt(iNodeL) + 1
-      end do 
+      end do
    end subroutine evalNumRanksNodeCnt
 
    subroutine normalize_realField_in_sharedNodes(numRanksNodeCnt,realField)
@@ -761,22 +761,22 @@ contains
       real(rp), dimension(n), intent(in) :: x
       integer :: i,j
 
-      !test order 
+      !test order
 #if 1
       !$acc kernels
       do j=1,n !cols
-        y(j) = 0 
+        y(j) = 0
         do i=1,n !rows
-           y(i) = beta*y(i) + alpha*A(i,j)*x(j) 
-        end do 
+           y(i) = beta*y(i) + alpha*A(i,j)*x(j)
+        end do
       end do
       !$acc end kernels
 #else
       !$acc kernels
       do i=1,n !rows
-         y(j) = 0 
+         y(j) = 0
          do j=1,n !cols
-            y(i) = beta*y(i) + alpha*A(i,j)*x(j) 
+            y(i) = beta*y(i) + alpha*A(i,j)*x(j)
          end do
       end do
       !$acc end kernels
@@ -821,49 +821,49 @@ contains
 
 #if 1
 
-        call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+        call MPI_Barrier(app_comm, mpi_err)
 
 
         do iter=1,numIters
             res_dfield(:) = 0.1
-            call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+            call MPI_Barrier(app_comm, mpi_err)
             call update_and_comm_doubleField(res_dfield)
             !write(*,*) 'res_dfield[',mpi_rank,'] ', res_dfield(:)
-            call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+            call MPI_Barrier(app_comm, mpi_err)
         end do
 
-        call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+        call MPI_Barrier(app_comm, mpi_err)
         !call print_dtimers()
 
 #endif
 #if 1
-        call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+        call MPI_Barrier(app_comm, mpi_err)
 
         do iter=1,numIters
             res_rfield(:) = 0.1
-            call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+            call MPI_Barrier(app_comm, mpi_err)
             call update_and_comm_realField(res_rfield)
-            call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+            call MPI_Barrier(app_comm, mpi_err)
         end do
 
-        call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+        call MPI_Barrier(app_comm, mpi_err)
         !write(*,*) 'res_rfield [',mpi_rank,'] ', res_rfield(:)
         !call print_ftimers()
 #endif
 
 #if 0
-        call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+        call MPI_Barrier(app_comm, mpi_err)
         call init_shared_mem_window()
 
         do iter=1,numIters
             res_rfield(:) = 0.1
-            call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+            call MPI_Barrier(app_comm, mpi_err)
             call update_and_comm_shared_mem_floatField(res_rfield)
 
-            call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+            call MPI_Barrier(app_comm, mpi_err)
         end do
 
-        call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+        call MPI_Barrier(app_comm, mpi_err)
         !write(*,*) 'res_sm[',mpi_rank,'] ', res_rfield(:)
         call print_smtimers()
 
@@ -882,9 +882,9 @@ contains
         numIters = 10000
 
         do iter=1,numIters
-            call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+            call MPI_Barrier(app_comm, mpi_err)
             call update_and_comm_shared_mem_floatField(res_rfield)
-            call MPI_Barrier(MPI_COMM_WORLD, mpi_err)
+            call MPI_Barrier(app_comm, mpi_err)
         end do
 
         !call print_smtimers()
@@ -930,7 +930,7 @@ contains
          !$acc host_data use_device (y,x)
          call MPI_Sendrecv(y, n, mpi_datatype_real, ngb_rank, tag_send, &
                            x, n, mpi_datatype_real, ngb_rank, tag_recv, &
-                           MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+                           app_comm, MPI_STATUS_IGNORE, mpi_err)
          !$acc end host_data
          !call nvtxEndRange
 
@@ -998,7 +998,7 @@ contains
       !$acc host_data use_device (yVec,xVec)
       call MPI_Sendrecv(yVec, N, mpi_datatype_real, ngb_rank, tag_send, &
                         xVec, N, mpi_datatype_real, ngb_rank, tag_recv, &
-                        MPI_COMM_WORLD, MPI_STATUS_IGNORE, mpi_err)
+                        app_comm, MPI_STATUS_IGNORE, mpi_err)
       !$acc end host_data
    end subroutine do_crazy_comms
 

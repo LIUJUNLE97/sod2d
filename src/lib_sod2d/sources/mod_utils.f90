@@ -21,7 +21,7 @@ contains
    subroutine open_inputFile(path_input_file)
       implicit none
       character(len=*),intent(in) :: path_input_file
-      
+
       if(mpi_rank.eq.0) write(*,*) 'Reading input file: ',trim(adjustl(path_input_file))
       open(unit=99,file=path_input_file,status="old")
    end subroutine
@@ -49,7 +49,7 @@ contains
               if(mpi_rank.eq.0) then
                   write(*,*) 'ERROR!',trim(adjustl(parameter2read)),' must be an integer',&
                              ' | wrong value ',int2read
-                  call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+                  call MPI_Abort(app_comm,-1,mpi_err)
               end if
           end if
           if(mpi_rank.eq.0) write(*,*) trim(adjustl(parameter2read)),': ',int2read
@@ -75,7 +75,7 @@ contains
             if(mpi_rank.eq.0) write(*,*) trim(adjustl(parameter2read)),': ',trim(adjustl(read_val))
         else
             if(mpi_rank.eq.0) write(*,*) 'Error! Line ',numLine,' must be ',trim(adjustl(parameter2read)),' value'
-            call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+            call MPI_Abort(app_comm,-1,mpi_err)
         endif
 
       numLine=numLine+1
@@ -102,14 +102,14 @@ contains
                   if(mpi_rank.eq.0) then
                       write(*,*) 'ERROR!',trim(adjustl(parameter2read)),'must be 0(false)/1(true)',&
                                  ' | wrong value ',trim(adjustl(read_val))
-                      call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+                      call MPI_Abort(app_comm,-1,mpi_err)
                   end if
               end if
           else
               if(mpi_rank.eq.0) then
                   write(*,*) 'ERROR!',trim(adjustl(parameter2read)),'must be 0(false)/1(true)',&
                              ' | wrong value ',trim(adjustl(read_val))
-                  call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+                  call MPI_Abort(app_comm,-1,mpi_err)
               end if
           end if
           if(mpi_rank.eq.0) write(*,*) trim(adjustl(parameter2read)),': ',logical2read
@@ -120,7 +120,7 @@ contains
       numLine=numLine+1
 
    end subroutine read_inputFile_logical
-   
+
 end module mod_read_inputFile
 !-----------------------------------------------------------------------------------------
 
@@ -607,7 +607,7 @@ contains
       remainingE2D = elems2dist
       do ii = 1,num2div
          auxDiv = num2div-(ii - 1)
-         elems2me = remainingE2D / auxDiv 
+         elems2me = remainingE2D / auxDiv
          finalElemDist(ii) = elems2me
          remainingE2D = remainingE2D - elems2me
          !write(*,*) 'ii',ii,'auxD',auxDiv,'e2m',elems2me,'rE2D',remainingE2D
@@ -615,7 +615,7 @@ contains
 
       if(remainingE2D.ne.0) then
          write(*,*) 'MASSIVE ERROR IN distribution_algorithm in mod_utils.f90! Check!'
-         call MPI_Abort(MPI_COMM_WORLD,-1,mpi_err)
+         call MPI_Abort(app_comm,-1,mpi_err)
       end if
       !write(*,*) 'elems2dist',elems2dist,'num2div',num2div,'finalElemD',finalElemDist(:)
 
@@ -658,7 +658,7 @@ contains
 
     subroutine stop_timer(this)
         class(parTimer), intent(inout) :: this
-        
+
         this%wc_end = MPI_Wtime()
         this%current_time = this%wc_end - this%wc_start
         this%total_time = this%total_time + this%current_time

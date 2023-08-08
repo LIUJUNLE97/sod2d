@@ -1,9 +1,9 @@
-module TGVSolver_mod
+module TGVMultiSolver_mod
    use mod_arrays
    use mod_nvtx
 #ifndef NOACC
    use cudafor
-#endif   
+#endif
    use mod_veclen
 
    use elem_qua
@@ -30,25 +30,35 @@ module TGVSolver_mod
    implicit none
    private
 
-   type, public, extends(CFDSolverPeriodic) :: TGVSolver
+   type, public, extends(CFDSolverPeriodic) :: TGVMultiSolver
 
-      real(rp) , public  ::  M, rho0,Re,to, po
+      real(rp) , public  ::  M, rho0, Re, to, po
 
    contains
-      procedure, public :: initializeParameters  => TGVSolver_initializeParameters
-      procedure, public :: evalInitialConditions => TGVSolver_evalInitialConditions
-   end type TGVSolver
+      procedure, public :: initializeParameters  => TGVMultiSolver_initializeParameters
+      procedure, public :: evalInitialConditions => TGVMultiSolver_evalInitialConditions
+   end type TGVMultiSolver
 contains
 
-   subroutine TGVSolver_initializeParameters(this)
-      class(TGVSolver), intent(inout) :: this
+   subroutine TGVMultiSolver_initializeParameters(this)
+      class(TGVMultiSolver), intent(inout) :: this
       real(rp) :: mul, mur
+      character(len=64) :: output_dir, tag
+      logical :: output_dir_exists
+
+      write(tag, *) app_color
+      output_dir = "./output_"//trim(adjustl(tag))//"/"
+      inquire(file=trim(adjustl(output_dir)), exist=output_dir_exists)
+      if (.not. output_dir_exists .and. mpi_rank .eq. 0) then
+         call system("mkdir -p "//trim(adjustl(output_dir)))
+      end if
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube"
+      write(this%mesh_h5_file_name,*) "cube_per_64"
 
-      write(this%results_h5_file_path,*) ""
+      write(this%results_h5_file_path,*) trim(adjustl(output_dir))
       write(this%results_h5_file_name,*) "results"
+      write(this%io_prepend_path,*) trim(adjustl(output_dir))
 
       this%doGlobalAnalysis = .true.
       this%doTimerAnalysis = .true.
@@ -56,19 +66,19 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 501
+      this%final_istep = 20000001
       this%maxPhysTime = 20.0_rp
 
-      this%save_logFile_first = 1 
+      this%save_logFile_first = 1
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
       this%save_resultsFile_step = 1000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 500
+      this%save_restartFile_step = 1000
       this%loadRestartFile = .false.
-      this%restartFile_to_load = 1 !1 or 2
+      this%restartFile_to_load = 2 !1 or 2
       this%continue_oldLogs = .false.
 
       this%saveAvgFile = .true.
@@ -81,12 +91,12 @@ contains
       implicit_solver = implicit_solver_bdf2_rk10
 
       maxIterNonLineal=500
-      tol=1e-3
-      pseudo_cfl =0.95_rp
+      tol=1e-4
+      pseudo_cfl =1.95_rp
       flag_rk_order=4
 
-      this%cfl_conv = 1.5_rp
-      this%cfl_diff = 1.5_rp
+      this%cfl_conv = 0.9_rp
+      this%cfl_diff = 0.9_rp
       !this%cfl_conv = 100.0_rp
       !this%cfl_diff = 100.0_rp
 
@@ -120,10 +130,10 @@ contains
       this%wit_save_rho          = .true.
       this%continue_witness      = .false.
 
-   end subroutine TGVSolver_initializeParameters
+   end subroutine TGVMultiSolver_initializeParameters
 
-   subroutine TGVSolver_evalInitialConditions(this)
-      class(TGVSolver), intent(inout) :: this
+   subroutine TGVMultiSolver_evalInitialConditions(this)
+      class(TGVMultiSolver), intent(inout) :: this
       real(4) :: iniU(totalNumNodesSrl,ndime), iniRho(totalNumNodesSrl), iniP(totalNumNodesSrl)
       real(4) :: V0,L
       real(4) :: x,y,z
@@ -188,6 +198,6 @@ contains
          mu_factor(iNodeL) = flag_mu_factor
       end do
       !$acc end parallel loop
-   end subroutine TGVSolver_evalInitialConditions
+   end subroutine TGVMultiSolver_evalInitialConditions
 
-end module TGVSolver_mod
+end module TGVMultiSolver_mod

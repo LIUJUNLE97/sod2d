@@ -42,7 +42,7 @@ module mod_smartredis
       call mpi_gather( &
          state_local_size2, 1, mpi_integer,  &  ! everyone sends 1 int from state_local_size
          state_sizes, 1, mpi_integer,        &  ! root receives 1 int from each proc into state_sizes
-         0, mpi_comm_world, error            &  ! rank 0 is root
+         0, app_comm, error                  &  ! rank 0 is root
       )
 
       ! 2. Compute displacements
@@ -57,7 +57,7 @@ module mod_smartredis
       ! Store in module variables
       action_global_size = action_global_size2
       state_local_size = state_local_size2
-      call mpi_allreduce(state_local_size, state_global_size, 1, mpi_integer, mpi_sum, mpi_comm_world, mpi_err)
+      call mpi_allreduce(state_local_size, state_global_size, 1, mpi_integer, mpi_sum, app_comm, mpi_err)
 
       ! Init client (only root process!) and write global state and action sizes into DB.
       if (mpi_rank .eq. 0) then
@@ -105,7 +105,7 @@ module mod_smartredis
       call mpi_gatherv( &
          state_local, state_local_size, mpi_datatype_real, &           ! everyone sends state_local data
          state_global, state_sizes, state_displs, mpi_datatype_real, & ! root receives it into state_global
-         0, mpi_comm_world, error &                                    ! rank 0 is root
+         0, app_comm, error &                                    ! rank 0 is root
       )
 
       ! write global state into DB
@@ -142,7 +142,7 @@ module mod_smartredis
       end if
 
       ! broadcast rank 0 global action array to all processes
-      call mpi_bcast(action_global, action_global_size, mpi_datatype_real, 0, mpi_comm_world, error)
+      call mpi_bcast(action_global, action_global_size, mpi_datatype_real, 0, app_comm, error)
    end subroutine read_action
 
    ! Writes the reward values: wall shear stress integral for both positive and negative values
