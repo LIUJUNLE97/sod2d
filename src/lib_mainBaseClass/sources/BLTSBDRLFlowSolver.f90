@@ -71,7 +71,7 @@ contains
    subroutine BLTSBDRLFlowSolver_initSmartRedis(this)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
 
-      this%previousActuationTime = this%time
+      this%previousActuationTime = this%timeBeginActuation
       open(unit=443,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_raw.txt",status='replace')
       open(unit=444,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_smooth.txt",status='replace')
       open(unit=445,file="./output_"//trim(adjustl(this%tag))//"/"//"tw.txt",status='replace')
@@ -150,7 +150,7 @@ contains
             call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
             call write_reward(client, Ftau_neg(1), Ftau_pos(1), "ensemble_"//trim(adjustl(this%tag))//".reward") ! the streamwise component tw_x
             ! write(*,*) "Sod2D wrote reward: ", Ftau_neg(1), Ftau_pos(1)
-            write(445,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_neg(2)
+            write(445,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_pos(2)
             call flush(445)
 
             call read_action(client, "ensemble_"//trim(adjustl(this%tag))//".action") ! modifies action_global (the target control values)
@@ -159,7 +159,7 @@ contains
             call flush(443)
 
             ! if the next time that we require actuation value is the last one, write now step_type=0 into database
-            if (this%time + this%periodActuation .gt. this%maxPhysTime) then
+            if (this%time + 2.0 * this%periodActuation .gt. this%maxPhysTime) then
                call write_step_type(client, 0, "ensemble_"//trim(adjustl(this%tag))//".step_type")
                ! write(*,*) "Sod2D wrote step: 0"
             end if
@@ -600,9 +600,9 @@ contains
       this%save_logFile_step = 1 ! 250
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 2500
+      this%save_restartFile_step = 20000
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 2500
+      this%save_resultsFile_step = 20000
 
       this%loadRestartFile = .true.
       ! read(restart_step_str, *) this%restartFile_to_load ! 1: baseline, 2: last episode
@@ -702,7 +702,7 @@ contains
       ! control parameters
 #if (ACTUATION)
       write(this%fileControlName ,*) "rectangleControl.txt"
-      this%timeBeginActuation = 0.0 ! 5e-1 ! 2000.0_rp
+      this%timeBeginActuation = 1.0 ! 0.1 ! 2000.0_rp
 #endif
 
       !Blasius analytical function
