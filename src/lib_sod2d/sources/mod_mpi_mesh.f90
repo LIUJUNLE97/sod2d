@@ -36,9 +36,9 @@ integer(4) :: numBoundCodes, numBoundsRankPar, totalNumBoundsSrl
 integer(4) :: ndofRankPar, numBoundaryNodesRankPar
 integer(4), allocatable :: boundPar(:,:), boundParOrig(:,:),bouCodesPar(:), ldofPar(:), lbnodesPar(:), bouCodesNodesPar(:)
 real(rp), allocatable :: boundNormalPar(:,:)
-logical :: isMeshBoundaries
+logical :: isMeshBoundaries,isMeshLinealOutput
 
-integer(4) :: mesh_porder
+integer(4) :: mesh_porder,mesh_VTKnnode,mesh_numVTKElemsPerMshElem,numElemsVTKRankPar,sizeConnecVTKRankPar
 integer(4),allocatable :: mesh_a2ijk(:),mesh_a2ij(:),mesh_gmsh2ijk(:),mesh_gmsh2ij(:),mesh_vtk2ijk(:),mesh_vtk2ij(:)
 
 !For WallModels

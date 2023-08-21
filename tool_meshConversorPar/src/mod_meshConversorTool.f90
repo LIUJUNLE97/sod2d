@@ -102,11 +102,12 @@ character(*), parameter :: fmt_csv_deb = '(1x,*(g0,","))'
 
 contains
 
-   subroutine read_gmsh_h5_file_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName,numMshRanks2Part)
+   subroutine read_gmsh_h5_file_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName,numMshRanks2Part,isLinealOutput)
       implicit none
       character(500), intent(in)  :: gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName
-      logical :: isPeriodic=.false.,isBoundaries=.false.
       integer(4),intent(in) :: numMshRanks2Part
+      logical,intent(in) :: isLinealOutput
+      logical :: isPeriodic=.false.,isBoundaries=.false.
 
       integer(4) :: numElemsMpiRank,numNodesMpiRank,numBoundsMpiRank,numLinkedPerElemsSrl,numPerElemsSrl,numMasSlaNodesSrl
       integer(4), allocatable :: listElemsMpiRank(:)
@@ -115,7 +116,7 @@ contains
 
       real(rp), allocatable :: coordNodesMpiRank(:,:)
       integer(4),allocatable :: numBoundaryNodesMshRank(:),numMpiBoundaryNodes(:),numMshBoundaryNodes(:),numInnerNodes(:)
-      integer(4),allocatable :: numDoFMshRank(:)
+      integer(4),allocatable :: numDoFMshRank(:),numElemsVTKMshRank(:),sizeConnecVTKMshRank(:)
 
       type(jagged_vector_int4) :: listBoundFacesMshRank_jv,boundFacesCodesMshRank_jv,boundaryNodes_jv,dofNodes_jv
       type(jagged_vector_int8) :: listNodesMshRank_i8_jv,mshBoundaryNodes_i8_jv,mpiBoundaryNodes_i8_jv
@@ -131,9 +132,10 @@ contains
       integer(hid_t) :: gmsh_h5_fileId, sod2dmsh_h5_fileId
       real(8),dimension(10) :: start_time,end_time,elapsed_time_r
 
-      integer(4) :: mporder,mnnode,mngaus,mnpbou
+      integer(4) :: mporder,mnnode,mngaus,mnpbou,mnnodeVTK,numVTKElemsPerMshElem
       integer(4),dimension(:),allocatable :: gmsh2ijk,vtk2ijk,gmsh2ij,vtk2ij,a2ijk,a2ij
       integer(4),dimension(:),allocatable :: auxNewOrderIndex,auxVTKorder
+      integer(4),dimension(:,:,:),allocatable :: ijk2a,ijk2gmsh,ijk2vtk
 
       ! ################################################################################################
       ! ----------------- VARS for new Par mesh FORMAT -------------------------------------------------
@@ -195,12 +197,14 @@ contains
 
       allocate(a2ijk(mnnode))
       allocate(a2ij(mnpbou))
+      allocate(ijk2a(0:porder,0:porder,0:porder))
 
       allocate(Ngp_l(mngaus,mnnode))
 
       !for the moment we set that the a2ijk is the gmsh2ijk
       a2ijk(:) = gmsh2ijk(:)
       a2ij(:)  = gmsh2ij(:)
+      !ijk2a(:,:,:) = ijk2gmsh(:,:,:)
 
       start_time(2) = MPI_Wtime()
       call read_elems_nodes_gmsh_h5_file_in_parallel(mporder,mnnode,mnpbou,gmsh_h5_fileId,isPeriodic,numElemsGmsh,numNodesGmsh_i8,numPerFacesGmsh,numPerLinkedNodesGmsh,&
@@ -295,8 +299,19 @@ contains
       allocate(connecOrigBoundFacesMshRank_jm%matrix(numMshRanksInMpiRank))
       allocate(masSlaRankPar_jm%matrix(numMshRanksInMpiRank))
 
+      allocate(numElemsVTKMshRank(numMshRanksInMpiRank))
+      allocate(sizeConnecVTKMshRank(numMshRanksInMpiRank))
+
       start_time(5) = MPI_Wtime()
       if(mpi_rank.eq.0)write(*,*) "--| Reordering nodes, interpolating coordinates and creating working lists..."
+
+      if(isLinealOutput) then
+         mnnodeVTK = 8
+         numVTKElemsPerMshElem = (mporder**3)
+      else
+         mnnodeVTK = mnnode      
+         numVTKElemsPerMshElem = 1
+      end if
 
       do iMshRank=1,numMshRanksInMpiRank
          mshRank = mshRanksInMpiRank(iMshRank)
@@ -305,7 +320,10 @@ contains
          allocate(globalIdSrlOrdered_i8_jm%matrix(iMshRank)%elems(numNodesMshRank(iMshRank),2))
          allocate(globalIdPar_i8_jv%vector(iMshRank)%elems(numNodesMshRank(iMshRank)))
 
-         allocate(connecVTK_jv%vector(iMshRank)%elems(numElemsMshRank(iMshRank)*mnnode))
+         numElemsVTKMshRank(iMshRank)   = numElemsMshRank(iMshRank)*numVTKElemsPerMshElem
+         sizeConnecVTKMshRank(iMshRank) = numElemsVTKMshRank(iMshRank)*mnnodeVTK
+
+         allocate(connecVTK_jv%vector(iMshRank)%elems(sizeConnecVTKMshRank(iMshRank)))
          allocate(connecParOrig_jm%matrix(iMshRank)%elems(numElemsMshRank(iMshRank),mnnode))
          allocate(connecParWork_jm%matrix(iMshRank)%elems(numElemsMshRank(iMshRank),mnnode))
 
@@ -333,14 +351,14 @@ contains
 
          !reordering nodes
          call reorder_nodes_in_mshRank(mporder,mnnode,mnpbou,gmsh2ijk,vtk2ijk,auxNewOrderIndex,auxVTKorder,&
-                        mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),numPerNodesMshRank(iMshRank),&
+                        mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),numPerNodesMshRank(iMshRank),sizeConnecVTKMshRank(iMshRank),isLinealOutput,&
                         elemGidMshRank_jv%vector(iMshRank)%elems,listNodesMshRank_i8_jv%vector(iMshRank)%elems,connecMshRank_i8_jm%matrix(iMshRank)%elems,iNodeStartPar_i8,&
                         connecOrigBoundFacesMshRank_i8_jm%matrix(iMshRank)%elems,masSlaRankPar_i8_jm%matrix(iMshRank)%elems,&
                         globalIdSrl_i8_jv%vector(iMshRank)%elems,globalIdSrlOrdered_i8_jm%matrix(iMshRank)%elems,globalIdPar_i8_jv%vector(iMshRank)%elems,&
                         connecVTK_jv%vector(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems,&
                         connecOrigBoundFacesMshRank_jm%matrix(iMshRank)%elems,masSlaRankPar_jm%matrix(iMshRank)%elems)
 
-         call set_nodesCoordinates(mnnode,mnpbou,mngaus,mshRank,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),globalIdSrl_i8_jv%vector(iMshRank)%elems,&
+         call set_nodesCoordinates(mnnode,mnpbou,mngaus,mshRank,isLinealOutput,numElemsMshRank(iMshRank),numNodesMshRank(iMshRank),globalIdSrl_i8_jv%vector(iMshRank)%elems,&
             listNodesMshRank_i8_jv%vector(iMshRank)%elems,coordMshRank_jm%matrix(iMshRank)%elems,Ngp_l,connecParOrig_jm%matrix(iMshRank)%elems,&
             coordPar_jm%matrix(iMshRank)%elems,coordVTK_jm%matrix(iMshRank)%elems)
 
@@ -410,21 +428,22 @@ contains
 
       call create_hdf5_file(meshFile_h5_name,sod2dmsh_h5_fileId)
 
-      call create_hdf5_groups_datasets_in_meshFile_from_tool(mnnode,mnpbou,sod2dmsh_h5_fileId,isPeriodic,isBoundaries,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
+      call create_hdf5_groups_datasets_in_meshFile_from_tool(mnnode,mnpbou,sod2dmsh_h5_fileId,isPeriodic,isBoundaries,isLinealOutput,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
                vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank)
 
-      call create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mnnode,sod2dmsh_h5_fileId,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8)
+      call create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,sod2dmsh_h5_fileId,isLinealOutput,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,mnnodeVTK,numVTKElemsPerMshElem)
 
       call MPI_Barrier(app_comm,mpi_err)
 
       do iMshRank=1,numMshRanksInMpiRank
          mshRank = mshRanksInMpiRank(iMshRank)
-         call write_mshRank_data_in_hdf5_meshFile_from_tool(mporder,mnnode,mnpbou,sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,numElemsGmsh,numBoundFacesGmsh,&
+         call write_mshRank_data_in_hdf5_meshFile_from_tool(mporder,mnnode,mnpbou,sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,isLinealOutput,numElemsGmsh,numBoundFacesGmsh,&
             numElemsMshRank(iMshRank),mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),&
             mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),numWorkingNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),numBoundaryNodesMshRank(iMshRank),numDoFMshRank(iMshRank),maxBoundCode,&
+            numElemsVTKMshRank(iMshRank),sizeConnecVTKMshRank(iMshRank),mnnodeVTK,numVTKElemsPerMshElem,&
             a2ijk,a2ij,gmsh2ijk,gmsh2ij,vtk2ijk,vtk2ij,&
             elemGidMshRank_jv%vector(iMshRank)%elems,globalIdSrl_i8_jv%vector(iMshRank)%elems,globalIdPar_i8_jv%vector(iMshRank)%elems,&
-            connecVTK_jv%vector(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems,connecParWork_jm%matrix(iMshRank)%elems,coordPar_jm%matrix(iMshRank)%elems,workingNodesPar_jv%vector(iMshRank)%elems,&
+            connecParOrig_jm%matrix(iMshRank)%elems,connecParWork_jm%matrix(iMshRank)%elems,coordPar_jm%matrix(iMshRank)%elems,workingNodesPar_jv%vector(iMshRank)%elems,&
             boundaryNodes_jv%vector(iMshRank)%elems,dofNodes_jv%vector(iMshRank)%elems,boundFacesCodesMshRank_jv%vector(iMshRank)%elems,connecOrigBoundFacesMshRank_jm%matrix(iMshRank)%elems,connecBoundFacesMshRank_jm%matrix(iMshRank)%elems,&
             numPerNodesMshRank(iMshRank),masSlaRankPar_jm%matrix(iMshRank)%elems,&
             numNodesToCommMshRank(iMshRank),numMshRanksWithComms(iMshRank),nodesToComm_jv%vector(iMshRank)%elems,commsMemPosInLoc_jv%vector(iMshRank)%elems,&
@@ -433,13 +452,14 @@ contains
             bnd_commsMemSize_jv%vector(iMshRank)%elems,bnd_commsMemPosInNgb_jv%vector(iMshRank)%elems,bnd_ranksToComm_jv%vector(iMshRank)%elems,&
             vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank)
 
-        call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mnnode,sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),&
-           mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),&
-           coordVTK_jm%matrix(iMshRank)%elems,connecVTK_jv%vector(iMshRank)%elems)
+        call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),&
+            numElemsVTKMshRank(iMshRank),sizeConnecVTKMshRank(iMshRank),mnnodeVTK,numVTKElemsPerMshElem,&
+            mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),&
+            coordVTK_jm%matrix(iMshRank)%elems,connecVTK_jv%vector(iMshRank)%elems)
       end do
 
       do iMshRank=(numMshRanksInMpiRank+1),maxNumMshRanks
-        call dummy_write_mshRank_data_in_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId,numMshRanks2Part,isPeriodic,isBoundaries)
+        call dummy_write_mshRank_data_in_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId,numMshRanks2Part,isPeriodic,isBoundaries,isLinealOutput)
 
         call dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(sod2dmsh_h5_fileId,numMshRanks2Part)
       end do
@@ -2874,12 +2894,13 @@ contains
       end do
    end subroutine define_parallelNodePartitioning
 
-   subroutine reorder_nodes_in_mshRank(mporder,mnnode,mnpbou,gmsh2ijk,vtk2ijk,auxNewOrderIndex,auxVTKorder,mshRank,numMshRanks2Part,numElemsInRank,numNodesInRank,numBoundsInRank,numMasSlaNodesInRank,elemGidInRank,listNodesInRank_i8,connecInRank_i8,iNodeStartPar_i8,&
+   subroutine reorder_nodes_in_mshRank(mporder,mnnode,mnpbou,gmsh2ijk,vtk2ijk,auxNewOrderIndex,auxVTKorder,mshRank,numMshRanks2Part,numElemsInRank,numNodesInRank,numBoundsInRank,numMasSlaNodesInRank,sizeConnecVTK,linOutput,elemGidInRank,listNodesInRank_i8,connecInRank_i8,iNodeStartPar_i8,&
                boundFacesInRank_i8,masSlaNodesInRank_i8,globalIdSrlInRank_i8,globalIdSrlOrderedInRank_i8,globalIdParInRank_i8,connecVTKInRank,connecParOrigInRank,boundFacesInRank,masSlaNodesInRank)
       implicit none
       integer(4),intent(in) :: mporder,mnnode,mnpbou
       integer(4),intent(in),dimension(mnnode) :: gmsh2ijk,vtk2ijk,auxNewOrderIndex,auxVTKorder
-      integer(4),intent(in) :: mshRank,numMshRanks2Part,numElemsInRank,numNodesInRank,numBoundsInRank,numMasSlaNodesInRank
+      integer(4),intent(in) :: mshRank,numMshRanks2Part,numElemsInRank,numNodesInRank,numBoundsInRank,numMasSlaNodesInRank,sizeConnecVTK
+      logical,intent(in)    :: linOutput
       integer(4),intent(in) :: elemGidInRank(numElemsInRank)
       integer(8),intent(in) :: listNodesInRank_i8(numNodesInRank),connecInRank_i8(numElemsInRank,mnnode)
       integer(8),dimension(0:numMshRanks2Part-1),intent(in) :: iNodeStartPar_i8
@@ -2887,12 +2908,14 @@ contains
 
       integer(8),intent(out) :: globalIdSrlInRank_i8(numNodesInRank),globalIdParInRank_i8(numNodesInRank)
       integer(8),intent(out),dimension(numNodesInRank,2) :: globalIdSrlOrderedInRank_i8
-      integer(4),intent(out) :: connecVTKInRank(numElemsInRank*mnnode),connecParOrigInRank(numElemsInRank,mnnode)
+      integer(4),intent(out) :: connecVTKInRank(sizeConnecVTK),connecParOrigInRank(numElemsInRank,mnnode)
       integer(4),intent(out) :: boundFacesInRank(numBoundsInRank,mnpbou),masSlaNodesInRank(numMasSlaNodesInRank,2)
 
       integer(4) :: m,indConn,indexIJK,indexVTK,indexGMSH,indexNew,nodeIndexCnt,indPosListNodes
       integer(4) :: iNodeL,iElemL,iElemG,iNode,iBound,iLink
       integer(8) :: iNodeGsrl,iNodeGpar
+      integer(4) :: ii,jj,kk,igp,jgp,kgp
+      integer(4),allocatable :: ijk_sod2d_to_gmsh(:),ijk_gmsh_to_sod2d(:)
 
       integer(8),dimension(mnnode) :: auxNodeNewOrderInElem_i8
       integer(4),dimension(numNodesInRank) :: isNodeAdded
@@ -2905,6 +2928,7 @@ contains
       nodeIndexCnt = 0
       indConn = -1
 
+      call set_allocate_array_ijk_sod2d_criteria(mporder,ijk_sod2d_to_gmsh,ijk_gmsh_to_sod2d)
       !----------------------------------------------------------------------------------------------------------
 
       do iElemL=1,numElemsInRank
@@ -2943,10 +2967,104 @@ contains
 
             connecParOrigInRank(iElemL,m) = iNodeL
 
-            indexVTK = auxVTKorder(m)
-            indConn = (iElemL-1)*mnnode + indexVTK
-            connecVTKInRank(indConn) = iNodeL
+            if(.not.(linOutput)) then
+               indexVTK = auxVTKorder(m)
+               indConn = (iElemL-1)*mnnode + indexVTK
+               connecVTKInRank(indConn) = iNodeL
+            end if
          end do
+
+         if(linOutput) then
+            indConn = (iElemL-1)*((mporder**3)*8)
+            do ii=0,(mporder-1)
+               do jj=0,(mporder-1)
+                  do kk=0,(mporder-1)
+                     
+                     !1.-------------------------------
+                     igp=ijk_gmsh_to_sod2d(ii)-1
+                     jgp=ijk_gmsh_to_sod2d(jj)-1
+                     kgp=ijk_gmsh_to_sod2d(kk)-1
+                     indexIJK = get_indexIJK_sod2d(mporder,igp,jgp,kgp)
+                     indexNew = auxNewOrderIndex(indexIJK)
+                     iNodeL = connecParOrigInRank(iElemL,indexNew)
+                     indConn = indConn+1
+                     connecVTKInRank(indConn) = iNodeL
+                     !write(*,*) 'iE',iElemL,'ijk',indexIJK,'new',indexNew,'iNodeL',iNodeL!,'indConn',indConn
+                     !2.-------------------------------
+                     igp=ijk_gmsh_to_sod2d(ii+1)-1
+                     jgp=ijk_gmsh_to_sod2d(jj)-1
+                     kgp=ijk_gmsh_to_sod2d(kk)-1
+                     indexIJK = get_indexIJK_sod2d(mporder,igp,jgp,kgp)
+                     indexNew = auxNewOrderIndex(indexIJK)
+                     iNodeL = connecParOrigInRank(iElemL,indexNew)
+                     indConn = indConn+1
+                     connecVTKInRank(indConn) = iNodeL
+                     !write(*,*) 'iE',iElemL,'ijk',indexIJK,'new',indexNew,'iNodeL',iNodeL!,'indConn',indConn
+                     !3.-------------------------------
+                     igp=ijk_gmsh_to_sod2d(ii+1)-1
+                     jgp=ijk_gmsh_to_sod2d(jj+1)-1
+                     kgp=ijk_gmsh_to_sod2d(kk)-1
+                     indexIJK = get_indexIJK_sod2d(mporder,igp,jgp,kgp)
+                     indexNew = auxNewOrderIndex(indexIJK)
+                     iNodeL = connecParOrigInRank(iElemL,indexNew)
+                     indConn = indConn+1
+                     connecVTKInRank(indConn) = iNodeL
+                     !write(*,*) 'iE',iElemL,'ijk',indexIJK,'new',indexNew,'iNodeL',iNodeL!,'indConn',indConn
+                     !4.-------------------------------
+                     igp=ijk_gmsh_to_sod2d(ii)-1
+                     jgp=ijk_gmsh_to_sod2d(jj+1)-1
+                     kgp=ijk_gmsh_to_sod2d(kk)-1
+                     indexIJK = get_indexIJK_sod2d(mporder,igp,jgp,kgp)
+                     indexNew = auxNewOrderIndex(indexIJK)
+                     iNodeL = connecParOrigInRank(iElemL,indexNew)
+                     indConn = indConn+1
+                     connecVTKInRank(indConn) = iNodeL
+                     !write(*,*) 'iE',iElemL,'ijk',indexIJK,'new',indexNew,'iNodeL',iNodeL!,'indConn',indConn
+                     !5.-------------------------------
+                     igp=ijk_gmsh_to_sod2d(ii)-1
+                     jgp=ijk_gmsh_to_sod2d(jj)-1
+                     kgp=ijk_gmsh_to_sod2d(kk+1)-1
+                     indexIJK = get_indexIJK_sod2d(mporder,igp,jgp,kgp)
+                     indexNew = auxNewOrderIndex(indexIJK)
+                     iNodeL = connecParOrigInRank(iElemL,indexNew)
+                     indConn = indConn+1
+                     connecVTKInRank(indConn) = iNodeL
+                     !write(*,*) 'iE',iElemL,'ijk',indexIJK,'new',indexNew,'iNodeL',iNodeL!,'indConn',indConn
+                     !6.-------------------------------
+                     igp=ijk_gmsh_to_sod2d(ii+1)-1
+                     jgp=ijk_gmsh_to_sod2d(jj)-1
+                     kgp=ijk_gmsh_to_sod2d(kk+1)-1
+                     indexIJK = get_indexIJK_sod2d(mporder,igp,jgp,kgp)
+                     indexNew = auxNewOrderIndex(indexIJK)
+                     iNodeL = connecParOrigInRank(iElemL,indexNew)
+                     indConn = indConn+1
+                     connecVTKInRank(indConn) = iNodeL
+                     !write(*,*) 'iE',iElemL,'ijk',indexIJK,'new',indexNew,'iNodeL',iNodeL!,'indConn',indConn
+                     !7.-------------------------------
+                     igp=ijk_gmsh_to_sod2d(ii+1)-1
+                     jgp=ijk_gmsh_to_sod2d(jj+1)-1
+                     kgp=ijk_gmsh_to_sod2d(kk+1)-1
+                     indexIJK = get_indexIJK_sod2d(mporder,igp,jgp,kgp)
+                     indexNew = auxNewOrderIndex(indexIJK)
+                     iNodeL = connecParOrigInRank(iElemL,indexNew)
+                     indConn = indConn+1
+                     connecVTKInRank(indConn) = iNodeL
+                     !write(*,*) 'iE',iElemL,'ijk',indexIJK,'new',indexNew,'iNodeL',iNodeL!,'indConn',indConn
+                     !8.-------------------------------
+                     igp=ijk_gmsh_to_sod2d(ii)-1
+                     jgp=ijk_gmsh_to_sod2d(jj+1)-1
+                     kgp=ijk_gmsh_to_sod2d(kk+1)-1
+                     indexIJK = get_indexIJK_sod2d(mporder,igp,jgp,kgp)
+                     indexNew = auxNewOrderIndex(indexIJK)
+                     iNodeL = connecParOrigInRank(iElemL,indexNew)
+                     indConn = indConn+1
+                     connecVTKInRank(indConn) = iNodeL
+                     !write(*,*) 'iE',iElemL,'ijk',indexIJK,'new',indexNew,'iNodeL',iNodeL!,'indConn',indConn
+                  end do
+               end do
+            end do
+         end if
+
          !write(*,*) '[',mpi_rank,']iElemG ',iElemG,' connecParOrig ',connecParOrig(iElemL,:)
       end do
 
@@ -2999,7 +3117,8 @@ contains
       do k = 0,mporder
          do i = 0,mporder
             do j = 0,mporder
-               indexIJK = ((mporder+1)**2)*k+(mporder+1)*i+j+1
+               !indexIJK = ((mporder+1)**2)*k+(mporder+1)*i+j+1
+               indexIJK = get_indexIJK_sod2d(mporder,i,j,k)
 
                indexNew = newOrderIJK(indexIJK)
                indexVTK = vtk2ijk(indexIJK)
@@ -3792,9 +3911,10 @@ contains
 
 !------------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine set_nodesCoordinates(mnnode,mnpbou,mngaus,mshRank,numElemsInRank,numNodesInRank,globalIdSrlInRank_i8,listNodesInRank_i8,coordInRank,Ngp_l,connecParOrigMshRank,coordParMshRank,coordVTKMshRank)
+   subroutine set_nodesCoordinates(mnnode,mnpbou,mngaus,mshRank,isLinealOutput,numElemsInRank,numNodesInRank,globalIdSrlInRank_i8,listNodesInRank_i8,coordInRank,Ngp_l,connecParOrigMshRank,coordParMshRank,coordVTKMshRank)
       implicit none
       integer(4),intent(in) :: mnnode,mnpbou,mngaus
+      logical,intent(in) :: isLinealOutput
       integer(4),intent(in) :: mshRank,numElemsInRank,numNodesInRank,connecParOrigMshRank(numElemsInRank,mnnode)
       integer(8),intent(in) :: globalIdSrlInRank_i8(numNodesInRank),listNodesInRank_i8(numNodesInRank)
       real(rp),intent(in) :: coordInRank(numNodesInRank,3),Ngp_l(mngaus,mnnode)
@@ -3822,6 +3942,12 @@ contains
       !!!$acc end parallel loop
 
       call interpolateOriginalCoordinates(mnnode,mnpbou,mngaus,numElemsInRank,numNodesInRank,Ngp_l,connecParOrigMshRank,coordParMshRank)
+
+      if(isLinealOutput) then
+      !$acc kernels
+      coordVTKMshRank(:,:) = coordParMshRank(:,:)
+      !$acc end kernels   
+      end if
 
    end subroutine set_nodesCoordinates
 

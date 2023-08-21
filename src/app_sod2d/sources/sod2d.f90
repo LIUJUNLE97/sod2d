@@ -1,7 +1,8 @@
 ! main.f90
 
-#define _tgv_ 0
-#define _channel_ 1
+#define _tgv_ 1
+#define _tgv_multi 0
+#define _channel_ 0
 #define _bluff_ 0
 #define _bluff3d_ 0
 #define _bl_ 0
@@ -9,7 +10,9 @@
 program main
    use mod_numerical_params
 #if _tgv_
-   ! use TGVSolver_mod
+   use TGVSolver_mod
+#endif
+#if _tgv_multi
    use TGVMultiSolver_mod
 #endif
 #if _channel_
@@ -28,9 +31,11 @@ program main
    implicit none
 
 #if _tgv_
-   ! type(TGVSolver)  :: tgv
+   type(TGVSolver)  :: tgv
+   call tgv%run()
+#endif
+#if _tgv_multi
    type(TGVMultiSolver)  :: tgv_multi
-   ! call tgv%run()
    call tgv_multi%run()
 #endif
 #if _channel_
