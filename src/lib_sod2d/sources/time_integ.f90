@@ -616,7 +616,7 @@ module time_integ
                      umag = umag + u(lpoin_w(ipoin),idime,pos)**2
                   end do
                   e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &
-                     0.5_rp*umag!dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
+                     0.5_rp*umag
                   pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0_rp)*e_int(lpoin_w(ipoin),pos)
                   csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
                   umag = sqrt(umag)
@@ -683,7 +683,6 @@ module time_integ
                res(2) = res(1)
 
                if(errMax .lt. tol) exit
-               !if(mpi_rank.eq.0) write(111,*)"   non lineal residual ",errMax," non lineal iterations ",itime
             end do
             call nvtxEndRange
 
@@ -1014,7 +1013,7 @@ module time_integ
                   umag = umag + u(lpoin_w(ipoin),idime,pos)**2
                end do
                e_int(lpoin_w(ipoin),pos) = (E(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))- &
-                  0.5_rp*umag!dot_product(u(lpoin_w(ipoin),:,pos),u(lpoin_w(ipoin),:,pos))
+                  0.5_rp*umag
                pr(lpoin_w(ipoin),pos) = rho(lpoin_w(ipoin),pos)*(gamma_gas-1.0_rp)*e_int(lpoin_w(ipoin),pos)
                csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),pos)/rho(lpoin_w(ipoin),pos))
                umag = sqrt(umag)
