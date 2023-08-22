@@ -50,7 +50,6 @@ module CFDSolverBase_mod
       use elem_hex
       use jacobian_oper
       use quadrature_rules
-      use mesh_reader
       use mod_inicond_reader
       use mass_matrix
       use mod_geom
