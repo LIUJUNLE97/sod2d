@@ -20,7 +20,7 @@ module mass_matrix
 			!$acc kernels
 			Ml(:) = 0.0_rp
 			!$acc end kernels
-			!$acc parallel loop gang vector_length(vecLength)
+			!$acc parallel loop gang
 			do ielem = 1,nelem
 				!$acc loop vector
 				do inode = 1,nnode
