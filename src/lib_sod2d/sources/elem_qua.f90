@@ -1,7 +1,7 @@
 module elem_qua
 
-use mod_numerical_params
-use mod_maths
+	use mod_numerical_params
+	use mod_maths
 
 	implicit none
 	!TODO: make thhis array allocatbale
