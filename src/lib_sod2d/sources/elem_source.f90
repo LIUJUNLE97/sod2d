@@ -2,7 +2,7 @@ module elem_source
 
    use mod_numerical_params
    use mod_nvtx
-   use mod_veclen
+   
    use mod_mpi
    use mod_mpi_mesh
    use mod_hdf5

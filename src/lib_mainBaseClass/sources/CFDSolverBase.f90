@@ -44,7 +44,7 @@ module CFDSolverBase_mod
       use cudafor
 #endif
 
-      use mod_veclen
+      
 
       use elem_qua
       use elem_hex
@@ -2008,9 +2008,6 @@ contains
       ! Main simulation parameters
       call this%initializeDefaultParameters()
       call this%initializeParameters()
-
-      ! Define vector length to be used
-      call define_veclen()
 
       ! Open log file
       call this%open_log_file()

@@ -6,7 +6,7 @@ module ThermalChannelFlowSolver_mod
 #ifndef NOACC
    use cudafor
 #endif
-   use mod_veclen
+   
 
    use elem_qua
    use elem_hex
