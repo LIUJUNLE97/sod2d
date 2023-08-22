@@ -13,7 +13,7 @@ module ThermalChannelFlowSolver_mod
    use jacobian_oper
    use quadrature_rules
    use mesh_reader
-   use inicond_reader
+   use mod_inicond_reader
    use mass_matrix
    use mod_geom
    use mod_period
