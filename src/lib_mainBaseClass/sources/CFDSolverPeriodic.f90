@@ -14,7 +14,6 @@ module CFDSolverPeriodic_mod
    use inicond_reader
    use mass_matrix
    use mod_geom
-   use mod_output
    use mod_period
    use time_integ
    use mod_analysis
