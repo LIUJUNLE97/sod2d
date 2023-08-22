@@ -53,7 +53,6 @@ module CFDSolverBase_mod
       use mod_inicond_reader
       use mass_matrix
       use mod_geom
-      use mod_period
       use time_integ
       use mod_analysis
       use mod_numerical_params
