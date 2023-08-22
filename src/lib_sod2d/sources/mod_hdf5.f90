@@ -160,37 +160,10 @@ contains
       !close the file.
       call h5fclose_f(hdf5_file_id,h5err)
    end subroutine close_hdf5_file
-#if 0
-   subroutine create_hdf5_meshFile_from_tool(hdf5_file_id)
-      implicit none
-      integer(hid_t),intent(inout) :: hdf5_file_id
-      integer(hid_t) :: plist_id
-      integer :: h5err
-      !-------------------------------------------------------------------------------
 
-      ! Setup file access property list with parallel I/O access.
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
-      call h5pset_fapl_mpio_f(plist_id,app_comm,MPI_INFO_NULL,h5err)
+!---------------------------------------------------------------------------------------------------------------
+!---------------------------------------------------------------------------------------------------------------
 
-      ! create file collectively
-      call h5fcreate_f(meshFile_h5_name,H5F_ACC_TRUNC_F,hdf5_file_id,h5err,access_prp=plist_id)
-      if(h5err .ne. 0) then
-         write(*,*) 'FATAL ERROR! Cannot create meshfile ',trim(adjustl(meshFile_h5_name))
-         call MPI_Abort(app_comm,-1,mpi_err)
-      end if
-      call h5pclose_f(plist_id, h5err)
-
-   end subroutine
-
-   subroutine close_hdf5_meshFile_from_tool(hdf5_file_id)
-      implicit none
-      integer(hid_t),intent(in) :: hdf5_file_id
-      integer :: h5err
-
-      !close the file.
-      call h5fclose_f(hdf5_file_id,h5err)
-   end subroutine close_hdf5_meshFile_from_tool
-#endif
    subroutine create_hdf5_groups_datasets_in_meshFile_from_tool(mnnode,mnpbou,hdf5_file_id,isPeriodic,isBoundaries,isLinealOutput,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
                vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,&
                vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank)
@@ -316,7 +289,6 @@ contains
       dsetname = '/meshOutputInfo/sizeConnecVTKMshRank'
       call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
 
-
    end subroutine create_hdf5_groups_datasets_in_meshFile_from_tool
 
    subroutine create_groups_datasets_connectivity_workingNodes_hdf5(mnnode,file_id,numMshRanks2Part,numElemsGmsh,vecNumWorkingNodes)
@@ -344,8 +316,6 @@ contains
       dsetname = '/Connectivity/connecParWork'
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
 
-      !dsetname = '/Connectivity/connecVTK'
-      !call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       !-----------------------------------------------------------------------------------------------------
       ds_dims(1) = numMshRanks2Part
 
@@ -1243,9 +1213,6 @@ contains
       dsetname = '/Connectivity/connecParWork'
       call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
       !---------------------------------------------------------------------------------------------
-      !dsetname = '/Connectivity/connecVTK'
-      !call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetnamk,ms_dims,ms_offset,empty_array_i4)
-      !---------------------------------------------------------------------------------------------
 
       dsetname = '/Connectivity/workingNodesPar'
       call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
@@ -1657,14 +1624,15 @@ contains
       integer(4) :: ii,jj,h5err
       real(rp) :: array2d_tr(ms_dims(1),ms_dims(2)) !FORTRAN is COLUMN-MAJOR & HDF5 is ROW-MAJOR
 
-      !!!!$acc kernels
+      !For the moment, this loop is done with data in the host (before saving in hdf5)
+      !!!!$acc kernels 
       do ii=1,ms_dims(1)
          do jj=1,ms_dims(2)
             array2d_tr(ii,jj)=array2d(jj,ii)
          end do
       end do
       !!!!$acc end kernels
-      !!!!$acc update device(host(:,:)) !THINK ABOUT IT!!Update the value in the host before saving in hdf5
+      !!!!$acc update device(host(:,:)) 
 
       call select_dtype_rp(dtype)
 
@@ -1699,6 +1667,7 @@ contains
 
       call close_dataspace_hyperslab_parallel(dset_id,fspace_id,mspace_id,plist_id)
 
+      !For the moment, this loop is done with data in the host
       !!!!$acc update device(array2d(:,:)) !put in device memory the value
       !!!!$acc kernels
       do ii=1,ms_dims(1)
@@ -1772,6 +1741,7 @@ contains
       integer(4) :: ii,jj,h5err
       real(rp_vtk) :: array2d_tr(ms_dims(1),ms_dims(2)) !FORTRAN is COLUMN-MAJOR & HDF5 is ROW-MAJOR
 
+      !For the moment, this loop is done with data in the host
       !!!!!$acc kernels !!BE CAREFUL HtoD/DtoH requrired if to be used!!!
       do ii=1,ms_dims(1)
          do jj=1,ms_dims(2)
@@ -1813,6 +1783,7 @@ contains
 
       call close_dataspace_hyperslab_parallel(dset_id,fspace_id,mspace_id,plist_id)
 
+      !For the moment, this loop is done with data in the host
       !!!!$acc kernels !!BE CAREFUL HtoD/DtoH requrired if to be used!!!
       do ii=1,ms_dims(1)
          do jj=1,ms_dims(2)
@@ -2131,146 +2102,6 @@ contains
 
 !--------------------------------------------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------------------------------------------
-#if 0
-   !DEPRECATED
-   subroutine overwrite_coordinates_hdf5()
-      implicit none
-      integer(hid_t) :: file_id,plist_id
-      integer(hsize_t), dimension(1) :: ms_dims
-      integer(hssize_t), dimension(1) :: ms_offset
-      integer(4) :: ms_rank,h5err
-      character(128) :: dsetname
-
-      !---------------------------------------------------------------------------------------
-      ! Setup file access property list with parallel I/O access.
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
-      call h5pset_fapl_mpio_f(plist_id,app_comm,MPI_INFO_NULL,h5err)
-
-      ! open file collectively
-      call h5fopen_f(meshFile_h5_name, H5F_ACC_RDWR_F,file_id,h5err,access_prp=plist_id)
-      if(h5err .ne. 0) then
-         write(*,*) 'FATAL ERROR! Cannot open meshfile ',trim(adjustl(meshFile_h5_name))
-         call MPI_Abort(app_comm,-1,mpi_err)
-      end if
-      call h5pclose_f(plist_id, h5err)
-
-      !-------------------------------------------
-      ms_rank = 1
-      ms_dims(1) = int(numNodesRankPar,hsize_t)
-      ms_offset(1) = int(rankNodeStart,hssize_t)-1
-      !-------------------------------------------
-
-      dsetname = '/Coords/X'
-      call write_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,coordPar(:,1))
-
-      dsetname = '/Coords/Y'
-      call write_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,coordPar(:,2))
-
-      dsetname = '/Coords/Z'
-      call write_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,coordPar(:,3))
-
-
-      !close the file.
-      call h5fclose_f(file_id,h5err)
-
-   end subroutine overwrite_coordinates_hdf5
-#endif
-   subroutine save_connectivity_hdf5(file_id,mnnode)
-      implicit none
-      integer(hid_t),intent(in) :: file_id
-      integer(4),intent(in) :: mnnode
-      character(128) :: groupname,dsetname
-      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
-      integer(hid_t) :: dtype
-      integer(4) :: ds_rank
-      integer(4) :: iElemL,i,m,accumVal
-      integer(HSSIZE_T), dimension(1) :: ms_offset
-      integer(4),allocatable :: aux_array(:)
-
-      groupname = trim('/Connectivity')
-      call create_group_hdf5(file_id,groupname)
-
-      dtype = h5_datatype_int4
-      ds_rank = 1
-      ds_dims(1) = totalNumElements*mnnode
-      ms_dims(1) = int(numElemsRankPar,hsize_t)*int(mnnode,hsize_t)
-      ms_offset(1) = int((rankElemStart-1),hssize_t)*int(mnnode,hssize_t)
-
-      allocate(aux_array(numElemsRankPar*mnnode))
-      !-----------------------------------------------------------------------------------------------------
-      !  SAVING connecParOrig(:,:)
-      i=1
-      do iElemL=1,numElemsRankPar
-         do m=1,mnnode
-            aux_array(i)=connecParOrig(iElemL,m)
-            i=i+1
-         end do
-      end do
-
-      dsetname = '/Connectivity/connecParOrig'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-      !-----------------------------------------------------------------------------------------------------
-      !  SAVING connecParWork(:,:)
-      i=1
-      do iElemL=1,numElemsRankPar
-         do m=1,mnnode
-            aux_array(i)=connecParWork(iElemL,m)
-            i=i+1
-         end do
-      end do
-
-      dsetname = '/Connectivity/connecParWork'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-      !-----------------------------------------------------------------------------------------------------
-      !  SAVING connecParVTK(:)
-      !dsetname = '/Connectivity/connecVTK'
-      !call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      !call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,connecVTK)
-      !-----------------------------------------------------------------------------------------------------
-
-      deallocate(aux_array)
-      !--------------------------------------------------------------------------------------------------------
-      !  SAVING numWorkingNodesRankPar
-      ds_dims(1) = mpi_size
-      ms_dims(1) = 1
-      ms_offset(1) = int(mpi_rank,hssize_t)
-      allocate(aux_array(1))
-
-      dsetname = '/Connectivity/numWorkingNodesRankPar'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      aux_array(1)=numWorkingNodesRankPar
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-      !--------------------------------------------------------------------------------------------------------
-      !  SAVING workingNodesPar(:)
-      deallocate(aux_array)
-      allocate( aux_array(mpi_size) )
-      ms_dims(1) = int(mpi_size,hsize_t)
-      ms_offset(1) = 0
-      !read data set numWorkingNodesRankPar of all ranks
-      dsetname = '/Connectivity/numWorkingNodesRankPar'
-      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-
-      accumVal=0
-      do i=1,mpi_size
-         accumVal=accumVal+aux_array(i)
-      end do
-
-      ds_dims(1) = accumVal
-
-      ms_offset(1)=0
-      do i=1,(mpi_rank) !from rank 0 mpi_rank-1
-         ms_offset(1)=ms_offset(1)+int(aux_array(i),hssize_t)
-      end do
-      ms_dims(1)=int(numWorkingNodesRankPar,hsize_t)
-
-      dsetname = '/Connectivity/workingNodesPar'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,workingNodesPar)
-      !--------------------------------------------------------------------------------------------------------
-
-   end subroutine save_connectivity_hdf5
 
    subroutine load_connectivity_hdf5(file_id,mnnode)
       implicit none
@@ -2323,11 +2154,6 @@ contains
       deallocate(aux_array)
       !$acc update device(connecParWork(:,:))
       !-------------------------------------------------------------------------------------------------------
-      !LOADING connecVTK(:)
-      !allocate( connecVTK(numElemsRankPar*mnnode) )
-      !dsetname = '/Connectivity/connecVTK'
-      !call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,connecVTK)
-      !-------------------------------------------------------------------------------------------------------
 
       !-------------------------------------------------------------------------------------------------------
       ms_dims(1) = 1
@@ -2365,138 +2191,7 @@ contains
       !$acc update device(workingNodesPar(:))
 
    end subroutine load_connectivity_hdf5
-#if 0
-   subroutine save_parallel_data_hdf5(file_id)
-      implicit none
-      integer(hid_t),intent(in) :: file_id
-      character(128) :: groupname,dsetname
-      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
-      integer(hid_t) :: dtype
-      integer(4) :: ds_rank,ms_rank,h5err
-      integer(4) :: i,accumVal
-      integer(HSSIZE_T), dimension(1) :: ms_offset
-      integer(4),allocatable :: aux_array(:)
 
-      groupname = trim('/Parallel_data')
-      call create_group_hdf5(file_id,groupname)
-
-      dtype = h5_datatype_int4
-      ds_rank = 1
-      ds_dims(1) = mpi_size
-      ms_rank = 1
-      ms_dims(1) = 1
-      ms_offset(1) = int(mpi_rank,hssize_t)
-      allocate(aux_array(1))
-
-      dsetname = '/Parallel_data/rankNodeStart'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      aux_array(1)=rankNodeStart
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
-
-      dsetname = '/Parallel_data/rankNodeEnd'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      aux_array(1)=rankNodeEnd
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
-
-      dsetname = '/Parallel_data/rankElemStart'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      aux_array(1)=rankElemStart
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
-
-      dsetname = '/Parallel_data/rankElemEnd'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      aux_array(1)=rankElemEnd
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
-
-      dsetname = '/Parallel_data/numRanksWithComms'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      aux_array(1)=numRanksWithComms
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
-
-      dsetname = '/Parallel_data/numNodesToComm'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      aux_array(1)=numNodesToComm
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
-
-      !--------------------------------------------------------------------------------------------------------
-      deallocate(aux_array)
-      allocate( aux_array(mpi_size) )
-      ms_dims(1) = int(mpi_size,hsize_t)
-      ms_offset(1) = 0
-      !read data set numRanksWithComms of all ranks
-      dsetname = '/Parallel_data/numRanksWithComms'
-      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
-      !write(*,*) 'rank[',mpi_rank,'] ',aux_array(:)
-
-      accumVal=0
-      do i=1,mpi_size
-         accumVal=accumVal+aux_array(i)
-      end do
-
-      ds_dims(1) = accumVal
-
-      ms_offset(1)=0
-      do i=1,(mpi_rank) !from rank 0 mpi_rank-1
-         ms_offset(1)=ms_offset(1)+int(aux_array(i),hssize_t)
-      end do
-      ms_dims(1)=int(numRanksWithComms,hsize_t)
-
-      !write(*,*) 'ms_offset ',ms_offset(1),' ms_dims(1) ',ms_dims(1),' ds_dims ',ds_dims(1)
-
-      dsetname = '/Parallel_data/ranksToComm'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,ranksToComm)
-
-      dsetname = '/Parallel_data/commsMemPosInLoc'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,commsMemPosInLoc)
-
-      dsetname = '/Parallel_data/commsMemSize'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,commsMemSize)
-
-      dsetname = '/Parallel_data/commsMemPosInNgb'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,commsMemPosInNgb)
-
-      ds_dims(1) = mpi_size
-      ms_dims(1) = int(mpi_size,hsize_t)
-      ms_offset(1) = 0
-
-      dsetname = '/Parallel_data/numNodesToComm'
-      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
-      !write(*,*) 'rank[',mpi_rank,'] ',aux_array(:)
-
-      accumVal=0
-      do i=1,mpi_size
-         accumVal=accumVal+aux_array(i)
-      end do
-
-      ds_dims(1) = accumVal
-
-      ms_offset(1)=0
-      do i=1,(mpi_rank) !from rank 0 mpi_rank-1
-         ms_offset(1)=ms_offset(1)+int(aux_array(i),hssize_t)
-      end do
-      ms_dims(1)=int(numNodesToComm,hsize_t)
-
-      dsetname = '/Parallel_data/matrixCommScheme_iNodeL'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,matrixCommScheme(:,1))
-
-      dsetname = '/Parallel_data/matrixCommScheme_iNodeGSrl'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,matrixCommScheme(:,2))
-
-      dsetname = '/Parallel_data/matrixCommScheme_ngbRank'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,matrixCommScheme(:,3))
-
-
-      deallocate(aux_array)
-
-   end subroutine save_parallel_data_hdf5
-#endif
    subroutine load_parallel_data_hdf5(file_id)
       implicit none
       integer(hid_t),intent(in) :: file_id
@@ -2604,113 +2299,7 @@ contains
    end subroutine load_parallel_data_hdf5
 
 !--------------------------------------------------------------------------------------------------------------------------------
-#if 0
-   subroutine save_parallel_data_boundary_hdf5(file_id)
-      implicit none
-      integer(hid_t),intent(in) :: file_id
-      character(128) :: groupname,dsetname
-      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
-      integer(hid_t) :: dtype
-      integer(4) :: ds_rank,ms_rank,h5err
-      integer(4) :: i,accumVal
-      integer(HSSIZE_T), dimension(1) :: ms_offset
-      integer(4),allocatable :: aux_array(:)
 
-      groupname = trim('/Parallel_data_boundary')
-      call create_group_hdf5(file_id,groupname)
-
-      dtype = h5_datatype_int4
-      ds_rank = 1
-      ds_dims(1) = mpi_size
-      ms_rank = 1
-      ms_dims(1) = 1
-      ms_offset(1) = int(mpi_rank,hssize_t)
-      allocate(aux_array(1))
-
-      dsetname = '/Parallel_data_boundary/numRanksWithComms'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      aux_array(1)=bnd_numRanksWithComms
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
-
-      dsetname = '/Parallel_data_boundary/numNodesToComm'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      aux_array(1)=bnd_numNodesToComm
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
-
-      !--------------------------------------------------------------------------------------------------------
-      deallocate(aux_array)
-      allocate( aux_array(mpi_size) )
-      ms_dims(1) = int(mpi_size,hsize_t)
-      ms_offset(1) = 0
-      !read data set numRanksWithComms of all ranks
-      dsetname = '/Parallel_data_boundary/numRanksWithComms'
-      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
-
-      accumVal=0
-      do i=1,mpi_size
-         accumVal=accumVal+aux_array(i)
-      end do
-
-      ds_dims(1) = accumVal
-
-      ms_offset(1)=0
-      do i=1,(mpi_rank) !from rank 0 mpi_rank-1
-         ms_offset(1)=ms_offset(1)+int(aux_array(i),hssize_t)
-      end do
-      ms_dims(1)=int(bnd_numRanksWithComms,hsize_t)
-
-      dsetname = '/Parallel_data_boundary/ranksToComm'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,bnd_ranksToComm)
-
-      dsetname = '/Parallel_data_boundary/commsMemPosInLoc'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,bnd_commsMemPosInLoc)
-
-      dsetname = '/Parallel_data_boundary/commsMemSize'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,bnd_commsMemSize)
-
-      dsetname = '/Parallel_data_boundary/commsMemPosInNgb'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,bnd_commsMemPosInNgb)
-
-      ds_dims(1) = int(mpi_size,hsize_t)
-      ms_dims(1) = int(mpi_size,hsize_t)
-      ms_offset(1) = 0
-
-      dsetname = '/Parallel_data_boundary/numNodesToComm'
-      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,aux_array)
-
-      accumVal=0
-      do i=1,mpi_size
-         accumVal=accumVal+aux_array(i)
-      end do
-
-      ds_dims(1) = accumVal
-
-      ms_offset(1)=0
-      do i=1,(mpi_rank) !from rank 0 mpi_rank-1
-         ms_offset(1)=ms_offset(1)+int(aux_array(i),hssize_t)
-      end do
-      ms_dims(1)=int(bnd_numNodesToComm,hsize_t)
-
-      dsetname = '/Parallel_data_boundary/matrixCommScheme_iNodeL'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,bnd_matrixCommScheme(:,1))
-
-      dsetname = '/Parallel_data_boundary/matrixCommScheme_iNodeGSrl'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,bnd_matrixCommScheme(:,2))
-
-      dsetname = '/Parallel_data_boundary/matrixCommScheme_ngbRank'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_rank,ms_dims,ms_offset,bnd_matrixCommScheme(:,3))
-
-      deallocate(aux_array)
-
-   end subroutine save_parallel_data_boundary_hdf5
-#endif
    subroutine load_parallel_data_boundary_hdf5(file_id)
       implicit none
       integer(hid_t),intent(in) :: file_id
@@ -2801,64 +2390,6 @@ contains
 !--------------------------------------------------------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine save_periodic_data_hdf5(file_id)
-      implicit none
-      integer(hid_t),intent(in) :: file_id
-      character(128) :: groupname,dsetname
-      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
-      integer(hid_t) :: dtype
-      integer(4) :: ds_rank,h5err
-      integer(4) :: i,accumVal,iBound,m
-      integer(HSSIZE_T), dimension(1) :: ms_offset
-      integer(4),allocatable :: aux_array(:)
-
-      groupname = trim('/Periodic_data')
-      call create_group_hdf5(file_id,groupname)
-
-      dtype = h5_datatype_int4
-      ds_rank = 1
-      ds_dims(1) = mpi_size
-      ms_dims(1) = 1
-      ms_offset(1) = int(mpi_rank,hssize_t)
-      allocate(aux_array(1))
-
-      dsetname = '/Periodic_data/nPerRankPar'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      aux_array(1)=nPerRankPar
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-
-      deallocate(aux_array)
-      allocate( aux_array(mpi_size) )
-      ms_dims(1) = int(mpi_size,hsize_t)
-      ms_offset(1) = 0
-      !read data set nPerRankPar of all ranks
-      dsetname = '/Periodic_data/nPerRankPar'
-      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-
-      accumVal=0
-      do i=1,mpi_size
-         accumVal=accumVal+aux_array(i)
-      end do
-
-      ds_dims(1) = accumVal
-
-      ms_offset(1)=0
-      do i=1,(mpi_rank) !from rank 0 mpi_rank-1
-         ms_offset(1)=ms_offset(1)+int(aux_array(i),hssize_t)
-      end do
-      ms_dims(1)=int(nPerRankPar,hsize_t)
-
-      dsetname = '/Periodic_data/masSlaRankPar1'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,masSlaRankPar(:,1))
-
-      dsetname = '/Periodic_data/masSlaRankPar2'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,masSlaRankPar(:,2))
-      !--------------------------------------------------------------------------------------------------------
-
-   end subroutine save_periodic_data_hdf5
-
    subroutine load_periodic_data_hdf5(file_id)
       implicit none
       integer(hid_t),intent(in) :: file_id
@@ -2928,164 +2459,6 @@ contains
 
    end subroutine load_periodic_data_hdf5
 !--------------------------------------------------------------------------------------------------------------------------------
-   subroutine save_boundary_data_hdf5(file_id,mnpbou)
-      implicit none
-      integer(hid_t),intent(in) :: file_id
-      integer(4),intent(in) :: mnpbou
-      character(128) :: groupname,dsetname
-      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
-      integer(hid_t) :: dtype
-      integer(4) :: ds_rank,h5err
-      integer(4) :: i,accumVal,iBound,m
-      integer(HSSIZE_T), dimension(1) :: ms_offset
-      integer(4),allocatable :: aux_array(:)
-
-      groupname = trim('/Boundary_data')
-      call create_group_hdf5(file_id,groupname)
-
-      dtype = h5_datatype_int4
-      ds_rank = 1
-      ds_dims(1) = mpi_size
-      ms_dims(1) = 1
-      ms_offset(1) = int(mpi_rank,hssize_t)
-      allocate(aux_array(1))
-
-      dsetname = '/Boundary_data/numBoundsRankPar'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      aux_array(1)=numBoundsRankPar
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-
-      dsetname = '/Boundary_data/numBoundCodes'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      aux_array(1)=numBoundCodes
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-
-      dsetname = '/Boundary_data/ndofRankPar'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      aux_array(1)=ndofRankPar
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-
-      dsetname = '/Boundary_data/numBoundaryNodesRankPar'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      aux_array(1)=numBoundaryNodesRankPar
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-
-      !--------------------------------------------------------------------------------------------------------
-      deallocate(aux_array)
-      allocate( aux_array(mpi_size) )
-      ms_dims(1) = int(mpi_size,hsize_t)
-      ms_offset(1) = 0
-      !read data set numBoundsRankPar of all ranks
-      dsetname = '/Boundary_data/numBoundsRankPar'
-      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-
-      accumVal=0
-      do i=1,mpi_size
-         accumVal=accumVal+aux_array(i)
-      end do
-
-      ds_dims(1) = accumVal
-
-      ms_offset(1)=0
-      do i=1,(mpi_rank) !from rank 0 mpi_rank-1
-         ms_offset(1)=ms_offset(1)+int(aux_array(i),hssize_t)
-      end do
-      ms_dims(1)=int(numBoundsRankPar,hsize_t)
-
-      !write(*,*) 'ms_offset ',ms_offset(1),' ms_dims(1) ',ms_dims(1),' ds_dims ',ds_dims(1)
-
-      dsetname = '/Boundary_data/bouCodesPar'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,bouCodesPar)
-
-      ds_dims(1) = int(ds_dims(1),hsize_t)*int(mnpbou,hsize_t)!totalNumBoundsSrl*mnpbou
-      ms_dims(1) = int(ms_dims(1),hsize_t)*int(mnpbou,hsize_t)!numBoundsRankPar*mnpbou
-      ms_offset(1) = ms_offset(1)*int(mnpbou,hssize_t)
-
-      deallocate(aux_array)
-      allocate(aux_array(numBoundsRankPar*mnpbou))
-
-      !boundPar
-      i=1
-      do iBound=1,numBoundsRankPar
-         do m=1,mnpbou
-            aux_array(i)=boundPar(iBound,m)
-            i=i+1
-         end do
-      end do
-
-      dsetname = '/Boundary_data/boundPar'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-
-      !boundParOrig
-      i=1
-      do iBound=1,numBoundsRankPar
-         do m=1,mnpbou
-            aux_array(i)=boundParOrig(iBound,m)
-            i=i+1
-         end do
-      end do
-
-      dsetname = '/Boundary_data/boundParOrig'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-
-      deallocate(aux_array)
-      !--------------------------------------------------------------------------------------------------------
-      allocate( aux_array(mpi_size) )
-      ms_dims(1) = int(mpi_size,hsize_t)
-      ms_offset(1) = 0
-      !read data set ndofRankPar of all ranks
-      dsetname = '/Boundary_data/ndofRankPar'
-      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-
-      accumVal=0
-      do i=1,mpi_size
-         accumVal=accumVal+aux_array(i)
-      end do
-
-      ds_dims(1) = accumVal
-
-      ms_offset(1)=0
-      do i=1,(mpi_rank) !from rank 0 mpi_rank-1
-         ms_offset(1)=ms_offset(1)+int(aux_array(i),hssize_t)
-      end do
-      ms_dims(1)=int(ndofRankPar,hsize_t)
-
-      dsetname = '/Boundary_data/ldofPar'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,ldofPar)
-
-      deallocate(aux_array)
-      !--------------------------------------------------------------------------------------------------------
-      allocate( aux_array(mpi_size) )
-      ms_dims(1) = int(mpi_size,hsize_t)
-      ms_offset(1) = 0
-      !read data set numBoundaryNodesRankPar of all ranks
-      dsetname = '/Boundary_data/numBoundaryNodesRankPar'
-      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-
-      accumVal=0
-      do i=1,mpi_size
-         accumVal=accumVal+aux_array(i)
-      end do
-
-      ds_dims(1) = accumVal
-
-      ms_offset(1)=0
-      do i=1,(mpi_rank) !from rank 0 mpi_rank-1
-         ms_offset(1)=ms_offset(1)+int(aux_array(i),hssize_t)
-      end do
-      ms_dims(1)=int(numBoundaryNodesRankPar,hsize_t)
-
-      dsetname = '/Boundary_data/lbnodesPar'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,lbnodesPar)
-
-      deallocate(aux_array)
-      !--------------------------------------------------------------------------------------------------------
-   end subroutine save_boundary_data_hdf5
 
    subroutine load_boundary_data_hdf5(file_id,mnnode,mnpbou)
       implicit none
@@ -3471,13 +2844,9 @@ contains
 
    subroutine set_hdf5_surface_resultsFile_name(surf_res_fileName,res_fileName)
       implicit none
-      !integer(4),intent(in) :: surfCode
       character(len=*), intent(out) :: surf_res_fileName
       character(len=*), intent(in)  :: res_fileName
-      !character(len=12) :: aux_surfCode
 
-      !write(aux_surfCode,'(I0)') surfCode
-      !surf_res_fileName = 'surface_'//trim(aux_surfCode)//'_'//trim(adjustl(res_fileName))
       surf_res_fileName = 'surface_'//trim(adjustl(res_fileName))
    end subroutine set_hdf5_surface_resultsFile_name
 
@@ -3781,10 +3150,10 @@ contains
 
 !----------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine save_hdf5_restartFile(mnnode,mngaus,restartCnt,iStep,flag_walave,time,rho,u,pr,E,mu_e,mu_t,walave_u)
+   subroutine save_hdf5_restartFile(mnnode,mngaus,restartCnt,iStep,flag_walave_value,time,rho,u,pr,E,mu_e,mu_t,walave_u)
       implicit none
       integer(4),intent(in) :: mnnode,mngaus
-      integer(4),intent(in) :: restartCnt,iStep,flag_walave
+      integer(4),intent(in) :: restartCnt,iStep,flag_walave_value
       real(rp),intent(in) :: time
       real(rp),intent(inout),dimension(numNodesRankPar)       :: rho,pr,E
       real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u,walave_u
@@ -3814,7 +3183,7 @@ contains
       !$acc update host(u(:,:))
       !$acc update host(pr(:))
       !$acc update host(E(:))
-      if(flag_walave == 1) then
+      if(flag_walave_value == 1) then
          !$acc update host(walave_u(:,:))
       end if
 
@@ -3855,7 +3224,7 @@ contains
       dsetname = 'mut'
       call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_mu_t)
 
-      if(flag_walave == 1) then
+      if(flag_walave_value == 1) then
          dsetname = 'walave_u_x'
          call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,walave_u(:,1))
 
@@ -3871,36 +3240,19 @@ contains
       dsetname = 'time'
       call save_real_rp_in_dataset_hdf5_file(file_id,dsetname,time)
 
-      !ms_dims(1) = 0
-      !ds_dims = 1
-      !ms_offset(1) = 0
-      !if(mpi_rank.eq.0) then
-      !   ms_dims(1) = 1
-      !endif
-      !aux_array_rp(1) = time
-      !call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_array_rp)
-
       !-----------------------------------------------------------------------------------------------
       ! ---- istep -----
       dsetname = 'istep'
       call save_int4_in_dataset_hdf5_file(file_id,dsetname,iStep)
-      !dtype = h5_datatype_int4
-      !ds_rank = 1
-      !ms_rank = 1
-      !aux_array_i4(1) = iStep
-
-      !dsetname = 'istep'
-      !call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      !call write_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
       !close the file.
       call close_hdf5_file(file_id)
 
    end subroutine save_hdf5_restartFile
 
-   subroutine load_hdf5_restartFile(mnnode,mngaus,restartCnt,load_step,flag_walave,time,rho,u,pr,E,mu_e,mu_t,walave_u)
+   subroutine load_hdf5_restartFile(mnnode,mngaus,restartCnt,load_step,flag_walave_value,time,rho,u,pr,E,mu_e,mu_t,walave_u)
       implicit none
-      integer(4),intent(in) :: mnnode,mngaus,restartCnt,flag_walave
+      integer(4),intent(in) :: mnnode,mngaus,restartCnt,flag_walave_value
       integer(4),intent(inout) :: load_step
       real(rp),intent(inout) :: time
       real(rp),intent(inout),dimension(numNodesRankPar)       :: rho,pr,E
@@ -3933,21 +3285,13 @@ contains
 
       call open_hdf5_file(full_restartFileName,file_id)
 
-      !ms_rank = 1
-      !ms_offset(1) = 0
-      !ms_dims(1) = 1
       ! ----  read time  --------------------------------------------------------------------------
-
       dsetname = 'time'
       call read_real_rp_in_dataset_hdf5_file(file_id,dsetname,time)
-      !call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_array_rp)
-      !time = aux_array_rp(1)
 
       ! ----  read istep --------------------------------------------------------------------------
       dsetname = 'istep'
       call read_int4_in_dataset_hdf5_file(file_id,dsetname,load_step)
-      !call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
-      !load_step = aux_array_i4(1)
 
       ! ----  read arrays  --------------------------------------------------------------------------
       ms_dims(1) = int(numNodesRankPar,hsize_t)
@@ -3977,7 +3321,7 @@ contains
       dsetname = 'mut'
       call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_mu_t)
 
-      if(flag_walave==1) then
+      if(flag_walave_value==1) then
          dsetname = 'walave_u_x'
          call h5lexists_f(file_id,dsetname, link_exists, h5err)
          if(h5err /= 0) then
@@ -4028,7 +3372,7 @@ contains
             E(masSlaRankPar(iPer,2))   = E(masSlaRankPar(iPer,1))
          end do
          !$acc end parallel loop
-         if(flag_walave == 1) then
+         if(flag_walave_value == 1) then
             !$acc parallel loop
             do iPer = 1,nPerRankPar
                walave_u(masSlaRankPar(iPer,2),1) = walave_u(masSlaRankPar(iPer,1),1)
@@ -4044,165 +3388,6 @@ contains
    end subroutine load_hdf5_restartFile
 
 !----------------------------------------------------------------------------------------------------------------------------------
-#if 0
-   subroutine save_hdf5_resultsFile_old(iStep,time,rho,u,pr,E,eta,csound,machno,gradRho,curlU,divU,Qcrit,mu_fluid,mu_e,mu_sgs)
-      implicit none
-      integer(4), intent(in) :: iStep
-      real(rp),intent(in) :: time
-      real(rp),intent(inout),dimension(numNodesRankPar)       :: rho,pr,E,eta,csound,machno,mu_fluid,divU,Qcrit
-      real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u
-      real(rp),intent(inout),dimension(numElemsRankPar,mngaus) :: mu_e,mu_sgs
-      real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: gradRho,curlU
-      real(rp),dimension(numNodesRankPar) :: envit,mut
-
-      integer(hid_t) :: file_id,plist_id
-      integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
-      integer(HSSIZE_T), dimension(1) :: ms_offset
-      integer(4) :: h5err
-      character(512) :: full_fileName,dsetname
-      integer(4) :: iPer,i,j
-      real(rp) :: aux_array_time(1)
-
-      !------------------------------------------------------------------------------------
-      !-------------------------------------------
-      ! 1. Adjust mu_sgs and envit to be nodal
-      !$acc kernels
-      do i = 1,numElemsRankPar
-         do j = 1, mnnode
-            envit(connecParOrig(i,j)) =  mu_e(i,j)    !@REVISAR SI AQUEST ES EL CONNEC QUE NECESSITO AQUI....
-            mut(connecParOrig(i,j))   =  mu_sgs(i,j)
-         end do
-      end do
-      !$acc end kernels
-
-      !-------------------------------------------
-      !2. If case is periodic, adjust slave nodes
-
-      if (isMeshPeriodic) then
-         !$acc parallel loop
-         do iPer = 1,nPerRankPar
-            u(masSlaRankPar(iPer,2),1)       = u(masSlaRankPar(iPer,1),1)
-            u(masSlaRankPar(iPer,2),2)       = u(masSlaRankPar(iPer,1),2)
-            u(masSlaRankPar(iPer,2),3)       = u(masSlaRankPar(iPer,1),3)
-            gradRho(masSlaRankPar(iPer,2),1) = gradRho(masSlaRankPar(iPer,1),1)
-            gradRho(masSlaRankPar(iPer,2),2) = gradRho(masSlaRankPar(iPer,1),2)
-            gradRho(masSlaRankPar(iPer,2),3) = gradRho(masSlaRankPar(iPer,1),3)
-            curlU(masSlaRankPar(iPer,2),1)   = curlU(masSlaRankPar(iPer,1),1)
-            curlU(masSlaRankPar(iPer,2),2)   = curlU(masSlaRankPar(iPer,1),2)
-            curlU(masSlaRankPar(iPer,2),3)   = curlU(masSlaRankPar(iPer,1),3)
-            rho(masSlaRankPar(iPer,2))       = rho(masSlaRankPar(iPer,1))
-            pr(masSlaRankPar(iPer,2))        = pr(masSlaRankPar(iPer,1))
-            E(masSlaRankPar(iPer,2))         = E(masSlaRankPar(iPer,1))
-            eta(masSlaRankPar(iPer,2))       = eta(masSlaRankPar(iPer,1))
-            csound(masSlaRankPar(iPer,2))    = csound(masSlaRankPar(iPer,1))
-            machno(masSlaRankPar(iPer,2))    = machno(masSlaRankPar(iPer,1))
-            mu_fluid(masSlaRankPar(iPer,2))  = mu_fluid(masSlaRankPar(iPer,1))
-            mut(masSlaRankPar(iPer,2))       = mut(masSlaRankPar(iPer,1))
-            envit(masSlaRankPar(iPer,2))     = envit(masSlaRankPar(iPer,1))
-            divU(masSlaRankPar(iPer,2))      = divU(masSlaRankPar(iPer,1))
-            Qcrit(masSlaRankPar(iPer,2))     = Qcrit(masSlaRankPar(iPer,1))
-         end do
-         !$acc end parallel loop
-      end if
-
-      !-----------------------------------------------------------------------------------------------
-      ! Writing HDF5 Files
-
-      call set_hdf5_resultsFile_name(iStep,full_fileName)
-
-      ! Setup file access property list with parallel I/O access.
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
-      call h5pset_fapl_mpio_f(plist_id,app_comm,MPI_INFO_NULL,h5err)
-
-      ! create file collectively
-      call h5fcreate_f(full_fileName,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
-      if(h5err .ne. 0) then
-         write(*,*) 'FATAL ERROR! Cannot create results file ',trim(adjustl(full_fileName))
-         call MPI_Abort(app_comm,-1,mpi_err)
-      end if
-      call h5pclose_f(plist_id, h5err)
-      !-----------------------------------------------------------------------------------------------
-      ds_dims(1) = int(totalNumNodesPar,hsize_t)
-      ms_dims(1) = int(numNodesRankPar,hsize_t)
-      ms_offset(1) = int(rankNodeStart,hssize_t)-1
-      !-----------------------------------------------------------------------------------------------
-      dsetname = 'rho'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,rho)
-
-      dsetname = 'u_x'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u(:,1))
-
-      dsetname = 'u_y'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u(:,2))
-
-      dsetname = 'u_z'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u(:,3))
-
-      dsetname = 'mu_fluid'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,mu_fluid)
-
-      dsetname = 'mut'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,mut)
-
-      dsetname = 'envit'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,envit)
-
-      dsetname = 'gradRho_x'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,gradRho(:,1))
-
-      dsetname = 'gradRho_y'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,gradRho(:,2))
-
-      dsetname = 'gradRho_z'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,gradRho(:,3))
-
-      dsetname = 'curlU_x'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,curlU(:,1))
-
-      dsetname = 'curlU_y'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,curlU(:,2))
-
-      dsetname = 'curlU_z'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,curlU(:,3))
-
-      dsetname = 'pr'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,pr)
-
-      dsetname = 'E'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,E)
-
-      dsetname = 'eta'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,eta)
-
-      dsetname = 'csound'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,csound)
-
-      dsetname = 'machno'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,machno)
-
-      dsetname = 'divU'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,divU)
-
-      dsetname = 'Qcrit'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,Qcrit)
-
-      ! ----  time  -----
-      ms_dims(1) = 0
-      ds_dims = 1
-      ms_offset(1) = 0
-      if(mpi_rank.eq.0) then
-         ms_dims(1) = 1
-      endif
-      aux_array_time = time
-
-      dsetname = 'time'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_array_time)
-
-      !close the file.
-      call h5fclose_f(file_id,h5err)
-
-   end subroutine save_hdf5_resultsFile_old
-#endif
 
    subroutine interpolate_scalarField_in_nodes(mnnode,mngaus,Ngp,connecParW,connecParO,origNodeScalarField,interpNodeScalarField)
       implicit none
@@ -4393,8 +3578,7 @@ contains
 
    end subroutine copy_scalarField_in_elemGp
 
-
-
+!----------------------------------------------------------------------------------------------------------------------------------
 
    subroutine save_hdf5_resultsFile_baseFunc(mnnode,mngaus,Ngp_equi,hdf5_fileId,numNodeScalarFields2save,nodeScalarFields2save,nameNodeScalarFields2save,&
                                              numNodeVectorFields2save,nodeVectorFields2save,nameNodeVectorFields2save,&
@@ -4682,8 +3866,6 @@ contains
    end subroutine load_avgResults_hdf5_file
 
    !-------------------------------------------------------------------------------------------------------------------------------
-   !de moment la faig generica, ho enfoc a result instantani, despres veure si em funciona i ho puc estendre al avg
-   !cool
 
    subroutine save_surface_instResults_hdf5_file(iStep,numNodeScalarFields2save,nameNodeScalarFields2save,&
                                                   numNodeVectorFields2save,nameNodeVectorFields2save,&
@@ -4864,9 +4046,6 @@ contains
       ms_dims(1)   = int(numBoundsRankPar,hsize_t)   * int(mnpbou,hsize_t)
       ms_offset(1) = int((mpiRankBoundStart-1),hssize_t)* int(mnpbou,hssize_t)
 
-      !write(*,*) 'EI! THIS FUNC save_surface_mesh_hdf5_file() in mod_hdf5.f90 NOW DOES NOT WORK! FIX IT!'
-      !call MPI_Abort(app_comm,-1,mpi_err)
-
       do iBound=1,numBoundsRankPar
          do ii=1,mnpbou
 
@@ -4919,183 +4098,6 @@ contains
 
    end subroutine save_surface_mesh_hdf5_file
 
-#if 0
-   subroutine save_hdf5_avgResultsFile_old(iStep,avvel,avve2,avvex,avrho,avpre,avmueff,avtw)
-      implicit none
-      integer,intent(in) :: iStep
-      real(rp),intent(in),dimension(numNodesRankPar)       :: avrho,avpre,avmueff
-      real(rp),intent(in),dimension(numNodesRankPar,ndime) :: avvel,avve2,avvex,avtw
-
-      integer(hid_t) :: file_id,plist_id,dtype
-      integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
-      integer(HSSIZE_T), dimension(1) :: ms_offset
-      integer(4) :: h5err
-      character(512) :: full_fileName,dsetname
-      real(rp) :: aux_array(1)
-
-      !------------------------------------------------------------------------------------
-      ! Writing HDF5 Files
-
-      call set_hdf5_avgResultsFile_name(iStep,full_fileName)
-
-      ! Setup file access property list with parallel I/O access.
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
-      call h5pset_fapl_mpio_f(plist_id,app_comm,MPI_INFO_NULL,h5err)
-
-      ! create file collectively
-      call h5fcreate_f(full_fileName,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
-      if(h5err .ne. 0) then
-         write(*,*) 'FATAL ERROR! Cannot create avg results file ',trim(adjustl(full_fileName))
-         call MPI_Abort(app_comm,-1,mpi_err)
-      end if
-      call h5pclose_f(plist_id, h5err)
-
-      ds_dims(1) = int(totalNumNodesPar,hsize_t)
-      ms_dims(1) = int(numNodesRankPar,hsize_t)
-      ms_offset(1) = int(rankNodeStart,hssize_t)-1
-
-      dsetname = 'avrho'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avrho)
-
-      dsetname = 'avpre'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avpre)
-
-      dsetname = 'avmueff'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avmueff)
-
-      dsetname = 'avvel_x'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvel(:,1))
-
-      dsetname = 'avvel_y'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvel(:,2))
-
-      dsetname = 'avvel_z'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvel(:,3))
-
-      dsetname = 'avve2_x'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avve2(:,1))
-
-      dsetname = 'avve2_y'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avve2(:,2))
-
-      dsetname = 'avve2_z'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avve2(:,3))
-
-      dsetname = 'avvex_x'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvex(:,1))
-
-      dsetname = 'avvex_y'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvex(:,2))
-
-      dsetname = 'avvex_z'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avvex(:,3))
-
-      dsetname = 'avtw_x'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avtw(:,1))
-
-      dsetname = 'avtw_y'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avtw(:,2))
-
-      dsetname = 'avtw_z'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avtw(:,3))
-
-      !close the file.
-      call h5fclose_f(file_id,h5err)
-
-   end subroutine save_hdf5_avgResultsFile_old
-
-   subroutine load_hdf5_avgResultsFile(iStep,avvel,avve2,avvex,avrho,avpre,avmueff,avtw)
-      implicit none
-      integer, intent(in) :: iStep
-      real(rp),intent(inout),dimension(numNodesRankPar)       :: avrho,avpre,avmueff
-      real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: avvel,avve2,avvex,avtw
-
-      integer(hid_t) :: file_id,plist_id,dtype
-      integer(HSIZE_T), dimension(1) :: ms_dims
-      integer(HSSIZE_T), dimension(1) :: ms_offset
-      integer :: ms_rank,h5err
-      character(512) :: full_fileName,dsetname
-      real(rp) :: aux_array(1)
-
-      !------------------------------------------------------------------------------------
-      ! Writing HDF5 Files
-
-      call set_hdf5_avgResultsFile_name(iStep,full_fileName)
-      if(mpi_rank.eq.0) write(*,*) '# Loading results file: ',trim(adjustl(full_fileName))
-
-      ! Setup file access property list with parallel I/O access.
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
-      call h5pset_fapl_mpio_f(plist_id,app_comm,MPI_INFO_NULL,h5err)
-
-      call h5fopen_f(full_fileName, H5F_ACC_RDWR_F,file_id,h5err,access_prp=plist_id)
-      if(h5err .ne. 0) then
-         write(*,*) 'FATAL ERROR! Cannot load results avg file ',trim(adjustl(full_fileName))
-         call MPI_Abort(app_comm,-1,mpi_err)
-      end if
-      call h5pclose_f(plist_id, h5err)
-
-      ms_dims(1) = int(numNodesRankPar,hsize_t)
-      ms_offset(1) = int(rankNodeStart,hssize_t)-1
-
-      dsetname = 'avrho'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avrho)
-
-      dsetname = 'avpre'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avpre)
-
-      dsetname = 'avmueff'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avmueff)
-
-      dsetname = 'avvel_x'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvel(:,1))
-
-      dsetname = 'avvel_y'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvel(:,2))
-
-      dsetname = 'avvel_z'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvel(:,3))
-
-      dsetname = 'avve2_x'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avve2(:,1))
-
-      dsetname = 'avve2_y'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avve2(:,2))
-
-      dsetname = 'avve2_z'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avve2(:,3))
-
-      dsetname = 'avvex_x'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvex(:,1))
-
-      dsetname = 'avvex_y'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvex(:,2))
-
-      dsetname = 'avvex_z'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avvex(:,3))
-
-      dsetname = 'avtw_x'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avtw(:,1))
-
-      dsetname = 'avtw_y'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avtw(:,2))
-
-      dsetname = 'avtw_z'
-      call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,avtw(:,3))
-
-      !close the file.
-      call h5fclose_f(file_id,h5err)
-
-   end subroutine load_hdf5_avgResultsFile
-
-   subroutine close_hdf5_resultsfile()
-      implicit none
-      integer :: h5err
-
-      !close the file.
-      call h5fclose_f(resultsFile_h5_id,h5err)
-
-   end subroutine close_hdf5_resultsfile
-#endif
 !---------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------
 !        VTKHDF5 FILE
@@ -5600,231 +4602,6 @@ contains
 
 !-------------------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine write_vtkhdf_instResultsFile(mnnode,full_fileName,rho,pr,E,eta,csound,machno,divU,Qcrit,envit,mut,mu_fluid,u,gradRho,curlU)
-      implicit none
-      integer(4),intent(in) :: mnnode
-      character(512),intent(in) :: full_fileName
-      real(rp),dimension(numNodesRankPar),intent(in) :: rho,pr,E,eta,csound,machno,divU,Qcrit
-      real(rp),dimension(numNodesRankPar),intent(in) :: envit,mut,mu_fluid
-      real(rp),dimension(numNodesRankPar,ndime),intent(in) :: u,gradRho,curlU
-
-      character(512) :: dsetname
-      integer(hid_t) :: file_id,plist_id,dset_id
-      integer(hid_t) :: dtype
-      integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
-      integer(HSIZE_T), dimension(2) :: ds_dims2d,ms_dims2d
-      integer(HSSIZE_T), dimension(1) :: ms_offset
-      integer(HSSIZE_T), dimension(2) :: ms_offset2d
-      integer(4) :: ds_rank,h5err
-
-      integer(4) :: ii,iElemL
-      integer(1),allocatable :: aux_array_i1(:)
-
-      !------------------------------------------------------------------------------------
-
-      ! Setup file access property list with parallel I/O access.
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
-      call h5pset_fapl_mpio_f(plist_id,app_comm,MPI_INFO_NULL,h5err)
-
-      ! create file collectively
-      call h5fcreate_f(full_fileName,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
-      if(h5err .ne. 0) then
-         write(*,*) 'FATAL ERROR! Cannot create VTKHDF ',trim(adjustl(full_fileName))
-         call MPI_Abort(app_comm,-1,mpi_err)
-      end if
-      call h5pclose_f(plist_id, h5err)
-
-      call create_vtkhdf_unstructuredGrid_meshFile(mnnode,file_id)
-
-      !------------------------------------------------------------------------------------------------------
-      ds_dims(1)   = int(totalNumNodesPar,hsize_t)
-      ms_dims(1)   = int(numNodesRankPar ,hsize_t)
-      ms_offset(1) = int(rankNodeStart,hssize_t)-1
-
-      ! ## RHO ##
-      dsetname = '/VTKHDF/PointData/rho'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,rho)
-
-      ! ## PR ##
-      dsetname = '/VTKHDF/PointData/pr'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,pr)
-
-      ! ## Ener ##
-      dsetname = '/VTKHDF/PointData/Ener'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,E)
-
-      ! ## eta ##
-      dsetname = '/VTKHDF/PointData/eta'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,eta)
-
-      ! ## csound ##
-      dsetname = '/VTKHDF/PointData/csound'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,csound)
-
-      ! ## machno ##
-      dsetname = '/VTKHDF/PointData/machno'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,machno)
-
-      ! ## divU ##
-      dsetname = '/VTKHDF/PointData/divU'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,divU)
-
-      ! ## Qcrit ##
-      dsetname = '/VTKHDF/PointData/Qcrit'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,Qcrit)
-
-      ! ## envit ##
-      dsetname = '/VTKHDF/PointData/envit'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,envit)
-
-      ! ## mut ##
-      dsetname = '/VTKHDF/PointData/mut'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,mut)
-
-      ! ## mu_fluid ##
-      dsetname = '/VTKHDF/PointData/mu_fluid'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,mu_fluid)
-
-      !-------------------------------------------------------------------------------------------------------
-      ds_rank = 2
-      ds_dims2d(1) = 3
-      ms_dims2d(1) = 1
-      ds_dims2d(2) = totalNumNodesPar
-      ms_dims2d(2) = numNodesRankPar
-      ms_offset2d(1) = 0
-      ms_offset2d(2) = rankNodeStart-1
-      !--------------------------------------------------------------------------------
-      dsetname = '/VTKHDF/PointData/Velocity'
-      call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,u)
-      !--------------------------------------------------------------------------------
-      dsetname = '/VTKHDF/PointData/gradRho'
-      call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,gradRho)
-      !--------------------------------------------------------------------------------
-      dsetname = '/VTKHDF/PointData/curlU'
-      call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,curlU)
-      !-------------------------------------------------------------------------------------------------------
-
-      allocate(aux_array_i1(numNodesRankPar))
-      !------------------------------------------------------------------------------------------------------
-      dtype = h5_datatype_uint1
-      ds_rank = 1
-      ds_dims(1)   = int(totalNumElements,hsize_t)
-      ms_dims(1)   = int(numElemsRankPar ,hsize_t)
-      ms_offset(1) = int(rankElemStart,hssize_t)-1
-
-      ! ## mpi_rank ##
-      dsetname = '/VTKHDF/CellData/mpi_rank'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      do iElemL = 1,numElemsRankPar
-         aux_array_i1(iElemL) = mpi_rank
-      end do
-      call write_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i1)
-
-      deallocate(aux_array_i1)
-
-      !close the file.
-      call h5fclose_f(file_id,h5err)
-
-   end subroutine write_vtkhdf_instResultsFile
-
-   subroutine write_vtkhdf_avgResultsFile(mnnode,full_fileName,avrho,avpre,avmueff,avvel,avve2,avvex,avtw)
-      implicit none
-      integer(4),intent(in) :: mnnode
-      character(512),intent(in) :: full_fileName
-      real(rp),dimension(numNodesRankPar),intent(in) :: avrho,avpre,avmueff
-      real(rp),dimension(numNodesRankPar,ndime),intent(in) :: avvel,avve2,avvex,avtw
-
-      character(512) :: dsetname
-      integer(hid_t) :: file_id,plist_id,dset_id
-      integer(hid_t) :: dtype
-      integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
-      integer(HSIZE_T), dimension(2) :: ds_dims2d,ms_dims2d
-      integer(HSSIZE_T), dimension(1) :: ms_offset
-      integer(HSSIZE_T), dimension(2) :: ms_offset2d
-      integer(4) :: ds_rank,h5err
-
-      integer(4) :: iElemL
-      integer(1),allocatable :: aux_array_i1(:)
-
-      !------------------------------------------------------------------------------------
-      ! Setup file access property list with parallel I/O access.
-      call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
-      call h5pset_fapl_mpio_f(plist_id,app_comm,MPI_INFO_NULL,h5err)
-
-      ! create file collectively
-      call h5fcreate_f(full_fileName,H5F_ACC_TRUNC_F,file_id,h5err,access_prp=plist_id)
-      if(h5err .ne. 0) then
-         write(*,*) 'FATAL ERROR! Cannot create VTKHDF ',trim(adjustl(full_fileName))
-         call MPI_Abort(app_comm,-1,mpi_err)
-      end if
-      call h5pclose_f(plist_id, h5err)
-
-      call create_vtkhdf_unstructuredGrid_meshFile(mnnode,file_id)
-
-      !------------------------------------------------------------------------------------------------------
-      ds_rank = 1
-      ds_dims(1)   = int(totalNumNodesPar,hsize_t)
-      ms_dims(1)   = int(numNodesRankPar ,hsize_t)
-      ms_offset(1) = int(rankNodeStart,hssize_t)-1
-
-      ! ## avgRHO ##
-      dsetname = '/VTKHDF/PointData/avrho'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avrho)
-
-      ! ## avgPRE ##
-      dsetname = '/VTKHDF/PointData/avpre'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avpre)
-
-      ! ## avgMUEFF ##
-      dsetname = '/VTKHDF/PointData/avmueff'
-      call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,avmueff)
-
-      !-------------------------------------------------------------------------------------------------------
-      ds_rank = 2
-      ds_dims2d(1) = 3
-      ms_dims2d(1) = 1
-      ds_dims2d(2) = totalNumNodesPar
-      ms_dims2d(2) = numNodesRankPar
-      ms_offset2d(1) = 0
-      ms_offset2d(2) = rankNodeStart-1
-      !--------------------------------------------------------------------------------
-      dsetname = '/VTKHDF/PointData/avvel'
-      call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,avvel)
-      !--------------------------------------------------------------------------------
-      dsetname = '/VTKHDF/PointData/avve2'
-      call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,avve2)
-      !--------------------------------------------------------------------------------
-      dsetname = '/VTKHDF/PointData/avvex'
-      call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,avvex)
-      !--------------------------------------------------------------------------------
-      dsetname = '/VTKHDF/PointData/avtw'
-      call save_array2D_tr_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,avtw)
-      !--------------------------------------------------------------------------------
-
-      !-------------------------------------------------------------------------------------------------------
-      allocate(aux_array_i1(numNodesRankPar))
-      !------------------------------------------------------------------------------------------------------
-      dtype = h5_datatype_uint1
-      ds_rank = 1
-      ds_dims(1)   = int(totalNumElements,hsize_t)
-      ms_dims(1)   = int(numElemsRankPar ,hsize_t)
-      ms_offset(1) = int(rankElemStart,hssize_t)-1
-
-      ! ## mpi_rank ##
-      dsetname = '/VTKHDF/CellData/mpi_rank'
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      do iElemL = 1,numElemsRankPar
-         aux_array_i1(iElemL) = mpi_rank
-      end do
-      call write_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i1)
-
-      deallocate(aux_array_i1)
-
-      !close the file.
-      call h5fclose_f(file_id,h5err)
-
-   end subroutine write_vtkhdf_avgResultsFile
-
    subroutine write_vtkhdf_realFieldFile(mnnode,full_fileName,realField)
       implicit none
       integer(4),intent(in) :: mnnode
@@ -5892,50 +4669,6 @@ contains
 
 !-----------------------------------------------------------------------------------------------------------------------------
 
-   subroutine save_vtkhdf_instResultsFile(mnnode,iStep,rho,pr,E,eta,csound,machno,divU,Qcrit,envit,mut,mu_fluid,u,gradRho,curlU)
-      implicit none
-      integer, intent(in) :: mnnode,iStep
-      real(rp),dimension(numNodesRankPar),intent(in) :: rho,pr,E,eta,csound,machno,divU,Qcrit
-      real(rp),dimension(numNodesRankPar),intent(in) :: envit,mut,mu_fluid
-      real(rp),dimension(numNodesRankPar,ndime),intent(in) :: u,gradRho,curlU
-      character(512) :: full_fileName
-
-      !------------------------------------------------------------------------------------
-      call set_vtkhdf_resultsFile_name(iStep,full_fileName)
-      if(mpi_rank.eq.0) write(*,*) '# Saving VTKHDF inst results file: ',trim(adjustl(full_fileName))
-
-      call write_vtkhdf_instResultsFile(mnnode,full_fileName,rho,pr,E,eta,csound,machno,divU,Qcrit,envit,mut,mu_fluid,u,gradRho,curlU)
-
-   end subroutine save_vtkhdf_instResultsFile
-
-   subroutine save_vtkhdf_avgResultsFile(mnnode,iStep,avrho,avpre,avmueff,avvel,avve2,avvex,avtw)
-      implicit none
-      integer, intent(in) :: mnnode,iStep
-      real(rp),dimension(numNodesRankPar),intent(in) :: avrho,avpre,avmueff
-      real(rp),dimension(numNodesRankPar,ndime),intent(in) :: avvel,avve2,avvex,avtw
-      character(512) :: full_fileName
-
-      call set_vtkhdf_avgResultsFile_name(iStep,full_fileName)
-      if(mpi_rank.eq.0) write(*,*) '# Saving VTKHDF avg results file: ',trim(adjustl(full_fileName))
-
-      call write_vtkhdf_avgResultsFile(mnnode,full_fileName,avrho,avpre,avmueff,avvel,avve2,avvex,avtw)
-
-   end subroutine save_vtkhdf_avgResultsFile
-
-   subroutine save_vtkhdf_finalAvgResultsFile(mnnode,favrho,favpre,favmueff,favvel,favve2,favvex,favtw)
-      implicit none
-      integer(4),intent(in) :: mnnode
-      real(rp),dimension(numNodesRankPar),intent(in) :: favrho,favpre,favmueff
-      real(rp),dimension(numNodesRankPar,ndime),intent(in) :: favvel,favve2,favvex,favtw
-      character(512) :: full_fileName
-
-      call set_vtkhdf_finalAvgResultsFile_name(full_fileName)
-      if(mpi_rank.eq.0) write(*,*) '# Saving VTKHDF final avg results file: ',trim(adjustl(full_fileName))
-
-      call write_vtkhdf_avgResultsFile(mnnode,full_fileName,favrho,favpre,favmueff,favvel,favve2,favvex,favtw)
-
-   end subroutine save_vtkhdf_finalAvgResultsFile
-
    subroutine save_vtkhdf_realFieldFile(mnnode,realField)
       implicit none
       integer(4),intent(in) :: mnnode
@@ -5953,7 +4686,7 @@ contains
 !---------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------
 
-   subroutine get_dims(file_id,dsetname, ms_rank, fs_dims, fs_maxdims)
+   subroutine get_dims_hdf5(file_id,dsetname, ms_rank, fs_dims, fs_maxdims)
       integer(hid_t),intent(in) :: file_id
       character(len=*),intent(in) :: dsetname
       integer, intent(in) :: ms_rank
@@ -5974,7 +4707,7 @@ contains
       call h5sclose_f(fspace_id,h5err)
       call h5dclose_f(dset_id,h5err)
 
-   end subroutine get_dims
+   end subroutine get_dims_hdf5
 
 !-------------------------------WITNESS POINTS-------------------------------!
    subroutine create_witness_hdf5(full_fileName, mnnode, xyz, witel, witxi, shapewit, nwit, nwitPar, witGlob, save_u_i, save_pr, save_rho)
@@ -6181,7 +4914,7 @@ contains
       !Read step to continue!
       dsetname     = 'istep'
       ms_rank      = 1
-      call get_dims(file_id, dsetname, ms_rank, nsteps, maxnsteps)
+      call get_dims_hdf5(file_id, dsetname, ms_rank, nsteps, maxnsteps)
       ms_dims(1)   = nsteps(1)
       ms_offset(1) = 0
       allocate(steps(nsteps(1)))

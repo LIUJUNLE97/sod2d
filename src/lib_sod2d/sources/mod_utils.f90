@@ -5,8 +5,6 @@ module mod_read_inputFile
    use mod_mpi
    implicit none
 
-   !character(999) :: path_input_file
-
 contains
 
    elemental subroutine str2int(str,int,stat)
@@ -525,7 +523,6 @@ contains
       enddo
    end subroutine quicksort_array_int8
 
-
    !########################################################################
 
    recursive function binarySearch_int_r(a, value) result(bsresult)
@@ -625,50 +622,49 @@ contains
 end module mod_utils
 
 module mod_parTimer
-    use mpi
-    implicit none
-    private
-    public :: parTimer
+   use mpi
+   implicit none
+   private
+   public :: parTimer
 
-    type parTimer
-        private
-        real(8) :: total_time, wc_start, wc_end, current_time
-    contains
-        procedure, public :: init_timer
-        procedure, public :: start_timer, stop_timer
-        procedure, public :: get_totalTime
-    end type parTimer
+   type parTimer
+      private
+      real(8) :: total_time, wc_start, wc_end, current_time
+   contains
+      procedure, public :: init_timer
+      procedure, public :: start_timer, stop_timer
+      procedure, public :: get_totalTime
+   end type parTimer
 
 contains
 
-    subroutine init_timer(this)
-        class(parTimer), intent(inout) :: this
-        this%total_time = 0.d0
-        this%wc_start = 0.d0
-        this%wc_end = 0.d0
-        this%current_time = 0.d0
-    end subroutine init_timer
+   subroutine init_timer(this)
+      class(parTimer), intent(inout) :: this
+      this%total_time = 0.d0
+      this%wc_start = 0.d0
+      this%wc_end = 0.d0
+      this%current_time = 0.d0
+   end subroutine init_timer
 
-    subroutine start_timer(this)
-        class(parTimer), intent(inout) :: this
+   subroutine start_timer(this)
+      class(parTimer), intent(inout) :: this
 
-        this%wc_start = MPI_Wtime()
+      this%wc_start = MPI_Wtime()
 
-    end subroutine start_timer
+   end subroutine start_timer
 
-    subroutine stop_timer(this)
-        class(parTimer), intent(inout) :: this
+   subroutine stop_timer(this)
+      class(parTimer), intent(inout) :: this
 
-        this%wc_end = MPI_Wtime()
-        this%current_time = this%wc_end - this%wc_start
-        this%total_time = this%total_time + this%current_time
+      this%wc_end = MPI_Wtime()
+      this%current_time = this%wc_end - this%wc_start
+      this%total_time = this%total_time + this%current_time
 
-    end subroutine stop_timer
+   end subroutine stop_timer
 
-    real(8) function get_totalTime(this) result(val)
-        class(parTimer), intent(inout) :: this
-        val = this%total_time
-    end function get_totalTime
-
+   real(8) function get_totalTime(this) result(val)
+      class(parTimer), intent(inout) :: this
+      val = this%total_time
+   end function get_totalTime
 
 end module mod_parTimer

@@ -4,8 +4,8 @@ program tool_commsPerfomance
     use mod_read_inputFile
     use mod_mpi_mesh
     use mod_comms
-    use mod_comms_performance
     use mod_hdf5
+    use mod_comms_performance
     implicit none
 
     character(999) :: input_file
@@ -16,7 +16,7 @@ program tool_commsPerfomance
     character(512) :: results_h5_file_path,results_h5_file_name
 
     logical :: useMesh=.false.
-    logical :: useIntInComms=.false.,useFloatInComms=.false.,useDoubleInComms=.false.
+    logical :: useIntInComms=.false.,useRealInComms=.false.
 
     call init_mpi()
 
@@ -43,34 +43,30 @@ program tool_commsPerfomance
     call read_inputFile_logical(lineCnt,parameter2read,useIntInComms)
 
     !3. Use FLOAT in COMMS--------------------------------------------------------------------------
-    parameter2read = 'useFloatInComms'
-    call read_inputFile_logical(lineCnt,parameter2read,useFloatInComms)
+    parameter2read = 'useRealInComms'
+    call read_inputFile_logical(lineCnt,parameter2read,useRealInComms)
 
-    !4. Use DOUBLE in COMMS--------------------------------------------------------------------------
-    parameter2read = 'useDoubleInComms'
-    call read_inputFile_logical(lineCnt,parameter2read,useDoubleInComms)
-
-    !5. Use mesh--------------------------------------------------------------------------
+    !4. Use mesh--------------------------------------------------------------------------
     parameter2read = 'useMesh'
     call read_inputFile_logical(lineCnt,parameter2read,useMesh)
 
     if(useMesh) then
 
-        !6. mesh_h5_file_path--------------------------------------------------------------
+        !5. mesh_h5_file_path--------------------------------------------------------------
         parameter2read = 'mesh_h5_file_path'
         call read_inputFile_string(lineCnt,parameter2read,mesh_h5_file_path)
 
-        !7. mesh_h5_file_name--------------------------------------------------------------
+        !6. mesh_h5_file_name--------------------------------------------------------------
         parameter2read = 'mesh_h5_file_name'
         call read_inputFile_string(lineCnt,parameter2read,mesh_h5_file_name)
 
     else
 
-        !6. numNodesSrl--------------------------------------------------------------------------
+        !5. numNodesSrl--------------------------------------------------------------------------
         parameter2read = 'numNodesSrl'
         call read_inputFile_integer(lineCnt,parameter2read,numNodesSrl)
 
-        !7. numNodesB_1r --------------------------------------------------------------------------
+        !6. numNodesB_1r --------------------------------------------------------------------------
         parameter2read = 'numNodesB_1r'
         call read_inputFile_integer(lineCnt,parameter2read,numNodesB_1r)
 
@@ -81,22 +77,17 @@ program tool_commsPerfomance
     call close_inputFile()
 
     if(useMesh) then
-
-        !write(results_h5_file_path,*) ""
-        !write(results_h5_file_name,*) "dummy"
-
         call init_hdf5_interface()
         call set_hdf5_meshFile_name(mesh_h5_file_path,mesh_h5_file_name,mpi_size)
-        call load_hdf5_meshfile()
+        call load_hdf5_meshfile(nnode,npbou)
     else
         call create_dummy_1Dmesh(numNodesSrl,numNodesB_1r)
     end if
 
-   call init_comms_performance(useIntInComms,useFloatInComms,useDoubleInComms)
+   call init_comms_performance(useIntInComms,useRealInComms)
 
-    !call debug_comms_float()
-
-   call test_comms_performance_float(numIters)
+   !call debug_comms_float()
+   call test_comms_performance_real(numIters)
 
 
    !call nvtxStartRange("saxpy loop")

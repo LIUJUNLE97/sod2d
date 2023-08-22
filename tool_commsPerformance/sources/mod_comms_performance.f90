@@ -679,7 +679,7 @@ contains
       if(mpi_rank.eq.0) write(*,*) 'OnlyBuffers real time:',elapsed_time,'isOk',isOk
       !---------------------------------------------------------------
 #endif
-   end subroutine
+   end subroutine test_comms_performance_real
 
    subroutine check_results_mpi_halo_atomic_update_real(refValue,realField,isOk)
       implicit none
@@ -732,8 +732,7 @@ contains
    end subroutine normalize_realField_in_sharedNodes
 
 #if 0
-## REPASAR AQUESTA SECCIO
-
+## SECTION TO REVIEW AND RESTORE AT SOME POINT FOR COMM PERFOMANCES TESTS
 
    subroutine saxpy(n,y,alpha,x)
       !saxpy: y <- y+alpha*x
