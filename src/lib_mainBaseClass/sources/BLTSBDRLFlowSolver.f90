@@ -58,11 +58,11 @@ module BLTSBDRLFlowSolver_mod
       procedure, public :: afterDt => BLTSBDRLFlowSolver_afterDt
       procedure, public :: getControlNodes => BLTSBDRLFlowSolver_getControlNodes
       procedure, public :: readControlRectangles => BLTSBDRLFlowSolver_readControlRectangles
+      procedure, public :: computeReward => BLTSBDRLFlowSolver_computeReward
 #ifdef SMARTREDIS
       procedure, public :: initSmartRedis  => BLTSBDRLFlowSolver_initSmartRedis
       procedure, public :: afterTimeIteration => BLTSBDRLFlowSolver_afterTimeIteration
       procedure, public :: smoothControlFunction => BLTSBDRLFlowSolver_smoothControlFunction
-      procedure, public :: computeReward => BLTSBDRLFlowSolver_computeReward
 #endif
    end type BLTSBDRLFlowSolver
 contains
@@ -71,24 +71,23 @@ contains
    subroutine BLTSBDRLFlowSolver_initSmartRedis(this)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
 
-      this%previousActuationTime = this%timeBeginActuation
       open(unit=443,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_raw.txt",status='replace')
       open(unit=444,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_smooth.txt",status='replace')
-      open(unit=445,file="./output_"//trim(adjustl(this%tag))//"/"//"tw.txt",status='replace')
       call init_smartredis(client, this%nwitPar, this%nRectangleControl, trim(adjustl(this%tag)), this%db_clustered)
       call write_step_type(client, 1, "ensemble_"//trim(adjustl(this%tag))//".step_type")
    end subroutine BLTSBDRLFlowSolver_initSmartRedis
+#endif
 
    subroutine BLTSBDRLFlowSolver_afterTimeIteration(this)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
-
+#ifdef SMARTREDIS
       call write_step_type(client, 0, "ensemble_"//trim(adjustl(this%tag))//".step_type")
       close(443)
       close(444)
-      close(445)
       call end_smartredis(client)
-   end subroutine BLTSBDRLFlowSolver_afterTimeIteration
 #endif
+      close(445)
+   end subroutine BLTSBDRLFlowSolver_afterTimeIteration
 
    subroutine BLTSBDRLFlowSolver_afterDt(this,istep)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
@@ -180,6 +179,17 @@ contains
       end if
 #endif
 #endif
+
+      ! Write wall shear stresses
+      if (this%time .gt. this%timeBeginActuation) then
+         if (this%time - this%previousActuationTime .ge. this%periodActuation) then
+            this%previousActuationTime = this%previousActuationTime + this%periodActuation
+            call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
+            write(445,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_pos(2)
+            call flush(445)
+         end if
+      end if
+
       !$acc parallel loop private(vl,dlxi_ip, dleta_ip, dlzeta_ip,gradIsoV,gradV,gradIsoU,gradU,ul)
       do iNodeL2 = 1,numWorkingNodesRankPar
          iNodeL = workingNodesPar(iNodeL2)
@@ -247,7 +257,7 @@ contains
       end if
       !$acc parallel loop gang
       do ielem = 1, numElemsRankPar
-         iCen = connecParWork(ielem,atoIJK(64))
+         iCen = connecParWork(ielem,atoIJK(nnode))
          yp = coordPar(iCen,2)
          xp = coordPar(iCen,1)
 
@@ -286,6 +296,8 @@ contains
       action_global_instant(:) = action_global_previous(:) + f3 * (action_global(:) - action_global_previous(:))
       !$acc end kernels
    end subroutine BLTSBDRLFlowSolver_smoothControlFunction
+#endif
+#endif
 
    subroutine BLTSBDRLFlowSolver_computeReward(this, surfCode, Ftau_neg, Ftau_pos)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
@@ -297,8 +309,6 @@ contains
          mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), Ftau_neg, Ftau_pos)
 
    end subroutine BLTSBDRLFlowSolver_computeReward
-#endif
-#endif
 
    subroutine BLTSBDRLFlowSolver_readControlRectangles(this)
       ! This subroutine reads the file that contains the two points defining a rectanle paralel to the X-Z axis. Several rectangles
@@ -566,12 +576,9 @@ contains
       ! or 2 (last episode result) saved as *_2.h5
       output_dir = "./output_"//trim(adjustl(this%tag))//"/"
       inquire(file=trim(adjustl(output_dir)), exist=output_dir_exists)
-      if (.not. output_dir_exists .and. mpi_rank .eq. 0) then
-         call system("mkdir -p "//trim(adjustl(output_dir)))
+      if (mpi_rank .eq. 0) then
+         if (.not. output_dir_exists) call system("mkdir -p "//trim(adjustl(output_dir)))
          call system("cp restart/* "//trim(adjustl(output_dir)))
-      ! previously run environment, so restart_2 is from last episode and we do not overwrite it
-      elseif (output_dir_exists .and. mpi_rank .eq. 0) then
-         call system("cp restart/*_1.h5 "//trim(adjustl(output_dir)))
       end if
 
       write(this%mesh_h5_file_path,*) ""
@@ -587,7 +594,7 @@ contains
          write(*,*) "--tag: ", adjustl(trim(this%tag))
          write(*,*) "--restart_step: ", this%restartFile_to_load
          write(*,*) "--db_clustered: ", db_clustered_str
-         write(*,*) "--freq_action: ", this%frequencyActuation
+         write(*,*) "--f_action: ", this%frequencyActuation
          write(*,*) "--t_episode: ", this%periodEpisode
       end if
 
@@ -597,20 +604,22 @@ contains
       this%maxPhysTime = this%periodEpisode
 
       this%save_logFile_first = 1
-      this%save_logFile_step = 1 ! 250
+      this%save_logFile_step = 250
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 20000
+      this%save_restartFile_step = 100000
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 20000
+      this%save_resultsFile_step = 100000
 
       this%loadRestartFile = .true.
-      ! read(restart_step_str, *) this%restartFile_to_load ! 1: baseline, 2: last episode
       this%continue_oldLogs = .false.
 
       this%initial_avgTime = 0.0 ! 3000.0_rp
       this%saveAvgFile = .true.
       this%loadAvgFile = .false. ! .true.
+
+      ! wall shear stress output
+      open(unit=445,file="./output_"//trim(adjustl(this%tag))//"/"//"tw.txt",status='replace')
       !----------------------------------------------
 
       ! numerical params
@@ -700,10 +709,9 @@ contains
       this%save_avgVectorField_vtw     = .true.
 
       ! control parameters
-#if (ACTUATION)
       write(this%fileControlName ,*) "rectangleControl.txt"
-      this%timeBeginActuation = 1.0 ! 0.1 ! 2000.0_rp
-#endif
+      this%timeBeginActuation = 0.0
+      this%previousActuationTime = this%timeBeginActuation
 
       !Blasius analytical function
       call this%fillBlasius()
