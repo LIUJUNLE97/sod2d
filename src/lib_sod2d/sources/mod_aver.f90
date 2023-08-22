@@ -25,46 +25,32 @@ contains
       !$acc parallel loop
       do ipoin = 1,npoin_w
          do idime = 1,ndime
-            !!!$acc atomic update
             avvel(lpoin_w(ipoin),idime) = (avvel(lpoin_w(ipoin),idime)*elapsed_avg_time + &
                                            rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*dt ) &
                                           * inv_denominator
-            !!!$acc end atomic
-            !!!$acc atomic update
             avve2(lpoin_w(ipoin),idime) = (avve2(lpoin_w(ipoin),idime)*elapsed_avg_time + &
                                            rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*u(lpoin_w(ipoin),idime)*dt ) &
                                           * inv_denominator
-            !!!$acc end atomic
-            !!!$acc atomic update
+
             avtw(lpoin_w(ipoin),idime)  = (avtw(lpoin_w(ipoin),idime)*elapsed_avg_time + & 
                                            tauw(lpoin_w(ipoin),idime)*dt ) &
                                           * inv_denominator
-            !!!$acc end atomic
          end do
-         !!!$acc atomic update
          avrho(lpoin_w(ipoin))   = (avrho(lpoin_w(ipoin))*elapsed_avg_time + &
                                     rho(lpoin_w(ipoin))*dt ) &
                                     * inv_denominator
-         !!!$acc end atomic
-         !!!$acc atomic update
          avpr(lpoin_w(ipoin))    = (avpr(lpoin_w(ipoin))*elapsed_avg_time + &
                                     pr(lpoin_w(ipoin))*dt) &
                                     * inv_denominator
-         !!!$acc atomic update
          avvex(lpoin_w(ipoin),1) = (avvex(lpoin_w(ipoin),1)*elapsed_avg_time + &
                                     rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),1)*u(lpoin_w(ipoin),2)*dt) &
                                     * inv_denominator
-         !!!$acc end atomic
-         !!!$acc atomic update
          avvex(lpoin_w(ipoin),2) = (avvex(lpoin_w(ipoin),2)*elapsed_avg_time + &
                                     rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),1)*u(lpoin_w(ipoin),3)*dt) &
                                     * inv_denominator
-         !!!$acc end atomic
-         !!!$acc atomic update
          avvex(lpoin_w(ipoin),3) = (avvex(lpoin_w(ipoin),3)*elapsed_avg_time + &
                                     rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),2)*u(lpoin_w(ipoin),3)*dt) &
                                     * inv_denominator
-         !!!$acc end atomic
       end do
       !$acc end parallel loop
 
@@ -83,11 +69,9 @@ contains
       !$acc end parallel loop
       !$acc parallel loop
       do ipoin = 1,npoin_w
-         !!!$acc atomic update
          avmueff(lpoin_w(ipoin)) =  (avmueff(lpoin_w(ipoin))*elapsed_avg_time + &
                                     (mu_fluid(lpoin_w(ipoin))+envit(lpoin_w(ipoin))+mut(lpoin_w(ipoin)))*dt) &
                                     * inv_denominator
-         !!!$acc end atomic
       end do
       !$acc end parallel loop
 
@@ -117,35 +101,20 @@ contains
       !$acc parallel loop
       do ipoin = 1,npoin_w
          do idime = 1,ndime
-            !$acc atomic update
             acuvel(lpoin_w(ipoin),idime) = acuvel(lpoin_w(ipoin),idime)+rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*dt
-            !$acc end atomic
-            !$acc atomic update
             acuve2(lpoin_w(ipoin),idime) = acuve2(lpoin_w(ipoin),idime)+ &
                rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*u(lpoin_w(ipoin),idime)*dt
-            !$acc end atomic
-            !$acc atomic update
             acutw(lpoin_w(ipoin),idime) = acutw(lpoin_w(ipoin),idime)+ &
                tauw(lpoin_w(ipoin),idime)*dt
-            !$acc end atomic
          end do
-         !$acc atomic update
          acurho(lpoin_w(ipoin)) = acurho(lpoin_w(ipoin))+rho(lpoin_w(ipoin))*dt
-         !$acc end atomic
-         !$acc atomic update
          acupre(lpoin_w(ipoin)) = acupre(lpoin_w(ipoin))+pr(lpoin_w(ipoin))*dt
-         !$acc atomic update
          acuvex(lpoin_w(ipoin),1) = acuvex(lpoin_w(ipoin),1)+ &
             rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),1)*u(lpoin_w(ipoin),2)*dt
-         !$acc end atomic
-         !$acc atomic update
          acuvex(lpoin_w(ipoin),2) = acuvex(lpoin_w(ipoin),2)+ &
             rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),1)*u(lpoin_w(ipoin),3)*dt
-         !$acc end atomic
-         !$acc atomic update
          acuvex(lpoin_w(ipoin),3) = acuvex(lpoin_w(ipoin),3)+ &
             rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),2)*u(lpoin_w(ipoin),3)*dt
-         !$acc end atomic
       end do
       !$acc end parallel loop
 
@@ -164,10 +133,8 @@ contains
       !$acc end parallel loop
       !$acc parallel loop
       do ipoin = 1,npoin_w
-         !$acc atomic update
          acumueff(lpoin_w(ipoin)) = acumueff(lpoin_w(ipoin))+ &
             (mu_fluid(lpoin_w(ipoin))+envit(lpoin_w(ipoin))+mut(lpoin_w(ipoin)))*dt
-         !$acc end atomic
       end do
       !$acc end parallel loop
 
@@ -178,7 +145,6 @@ contains
       implicit none
       logical, intent(in)                             :: isPeriodic
       integer(4), intent(in)                          :: npoin,nelem
-      !integer(4), intent(in), optional						:: nper  
       integer(4), intent(in)          						:: nper   ! Oriol not good this is just for Itel compilation
       integer(4), intent(in), optional                :: masSla(nper,2)
       real(rp), intent(inout)                         :: acutim
@@ -192,7 +158,6 @@ contains
       ! If case is periodic, adjust slave nodes
       !
       if (isPeriodic .and. present(masSla)) then
-         !if (isPeriodic .and. present(masSla) .and. present(nper)) then
          !$acc parallel loop
          do iper = 1,nper
             acuvel(masSla(iper,2),1) = acuvel(masSla(iper,1),1)
@@ -227,19 +192,6 @@ contains
       avtw(:,:) = acutw(:,:) / acutim
       !$acc end kernels
 
-      ! !
-      ! ! Favre average the rho*phi reynolds-averagedd variables
-      ! !
-      ! !$acc parallel loop
-      ! do ipoin = 1,npoin
-      !    !$acc loop seq
-      !    do idime = 1,ndime
-      !       avvel(ipoin,idime) = avvel(ipoin,idime)!/avrho(ipoin)
-      !       avve2(ipoin,idime) = avve2(ipoin,idime)!/avrho(ipoin)
-      !    end do
-      ! end do
-      ! !$acc end parallel loop
-
       !
       ! Reset the accumulated variables
       !
@@ -255,6 +207,5 @@ contains
       acutim = 0.0_rp
 
    end subroutine eval_average_window
-
 
 end module mod_aver
