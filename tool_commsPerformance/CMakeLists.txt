@@ -53,8 +53,8 @@ file(GLOB SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_const
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_hdf5.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_comms.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_comms_boundaries.f90
-   ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_comms_performance.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_nvtx.f90
+   ${CMAKE_CURRENT_LIST_DIR}/sources/mod_comms_performance.f90
    ${CMAKE_CURRENT_LIST_DIR}/sources/tool_comms_performance.f90) 
    
 add_executable(${PROJECT_NAME} ${SRC_FILES})   # Build executable from listed sources

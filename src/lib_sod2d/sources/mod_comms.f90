@@ -24,8 +24,6 @@ module mod_comms
     logical :: isInt,isReal
     logical :: isLockBarrier,isPSCWBarrier
 
-    type(c_ptr) :: c_ms_ptr
-
 contains
 
 !-----------------------------------------------------------------------------------------------------------------------
