@@ -1,9 +1,8 @@
 module jacobian_oper
 
 	use mod_numerical_params
-	use mod_veclen
-	use mod_mpi
-	use mod_mpi_mesh
+	!use mod_mpi
+	!use mod_mpi_mesh
 
 	contains
 
@@ -33,7 +32,7 @@ module jacobian_oper
 			!
 			! Loop over elements
 			!
-			!$acc parallel loop gang private(Je,a,b) vector_length(vecLength)
+			!$acc parallel loop gang private(Je,a,b)
 			do ielem = 1,nelem
 				!
 				! Loop over Gauss points
