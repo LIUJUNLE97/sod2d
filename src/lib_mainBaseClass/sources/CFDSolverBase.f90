@@ -1740,6 +1740,7 @@ contains
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
       end if
+
       !$acc kernels
       witGlobCand(:) = 0
       witGlob(:) = 0
@@ -1782,7 +1783,7 @@ contains
          !$acc end kernels
          do ielem = 1, numElemsRankPar
             if (radwit(ielem) < 0) then
-               call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzParCand(iwit,:), xi, isinside, Niwit)
+               call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzParCand(iwit,:), atoIJK, xi, isinside, Niwit)
                if (isinside .AND. (abs(xi(1)) < 1.0_rp+wittol) .AND. (abs(xi(2)) < 1.0_rp+wittol) .AND. (abs(xi(3)) < 1.0_rp+wittol)) then
                   ifound = ifound+1
                   witel(ifound)   = ielem

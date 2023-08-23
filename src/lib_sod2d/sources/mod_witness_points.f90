@@ -17,13 +17,13 @@ module mod_witness_points
       subroutine read_points(fname, np, xyz)
          !
          ! Subroutine which reads an ASCII file for the input of the witness points.
-         ! First row of the file contains the number of points and the rest the coordinates of the wintess points as of: X Y Z
+         ! The coordinates of the wintess points are written as: X Y Z
          !
          implicit none
          character(512), intent(in)  :: fname           ! Input 1: path to the witness points file   
-         integer(4),    intent(in)  :: np              ! Output 1: number of witness points
-         real(rp),       intent(out) :: xyz(np,ndime) ! Output 2: coordinates of the witness points in a 1D array as xyz = [x1, y1, z1, ..., xn, yn, zn]
-         integer(4)                 :: ii
+         integer(4),     intent(in)  :: np              ! Input 2: number of witness points
+         real(rp),       intent(out) :: xyz(np,ndime)   ! Output 2: coordinates of the witness points in a 1D array as xyz = [x1, y1, z1, ..., xn, yn, zn]
+         integer(4)                  :: ii
 
          open(unit=99, file=fname, status='old', action='read')
 
@@ -33,7 +33,7 @@ module mod_witness_points
          close(99)
       end subroutine read_points
 
-      subroutine isocoords(elpoints, wit, xi, isinside, Niwit)
+      subroutine isocoords(elpoints, wit, atoIJK, xi, isinside, Niwit)
          !
          ! Subroutine which computes the isoparametric coordinates of a point in an HEX64 element.
          ! If any of them is outside the bounds of -1 and 1 it means that the point is outside of the element.
@@ -41,31 +41,28 @@ module mod_witness_points
          implicit none
          real(rp), intent(in)   :: elpoints(nnode, ndime)   ! Input 1: coordinates of the element nodes following the gmesh ordering
          real(rp), intent(in)   :: wit(ndime)               ! Input 2: coordinates of the point we are looking the isoparametric coordinates from
+         integer(4), intent(in) :: atoIJK(nnode)            ! Input 3: mesh atoIJK 
          real(rp), intent(out)  :: xi(ndime)                ! Output 1: isoparametric coordinates of the point
-         logical,  intent(out)  :: isinside
-         real(rp), intent(out)  :: Niwit(nnode) 
+         logical,  intent(out)  :: isinside                 ! Output 2: return if the point is inside the element
+         real(rp), intent(out)  :: Niwit(nnode)             ! Output 3: shape functions evaluated at the point
          real(rp)               :: xi_0(ndime), xi_n(ndime)
          real(rp)               :: N(nnode), N_lagrange(nnode) 
-         integer(4)             :: atoIJK(nnode)
          real(rp)               :: dlxigp_ip(ndime, porder+1)
          real(rp)               :: dN(ndime, nnode), dN_lagrange(ndime, nnode)
          real(rp)               :: f(ndime)
          real(rp)               :: a(ndime*ndime), b(ndime*ndime)
          real(rp)               :: j(ndime, ndime), k(ndime, ndime)
          real(rp)               :: detJ
-         integer(4)            :: ii, ip
+         integer(4)             :: ii, ip
          real(rp), parameter    :: tol_wp = 1e-10, alpha = 1, div = 100
          integer(4), parameter :: maxite = 50
 
          xi_0(:) = 0
          xi(:)   = xi_0(:)
-         write(*,*) 'TODO mod_witness_points.f90 line 62'
-         !call set_hex64_lists(atoIJK)
          isinside = .false.
 
          do ii = 1, maxite
-            write(*,*) 'TODO mod_witness_points.f90 line 67'
-            !call hex_highorder(xi(1), xi(2), xi(3), atoIJK, N, dN, N_lagrange, dN_lagrange, dlxigp_ip)
+            call hex_highorder(porder,nnode,xi(1),xi(2),xi(3),atoIJK,N,dN,N_lagrange,dN_lagrange,dlxigp_ip)
             f(:)   = wit(:)
             j(:,:) = 0
             do ip = 1, nnode
@@ -156,7 +153,7 @@ module mod_witness_points
          implicit none
          real(rp),intent(in)   :: xiwit(ndime)    ! Input 1: isoparametric coordinates of the point we want to interpolate to
          real(rp),intent(in)   :: elvalues(nnode) ! Input 2: values of the magnitude at the element nodes 
-         real(rp),intent(in)   :: N(nnode)
+         real(rp),intent(in)   :: N(nnode)        ! Input 3: shape function evaluated at the witness point
          real(rp),intent(out)  :: witval          ! Output 1: value interpolated at the point
          
          witval = 0.0_rp
