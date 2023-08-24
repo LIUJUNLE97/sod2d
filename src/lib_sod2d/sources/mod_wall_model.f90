@@ -1,7 +1,7 @@
 module mod_wall_model
 
    use mod_numerical_params
-   use mod_veclen
+   
    use mod_nvtx
    use mod_mpi
    use mod_mpi_mesh,only:mesh_a2ij
@@ -91,7 +91,6 @@ contains
             isoII = gmshAtoI(jgaus) 
             isoJJ = gmshAtoJ(jgaus) 
             isoKK = gmshAtoK(jgaus)
-            !print *,isoII,isoJJ,isoKK," type ",type_ijk
 
             if(type_ijk ==1) then
                point(1:ndime) =coord(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
@@ -114,15 +113,15 @@ contains
                normalF(idime) = normalsAtNodes(bound(iBound,igaus),idime)
             end do
 
-            y = abs(dot_product(normalF,point(:)-pointF(:)))
+            y = abs(normalF(1)*(point(1)-pointF(1)) + normalF(2)*(point(2)-pointF(2)) + normalF(3)*(point(3)-pointF(3)))
 
-            auxvn = dot_product(normalF,uiex)
+            auxvn = (normalF(1)*uiex(1) + normalF(2)*uiex(2) + normalF(3)*uiex(3))
             !$acc loop seq
             do idime = 1,ndime     
                tvelo(idime) = uiex(idime) - auxvn*normalF(idime)
             end do
 
-            ul = sqrt(dot_product(tvelo(:),tvelo(:)))
+            ul = sqrt(tvelo(1)*tvelo(1) + tvelo(2)*tvelo(2) +  tvelo(3)*tvelo(3))
 
             if( y > 0.0_rp .and. ul > 1.0e-10 ) then            
                uistar = sqrt( ul * nul / y )
@@ -166,7 +165,7 @@ contains
             aux(1) = bnorm((igaus-1)*ndime+1)
             aux(2) = bnorm((igaus-1)*ndime+2)
             aux(3) = bnorm((igaus-1)*ndime+3)
-            auxmag = sqrt(dot_product(aux(:),aux(:)))
+            auxmag = sqrt(aux(1)*aux(1) + aux(2)*aux(2)  +  aux(3)*aux(3))
             !$acc loop seq
             do idime = 1,ndime
                !$acc atomic update
@@ -177,15 +176,6 @@ contains
                !$acc end atomic
             end do
          end do
-         !!$acc loop vector 
-         ! do igaus = 1,nnode
-         !    !$acc loop seq
-         !    do idime = 1,ndime
-         !       !$acc atomic update
-         !       Rdiff(connec(iElem,igaus),idime) = Rdiff(connec(iElem,igaus),idime)+gpvol(1,igaus,iElem)*tmag*tvelo(idime)*(surf/vol)
-         !       !$acc end atomic
-         !    end do
-         ! end do
       end do
       !$acc end parallel loop
 

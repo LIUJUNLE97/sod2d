@@ -2,7 +2,7 @@ module elem_source
 
    use mod_numerical_params
    use mod_nvtx
-   use mod_veclen
+   
    use mod_mpi
    use mod_mpi_mesh
    use mod_hdf5
@@ -11,7 +11,6 @@ module elem_source
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
    ! Computes source term integration                                           !
    ! Added to the rhs                                                           !
-   ! This module can be passed to CUDA in order to do fine-grained parallelism. !
    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 contains
@@ -39,51 +38,18 @@ contains
       !this subroutine at least having convection so Rmom is
       !already initialized
 
-      if (flag_SpectralElem == 0) then
-         !$acc parallel loop gang private(Re) vector_length(vecLength)
-         do ielem = 1,nelem
-            !$acc loop vector collapse(2)
+      !$acc parallel loop gang private(Re) 
+      do ielem = 1,nelem
+         !$acc loop vector collapse(2)
+         do idime = 1,ndime
             do inode = 1,nnode
-               do idime = 1,ndime
-                  Re(inode,idime) = 0.0_rp
-               end do
-            end do
-            !$acc loop seq
-            do igaus = 1,ngaus
-               !$acc loop vector
-               do inode = 1,nnode
-                  Re(inode,1) = Re(inode,1)+gpvol(1,igaus,ielem)*s(connec(ielem,inode),1)
-                  Re(inode,2) = Re(inode,2)+gpvol(1,igaus,ielem)*s(connec(ielem,inode),2)
-                  Re(inode,3) = Re(inode,3)+gpvol(1,igaus,ielem)*s(connec(ielem,inode),3)
-               end do
-            end do
-            !
-            ! Final assembly
-            !
-            !$acc loop vector collapse(2)
-            do idime = 1,ndime
-               do inode = 1,nnode
-                  !$acc atomic update
-                  Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)-Re(inode,idime)
-                  !$acc end atomic
-               end do
+               !$acc atomic update
+               Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)-gpvol(1,inode,ielem)*s(connec(ielem,inode),idime)
+               !$acc end atomic
             end do
          end do
-         !$acc end parallel loop
-      else
-         !$acc parallel loop gang private(Re) 
-         do ielem = 1,nelem
-            !$acc loop vector collapse(2)
-            do idime = 1,ndime
-               do inode = 1,nnode
-                  !$acc atomic update
-                  Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)-gpvol(1,inode,ielem)*s(connec(ielem,inode),idime)
-                  !$acc end atomic
-               end do
-            end do
-         end do
-         !$acc end parallel loop
-      end if
+      end do
+      !$acc end parallel loop
       call nvtxEndRange
 
    end subroutine mom_source_const_vect

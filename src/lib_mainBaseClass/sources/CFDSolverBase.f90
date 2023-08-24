@@ -44,18 +44,15 @@ module CFDSolverBase_mod
       use cudafor
 #endif
 
-      use mod_veclen
+      
 
       use elem_qua
       use elem_hex
       use jacobian_oper
       use quadrature_rules
-      use mesh_reader
-      use inicond_reader
+      use mod_inicond_reader
       use mass_matrix
       use mod_geom
-      use mod_output
-      use mod_period
       use time_integ
       use mod_analysis
       use mod_numerical_params
@@ -1743,6 +1740,7 @@ contains
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
       end if
+
       !$acc kernels
       witGlobCand(:) = 0
       witGlob(:) = 0
@@ -1785,7 +1783,7 @@ contains
          !$acc end kernels
          do ielem = 1, numElemsRankPar
             if (radwit(ielem) < 0) then
-               call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzParCand(iwit,:), xi, isinside, Niwit)
+               call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzParCand(iwit,:), atoIJK, xi, isinside, Niwit)
                if (isinside .AND. (abs(xi(1)) < 1.0_rp+wittol) .AND. (abs(xi(2)) < 1.0_rp+wittol) .AND. (abs(xi(3)) < 1.0_rp+wittol)) then
                   ifound = ifound+1
                   witel(ifound)   = ielem
@@ -2011,9 +2009,6 @@ contains
       ! Main simulation parameters
       call this%initializeDefaultParameters()
       call this%initializeParameters()
-
-      ! Define vector length to be used
-      call define_veclen()
 
       ! Open log file
       call this%open_log_file()
