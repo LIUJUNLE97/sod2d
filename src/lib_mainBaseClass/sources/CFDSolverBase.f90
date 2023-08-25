@@ -80,7 +80,8 @@ module CFDSolverBase_mod
       integer(4), public :: initial_istep,final_istep,load_step
 
       integer(4), public :: currentNonLinealIter
-      integer(4), public :: nwit,nwitPar,leapwit,leapwitsave
+      integer(4), public :: nwit,nwitPar,leapwit
+      integer(4), public :: leapwitsave=100 !Default value, found to be robustly fast
       integer(4), public :: load_stepwit = 0
       integer(4), public :: nvarwit=5 !Default value, only to be substituted if function update_witness is modified to
 
@@ -1730,8 +1731,8 @@ contains
    subroutine CFDSolverBase_preprocWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)                          :: iwit, ielem, inode, ifound, nwitParCand, icand
-      integer(4)                         :: witGlobCand(this%nwit), witGlob(this%nwit)
+      integer(4)                          :: iwit, ielem, inode, ifound, nwitParCand, icand, nwitFound
+      integer(4)                          :: witGlobCand(this%nwit), witGlob(this%nwit)
       real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode)
       real(rp), parameter                 :: wittol=1e-7
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
@@ -1756,6 +1757,7 @@ contains
             witxyzParCand(icand,:) = witxyz(iwit,:)
          end if
       end do
+
       nwitParCand = icand
       !$acc parallel loop gang
       do ielem = 1, numElemsRankPar
@@ -1797,6 +1799,32 @@ contains
          end do
       end do
       this%nwitPar = ifound
+
+      !Check that al witness points have been found
+      call MPI_Allreduce(this%nwitPar, nwitFound, 1, MPI_INTEGER, MPI_MIN, app_comm,mpi_err)
+      if (nwitFound < this%nwit) then
+         nwit2find = this%nwit - nwitFound
+         if (mpi_rank .eq. 0) then
+            write(*,*) "The following witness points were not found inside any element, taking the nearest node as their value"
+         endif
+         call MPI_Allgather(witGlob, nwitPar, MPI_INTEGER, witGlobFound, nwitFound, MPI_INTEGER, app_comm,mpi_err)
+         write(*,*) witGlobFound
+         !Find the global numeration of the witness missing: witGlobMiss
+         !do iwit = 1, nwit2find
+         !   xyzwit(:) = witxyz(witGlobMiss(iwit),:)
+         !   dist(:)   = (coordPar(:,1)-xyzwit(1))*(coordPar(:,1)-xyzwit(1))+(coordPar(:,2)-xyzwit(2))*(coordPar(:,2)-xyzwit(2))+(coordPar(:,3)-xyzwit(3))*(coordPar(:,3)-xyzwit(3))
+         !   mindist   = minval(dist(:))
+         !   call MPI_Allreduce(mindist, myrank, 1, MPI_INTEGER, MPI_MINLOC, app_comm, mpi_err)
+         !   if (mpi_rank .eq. myrank) then
+!
+         !      this%niwtPar          = this%nwitPar+1
+         !      witGlob(this%nwitPar) = witGlobMiss(iwit)
+         !      witel(this%nwitPar)   = ielem
+         !      witxi(this%nwitPar,:) = xi(:)
+         !   end if
+         !end do
+      end if
+      
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
