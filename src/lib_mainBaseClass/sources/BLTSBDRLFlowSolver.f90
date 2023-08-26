@@ -82,11 +82,11 @@ contains
       class(BLTSBDRLFlowSolver), intent(inout) :: this
 #ifdef SMARTREDIS
       call write_step_type(client, 0, "ensemble_"//trim(adjustl(this%tag))//".step_type")
-      close(443)
-      close(444)
+      if (mpi_rank .eq. 0) close(443)
+      if (mpi_rank .eq. 0) close(444)
       call end_smartredis(client)
 #endif
-      close(445)
+      if (mpi_rank .eq. 0) close(445)
    end subroutine BLTSBDRLFlowSolver_afterTimeIteration
 
    subroutine BLTSBDRLFlowSolver_afterDt(this,istep)
@@ -100,7 +100,7 @@ contains
       real(rp)  :: gradIsoV(ndime),gradIsoU(ndime)
       real(rp)  :: gradV(ndime),vl(ndime),fact,targ,gradU(ndime),ul(ndime)
       real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
-      real(rp) :: Ftau_neg(ndime), Ftau_pos(ndime)
+      real(8) :: Ftau_neg(ndime), Ftau_pos(ndime)
 #if ACTUATION
 #ifdef SMARTREDIS
       real(rp) :: action_global_instant(action_global_size)
@@ -114,7 +114,6 @@ contains
       xmin = -40.0_rp*this%d0
 
       xmax = xmin+lx
-
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          if(coordPar(iNodeL,2) < ly) then
@@ -136,7 +135,7 @@ contains
 
          ! check if a new action is needed
          if (this%time - this%previousActuationTime .ge. this%periodActuation) then
-            if (mpi_rank .eq. 0) write(111, *) "Performing SmartRedis communiations."
+            if (mpi_rank .eq. 0) write(111, *) "Performing SmartRedis comms"
             ! save old action values and time - useful for interpolating to new action_global values
             !$acc kernels
             action_global_previous(:) = action_global(:)
@@ -149,13 +148,13 @@ contains
             call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
             call write_reward(client, Ftau_neg(1), Ftau_pos(1), "ensemble_"//trim(adjustl(this%tag))//".reward") ! the streamwise component tw_x
             ! write(*,*) "Sod2D wrote reward: ", Ftau_neg(1), Ftau_pos(1)
-            write(445,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_pos(2)
-            call flush(445)
+            if (mpi_rank .eq. 0) write(445,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_pos(2)
+            if (mpi_rank .eq. 0) call flush(445)
 
             call read_action(client, "ensemble_"//trim(adjustl(this%tag))//".action") ! modifies action_global (the target control values)
             ! write(*,*) "Sod2D read action: ", action_global
-            write(443,'(*(ES12.4,:,","))') this%time+this%periodActuation, action_global(1)
-            call flush(443)
+            if (mpi_rank .eq. 0) write(443,'(*(ES12.4,:,","))') this%time+this%periodActuation, action_global(1)
+            if (mpi_rank .eq. 0) call flush(443)
 
             ! if the next time that we require actuation value is the last one, write now step_type=0 into database
             if (this%time + 2.0 * this%periodActuation .gt. this%maxPhysTime) then
@@ -165,7 +164,7 @@ contains
          end if
 
          call this%smoothControlFunction(action_global_instant)
-         write(444,'(*(ES12.4,:,","))') this%time, action_global_instant(1)
+         if (mpi_rank .eq. 0) write(444,'(*(ES12.4,:,","))') this%time, action_global_instant(1)
          call flush(444)
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
@@ -178,17 +177,13 @@ contains
          !$acc end parallel loop
       end if
 #endif
-#endif
+! no actuation, but still want to compute tw
+#else
 
-      ! Write wall shear stresses
-      if (this%time .gt. this%timeBeginActuation) then
-         if (this%time - this%previousActuationTime .ge. this%periodActuation) then
-            this%previousActuationTime = this%previousActuationTime + this%periodActuation
-            call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
-            write(445,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_pos(2)
-            call flush(445)
-         end if
-      end if
+   call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
+   if (mpi_rank .eq. 0) write(445,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_pos(2)
+   if (mpi_rank .eq. 0) call flush(445)
+#endif
 
       !$acc parallel loop private(vl,dlxi_ip, dleta_ip, dlzeta_ip,gradIsoV,gradV,gradIsoU,gradU,ul)
       do iNodeL2 = 1,numWorkingNodesRankPar
@@ -302,7 +297,7 @@ contains
    subroutine BLTSBDRLFlowSolver_computeReward(this, surfCode, Ftau_neg, Ftau_pos)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
       integer(4), intent(in) :: surfCode
-      real(rp), intent(out) :: Ftau_neg(ndime), Ftau_pos(ndime)
+      real(8), intent(out) :: Ftau_neg(ndime), Ftau_pos(ndime)
 
       call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, surfCode, connecParWork, boundPar, &
          point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
@@ -607,9 +602,9 @@ contains
       this%save_logFile_step = 250
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 100000
+      this%save_restartFile_step = 10000
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 100000
+      this%save_resultsFile_step = 10000
 
       this%loadRestartFile = .true.
       this%continue_oldLogs = .false.
@@ -619,7 +614,7 @@ contains
       this%loadAvgFile = .false. ! .true.
 
       ! wall shear stress output
-      open(unit=445,file="./output_"//trim(adjustl(this%tag))//"/"//"tw.txt",status='replace')
+      if (mpi_rank .eq. 0) open(unit=445,file="./output_"//trim(adjustl(this%tag))//"/"//"tw.txt",status='replace')
       !----------------------------------------------
 
       ! numerical params

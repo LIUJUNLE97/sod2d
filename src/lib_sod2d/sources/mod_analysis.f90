@@ -360,8 +360,8 @@ module mod_analysis
          real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime)
          real(rp),    intent(in)  :: mu_e(nelem,ngaus), mu_sgs(nelem,ngaus), mu_fluid(npoin)
          real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1),coord(npoin,ndime)
-			real(rp),    intent(out) :: Ftau_neg(ndime), Ftau_pos(ndime)
-			real(rp)                :: Ftau_n_l(ndime),Ftau_p_l(ndime)
+			real(8),    intent(out) :: Ftau_neg(ndime), Ftau_pos(ndime)
+			real(8)                :: Ftau_n_l(ndime),Ftau_p_l(ndime)
          integer(4)              :: ibound, idime, igaus, ipbou, ielem, jgaus
          integer(4)              :: numBelem, counter, isoI, isoJ, isoK, ii, jdime, kdime
          integer(4), allocatable :: lelbo(:)
@@ -388,10 +388,10 @@ module mod_analysis
 			end do
 
          !$acc kernels
-         Ftau_n_l(:) = 0.0_rp
-         Ftau_p_l(:) = 0.0_rp
-         Ftau_neg(:) = 0.0_rp
-         Ftau_pos(:) = 0.0_rp
+         Ftau_n_l(:) = 0.0
+         Ftau_p_l(:) = 0.0
+         Ftau_neg(:) = 0.0
+         Ftau_pos(:) = 0.0
          !$acc end kernels
          !$acc parallel loop gang private(bnorm)
 			do ibound = 1, numBelem
