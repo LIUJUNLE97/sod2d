@@ -1731,12 +1731,13 @@ contains
    subroutine CFDSolverBase_preprocWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)                          :: iwit, ielem, inode, ifound, nwitParCand, icand, nwitFound
-      integer(4)                          :: witGlobCand(this%nwit), witGlob(this%nwit)
+      integer(4)                          :: iwit, jwit, ielem, inode, ifound, nwitParCand, icand, nwitFound, nwit2find, icount=0, imiss=0
+      integer(4)                          :: witGlobCand(this%nwit), witGlob(this%nwit), witGlobFound(this%nwit*mpi_size)
+      integer(4), allocatable             :: witGlobFound2(:), witGlobMiss(:)
       real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode)
       real(rp), parameter                 :: wittol=1e-7
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
-      logical                             :: isinside
+      logical                             :: isinside, found
 
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
@@ -1801,28 +1802,48 @@ contains
       this%nwitPar = ifound
 
       !Check that al witness points have been found
-      call MPI_Allreduce(this%nwitPar, nwitFound, 1, MPI_INTEGER, MPI_MIN, app_comm,mpi_err)
+      call MPI_Allreduce(this%nwitPar, nwitFound, 1, MPI_INTEGER, MPI_SUM, app_comm,mpi_err)
       if (nwitFound < this%nwit) then
          nwit2find = this%nwit - nwitFound
          if (mpi_rank .eq. 0) then
             write(*,*) "The following witness points were not found inside any element, taking the nearest node as their value"
          endif
-         call MPI_Allgather(witGlob, nwitPar, MPI_INTEGER, witGlobFound, nwitFound, MPI_INTEGER, app_comm,mpi_err)
-         write(*,*) witGlobFound
-         !Find the global numeration of the witness missing: witGlobMiss
-         !do iwit = 1, nwit2find
-         !   xyzwit(:) = witxyz(witGlobMiss(iwit),:)
-         !   dist(:)   = (coordPar(:,1)-xyzwit(1))*(coordPar(:,1)-xyzwit(1))+(coordPar(:,2)-xyzwit(2))*(coordPar(:,2)-xyzwit(2))+(coordPar(:,3)-xyzwit(3))*(coordPar(:,3)-xyzwit(3))
-         !   mindist   = minval(dist(:))
-         !   call MPI_Allreduce(mindist, myrank, 1, MPI_INTEGER, MPI_MINLOC, app_comm, mpi_err)
-         !   if (mpi_rank .eq. myrank) then
-!
-         !      this%niwtPar          = this%nwitPar+1
-         !      witGlob(this%nwitPar) = witGlobMiss(iwit)
-         !      witel(this%nwitPar)   = ielem
-         !      witxi(this%nwitPar,:) = xi(:)
-         !   end if
-         !end do
+         call MPI_Allgather(witGlob, this%nwit, MPI_INTEGER, witGlobFound, this%nwit, MPI_INTEGER, app_comm,mpi_err)
+         allocate(witGlobFound2(nwitFound))
+         allocate(witGlobMiss(nwit2Find))
+         do iwit = 1, this%nwit*mpi_size
+              if (witGlobFound(iwit) > 0) then
+                   icount = icount + 1
+		   witGlobFound2(icount) = witGlobFound(iwit)
+	      end if
+	 end do
+	 do iwit = 1, this%nwit
+	 	found = .false.
+		do jwit = 1, nwitFound
+	 		if (witGlobFound2(jwit) == iwit) then
+				found = .true.
+				exit
+			end if
+		end do
+		if (found == .false.) then
+			imiss = imiss + 1
+			witGlobMiss(imiss) = iwit
+		end if
+	 end do
+         do iwit = 1, nwit2find
+            xyzwit(:) = witxyz(witGlobMiss(iwit),:)
+            dist(:)   = (coordPar(:,1)-xyzwit(1))*(coordPar(:,1)-xyzwit(1))+(coordPar(:,2)-xyzwit(2))*(coordPar(:,2)-xyzwit(2))+(coordPar(:,3)-xyzwit(3))*(coordPar(:,3)-xyzwit(3))
+            mindist   = minval(dist(:))
+            call MPI_Allreduce(mindist, myrank, 1, MPI_INTEGER, MPI_MINLOC, app_comm, mpi_err)
+            if (mpi_rank .eq. myrank) then
+               this%niwtPar          = this%nwitPar+1
+               witGlob(this%nwitPar) = witGlobMiss(iwit)
+               witel(this%nwitPar)   = ielem
+               witxi(this%nwitPar,:) = xi(:)
+            end if
+         end do
+         deallocate(witGlobFound2)
+         deallocate(witGlobMiss)
       end if
       
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
