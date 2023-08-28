@@ -48,6 +48,7 @@ module BLTSBDRLFlowSolver_mod
       character(512), public   :: fileControlName                            ! Input: path to the file that contains the points defining the rectangle controls
       integer(4), public         :: nRectangleControl                          ! Number of rectangle control
       real(rp), public :: periodEpisode, previousActuationTime, periodActuation, frequencyActuation, timeBeginActuation ! parameters of the actuation
+      integer(4), public :: tw_write_interval
    contains
       procedure, public :: fillBCTypes => BLTSBDRLFlowSolver_fill_BC_Types
       procedure, public :: initializeParameters => BLTSBDRLFlowSolver_initializeParameters
@@ -73,6 +74,7 @@ contains
 
       open(unit=443,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_raw.txt",status='replace')
       open(unit=444,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_smooth.txt",status='replace')
+      open(unit=445,file="./output_"//trim(adjustl(this%tag))//"/"//"control_tw.txt",status='replace')
       call init_smartredis(client, this%nwitPar, this%nRectangleControl, trim(adjustl(this%tag)), this%db_clustered)
       call write_step_type(client, 1, "ensemble_"//trim(adjustl(this%tag))//".step_type")
    end subroutine BLTSBDRLFlowSolver_initSmartRedis
@@ -84,9 +86,10 @@ contains
       call write_step_type(client, 0, "ensemble_"//trim(adjustl(this%tag))//".step_type")
       if (mpi_rank .eq. 0) close(443)
       if (mpi_rank .eq. 0) close(444)
+      if (mpi_rank .eq. 0) close(445)
       call end_smartredis(client)
 #endif
-      if (mpi_rank .eq. 0) close(445)
+      if (mpi_rank .eq. 0) close(446)
    end subroutine BLTSBDRLFlowSolver_afterTimeIteration
 
    subroutine BLTSBDRLFlowSolver_afterDt(this,istep)
@@ -177,13 +180,12 @@ contains
          !$acc end parallel loop
       end if
 #endif
-! no actuation, but still want to compute tw
-#else
-
-   call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
-   if (mpi_rank .eq. 0) write(445,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_pos(2)
-   if (mpi_rank .eq. 0) call flush(445)
 #endif
+      if (mod(istep, this%tw_write_interval) .eq. 0) then
+         call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
+         if (mpi_rank .eq. 0) write(446,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_pos(2)
+         if (mpi_rank .eq. 0) call flush(446)
+      end if
 
       !$acc parallel loop private(vl,dlxi_ip, dleta_ip, dlzeta_ip,gradIsoV,gradV,gradIsoU,gradU,ul)
       do iNodeL2 = 1,numWorkingNodesRankPar
@@ -536,7 +538,7 @@ contains
       real(rp) :: mur
       integer :: num_args, equal_pos, iarg, ierr
       character(len=64) :: arg, output_dir
-      character(len=8) :: restart_step_str="", db_clustered_str="0", frequencyActuation_str="1.0", periodEpisode_str="1.0"
+      character(len=8) :: restart_step_str="", db_clustered_str="0", frequencyActuation_str="1.0", periodEpisode_str="1.0", timeBeginActuation_str="0.0"
       logical :: output_dir_exists
 
       ! get command line args, ie: mpirun -n 4 sod2d --tag=12 --restart_step=2500
@@ -552,6 +554,8 @@ contains
             frequencyActuation_str = trim(adjustl(arg(equal_pos+1:)))
          else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--t_episode") then
             periodEpisode_str = trim(adjustl(arg(equal_pos+1:)))
+         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--t_begin_control") then
+            timeBeginActuation_str = trim(adjustl(arg(equal_pos+1:)))
          else
             stop "Unknown command line argument"
          end if
@@ -564,6 +568,7 @@ contains
       read(frequencyActuation_str,*,iostat=ierr) this%frequencyActuation
       this%periodActuation = 1.0_rp / this%frequencyActuation
       read(periodEpisode_str,*,iostat=ierr) this%periodEpisode
+      read(timeBeginActuation_str,*,iostat=ierr) this%timeBeginActuation
 
       ! create output dir if not existing and copy the baseline restarts.
       ! when a random restart is selected and it is not the first episode, it will only create a
@@ -591,12 +596,13 @@ contains
          write(*,*) "--db_clustered: ", db_clustered_str
          write(*,*) "--f_action: ", this%frequencyActuation
          write(*,*) "--t_episode: ", this%periodEpisode
+         write(*,*) "--t_begin_control: ", this%timeBeginActuation
       end if
 
       !----------------------------------------------
       !  --------------  I/O params -------------
       this%final_istep = 10000001
-      this%maxPhysTime = this%periodEpisode
+      this%maxPhysTime =  this%timeBeginActuation + this%periodEpisode
 
       this%save_logFile_first = 1
       this%save_logFile_step = 250
@@ -614,7 +620,8 @@ contains
       this%loadAvgFile = .false. ! .true.
 
       ! wall shear stress output
-      if (mpi_rank .eq. 0) open(unit=445,file="./output_"//trim(adjustl(this%tag))//"/"//"tw.txt",status='replace')
+      if (mpi_rank .eq. 0) open(unit=446,file="./output_"//trim(adjustl(this%tag))//"/"//"tw.txt",status='replace')
+      this%tw_write_interval = 10
       !----------------------------------------------
 
       ! numerical params
@@ -705,7 +712,6 @@ contains
 
       ! control parameters
       write(this%fileControlName ,*) "rectangleControl.txt"
-      this%timeBeginActuation = 0.0
       this%previousActuationTime = this%timeBeginActuation
 
       !Blasius analytical function
