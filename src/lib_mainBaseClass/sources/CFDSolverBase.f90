@@ -1734,9 +1734,10 @@ contains
       integer(4)                          :: iwit, jwit, ielem, inode, ifound, nwitParCand, icand, nwitFound, nwit2find, icount=0, imiss=0, myrank
       integer(4)                          :: witGlobCand(this%nwit), witGlob(this%nwit), witGlobFound(this%nwit*mpi_size)
       integer(4), allocatable             :: witGlobFound2(:), witGlobMiss(:)
-      real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode), dist(numElemsRankPar), xyz(ndime), mindist
+      real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode), dist(numElemsRankPar), xyzwit(ndime), mindist
       real(rp), parameter                 :: wittol=1e-7
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
+      real(rp)                            :: locdist(2), globdist(2)
       logical                             :: isinside, found
 
       if(mpi_rank.eq.0) then
@@ -1801,7 +1802,7 @@ contains
       end do
       this%nwitPar = ifound
 
-      !Check that al witness points have been found
+      !Check that all witness points have been found
       call MPI_Allreduce(this%nwitPar, nwitFound, 1, MPI_INTEGER, MPI_SUM, app_comm,mpi_err)
       if (nwitFound < this%nwit) then
          nwit2find = this%nwit - nwitFound
@@ -1831,17 +1832,24 @@ contains
 		      end if
 	      end do
          do iwit = 1, nwit2find
-            xyzwit(:) = witxyz(witGlobMiss(iwit),:)
-            dist(:)   = (center(:,1)-xyzwit(1))*(center(:,1)-xyzwit(1))+(center(:,2)-xyzwit(2))*(center(:,2)-xyzwit(2))+(center(:,3)-xyzwit(3))*(center(:,3)-xyzwit(3))
-            mindist   = minval(dist(:))
-            call MPI_Allreduce(mindist, myrank, 1, MPI_INTEGER, MPI_MINLOC, app_comm, mpi_err)
-            write(*,*) myrank
-            !if (mpi_rank .eq. myrank) then
-            !   this%nwitPar          = this%nwitPar+1
-            !   witGlob(this%nwitPar) = witGlobMiss(iwit)
-            !   witel(this%nwitPar)   = ielem
-            !   witxi(this%nwitPar,:) = xi(:)
-            !end if
+            xyzwit(:)  = witxyz(witGlobMiss(iwit),:)
+            dist(:)    = (center(:,1)-xyzwit(1))*(center(:,1)-xyzwit(1))+(center(:,2)-xyzwit(2))*(center(:,2)-xyzwit(2))+(center(:,3)-xyzwit(3))*(center(:,3)-xyzwit(3))
+            ielem      = minloc(dist(:),1)
+            write(*,*) mpi_rank, ielem
+            locdist(1) = dist(ielem)
+	    locdist(2) = mpi_rank
+            write(*,*) locdist(:)
+            call MPI_Allreduce(locdist, globdist, 2, MPI_2REAL, MPI_MINLOC, app_comm, mpi_err)
+            write(*,*) globdist(:)
+            if (mpi_rank .eq. int(globdist(2))) then
+               this%nwitPar              = this%nwitPar+1
+               witGlob(this%nwitPar)     = witGlobMiss(iwit)
+               witel(this%nwitPar)       = ielem
+	       witxyzPar(this%nwitPar,:) = witxyz(witGlobMiss(iwit),:)
+	       call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzPar(this%nwitPar,:), atoIJK, xi, isinside, Niwit) 
+               witxi(this%nwitPar,:)     = xi(:)
+	       Nwit(this%nwitPar,:)      = Niwit(:)
+            end if
          end do
          deallocate(witGlobFound2)
          deallocate(witGlobMiss)
