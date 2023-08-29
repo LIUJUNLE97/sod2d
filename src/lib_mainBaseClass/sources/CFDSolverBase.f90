@@ -80,7 +80,8 @@ module CFDSolverBase_mod
       integer(4), public :: initial_istep,final_istep,load_step
 
       integer(4), public :: currentNonLinealIter
-      integer(4), public :: nwit,nwitPar,leapwit,leapwitsave
+      integer(4), public :: nwit,nwitPar,leapwit
+      integer(4), public :: leapwitsave=100 !Default value, found to be robustly fast
       integer(4), public :: load_stepwit = 0
       integer(4), public :: nvarwit=5 !Default value, only to be substituted if function update_witness is modified to
 
@@ -1730,33 +1731,21 @@ contains
    subroutine CFDSolverBase_preprocWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)                          :: iwit, ielem, inode, ifound, nwitParCand, icand
-      integer(4)                         :: witGlobCand(this%nwit), witGlob(this%nwit)
-      real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode)
+      integer(4)                          :: iwit, jwit, ielem, inode, ifound, nwitParCand, icand, nwitFound, nwit2find, icount=0, imiss=0, myrank
+      integer(4)                          :: witGlobCand(this%nwit), witGlob(this%nwit), witGlobFound(this%nwit*mpi_size)
+      integer(4), allocatable             :: witGlobFound2(:), witGlobMiss(:)
+      real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode), dist(numElemsRankPar), xyzwit(ndime), mindist
       real(rp), parameter                 :: wittol=1e-7
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
-      logical                             :: isinside
+      real(rp)                            :: locdist(2), globdist(2)
+      real(rp)                            :: xmin, ymin, zmin, xmax, ymax, zmax
+      real(rp)                            :: xminloc, yminloc, zminloc, xmaxloc, ymaxloc, zmaxloc
+      logical                             :: isinside, found
 
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
       end if
 
-      !$acc kernels
-      witGlobCand(:) = 0
-      witGlob(:) = 0
-      witxyzPar(:,:) = 0.0_rp
-      !$acc end kernels
-      ifound  = 0
-      icand   = 0
-      call read_points(this%witness_inp_file_name, this%nwit, witxyz)
-      do iwit = 1, this%nwit
-         if ((abs(witxyz(iwit,1)) < maxval(abs(coordPar(:,1)))+wittol) .AND. (abs(witxyz(iwit,2)) < maxval(abs(coordPar(:,2)))+wittol) .AND. (abs(witxyz(iwit,3)) < maxval(abs(coordPar(:,3)))+wittol)) then
-            icand = icand + 1
-            witGlobCand(icand) = iwit
-            witxyzParCand(icand,:) = witxyz(iwit,:)
-         end if
-      end do
-      nwitParCand = icand
       !$acc parallel loop gang
       do ielem = 1, numElemsRankPar
          aux1   = 0.0_rp
@@ -1776,9 +1765,45 @@ contains
          helemmax(ielem) = auxvol**(1.0/3.0)
       end do
       !$acc end loop
-      maxL = maxval(helemmax)
+      maxL = maxval(abs(helemmax))
+
+      xminloc = minval(coordPar(:,1)) - wittol
+      yminloc = minval(coordPar(:,2)) - wittol
+      zminloc = minval(coordPar(:,3)) - wittol
+      xmaxloc = maxval(coordPar(:,1)) + wittol
+      ymaxloc = maxval(coordPar(:,2)) + wittol
+      zmaxloc = maxval(coordPar(:,3)) + wittol
+
+      call MPI_Allreduce(xminloc, xmin, 1, MPI_REAL, MPI_MIN, app_comm, mpi_err)
+      call MPI_Allreduce(yminloc, ymin, 1, MPI_REAL, MPI_MIN, app_comm, mpi_err)
+      call MPI_Allreduce(zminloc, zmin, 1, MPI_REAL, MPI_MIN, app_comm, mpi_err)
+      call MPI_Allreduce(xmaxloc, xmax, 1, MPI_REAL, MPI_MAX, app_comm, mpi_err)
+      call MPI_Allreduce(ymaxloc, ymax, 1, MPI_REAL, MPI_MAX, app_comm, mpi_err)
+      call MPI_Allreduce(zmaxloc, zmax, 1, MPI_REAL, MPI_MAX, app_comm, mpi_err)
+
+      !$acc kernels
+      witGlobCand(:) = 0
+      witGlob(:) = 0
+      witxyzPar(:,:) = 0.0_rp
+      !$acc end kernels
+      ifound  = 0
+      icand   = 0
+      call read_points(this%witness_inp_file_name, this%nwit, witxyz)
+      do iwit = 1, this%nwit
+	 if (witxyz(iwit,1) < xmin .OR. witxyz(iwit,2) < ymin .OR. witxyz(iwit,3) < zmin .OR. witxyz(iwit,1) > xmax .OR. witxyz(iwit,2) > ymax .OR. witxyz(iwit,3) > zmax) then
+		write(*,*) "FATAL ERROR!! Witness point out of bounds", witxyz(iwit,:)
+         	call MPI_Abort(app_comm,-1,mpi_err)
+	 end if
+	 if (witxyz(iwit,1) > xminloc .AND. witxyz(iwit,2) > yminloc .AND. witxyz(iwit,3) > zminloc .AND. witxyz(iwit,1) < xmaxloc .AND. witxyz(iwit,2) < ymaxloc .AND. witxyz(iwit,3) < zmaxloc) then
+            icand = icand + 1
+            witGlobCand(icand) = iwit
+            witxyzParCand(icand,:) = witxyz(iwit,:)
+         end if
+      end do
+      nwitParCand = icand
+      
       do iwit = 1, nwitParCand
-         !$acc kernels
+	 !$acc kernels
          radwit(:) = ((witxyzParCand(iwit, 1)-center(:,1))*(witxyzParCand(iwit, 1)-center(:,1))+(witxyzParCand(iwit, 2)-center(:,2))*(witxyzParCand(iwit, 2)-center(:,2))+(witxyzParCand(iwit, 3)-center(:,3))*(witxyzParCand(iwit, 3)-center(:,3)))-maxL*maxL
          !$acc end kernels
          do ielem = 1, numElemsRankPar
@@ -1797,6 +1822,57 @@ contains
          end do
       end do
       this%nwitPar = ifound
+      !Check that all witness points have been found
+      call MPI_Allreduce(this%nwitPar, nwitFound, 1, MPI_INTEGER, MPI_SUM, app_comm,mpi_err)
+      if (nwitFound < this%nwit) then
+         nwit2find = this%nwit - nwitFound
+         if (mpi_rank .eq. 0) then
+            write(*,*) "WARNING!!!! The following witness points were not found inside any element, taking the element with the closest centroid as the one they belong to. Make sure they are inside the domain"
+         endif
+         call MPI_Allgather(witGlob, this%nwit, MPI_INTEGER, witGlobFound, this%nwit, MPI_INTEGER, app_comm,mpi_err)
+         allocate(witGlobFound2(nwitFound))
+         allocate(witGlobMiss(nwit2Find))
+         do iwit = 1, this%nwit*mpi_size
+            if (witGlobFound(iwit) > 0) then
+               icount = icount + 1
+		      witGlobFound2(icount) = witGlobFound(iwit)
+	         end if
+	      end do
+	      do iwit = 1, this%nwit
+	 	      found = .false.
+		      do jwit = 1, nwitFound
+	 		      if (witGlobFound2(jwit) == iwit) then
+			      	found = .true.
+			      	exit
+			      end if
+		      end do
+		      if (found .eqv. .false.) then
+		      	imiss = imiss + 1
+		      	witGlobMiss(imiss) = iwit
+		      end if
+	      end do
+         do iwit = 1, nwit2find
+            xyzwit(:)  = witxyz(witGlobMiss(iwit),:)
+            !$acc kernels
+            dist(:)    = (center(:,1)-xyzwit(1))*(center(:,1)-xyzwit(1))+(center(:,2)-xyzwit(2))*(center(:,2)-xyzwit(2))+(center(:,3)-xyzwit(3))*(center(:,3)-xyzwit(3))
+            !$acc end kernels
+            ielem      = minloc(dist(:),1)
+            locdist(1) = dist(ielem)
+            locdist(2) = mpi_rank
+            call MPI_Allreduce(locdist, globdist, 2, MPI_2REAL, MPI_MINLOC, app_comm, mpi_err)
+            if (mpi_rank .eq. int(globdist(2))) then
+	       write(*,*) "[NOT FOUND WITNESS] ", xyzwit(:)
+               this%nwitPar              = this%nwitPar+1
+               witGlob(this%nwitPar)     = witGlobMiss(iwit)
+               witel(this%nwitPar)       = ielem
+	       witxyzPar(this%nwitPar,:) = witxyz(witGlobMiss(iwit),:)
+	       call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzPar(this%nwitPar,:), atoIJK, witxi(this%nwitPar,:), isinside, Nwit(this%nwitPar,:)) 
+            end if
+         end do
+         deallocate(witGlobFound2)
+         deallocate(witGlobMiss)
+      end if
+      
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
