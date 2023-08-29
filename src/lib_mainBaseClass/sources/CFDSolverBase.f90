@@ -1846,7 +1846,7 @@ contains
 			      	exit
 			      end if
 		      end do
-		      if (found .eq. .false.) then
+		      if (found .eqv. .false.) then
 		      	imiss = imiss + 1
 		      	witGlobMiss(imiss) = iwit
 		      end if
