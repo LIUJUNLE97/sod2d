@@ -67,7 +67,7 @@ contains
       real(rp) :: dy,fx1,fx2,xp
       real(rp) :: mul , yp,yc
       real(rp)  :: gradIsoV(ndime),gradIsoU(ndime)
-      real(rp)  :: gradV(ndime),vl(ndime),fact,targ,gradU(ndime),ul(ndime)
+      real(rp)  :: gradV(ndime),vl(nnode),fact,targ,gradU(ndime),ul(nnode)
       real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
 
       ! test with teh new condition
@@ -85,24 +85,24 @@ contains
             if((coordPar(iNodeL,1)<xmax)  .and. (coordPar(iNodeL,1)>xmin)) then
                source_term(iNodeL,1) = -0.5_rp*rho(iNodeL,2)*cd*u(iNodeL,1,2)*abs(u(iNodeL,1,2))/lx
                source_term(iNodeL,2) = 0.00_rp
-               source_term(iNodeL,3) = 0.00_rp           
+               source_term(iNodeL,3) = 0.00_rp
             end if
          end if
       end do
-      !$acc end parallel loop 
-#if (ACTUATION) 
+      !$acc end parallel loop
+#if (ACTUATION)
       if (this%time .gt. this%timeBeginActuation) then
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             if (actionMask(iNodeL) .gt. 0) then
                   u_buffer(iNodeL,1) = 0.0_rp
                   u_buffer(iNodeL,2) = this%amplitudeActuation*sin(2.0_rp*v_pi*this%frequencyActuation*this%time)
-                  u_buffer(iNodeL,3) = 0.0_rp              
+                  u_buffer(iNodeL,3) = 0.0_rp
             end if
          end do
          !$acc end parallel loop
       end if
-#endif      
+#endif
       !$acc parallel loop private(vl,dlxi_ip, dleta_ip, dlzeta_ip,gradIsoV,gradV,gradIsoU,gradU,ul)
       do iNodeL2 = 1,numWorkingNodesRankPar
          iNodeL = workingNodesPar(iNodeL2)
@@ -122,9 +122,9 @@ contains
                   dleta_ip(ii) = dlxigp_ip(igaus,2,ii)
                   dlzeta_ip(ii) = dlxigp_ip(igaus,3,ii)
                end do
-               isoI = gmshAtoI(igaus) 
-               isoJ = gmshAtoJ(igaus) 
-               isoK = gmshAtoK(igaus) 
+               isoI = gmshAtoI(igaus)
+               isoJ = gmshAtoJ(igaus)
+               isoK = gmshAtoK(igaus)
 
                gradIsoV(:) = 0.0_rp
               !gradIsoU(:) = 0.0_rp
@@ -159,7 +159,7 @@ contains
                iCen = connecParWork(ielem,atoIJK(nnode))
                yc =  coordPar(iCen,2)
                u_buffer(iNodeL,1) = (gradV(1))*(yp-yc) + u(iCen,1,2)
-         end if  
+         end if
       end do
       !$acc end parallel loop
       !Filtering u buffer at the top of the domain
@@ -173,7 +173,7 @@ contains
          iCen = connecParWork(ielem,atoIJK(64))
          yp = coordPar(iCen,2)
          xp = coordPar(iCen,1)
-         
+
          !if((xp .gt.-50.0_rp) .and. (xp .lt. 950.0_rp) .and. (yp .gt. 80.0_rp)) then
          if((yp .gt. 100.0_rp)) then
             fact = 0.0_rp
@@ -185,7 +185,7 @@ contains
             !$acc loop vector
             do inode = 1, nnode
                !$acc atomic write
-               u_buffer(connecParWork(ielem,inode),1) = fact 
+               u_buffer(connecParWork(ielem,inode),1) = fact
                !$acc end atomic
             end do
          end if
@@ -260,7 +260,7 @@ contains
 #else
       bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! wall
 #endif
-      bouCodes2BCType(2) = bc_type_far_field         ! Upper part of the domain  
+      bouCodes2BCType(2) = bc_type_far_field         ! Upper part of the domain
       bouCodes2BCType(3) = bc_type_far_field          ! inlet part of the domain
       bouCodes2BCType(4) = bc_type_far_field          ! outlet part of the domain
       !$acc update device(bouCodes2BCType(:))
@@ -440,8 +440,8 @@ contains
       this%save_restartFile_step = 20000
       this%save_resultsFile_first = 1
       this%save_resultsFile_step = 20000
-     
-#if (ACTUATION) 
+
+#if (ACTUATION)
       this%loadRestartFile = .true.
 #else
       !this%loadRestartFile = .true.
@@ -509,7 +509,7 @@ contains
       !! x inlet
       flag_buffer_on_west = .true.
       flag_buffer_w_min = -50.0_rp
-      flag_buffer_w_size = 50.0_rp   
+      flag_buffer_w_size = 50.0_rp
 
       ! y top
       flag_buffer_on_north = .true.
@@ -542,13 +542,13 @@ contains
       this%save_avgVectorField_vtw     = .true.
 
       ! control parameters
-#if (ACTUATION)      
+#if (ACTUATION)
       write(this%fileControlName ,*) "rectangleControl.dat"
       this%amplitudeActuation = 0.2
-      this%frequencyActuation = 0.0025_rp 
+      this%frequencyActuation = 0.0025_rp
       this%timeBeginActuation = 0.0_rp
-#endif      
-      
+#endif
+
       !Blasius analytical function
       call this%fillBlasius()
 
@@ -571,8 +571,8 @@ contains
       integer(4) :: iNodeL,k,j,bcode,ielem,iCen
       real(rp) :: yp,eta_y,f_y,f_prim_y, f1, f2, f3,x,dy
 
-#if (ACTUATION)      
-      call this%getControlNodes()  
+#if (ACTUATION)
+      call this%getControlNodes()
 #endif
 
       !$acc parallel loop
@@ -606,7 +606,7 @@ contains
          if(yp .gt. 100.0_rp) then
             u_buffer(iNodeL,2) =  0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
                               -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
-         end if  
+         end if
       end do
       !$acc end parallel loop
 
@@ -650,7 +650,7 @@ contains
          if(yp .gt. 100.0_rp) then
             u(iNodeL,2,2) =  0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
                               -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
-         end if  
+         end if
          pr(iNodeL,2) = this%po
          rho(iNodeL,2) = this%rho0
          e_int(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp))

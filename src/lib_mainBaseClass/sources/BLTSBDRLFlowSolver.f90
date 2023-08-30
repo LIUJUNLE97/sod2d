@@ -101,7 +101,7 @@ contains
       real(rp) :: dy,fx1,fx2,xp
       real(rp) :: mul , yp,yc
       real(rp)  :: gradIsoV(ndime),gradIsoU(ndime)
-      real(rp)  :: gradV(ndime),vl(ndime),fact,targ,gradU(ndime),ul(ndime)
+      real(rp)  :: gradV(ndime),vl(nnode),fact,targ,gradU(ndime),ul(nnode)
       real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
       real(8) :: Ftau_neg(ndime), Ftau_pos(ndime)
 #if ACTUATION
