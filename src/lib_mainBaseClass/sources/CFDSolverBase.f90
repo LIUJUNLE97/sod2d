@@ -140,6 +140,7 @@ module CFDSolverBase_mod
       procedure, public :: evalInitialViscosity =>CFDSolverBase_evalInitialViscosity
       procedure, public :: evalViscosityFactor=>CFDSolverBase_evalViscosityFactor
       procedure, public :: evalInitialDt =>CFDSolverBase_evalInitialDt
+      procedure, public :: evalDt =>CFDSolverBase_evalDt
       procedure, public :: evalShapeFunctions =>CFDSolverBase_evalShapeFunctions
       procedure, public :: evalBoundaryNormals =>CFDSolverBase_evalBoundaryNormals
       procedure, public :: evalJacobians =>CFDSolverBase_evalJacobians
@@ -169,6 +170,9 @@ module CFDSolverBase_mod
       procedure, public :: add_avgElemGpScalarField2save => CFDSolverBase_add_avgElemGpScalarField2save
 
       procedure, public :: setFields2Save => CFDSolverBase_setFields2Save
+
+      procedure, public :: initNSSolver => CFDSolverBase_initNSSolver
+      procedure, public :: endNSSolver => CFDSolverBase_endNSSolver
 
       procedure :: open_log_file
       procedure :: close_log_file
@@ -205,6 +209,20 @@ contains
       !$acc end kernels
 
    end subroutine CFDSolverBase_initializeSourceTerms
+
+   subroutine CFDSolverBase_initNSSolver(this)
+      class(CFDSolverBase), intent(inout) :: this
+      
+      call init_rk4_solver(numNodesRankPar) 
+
+   end subroutine CFDSolverBase_initNSSolver
+
+   subroutine CFDSolverBase_endNSSolver(this)
+      class(CFDSolverBase), intent(inout) :: this
+      
+       call end_rk4_solver()
+
+   end subroutine CFDSolverBase_endNSSolver
 
    subroutine CFDSolverBase_initializeDefaultParameters(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -766,7 +784,7 @@ contains
       ! Last rank is for prediction-advance related to entropy viscosity,
       ! where 1 is prediction, 2 is final value
       !
-      allocate(u(numNodesRankPar,ndime,2))  ! Velocity
+      allocate(u(numNodesRankPar,ndime,3))  ! Velocity
       allocate(q(numNodesRankPar,ndime,3))  ! momentum
       allocate(rho(numNodesRankPar,3))      ! Density
       allocate(pr(numNodesRankPar,2))       ! Pressure
@@ -1013,7 +1031,7 @@ contains
 
         if (flag_real_diff == 1) then
            if (flag_diff_suth == 0) then
-              call constant_viscosity(numNodesRankPar,0.000055_rp,mu_fluid)
+              call constant_viscosity(numNodesRankPar,incomp_viscosity,mu_fluid)
            else
               call sutherland_viscosity(numNodesRankPar,Tem(:,2),mu_factor,mu_fluid)
            end if
@@ -1080,6 +1098,17 @@ contains
       call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_evalInitialDt
+
+   subroutine CFDSolverBase_evalDt(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      if (flag_real_diff == 1) then
+         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
+      else
+         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
+      end if   
+
+   end subroutine CFDSolverBase_evalDt
 
    subroutine CFDSolverBase_evalShapeFunctions(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -1454,7 +1483,7 @@ contains
          write(111,*) 'Doing evalTimeIteration. Ini step:',this%initial_istep,'| End step:',this%final_istep
       end if
 
-      call init_rk4_solver(numNodesRankPar)
+      call this%initNSSolver()
 
       do istep = this%initial_istep,this%final_istep
          !if (istep==this%nsave.and.mpi_rank.eq.0) write(111,*) '   --| STEP: ', istep
@@ -1538,6 +1567,7 @@ contains
             E(:,3) = E(:,1)
             q(:,:,3) = q(:,:,1)
             eta(:,3) = eta(:,1)
+            u(:,:,3) = u(:,:,1)
             !$acc end kernels
             pseudo_cfl = aux_pseudo_cfl
          !end if
@@ -1570,11 +1600,7 @@ contains
             end if
          end if
 
-         if (flag_real_diff == 1) then
-            call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
-         else
-            call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
-         end if
+         call this%evalDt()
 
          call nvtxEndRange
 
@@ -1673,7 +1699,7 @@ contains
       end do
       call nvtxEndRange
 
-      call end_rk4_solver()
+      call this%endNSSolver()
 
    end subroutine CFDSolverBase_evalTimeIteration
 

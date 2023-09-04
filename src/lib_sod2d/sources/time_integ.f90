@@ -44,7 +44,7 @@ module time_integ
             !$acc enter data create(sigMass(:,:))
             !$acc enter data create(sigEner(:,:))
             !$acc enter data create(sigMom(:,:,:))
-            allocate(aijKjMass(npoin,11),aijKjEner(npoin,11),pt(npoin,11))
+            allocate(aijKjMass(npoin,11),aijKjEner(npoin,11),pt(npoin,5))
             !$acc enter data create(aijKjMass(:,:))
             !$acc enter data create(aijKjEner(:,:))
             !$acc enter data create(pt(:,:))
@@ -266,7 +266,7 @@ module time_integ
             real(rp),             intent(in)    :: mu_factor(npoin)
             real(rp),             intent(in)    :: Rgas, gamma_gas, Cp, Prt
             real(rp),             intent(inout) :: rho(npoin,3)
-            real(rp),             intent(inout) :: u(npoin,ndime,2)
+            real(rp),             intent(inout) :: u(npoin,ndime,3)
             real(rp),             intent(inout) :: q(npoin,ndime,3)
             real(rp),             intent(inout) :: pr(npoin,2)
             real(rp),             intent(inout) :: E(npoin,3)
@@ -736,7 +736,7 @@ module time_integ
             real(rp),             intent(in)    :: mu_factor(npoin)
             real(rp),             intent(in)    :: Rgas, gamma_gas, Cp, Prt
             real(rp),             intent(inout) :: rho(npoin,3)
-            real(rp),             intent(inout) :: u(npoin,ndime,2)
+            real(rp),             intent(inout) :: u(npoin,ndime,3)
             real(rp),             intent(inout) :: q(npoin,ndime,3)
             real(rp),             intent(inout) :: pr(npoin,2)
             real(rp),             intent(inout) :: E(npoin,3)

@@ -106,7 +106,8 @@ module mod_entropy_viscosity
                 !$acc loop vector reduction(max:betae)
                 do inode = 1,nnode
                    aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
-                   aux3 = sqrt(Rgas*gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
+                   !aux3 = sqrt(Rgas*gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
+                   aux3 = csound(connec(ielem,inode))     ! Speed of sound at node
                    aux1 = aux2+aux3
                    betae = max(betae,(rho(connec(ielem,inode))*helem_k(ielem))*(cmax/real(porder,rp))*aux1)
                 end do

@@ -18,11 +18,6 @@ module mod_constants
 	integer(4), parameter :: ngaus=nnode
 	integer(4), parameter :: npbou=(porder+1)**2
 
-	!
-	! Flags
-	!
-	integer(4), parameter :: flag_real_diff=1
-	integer(4), parameter :: flag_diff_suth=1
 
 	!
 	! Other constants

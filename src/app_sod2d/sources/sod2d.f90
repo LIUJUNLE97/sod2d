@@ -2,7 +2,8 @@
 
 #define _tgv_ 0
 #define _tgv_multi 0
-#define _tgv_comp 1
+#define _tgv_comp 0
+#define _tgv_incomp 1
 #define _channel_ 0
 #define _bluff_ 0
 #define _bluff3d_ 0
@@ -18,6 +19,9 @@ program main
 #endif
 #if _tgv_comp
    use TGVCompSolver_mod
+#endif
+#if _tgv_incomp
+   use TGVSolverIncomp_mod
 #endif
 #if _channel_
    use ChannelFlowSolver_mod
@@ -40,6 +44,10 @@ program main
 #endif
 #if _tgv_comp
    type(TGVCompSolver)  :: tgv
+   call tgv%run()
+#endif
+#if _tgv_incomp
+   type(TGVSolverIncomp)  :: tgv
    call tgv%run()
 #endif
 #if _tgv_multi

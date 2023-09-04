@@ -85,4 +85,10 @@ module mod_numerical_params
         integer(4)  :: flag_walave     = 0
         integer(4)  :: flag_walex      = 3
 
+        !
+	    ! viscosity
+	    !
+	    integer(4) :: flag_real_diff=1
+	    integer(4) :: flag_diff_suth=1
+        real(rp)   :: incomp_viscosity=0.0_rp
 end module mod_numerical_params
