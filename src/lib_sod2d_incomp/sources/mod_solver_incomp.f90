@@ -35,6 +35,7 @@ module mod_solver_incomp
            q(:) = 0.0_rp
            v(:) = 0.0_rp
            b(:) = 0.0_rp
+           z0(:) = 0.0_rp
            !$acc end kernels
            !
            ! Initialize solver
@@ -47,7 +48,7 @@ module mod_solver_incomp
            !$acc end parallel loop
             if(mpi_rank.eq.0) then
                b(lpoin_w(1)) = 0.0_rp
-               x(lpoin_w(ipoin)) = nscbc_p_inf
+               x(lpoin_w(1)) = nscbc_p_inf
             end if
             call eval_laplacian_mult(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,x,q)! A*x0
             !call eval_laplacian_mult2(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,x,q)! A*x0

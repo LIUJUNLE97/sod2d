@@ -246,7 +246,7 @@ module time_integ_incomp
             call nvtxStartRange("Loop over RK steps")
 
             do istep = 1,flag_rk_order
-               if(mpi_rank.eq.0) write(111,*) "-- RK step: ",istep
+               !if(mpi_rank.eq.0) write(111,*) "-- RK step: ",istep
                !
                ! Compute variable at substep (y_i = y_n+dt*A_ij*R_j)
                !
