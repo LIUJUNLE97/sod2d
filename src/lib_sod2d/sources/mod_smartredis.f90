@@ -105,7 +105,7 @@ module mod_smartredis
       call mpi_gatherv( &
          state_local, state_local_size, mpi_datatype_real, &           ! everyone sends state_local data
          state_global, state_sizes, state_displs, mpi_datatype_real, & ! root receives it into state_global
-         0, app_comm, error &                                    ! rank 0 is root
+         0, app_comm, error &                                          ! rank 0 is root
       )
 
       ! write global state into DB

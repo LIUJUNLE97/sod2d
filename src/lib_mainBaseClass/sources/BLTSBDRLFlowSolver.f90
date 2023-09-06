@@ -76,6 +76,7 @@ contains
       open(unit=444,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_smooth.txt",status='replace')
       open(unit=445,file="./output_"//trim(adjustl(this%tag))//"/"//"control_tw.txt",status='replace')
       call init_smartredis(client, this%nwitPar, this%nRectangleControl, trim(adjustl(this%tag)), this%db_clustered)
+      if (mpi_rank .eq. 0) write(111, *) "SmartRedis initialised"
       call write_step_type(client, 1, "ensemble_"//trim(adjustl(this%tag))//".step_type")
    end subroutine BLTSBDRLFlowSolver_initSmartRedis
 #endif
@@ -151,7 +152,7 @@ contains
             call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
             call write_reward(client, Ftau_neg(1), Ftau_pos(1), "ensemble_"//trim(adjustl(this%tag))//".reward") ! the streamwise component tw_x
             ! write(*,*) "Sod2D wrote reward: ", Ftau_neg(1), Ftau_pos(1)
-            if (mpi_rank .eq. 0) write(445,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_pos(2)
+            if (mpi_rank .eq. 0) write(445,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_pos(1)
             if (mpi_rank .eq. 0) call flush(445)
 
             call read_action(client, "ensemble_"//trim(adjustl(this%tag))//".action") ! modifies action_global (the target control values)
@@ -183,7 +184,7 @@ contains
 #endif
       if (mod(istep, this%tw_write_interval) .eq. 0) then
          call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
-         if (mpi_rank .eq. 0) write(446,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_pos(2)
+         if (mpi_rank .eq. 0) write(446,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_pos(1)
          if (mpi_rank .eq. 0) call flush(446)
       end if
 
@@ -563,8 +564,14 @@ contains
 
       write(this%tag, *) app_color
       if (db_clustered_str == "" .or. db_clustered_str == "0") this%db_clustered = .false.
-      if (restart_step_str == "" .or. restart_step_str == "0") &
-         stop "Cannot use RL actuation from cold start. (--restart_step=0 or --restart_step='')"
+      if (restart_step_str == "" .or. restart_step_str == "0") then
+         this%loadRestartFile = .false.
+         ! stop "Cannot use RL actuation from cold start. (--restart_step=0 or --restart_step='')"
+      else
+         this%loadRestartFile = .true.
+         read(restart_step_str, *) this%restartFile_to_load ! 1: baseline, 2: last episode
+      end if
+
       read(frequencyActuation_str,*,iostat=ierr) this%frequencyActuation
       this%periodActuation = 1.0_rp / this%frequencyActuation
       read(periodEpisode_str,*,iostat=ierr) this%periodEpisode
@@ -587,7 +594,6 @@ contains
       write(this%results_h5_file_name,*) "results_"//trim(adjustl(this%tag))
       write(this%io_prepend_path,*) output_dir
 
-      read(restart_step_str, *) this%restartFile_to_load ! 1: baseline, 2: last episode
 
       if (mpi_rank .eq. 0) then
          write(*,*) "Received arguments are:"
@@ -608,11 +614,10 @@ contains
       this%save_logFile_step = 250
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 10000
+      this%save_restartFile_step = 50000
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 10000
+      this%save_resultsFile_step = 50000
 
-      this%loadRestartFile = .true.
       this%continue_oldLogs = .false.
 
       this%initial_avgTime = 0.0 ! 3000.0_rp
