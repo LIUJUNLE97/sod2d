@@ -7,6 +7,12 @@ module mod_entropy_viscosity
    use mod_mpi_mesh
    use mod_comms
 
+   implicit none
+
+   real(rp),  allocatable :: mue_l(:,:),al(:),am(:),an(:)
+   integer(4),allocatable :: convertIJK(:)
+   logical  :: allocate_memory_entropyvisc = .true.
+
    contains
       subroutine smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
                             gamma_gas,rho,u,csound,Tem,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
@@ -28,28 +34,46 @@ module mod_entropy_viscosity
               real(rp)                 :: L3, aux1, aux2, aux3
               real(rp)                 :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas, maxV, maxC
               real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe, M, ceM
-              integer(4)              :: convertIJK(0:porder+2),ii,jj,kk,mm,nn,ll
-              real(rp)                :: mue_l(nelem,nnode),al(-1:1),am(-1:1),an(-1:1)
+              integer(4)              :: ii,jj,kk,mm,nn,ll
 
-              do ii=3,porder+1
-                convertIJK(ii-1) = ii
-             end do
-             convertIJK(0) = 3
-             convertIJK(1) = 1
-             convertIJK(porder+1) = 2
-             convertIJK(porder+2) = porder
+            if(allocate_memory_entropyvisc) then
+               allocate_memory_entropyvisc = .false.
+               
+               allocate(mue_l(nelem,nnode))
+               allocate(al(-1:1))
+               allocate(am(-1:1))
+               allocate(an(-1:1))
+               allocate(convertIJK(0:porder+2))
+               !$acc enter data create(mue_l(:,:))
+               !$acc enter data create(al(:))
+               !$acc enter data create(am(:))
+               !$acc enter data create(an(:))
+               !$acc enter data create(convertIJK(:))
 
-             al(-1) = 1.0_rp/4.0_rp
-             al(0)  = 2.0_rp/4.0_rp
-             al(1)  = 1.0_rp/4.0_rp
+               do ii=3,porder+1
+                  convertIJK(ii-1) = ii
+               end do
+               convertIJK(0) = 3
+               convertIJK(1) = 1
+               convertIJK(porder+1) = 2
+               convertIJK(porder+2) = porder
+               !$acc update device(convertIJK(:))
 
-             am(-1) = 1.0_rp/4.0_rp
-             am(0)  = 2.0_rp/4.0_rp
-             am(1)  = 1.0_rp/4.0_rp
+               al(-1) = 1.0_rp/4.0_rp
+               al(0)  = 2.0_rp/4.0_rp
+               al(1)  = 1.0_rp/4.0_rp
+               !$acc update device(al(:))
 
-             an(-1) = 1.0_rp/4.0_rp
-             an(0)  = 2.0_rp/4.0_rp
-             an(1)  = 1.0_rp/4.0_rp
+               am(-1) = 1.0_rp/4.0_rp
+               am(0)  = 2.0_rp/4.0_rp
+               am(1)  = 1.0_rp/4.0_rp
+               !$acc update device(am(:))
+
+               an(-1) = 1.0_rp/4.0_rp
+               an(0)  = 2.0_rp/4.0_rp
+               an(1)  = 1.0_rp/4.0_rp
+               !$acc update device(an(:))
+            end if
 
              Rgas = nscbc_Rgas_inf
 
