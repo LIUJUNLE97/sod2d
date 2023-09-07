@@ -5,7 +5,7 @@ module mod_arrays
 
       ! main allocatable arrays
       ! integer ---------------------------------------------------
-      integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
+      integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:),convertIJK(:)
       integer(4), allocatable :: atoIJ(:),atoIJK(:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
       integer(4), allocatable :: witel(:), buffstep(:)
 
@@ -34,6 +34,9 @@ module mod_arrays
 
       ! exponential average for wall law
       real(rp), allocatable :: walave_u(:,:)
+
+      ! for entropy and sgs visc.
+      real(rp),  allocatable :: mue_l(:,:),al_weights(:),am_weights(:),an_weights(:)
 
 end module mod_arrays
 
@@ -135,6 +138,7 @@ module CFDSolverBase_mod
       procedure, public :: normalFacesToNodes => CFDSolverBase_normalFacesToNodes
       procedure, public :: fillBCTypes => CFDSolverBase_fill_BC_Types
       procedure, public :: allocateVariables => CFDSolverBase_allocateVariables
+      procedure, public :: deallocateVariables => CFDSolverBase_deallocateVariables
       procedure, public :: evalOrLoadInitialConditions => CFDSolverBase_evalOrLoadInitialConditions
       procedure, public :: evalInitialConditions => CFDSolverBase_evalInitialConditions
       procedure, public :: evalInitialViscosity =>CFDSolverBase_evalInitialViscosity
@@ -781,6 +785,7 @@ contains
       allocate(mu_e(numElemsRankPar,ngaus))  ! Elemental viscosity
       allocate(mu_sgs(numElemsRankPar,ngaus))! SGS viscosity
       allocate(u_buffer(numNodesRankPar,ndime))  ! momentum at the buffer
+      allocate(mue_l(numElemsRankPar,nnode))
       !$acc enter data create(u(:,:,:))
       !$acc enter data create(q(:,:,:))
       !$acc enter data create(rho(:,:))
@@ -796,6 +801,7 @@ contains
       !$acc enter data create(mu_e(:,:))
       !$acc enter data create(mu_sgs(:,:))
       !$acc enter data create(u_buffer(:,:))
+      !$acc enter data create(mue_l(:,:))
 
       ! implicit
       allocate(impl_rho(numNodesRankPar))
@@ -935,6 +941,29 @@ contains
 
    end subroutine CFDSolverBase_allocateVariables
 
+   subroutine CFDSolverBase_deallocateVariables(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      !TO BE COMPLETED! NOT STRICTLY NECESSARY BUT IS GOOD TO DO IT AS GOOD PROGRAMMING PRACTICE :)
+
+      if(mpi_rank.eq.0) write(111,*) "--| DEALLOCATING MAIN VARIABLES"
+      call nvtxStartRange("Deallocate main vars")
+
+      !$acc exit data delete(mue_l(:,:))
+      deallocate(mue_l)
+      !$acc exit data delete(al_weights(:))
+      deallocate(al_weights)
+      !$acc exit data delete(am_weights(:))
+      deallocate(am_weights)
+      !$acc exit data delete(an_weights(:))
+      deallocate(an_weights)
+      !$acc exit data delete(convertIJK(:))    
+      deallocate(convertIJK)
+
+      call nvtxEndRange
+
+   end subroutine CFDSolverBase_deallocateVariables
+
    subroutine CFDSolverBase_evalOrLoadInitialConditions(this)
       class(CFDSolverBase), intent(inout) :: this
 
@@ -1054,9 +1083,9 @@ contains
       call nvtxStartRange("MU_SGS")
       if(flag_les_ilsa == 1) then
          this%dt = 1.0_rp !To avoid 0.0 division inside sgs_ilsa_visc calc
-         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
+         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3,mue_l,convertIJK,al_weights,am_weights,an_weights) 
       else
-         call sgs_visc(numElemsRankPar,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
+         call sgs_visc(numElemsRankPar,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs,mue_l,convertIJK,al_weights,am_weights,an_weights)
       end if
       call nvtxEndRange
 
@@ -1084,7 +1113,7 @@ contains
    subroutine CFDSolverBase_evalShapeFunctions(this)
       class(CFDSolverBase), intent(inout) :: this
       real(rp)   :: s,t,z,xi_gll(porder+1),xgp_equi(ngaus,ndime)
-      integer(4) :: igaus
+      integer(4) :: igaus,ii
 
       !*********************************************************************!
       ! Generate GLL table                                                  !
@@ -1192,6 +1221,42 @@ contains
       this%leviCivi(3,1,2) =  1.0_rp
       this%leviCivi(1,2,3) =  1.0_rp
       this%leviCivi(2,1,3) = -1.0_rp
+
+      !
+      ! Compute al,am,an weights and convertIJK
+      !
+
+      allocate(al_weights(-1:1))
+      !$acc enter data create(al_weights(:))
+      al_weights(-1) = 1.0_rp/4.0_rp
+      al_weights(0)  = 2.0_rp/4.0_rp
+      al_weights(1)  = 1.0_rp/4.0_rp
+      !$acc update device(al_weights(:))
+
+      allocate(am_weights(-1:1))
+      !$acc enter data create(am_weights(:))
+      am_weights(-1) = 1.0_rp/4.0_rp
+      am_weights(0)  = 2.0_rp/4.0_rp
+      am_weights(1)  = 1.0_rp/4.0_rp
+      !$acc update device(am_weights(:))
+
+      allocate(an_weights(-1:1))
+      !$acc enter data create(an_weights(:))
+      an_weights(-1) = 1.0_rp/4.0_rp
+      an_weights(0)  = 2.0_rp/4.0_rp
+      an_weights(1)  = 1.0_rp/4.0_rp
+      !$acc update device(an_weights(:))
+     
+      allocate(convertIJK(0:porder+2))
+      !$acc enter data create(convertIJK(:))
+      do ii=3,porder+1
+         convertIJK(ii-1) = ii
+      end do
+      convertIJK(0) = 3
+      convertIJK(1) = 1
+      convertIJK(porder+1) = 2
+      convertIJK(porder+2) = porder
+      !$acc update device(convertIJK(:))
 
       call MPI_Barrier(app_comm,mpi_err)
 
@@ -2090,6 +2155,9 @@ contains
 
       call this%close_log_file()
       call this%close_analysis_files()
+
+      ! Deallocate the variables
+      call this%deallocateVariables()
 
       ! End hdf5 auxiliar saving arrays
       call end_hdf5_auxiliar_saving_arrays()

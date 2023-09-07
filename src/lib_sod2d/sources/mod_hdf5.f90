@@ -2718,8 +2718,8 @@ contains
       dsetname = '/meshOutputInfo/isLinealOutput'
       call read_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i1)
 
-      isMeshLinealOutput = 0
-      if(aux_array_i1(1).eq.1) isMeshLinealOutput = 1
+      isMeshLinealOutput = .false.
+      if(aux_array_i1(1).eq.1) isMeshLinealOutput = .true.
       if(mpi_rank.eq.0) write(*,*) 'Lineal Output:',isMeshLinealOutput
 
       dsetname = '/meshOutputInfo/nnodeVTK'
