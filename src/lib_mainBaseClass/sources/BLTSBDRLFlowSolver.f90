@@ -542,7 +542,7 @@ contains
       character(len=8) :: restart_step_str="", db_clustered_str="0", frequencyActuation_str="1.0", periodEpisode_str="1.0", timeBeginActuation_str="0.0"
       logical :: output_dir_exists
 
-      ! get command line args, ie: mpirun -n 4 sod2d --tag=12 --restart_step=2500
+      ! get command line args, ie: mpirun -n 4 sod2d --restart_step=2500
       num_args = command_argument_count()
       do iarg = 1, num_args
          call get_command_argument(iarg, arg)
@@ -566,7 +566,7 @@ contains
       if (db_clustered_str == "" .or. db_clustered_str == "0") this%db_clustered = .false.
       if (restart_step_str == "" .or. restart_step_str == "0") then
          this%loadRestartFile = .false.
-         ! stop "Cannot use RL actuation from cold start. (--restart_step=0 or --restart_step='')"
+         this%restartFile_to_load = 0
       else
          this%loadRestartFile = .true.
          read(restart_step_str, *) this%restartFile_to_load ! 1: baseline, 2: last episode
@@ -585,7 +585,7 @@ contains
       inquire(file=trim(adjustl(output_dir)), exist=output_dir_exists)
       if (mpi_rank .eq. 0) then
          if (.not. output_dir_exists) call system("mkdir -p "//trim(adjustl(output_dir)))
-         call system("cp restart/* "//trim(adjustl(output_dir)))
+         if (this%restartFile_to_load .gt. 0) call system("cp restart/* "//trim(adjustl(output_dir)))
       end if
 
       write(this%mesh_h5_file_path,*) ""
@@ -614,9 +614,9 @@ contains
       this%save_logFile_step = 250
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 50000
+      this%save_restartFile_step = 10000
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 50000
+      this%save_resultsFile_step = 10000
 
       this%continue_oldLogs = .false.
 
@@ -725,10 +725,10 @@ contains
       this%have_witness          = .true.
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
-      this%leapwit               = 10000001 ! (update witness ever n dts) | in this class, we update the witness points manually
-      this%leapwitsave           = 1 ! how many dts are stored in buffer
-      this%wit_save              = .false. ! save witness or not
-      this%wit_save_u_i          = .false.
+      this%leapwit               = 1 ! (update witness ever n dts) | in this class, we update the witness points manually
+      this%leapwitsave           = 10 ! how many dts are stored in buffer
+      this%wit_save              = .true. ! save witness or not
+      this%wit_save_u_i          = .true.
       this%wit_save_pr           = .false.
       this%wit_save_rho          = .false.
       this%continue_witness      = .false.
