@@ -11,7 +11,7 @@ module time_integ_incomp
    use mod_fluid_viscosity
    use mod_sgs_viscosity
    use mod_sgs_ilsa_viscosity
-   use mod_bc_routines
+   use mod_bc_routines_incomp
    use mod_wall_model
    use mod_operators
    use mod_solver_incomp
@@ -150,7 +150,7 @@ module time_integ_incomp
    end subroutine end_rk4_solver_incomp
  
 
-         subroutine rk_4_main_incomp(noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         subroutine rk_4_main_incomp(igtime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
@@ -159,6 +159,7 @@ module time_integ_incomp
             implicit none
 
             logical,              intent(in)   :: noBoundaries,isWallModelOn
+            integer(4),           intent(in)    :: igtime,save_logFile_next
             integer(4),           intent(in)    :: nelem, nboun, npoin
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou),lnbn_nodes(npoin)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
@@ -174,7 +175,7 @@ module time_integ_incomp
             real(rp),             intent(inout) :: rho(npoin,3)
             real(rp),             intent(inout) :: u(npoin,ndime,3)
             real(rp),             intent(inout) :: q(npoin,ndime,3)
-            real(rp),             intent(inout) :: pr(npoin,2)
+            real(rp),             intent(inout) :: pr(npoin,3)
             real(rp),             intent(inout) :: E(npoin,3)
             real(rp),             intent(inout) :: Tem(npoin,2)
             real(rp),             intent(inout) :: e_int(npoin,2)
@@ -245,18 +246,27 @@ module time_integ_incomp
             !
             call nvtxStartRange("Loop over RK steps")
 
+            if(flag_fs_incremental .eqv. .true.) call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,pr(:,pos),gradP,.false.)
+
             do istep = 1,flag_rk_order
                !if(mpi_rank.eq.0) write(111,*) "-- RK step: ",istep
                !
                ! Compute variable at substep (y_i = y_n+dt*A_ij*R_j)
                !
                call nvtxStartRange("Update aux_*")
+
+               !$acc parallel loop
+               do ipoin = 1,npoin
+                  aux_pr(ipoin) = 0.5_rp*(3.0_rp*pr(ipoin,1)-pr(ipoin,3))-c_i(istep)*0.5_rp+(pr(ipoin,1)-pr(ipoin,3))
+               end do
+               !$acc end parallel loop
+               call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,aux_pr(:),gradP,.true.)
+               
                !$acc parallel loop
                do ipoin = 1,npoin
                   !$acc loop seq
                   do idime = 1,ndime
-                     aux_u(ipoin,idime) = u(ipoin,idime,pos) - dt*a_i(istep)*Rmom(ipoin,idime)
-                     aux_q(ipoin,idime) = u(ipoin,idime,pos)*rho(ipoin,pos)
+                     aux_u(ipoin,idime) = u(ipoin,idime,pos) - dt*a_i(istep)*Rmom(ipoin,idime) - dt*c_i(istep)*gradP(ipoin,idime) 
                   end do
                end do
                !$acc end parallel loop
@@ -269,33 +279,19 @@ module time_integ_incomp
                !
                if (noBoundaries .eqv. .false.) then
                   call nvtxStartRange("BCS_AFTER_UPDATE")
-                  !call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,aux_rho(:),aux_q(:,:),aux_u(:,:),aux_pr(:),aux_E(:),u_buffer)
+                  call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,aux_u(:,:),u_buffer)
                   call nvtxEndRange
                end if
-         
-               if(istep .gt. 1) then
-                  !!
-                  !! FS update
-                  !!
-                  !call nvtxStartRange("FS update")
-                  
-                  !call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_u,aux_pr)
-                  !!$acc kernels
-                  !aux_pr(:) = -aux_pr(:)/(c_i(istep)*dt)
-                  !!$acc end kernels
-                  !call conjGrad_scalar_incomp(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,aux_pr(:))
-                  !call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,aux_pr(:),gradP)
-                  call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,pr(:,pos),gradP)
-                  
-                  !$acc parallel loop
-                  do ipoin = 1,npoin
-                     !$acc loop seq
-                     do idime = 1,ndime
-                        aux_u(ipoin,idime) = aux_u(ipoin,idime)-c_i(istep)*dt*gradP(ipoin,idime)
-                     end do
+               
+               !$acc parallel loop
+               do ipoin = 1,npoin
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     aux_q(ipoin,idime) = u(ipoin,idime,pos)*rho(ipoin,pos)
                   end do
-                  !$acc end parallel loop
-               end if
+               end do
+               !$acc end parallel loop
+               call nvtxEndRange
 
                !
                ! Compute diffusion terms with values at current substep
@@ -334,10 +330,12 @@ module time_integ_incomp
                call nvtxEndRange
 
                call nvtxStartRange("Add convection and diffusion")
+               
                !$acc kernels
                Rmom(:,:) = Rmom(:,:) + Rdiff_mom(:,:)
                !$acc end kernels
-               call nvtxEndRange
+               call nvtxEndRange              
+               
 
                !TESTING NEW LOCATION FOR MPICOMMS
                if(mpi_size.ge.2) then
@@ -373,14 +371,26 @@ module time_integ_incomp
             ! RK update to variables
             !
             call nvtxStartRange("RK_UPDATE")
-            !$acc parallel loop
-            do ipoin = 1,npoin
-               !$acc loop seq
-               do idime = 1,ndime
-                  u(ipoin,idime,pos) = u(ipoin,idime,pos)-dt*Rmom_sum(ipoin,idime)
+            if(flag_fs_incremental .eqv. .true.) then
+               call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,pr(:,1),gradP,.true.)
+               !$acc parallel loop
+               do ipoin = 1,npoin
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     u(ipoin,idime,pos) = u(ipoin,idime,pos)-dt*(Rmom_sum(ipoin,idime)+gradP(ipoin,idime))
+                  end do
                end do
-            end do
-            !$acc end parallel loop
+               !$acc end parallel loop
+            else
+               !$acc parallel loop
+               do ipoin = 1,npoin
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     u(ipoin,idime,pos) = u(ipoin,idime,pos)-dt*Rmom_sum(ipoin,idime)
+                  end do
+               end do
+               !$acc end parallel loop
+            end if
             call nvtxEndRange
 
             if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,u(:,:,pos),u_buffer)
@@ -390,7 +400,7 @@ module time_integ_incomp
             !
             if (noBoundaries .eqv. .false.) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
-               !call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos),u_buffer)
+               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,u(:,:,pos),u_buffer)
                call nvtxEndRange
             end if
 
@@ -399,14 +409,21 @@ module time_integ_incomp
             !
             call nvtxStartRange("FS update")
             
-            call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,pr(:,pos))
+            call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),pr(:,pos))
             !$acc kernels
             pr(:,pos) = -pr(:,pos)/dt
             !$acc end kernels
-            call conjGrad_scalar_incomp(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,pr(:,pos))
-            !call jacobi_scalar_incomp(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,pr(:,pos))
-            call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,pr(:,pos),gradP)
+
+            call conjGrad_scalar_incomp(igtime,save_logFile_next,nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,pr(:,1),pr(:,pos))
+            call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,pr(:,pos),gradP,.true.)
             
+            if(flag_fs_incremental .eqv. .true.) then
+               !$acc parallel loop
+               do ipoin = 1,npoin
+                  pr(:,pos) =  pr(:,1) + pr(:,pos)
+               end do
+               !$acc end parallel loop
+            end if               
             !$acc parallel loop
             do ipoin = 1,npoin
                !$acc loop seq
@@ -415,6 +432,12 @@ module time_integ_incomp
                end do
             end do
             !$acc end parallel loop
+            
+            if (noBoundaries .eqv. .false.) then
+               call nvtxStartRange("BCS_AFTER_UPDATE")
+               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,u(:,:,pos),u_buffer)
+               call nvtxEndRange
+            end if
             !
             ! Compute subgrid viscosity if active
             !

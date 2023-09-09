@@ -3,8 +3,9 @@
 #define _tgv_ 0
 #define _tgv_multi 0
 #define _tgv_comp 0
-#define _tgv_incomp 1
+#define _tgv_incomp 0
 #define _channel_ 0
+#define _channel_incomp 1
 #define _bluff_ 0
 #define _bluff3d_ 0
 #define _bl_ 0
@@ -26,6 +27,9 @@ program main
 #if _channel_
    use ChannelFlowSolver_mod
    !use ThermalChannelFlowSolver_mod
+#endif
+#if _channel_incomp
+   use ChannelFlowSolverIncomp_mod
 #endif
 #if _bluff_
    use BluffBodySolver_mod
@@ -57,6 +61,10 @@ program main
 #if _channel_
    !type(ThermalChannelFlowSolver) :: channel
    type(ChannelFlowSolver)  :: channel
+   call channel%run()
+#endif
+#if _channel_incomp
+   type(ChannelFlowSolverIncomp)  :: channel
    call channel%run()
 #endif
 #if _bluff_

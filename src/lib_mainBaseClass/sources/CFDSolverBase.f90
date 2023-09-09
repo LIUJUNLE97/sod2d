@@ -787,7 +787,7 @@ contains
       allocate(u(numNodesRankPar,ndime,3))  ! Velocity
       allocate(q(numNodesRankPar,ndime,3))  ! momentum
       allocate(rho(numNodesRankPar,3))      ! Density
-      allocate(pr(numNodesRankPar,2))       ! Pressure
+      allocate(pr(numNodesRankPar,3))       ! Pressure
       allocate(E(numNodesRankPar,3))        ! Total Energy
       allocate(Tem(numNodesRankPar,2))      ! Temperature
       allocate(e_int(numNodesRankPar,2))    ! Internal Energy
@@ -1568,6 +1568,7 @@ contains
             q(:,:,3) = q(:,:,1)
             eta(:,3) = eta(:,1)
             u(:,:,3) = u(:,:,1)
+            pr(:,3) = pr(:,1)
             !$acc end kernels
             pseudo_cfl = aux_pseudo_cfl
          !end if

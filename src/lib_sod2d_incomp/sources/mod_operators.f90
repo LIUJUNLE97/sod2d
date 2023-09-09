@@ -32,8 +32,8 @@ module mod_operators
              ResP(:) = 0.0_rp
              auxP(:) = p(:)
             !$acc end kernels
-            if(mpi_rank.eq.0) then
-               auxP(lpoin_w(1)) = nscbc_p_inf
+            if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
+               auxP(lpoin_w(1)) = 0.0_rp
             end if
             !$acc parallel loop gang  private(ipoin,pl,gradPl)
             do ielem = 1,nelem
@@ -108,10 +108,83 @@ module mod_operators
                call mpi_halo_atomic_update_real(ResP(:))
                call nvtxEndRange
             end if
-            if(mpi_rank.eq.0) then
+            if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
                ResP(lpoin_w(1)) = 0.0_rp
             end if
         end subroutine eval_laplacian_mult
+
+        subroutine eval_laplacian_diag(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,ResP)
+
+            implicit none
+
+            integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
+            real(rp),   intent(inout)  :: ResP(npoin)
+            real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem)
+            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+            integer(4)               :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ipoin(nnode),ipoin2
+            integer(4)              :: convertIJK(0:porder+2),ii,jj,kk,mm,nn,ll,iter
+            real(rp)                :: p_l(npoin),al(-1:1),am(-1:1),an(-1:1),aux1
+            real(rp)                :: gradIsoP(ndime)
+            real(rp)                :: gradP(ndime),divDp
+
+            !$acc kernels
+             ResP(:) = 0.0_rp
+            !$acc end kernels
+
+            !$acc parallel loop gang  private(ipoin)
+            do ielem = 1,nelem
+                !$acc loop vector
+                do inode = 1,nnode
+                   ipoin(inode) = connec(ielem,inode)
+                end do
+
+                !$acc loop vector private(gradIsoP,gradP)
+                do igaus = 1,ngaus
+                  isoI = gmshAtoI(igaus) 
+                  isoJ = gmshAtoJ(igaus) 
+                  isoK = gmshAtoK(igaus) 
+
+                  gradIsoP(1) = dlxigp_ip(igaus,1,isoI)
+                  gradIsoP(2) = dlxigp_ip(igaus,2,isoJ)
+                  gradIsoP(3) = dlxigp_ip(igaus,3,isoK)                  
+
+                  gradP(:) = 0.0_rp
+                  !$acc loop seq
+                  do idime=1, ndime
+                     !$acc loop seq
+                     do jdime=1, ndime
+                        gradP(idime) = gradP(idime) + He(idime,jdime,igaus,ielem) * gradIsoP(jdime)
+                     end do
+                  end do
+
+                  !write(*,*) "Grad Pres ",gradP
+
+                  divDp = 0.0_rp
+                  !$acc loop seq
+                  do idime=1,ndime
+                     divDp = divDp + gradP(idime)*gradP(idime)
+                  end do
+                  !write(*,*) "AA ",divDp*gpvol(1,igaus,ielem)
+                  !$acc atomic update
+                  ResP(ipoin(igaus)) = ResP(ipoin(igaus))+gpvol(1,igaus,ielem)*divDp
+                  !$acc end atomic
+                  !write(*,*) "ResP ",ResP(ipoin(igaus))
+                end do
+             end do
+             !$acc end parallel loop
+
+            if(mpi_size.ge.2) then
+               call nvtxStartRange("MPI_comms_tI")
+               call mpi_halo_atomic_update_real(ResP(:))
+               call nvtxEndRange
+            end if
+
+            if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
+               ResP(lpoin_w(1)) = 1.0_rp
+            end if
+
+
+        end subroutine eval_laplacian_diag
 
         subroutine eval_laplacian_mult2(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,p,ResP)
 
@@ -130,7 +203,7 @@ module mod_operators
                auxP(lpoin_w(1)) = nscbc_p_inf
             end if
 
-            call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,auxP,auxGradP)
+            call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,auxP,auxGradP,.true.)
             call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,auxGradP,ResP)
 
             if(mpi_rank.eq.0) then
@@ -139,7 +212,7 @@ module mod_operators
         end subroutine eval_laplacian_mult2
 
 
-        subroutine eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,x,gradX)
+        subroutine eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,x,gradX,lump)
 
             implicit none
 
@@ -148,6 +221,7 @@ module mod_operators
             real(rp),             intent(in)    :: Ml(npoin)
             real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),x(npoin)
             integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+            logical,    intent(in)  :: lump
             integer(4)               :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ipoin(nnode),ipoin2
             integer(4)              :: convertIJK(0:porder+2),ii,jj,kk,mm,nn,ll,iter
             real(rp)                :: al(-1:1),am(-1:1),an(-1:1),aux1
@@ -222,9 +296,11 @@ module mod_operators
             !
             ! Call lumped mass matrix solver
             !
-            call nvtxStartRange("Call solver")
-            call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,gradX(:,:))
-            call nvtxEndRange
+            if(lump .eqv. .true.) then
+               call nvtxStartRange("Call solver")
+               call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,gradX(:,:))
+               call nvtxEndRange
+            end if
 
     end subroutine eval_gradient
 

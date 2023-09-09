@@ -74,11 +74,12 @@ contains
       ! numerical params
       flag_les = 0
 
-      this%cfl_conv = 0.5_rp
-      this%cfl_diff = 0.5_rp
+      this%cfl_conv = 0.25_rp
+      this%cfl_diff = 0.25_rp
 
-      maxIter = 50
-      tol = 1e-3
+      flag_rk_order = 2
+      maxIter = 200
+      tol = 1e-1
 
       this%Re = 1600.0_rp
 
@@ -86,6 +87,9 @@ contains
       flag_mu_factor = 1.0_rp
 
       nscbc_p_inf = 0.0_rp
+
+      flag_fs_fix_pressure = .true.
+      flag_fs_incremental = .false.
 
    end subroutine TGVSolverIncomp_initializeParameters
 
@@ -127,6 +131,7 @@ contains
          rho(iNodeL,3) = rho(iNodeL,2)
          E(iNodeL,3)   = E(iNodeL,2)
          eta(iNodeL,3) =  eta(iNodeL,2)
+          pr(iNodeL,3) =  pr(iNodeL,2)  
       end do
       !$acc end parallel loop
 
