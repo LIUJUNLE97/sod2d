@@ -18,22 +18,10 @@ module time_integ_incomp
 
    implicit none
 
-   real(rp), allocatable, dimension(:)   :: Rmass,Rener,Reta
-   real(rp), allocatable, dimension(:,:) :: Rmom
-   real(rp), allocatable, dimension(:,:)   :: sigMass,sigEner
-   real(rp), allocatable, dimension(:,:,:) :: sigMom
-   real(rp), allocatable, dimension(:,:)   :: aijKjMass,aijKjEner,pt
-   real(rp), allocatable, dimension(:,:,:) :: aijKjMom
-   real(rp), allocatable, dimension(:)     :: dt_min,alfa_pt
-
-   real(rp), allocatable, dimension(:)   :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
-   real(rp), allocatable, dimension(:,:) :: aux_u,aux_q
-   real(rp), allocatable, dimension(:)   :: Rmass_sum,Rener_sum,Reta_sum,alpha,Rdiff_mass,Rdiff_ener
-   real(rp), allocatable, dimension(:,:) :: Rmom_sum,Rdiff_mom,f_eta
+   real(rp), allocatable, dimension(:,:,:) :: Rmom
+   real(rp), allocatable, dimension(:,:) :: aux_q,Rsource
+   real(rp), allocatable, dimension(:,:) :: Rmom_sum,Rdiff_mom
    real(rp), allocatable, dimension(:,:) ::GradP
-
-   real(rp), allocatable, dimension(:)   :: a_i, b_i, c_i,b_i2
-   real(rp), allocatable, dimension(:,:)   :: a_ij
 
    contains
    subroutine init_rk4_solver_incomp(npoin)
@@ -42,65 +30,22 @@ module time_integ_incomp
       integer(4),intent(in) :: npoin
       integer(4) :: numSteps
 
-      allocate(Rmass(npoin),Rener(npoin),Reta(npoin),Rmom(npoin,ndime))
-      !$acc enter data create(Rmass(:))
-      !$acc enter data create(Rener(:))
-      !$acc enter data create(Reta(:))
-      !$acc enter data create(Rmom(:,:))
+      allocate(Rmom(npoin,ndime,2))
+      !$acc enter data create(Rmom(:,:,:))
 
-      allocate(aux_rho(npoin),aux_pr(npoin),aux_E(npoin),aux_Tem(npoin),aux_e_int(npoin),aux_eta(npoin))
-      !$acc enter data create(aux_rho(:))
-      !$acc enter data create(aux_pr(:))
-      !$acc enter data create(aux_E(:))
-      !$acc enter data create(aux_Tem(:))
-      !$acc enter data create(aux_e_int(:))
-      !$acc enter data create(aux_eta(:))
-      allocate(aux_u(npoin,ndime),aux_q(npoin,ndime))
-      !$acc enter data create(aux_u(:,:))
-      !$acc enter data create(aux_q(:,:))
+      allocate(aux_q(npoin,ndime),Rsource(npoin,ndime))
+      !$acc enter data create(aux_q(:,:),Rsource(:,:))
 
-      allocate(Rmass_sum(npoin),Rener_sum(npoin),Reta_sum(npoin),alpha(npoin),Rdiff_mass(npoin),Rdiff_ener(npoin))
-      !$acc enter data create(Rmass_sum(:))
-      !$acc enter data create(Rener_sum(:))
-      !$acc enter data create(Reta_sum(:))
-      !$acc enter data create(alpha(:))
-      !$acc enter data create(Rdiff_mass(:))
-      !$acc enter data create(Rdiff_ener(:))
-      allocate(Rmom_sum(npoin,ndime),Rdiff_mom(npoin,ndime),f_eta(npoin,ndime))
+      allocate(Rmom_sum(npoin,ndime),Rdiff_mom(npoin,ndime))
       !$acc enter data create(Rmom_sum(:,:))
       !$acc enter data create(Rdiff_mom(:,:))
-      !$acc enter data create(f_eta(:,:))
 
       allocate(gradP(npoin,ndime))
       !$acc enter data create(gradP(:,:))
    
-      allocate(a_i(4),b_i(4),c_i(4))
-      !$acc enter data create(a_i(:))
-      !$acc enter data create(b_i(:))
-      !$acc enter data create(c_i(:))
-
-      if (flag_rk_order == 1) then
-         a_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
-         c_i = [0.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
-         b_i = [1.0_rp, 0.0_rp, 0.0_rp, 0.0_rp]
-      else if (flag_rk_order == 2) then
-         a_i = [0.0_rp, 1.0_rp, 0.0_rp, 0.0_rp]
-         c_i = [0.0_rp, 1.0_rp, 0.0_rp, 0.0_rp]
-         b_i = [0.5_rp, 0.5_rp, 0.0_rp, 0.0_rp]
-      else if (flag_rk_order == 3) then
-         write(1,*) "--| NOT CODED FOR RK3 YET!"
-         stop 1
-      else if (flag_rk_order == 4) then
-         a_i = [0.0_rp, 0.5_rp, 0.5_rp, 1.0_rp]
-         c_i = [0.0_rp, 0.5_rp, 0.5_rp, 1.0_rp]
-         b_i = [1.0_rp/6.0_rp, 1.0_rp/3.0_rp, 1.0_rp/3.0_rp, 1.0_rp/6.0_rp]
-      else
-         write(1,*) "--| NOT CODED FOR RK > 4 YET!"
-         stop 1
-      end if
-      !$acc update device(a_i(:))
-      !$acc update device(b_i(:))
-      !$acc update device(c_i(:))
+      !$acc kernels
+      Rmom(1:npoin,1:ndime,1:2) = 0.0_rp
+      !$acc end kernels
 
       call nvtxEndRange
 
@@ -109,48 +54,24 @@ module time_integ_incomp
    subroutine end_rk4_solver_incomp()
       implicit none
 
-      !$acc exit data delete(Rmass(:))
-      !$acc exit data delete(Rener(:))
-      !$acc exit data delete(Reta(:))
-      !$acc exit data delete(Rmom(:,:))
-      deallocate(Rmass,Rener,Reta,Rmom)
 
-      !$acc exit data delete(aux_rho(:))
-      !$acc exit data delete(aux_pr(:))
-      !$acc exit data delete(aux_E(:))
-      !$acc exit data delete(aux_Tem(:))
-      !$acc exit data delete(aux_e_int(:))
-      !$acc exit data delete(aux_eta(:))
-      deallocate(aux_rho,aux_pr,aux_E,aux_Tem,aux_e_int,aux_eta)
-      !$acc exit data delete(aux_u(:,:))
+      !$acc exit data delete(Rmom(:,:,:))
+      deallocate(Rmom)
+
       !$acc exit data delete(aux_q(:,:))
-      deallocate(aux_u,aux_q)
-
-      !$acc exit data delete(Rmass_sum(:))
-      !$acc exit data delete(Rener_sum(:))
-      !$acc exit data delete(Reta_sum(:))
-      !$acc exit data delete(alpha(:))
-      !$acc exit data delete(Rdiff_mass(:))
-      !$acc exit data delete(Rdiff_ener(:))
-      deallocate(Rmass_sum,Rener_sum,Reta_sum,alpha,Rdiff_mass,Rdiff_ener)
+      !$acc exit data delete(Rsource(:,:))
+      deallocate(aux_q,Rsource)
 
       !$acc exit data delete(Rmom_sum(:,:))
       !$acc exit data delete(Rdiff_mom(:,:))
-      !$acc exit data delete(f_eta(:,:))
-      deallocate(Rmom_sum,Rdiff_mom,f_eta)
+      deallocate(Rmom_sum,Rdiff_mom)
 
       !$acc exit data delete(gradP(:,:))
       deallocate(gradP)
-      
-      !$acc exit data delete(a_i(:))
-      !$acc exit data delete(b_i(:))
-      !$acc exit data delete(c_i(:))
-      deallocate(a_i,b_i,c_i)
 
    end subroutine end_rk4_solver_incomp
  
-
-         subroutine rk_4_main_incomp(igtime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         subroutine ab_main_incomp(igtime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
@@ -202,240 +123,81 @@ module time_integ_incomp
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
             real(rp), optional, intent(in)      :: source_term(npoin,ndime)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
-            integer(4)                          :: pos
             integer(4)                          :: istep, ipoin, idime,icode
-            real(rp),    dimension(npoin)       :: Rrho
-            real(rp)                            :: umag
-
-
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            ! New version of RK4 using loops                 !
-            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            !
-            pos = 2 ! Set correction as default value
 
             !
-            ! Initialize variables to zero
-            !
-            call nvtxStartRange("Initialize variables")
-            !$acc kernels
-            aux_rho(1:npoin) = 0.0_rp
-            aux_u(1:npoin,1:ndime) = 0.0_rp
-            aux_q(1:npoin,1:ndime) = 0.0_rp
-            aux_pr(1:npoin) = 0.0_rp
-            aux_E(1:npoin) = 0.0_rp
-            aux_Tem(1:npoin) = 0.0_rp
-            aux_e_int(1:npoin) = 0.0_rp
-            aux_eta(1:npoin) = 0.0_rp
-            Rdiff_mass(1:npoin) = 0.0_rp
-            Rdiff_mom(1:npoin,1:ndime) = 0.0_rp
-            Rdiff_ener(1:npoin) = 0.0_rp
-            Rmass(1:npoin) = 0.0_rp
-            Rmom(1:npoin,1:ndime) = 0.0_rp
-            Rener(1:npoin) = 0.0_rp
-            Reta(1:npoin) = 0.0_rp
-            Rmass_sum(1:npoin) = 0.0_rp
-            Rener_sum(1:npoin) = 0.0_rp
-            Reta_sum(1:npoin) = 0.0_rp
-            Rmom_sum(1:npoin,1:ndime) = 0.0_rp
-            !$acc end kernels
+            ! Loop over all AB+CN steps
+            ! 
 
-            call nvtxEndRange
-            !
-            ! Loop over all RK steps
-            !
-            call nvtxStartRange("Loop over RK steps")
-
-            if(flag_fs_incremental .eqv. .true.) call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,pr(:,pos),gradP,.false.)
-
-            do istep = 1,flag_rk_order
-               !if(mpi_rank.eq.0) write(111,*) "-- RK step: ",istep
-               !
-               ! Compute variable at substep (y_i = y_n+dt*A_ij*R_j)
-               !
-               call nvtxStartRange("Update aux_*")
-
-               !$acc parallel loop
-               do ipoin = 1,npoin
-                  aux_pr(ipoin) = 0.5_rp*(3.0_rp*pr(ipoin,1)-pr(ipoin,3))-c_i(istep)*0.5_rp+(pr(ipoin,1)-pr(ipoin,3))
-               end do
-               !$acc end parallel loop
-               call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,aux_pr(:),gradP,.true.)
-               
-               !$acc parallel loop
-               do ipoin = 1,npoin
-                  !$acc loop seq
-                  do idime = 1,ndime
-                     aux_u(ipoin,idime) = u(ipoin,idime,pos) - dt*a_i(istep)*Rmom(ipoin,idime) - dt*c_i(istep)*gradP(ipoin,idime) 
-                  end do
-               end do
-               !$acc end parallel loop
-               call nvtxEndRange
-
-               if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,aux_u,u_buffer)
-
-               !
-               ! Apply bcs after update
-               !
-               if (noBoundaries .eqv. .false.) then
-                  call nvtxStartRange("BCS_AFTER_UPDATE")
-                  call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,aux_u(:,:),u_buffer)
-                  call nvtxEndRange
-               end if
-               
-               !$acc parallel loop
-               do ipoin = 1,npoin
-                  !$acc loop seq
-                  do idime = 1,ndime
-                     aux_q(ipoin,idime) = u(ipoin,idime,pos)*rho(ipoin,pos)
-                  end do
-               end do
-               !$acc end parallel loop
-               call nvtxEndRange
-
-               !
-               ! Compute diffusion terms with values at current substep
-               !
-               call nvtxStartRange("DIFFUSIONS")
-               call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_u,mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mom)
-               call nvtxEndRange
-               !
-               ! Call source term if applicable
-               !
-               if(present(source_term)) then
-                  call nvtxStartRange("SOURCE TERM")
-                  call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,aux_u,source_term,Rdiff_mom)
-                  call nvtxEndRange
-               end if
-               !
-               ! Evaluate wall models
-
-               if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
-                  call nvtxStartRange("WALL MODEL")
-                  if(flag_walave == 0) then
-                     call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,rho(:,pos),aux_u(:,:),tauw,Rdiff_mom)
-                  else
-                     call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,rho(:,pos),walave_u(:,:),tauw,Rdiff_mom)
-                  end if
-                  call nvtxEndRange
-               end if
-               !
-               !
-               ! Compute convective terms
-               !
-               call nvtxStartRange("CONVECTIONS")
-               call full_convec_ijk_incomp(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_u,aux_q,rho(:,pos),Rmom(:,:))
-               call nvtxEndRange
-
-               call nvtxStartRange("Add convection and diffusion")
-               
+            if(present(source_term)) then
                !$acc kernels
-               Rmom(:,:) = Rmom(:,:) + Rdiff_mom(:,:)
+               Rsource(1:npoin,1:ndime) = 0.0_rp
                !$acc end kernels
-               call nvtxEndRange              
+               call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(ipoin,idime,1),source_term,Rsource)
+            end if
+
+
+            call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mom)
                
-
-               !TESTING NEW LOCATION FOR MPICOMMS
-               if(mpi_size.ge.2) then
-                  call nvtxStartRange("MPI_comms_tI")
-                  do idime = 1,ndime
-                     call mpi_halo_atomic_update_real(Rmom(:,idime))
-                  end do
-                  call nvtxEndRange
-               end if
-
-               !
-               ! Call lumped mass matrix solver
-               !
-               call nvtxStartRange("Call solver")
-               call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom(:,:))
-               call nvtxEndRange
-               !
-               ! Accumulate the residuals
-               !
-               call nvtxStartRange("Accumulate residuals")
-               !$acc parallel loop
-               do ipoin = 1,npoin
-                  !$acc loop seq
-                  do idime = 1,ndime
-                     Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)
-                  end do
-               end do
-               !$acc end parallel loop
-               call nvtxEndRange
-            end do
-            call nvtxEndRange
-            !
-            ! RK update to variables
-            !
-            call nvtxStartRange("RK_UPDATE")
-            if(flag_fs_incremental .eqv. .true.) then
-               call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,pr(:,1),gradP,.true.)
-               !$acc parallel loop
-               do ipoin = 1,npoin
-                  !$acc loop seq
-                  do idime = 1,ndime
-                     u(ipoin,idime,pos) = u(ipoin,idime,pos)-dt*(Rmom_sum(ipoin,idime)+gradP(ipoin,idime))
-                  end do
-               end do
-               !$acc end parallel loop
-            else
-               !$acc parallel loop
-               do ipoin = 1,npoin
-                  !$acc loop seq
-                  do idime = 1,ndime
-                     u(ipoin,idime,pos) = u(ipoin,idime,pos)-dt*Rmom_sum(ipoin,idime)
-                  end do
-               end do
-               !$acc end parallel loop
-            end if
-            call nvtxEndRange
-
-            if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,u(:,:,pos),u_buffer)
-
-            !
-            ! Apply bcs after update
-            !
-            if (noBoundaries .eqv. .false.) then
-               call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,u(:,:,pos),u_buffer)
-               call nvtxEndRange
-            end if
-
-            !
-            ! FS update
-            !
-            call nvtxStartRange("FS update")
-            
-            call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),pr(:,pos))
-            !$acc kernels
-            pr(:,pos) = -pr(:,pos)/dt
-            !$acc end kernels
-
-            call conjGrad_scalar_incomp(igtime,save_logFile_next,nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,pr(:,1),pr(:,pos))
-            call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,pr(:,pos),gradP,.true.)
-            
-            if(flag_fs_incremental .eqv. .true.) then
-               !$acc parallel loop
-               do ipoin = 1,npoin
-                  pr(:,pos) =  pr(:,1) + pr(:,pos)
-               end do
-               !$acc end parallel loop
-            end if               
             !$acc parallel loop
             do ipoin = 1,npoin
                !$acc loop seq
                do idime = 1,ndime
-                  u(ipoin,idime,pos) = u(ipoin,idime,pos)-dt*gradP(ipoin,idime)
+                  aux_q(ipoin,idime) = u(ipoin,idime,1)*rho(ipoin,1)
                end do
             end do
             !$acc end parallel loop
+            call full_convec_ijk_incomp(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),aux_q,rho(:,1),Rmom(:,:,2))
+
+            !$acc parallel loop
+            do ipoin = 1,npoin
+               !$acc loop seq   
+               do idime = 1,ndime
+                  u(ipoin,idime,2) = -dt*(1.5_rp*Rmom(ipoin,idime,2)-0.5_rp*(Rmom(ipoin,idime,1))+0.5_rp*Rdiff_mom(ipoin,idime))+dt*Rsource(ipoin,idime)
+                  Rmom(ipoin,idime,1) = Rmom(ipoin,idime,2)
+              end do
+            end do
+
+            !$acc end parallel loop     
+            if(mpi_size.ge.2) then
+               do idime = 1,ndime
+                  call mpi_halo_atomic_update_real(u(:,idime,2))
+                  end do              
+            end if
             
+            !$acc parallel loop
+            do ipoin = 1,npoin
+               !$acc loop seq   
+               do idime = 1,ndime
+                  u(ipoin,idime,2) =  u(ipoin,idime,2) + u(ipoin,idime,1)*Ml(ipoin)
+              end do
+            end do
+            !$acc end parallel loop   
+
+            call conjGrad_veloc_incomp(igtime,save_logFile_next,dt,nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,u(:,:,1),u(:,:,2))
+
+            call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),pr(:,2))
+            !$acc kernels
+            pr(:,2) = -pr(:,2)/dt
+            !$acc end kernels
+
+            call conjGrad_pressure_incomp(igtime,save_logFile_next,nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,pr(:,1),pr(:,2))
+            call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,pr(:,2),gradP,.true.)
+                        
+            !$acc parallel loop
+            do ipoin = 1,npoin
+               !$acc loop seq
+               do idime = 1,ndime
+                  u(ipoin,idime,2) = u(ipoin,idime,2)-dt*gradP(ipoin,idime)
+               end do
+            end do
+            !$acc end parallel loop
+
+            if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,u(:,:,2),u_buffer)
+
             if (noBoundaries .eqv. .false.) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,u(:,:,pos),u_buffer)
+               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer)
                call nvtxEndRange
             end if
             !
@@ -444,15 +206,13 @@ module time_integ_incomp
             if(flag_les == 1) then
                call nvtxStartRange("MU_SGS")
                if(flag_les_ilsa == 1) then
-                  call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,rho(:,pos),u(:,:,pos),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
+                  call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
                else
-                  call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,pos),u(:,:,pos),Ml,mu_sgs)
+                  call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
                end if
                call nvtxEndRange
             end if
-
-         end subroutine rk_4_main_incomp
-
+         end subroutine ab_main_incomp
 
          subroutine updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,u,u_buffer)
             implicit none

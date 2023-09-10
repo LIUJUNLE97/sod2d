@@ -74,12 +74,11 @@ contains
       ! numerical params
       flag_les = 0
 
-      this%cfl_conv = 0.25_rp
-      this%cfl_diff = 0.25_rp
+      this%cfl_conv = 0.95_rp
+      this%cfl_diff = 0.95_rp
 
-      flag_rk_order = 2
       maxIter = 200
-      tol = 1e-1
+      tol = 1e-3
 
       this%Re = 1600.0_rp
 
@@ -89,7 +88,6 @@ contains
       nscbc_p_inf = 0.0_rp
 
       flag_fs_fix_pressure = .true.
-      flag_fs_incremental = .false.
 
    end subroutine TGVSolverIncomp_initializeParameters
 

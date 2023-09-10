@@ -108,8 +108,8 @@ contains
       ! numerical params
       flag_les = 1
 
-      this%cfl_conv = 0.5_rp 
-      this%cfl_diff = 0.5_rp
+      this%cfl_conv = 1.95_rp 
+      this%cfl_diff = 1.95_rp
 
       
       this%vo = 1.0_rp
@@ -126,11 +126,8 @@ contains
 
       nscbc_p_inf = 0.0_rp
 
-      flag_fs_incremental = .false.
-
       maxIter = 100
       tol = 1e-1
-      flag_rk_order = 2
 
       flag_fs_fix_pressure = .false.
 

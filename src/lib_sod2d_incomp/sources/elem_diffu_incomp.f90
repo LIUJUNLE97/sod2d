@@ -9,13 +9,13 @@ module elem_diffu_incomp
    use mod_comms
 
       contains
-        subroutine full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,mu_fluid,mu_e,mu_sgs,Ml,Rmom)
+        subroutine full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,mu_fluid,mu_e,mu_sgs,Ml,Rmom)
              implicit none
 
              integer(4), intent(in)  :: nelem, npoin
              integer(4), intent(in)  :: connec(nelem,nnode)
-             real(rp),   intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-             real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
+             real(rp),   intent(in)  :: Ngp(ngaus,nnode)
+             real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem),dlxigp_ip(ngaus,ndime,porder+1)
              real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
              integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
              real(rp),   intent(in)  :: u(npoin,ndime), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus),Ml(npoin)
