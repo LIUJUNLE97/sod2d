@@ -153,7 +153,7 @@ module time_integ_incomp
             do ipoin = 1,npoin
                !$acc loop seq   
                do idime = 1,ndime
-                  u(ipoin,idime,2) = -dt*(1.5_rp*Rmom(ipoin,idime,2)-0.5_rp*(Rmom(ipoin,idime,1))+0.5_rp*Rdiff_mom(ipoin,idime))+dt*Rsource(ipoin,idime)
+                  u(ipoin,idime,2) = -dt*(1.5_rp*Rmom(ipoin,idime,2)-0.5_rp*(Rmom(ipoin,idime,1))+0.5_rp*Rdiff_mom(ipoin,idime))-dt*Rsource(ipoin,idime)
                   Rmom(ipoin,idime,1) = Rmom(ipoin,idime,2)
               end do
             end do
@@ -182,6 +182,9 @@ module time_integ_incomp
             !$acc end kernels
 
             call conjGrad_pressure_incomp(igtime,save_logFile_next,nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,pr(:,1),pr(:,2))
+            if (noBoundaries .eqv. .false.) then
+               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,pr(:,2))
+            end if
             call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,pr(:,2),gradP,.true.)
                         
             !$acc parallel loop
@@ -196,21 +199,17 @@ module time_integ_incomp
             if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,u(:,:,2),u_buffer)
 
             if (noBoundaries .eqv. .false.) then
-               call nvtxStartRange("BCS_AFTER_UPDATE")
                call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer)
-               call nvtxEndRange
             end if
             !
             ! Compute subgrid viscosity if active
             !
             if(flag_les == 1) then
-               call nvtxStartRange("MU_SGS")
                if(flag_les_ilsa == 1) then
                   call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
                else
                   call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
                end if
-               call nvtxEndRange
             end if
          end subroutine ab_main_incomp
 

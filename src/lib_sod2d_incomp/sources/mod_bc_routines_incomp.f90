@@ -46,4 +46,29 @@ module mod_bc_routines_incomp
             !$acc end parallel loop
 
          end subroutine temporary_bc_routine_dirichlet_prim_incomp
+
+          subroutine temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,aux_p)
+
+            implicit none
+
+            integer(4), intent(in)     :: npoin, nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
+            integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou),lnbn_nodes(npoin)
+            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
+            real(rp),    intent(inout) :: aux_p(npoin)
+            integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
+            real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
+            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm
+
+            !$acc parallel loop  
+            do inode = 1,npoin
+               if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
+                  bcode = bou_codes_nodes(inode) ! Boundary element code
+                  if (bcode == bc_type_outlet_incomp) then 
+                     aux_p(inode) = 0.0_rp
+                  end if
+               end if
+            end do
+            !$acc end parallel loop
+
+         end subroutine temporary_bc_routine_dirichlet_pressure_incomp
       end module mod_bc_routines_incomp

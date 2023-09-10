@@ -56,7 +56,7 @@ contains
       this%maxPhysTime = 20.0_rp
 
       this%save_logFile_first = 1 
-      this%save_logFile_step  = 1
+      this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
       this%save_resultsFile_step = 100
@@ -74,8 +74,10 @@ contains
       ! numerical params
       flag_les = 0
 
-      this%cfl_conv = 0.95_rp
-      this%cfl_diff = 0.95_rp
+      this%cfl_conv = 0.5_rp
+      this%cfl_diff = 0.5_rp
+      !flag_use_constant_dt = 1
+      !this%dt = 1e-2
 
       maxIter = 200
       tol = 1e-3
