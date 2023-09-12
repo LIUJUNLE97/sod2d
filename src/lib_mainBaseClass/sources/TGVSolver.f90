@@ -42,28 +42,28 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "tgv"
+      write(this%mesh_h5_file_name,*) "cube_per_p4_n50"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
-      this%doGlobalAnalysis = .true.
+      this%doGlobalAnalysis = .false.
       this%doTimerAnalysis = .true.
       this%saveInitialField = .false.
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 2501
+      this%final_istep = 5001
       this%maxPhysTime = 20.0_rp
 
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10
 
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 1000
+      this%save_resultsFile_first = 10000
+      this%save_resultsFile_step = 10000
 
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 500
+      this%save_restartFile_first = 10000
+      this%save_restartFile_step = 10000
       this%loadRestartFile = .false.
       this%restartFile_to_load = 2 !1 or 2
       this%continue_oldLogs = .false.
@@ -106,7 +106,7 @@ contains
       nscbc_gamma_inf = this%gamma_gas
 
       !Witness points parameters
-      this%have_witness          = .true.
+      this%have_witness          = .false.
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
       this%leapwit               = 1
