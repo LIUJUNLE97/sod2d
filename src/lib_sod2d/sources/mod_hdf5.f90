@@ -3630,13 +3630,14 @@ contains
 
 !----------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine save_hdf5_restartFile(mnnode,mngaus,restartCnt,iStep,flag_walave,time,rho,u,pr,E,mu_e,mu_t,walave_u)
+   subroutine save_hdf5_restartFile(mnnode,mngaus,restartCnt,iStep,flag_walave,flag_buffer,time,rho,u,pr,E,mu_e,mu_t,walave_u,u_buffer)
       implicit none
       integer(4),intent(in) :: mnnode,mngaus
       integer(4),intent(in) :: restartCnt,iStep,flag_walave
+      logical,intent(in) :: flag_buffer
       real(rp),intent(in) :: time
       real(rp),intent(inout),dimension(numNodesRankPar)       :: rho,pr,E
-      real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u,walave_u
+      real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u,walave_u,u_buffer
       real(rp),intent(inout),dimension(numElemsRankPar,mngaus) :: mu_e,mu_t
 
       integer(hid_t) :: file_id,plist_id,dtype
@@ -3665,6 +3666,10 @@ contains
       !$acc update host(E(:))
       if(flag_walave == 1) then
          !$acc update host(walave_u(:,:))
+      end if
+
+      if(flag_buffer) then
+         !$acc update host(u_buffer(:,:))
       end if
 
       !-----------------------------------------------------------------------------------------------
@@ -3715,6 +3720,17 @@ contains
          call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,walave_u(:,3))
       end if
 
+      if(flag_buffer) then
+         dsetname = 'u_buffer_x'
+         call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u_buffer(:,1))
+
+         dsetname = 'u_buffer_y'
+         call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u_buffer(:,2))
+
+         dsetname = 'u_buffer_z'
+         call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u_buffer(:,3))
+      end if
+
       !-----------------------------------------------------------------------------------------------
       ! ----  time  -----
       dsetname = 'time'
@@ -3747,13 +3763,14 @@ contains
 
    end subroutine save_hdf5_restartFile
 
-   subroutine load_hdf5_restartFile(mnnode,mngaus,restartCnt,load_step,flag_walave,time,rho,u,pr,E,mu_e,mu_t,walave_u)
+   subroutine load_hdf5_restartFile(mnnode,mngaus,restartCnt,load_step,flag_walave,flag_buffer,time,rho,u,pr,E,mu_e,mu_t,walave_u,u_buffer)
       implicit none
       integer(4),intent(in) :: mnnode,mngaus,restartCnt,flag_walave
+      logical,intent(in) :: flag_buffer
       integer(4),intent(inout) :: load_step
       real(rp),intent(inout) :: time
       real(rp),intent(inout),dimension(numNodesRankPar)       :: rho,pr,E
-      real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u,walave_u
+      real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u,walave_u,u_buffer
       real(rp),intent(inout),dimension(numElemsRankPar,mngaus) :: mu_e,mu_t
 
       character(512) :: full_restartFileName
@@ -3847,6 +3864,30 @@ contains
             walave_u(:,:) = u(:,:)
          end if
          !$acc update device(walave_u(:,:))
+      end if
+
+      if(flag_buffer) then
+         dsetname = 'u_buffer_x'
+         call h5lexists_f(file_id,dsetname, link_exists, h5err)
+         if(h5err /= 0) then
+            write(*,*) ' error checking if u_buffer_x exists in restart file'
+            call MPI_Abort(app_comm,-1,mpi_err)
+         end if
+
+         if(link_exists) then
+         dsetname = 'u_buffer_x'
+         call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u_buffer(:,1))
+
+         dsetname = 'u_buffer_y'
+         call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u_buffer(:,2))
+
+         dsetname = 'u_buffer_z'
+         call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u_buffer(:,3))
+         else
+            if(mpi_rank.eq.0) write(111,*) ' u_buffer does not exist in restart file, setting to 0.'
+            walave_u(:,:) = 0.0_rp
+         end if
+         !$acc update device(u_buffer(:,:))
       end if
 
       !$acc update device(rho(:))

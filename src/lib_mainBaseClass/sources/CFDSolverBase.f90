@@ -161,6 +161,7 @@ module CFDSolverBase_mod
       procedure, public :: saveAvgResultsFiles =>CFDSolverBase_saveAvgResultsFiles
       procedure, public :: saveInstResultsFiles =>CFDSolverBase_saveInstResultsFiles
       procedure, public :: afterDt =>CFDSolverBase_afterDt
+      procedure, public :: beforeTimeIteration =>CFDSolverBase_beforeTimeIteration
       procedure, public :: afterTimeIteration =>CFDSolverBase_afterTimeIteration
       procedure, public :: update_witness =>CFDSolverBase_update_witness
       procedure, public :: preprocWitnessPoints =>CFDSolverBase_preprocWitnessPoints
@@ -956,7 +957,7 @@ contains
 
       if(this%loadRestartFile) then
          if(mpi_rank.eq.0) write(111,*) "--| Loading restart file ",this%restartFile_to_load
-         call load_hdf5_restartFile(nnode,ngaus,this%restartFile_to_load,this%load_step,flag_walave,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
+         call load_hdf5_restartFile(nnode,ngaus,this%restartFile_to_load,this%load_step,flag_walave,flag_buffer_on,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u,u_buffer)
 
          if((flag_les.eq.0).and.(flag_les_ilsa.eq.0)) then
             !$acc kernels
@@ -1009,6 +1010,8 @@ contains
       else
          if(mpi_rank.eq.0) write(111,*) "--| Evaluating Initial Conditions..."
          call this%evalInitialConditions()
+         if(mpi_rank.eq.0) write(111,*) "--| Evaluating Initial u_buffer..."
+         call this%initialBuffer()
       end if
 
       call MPI_Barrier(app_comm,mpi_err)
@@ -1386,7 +1389,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
 
-      call save_hdf5_restartFile(nnode,ngaus,this%restartFileCnt,istep,flag_walave,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
+      call save_hdf5_restartFile(nnode,ngaus,this%restartFileCnt,istep,flag_walave,flag_buffer_on,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u,u_buffer)
 
       if(this%restartFileCnt .eq. 1) then
          this%restartFileCnt = 2
@@ -1415,6 +1418,11 @@ contains
       end if
 
    end subroutine CFDSolverBase_saveAvgResultsFiles
+
+   subroutine CFDSolverBase_beforeTimeIteration(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+   end subroutine CFDSolverBase_beforeTimeIteration
 
    subroutine CFDSolverBase_afterTimeIteration(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -2144,12 +2152,14 @@ contains
       ! Eval initial time step
       call this%evalInitialDt()
 
-      call this%initialBuffer()
+      !call this%initialBuffer()
 
       ! Init SmartRedis if required
 #ifdef SMARTREDIS
       call this%initSmartRedis()
 #endif
+
+      call this%beforeTimeIteration()
 
       call this%flush_log_file()
 

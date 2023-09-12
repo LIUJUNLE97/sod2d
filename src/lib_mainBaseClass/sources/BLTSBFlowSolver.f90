@@ -55,8 +55,18 @@ module BLTSBFlowSolver_mod
       procedure, public :: afterDt => BLTSBFlowSolver_afterDt
       procedure, public :: getControlNodes => BLTSBFlowSolver_getControlNodes
       procedure, public :: readControlRectangles => BLTSBFlowSolver_readControlRectangles
+      procedure, public :: beforeTimeIteration => BLTSBFlowSolver_beforeTimeIteration
    end type BLTSBFlowSolver
 contains
+
+   subroutine BLTSBFlowSolver_beforeTimeIteration(this)
+      class(BLTSBFlowSolver), intent(inout) :: this
+
+#if (ACTUATION)
+      call this%getControlNodes()
+#endif
+
+   end subroutine BLTSBFlowSolver_beforeTimeIteration
 
    subroutine BLTSBFlowSolver_afterDt(this,istep)
       class(BLTSBFlowSolver), intent(inout) :: this
@@ -571,9 +581,9 @@ contains
       integer(4) :: iNodeL,k,j,bcode,ielem,iCen
       real(rp) :: yp,eta_y,f_y,f_prim_y, f1, f2, f3,x,dy
 
-#if (ACTUATION)
-      call this%getControlNodes()
-#endif
+!#if (ACTUATION)
+!      call this%getControlNodes()
+!#endif
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
