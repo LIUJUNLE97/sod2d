@@ -91,7 +91,7 @@ contains
       integer,intent(in) :: numRanks
       character(len=12) :: aux_numRanks
 
-      write(aux_numRanks,'(I0)') mpi_size
+      write(aux_numRanks,'(I0)') numRanks
       base_resultsFile_h5_name = trim(adjustl(res_filePath))//trim(adjustl(res_fileName))//'_'&
          //trim(adjustl(mesh_fileName))//'-'//trim(aux_numRanks)//'_'
       base_avgResultsFile_h5_name = trim(adjustl(res_filePath))//trim(adjustl(res_fileName))//'_AVG_'&
