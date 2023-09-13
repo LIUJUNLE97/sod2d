@@ -143,7 +143,7 @@ contains
       tol=1e-3
 
       period_walave   = 0.5_rp
-      flag_walave     = 1
+      flag_walave     = .true.
 
 #if CRM
       !this%dt = 1e-4

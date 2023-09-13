@@ -3153,7 +3153,8 @@ contains
    subroutine save_hdf5_restartFile(mnnode,mngaus,restartCnt,iStep,flag_walave_value,time,rho,u,pr,E,mu_e,mu_t,walave_u)
       implicit none
       integer(4),intent(in) :: mnnode,mngaus
-      integer(4),intent(in) :: restartCnt,iStep,flag_walave_value
+      integer(4),intent(in) :: restartCnt,iStep
+      logical,intent(in) :: flag_walave_value
       real(rp),intent(in) :: time
       real(rp),intent(inout),dimension(numNodesRankPar)       :: rho,pr,E
       real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u,walave_u
@@ -3183,7 +3184,7 @@ contains
       !$acc update host(u(:,:))
       !$acc update host(pr(:))
       !$acc update host(E(:))
-      if(flag_walave_value == 1) then
+      if(flag_walave_value) then
          !$acc update host(walave_u(:,:))
       end if
 
@@ -3224,7 +3225,7 @@ contains
       dsetname = 'mut'
       call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_mu_t)
 
-      if(flag_walave_value == 1) then
+      if(flag_walave_value) then
          dsetname = 'walave_u_x'
          call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,walave_u(:,1))
 
@@ -3252,7 +3253,8 @@ contains
 
    subroutine load_hdf5_restartFile(mnnode,mngaus,restartCnt,load_step,flag_walave_value,time,rho,u,pr,E,mu_e,mu_t,walave_u)
       implicit none
-      integer(4),intent(in) :: mnnode,mngaus,restartCnt,flag_walave_value
+      integer(4),intent(in) :: mnnode,mngaus,restartCnt
+      logical,intent(in) :: flag_walave_value
       integer(4),intent(inout) :: load_step
       real(rp),intent(inout) :: time
       real(rp),intent(inout),dimension(numNodesRankPar)       :: rho,pr,E
@@ -3321,7 +3323,7 @@ contains
       dsetname = 'mut'
       call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_mu_t)
 
-      if(flag_walave_value==1) then
+      if(flag_walave_value) then
          dsetname = 'walave_u_x'
          call h5lexists_f(file_id,dsetname, link_exists, h5err)
          if(h5err /= 0) then
@@ -3372,7 +3374,7 @@ contains
             E(masSlaRankPar(iPer,2))   = E(masSlaRankPar(iPer,1))
          end do
          !$acc end parallel loop
-         if(flag_walave_value == 1) then
+         if(flag_walave_value) then
             !$acc parallel loop
             do iPer = 1,nPerRankPar
                walave_u(masSlaRankPar(iPer,2),1) = walave_u(masSlaRankPar(iPer,1),1)

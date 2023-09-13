@@ -105,7 +105,7 @@ contains
       flag_implicit_repeat_dt_if_not_converged = 0
        
       !period_walave   = 1.0_rp
-      !flag_walave     = 1
+      !flag_walave     = .true.
 
       this%cfl_conv = 1.9_rp !bdf2
       this%cfl_diff = 1.9_rp !bdf2
@@ -247,7 +247,7 @@ contains
       ! Initialize exponential averaging for wall law 
       !
       call nvtxStartRange("Wall Average init")
-      if(flag_walave == 1) then
+      if(flag_walave) then
          !$acc kernels
          walave_u(:,:) = u(:,:,2)
          !$acc end kernels
