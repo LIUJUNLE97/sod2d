@@ -928,7 +928,7 @@ contains
       end if
 
       ! Exponential average velocity for wall law
-      if(flag_walave==1) then
+      if(flag_walave) then
          allocate(walave_u(numNodesRankPar,ndime))
          !$acc enter data create(walave_u(:,:))
          !$acc kernels
@@ -1541,7 +1541,7 @@ contains
          ! Exponential averaging for wall law
          !
          call nvtxStartRange("Wall Average "//timeStep,istep)
-         if(flag_walave == 1) then
+         if(flag_walave) then
             !
             ! outside acc kernels following pseudo_cfl in next loop
             !
