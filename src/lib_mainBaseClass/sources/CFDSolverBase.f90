@@ -98,7 +98,7 @@ module CFDSolverBase_mod
       character(512) :: log_file_name
       character(512) :: mesh_h5_file_path,mesh_h5_file_name
       character(512) :: results_h5_file_path,results_h5_file_name
-      character(512) :: io_prepend_path
+      character(512) :: io_prepend_path,io_append_info
       character(512) :: witness_inp_file_name,witness_h5_file_name
 
       ! main real parameters
@@ -221,6 +221,7 @@ contains
       write(this%results_h5_file_name,*) "resultsFile"
 
       write(this%io_prepend_path,*) "./"
+      write(this%io_append_info,*) ""
 
       this%time = 0.0_rp
       this%initial_istep = 1
@@ -1966,7 +1967,13 @@ contains
       if(mpi_rank.eq.0) then
          write(aux_string_mpisize,'(I0)') mpi_size
 
-         this%log_file_name = trim(adjustl(this%io_prepend_path))//'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
+         if(len_trim(adjustl(this%io_append_info)) == 0) then
+            this%io_append_info = trim(adjustl(this%io_append_info))
+        else
+            this%io_append_info = "."//trim(adjustl(this%io_append_info))
+         end if 
+
+         this%log_file_name = trim(adjustl(this%io_prepend_path))//'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//trim(this%io_append_info)//'.log'
          if(this%continue_oldLogs) then
             open(unit=111,file=this%log_file_name,status='old',position='append')
          else
@@ -1975,9 +1982,17 @@ contains
       end if
 
       if(mpi_rank.eq.0) then
-         write(111,*) "--| Flags defined in the current case:"
-         write(111,*) "    flag_real_diff: ",           flag_real_diff
-         write(111,*) "    flag_diff_suth: ",           flag_diff_suth
+         write(111,*) "--| Current case settings:"
+         write(111,*) "--------------------------------------------"
+         write(111,*) "  # Constants:"
+         write(111,*) "    rp: ",               rp
+         write(111,*) "    rp_vtk: ",           rp_vtk
+         write(111,*) "    porder: ",           porder
+         write(111,*) "    flag_real_diff: ",   flag_real_diff
+         write(111,*) "    flag_diff_suth: ",   flag_diff_suth
+         write(111,*) "--------------------------------------------"
+         write(111,*) "  # Numerical parameters:"
+         write(111,*) "    flag_implicit: ",            flag_implicit
          write(111,*) "    flag_rk_order: ",            flag_rk_order
          write(111,*) "    flag_les: ",                 flag_les
          write(111,*) "    flag_les_ilsa: ",            flag_les_ilsa
@@ -1985,7 +2000,8 @@ contains
          write(111,*) "    flag_spectralElem: ",        flag_spectralElem
          write(111,*) "    flag_normalise_entropy: ",   flag_normalise_entropy
          write(111,*) "    flag_walave: ",              flag_walave
-         write(111,*) "--------------------------------------"
+         write(111,*) "    flag_buffer_on: ",           flag_buffer_on
+         write(111,*) "--------------------------------------------"
          write(111,*) "    ce: ",      ce
          write(111,*) "    cmax: ",    cmax
          write(111,*) "    c_sgs: ",   c_sgs
@@ -1994,7 +2010,13 @@ contains
          write(111,*) "    c_ener: ",  c_ener
          write(111,*) "    stau: ",    stau
          write(111,*) "    T_ilsa: ",  T_ilsa
-         write(111,*) "--------------------------------------"
+         write(111,*) "--------------------------------------------"
+         write(111,*) "    cfl_conv: ",         this%cfl_conv
+         write(111,*) "    cfl_diff: ",         this%cfl_diff
+         write(111,*) "    maxIterNonLineal: ", maxIterNonLineal
+         write(111,*) "    tol: ",              tol
+         write(111,*) "    pseudo_cfl: ",       pseudo_cfl
+         write(111,*) "--------------------------------------------"
       end if
 
    end subroutine open_log_file
@@ -2009,7 +2031,7 @@ contains
          write(aux_string_mpisize,'(I0)') mpi_size
 
          if(this%doGlobalAnalysis) then
-            filenameAnalysis = trim(adjustl(this%io_prepend_path))//'analysis_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
+            filenameAnalysis = trim(adjustl(this%io_prepend_path))//'analysis_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//trim(this%io_append_info)//'.dat'
             if(this%continue_oldLogs) then
                open(unit=666,file=filenameAnalysis,status='old',position='append')
             else
@@ -2018,7 +2040,7 @@ contains
          end if
 
          if(this%doTimerAnalysis) then
-            fileNameTimer = trim(adjustl(this%io_prepend_path))//'timer_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
+            fileNameTimer = trim(adjustl(this%io_prepend_path))//'timer_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//trim(this%io_append_info)//'.dat'
             open(unit=123,file=fileNameTimer,status='replace')
             write(123,*) "iter iteTime iteTimeAvg"
          end if
@@ -2026,7 +2048,7 @@ contains
          if (isMeshBoundaries) then
             do iCode = 1,numBoundCodes
                write(aux_string_code,'(I0)') iCode
-               filenameBound = trim(adjustl(this%io_prepend_path))//'surf_code_'//trim(aux_string_code)//'-'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
+               filenameBound = trim(adjustl(this%io_prepend_path))//'surf_code_'//trim(aux_string_code)//'-'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//trim(this%io_append_info)//'.dat'
                if(this%continue_oldLogs) then
                   open(unit=888+iCode,form='formatted',file=filenameBound,status='old',position='append')
                else
