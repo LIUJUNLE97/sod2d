@@ -19,7 +19,7 @@ module time_integ_incomp
    implicit none
 
    real(rp), allocatable, dimension(:,:,:) :: Rmom
-   real(rp), allocatable, dimension(:,:) :: aux_q,Rsource
+   real(rp), allocatable, dimension(:,:) :: aux_q,Rsource,Rwmles
    real(rp), allocatable, dimension(:,:) :: Rmom_sum,Rdiff_mom
    real(rp), allocatable, dimension(:,:) ::GradP
 
@@ -33,8 +33,8 @@ module time_integ_incomp
       allocate(Rmom(npoin,ndime,2))
       !$acc enter data create(Rmom(:,:,:))
 
-      allocate(aux_q(npoin,ndime),Rsource(npoin,ndime))
-      !$acc enter data create(aux_q(:,:),Rsource(:,:))
+      allocate(aux_q(npoin,ndime),Rsource(npoin,ndime),Rwmles(npoin,ndime))
+      !$acc enter data create(aux_q(:,:),Rsource(:,:),Rwmles(:,:))
 
       allocate(Rmom_sum(npoin,ndime),Rdiff_mom(npoin,ndime))
       !$acc enter data create(Rmom_sum(:,:))
@@ -45,6 +45,8 @@ module time_integ_incomp
    
       !$acc kernels
       Rmom(1:npoin,1:ndime,1:2) = 0.0_rp
+      Rsource(1:npoin,1:ndime) = 0.0_rp
+      Rwmles(1:npoin,1:ndime) = 0.0_rp
       !$acc end kernels
 
       call nvtxEndRange
@@ -60,7 +62,8 @@ module time_integ_incomp
 
       !$acc exit data delete(aux_q(:,:))
       !$acc exit data delete(Rsource(:,:))
-      deallocate(aux_q,Rsource)
+      !$acc exit data delete(Rwmles(:,:))
+      deallocate(aux_q,Rsource,Rwmles)
 
       !$acc exit data delete(Rmom_sum(:,:))
       !$acc exit data delete(Rdiff_mom(:,:))
@@ -136,9 +139,18 @@ module time_integ_incomp
                call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(ipoin,idime,1),source_term,Rsource)
             end if
 
+            call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),&
+                                          mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mom)
+                  
+            if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
+                  !$acc kernels
+                  Rwmles(1:npoin,1:ndime) = 0.0_rp
+                  !$acc end kernels
+                  call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                     bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
+                     rho(:,1),walave_u(:,:),tauw,Rwmles)
+            end if
 
-            call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mom)
-               
             !$acc parallel loop
             do ipoin = 1,npoin
                !$acc loop seq
@@ -147,13 +159,15 @@ module time_integ_incomp
                end do
             end do
             !$acc end parallel loop
-            call full_convec_ijk_incomp(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),aux_q,rho(:,1),Rmom(:,:,2))
+            !call full_convec_emac_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),aux_q,rho(:,1),Rmom(:,:,2))          
+            call full_convec_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),aux_q,rho(:,1),Rmom(:,:,2))          
 
             !$acc parallel loop
             do ipoin = 1,npoin
                !$acc loop seq   
                do idime = 1,ndime
-                  u(ipoin,idime,2) = -dt*(1.5_rp*Rmom(ipoin,idime,2)-0.5_rp*(Rmom(ipoin,idime,1))+0.5_rp*Rdiff_mom(ipoin,idime))-dt*Rsource(ipoin,idime)
+                  u(ipoin,idime,2) = -dt*(1.5_rp*Rmom(ipoin,idime,2)-0.5_rp*(Rmom(ipoin,idime,1))+0.5_rp*Rdiff_mom(ipoin,idime))&
+                                     -dt*Rsource(ipoin,idime)-dt*Rwmles(ipoin,idime)
                   Rmom(ipoin,idime,1) = Rmom(ipoin,idime,2)
               end do
             end do
@@ -174,16 +188,20 @@ module time_integ_incomp
             end do
             !$acc end parallel loop   
 
-            call conjGrad_veloc_incomp(igtime,save_logFile_next,dt,nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,u(:,:,1),u(:,:,2))
+            call conjGrad_veloc_incomp(igtime,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,numBoundsWM,connec,lpoin_w,invAtoIJK,gmshAtoI,&
+                                       gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,u(:,:,1),u(:,:,2), &
+                                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&                      
+                                       listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u)
 
             call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),pr(:,2))
             !$acc kernels
             pr(:,2) = -pr(:,2)/dt
             !$acc end kernels
 
-            call conjGrad_pressure_incomp(igtime,save_logFile_next,nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,pr(:,1),pr(:,2))
+            call conjGrad_pressure_incomp(igtime,save_logFile_next,nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,&
+                                          gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,pr(:,1),pr(:,2))
             if (noBoundaries .eqv. .false.) then
-               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,pr(:,2))
+               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,2))
             end if
             call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,pr(:,2),gradP,.true.)
                         
@@ -199,14 +217,15 @@ module time_integ_incomp
             if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,u(:,:,2),u_buffer)
 
             if (noBoundaries .eqv. .false.) then
-               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer)
+               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,u(:,:,2),u_buffer)
             end if
             !
             ! Compute subgrid viscosity if active
             !
             if(flag_les == 1) then
                if(flag_les_ilsa == 1) then
-                  call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
+                  call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,&
+                                    rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
                else
                   call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
                end if

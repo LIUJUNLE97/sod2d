@@ -3,11 +3,13 @@
 #define _tgv_ 0
 #define _tgv_multi 0
 #define _tgv_comp 0
-#define _tgv_incomp 0
+#define _tgv_incomp 1
 #define _channel_ 0
-#define _channel_incomp 1
+#define _channel_incomp 0
 #define _bluff_ 0
+#define _bluff_incomp 0
 #define _bluff3d_ 0
+#define _bluff3d_incomp 0
 #define _bl_ 0
 
 program main
@@ -34,8 +36,14 @@ program main
 #if _bluff_
    use BluffBodySolver_mod
 #endif
+#if _bluff_incomp
+   use BluffBodySolverIncomp_mod
+#endif
 #if _bluff3d_
    use BluffBody3DSolver_mod
+#endif
+#if _bluff3d_incomp
+   use BluffBody3DSolverIncomp_mod
 #endif
 #if _bl_
    use BLFlowSolver_mod
@@ -71,11 +79,18 @@ program main
    type(BluffBodySolver)  :: bluff
    call bluff%run()
 #endif
+#if _bluff_incomp
+   type(BluffBodySolverIncomp)  :: bluff
+   call bluff%run()
+#endif
 #if _bluff3d_
    type(BluffBody3DSolver)  :: bluff3d
    call bluff3d%run()
 #endif
-
+#if _bluff3d_incomp
+   type(BluffBody3DSolverIncomp)  :: bluff3d
+   call bluff3d%run()
+#endif
 #if _bl_
    type(BLFlowSolver)  :: blflow
    call blflow%run()

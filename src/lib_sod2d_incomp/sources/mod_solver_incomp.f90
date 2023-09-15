@@ -5,9 +5,11 @@ module mod_solver_incomp
       use mod_mpi
       use mod_nvtx
       use mod_time_ops
-      use mod_bc_routines
+      use mod_bc_routines_incomp
       use mod_operators
       use elem_diffu_incomp
+
+
 
 
       implicit none
@@ -20,18 +22,31 @@ module mod_solver_incomp
 
       contains
 
-            subroutine conjGrad_veloc_incomp(igtime,save_logFile_next,dt,nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,Rp0,R)
+            subroutine conjGrad_veloc_incomp(igtime,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,numBoundsWM,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+                                             dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,Rp0,R, &
+                                             ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&                   ! Optional args
+                                             listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u) ! Optional args
 
            implicit none
 
+           logical,              intent(in)   :: noBoundaries
            integer(4),           intent(in)    :: igtime,save_logFile_next
-           integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w)
+           integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w),nboun
            real(rp)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode),dt
            real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin,ndime)
            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             real(rp),             intent(inout) :: mu_fluid(npoin)
             real(rp),             intent(inout) :: mu_e(nelem,ngaus)
             real(rp),             intent(inout) :: mu_sgs(nelem,ngaus)
+            integer(4),            intent(in)    :: numBoundsWM
+            integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*)
+            integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun), bou_codes_nodes(npoin)
+            integer(4), optional, intent(in)    :: listBoundsWM(*)
+            real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
+            real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime)
+            real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
+            real(rp), optional, intent(in)      :: source_term(npoin,ndime)
+            real(rp), optional, intent(in)      :: walave_u(npoin,ndime)            
            real(rp)   , intent(inout) :: R(npoin,ndime)
            integer(4)                :: ipoin, iter,ialpha,idime
            real(rp)                   :: alphaCG, betaCG,Q1(2)
@@ -151,6 +166,9 @@ module mod_solver_incomp
                  end do
               end do
               !$acc end parallel loop
+               if (noBoundaries .eqv. .false.) then
+                  call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,x_u,u_buffer)
+               end if
               !$acc parallel loop
               do ipoin = 1,npoin_w
                   !$acc loop seq
@@ -230,7 +248,7 @@ module mod_solver_incomp
            real(rp)   , intent(inout) :: R(npoin)
            integer(4)                :: ipoin, iter,ialpha
            real(rp)                   :: T1, alphaCG, betaCG,Q1(2)
-           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,alpha(5),alpha2(5),aux_alpha
+           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB
           
            call nvtxStartRange("CG solver scalar")
           if (flag_cg_mem_alloc_pres .eqv. .true.) then
@@ -242,23 +260,25 @@ module mod_solver_incomp
            !
            ! Initialize solver
            !
-           !$acc kernels
-           x(:) = 0.0_rp
-           r0(:) = 0.0_rp
-           p0(:) = 0.0_rp
-           qn(:) = 0.0_rp
-           v(:) = 0.0_rp
-           b(:) = 0.0_rp
-           z0(:) = 0.0_rp
-           z1(:) = 0.0_rp
-           M(:) = Ml(:)
-           !$acc end kernels
-            call eval_laplacian_mult(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Rp0,qn)! A*x0
+           !$acc parallel loop
+           do ipoin = 1,npoin           
+               x(ipoin) = 0.0_rp
+               r0(ipoin) = 0.0_rp
+               p0(ipoin) = 0.0_rp
+               qn(ipoin) = 0.0_rp
+               v(ipoin) = 0.0_rp
+               b(ipoin) = 0.0_rp
+               z0(ipoin) = 0.0_rp
+               z1(ipoin) = 0.0_rp
+               M(ipoin) = Ml(ipoin)
+               x0(ipoin) = Rp0(ipoin)
+            end do
+
+            !$acc end parallel loop
+            call eval_laplacian_mult(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,x0,qn)! A*x0
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               x0(lpoin_w(ipoin)) = Rp0(lpoin_w(ipoin))
                b(lpoin_w(ipoin)) = R(lpoin_w(ipoin)) - qn(lpoin_w(ipoin))
-               x(lpoin_w(ipoin)) = 0.0_rp
             end do
             !$acc end parallel loop
                
@@ -277,16 +297,7 @@ module mod_solver_incomp
            end do
             !$acc end parallel loop
 
-
-            !auxT1 = 0.0d0
-            !!$acc parallel loop reduction(+:auxT1)
-            !do ipoin = 1,npoin
-            !   auxT1 = auxT1+real(b(ipoin)*b(ipoin),8)
-            !end do
-            !!$acc end parallel loop
-            !call MPI_Allreduce(auxT1,auxB,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
-            auxB = 1.0_rp !sqrt(auxB)
-
+            auxB = 1.0_rp 
 
            !
            ! Start iterations

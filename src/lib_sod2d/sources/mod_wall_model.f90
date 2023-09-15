@@ -37,13 +37,6 @@ contains
       real(rp)                :: pplus,densi,gradp,grpr2,py,sq,inv,ln4,uplus,vol
       real(rp)                :: ux,uy,uz,px,pz
       integer(4)              :: atoIJ(npbou)
-      integer(4)              :: convertIJK(porder+1)
-
-      do iAux=3,porder+1
-         convertIJK(iAux-1) = iAux
-      end do 
-      convertIJK(1) = 1
-      convertIJK(porder+1) = 2
 
       atoIJ(:) = mesh_a2ij(:)
 
@@ -61,26 +54,26 @@ contains
          isoJ = gmshAtoJ(jgaus) 
          isoK = gmshAtoK(jgaus)
          type_ijk = 0
-         if(isoI == 1 .or. isoI == 2) then
+         if((isoI .eq. 1) .or. (isoI .eq. 2)) then
             type_ijk = 1
-            if(isoI ==1) then
-               isoI = convertIJK(1+flag_walex)
+            if(isoI .eq. 1) then
+               isoI = 2
             else
-               isoI = convertIJK(porder+1-flag_walex)
+               isoI = 1
             end if
-         else if (isoJ == 1 .or. isoJ == 2) then
+         else if ((isoJ .eq. 1) .or. (isoJ .eq. 2)) then
             type_ijk = 2
-            if(isoJ ==1) then
-               isoJ = convertIJK(1+flag_walex)
+            if(isoJ .eq. 1) then
+               isoJ = 2
             else
-               isoJ = convertIJK(porder+1-flag_walex)
+               isoJ = 1
             end if            
          else
             type_ijk = 3
-            if(isoK ==1) then
-               isoK = convertIJK(1+flag_walex)
+            if(isoK .eq. 1) then
+               isoK = 2
             else
-               isoK = convertIJK(porder+1-flag_walex)
+               isoK = 1
             end if            
          end if      
 
@@ -92,10 +85,10 @@ contains
             isoJJ = gmshAtoJ(jgaus) 
             isoKK = gmshAtoK(jgaus)
 
-            if(type_ijk ==1) then
+            if(type_ijk .eq. 1) then
                point(1:ndime) =coord(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
                uiex(1:ndime) = ui(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
-            else if(type_ijk ==2) then
+            else if(type_ijk .eq. 2) then
                point(1:ndime) =coord(connec(iElem,invAtoIJK(isoII,isoJ,isoKK)),1:ndime)
                uiex(1:ndime) = ui(connec(iElem,invAtoIJK(isoII,isoJ,isoKK)),1:ndime)
             else 

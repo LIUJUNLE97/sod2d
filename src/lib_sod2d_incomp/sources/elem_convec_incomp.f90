@@ -16,14 +16,14 @@ module elem_convec_incomp
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
       contains
-         subroutine full_convec_ijk_incomp(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,q,rho,Rmom)
+         subroutine full_convec_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,q,rho,Rmom)
 
             implicit none
 
             integer(4), intent(in)  :: nelem, npoin
             integer(4), intent(in)  :: connec(nelem,nnode)
-            real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-            real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
+            real(rp),    intent(in)  :: Ngp(ngaus,nnode)
+            real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem),dlxigp_ip(ngaus,ndime,porder+1)
             real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
             integer(4), intent(in)   :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             real(rp),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), rho(npoin)
@@ -141,53 +141,63 @@ module elem_convec_incomp
 
          end subroutine full_convec_ijk_incomp
 
-         subroutine generic_scalar_convec_ijk_incomp(nelem,npoin,connec,Ngp, &
-               dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,q,eta,u,Rconvec,alpha)
+       subroutine full_convec_emac_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,q,rho,Rmom)
+             implicit none
 
-            implicit none
+             integer(4), intent(in)  :: nelem, npoin
+             integer(4), intent(in)  :: connec(nelem,nnode)
+             real(rp),   intent(in)  :: Ngp(ngaus,nnode)
+             real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem),dlxigp_ip(ngaus,ndime,porder+1)
+             real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
+             integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+             real(rp),   intent(in)  :: u(npoin,ndime), q(npoin,ndime)
+             real(rp),   intent(in)  :: rho(npoin)
+             real(rp),   intent(out) :: Rmom(npoin,ndime)
+             integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
+             integer(4)              :: ipoin(nnode)
+             real(rp)                 :: Re_mom(nnode,ndime)
+             real(rp)                :: gradU(ndime,ndime), tmp1, gradIsoF(ndime,ndime,ndime)
+             real(rp)                :: gradIsoU(ndime,ndime),gradIsoKin(ndime),gradKin(ndime)
+             real(rp)                :: divDm(ndime),tau(ndime,ndime),divF(ndime)
+             real(rp)                :: ul(nnode,ndime), rhol(nnode), ql(nnode,ndime),fl(nnode,ndime,ndime),D(ndime,ndime),kinl(nnode)
+             real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
 
-            integer(4), intent(in)  :: nelem, npoin
-            integer(4), intent(in)  :: connec(nelem,nnode)
-            real(rp),    intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-            real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
-            real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
-            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            real(rp),    intent(in)  :: q(npoin,ndime)
-            real(rp),    intent(in)  :: eta(npoin)
-            real(rp),    intent(in)  :: u(npoin,ndime)
-            real(rp),    intent(in)  :: alpha(npoin)
-            real(rp),    intent(out) :: Rconvec(npoin)
-            integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ii
-            integer(4)               :: ipoin(nnode)
-            real(rp)                 :: gradIsoE(ndime),gradIsoU(ndime,ndime),gradIsoFe(ndime,ndime)
-            real(rp)                 :: gradE(ndime),gradU(ndime,ndime),divU,divFe
-            real(rp)                 :: ul(nnode,ndime), fel(nnode,ndime), etal(nnode), Re(nnode)
-            real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
+             call nvtxStartRange("Full diffusion")
+             !$acc kernels
+             Rmom(:,:) = 0.0_rp
+             !$acc end kernels
 
-            call nvtxStartRange("Generic Convection")
-            !$acc kernels
-            Rconvec(:) = 0.0_rp
-            !$acc end kernels
-            !$acc parallel loop gang  private(ipoin,Re,ul,fel,etal) !!vector_length(vecLength)
-            do ielem = 1,nelem
-               !$acc loop vector
-               do inode = 1,nnode
-                  ipoin(inode) = connec(ielem,inode)
-               end do
-               !$acc loop vector collapse(2)
-               do idime = 1,ndime
-                  do inode = 1,nnode
+             !$acc parallel loop gang  private(Re_mom,ipoin,ul,rhol,ql)
+             do ielem = 1,nelem
+                !$acc loop vector
+                do inode = 1,nnode
+                   ipoin(inode) = connec(ielem,inode)
+                end do
+                !$acc loop vector
+                do inode = 1,nnode
+                   rhol(inode) = rho(ipoin(inode))
+                end do
+                !$acc loop vector 
+                do inode = 1,nnode
+                   !kinl(inode) = 0.0_rp
+                   !$acc loop seq
+                   do idime = 1,ndime
                      ul(inode,idime) = u(ipoin(inode),idime)
-                     fel(inode,idime) = q(ipoin(inode),idime)
+                     ql(inode,idime) = q(ipoin(inode),idime)
+                     !kinl(inode) = kinl(inode) + ul(inode,idime)**2
+                   end do
+                end do
+               !$acc loop vector collapse(3)
+               do idime = 1,ndime
+                  do jdime = 1,ndime
+                     do inode = 1,nnode
+                        fl(inode,idime,jdime)  = q(ipoin(inode),idime)*u(ipoin(inode),jdime)
+                     end do
                   end do
                end do
-               !$acc loop vector
-               do inode = 1,nnode
-                  etal(inode) = eta(ipoin(inode))
-               end do
-               !$acc loop vector private(gradIsoE,gradIsoU,gradIsoFe,gradE,gradU,divU,divFe, dlxi_ip, dleta_ip, dlzeta_ip)
+               !$acc loop vector private(dlxi_ip,dleta_ip,dlzeta_ip, gradIsoU, gradIsoF,divF,gradKin,gradIsoKin)
                do igaus = 1,ngaus
-                  !$acc loop seq
+                 !$acc loop seq
                   do ii=1,porder+1
                      dlxi_ip(ii) = dlxigp_ip(igaus,1,ii)
                      dleta_ip(ii) = dlxigp_ip(igaus,2,ii)
@@ -197,51 +207,77 @@ module elem_convec_incomp
                   isoJ = gmshAtoJ(igaus) 
                   isoK = gmshAtoK(igaus) 
 
-                  gradIsoE(:) = 0.0_rp
-                  gradIsoFe(:,:) = 0._rp
+                  gradIsoU(:,:) = 0.0_rp
+                  gradIsoKin(:) = 0.0_rp
+                  gradIsoF(:,:,:) = 0.0_rp
                   !$acc loop seq
                   do ii=1,porder+1
-                     gradIsoE(1) = gradIsoE(1) + dlxi_ip(ii)*etal(invAtoIJK(ii,isoJ,isoK))
-                     gradIsoE(2) = gradIsoE(2) + dleta_ip(ii)*etal(invAtoIJK(isoI,ii,isoK))
-                     gradIsoE(3) = gradIsoE(3) + dlzeta_ip(ii)*etal(invAtoIJK(isoI,isoJ,ii))
+                        !gradIsoKin(1) = gradIsoKin(1) + dlxi_ip(ii)*kinl(invAtoIJK(ii,isoJ,isoK))
+                        !gradIsoKin(2) = gradIsoKin(2) + dleta_ip(ii)*kinl(invAtoIJK(isoI,ii,isoK))
+                        !gradIsoKin(3) = gradIsoKin(3) + dlzeta_ip(ii)*kinl(invAtoIJK(isoI,isoJ,ii))                    
                      !$acc loop seq
                      do idime=1,ndime
-                        gradIsoFe(idime,1) = gradIsoFe(idime,1) + dlxi_ip(ii)*fel(invAtoIJK(ii,isoJ,isoK),idime)
-                        gradIsoFe(idime,2) = gradIsoFe(idime,2) + dleta_ip(ii)*fel(invAtoIJK(isoI,ii,isoK),idime)
-                        gradIsoFe(idime,3) = gradIsoFe(idime,3) + dlzeta_ip(ii)*fel(invAtoIJK(isoI,isoJ,ii),idime)
+                        gradIsoU(idime,1) = gradIsoU(idime,1) + dlxi_ip(ii)*ul(invAtoIJK(ii,isoJ,isoK),idime)
+                        gradIsoU(idime,2) = gradIsoU(idime,2) + dleta_ip(ii)*ul(invAtoIJK(isoI,ii,isoK),idime)
+                        gradIsoU(idime,3) = gradIsoU(idime,3) + dlzeta_ip(ii)*ul(invAtoIJK(isoI,isoJ,ii),idime)
+                        
+                        !$acc loop seq
+                        do jdime=1, ndime
+                            gradIsoF(idime,jdime,1) = gradIsoF(idime,jdime,1) + dlxi_ip(ii)*fl(invAtoIJK(ii,isoJ,isoK),idime,jdime)
+                            gradIsoF(idime,jdime,2) = gradIsoF(idime,jdime,2) + dleta_ip(ii)*fl(invAtoIJK(isoI,ii,isoK),idime,jdime)
+                            gradIsoF(idime,jdime,3) = gradIsoF(idime,jdime,3) + dlzeta_ip(ii)*fl(invAtoIJK(isoI,isoJ,ii),idime,jdime)
+                        end do
                      end do
                   end do
 
-                  gradE(:) = 0.0_rp
-                  divFe = 0.0_rp
+                  gradU(:,:) = 0.0_rp
+                  divF(:) = 0.0_rp
+                  gradKin(:) = 0.0_rp
                   !$acc loop seq
                   do idime=1, ndime
                      !$acc loop seq
                      do jdime=1, ndime
-                         gradE(idime) = gradE(idime) + He(idime,jdime,igaus,ielem) * gradIsoE(jdime)
-                         divFe = divFe + He(idime,jdime,igaus,ielem) * gradIsoFe(idime,jdime)
+                         !gradKin(idime) = gradKin(idime) + He(idime,jdime,igaus,ielem) * gradIsoKin(jdime)
+                         !$acc loop seq
+                         do kdime=1,ndime
+                            gradU(idime,jdime) = gradU(idime,jdime) + He(jdime,kdime,igaus,ielem) * gradIsoU(idime,kdime)
+                            divF(idime) = divF(idime) + He(jdime,kdime,igaus,ielem)*gradIsoF(idime,jdime,kdime)
+                         end do
                      end do
                   end do
 
-                  Re(igaus) = 0.5_rp*(divFe)
                   !$acc loop seq
                   do idime=1, ndime
-                     Re(igaus) = Re(igaus) + 0.5_rp*(ul(igaus,idime)*gradE(idime))
-                  end do
-                  Re(igaus) = gpvol(1,igaus,ielem)*Re(igaus)
-               end do
-               !
-               ! Assembly
-               !
-               !$acc loop vector
-               do inode = 1,nnode
-                  !$acc atomic update
-                  Rconvec(ipoin(inode)) = Rconvec(ipoin(inode))+Re(inode)
-                  !$acc end atomic
-               end do
-            end do
-            !$acc end parallel loop
-            call nvtxEndRange
+                     !$acc loop seq
+                     do jdime=1, ndime
+                        D(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
+                     end do
+                  end do                   
 
-         end subroutine generic_scalar_convec_ijk_incomp
+                  
+                  !$acc loop seq
+                  do idime=1, ndime
+                     Re_mom(igaus,idime) = divF(idime) !- 0.5*gradKin(idime)
+                     !$acc loop seq
+                     do jdime=1, ndime
+                        Re_mom(igaus,idime) = Re_mom(igaus,idime) + (D(idime,jdime)*ul(igaus,jdime))
+                        Re_mom(igaus,idime) = Re_mom(igaus,idime) - (ul(igaus,jdime)*gradU(idime,jdime))
+                     end do
+                     Re_mom(igaus,idime) = gpvol(1,igaus,ielem)*Re_mom(igaus,idime) !we need to check rho
+                  end do                   
+
+               end do
+
+               !$acc loop vector collapse(2)
+               do idime = 1,ndime
+                  do inode = 1,nnode
+                     !$acc atomic update
+                     Rmom(ipoin(inode),idime) = Rmom(ipoin(inode),idime)+Re_mom(inode,idime)
+                     !$acc end atomic
+                  end do
+               end do
+             end do
+             !$acc end parallel loop
+            call nvtxEndRange
+        end subroutine full_convec_emac_ijk_incomp         
 end module elem_convec_incomp

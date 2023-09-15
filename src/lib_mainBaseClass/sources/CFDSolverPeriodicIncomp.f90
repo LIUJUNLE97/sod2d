@@ -57,7 +57,7 @@ contains
       real(rp),    dimension(numNodesRankPar)       ::zeros_csound
 
       !$acc kernels
-         zeros_csound(:) = 0.0_rp
+      zeros_csound(:) = 0.0_rp
       !$acc end kernels
 
       if(mpi_rank.eq.0) write(111,*) "--| Evaluating initial dt..."
@@ -130,14 +130,14 @@ contains
       this%save_scalarField_rho        = .false.
       this%save_scalarField_muFluid    = .true.
       this%save_scalarField_pressure   = .true.
-      this%save_scalarField_energy     = .true.
-      this%save_scalarField_entropy    = .true.
+      this%save_scalarField_energy     = .false.
+      this%save_scalarField_entropy    = .false.
       this%save_scalarField_csound     = .false.
       this%save_scalarField_machno     = .false.
-      this%save_scalarField_divU       = .true.
+      this%save_scalarField_divU       = .false.
       this%save_scalarField_qcrit      = .true.
       this%save_scalarField_muSgs      = .true.
-      this%save_scalarField_muEnvit    = .true.
+      this%save_scalarField_muEnvit    = .false.
       this%save_vectorField_vel        = .true.
       this%save_vectorField_gradRho    = .false.
       this%save_vectorField_curlU      = .true.
@@ -155,6 +155,7 @@ contains
 
       flag_real_diff=1
       flag_diff_suth=0
+      flag_walave = 1
 
    end subroutine CFDSolverPeriodicIncomp_initializeDefaultParameters
 

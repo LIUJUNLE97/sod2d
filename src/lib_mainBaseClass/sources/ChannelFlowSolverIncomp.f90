@@ -42,8 +42,8 @@ contains
    subroutine ChannelFlowSolverIncomp_fill_BC_Types(this)
       class(ChannelFlowSolverIncomp), intent(inout) :: this
 
-      !bouCodes2BCType(1) = bc_type_slip_wall_model
-      bouCodes2BCType(1) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(1) = bc_type_slip_wall_model
+      !bouCodes2BCType(1) = bc_type_non_slip_adiabatic
       !$acc update device(bouCodes2BCType(:))
 
    end subroutine ChannelFlowSolverIncomp_fill_BC_Types
@@ -110,8 +110,8 @@ contains
 
       this%cfl_conv = 0.9_rp 
       this%cfl_diff = 0.9_rp
-      !flag_use_constant_dt = 1
-      !this%dt = 5e-4
+      flag_use_constant_dt = 1
+      this%dt = 2.5e-3
 
       
       this%vo = 1.0_rp
@@ -128,11 +128,12 @@ contains
 
       nscbc_p_inf = 0.0_rp
 
-      maxIter = 100
-      tol = 1e-1
+      maxIter = 200
+      tol = 1e-3
 
       flag_fs_fix_pressure = .false.
       
+      period_walave   = 200.0_rp
 
    end subroutine ChannelFlowSolverIncomp_initializeParameters
 
@@ -194,18 +195,9 @@ contains
          do iNodeL = 1,numNodesRankPar
             pr(iNodeL,2) = 0.0_rp 
             rho(iNodeL,2) = this%rho0            
-
-            rho(iNodeL,3) = rho(iNodeL,2)
-            pr(iNodeL,3) =  pr(iNodeL,2)
          end do
          !$acc end parallel loop
       end if
-
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
-         machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
-      end do
-      !$acc end parallel loop
 
       !$acc kernels
       mu_e(:,:) = 0.0_rp ! Element syabilization viscosity
