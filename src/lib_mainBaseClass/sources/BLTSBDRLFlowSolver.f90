@@ -87,9 +87,10 @@ contains
 
 #if (ACTUATION)
       call this%getControlNodes()
+#ifdef SMARTREDIS
       call this%initSmartRedis()
 #endif
-
+#endif
    end subroutine BLTSBDRLFlowSolver_beforeTimeIteration
 
    subroutine BLTSBDRLFlowSolver_afterTimeIteration(this)
