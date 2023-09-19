@@ -87,6 +87,7 @@ contains
 
 #if (ACTUATION)
       call this%getControlNodes()
+      call this%initSmartRedis()
 #endif
 
    end subroutine BLTSBDRLFlowSolver_beforeTimeIteration
@@ -144,7 +145,6 @@ contains
       if (this%time .gt. this%timeBeginActuation) then
          if (step_type_mod .eq. 1) then
             call write_step_type(client, 2, "ensemble_"//trim(adjustl(this%tag))//".step_type")
-            ! write(*,*) "Sod2D wrote step: 2"
          end if
 
          ! check if a new action is needed
@@ -158,22 +158,18 @@ contains
 
             call this%update_witness(istep, 1) ! manual update of witness points
             call write_state(client, buffwit(:, 1, 1), "ensemble_"//trim(adjustl(this%tag))//".state") ! the streamwise velocity u
-            ! write(*,*) "Sod2D wrote state(1:5): ", buffwit(1:5, 1, 1)
             call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
             call write_reward(client, Ftau_neg(1), Ftau_pos(1), "ensemble_"//trim(adjustl(this%tag))//".reward") ! the streamwise component tw_x
-            ! write(*,*) "Sod2D wrote reward: ", Ftau_neg(1), Ftau_pos(1)
             if (mpi_rank .eq. 0) write(445,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_pos(1)
             if (mpi_rank .eq. 0) call flush(445)
 
             call read_action(client, "ensemble_"//trim(adjustl(this%tag))//".action") ! modifies action_global (the target control values)
-            ! write(*,*) "Sod2D read action: ", action_global
             if (mpi_rank .eq. 0) write(443,'(*(ES12.4,:,","))') this%time+this%periodActuation, action_global(1)
             if (mpi_rank .eq. 0) call flush(443)
 
             ! if the next time that we require actuation value is the last one, write now step_type=0 into database
             if (this%time + 2.0 * this%periodActuation .gt. this%maxPhysTime) then
                call write_step_type(client, 0, "ensemble_"//trim(adjustl(this%tag))//".step_type")
-               ! write(*,*) "Sod2D wrote step: 0"
             end if
          end if
 
@@ -735,10 +731,10 @@ contains
       this%have_witness          = .true.
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
-      this%leapwit               = 1 ! (update witness ever n dts) | in this class, we update the witness points manually
-      this%leapwitsave           = 10 ! how many dts are stored in buffer
-      this%wit_save              = .true. ! save witness or not
-      this%wit_save_u_i          = .true.
+      this%leapwit               = 10000001 ! (update witness ever n dts) | in this class, we update the witness points manually
+      this%leapwitsave           = 1 ! how many dts are stored in buffer
+      this%wit_save              = .false. ! save witness or not
+      this%wit_save_u_i          = .false.
       this%wit_save_pr           = .false.
       this%wit_save_rho          = .false.
       this%continue_witness      = .false.
@@ -749,10 +745,6 @@ contains
       class(BLTSBDRLFlowSolver), intent(inout) :: this
       integer(4) :: iNodeL,k,j,bcode,ielem,iCen
       real(rp) :: yp,eta_y,f_y,f_prim_y, f1, f2, f3,x,dy
-
-!#if (ACTUATION)
-!      call this%getControlNodes()
-!#endif
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar

@@ -168,7 +168,6 @@ module CFDSolverBase_mod
       procedure, public :: loadWitnessPoints =>CFDSolverBase_loadWitnessPoints
       procedure, public :: save_witness =>CFDSolverBase_save_witness
       procedure, public :: allocateWitnessPointsVariables =>CFDSolverBase_allocateWitnessPointsVariables
-      procedure, public :: initSmartRedis =>CFDSolverBase_initSmartRedis
 
       procedure, public :: initialBuffer =>CFDSolverBase_initialBuffer
 
@@ -543,11 +542,6 @@ contains
       class(CFDSolverBase), intent(inout) :: this
 
    end subroutine CFDSolverBase_initializeParameters
-
-   subroutine CFDSolverBase_initSmartRedis(this)
-      class(CFDSolverBase), intent(inout) :: this
-
-   end subroutine CFDSolverBase_initSmartRedis
 
    subroutine CFDSolverBase_openMesh(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -2153,11 +2147,6 @@ contains
       call this%evalInitialDt()
 
       !call this%initialBuffer()
-
-      ! Init SmartRedis if required
-#ifdef SMARTREDIS
-      call this%initSmartRedis()
-#endif
 
       call this%beforeTimeIteration()
 
