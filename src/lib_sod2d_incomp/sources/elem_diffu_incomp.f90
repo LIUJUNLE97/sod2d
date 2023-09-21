@@ -58,7 +58,7 @@ module elem_diffu_incomp
 
                 !$acc loop vector private(tau,gradU,gradIsoU,divU)
                 do igaus = 1,ngaus
-                   mu_fgp = mufluidl(igaus)+ mu_sgs(ielem,igaus) !let's remeber to put rho
+                   mu_fgp = mufluidl(igaus)+ mu_sgs(ielem,igaus)+mu_e(ielem,igaus) !let's remeber to put rho
 
                    isoI = gmshAtoI(igaus) 
                    isoJ = gmshAtoJ(igaus) 

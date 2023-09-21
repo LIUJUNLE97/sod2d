@@ -22,8 +22,8 @@ module mod_operators
             real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),p(npoin)
             integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             integer(4)               :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ipoin(nnode),ipoin2
-            integer(4)              :: convertIJK(0:porder+2),ii,jj,kk,mm,nn,ll,iter
-            real(rp)                :: p_l(npoin),al(-1:1),am(-1:1),an(-1:1),aux1,auxP(npoin)
+            integer(4)              :: ii,jj,kk,mm,nn,ll,iter
+            real(rp)                :: p_l(npoin),aux1,auxP(npoin)
             real(rp)                :: gradIsoP(ndime)
             real(rp)                :: gradP(ndime),divDp
             real(rp)                :: pl(nnode),gradPl(nnode,ndime)
@@ -112,79 +112,6 @@ module mod_operators
                ResP(lpoin_w(1)) = 0.0_rp
             end if
         end subroutine eval_laplacian_mult
-
-        subroutine eval_laplacian_diag(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,ResP)
-
-            implicit none
-
-            integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
-            real(rp),   intent(inout)  :: ResP(npoin)
-            real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem)
-            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            integer(4)               :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ipoin(nnode),ipoin2
-            integer(4)              :: convertIJK(0:porder+2),ii,jj,kk,mm,nn,ll,iter
-            real(rp)                :: p_l(npoin),al(-1:1),am(-1:1),an(-1:1),aux1
-            real(rp)                :: gradIsoP(ndime)
-            real(rp)                :: gradP(ndime),divDp
-
-            !$acc kernels
-             ResP(:) = 0.0_rp
-            !$acc end kernels
-
-            !$acc parallel loop gang  private(ipoin)
-            do ielem = 1,nelem
-                !$acc loop vector
-                do inode = 1,nnode
-                   ipoin(inode) = connec(ielem,inode)
-                end do
-
-                !$acc loop vector private(gradIsoP,gradP)
-                do igaus = 1,ngaus
-                  isoI = gmshAtoI(igaus) 
-                  isoJ = gmshAtoJ(igaus) 
-                  isoK = gmshAtoK(igaus) 
-
-                  gradIsoP(1) = dlxigp_ip(igaus,1,isoI)
-                  gradIsoP(2) = dlxigp_ip(igaus,2,isoJ)
-                  gradIsoP(3) = dlxigp_ip(igaus,3,isoK)                  
-
-                  gradP(:) = 0.0_rp
-                  !$acc loop seq
-                  do idime=1, ndime
-                     !$acc loop seq
-                     do jdime=1, ndime
-                        gradP(idime) = gradP(idime) + He(idime,jdime,igaus,ielem) * gradIsoP(jdime)
-                     end do
-                  end do
-
-                  !write(*,*) "Grad Pres ",gradP
-
-                  divDp = 0.0_rp
-                  !$acc loop seq
-                  do idime=1,ndime
-                     divDp = divDp + gradP(idime)*gradP(idime)
-                  end do
-                  !write(*,*) "AA ",divDp*gpvol(1,igaus,ielem)
-                  !$acc atomic update
-                  ResP(ipoin(igaus)) = ResP(ipoin(igaus))+gpvol(1,igaus,ielem)*divDp
-                  !$acc end atomic
-                  !write(*,*) "ResP ",ResP(ipoin(igaus))
-                end do
-             end do
-             !$acc end parallel loop
-
-            if(mpi_size.ge.2) then
-               call nvtxStartRange("MPI_comms_tI")
-               call mpi_halo_atomic_update_real(ResP(:))
-               call nvtxEndRange
-            end if
-
-            if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
-               ResP(lpoin_w(1)) = 1.0_rp
-            end if
-
-
-        end subroutine eval_laplacian_diag
 
         subroutine eval_laplacian_mult2(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,p,ResP)
 
@@ -285,18 +212,19 @@ module mod_operators
             end do
             !$acc end parallel loop
 
-            if(mpi_size.ge.2) then
-               call nvtxStartRange("MPI_comms_tI")
-               do idime = 1,ndime
-                  call mpi_halo_atomic_update_real(gradX(:,idime))
-               end do
-               call nvtxEndRange
-            end if
-               
-            !
-            ! Call lumped mass matrix solver
-            !
             if(lump .eqv. .true.) then
+               if(mpi_size.ge.2) then
+                  call nvtxStartRange("MPI_comms_tI")
+                  do idime = 1,ndime
+                     call mpi_halo_atomic_update_real(gradX(:,idime))
+                  end do
+                  call nvtxEndRange
+               end if
+               
+               !
+               ! Call lumped mass matrix solver
+               !
+            
                call nvtxStartRange("Call solver")
                call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,gradX(:,:))
                call nvtxEndRange
@@ -395,4 +323,125 @@ module mod_operators
                call nvtxEndRange
             end if
     end subroutine eval_divergence
+
+    subroutine eval_laplacian_BDL(nelem,npoin,connec,He,dNgp,gpvol,diag,A,L)
+
+            implicit none
+
+            integer(4), intent(in)   :: nelem, npoin, connec(nelem,nnode)
+            real(rp),   intent(inout)  :: A(nnode,nnode),L(nnode,nnode,nelem)
+            real(rp),   intent(in)    :: He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),dNgp(ndime,nnode,ngaus),diag(npoin)
+            integer(4)               :: ielem, igaus, idime, inode,jnode,knode
+            real(rp)                  :: gpcar(ndime,nnode),tmp
+
+
+            !$acc parallel loop gang  private(gpcar,A)
+            do ielem = 1,nelem
+               !$acc loop vector collapse(2)
+               do inode = 1,nnode
+                  do jnode = 1,nnode
+                     A(inode,jnode) = 0.0_rp
+                     L(inode,jnode,ielem) = 0.0_rp
+                  end do
+               end do 
+               !$acc loop seq
+               do igaus = 1,ngaus
+                  !$acc loop vector collapse(2)
+                  do idime = 1,ndime
+                     do inode = 1,nnode
+                        gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                     end do
+                  end do
+                  !$acc loop vector collapse(2)
+                  do inode = 1,nnode
+                     do jnode = 1,nnode
+                        A(inode,jnode) = A(inode,jnode) +  gpvol(1,igaus,ielem)*dot_product(gpcar(:,inode),gpcar(:,jnode))
+                     end do
+                  end do
+               end do
+               !$acc loop vector 
+               do inode = 1,nnode
+                  A(inode,inode) = diag(connec(ielem,inode))   
+               end do
+
+               L(1,1,ielem) = sqrt(A(1,1))
+               !$acc loop vector 
+               do inode = 2,nnode
+                  L(inode,1,ielem) = A(inode,1)/L(1,1,ielem)
+               end do
+               !$acc loop vector 
+               do jnode = 2,nnode
+                  knode = (jnode-1)
+                  tmp = A(jnode,jnode) - dot_product(A(jnode,1:knode),A(jnode,1:knode))
+                  L(jnode,jnode,ielem) = sqrt(tmp)
+               end do
+               !$acc loop seq
+               do jnode = 2,nnode-1
+                  !$acc loop seq
+                  do inode = jnode+1,nnode
+                     knode = (jnode-1)
+                     L(inode,jnode,ielem) = (A(inode,jnode) - dot_product(L(inode,1:knode,ielem),L(jnode,1:knode,ielem)))/L(jnode,jnode,ielem)
+                  end do
+               end do
+            end do
+            !$acc end parallel loop
+
+
+    end subroutine eval_laplacian_BDL
+
+        subroutine eval_laplacian_diag(nelem,npoin,connec,He,dNgp,gpvol,A,d)
+
+            implicit none
+
+            integer(4), intent(in)   :: nelem,npoin, connec(nelem,nnode)
+            real(rp),   intent(inout)  :: A(nnode,nnode),d(npoin)
+            real(rp),   intent(in)    :: He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),dNgp(ndime,nnode,ngaus)
+            integer(4)               :: ielem, igaus, idime, inode,jnode,knode
+            real(rp)                  :: gpcar(ndime,nnode),tmp
+            
+            !$acc kernels
+            d(:) = 0.0_rp
+            !$acc end kernels
+
+
+            !$acc parallel loop gang  private(gpcar,A)
+            do ielem = 1,nelem
+               !$acc loop vector collapse(2)
+               do inode = 1,nnode
+                  do jnode = 1,nnode
+                     A(inode,jnode) = 0.0_rp
+                  end do
+               end do 
+               !$acc loop seq
+               do igaus = 1,ngaus
+                  !$acc loop vector collapse(2)
+                  do idime = 1,ndime
+                     do inode = 1,nnode
+                        gpcar(idime,inode) = dot_product(He(idime,:,igaus,ielem),dNgp(:,inode,igaus))
+                     end do
+                  end do
+                  !$acc loop vector collapse(2)
+                  do inode = 1,nnode
+                     do jnode = 1,nnode
+                        A(inode,jnode) = A(inode,jnode) +  gpvol(1,igaus,ielem)*dot_product(gpcar(:,inode),gpcar(:,jnode))
+                     end do
+                  end do
+               end do
+
+               !$acc loop vector 
+               do inode = 1,nnode
+                  !$acc atomic update
+                  d(connec(ielem,inode)) = d(connec(ielem,inode)) + A(inode,inode)
+                  !$acc end atomic
+               end do
+            end do
+            !$acc end parallel loop
+            
+            if(mpi_size.ge.2) then
+               call nvtxStartRange("MPI_comms_tI")
+               call mpi_halo_atomic_update_real(d(:))
+               call nvtxEndRange
+            end if
+
+    end subroutine eval_laplacian_diag
 end module mod_operators

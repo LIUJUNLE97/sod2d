@@ -1,4 +1,4 @@
-module mod_entropy_viscosity
+module mod_entropy_viscosity_incomp
 
    use mod_numerical_params
    use mod_nvtx
@@ -8,16 +8,16 @@ module mod_entropy_viscosity
    use mod_comms
 
    contains
-      subroutine smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
-                            gamma_gas,rho,u,csound,Tem,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+      subroutine smart_visc_spectral_incomp(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Ngp,coord,dNgp,gpvol,wgp, &
+                            rho,u,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
 
               ! TODO: Compute element size h
 
               implicit none
 
               integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
-              real(rp),    intent(in)  :: Reta(npoin), Rrho(npoin), Ngp(ngaus,nnode),gamma_gas
-              real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime),csound(npoin), Tem(npoin), eta(npoin),helem(nelem,nnode),helem_k(nelem),Ml(npoin)
+              real(rp),    intent(in)  :: Reta(npoin), Ngp(ngaus,nnode)
+              real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime), eta(npoin),helem(nelem,nnode),helem_k(nelem),Ml(npoin)
               real(rp),    intent(out) :: mu_e(nelem,ngaus)
               real(rp),   intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
               real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
@@ -92,22 +92,14 @@ module mod_entropy_viscosity
                 do igaus = 1,ngaus
                    minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
                    maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                   maxV = max(maxV,sqrt(dot_product(u(connec(ielem,igaus),:),u(connec(ielem,igaus),:))))
-                   maxC = max(maxC,csound(connec(ielem,igaus)))
                 end do
-                M = maxV/maxC
-                ced = max(tanh((M**15)*v_pi),ce)
-                ceM = max(tanh((M**15)*v_pi),ce)
                 ced = max(1.0_rp-(minJe/maxJe)**2,ce)
-                ced = max(ced,ceM) 
 
                 mu = 0.0_rp
                 betae = 0.0_rp
                 !$acc loop vector reduction(max:betae)
                 do inode = 1,nnode
-                   aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
-                   aux3 = sqrt(Rgas*gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
-                   aux1 = aux2+aux3
+                   aux1 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
                    betae = max(betae,(rho(connec(ielem,inode))*helem_k(ielem))*(cmax/real(porder,rp))*aux1)
                 end do
                 !$acc loop vector
@@ -137,5 +129,5 @@ module mod_entropy_viscosity
                 end do
               end do
               !$acc end parallel loop
-      end subroutine smart_visc_spectral
-end module mod_entropy_viscosity
+      end subroutine smart_visc_spectral_incomp
+end module mod_entropy_viscosity_incomp

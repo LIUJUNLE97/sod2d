@@ -14,8 +14,10 @@ module mod_solver_incomp
 
       implicit none
 
-	   real(rp)  , allocatable, dimension(:) :: x, r0, p0, qn, v, b,z0,z1,M,x0
+	   real(rp)  , allocatable, dimension(:) :: x, r0, p0, qn, v, b,z0,z1,M,x0,diag
       real(rp)  , allocatable, dimension(:,:) :: x_u, r0_u, p0_u, qn_u, v_u, b_u,z0_u,z1_u,M_u
+      real(rp)  , allocatable, dimension(:,:,:) :: L
+      real(rp)  , allocatable, dimension(:,:) :: A
 	   logical  :: flag_cg_mem_alloc_pres=.true.
       logical  :: flag_cg_mem_alloc_veloc=.true.
 
@@ -56,6 +58,7 @@ module mod_solver_incomp
           if (flag_cg_mem_alloc_veloc .eqv. .true.) then
 				allocate(x_u(npoin,ndime), r0_u(npoin,ndime), p0_u(npoin,ndime), qn_u(npoin,ndime), v_u(npoin,ndime), b_u(npoin,ndime),z0_u(npoin,ndime),z1_u(npoin,ndime),M_u(npoin,ndime))
             !$acc enter data create(x_u(:,:), r0_u(:,:), p0_u(:,:), qn_u(:,:), v_u(:,:), b_u(:,:),z0_u(:,:),z1_u(:,:),M_u(:,:))
+
 				flag_cg_mem_alloc_veloc = .false.
 			 end if
 
@@ -236,24 +239,38 @@ module mod_solver_incomp
 
         end subroutine conjGrad_veloc_incomp   
 
-        subroutine conjGrad_pressure_incomp(igtime,save_logFile_next,nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,Rp0,R)
+        subroutine conjGrad_pressure_incomp(igtime,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,connec,lpoin_w,lelpn,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,Rp0,R,nboun,bou_codes_nodes,normalsAtNodes)
 
            implicit none
 
+           logical,              intent(in)   :: noBoundaries
            integer(4),           intent(in)    :: igtime,save_logFile_next
-           integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w)
-           real(rp)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode)
+           integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w),lelpn(npoin)
+           real(rp)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
            real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin)
            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
            real(rp)   , intent(inout) :: R(npoin)
+           integer(4), intent(in)     :: nboun,bou_codes_nodes(npoin)
+           real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
            integer(4)                :: ipoin, iter,ialpha
            real(rp)                   :: T1, alphaCG, betaCG,Q1(2)
            real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB
           
            call nvtxStartRange("CG solver scalar")
           if (flag_cg_mem_alloc_pres .eqv. .true.) then
-				allocate(x(npoin), r0(npoin), p0(npoin), qn(npoin), v(npoin), b(npoin),z0(npoin),z1(npoin),M(npoin),x0(npoin))
-            !$acc enter data create(x(:), r0(:), p0(:), qn(:), v(:), b(:),z0(:),z1(:),M(:),x0(:))
+				allocate(x(npoin), r0(npoin), p0(npoin), qn(npoin), v(npoin), b(npoin),z0(npoin),z1(npoin),M(npoin),x0(npoin),diag(npoin))
+            !$acc enter data create(x(:), r0(:), p0(:), qn(:), v(:), b(:),z0(:),z1(:),M(:),x0(:),diag(:))
+            allocate(A(nnode,nnode))
+            !$acc enter data create(A(:,:))
+
+            call eval_laplacian_diag(nelem,npoin,connec,He,dNgp,gpvol,A,diag)
+
+            if(flag_cg_prec_bdc .eqv. .true.) then
+               allocate(L(nnode,nnode,nelem))
+               !$acc enter data create(L(:,:,:))
+               call eval_laplacian_BDL(nelem,npoin,connec,He,dNgp,gpvol,diag,A,L)
+            end if
+
 				flag_cg_mem_alloc_pres = .false.
 			 end if
 
@@ -270,7 +287,7 @@ module mod_solver_incomp
                b(ipoin) = 0.0_rp
                z0(ipoin) = 0.0_rp
                z1(ipoin) = 0.0_rp
-               M(ipoin) = Ml(ipoin)
+               M(ipoin) = diag(ipoin) !Ml(ipoin)
                x0(ipoin) = Rp0(ipoin)
             end do
 
@@ -297,6 +314,16 @@ module mod_solver_incomp
            end do
             !$acc end parallel loop
 
+            if(flag_cg_prec_bdc .eqv. .true.) then
+               call smoother_cholesky(nelem,npoin,npoin_w,lpoin_w,lelpn,connec,r0,z0)
+         
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  p0(lpoin_w(ipoin)) = z0(lpoin_w(ipoin))
+               end do
+               !$acc end parallel loop
+            end if
+
             auxB = 1.0_rp 
 
            !
@@ -322,6 +349,9 @@ module mod_solver_incomp
                  x(lpoin_w(ipoin)) = x(lpoin_w(ipoin))+alphaCG*p0(lpoin_w(ipoin)) ! x_k = x_k-1 + alpha*s_k-1
               end do
               !$acc end parallel loop
+               if (noBoundaries .eqv. .false.) then
+                  call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,x)
+               end if
               !$acc parallel loop
               do ipoin = 1,npoin_w
                  r0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))-alphaCG*qn(lpoin_w(ipoin)) ! b-A*p0
@@ -345,6 +375,11 @@ module mod_solver_incomp
                  call nvtxEndRange
                  exit
               end if
+               
+               if(flag_cg_prec_bdc .eqv. .true.) then
+                  call smoother_cholesky(nelem,npoin,npoin_w,lpoin_w,lelpn,connec,r0,z0)
+               endif
+
               !
               ! Update p
               !
@@ -380,4 +415,58 @@ module mod_solver_incomp
            call nvtxEndRange
 
         end subroutine conjGrad_pressure_incomp   
+
+        subroutine smoother_cholesky(nelem,npoin,npoin_w,lpoin_w,lelpn,connec,b,x)
+
+           implicit none
+
+           integer(4), intent(in)    :: nelem, npoin,npoin_w,lpoin_w(npoin),lelpn(npoin),connec(nelem,nnode)
+           real(rp)   , intent(in)    :: b(npoin)
+           real(rp)   , intent(inout) :: x(npoin)
+           integer(4)                :: inode,ielem
+           integer(4)              :: ipoin(nnode),iNodeL,ipoin_w,jnode
+           real(rp)                 :: bl(nnode),xl(nnode)
+
+          
+           !$acc parallel loop gang private(bl,ipoin,xl)
+           do ielem = 1,nelem
+               !$acc loop vector
+               do inode = 1,nnode
+                  ipoin(inode) = connec(ielem,inode)
+                  bl(inode)  = b(ipoin(inode))
+               end do
+               xl(1) = bl(1)/L(1,1,ielem)
+               !$acc loop vector 
+               do inode=2,nnode
+                  jnode = inode-1
+                  xl(inode) = (bl(inode) - dot_product(L(inode,1:jnode,ielem),xl(1:jnode)))/L(inode,inode,ielem)
+               end do
+               A(:,:) = transpose(L(:,:,ielem))
+               
+               !$acc atomic write
+               x(ipoin(nnode)) = xl(nnode)/A(nnode,nnode)
+               !$acc atomic end
+
+               !$acc loop vector 
+               do inode=nnode-1,1,-1
+                  jnode = inode+1
+                  !$acc atomic write
+                  x(ipoin(inode)) = (xl(inode) - dot_product(A(inode,jnode:nnode),x(ipoin(jnode:nnode))))/A(inode,inode)
+                  !$acc atomic end
+               end do              
+
+           end do
+
+         if(mpi_size.ge.2) then
+            call mpi_halo_atomic_update_real(x)
+         end if
+
+         !$acc parallel loop
+         do ipoin_w = 1,npoin_w
+            iNodeL=lpoin_w(ipoin_w)
+            x(iNodeL) = x(iNodeL)/real(lelpn(iNodeL),rp)
+         end do
+         !$acc end parallel loop
+          
+        end subroutine smoother_cholesky   
 end module mod_solver_incomp

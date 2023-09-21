@@ -96,4 +96,10 @@ module mod_numerical_params
         !
         logical :: flag_fs_incremental = .false.
         logical :: flag_fs_fix_pressure = .true.
+
+        !
+        ! CG
+        !
+
+        logical :: flag_cg_prec_bdc = .false. !Block Diagonal Cholesky
 end module mod_numerical_params

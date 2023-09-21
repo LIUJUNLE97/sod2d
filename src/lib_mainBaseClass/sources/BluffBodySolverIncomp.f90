@@ -63,14 +63,14 @@ contains
 
       ! numerical params
       flag_les = 1
-      maxIter = 200
+      maxIter = 20
       tol=1e-3
    
 
       this%cfl_conv = 0.95_rp 
       this%cfl_diff = 0.95_rp 
-      flag_use_constant_dt = 1
-      this%dt = 2.5e-4
+      !flag_use_constant_dt = 1
+      !this%dt = 2.5e-4
       !----------------------------------------------
       !  --------------  I/O params -------------
       this%final_istep = 1000000 

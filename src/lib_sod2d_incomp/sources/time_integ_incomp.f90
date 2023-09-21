@@ -6,7 +6,7 @@ module time_integ_incomp
    use elem_diffu_incomp
    use elem_source
    use mod_solver
-   use mod_entropy_viscosity
+   use mod_entropy_viscosity_incomp
    use mod_numerical_params
    use mod_fluid_viscosity
    use mod_sgs_viscosity
@@ -21,7 +21,9 @@ module time_integ_incomp
    real(rp), allocatable, dimension(:,:,:) :: Rmom
    real(rp), allocatable, dimension(:,:) :: aux_q,Rsource,Rwmles
    real(rp), allocatable, dimension(:,:) :: Rmom_sum,Rdiff_mom
-   real(rp), allocatable, dimension(:,:) ::GradP
+   real(rp), allocatable, dimension(:,:) ::GradP,f_eta,Reta
+   real(rp), allocatable, dimension(:) :: auxReta
+
 
    contains
    subroutine init_rk4_solver_incomp(npoin)
@@ -42,6 +44,9 @@ module time_integ_incomp
 
       allocate(gradP(npoin,ndime))
       !$acc enter data create(gradP(:,:))
+
+      allocate(auxReta(npoin),f_eta(npoin,ndime),Reta(npoin,ndime))
+      !$acc enter data create(auxReta(:),f_eta(:,:),Reta(:,:))
    
       !$acc kernels
       Rmom(1:npoin,1:ndime,1:2) = 0.0_rp
@@ -72,9 +77,12 @@ module time_integ_incomp
       !$acc exit data delete(gradP(:,:))
       deallocate(gradP)
 
+      !$acc exit data delete(f_eta(:,:),auxReta(:),Reta(:,:))
+      deallocate(f_eta,auxReta,Reta)
+
    end subroutine end_rk4_solver_incomp
  
-         subroutine ab_main_incomp(igtime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         subroutine ab_main_incomp(igtime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
@@ -85,7 +93,7 @@ module time_integ_incomp
             logical,              intent(in)   :: noBoundaries,isWallModelOn
             integer(4),           intent(in)    :: igtime,save_logFile_next
             integer(4),           intent(in)    :: nelem, nboun, npoin
-            integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou),lnbn_nodes(npoin)
+            integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou),lnbn_nodes(npoin),lelpn(npoin)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             integer(4),           intent(in)    :: ppow
             real(rp),             intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
@@ -128,9 +136,35 @@ module time_integ_incomp
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
             integer(4)                          :: istep, ipoin, idime,icode
 
-            !
-            ! Loop over all AB+CN steps
-            ! 
+            if(igtime .eq. 1) then
+               !$acc parallel loop
+               do ipoin = 1,npoin
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     aux_q(ipoin,idime) = u(ipoin,idime,1)*rho(ipoin,1)
+                  end do
+               end do
+               !$acc end parallel loop
+               call full_convec_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),aux_q,rho(:,1),Rmom(:,:,1))          
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
+                  end do
+               end do
+               !$acc end parallel loop
+
+               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:,1))
+
+               if(mpi_size.ge.2) then
+                  call mpi_halo_atomic_update_real(Reta(:,1))
+               end if
+
+               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,1))
+            
+            end if
 
             if(present(source_term)) then
                !$acc kernels
@@ -159,7 +193,6 @@ module time_integ_incomp
                end do
             end do
             !$acc end parallel loop
-            !call full_convec_emac_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),aux_q,rho(:,1),Rmom(:,:,2))          
             call full_convec_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),aux_q,rho(:,1),Rmom(:,:,2))          
 
             !$acc parallel loop
@@ -198,8 +231,9 @@ module time_integ_incomp
             pr(:,2) = -pr(:,2)/dt
             !$acc end kernels
 
-            call conjGrad_pressure_incomp(igtime,save_logFile_next,nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,&
-                                          gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,pr(:,1),pr(:,2))
+            call conjGrad_pressure_incomp(igtime,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,connec,lpoin_w,lelpn,invAtoIJK,gmshAtoI,gmshAtoJ,&
+                                          gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,pr(:,1),pr(:,2), &
+                                          nboun,bou_codes_nodes,normalsAtNodes)
             if (noBoundaries .eqv. .false.) then
                call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,2))
             end if
@@ -222,6 +256,42 @@ module time_integ_incomp
             !
             ! Compute subgrid viscosity if active
             !
+
+            !$acc parallel loop
+            do ipoin = 1,npoin_w
+               eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
+               eta(lpoin_w(ipoin),2) = 0.5*(u(lpoin_w(ipoin),1,2)**2 + u(lpoin_w(ipoin),2,2)**2 + u(lpoin_w(ipoin),3,2)**2)
+               !$acc loop seq
+               do idime = 1,ndime
+                  f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,2)*eta(lpoin_w(ipoin),2)
+               end do
+            end do
+            !$acc end parallel loop
+
+            call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,2),u(:,:,2),Reta(:,2))
+
+            if(mpi_size.ge.2) then
+               call mpi_halo_atomic_update_real(Reta(:,2))
+            end if
+
+            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,2))
+
+            !$acc parallel loop
+            do ipoin = 1,npoin_w
+               auxReta(lpoin_w(ipoin)) = (1.5_rp*Reta(lpoin_w(ipoin),2)-0.5_rp*Reta(lpoin_w(ipoin),1)) + &
+                                          (eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+               Reta(lpoin_w(ipoin),1) = Reta(lpoin_w(ipoin),2)
+            end do
+            !$acc end parallel loop
+
+            if (noBoundaries .eqv. .false.) then
+               call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,auxReta)
+            end if
+
+            call smart_visc_spectral_incomp(nelem,npoin,npoin_w,connec,lpoin_w,auxReta,Ngp,coord,dNgp,gpvol,wgp, &
+                                            rho(:,2),u(:,:,2),eta(:,2),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+
             if(flag_les == 1) then
                if(flag_les_ilsa == 1) then
                   call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,&
@@ -307,110 +377,4 @@ module time_integ_incomp
             !$acc end parallel loop
             call nvtxEndRange
          end subroutine updateBuffer_incomp
-
-         subroutine filter_presure(dt,nelem,npoin,npoin_w,connec,lpoin_w,p,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,helem)
-
-            implicit none
-
-            integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
-            real(rp),   intent(inout)  :: p(npoin)
-            real(rp),   intent(in)    :: dt,Ml(npoin),dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),helem(nelem,nnode)
-            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            integer(4)               :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ipoin(nnode),ipoin2
-            integer(4)              :: convertIJK(0:porder+2),ii,jj,kk,mm,nn,ll,iter
-            real(rp)                :: p_l(npoin),al(-1:1),am(-1:1),an(-1:1),aux1
-            real(rp)                :: gradIsoP(ndime)
-            real(rp)                :: gradP(ndime),divDp,nu_e
-            real(rp)                :: ResP(npoin),pl(nnode),gradPl(nnode,ndime)
-
-            !$acc kernels
-             ResP(:) = 0.0_rp
-            !$acc end kernels
-
-             !$acc parallel loop gang  private(ipoin,pl,gradPl)
-             do ielem = 1,nelem
-                !$acc loop vector
-                do inode = 1,nnode
-                   ipoin(inode) = connec(ielem,inode)
-                end do
-                !$acc loop vector
-                do inode = 1,nnode
-                   pl(inode) = p(ipoin(inode))
-                end do
-                gradPl(:,:) = 0.0_rp
-
-                !$acc loop vector private(gradIsoP,gradP)
-                do igaus = 1,ngaus
-
-                   isoI = gmshAtoI(igaus) 
-                   isoJ = gmshAtoJ(igaus) 
-                   isoK = gmshAtoK(igaus) 
-
-                   gradIsoP(:) = 0.0_rp
-                   !$acc loop seq
-                   do ii=1,porder+1
-                      gradIsoP(1) = gradIsoP(1) + dlxigp_ip(igaus,1,ii)*pl(invAtoIJK(ii,isoJ,isoK))
-                      gradIsoP(2) = gradIsoP(2) + dlxigp_ip(igaus,2,ii)*pl(invAtoIJK(isoI,ii,isoK))
-                      gradIsoP(3) = gradIsoP(3) + dlxigp_ip(igaus,3,ii)*pl(invAtoIJK(isoI,isoJ,ii))
-                   end do
-
-                   gradP(:) = 0.0_rp
-                   !$acc loop seq
-                   do idime=1, ndime
-                      !$acc loop seq
-                      do jdime=1, ndime
-                         gradP(idime) = gradP(idime) + He(idime,jdime,igaus,ielem) * gradIsoP(jdime)
-                      end do
-                   end do
-
-                   !$acc loop seq
-                   do idime = 1,ndime
-                      gradPl(igaus,idime) =  gradP(idime)
-                   end do
-                end do
-
-                !$acc loop vector private(divDp) 
-                do igaus = 1,ngaus
-                   !nu_e = ((2.0_rp*helem(ielem,igaus))**2)/24.0_rp
-                   nu_e = dt/24.0_rp
-
-                   isoI = gmshAtoI(igaus) 
-                   isoJ = gmshAtoJ(igaus) 
-                   isoK = gmshAtoK(igaus) 
-
-                   divDp = 0.0_rp
-                   
-                   !$acc loop seq
-                   do ii=1,porder+1
-                      !$acc loop seq
-                      do idime=1,ndime
-                         divDp = divDp + He(idime,1,invAtoIJK(ii,isoJ,isoK),ielem)*gpvol(1,invAtoIJK(ii,isoJ,isoK),ielem)*dlxigp_ip(invAtoIJK(ii,isoJ,isoK),1,isoI)*gradPl(invAtoIJK(ii,isoJ,isoK),idime)
-                         divDp = divDp + He(idime,2,invAtoIJK(isoI,ii,isoK),ielem)*gpvol(1,invAtoIJK(isoI,ii,isoK),ielem)*dlxigp_ip(invAtoIJK(isoI,ii,isoK),2,isoJ)*gradPl(invAtoIJK(isoI,ii,isoK),idime)
-                         divDp = divDp + He(idime,3,invAtoIJK(isoI,isoJ,ii),ielem)*gpvol(1,invAtoIJK(isoI,isoJ,ii),ielem)*dlxigp_ip(invAtoIJK(isoI,isoJ,ii),3,isoK)*gradPl(invAtoIJK(isoI,isoJ,ii),idime)
-                      end do
-                   end do
-
-                   !$acc atomic update
-                   ResP(ipoin(igaus)) = ResP(ipoin(igaus))+nu_e*divDp
-                   !$acc end atomic
-                end do
-             end do
-             !$acc end parallel loop
-
-               if(mpi_size.ge.2) then
-                  call nvtxStartRange("MPI_comms_tI")
-                  call mpi_halo_atomic_update_real(ResP(:))
-                  call nvtxEndRange
-               end if
-
-               call nvtxStartRange("Lumped mass solver on generic")
-               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,ResP(:))
-               call nvtxEndRange
-               
-               !$acc parallel loop
-               do ipoin2 = 1,npoin
-                  p(ipoin2) = p(ipoin2) - ResP(ipoin2)
-               end do
-               !$acc end parallel loop
-         end subroutine filter_presure
       end module time_integ_incomp

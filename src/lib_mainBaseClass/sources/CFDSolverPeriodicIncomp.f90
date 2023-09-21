@@ -131,13 +131,13 @@ contains
       this%save_scalarField_muFluid    = .true.
       this%save_scalarField_pressure   = .true.
       this%save_scalarField_energy     = .false.
-      this%save_scalarField_entropy    = .false.
+      this%save_scalarField_entropy    = .true.
       this%save_scalarField_csound     = .false.
       this%save_scalarField_machno     = .false.
       this%save_scalarField_divU       = .false.
       this%save_scalarField_qcrit      = .true.
       this%save_scalarField_muSgs      = .true.
-      this%save_scalarField_muEnvit    = .false.
+      this%save_scalarField_muEnvit    = .true.
       this%save_vectorField_vel        = .true.
       this%save_vectorField_gradRho    = .false.
       this%save_vectorField_curlU      = .true.
@@ -164,7 +164,7 @@ contains
       integer(4)                    , intent(in)    :: istep
 
       this%noBoundaries = .true.
-      call ab_main_incomp(istep,this%save_logFile_next,this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbn,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+      call ab_main_incomp(istep,this%save_logFile_next,this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbn,lnbnNodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
             1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
             rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor)
 

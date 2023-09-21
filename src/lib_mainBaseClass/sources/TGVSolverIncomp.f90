@@ -59,10 +59,10 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 100
+      this%save_resultsFile_step = 200
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 100
+      this%save_restartFile_step = 200
       this%loadRestartFile = .false.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
@@ -74,13 +74,14 @@ contains
       ! numerical params
       flag_les = 0
 
-      !this%cfl_conv = 0.5_rp
-      !this%cfl_diff = 0.5_rp
-      flag_use_constant_dt = 1
-      this%dt = 5.0e-3
+      this%cfl_conv = 0.5_rp
+      this%cfl_diff = 0.5_rp
+      !flag_use_constant_dt = 1
+      !this%dt = 2.5e-3
 
       maxIter = 200
       tol = 1e-3
+      flag_cg_prec_bdc = .true.
 
       this%Re = 1600.0_rp
 
@@ -121,15 +122,12 @@ contains
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-         csound(iNodeL) = 2.0_rp
-         eta(iNodeL,2) =pr(iNodeL,2)**2! dot_product(u(iNodeL,1:ndime,2),u(iNodeL,1:ndime,2))!  pr(iNodeL,2)**2
+         eta(iNodeL,2) =0.5_rp*dot_product(u(iNodeL,1:ndime,2),u(iNodeL,1:ndime,2))
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
-         E(iNodeL,2) = 1.0_rp
 
          q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
          u(iNodeL,1:ndime,3) = u(iNodeL,1:ndime,2)
          rho(iNodeL,3) = rho(iNodeL,2)
-         E(iNodeL,3)   = E(iNodeL,2)
          eta(iNodeL,3) =  eta(iNodeL,2)
           pr(iNodeL,3) =  pr(iNodeL,2)  
       end do

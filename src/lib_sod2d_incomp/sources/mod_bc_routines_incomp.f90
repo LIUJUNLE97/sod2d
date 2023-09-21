@@ -53,9 +53,7 @@ module mod_bc_routines_incomp
             integer(4), intent(in)     :: npoin, nboun,bou_codes_nodes(npoin)
             real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
             real(rp),    intent(inout) :: aux_p(npoin)
-            integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
-            real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
-            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm
+            integer(4)                 :: iboun,bcode,ipbou,inode
 
             !$acc parallel loop  
             do inode = 1,npoin
