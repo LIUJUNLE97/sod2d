@@ -442,17 +442,13 @@ module mod_solver_incomp
                   xl(inode) = (bl(inode) - dot_product(L(inode,1:jnode,ielem),xl(1:jnode)))/L(inode,inode,ielem)
                end do
                A(:,:) = transpose(L(:,:,ielem))
-               
-               !$acc atomic write
+
                x(ipoin(nnode)) = xl(nnode)/A(nnode,nnode)
-               !$acc atomic end
 
                !$acc loop vector 
                do inode=nnode-1,1,-1
                   jnode = inode+1
-                  !$acc atomic write
                   x(ipoin(inode)) = (xl(inode) - dot_product(A(inode,jnode:nnode),x(ipoin(jnode:nnode))))/A(inode,inode)
-                  !$acc atomic end
                end do              
 
            end do
