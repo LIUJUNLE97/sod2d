@@ -90,6 +90,7 @@ contains
       write(this%results_h5_file_name,*) "resultsFile"
 
       write(this%io_prepend_path,*) "./"
+      write(this%io_append_info,*) ""
 
       this%time = 0.0_rp
       this%initial_istep = 1
