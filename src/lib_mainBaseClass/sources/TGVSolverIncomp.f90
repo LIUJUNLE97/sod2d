@@ -81,7 +81,7 @@ contains
 
       maxIter = 200
       tol = 1e-3
-      flag_cg_prec_bdc = .true.
+      flag_cg_prec_bdc = .false.
 
       this%Re = 1600.0_rp
 

@@ -9,47 +9,34 @@ module mod_entropy_viscosity_incomp
 
    contains
       subroutine smart_visc_spectral_incomp(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Ngp,coord,dNgp,gpvol,wgp, &
-                            rho,u,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+                            rho,u,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                            mue_l,convertIJK,al,am,an)
 
               ! TODO: Compute element size h
 
               implicit none
 
-              integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
+              integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w),convertIJK(0:porder+2)
               real(rp),    intent(in)  :: Reta(npoin), Ngp(ngaus,nnode)
               real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime), eta(npoin),helem(nelem,nnode),helem_k(nelem),Ml(npoin)
               real(rp),    intent(out) :: mu_e(nelem,ngaus)
               real(rp),   intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
               real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
               integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+              real(rp),intent(inout)  :: mue_l(nelem,nnode)
+              real(rp),   intent(in)  :: al(-1:1),am(-1:1),an(-1:1)
               integer(4)               :: ielem, inode,igaus,ipoin,npoin_w_g,idime,jdime
               real(rp)                 :: R1, R2, Ve
               real(rp)                 :: betae,mu,vol,vol2
               real(rp)                 :: L3, aux1, aux2, aux3
               real(rp)                 :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas, maxV, maxC
               real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe, M, ceM
-              integer(4)              :: convertIJK(0:porder+2),ii,jj,kk,mm,nn,ll
-              real(rp)                :: mue_l(nelem,nnode),al(-1:1),am(-1:1),an(-1:1)
+              integer(4)              :: ii,jj,kk,mm,nn,ll
 
-              do ii=3,porder+1
-                convertIJK(ii-1) = ii
-             end do
-             convertIJK(0) = 3
-             convertIJK(1) = 1
-             convertIJK(porder+1) = 2
-             convertIJK(porder+2) = porder
 
-             al(-1) = 1.0_rp/4.0_rp
-             al(0)  = 2.0_rp/4.0_rp
-             al(1)  = 1.0_rp/4.0_rp
-
-             am(-1) = 1.0_rp/4.0_rp
-             am(0)  = 2.0_rp/4.0_rp
-             am(1)  = 1.0_rp/4.0_rp
-
-             an(-1) = 1.0_rp/4.0_rp
-             an(0)  = 2.0_rp/4.0_rp
-             an(1)  = 1.0_rp/4.0_rp
+              !$acc kernels
+               mue_l(:,:) = mu_e(:,:)
+               !$acc end kernels
 
              Rgas = nscbc_Rgas_inf
 

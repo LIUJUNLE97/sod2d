@@ -85,6 +85,7 @@ module time_integ_incomp
          subroutine ab_main_incomp(igtime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
+                         mue_l,convertIJK,al_weights,am_weights,an_weights, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
                          listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u)  ! Optional args
 
@@ -93,7 +94,7 @@ module time_integ_incomp
             logical,              intent(in)   :: noBoundaries,isWallModelOn
             integer(4),           intent(in)    :: igtime,save_logFile_next
             integer(4),           intent(in)    :: nelem, nboun, npoin
-            integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou),lnbn_nodes(npoin),lelpn(npoin)
+            integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn(nboun,npbou),lnbn_nodes(npoin),lelpn(npoin),convertIJK(0:porder+2)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             integer(4),           intent(in)    :: ppow
             real(rp),             intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
@@ -104,6 +105,8 @@ module time_integ_incomp
             real(rp),             intent(in)    :: Ml(npoin)
             real(rp),             intent(in)    :: mu_factor(npoin)
             real(rp),             intent(in)    :: Rgas, gamma_gas, Cp, Prt
+            real(rp),             intent(inout) :: mue_l(nelem,nnode)
+            real(rp),             intent(in)    :: al_weights(-1:1),am_weights(-1:1),an_weights(-1:1)
             real(rp),             intent(inout) :: rho(npoin,3)
             real(rp),             intent(inout) :: u(npoin,ndime,3)
             real(rp),             intent(inout) :: q(npoin,ndime,3)
@@ -290,15 +293,19 @@ module time_integ_incomp
             end if
 
             call smart_visc_spectral_incomp(nelem,npoin,npoin_w,connec,lpoin_w,auxReta,Ngp,coord,dNgp,gpvol,wgp, &
-                                            rho(:,2),u(:,:,2),eta(:,2),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+                                            rho(:,2),u(:,:,2),eta(:,2),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+                                            mue_l,convertIJK,al_weights,am_weights,an_weights)
+
 
             if(flag_les == 1) then
                if(flag_les_ilsa == 1) then
                   call sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt,&
-                                    rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
+                              rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3,mue_l,convertIJK,al_weights,am_weights,an_weights) 
                else
-                  call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
+                  call sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),&
+                                 Ml,mu_sgs,mue_l,convertIJK,al_weights,am_weights,an_weights)
                end if
+               call nvtxEndRange
             end if
          end subroutine ab_main_incomp
 

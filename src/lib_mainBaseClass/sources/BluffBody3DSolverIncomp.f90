@@ -105,7 +105,7 @@ contains
       ! numerical params
       flag_les = 1
 
-      maxIter=200
+      maxIter=20
       tol=1e-3
       
 
@@ -128,7 +128,7 @@ contains
       nscbc_rho_inf = this%rho0
 
 
-      flag_buffer_on = .false.
+      flag_buffer_on = .true.
 
       !!windsor
       flag_buffer_on_east = .true.
