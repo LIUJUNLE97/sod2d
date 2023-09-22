@@ -25,7 +25,7 @@ module time_integ
 
    real(rp), allocatable, dimension(:)   :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
    real(rp), allocatable, dimension(:,:) :: aux_u,aux_q
-   real(rp), allocatable, dimension(:)   :: Rmass_sum,Rener_sum,Reta_sum,alpha,Rdiff_mass,Rdiff_ener
+   real(rp), allocatable, dimension(:)   :: Rmass_sum,Rener_sum,Reta_sum,Rdiff_mass,Rdiff_ener
    real(rp), allocatable, dimension(:,:) :: Rmom_sum,Rdiff_mom,f_eta
 
    real(rp), allocatable, dimension(:)   :: a_i, b_i, c_i,b_i2
@@ -44,7 +44,7 @@ module time_integ
             !$acc enter data create(sigMass(:,:))
             !$acc enter data create(sigEner(:,:))
             !$acc enter data create(sigMom(:,:,:))
-            allocate(aijKjMass(npoin,11),aijKjEner(npoin,11),pt(npoin,11))
+            allocate(aijKjMass(npoin,11),aijKjEner(npoin,11),pt(npoin,5))
             !$acc enter data create(aijKjMass(:,:))
             !$acc enter data create(aijKjEner(:,:))
             !$acc enter data create(pt(:,:))
@@ -74,11 +74,10 @@ module time_integ
       !$acc enter data create(aux_u(:,:))
       !$acc enter data create(aux_q(:,:))
 
-      allocate(Rmass_sum(npoin),Rener_sum(npoin),Reta_sum(npoin),alpha(npoin),Rdiff_mass(npoin),Rdiff_ener(npoin))
+      allocate(Rmass_sum(npoin),Rener_sum(npoin),Reta_sum(npoin),Rdiff_mass(npoin),Rdiff_ener(npoin))
       !$acc enter data create(Rmass_sum(:))
       !$acc enter data create(Rener_sum(:))
       !$acc enter data create(Reta_sum(:))
-      !$acc enter data create(alpha(:))
       !$acc enter data create(Rdiff_mass(:))
       !$acc enter data create(Rdiff_ener(:))
       allocate(Rmom_sum(npoin,ndime),Rdiff_mom(npoin,ndime),f_eta(npoin,ndime))
@@ -200,10 +199,9 @@ module time_integ
       !$acc exit data delete(Rmass_sum(:))
       !$acc exit data delete(Rener_sum(:))
       !$acc exit data delete(Reta_sum(:))
-      !$acc exit data delete(alpha(:))
       !$acc exit data delete(Rdiff_mass(:))
       !$acc exit data delete(Rdiff_ener(:))
-      deallocate(Rmass_sum,Rener_sum,Reta_sum,alpha,Rdiff_mass,Rdiff_ener)
+      deallocate(Rmass_sum,Rener_sum,Reta_sum,Rdiff_mass,Rdiff_ener)
 
       !$acc exit data delete(Rmom_sum(:,:))
       !$acc exit data delete(Rdiff_mom(:,:))
@@ -267,9 +265,9 @@ module time_integ
             real(rp),             intent(in)    :: mu_factor(npoin)
             real(rp),             intent(in)    :: Rgas, gamma_gas, Cp, Prt
             real(rp),             intent(inout) :: rho(npoin,3)
-            real(rp),             intent(inout) :: u(npoin,ndime,2)
+            real(rp),             intent(inout) :: u(npoin,ndime,3)
             real(rp),             intent(inout) :: q(npoin,ndime,3)
-            real(rp),             intent(inout) :: pr(npoin,2)
+            real(rp),             intent(inout) :: pr(npoin,3)
             real(rp),             intent(inout) :: E(npoin,3)
             real(rp),             intent(inout) :: Tem(npoin,2)
             real(rp),             intent(inout) :: e_int(npoin,2)
@@ -638,7 +636,7 @@ module time_integ
 
                call nvtxStartRange("Update generic convection")
                call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta(:),alpha)
+                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,pos),u(:,:,pos),Reta(:))
                call nvtxEndRange
 
                if(mpi_size.ge.2) then
@@ -741,9 +739,9 @@ module time_integ
             real(rp),             intent(in)    :: mu_factor(npoin)
             real(rp),             intent(in)    :: Rgas, gamma_gas, Cp, Prt
             real(rp),             intent(inout) :: rho(npoin,3)
-            real(rp),             intent(inout) :: u(npoin,ndime,2)
+            real(rp),             intent(inout) :: u(npoin,ndime,3)
             real(rp),             intent(inout) :: q(npoin,ndime,3)
-            real(rp),             intent(inout) :: pr(npoin,2)
+            real(rp),             intent(inout) :: pr(npoin,3)
             real(rp),             intent(inout) :: E(npoin,3)
             real(rp),             intent(inout) :: Tem(npoin,2)
             real(rp),             intent(inout) :: e_int(npoin,2)
@@ -871,7 +869,7 @@ module time_integ
 
                call nvtxStartRange("Entropy convection")
                call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,aux_eta(:),aux_u(:,:),Reta(:),alpha)
+                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,aux_eta(:),aux_u(:,:),Reta(:))
                call nvtxEndRange
 
                if(mpi_size.ge.2) then
