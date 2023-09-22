@@ -5,7 +5,7 @@ module mod_arrays
 
       ! main allocatable arrays
       ! integer ---------------------------------------------------
-      integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
+      integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:),convertIJK(:)
       integer(4), allocatable :: atoIJ(:),atoIJK(:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
       integer(4), allocatable :: witel(:), buffstep(:)
 
@@ -34,6 +34,9 @@ module mod_arrays
 
       ! exponential average for wall law
       real(rp), allocatable :: walave_u(:,:)
+
+      ! for entropy and sgs visc.
+      real(rp),  allocatable :: mue_l(:,:),al_weights(:),am_weights(:),an_weights(:)
 
 end module mod_arrays
 
@@ -80,7 +83,8 @@ module CFDSolverBase_mod
       integer(4), public :: initial_istep,final_istep,load_step
 
       integer(4), public :: currentNonLinealIter
-      integer(4), public :: nwit,nwitPar,leapwit,leapwitsave
+      integer(4), public :: nwit,nwitPar,leapwit
+      integer(4), public :: leapwitsave=100 !Default value, found to be robustly fast
       integer(4), public :: load_stepwit = 0
       integer(4), public :: nvarwit=5 !Default value, only to be substituted if function update_witness is modified to
 
@@ -94,7 +98,7 @@ module CFDSolverBase_mod
       character(512) :: log_file_name
       character(512) :: mesh_h5_file_path,mesh_h5_file_name
       character(512) :: results_h5_file_path,results_h5_file_name
-      character(512) :: io_prepend_path
+      character(512) :: io_prepend_path,io_append_info
       character(512) :: witness_inp_file_name,witness_h5_file_name
 
       ! main real parameters
@@ -135,6 +139,7 @@ module CFDSolverBase_mod
       procedure, public :: normalFacesToNodes => CFDSolverBase_normalFacesToNodes
       procedure, public :: fillBCTypes => CFDSolverBase_fill_BC_Types
       procedure, public :: allocateVariables => CFDSolverBase_allocateVariables
+      procedure, public :: deallocateVariables => CFDSolverBase_deallocateVariables
       procedure, public :: evalOrLoadInitialConditions => CFDSolverBase_evalOrLoadInitialConditions
       procedure, public :: evalInitialConditions => CFDSolverBase_evalInitialConditions
       procedure, public :: evalInitialViscosity =>CFDSolverBase_evalInitialViscosity
@@ -234,6 +239,7 @@ contains
       write(this%results_h5_file_name,*) "resultsFile"
 
       write(this%io_prepend_path,*) "./"
+      write(this%io_append_info,*) ""
 
       this%time = 0.0_rp
       this%initial_istep = 1
@@ -799,6 +805,7 @@ contains
       allocate(mu_e(numElemsRankPar,ngaus))  ! Elemental viscosity
       allocate(mu_sgs(numElemsRankPar,ngaus))! SGS viscosity
       allocate(u_buffer(numNodesRankPar,ndime))  ! momentum at the buffer
+      allocate(mue_l(numElemsRankPar,nnode))
       !$acc enter data create(u(:,:,:))
       !$acc enter data create(q(:,:,:))
       !$acc enter data create(rho(:,:))
@@ -814,6 +821,7 @@ contains
       !$acc enter data create(mu_e(:,:))
       !$acc enter data create(mu_sgs(:,:))
       !$acc enter data create(u_buffer(:,:))
+      !$acc enter data create(mue_l(:,:))
 
       ! implicit
       allocate(impl_rho(numNodesRankPar))
@@ -939,7 +947,7 @@ contains
       end if
 
       ! Exponential average velocity for wall law
-      if(flag_walave==1) then
+      if(flag_walave) then
          allocate(walave_u(numNodesRankPar,ndime))
          !$acc enter data create(walave_u(:,:))
          !$acc kernels
@@ -952,6 +960,29 @@ contains
       call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_allocateVariables
+
+   subroutine CFDSolverBase_deallocateVariables(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      !TO BE COMPLETED! NOT STRICTLY NECESSARY BUT IS GOOD TO DO IT AS GOOD PROGRAMMING PRACTICE :)
+
+      if(mpi_rank.eq.0) write(111,*) "--| DEALLOCATING MAIN VARIABLES"
+      call nvtxStartRange("Deallocate main vars")
+
+      !$acc exit data delete(mue_l(:,:))
+      deallocate(mue_l)
+      !$acc exit data delete(al_weights(:))
+      deallocate(al_weights)
+      !$acc exit data delete(am_weights(:))
+      deallocate(am_weights)
+      !$acc exit data delete(an_weights(:))
+      deallocate(an_weights)
+      !$acc exit data delete(convertIJK(:))    
+      deallocate(convertIJK)
+
+      call nvtxEndRange
+
+   end subroutine CFDSolverBase_deallocateVariables
 
    subroutine CFDSolverBase_evalOrLoadInitialConditions(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -1072,9 +1103,9 @@ contains
       call nvtxStartRange("MU_SGS")
       if(flag_les_ilsa == 1) then
          this%dt = 1.0_rp !To avoid 0.0 division inside sgs_ilsa_visc calc
-         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
+         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3,mue_l,convertIJK,al_weights,am_weights,an_weights) 
       else
-         call sgs_visc(numElemsRankPar,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
+         call sgs_visc(numElemsRankPar,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs,mue_l,convertIJK,al_weights,am_weights,an_weights)
       end if
       call nvtxEndRange
 
@@ -1113,7 +1144,7 @@ contains
    subroutine CFDSolverBase_evalShapeFunctions(this)
       class(CFDSolverBase), intent(inout) :: this
       real(rp)   :: s,t,z,xi_gll(porder+1),xgp_equi(ngaus,ndime)
-      integer(4) :: igaus
+      integer(4) :: igaus,ii
 
       !*********************************************************************!
       ! Generate GLL table                                                  !
@@ -1221,6 +1252,42 @@ contains
       this%leviCivi(3,1,2) =  1.0_rp
       this%leviCivi(1,2,3) =  1.0_rp
       this%leviCivi(2,1,3) = -1.0_rp
+
+      !
+      ! Compute al,am,an weights and convertIJK
+      !
+
+      allocate(al_weights(-1:1))
+      !$acc enter data create(al_weights(:))
+      al_weights(-1) = 1.0_rp/4.0_rp
+      al_weights(0)  = 2.0_rp/4.0_rp
+      al_weights(1)  = 1.0_rp/4.0_rp
+      !$acc update device(al_weights(:))
+
+      allocate(am_weights(-1:1))
+      !$acc enter data create(am_weights(:))
+      am_weights(-1) = 1.0_rp/4.0_rp
+      am_weights(0)  = 2.0_rp/4.0_rp
+      am_weights(1)  = 1.0_rp/4.0_rp
+      !$acc update device(am_weights(:))
+
+      allocate(an_weights(-1:1))
+      !$acc enter data create(an_weights(:))
+      an_weights(-1) = 1.0_rp/4.0_rp
+      an_weights(0)  = 2.0_rp/4.0_rp
+      an_weights(1)  = 1.0_rp/4.0_rp
+      !$acc update device(an_weights(:))
+     
+      allocate(convertIJK(0:porder+2))
+      !$acc enter data create(convertIJK(:))
+      do ii=3,porder+1
+         convertIJK(ii-1) = ii
+      end do
+      convertIJK(0) = 3
+      convertIJK(1) = 1
+      convertIJK(porder+1) = 2
+      convertIJK(porder+2) = porder
+      !$acc update device(convertIJK(:))
 
       call MPI_Barrier(app_comm,mpi_err)
 
@@ -1504,7 +1571,7 @@ contains
          ! Exponential averaging for wall law
          !
          call nvtxStartRange("Wall Average "//timeStep,istep)
-         if(flag_walave == 1) then
+         if(flag_walave) then
             !
             ! outside acc kernels following pseudo_cfl in next loop
             !
@@ -1757,33 +1824,21 @@ contains
    subroutine CFDSolverBase_preprocWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)                          :: iwit, ielem, inode, ifound, nwitParCand, icand
-      integer(4)                         :: witGlobCand(this%nwit), witGlob(this%nwit)
-      real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode)
+      integer(4)                          :: iwit, jwit, ielem, inode, ifound, nwitParCand, icand, nwitFound, nwit2find, icount=0, imiss=0, myrank
+      integer(4)                          :: witGlobCand(this%nwit), witGlob(this%nwit), witGlobFound(this%nwit*mpi_size)
+      integer(4), allocatable             :: witGlobFound2(:), witGlobMiss(:)
+      real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode), dist(numElemsRankPar), xyzwit(ndime), mindist
       real(rp), parameter                 :: wittol=1e-7
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
-      logical                             :: isinside
+      real(rp)                            :: locdist(2), globdist(2)
+      real(rp)                            :: xmin, ymin, zmin, xmax, ymax, zmax
+      real(rp)                            :: xminloc, yminloc, zminloc, xmaxloc, ymaxloc, zmaxloc
+      logical                             :: isinside, found
 
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
       end if
 
-      !$acc kernels
-      witGlobCand(:) = 0
-      witGlob(:) = 0
-      witxyzPar(:,:) = 0.0_rp
-      !$acc end kernels
-      ifound  = 0
-      icand   = 0
-      call read_points(this%witness_inp_file_name, this%nwit, witxyz)
-      do iwit = 1, this%nwit
-         if ((abs(witxyz(iwit,1)) < maxval(abs(coordPar(:,1)))+wittol) .AND. (abs(witxyz(iwit,2)) < maxval(abs(coordPar(:,2)))+wittol) .AND. (abs(witxyz(iwit,3)) < maxval(abs(coordPar(:,3)))+wittol)) then
-            icand = icand + 1
-            witGlobCand(icand) = iwit
-            witxyzParCand(icand,:) = witxyz(iwit,:)
-         end if
-      end do
-      nwitParCand = icand
       !$acc parallel loop gang
       do ielem = 1, numElemsRankPar
          aux1   = 0.0_rp
@@ -1803,9 +1858,45 @@ contains
          helemmax(ielem) = auxvol**(1.0/3.0)
       end do
       !$acc end loop
-      maxL = maxval(helemmax)
+      maxL = maxval(abs(helemmax))
+
+      xminloc = minval(coordPar(:,1)) - wittol
+      yminloc = minval(coordPar(:,2)) - wittol
+      zminloc = minval(coordPar(:,3)) - wittol
+      xmaxloc = maxval(coordPar(:,1)) + wittol
+      ymaxloc = maxval(coordPar(:,2)) + wittol
+      zmaxloc = maxval(coordPar(:,3)) + wittol
+
+      call MPI_Allreduce(xminloc, xmin, 1, MPI_REAL, MPI_MIN, app_comm, mpi_err)
+      call MPI_Allreduce(yminloc, ymin, 1, MPI_REAL, MPI_MIN, app_comm, mpi_err)
+      call MPI_Allreduce(zminloc, zmin, 1, MPI_REAL, MPI_MIN, app_comm, mpi_err)
+      call MPI_Allreduce(xmaxloc, xmax, 1, MPI_REAL, MPI_MAX, app_comm, mpi_err)
+      call MPI_Allreduce(ymaxloc, ymax, 1, MPI_REAL, MPI_MAX, app_comm, mpi_err)
+      call MPI_Allreduce(zmaxloc, zmax, 1, MPI_REAL, MPI_MAX, app_comm, mpi_err)
+
+      !$acc kernels
+      witGlobCand(:) = 0
+      witGlob(:) = 0
+      witxyzPar(:,:) = 0.0_rp
+      !$acc end kernels
+      ifound  = 0
+      icand   = 0
+      call read_points(this%witness_inp_file_name, this%nwit, witxyz)
+      do iwit = 1, this%nwit
+	 if (witxyz(iwit,1) < xmin .OR. witxyz(iwit,2) < ymin .OR. witxyz(iwit,3) < zmin .OR. witxyz(iwit,1) > xmax .OR. witxyz(iwit,2) > ymax .OR. witxyz(iwit,3) > zmax) then
+		write(*,*) "FATAL ERROR!! Witness point out of bounds", witxyz(iwit,:)
+         	call MPI_Abort(app_comm,-1,mpi_err)
+	 end if
+	 if (witxyz(iwit,1) > xminloc .AND. witxyz(iwit,2) > yminloc .AND. witxyz(iwit,3) > zminloc .AND. witxyz(iwit,1) < xmaxloc .AND. witxyz(iwit,2) < ymaxloc .AND. witxyz(iwit,3) < zmaxloc) then
+            icand = icand + 1
+            witGlobCand(icand) = iwit
+            witxyzParCand(icand,:) = witxyz(iwit,:)
+         end if
+      end do
+      nwitParCand = icand
+      
       do iwit = 1, nwitParCand
-         !$acc kernels
+	 !$acc kernels
          radwit(:) = ((witxyzParCand(iwit, 1)-center(:,1))*(witxyzParCand(iwit, 1)-center(:,1))+(witxyzParCand(iwit, 2)-center(:,2))*(witxyzParCand(iwit, 2)-center(:,2))+(witxyzParCand(iwit, 3)-center(:,3))*(witxyzParCand(iwit, 3)-center(:,3)))-maxL*maxL
          !$acc end kernels
          do ielem = 1, numElemsRankPar
@@ -1824,6 +1915,57 @@ contains
          end do
       end do
       this%nwitPar = ifound
+      !Check that all witness points have been found
+      call MPI_Allreduce(this%nwitPar, nwitFound, 1, MPI_INTEGER, MPI_SUM, app_comm,mpi_err)
+      if (nwitFound < this%nwit) then
+         nwit2find = this%nwit - nwitFound
+         if (mpi_rank .eq. 0) then
+            write(*,*) "WARNING!!!! The following witness points were not found inside any element, taking the element with the closest centroid as the one they belong to. Make sure they are inside the domain"
+         endif
+         call MPI_Allgather(witGlob, this%nwit, MPI_INTEGER, witGlobFound, this%nwit, MPI_INTEGER, app_comm,mpi_err)
+         allocate(witGlobFound2(nwitFound))
+         allocate(witGlobMiss(nwit2Find))
+         do iwit = 1, this%nwit*mpi_size
+            if (witGlobFound(iwit) > 0) then
+               icount = icount + 1
+		      witGlobFound2(icount) = witGlobFound(iwit)
+	         end if
+	      end do
+	      do iwit = 1, this%nwit
+	 	      found = .false.
+		      do jwit = 1, nwitFound
+	 		      if (witGlobFound2(jwit) == iwit) then
+			      	found = .true.
+			      	exit
+			      end if
+		      end do
+		      if (found .eqv. .false.) then
+		      	imiss = imiss + 1
+		      	witGlobMiss(imiss) = iwit
+		      end if
+	      end do
+         do iwit = 1, nwit2find
+            xyzwit(:)  = witxyz(witGlobMiss(iwit),:)
+            !$acc kernels
+            dist(:)    = (center(:,1)-xyzwit(1))*(center(:,1)-xyzwit(1))+(center(:,2)-xyzwit(2))*(center(:,2)-xyzwit(2))+(center(:,3)-xyzwit(3))*(center(:,3)-xyzwit(3))
+            !$acc end kernels
+            ielem      = minloc(dist(:),1)
+            locdist(1) = dist(ielem)
+            locdist(2) = mpi_rank
+            call MPI_Allreduce(locdist, globdist, 2, MPI_2REAL, MPI_MINLOC, app_comm, mpi_err)
+            if (mpi_rank .eq. int(globdist(2))) then
+	       write(*,*) "[NOT FOUND WITNESS] ", xyzwit(:)
+               this%nwitPar              = this%nwitPar+1
+               witGlob(this%nwitPar)     = witGlobMiss(iwit)
+               witel(this%nwitPar)       = ielem
+	       witxyzPar(this%nwitPar,:) = witxyz(witGlobMiss(iwit),:)
+	       call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzPar(this%nwitPar,:), atoIJK, witxi(this%nwitPar,:), isinside, Nwit(this%nwitPar,:)) 
+            end if
+         end do
+         deallocate(witGlobFound2)
+         deallocate(witGlobMiss)
+      end if
+      
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
@@ -1852,7 +1994,13 @@ contains
       if(mpi_rank.eq.0) then
          write(aux_string_mpisize,'(I0)') mpi_size
 
-         this%log_file_name = trim(adjustl(this%io_prepend_path))//'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
+         if(len_trim(adjustl(this%io_append_info)) == 0) then
+            this%io_append_info = trim(adjustl(this%io_append_info))
+        else
+            this%io_append_info = "."//trim(adjustl(this%io_append_info))
+         end if 
+
+         this%log_file_name = trim(adjustl(this%io_prepend_path))//'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//trim(this%io_append_info)//'.log'
          if(this%continue_oldLogs) then
             open(unit=111,file=this%log_file_name,status='old',position='append')
          else
@@ -1861,9 +2009,17 @@ contains
       end if
 
       if(mpi_rank.eq.0) then
-         write(111,*) "--| Flags defined in the current case:"
-         write(111,*) "    flag_real_diff: ",           flag_real_diff
-         write(111,*) "    flag_diff_suth: ",           flag_diff_suth
+         write(111,*) "--| Current case settings:"
+         write(111,*) "--------------------------------------------"
+         write(111,*) "  # Constants:"
+         write(111,*) "    rp: ",               rp
+         write(111,*) "    rp_vtk: ",           rp_vtk
+         write(111,*) "    porder: ",           porder
+         write(111,*) "    flag_real_diff: ",   flag_real_diff
+         write(111,*) "    flag_diff_suth: ",   flag_diff_suth
+         write(111,*) "--------------------------------------------"
+         write(111,*) "  # Numerical parameters:"
+         write(111,*) "    flag_implicit: ",            flag_implicit
          write(111,*) "    flag_rk_order: ",            flag_rk_order
          write(111,*) "    flag_les: ",                 flag_les
          write(111,*) "    flag_les_ilsa: ",            flag_les_ilsa
@@ -1871,7 +2027,8 @@ contains
          write(111,*) "    flag_spectralElem: ",        flag_spectralElem
          write(111,*) "    flag_normalise_entropy: ",   flag_normalise_entropy
          write(111,*) "    flag_walave: ",              flag_walave
-         write(111,*) "--------------------------------------"
+         write(111,*) "    flag_buffer_on: ",           flag_buffer_on
+         write(111,*) "--------------------------------------------"
          write(111,*) "    ce: ",      ce
          write(111,*) "    cmax: ",    cmax
          write(111,*) "    c_sgs: ",   c_sgs
@@ -1880,7 +2037,13 @@ contains
          write(111,*) "    c_ener: ",  c_ener
          write(111,*) "    stau: ",    stau
          write(111,*) "    T_ilsa: ",  T_ilsa
-         write(111,*) "--------------------------------------"
+         write(111,*) "--------------------------------------------"
+         write(111,*) "    cfl_conv: ",         this%cfl_conv
+         write(111,*) "    cfl_diff: ",         this%cfl_diff
+         write(111,*) "    maxIterNonLineal: ", maxIterNonLineal
+         write(111,*) "    tol: ",              tol
+         write(111,*) "    pseudo_cfl: ",       pseudo_cfl
+         write(111,*) "--------------------------------------------"
       end if
 
    end subroutine open_log_file
@@ -1895,7 +2058,7 @@ contains
          write(aux_string_mpisize,'(I0)') mpi_size
 
          if(this%doGlobalAnalysis) then
-            filenameAnalysis = trim(adjustl(this%io_prepend_path))//'analysis_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
+            filenameAnalysis = trim(adjustl(this%io_prepend_path))//'analysis_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//trim(this%io_append_info)//'.dat'
             if(this%continue_oldLogs) then
                open(unit=666,file=filenameAnalysis,status='old',position='append')
             else
@@ -1904,7 +2067,7 @@ contains
          end if
 
          if(this%doTimerAnalysis) then
-            fileNameTimer = trim(adjustl(this%io_prepend_path))//'timer_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
+            fileNameTimer = trim(adjustl(this%io_prepend_path))//'timer_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//trim(this%io_append_info)//'.dat'
             open(unit=123,file=fileNameTimer,status='replace')
             write(123,*) "iter iteTime iteTimeAvg"
          end if
@@ -1912,7 +2075,7 @@ contains
          if (isMeshBoundaries) then
             do iCode = 1,numBoundCodes
                write(aux_string_code,'(I0)') iCode
-               filenameBound = trim(adjustl(this%io_prepend_path))//'surf_code_'//trim(aux_string_code)//'-'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
+               filenameBound = trim(adjustl(this%io_prepend_path))//'surf_code_'//trim(aux_string_code)//'-'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//trim(this%io_append_info)//'.dat'
                if(this%continue_oldLogs) then
                   open(unit=888+iCode,form='formatted',file=filenameBound,status='old',position='append')
                else
@@ -2117,6 +2280,9 @@ contains
 
       call this%close_log_file()
       call this%close_analysis_files()
+
+      ! Deallocate the variables
+      call this%deallocateVariables()
 
       ! End hdf5 auxiliar saving arrays
       call end_hdf5_auxiliar_saving_arrays()

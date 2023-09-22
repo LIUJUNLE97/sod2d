@@ -7,49 +7,33 @@ module mod_entropy_viscosity
    use mod_mpi_mesh
    use mod_comms
 
+   implicit none
+
    contains
       subroutine smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
-                            gamma_gas,rho,u,csound,Tem,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK)
+                            gamma_gas,rho,u,csound,Tem,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
+                            mue_l,convertIJK,al,am,an)
 
               ! TODO: Compute element size h
 
               implicit none
 
-              integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
-              real(rp),    intent(in)  :: Reta(npoin), Rrho(npoin), Ngp(ngaus,nnode),gamma_gas
-              real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime),csound(npoin), Tem(npoin), eta(npoin),helem(nelem,nnode),helem_k(nelem),Ml(npoin)
-              real(rp),    intent(out) :: mu_e(nelem,ngaus)
+              integer(4), intent(in)  :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
+              real(rp),   intent(in)  :: Reta(npoin), Rrho(npoin), Ngp(ngaus,nnode),gamma_gas
+              real(rp),   intent(in)  :: rho(npoin), u(npoin,ndime),csound(npoin), Tem(npoin), eta(npoin),helem(nelem,nnode),helem_k(nelem),Ml(npoin)
+              real(rp),   intent(out) :: mu_e(nelem,ngaus)
               real(rp),   intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
-              real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
-              integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-              integer(4)               :: ielem, inode,igaus,ipoin,npoin_w_g,idime,jdime
-              real(rp)                 :: R1, R2, Ve
-              real(rp)                 :: betae,mu,vol,vol2
-              real(rp)                 :: L3, aux1, aux2, aux3
-              real(rp)                 :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas, maxV, maxC
+              real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
+              integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode),gmshAtoJ(nnode),gmshAtoK(nnode),convertIJK(0:porder+2)
+              real(rp),intent(inout)  :: mue_l(nelem,nnode)
+              real(rp),   intent(in)  :: al(-1:1),am(-1:1),an(-1:1)
+              integer(4)              :: ielem, inode,igaus,ipoin,npoin_w_g,idime,jdime
+              real(rp)                :: R1, R2, Ve
+              real(rp)                :: betae,mu,vol,vol2
+              real(rp)                :: L3, aux1, aux2, aux3
+              real(rp)                :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas, maxV, maxC
               real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe, M, ceM
-              integer(4)              :: convertIJK(0:porder+2),ii,jj,kk,mm,nn,ll
-              real(rp)                :: mue_l(nelem,nnode),al(-1:1),am(-1:1),an(-1:1)
-
-              do ii=3,porder+1
-                convertIJK(ii-1) = ii
-             end do
-             convertIJK(0) = 3
-             convertIJK(1) = 1
-             convertIJK(porder+1) = 2
-             convertIJK(porder+2) = porder
-
-             al(-1) = 1.0_rp/4.0_rp
-             al(0)  = 2.0_rp/4.0_rp
-             al(1)  = 1.0_rp/4.0_rp
-
-             am(-1) = 1.0_rp/4.0_rp
-             am(0)  = 2.0_rp/4.0_rp
-             am(1)  = 1.0_rp/4.0_rp
-
-             an(-1) = 1.0_rp/4.0_rp
-             an(0)  = 2.0_rp/4.0_rp
-             an(1)  = 1.0_rp/4.0_rp
+              integer(4)              :: ii,jj,kk,mm,nn,ll
 
              Rgas = nscbc_Rgas_inf
 
