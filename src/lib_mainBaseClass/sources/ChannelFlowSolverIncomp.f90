@@ -222,7 +222,7 @@ contains
       ! Initialize exponential averaging for wall law 
       !
       call nvtxStartRange("Wall Average init")
-      if(flag_walave == 1) then
+      if(flag_walave .eqv. .true.) then
          !$acc kernels
          walave_u(:,:) = u(:,:,2)
          !$acc end kernels
