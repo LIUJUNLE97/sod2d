@@ -4,7 +4,7 @@
 
 ## Description
 
-This code implements a numerical solution for the equations governing compressible fluid flow in three dimensions. The code is based on the spectral element method (SEM) and is designed to be used for scale-resolving simulations (LES and DNS).
+This code implements a numerical solution for the equations governing compressible and incompressible fluid flow in three dimensions. The code is based on the spectral element method (SEM) and is designed to be used for scale-resolving simulations (LES and DNS).
 
 It is written in Fortran, and uses MPI and OpenACC to provide parallelism at both coarse and fine-grained levels. The mesh is partitioned using the GEMPA library (https://gitlab.com/rickbp/gempa), which is included as a submodule in this repository. It also uses HDF5 for I/O, which must be installed appropriately according to the desired platform (see DEPENDENCIES section).
 
