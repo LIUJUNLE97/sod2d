@@ -324,16 +324,16 @@ module mod_operators
             end if
     end subroutine eval_divergence
 
-    subroutine eval_laplacian_BDL(nelem,npoin,connec,He,dNgp,gpvol,diag,A,L)
+    subroutine eval_laplacian_BDL(nelem,npoin,connec,He,dNgp,invAtoIJK,gpvol,diag,L)
 
             implicit none
 
             integer(4), intent(in)   :: nelem, npoin, connec(nelem,nnode)
-            real(rp),   intent(inout)  :: A(nnode,nnode),L(nnode,nnode,nelem)
+            real(rp),   intent(inout)  :: L(nnode,nnode,nelem)
+            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1)
             real(rp),   intent(in)    :: He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),dNgp(ndime,nnode,ngaus),diag(npoin)
             integer(4)               :: ielem, igaus, idime, inode,jnode,knode
-            real(rp)                  :: gpcar(ndime,nnode),tmp
-
+            real(rp)                  :: gpcar(ndime,nnode),tmp,A(nnode,nnode)
 
             !$acc parallel loop gang  private(gpcar,A)
             do ielem = 1,nelem
@@ -355,7 +355,7 @@ module mod_operators
                   !$acc loop vector collapse(2)
                   do inode = 1,nnode
                      do jnode = 1,nnode
-                        A(inode,jnode) = A(inode,jnode) +  gpvol(1,igaus,ielem)*dot_product(gpcar(:,inode),gpcar(:,jnode))
+                        A(inode,jnode) = A(inode,jnode) + gpvol(1,igaus,ielem)*dot_product(gpcar(:,inode),gpcar(:,jnode))
                      end do
                   end do
                end do
@@ -389,12 +389,12 @@ module mod_operators
 
     end subroutine eval_laplacian_BDL
 
-        subroutine eval_laplacian_diag(nelem,npoin,connec,He,dNgp,gpvol,A,d)
+        subroutine eval_laplacian_diag(nelem,npoin,connec,He,dNgp,gpvol,d)
 
             implicit none
 
             integer(4), intent(in)   :: nelem,npoin, connec(nelem,nnode)
-            real(rp),   intent(inout)  :: A(nnode,nnode),d(npoin)
+            real(rp),   intent(inout)  :: d(npoin)
             real(rp),   intent(in)    :: He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),dNgp(ndime,nnode,ngaus)
             integer(4)               :: ielem, igaus, idime, inode,jnode,knode
             real(rp)                  :: gpcar(ndime,nnode),tmp
@@ -404,14 +404,8 @@ module mod_operators
             !$acc end kernels
 
 
-            !$acc parallel loop gang  private(gpcar,A)
+            !$acc parallel loop gang  private(gpcar)
             do ielem = 1,nelem
-               !$acc loop vector collapse(2)
-               do inode = 1,nnode
-                  do jnode = 1,nnode
-                     A(inode,jnode) = 0.0_rp
-                  end do
-               end do 
                !$acc loop seq
                do igaus = 1,ngaus
                   !$acc loop vector collapse(2)
@@ -421,18 +415,13 @@ module mod_operators
                      end do
                   end do
                   !$acc loop vector collapse(2)
-                  do inode = 1,nnode
-                     do jnode = 1,nnode
-                        A(inode,jnode) = A(inode,jnode) +  gpvol(1,igaus,ielem)*dot_product(gpcar(:,inode),gpcar(:,jnode))
+                  do idime = 1,ndime
+                     do inode = 1,nnode
+                        !$acc atomic update
+                        d(connec(ielem,inode)) = d(connec(ielem,inode)) +  gpvol(1,igaus,ielem)*gpcar(idime,inode)*gpcar(idime,inode)
+                        !$acc end atomic
                      end do
                   end do
-               end do
-
-               !$acc loop vector 
-               do inode = 1,nnode
-                  !$acc atomic update
-                  d(connec(ielem,inode)) = d(connec(ielem,inode)) + A(inode,inode)
-                  !$acc end atomic
                end do
             end do
             !$acc end parallel loop
