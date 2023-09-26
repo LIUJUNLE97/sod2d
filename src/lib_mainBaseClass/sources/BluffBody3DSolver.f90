@@ -6,18 +6,15 @@ module BluffBody3DSolver_mod
 #ifndef NOACC
    use cudafor
 #endif
-   use mod_veclen
+   
 
    use elem_qua
    use elem_hex
    use jacobian_oper
    use quadrature_rules
-   use mesh_reader
-   use inicond_reader
+   use mod_inicond_reader
    use mass_matrix
    use mod_geom
-   use mod_output
-   use mod_period
    use time_integ
    use mod_analysis
    use mod_numerical_params
@@ -146,7 +143,7 @@ contains
       tol=1e-3
 
       period_walave   = 0.5_rp
-      flag_walave     = 1
+      flag_walave     = .true.
 
 #if CRM
       !this%dt = 1e-4

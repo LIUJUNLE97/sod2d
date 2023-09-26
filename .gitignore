@@ -12,7 +12,6 @@
 *.mod
 *.h5
 *.log
-*.txt
 *.dat
 *.py
 *.hdf

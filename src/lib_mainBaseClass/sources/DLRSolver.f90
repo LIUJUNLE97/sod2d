@@ -4,18 +4,14 @@ module DLRSolver_mod
 #ifndef NOACC
    use cudafor
 #endif
-   use mod_veclen
 
    use elem_qua
    use elem_hex
    use jacobian_oper
    use quadrature_rules
-   use mesh_reader
-   use inicond_reader
+   use mod_inicond_reader
    use mass_matrix
    use mod_geom
-   use mod_output
-   use mod_period
    use time_integ
    use mod_analysis
    use mod_numerical_params

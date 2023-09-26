@@ -44,8 +44,8 @@ module mod_mpi
          write(*,*) 'Fatal error in init_mpi()! Cannot find MPI_APPNUM.'
          call MPI_Abort(world_comm,-1,mpi_err)
       end if
-      write(*,982), app_color, mpi_rank, mpi_world_rank, mpi_app_num_flag
-      982 format ('app_color = ',I2,'; mpi_world_rank = ',I4,'; mpi_rank = ',I4,'; mpi_app_num_flag = ',L)
+      !write(*,982), app_color, mpi_rank, mpi_world_rank, mpi_app_num_flag
+      !982 format ('app_color = ',I2,'; mpi_world_rank = ',I4,'; mpi_rank = ',I4,'; mpi_app_num_flag = ',L)
 
       mpi_datatype_int = MPI_INTEGER
       mpi_datatype_int4 = MPI_INTEGER4

@@ -4,18 +4,15 @@ module TGVSolver_mod
 #ifndef NOACC
    use cudafor
 #endif   
-   use mod_veclen
+   
 
    use elem_qua
    use elem_hex
    use jacobian_oper
    use quadrature_rules
-   use mesh_reader
-   use inicond_reader
+   use mod_inicond_reader
    use mass_matrix
    use mod_geom
-   use mod_output
-   use mod_period
    use time_integ
    use mod_analysis
    use mod_numerical_params
@@ -45,7 +42,7 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube"
+      write(this%mesh_h5_file_name,*) "tgv"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -56,7 +53,7 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 501
+      this%final_istep = 2501
       this%maxPhysTime = 20.0_rp
 
       this%save_logFile_first = 1 
@@ -68,10 +65,10 @@ contains
       this%save_restartFile_first = 1
       this%save_restartFile_step = 500
       this%loadRestartFile = .false.
-      this%restartFile_to_load = 1 !1 or 2
+      this%restartFile_to_load = 2 !1 or 2
       this%continue_oldLogs = .false.
 
-      this%saveAvgFile = .true.
+      this%saveAvgFile = .false.
       this%loadAvgFile = .false.
       !----------------------------------------------
 
@@ -109,12 +106,12 @@ contains
       nscbc_gamma_inf = this%gamma_gas
 
       !Witness points parameters
-      this%have_witness          = .false.
+      this%have_witness          = .true.
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
       this%leapwit               = 1
       this%leapwitsave           = 20
-      this%nwit                  = 10
+      this%nwit                  = 12
       this%wit_save_u_i          = .true.
       this%wit_save_pr           = .true.
       this%wit_save_rho          = .true.

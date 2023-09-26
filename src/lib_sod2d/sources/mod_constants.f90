@@ -19,12 +19,6 @@ module mod_constants
       integer(4), parameter :: npbou=(porder+1)**2
 
       !
-      ! Flags
-      !
-      integer(4), parameter :: flag_real_diff=1
-      integer(4), parameter :: flag_diff_suth=1
-
-      !
       ! Other constants
       !
       real(rp), parameter :: v_pi = 2.0_rp*asin(1.0_rp) ! Value of Pi
@@ -43,14 +37,15 @@ module mod_constants
       !
 
       integer(4), parameter :: bc_type_far_field            = 1
-      integer(4), parameter :: bc_type_unsteady_inlet       = 2
-      integer(4), parameter :: bc_type_non_slip_adiabatic   = 3
-      integer(4), parameter :: bc_type_non_slip_hot         = 4
-      integer(4), parameter :: bc_type_non_slip_cold        = 5
-      integer(4), parameter :: bc_type_slip_adiabatic       = 6
-      integer(4), parameter :: bc_type_slip_SB_wall         = 7
-      integer(4), parameter :: bc_type_far_field_SB         = 8
-      integer(4), parameter :: bc_type_slip_wall_model      = 9
+      integer(4), parameter :: bc_type_outlet_incomp        = 2
+      integer(4), parameter :: bc_type_unsteady_inlet       = 3
+      integer(4), parameter :: bc_type_non_slip_adiabatic   = 4
+      integer(4), parameter :: bc_type_non_slip_hot         = 5
+      integer(4), parameter :: bc_type_non_slip_cold        = 6
+      integer(4), parameter :: bc_type_slip_adiabatic       = 7
+      integer(4), parameter :: bc_type_slip_SB_wall         = 8
+      integer(4), parameter :: bc_type_far_field_SB         = 9
+      integer(4), parameter :: bc_type_slip_wall_model      = 10
 
 
       !

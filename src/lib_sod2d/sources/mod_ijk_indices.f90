@@ -1,26 +1,15 @@
 module mod_ijk_indices
    use mod_constants
    use mod_mpi
-   use mod_gmsh_indices !TO DEL WHEN FULLY IMPLEMENTED
+   use elem_qua ! Using only the ordering table for edges
+   use elem_hex ! Using only the ordering tables for edges and faces
    implicit none
 
    !--------------------------------------------------------------------------------------------
    ! GMSH Indices
    integer(4),allocatable :: gmshHexahedraHO_ijkTable(:,:,:),gmshQuadrilateralHO_ijTable(:,:)
    integer(4) :: gmsh_porder=0
-   !logical :: gmshTablesGenerated=false
-!   integer(4) :: gmsh2ijk(nnode),gmsh2ij(npbou) 
-!   integer(4),dimension(npbou) :: faceFront2ijk,faceLeft2ijk,faceTop2ijk,faceBack2ijk,faceRight2ijk,faceBottom2ijk
-
-   !integer(4) :: gmsh2ij_vertices(4),gmsh2ijk_vertices(8),gmsh2ij_vertInnerNodes(4)
-
-   !integer(4),parameter :: gmsh2ij_vertices(4) = [1,2,3,4]
-   !integer(4),parameter :: gmsh2ijk_vertices(8) = [1,2,3,4,5,6,7,8]
-   !integer(4),parameter :: gmsh2ij_vertInnerNodes(4) = [11,12,15,16]
-
    !--------------------------------------------------------------------------------------------
-   ! VTK Indices
-   !integer(4):: vtk2ijk(nnode),vtk2ij(npbou) 
 
 contains
 
@@ -35,51 +24,62 @@ contains
 
    end subroutine get_porder_values
 
-   subroutine get_allocate_array_ijk_sod2d_criteria(mporder,array_ijk_order)
+   subroutine set_allocate_array_ijk_sod2d_criteria(mporder,ijk_sod2d_to_gmsh,ijk_gmsh_to_sod2d)
       implicit none
       integer(4),intent(in) :: mporder
-      integer(4),intent(inout),allocatable :: array_ijk_order(:)
+      integer(4),intent(inout),dimension(:),allocatable :: ijk_sod2d_to_gmsh,ijk_gmsh_to_sod2d
       integer(4) :: i,j
 
       !--------------------------------------------------------------------
       !defining criteria for ijk
-      allocate(array_ijk_order(mporder+1))
+      allocate(ijk_sod2d_to_gmsh(mporder+1))
+      allocate(ijk_gmsh_to_sod2d(0:mporder))
+
       i=1
-      array_ijk_order(i) = 0
+      ijk_sod2d_to_gmsh(i) = 0
+      ijk_gmsh_to_sod2d(ijk_sod2d_to_gmsh(i)) = i
+
       i=i+1
-      array_ijk_order(i) = mporder
+      ijk_sod2d_to_gmsh(i) = mporder
+      ijk_gmsh_to_sod2d(ijk_sod2d_to_gmsh(i)) = i
 
       do j=1,(mporder-1)
          i=i+1
-         array_ijk_order(i)=j
+         ijk_sod2d_to_gmsh(i)=j
+         ijk_gmsh_to_sod2d(ijk_sod2d_to_gmsh(i)) = i
       end do
-   end subroutine get_allocate_array_ijk_sod2d_criteria
+   end subroutine set_allocate_array_ijk_sod2d_criteria
 
-   !subroutine set_allocate_hexahedronHO_ijk_indices(mporder,gmsh2ijk,vtk2ijk,a2ijk,a2i,a2j,a2k,ijk2a)
+   function get_indexIJK_sod2d(mporder,i,j,k) result(indexIJK)
+      implicit none
+      integer(4),intent(in) :: mporder,i,j,k
+      integer :: indexIJK
+      
+      indexIJK = ((mporder+1)**2)*k+(mporder+1)*i+j+1
+   end function get_indexIJK_sod2d
+
    subroutine set_allocate_hexahedronHO_ijk_indices(mporder,gmsh2ijk,vtk2ijk)
       implicit none
       integer(4),intent(in) :: mporder
-      integer(4),allocatable,dimension(:),intent(inout) :: gmsh2ijk,vtk2ijk!,a2ijk,a2i,a2j,a2k
-      !integer(4),allocatable,intent(inout) :: ijk2a(:,:,:)
+      integer(4),allocatable,dimension(:),intent(inout) :: gmsh2ijk,vtk2ijk
+      !integer(4),allocatable,intent(inout),optional :: ijk2gmsh(:,:,:),ijk2vtk(:,:,:)
       integer(4) :: mnnode,mngaus,mnpbou
       integer(4) :: i,j,k,ip,jp,kp,gmshCnt,vtkCnt,gmshIndex,vtkIndex,pIndex
-      integer(4),allocatable :: array_ijk_order(:)
+      integer(4),allocatable :: ijk_sod2d_to_gmsh(:),ijk_gmsh_to_sod2d(:)
 
       !-----------------------------------------------------------------------------------------
 
       call get_porder_values(mporder,mnnode,mngaus,mnpbou)
-      if(mpi_rank.eq.0) write(*,*) 'mporder',mporder,'mnnode',mnnode,'mngaus',mngaus,'mnpbou',mnpbou
+      !if(mpi_rank.eq.0) write(*,*) 'mporder',mporder,'mnnode',mnnode,'mngaus',mngaus,'mnpbou',mnpbou
 
-      call get_allocate_array_ijk_sod2d_criteria(mporder,array_ijk_order)
+      call set_allocate_array_ijk_sod2d_criteria(mporder,ijk_sod2d_to_gmsh,ijk_gmsh_to_sod2d)
       !-----------------------------------------------------------------------------------------
 
       allocate(gmsh2ijk(mnnode))
       allocate(vtk2ijk(mnnode))
-      !allocate(a2ijk(mnnode))
-      !allocate(a2i(mnnode))
-      !allocate(a2j(mnnode))
-      !allocate(a2k(mnnode))
-      !allocate(ijk2a(1:mporder+1,1:mporder+1,1:mporder+1))
+
+      !if(present(ijk2gmsh)) allocate(ijk2gmsh(0:porder,0:porder,0:porder))
+      !if(present(ijk2vtk))  allocate(ijk2vtk(0:porder,0:porder,0:porder))
 
       if(mporder.le.2) then
          write(*,*) 'SOD2D is not ready to work for mporder <= 2... You know, #gobigorgohome and set mporder >= 3'
@@ -90,13 +90,11 @@ contains
       !Filling high order hexahedra 
       pIndex=0
       do kp=1,mporder+1
-         k=array_ijk_order(kp)
+         k=ijk_sod2d_to_gmsh(kp)
          do ip=1,mporder+1
-            i=array_ijk_order(ip)
+            i=ijk_sod2d_to_gmsh(ip)
             do jp=1,mporder+1
-               j=array_ijk_order(jp)
-
-
+               j=ijk_sod2d_to_gmsh(jp)
 
                call vtkHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,vtkIndex)
                call gmshHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,gmshIndex)
@@ -105,20 +103,13 @@ contains
                gmsh2ijk(pIndex)     = gmshIndex
                vtk2ijk(pIndex)      = vtkIndex
 
-               !write(*,*) 'i,j,k',i,j,k,'ip,jp,kp',ip,jp,kp,'pI',pIndex,'gmsh',gmshIndex,'vtk',vtkIndex
-
-               !a2ijk(pIndex)        = gmshIndex!pIndex
-               !a2i(gmshIndex)       = i+1
-               !a2j(gmshIndex)       = j+1
-               !a2k(gmshIndex)       = k+1
-               !ijk2a(i+1,j+1,k+1)   = gmshIndex
-
             end do
          end do
       end do
       !--------------------------------------------------------------------
 
-      deallocate(array_ijk_order)
+      deallocate(ijk_sod2d_to_gmsh)
+      deallocate(ijk_gmsh_to_sod2d)
 
    end subroutine set_allocate_hexahedronHO_ijk_indices
 
@@ -128,13 +119,13 @@ contains
       integer(4),allocatable,dimension(:),intent(inout) :: gmsh2ij,vtk2ij
       integer(4) :: mnnode,mngaus,mnpbou
       integer(4) :: i,j,ip,jp,gmshCnt,vtkCnt,gmshIndex,vtkIndex,pIndex
-      integer(4),allocatable :: array_ijk_order(:)
+      integer(4),allocatable :: ijk_sod2d_to_gmsh(:),ijk_gmsh_to_sod2d(:)
 
       !-----------------------------------------------------------------------------------------
       call get_porder_values(mporder,mnnode,mngaus,mnpbou)
-      if(mpi_rank.eq.0) write(*,*) 'mporder',mporder,'mnnode',mnnode,'mngaus',mngaus,'mnpbou',mnpbou
+      !if(mpi_rank.eq.0) write(*,*) 'mporder',mporder,'mnnode',mnnode,'mngaus',mngaus,'mnpbou',mnpbou
 
-      call get_allocate_array_ijk_sod2d_criteria(mporder,array_ijk_order)
+      call set_allocate_array_ijk_sod2d_criteria(mporder,ijk_sod2d_to_gmsh,ijk_gmsh_to_sod2d)
       !-----------------------------------------------------------------------------------------
 
       allocate(gmsh2ij(mnpbou))
@@ -144,9 +135,9 @@ contains
       !filling high order quads
       pIndex=0
       do ip=1,mporder+1
-         i=array_ijk_order(ip)
+         i=ijk_sod2d_to_gmsh(ip)
          do jp=1,mporder+1
-            j=array_ijk_order(jp)
+            j=ijk_sod2d_to_gmsh(jp)
             call vtkHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,vtkIndex)
             call gmshHigherOrderQuadrilateral_pointIndexFromIJ(mporder,i,j,gmshIndex)
 
@@ -157,7 +148,8 @@ contains
          end do
       end do
 
-      deallocate(array_ijk_order)
+      deallocate(ijk_sod2d_to_gmsh)
+      deallocate(ijk_gmsh_to_sod2d)
 
    end subroutine set_allocate_quadrilateralHO_ij_indices
 
@@ -364,9 +356,6 @@ contains
       !--------------------------------------------------------------------
 
    end subroutine get_gmshQuadHOInnerVertIndex
-
-
-
 
    subroutine vtkHigherOrderHexahedron_pointIndexFromIJK(mporder,i,j,k,pointIndex)
       implicit none
@@ -580,6 +569,109 @@ contains
 
    end subroutine vtkHigherOrderQuadrilateral_pointIndexFromIJ
 
+!--------------------------------------------------------------------------------------------------
+
+   recursive subroutine genHighOrderHexGmsh(p,indexTable)
+      implicit none
+      integer(4), intent(in)  :: p
+      integer(4), intent(out) :: indexTable((p+1)**3,3) ! Set as I, J, K
+      integer(4)              :: tableFace((p-1)**2,2), tableVolume((p-1)**3,3)
+      integer(4)              :: inode, iedge, iface, i0, i1, i3, u(3), v(3), i
+
+      ! Initialize corner node to 0th position, or generate element of order 0
+      indexTable(1,:) = [0,0,0]
+
+      ! Generate element of order 1 (corner nodes)
+      if (p .gt. 0) then
+         !                  i, j, k
+         indexTable(2,:) = [p, 0, 0]
+         indexTable(3,:) = [p, p, 0]
+         indexTable(4,:) = [0, p, 0]
+         indexTable(5,:) = [0, 0, p]
+         indexTable(6,:) = [p, 0, p]
+         indexTable(7,:) = [p, p, p]
+         indexTable(8,:) = [0, p, p]
+         if (p .gt. 1) then
+            ! Generate high-order edges
+            inode = 9
+            do iedge = 1,12
+               i0 = hex_order_edges(iedge,1)
+               i1 = hex_order_edges(iedge,2)
+               u(:) = (indexTable(i1,:) - indexTable(i0,:))/p
+               do i = 1,p-1
+                  indexTable(inode,:) = indexTable(i0,:) + i*u(:)
+                  inode = inode + 1
+               end do
+            end do
+            ! Generate a generic high-order face with p` = p-2
+            call genHighOrderQuadGmsh(p-2,tableFace)
+            tableFace = tableFace + 1
+            ! Generate faces interior nodes
+            do iface = 1,6
+               i0 = hex_order_faces(iface,1)
+               i1 = hex_order_faces(iface,2)
+               i3 = hex_order_faces(iface,4)
+               u(:) = (indexTable(i1,:) - indexTable(i0,:))/p
+               v(:) = (indexTable(i3,:) - indexTable(i0,:))/p
+               do i = 1,((p-1)**2)
+                  indexTable(inode,:) = indexTable(i0,:) + u(:)*tableFace(i,1) + v(:)*tableFace(i,2)
+                  inode = inode + 1
+               end do
+            end do
+            ! Generate volume nodes
+            call genHighOrderHexGmsh(p-2,tableVolume)
+            tableVolume = tableVolume + 1
+            call joinTablesGmsh([(p-1)**3,3],tableVolume,inode,[(p+1)**3,3],indexTable)
+         end if
+      end if
+   end subroutine genHighOrderHexGmsh
+
+   recursive subroutine genHighOrderQuadGmsh(p,indexTable)
+      implicit none
+      integer(4), intent(in)  :: p
+      integer(4), intent(out) :: indexTable((p+1)**2,2) ! Set as I, J
+      integer(4)              :: tableFace((p-1)**2,2)
+      integer(4)              :: inode, iedge, iface, i0, i1, u(2), i
+
+      indexTable(1,:) = [0,0]
+      if (p .gt. 0) then
+         indexTable(2,:) = [p,0]
+         indexTable(3,:) = [p,p]
+         indexTable(4,:) = [0,p]
+         if (p .gt. 1) then
+            inode = 5
+            do iedge = 1,4
+               i0 = quad_order_edges(iedge,1)
+               i1 = quad_order_edges(iedge,2)
+               u(:) = (indexTable(i1,:) - indexTable(i0,:))/p
+               do i = 1,p-1
+                  indexTable(inode,:) = indexTable(i0,:) + i*u(:)
+                  inode = inode + 1
+               end do
+            end do
+            call genHighOrderQuadGmsh(p-2,tableFace)
+            tableFace = tableFace + 1
+            call joinTablesGmsh([(p-1)**2,2],tableFace,inode,[(p+1)**2,2],indexTable)
+         end if
+      end if
+   end subroutine genHighOrderQuadGmsh
+
+   subroutine joinTablesGmsh(size1,table1,indexDesti,size2,table2)
+      implicit none
+      integer(4), intent(in)    :: indexDesti, size1(2), size2(2)
+      integer(4), intent(in)    :: table1(size1(1),size1(2))
+      integer(4), intent(inout) :: table2(size2(1),size2(2))
+      integer(4)                :: i, j
+
+      j = indexDesti
+      do i = 1,size1(1)
+         table2(j,:) = table1(i,:)
+         j = j + 1
+      end do
+   end subroutine joinTablesGmsh
+
+!--------------------------------------------------------------------------------------------------
+
    subroutine initGmshIJKTables(mporder)
       implicit none
       integer(4),intent(in) :: mporder
@@ -608,8 +700,8 @@ contains
       allocate(gmshHexahedraHO_ijkTable(0:mporder,0:mporder,0:mporder))
       allocate(gmshQuadrilateralHO_ijTable(0:mporder,0:mporder) )
 
-      call genHighOrderHex(mporder,auxHexHOtable)
-      call genHighOrderQuad(mporder,auxQuadHOtable)
+      call genHighOrderHexGmsh(mporder,auxHexHOtable)
+      call genHighOrderQuadGmsh(mporder,auxQuadHOtable)
 
       gmsh_porder = mporder
 
@@ -670,99 +762,5 @@ contains
       pointIndex = gmshQuadrilateralHO_ijTable(i,j)
 
    end subroutine gmshHigherOrderQuadrilateral_pointIndexFromIJ
-
-#if 0
-
-int vtkHigherOrderQuadrilateral::PointIndexFromIJK(int i, int j, const int* order)
-{
-  bool ibdy = (i == 0 || i == order[0]);
-  bool jbdy = (j == 0 || j == order[1]);
-  // How many boundaries do we lie on at once?
-  int nbdy = (ibdy ? 1 : 0) + (jbdy ? 1 : 0);
-
-  if (nbdy == 2) // Vertex DOF
-  {              // ijk is a corner node. Return the proper index (somewhere in [0,7]):
-    return (i ? (j ? 2 : 1) : (j ? 3 : 0));
-  }
-
-  int offset = 4;
-  if (nbdy == 1) // Edge DOF
-  {
-    if (!ibdy)
-    { // On i axis
-      return (i - 1) + (j ? order[0] - 1 + order[1] - 1 : 0) + offset;
-    }
-    if (!jbdy)
-    { // On j axis
-      return (j - 1) + (i ? order[0] - 1 : 2 * (order[0] - 1) + order[1] - 1) + offset;
-    }
-  }
-
-  offset += 2 * (order[0] - 1 + order[1] - 1);
-  // nbdy == 0: Face DOF
-  return offset + (i - 1) + (order[0] - 1) * ((j - 1));
-}
-
-
-
-int vtkHigherOrderHexahedron::PointIndexFromIJK(int i, int j, int k, const int* order)
-{
-  bool ibdy = (i == 0 || i == order[0]);
-  bool jbdy = (j == 0 || j == order[1]);
-  bool kbdy = (k == 0 || k == order[2]);
-  // How many boundaries do we lie on at once?
-  int nbdy = (ibdy ? 1 : 0) + (jbdy ? 1 : 0) + (kbdy ? 1 : 0);
-
-  if (nbdy == 3) // Vertex DOF
-  {              // ijk is a corner node. Return the proper index (somewhere in [0,7]):
-    return (i ? (j ? 2 : 1) : (j ? 3 : 0)) + (k ? 4 : 0);
-  }
-
-  int offset = 8;
-  if (nbdy == 2) // Edge DOF
-  {
-    if (!ibdy)
-    { // On i axis
-      return (i - 1) + (j ? order[0] + order[1] - 2 : 0) + (k ? 2 * (order[0] + order[1] - 2) : 0) +
-        offset;
-    }
-    if (!jbdy)
-    { // On j axis
-      return (j - 1) + (i ? order[0] - 1 : 2 * (order[0] - 1) + order[1] - 1) +
-        (k ? 2 * (order[0] + order[1] - 2) : 0) + offset;
-    }
-    // !kbdy, On k axis
-    offset += 4 * (order[0] - 1) + 4 * (order[1] - 1);
-    return (k - 1) + (order[2] - 1) * (i ? (j ? 2 : 1) : (j ? 3 : 0)) + offset;
-  }
-
-  offset += 4 * (order[0] + order[1] + order[2] - 3);
-  if (nbdy == 1) // Face DOF
-  {
-    if (ibdy) // On i-normal face
-    {
-      return (j - 1) + ((order[1] - 1) * (k - 1)) + (i ? (order[1] - 1) * (order[2] - 1) : 0) +
-        offset;
-    }
-    offset += 2 * (order[1] - 1) * (order[2] - 1);
-    if (jbdy) // On j-normal face
-    {
-      return (i - 1) + ((order[0] - 1) * (k - 1)) + (j ? (order[2] - 1) * (order[0] - 1) : 0) +
-        offset;
-    }
-    offset += 2 * (order[2] - 1) * (order[0] - 1);
-    // kbdy, On k-normal face
-    return (i - 1) + ((order[0] - 1) * (j - 1)) + (k ? (order[0] - 1) * (order[1] - 1) : 0) +
-      offset;
-  }
-
-  // nbdy == 0: Body DOF
-  offset += 2 *
-    ((order[1] - 1) * (order[2] - 1) + (order[2] - 1) * (order[0] - 1) +
-      (order[0] - 1) * (order[1] - 1));
-  return offset + (i - 1) + (order[0] - 1) * ((j - 1) + (order[1] - 1) * ((k - 1)));
-}
-#endif
-
 
 end module mod_ijk_indices

@@ -1,7 +1,6 @@
 module mod_correct_neumann
 
    use mod_numerical_params
-   use mod_veclen
    use mod_nvtx
    use mod_mpi
 
@@ -27,7 +26,7 @@ contains
 
       !$acc parallel loop gang private(bnorm,vl)
       do iBound = 1,nboun
-         bcode = bou_code(iBound) 
+         bcode = bou_code(iBound)
          if (bcode == bc_type_far_field_SB) then
             bnorm(1:npbou*ndime) = bounorm(iBound,1:npbou*ndime)
             ielem = point2elem(bound(iBound,npbou))
@@ -46,9 +45,9 @@ contains
                   dleta_ip(ii) = dlxigp_ip(igaus,2,ii)
                   dlzeta_ip(ii) = dlxigp_ip(igaus,3,ii)
                end do
-               isoI = gmshAtoI(igaus) 
-               isoJ = gmshAtoJ(igaus) 
-               isoK = gmshAtoK(igaus) 
+               isoI = gmshAtoI(igaus)
+               isoJ = gmshAtoJ(igaus)
+               isoK = gmshAtoK(igaus)
 
                gradIsoV(:) = 0.0_rp
                !$acc loop seq
@@ -77,7 +76,7 @@ contains
 
             end do
             !val = val/real(npbou,rp)
-            !!$acc loop vector 
+            !!$acc loop vector
             !do igaus = 1,npbou
             !   auxmag = sqrt(bnorm((igaus-1)*ndime+1)**2 + bnorm((igaus-1)*ndime+2)**2 + bnorm((igaus-1)*ndime+3)**2)
             !   !$acc atomic update

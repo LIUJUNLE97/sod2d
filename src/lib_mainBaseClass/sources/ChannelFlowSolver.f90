@@ -4,18 +4,15 @@ module ChannelFlowSolver_mod
 #ifndef NOACC
    use cudafor
 #endif
-   use mod_veclen
+   
 
    use elem_qua
    use elem_hex
    use jacobian_oper
    use quadrature_rules
-   use mesh_reader
-   use inicond_reader
+   use mod_inicond_reader
    use mass_matrix
    use mod_geom
-   use mod_output
-   use mod_period
    use time_integ
    use mod_analysis
    use mod_numerical_params
@@ -108,7 +105,7 @@ contains
       flag_implicit_repeat_dt_if_not_converged = 0
        
       !period_walave   = 1.0_rp
-      !flag_walave     = 1
+      !flag_walave     = .true.
 
       this%cfl_conv = 1.9_rp !bdf2
       this%cfl_diff = 1.9_rp !bdf2
@@ -250,7 +247,7 @@ contains
       ! Initialize exponential averaging for wall law 
       !
       call nvtxStartRange("Wall Average init")
-      if(flag_walave == 1) then
+      if(flag_walave) then
          !$acc kernels
          walave_u(:,:) = u(:,:,2)
          !$acc end kernels
