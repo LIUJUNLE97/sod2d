@@ -173,7 +173,7 @@ module time_integ_incomp
                !$acc kernels
                Rsource(1:npoin,1:ndime) = 0.0_rp
                !$acc end kernels
-               call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(ipoin,idime,1),source_term,Rsource)
+               call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,1),source_term,Rsource)
             end if
 
             call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),&
