@@ -198,7 +198,7 @@ module elem_convec
          end subroutine full_convec_ijk
 
          subroutine generic_scalar_convec_ijk(nelem,npoin,connec,Ngp, &
-               dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,q,eta,u,Rconvec,alpha)
+               dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,q,eta,u,Rconvec)
 
             implicit none
 
@@ -211,7 +211,6 @@ module elem_convec
             real(rp),    intent(in)  :: q(npoin,ndime)
             real(rp),    intent(in)  :: eta(npoin)
             real(rp),    intent(in)  :: u(npoin,ndime)
-            real(rp),    intent(in)  :: alpha(npoin)
             real(rp),    intent(out) :: Rconvec(npoin)
             integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ii
             integer(4)               :: ipoin(nnode)

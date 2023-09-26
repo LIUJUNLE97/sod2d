@@ -85,4 +85,21 @@ module mod_numerical_params
         logical     :: flag_walave     = .false.
         integer(4)  :: flag_walex      = 3
 
+        !
+	    ! viscosity
+	    !
+	    integer(4) :: flag_real_diff=1
+	    integer(4) :: flag_diff_suth=1
+        real(rp)   :: incomp_viscosity=0.0_rp
+        !
+        ! FS
+        !
+        logical :: flag_fs_incremental = .false.
+        logical :: flag_fs_fix_pressure = .true.
+
+        !
+        ! CG
+        !
+
+        logical :: flag_cg_prec_bdc = .false. !Block Diagonal Cholesky
 end module mod_numerical_params
