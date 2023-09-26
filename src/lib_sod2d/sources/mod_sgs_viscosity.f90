@@ -2,7 +2,7 @@ module mod_sgs_viscosity
 
    use mod_numerical_params
    use mod_nvtx
-   
+   use mod_filters,only:convertIJK,al_weights,am_weights,an_weights
 
    ! TODO: Finish module and create unit tests
 
@@ -11,7 +11,7 @@ contains
    ! it implents the Vreman SGS
 
    subroutine sgs_visc(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-         rho,u,Ml,mu_sgs,mue_l,convertIJK,al,am,an)
+         rho,u,Ml,mu_sgs,mue_l)
 
       implicit none
 
@@ -20,11 +20,10 @@ contains
       real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem)
       real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
       real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1)
-      integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode),gmshAtoJ(nnode),gmshAtoK(nnode),convertIJK(0:porder+2)
+      integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode),gmshAtoJ(nnode),gmshAtoK(nnode)
       real(rp),   intent(in)  :: rho(npoin),u(npoin,ndime),Ml(npoin)
       real(rp),   intent(out) :: mu_sgs(nelem,ngaus)
       real(rp),intent(inout)  :: mue_l(nelem,nnode)
-      real(rp),   intent(in)  :: al(-1:1),am(-1:1),an(-1:1)
       integer(4)              :: ielem,inode,igaus,kdime,idime,jdime,isoI,isoJ,isoK 
       real(rp)                :: gradU(ndime,ndime),gradV2(ndime,ndime),Bbeta,alpha,hLES,aux1
       real(rp)                :: gradIsoU(ndime,ndime),ul(nnode,ndime)
@@ -110,7 +109,7 @@ contains
                      do mm=-1,1
                         !$acc loop seq
                         do nn=-1,1           
-                           aux1 =   aux1 +  al(ll)*am(mm)*an(nn)*mue_l(ielem,invAtoIJK(convertIJK(ii+ll),convertIJK(jj+mm),convertIJK(kk+nn)))
+                           aux1 =   aux1 +  al_weights(ll)*am_weights(mm)*an_weights(nn)*mue_l(ielem,invAtoIJK(convertIJK(ii+ll),convertIJK(jj+mm),convertIJK(kk+nn)))
                         end do
                      end do 
                   end do

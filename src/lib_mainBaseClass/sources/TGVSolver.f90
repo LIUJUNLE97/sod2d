@@ -41,13 +41,15 @@ contains
       class(TGVSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube_per_p4_n50"
+      write(this%mesh_h5_file_path,*) "../sod2d_speedup-testing_exec/"
+      write(this%mesh_h5_file_name,*) "cube_per_p4_n60"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
-      this%doGlobalAnalysis = .false.
+      write(this%io_append_info,*) "rp4_mmOff_new"
+
+      this%doGlobalAnalysis = .true.
       this%doTimerAnalysis = .true.
       this%saveInitialField = .false.
 
@@ -82,8 +84,8 @@ contains
       pseudo_cfl =0.95_rp
       flag_rk_order=4
 
-      this%cfl_conv = 1.5_rp
-      this%cfl_diff = 1.5_rp
+      this%cfl_conv = 0.5_rp !1.5_rp
+      this%cfl_diff = 0.5_rp !1.5_rp
       !this%cfl_conv = 100.0_rp
       !this%cfl_diff = 100.0_rp
 
