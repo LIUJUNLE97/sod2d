@@ -47,7 +47,7 @@ contains
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
-      write(this%io_append_info,*) "rp4_mmOff_new"
+      write(this%io_append_info,*) ""
 
       this%doGlobalAnalysis = .true.
       this%doTimerAnalysis = .true.
@@ -55,7 +55,7 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 5001
+      this%final_istep = 50001
       this%maxPhysTime = 20.0_rp
 
       this%save_logFile_first = 1 
@@ -84,8 +84,8 @@ contains
       pseudo_cfl =0.95_rp
       flag_rk_order=4
 
-      this%cfl_conv = 0.5_rp !1.5_rp
-      this%cfl_diff = 0.5_rp !1.5_rp
+      this%cfl_conv = 1.5_rp !0.5_rp
+      this%cfl_diff = 1.5_rp !0.5_rp
       !this%cfl_conv = 100.0_rp
       !this%cfl_diff = 100.0_rp
 
