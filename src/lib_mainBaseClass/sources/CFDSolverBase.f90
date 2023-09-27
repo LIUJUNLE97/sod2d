@@ -30,7 +30,7 @@ module mod_arrays
       integer(4), allocatable :: witGlobCand(:), witGlob(:), witGlobFound(:)
       real(rp), allocatable :: witxyz(:,:), witxyzPar(:,:), witxyzParCand(:,:)
 
-      real(rp), allocatable :: u_buffer(:,:),u_buffer_flux(:,:)
+      real(rp), allocatable :: u_buffer(:,:)
       ! implicit auxiliar fields
       real(rp), allocatable :: impl_rho(:),impl_E(:),impl_eta(:),impl_q(:,:)
       real(rp), allocatable :: impl_envit(:,:),impl_mu_fluid(:),impl_mu_sgs(:,:)
@@ -867,7 +867,6 @@ contains
       mu_sgs(:,:) = 0.0_rp
 
       u_buffer(:,:) = 0.0_rp
-      u_buffer_flux(:,:) = 0.0_rp
       tauw(:,:) = 0.0_rp
       !$acc end kernels
 

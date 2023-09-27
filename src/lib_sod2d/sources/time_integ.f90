@@ -248,7 +248,7 @@ module time_integ
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          mue_l,convertIJK,al_weights,am_weights,an_weights, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
-                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_buffer_flux,tauw,source_term,walave_u)  ! Optional args
+                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u)  ! Optional args
 
             implicit none
 
@@ -296,7 +296,6 @@ module time_integ
             integer(4), optional, intent(in)    :: listBoundsWM(*)
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime)
-            real(rp), optional,   intent(in)    :: u_buffer_flux(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
             real(rp), optional, intent(in)      :: source_term(npoin,ndime)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
@@ -730,7 +729,7 @@ module time_integ
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          mue_l,convertIJK,al_weights,am_weights,an_weights, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
-                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_buffer_flux,tauw,source_term,walave_u)  ! Optional args
+                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u)  ! Optional args
 
             implicit none
 
@@ -776,7 +775,6 @@ module time_integ
             integer(4), optional, intent(in)    :: listBoundsWM(*)
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime)
-            real(rp), optional,   intent(in)    :: u_buffer_flux(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
             real(rp), optional, intent(in)      :: source_term(npoin,ndime)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime)

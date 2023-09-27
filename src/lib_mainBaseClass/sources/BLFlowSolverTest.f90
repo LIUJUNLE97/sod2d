@@ -347,7 +347,7 @@ contains
       !----------------------------------------------
       ! wall shear stress output
       this%T_tw = this%periodEpisode
-      this%tw_write_interval = 10
+      this%tw_write_interval = 1
       !----------------------------------------------
 
       ! numerical params
