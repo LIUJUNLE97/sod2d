@@ -54,14 +54,13 @@ contains
 
    subroutine CFDSolverPeriodicIncomp_evalInitialDt(this)
       class(CFDSolverPeriodicIncomp), intent(inout) :: this
-      real(rp),    dimension(numNodesRankPar)       ::zeros_csound
 
       !$acc kernels
-      zeros_csound(:) = 0.0_rp
+      csound(:) = 0.0_rp
       !$acc end kernels
 
       if(mpi_rank.eq.0) write(111,*) "--| Evaluating initial dt..."
-      call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),zeros_csound,this%cfl_conv,this%dt)
+      call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
       if(mpi_rank.eq.0) write(111,*) "--| Initial time-step dt := ",this%dt,"s"
 
       call MPI_Barrier(app_comm,mpi_err)
@@ -70,13 +69,12 @@ contains
 
    subroutine CFDSolverPeriodicIncomp_evalDt(this)
       class(CFDSolverPeriodicIncomp), intent(inout) :: this
-      real(rp),    dimension(numNodesRankPar)       ::zeros_csound
       
       !$acc kernels
-         zeros_csound(:) = 0.0_rp
+      csound(:) = 0.0_rp
       !$acc end kernels
 
-      call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),zeros_csound,this%cfl_conv,this%dt)
+      call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
 
    end subroutine CFDSolverPeriodicIncomp_evalDt
 
