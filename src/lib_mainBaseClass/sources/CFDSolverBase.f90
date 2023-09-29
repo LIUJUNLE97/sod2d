@@ -5,7 +5,7 @@ module mod_arrays
 
       ! main allocatable arrays
       ! integer ---------------------------------------------------
-      integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:),convertIJK(:)
+      integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
       integer(4), allocatable :: atoIJ(:),atoIJK(:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
       integer(4), allocatable :: witel(:), buffstep(:)
 
@@ -74,6 +74,7 @@ module CFDSolverBase_mod
       use mod_custom_types
       use mod_witness_points
       use mod_smartredis
+      use mod_filters
    implicit none
    private
 
@@ -965,8 +966,6 @@ contains
    subroutine CFDSolverBase_deallocateVariables(this)
       class(CFDSolverBase), intent(inout) :: this
 
-      !TO BE COMPLETED! NOT STRICTLY NECESSARY BUT IS GOOD TO DO IT AS GOOD PROGRAMMING PRACTICE :)
-
       if(mpi_rank.eq.0) write(111,*) "--| DEALLOCATING MAIN VARIABLES"
       call nvtxStartRange("Deallocate main vars")
 
@@ -980,6 +979,7 @@ contains
       deallocate(an_weights)
       !$acc exit data delete(convertIJK(:))
       deallocate(convertIJK)
+      !TO BE COMPLETED! NOT STRICTLY NECESSARY BUT IS GOOD TO DO IT AS GOOD PROGRAMMING PRACTICE :)
 
       call nvtxEndRange
 
@@ -1106,9 +1106,9 @@ contains
       call nvtxStartRange("MU_SGS")
       if(flag_les_ilsa == 1) then
          this%dt = 1.0_rp !To avoid 0.0 division inside sgs_ilsa_visc calc
-         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3,mue_l,convertIJK,al_weights,am_weights,an_weights)
+         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3,mue_l) 
       else
-         call sgs_visc(numElemsRankPar,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs,mue_l,convertIJK,al_weights,am_weights,an_weights)
+         call sgs_visc(numElemsRankPar,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs,mue_l)
       end if
       call nvtxEndRange
 
@@ -1259,38 +1259,6 @@ contains
       !
       ! Compute al,am,an weights and convertIJK
       !
-
-      allocate(al_weights(-1:1))
-      !$acc enter data create(al_weights(:))
-      al_weights(-1) = 1.0_rp/4.0_rp
-      al_weights(0)  = 2.0_rp/4.0_rp
-      al_weights(1)  = 1.0_rp/4.0_rp
-      !$acc update device(al_weights(:))
-
-      allocate(am_weights(-1:1))
-      !$acc enter data create(am_weights(:))
-      am_weights(-1) = 1.0_rp/4.0_rp
-      am_weights(0)  = 2.0_rp/4.0_rp
-      am_weights(1)  = 1.0_rp/4.0_rp
-      !$acc update device(am_weights(:))
-
-      allocate(an_weights(-1:1))
-      !$acc enter data create(an_weights(:))
-      an_weights(-1) = 1.0_rp/4.0_rp
-      an_weights(0)  = 2.0_rp/4.0_rp
-      an_weights(1)  = 1.0_rp/4.0_rp
-      !$acc update device(an_weights(:))
-
-      allocate(convertIJK(0:porder+2))
-      !$acc enter data create(convertIJK(:))
-      do ii=3,porder+1
-         convertIJK(ii-1) = ii
-      end do
-      convertIJK(0) = 3
-      convertIJK(1) = 1
-      convertIJK(porder+1) = 2
-      convertIJK(porder+2) = porder
-      !$acc update device(convertIJK(:))
 
       call MPI_Barrier(app_comm,mpi_err)
 
@@ -2266,6 +2234,10 @@ contains
       ! Allocate variables
       call this%allocateVariables()
 
+      ! Allocating and defining filters
+      call init_filters()
+
+      ! Setting fields to be saved
       call this%setFields2Save()
 
       ! Eval or load initial conditions
@@ -2336,6 +2308,9 @@ contains
 
       ! Deallocate the variables
       call this%deallocateVariables()
+
+      ! Deallocate the filters
+      call deallocate_filters()
 
       ! End hdf5 auxiliar saving arrays
       call end_hdf5_auxiliar_saving_arrays()

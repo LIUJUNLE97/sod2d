@@ -11,29 +11,39 @@ module mod_operators
 
     implicit none
 
+      logical :: allocate_memory_mod_oprators = .true.
+      !for eval_laplacian_mult
+      real(rp),allocatable :: op_auxP(:),op_auxGradP(:,:)
+
        contains
 
         subroutine eval_laplacian_mult(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,p,ResP)
 
             implicit none
 
-            integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
-            real(rp),   intent(inout)  :: ResP(npoin)
-            real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),p(npoin)
-            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            integer(4)               :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ipoin(nnode),ipoin2
-            integer(4)              :: ii,jj,kk,mm,nn,ll,iter
-            real(rp)                :: p_l(npoin),aux1,auxP(npoin)
+            integer(4),intent(in)    :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
+            real(rp),  intent(inout) :: ResP(npoin)
+            real(rp),  intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),p(npoin)
+            integer(4),intent(in)    :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+            integer(4)               :: ii, ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ipoin(nnode)
+            !real(rp)                :: p_l(npoin),aux1,auxP(npoin)
             real(rp)                :: gradIsoP(ndime)
             real(rp)                :: gradP(ndime),divDp
             real(rp)                :: pl(nnode),gradPl(nnode,ndime)
 
+            if(allocate_memory_mod_oprators) then
+               allocate_memory_mod_oprators = .false.
+               
+               allocate(op_auxP(npoin))
+               !$acc enter data create(op_auxP(:))
+            end if
+
             !$acc kernels
              ResP(:) = 0.0_rp
-             auxP(:) = p(:)
+             op_auxP(:) = p(:)
             !$acc end kernels
             if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
-               auxP(lpoin_w(1)) = 0.0_rp
+               op_auxP(lpoin_w(1)) = 0.0_rp
             end if
             !$acc parallel loop gang  private(ipoin,pl,gradPl)
             do ielem = 1,nelem
@@ -43,7 +53,7 @@ module mod_operators
                 end do
                 !$acc loop vector
                 do inode = 1,nnode
-                   pl(inode) = auxP(ipoin(inode))
+                   pl(inode) = op_auxP(ipoin(inode))
                 end do
                 gradPl(:,:) = 0.0_rp
 
@@ -57,9 +67,9 @@ module mod_operators
                    gradIsoP(:) = 0.0_rp
                    !$acc loop seq
                    do ii=1,porder+1
-                      gradIsoP(1) = gradIsoP(1) + dlxigp_ip(igaus,1,ii)*pl(invAtoIJK(ii,isoJ,isoK))
-                      gradIsoP(2) = gradIsoP(2) + dlxigp_ip(igaus,2,ii)*pl(invAtoIJK(isoI,ii,isoK))
-                      gradIsoP(3) = gradIsoP(3) + dlxigp_ip(igaus,3,ii)*pl(invAtoIJK(isoI,isoJ,ii))
+                     gradIsoP(1) = gradIsoP(1) + dlxigp_ip(igaus,1,ii)*pl(invAtoIJK(ii,isoJ,isoK))
+                     gradIsoP(2) = gradIsoP(2) + dlxigp_ip(igaus,2,ii)*pl(invAtoIJK(isoI,ii,isoK))
+                     gradIsoP(3) = gradIsoP(3) + dlxigp_ip(igaus,3,ii)*pl(invAtoIJK(isoI,isoJ,ii))
                    end do
 
                    gradP(:) = 0.0_rp
@@ -121,17 +131,28 @@ module mod_operators
             real(rp),   intent(inout)  :: ResP(npoin)
             real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),p(npoin),Ml(npoin)
             integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            real(rp)                :: auxP(npoin),auxGradP(npoin,ndime)
-            !$acc kernels
-             ResP(:) = 0.0_rp
-             auxP(:) = p(:)
-            !$acc end kernels
-            if(mpi_rank.eq.0) then
-               auxP(lpoin_w(1)) = nscbc_p_inf
+
+            if(allocate_memory_mod_oprators) then
+               allocate_memory_mod_oprators = .false.
+               
+               allocate(op_auxP(npoin))
+               !$acc enter data create(op_auxP(:))
+
+               allocate(op_auxGradP(npoin,ndime))
+               !$acc enter data create(op_auxGradP(:,:))
+
             end if
 
-            call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,auxP,auxGradP,.true.)
-            call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,auxGradP,ResP)
+            !$acc kernels
+             ResP(:) = 0.0_rp
+             op_auxP(:) = p(:)
+            !$acc end kernels
+            if(mpi_rank.eq.0) then
+               op_auxP(lpoin_w(1)) = nscbc_p_inf
+            end if
+
+            call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,op_auxP,op_auxGradP,.true.)
+            call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,op_auxGradP,ResP)
 
             if(mpi_rank.eq.0) then
                ResP(lpoin_w(1)) = 0.0_rp
@@ -144,14 +165,12 @@ module mod_operators
             implicit none
 
             integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
-            real(rp),   intent(inout)  :: gradX(npoin,ndime)
-            real(rp),             intent(in)    :: Ml(npoin)
+            real(rp),   intent(inout) :: gradX(npoin,ndime)
+            real(rp),   intent(in)    :: Ml(npoin)
             real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),x(npoin)
             integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             logical,    intent(in)  :: lump
-            integer(4)               :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ipoin(nnode),ipoin2
-            integer(4)              :: convertIJK(0:porder+2),ii,jj,kk,mm,nn,ll,iter
-            real(rp)                :: al(-1:1),am(-1:1),an(-1:1),aux1
+            integer(4)              :: ii, ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ipoin(nnode)
             real(rp)                :: gradIsoP(ndime)
             real(rp)                :: gradP(ndime),divDp
             real(rp)                :: pl(nnode),gradPl(nnode,ndime)
@@ -238,17 +257,14 @@ module mod_operators
 
             integer(4), intent(in)  :: nelem, npoin
             integer(4), intent(in)  :: connec(nelem,nnode)
-            real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem),dlxigp_ip(ngaus,ndime,porder+1)
-            real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
-            integer(4), intent(in)   :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            real(rp),    intent(in)  :: u(npoin,ndime)
-            real(rp),    intent(out) :: Rmom(npoin)
+            real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem),dlxigp_ip(ngaus,ndime,porder+1)
+            real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
+            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+            real(rp),   intent(in)  :: u(npoin,ndime)
+            real(rp),   intent(out) :: Rmom(npoin)
             integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,kdime,ii
             integer(4)              :: ipoin(nnode)
-            real(rp)                 :: Re_mom(nnode)
-            real(rp)                 :: gradIsoU(ndime,ndime)
-            real(rp)                 :: divU
-            real(rp)                 :: ul(nnode,ndime)
+            real(rp)                :: divU,Re_mom(nnode),gradIsoU(ndime,ndime),ul(nnode,ndime)
             real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
 
             call nvtxStartRange("Full convection")
@@ -268,7 +284,7 @@ module mod_operators
                      ul(inode,idime)  = u(ipoin(inode),idime)
                   end do
                end do
-               !$acc loop vector private(dlxi_ip,dleta_ip,dlzeta_ip, gradIsoU,divU)
+               !$acc loop vector private(dlxi_ip,dleta_ip,dlzeta_ip,gradIsoU,divU)
                do igaus = 1,ngaus
                   !$acc loop seq
                   do ii=1,porder+1

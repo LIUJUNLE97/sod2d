@@ -54,14 +54,13 @@ contains
 
    subroutine CFDSolverPeriodicIncomp_evalInitialDt(this)
       class(CFDSolverPeriodicIncomp), intent(inout) :: this
-      real(rp),    dimension(numNodesRankPar)       ::zeros_csound
 
       !$acc kernels
-      zeros_csound(:) = 0.0_rp
+      csound(:) = 0.0_rp
       !$acc end kernels
 
       if(mpi_rank.eq.0) write(111,*) "--| Evaluating initial dt..."
-      call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),zeros_csound,this%cfl_conv,this%dt)
+      call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
       if(mpi_rank.eq.0) write(111,*) "--| Initial time-step dt := ",this%dt,"s"
 
       call MPI_Barrier(app_comm,mpi_err)
@@ -70,13 +69,12 @@ contains
 
    subroutine CFDSolverPeriodicIncomp_evalDt(this)
       class(CFDSolverPeriodicIncomp), intent(inout) :: this
-      real(rp),    dimension(numNodesRankPar)       ::zeros_csound
       
       !$acc kernels
-         zeros_csound(:) = 0.0_rp
+      csound(:) = 0.0_rp
       !$acc end kernels
 
-      call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),zeros_csound,this%cfl_conv,this%dt)
+      call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
 
    end subroutine CFDSolverPeriodicIncomp_evalDt
 
@@ -167,8 +165,7 @@ contains
       this%noBoundaries = .true.
       call ab_main_incomp(istep,this%save_logFile_next,this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbn,lnbnNodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
             1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
-            rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor,&
-            mue_l,convertIJK,al_weights,am_weights,an_weights)
+            rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor,mue_l)
 
    end subroutine CFDSolverPeriodicIncomp_callTimeIntegration
 

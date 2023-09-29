@@ -6,13 +6,13 @@ module mod_entropy_viscosity
    use mod_mpi
    use mod_mpi_mesh
    use mod_comms
+   use mod_filters,only:convertIJK,al_weights,am_weights,an_weights
 
    implicit none
 
    contains
       subroutine smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
-                            gamma_gas,rho,u,csound,Tem,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-                            mue_l,convertIJK,al,am,an)
+                            gamma_gas,rho,u,csound,Tem,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
 
               ! TODO: Compute element size h
 
@@ -24,9 +24,8 @@ module mod_entropy_viscosity
               real(rp),   intent(out) :: mu_e(nelem,ngaus)
               real(rp),   intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
               real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
-              integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode),gmshAtoJ(nnode),gmshAtoK(nnode),convertIJK(0:porder+2)
+              integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode),gmshAtoJ(nnode),gmshAtoK(nnode)
               real(rp),intent(inout)  :: mue_l(nelem,nnode)
-              real(rp),   intent(in)  :: al(-1:1),am(-1:1),an(-1:1)
               integer(4)              :: ielem, inode,igaus,ipoin,npoin_w_g,idime,jdime
               real(rp)                :: R1, R2, Ve
               real(rp)                :: betae,mu,vol,vol2
@@ -111,7 +110,7 @@ module mod_entropy_viscosity
                             do mm=-1,1
                                !$acc loop seq
                                do nn=-1,1
-                                  aux1 =   aux1 +  al(ll)*am(mm)*an(nn)*mue_l(ielem,invAtoIJK(convertIJK(ii+ll),convertIJK(jj+mm),convertIJK(kk+nn)))
+                                  aux1 =   aux1 +  al_weights(ll)*am_weights(mm)*an_weights(nn)*mue_l(ielem,invAtoIJK(convertIJK(ii+ll),convertIJK(jj+mm),convertIJK(kk+nn)))
                                end do
                             end do
                          end do
