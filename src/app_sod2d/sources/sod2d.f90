@@ -10,7 +10,8 @@
 #define _bluff_incomp 0
 #define _bluff3d_ 0
 #define _bluff3d_incomp 0
-#define _bl_ 1
+#define _bl_ 0
+#define _bl_incomp 1
 #define _tsb_ 0
 
 program main
@@ -51,6 +52,9 @@ program main
    ! use BLFlowSolver_mod
    use BLFlowSolverTest_mod
    ! use BLAPGFlowSolver_mod
+#endif
+#if _bl_incomp
+   use BLFlowSolverIncomp_mod
 #endif
 #if _tsb_
    ! use BLTSBFlowSolver_mod
@@ -106,7 +110,10 @@ program main
    ! type(BLAPGFlowSolver) :: blflow
    call blflow%run()
 #endif
-
+#if _bl_incomp
+    type(BLFlowSolverIncomp)    :: blflow
+   call blflow%run()
+#endif
 #if _tsb_
    !  type(BLTSBFlowSolver)  :: bltsbflow
    type(BLTSBDRLFlowSolver)  :: bltsbdrlflow
