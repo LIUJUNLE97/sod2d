@@ -969,6 +969,8 @@ contains
       if(mpi_rank.eq.0) write(111,*) "--| DEALLOCATING MAIN VARIABLES"
       call nvtxStartRange("Deallocate main vars")
 
+      !TO BE COMPLETED! NOT STRICTLY NECESSARY BUT IS GOOD TO DO IT AS GOOD PROGRAMMING PRACTICE :)
+
       call nvtxEndRange
 
    end subroutine CFDSolverBase_deallocateVariables
@@ -1094,7 +1096,7 @@ contains
       call nvtxStartRange("MU_SGS")
       if(flag_les_ilsa == 1) then
          this%dt = 1.0_rp !To avoid 0.0 division inside sgs_ilsa_visc calc
-         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3,mue_l) 
+         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3,mue_l)
       else
          call sgs_visc(numElemsRankPar,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs,mue_l)
       end if
@@ -1852,8 +1854,8 @@ contains
          center(ielem,1) = aux1/nnode
          center(ielem,2) = aux2/nnode
          center(ielem,3) = aux3/nnode
-         ! helemmax(ielem) = auxvol**(1.0/3.0)
-         helemmax(ielem) = 2.0_rp*auxvol**(1.0/3.0) ! safety factor of x2
+         helemmax(ielem) = auxvol**(1.0/3.0)
+         ! helemmax(ielem) = 2.0_rp*auxvol**(1.0/3.0) ! safety factor of x2
       end do
       !$acc end loop
       maxL = maxval(abs(helemmax))
