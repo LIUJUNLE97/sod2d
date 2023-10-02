@@ -1,3 +1,5 @@
+#define ACTUATION 1
+
 module BLFlowSolverIncomp_mod
    use mod_arrays
    use mod_nvtx
@@ -27,11 +29,17 @@ module BLFlowSolverIncomp_mod
    implicit none
    private
 
+   real(rp), allocatable, dimension(:,:)  :: rectangleControl       ! Two point coordinates that define each rectangle
+   integer(4),  allocatable, dimension(:) :: actionMask             ! Mask that contains whether a point is in a rectangle control or not 
+
    type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: BLFlowSolverIncomp
 
       real(rp) , public  ::   d0, U0, rho0, Red0, Re, mu
       real(rp), public   :: eta_b(45), f(45), f_prim(45)
-
+      integer(4), public       :: countPar                                   ! Number of points in a rectangle of control per partition
+      character(512), public   :: fileControlName                            ! Input: path to the file that contains the points defining the      
+      integer(4), public         :: nRectangleControl                          ! Number of rectangle control
+      real(rp), public         :: amplitudeActuation, frequencyActuation , timeBeginActuation    ! Parameters of the actuation
    contains
       procedure, public :: fillBCTypes           => BLFlowSolverIncomp_fill_BC_Types
       procedure, public :: initializeParameters  => BLFlowSolverIncomp_initializeParameters
@@ -40,8 +48,70 @@ module BLFlowSolverIncomp_mod
       procedure, public :: fillBlasius => BLFlowSolverIncomp_fillBlasius
       procedure, public :: afterDt => BLFlowSolverIncomp_afterDt
       procedure, public :: beforeTimeIteration => BLFlowSolverIncomp_beforeTimeIteration
+      procedure, public :: getControlNodes => BLFlowSolverIncomp_getControlNodes
+      procedure, public :: readControlRectangles => BLFlowSolverIncomp_readControlRectangles      
    end type BLFlowSolverIncomp
 contains
+
+   subroutine BLFlowSolverIncomp_readControlRectangles(this)
+      ! This subroutine reads the file that contains the two points defining a rectanle paralel to the X-Z axis. Several rectangles
+      ! can be introduced. In this rectangles is where control will be applied
+      class(BLFlowSolverIncomp), intent(inout) :: this
+
+      integer(rp)                           :: ii
+
+      open(unit=99, file=this%fileControlName, status='old', action='read')
+
+      read(99,*) this%nRectangleControl
+      allocate(rectangleControl(2,2*this%nRectangleControl))
+      !$acc enter data create(rectangleControl(:,:))
+      do ii = 1, this%nRectangleControl
+         read(99, *) rectangleControl(:,2*ii-1)  ! First point
+         read(99, *) rectangleControl(:,2*ii  )  ! Second point
+         read(99, *)
+      end do
+      close(99)
+      !$acc update device(rectangleControl(:,:))
+
+   end subroutine BLFlowSolverIncomp_readControlRectangles
+
+   subroutine BLFlowSolverIncomp_getControlNodes(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
+
+      integer(4) :: iNodeL, iRectangleControl, bcode
+      real(rp)   :: xPoint, zPoint, x1RectangleControl, x2RectangleControl, z1RectangleControl, z2RectangleControl
+
+      call this%readControlRectangles()
+      allocate(actionMask(numNodesRankPar))
+      !$acc enter data create(actionMask(:))
+
+      !this%countPar = 0
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         actionMask(iNodeL) = 0
+         if (bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) then
+            bcode = bouCodesNodesPar(iNodeL)
+            if (bcode == bc_type_unsteady_inlet) then ! we are on the wall and we need to check if node is in the control rectanle
+               do iRectangleControl = 1,this%nRectangleControl
+                  xPoint = coordPar(iNodeL,1)
+                  zPoint = coordPar(iNodeL,3)
+                  x1RectangleControl = rectangleControl(1,2*iRectangleControl-1)
+                  z1RectangleControl = rectangleControl(2,2*iRectangleControl-1)
+                  x2RectangleControl = rectangleControl(1,2*iRectangleControl  )
+                  z2RectangleControl = rectangleControl(2,2*iRectangleControl  )
+                  if (xPoint >= x1RectangleControl .and. xPoint <= x2RectangleControl .and. zPoint >= z1RectangleControl .and. zPoint <= z2RectangleControl) then
+                     actionMask(iNodeL) = iRectangleControl
+                     !this%countPar = this%countPar + 1
+                     exit
+                  endif
+               end do
+            end if
+         end if
+      end do
+      !$acc end parallel loop
+      !$acc update device(actionMask(:))
+
+   end subroutine BLFlowSolverIncomp_getControlNodes
 
    subroutine BLFlowSolverIncomp_beforeTimeIteration(this)
       class(BLFlowSolverIncomp), intent(inout) :: this
@@ -60,7 +130,9 @@ contains
       end do
       !$acc end parallel loop
 
-
+#if (ACTUATION)
+      call this%getControlNodes()
+#endif
    end subroutine BLFlowSolverIncomp_beforeTimeIteration
 
    subroutine BLFlowSolverIncomp_afterDt(this,istep)
@@ -180,12 +252,30 @@ contains
          call nvtxEndRange
       end if
 
+#if (ACTUATION)
+      if (this%time .gt. this%timeBeginActuation) then
+         !$acc parallel loop
+         do iNodeL = 1,numNodesRankPar
+            if (actionMask(iNodeL) .gt. 0) then
+                  u_buffer(iNodeL,1) = 0.0_rp
+                  u_buffer(iNodeL,2) = this%amplitudeActuation*sin(2.0_rp*v_pi*this%frequencyActuation*this%time)
+                  u_buffer(iNodeL,3) = 0.0_rp
+            end if
+         end do
+         !$acc end parallel loop
+      end if
+#endif
+
    end subroutine BLFlowSolverIncomp_afterDt
 
    subroutine BLFlowSolverIncomp_fill_BC_Types(this)
       class(BLFlowSolverIncomp), intent(inout) :: this
 
+#if (ACTUATION)
+      bouCodes2BCType(1) = bc_type_unsteady_inlet ! wall + actuation
+#else
       bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! wall
+#endif      
       bouCodes2BCType(2) = bc_type_far_field_SB       ! Upper part of the domain
       bouCodes2BCType(3) = bc_type_far_field      ! inlet part of the domain
       bouCodes2BCType(4) = bc_type_outlet_incomp  ! outlet part of the domain
@@ -354,15 +444,16 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 5000
+      this%save_resultsFile_step = 10000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 5000
-      this%loadRestartFile = .false.
+      this%save_restartFile_step = 10000
+      this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
-      this%saveAvgFile = .false.
+      this%initial_avgTime = 2000.0_rp
+      this%saveAvgFile = .true.
       this%loadAvgFile = .false.
       !----------------------------------------------
 
@@ -402,6 +493,13 @@ contains
       flag_buffer_on_west = .true.
       flag_buffer_w_min = -50.0_rp
       flag_buffer_w_size = 50.0_rp
+
+#if (ACTUATION)
+      write(this%fileControlName ,*) "rectangleControl.dat"
+      this%amplitudeActuation = 0.2
+      this%frequencyActuation = 0.0025_rp
+      this%timeBeginActuation = 0.0_rp
+#endif
 
    end subroutine BLFlowSolverIncomp_initializeParameters
 

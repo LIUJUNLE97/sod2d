@@ -969,18 +969,6 @@ contains
       if(mpi_rank.eq.0) write(111,*) "--| DEALLOCATING MAIN VARIABLES"
       call nvtxStartRange("Deallocate main vars")
 
-      !$acc exit data delete(mue_l(:,:))
-      deallocate(mue_l)
-      !$acc exit data delete(al_weights(:))
-      deallocate(al_weights)
-      !$acc exit data delete(am_weights(:))
-      deallocate(am_weights)
-      !$acc exit data delete(an_weights(:))
-      deallocate(an_weights)
-      !$acc exit data delete(convertIJK(:))
-      deallocate(convertIJK)
-      !TO BE COMPLETED! NOT STRICTLY NECESSARY BUT IS GOOD TO DO IT AS GOOD PROGRAMMING PRACTICE :)
-
       call nvtxEndRange
 
    end subroutine CFDSolverBase_deallocateVariables

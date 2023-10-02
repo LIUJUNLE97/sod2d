@@ -25,7 +25,7 @@ module mod_bc_routines_incomp
             do inode = 1,npoin
                if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
                   bcode = bou_codes_nodes(inode) ! Boundary element code
-                  if ((bcode == bc_type_far_field) .or. (bcode == bc_type_far_field_SB)) then ! inlet just for aligened inlets with x
+                  if ((bcode == bc_type_far_field) .or. (bcode == bc_type_far_field_SB) .or. ( bcode == bc_type_unsteady_inlet)) then ! inlet just for aligened inlets with x
                      aux_u(inode,1) = u_buffer(inode,1)
                      aux_u(inode,2) = u_buffer(inode,2)
                      aux_u(inode,3) = u_buffer(inode,3)
