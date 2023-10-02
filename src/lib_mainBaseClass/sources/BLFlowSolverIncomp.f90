@@ -36,7 +36,6 @@ module BLFlowSolverIncomp_mod
 
       real(rp) , public  ::   d0, U0, rho0, Red0, Re, mu
       real(rp), public   :: eta_b(45), f(45), f_prim(45)
-      integer(4), public       :: countPar                                   ! Number of points in a rectangle of control per partition
       character(512), public   :: fileControlName                            ! Input: path to the file that contains the points defining the      
       integer(4), public         :: nRectangleControl                          ! Number of rectangle control
       real(rp), public         :: amplitudeActuation, frequencyActuation , timeBeginActuation    ! Parameters of the actuation
@@ -85,7 +84,6 @@ contains
       allocate(actionMask(numNodesRankPar))
       !$acc enter data create(actionMask(:))
 
-      !this%countPar = 0
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          actionMask(iNodeL) = 0
@@ -101,7 +99,6 @@ contains
                   z2RectangleControl = rectangleControl(2,2*iRectangleControl  )
                   if (xPoint >= x1RectangleControl .and. xPoint <= x2RectangleControl .and. zPoint >= z1RectangleControl .and. zPoint <= z2RectangleControl) then
                      actionMask(iNodeL) = iRectangleControl
-                     !this%countPar = this%countPar + 1
                      exit
                   endif
                end do
@@ -109,8 +106,6 @@ contains
          end if
       end do
       !$acc end parallel loop
-      !$acc update device(actionMask(:))
-
    end subroutine BLFlowSolverIncomp_getControlNodes
 
    subroutine BLFlowSolverIncomp_beforeTimeIteration(this)
@@ -257,9 +252,9 @@ contains
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             if (actionMask(iNodeL) .gt. 0) then
-                  u_buffer(iNodeL,1) = 0.0_rp
-                  u_buffer(iNodeL,2) = this%amplitudeActuation*sin(2.0_rp*v_pi*this%frequencyActuation*this%time)
-                  u_buffer(iNodeL,3) = 0.0_rp
+               u_buffer(iNodeL,1) = 0.0_rp
+               u_buffer(iNodeL,2) = this%amplitudeActuation*sin(2.0_rp*v_pi*this%frequencyActuation*this%time)
+               u_buffer(iNodeL,3) = 0.0_rp
             end if
          end do
          !$acc end parallel loop
@@ -465,8 +460,6 @@ contains
 
       this%cfl_conv = 0.95_rp
       this%cfl_diff = 0.95_rp
-      !flag_use_constant_dt = 1
-      !this%dt = 0.1_rp
 
       this%d0   = 1.0_rp
       this%U0   = 1.0_rp
@@ -496,11 +489,10 @@ contains
 
 #if (ACTUATION)
       write(this%fileControlName ,*) "rectangleControl.dat"
-      this%amplitudeActuation = 0.2
+      this%amplitudeActuation = 0.05
       this%frequencyActuation = 0.0025_rp
       this%timeBeginActuation = 0.0_rp
 #endif
-
    end subroutine BLFlowSolverIncomp_initializeParameters
 
    subroutine BLFlowSolverIncomp_initialBuffer(this)
