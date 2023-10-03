@@ -24,6 +24,11 @@ module mod_mpi
 
       integer(mpi_address_kind) :: color_ptr
       logical :: mpi_app_num_flag
+      integer :: mpi_datatype_real_int
+      integer :: nblocks = 2 !For a real-integer MPI_struct
+      integer :: block_length(nblocks), data_types(nblocks)
+      integer(mpi_address_kind) :: displacements(nblocks)
+      real(rp) :: dummy_real 
 
       ! Init MPI_COMM_WORLD communicator (shared accros all applications launched with mpirun MPMD)
       call mpi_init(mpi_err)
@@ -61,6 +66,14 @@ module mod_mpi
          write(*,*) 'Fatal error in init_mpi()! rp is not 4 or 8 >> CRASH!'
          call MPI_Abort(app_comm,-1,mpi_err)
       end if
+
+      !Create MPI structure with [real(rp), integer]
+      block_length(:)  = 1
+      displacements(1) = 0*sizeof(dummy_real)
+      displacements(2) = sizeof(dummy_real)
+      data_types(1)    = mpi_datatype_real
+      data_types(2)    = mpi_datatype_int
+      call MPI_Type_create_struct(nblocks, block_length, displacements, data_types, mpi_datatype_real_int, mpi_err)
 
       call MPI_Type_size(mpi_datatype_int,mpi_integer_size, mpi_err)
       call MPI_Type_size(mpi_datatype_int4,mpi_int4_size, mpi_err)
