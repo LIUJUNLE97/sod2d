@@ -1825,12 +1825,12 @@ contains
       ymaxloc = maxval(coordPar(:,2)) + wittol
       zmaxloc = maxval(coordPar(:,3)) + wittol
 
-      call MPI_Allreduce(xminloc, xmin, 1, MPI_REAL, MPI_MIN, app_comm, mpi_err)
-      call MPI_Allreduce(yminloc, ymin, 1, MPI_REAL, MPI_MIN, app_comm, mpi_err)
-      call MPI_Allreduce(zminloc, zmin, 1, MPI_REAL, MPI_MIN, app_comm, mpi_err)
-      call MPI_Allreduce(xmaxloc, xmax, 1, MPI_REAL, MPI_MAX, app_comm, mpi_err)
-      call MPI_Allreduce(ymaxloc, ymax, 1, MPI_REAL, MPI_MAX, app_comm, mpi_err)
-      call MPI_Allreduce(zmaxloc, zmax, 1, MPI_REAL, MPI_MAX, app_comm, mpi_err)
+      call MPI_Allreduce(xminloc, xmin, 1, mpi_datatype_real, MPI_MIN, app_comm, mpi_err)
+      call MPI_Allreduce(yminloc, ymin, 1, mpi_datatype_real, MPI_MIN, app_comm, mpi_err)
+      call MPI_Allreduce(zminloc, zmin, 1, mpi_datatype_real, MPI_MIN, app_comm, mpi_err)
+      call MPI_Allreduce(xmaxloc, xmax, 1, mpi_datatype_real, MPI_MAX, app_comm, mpi_err)
+      call MPI_Allreduce(ymaxloc, ymax, 1, mpi_datatype_real, MPI_MAX, app_comm, mpi_err)
+      call MPI_Allreduce(zmaxloc, zmax, 1, mpi_datatype_real, MPI_MAX, app_comm, mpi_err)
 
       !$acc kernels
       witGlobCand(:) = 0
