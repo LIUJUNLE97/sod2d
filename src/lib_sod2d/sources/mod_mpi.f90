@@ -25,10 +25,9 @@ module mod_mpi
 
       integer(mpi_address_kind) :: color_ptr
       logical :: mpi_app_num_flag
-      integer :: mpi_datatype_real_int
-      integer :: block_length(2), data_types(2)
-      integer(mpi_address_kind) :: displacements(2)
-      real(rp) :: dummy_real
+      integer(4) :: sizeCustomType
+      integer,dimension(:),allocatable :: blockLengthCustom, dataTypesCustom
+      integer(mpi_address_kind),dimension(:),allocatable :: displacementsCustom
       
       ! Init MPI_COMM_WORLD communicator (shared accros all applications launched with mpirun MPMD)
       call mpi_init(mpi_err)
@@ -67,15 +66,6 @@ module mod_mpi
          call MPI_Abort(app_comm,-1,mpi_err)
       end if
 
-      !Create MPI structure with [real(rp), integer]
-      block_length(:)  = 1
-      displacements(1) = 0*sizeof(dummy_real)
-      displacements(2) = sizeof(dummy_real)
-      data_types(1)    = mpi_datatype_real
-      data_types(2)    = mpi_datatype_int
-      call MPI_Type_create_struct(2, block_length, displacements, data_types, mpi_datatype_real_int, mpi_err)
-      call MPI_Type_commit(mpi_datatype_real_int, mpi_err)
-
       call MPI_Type_size(mpi_datatype_int,mpi_integer_size, mpi_err)
       call MPI_Type_size(mpi_datatype_int4,mpi_int4_size, mpi_err)
       call MPI_Type_size(mpi_datatype_int8,mpi_int8_size, mpi_err)
@@ -83,6 +73,20 @@ module mod_mpi
       call MPI_Type_size(mpi_datatype_real,mpi_real_size,mpi_err)
       call MPI_Type_size(mpi_datatype_real4,mpi_real4_size,mpi_err)
       call MPI_Type_size(mpi_datatype_real8,mpi_real8_size,mpi_err)
+
+      !Create MPI structure with [real(rp), integer]
+      sizeCustomType = 2
+      allocate(blockLengthCustom(sizeCustomType),dataTypesCustom(sizeCustomType),displacementsCustom(sizeCustomType))
+      
+      blockLengthCustom(:)  = 1
+      displacementsCustom(1) = 0
+      displacementsCustom(2) = mpi_real_size
+      dataTypesCustom(1) = mpi_datatype_real
+      dataTypesCustom(2) = mpi_datatype_int
+      call MPI_Type_create_struct(sizeCustomType,blockLengthCustom,displacementsCustom,dataTypesCustom,mpi_datatype_real_int,mpi_err)
+      call MPI_Type_commit(mpi_datatype_real_int,mpi_err)
+
+      deallocate(blockLengthCustom,dataTypesCustom,displacementsCustom)
 
       call init_sharedMemoryNode_comm()
 
