@@ -26,11 +26,10 @@ module mod_mpi
       integer(mpi_address_kind) :: color_ptr
       logical :: mpi_app_num_flag
       integer :: mpi_datatype_real_int
-      integer :: nblocks = 2 !For a real-integer MPI_struct
-      integer :: block_length(nblocks), data_types(nblocks)
-      integer(mpi_address_kind) :: displacements(nblocks)
-      real(rp) :: dummy_real 
-
+      integer :: block_length(2), data_types(2)
+      integer(mpi_address_kind) :: displacements(2)
+      real(rp) :: dummy_real
+      
       ! Init MPI_COMM_WORLD communicator (shared accros all applications launched with mpirun MPMD)
       call mpi_init(mpi_err)
       world_comm = MPI_COMM_WORLD
@@ -74,7 +73,7 @@ module mod_mpi
       displacements(2) = sizeof(dummy_real)
       data_types(1)    = mpi_datatype_real
       data_types(2)    = mpi_datatype_int
-      call MPI_Type_create_struct(nblocks, block_length, displacements, data_types, mpi_datatype_real_int, mpi_err)
+      call MPI_Type_create_struct(2, block_length, displacements, data_types, mpi_datatype_real_int, mpi_err)
       call MPI_Type_commit(mpi_datatype_real_int, mpi_err)
 
       call MPI_Type_size(mpi_datatype_int,mpi_integer_size, mpi_err)
