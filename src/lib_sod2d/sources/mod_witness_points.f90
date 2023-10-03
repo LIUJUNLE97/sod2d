@@ -161,21 +161,4 @@ module mod_witness_points
          call var_interpolate(nnode,elvalues,N,witval)
       end subroutine wit_interpolation
 
-      subroutine read_nwit(fname, np)
-         implicit none
-         character(512), intent(in) :: fname ! Input 1: path to the witness points file
-         integer(4), intent(out) :: np ! Output 1: number of witness points
-         integer(4) :: io
-         real(rp) :: xyz(3) ! dummy var
-
-         open(unit=99, file=fname, status='old', action='read')
-         np = 0
-         do
-            read(99,*,iostat=io) xyz
-            if (io /= 0) exit ! if a line does not contain `x y z`, it will exit the loop
-            np = np + 1
-         end do
-         close(99)
-      end subroutine read_nwit
-
 end module mod_witness_points

@@ -496,16 +496,17 @@ contains
       flag_buffer_w_size = 50.0_rp
 
       ! witness points
-      ! this%have_witness          = .true.
-      ! this%witness_inp_file_name = "witness.txt"
-      ! this%witness_h5_file_name  = "resultwit.h5"
-      ! this%leapwit               = 10 ! (update witness ever n dts) | in this class, we update the witness points manually
-      ! this%leapwitsave           = 20 ! how many dts are stored in buffer
-      ! this%wit_save              = .true. ! save witness or not
-      ! this%wit_save_u_i          = .true.
-      ! this%wit_save_pr           = .false.
-      ! this%wit_save_rho          = .false.
-      ! this%continue_witness      = .false.
+      this%have_witness          = .true.
+      this%nwit                  = 240
+      this%witness_inp_file_name = "witness.txt"
+      this%witness_h5_file_name  = "resultwit.h5"
+      this%leapwit               = 10 ! (update witness ever n dts) | in this class, we update the witness points manually
+      this%leapwitsave           = 20 ! how many dts are stored in buffer
+      this%wit_save              = .false. ! save witness or not
+      this%wit_save_u_i          = .true.
+      this%wit_save_pr           = .false.
+      this%wit_save_rho          = .false.
+      this%continue_witness      = .false.
 
    end subroutine BLFlowSolverIncompTest_initializeParameters
 

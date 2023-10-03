@@ -25,10 +25,7 @@ module mod_arrays
       real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:),avvex(:,:),avtw(:,:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
-
       real(rp), allocatable :: witxi(:,:), Nwit(:,:), buffwit(:,:,:), bufftime(:)
-      integer(4), allocatable :: witGlobCand(:), witGlob(:), witGlobFound(:)
-      real(rp), allocatable :: witxyz(:,:), witxyzPar(:,:), witxyzParCand(:,:)
 
       real(rp), allocatable :: u_buffer(:,:)
       ! implicit auxiliar fields
@@ -97,8 +94,7 @@ module CFDSolverBase_mod
       logical, public :: loadRestartFile=.false.,saveAvgFile=.false.,loadAvgFile=.false.,saveInitialField=.false.,saveSurfaceResults=.false.,continue_oldLogs=.false.
       logical, public :: doGlobalAnalysis=.false.,isFreshStart=.true.,doTimerAnalysis=.false.,isWallModelOn=.false.,isSymmetryOn=.false.
       logical, public :: useIntInComms=.false.,useRealInComms=.false.
-      logical, public :: have_witness=.false.,wit_save=.true.,continue_witness=.false.
-      logical, public :: wit_save_u_i=.false.,wit_save_pr=.false.,wit_save_rho=.false.
+      logical, public :: have_witness=.false.,wit_save_u_i=.false.,wit_save_pr=.false.,wit_save_rho=.false., continue_witness=.false.,wit_save=.true.
 
       ! main char variables
       character(512) :: log_file_name
@@ -171,7 +167,6 @@ module CFDSolverBase_mod
       procedure, public :: preprocWitnessPoints =>CFDSolverBase_preprocWitnessPoints
       procedure, public :: loadWitnessPoints =>CFDSolverBase_loadWitnessPoints
       procedure, public :: save_witness =>CFDSolverBase_save_witness
-      procedure, public :: allocateWitnessPointsVariables =>CFDSolverBase_allocateWitnessPointsVariables
 
       procedure, public :: initialBuffer =>CFDSolverBase_initialBuffer
 
@@ -949,6 +944,12 @@ contains
       avtw(:,:) = 0.0_rp
       !$acc end kernels
 
+      if (this%have_witness) then
+         allocate(witel(this%nwit))
+         allocate(witxi(this%nwit,ndime))
+         allocate(Nwit(this%nwit,nnode))
+      end if
+
       ! Exponential average velocity for wall law
       if(flag_walave) then
          allocate(walave_u(numNodesRankPar,ndime))
@@ -1712,8 +1713,7 @@ contains
                   iwitstep = iwitstep+1
                   call this%update_witness(istep, iwitstep)
                end if
-               if ((istep-this%load_step > 0) &
-                      .and. (mod((istep-this%load_step),this%leapwitsave*this%leapwit)==0)) then
+               if ((istep-this%load_step > 0) .and. (mod((istep-this%load_step),this%leapwitsave*this%leapwit)==0)) then
                   if (this%wit_save) call this%save_witness(istep)
                   iwitstep = 0
                end if
@@ -1728,6 +1728,7 @@ contains
                end if
             end if
          end if
+
 
          ! End simulation when physical time is reached (user defined)
          if (this%time .ge. this%maxPhysTime) then
@@ -1792,37 +1793,15 @@ contains
       call update_witness_hdf5(itewit, this%leapwitsave, buffwit, this%nwit, this%nwitPar, this%nvarwit, this%witness_h5_file_name, bufftime, buffstep, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
    end subroutine CFDSolverBase_save_witness
 
-   subroutine CFDSolverBase_allocateWitnessPointsVariables(this)
-      implicit none
-      class(CFDSolverBase), intent(inout) :: this
-
-      allocate(witel(this%nwit))
-      allocate(witxi(this%nwit,ndime))
-      allocate(Nwit(this%nwit,nnode))
-      allocate(witGlobCand(this%nwit))
-      allocate(witGlob(this%nwit))
-      allocate(witGlobFound(this%nwit*mpi_size))
-      allocate(witxyz(this%nwit,ndime))
-      allocate(witxyzPar(this%nwit,ndime))
-      allocate(witxyzParCand(this%nwit,ndime))
-      !$acc enter data create(witel(:))
-      !$acc enter data create(witxi(:,:))
-      !$acc enter data create(Nwit(:,:))
-      !$acc enter data create(witGlobCand(:))
-      !$acc enter data create(witGlob(:))
-      !$acc enter data create(witGlobFound(:))
-      !$acc enter data create(witxyz(:,:))
-      !$acc enter data create(witxyzPar(:,:))
-      !$acc enter data create(witxyzParCand(:,:))
-   end subroutine CFDSolverBase_allocateWitnessPointsVariables
-
    subroutine CFDSolverBase_preprocWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       integer(4)                          :: iwit, jwit, ielem, inode, ifound, nwitParCand, icand, nwitFound, nwit2find, icount=0, imiss=0, myrank
+      integer(4)                          :: witGlobCand(this%nwit), witGlob(this%nwit), witGlobFound(this%nwit*mpi_size)
       integer(4), allocatable             :: witGlobFound2(:), witGlobMiss(:)
       real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode), dist(numElemsRankPar), xyzwit(ndime), mindist
       real(rp), parameter                 :: wittol=1e-7
+      real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
       real(rp)                            :: locdist(2), globdist(2)
       real(rp)                            :: xmin, ymin, zmin, xmax, ymax, zmax
       real(rp)                            :: xminloc, yminloc, zminloc, xmaxloc, ymaxloc, zmaxloc
@@ -1831,12 +1810,6 @@ contains
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
       end if
-
-      ! Get the number of witness points from number of lines in file
-      call read_nwit(this%witness_inp_file_name, this%nwit)
-
-      ! Allocate witness points vars
-      call this%allocateWitnessPointsVariables()
 
       !$acc parallel loop gang
       do ielem = 1, numElemsRankPar
@@ -1855,7 +1828,6 @@ contains
          center(ielem,2) = aux2/nnode
          center(ielem,3) = aux3/nnode
          helemmax(ielem) = auxvol**(1.0/3.0)
-         ! helemmax(ielem) = 2.0_rp*auxvol**(1.0/3.0) ! safety factor of x2
       end do
       !$acc end loop
       maxL = maxval(abs(helemmax))
@@ -1867,12 +1839,12 @@ contains
       ymaxloc = maxval(coordPar(:,2)) + wittol
       zmaxloc = maxval(coordPar(:,3)) + wittol
 
-      call MPI_Allreduce(xminloc, xmin, 1, MPI_REAL, MPI_MIN, app_comm, mpi_err)
-      call MPI_Allreduce(yminloc, ymin, 1, MPI_REAL, MPI_MIN, app_comm, mpi_err)
-      call MPI_Allreduce(zminloc, zmin, 1, MPI_REAL, MPI_MIN, app_comm, mpi_err)
-      call MPI_Allreduce(xmaxloc, xmax, 1, MPI_REAL, MPI_MAX, app_comm, mpi_err)
-      call MPI_Allreduce(ymaxloc, ymax, 1, MPI_REAL, MPI_MAX, app_comm, mpi_err)
-      call MPI_Allreduce(zmaxloc, zmax, 1, MPI_REAL, MPI_MAX, app_comm, mpi_err)
+      call MPI_Allreduce(xminloc, xmin, 1, mpi_datatype_real, MPI_MIN, app_comm, mpi_err)
+      call MPI_Allreduce(yminloc, ymin, 1, mpi_datatype_real, MPI_MIN, app_comm, mpi_err)
+      call MPI_Allreduce(zminloc, zmin, 1, mpi_datatype_real, MPI_MIN, app_comm, mpi_err)
+      call MPI_Allreduce(xmaxloc, xmax, 1, mpi_datatype_real, MPI_MAX, app_comm, mpi_err)
+      call MPI_Allreduce(ymaxloc, ymax, 1, mpi_datatype_real, MPI_MAX, app_comm, mpi_err)
+      call MPI_Allreduce(zmaxloc, zmax, 1, mpi_datatype_real, MPI_MAX, app_comm, mpi_err)
 
       !$acc kernels
       witGlobCand(:) = 0
@@ -1969,7 +1941,7 @@ contains
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
-      call create_witness_hdf5(this%witness_h5_file_name, nnode, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      if (this%wit_save) call create_witness_hdf5(this%witness_h5_file_name, nnode, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
       if(mpi_rank.eq.0) then
          write(*,*) "--| End of preprocessing witness points"
       end if
@@ -1978,12 +1950,6 @@ contains
    subroutine CFDSolverBase_loadWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-
-      ! Get the number of witness points from number of lines in file
-      call read_nwit(this%witness_inp_file_name, this%nwit)
-
-      ! Allocate witness points vars
-      call this%allocateWitnessPointsVariables()
 
       call load_witness_hdf5(this%witness_h5_file_name, nnode, this%nwit, this%load_step, this%load_stepwit, this%nwitPar, witel, witxi, Nwit)
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
