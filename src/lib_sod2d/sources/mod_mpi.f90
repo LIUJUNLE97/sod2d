@@ -12,6 +12,7 @@ module mod_mpi
    integer :: mpi_real_size,mpi_real4_size,mpi_real8_size
    integer :: mpi_datatype_int,mpi_datatype_int4,mpi_datatype_int8
    integer :: mpi_datatype_real,mpi_datatype_real4,mpi_datatype_real8
+   integer :: mpi_datatype_real_int
 
    integer :: smNode_comm,smNode_rank,smNode_size
    integer :: num_devices, id_device
@@ -74,6 +75,7 @@ module mod_mpi
       data_types(1)    = mpi_datatype_real
       data_types(2)    = mpi_datatype_int
       call MPI_Type_create_struct(nblocks, block_length, displacements, data_types, mpi_datatype_real_int, mpi_err)
+      call MPI_Type_commit(mpi_datatype_real_int, mpi_err)
 
       call MPI_Type_size(mpi_datatype_int,mpi_integer_size, mpi_err)
       call MPI_Type_size(mpi_datatype_int4,mpi_int4_size, mpi_err)

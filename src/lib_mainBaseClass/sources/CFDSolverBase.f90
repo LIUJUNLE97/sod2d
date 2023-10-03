@@ -1788,10 +1788,14 @@ contains
       real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode), dist(numElemsRankPar), xyzwit(ndime), mindist
       real(rp), parameter                 :: wittol=1e-7
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
-      real(rp)                            :: locdist(2), globdist(2)
       real(rp)                            :: xmin, ymin, zmin, xmax, ymax, zmax
       real(rp)                            :: xminloc, yminloc, zminloc, xmaxloc, ymaxloc, zmaxloc
       logical                             :: isinside, found
+      type real_int
+	real(rp)   :: realnum
+	integer(4) :: intnum
+      end type
+      type(real_int)                      :: locdist, globdist
 
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
@@ -1908,10 +1912,10 @@ contains
             dist(:)    = (center(:,1)-xyzwit(1))*(center(:,1)-xyzwit(1))+(center(:,2)-xyzwit(2))*(center(:,2)-xyzwit(2))+(center(:,3)-xyzwit(3))*(center(:,3)-xyzwit(3))
             !$acc end kernels
             ielem      = minloc(dist(:),1)
-            locdist(1) = dist(ielem)
-            locdist(2) = mpi_rank
-            call MPI_Allreduce(locdist, globdist, 2, MPI_2REAL, MPI_MINLOC, app_comm, mpi_err)
-            if (mpi_rank .eq. int(globdist(2))) then
+            locdist % realnum = dist(ielem)
+            locdist % intnum  = mpi_rank
+            call MPI_Allreduce(locdist, globdist, 1, mpi_datatype_real_int, MPI_MINLOC, app_comm, mpi_err)
+            if (mpi_rank .eq. globdist % intnum) then
 	       write(*,*) "[NOT FOUND WITNESS] ", xyzwit(:)
                this%nwitPar              = this%nwitPar+1
                witGlob(this%nwitPar)     = witGlobMiss(iwit)
