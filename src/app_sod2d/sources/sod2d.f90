@@ -1,6 +1,6 @@
 ! main.f90
 
-#define _tgv_ 0
+#define _tgv_ 1
 #define _tgv_multi 0
 #define _tgv_comp 0
 #define _tgv_incomp 0

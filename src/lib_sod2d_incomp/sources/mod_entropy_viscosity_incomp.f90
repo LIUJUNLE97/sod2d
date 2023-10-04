@@ -6,17 +6,17 @@ module mod_entropy_viscosity_incomp
    use mod_mpi
    use mod_mpi_mesh
    use mod_comms
+   use mod_filters,only:convertIJK,al_weights,am_weights,an_weights
 
    contains
       subroutine smart_visc_spectral_incomp(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Ngp,coord,dNgp,gpvol,wgp, &
-                            rho,u,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-                            mue_l,convertIJK,al,am,an)
+                            rho,u,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
 
               ! TODO: Compute element size h
 
               implicit none
 
-              integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w),convertIJK(0:porder+2)
+              integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
               real(rp),    intent(in)  :: Reta(npoin), Ngp(ngaus,nnode)
               real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime), eta(npoin),helem(nelem,nnode),helem_k(nelem),Ml(npoin)
               real(rp),    intent(out) :: mu_e(nelem,ngaus)
@@ -24,7 +24,6 @@ module mod_entropy_viscosity_incomp
               real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
               integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
               real(rp),intent(inout)  :: mue_l(nelem,nnode)
-              real(rp),   intent(in)  :: al(-1:1),am(-1:1),an(-1:1)
               integer(4)               :: ielem, inode,igaus,ipoin,npoin_w_g,idime,jdime
               real(rp)                 :: R1, R2, Ve
               real(rp)                 :: betae,mu,vol,vol2
@@ -106,7 +105,7 @@ module mod_entropy_viscosity_incomp
                             do mm=-1,1
                                !$acc loop seq
                                do nn=-1,1
-                                  aux1 =   aux1 +  al(ll)*am(mm)*an(nn)*mue_l(ielem,invAtoIJK(convertIJK(ii+ll),convertIJK(jj+mm),convertIJK(kk+nn)))
+                                  aux1 =   aux1 +  al_weights(ll)*am_weights(mm)*an_weights(nn)*mue_l(ielem,invAtoIJK(convertIJK(ii+ll),convertIJK(jj+mm),convertIJK(kk+nn)))
                                end do
                             end do
                          end do
