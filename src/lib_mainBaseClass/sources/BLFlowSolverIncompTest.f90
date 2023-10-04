@@ -34,8 +34,8 @@ module BLFlowSolverIncompTest_mod
 
       character(len=64), public :: tag
       real(rp), public :: periodEpisode, time_tw, T_tw
-      integer(4), public :: tw_write_interval
-      real(8) :: Ftau_neg_avg_x, Ftau_pos_avg_x
+      integer(4), public :: tw_write_interval, n_pseudo_envs
+      real(8), allocatable, public :: Ftau_neg_avg_x(:), Ftau_pos_avg_x(:)
 
    contains
       procedure, public :: fillBCTypes           => BLFlowSolverIncompTest_fill_BC_Types
@@ -46,7 +46,7 @@ module BLFlowSolverIncompTest_mod
       procedure, public :: beforeTimeIteration => BLFlowSolverIncompTest_beforeTimeIteration
       procedure, public :: afterTimeIteration => BLFlowSolverIncompTest_afterTimeIteration
       procedure, public :: afterDt => BLFlowSolverIncompTest_afterDt
-      procedure, public :: computeTw => BLFlowSolverIncompTest_computeTw
+      procedure, public :: computeTauW => BLFlowSolverIncompTest_computeTauW
    end type BLFlowSolverIncompTest
 contains
 
@@ -68,14 +68,24 @@ contains
       !$acc end parallel loop
 
       if (mpi_rank .eq. 0) open(unit=446,file="./output_"//trim(adjustl(this%tag))//"/"//"tw.txt",status='replace')
-      this%Ftau_neg_avg_x = 0.0d0
-      this%Ftau_pos_avg_x = 0.0d0
+      if (mpi_rank .eq. 0) open(unit=447,file="./output_"//trim(adjustl(this%tag))//"/"//"tw_avg.txt",status='replace')
+
+      allocate(this%Ftau_neg_avg_x(this%n_pseudo_envs))
+      allocate(this%Ftau_pos_avg_x(this%n_pseudo_envs))
+      !$acc enter data create(this%Ftau_neg_avg_x(:))
+      !$acc enter data create(this%Ftau_pos_avg_x(:))
+
+      this%Ftau_neg_avg_x(:) = 0.0d0
+      this%Ftau_pos_avg_x(:) = 0.0d0
       this%time_tw = 0.0
+      !$acc update device(this%Ftau_neg_avg_x(:))
+      !$acc update device(this%Ftau_pos_avg_x(:))
    end subroutine BLFlowSolverIncompTest_beforeTimeIteration
 
    subroutine BLFlowSolverIncompTest_afterTimeIteration(this)
       class(BLFlowSolverIncompTest), intent(inout) :: this
       if (mpi_rank .eq. 0) close(446)
+      if (mpi_rank .eq. 0) close(447)
    end subroutine BLFlowSolverIncompTest_afterTimeIteration
 
    subroutine BLFlowSolverIncompTest_afterDt(this,istep)
@@ -90,7 +100,8 @@ contains
       real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
       real(rp) :: yp,eta_y,f_y,f_prim_y
       real(rp) :: eliti, ave
-      real(8) :: Ftau_neg(3), Ftau_pos(3)
+      real(8) :: Ftau_neg(this%n_pseudo_envs), Ftau_pos(this%n_pseudo_envs)
+      integer(4) :: i
 
       cd = 1.0_rp
       lx = this%d0*2.5_rp
@@ -197,41 +208,53 @@ contains
       end if
 
       ! wall shear stress computation
-      call this%computeTw(bc_type_non_slip_adiabatic, Ftau_neg, Ftau_pos)
+      call this%computeTauW(Ftau_neg, Ftau_pos)
 
       if(this%time_tw > this%T_tw) this%time_tw = 0.0_rp
       ave = this%dt/(this%time_tw+this%dt)
       eliti = this%time_tw/(this%time_tw+this%dt)
       this%time_tw = this%time_tw+this%dt
 
-      this%Ftau_neg_avg_x = ave * Ftau_neg(1) + eliti * this%Ftau_neg_avg_x
-      this%Ftau_pos_avg_x = ave * Ftau_pos(1) + eliti * this%Ftau_pos_avg_x
+      this%Ftau_neg_avg_x(:) = ave * Ftau_neg(:) + eliti * this%Ftau_neg_avg_x(:)
+      this%Ftau_pos_avg_x(:) = ave * Ftau_pos(:) + eliti * this%Ftau_pos_avg_x(:)
 
       if (mod(istep, this%tw_write_interval) .eq. 0) then
-         if (mpi_rank .eq. 0) write(446,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), this%Ftau_neg_avg_x, Ftau_pos(1), this%Ftau_pos_avg_x
-         if (mpi_rank .eq. 0) call flush(446)
+         if (mpi_rank .eq. 0) then
+            write(446,'(*(ES12.4,:,","))') this%time, Ftau_neg, Ftau_pos
+            write(447,'(*(ES12.4,:,","))') this%time, this%Ftau_neg_avg_x, this%Ftau_pos_avg_x
+            call flush(446)
+            call flush(447)
+         end if
       end if
-
    end subroutine BLFlowSolverIncompTest_afterDt
 
-   subroutine BLFlowSolverIncompTest_computeTw(this, surfCode, Ftau_neg, Ftau_pos)
+   subroutine BLFlowSolverIncompTest_computeTauW(this, Ftau_neg, Ftau_pos)
       class(BLFlowSolverIncompTest), intent(inout) :: this
-      integer(4), intent(in) :: surfCode
-      real(8), intent(out) :: Ftau_neg(ndime), Ftau_pos(ndime)
+      real(8), intent(out) :: Ftau_neg(this%n_pseudo_envs), Ftau_pos(this%n_pseudo_envs)
+      real(8) :: Ftau_neg_single(3), Ftau_pos_single(3)
+      integer(4) :: surfCode
 
-      call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, surfCode, connecParWork, boundPar, &
-         point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
-         mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), Ftau_neg, Ftau_pos)
-
-   end subroutine BLFlowSolverIncompTest_computeTw
+		!$acc loop seq
+      do surfCode=1, this%n_pseudo_envs
+         call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, surfCode, connecParWork, boundPar, &
+            point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
+            mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), Ftau_neg_single, Ftau_pos_single)
+         Ftau_neg(surfCode) = Ftau_neg_single(1)
+         Ftau_pos(surfCode) = Ftau_pos_single(1)
+      end do
+   end subroutine BLFlowSolverIncompTest_computeTauW
 
    subroutine BLFlowSolverIncompTest_fill_BC_Types(this)
       class(BLFlowSolverIncompTest), intent(inout) :: this
 
-      bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! wall
-      bouCodes2BCType(2) = bc_type_far_field_SB       ! Upper part of the domain
-      bouCodes2BCType(3) = bc_type_far_field      ! inlet part of the domain
-      bouCodes2BCType(4) = bc_type_outlet_incomp  ! outlet part of the domain
+      bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! wall 1
+      bouCodes2BCType(2) = bc_type_non_slip_adiabatic ! wall 2
+      bouCodes2BCType(3) = bc_type_non_slip_adiabatic ! wall 3
+      bouCodes2BCType(4) = bc_type_non_slip_adiabatic ! wall 4
+      bouCodes2BCType(5) = bc_type_non_slip_adiabatic ! wall 5
+      bouCodes2BCType(6) = bc_type_far_field_SB ! upper part of the domain
+      bouCodes2BCType(7) = bc_type_far_field ! inlet part of the domain
+      bouCodes2BCType(8) = bc_type_outlet_incomp ! outlet part of the domain
       !$acc update device(bouCodes2BCType(:))
 
    end subroutine BLFlowSolverIncompTest_fill_BC_Types
@@ -455,6 +478,7 @@ contains
       !----------------------------------------------
 
       ! wall shear stress output
+      this%n_pseudo_envs = 5
       this%T_tw = this%periodEpisode
       this%tw_write_interval = 1
 
@@ -497,12 +521,12 @@ contains
 
       ! witness points
       this%have_witness          = .true.
-      this%nwit                  = 240
+      this%nwit                  = 6
       this%witness_inp_file_name = "witness.txt"
-      this%witness_h5_file_name  = "resultwit.h5"
+      this%witness_h5_file_name  = "./output_"//trim(adjustl(this%tag))//"/resultwit.h5"
       this%leapwit               = 10 ! (update witness ever n dts) | in this class, we update the witness points manually
       this%leapwitsave           = 20 ! how many dts are stored in buffer
-      this%wit_save              = .false. ! save witness or not
+      this%wit_save              = .true. ! save witness or not
       this%wit_save_u_i          = .true.
       this%wit_save_pr           = .false.
       this%wit_save_rho          = .false.
