@@ -87,7 +87,7 @@ module time_integ_incomp
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor, &
                          mue_l,convertIJK,al_weights,am_weights,an_weights, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
-                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u)  ! Optional args
+                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u,zo)  ! Optional args
 
             implicit none
 
@@ -137,6 +137,7 @@ module time_integ_incomp
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
             real(rp), optional, intent(in)      :: source_term(npoin,ndime)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
+            real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: istep, ipoin, idime,icode
 
             if(igtime .eq. 1) then
@@ -183,9 +184,15 @@ module time_integ_incomp
                   !$acc kernels
                   Rwmles(1:npoin,1:ndime) = 0.0_rp
                   !$acc end kernels
-                  call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                     bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
-                     rho(:,1),walave_u(:,:),tauw,Rwmles)
+                  if(flag_type_wmles == wmles_type_reichardt) then
+                     call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
+                        rho(:,1),walave_u(:,:),tauw,Rwmles)
+                  else if (flag_type_wmles == wmles_type_abl) then
+                     call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
+                        rho(:,1),walave_u(:,:),zo,tauw,Rwmles)
+                  end if
             end if
 
             !$acc parallel loop
