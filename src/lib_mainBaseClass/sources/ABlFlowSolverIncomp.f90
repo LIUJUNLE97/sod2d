@@ -86,7 +86,7 @@ contains
 
       this%save_restartFile_first = 1
       this%save_restartFile_step = 5000
-      this%loadRestartFile = .true.
+      this%loadRestartFile = .false.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
@@ -121,7 +121,7 @@ contains
       flag_fs_fix_pressure = .false.
       
       period_walave   = 200.0_rp
-      !this%initial_avgTime = 3600.0_rp
+      this%initial_avgTime = 3600.0_rp
 
    end subroutine ABlFlowSolverIncomp_initializeParameters
 

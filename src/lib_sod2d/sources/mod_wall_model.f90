@@ -269,8 +269,6 @@ contains
 
             y = abs(normalF(1)*(point(1)-pointF(1)) + normalF(2)*(point(2)-pointF(2)) + normalF(3)*(point(3)-pointF(3)))
 
-            !write(*,*) "y ",y," type_ijk ",type_ijk
-
             auxvn = (normalF(1)*uiex(1) + normalF(2)*uiex(2) + normalF(3)*uiex(3))
             !$acc loop seq
             do idime = 1,ndime     
