@@ -72,7 +72,7 @@ contains
       open(unit=443,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_raw.txt",status='replace')
       open(unit=444,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_smooth.txt",status='replace')
       open(unit=445,file="./output_"//trim(adjustl(this%tag))//"/"//"control_tw.txt",status='replace')
-      call init_smartredis(client, this%nwitPar, this%nRectangleControl, trim(adjustl(this%tag)), this%db_clustered)
+      call init_smartredis(client, this%nwitPar, this%nRectangleControl, 1, trim(adjustl(this%tag)), this%db_clustered)
       if (mpi_rank .eq. 0) write(111, *) "SmartRedis initialised"
       call write_step_type(client, 1, "ensemble_"//trim(adjustl(this%tag))//".step_type")
    end subroutine BLTSBDRLFlowSolver_initSmartRedis
@@ -156,7 +156,7 @@ contains
             call this%update_witness(istep, 1) ! manual update of witness points
             call write_state(client, buffwit(:, 1, 1), "ensemble_"//trim(adjustl(this%tag))//".state") ! the streamwise velocity u
             call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
-            call write_reward(client, Ftau_neg(1), Ftau_pos(1), "ensemble_"//trim(adjustl(this%tag))//".reward") ! the streamwise component tw_x
+            call write_reward(client, [Ftau_neg(1)], "ensemble_"//trim(adjustl(this%tag))//".reward") ! the streamwise component tw_x
             if (mpi_rank .eq. 0) write(445,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_pos(1)
             if (mpi_rank .eq. 0) call flush(445)
 

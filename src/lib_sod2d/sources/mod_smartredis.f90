@@ -9,14 +9,14 @@ module mod_smartredis
    type(client_type) :: client ! Client instance of SmartRedis to communicate with Redis database
    integer, dimension(:), allocatable :: state_sizes, state_displs
    real(rp), dimension(:), allocatable :: action_global, action_global_previous
-   integer :: state_local_size, state_global_size, action_global_size, step_type_mod
+   integer :: state_local_size, state_global_size, action_global_size, step_type_mod, n_pseudo_envs
    contains
 
    ! Initialise SmartRedis client
    ! State is stored in arrays of different sizes on each MPI rank. Actions is a global array living in all processes.
-   subroutine init_smartredis(client, state_local_size2, action_global_size2, tag, db_clustered)
+   subroutine init_smartredis(client, state_local_size2, action_global_size2, n_pseudo_envs2, tag, db_clustered)
       type(client_type), intent(inout) :: client
-      integer, intent(in) :: state_local_size2, action_global_size2
+      integer, intent(in) :: state_local_size2, action_global_size2, n_pseudo_envs2
       character(len=*), intent(in) :: tag
       logical, intent(in) :: db_clustered
 
@@ -55,6 +55,7 @@ module mod_smartredis
       end if
 
       ! Store in module variables
+      n_pseudo_envs = n_pseudo_envs2
       action_global_size = action_global_size2
       state_local_size = state_local_size2
       call mpi_allreduce(state_local_size, state_global_size, 1, mpi_integer, mpi_sum, app_comm, mpi_err)
@@ -146,16 +147,16 @@ module mod_smartredis
    end subroutine read_action
 
    ! Writes the reward values: wall shear stress integral for both positive and negative values
-   subroutine write_reward(client, Ftau_neg, Ftau_pos, key)
+   subroutine write_reward(client, Ftau_neg, key)
       type(client_type), intent(inout) :: client
-      real(8), intent(in) :: Ftau_neg, Ftau_pos
+      real(8), intent(in) :: Ftau_neg(n_pseudo_envs)
       character(len=*), intent(in) :: key
 
       integer :: error
       logical :: is_error
 
       if (mpi_rank .eq. 0) then
-         error = client%put_tensor(key, [Ftau_neg, Ftau_pos], shape([Ftau_neg, Ftau_pos]))
+         error = client%put_tensor(key, Ftau_neg, shape(Ftau_neg))
          is_error = client%SR_error_parser(error)
          if (error /= 0) stop 'Error in SmartRedis write_reward.'
       end if
