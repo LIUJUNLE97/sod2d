@@ -137,6 +137,7 @@ module time_integ_incomp
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
             integer(4)                          :: istep, ipoin, idime,icode
 
+            call nvtxStartRange("AB2 init")
             if(igtime .eq. 1) then
                !$acc parallel loop
                do ipoin = 1,npoin
@@ -166,26 +167,32 @@ module time_integ_incomp
                call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,1))
             
             end if
+            call nvtxEndRange
 
             if(present(source_term)) then
+               call nvtxStartRange("AB2 source")
                !$acc kernels
                Rsource(1:npoin,1:ndime) = 0.0_rp
                !$acc end kernels
                call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(ipoin,idime,1),source_term,Rsource)
+               call nvtxEndRange
             end if
 
             call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),&
                                           mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mom)
                   
             if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
+                  call nvtxStartRange("AB2 wall model")
                   !$acc kernels
                   Rwmles(1:npoin,1:ndime) = 0.0_rp
                   !$acc end kernels
                   call evalWallModel(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                      bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
                      rho(:,1),walave_u(:,:),tauw,Rwmles)
+                  call nvtxEndRange
             end if
 
+            call nvtxStartRange("AB2 momentum")
             !$acc parallel loop
             do ipoin = 1,npoin
                !$acc loop seq
@@ -194,8 +201,10 @@ module time_integ_incomp
                end do
             end do
             !$acc end parallel loop
-            call full_convec_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),aux_q,rho(:,1),Rmom(:,:,2))          
+            call full_convec_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),aux_q,rho(:,1),Rmom(:,:,2))
+            call nvtxEndRange
 
+            call nvtxStartRange("AB2 update u(2) & Rmom(1)")
             !$acc parallel loop
             do ipoin = 1,npoin
                !$acc loop seq   
@@ -208,11 +217,15 @@ module time_integ_incomp
 
             !$acc end parallel loop     
             if(mpi_size.ge.2) then
+               call nvtxStartRange("AB2 halo update")
                do idime = 1,ndime
                   call mpi_halo_atomic_update_real(u(:,idime,2))
-                  end do              
+               end do
+               call nvtxEndRange
             end if
+            call nvtxEndRange
             
+            call nvtxStartRange("AB2 update u(2)")
             !$acc parallel loop
             do ipoin = 1,npoin
                !$acc loop seq   
@@ -220,7 +233,8 @@ module time_integ_incomp
                   u(ipoin,idime,2) =  u(ipoin,idime,2) + u(ipoin,idime,1)*Ml(ipoin)
               end do
             end do
-            !$acc end parallel loop   
+            !$acc end parallel loop
+            call nvtxEndRange
 
             call conjGrad_veloc_incomp(igtime,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,numBoundsWM,connec,lpoin_w,invAtoIJK,gmshAtoI,&
                                        gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,u(:,:,1),u(:,:,2), &
