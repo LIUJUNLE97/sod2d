@@ -1,7 +1,10 @@
 project(lib_sod2d_incomp)
 
+set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/modules)
+
 file(GLOB_RECURSE SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.f90)
 set(SOURCES_DIR ${CMAKE_CURRENT_LIST_DIR}/sources)
+include_directories(${CMAKE_BINARY_DIR}/modules)
 
 add_library(${PROJECT_NAME} ${LIBRARY_TYPE} ${SRC_FILES})
 
