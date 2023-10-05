@@ -412,7 +412,6 @@ contains
          f1 = exp(-1.0_rp / ((this%time - this%previousActuationTime) / this%periodActuation))
          f2 = exp(-1.0_rp / (1.0_rp - (this%time - this%previousActuationTime) / this%periodActuation))
          f3 = f1 / (f1 + f2)
-
          !$acc kernels
          action_global_instant(:) = action_global_previous(:) + f3 * (action_global(:) - action_global_previous(:))
          !$acc end kernels

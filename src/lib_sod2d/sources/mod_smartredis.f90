@@ -144,6 +144,7 @@ module mod_smartredis
 
       ! broadcast rank 0 global action array to all processes
       call mpi_bcast(action_global, action_global_size, mpi_datatype_real, 0, app_comm, error)
+      !$acc update device(action_global(:))
    end subroutine read_action
 
    ! Writes the reward values: wall shear stress integral for both positive and negative values
