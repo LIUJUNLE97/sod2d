@@ -80,7 +80,7 @@ contains
       !this%dt = 2.5e-3
 
       maxIter = 200
-      tol = 1e-3
+      tol = 1e-2
       flag_cg_prec_bdc = .false.
 
       this%Re = 1600.0_rp

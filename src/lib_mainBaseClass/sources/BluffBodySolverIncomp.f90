@@ -64,7 +64,7 @@ contains
       ! numerical params
       flag_les = 1
       maxIter = 20
-      tol=1e-3
+      tol=1e-2
    
 
       this%cfl_conv = 0.95_rp 

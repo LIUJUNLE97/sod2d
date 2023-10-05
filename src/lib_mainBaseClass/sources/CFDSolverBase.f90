@@ -35,6 +35,9 @@ module mod_arrays
       ! exponential average for wall law
       real(rp), allocatable :: walave_u(:,:)
 
+      ! roughness for wall law
+      real(rp), allocatable :: zo(:)      
+
       ! for entropy and sgs visc.
       real(rp),  allocatable :: mue_l(:,:),al_weights(:),am_weights(:),an_weights(:)
 
@@ -621,6 +624,7 @@ contains
             listBoundsWallModel(auxBoundCnt) = iBound
          end if
       end do
+      !$acc update device(listBoundsWallModel(:))
 
    end subroutine checkIfWallModelOn
 
@@ -953,6 +957,14 @@ contains
          !$acc enter data create(walave_u(:,:))
          !$acc kernels
          walave_u(:,:) = 0.0_rp
+         !$acc end kernels
+      end if
+
+      if(flag_type_wmles==wmles_type_abl) then
+         allocate(zo(numNodesRankPar))
+         !$acc enter data create(zo(:))
+         !$acc kernels
+         zo(:) = 0.0_rp
          !$acc end kernels
       end if
 
