@@ -1553,7 +1553,7 @@ contains
          end if
          call nvtxEndRange
 
-         call nvtxStartRange("RK4 step "//timeStep,istep)
+         call nvtxStartRange("Time-step"//timeStep,istep)
 
          if(flag_implicit == 1) then
             !$acc kernels
