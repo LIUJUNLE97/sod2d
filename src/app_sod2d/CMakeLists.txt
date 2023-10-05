@@ -20,6 +20,9 @@ set_property(TARGET ${PROJECT_NAME} PROPERTY LINKER_LANGUAGE Fortran)
 
 if(SHARED_LIBS)
    target_link_libraries(${PROJECT_NAME} lib_mainBaseClass)
+else()
+   set_mpi()
+   set_hdf5()
 endif()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
