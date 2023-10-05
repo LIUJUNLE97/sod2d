@@ -700,6 +700,8 @@ contains
       allocate(gmshHexahedraHO_ijkTable(0:mporder,0:mporder,0:mporder))
       allocate(gmshQuadrilateralHO_ijTable(0:mporder,0:mporder) )
 
+      call init_quad_info()
+      call init_hex_info()
       call genHighOrderHexGmsh(mporder,auxHexHOtable)
       call genHighOrderQuadGmsh(mporder,auxQuadHOtable)
 
