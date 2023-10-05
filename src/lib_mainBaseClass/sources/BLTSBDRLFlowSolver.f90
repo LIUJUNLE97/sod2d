@@ -177,7 +177,7 @@ contains
          do iNodeL = 1,numNodesRankPar
             if (actionMask(iNodeL) .gt. 0) then
                   u_buffer(iNodeL,1) = 0.0_rp
-                  u_buffer(iNodeL,2) = action_global(actionMask(iNodeL))
+                  u_buffer(iNodeL,2) = action_global_instant(actionMask(iNodeL))
                   u_buffer(iNodeL,3) = 0.0_rp
             end if
          end do

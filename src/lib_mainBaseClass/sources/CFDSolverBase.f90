@@ -70,7 +70,6 @@ module CFDSolverBase_mod
       use mod_comms_boundaries
       use mod_custom_types
       use mod_witness_points
-      use mod_smartredis
       use mod_filters
    implicit none
    private

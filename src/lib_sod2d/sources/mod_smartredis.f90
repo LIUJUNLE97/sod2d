@@ -32,10 +32,10 @@ module mod_smartredis
       !$acc enter data create(action_global(:))
       !$acc enter data create(action_global_previous(:))
 
-      !$acc kernels
       action_global(:) = 0.0_rp
       action_global_previous(:) = 0.0_rp
-      !$acc end kernels
+      !$acc update device(action_global(:))
+      !$acc update device(action_global_previous(:))
 
       ! https://gist.github.com/jnvance/7b8cabebb06f91e2c1e788334f5de6c7
       ! 1. Gather the individual sizes to get total size and offsets in root process (0)

@@ -374,20 +374,19 @@ contains
 
          ! apply actions to control surfaces
          call this%smoothControlFunction(action_global_instant)
+         if (mpi_rank .eq. 0) write(444,'(*(ES12.4,:,","))') this%time, action_global_instant
+         call flush(444)
+
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             if (actionMask(iNodeL) .gt. 0) then
                   u_buffer(iNodeL,1) = 0.0_rp
-                  u_buffer(iNodeL,2) = action_global(actionMask(iNodeL))
+                  u_buffer(iNodeL,2) = action_global_instant(actionMask(iNodeL))
                   u_buffer(iNodeL,3) = 0.0_rp
             end if
          end do
          !$acc end parallel loop
-         if (mpi_rank .eq. 0) write(444,'(*(ES12.4,:,","))') this%time, action_global_instant
-         call flush(444)
-#endif
-! #endif SMARTREDIS
-! CLASSIC ACTUATION
+#else
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             if (actionMask(iNodeL) .gt. 0) then
@@ -397,9 +396,9 @@ contains
             end if
          end do
          !$acc end parallel loop
+#endif
       end if
 #endif
-! #endif ACTUATION
    end subroutine BLMARLFlowSolverIncomp_afterDt
 
 #if ACTUATION
@@ -684,7 +683,7 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 5000
+      this%save_resultsFile_step = 25
 
       this%save_restartFile_first = 1
       this%save_restartFile_step = 5000
