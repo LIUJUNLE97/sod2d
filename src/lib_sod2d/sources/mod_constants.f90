@@ -44,8 +44,11 @@ module mod_constants
 	integer(4), parameter :: bc_type_non_slip_cold        = 5
 	integer(4), parameter :: bc_type_slip_adiabatic       = 6
 	integer(4), parameter :: bc_type_slip_wall_model      = 7
+	integer(4), parameter :: bc_type_top_abl		      = 8
 
-
+	! Type of wall models
+	integer(4), parameter :: wmles_type_reichardt = 1
+	integer(4), parameter :: wmles_type_abl		  = 2
 	!
 	! Types of implicit solvers
 	!

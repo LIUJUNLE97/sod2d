@@ -390,7 +390,7 @@ module mod_solver_incomp
               !
               ! Stop cond
               !
-              if (sqrt(T1) .lt. (tol)) then
+              if (sqrt(T1) .lt. (tol*auxB)) then
                  call nvtxEndRange
                  exit
               end if
@@ -420,9 +420,9 @@ module mod_solver_incomp
            call nvtxEndRange
 
            if (iter == maxIter) then
-               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(T1)," rel tol ",sqrt(T1)/auxB
+               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(T1)/auxB
            else
-               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(T1)," rel tol ",sqrt(T1)/auxB
+               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(T1)/auxB
            endif
             
             !$acc kernels
