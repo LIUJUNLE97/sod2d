@@ -106,7 +106,7 @@ contains
       flag_les = 1
 
       maxIter=20
-      tol=1e-3
+      tol=1e-2
       
 
       this%cfl_conv = 0.9_rp

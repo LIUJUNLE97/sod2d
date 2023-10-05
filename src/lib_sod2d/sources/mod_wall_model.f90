@@ -260,7 +260,6 @@ contains
             pointF(1:ndime) = 0.0_rp
             normalF(1:ndime) = 0.0_rp
             rhol = rho(bound(iBound,igaus))
-            nul = mu_fluid(bound(iBound,igaus))/rhol
             !$acc loop seq
             do idime=1,ndime
                pointF(idime) = coord(bound(iBound,igaus),idime)

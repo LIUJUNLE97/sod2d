@@ -86,12 +86,12 @@ contains
 
       this%save_restartFile_first = 1
       this%save_restartFile_step = 5000
-      this%loadRestartFile = .false.
+      this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
+      this%continue_oldLogs = .true.
 
       this%saveAvgFile = .true.
-      this%loadAvgFile = .false.
+      this%loadAvgFile = .true.
 
       this%saveSurfaceResults = .false.
       !----------------------------------------------
@@ -116,11 +116,11 @@ contains
       nscbc_p_inf = 0.0_rp
 
       maxIter = 200
-      tol = 1e-3
+      tol = 1e-2
 
       flag_fs_fix_pressure = .false.
       
-      period_walave   = 200.0_rp
+      period_walave   = 3600.0_rp
       this%initial_avgTime = 3600.0_rp
 
    end subroutine ABlFlowSolverIncomp_initializeParameters
