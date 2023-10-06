@@ -81,8 +81,8 @@ contains
       !if(present(ijk2gmsh)) allocate(ijk2gmsh(0:porder,0:porder,0:porder))
       !if(present(ijk2vtk))  allocate(ijk2vtk(0:porder,0:porder,0:porder))
 
-      if(mporder.le.2) then
-         write(*,*) 'SOD2D is not ready to work for mporder <= 2... You know, #gobigorgohome and set mporder >= 3'
+      if(mporder<2) then
+         write(*,*) 'SOD2D is not ready to work for mporder < 2... You know, #gobigorgohome and set mporder >= 2'
          call MPI_Abort(app_comm,-1,mpi_err)
       end if
 
