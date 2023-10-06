@@ -970,6 +970,11 @@ contains
       integer(8),allocatable :: auxFacesInRank_i8(:,:)
       logical :: vertexFound
 
+      integer(4),allocatable :: arrayFacesInRank(:),arrayFacesLinkedInRank(:),arrayFacesLinkedTotal(:),matrixFacesLinkedTotal(:,:)
+      integer(4) :: iMpiRank,factor_comms_mpi
+      integer(4),dimension(0:mpi_size-1) :: vecNumFacesLinkedInRank,counts_recv_mpi,displacements_mpi!,vecNumPerElemsInRank
+      integer(4) :: numFacesLinkedInRank,numFacesLinkedTotal,counts_send_mpi
+
       integer(4),parameter :: numQuadVert=4,numHexaVert=8
       integer(8) :: f_iNodeG_i8(numQuadVert),e_iNodeG_i8(numHexaVert) !for the vertex of squares of the face and the element
       integer(4) :: gmshQuadVertInd(numQuadVert),gmshHexVertInd(numHexaVert)
@@ -997,7 +1002,7 @@ contains
       listElemsFacesInRank(:,:) = 0
 
       !---------------------------------------------------
-      numFacesInRank=0
+
       !do the reading by chunks-------
       maxFaces2read =1000
 
@@ -1009,7 +1014,7 @@ contains
       !do iChunk=1,numChunks
 
       faces2readInChunk=numFacesSrl
-      allocate(auxFacesInRank_i8(mnpbou+1,faces2readInChunk))
+      allocate(auxFacesInRank_i8(mnpbou+2,faces2readInChunk))
       auxFacesInRank_i8(:,:) = 0
 
       ms_dims(2) = int(faces2readInChunk,hsize_t)
@@ -1038,6 +1043,9 @@ contains
       call get_gmshHexHOVertIndex(mporder,gmshHexVertInd)
 
       start_time(2) = MPI_Wtime()
+
+      numFacesLinkedInRank=0
+
       !read the chunk
       iChunk=0
       do iFace=1,faces2readInChunk
@@ -1055,7 +1063,7 @@ contains
          !write(*,*) '[',mpi_rank,']iFace',iFace,' -> f_iNodeG ',f_iNodeG(:)
 
          !Search to which element this face belongs
-         do iElem=1,numElemsInRank
+         elemLoop : do iElem=1,numElemsInRank
             nodeCnt=0
             iElemG=listElemsInRank(iElem)
             !fill the corners of the element
@@ -1078,25 +1086,272 @@ contains
                if(.not.(vertexFound)) exit fLoop
             end do fLoop
             if(nodeCnt.ge.4) then
-               numFacesInRank=numFacesInRank+1
+               numFacesLinkedInRank=numFacesLinkedInRank+1
                !write(*,*) '[',mpi_rank,']iFace',iFace,' -> elem ',iElemG
-               auxFacesInRank_i8(mnpbou+1,iFace)=iFaceG!numFacesInRank! iFaceNodes(1:npbou)
-
+               auxFacesInRank_i8(mnpbou+1,iFace)=iFaceG
+               auxFacesInRank_i8(mnpbou+2,iFace)=iElem
+               exit elemLoop !only adding to first elem (in case inner face)
+#if 0
                addLoop : do iAux = 1,maxBoundsPerElem
                   if(listElemsFacesInRank(iElem,iAux).eq.0) then
                      !write(*,*) '[',mpi_rank,'] adding iFace',iFace,'to elem',iElemG
                      listElemsFacesInRank(iElem,iAux) = iFace
 
-                     exit addLoop
+                     !exit addLoop
+                     exit elemLoop
                   end if
                end do addLoop
+#endif
             end if
 
-         end do
+         end do elemLoop
       end do
       end_time(2) = MPI_Wtime()
       elapsed_time(2) = end_time(2) - start_time(2)
-      !write(*,*) 'numFacesInRank',numFacesInRank
+
+#if 1      
+      !write(*,*) '[',mpi_rank,']numFacesLinkedInRank',numFacesLinkedInRank
+
+!-------------------------------------------------------------------------------------------
+
+      !NOW WE NEED TO CHECK THAT IF INTERNAL FACES DUE TO INITIAL PARTITIONING, THIS ONE APPEARS TWICE, LINKED TO TWO ELEMENTS
+      !If so, force assigning it to element with smaller ID
+      call MPI_Allgather(numFacesLinkedInRank,1,mpi_datatype_int4,vecNumFacesLinkedInRank(0),1,mpi_datatype_int4,app_comm,mpi_err)
+
+      numFacesLinkedTotal = 0
+      do iMpiRank=0,mpi_size-1
+         numFacesLinkedTotal = numFacesLinkedTotal + vecNumFacesLinkedInRank(iMpiRank)
+      end do
+      !write(*,*) '[',mpi_rank,']numFacesLinkedTotal',numFacesLinkedTotal
+
+      !AQUI POSAR IF, si numFacesLinkedTotal es com el serial, ja esta, si es mes, s'ha de 'separar el gra de la palla'
+      if(numFacesLinkedTotal.eq.numFacesSrl) then !no dupicated faces, we can go on
+         numFacesInRank=numFacesLinkedInRank
+      else
+      if(mpi_rank.eq.0) write(*,*) 'Detected INNER Faces! numFacesLinkedTotal',numFacesLinkedTotal,'numFacesSrl',numFacesSrl,'-> Doing smart delete algorithm!'
+
+         factor_comms_mpi = 2
+         counts_send_mpi = numFacesLinkedInRank*factor_comms_mpi
+         counts_recv_mpi(0) = vecNumFacesLinkedInRank(0)*factor_comms_mpi
+         displacements_mpi(0) = 0
+         do iMpiRank=1,mpi_size-1
+            counts_recv_mpi(iMpiRank)   = vecNumFacesLinkedInRank(iMpiRank)*factor_comms_mpi
+            displacements_mpi(iMpiRank) = displacements_mpi(iMpiRank-1) + counts_recv_mpi(iMpiRank-1)
+            !write(*,*) 'counts(',iMpiRank,')',counts_recv_mpi(iMpiRank),'disp',displacements_mpi(iMpiRank)
+         end do
+
+         allocate( arrayFacesLinkedInRank(numFacesLinkedInRank*factor_comms_mpi))
+         allocate( arrayFacesLinkedTotal(numFacesLinkedTotal*factor_comms_mpi))
+
+         arrayFacesLinkedInRank(:) = 0
+         arrayFacesLinkedTotal(:) = 0
+
+         jAux=0
+         do iFace=1,faces2readInChunk
+            iFaceG = auxFacesInRank_i8(mnpbou+1,iFace)
+            if(iFaceG.ne.0) then
+               jAux=jAux+1
+               arrayFacesLinkedInRank(jAux) = iFaceG
+               jAux=jAux+1
+               iElem = auxFacesInRank_i8(mnpbou+2,iFace)
+               arrayFacesLinkedInRank(jAux) = iElem
+            end if
+         end do
+
+         call MPI_Allgatherv(arrayFacesLinkedInRank,counts_send_mpi,mpi_datatype_int4,arrayFacesLinkedTotal,counts_recv_mpi,displacements_mpi,mpi_datatype_int4,app_comm,mpi_err)
+
+#if 0
+         if(mpi_rank.eq.2) then
+            do iAux=1,numFacesLinkedInRank*factor_comms_mpi,2
+               write(*,*) '[',iAux,']arrayFacesInRank',arrayFacesLinkedInRank(iAux),'elem',arrayFacesLinkedInRank(iAux+1)
+            end do
+            do iAux=1,numFacesLinkedTotal*factor_comms_mpi,2
+               write(*,*) '[',iAux,']arrayFacesTotal',arrayFacesLinkedTotal(iAux),'elem',arrayFacesLinkedTotal(iAux+1)
+            end do
+         end if
+#endif
+
+         deallocate(arrayFacesLinkedInRank)
+         allocate(matrixFacesLinkedTotal(numFacesLinkedTotal,3))
+
+         iMpiRank=0
+         jAux=0
+         do iAux=1,numFacesLinkedTotal
+            !if(mpi_rank.eq.0) write(*,*) 'jAux',jAux,'impirank',iMpiRank
+            jAux=jAux+1
+            matrixFacesLinkedTotal(iAux,1) = arrayFacesLinkedTotal(jAux)
+            jAux=jAux+1                
+            matrixFacesLinkedTotal(iAux,2) = arrayFacesLinkedTotal(jAux)
+            matrixFacesLinkedTotal(iAux,3) = iMpiRank
+
+            !if(mpi_rank.eq.2) write(*,*) 'iAux',iAux,'iMpiRank',matrixFacesLinkedTotal(iAux,:)
+            if(jAux.ge.counts_recv_mpi(iMpiRank)+displacements_mpi(iMpiRank)) iMpiRank = iMpiRank + 1
+         end do
+
+
+         deallocate(arrayFacesLinkedTotal)
+
+         call quicksort_matrix_int4(matrixFacesLinkedTotal,1)
+
+         !do iAux=1,numFacesLinkedTotal
+         !   if(mpi_rank.eq.2) write(*,*) 'iAux',iAux,'iMpiRank',matrixFacesLinkedTotal(iAux,:)
+         !end do
+
+         !counting the number of non-duplicated faces (also the duplicated ones)
+         allocate(arrayFacesLinkedInRank(numFacesLinkedInRank)) !the max number of faces in the rank
+
+         jAux=0
+         numFacesInRank=0
+
+         !fer el loop de 3/4 fins numFacesLinkedTotal
+         iFace=1
+         do while (iFace<numFacesLinkedTotal)
+            if(matrixFacesLinkedTotal(iFace,1).eq.matrixFacesLinkedTotal(iFace+1,1)) then
+               if(matrixFacesLinkedTotal(iFace,2)<matrixFacesLinkedTotal(iFace+1,2)) then
+                  if(mpi_rank.eq.matrixFacesLinkedTotal(iFace,3)) then
+                     numFacesInRank=numFacesInRank+1
+                     arrayFacesLinkedInRank(numFacesInRank) = matrixFacesLinkedTotal(iFace,1)
+                  !write(*,*) '[',mpi_rank,']addsFace',arrayFacesLinkedInRank(numFacesInRank),'iFace(a)',iFace
+                  end if
+               else
+                  if(mpi_rank.eq.matrixFacesLinkedTotal(iFace+1,3)) then
+                     numFacesInRank=numFacesInRank+1
+                     arrayFacesLinkedInRank(numFacesInRank) = matrixFacesLinkedTotal(iFace+1,1)
+                  !write(*,*) '[',mpi_rank,']addsFace',arrayFacesLinkedInRank(numFacesInRank),'iFace(b)',iFace
+                  end if
+               end if
+               jAux=jAux+1
+               iFace=iFace+2 !jump to the following, face cannot be shared by more than two elems
+            else
+               if(mpi_rank.eq.matrixFacesLinkedTotal(iFace,3)) then
+                  numFacesInRank=numFacesInRank+1
+                  arrayFacesLinkedInRank(numFacesInRank) = matrixFacesLinkedTotal(iFace,1)
+                  !write(*,*) '[',mpi_rank,']addsFace',arrayFacesLinkedInRank(numFacesInRank),'iFace(c)',iFace
+               end if
+               iFace=iFace+1
+            end if
+            !if(mpi_rank.eq.0) write(*,*) 'iAux',iAux,'iMpiRank',matrixFacesLinkedTotal(iAux,:)
+         end do
+
+         !if the last face is not duplicated, must be added to its processor
+         iFace=numFacesLinkedTotal
+         if(matrixFacesLinkedTotal(iFace,1).ne.matrixFacesLinkedTotal(iFace-1,1)) then
+            if(mpi_rank.eq.matrixFacesLinkedTotal(iFace,3)) then
+               numFacesInRank=numFacesInRank+1
+               arrayFacesLinkedInRank(numFacesInRank) = matrixFacesLinkedTotal(iFace,1)
+               !write(*,*) '[',mpi_rank,']addsFace',arrayFacesLinkedInRank(numFacesInRank),'iFace(end)',iFace
+            end if
+         end if
+
+#if 0
+         !necesito fer el par 1/2 a part
+         iFace=2
+         if(matrixFacesLinkedTotal(iFace,1).eq.matrixFacesLinkedTotal(iFace-1,1)) then
+            if(matrixFacesLinkedTotal(iFace,2)<matrixFacesLinkedTotal(iFace-1,2)) then
+               if(mpi_rank.eq.matrixFacesLinkedTotal(iFace,3)) then
+                  numFacesInRank=numFacesInRank+1
+                  arrayFacesLinkedInRank(numFacesInRank) = matrixFacesLinkedTotal(iFace,1)
+                  write(*,*) '[',mpi_rank,']addsFace',arrayFacesLinkedInRank(numFacesInRank),'iFace(a2)',iFace
+               end if
+            else
+               if(mpi_rank.eq.matrixFacesLinkedTotal(iFace-1,3)) then
+                  numFacesInRank=numFacesInRank+1
+                  arrayFacesLinkedInRank(numFacesInRank) = matrixFacesLinkedTotal(iFace-1,1)
+                  write(*,*) '[',mpi_rank,']addsFace',arrayFacesLinkedInRank(numFacesInRank),'iFace(b2)',iFace
+               end if
+            end if
+            jAux=jAux+1
+            iFace=4
+         else
+            if(mpi_rank.eq.matrixFacesLinkedTotal(iFace,3)) then
+               numFacesInRank=numFacesInRank+1
+               arrayFacesLinkedInRank(numFacesInRank) = matrixFacesLinkedTotal(iFace,1)
+                  write(*,*) '[',mpi_rank,']addsFace',arrayFacesLinkedInRank(numFacesInRank),'iFace(c2)',iFace
+            end if
+            if(mpi_rank.eq.matrixFacesLinkedTotal(iFace-1,3)) then
+               numFacesInRank=numFacesInRank+1
+               arrayFacesLinkedInRank(numFacesInRank) = matrixFacesLinkedTotal(iFace-1,1)
+                  write(*,*) '[',mpi_rank,']addsFace',arrayFacesLinkedInRank(numFacesInRank),'iFace(d2)',iFace
+            end if
+            iFace=3
+         end if
+
+         !fer el loop de 3/4 fins numFacesLinkedTotal
+         do while (iFace.le.numFacesLinkedTotal)
+            if(matrixFacesLinkedTotal(iFace,1).eq.matrixFacesLinkedTotal(iFace-1,1)) then
+               if(matrixFacesLinkedTotal(iFace,2)<matrixFacesLinkedTotal(iFace-1,2)) then
+                  if(mpi_rank.eq.matrixFacesLinkedTotal(iFace,3)) then
+                     numFacesInRank=numFacesInRank+1
+                     arrayFacesLinkedInRank(numFacesInRank) = matrixFacesLinkedTotal(iFace,1)
+                  write(*,*) '[',mpi_rank,']addsFace',arrayFacesLinkedInRank(numFacesInRank),'iFace(a)',iFace
+                  end if
+               else
+                  if(mpi_rank.eq.matrixFacesLinkedTotal(iFace-1,3)) then
+                     numFacesInRank=numFacesInRank+1
+                     arrayFacesLinkedInRank(numFacesInRank) = matrixFacesLinkedTotal(iFace-1,1)
+                  write(*,*) '[',mpi_rank,']addsFace',arrayFacesLinkedInRank(numFacesInRank),'iFace(b)',iFace
+                  end if
+               end if
+               jAux=jAux+1
+               iFace=iFace+2 !jump to the following, face cannot be shared by more than two elems
+            else
+               if(mpi_rank.eq.matrixFacesLinkedTotal(iFace,3)) then
+                  numFacesInRank=numFacesInRank+1
+                  arrayFacesLinkedInRank(numFacesInRank) = matrixFacesLinkedTotal(iFace,1)
+                  write(*,*) '[',mpi_rank,']addsFace',arrayFacesLinkedInRank(numFacesInRank),'iFace(c)',iFace
+               end if
+               iFace=iFace+1
+            end if
+
+            !if(mpi_rank.eq.0) write(*,*) 'iAux',iAux,'iMpiRank',matrixFacesLinkedTotal(iAux,:)
+         end do
+#endif
+         write(*,*) '[',mpi_rank,'] # total duplicated:',jAux
+
+         allocate(arrayFacesInRank(numFacesInRank))
+         
+         arrayFacesInRank(:) = arrayFacesLinkedInRank(1:numFacesInRank)
+         call quicksort_array_int4(arrayFacesInRank)
+
+         deallocate(arrayFacesLinkedInRank)
+
+         jAux=0
+         do iFace=1,faces2readInChunk
+            iFaceG = auxFacesInRank_i8(mnpbou+1,iFace)
+            if(iFaceG.ne.0) then
+               iAux = binarySearch_int_i4(arrayFacesInRank,iFaceG)
+               if(iAux.eq.0) then
+                  !write(*,*) '[',mpi_rank,']deleteFace',iFace
+                  auxFacesInRank_i8(:,iFace) = 0
+                  jAux=jAux+1
+                  !write(*,*) 'face',iFaceG,'now does not exists in rank',mpi_rank
+               end if
+            end if
+         end do
+         write(*,*) '[',mpi_rank,'] # deleted(in rank):',jAux,'-> numFacesInRank',numFacesInRank,'numFacesLinkedInRank',numFacesLinkedInRank
+
+         deallocate(arrayFacesInRank)
+
+
+      end if
+
+#endif
+!-------------------------------------------------------------------------------------------
+      call MPI_Barrier(app_comm,h5err)
+      call MPI_Allgather(numFacesInRank,1,mpi_datatype_int4,vecNumFacesLinkedInRank(0),1,mpi_datatype_int4,app_comm,mpi_err)
+
+      numFacesLinkedTotal = 0
+      do iMpiRank=0,mpi_size-1
+         numFacesLinkedTotal = numFacesLinkedTotal + vecNumFacesLinkedInRank(iMpiRank)
+      end do
+      !write(*,*) '[',mpi_rank,']numFacesLinkedTotal',numFacesLinkedTotal
+
+      if(numFacesLinkedTotal.ne.numFacesSrl) then
+         write(*,*) 'ERROR! Crashing in read_periodic_links_from_gmsh_h5_file_in_parallel! EXIT!'
+         write(*,*) 'numFacesLinkedTotal',numFacesLinkedTotal,'NOT EQUAL TO numFacesSrl',numFacesSrl
+         call MPI_Abort(app_comm,-1,mpi_err)
+      end if
+!-------------------------------------------------------------------------------------------
 
       allocate(listFacesInRank(numFacesInRank))
       allocate(connecFacesInRank_i8(numFacesInRank,mnpbou))
@@ -1105,13 +1360,23 @@ contains
 
       iAux=0
       do iFace=1,faces2readInChunk
-         iFaceG=auxFacesInRank_i8(mnpbou+1,iFace)
+         iFaceG = auxFacesInRank_i8(mnpbou+1,iFace)
          if(iFaceG.ne.0) then
             iAux=iAux+1
             listFacesInRank(iAux)        = iFaceG
             connecFacesInRank_i8(iAux,:) = auxFacesInRank_i8(1:mnpbou,iFace)
+            iElem                        = auxFacesInRank_i8(mnpbou+2,iFace)
+            addLoop : do jAux = 1,maxBoundsPerElem
+               if(listElemsFacesInRank(iElem,jAux).eq.0) then
+                  !write(*,*) '[',mpi_rank,'] adding iFace',iFace,'to elem',iElem,'iAux',iAux
+                  listElemsFacesInRank(iElem,jAux) = iFaceG
+                  exit addLoop
+               end if
+            end do addLoop
+
          end if
       end do
+
       end_time(3) = MPI_Wtime()
       elapsed_time(3) = end_time(3) - start_time(3)
 
