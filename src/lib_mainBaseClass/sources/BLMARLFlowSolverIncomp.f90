@@ -62,7 +62,6 @@ module BLMARLFlowSolverIncomp_mod
       procedure, public :: readControlRectangles => BLMARLFlowSolverIncomp_readControlRectangles
 #ifdef SMARTREDIS
       procedure, public :: initSmartRedis  => BLMARLFlowSolverIncomp_initSmartRedis
-      procedure, public :: afterTimeIteration => BLMARLFlowSolverIncomp_afterTimeIteration
       procedure, public :: smoothControlFunction => BLMARLFlowSolverIncomp_smoothControlFunction
 #endif
 #endif
@@ -324,12 +323,16 @@ contains
       end if
 
 #if ACTUATION
+#ifdef SMARTREDIS
+      if (step_type_mod .eq. 1) then
+         call write_step_type(client, 2, "ensemble_"//trim(adjustl(this%tag))//".step_type")
+      end if
+#endif
+#endif
+
+#if ACTUATION
       if (this%time .gt. this%timeBeginActuation) then
 #ifdef SMARTREDIS
-         if (step_type_mod .eq. 1) then
-            call write_step_type(client, 2, "ensemble_"//trim(adjustl(this%tag))//".step_type")
-         end if
-
          ! average wall shear stress
          ave = this%dt/(this%time_tw+this%dt)
          eliti = this%time_tw/(this%time_tw+this%dt)
@@ -679,13 +682,13 @@ contains
       this%maxPhysTime =  this%timeBeginActuation + this%periodEpisode
 
       this%save_logFile_first = 1
-      this%save_logFile_step  = 10
+      this%save_logFile_step  = 250
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 25
+      this%save_resultsFile_step = 4900
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 5000
+      this%save_restartFile_step = 4900
       this%continue_oldLogs = .false.
 
       this%initial_avgTime = this%timeBeginActuation
@@ -705,6 +708,8 @@ contains
 
       this%cfl_conv = 0.95_rp
       this%cfl_diff = 0.95_rp
+      ! flag_use_constant_dt = 1
+      ! this%dt = 0.065_rp
 
       this%d0   = 1.0_rp
       this%U0   = 1.0_rp
