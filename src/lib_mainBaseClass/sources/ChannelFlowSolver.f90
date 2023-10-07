@@ -53,6 +53,8 @@ contains
       integer(4) :: iNodeL
 
       allocate(source_term(numNodesRankPar,ndime))
+      !$acc enter data create(source_term(:,:))
+
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
          source_term(iNodeL,1) = (this%utau*this%utau*this%rho0/this%delta)

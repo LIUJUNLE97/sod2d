@@ -45,6 +45,8 @@ contains
       integer(4) :: iNodeL
 
       allocate(source_term(numNodesRankPar,ndime))
+      !$acc enter data create(source_term(:,:))
+
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
 #if AR2
