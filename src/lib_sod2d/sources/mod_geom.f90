@@ -136,7 +136,7 @@ module mod_geom
 						end do
 					end do outer
 					!lnbn(iboun,ipbou) = connec(ielem,atoIJK(aux2+8))
-					lnbn(iboun,ipbou) = connec(ielem,atoIJK(64))
+					lnbn(iboun,ipbou) = connec(ielem,atoIJK(mnnode))
 				end do
 			end do
 			!$acc end parallel loop
