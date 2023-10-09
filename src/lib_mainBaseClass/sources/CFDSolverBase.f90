@@ -6,7 +6,7 @@ module mod_arrays
       ! main allocatable arrays
       ! integer ---------------------------------------------------
       integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
-      integer(4), allocatable :: atoIJ(:),atoIJK(:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
+      integer(4), allocatable :: atoIJ(:),atoIJK(:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
       integer(4), allocatable :: witel(:), buffstep(:)
 
       ! real ------------------------------------------------------
@@ -1355,12 +1355,10 @@ contains
       if(mpi_rank.eq.0) write(111,*) '  --| Evaluating point2elem array...'
       call elemPerNode(nnode,numElemsRankPar,numNodesRankPar,connecParWork,lelpn,point2elem)
 
-      if(mpi_rank.eq.0) write(111,*) '  --| Evaluating lnbn & lnbnNodes arrays...'
-      allocate(lnbn(numBoundsRankPar,npbou))
-      !$acc enter data create(lnbn(:,:))
+      if(mpi_rank.eq.0) write(111,*) '  --| Evaluating lnbnNodes arrays...'
       allocate(lnbnNodes(numNodesRankPar))
       !$acc enter data create(lnbnNodes(:))
-      call nearBoundaryNode(porder,nnode,npbou,numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
+      call nearBoundaryNode(porder,nnode,npbou,numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbnNodes)
 
       call MPI_Barrier(app_comm,mpi_err)
 
