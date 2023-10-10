@@ -23,7 +23,6 @@ endif()
 
 #----------------COMPILE------------------------------------------------------------------
 # Compile
-set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/modules)
 file(GLOB SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_constants.f90 
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_numerical_params.f90 
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_mpi.f90 
@@ -40,7 +39,6 @@ file(GLOB SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_const
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_hdf5.f90
    ${CMAKE_CURRENT_LIST_DIR}/src/mod_meshConversorTool.f90
    ${CMAKE_CURRENT_LIST_DIR}/src/tool_meshConversorPar.f90)
-include_directories(${CMAKE_BINARY_DIR}/modules)
 
 add_executable(${PROJECT_NAME} ${SRC_FILES})   # Build executable from listed sources
 set_property(TARGET ${PROJECT_NAME} PROPERTY LINKER_LANGUAGE Fortran)
@@ -53,7 +51,6 @@ set_hdf5()
 target_link_libraries(${PROJECT_NAME} lib_gempaInterface)
 
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
-install(DIRECTORY ${CMAKE_Fortran_MODULE_DIRECTORY} DESTINATION include)
 
 # FFLAGS depend on the compiler
 # TODO: check if can safely be removed later
