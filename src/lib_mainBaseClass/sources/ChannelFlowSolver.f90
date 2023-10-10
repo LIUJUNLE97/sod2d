@@ -1,3 +1,6 @@
+#define _recirculation_ 0
+#define _crazy_ 1
+
 module ChannelFlowSolver_mod
    use mod_arrays
    use mod_nvtx
@@ -36,6 +39,7 @@ module ChannelFlowSolver_mod
       procedure, public :: initializeParameters  => ChannelFlowSolver_initializeParameters
       procedure, public :: initializeSourceTerms => ChannelFlowSolver_initializeSourceTerms
       procedure, public :: evalInitialConditions => ChannelFlowSolver_evalInitialConditions
+      procedure, public :: initialBuffer         => ChannelFlowSolver_initialBuffer
    end type ChannelFlowSolver
 contains
 
@@ -43,7 +47,17 @@ contains
       class(ChannelFlowSolver), intent(inout) :: this
 
       !bouCodes2BCType(1) = bc_type_slip_wall_model
-      bouCodes2BCType(1) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
+#if _recirculation_
+      bouCodes2BCType(3) = bc_type_far_field
+#endif
+
+#if _crazy_
+      bouCodes2BCType(3) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(4) = bc_type_recirculation_inlet !inlet
+      bouCodes2BCType(5) = bc_type_far_field !outlet
+#endif
+
       !$acc update device(bouCodes2BCType(:))
 
    end subroutine ChannelFlowSolver_fill_BC_Types
@@ -51,42 +65,136 @@ contains
    subroutine ChannelFlowSolver_initializeSourceTerms(this)
       class(ChannelFlowSolver), intent(inout) :: this
       integer(4) :: iNodeL
+      real(rp) :: source_x
 
       allocate(source_term(numNodesRankPar,ndime))
+      !$acc enter data create(source_term(:,:))
+
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
-         source_term(iNodeL,1) = (this%utau*this%utau*this%rho0/this%delta)
-         source_term(iNodeL,2) = 0.00_rp
-         source_term(iNodeL,3) = 0.00_rp
+#if _recirculation_||_crazy_
+         if(coordPar(iNodeL,1)<6.0_rp) then
+            source_x = (this%utau*this%utau*this%rho0/this%delta)
+         else
+            source_x = 0.
+         end if
+#else
+         source_x = (this%utau*this%utau*this%rho0/this%delta)
+#endif
+         source_term(iNodeL,1) = source_x
+         source_term(iNodeL,2) = 0.0_rp
+         source_term(iNodeL,3) = 0.0_rp
       end do
       !$acc end parallel loop
 
    end subroutine ChannelFlowSolver_initializeSourceTerms
+
+#if _recirculation_||_crazy_
+   subroutine ChannelFlowSolver_initialBuffer(this)
+      class(ChannelFlowSolver), intent(inout) :: this
+      integer(4) :: ii,iNode,iNodePaired,iNodePerMaster,numPairedNodesInlet
+      real(rp) :: velo,yp
+      real(rp) :: xInlet,yInlet,zInlet,xM,yM,zM,minDist,dist,xTarget,xTol
+      integer(4),allocatable :: pairedNodesInlet(:,:)
+
+      write(*,*) 'Searching for paired nodes...'
+
+      numPairedNodesInlet=0
+      do iNode = 1,numNodesRankPar
+         if(bouCodesNodesPar(iNode) .lt. max_num_bou_codes) then
+            if (bouCodesNodesPar(iNode) == bc_type_recirculation_inlet) then
+               numPairedNodesInlet = numPairedNodesInlet + 1
+            end if
+         end if
+      end do
+
+      write(*,*) 'numPairedNodes:',numPairedNodesInlet
+
+      allocate(pairedNodesInlet(2,numPairedNodesInlet))
+
+      xTarget = 6.0_rp
+      xTol = 1.e-5
+
+      numPairedNodesInlet = 0
+      do iNode = 1,numNodesRankPar
+         if(bouCodesNodesPar(iNode) .lt. max_num_bou_codes) then
+            if (bouCodesNodesPar(iNode) == bc_type_recirculation_inlet) then
+               numPairedNodesInlet = numPairedNodesInlet + 1
+               xInlet = coordPar(iNode,1)
+               yInlet = coordPar(iNode,2)
+               zInlet = coordPar(iNode,3)
+
+               iNodePaired = 0
+               minDist = 1.e9
+               do ii=1,nPerRankPar
+                  iNodePerMaster = masSlaRankPar(ii,1) !master node
+                  xM = coordPar(iNodePerMaster,1)
+                  yM = coordPar(iNodePerMaster,2)
+                  zM = coordPar(iNodePerMaster,3)
+                  if((xM<xTarget+xTol).and.(xM>xTarget-xTol)) then
+                     dist = sqrt((xInlet-xM)*(xInlet-xM) + (yInlet-yM)*(yInlet-yM)+ (zInlet-zM)*(zInlet-zM))
+                     if(dist<minDist) then
+                        iNodePaired = iNodePerMaster
+                        minDist = dist
+                     end if
+                  end if
+               end do
+               write(*,*) 'linked',iNode,iNodePaired,'minDist',minDist
+               pairedNodesInlet(1,numPairedNodesInlet) = iNode
+               pairedNodesInlet(2,numPairedNodesInlet) = iNodePaired
+            end if
+         end if
+      end do
+
+
+      !$acc parallel loop
+      do iNode = 1,numNodesRankPar
+
+         if(coordPar(iNode,2)<this%delta) then
+            yp = coordPar(iNode,2)*this%utau*this%rho0/this%mu
+         else
+            yp = abs(coordPar(iNode,2)-2.0_rp*this%delta)*this%utau*this%rho0/this%mu
+         end if
+
+         velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
+
+         u_buffer(iNode,1) = velo
+         u_buffer(iNode,2) = 0.0_rp
+         u_buffer(iNode,3) = 0.0_rp  
+
+      end do
+      !$acc end parallel loop
+
+   end subroutine ChannelFlowSolver_initialBuffer
+#endif
 
    subroutine ChannelFlowSolver_initializeParameters(this)
       class(ChannelFlowSolver), intent(inout) :: this
       real(rp) :: mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "channel"
+      write(this%mesh_h5_file_name,*) "channel_crazy_p4_n10"
+      !write(this%mesh_h5_file_name,*) "channel_crazy_p4_n36"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
+
+      write(this%io_append_info,*) ""
 
       !----------------------------------------------
       !  --------------  I/O params -------------
       this%final_istep = 10000001
 
       this%save_logFile_first = 1 
-      this%save_logFile_step  = 10
+      this%save_logFile_step  = 25
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 20000
+      this%save_resultsFile_step = 2500
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 20000
+      this%save_restartFile_step = 2500
       this%loadRestartFile = .true.
-      this%restartFile_to_load = 1 !1 or 2
+      this%restartFile_to_load = 2 !1 or 2
       this%continue_oldLogs = .false.
 
       this%saveAvgFile = .true.
@@ -107,10 +215,10 @@ contains
       !period_walave   = 1.0_rp
       !flag_walave     = .true.
 
-      this%cfl_conv = 1.9_rp !bdf2
-      this%cfl_diff = 1.9_rp !bdf2
-      !this%cfl_conv = 0.15_rp !exp
-      !this%cfl_diff = 0.15_rp !exp
+      !this%cfl_conv = 1.9_rp !bdf2
+      !this%cfl_diff = 1.9_rp !bdf2
+      this%cfl_conv = 1.5_rp !exp
+      this%cfl_diff = 1.5_rp !exp
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
@@ -135,6 +243,27 @@ contains
       nscbc_Rgas_inf = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
       nscbc_T_C = this%to
+
+#if _recirculation_
+      flag_buffer_on = .true.
+
+      flag_buffer_on_east = .true.
+      flag_buffer_e_min   = 11.0_rp
+      flag_buffer_e_size  = 1.0_rp 
+#endif
+
+#if _crazy_
+      flag_buffer_on = .true.
+
+      flag_buffer_on_east = .true.
+      flag_buffer_e_min   = 11.0_rp
+      flag_buffer_e_size  = 1.0_rp 
+
+      flag_buffer_on_west = .false.
+      flag_buffer_w_min   = 7.0_rp
+      flag_buffer_w_size  = 1.0_rp
+
+#endif
 
    end subroutine ChannelFlowSolver_initializeParameters
 

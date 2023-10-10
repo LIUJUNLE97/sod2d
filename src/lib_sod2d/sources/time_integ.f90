@@ -1098,7 +1098,8 @@ module time_integ
                !west
                if(flag_buffer_on_west .eqv. .true.) then
                   xs = coord(lpoin_w(ipoin),1)
-                  if(xs<flag_buffer_w_min) then
+                  !EP BE AWARE OF THIS MODIFICATION!!!
+                  if((xs<flag_buffer_w_min).and.(xs>(flag_buffer_w_min-flag_buffer_w_size))) then
                      xb = (flag_buffer_w_min-xs)/flag_buffer_w_size
                      xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
