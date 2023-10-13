@@ -137,4 +137,22 @@ module jacobian_oper
 
 		end subroutine
 
+		subroutine compute_jacobian(npoin, ielem, igauss, dNgp, coord, connec, Je)
+			implicit none
+
+			integer(4), intent(in)  :: ielem, igauss, npoin
+			integer(4), intent(in)  :: connec(nelem,nnode)
+			real(rp),   intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus)
+			real(rp),   intent(out) :: Je(ndime,ndime)
+			integer(4)              :: idime, jdime
+			
+			Je(:,:) = 0.0_rp
+			do idime = 1,ndime
+			    do jdime = 1,ndime
+			        Je(idime,jdime) = Je(idime,jdime)+dot_product(dNgp(idime,:,igaus),coord(connec(ielem,:),jdime))
+				end do
+			end do
+
+		end subroutine compute_jacobian
+
 end module jacobian_oper

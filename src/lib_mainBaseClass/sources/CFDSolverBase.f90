@@ -1319,6 +1319,29 @@ contains
 
    end subroutine CFDSolverBase_evalJacobians
 
+   subroutine CFDSolverBase_evalMeshQuality(this)
+      class(CFDSolverBase), intent(inout) :: this
+      
+      integer(4) :: ielem, igauss
+      real(rp)   :: Je(ndime, ndime), idealJ(ndime, ndime)
+      real(rp)   :: eta
+      real(rp)   :: eta_elem(nelem)
+
+      eta_elem(:) = 0
+      do ielem = 1, nelem
+         !call ideal_hexa()
+         do igaus = 1, ngaus
+            call compute_jacobian(npoin, ielem, igauss, dNgp, coord, connec, Je)
+            call shape_measure(elemJ, idealJ, eta)
+            eta_elem(ielem) = eta_elem(ielem) + eta*eta*gpvol(1, igaus, ielem)
+         end do
+      end do
+
+      !Output to hdf5
+
+   end subroutine CFDSolverBase_evalMeshQuality
+
+
    subroutine CFDSolverBase_evalAtoIJKInverse(this)
       class(CFDSolverBase), intent(inout) :: this
 
