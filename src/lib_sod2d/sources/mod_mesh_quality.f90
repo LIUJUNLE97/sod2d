@@ -17,7 +17,7 @@ module mod_mesh_quality
             sigma = (detS + abs(detS))/2
             S2    = matmul(transpose(S), S)
             Sf    = S2(1,1) + S2(2,2) + S2(3,3)
-            eta   = Sf*Sf/(2*sigma) 
+            eta   = Sf*Sf/(2*sigma) !! Check value of d with Abel
 
         end subroutine
 end module
