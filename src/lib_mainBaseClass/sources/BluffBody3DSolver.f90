@@ -1,4 +1,4 @@
-#define CRM 0
+#define CRM 1
 
 module BluffBody3DSolver_mod
    use mod_arrays
@@ -46,9 +46,11 @@ contains
 
 #if CRM
       
-      bouCodes2BCType(1) = bc_type_far_field
+      bouCodes2BCType(1) = bc_type_slip_wall_model
       bouCodes2BCType(2) = bc_type_far_field 
-      bouCodes2BCType(3) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(3) = bc_type_far_field
+      bouCodes2BCType(4) = bc_type_slip_adiabatic
+      bouCodes2BCType(5) = bc_type_far_field
 
 #else
      ! bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! floor
@@ -114,10 +116,10 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 20000
+      this%save_resultsFile_step = 2000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 20000
+      this%save_restartFile_step = 2000
       this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
@@ -134,9 +136,9 @@ contains
       flag_rk_order=4
       flag_implicit_repeat_dt_if_not_converged = 0
 #if CRM    
-      pseudo_cfl =0.95_rp 
+      pseudo_cfl =1.5_rp 
 #else
-      pseudo_cfl =0.95_rp 
+      pseudo_cfl =1.5_rp 
 #endif
       pseudo_ftau= 6.0_rp
       maxIterNonLineal=200
@@ -148,8 +150,8 @@ contains
 #if CRM
       !this%dt = 1e-4
      !flag_use_constant_dt = 1
-      this%cfl_conv = 100.0_rp 
-      this%cfl_diff = 100.0_rp 
+      this%cfl_conv = 0.95_rp 
+      this%cfl_diff = 0.95_rp 
 #else  
       !this%dt = 5e-3
       !flag_use_constant_dt = 1 
@@ -205,24 +207,24 @@ contains
       flag_buffer_on = .true.
 #if CRM
       flag_buffer_on_east = .true.
-      flag_buffer_e_min = 235.0_rp
-      flag_buffer_e_size = 35.0_rp 
+      flag_buffer_e_min = 200.0_rp
+      flag_buffer_e_size = 36.0_rp 
 
       flag_buffer_on_west = .true.
-      flag_buffer_w_min = -235.0_rp
-      flag_buffer_w_size = 35.0_rp 
+      flag_buffer_w_min = -200.0_rp
+      flag_buffer_w_size = 36.0_rp 
 
       flag_buffer_on_north = .true.
-      flag_buffer_n_min = 235.0_rp
-      flag_buffer_n_size = 35.0_rp 
+      flag_buffer_n_min = 200.0_rp
+      flag_buffer_n_size = 36.0_rp 
       
       flag_buffer_on_top = .true.
-      flag_buffer_t_min = 235.0_rp
-      flag_buffer_t_size = 35.0_rp
+      flag_buffer_t_min = 200.0_rp
+      flag_buffer_t_size = 36.0_rp
 
       flag_buffer_on_bottom = .true.
-      flag_buffer_b_min = -235.0_rp
-      flag_buffer_b_size = 35.0_rp
+      flag_buffer_b_min = -200.0_rp
+      flag_buffer_b_size = 36.0_rp
 #else 
       !!windsor
       flag_buffer_on_east = .true.

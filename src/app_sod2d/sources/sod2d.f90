@@ -8,10 +8,10 @@
 #define _channel_incomp 0
 #define _bluff_ 0
 #define _bluff_incomp 0
-#define _bluff3d_ 0
+#define _bluff3d_ 1
 #define _bluff3d_incomp 0
 #define _bl_ 0
-#define _abl_ 1
+#define _abl_ 0
 
 program main
    use mod_numerical_params
