@@ -1322,22 +1322,22 @@ contains
    subroutine CFDSolverBase_evalMeshQuality(this)
       class(CFDSolverBase), intent(inout) :: this
       
-      integer(4) :: ielem, igauss
-      real(rp)   :: Je(ndime, ndime), idealJ(ndime, ndime)
+      integer(4) :: ielem, igaus
+      real(rp)   :: elemJ(ndime, ndime), idealJ(ndime, ndime)
       real(rp)   :: eta
-      real(rp)   :: eta_elem(nelem)
+      real(rp)   :: eta_elem(numElemsRankPar)
 
       eta_elem(:) = 0
-      do ielem = 1, nelem
-         !call ideal_hexa()
+      do ielem = 1, numElemsRankPar
+         call ideal_hexa(numElemsRankPar,numNodesRankPar,ielem,coordPar,connecParOrig,idealJ)
          do igaus = 1, ngaus
-            call compute_jacobian(npoin, ielem, igauss, dNgp, coord, connec, Je)
+            call compute_jacobian(numElemsRankPar,numNodesRankPar,ielem,igaus,dNgp,coordPar,connecParOrig,elemJ)
             call shape_measure(elemJ, idealJ, eta)
-            eta_elem(ielem) = eta_elem(ielem) + eta*eta*gpvol(1, igaus, ielem)
+            eta_elem(ielem) = eta_elem(ielem) + sqrt(eta*eta*gpvol(1, igaus, ielem))
          end do
       end do
 
-      !Output to hdf5
+      call save_meshQuality_hdf5_file(numElemsRankPar,numNodesRankPar,ngaus,Ngp_equi,eta_elem)
 
    end subroutine CFDSolverBase_evalMeshQuality
 

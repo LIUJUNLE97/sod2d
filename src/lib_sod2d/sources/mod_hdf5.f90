@@ -3830,6 +3830,45 @@ contains
 
    end subroutine save_avgResults_hdf5_file
 
+   subroutine save_meshQuality_hdf5_file(nelem,mnnode,mngaus,Ngp,qualityMeasure)
+      implicit none
+      integer(4), intent(in) :: mnnode,mngaus,nelem
+      real(rp),intent(in)    :: Ngp(mngaus,mnnode)
+      real(rp), intent(in)   :: qualityMeasure(nelem)
+      integer(hsize_t)       :: ds_dims(1),ms_dims(1)
+      integer(hssize_t)      :: ms_offset(1)
+      integer(4)             :: h5err
+      integer(hid_t)         :: hdf5_fileId
+      character(512)         :: full_hdf5_fileName,dsetname
+
+      !-----------------------------------------------------------------------------------------------
+      full_hdf5_fileName = trim(adjustl(base_resultsFile_h5_name))//'_meshQuality.hdf'
+
+      call create_hdf5_file(full_hdf5_fileName,hdf5_fileId)
+
+      !-----------------------------------------------------------------------------------------------
+      !   Creating the VTK-HDF structure
+      call create_vtkhdf_unstructuredGrid_struct_for_resultsFile(mnnode,hdf5_fileId)
+
+      !-----------------------------------------------------------------------------------------------
+      ds_dims(1) = int(totalNumNodesPar,hsize_t)
+      ms_dims(1) = int(numNodesRankPar,hsize_t)
+      ms_offset(1) = int(rankNodeStart,hssize_t)-1
+      !-----------------------------------------------------------------------------------------------
+
+      dsetname = trim(adjustl('/VTKHDF/PointData/'))//trim('shapeDistortion')
+      if(isMeshLinealOutput) then
+         call copy_elemGpScalarField_in_nodes(mnnode,connecParWork,connecParOrig,qualityMeasure,auxInterpNodeScalarField)
+      else
+         call interpolate_elemGpScalarField_in_nodes(mnnode,mngaus,Ngp,connecParWork,connecParOrig,qualityMeasure,auxInterpNodeScalarField)
+      end if
+      call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,auxInterpNodeScalarField)
+ 
+
+      call close_hdf5_file(hdf5_fileId)
+
+   end subroutine save_meshQuality_hdf5_file
+
    subroutine load_avgResults_hdf5_file(mnnode,mngaus,Ngp,restartCnt,initial_avgTime,elapsed_avgTime,numAvgNodeScalarFields2load,avgNodeScalarFields2load,nameAvgNodeScalarFields2load,&
                                        numAvgNodeVectorFields2load,avgNodeVectorFields2load,nameAvgNodeVectorFields2load,&
                                        numAvgElemGpScalarFields2load,avgElemGpScalarFields2load,nameAvgElemGpScalarFields2load)

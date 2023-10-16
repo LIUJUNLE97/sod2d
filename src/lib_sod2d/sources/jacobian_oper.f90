@@ -137,10 +137,10 @@ module jacobian_oper
 
 		end subroutine
 
-		subroutine compute_jacobian(npoin, ielem, igauss, dNgp, coord, connec, Je)
+		subroutine compute_jacobian(nelem, npoin, ielem, igaus, dNgp, coord, connec, Je)
 			implicit none
 
-			integer(4), intent(in)  :: ielem, igauss, npoin
+			integer(4), intent(in)  :: ielem, igaus, npoin, nelem
 			integer(4), intent(in)  :: connec(nelem,nnode)
 			real(rp),   intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus)
 			real(rp),   intent(out) :: Je(ndime,ndime)
