@@ -74,6 +74,7 @@ module CFDSolverBase_mod
       use mod_custom_types
       use mod_witness_points
       use mod_filters
+      use mod_mesh_quality
    implicit none
    private
 
@@ -153,6 +154,7 @@ module CFDSolverBase_mod
       procedure, public :: evalShapeFunctions =>CFDSolverBase_evalShapeFunctions
       procedure, public :: evalBoundaryNormals =>CFDSolverBase_evalBoundaryNormals
       procedure, public :: evalJacobians =>CFDSolverBase_evalJacobians
+      procedure, public :: evalMeshQuality =>CFDSolverBase_evalMeshQuality
       procedure, public :: evalAtoIJKInverse =>CFDSolverBase_evalAtoIJKInverse
       procedure, public :: eval_elemPerNode_and_nearBoundaryNode =>CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode
       procedure, public :: evalMass=>CFDSolverBase_evalMass
@@ -2239,6 +2241,9 @@ contains
 
       ! Eval Jacobian information
       call this%evalJacobians()
+
+      ! Compute mesh distortion
+      call this%evalMeshQuality()
 
       ! Eval AtoIJK inverse
       call this%evalAtoIJKInverse()
