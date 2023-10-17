@@ -1331,7 +1331,7 @@ contains
 
       eta_elem(:) = 0
       do ielem = 1, numElemsRankPar
-         call ideal_hexa(numElemsRankPar,numNodesRankPar,ielem,coordPar,connecParOrig,idealJ)
+         call ideal_hexa(numElemsRankPar,numNodesRankPar,ielem,coordPar,connecParOrig,idealJ) !Assumim que el jacobià de l'element ideal és constant
          do igaus = 1, ngaus
             call compute_jacobian(numElemsRankPar,numNodesRankPar,ielem,igaus,dNgp,coordPar,connecParOrig,elemJ)
             call shape_measure(elemJ, idealJ, eta)

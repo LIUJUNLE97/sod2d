@@ -25,7 +25,7 @@ contains
         sigma = (detS + abs(detS))/2
         S2    = matmul(transpose(S), S)
         Sf    = S2(1,1) + S2(2,2) + S2(3,3)
-        eta   = Sf*Sf/(d*sigma**(d/2)) !! Check value of d with Abel
+        eta   = Sf/(d*sigma**(d/2)) !! Check value of d with Abel
         qual  = 1/eta
     end subroutine
 end module
