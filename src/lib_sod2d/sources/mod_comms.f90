@@ -1,5 +1,8 @@
 module mod_comms
     use mod_mpi_mesh
+#if NCCL_COMMS
+    use nccl
+#endif
 
 !-- Select type of communication for mpi_atomic_updates
 #define _SENDRCV_ 0
@@ -41,6 +44,9 @@ contains
 #endif
 #if _PUTFENCE_
         if(mpi_rank.eq.0) write(111,*) "--| Comm. scheme: Put(Fence)"
+#endif
+#if NCCL_COMMS
+        if(mpi_rank.eq.0) write(111,*) "--| Comm. scheme: NCCL"
 #endif
 
         isInt=.false.
@@ -408,6 +414,11 @@ contains
         integer(4) :: i,ngbRank,tagComm
         integer(4) :: memPos_l,memSize
 
+#if NCCL_COMMS
+        ! TODO: implement the NCCL comm
+        write(*,*) "NCCL comm not implemented yet blyat!"
+        stop
+#else
         call fill_sendBuffer_real(realField)
 
         !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
@@ -424,6 +435,7 @@ contains
         !$acc end host_data
 
         call copy_from_rcvBuffer_real(realField)
+#endif
     end subroutine mpi_halo_atomic_update_real_sendRcv
 
      ! REAL ---------------------------------------------------
