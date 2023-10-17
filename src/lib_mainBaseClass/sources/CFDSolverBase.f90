@@ -1336,11 +1336,14 @@ contains
          do igaus = 1, ngaus
             call compute_jacobian(numElemsRankPar,numNodesRankPar,ielem,igaus,dNgp,coordPar,connecParOrig,elemJ)
             call shape_measure(elemJ, idealJ, eta)
-            eta_elem(ielem) = eta_elem(ielem) + sqrt(eta*eta*gpvol(1, igaus, ielem))
-            volume = volume + gpvol(1, igaus, ielem)
+            eta_elem(ielem) = eta_elem(ielem) + eta*eta*gpvol(1, igaus, ielem)
+            volume = volume + 1*1*gpvol(1, igaus, ielem)
          end do
-         eta_elem(ielem) = eta_elem(ielem)/volume
+         eta_elem(ielem) = sqrt(eta_elem(ielem))/sqrt(volume)
          quality(ielem) = 1.0_rp/eta_elem(ielem)
+	 if (isnan(quality(ielem))) then
+		quality(ielem) = -1.0_rp
+	 end if
       end do
 
       call set_hdf5_meshQualityFile_name(this%results_h5_file_path,'meshQuality',this%mesh_h5_file_name,mpi_size)
