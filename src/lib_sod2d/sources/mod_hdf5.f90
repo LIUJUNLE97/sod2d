@@ -3835,35 +3835,33 @@ contains
       integer(4), intent(in) :: mnnode,mngaus,nelem
       real(rp),intent(in)    :: Ngp(mngaus,mnnode)
       real(rp), intent(in)   :: qualityMeasure(nelem)
-      integer(hsize_t)       :: ds_dims(1),ms_dims(1)
-      integer(hssize_t)      :: ms_offset(1)
-      integer(4)             :: h5err
+      integer(hsize_t)       :: ds_dims(1),ms_dims(1), aux_ms_dims
+      integer(hssize_t)      :: ms_offset(1), aux_ms_offset
+      integer(4)             :: h5err, ds_rank=1
       integer(hid_t)         :: hdf5_fileId
       character(512)         :: full_hdf5_fileName,dsetname
+      integer(hid_t)         :: dtype
 
       !-----------------------------------------------------------------------------------------------
       full_hdf5_fileName = trim(adjustl(base_resultsFile_h5_name))//'_meshQuality.hdf'
 
       call create_hdf5_file(full_hdf5_fileName,hdf5_fileId)
+      call select_dtype_rp(dtype)
 
       !-----------------------------------------------------------------------------------------------
       !   Creating the VTK-HDF structure
       call create_vtkhdf_unstructuredGrid_struct_for_resultsFile(mnnode,hdf5_fileId)
 
-      !-----------------------------------------------------------------------------------------------
-      ds_dims(1) = int(totalNumNodesPar,hsize_t)
-      ms_dims(1) = int(numNodesRankPar,hsize_t)
-      ms_offset(1) = int(rankNodeStart,hssize_t)-1
-      !-----------------------------------------------------------------------------------------------
+      aux_ms_dims   = int(numElemsVTKRankPar,hsize_t)
+      aux_ms_offset = int((rankElemStart-1)*mesh_numVTKElemsPerMshElem,hssize_t)
 
-      dsetname = trim(adjustl('/VTKHDF/PointData/'))//trim('shapeDistortion')
-      if(isMeshLinealOutput) then
-         call copy_elemGpScalarField_in_nodes(mnnode,connecParWork,connecParOrig,qualityMeasure,auxInterpNodeScalarField)
-      else
-         call interpolate_elemGpScalarField_in_nodes(mnnode,mngaus,Ngp,connecParWork,connecParOrig,qualityMeasure,auxInterpNodeScalarField)
-      end if
-      call save_array1D_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,auxInterpNodeScalarField)
- 
+      ds_dims(1)   = int(totalNumElements*mesh_numVTKElemsPerMshElem,hsize_t)
+      ms_dims(1)   = aux_ms_dims
+      ms_offset(1) = aux_ms_offset
+
+      dsetname = '/VTKHDF/CellData/shapeDistortion'
+      call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_1d_real_rp_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,qualityMeasure)
 
       call close_hdf5_file(hdf5_fileId)
 
