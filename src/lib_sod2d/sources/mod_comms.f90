@@ -94,7 +94,10 @@ contains
         call setLockBarrier(useLockBarrier)
 
 #ifdef NCCL_COMMS
-        nccl_stat = ncclGetUniqueId(nccl_uid)
+        if (mpi_rank == 0) then
+            nccl_stat = ncclGetUniqueId(nccl_uid)
+        end if
+        call MPI_Bcast(nccl_uid, int( sizeof(ncclUniqueId), kind = 4 ), MPI_BYTE, 0, world_comm, mpi_err)
         nccl_stat = ncclCommInitRank(nccl_comm, mpi_size, nccl_uid, mpi_rank);
         cuda_stat = cudaStreamCreate(nccl_stream);
 #endif
