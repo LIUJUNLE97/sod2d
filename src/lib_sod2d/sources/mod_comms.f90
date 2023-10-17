@@ -513,11 +513,6 @@ contains
         integer(4) :: memPos_l,memSize
         integer(4) :: requests(2*numRanksWithComms)
 
-#ifdef NCCL_COMMS
-        type(ncclResult) :: nccl_stat
-        integer(4) :: cuda_stat
-#endif
-
         call fill_sendBuffer_real(realField)
 
 #if NCCL_COMMS
