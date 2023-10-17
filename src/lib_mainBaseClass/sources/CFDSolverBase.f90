@@ -1336,10 +1336,10 @@ contains
          do igaus = 1, ngaus
             call compute_jacobian(numElemsRankPar,numNodesRankPar,ielem,igaus,dNgp,coordPar,connecParOrig,elemJ)
             call shape_measure(elemJ, idealJ, eta)
-            eta_elem(ielem) = eta_elem(ielem) + sqrt(eta*eta*gpvol(1, igaus, ielem))
+            eta_elem(ielem) = eta_elem(ielem) + eta*eta*gpvol(1, igaus, ielem)
             volume = volume + gpvol(1, igaus, ielem)
          end do
-         eta_elem(ielem) = eta_elem(ielem)/volume
+         eta_elem(ielem) = sqrt(eta_elem(ielem))/volume
          quality(ielem) = 1.0_rp/eta_elem(ielem)
       end do
 
