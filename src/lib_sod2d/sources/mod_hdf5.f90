@@ -9,7 +9,7 @@ module mod_hdf5
    implicit none
 
    character(256) :: meshFile_h5_name,surface_meshFile_h5_name
-   character(256) :: base_resultsFile_h5_name,base_avgResultsFile_h5_name,base_restartFile_h5_name
+   character(256) :: base_resultsFile_h5_name,base_avgResultsFile_h5_name,base_restartFile_h5_name, base_meshQuality_name
 
    integer(hid_t) :: h5_datatype_uint1,h5_datatype_int1,h5_datatype_int4,h5_datatype_int8
    integer(hid_t) :: h5_datatype_real4,h5_datatype_real8
@@ -101,6 +101,18 @@ contains
          //trim(adjustl(mesh_fileName))//'-'//trim(aux_numRanks)//'_'
 
    end subroutine set_hdf5_baseResultsFile_name
+
+   subroutine set_hdf5_meshQualityFile_name(res_filePath,res_fileName,mesh_fileName,numRanks)
+      implicit none
+      character(len=*), intent(in) :: res_filePath,res_fileName,mesh_fileName
+      integer,intent(in) :: numRanks
+      character(len=12) :: aux_numRanks
+
+      write(aux_numRanks,'(I0)') numRanks
+      base_meshQuality_name = trim(adjustl(res_filePath))//trim(adjustl(res_fileName))//'_'&
+         //trim(adjustl(mesh_fileName))//'-'//trim(aux_numRanks)//'.hdf'
+
+   end subroutine set_hdf5_meshQualityFile_name
 
 !---------------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------------
@@ -3843,7 +3855,7 @@ contains
       integer(hid_t)         :: dtype
 
       !-----------------------------------------------------------------------------------------------
-      full_hdf5_fileName = trim(adjustl(base_resultsFile_h5_name))//'_meshQuality.hdf'
+      full_hdf5_fileName = trim(adjustl(base_meshQuality_name))
 
       call create_hdf5_file(full_hdf5_fileName,hdf5_fileId)
       call select_dtype_rp(dtype)
