@@ -3855,7 +3855,6 @@ contains
       integer(hid_t)         :: dtype
 
       !-----------------------------------------------------------------------------------------------
-      !full_hdf5_fileName = trim(adjustl(base_resultsFile_h5_name))//'_meshQuality.hdf'
       full_hdf5_fileName = trim(adjustl(base_meshQuality_name))
 
       call create_hdf5_file(full_hdf5_fileName,hdf5_fileId)
