@@ -1339,6 +1339,7 @@ contains
          end do
       end do
 
+      call set_hdf5_meshQualityFile_name(this%results_h5_file_path,'meshQuality',this%mesh_h5_file_name,mpi_size)
       call save_meshQuality_hdf5_file(numElemsRankPar,numNodesRankPar,ngaus,Ngp_equi,eta_elem)
 
    end subroutine CFDSolverBase_evalMeshQuality
