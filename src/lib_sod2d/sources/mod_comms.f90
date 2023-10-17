@@ -414,11 +414,6 @@ contains
         integer(4) :: i,ngbRank,tagComm
         integer(4) :: memPos_l,memSize
 
-#if NCCL_COMMS
-        ! TODO: implement the NCCL comm
-        write(*,*) "NCCL comm not implemented yet blyat!"
-        stop
-#else
         call fill_sendBuffer_real(realField)
 
         !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
@@ -435,7 +430,6 @@ contains
         !$acc end host_data
 
         call copy_from_rcvBuffer_real(realField)
-#endif
     end subroutine mpi_halo_atomic_update_real_sendRcv
 
      ! REAL ---------------------------------------------------
@@ -504,6 +498,11 @@ contains
 
         call fill_sendBuffer_real(realField)
 
+#if NCCL_COMMS
+        ! TODO: implement the NCCL comm
+        write(*,*) "NCCL comm not implemented yet blyat!"
+        stop
+#else
         ireq=0
         !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
         do i=1,numRanksWithComms
@@ -520,6 +519,7 @@ contains
         !$acc end host_data
 
         call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+#endif
 
         call copy_from_rcvBuffer_real(realField)
     end subroutine mpi_halo_atomic_update_real_iSendiRcv
