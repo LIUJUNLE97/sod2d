@@ -1326,17 +1326,20 @@ contains
       
       integer(4) :: ielem, igaus
       real(rp)   :: elemJ(ndime, ndime), idealJ(ndime, ndime)
-      real(rp)   :: eta
+      real(rp)   :: eta, volume
       real(rp)   :: eta_elem(numElemsRankPar)
 
       eta_elem(:) = 0
       do ielem = 1, numElemsRankPar
+         volume = 0
          call ideal_hexa(numElemsRankPar,numNodesRankPar,ielem,coordPar,connecParOrig,idealJ) !Assumim que el jacobià de l'element ideal és constant
          do igaus = 1, ngaus
             call compute_jacobian(numElemsRankPar,numNodesRankPar,ielem,igaus,dNgp,coordPar,connecParOrig,elemJ)
             call shape_measure(elemJ, idealJ, eta)
             eta_elem(ielem) = eta_elem(ielem) + sqrt(eta*eta*gpvol(1, igaus, ielem))
+            volume = volume + gpvol(1, igaus, ielem)
          end do
+         eta_elem = eta_elem(ielem)/volume
       end do
 
       call set_hdf5_meshQualityFile_name(this%results_h5_file_path,'meshQuality',this%mesh_h5_file_name,mpi_size)
