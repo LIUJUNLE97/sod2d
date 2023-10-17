@@ -513,12 +513,27 @@ contains
         integer(4) :: memPos_l,memSize
         integer(4) :: requests(2*numRanksWithComms)
 
+#ifdef NCCL_COMMS
+        type(ncclResult) :: nccl_stat
+        integer(4) :: cuda_stat
+#endif
+
         call fill_sendBuffer_real(realField)
 
 #if NCCL_COMMS
-        ! TODO: implement the NCCL comm
-        write(*,*) "NCCL comm not implemented yet blyat!"
-        stop
+        nccl_stat = ncclGroupStart()
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            nccl_stat = ncclRecv(aux_realField_r(mempos_l), memSize, ncclFloat, ngbRank, nccl_comm, nccl_stream)
+            nccl_stat = ncclSend(aux_realField_s(mempos_l), memSize, ncclFloat, ngbRank, nccl_comm, nccl_stream)
+        end do
+        !$acc end host_data
+        nccl_stat = ncclGroupEnd()
+        cuda_stat = cudaStreamSynchronize(nccl_stream)
 #else
         ireq=0
         !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
