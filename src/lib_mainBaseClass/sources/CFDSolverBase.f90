@@ -1327,11 +1327,11 @@ contains
       integer(4) :: ielem, igaus
       real(rp)   :: elemJ(ndime, ndime), idealJ(ndime, ndime)
       real(rp)   :: eta, volume
-      real(rp)   :: eta_elem(numElemsRankPar)
+      real(rp)   :: eta_elem(numElemsRankPar), quality(numElemsRankPar)
 
-      eta_elem(:) = 0
       do ielem = 1, numElemsRankPar
-         volume = 0
+         eta_elem(ielem) = 0.0_rp
+         volume = 0.0_rp
          call ideal_hexa(numElemsRankPar,numNodesRankPar,ielem,coordPar,connecParOrig,idealJ) !Assumim que el jacobià de l'element ideal és constant
          do igaus = 1, ngaus
             call compute_jacobian(numElemsRankPar,numNodesRankPar,ielem,igaus,dNgp,coordPar,connecParOrig,elemJ)
@@ -1339,11 +1339,12 @@ contains
             eta_elem(ielem) = eta_elem(ielem) + sqrt(eta*eta*gpvol(1, igaus, ielem))
             volume = volume + gpvol(1, igaus, ielem)
          end do
-         eta_elem = eta_elem(ielem)/volume
+         eta_elem(ielem) = eta_elem(ielem)/volume
+         quality(ielem) = 1.0_rp/eta_elem(ielem)
       end do
 
       call set_hdf5_meshQualityFile_name(this%results_h5_file_path,'meshQuality',this%mesh_h5_file_name,mpi_size)
-      call save_meshQuality_hdf5_file(numElemsRankPar,numNodesRankPar,ngaus,Ngp_equi,eta_elem)
+      call save_meshQuality_hdf5_file(numElemsRankPar,numNodesRankPar,ngaus,Ngp_equi,quality)
 
    end subroutine CFDSolverBase_evalMeshQuality
 
