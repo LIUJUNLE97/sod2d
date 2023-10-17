@@ -1326,7 +1326,7 @@ contains
       
       integer(4) :: ielem, igaus
       real(rp)   :: elemJ(ndime, ndime), idealJ(ndime, ndime)
-      real(rp)   :: eta, volume
+      real(rp)   :: eta, volume, modulus
       real(rp)   :: eta_elem(numElemsRankPar), quality(numElemsRankPar)
 
       do ielem = 1, numElemsRankPar
@@ -1341,7 +1341,10 @@ contains
          end do
          eta_elem(ielem) = sqrt(eta_elem(ielem))/sqrt(volume)
          quality(ielem) = 1.0_rp/eta_elem(ielem)
-	 if (isnan(quality(ielem))) then
+	 modulus = modulo(quality(ielem), 1.0_rp)
+	 !if (isnan(quality(ielem))) then
+	 if (int(modulus) .ne. 0) then
+	 	write(*,*) quality(ielem), modulus
 		quality(ielem) = -1.0_rp
 	 end if
       end do
