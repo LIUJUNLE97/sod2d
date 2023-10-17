@@ -1,6 +1,6 @@
 module mod_comms
     use mod_mpi_mesh
-#if NCCL_COMMS
+#ifdef NCCL_COMMS
     use nccl
 #endif
 
@@ -27,6 +27,14 @@ module mod_comms
     logical :: isInt,isReal
     logical :: isLockBarrier,isPSCWBarrier
 
+#ifdef NCCL_COMMS
+    integer                        :: cuda_stat
+    type(ncclResult)               :: nccl_stat
+    type(ncclUniqueId)             :: nccl_uid
+    type(ncclComm)                 :: nccl_comm
+    integer(kind=cuda_stream_kind) :: nccl_stream
+#endif
+
 contains
 
 !-----------------------------------------------------------------------------------------------------------------------
@@ -45,7 +53,7 @@ contains
 #if _PUTFENCE_
         if(mpi_rank.eq.0) write(111,*) "--| Comm. scheme: Put(Fence)"
 #endif
-#if NCCL_COMMS
+#ifdef NCCL_COMMS
         if(mpi_rank.eq.0) write(111,*) "--| Comm. scheme: NCCL"
 #endif
 
@@ -84,6 +92,12 @@ contains
         call setFenceFlags(useFenceFlags)
         call setPSCWAssertNoCheckFlags(useAssertNoCheckFlags)
         call setLockBarrier(useLockBarrier)
+
+#ifdef NCCL_COMMS
+        nccl_stat = ncclGetUniqueId(nccl_uid)
+        nccl_stat = ncclCommInitRank(nccl_comm, mpi_size, nccl_uid, mpi_rank);
+        cuda_stat = cudaStreamCreate(nccl_stream);
+#endif
 
     end subroutine init_comms
 
