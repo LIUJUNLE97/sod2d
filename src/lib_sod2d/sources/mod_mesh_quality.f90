@@ -1,17 +1,24 @@
 module mod_mesh_quality
     use mod_constants
+    use elem_hex
     implicit none
 contains
-    subroutine ideal_hexa(nelem, npoin, ielem, coord, connec, idealJ)
+    subroutine ideal_hexa(mnnode, nelem, npoin, ielem, coord, connec, idealJ)
         implicit none
-        integer(4), intent(in)  :: ielem, npoin, nelem
-		integer(4), intent(in)  :: connec(nelem,nnode)
-		real(rp),   intent(in)  :: coord(npoin,ndime)
-		real(rp),   intent(out) :: idealJ(ndime,ndime)
+        integer(4), intent(in)  :: mnnode, ielem, npoin, nelem
+        integer(4), intent(in)  :: connec(nelem,nnode)
+        real(rp),   intent(in)  :: coord(npoin,ndime)
+        real(rp),   intent(out) :: idealJ(ndime,ndime)
+        integer(4)              :: ncorner, nedge
+        real(rp)                :: dist(12,ndime), dist2(12)
+
+        call hexa_edges(mnnode,ielem,nelem,npoin,connec,coord,ncorner,nedge,dist(1:12,1:ndime))
+        dist2(:) = sqrt(dist(:,1)*dist(:,1)+dist(:,2)*dist(:,2)+dist(:,3)*dist(:,3))
+
         idealJ(:,:) = 0.0_rp
-        idealJ(1,1) = 1.0_rp
-        idealJ(2,2) = 1.0_rp
-        idealJ(3,3) = 1.0_rp
+        idealJ(1,1) = 1.0_rp/((dist2(9)+dist2(10)+dist2(11)+dist2(12))/4.0_rp)
+        idealJ(2,2) = 1.0_rp/((dist2(1)+dist2(3)+dist2(7)+dist2(5))/4.0_rp)
+        idealJ(3,3) = 1.0_rp/((dist2(2)+dist2(4)+dist2(6)+dist2(8))/4.0_rp)
     end subroutine
 
     subroutine shape_measure(elemJ, idealJ, eta)

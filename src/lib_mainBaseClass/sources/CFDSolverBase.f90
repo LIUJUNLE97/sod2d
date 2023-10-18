@@ -1332,7 +1332,7 @@ contains
       do ielem = 1, numElemsRankPar
          eta_elem(ielem) = 0.0_rp
          volume = 0.0_rp
-         call ideal_hexa(numElemsRankPar,numNodesRankPar,ielem,coordPar,connecParOrig,idealJ) !Assumim que el jacobià de l'element ideal és constant
+         call ideal_hexa(nnode,numElemsRankPar,numNodesRankPar,ielem,coordPar,connecParOrig,idealJ) !Assumim que el jacobià de l'element ideal és constant
          do igaus = 1, ngaus
             call compute_jacobian(numElemsRankPar,numNodesRankPar,ielem,igaus,dNgp,coordPar,connecParOrig,elemJ)
             call shape_measure(elemJ, idealJ, eta)
@@ -1341,12 +1341,10 @@ contains
          end do
          eta_elem(ielem) = sqrt(eta_elem(ielem))/sqrt(volume)
          quality(ielem) = 1.0_rp/eta_elem(ielem)
-	 modulus = modulo(quality(ielem), 1.0_rp)
-	 !if (isnan(quality(ielem))) then
-	 if (int(modulus) .ne. 0) then
-	 	write(*,*) quality(ielem), modulus
-		quality(ielem) = -1.0_rp
-	 end if
+	      modulus = modulo(quality(ielem), 1.0_rp)
+	      if (int(modulus) .ne. 0) then
+	      	quality(ielem) = -1.0_rp
+	      end if
       end do
 
       call set_hdf5_meshQualityFile_name(this%results_h5_file_path,'meshQuality',this%mesh_h5_file_name,mpi_size)
