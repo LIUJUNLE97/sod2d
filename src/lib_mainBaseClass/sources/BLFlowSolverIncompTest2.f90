@@ -1,6 +1,6 @@
 #define ACTUATION 0
 
-module BLFlowSolverIncomp_mod
+module BLFlowSolverIncompTest2_mod
    use mod_arrays
    use mod_nvtx
 #ifndef NOACC
@@ -32,7 +32,7 @@ module BLFlowSolverIncomp_mod
    real(rp), allocatable, dimension(:,:)  :: rectangleControl       ! Two point coordinates that define each rectangle
    integer(4),  allocatable, dimension(:) :: actionMask             ! Mask that contains whether a point is in a rectangle control or not
 
-   type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: BLFlowSolverIncomp
+   type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: BLFlowSolverIncompTest2
 
       real(rp) , public  ::   d0, U0, rho0, Red0, Re, mu
       real(rp), public   :: eta_b(45), f(45), f_prim(45)
@@ -40,24 +40,24 @@ module BLFlowSolverIncomp_mod
       integer(4), public         :: nRectangleControl                          ! Number of rectangle control
       real(rp), public         :: amplitudeActuation, frequencyActuation , timeBeginActuation    ! Parameters of the actuation
    contains
-      procedure, public :: fillBCTypes           => BLFlowSolverIncomp_fill_BC_Types
-      procedure, public :: initializeParameters  => BLFlowSolverIncomp_initializeParameters
-      procedure, public :: evalInitialConditions => BLFlowSolverIncomp_evalInitialConditions
-      procedure, public :: initialBuffer => BLFlowSolverIncomp_initialBuffer
-      procedure, public :: fillBlasius => BLFlowSolverIncomp_fillBlasius
-      procedure, public :: afterDt => BLFlowSolverIncomp_afterDt
-      procedure, public :: beforeTimeIteration => BLFlowSolverIncomp_beforeTimeIteration
-      procedure, public :: getControlNodes => BLFlowSolverIncomp_getControlNodes
-      procedure, public :: readControlRectangles => BLFlowSolverIncomp_readControlRectangles
-      procedure, public :: computeTauW => BLFlowSolverIncomp_computeTauW
-      procedure, public :: afterTimeIteration => BLFlowSolverIncomp_afterTimeIteration
-      end type BLFlowSolverIncomp
+      procedure, public :: fillBCTypes           => BLFlowSolverIncompTest2_fill_BC_Types
+      procedure, public :: initializeParameters  => BLFlowSolverIncompTest2_initializeParameters
+      procedure, public :: evalInitialConditions => BLFlowSolverIncompTest2_evalInitialConditions
+      procedure, public :: initialBuffer => BLFlowSolverIncompTest2_initialBuffer
+      procedure, public :: fillBlasius => BLFlowSolverIncompTest2_fillBlasius
+      procedure, public :: afterDt => BLFlowSolverIncompTest2_afterDt
+      procedure, public :: beforeTimeIteration => BLFlowSolverIncompTest2_beforeTimeIteration
+      procedure, public :: getControlNodes => BLFlowSolverIncompTest2_getControlNodes
+      procedure, public :: readControlRectangles => BLFlowSolverIncompTest2_readControlRectangles
+      procedure, public :: computeTauW => BLFlowSolverIncompTest2_computeTauW
+      procedure, public :: afterTimeIteration => BLFlowSolverIncompTest2_afterTimeIteration
+      end type BLFlowSolverIncompTest2
 contains
 
-   subroutine BLFlowSolverIncomp_readControlRectangles(this)
+   subroutine BLFlowSolverIncompTest2_readControlRectangles(this)
       ! This subroutine reads the file that contains the two points defining a rectanle paralel to the X-Z axis. Several rectangles
       ! can be introduced. In this rectangles is where control will be applied
-      class(BLFlowSolverIncomp), intent(inout) :: this
+      class(BLFlowSolverIncompTest2), intent(inout) :: this
 
       integer(rp)                           :: ii
 
@@ -74,10 +74,10 @@ contains
       close(99)
       !$acc update device(rectangleControl(:,:))
 
-   end subroutine BLFlowSolverIncomp_readControlRectangles
+   end subroutine BLFlowSolverIncompTest2_readControlRectangles
 
-   subroutine BLFlowSolverIncomp_getControlNodes(this)
-      class(BLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncompTest2_getControlNodes(this)
+      class(BLFlowSolverIncompTest2), intent(inout) :: this
 
       integer(4) :: iNodeL, iRectangleControl, bcode
       real(rp)   :: xPoint, zPoint, x1RectangleControl, x2RectangleControl, z1RectangleControl, z2RectangleControl
@@ -108,10 +108,10 @@ contains
          end if
       end do
       !$acc end parallel loop
-   end subroutine BLFlowSolverIncomp_getControlNodes
+   end subroutine BLFlowSolverIncompTest2_getControlNodes
 
-   subroutine BLFlowSolverIncomp_beforeTimeIteration(this)
-      class(BLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncompTest2_beforeTimeIteration(this)
+      class(BLFlowSolverIncompTest2), intent(inout) :: this
       integer(4)                 :: iboun,bcode,ipbou,iBoundNode,iNodeL
 
      !$acc parallel loop
@@ -132,15 +132,15 @@ contains
 #endif
       if (mpi_rank .eq. 0) open(unit=446,file="tw.txt",status='replace')
 
-   end subroutine BLFlowSolverIncomp_beforeTimeIteration
+   end subroutine BLFlowSolverIncompTest2_beforeTimeIteration
 
-   subroutine BLFlowSolverIncomp_afterTimeIteration(this)
-      class(BLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncompTest2_afterTimeIteration(this)
+      class(BLFlowSolverIncompTest2), intent(inout) :: this
       if (mpi_rank .eq. 0) close(446)
-   end subroutine BLFlowSolverIncomp_afterTimeIteration
+   end subroutine BLFlowSolverIncompTest2_afterTimeIteration
 
-   subroutine BLFlowSolverIncomp_afterDt(this,istep)
-      class(BLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncompTest2_afterDt(this,istep)
+      class(BLFlowSolverIncompTest2), intent(inout) :: this
       integer(4)              , intent(in)   :: istep
       real(rp) :: cd, lx, ly, xmin, xmax, f1, f2, f3
       integer(4) :: k,j,ielem,iCen,inode,igaus, isoI, isoJ, isoK,ii,jdime,idime,iNodeL,iNodeL2,bcode,isoII, isoJJ, isoKK,type_ijk
@@ -274,19 +274,19 @@ contains
       write(446,'(*(ES12.4,:,","))') this%time, Ftau_neg, Ftau_pos
       call flush(446)
 
-   end subroutine BLFlowSolverIncomp_afterDt
+   end subroutine BLFlowSolverIncompTest2_afterDt
 
-   subroutine BLFlowSolverIncomp_computeTauW(this, Ftau_neg, Ftau_pos)
-      class(BLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncompTest2_computeTauW(this, Ftau_neg, Ftau_pos)
+      class(BLFlowSolverIncompTest2), intent(inout) :: this
       real(8), intent(out) :: Ftau_neg(3), Ftau_pos(3)
 
       call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, 1, connecParWork, boundPar, &
       point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
       mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), Ftau_neg, Ftau_pos)
-   end subroutine BLFlowSolverIncomp_computeTauW
+   end subroutine BLFlowSolverIncompTest2_computeTauW
 
-   subroutine BLFlowSolverIncomp_fill_BC_Types(this)
-      class(BLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncompTest2_fill_BC_Types(this)
+      class(BLFlowSolverIncompTest2), intent(inout) :: this
 
 #if (ACTUATION)
       bouCodes2BCType(1) = bc_type_unsteady_inlet ! wall + actuation
@@ -298,10 +298,10 @@ contains
       bouCodes2BCType(4) = bc_type_outlet_incomp  ! outlet part of the domain
       !$acc update device(bouCodes2BCType(:))
 
-   end subroutine BLFlowSolverIncomp_fill_BC_Types
+   end subroutine BLFlowSolverIncompTest2_fill_BC_Types
 
-   subroutine BLFlowSolverIncomp_fillBlasius(this)
-      class(BLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncompTest2_fillBlasius(this)
+      class(BLFlowSolverIncompTest2), intent(inout) :: this
 
      this%eta_b(1) = real(0.0E+00,rp)
      this%eta_b(2) = real(2.0E-01,rp)
@@ -441,10 +441,10 @@ contains
      this%f_prim(44) = real(9.999995242E-01,rp)
      this%f_prim(45) = real(9.999997695E-01,rp)
 
-  end subroutine BLFlowSolverIncomp_fillBlasius
+  end subroutine BLFlowSolverIncompTest2_fillBlasius
 
-   subroutine BLFlowSolverIncomp_initializeParameters(this)
-      class(BLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncompTest2_initializeParameters(this)
+      class(BLFlowSolverIncompTest2), intent(inout) :: this
       real(rp) :: mur
 
       write(this%mesh_h5_file_path,*) ""
@@ -517,10 +517,10 @@ contains
       !this%timeBeginActuation = 2500.0_rp
       this%timeBeginActuation = 0.0_rp
 #endif
-   end subroutine BLFlowSolverIncomp_initializeParameters
+   end subroutine BLFlowSolverIncompTest2_initializeParameters
 
-   subroutine BLFlowSolverIncomp_initialBuffer(this)
-      class(BLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncompTest2_initialBuffer(this)
+      class(BLFlowSolverIncompTest2), intent(inout) :: this
       integer(4) :: iNodeL,k,j
       real(rp) :: yp,eta_y,f_y,f_prim_y
 
@@ -558,10 +558,10 @@ contains
       end do
       !$acc end parallel loop
 
-   end subroutine BLFlowSolverIncomp_initialBuffer
+   end subroutine BLFlowSolverIncompTest2_initialBuffer
 
-   subroutine BLFlowSolverIncomp_evalInitialConditions(this)
-      class(BLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncompTest2_evalInitialConditions(this)
+      class(BLFlowSolverIncompTest2), intent(inout) :: this
       integer(4) :: iNodeL, idime, j,k
       real(rp) :: yp,eta_y,f_y,f_prim_y
       integer(4)   :: iLine,iNodeGSrl,auxCnt
@@ -621,6 +621,6 @@ contains
          mu_factor(iNodeL) = flag_mu_factor
       end do
       !$acc end parallel loop
-   end subroutine BLFlowSolverIncomp_evalInitialConditions
+   end subroutine BLFlowSolverIncompTest2_evalInitialConditions
 
-end module BLFlowSolverIncomp_mod
+end module BLFlowSolverIncompTest2_mod
