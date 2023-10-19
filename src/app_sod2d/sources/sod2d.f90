@@ -54,9 +54,9 @@ program main
    ! use BLAPGFlowSolver_mod
 #endif
 #if _bl_incomp
-   ! use BLFlowSolverIncomp_mod
+   use BLFlowSolverIncomp_mod
    ! use BLFlowSolverIncompTest_mod
-   use BLMARLFlowSolverIncomp_mod
+   ! use BLMARLFlowSolverIncomp_mod
 #endif
 #if _tsb_
    ! use BLTSBFlowSolver_mod
@@ -113,9 +113,9 @@ program main
    call blflow%run()
 #endif
 #if _bl_incomp
-   !  type(BLFlowSolverIncomp)    :: blflow
+    type(BLFlowSolverIncomp)    :: blflow
    !  type(BLFlowSolverIncompTest)    :: blflow
-    type(BLMARLFlowSolverIncomp)    :: blflow
+   !  type(BLMARLFlowSolverIncomp)    :: blflow
    call blflow%run()
 #endif
 #if _tsb_

@@ -1,6 +1,6 @@
-#define ACTUATION 1
+#define ACTUATION 0
 
-module BLMARLFlowSolverIncomp_mod
+module BLFlowSolverIncomp_mod
    use mod_arrays
    use mod_nvtx
 #ifndef NOACC
@@ -25,7 +25,6 @@ module BLMARLFlowSolverIncomp_mod
    use mod_mpi
    use mod_mpi_mesh
    use mod_hdf5
-   use mod_smartredis
    use CFDSolverPeriodicWithBoundariesIncomp_mod
    implicit none
    private
@@ -33,50 +32,36 @@ module BLMARLFlowSolverIncomp_mod
    real(rp), allocatable, dimension(:,:)  :: rectangleControl       ! Two point coordinates that define each rectangle
    integer(4),  allocatable, dimension(:) :: actionMask             ! Mask that contains whether a point is in a rectangle control or not
 
-   type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: BLMARLFlowSolverIncomp
+   type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: BLFlowSolverIncomp
 
       real(rp) , public  ::   d0, U0, rho0, Red0, Re, mu
       real(rp), public   :: eta_b(45), f(45), f_prim(45)
-
-      character(len=64), public :: tag
-      logical :: db_clustered = .false.
-      character(512), public   :: fileControlName                            ! Input: path to the file that contains the points defining the rectangle controls
+      character(512), public   :: fileControlName                            ! Input: path to the file that contains the points defining the
       integer(4), public         :: nRectangleControl                          ! Number of rectangle control
-      real(rp), public :: amplitudeActuation, periodEpisode, previousActuationTime, periodActuation, frequencyActuation, timeBeginActuation ! parameters of the actuation
-      integer(4), public :: tw_write_interval, n_pseudo_envs
-      real(rp), public :: time_tw
-      real(8), allocatable, public :: Ftau_neg_avg_x(:), Ftau_pos_avg_x(:)
-
+      real(rp), public         :: amplitudeActuation, frequencyActuation , timeBeginActuation    ! Parameters of the actuation
    contains
-      procedure, public :: fillBCTypes           => BLMARLFlowSolverIncomp_fill_BC_Types
-      procedure, public :: initializeParameters  => BLMARLFlowSolverIncomp_initializeParameters
-      procedure, public :: evalInitialConditions => BLMARLFlowSolverIncomp_evalInitialConditions
-      procedure, public :: initialBuffer => BLMARLFlowSolverIncomp_initialBuffer
-      procedure, public :: fillBlasius => BLMARLFlowSolverIncomp_fillBlasius
-      procedure, public :: afterDt => BLMARLFlowSolverIncomp_afterDt
-      procedure, public :: beforeTimeIteration => BLMARLFlowSolverIncomp_beforeTimeIteration
-      procedure, public :: afterTimeIteration => BLMARLFlowSolverIncomp_afterTimeIteration
-      procedure, public :: computeTauW => BLMARLFlowSolverIncomp_computeTauW
-#if ACTUATION
-      procedure, public :: getControlNodes => BLMARLFlowSolverIncomp_getControlNodes
-      procedure, public :: readControlRectangles => BLMARLFlowSolverIncomp_readControlRectangles
-#ifdef SMARTREDIS
-      procedure, public :: initSmartRedis  => BLMARLFlowSolverIncomp_initSmartRedis
-      procedure, public :: smoothControlFunction => BLMARLFlowSolverIncomp_smoothControlFunction
-#endif
-#endif
-   end type BLMARLFlowSolverIncomp
+      procedure, public :: fillBCTypes           => BLFlowSolverIncomp_fill_BC_Types
+      procedure, public :: initializeParameters  => BLFlowSolverIncomp_initializeParameters
+      procedure, public :: evalInitialConditions => BLFlowSolverIncomp_evalInitialConditions
+      procedure, public :: initialBuffer => BLFlowSolverIncomp_initialBuffer
+      procedure, public :: fillBlasius => BLFlowSolverIncomp_fillBlasius
+      procedure, public :: afterDt => BLFlowSolverIncomp_afterDt
+      procedure, public :: beforeTimeIteration => BLFlowSolverIncomp_beforeTimeIteration
+      procedure, public :: getControlNodes => BLFlowSolverIncomp_getControlNodes
+      procedure, public :: readControlRectangles => BLFlowSolverIncomp_readControlRectangles
+      procedure, public :: computeTauW => BLFlowSolverIncomp_computeTauW
+      procedure, public :: afterTimeIteration => BLFlowSolverIncomp_afterTimeIteration
+      end type BLFlowSolverIncomp
 contains
 
-#if ACTUATION
-   subroutine BLMARLFlowSolverIncomp_readControlRectangles(this)
+   subroutine BLFlowSolverIncomp_readControlRectangles(this)
       ! This subroutine reads the file that contains the two points defining a rectanle paralel to the X-Z axis. Several rectangles
       ! can be introduced. In this rectangles is where control will be applied
-      class(BLMARLFlowSolverIncomp), intent(inout) :: this
+      class(BLFlowSolverIncomp), intent(inout) :: this
 
       integer(rp)                           :: ii
 
-      open(unit=99, file=trim(adjustl(this%fileControlName)), status='old', action='read')
+      open(unit=99, file=this%fileControlName, status='old', action='read')
 
       read(99,*) this%nRectangleControl
       allocate(rectangleControl(2,2*this%nRectangleControl))
@@ -89,10 +74,10 @@ contains
       close(99)
       !$acc update device(rectangleControl(:,:))
 
-   end subroutine BLMARLFlowSolverIncomp_readControlRectangles
+   end subroutine BLFlowSolverIncomp_readControlRectangles
 
-   subroutine BLMARLFlowSolverIncomp_getControlNodes(this)
-      class(BLMARLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_getControlNodes(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
 
       integer(4) :: iNodeL, iRectangleControl, bcode
       real(rp)   :: xPoint, zPoint, x1RectangleControl, x2RectangleControl, z1RectangleControl, z2RectangleControl
@@ -123,23 +108,10 @@ contains
          end if
       end do
       !$acc end parallel loop
-   end subroutine BLMARLFlowSolverIncomp_getControlNodes
+   end subroutine BLFlowSolverIncomp_getControlNodes
 
-#ifdef SMARTREDIS
-   subroutine BLMARLFlowSolverIncomp_initSmartRedis(this)
-      class(BLMARLFlowSolverIncomp), intent(inout) :: this
-
-      open(unit=443,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_raw.txt",status='replace')
-      open(unit=445,file="./output_"//trim(adjustl(this%tag))//"/"//"control_tw.txt",status='replace')
-      call init_smartredis(client, this%nwitPar, this%nRectangleControl, this%n_pseudo_envs, trim(adjustl(this%tag)), this%db_clustered)
-      if (mpi_rank .eq. 0) write(111, *) "SmartRedis initialised"
-      call write_step_type(client, 1, "ensemble_"//trim(adjustl(this%tag))//".step_type")
-   end subroutine BLMARLFlowSolverIncomp_initSmartRedis
-#endif
-#endif
-
-   subroutine BLMARLFlowSolverIncomp_beforeTimeIteration(this)
-      class(BLMARLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_beforeTimeIteration(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
       integer(4)                 :: iboun,bcode,ipbou,iBoundNode,iNodeL
 
      !$acc parallel loop
@@ -155,46 +127,20 @@ contains
       end do
       !$acc end parallel loop
 
-#if ACTUATION
-      open(unit=444,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_smooth.txt",status='replace')
+#if (ACTUATION)
       call this%getControlNodes()
-#ifdef SMARTREDIS
-      if (mpi_rank .eq. 0) open(unit=447,file="./output_"//trim(adjustl(this%tag))//"/"//"tw_avg.txt",status='replace')
-      call this%initSmartRedis()
 #endif
-#endif
+      if (mpi_rank .eq. 0) open(unit=446,file="tw.txt",status='replace')
 
-      if (mpi_rank .eq. 0) open(unit=446,file="./output_"//trim(adjustl(this%tag))//"/"//"tw.txt",status='replace')
+   end subroutine BLFlowSolverIncomp_beforeTimeIteration
 
-      allocate(this%Ftau_neg_avg_x(this%n_pseudo_envs))
-      allocate(this%Ftau_pos_avg_x(this%n_pseudo_envs))
-      !$acc enter data create(this%Ftau_neg_avg_x(:))
-      !$acc enter data create(this%Ftau_pos_avg_x(:))
-
-      this%Ftau_neg_avg_x(:) = 0.0d0
-      this%Ftau_pos_avg_x(:) = 0.0d0
-      this%time_tw = 0.0
-      !$acc update device(this%Ftau_neg_avg_x(:))
-      !$acc update device(this%Ftau_pos_avg_x(:))
-   end subroutine BLMARLFlowSolverIncomp_beforeTimeIteration
-
-   subroutine BLMARLFlowSolverIncomp_afterTimeIteration(this)
-      class(BLMARLFlowSolverIncomp), intent(inout) :: this
-#if ACTUATION
-      if (mpi_rank .eq. 0) close(444)
-#ifdef SMARTREDIS
-      call write_step_type(client, 0, "ensemble_"//trim(adjustl(this%tag))//".step_type")
-      if (mpi_rank .eq. 0) close(443)
-      if (mpi_rank .eq. 0) close(445)
-      if (mpi_rank .eq. 0) close(447)
-      call end_smartredis(client)
-#endif
-#endif
+   subroutine BLFlowSolverIncomp_afterTimeIteration(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
       if (mpi_rank .eq. 0) close(446)
-   end subroutine BLMARLFlowSolverIncomp_afterTimeIteration
+   end subroutine BLFlowSolverIncomp_afterTimeIteration
 
-   subroutine BLMARLFlowSolverIncomp_afterDt(this,istep)
-      class(BLMARLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_afterDt(this,istep)
+      class(BLFlowSolverIncomp), intent(inout) :: this
       integer(4)              , intent(in)   :: istep
       real(rp) :: cd, lx, ly, xmin, xmax, f1, f2, f3
       integer(4) :: k,j,ielem,iCen,inode,igaus, isoI, isoJ, isoK,ii,jdime,idime,iNodeL,iNodeL2,bcode,isoII, isoJJ, isoKK,type_ijk
@@ -204,16 +150,8 @@ contains
       real(rp)  :: gradV(ndime),vl(nnode),fact,targ,gradU(ndime),ul(nnode)
       real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
       real(rp) :: yp,eta_y,f_y,f_prim_y
-      real(rp) :: eliti, ave
-      real(8) :: Ftau_neg(this%n_pseudo_envs), Ftau_pos(this%n_pseudo_envs)
-      integer(4) :: i
-#if ACTUATION
-#ifdef SMARTREDIS
-      real(rp) :: action_global_instant(action_global_size)
-#else
-      real(rp) :: action_classic
-#endif
-#endif
+      real(8) :: Ftau_neg(3), Ftau_pos(3)
+
 
       cd = 1.0_rp
       lx = this%d0*2.5_rp
@@ -319,159 +257,51 @@ contains
          call nvtxEndRange
       end if
 
-      ! wall shear stress
-      call this%computeTauW(Ftau_neg, Ftau_pos)
-      if (mod(istep, this%tw_write_interval) .eq. 0 .and. mpi_rank .eq. 0) then
-         write(446,'(*(ES12.4,:,","))') this%time, Ftau_neg, Ftau_pos
-         call flush(446)
-      end if
-
-#if ACTUATION
-#ifdef SMARTREDIS
-      if (step_type_mod .eq. 1) then
-         call write_step_type(client, 2, "ensemble_"//trim(adjustl(this%tag))//".step_type")
-      end if
-#endif
-#endif
-
-#if ACTUATION
+#if (ACTUATION)
       if (this%time .gt. this%timeBeginActuation) then
-#ifdef SMARTREDIS
-         ! average wall shear stress
-         ave = this%dt/(this%time_tw+this%dt)
-         eliti = this%time_tw/(this%time_tw+this%dt)
-         this%time_tw = this%time_tw+this%dt
-         ! !$acc kernels
-         this%Ftau_neg_avg_x(:) = ave * Ftau_neg(:) + eliti * this%Ftau_neg_avg_x(:)
-         this%Ftau_pos_avg_x(:) = ave * Ftau_pos(:) + eliti * this%Ftau_pos_avg_x(:)
-         ! !$acc end kernels
-         if (mod(istep, this%tw_write_interval) .eq. 0 .and. mpi_rank .eq. 0) then
-            write(447,'(*(ES12.4,:,","))') this%time, this%Ftau_neg_avg_x, this%Ftau_pos_avg_x
-            call flush(447)
-         end if
-
-         ! check if a new action is needed
-         if (this%time - this%previousActuationTime .ge. this%periodActuation) then
-            if (mpi_rank .eq. 0) write(111, *) "Performing SmartRedis comms"
-
-            ! reset wall shear stress averaging time
-            this%time_tw = 0.0_rp
-
-            ! save old action values and time - useful for interpolating to new action_global values
-            !$acc kernels
-            action_global_previous(:) = action_global(:)
-            this%previousActuationTime = this%previousActuationTime + this%periodActuation
-            !$acc end kernels
-
-            call this%update_witness(istep, 1) ! manual update of witness points
-            call write_state(client, buffwit(:, 1, 1), "ensemble_"//trim(adjustl(this%tag))//".state") ! the streamwise velocity u
-            call write_reward(client, this%Ftau_neg_avg_x, "ensemble_"//trim(adjustl(this%tag))//".reward") ! the streamwise component tw_x
-            if (mpi_rank .eq. 0) write(445,'(*(ES12.4,:,","))') this%time, this%Ftau_neg_avg_x
-            if (mpi_rank .eq. 0) call flush(445)
-
-            call read_action(client, "ensemble_"//trim(adjustl(this%tag))//".action") ! modifies action_global (the target control values)
-            if (mpi_rank .eq. 0) write(443,'(*(ES12.4,:,","))') this%time+this%periodActuation, action_global
-            if (mpi_rank .eq. 0) call flush(443)
-
-            ! if the next time that we require actuation value is the last one, write now step_type=0 into database
-            if (this%time + 2.0 * this%periodActuation .gt. this%maxPhysTime) then
-               call write_step_type(client, 0, "ensemble_"//trim(adjustl(this%tag))//".step_type")
-            end if
-         end if
-
-         ! apply actions to control surfaces
-         call this%smoothControlFunction(action_global_instant)
-         if (mpi_rank .eq. 0) write(444,'(*(ES12.4,:,","))') this%time, action_global_instant
-         call flush(444)
-
-         !$acc parallel loop
-         do iNodeL = 1,numNodesRankPar
-            if (actionMask(iNodeL) .gt. 0) then
-                  u_buffer(iNodeL,1) = 0.0_rp
-                  u_buffer(iNodeL,2) = action_global_instant(actionMask(iNodeL))
-                  u_buffer(iNodeL,3) = 0.0_rp
-            end if
-         end do
-         !$acc end parallel loop
-#else
-         action_classic = this%amplitudeActuation*sin(2.0_rp*v_pi*this%frequencyActuation*this%time)
-         if (mpi_rank .eq. 0) write(444,'(*(ES12.4,:,","))') this%time, action_classic
-         call flush(444)
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             if (actionMask(iNodeL) .gt. 0) then
                u_buffer(iNodeL,1) = 0.0_rp
-               u_buffer(iNodeL,2) = action_classic
+               u_buffer(iNodeL,2) = this%amplitudeActuation*sin(2.0_rp*v_pi*this%frequencyActuation*this%time)
                u_buffer(iNodeL,3) = 0.0_rp
             end if
          end do
          !$acc end parallel loop
-#endif
       end if
 #endif
-   end subroutine BLMARLFlowSolverIncomp_afterDt
+      call this%computeTauW(Ftau_neg, Ftau_pos)
+      write(446,'(*(ES12.4,:,","))') this%time, Ftau_neg, Ftau_pos
+      call flush(446)
 
-#if ACTUATION
-#ifdef SMARTREDIS
-      subroutine BLMARLFlowSolverIncomp_smoothControlFunction(this, action_global_instant)
-         class(BLMARLFlowSolverIncomp), intent(inout) :: this
-         real(rp), intent(inout) :: action_global_instant(action_global_size)
+   end subroutine BLFlowSolverIncomp_afterDt
 
-         real(rp) :: f1, f2, f3
+   subroutine BLFlowSolverIncomp_computeTauW(this, Ftau_neg, Ftau_pos)
+      class(BLFlowSolverIncomp), intent(inout) :: this
+      real(8), intent(out) :: Ftau_neg(3), Ftau_pos(3)
 
-         f1 = exp(-1.0_rp / ((this%time - this%previousActuationTime) / this%periodActuation))
-         f2 = exp(-1.0_rp / (1.0_rp - (this%time - this%previousActuationTime) / this%periodActuation))
-         f3 = f1 / (f1 + f2)
-         !$acc kernels
-         action_global_instant(:) = action_global_previous(:) + f3 * (action_global(:) - action_global_previous(:))
-         !$acc end kernels
-      end subroutine BLMARLFlowSolverIncomp_smoothControlFunction
-#endif
-#endif
+      call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, 1, connecParWork, boundPar, &
+      point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
+      mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), Ftau_neg, Ftau_pos)
+   end subroutine BLFlowSolverIncomp_computeTauW
 
-   subroutine BLMARLFlowSolverIncomp_computeTauW(this, Ftau_neg, Ftau_pos)
-      class(BLMARLFlowSolverIncomp), intent(inout) :: this
-      real(8), intent(out) :: Ftau_neg(this%n_pseudo_envs), Ftau_pos(this%n_pseudo_envs)
-      real(8) :: Ftau_neg_single(3), Ftau_pos_single(3)
-      integer(4) :: surfCode
+   subroutine BLFlowSolverIncomp_fill_BC_Types(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
 
-		!$acc loop seq
-      do surfCode=1, this%n_pseudo_envs
-         call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, surfCode, connecParWork, boundPar, &
-            point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
-            mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), Ftau_neg_single, Ftau_pos_single)
-         Ftau_neg(surfCode) = Ftau_neg_single(1) ! streamwise direction
-         Ftau_pos(surfCode) = Ftau_pos_single(1) ! streamwise direction
-      end do
-   end subroutine BLMARLFlowSolverIncomp_computeTauW
-
-   subroutine BLMARLFlowSolverIncomp_fill_BC_Types(this)
-      class(BLMARLFlowSolverIncomp), intent(inout) :: this
-
-#if ACTUATION
-      ! wall + actuation
-      bouCodes2BCType(1) = bc_type_unsteady_inlet ! wall 1
-      bouCodes2BCType(2) = bc_type_unsteady_inlet ! wall 2
-      bouCodes2BCType(3) = bc_type_unsteady_inlet ! wall 3
-      bouCodes2BCType(4) = bc_type_unsteady_inlet ! wall 4
-      bouCodes2BCType(5) = bc_type_unsteady_inlet ! wall 5
+#if (ACTUATION)
+      bouCodes2BCType(1) = bc_type_unsteady_inlet ! wall + actuation
 #else
-      ! wall
-      bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! wall 1
-      bouCodes2BCType(2) = bc_type_non_slip_adiabatic ! wall 2
-      bouCodes2BCType(3) = bc_type_non_slip_adiabatic ! wall 3
-      bouCodes2BCType(4) = bc_type_non_slip_adiabatic ! wall 4
-      bouCodes2BCType(5) = bc_type_non_slip_adiabatic ! wall 5
+      bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! wall
 #endif
-      bouCodes2BCType(6) = bc_type_far_field_SB ! upper part of the domain
-      bouCodes2BCType(7) = bc_type_far_field ! inlet part of the domain
-      bouCodes2BCType(8) = bc_type_outlet_incomp ! outlet part of the domain
+      bouCodes2BCType(2) = bc_type_far_field_SB       ! Upper part of the domain
+      bouCodes2BCType(3) = bc_type_far_field      ! inlet part of the domain
+      bouCodes2BCType(4) = bc_type_outlet_incomp  ! outlet part of the domain
       !$acc update device(bouCodes2BCType(:))
 
-   end subroutine BLMARLFlowSolverIncomp_fill_BC_Types
+   end subroutine BLFlowSolverIncomp_fill_BC_Types
 
-   subroutine BLMARLFlowSolverIncomp_fillBlasius(this)
-      class(BLMARLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_fillBlasius(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
 
      this%eta_b(1) = real(0.0E+00,rp)
      this%eta_b(2) = real(2.0E-01,rp)
@@ -611,109 +441,39 @@ contains
      this%f_prim(44) = real(9.999995242E-01,rp)
      this%f_prim(45) = real(9.999997695E-01,rp)
 
-  end subroutine BLMARLFlowSolverIncomp_fillBlasius
+  end subroutine BLFlowSolverIncomp_fillBlasius
 
-   subroutine BLMARLFlowSolverIncomp_initializeParameters(this)
-      class(BLMARLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_initializeParameters(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
       real(rp) :: mur
-      integer :: num_args, equal_pos, iarg, ierr
-      character(len=64) :: arg, output_dir
-      character(len=8) :: restart_step_str="", periodEpisode_str="1.0", frequencyActuation_str="1.0", timeBeginActuation_str="0.0", db_clustered_str="0"
-      logical :: output_dir_exists
-
-      ! get command line args, ie: mpirun -n 4 sod2d --restart_step=1 --t_episode=100.0
-      num_args = command_argument_count()
-      do iarg = 1, num_args
-         call get_command_argument(iarg, arg)
-         equal_pos = scan(adjustl(trim(arg)), "=")
-         if (adjustl(trim(arg(:equal_pos-1))) .eq. "--restart_step") then
-            restart_step_str = trim(adjustl(arg(equal_pos+1:)))
-         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--t_episode") then
-            periodEpisode_str = trim(adjustl(arg(equal_pos+1:)))
-         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--f_action") then
-            frequencyActuation_str = trim(adjustl(arg(equal_pos+1:)))
-         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--t_begin_control") then
-            timeBeginActuation_str = trim(adjustl(arg(equal_pos+1:)))
-         else if (adjustl(trim(arg(:equal_pos-1))) .eq. "--db_clustered") then
-            db_clustered_str = trim(adjustl(arg(equal_pos+1:)))
-         else
-            stop "Unknown command line argument"
-         end if
-      end do
-
-      write(this%tag, *) app_color
-      if (db_clustered_str == "" .or. db_clustered_str == "0") this%db_clustered = .false.
-      if (restart_step_str == "" .or. restart_step_str == "0") then
-         this%loadRestartFile = .false.
-         this%restartFile_to_load = 0
-      else
-         this%loadRestartFile = .true.
-         read(restart_step_str, *) this%restartFile_to_load ! 1: baseline, 2: last episode
-      end if
-      if (periodEpisode_str == "") then
-         this%periodEpisode = 10000000.0_rp
-      else
-         read(periodEpisode_str,*,iostat=ierr) this%periodEpisode
-      end if
-      read(frequencyActuation_str,*,iostat=ierr) this%frequencyActuation
-      this%periodActuation = 1.0_rp / this%frequencyActuation
-      read(periodEpisode_str,*,iostat=ierr) this%periodEpisode
-      read(timeBeginActuation_str,*,iostat=ierr) this%timeBeginActuation
-
-      output_dir = "./output_"//trim(adjustl(this%tag))//"/"
-      inquire(file=trim(adjustl(output_dir)), exist=output_dir_exists)
-      if (mpi_rank .eq. 0) then
-         if (.not. output_dir_exists) call system("mkdir -p "//trim(adjustl(output_dir)))
-         if (this%restartFile_to_load .gt. 0) call system("cp restart/* "//trim(adjustl(output_dir)))
-      end if
 
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "bl_les"
-      write(this%results_h5_file_path,*) "./output_"//trim(adjustl(this%tag))//"/"
-      write(this%results_h5_file_name,*) "results_"//trim(adjustl(this%tag))
-      write(this%io_prepend_path,*) output_dir
 
-      if (mpi_rank .eq. 0) then
-         write(*,*) "RL simulation params:"
-         write(*,*) "--tag: ", adjustl(trim(this%tag))
-         write(*,*) "--restart_step: ", this%restartFile_to_load
-         write(*,*) "--f_action: ", this%frequencyActuation
-         write(*,*) "--t_episode: ", this%periodEpisode
-         write(*,*) "--t_begin_control: ", this%timeBeginActuation
-         write(*,*) "--db_clustered: ", db_clustered_str
-      end if
+      write(this%results_h5_file_path,*) ""
+      write(this%results_h5_file_name,*) "results"
 
       !----------------------------------------------
       !  --------------  I/O params -------------
       this%final_istep = 9000000
-      this%maxPhysTime =  this%timeBeginActuation + this%periodEpisode
+      this%maxPhysTime = 14000.0
 
       this%save_logFile_first = 1
-      this%save_logFile_step  = 250
+      this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 15000
+      this%save_resultsFile_step = 10000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 15000
+      this%save_restartFile_step = 10000
+      this%loadRestartFile = .false.
+      this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
-      this%initial_avgTime = this%timeBeginActuation
+      this%initial_avgTime = 4000.0_rp
       this%saveAvgFile = .true.
       this%loadAvgFile = .false.
-      ! -------- Average results file -------------
-      this%save_avgScalarField_rho     = .false.
-      this%save_avgScalarField_pr      = .true.
-      this%save_avgScalarField_mueff   = .true.
-      this%save_avgVectorField_vel     = .true.
-      this%save_avgVectorField_ve2     = .false.
-      this%save_avgVectorField_vex     = .false.
-      this%save_avgVectorField_vtw     = .false.
       !----------------------------------------------
-
-      ! wall shear stress output
-      this%n_pseudo_envs = 5
-      this%tw_write_interval = 1
 
       ! numerical params
       flag_les = 1
@@ -723,8 +483,6 @@ contains
 
       this%cfl_conv = 0.95_rp
       this%cfl_diff = 0.95_rp
-      ! flag_use_constant_dt = 1
-      ! this%dt = 0.065_rp
 
       this%d0   = 1.0_rp
       this%U0   = 1.0_rp
@@ -752,30 +510,17 @@ contains
       flag_buffer_w_min = -50.0_rp
       flag_buffer_w_size = 50.0_rp
 
-      ! witness points
-      this%have_witness          = .true.
-      this%nwit                  = 240
-      this%witness_inp_file_name = "witness.txt"
-      this%witness_h5_file_name  = "./output_"//trim(adjustl(this%tag))//"/resultwit.h5"
-      this%leapwit               = 5 ! (update witness ever n dts) | in this class, we update the witness points manually
-      this%leapwitsave           = 100 ! how many dts are stored in buffer
-      this%wit_save              = .true. ! save witness or not
-      this%wit_save_u_i          = .true.
-      this%wit_save_pr           = .true.
-      this%wit_save_rho          = .false.
-      this%continue_witness      = .false.
-
-#if ACTUATION
-      write(this%fileControlName,*) "rectangleControl.txt"
-#ifndef SMARTREDIS
-      this%amplitudeActuation = 0.05
-      this%frequencyActuation = 0.0030_rp
+#if (ACTUATION)
+      write(this%fileControlName ,*) "rectangleControl.txt"
+      this%amplitudeActuation = 0.2
+      this%frequencyActuation = 0.0025_rp
+      !this%timeBeginActuation = 2500.0_rp
+      this%timeBeginActuation = 0.0_rp
 #endif
-#endif
-   end subroutine BLMARLFlowSolverIncomp_initializeParameters
+   end subroutine BLFlowSolverIncomp_initializeParameters
 
-   subroutine BLMARLFlowSolverIncomp_initialBuffer(this)
-      class(BLMARLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_initialBuffer(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
       integer(4) :: iNodeL,k,j
       real(rp) :: yp,eta_y,f_y,f_prim_y
 
@@ -813,10 +558,10 @@ contains
       end do
       !$acc end parallel loop
 
-   end subroutine BLMARLFlowSolverIncomp_initialBuffer
+   end subroutine BLFlowSolverIncomp_initialBuffer
 
-   subroutine BLMARLFlowSolverIncomp_evalInitialConditions(this)
-      class(BLMARLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_evalInitialConditions(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
       integer(4) :: iNodeL, idime, j,k
       real(rp) :: yp,eta_y,f_y,f_prim_y
       integer(4)   :: iLine,iNodeGSrl,auxCnt
@@ -876,6 +621,6 @@ contains
          mu_factor(iNodeL) = flag_mu_factor
       end do
       !$acc end parallel loop
-   end subroutine BLMARLFlowSolverIncomp_evalInitialConditions
+   end subroutine BLFlowSolverIncomp_evalInitialConditions
 
-end module BLMARLFlowSolverIncomp_mod
+end module BLFlowSolverIncomp_mod
