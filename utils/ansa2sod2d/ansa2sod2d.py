@@ -25,6 +25,258 @@ perDist = np.pi*2
 ##### End Case Definition #####
 ###############################
 
+class ordering(object):
+
+    def __init__(self,pOrder,fmt='GMSH'):
+        '''
+        Generates the ordering of the element and its faces given a format
+        '''
+        self._pOrder = pOrder
+        self._nedge  = self._pOrder+1
+        self._nnode  = self._nedge**3
+
+        if fmt =='GMSH':
+            self._quad_order_edges = np.array([0,1,1,2,2,3,3,0],dtype='int32').reshape((4,2))
+            self._hex_order_edges = np.array([0, 1, 0, 3, 0, 4, 1, 2, 1, 5, 2, 3,
+            2, 6, 3, 7, 4, 5, 4, 7, 5, 6, 6, 7],dtype='int32').reshape((12,2))
+            self._hex_order_faces = np.array([0, 3, 2, 1, 0, 1, 5, 4, 0, 4, 7, 3,
+             1, 2, 6, 5, 2, 3, 7, 6, 4, 5, 6, 7],dtype='int32').reshape((6,4))
+            self._indexTable = self.hexaHOtable(self._pOrder)
+            self.ijkTable()
+        elif fmt == 'CGNS':
+            self._quad_order_edges = np.array([0,1,1,2,2,3,3,0],dtype='int32').reshape((4,2))
+            self._hex_order_edges = np.array([0,1,1,2,2,3,3,0,0,4,1,5,2,6,3,7,4,5,5,6,6,7,7,4],dtype='int32').reshape((12,2))
+            # self._hex_order_faces = np.array([0,1,2,3,0,1,5,4,1,2,6,5,2,3,7,6,0,4,7,3,4,5,6,7],dtype='int32').reshape((6,4))
+            self._hex_order_faces = np.array([0,1,2,3,0,1,5,4,1,2,6,5,2,3,7,6,3,0,4,7,4,5,6,7],dtype='int32').reshape((6,4))
+            self._indexTable = self.cgnsHexaTable(self._pOrder)
+            self.ijkTable()
+            self.nodesAnsaIJK()
+        else:
+            print("This format is not available")
+            return
+
+    def hexaHOtable(self,p):
+        indexTable = np.zeros(((p+1)**3,3),dtype='int32')
+        if p > 0:
+            #                  i, j, k
+            indexTable[1,:] = [p, 0, 0]
+            indexTable[2,:] = [p, p, 0]
+            indexTable[3,:] = [0, p, 0]
+            indexTable[4,:] = [0, 0, p]
+            indexTable[5,:] = [p, 0, p]
+            indexTable[6,:] = [p, p, p]
+            indexTable[7,:] = [0, p, p]
+        if p > 1:
+            # Generate high-order edges
+            inode = 8
+            for iedge in range(len(self._hex_order_edges)):
+                i0 = self._hex_order_edges[iedge,0]
+                i1 = self._hex_order_edges[iedge,1]
+                u = (indexTable[i1,:] - indexTable[i0,:])/p
+                for i in range(1,p):
+                    indexTable[inode,:] = indexTable[i0,:] + i*u
+                    inode += 1
+            # Generate a generic high-order face with p = p-2
+            tableFace = self.quadHOtable(p-2)
+            tableFace+=1
+            # Generate faces interior nodes
+            for iface in range(len(self._hex_order_faces)):
+                i0 = self._hex_order_faces[iface,0]
+                i1 = self._hex_order_faces[iface,1]
+                i3 = self._hex_order_faces[iface,3]
+                u = (indexTable[i1,:] - indexTable[i0,:])/p
+                v = (indexTable[i3,:] - indexTable[i0,:])/p
+                for i in range((p-1)**2):
+                    indexTable[inode,:] = indexTable[i0,:] + u*tableFace[i,0] + v*tableFace[i,1]
+                    inode += 1
+            # Generate volume nodes
+            tableVolume = self.hexaHOtable(p-2)
+            tableVolume+=1
+            indexTable = self.joinTables(inode,tableVolume,indexTable)
+        return indexTable
+
+    def quadHOtable(self,p):
+        indexTable = np.zeros(((p+1)**2,2),dtype='int32')
+        tableFace  = np.zeros(((p-1)**2,2),dtype='int32')
+        indexTable[0,:] = [0,0]
+        if p > 0:
+            indexTable[1,:] = [p,0]
+            indexTable[2,:] = [p,p]
+            indexTable[3,:] = [0,p]
+        if p > 1:
+            inode = 4
+            for iedge in range(len(self._quad_order_edges)):
+                i0 = self._quad_order_edges[iedge,0]
+                i1 = self._quad_order_edges[iedge,1]
+                u = (indexTable[i1,:] - indexTable[i0,:])/p
+                for i in range(1,p):
+                    indexTable[inode,:] = indexTable[i0,:] + i*u
+                    inode = inode + 1
+            # breakpoint()
+            tableFace = self.quadHOtable(p-2)
+            tableFace+=1
+            indexTable = self.joinTables(inode,tableFace,indexTable)
+        return indexTable
+
+    def joinTables(self,indexDesti,table1,table2):
+        j = indexDesti
+        for i in range(len(table1)):
+            table2[j,:] = table1[i,:]
+            j+=1
+        return table2
+
+    def cgnsHexaTable(self,p):
+        indexTable = np.zeros(((p+1)**3,3),dtype='int32')
+        if p > 0:
+            #                  i, j, k
+            indexTable[1,:] = [p, 0, 0]
+            indexTable[2,:] = [p, p, 0]
+            indexTable[3,:] = [0, p, 0]
+            indexTable[4,:] = [0, 0, p]
+            indexTable[5,:] = [p, 0, p]
+            indexTable[6,:] = [p, p, p]
+            indexTable[7,:] = [0, p, p]
+        if p > 1:
+            # Generate high-order edges
+            inode = 8
+            for iedge in range(len(self._hex_order_edges)):
+                i0 = self._hex_order_edges[iedge,0]
+                i1 = self._hex_order_edges[iedge,1]
+                u = (indexTable[i1,:] - indexTable[i0,:])/p
+                for i in range(1,p):
+                    indexTable[inode,:] = indexTable[i0,:] + i*u
+                    inode += 1
+            # Generate a generic high-order face with p = p-2
+            tableFace = self.cgnsQuadTable(p-2)
+            tableFace+=1
+            # Generate faces interior nodes
+            for iface in range(len(self._hex_order_faces)):
+                i0 = self._hex_order_faces[iface,0]
+                i1 = self._hex_order_faces[iface,1]
+                i3 = self._hex_order_faces[iface,3]
+                u = (indexTable[i1,:] - indexTable[i0,:])/p
+                v = (indexTable[i3,:] - indexTable[i0,:])/p
+                for i in range((p-1)**2):
+                    indexTable[inode,:] = indexTable[i0,:] + u*tableFace[i,0] + v*tableFace[i,1]
+                    inode += 1
+            # Generate volume interior nodes
+            i0 = self._hex_order_faces[0,0]
+            i1 = self._hex_order_faces[0,1]
+            i3 = self._hex_order_faces[0,3]
+            u = (indexTable[i1,:] - indexTable[i0,:])/p
+            v = (indexTable[i3,:] - indexTable[i0,:])/p
+            for iface in range(1,p):
+                for i in range((p-1)**2):
+                    indexTable[inode,:] = indexTable[i0,:] + u*tableFace[i,0] + v*tableFace[i,1]
+                    indexTable[inode,2] = iface
+                    inode += 1
+        return indexTable
+
+    def cgnsQuadTable(self,p):
+        quad_order_edges = np.array([0,1,1,2,2,3,3,0],dtype='int32').reshape((4,2))
+        indexCorners = np.array([[0,0],[p,0],[p,p],[0,p]])
+        indexTable = np.zeros(((p+1)**2,2),dtype='int32')
+        indexTable[0,:] = [0,0]
+        if p > 0:
+            inode = 1
+            for iedge in range(3):
+                i0 = self._quad_order_edges[iedge,0]
+                i1 = self._quad_order_edges[iedge,1]
+                u = (indexCorners[i1,:] - indexCorners[i0,:])/p
+                for i in range(1,p+1):
+                    indexTable[inode,:] = indexCorners[i0,:] + i*u
+                    inode = inode + 1
+            p_ = p-1
+            while p_ > 0:
+                for j in range(2):
+                    iedge+=1
+                    edge = iedge%4
+                    i0 = self._quad_order_edges[edge,0]
+                    i1 = self._quad_order_edges[edge,1]
+                    u = (indexCorners[i1,:] - indexCorners[i0,:])/p
+                    for i in range(1,p_+1):
+                        indexTable[inode,:] = indexTable[inode-1,:] + u
+                        inode = inode + 1
+                p_-=1
+        return indexTable
+
+    def ijkTable(self):
+        self._ijkTable = np.zeros((self._nedge,self._nedge,self._nedge),dtype='int32')
+        for pIndex in range(self._nnode):
+            i = self._indexTable[pIndex,0]
+            j = self._indexTable[pIndex,1]
+            k = self._indexTable[pIndex,2]
+            self._ijkTable[i,j,k] = pIndex
+
+    def get_2ijk(self):
+        order = np.zeros((self._nnode),dtype='int32')
+        for k in range(self._nedge):
+            for j in range(self._nedge):
+                for i in range(self._nedge):
+                    inode = k*self._nedge**2 + j*self._nedge + i
+                    order[inode] = self._ijkTable[i,j,k]
+        return order
+
+    def getIJ2_(self):
+        ijOrder = self.quadHOtable(self._pOrder)
+        order = ijOrder[:,0]+ijOrder[:,1]*self._nedge
+        return order
+
+    def getIJK2_(self):
+        order = np.zeros((self._nnode),dtype='int32')
+        for inode in range(self._nnode):
+            i = self._indexTable[inode,0]
+            j = self._indexTable[inode,1]
+            k = self._indexTable[inode,2]
+            order[inode] = k*self._nedge**2 + j*self._nedge + i
+        return order
+
+    def nodesAnsa(self, nodes):
+        nodesTags = []
+        for node in nodes:
+            nodesTags.append('N{}'.format(node))
+        return nodesTags
+    
+    def nodesAnsaIJK(self):
+        nodes = np.arange(1,self._nnode+1,dtype='int32')
+        order = self.get_2ijk()
+        self._nodesIJK = nodes[order]
+
+    def facesIndecesREF(self):
+        self._facesIndecesREF = np.zeros((6,self._nedge**2),dtype='int32') # Left,Front,Bottom,Rigth,Back,Top
+        ijk = np.zeros((3,),dtype='int32')
+        axises = np.arange(3)
+        values = np.array([0,self._pOrder])
+        face = 0
+        for value1 in values:
+            for axis1 in axises:
+                for axis2 in axises:
+                    if axis2 != axis1:
+                        for axis3 in axises:
+                            if axis3 != axis2 and axis3 != axis1 and axis3 > axis2:
+                                ID = 0
+                                for value2 in range(self._nedge):
+                                    for value3 in range(self._nedge):
+                                        ijk[axis1]=value1
+                                        ijk[axis2]=value2
+                                        ijk[axis3]=value3
+                                        self._facesIndecesREF[face,ID] = ijk[0]+ijk[1]*self._nedge+ijk[2]*self._nedge**2
+                                        ID+=1
+                face += 1
+
+    def facesIndeces(self):
+        self.facesIndecesREF()
+        self._facesIndeces = np.zeros((6,self._nedge**2),dtype='int32') # Left,Front,Bottom,Rigth,Back,Top
+        for iface,face in enumerate(self._facesIndecesREF):
+            self._facesIndeces[iface,:] = self._nodesIJK[face]
+        return self._facesIndeces
+
+def getPolynomialOrder(info):
+    hexaOrders = dict(HEXA = 1,HEXA_27 = 2,HEXA_64 = 3,HEXA_125 = 4,)
+    hexaType = list(info['ELEMENT'].children['SOLID'].children.keys())[0]
+    pOrder = hexaOrders[hexaType]
+    return pOrder
+
 # Collect only shell PIDs in which "USE_IN_MODEL" option is YES, i.e. for avoid collecting top_cap PID.
 def checkShells(base, deck):
 	shells = []
