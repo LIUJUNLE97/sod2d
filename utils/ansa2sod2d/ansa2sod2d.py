@@ -337,94 +337,50 @@ def writeBounds(base, deck, h5file, nshells, shells, pOrder, nameDataSet):
 def getElemFaceNodes(deck, base, elemID, shell, pOrder):
 	NOD_QUAD = ['N4','N3','N2','N1']
 	faceElemCorners = [
-					['N1','N2','N3','N4'],
-					['N5','N6','N7','N8'],
-					['N4','N1','N5','N8'],
-					['N2','N3','N7','N6'],
-					['N3','N4','N8','N7'],
-					['N1','N5','N2','N6']]
-	faceElemNodes = [
-					['N1','N4','N3','N2',
-					'N20','N19','N18','N17','N16','N15','N14','N13','N12','N11','N10','N9',
-					'N45','N51','N49','N47','N52','N50','N48','N46','N53'],
-					['N5','N6','N7','N8',
-					'N33','N34','N35','N36','N37','N38','N39','N40','N41','N42','N43','N44',
-					'N90','N92','N94','N96','N91','N93','N95','N97','N98'],
-					['N4','N1','N5','N8',
-					'N18','N19','N20','N21','N22','N23','N44','N43','N42','N32','N31','N30',
-					'N81','N83','N85','N87','N82','N84','N86','N88','N89'],
-					['N2','N3','N7','N6',
-					'N12','N13','N14','N27','N28','N29','N38','N37','N36','N26','N25','N24',
-					'N63','N65','N67','N69','N64','N66','N68','N70','N71'],
-					['N3','N4','N8','N7',
-					'N15','N16','N17','N30','N31','N32','N41','N40','N39','N29','N28','N27',
-					'N72','N74','N76','N78','N73','N75','N77','N79','N80'],
-					['N1','N5','N2','N6'
-					,'N9','N10','N11','N24','N25','N26','N35','N34','N33','N23','N22','N21',
-					'N54','N56','N58','N60','N55','N57','N59','N61','N62']
-					]
-	bound = np.zeros((25,),dtype='int32')
-	elem = base.GetEntity(deck,'HEXA_125', elemID)
+					['N4','N1','N5','N8'], # Left
+					['N1','N5','N2','N6'], # Front
+					['N1','N2','N3','N4'], # Bottom
+					['N2','N3','N7','N6'], # Right
+					['N3','N4','N8','N7'], # Back
+					['N5','N6','N7','N8']] # Top
+	faceElemNodes = ordering(pOrder,'CGNS').facesIndeces()
+	bound = np.zeros(((pOrder+1)**2,),dtype='int32')
+	elem = base.GetEntity(deck,'SOLID', elemID)
 	cornerEntities = base.CollectEntities(deck, shell, 'NODE', recursive = True)
 	cornerNodes = np.zeros((len(NOD_QUAD)), dtype='int')
 	for i,node in enumerate(cornerEntities):
 		cornerNodes[i] = node._id
 	cornerNodes = np.sort(cornerNodes)
 	for i, face in enumerate(faceElemCorners):
-		faceNodes = base.GetEntityCardValues(deck,elem,faceElemCorners[i])
+		faceCorners = base.GetEntityCardValues(deck,elem,faceElemCorners[i])
 		elemFaceCornerNodes = np.zeros((len(NOD_QUAD)), dtype='int')
-		for j,node in enumerate(faceNodes):
-			elemFaceCornerNodes[j] = faceNodes[face[j]]
+		for j,node in enumerate(faceCorners):
+			elemFaceCornerNodes[j] = faceCorners[face[j]]
 		elemFaceCornerNodes = np.sort(elemFaceCornerNodes)
 		if np.all(elemFaceCornerNodes == cornerNodes):
 			faceID = i
-			vals = base.GetEntityCardValues(deck,elem,faceElemNodes[faceID])
-			for j in range(len(faceElemNodes[faceID])):
-				bound[j] = vals[faceElemNodes[faceID][j]]
+			faceNodes = ordering(pOrder,'CGNS').nodesAnsa(faceElemNodes[faceID])
+			vals = base.GetEntityCardValues(deck,elem,faceNodes)
+			for j in range(len(faceNodes)):
+				bound[j] = vals[faceNodes[j]]
 			break
 	return bound
 
-	NOD_QUAD = ['N4','N3','N2','N1']
-	faceElemCorners = [
-					['N1','N2','N3','N4'],
-					['N5','N6','N7','N8'],
-					['N4','N1','N5','N8'],
-					['N2','N3','N7','N6'],
-					['N3','N4','N8','N7'],
-					['N1','N5','N2','N6']]
-	faceElemNodes = [
-					['N1','N4','N3','N2',
-					'N20','N19','N18','N17','N16','N15','N14','N13','N12','N11','N10','N9',
-					'N45','N51','N49','N47','N52','N50','N48','N46','N53'],
-					['N5','N6','N7','N8',
-					'N33','N34','N35','N36','N37','N38','N39','N40','N41','N42','N43','N44',
-					'N90','N92','N94','N96','N91','N93','N95','N97','N98'],
-					['N4','N1','N5','N8',
-					'N18','N19','N20','N21','N22','N23','N44','N43','N42','N32','N31','N30',
-					'N81','N83','N85','N87','N82','N84','N86','N88','N89'],
-					['N2','N3','N7','N6',
-					'N12','N13','N14','N27','N28','N29','N38','N37','N36','N26','N25','N24',
-					'N63','N65','N67','N69','N64','N66','N68','N70','N71'],
-					['N3','N4','N8','N7',
-					'N15','N16','N17','N30','N31','N32','N41','N40','N39','N29','N28','N27',
-					'N72','N74','N76','N78','N73','N75','N77','N79','N80'],
-					['N1','N5','N2','N6'
-					,'N9','N10','N11','N24','N25','N26','N35','N34','N33','N23','N22','N21',
-					'N54','N56','N58','N60','N55','N57','N59','N61','N62']
-					]
-	nnodeB = 25
 def writeBoundsAlt(base, deck, h5file, nshells, shells, pOrder, nameDataSet):
+	nnodeB = (pOrder+1)**2
 	bounds = np.zeros((nshells,nnodeB))
 	if nshells > 0:
-		elems = base.CollectEntities(deck, None, 'HEXA_125', recursive = True)
+		elems = base.CollectEntities(deck, None, 'SOLID', recursive = True)
 		pairs = mesh.MatchShellsAndSolids(shells, elems)
 		del elems
 		d={}
 		for i in range(int(len(pairs)/2)):
 			d[pairs[i*2-2]._id] = pairs[i*2-1]._id
 		for iShell,shell in enumerate(shells):
-			bound = getElemFaceNodes(deck, base, d[shell._id], shell)
+			bound = getElemFaceNodes(deck, base, d[shell._id], shell, pOrder)
 			bounds[iShell,:] = bound
+		order = ordering(pOrder,'GMSH').getIJ2_()
+		bounds = bounds[:,order]
 	bounds_dset = h5file.create_dataset(nameDataSet,(nshells,nnodeB),dtype='i8',data=bounds,
 	chunks=True,maxshape=(nshells,nnodeB))
 	
@@ -485,7 +441,7 @@ def periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, perDist,pOr
 	for parentPID, childPID in zip(parentPIDS,childPIDS):
 		parentShells = base.CollectEntities(deck, parentPID, 'SHELL', recursive = True)
 		childShells = base.CollectEntities(deck, childPID, 'SHELL', recursive = True)
-		elems = base.CollectEntities(deck, None, 'HEXA_125', recursive = True)
+		elems = base.CollectEntities(deck, None, 'SOLID', recursive = True)
 		parentPairs = mesh.MatchShellsAndSolids(parentShells, elems)
 		childPairs = mesh.MatchShellsAndSolids(childShells, elems)
 		del elems
@@ -494,12 +450,12 @@ def periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, perDist,pOr
 		for i in range(int(len(parentPairs)/2)):
 			parentDic[parentPairs[i*2-2]._id] = parentPairs[i*2-1]._id
 			childDic[childPairs[i*2-2]._id] = childPairs[i*2-1]._id
-		parentNodes = np.zeros((len(parentShells),25),dtype='int32')
-		childNodes = np.zeros((len(childShells),25),dtype='int32')
+		parentNodes = np.zeros((len(parentShells),(pOrder+1)**2),dtype='int32')
+		childNodes = np.zeros((len(childShells),(pOrder+1)**2),dtype='int32')
 		i = 0
 		for parentShell,childShell in zip(parentShells,childShells):
-			parentShellNodes = getElemFaceNodes(deck, base, parentDic[parentShell._id], parentShell)
-			childShellNodes = getElemFaceNodes(deck, base, childDic[childShell._id], childShell)
+			parentShellNodes = getElemFaceNodes(deck, base, parentDic[parentShell._id], parentShell, pOrder)
+			childShellNodes = getElemFaceNodes(deck, base, childDic[childShell._id], childShell, pOrder)
 			parentNodes[i,:] = parentShellNodes
 			childNodes[i,:] = childShellNodes
 			i+=1
@@ -536,32 +492,18 @@ def periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, perDist,pOr
 	del pairs
 
 # Write solids
-	# NOD_HEXA = ['N1','N2','N3','N4','N5','N6','N7','N8']
-	NOD_HEXA = ['N3','N2','N6','N7','N4','N1','N5','N8','N14','N13','N12','N27','N28','N29','N15',
-				'N16','N17','N24','N25','N26','N11','N10','N9','N36','N37','N38','N35','N34','N33',
-				'N39','N40','N41','N18','N19','N20','N30','N31','N32','N21','N22','N23','N44','N43',
-				'N42','N65','N67','N69','N63','N66','N68','N70','N64','N71','N49','N47','N45','N51',
-				'N48','N46','N52','N50','N53','N72','N74','N76','N78','N73','N75','N77','N79','N80',
-				'N56','N58','N60','N54','N57','N59','N61','N55','N62','N92','N94','N96','N90','N93',
-				'N95','N97','N91','N98','N81','N83','N85','N87','N82','N84','N86','N88','N89','N103',
-				'N101','N119','N121','N105','N99','N117','N123','N102','N112','N104','N110','N100','N120',
-				'N118','N122','N106','N114','N108','N124','N111','N107','N113','N109','N125','N115','N116']
-
 def writeElems(base, deck, h5file, nelems,pOrder):
+	nodes = ordering(pOrder,'CGNS')._nodesIJK
+	NOD_HEXA = ordering(pOrder,'CGNS').nodesAnsa(nodes)
 	nnodeE = len(NOD_HEXA)
 	connec = np.zeros((nelems,nnodeE))
-	elems = base.CollectEntities(deck, None, 'HEXA_125', recursive = True)
+	elems = base.CollectEntities(deck, None, 'SOLID', recursive = True)
 	for i, elem in enumerate(elems):
-		vals = base.GetEntityCardValues(deck, elem, ['type'])
-		type = vals['type']
-		if type == 'HEXA_125':
-			hvals = base.GetEntityCardValues(deck, elem, NOD_HEXA)
-			for j in range(len(NOD_HEXA)):
-				connec[i,j] = hvals[NOD_HEXA[j]]
-		else:
-			out.write('Solid elements of type ', type, ' found. Aborting.' + '\n')
-			out.flush()
-			return
+		hvals = base.GetEntityCardValues(deck, elem, NOD_HEXA)
+		for j in range(len(NOD_HEXA)):
+			connec[i,j] = hvals[NOD_HEXA[j]]
+	order = ordering(pOrder,'GMSH').getIJK2_()
+	connec = connec[:,order]
 	connec_dset = h5file.create_dataset('connec',(nelems,nnodeE),dtype='i8',data=connec,
 		chunks=True,maxshape=(nelems,nnodeE))
 	del elems
