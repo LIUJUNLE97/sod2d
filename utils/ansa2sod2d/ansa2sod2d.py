@@ -16,9 +16,7 @@ deck = constants.CGNS
 #####   Case Definition   #####
 ###############################
 path = "/home/sgome1/HAMR/TEST/"
-# path = ""
 basename = 'tgv4'
-order = 4
 scaleFactor = 1.0
 perDist = np.pi*2
 ###############################
@@ -272,10 +270,10 @@ class ordering(object):
         return self._facesIndeces
 
 def getPolynomialOrder(info):
-    hexaOrders = dict(HEXA = 1,HEXA_27 = 2,HEXA_64 = 3,HEXA_125 = 4,)
-    hexaType = list(info['ELEMENT'].children['SOLID'].children.keys())[0]
-    pOrder = hexaOrders[hexaType]
-    return pOrder
+	hexaOrders = dict(HEXA = 1,HEXA_27 = 2,HEXA_64 = 3,HEXA_125 = 4,)
+	hexaType = list(info['ELEMENT'].children['SOLID'].children.keys())[0]
+	pOrder = hexaOrders[hexaType]
+	return pOrder
 
 # Collect only shell PIDs in which "USE_IN_MODEL" option is YES, i.e. for avoid collecting top_cap PID.
 def checkShells(base, deck):
@@ -320,7 +318,7 @@ def writeNodes(base, deck, h5file, scaleFactor, nnodes):
 	del xyz
 
 # Write boundary elements
-def writeBounds(base, deck, h5file, nshells, shells, order, nameDataSet):
+def writeBounds(base, deck, h5file, nshells, shells, pOrder, nameDataSet):
 	NOD_QUAD = ['N4','N3','N2','N1']
 	# NOD_QUAD = ['N4','N3','N2','N1','N5','N6','N7','N8','N9']
 	nnodeB = len(NOD_QUAD)
@@ -336,7 +334,7 @@ def writeBounds(base, deck, h5file, nshells, shells, order, nameDataSet):
 		chunks=True,maxshape=(nshells,nnodeB))
 	del bounds
 
-def getElemFaceNodes(deck, base, elemID, shell):
+def getElemFaceNodes(deck, base, elemID, shell, pOrder):
 	NOD_QUAD = ['N4','N3','N2','N1']
 	faceElemCorners = [
 					['N1','N2','N3','N4'],
@@ -386,7 +384,6 @@ def getElemFaceNodes(deck, base, elemID, shell):
 			break
 	return bound
 
-def writeBoundsAlt(base, deck, h5file, nshells, shells, order, nameDataSet):
 	NOD_QUAD = ['N4','N3','N2','N1']
 	faceElemCorners = [
 					['N1','N2','N3','N4'],
@@ -416,6 +413,7 @@ def writeBoundsAlt(base, deck, h5file, nshells, shells, order, nameDataSet):
 					'N54','N56','N58','N60','N55','N57','N59','N61','N62']
 					]
 	nnodeB = 25
+def writeBoundsAlt(base, deck, h5file, nshells, shells, pOrder, nameDataSet):
 	bounds = np.zeros((nshells,nnodeB))
 	if nshells > 0:
 		elems = base.CollectEntities(deck, None, 'HEXA_125', recursive = True)
@@ -481,7 +479,7 @@ def periodicPair(base, deck, h5file, periodicPshells, nbouns, dims_group):
 		chunks=True,maxshape=(npairs,2))
 	del pairs
 
-def	periodicPairAlt(base, deck, h5file, periodicPshells, dims_group,perDist):
+def periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, perDist,pOrder):
 	parentPIDS = periodicPshells[:len(periodicPshells)//2]
 	childPIDS = periodicPshells[len(periodicPshells)//2:]
 	for parentPID, childPID in zip(parentPIDS,childPIDS):
@@ -538,7 +536,6 @@ def	periodicPairAlt(base, deck, h5file, periodicPshells, dims_group,perDist):
 	del pairs
 
 # Write solids
-def writeElems(base, deck, h5file, nelems):
 	# NOD_HEXA = ['N1','N2','N3','N4','N5','N6','N7','N8']
 	NOD_HEXA = ['N3','N2','N6','N7','N4','N1','N5','N8','N14','N13','N12','N27','N28','N29','N15',
 				'N16','N17','N24','N25','N26','N11','N10','N9','N36','N37','N38','N35','N34','N33',
@@ -550,6 +547,7 @@ def writeElems(base, deck, h5file, nelems):
 				'N101','N119','N121','N105','N99','N117','N123','N102','N112','N104','N110','N100','N120',
 				'N118','N122','N106','N114','N108','N124','N111','N107','N113','N109','N125','N115','N116']
 
+def writeElems(base, deck, h5file, nelems,pOrder):
 	nnodeE = len(NOD_HEXA)
 	connec = np.zeros((nelems,nnodeE))
 	elems = base.CollectEntities(deck, None, 'HEXA_125', recursive = True)
@@ -580,9 +578,10 @@ def main():
 	info = utils.DatabaseBrowserInfo(deck)
 	nelems = info['ELEMENT'].children['SOLID'].total
 	nnodes = info['NODE'].total
+	pOrder = getPolynomialOrder(info)
 	nbouns, usedPshells, shells, nper, periodicPshells, pershells = checkShells(base, deck)
 	# Write dims
-	dset = dims_group.create_dataset('order',(1,),dtype='i8',data=order)
+	dset = dims_group.create_dataset('order',(1,),dtype='i8',data=pOrder)
 	dset = dims_group.create_dataset('numNodes',(1,),dtype='i8',data=nnodes)
 	elems_dset = dims_group.create_dataset('numElements',(1,),dtype='i8',data=nelems)
 	bound_dset = dims_group.create_dataset('numBoundaryFaces',(1,),dtype='i8',data=nbouns)
@@ -592,20 +591,20 @@ def main():
 	# Writing nodes coordinates
 	writeNodes(base, deck, h5file, scaleFactor, nnodes)
 	# Writing boundaries
-	# writeBounds(base, deck, h5file, nbouns, shells, order, 'boundFaces')
-	writeBoundsAlt(base, deck, h5file, nbouns, shells, order, 'boundFaces')
+	# writeBounds(base, deck, h5file, nbouns, shells, pOrder, 'boundFaces')
+	writeBoundsAlt(base, deck, h5file, nbouns, shells, pOrder, 'boundFaces')
 	# Writing boundary codes
 	writeBC(base, deck, h5file, usedPshells, nbouns)
 	# Writing periodic boundaries
 	if len(periodicPshells) > 0:
-		# writeBounds(base, deck, h5file, nper, pershells, order, 'periodicFaces')
-		perNodes = writeBoundsAlt(base, deck, h5file, nper, pershells, order, 'periodicFaces')
+		# writeBounds(base, deck, h5file, nper, pershells, pOrder, 'periodicFaces')
+		perNodes = writeBoundsAlt(base, deck, h5file, nper, pershells, pOrder, 'periodicFaces')
 		# Writing periodic pairs
 		# periodicPair(base, deck, h5file, periodicPshells, nper, dims_group)
-		periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, perDist)
+		periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, perDist, pOrder)
 
 	# Writing elements
-	writeElems(base, deck, h5file, nelems)
+	writeElems(base, deck, h5file, nelems, pOrder)
 
 	print("Done!!!")
 
