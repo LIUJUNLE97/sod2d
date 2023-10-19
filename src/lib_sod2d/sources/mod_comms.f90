@@ -125,6 +125,10 @@ contains
             call close_window_realField()
         end if
 
+#ifdef NCCL_COMMS
+        nccl_stat = ncclCommDestroy(nccl_comm)
+        cuda_stat = cudaStreamDestroy(nccl_stream)
+#endif
     end subroutine end_comms
 
     subroutine setFenceFlags(useFenceFlags)
