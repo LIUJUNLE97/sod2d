@@ -1,3 +1,5 @@
+#define CRM 1
+
 module BluffBody3DSolverIncomp_mod
    use mod_arrays
    use mod_nvtx
@@ -41,6 +43,16 @@ contains
 
    subroutine BluffBody3DSolverIncomp_fill_BC_Types(this)
       class(BluffBody3DSolverIncomp), intent(inout) :: this
+#if CRM
+      
+      bouCodes2BCType(1) = bc_type_slip_wall_model
+      bouCodes2BCType(2) = bc_type_far_field 
+      bouCodes2BCType(3) = bc_type_outlet_incomp
+      bouCodes2BCType(4) = bc_type_far_field
+      bouCodes2BCType(5) = bc_type_far_field
+
+#else
+
 
       bouCodes2BCType(1) = bc_type_slip_wall_model
       bouCodes2BCType(2) = bc_type_slip_wall_model
@@ -49,7 +61,7 @@ contains
       bouCodes2BCType(5) = bc_type_outlet_incomp
       bouCodes2BCType(6) = bc_type_non_slip_adiabatic
       bouCodes2BCType(7) = bc_type_non_slip_adiabatic
-
+#endif
       !$acc update device(bouCodes2BCType(:))
 
    end subroutine BluffBody3DSolverIncomp_fill_BC_Types
@@ -60,9 +72,21 @@ contains
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
+#if CRM
+            u_buffer(iNodeL,1) = this%vo*cos(this%aoa*v_pi/180.0_rp)
+            u_buffer(iNodeL,2) = 0.0_rp
+            u_buffer(iNodeL,3) = this%vo*sin(this%aoa*v_pi/180.0_rp)    
+#else
             u_buffer(iNodeL,1) = tanh(coordPar(iNodeL,3)*1000.0_rp)*this%vo
             u_buffer(iNodeL,2) = 0.0_rp
             u_buffer(iNodeL,3) = 0.0_rp  
+#endif
+         !just a momentary trick
+         pr(iNodeL,2) = 0.0_rp 
+         rho(iNodeL,2) = this%rho0            
+
+         rho(iNodeL,3) = rho(iNodeL,2)
+         pr(iNodeL,3) =  pr(iNodeL,2)
       end do
       !$acc end parallel loop
 
@@ -73,9 +97,15 @@ contains
       real(rp) :: mul, mur
 
 
+#if CRM
+      write(this%mesh_h5_file_path,*) ""
+      write(this%mesh_h5_file_name,*) "crm"
+#else
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "windsor"
       !write(this%mesh_h5_file_name,*) "auto"
+#endif
+
 
 
       write(this%results_h5_file_path,*) ""
@@ -109,15 +139,20 @@ contains
       tol=1e-2
       
 
-      this%cfl_conv = 0.9_rp
-      this%cfl_diff = 0.9_rp
+      this%cfl_conv = 0.95_rp
+      this%cfl_diff = 0.95_rp
 
       this%delta  = 1.0_rp
       this%rho0   = 1.0_rp
       this%vo = 1.0_rp
 
+#if CRM
+      this%Re  =  5600000.0_rp
+      this%aoa = 11.00_rp
+#else
       this%Re     =  2900000.0_rp
       this%aoa = 0.0_rp
+#endif  
    
       mul    = (this%rho0*this%delta*this%vo)/this%Re
       incomp_viscosity = mul
@@ -129,7 +164,27 @@ contains
 
 
       flag_buffer_on = .true.
+#if CRM
+      flag_buffer_on_east = .true.
+      flag_buffer_e_min = 200.0_rp
+      flag_buffer_e_size = 36.0_rp 
 
+      flag_buffer_on_west = .true.
+      flag_buffer_w_min = -200.0_rp
+      flag_buffer_w_size = 36.0_rp 
+
+      flag_buffer_on_north = .true.
+      flag_buffer_n_min = 200.0_rp
+      flag_buffer_n_size = 36.0_rp 
+      
+      flag_buffer_on_top = .true.
+      flag_buffer_t_min = 200.0_rp
+      flag_buffer_t_size = 36.0_rp
+
+      flag_buffer_on_bottom = .true.
+      flag_buffer_b_min = -200.0_rp
+      flag_buffer_b_size = 36.0_rp
+#else 
       !!windsor
       flag_buffer_on_east = .true.
       flag_buffer_e_min = 5.5_rp
@@ -150,7 +205,7 @@ contains
       flag_buffer_on_top = .true.
       flag_buffer_t_min = 2.0_rp
       flag_buffer_t_size = 0.5_rp     
-
+#endif
       period_walave   = 1.0_rp
 
    end subroutine BluffBody3DSolverIncomp_initializeParameters
@@ -162,9 +217,15 @@ contains
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
+#if CRM
+            u(iNodeL,1,2) = this%vo*cos(this%aoa*v_pi/180.0_rp)
+            u(iNodeL,2,2) = 0.0_rp
+            u(iNodeL,3,2) = this%vo*sin(this%aoa*v_pi/180.0_rp)    
+#else
          u(iNodeL,1,2) = tanh(coordPar(iNodeL,3)*1000.0_rp)*this%vo
          u(iNodeL,2,2) = 0.0_rp
          u(iNodeL,3,2) = 0.0_rp  
+#endif
       end do
       !$acc end parallel loop
 

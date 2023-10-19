@@ -49,7 +49,7 @@ contains
       bouCodes2BCType(1) = bc_type_slip_wall_model
       bouCodes2BCType(2) = bc_type_far_field 
       bouCodes2BCType(3) = bc_type_far_field
-      bouCodes2BCType(4) = bc_type_slip_adiabatic
+      bouCodes2BCType(4) = bc_type_far_field
       bouCodes2BCType(5) = bc_type_far_field
 
 #else
@@ -116,10 +116,10 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 2000
+      this%save_resultsFile_step = 12000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 2000
+      this%save_restartFile_step = 12000
       this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
@@ -141,17 +141,17 @@ contains
       pseudo_cfl =1.5_rp 
 #endif
       pseudo_ftau= 6.0_rp
-      maxIterNonLineal=200
-      tol=1e-3
+      maxIterNonLineal=20
+      tol=1e-4
 
       period_walave   = 0.5_rp
       flag_walave     = .true.
 
 #if CRM
-      !this%dt = 1e-4
-     !flag_use_constant_dt = 1
-      this%cfl_conv = 0.95_rp 
-      this%cfl_diff = 0.95_rp 
+      !this%dt = 1e-3
+      !flag_use_constant_dt = 1
+      this%cfl_conv = 0.9_rp 
+      this%cfl_diff = 0.9_rp 
 #else  
       !this%dt = 5e-3
       !flag_use_constant_dt = 1 
