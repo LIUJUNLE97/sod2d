@@ -1,10 +1,6 @@
 module mod_comms_boundaries
     use mod_mpi_mesh
 
-#ifdef NCCL_COMMS
-    use nccl
-#endif
-
 !-- Select type of communication for mpi_boundary_atomic_updates
 #define _ISENDIRCV_ 1
 
@@ -21,14 +17,6 @@ module mod_comms_boundaries
 
     logical :: bnd_isInt,bnd_isReal
 
-#ifdef NCCL_COMMS
-    integer                        :: cuda_bnd_stat
-    type(ncclResult)               :: nccl_bnd_stat
-    type(ncclUniqueId)             :: nccl_bnd_uid
-    type(ncclComm)                 :: nccl_bnd_comm
-    integer(kind=cuda_stream_kind) :: nccl_bnd_stream
-#endif
-
 contains
 
     subroutine init_comms_bnd(useInt,useReal)
@@ -38,9 +26,6 @@ contains
 
 #if _ISENDIRCV_
         if(mpi_rank.eq.0) write(111,*) "--| Boundary Comm. scheme: iSend-iRecv"
-#endif
-#ifdef NCCL_COMMS
-        if(mpi_rank.eq.0) write(111,*) "--| Boundary Comm. scheme: NCCL"
 #endif
 
         bnd_isInt=.false.
@@ -79,15 +64,6 @@ contains
         !call setFenceFlags(useFenceFlags)
         !call setPSCWAssertNoCheckFlags(useAssertNoCheckFlags)
         !call setLockBarrier(useLockBarrier)
-
-#ifdef NCCL_COMMS
-        if (mpi_rank == 0) then
-            nccl_bnd_stat = ncclGetUniqueId(nccl_bnd_uid)
-        end if
-        call MPI_Bcast(nccl_bnd_uid, int( sizeof(ncclUniqueId), kind = 4 ), MPI_BYTE, 0, app_comm, mpi_err)
-        nccl_bnd_stat = ncclCommInitRank(nccl_bnnd_comm, mpi_size, nccl_bnd_uid, mpi_rank);
-        cuda_bnd_stat = cudaStreamCreate(nccl_bnd_stream);
-#endif
 
     end subroutine init_comms_bnd
 
@@ -291,21 +267,6 @@ contains
 
         call fill_boundary_sendBuffer_int(intField)
 
-#if NCCL_COMMS
-        nccl_bnd_stat = ncclGroupStart()
-        !$acc host_data use_device(aux_bnd_intField_r(:),aux_bnd_intField_s(:))
-        do i=1,bnd_numRanksWithComms
-            ngbRank  = bnd_ranksToComm(i)
-            memPos_l = bnd_commsMemPosInLoc(i)
-            memSize  = bnd_commsMemSize(i)
-
-            nccl_bnd_stat = ncclRecv(aux_bnd_intField_r(mempos_l), memSize, nccl_datatype_int, ngbRank, nccl_bnd_comm, nccl_bnd_stream)
-            nccl_bnd_stat = ncclSend(aux_bnd_intField_s(mempos_l), memSize, nccl_datatype_int, ngbRank, nccl_bnd_comm, nccl_bnd_stream)
-        end do
-        !$acc end host_data
-        nccl_bnd_stat = ncclGroupEnd()
-        cuda_bnd_stat = cudaStreamSynchronize(nccl_bnd_stream)
-#else
         ireq=0
         !$acc host_data use_device (aux_bnd_intField_r(:),aux_bnd_intField_s(:))
         do i=1,bnd_numRanksWithComms
@@ -322,7 +283,6 @@ contains
         !$acc end host_data
 
         call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
-#endif
 
         call copy_from_boundary_rcvBuffer_int(intField)
     end subroutine mpi_halo_boundary_atomic_update_int_iSendiRcv
@@ -336,21 +296,6 @@ contains
 
         call fill_boundary_sendBuffer_real(realField)
 
-#if NCCL_COMMS
-        nccl_bnd_stat = ncclGroupStart()
-        !$acc host_data use_device(aux_bnd_realField_r(:),aux_bnd_realField_s(:))
-        do i=1,bnd_numRanksWithComms
-            ngbRank  = bnd_ranksToComm(i)
-            memPos_l = bnd_commsMemPosInLoc(i)
-            memSize  = bnd_commsMemSize(i)
-
-            nccl_bnd_stat = ncclRecv(aux_bnd_realField_r(mempos_l), memSize, nccl_datatype_real, ngbRank, nccl_bnd_comm, nccl_bnd_stream)
-            nccl_bnd_stat = ncclSend(aux_bnd_realField_s(mempos_l), memSize, nccl_datatype_real, ngbRank, nccl_bnd_comm, nccl_bnd_stream)
-        end do
-        !$acc end host_data
-        nccl_bnd_stat = ncclGroupEnd()
-        cuda_bnd_stat = cudaStreamSynchronize(nccl_bnd_stream)
-#else
         ireq=0
         !$acc host_data use_device (aux_bnd_realField_r(:),aux_bnd_realField_s(:))
         do i=1,bnd_numRanksWithComms
@@ -367,7 +312,6 @@ contains
         !$acc end host_data
 
         call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
-#endif
 
         call copy_from_boundary_rcvBuffer_real(realField)
     end subroutine mpi_halo_boundary_atomic_update_real_iSendiRcv

@@ -4,9 +4,7 @@ module mod_mpi
 #ifndef NOACC
    use openacc
 #endif
-#ifdef NCCL_COMMS
-    use nccl
-#endif
+
    implicit none
 
    integer :: mpi_rank, mpi_size, mpi_err
@@ -16,9 +14,6 @@ module mod_mpi
    integer :: mpi_datatype_int,mpi_datatype_int4,mpi_datatype_int8
    integer :: mpi_datatype_real,mpi_datatype_real4,mpi_datatype_real8
    integer :: mpi_datatype_real_int
-#ifdef NCCL_COMMS
-    type(ncclDataType) :: nccl_datatype_real, nccl_datatype_int
-#endif
 
    integer :: smNode_comm,smNode_rank,smNode_size
    integer :: num_devices, id_device
@@ -60,22 +55,13 @@ module mod_mpi
       mpi_datatype_int = MPI_INTEGER
       mpi_datatype_int4 = MPI_INTEGER4
       mpi_datatype_int8 = MPI_INTEGER8
-#ifdef NCCL_COMMS
-      nccl_datatype_int = ncclInt32
-#endif
       mpi_datatype_real4 = MPI_REAL4
       mpi_datatype_real8 = MPI_REAL8
 
       if(rp.eq.4) then
          mpi_datatype_real = MPI_REAL4
-#ifdef NCCL_COMMS
-         nccl_datatype_real = ncclFloat32
-#endif
       else if(rp.eq.8) then
          mpi_datatype_real = MPI_REAL8
-#ifdef NCCL_COMMS
-         nccl_datatype_real = ncclFloat64
-#endif
       else
          write(*,*) 'Fatal error in init_mpi()! rp is not 4 or 8 >> CRASH!'
          call MPI_Abort(app_comm,-1,mpi_err)
