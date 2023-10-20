@@ -6,7 +6,7 @@ module mod_arrays
       ! main allocatable arrays
       ! integer ---------------------------------------------------
       integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
-      integer(4), allocatable :: atoIJ(:),atoIJK(:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
+      integer(4), allocatable :: atoIJ(:),atoIJK(:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
       integer(4), allocatable :: witel(:), buffstep(:)
 
       ! real ------------------------------------------------------
@@ -34,6 +34,12 @@ module mod_arrays
 
       ! exponential average for wall law
       real(rp), allocatable :: walave_u(:,:)
+
+      ! roughness for wall law
+      real(rp), allocatable :: zo(:)      
+
+      ! for entropy and sgs visc.
+      real(rp),  allocatable :: mue_l(:,:),al_weights(:),am_weights(:),an_weights(:)
 
 end module mod_arrays
 
@@ -67,6 +73,7 @@ module CFDSolverBase_mod
       use mod_comms_boundaries
       use mod_custom_types
       use mod_witness_points
+      use mod_filters
    implicit none
    private
 
@@ -95,7 +102,7 @@ module CFDSolverBase_mod
       character(512) :: log_file_name
       character(512) :: mesh_h5_file_path,mesh_h5_file_name
       character(512) :: results_h5_file_path,results_h5_file_name
-      character(512) :: io_prepend_path
+      character(512) :: io_prepend_path,io_append_info
       character(512) :: witness_inp_file_name,witness_h5_file_name
 
       ! main real parameters
@@ -136,11 +143,13 @@ module CFDSolverBase_mod
       procedure, public :: normalFacesToNodes => CFDSolverBase_normalFacesToNodes
       procedure, public :: fillBCTypes => CFDSolverBase_fill_BC_Types
       procedure, public :: allocateVariables => CFDSolverBase_allocateVariables
+      procedure, public :: deallocateVariables => CFDSolverBase_deallocateVariables
       procedure, public :: evalOrLoadInitialConditions => CFDSolverBase_evalOrLoadInitialConditions
       procedure, public :: evalInitialConditions => CFDSolverBase_evalInitialConditions
       procedure, public :: evalInitialViscosity =>CFDSolverBase_evalInitialViscosity
       procedure, public :: evalViscosityFactor=>CFDSolverBase_evalViscosityFactor
       procedure, public :: evalInitialDt =>CFDSolverBase_evalInitialDt
+      procedure, public :: evalDt =>CFDSolverBase_evalDt
       procedure, public :: evalShapeFunctions =>CFDSolverBase_evalShapeFunctions
       procedure, public :: evalBoundaryNormals =>CFDSolverBase_evalBoundaryNormals
       procedure, public :: evalJacobians =>CFDSolverBase_evalJacobians
@@ -170,6 +179,9 @@ module CFDSolverBase_mod
       procedure, public :: add_avgElemGpScalarField2save => CFDSolverBase_add_avgElemGpScalarField2save
 
       procedure, public :: setFields2Save => CFDSolverBase_setFields2Save
+
+      procedure, public :: initNSSolver => CFDSolverBase_initNSSolver
+      procedure, public :: endNSSolver => CFDSolverBase_endNSSolver
 
       procedure :: open_log_file
       procedure :: close_log_file
@@ -207,6 +219,20 @@ contains
 
    end subroutine CFDSolverBase_initializeSourceTerms
 
+   subroutine CFDSolverBase_initNSSolver(this)
+      class(CFDSolverBase), intent(inout) :: this
+      
+      call init_rk4_solver(numNodesRankPar) 
+
+   end subroutine CFDSolverBase_initNSSolver
+
+   subroutine CFDSolverBase_endNSSolver(this)
+      class(CFDSolverBase), intent(inout) :: this
+      
+       call end_rk4_solver()
+
+   end subroutine CFDSolverBase_endNSSolver
+
    subroutine CFDSolverBase_initializeDefaultParameters(this)
       class(CFDSolverBase), intent(inout) :: this
 
@@ -217,6 +243,7 @@ contains
       write(this%results_h5_file_name,*) "resultsFile"
 
       write(this%io_prepend_path,*) "./"
+      write(this%io_append_info,*) ""
 
       this%time = 0.0_rp
       this%initial_istep = 1
@@ -597,6 +624,7 @@ contains
             listBoundsWallModel(auxBoundCnt) = iBound
          end if
       end do
+      !$acc update device(listBoundsWallModel(:))
 
    end subroutine checkIfWallModelOn
 
@@ -767,10 +795,10 @@ contains
       ! Last rank is for prediction-advance related to entropy viscosity,
       ! where 1 is prediction, 2 is final value
       !
-      allocate(u(numNodesRankPar,ndime,2))  ! Velocity
+      allocate(u(numNodesRankPar,ndime,3))  ! Velocity
       allocate(q(numNodesRankPar,ndime,3))  ! momentum
       allocate(rho(numNodesRankPar,3))      ! Density
-      allocate(pr(numNodesRankPar,2))       ! Pressure
+      allocate(pr(numNodesRankPar,3))       ! Pressure
       allocate(E(numNodesRankPar,3))        ! Total Energy
       allocate(Tem(numNodesRankPar,2))      ! Temperature
       allocate(e_int(numNodesRankPar,2))    ! Internal Energy
@@ -782,6 +810,7 @@ contains
       allocate(mu_e(numElemsRankPar,ngaus))  ! Elemental viscosity
       allocate(mu_sgs(numElemsRankPar,ngaus))! SGS viscosity
       allocate(u_buffer(numNodesRankPar,ndime))  ! momentum at the buffer
+      allocate(mue_l(numElemsRankPar,nnode))
       !$acc enter data create(u(:,:,:))
       !$acc enter data create(q(:,:,:))
       !$acc enter data create(rho(:,:))
@@ -797,6 +826,7 @@ contains
       !$acc enter data create(mu_e(:,:))
       !$acc enter data create(mu_sgs(:,:))
       !$acc enter data create(u_buffer(:,:))
+      !$acc enter data create(mue_l(:,:))
 
       ! implicit
       allocate(impl_rho(numNodesRankPar))
@@ -922,11 +952,19 @@ contains
       end if
 
       ! Exponential average velocity for wall law
-      if(flag_walave==1) then
+      if(flag_walave) then
          allocate(walave_u(numNodesRankPar,ndime))
          !$acc enter data create(walave_u(:,:))
          !$acc kernels
          walave_u(:,:) = 0.0_rp
+         !$acc end kernels
+      end if
+
+      if(flag_type_wmles==wmles_type_abl) then
+         allocate(zo(numNodesRankPar))
+         !$acc enter data create(zo(:))
+         !$acc kernels
+         zo(:) = 0.0_rp
          !$acc end kernels
       end if
 
@@ -935,6 +973,18 @@ contains
       call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_allocateVariables
+
+   subroutine CFDSolverBase_deallocateVariables(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      if(mpi_rank.eq.0) write(111,*) "--| DEALLOCATING MAIN VARIABLES"
+      call nvtxStartRange("Deallocate main vars")
+
+      !TO BE COMPLETED! NOT STRICTLY NECESSARY BUT IS GOOD TO DO IT AS GOOD PROGRAMMING PRACTICE :)
+
+      call nvtxEndRange
+
+   end subroutine CFDSolverBase_deallocateVariables
 
    subroutine CFDSolverBase_evalOrLoadInitialConditions(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -1014,7 +1064,7 @@ contains
 
         if (flag_real_diff == 1) then
            if (flag_diff_suth == 0) then
-              call constant_viscosity(numNodesRankPar,0.000055_rp,mu_fluid)
+              call constant_viscosity(numNodesRankPar,incomp_viscosity,mu_fluid)
            else
               call sutherland_viscosity(numNodesRankPar,Tem(:,2),mu_factor,mu_fluid)
            end if
@@ -1055,9 +1105,9 @@ contains
       call nvtxStartRange("MU_SGS")
       if(flag_les_ilsa == 1) then
          this%dt = 1.0_rp !To avoid 0.0 division inside sgs_ilsa_visc calc
-         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3) 
+         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3,mue_l) 
       else
-         call sgs_visc(numElemsRankPar,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs)
+         call sgs_visc(numElemsRankPar,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs,mue_l)
       end if
       call nvtxEndRange
 
@@ -1082,10 +1132,21 @@ contains
 
    end subroutine CFDSolverBase_evalInitialDt
 
+   subroutine CFDSolverBase_evalDt(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      if (flag_real_diff == 1) then
+         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
+      else
+         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
+      end if   
+
+   end subroutine CFDSolverBase_evalDt
+
    subroutine CFDSolverBase_evalShapeFunctions(this)
       class(CFDSolverBase), intent(inout) :: this
       real(rp)   :: s,t,z,xi_gll(porder+1),xgp_equi(ngaus,ndime)
-      integer(4) :: igaus
+      integer(4) :: igaus,ii
 
       !*********************************************************************!
       ! Generate GLL table                                                  !
@@ -1194,6 +1255,10 @@ contains
       this%leviCivi(1,2,3) =  1.0_rp
       this%leviCivi(2,1,3) = -1.0_rp
 
+      !
+      ! Compute al,am,an weights and convertIJK
+      !
+
       call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_evalShapeFunctions
@@ -1290,12 +1355,10 @@ contains
       if(mpi_rank.eq.0) write(111,*) '  --| Evaluating point2elem array...'
       call elemPerNode(nnode,numElemsRankPar,numNodesRankPar,connecParWork,lelpn,point2elem)
 
-      if(mpi_rank.eq.0) write(111,*) '  --| Evaluating lnbn & lnbnNodes arrays...'
-      allocate(lnbn(numBoundsRankPar,npbou))
-      !$acc enter data create(lnbn(:,:))
+      if(mpi_rank.eq.0) write(111,*) '  --| Evaluating lnbnNodes arrays...'
       allocate(lnbnNodes(numNodesRankPar))
       !$acc enter data create(lnbnNodes(:))
-      call nearBoundaryNode(porder,nnode,npbou,numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
+      call nearBoundaryNode(porder,nnode,npbou,numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbnNodes)
 
       call MPI_Barrier(app_comm,mpi_err)
 
@@ -1455,7 +1518,7 @@ contains
          write(111,*) 'Doing evalTimeIteration. Ini step:',this%initial_istep,'| End step:',this%final_istep
       end if
 
-      call init_rk4_solver(numNodesRankPar)
+      call this%initNSSolver()
 
       do istep = this%initial_istep,this%final_istep
          !if (istep==this%nsave.and.mpi_rank.eq.0) write(111,*) '   --| STEP: ', istep
@@ -1476,7 +1539,7 @@ contains
          ! Exponential averaging for wall law
          !
          call nvtxStartRange("Wall Average "//timeStep,istep)
-         if(flag_walave == 1) then
+         if(flag_walave) then
             !
             ! outside acc kernels following pseudo_cfl in next loop
             !
@@ -1488,7 +1551,7 @@ contains
          end if
          call nvtxEndRange
 
-         call nvtxStartRange("RK4 step "//timeStep,istep)
+         call nvtxStartRange("Time-step"//timeStep,istep)
 
          if(flag_implicit == 1) then
             !$acc kernels
@@ -1539,6 +1602,8 @@ contains
             E(:,3) = E(:,1)
             q(:,:,3) = q(:,:,1)
             eta(:,3) = eta(:,1)
+            u(:,:,3) = u(:,:,1)
+            pr(:,3) = pr(:,1)
             !$acc end kernels
             pseudo_cfl = aux_pseudo_cfl
          !end if
@@ -1571,11 +1636,7 @@ contains
             end if
          end if
 
-         if (flag_real_diff == 1) then
-            call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
-         else
-            call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
-         end if
+         call this%evalDt()
 
          call nvtxEndRange
 
@@ -1674,7 +1735,7 @@ contains
       end do
       call nvtxEndRange
 
-      call end_rk4_solver()
+      call this%endNSSolver()
 
    end subroutine CFDSolverBase_evalTimeIteration
 
@@ -1737,10 +1798,14 @@ contains
       real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode), dist(numElemsRankPar), xyzwit(ndime), mindist
       real(rp), parameter                 :: wittol=1e-7
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
-      real(rp)                            :: locdist(2), globdist(2)
       real(rp)                            :: xmin, ymin, zmin, xmax, ymax, zmax
       real(rp)                            :: xminloc, yminloc, zminloc, xmaxloc, ymaxloc, zmaxloc
       logical                             :: isinside, found
+      type real_int
+	real(rp)   :: realnum
+	integer(4) :: intnum
+      end type
+      type(real_int)                      :: locdist, globdist
 
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
@@ -1774,12 +1839,12 @@ contains
       ymaxloc = maxval(coordPar(:,2)) + wittol
       zmaxloc = maxval(coordPar(:,3)) + wittol
 
-      call MPI_Allreduce(xminloc, xmin, 1, MPI_REAL, MPI_MIN, app_comm, mpi_err)
-      call MPI_Allreduce(yminloc, ymin, 1, MPI_REAL, MPI_MIN, app_comm, mpi_err)
-      call MPI_Allreduce(zminloc, zmin, 1, MPI_REAL, MPI_MIN, app_comm, mpi_err)
-      call MPI_Allreduce(xmaxloc, xmax, 1, MPI_REAL, MPI_MAX, app_comm, mpi_err)
-      call MPI_Allreduce(ymaxloc, ymax, 1, MPI_REAL, MPI_MAX, app_comm, mpi_err)
-      call MPI_Allreduce(zmaxloc, zmax, 1, MPI_REAL, MPI_MAX, app_comm, mpi_err)
+      call MPI_Allreduce(xminloc, xmin, 1, mpi_datatype_real, MPI_MIN, app_comm, mpi_err)
+      call MPI_Allreduce(yminloc, ymin, 1, mpi_datatype_real, MPI_MIN, app_comm, mpi_err)
+      call MPI_Allreduce(zminloc, zmin, 1, mpi_datatype_real, MPI_MIN, app_comm, mpi_err)
+      call MPI_Allreduce(xmaxloc, xmax, 1, mpi_datatype_real, MPI_MAX, app_comm, mpi_err)
+      call MPI_Allreduce(ymaxloc, ymax, 1, mpi_datatype_real, MPI_MAX, app_comm, mpi_err)
+      call MPI_Allreduce(zmaxloc, zmax, 1, mpi_datatype_real, MPI_MAX, app_comm, mpi_err)
 
       !$acc kernels
       witGlobCand(:) = 0
@@ -1857,10 +1922,10 @@ contains
             dist(:)    = (center(:,1)-xyzwit(1))*(center(:,1)-xyzwit(1))+(center(:,2)-xyzwit(2))*(center(:,2)-xyzwit(2))+(center(:,3)-xyzwit(3))*(center(:,3)-xyzwit(3))
             !$acc end kernels
             ielem      = minloc(dist(:),1)
-            locdist(1) = dist(ielem)
-            locdist(2) = mpi_rank
-            call MPI_Allreduce(locdist, globdist, 2, MPI_2REAL, MPI_MINLOC, app_comm, mpi_err)
-            if (mpi_rank .eq. int(globdist(2))) then
+            locdist % realnum = dist(ielem)
+            locdist % intnum  = mpi_rank
+            call MPI_Allreduce(locdist, globdist, 1, mpi_datatype_real_int, MPI_MINLOC, app_comm, mpi_err)
+            if (mpi_rank .eq. globdist % intnum) then
 	       write(*,*) "[NOT FOUND WITNESS] ", xyzwit(:)
                this%nwitPar              = this%nwitPar+1
                witGlob(this%nwitPar)     = witGlobMiss(iwit)
@@ -1901,7 +1966,13 @@ contains
       if(mpi_rank.eq.0) then
          write(aux_string_mpisize,'(I0)') mpi_size
 
-         this%log_file_name = trim(adjustl(this%io_prepend_path))//'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
+         if(len_trim(adjustl(this%io_append_info)) == 0) then
+            this%io_append_info = trim(adjustl(this%io_append_info))
+        else
+            this%io_append_info = "."//trim(adjustl(this%io_append_info))
+         end if 
+
+         this%log_file_name = trim(adjustl(this%io_prepend_path))//'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//trim(this%io_append_info)//'.log'
          if(this%continue_oldLogs) then
             open(unit=111,file=this%log_file_name,status='old',position='append')
          else
@@ -1910,9 +1981,17 @@ contains
       end if
 
       if(mpi_rank.eq.0) then
-         write(111,*) "--| Flags defined in the current case:"
-         write(111,*) "    flag_real_diff: ",           flag_real_diff
-         write(111,*) "    flag_diff_suth: ",           flag_diff_suth
+         write(111,*) "--| Current case settings:"
+         write(111,*) "--------------------------------------------"
+         write(111,*) "  # Constants:"
+         write(111,*) "    rp: ",               rp
+         write(111,*) "    rp_vtk: ",           rp_vtk
+         write(111,*) "    porder: ",           porder
+         write(111,*) "    flag_real_diff: ",   flag_real_diff
+         write(111,*) "    flag_diff_suth: ",   flag_diff_suth
+         write(111,*) "--------------------------------------------"
+         write(111,*) "  # Numerical parameters:"
+         write(111,*) "    flag_implicit: ",            flag_implicit
          write(111,*) "    flag_rk_order: ",            flag_rk_order
          write(111,*) "    flag_les: ",                 flag_les
          write(111,*) "    flag_les_ilsa: ",            flag_les_ilsa
@@ -1920,7 +1999,8 @@ contains
          write(111,*) "    flag_spectralElem: ",        flag_spectralElem
          write(111,*) "    flag_normalise_entropy: ",   flag_normalise_entropy
          write(111,*) "    flag_walave: ",              flag_walave
-         write(111,*) "--------------------------------------"
+         write(111,*) "    flag_buffer_on: ",           flag_buffer_on
+         write(111,*) "--------------------------------------------"
          write(111,*) "    ce: ",      ce
          write(111,*) "    cmax: ",    cmax
          write(111,*) "    c_sgs: ",   c_sgs
@@ -1929,7 +2009,13 @@ contains
          write(111,*) "    c_ener: ",  c_ener
          write(111,*) "    stau: ",    stau
          write(111,*) "    T_ilsa: ",  T_ilsa
-         write(111,*) "--------------------------------------"
+         write(111,*) "--------------------------------------------"
+         write(111,*) "    cfl_conv: ",         this%cfl_conv
+         write(111,*) "    cfl_diff: ",         this%cfl_diff
+         write(111,*) "    maxIterNonLineal: ", maxIterNonLineal
+         write(111,*) "    tol: ",              tol
+         write(111,*) "    pseudo_cfl: ",       pseudo_cfl
+         write(111,*) "--------------------------------------------"
       end if
 
    end subroutine open_log_file
@@ -1944,7 +2030,7 @@ contains
          write(aux_string_mpisize,'(I0)') mpi_size
 
          if(this%doGlobalAnalysis) then
-            filenameAnalysis = trim(adjustl(this%io_prepend_path))//'analysis_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
+            filenameAnalysis = trim(adjustl(this%io_prepend_path))//'analysis_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//trim(this%io_append_info)//'.dat'
             if(this%continue_oldLogs) then
                open(unit=666,file=filenameAnalysis,status='old',position='append')
             else
@@ -1953,7 +2039,7 @@ contains
          end if
 
          if(this%doTimerAnalysis) then
-            fileNameTimer = trim(adjustl(this%io_prepend_path))//'timer_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.log'
+            fileNameTimer = trim(adjustl(this%io_prepend_path))//'timer_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//trim(this%io_append_info)//'.dat'
             open(unit=123,file=fileNameTimer,status='replace')
             write(123,*) "iter iteTime iteTimeAvg"
          end if
@@ -1961,7 +2047,7 @@ contains
          if (isMeshBoundaries) then
             do iCode = 1,numBoundCodes
                write(aux_string_code,'(I0)') iCode
-               filenameBound = trim(adjustl(this%io_prepend_path))//'surf_code_'//trim(aux_string_code)//'-'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//'.dat'
+               filenameBound = trim(adjustl(this%io_prepend_path))//'surf_code_'//trim(aux_string_code)//'-'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//trim(this%io_append_info)//'.dat'
                if(this%continue_oldLogs) then
                   open(unit=888+iCode,form='formatted',file=filenameBound,status='old',position='append')
                else
@@ -2104,6 +2190,10 @@ contains
       ! Allocate variables
       call this%allocateVariables()
 
+      ! Allocating and defining filters
+      call init_filters()
+
+      ! Setting fields to be saved
       call this%setFields2Save()
 
       ! Eval or load initial conditions
@@ -2166,6 +2256,12 @@ contains
 
       call this%close_log_file()
       call this%close_analysis_files()
+
+      ! Deallocate the variables
+      call this%deallocateVariables()
+
+      ! Deallocate the filters
+      call deallocate_filters()
 
       ! End hdf5 auxiliar saving arrays
       call end_hdf5_auxiliar_saving_arrays()

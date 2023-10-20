@@ -2,7 +2,7 @@ module mod_sgs_ilsa_viscosity
 
    use mod_numerical_params
    use mod_nvtx
-   
+   use mod_filters,only:convertIJK,al_weights,am_weights,an_weights
 
    ! TODO: Finish module and create unit tests
 
@@ -15,7 +15,7 @@ contains
    ! it implents the ILSA SGS
 
    subroutine sgs_ilsa_visc(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dt, &
-         rho,u,mu_sgs,mu_fluid,mue,kres,etot,au,ax1,ax2,ax3)
+         rho,u,mu_sgs,mu_fluid,mue,kres,etot,au,ax1,ax2,ax3,mue_l)
 
       implicit none
 
@@ -23,38 +23,17 @@ contains
       real(rp),  intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
       real(rp),  intent(in)    :: He(ndime,ndime,ngaus,nelem),dt
       real(rp),  intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1)
-      integer(4),intent(in)    :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+      integer(4),intent(in)    :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode),gmshAtoJ(nnode),gmshAtoK(nnode)
       real(rp),  intent(in)    :: rho(npoin), u(npoin,ndime)
       real(rp),  intent(out)   :: mu_sgs(nelem,ngaus)
       real(rp),  intent(in)    :: mu_fluid(npoin),mue(nelem,ngaus)
-      real(rp),  intent(inout) :: kres(npoin),etot(npoin),au(npoin,ndime),ax1(npoin),ax2(npoin),ax3(npoin)
+      real(rp),  intent(inout) :: kres(npoin),etot(npoin),au(npoin,ndime),ax1(npoin),ax2(npoin),ax3(npoin),mue_l(nelem,nnode)
       integer(4)               :: ielem, inode, igaus, idime, jdime,ipoin,kdime,isoI, isoJ, isoK 
-      real(rp)                 :: gpcar(ndime,nnode), aux,aux2,mueff(nnode),ul(nnode,ndime),kresl(nnode),etotl(nnode)
+      real(rp)                 :: gpcar(ndime,nnode),aux,aux1,aux2,mueff(nnode),ul(nnode,ndime),kresl(nnode),etotl(nnode)
       real(rp)                 :: gradU(ndime,ndime), gradUf(ndime,ndime),eliti,ave,strain(ndime,ndime),strain_m,strainf(ndime,ndime),uf(nnode,ndime)
       real(rp)                 :: gpkres,ax1l(nnode),ax2l(nnode),ax3l(nnode),gpax1,gpax2,gpax3,c_k,a,b,c,d,gprij(ndime,ndime),gplest,gpepst,aul(nnode,ndime),aux3(nnode)
       real(rp)                 :: gradIsoUf(ndime,ndime),gradIsoU(ndime,ndime)
-      integer(4)              :: convertIJK(0:porder+2),ii,jj,kk,mm,nn,ll
-      real(rp)                :: mue_l(nelem,nnode),al(-1:1),am(-1:1),an(-1:1),aux1
-
-      do ii=3,porder+1
-         convertIJK(ii-1) = ii
-      end do 
-      convertIJK(0) = 3
-      convertIJK(1) = 1
-      convertIJK(porder+1) = 2
-      convertIJK(porder+2) = porder
-
-      al(-1) = 1.0_rp/4.0_rp
-      al(0)  = 2.0_rp/4.0_rp
-      al(1)  = 1.0_rp/4.0_rp
-
-      am(-1) = 1.0_rp/4.0_rp
-      am(0)  = 2.0_rp/4.0_rp
-      am(1)  = 1.0_rp/4.0_rp
-      
-      an(-1) = 1.0_rp/4.0_rp
-      an(0)  = 2.0_rp/4.0_rp
-      an(1)  = 1.0_rp/4.0_rp
+      integer(4)               :: ii,jj,kk,mm,nn,ll
 
       !$acc kernels
       mue_l(:,:) = mu_sgs(:,:)
@@ -206,7 +185,7 @@ contains
                      do mm=-1,1
                         !$acc loop seq
                         do nn=-1,1           
-                           aux1 =   aux1 +  al(ll)*am(mm)*an(nn)*mue_l(ielem,invAtoIJK(convertIJK(ii+ll),convertIJK(jj+mm),convertIJK(kk+nn)))
+                           aux1 =   aux1 +  al_weights(ll)*am_weights(mm)*an_weights(nn)*mue_l(ielem,invAtoIJK(convertIJK(ii+ll),convertIJK(jj+mm),convertIJK(kk+nn)))
                         end do
                      end do 
                   end do

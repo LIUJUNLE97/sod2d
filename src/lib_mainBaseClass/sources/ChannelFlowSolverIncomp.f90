@@ -1,4 +1,4 @@
-module ChannelFlowSolver_mod
+module ChannelFlowSolverIncomp_mod
    use mod_arrays
    use mod_nvtx
 #ifndef NOACC
@@ -23,33 +23,33 @@ module ChannelFlowSolver_mod
    use mod_mpi
    use mod_mpi_mesh
    use mod_hdf5
-   use CFDSolverPeriodicWithBoundaries_mod
+   use CFDSolverPeriodicWithBoundariesIncomp_mod
    implicit none
    private
 
-   type, public, extends(CFDSolverPeriodicWithBoundaries) :: ChannelFlowSolver
+   type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: ChannelFlowSolverIncomp
 
-      real(rp) , public  :: vo, M, delta, U0, rho0, Retau, Re, utau, to, po, mu
+      real(rp) , public  :: vo, delta, rho0, Retau, Re, utau, mu
 
    contains
-      procedure, public :: fillBCTypes           => ChannelFlowSolver_fill_BC_Types
-      procedure, public :: initializeParameters  => ChannelFlowSolver_initializeParameters
-      procedure, public :: initializeSourceTerms => ChannelFlowSolver_initializeSourceTerms
-      procedure, public :: evalInitialConditions => ChannelFlowSolver_evalInitialConditions
-   end type ChannelFlowSolver
+      procedure, public :: fillBCTypes           => ChannelFlowSolverIncomp_fill_BC_Types
+      procedure, public :: initializeParameters  => ChannelFlowSolverIncomp_initializeParameters
+      procedure, public :: initializeSourceTerms => ChannelFlowSolverIncomp_initializeSourceTerms
+      procedure, public :: evalInitialConditions => ChannelFlowSolverIncomp_evalInitialConditions
+   end type ChannelFlowSolverIncomp
 contains
 
-   subroutine ChannelFlowSolver_fill_BC_Types(this)
-      class(ChannelFlowSolver), intent(inout) :: this
+   subroutine ChannelFlowSolverIncomp_fill_BC_Types(this)
+      class(ChannelFlowSolverIncomp), intent(inout) :: this
 
       !bouCodes2BCType(1) = bc_type_slip_wall_model
       bouCodes2BCType(1) = bc_type_non_slip_adiabatic
       !$acc update device(bouCodes2BCType(:))
 
-   end subroutine ChannelFlowSolver_fill_BC_Types
+   end subroutine ChannelFlowSolverIncomp_fill_BC_Types
 
-   subroutine ChannelFlowSolver_initializeSourceTerms(this)
-      class(ChannelFlowSolver), intent(inout) :: this
+   subroutine ChannelFlowSolverIncomp_initializeSourceTerms(this)
+      class(ChannelFlowSolverIncomp), intent(inout) :: this
       integer(4) :: iNodeL
 
       allocate(source_term(numNodesRankPar,ndime))
@@ -60,13 +60,23 @@ contains
          source_term(iNodeL,1) = (this%utau*this%utau*this%rho0/this%delta)
          source_term(iNodeL,2) = 0.00_rp
          source_term(iNodeL,3) = 0.00_rp
+
+         !just a momentary trick
+         pr(iNodeL,2) = 0.0_rp 
+         rho(iNodeL,2) = this%rho0            
+
+         rho(iNodeL,3) = rho(iNodeL,2)
+         pr(iNodeL,3) =  pr(iNodeL,2)
       end do
       !$acc end parallel loop
 
-   end subroutine ChannelFlowSolver_initializeSourceTerms
+      !$acc kernels
+      mu_e(:,:) = 0.0_rp ! Element syabilization viscosity
+      !$acc end kernels
+   end subroutine ChannelFlowSolverIncomp_initializeSourceTerms
 
-   subroutine ChannelFlowSolver_initializeParameters(this)
-      class(ChannelFlowSolver), intent(inout) :: this
+   subroutine ChannelFlowSolverIncomp_initializeParameters(this)
+      class(ChannelFlowSolverIncomp), intent(inout) :: this
       real(rp) :: mur
 
       write(this%mesh_h5_file_path,*) ""
@@ -83,10 +93,10 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 20000
+      this%save_resultsFile_step = 10000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 20000
+      this%save_restartFile_step = 10000
       this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
@@ -99,49 +109,39 @@ contains
 
       ! numerical params
       flag_les = 1
-      flag_implicit = 0
-      maxIterNonLineal=200
-      implicit_solver = implicit_solver_bdf2_rk10
-      pseudo_cfl = 1.95_rp !esdirk
-      tol = 1e-3
-      flag_implicit_repeat_dt_if_not_converged = 0
-       
-      !period_walave   = 1.0_rp
-      !flag_walave     = .true.
 
-      this%cfl_conv = 1.9_rp !bdf2
-      this%cfl_diff = 1.9_rp !bdf2
-      !this%cfl_conv = 0.15_rp !exp
-      !this%cfl_diff = 0.15_rp !exp
+      !this%cfl_conv = 0.9_rp 
+      !this%cfl_diff = 0.9_rp
+      flag_use_constant_dt = 1
+      this%dt = 5.0e-4
+      flag_cg_prec_bdc = .false.
 
-      this%Cp = 1004.0_rp
-      this%Prt = 0.71_rp
+      
       this%vo = 1.0_rp
-      this%M  = 0.2_rp
       this%delta  = 1.0_rp
-      this%U0     = 1.0_rp
       this%rho0   = 1.0_rp
       this%Retau  = 950.0_rp
-      this%gamma_gas = 1.40_rp
 
       this%Re     = exp((1.0_rp/0.88_rp)*log(this%Retau/0.09_rp))
       this%mu    = (this%rho0*2.0_rp*this%delta*this%vo)/this%Re
       this%utau   = (this%Retau*this%mu)/(this%delta*this%rho0)
-      this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
-      this%to = this%vo*this%vo/(this%gamma_gas*this%Rgas*this%M*this%M)
-      this%po = this%rho0*this%Rgas*this%to
-      mur = 0.000001458_rp*(this%to**1.50_rp)/(this%to+110.40_rp)
-      flag_mu_factor = this%mu/mur
-      nscbc_rho_inf = this%rho0
-      nscbc_p_inf = this%po
-      nscbc_Rgas_inf = this%Rgas
-      nscbc_gamma_inf = this%gamma_gas
-      nscbc_T_C = this%to
 
-   end subroutine ChannelFlowSolver_initializeParameters
+      incomp_viscosity = this%mu
+      flag_mu_factor = 1.0_rp
 
-   subroutine ChannelFlowSolver_evalInitialConditions(this)
-      class(ChannelFlowSolver), intent(inout) :: this
+      nscbc_p_inf = 0.0_rp
+
+      maxIter = 200
+      tol = 1e-3
+
+      flag_fs_fix_pressure = .false.
+      
+      period_walave   = 200.0_rp
+
+   end subroutine ChannelFlowSolverIncomp_initializeParameters
+
+   subroutine ChannelFlowSolverIncomp_evalInitialConditions(this)
+      class(ChannelFlowSolverIncomp), intent(inout) :: this
       integer(8) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL, idime
       real(rp) :: velo, rti(3), yp,velo_aux1
@@ -158,19 +158,11 @@ contains
 
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
-            pr(iNodeL,2) = this%po
-            rho(iNodeL,2) = this%po/this%Rgas/this%to
-            e_int(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp))
-            Tem(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*this%Rgas)
-            E(iNodeL,2) = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))+e_int(iNodeL,2))
-            q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
-            csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
-            eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
+            pr(iNodeL,2) = 0.0_rp 
+            rho(iNodeL,2) = this%rho0            
 
             rho(iNodeL,3) = rho(iNodeL,2)
-            E(iNodeL,3) =  E(iNodeL,2)
-            eta(iNodeL,3) = eta(iNodeL,2) 
-            q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+            pr(iNodeL,3) =  pr(iNodeL,2)
          end do
          !$acc end parallel loop
       else
@@ -204,28 +196,11 @@ contains
 
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
-            pr(iNodeL,2) = this%po
-            rho(iNodeL,2) = this%po/this%Rgas/this%to
-            e_int(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp))
-            Tem(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*this%Rgas)
-            E(iNodeL,2) = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))+e_int(iNodeL,2))
-            q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
-            csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
-            eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
-                    
-            q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
-            rho(iNodeL,3) = rho(iNodeL,2)
-            E(iNodeL,3) =  E(iNodeL,2)
-            eta(iNodeL,3) = eta(iNodeL,2) 
+            pr(iNodeL,2) = 0.0_rp 
+            rho(iNodeL,2) = this%rho0            
          end do
          !$acc end parallel loop
       end if
-
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
-         machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
-      end do
-      !$acc end parallel loop
 
       !$acc kernels
       mu_e(:,:) = 0.0_rp ! Element syabilization viscosity
@@ -249,13 +224,13 @@ contains
       ! Initialize exponential averaging for wall law 
       !
       call nvtxStartRange("Wall Average init")
-      if(flag_walave) then
+      if(flag_walave .eqv. .true.) then
          !$acc kernels
          walave_u(:,:) = u(:,:,2)
          !$acc end kernels
       end if
       call nvtxEndRange
 
-   end subroutine ChannelFlowSolver_evalInitialConditions
+   end subroutine ChannelFlowSolverIncomp_evalInitialConditions
 
-end module ChannelFlowSolver_mod
+end module ChannelFlowSolverIncomp_mod

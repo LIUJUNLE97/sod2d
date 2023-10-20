@@ -13,16 +13,11 @@ module mod_constants
 	!
 	! Element characteristics
 	!
-	integer(4), parameter :: porder=4
+	integer(4), parameter :: porder=2
 	integer(4), parameter :: nnode=(porder+1)**3
 	integer(4), parameter :: ngaus=nnode
 	integer(4), parameter :: npbou=(porder+1)**2
 
-	!
-	! Flags
-	!
-	integer(4), parameter :: flag_real_diff=1
-	integer(4), parameter :: flag_diff_suth=1
 
 	!
 	! Other constants
@@ -43,13 +38,17 @@ module mod_constants
 	!
 
 	integer(4), parameter :: bc_type_far_field            = 1
-	integer(4), parameter :: bc_type_non_slip_adiabatic   = 2
-	integer(4), parameter :: bc_type_non_slip_hot         = 3
-	integer(4), parameter :: bc_type_non_slip_cold        = 4
-	integer(4), parameter :: bc_type_slip_adiabatic       = 5
-	integer(4), parameter :: bc_type_slip_wall_model      = 6
+	integer(4), parameter :: bc_type_outlet_incomp        = 2
+	integer(4), parameter :: bc_type_non_slip_adiabatic   = 3
+	integer(4), parameter :: bc_type_non_slip_hot         = 4
+	integer(4), parameter :: bc_type_non_slip_cold        = 5
+	integer(4), parameter :: bc_type_slip_adiabatic       = 6
+	integer(4), parameter :: bc_type_slip_wall_model      = 7
+	integer(4), parameter :: bc_type_top_abl		      = 8
 
-
+	! Type of wall models
+	integer(4), parameter :: wmles_type_reichardt = 1
+	integer(4), parameter :: wmles_type_abl		  = 2
 	!
 	! Types of implicit solvers
 	!

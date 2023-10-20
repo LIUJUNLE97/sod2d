@@ -68,7 +68,7 @@ module mod_solver
 
 		subroutine gmres_full(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
 							atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-							noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,&
+							noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,&
 							rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
 							gammaRK,dt,pt,bmass,bmom,bener,mass_sol,mom_sol,ener_sol,istep,gmresTol)
 			implicit none
@@ -81,7 +81,7 @@ module mod_solver
 			real(rp)  , intent(in)    :: mu_fluid(npoin), mu_e(nelem,nnode), mu_sgs(nelem,nnode)
 			real(rp)  , intent(in)    :: bmass(npoin), bmom(npoin,ndime), bener(npoin)
 			integer(4), intent(in)     :: nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
-			integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou),lnbn_nodes(npoin)
+			integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn_nodes(npoin)
 			real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
 			logical,    intent(in)   :: noBoundaries
 			real(rp)  , intent(inout) :: mass_sol(npoin), mom_sol(npoin,ndime), ener_sol(npoin)
@@ -173,7 +173,7 @@ module mod_solver
 				call nvtxStartRange("GMRES: form_approx_Jy initial")
 				call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
 				invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-				noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,&
+				noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,&
 				rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
 				mass_sol,mom_sol,ener_sol,.true.)
 				call nvtxEndRange()
@@ -203,7 +203,7 @@ module mod_solver
 				call nvtxStartRange("GMRES: arnoldi_iter")
 				call arnoldi_iter(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
 				atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-				noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,&
+				noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,&
 				rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
 				gammaRK,dt,pt)
 				call nvtxEndRange()
@@ -363,7 +363,7 @@ module mod_solver
 
 		subroutine arnoldi_iter(ik,nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
 								atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-								noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,&
+								noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,&
 								rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
 								gammaRK,dt,pt)
 
@@ -375,7 +375,7 @@ module mod_solver
 			real(rp)  , intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus), He(ndime,ndime,ngaus,nelem), Ml(npoin)
 			real(rp)  , intent(in)    :: rho(npoin), u(npoin,ndime), q(npoin,ndime), pr(npoin), E(npoin), Tem(npoin),Rgas,gamma_gas, Cp, Prt
 			integer(4), intent(in)     :: nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
-			integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou),lnbn_nodes(npoin)
+			integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn_nodes(npoin)
 			real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
 			logical,    intent(in)   :: noBoundaries
 			real(rp)  , intent(in)    :: mu_fluid(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
@@ -393,7 +393,7 @@ module mod_solver
 			call nvtxStartRange("Arnoldi: J*Q")
 			call form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
 								invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-								noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,&
+								noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,&
 								rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
 								zmass,zmom,zener,.false.)
 			call nvtxEndRange()
@@ -598,7 +598,7 @@ module mod_solver
 
 		subroutine form_approx_Jy(nelem,npoin,npoin_w,lpoin_w,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp, &
 								invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK, &
-								noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,&
+								noBoundaries,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,&
 								rho,u,q,pr,E,Tem,Rgas,gamma_gas,Cp,Prt,mu_fluid,mu_e,mu_sgs,Ml, &
 								zmass,zmom,zener,flag_gmres_form_fix)
 
@@ -616,7 +616,7 @@ module mod_solver
 			real(rp)  , intent(in) :: mu_fluid(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
 			real(rp)  , intent(in) :: zmass(npoin), zener(npoin), zmom(npoin,ndime)
 			integer(4), intent(in) :: nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
-			integer(4), intent(in) :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou),lnbn_nodes(npoin)
+			integer(4), intent(in) :: nbnodes, lbnodes(nbnodes),lnbn_nodes(npoin)
 			logical   , intent(in) :: noBoundaries
 			real(rp)  , intent(in) :: normalsAtNodes(npoin,ndime)
 			real(rp)               :: zu(npoin,ndime)
@@ -672,7 +672,7 @@ module mod_solver
 			call lumped_solver_vect(npoin, npoin_w, lpoin_w, Ml, Jy_mom)
 
 			if (noBoundaries .eqv. .false.) then
-				call bc_fix_dirichlet_Jacobian(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Jy_mass,Jy_mom,Jy_ener)
+				call bc_fix_dirichlet_Jacobian(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,Jy_mass,Jy_mom,Jy_ener)
 			end if
 
 		end subroutine form_approx_Jy

@@ -96,50 +96,16 @@ module mod_geom
 
 		end subroutine elemPerNode
 
-		subroutine nearBoundaryNode(mporder,mnnode,mnpbou,nelem,npoin,nboun,connec,coord,bound,bouCodesNodes,point2elem,atoIJK,lnbn,lnbnNodes)
+		subroutine nearBoundaryNode(mporder,mnnode,mnpbou,nelem,npoin,nboun,connec,coord,bound,bouCodesNodes,point2elem,atoIJK,lnbnNodes)
 
 			implicit none
 
 			integer(4),intent(in)    :: mporder,mnnode,mnpbou
-			integer(4),INTENT(IN)    :: nelem,npoin,nboun,connec(nelem,mnnode),bound(nboun,mnpbou),bouCodesNodes(npoin),point2elem(npoin),atoIJK(mnnode)
+			integer(4),intent(in)    :: nelem,npoin,nboun,connec(nelem,mnnode),bound(nboun,mnpbou),bouCodesNodes(npoin),point2elem(npoin),atoIJK(mnnode)
 			real(rp),intent(in)      :: coord(npoin,ndime)
-			integer(4),intent(inout) :: lnbn(nboun,mnpbou)
 			integer(4),intent(inout) :: lnbnNodes(npoin)
 			integer(4)               :: ipoin, inode,ielem,bnode,ipbou,iboun,rnode,c,i,j,k,innode
 			integer(4)               :: aux1, aux2
-
-			! TODO: @Jordi, apparently the "lnbn" array is not used anymore, check if thiis loop can be removed. At any rate, it has a bug :D
-			!$acc parallel loop gang
-			do iboun = 1,nboun
-				!$acc loop seq
-				do ipbou = 1,mnpbou
-					bnode = bound(iboun,ipbou)
-					ielem = point2elem(bnode)
-					!$acc loop seq
-					do inode = 1,mnnode
-						if(connec(ielem,inode) .eq. bnode) then
-							aux1=inode
-							exit
-						end if
-					end do
-					c = 0
-					!$acc loop seq
-					outer: do k = 1,mporder+1
-						do i = 1,mporder+1
-							do j = 1,mporder+1
-								c = c+1
-								if(atoIJK(c) .eq. aux1) then
-									aux2=c
-									exit outer
-								end if
-							end do
-						end do
-					end do outer
-					!lnbn(iboun,ipbou) = connec(ielem,atoIJK(aux2+8))
-					lnbn(iboun,ipbou) = connec(ielem,atoIJK(64))
-				end do
-			end do
-			!$acc end parallel loop
 
 			!$acc parallel loop  
 			do inode = 1,npoin

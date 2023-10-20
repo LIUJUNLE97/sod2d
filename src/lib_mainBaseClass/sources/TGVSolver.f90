@@ -42,10 +42,12 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "tgv"
+      write(this%mesh_h5_file_name,*) "cube"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
+
+      write(this%io_append_info,*) ""
 
       this%doGlobalAnalysis = .true.
       this%doTimerAnalysis = .true.
@@ -53,17 +55,17 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 2501
+      this%final_istep = 50001
       this%maxPhysTime = 20.0_rp
 
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10
 
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 1000
+      this%save_resultsFile_first = 10000
+      this%save_resultsFile_step = 10000
 
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 500
+      this%save_restartFile_first = 10000
+      this%save_restartFile_step = 10000
       this%loadRestartFile = .false.
       this%restartFile_to_load = 2 !1 or 2
       this%continue_oldLogs = .false.
@@ -82,8 +84,8 @@ contains
       pseudo_cfl =0.95_rp
       flag_rk_order=4
 
-      this%cfl_conv = 1.5_rp
-      this%cfl_diff = 1.5_rp
+      this%cfl_conv = 0.95_rp !0.5_rp
+      this%cfl_diff = 0.95_rp !0.5_rp
       !this%cfl_conv = 100.0_rp
       !this%cfl_diff = 100.0_rp
 
@@ -106,7 +108,7 @@ contains
       nscbc_gamma_inf = this%gamma_gas
 
       !Witness points parameters
-      this%have_witness          = .true.
+      this%have_witness          = .false.
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "resultwit.h5"
       this%leapwit               = 1

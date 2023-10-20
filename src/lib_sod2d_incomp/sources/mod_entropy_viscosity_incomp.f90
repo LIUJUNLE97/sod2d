@@ -1,4 +1,4 @@
-module mod_entropy_viscosity
+module mod_entropy_viscosity_incomp
 
    use mod_numerical_params
    use mod_nvtx
@@ -8,31 +8,35 @@ module mod_entropy_viscosity
    use mod_comms
    use mod_filters,only:convertIJK,al_weights,am_weights,an_weights
 
-   implicit none
-
    contains
-      subroutine smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
-                            gamma_gas,rho,u,csound,Tem,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
+      subroutine smart_visc_spectral_incomp(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Ngp,coord,dNgp,gpvol,wgp, &
+                            rho,u,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
 
               ! TODO: Compute element size h
 
               implicit none
 
-              integer(4), intent(in)  :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
-              real(rp),   intent(in)  :: Reta(npoin), Rrho(npoin), Ngp(ngaus,nnode),gamma_gas
-              real(rp),   intent(in)  :: rho(npoin), u(npoin,ndime),csound(npoin), Tem(npoin), eta(npoin),helem(nelem,nnode),helem_k(nelem),Ml(npoin)
-              real(rp),   intent(out) :: mu_e(nelem,ngaus)
+              integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
+              real(rp),    intent(in)  :: Reta(npoin), Ngp(ngaus,nnode)
+              real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime), eta(npoin),helem(nelem,nnode),helem_k(nelem),Ml(npoin)
+              real(rp),    intent(out) :: mu_e(nelem,ngaus)
               real(rp),   intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
-              real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
-              integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode),gmshAtoJ(nnode),gmshAtoK(nnode)
+              real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
+              integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
               real(rp),intent(inout)  :: mue_l(nelem,nnode)
-              integer(4)              :: ielem, inode,igaus,ipoin,npoin_w_g,idime,jdime
-              real(rp)                :: R1, R2, Ve
-              real(rp)                :: betae,mu,vol,vol2
-              real(rp)                :: L3, aux1, aux2, aux3
-              real(rp)                :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas, maxV, maxC
+              integer(4)               :: ielem, inode,igaus,ipoin,npoin_w_g,idime,jdime
+              real(rp)                 :: R1, R2, Ve
+              real(rp)                 :: betae,mu,vol,vol2
+              real(rp)                 :: L3, aux1, aux2, aux3
+              real(rp)                 :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas, maxV, maxC
               real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe, M, ceM
               integer(4)              :: ii,jj,kk,mm,nn,ll
+
+
+              call nvtxStartRange("envit_incomp")
+              !$acc kernels
+               mue_l(:,:) = mu_e(:,:)
+               !$acc end kernels
 
              Rgas = nscbc_Rgas_inf
 
@@ -41,6 +45,7 @@ module mod_entropy_viscosity
              !$acc end kernels
 
               if(flag_normalise_entropy .eq. 1) then
+                 call nvtxStartRange("norm")
                  maxEta_r = 0.0_rp
                  !$acc parallel loop reduction(+:maxEta_r)
                  do ipoin = 1,npoin_w
@@ -61,36 +66,31 @@ module mod_entropy_viscosity
                  !$acc end parallel loop
 
                  call MPI_Allreduce(norm_r,norm,1,mpi_datatype_real,MPI_MAX,app_comm,mpi_err)
+                 call nvtxEndRange
               else
                  norm = 1.0_rp
               end if
 
+              call nvtxStartRange("mue_incomp")
               !$acc parallel loop gang
               do ielem = 1,nelem
-                maxJe=0.0_rp
-                minJe=1000000.0_rp
-                maxV = 0.0_rp
-                maxC = 0.0_rp
-                !$acc loop seq
-                do igaus = 1,ngaus
-                   minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                   maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                   maxV = max(maxV,sqrt(dot_product(u(connec(ielem,igaus),:),u(connec(ielem,igaus),:))))
-                   maxC = max(maxC,csound(connec(ielem,igaus)))
-                end do
-                M = maxV/maxC
-                ceM = max(tanh((M**15)*v_pi),ce)
+                !maxJe=0.0_rp
+                !minJe=1000000.0_rp
+                !maxV = 0.0_rp
+                !maxC = 0.0_rp
+                !!$acc loop seq
+                !do igaus = 1,ngaus
+                !   minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
+                !   maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
+                !end do
                 !ced = max(1.0_rp-(minJe/maxJe)**2,ce)
-                !ced = max(ced,ceM) 
-                ced = ceM
-
+                ced = ce
+                
                 mu = 0.0_rp
                 betae = 0.0_rp
                 !$acc loop vector reduction(max:betae)
                 do inode = 1,nnode
-                   aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
-                   aux3 = sqrt(Rgas*gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
-                   aux1 = aux2+aux3
+                   aux1 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
                    betae = max(betae,(rho(connec(ielem,inode))*helem_k(ielem))*(cmax/real(porder,rp))*aux1)
                 end do
                 !$acc loop vector
@@ -120,5 +120,7 @@ module mod_entropy_viscosity
                 end do
               end do
               !$acc end parallel loop
-      end subroutine smart_visc_spectral
-end module mod_entropy_viscosity
+              call nvtxEndRange
+              call nvtxEndRange
+      end subroutine smart_visc_spectral_incomp
+end module mod_entropy_viscosity_incomp
