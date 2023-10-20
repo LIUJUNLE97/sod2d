@@ -1,6 +1,10 @@
 module mod_comms_boundaries
     use mod_mpi_mesh
 
+#ifdef NCCL_COMMS
+    use mod_comms, only : cuda_stat, nccl_stat, nccl_uid, nccl_comm, nccl_stream
+#endif
+
 !-- Select type of communication for mpi_boundary_atomic_updates
 #define _ISENDIRCV_ 1
 
