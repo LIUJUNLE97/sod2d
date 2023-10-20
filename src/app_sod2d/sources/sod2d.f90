@@ -2,7 +2,7 @@
 
 #define _tgv_ 0
 #define _tgv_multi 0
-#define _tgv_comp 1
+#define _tgv_comp 0
 #define _tgv_incomp 0
 #define _channel_ 0
 #define _channel_incomp 0
