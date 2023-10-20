@@ -52,9 +52,9 @@ contains
       this%doGlobalAnalysis = .true.
 
       this%maxPhysTime = 20.0_rp
-      this%final_istep = 100
-      this%cfl_conv = 0.95_rp
-      this%cfl_diff = 0.95_rp
+      this%final_istep = 10000 
+      this%cfl_conv = 0.5_rp
+      this%cfl_diff = 0.5_rp
 
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10

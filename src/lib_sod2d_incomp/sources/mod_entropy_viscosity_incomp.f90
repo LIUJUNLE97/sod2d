@@ -74,17 +74,18 @@ module mod_entropy_viscosity_incomp
               call nvtxStartRange("mue_incomp")
               !$acc parallel loop gang
               do ielem = 1,nelem
-                maxJe=0.0_rp
-                minJe=1000000.0_rp
-                maxV = 0.0_rp
-                maxC = 0.0_rp
-                !$acc loop seq
-                do igaus = 1,ngaus
-                   minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                   maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                end do
-                ced = max(1.0_rp-(minJe/maxJe)**2,ce)
-
+                !maxJe=0.0_rp
+                !minJe=1000000.0_rp
+                !maxV = 0.0_rp
+                !maxC = 0.0_rp
+                !!$acc loop seq
+                !do igaus = 1,ngaus
+                !   minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
+                !   maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
+                !end do
+                !ced = max(1.0_rp-(minJe/maxJe)**2,ce)
+                ced = ce
+                
                 mu = 0.0_rp
                 betae = 0.0_rp
                 !$acc loop vector reduction(max:betae)
