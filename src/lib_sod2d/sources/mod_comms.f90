@@ -543,8 +543,8 @@ contains
             memPos_l = commsMemPosInLoc(i)
             memSize  = commsMemSize(i)
 
-            nccl_stat = ncclRecv(aux_realField_r(mempos_l), memSize, ncclFloat, ngbRank, nccl_comm, nccl_stream)
-            nccl_stat = ncclSend(aux_realField_s(mempos_l), memSize, ncclFloat, ngbRank, nccl_comm, nccl_stream)
+            nccl_stat = ncclRecv(aux_realField_r(mempos_l), memSize, nccl_datatype_real, ngbRank, nccl_comm, nccl_stream)
+            nccl_stat = ncclSend(aux_realField_s(mempos_l), memSize, nccl_datatype_real, ngbRank, nccl_comm, nccl_stream)
         end do
         !$acc end host_data
         nccl_stat = ncclGroupEnd()
