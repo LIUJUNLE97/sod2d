@@ -301,8 +301,8 @@ module time_integ_incomp
 
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               auxReta(lpoin_w(ipoin)) = (1.5_rp*Reta(lpoin_w(ipoin),2)-0.5_rp*Reta(lpoin_w(ipoin),1)) !+ &
-                                          !(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+               auxReta(lpoin_w(ipoin)) = (1.5_rp*Reta(lpoin_w(ipoin),2)-0.5_rp*Reta(lpoin_w(ipoin),1)) + &
+                                          (eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
                Reta(lpoin_w(ipoin),1) = Reta(lpoin_w(ipoin),2)
             end do
             !$acc end parallel loop
