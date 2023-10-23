@@ -119,7 +119,8 @@ contains
          if(bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) then
             bcode = bouCodesNodesPar(iNodeL) ! Boundary element code
             if (bcode == bc_type_far_field_SB) then ! top far field for BL
-               u_buffer(iNodeL,2) =  0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
+               ! u_buffer(iNodeL,2) =  0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
+               u_buffer(iNodeL,2) =  0.707107_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp & ! +50% Vmax
                                  -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
                u(iNodeL,2,2) = u_buffer(iNodeL,2)
             end if
@@ -456,21 +457,21 @@ contains
       !----------------------------------------------
       !  --------------  I/O params -------------
       this%final_istep = 9000000
-      this%maxPhysTime = 19000.0
+      this%maxPhysTime = 20000.0
 
       this%save_logFile_first = 1
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 10000
+      this%save_resultsFile_step = 50000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 10000
+      this%save_restartFile_step = 50000
       this%loadRestartFile = .false.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
-      this%initial_avgTime = 4000.0_rp
+      this%initial_avgTime = 5000.0_rp
       this%saveAvgFile = .true.
       this%loadAvgFile = .false.
       !----------------------------------------------
@@ -514,9 +515,21 @@ contains
       write(this%fileControlName ,*) "rectangleControl.txt"
       this%amplitudeActuation = 0.2
       this%frequencyActuation = 0.0025_rp
-      !this%timeBeginActuation = 2500.0_rp
       this%timeBeginActuation = 0.0_rp
 #endif
+
+      ! witness points
+      this%have_witness          = .true.
+      this%nwit                  = 216
+      this%witness_inp_file_name = "witness.txt"
+      this%witness_h5_file_name  = "resultwit.h5"
+      this%leapwit               = 5 ! update witness every n dts
+      this%leapwitsave           = 100 ! how many dts are stored in buffer
+      this%wit_save              = .true. ! save witness or not
+      this%wit_save_u_i          = .true.
+      this%wit_save_pr           = .true.
+      this%wit_save_rho          = .false.
+      this%continue_witness      = .false.
    end subroutine BLFlowSolverIncompDebug_initializeParameters
 
    subroutine BLFlowSolverIncompDebug_initialBuffer(this)
