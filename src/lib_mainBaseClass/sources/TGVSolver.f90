@@ -84,8 +84,8 @@ contains
       pseudo_cfl =0.95_rp
       flag_rk_order=4
 
-      this%cfl_conv = 1.5_rp !0.5_rp
-      this%cfl_diff = 1.5_rp !0.5_rp
+      this%cfl_conv = 0.95_rp !0.5_rp
+      this%cfl_diff = 0.95_rp !0.5_rp
       !this%cfl_conv = 100.0_rp
       !this%cfl_diff = 100.0_rp
 

@@ -4,6 +4,7 @@ module mod_mpi
 #ifndef NOACC
    use openacc
 #endif
+
    implicit none
 
    integer :: mpi_rank, mpi_size, mpi_err
