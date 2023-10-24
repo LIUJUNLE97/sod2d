@@ -149,7 +149,7 @@ module jacobian_oper
 			Je(:,:) = 0.0_rp
 			do idime = 1,ndime
 			    do jdime = 1,ndime
-			        Je(idime,jdime) = Je(idime,jdime)+dot_product(dNgp(idime,:,igaus),coord(connec(ielem,:),jdime))
+			        Je(idime,jdime) = dot_product(dNgp(idime,:,igaus),coord(connec(ielem,:),jdime))
 				end do
 			end do
 

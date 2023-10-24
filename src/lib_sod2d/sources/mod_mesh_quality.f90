@@ -10,15 +10,14 @@ contains
         real(rp),   intent(in)  :: coord(npoin,ndime)
         real(rp),   intent(out) :: idealJ(ndime,ndime)
         integer(4)              :: ncorner, nedge
-        real(rp)                :: dist(12,ndime), dist2(12)
+        real(rp)                :: dist(12,ndime), dist2(12), h1,h2,h3
 
-        call hexa_edges(mnnode,ielem,nelem,npoin,connec,coord,ncorner,nedge,dist(1:12,1:ndime))
+        call hexa_edges(mnnode,ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
         dist2(:) = sqrt(dist(:,1)*dist(:,1)+dist(:,2)*dist(:,2)+dist(:,3)*dist(:,3))
-
         idealJ(:,:) = 0.0_rp
-        idealJ(1,1) = 1.0_rp/((dist2(9)+dist2(10)+dist2(11)+dist2(12))/4.0_rp)
-        idealJ(2,2) = 1.0_rp/((dist2(1)+dist2(3)+dist2(7)+dist2(5))/4.0_rp)
-        idealJ(3,3) = 1.0_rp/((dist2(2)+dist2(4)+dist2(6)+dist2(8))/4.0_rp)
+        idealJ(1,1) = 1.0_rp/((dist2(1)+dist2(3)+dist2(5)+dist2(7))/4.0_rp)
+        idealJ(2,2) = 1.0_rp/((dist2(2)+dist2(4)+dist2(6)+dist2(8))/4.0_rp)
+        idealJ(3,3) = 1.0_rp/((dist2(9)+dist2(10)+dist2(11)+dist2(12))/4.0_rp)
     end subroutine
 
     subroutine shape_measure(elemJ, idealJ, eta)
