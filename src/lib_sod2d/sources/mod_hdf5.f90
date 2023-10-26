@@ -4357,10 +4357,10 @@ contains
 
 !-------------------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,file_id,isLinealOutput,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,mnnodeVTK,numVTKElemsPerMshElem)
+   subroutine create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,file_id,isLinealOutput,eval_mesh_quality,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,mnnodeVTK,numVTKElemsPerMshElem)
       implicit none
       integer(hid_t),intent(in) :: file_id
-      logical,intent(in) :: isLinealOutput
+      logical,intent(in) :: isLinealOutput, eval_mesh_quality
       integer(4),intent(in) :: mporder,mnnode,numMshRanks2Part,numElemsGmsh,mnnodeVTK,numVTKElemsPerMshElem
       integer(8),intent(in) :: numNodesParTotal_i8
       integer(hid_t) :: dtype
@@ -4419,16 +4419,24 @@ contains
       dsetname = '/VTKHDF/CellData/mpi_rank'
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
 
+      !-----------------------------------------------------------------------------
+      if (eval_mesh_quality) then
+         call select_dtype_rp(dtype)
+         dsetname = '/VTKHDF/CellData/mesh_quality'
+         call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      end if
+
    end subroutine create_groups_datasets_vtkhdf_unstructuredGrid_meshFile
 
-   subroutine write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,file_id,mshRank,numMshRanks2Part,numElemsMshRank,numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,mshRankElemStart,mshRankElemEnd,mshRankNodeStart_i8,mshRankNodeEnd_i8,numNodesMshRank,coordVTKMshRank,connecVTKMshRank)
+   subroutine write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,file_id,eval_mesh_quality,mshRank,numMshRanks2Part,numElemsMshRank,numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,mshRankElemStart,mshRankElemEnd,mshRankNodeStart_i8,mshRankNodeEnd_i8,numNodesMshRank,coordVTKMshRank,connecVTKMshRank,quality)
       implicit none
       integer(hid_t),intent(in) :: file_id
+      logical, intent(in) :: eval_mesh_quality
       integer(4),intent(in) :: mporder,mnnode,mshRank,numMshRanks2Part
       integer(4),intent(in) :: numElemsMshRank,numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,mshRankElemStart,mshRankElemEnd
       integer(8),intent(in) :: mshRankNodeStart_i8,mshRankNodeEnd_i8
       integer(4),intent(in) :: numNodesMshRank
-      real(rp),intent(in)   :: coordVTKMshRank(numNodesMshRank,3)
+      real(rp),intent(in)   :: coordVTKMshRank(numNodesMshRank,3), quality(numVTKElemsPerMshElem)
       integer(4),intent(in) :: connecVTKMshRank(sizeConnecVTKMshRank)
 
       integer(hsize_t) :: ms_dims(1),ms_dims2d(2),aux_ms_dims
@@ -4529,15 +4537,22 @@ contains
       end do
       call write_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i1)
 
+      !!! Save mesh quality
+      if (eval_mesh_quality) then
+         dsetname = '/VTKHDF/CellData/mesh_quality'
+         call write_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,quality)
+      end if
+
+
       deallocate(aux_array_i1)
 
    end subroutine write_mshRank_data_vtkhdf_unstructuredGrid_meshFile
 
-   subroutine dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(file_id,numMshRanks2Part)
+   subroutine dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(file_id,eval_mesh_quality,numMshRanks2Part)
       implicit none
       integer(hid_t),intent(in) :: file_id
       integer(4),intent(in) :: numMshRanks2Part
-
+      logical,intent(in) :: eval_mesh_quality
       integer(hsize_t), dimension(1) :: ms_dims
       integer(hsize_t), dimension(2) :: ms_dims2d
       integer(hssize_t), dimension(1) :: ms_offset
@@ -4546,12 +4561,14 @@ contains
       integer(1),allocatable :: empty_array_i1(:)
       integer(8),allocatable :: empty_array_i8(:)
       real(rp),allocatable :: empty_array2d_rp(:,:)
+      real(rp),allocatable :: empty_array1d_rp(:)
 
 !--------------------------------------------------------------------------------
 !--------------------------------------------------------------------------------
       allocate(empty_array_i1(0))
       allocate(empty_array_i8(0))
       allocate(empty_array2d_rp(0,0))
+      allocate(empty_array1d_rp(0))
 
       !--------------------------------------------------------------------------------
       ms_dims2d(1) = 0
@@ -4592,9 +4609,16 @@ contains
       dsetname = '/VTKHDF/CellData/mpi_rank'
       call write_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,empty_array_i1)
 
+      !------------------------------------------------------------------------------------------------------
+      if (eval_mesh_quality) then
+         dsetname = '/VTKHDF/CellData/mesh_quality'
+         call write_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,empty_array1d_rp)
+      end if
+
       deallocate(empty_array_i1)
       deallocate(empty_array_i8)
       deallocate(empty_array2d_rp)
+      deallocate(empty_array1d_rp)
 
    end subroutine dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile
 

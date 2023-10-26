@@ -1,6 +1,8 @@
 module mod_mesh_quality
     use mod_constants
     use elem_hex
+    use quadrature_rules
+    use jacobian_oper
     implicit none
 contains
     subroutine ideal_hexa(mnnode, nelem, npoin, ielem, coord, connec, idealJ)
@@ -33,4 +35,32 @@ contains
         Sf    = S2(1,1) + S2(2,2) + S2(3,3)
         eta   = Sf/(d*sigma**(2.0_rp/d)) 
     end subroutine
+
+    subroutine eval_MeshQuality(npoin, nelem, coordPar, connecParOrig, dNgp, wgp, quality)
+        integer(4), intent(in) :: npoin, nelem, connecParOrig(nelem, nnode)
+        real(rp), intent(in)  :: coordPar(npoin, ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
+        real(rp), intent(out) :: quality
+        integer(4) :: ielem, igaus
+        real(rp)   :: elemJ(ndime, ndime), idealJ(ndime, ndime), gpvol
+        real(rp)   :: eta, volume, modulus
+        real(rp)   :: eta_elem
+
+        eta_elem = 0.0_rp
+        volume = 0.0_rp
+        call ideal_hexa(nnode,nelem,npoin,ielem,coordPar,connecParOrig,idealJ) !Assumim que el jacobià de l'element ideal és constant
+        do igaus = 1, ngaus
+            call compute_jacobian(nelem,npoin,ielem,igaus,dNgp,wgp(igaus),coordPar,connecParOrig,elemJ,gpvol)
+            elemJ = transpose(elemJ)
+            call shape_measure(elemJ, idealJ, eta)
+            eta_elem = eta_elem + eta*eta*gpvol
+            volume = volume + 1*1*gpvol
+        end do
+        eta_elem = sqrt(eta_elem)/sqrt(volume)
+        quality = 1.0_rp/eta_elem
+        modulus = modulo(quality, 1.0_rp)
+        if (int(modulus) .ne. 0) then
+            quality = -1.0_rp
+        end if
+  
+     end subroutine eval_MeshQuality
 end module

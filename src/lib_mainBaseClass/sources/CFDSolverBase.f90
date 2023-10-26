@@ -74,7 +74,6 @@ module CFDSolverBase_mod
       use mod_custom_types
       use mod_witness_points
       use mod_filters
-      use mod_mesh_quality
    implicit none
    private
 
@@ -154,7 +153,6 @@ module CFDSolverBase_mod
       procedure, public :: evalShapeFunctions =>CFDSolverBase_evalShapeFunctions
       procedure, public :: evalBoundaryNormals =>CFDSolverBase_evalBoundaryNormals
       procedure, public :: evalJacobians =>CFDSolverBase_evalJacobians
-      procedure, public :: evalMeshQuality =>CFDSolverBase_evalMeshQuality
       procedure, public :: evalAtoIJKInverse =>CFDSolverBase_evalAtoIJKInverse
       procedure, public :: eval_elemPerNode_and_nearBoundaryNode =>CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode
       procedure, public :: evalMass=>CFDSolverBase_evalMass
@@ -1321,39 +1319,6 @@ contains
 
    end subroutine CFDSolverBase_evalJacobians
 
-   subroutine CFDSolverBase_evalMeshQuality(this)
-      class(CFDSolverBase), intent(inout) :: this
-      
-      integer(4) :: ielem, igaus
-      real(rp)   :: elemJ(ndime, ndime), idealJ(ndime, ndime)
-      real(rp)   :: eta, volume, modulus
-      real(rp)   :: eta_elem(numElemsRankPar), quality(numElemsRankPar)
-      real(rp) :: diffM(ndime, ndime)
-      do ielem = 1, numElemsRankPar
-         eta_elem(ielem) = 0.0_rp
-         volume = 0.0_rp
-         call ideal_hexa(nnode,numElemsRankPar,numNodesRankPar,ielem,coordPar,connecParOrig,idealJ) !Assumim que el jacobià de l'element ideal és constant
-         do igaus = 1, ngaus
-            call compute_jacobian(numElemsRankPar,numNodesRankPar,ielem,igaus,dNgp,coordPar,connecParOrig,elemJ)
-	    elemJ = transpose(elemJ)
-            call shape_measure(elemJ, idealJ, eta)
-            eta_elem(ielem) = eta_elem(ielem) + eta*eta*gpvol(1, igaus, ielem)
-            volume = volume + 1*1*gpvol(1, igaus, ielem)
-         end do
-	 eta_elem(ielem) = sqrt(eta_elem(ielem))/sqrt(volume)
-         quality(ielem) = 1.0_rp/eta_elem(ielem)
-	 modulus = modulo(quality(ielem), 1.0_rp)
-	 if (int(modulus) .ne. 0) then
-	     quality(ielem) = -1.0_rp
-	 end if
-      end do
-
-      call set_hdf5_meshQualityFile_name(this%results_h5_file_path,'meshQuality',this%mesh_h5_file_name,mpi_size)
-      call save_meshQuality_hdf5_file(numElemsRankPar,numNodesRankPar,ngaus,Ngp_equi,quality)
-
-   end subroutine CFDSolverBase_evalMeshQuality
-
-
    subroutine CFDSolverBase_evalAtoIJKInverse(this)
       class(CFDSolverBase), intent(inout) :: this
 
@@ -2251,9 +2216,6 @@ contains
 
       ! Eval Jacobian information
       call this%evalJacobians()
-
-      ! Compute mesh distortion
-      call this%evalMeshQuality()
 
       ! Eval AtoIJK inverse
       call this%evalAtoIJKInverse()
