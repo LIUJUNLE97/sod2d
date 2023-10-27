@@ -369,7 +369,7 @@ contains
       if(evalMeshQuality) then
          if(mpi_rank.eq.0) write(*,*) "--| Evaluating mesh quality"
          do iMshRank=1,numMshRanksInMpiRank
-	    allocate(quality%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
+            allocate(quality%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
             do ielem = 1, numElemsMshRank(iMshRank)
                call eval_MeshQuality(numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),ielem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_elem)
                do ielemVTK = 1, numVTKElemsPerMshElem
@@ -379,9 +379,9 @@ contains
          end do
          if(mpi_rank.eq.0) write(*,*) "--| Mesh quality evaluated"
       else
-      	 do iMshRank=1,numMshRanksInMpiRank
-		allocate(quality%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
-	 end do
+      	do iMshRank=1,numMshRanksInMpiRank
+		      allocate(quality%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
+	      end do
       end if
       !----------------------------------------------------------------------------------------------
       start_time(8) = MPI_Wtime()

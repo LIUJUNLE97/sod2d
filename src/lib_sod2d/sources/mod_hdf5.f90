@@ -9,7 +9,7 @@ module mod_hdf5
    implicit none
 
    character(256) :: meshFile_h5_name,surface_meshFile_h5_name
-   character(256) :: base_resultsFile_h5_name,base_avgResultsFile_h5_name,base_restartFile_h5_name, base_meshQuality_name
+   character(256) :: base_resultsFile_h5_name,base_avgResultsFile_h5_name,base_restartFile_h5_name
 
    integer(hid_t) :: h5_datatype_uint1,h5_datatype_int1,h5_datatype_int4,h5_datatype_int8
    integer(hid_t) :: h5_datatype_real4,h5_datatype_real8
@@ -101,18 +101,6 @@ contains
          //trim(adjustl(mesh_fileName))//'-'//trim(aux_numRanks)//'_'
 
    end subroutine set_hdf5_baseResultsFile_name
-
-   subroutine set_hdf5_meshQualityFile_name(res_filePath,res_fileName,mesh_fileName,numRanks)
-      implicit none
-      character(len=*), intent(in) :: res_filePath,res_fileName,mesh_fileName
-      integer,intent(in) :: numRanks
-      character(len=12) :: aux_numRanks
-
-      write(aux_numRanks,'(I0)') numRanks
-      base_meshQuality_name = trim(adjustl(res_filePath))//trim(adjustl(res_fileName))//'_'&
-         //trim(adjustl(mesh_fileName))//'-'//trim(aux_numRanks)//'.hdf'
-
-   end subroutine set_hdf5_meshQualityFile_name
 
 !---------------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------------
@@ -3841,43 +3829,6 @@ contains
 
    end subroutine save_avgResults_hdf5_file
 
-   subroutine save_meshQuality_hdf5_file(nelem,mnnode,mngaus,Ngp,qualityMeasure)
-      implicit none
-      integer(4), intent(in) :: mnnode,mngaus,nelem
-      real(rp),intent(in)    :: Ngp(mngaus,mnnode)
-      real(rp), intent(in)   :: qualityMeasure(nelem)
-      integer(hsize_t)       :: ds_dims(1),ms_dims(1), aux_ms_dims
-      integer(hssize_t)      :: ms_offset(1), aux_ms_offset
-      integer(4)             :: h5err, ds_rank=1
-      integer(hid_t)         :: hdf5_fileId
-      character(512)         :: full_hdf5_fileName,dsetname
-      integer(hid_t)         :: dtype
-
-      !-----------------------------------------------------------------------------------------------
-      full_hdf5_fileName = trim(adjustl(base_meshQuality_name))
-
-      call create_hdf5_file(full_hdf5_fileName,hdf5_fileId)
-      call select_dtype_rp(dtype)
-
-      !-----------------------------------------------------------------------------------------------
-      !   Creating the VTK-HDF structure
-      call create_vtkhdf_unstructuredGrid_struct_for_resultsFile(mnnode,hdf5_fileId)
-
-      aux_ms_dims   = int(numElemsVTKRankPar,hsize_t)
-      aux_ms_offset = int((rankElemStart-1)*mesh_numVTKElemsPerMshElem,hssize_t)
-
-      ds_dims(1)   = int(totalNumElements*mesh_numVTKElemsPerMshElem,hsize_t)
-      ms_dims(1)   = aux_ms_dims
-      ms_offset(1) = aux_ms_offset
-
-      dsetname = '/VTKHDF/CellData/shapeDistortion'
-      call create_dataspace_hdf5(hdf5_fileId,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_real_rp_hyperslab_parallel(hdf5_fileId,dsetname,ms_dims,ms_offset,qualityMeasure)
-
-      call close_hdf5_file(hdf5_fileId)
-
-   end subroutine save_meshQuality_hdf5_file
-
    subroutine load_avgResults_hdf5_file(mnnode,mngaus,Ngp,restartCnt,initial_avgTime,elapsed_avgTime,numAvgNodeScalarFields2load,avgNodeScalarFields2load,nameAvgNodeScalarFields2load,&
                                        numAvgNodeVectorFields2load,avgNodeVectorFields2load,nameAvgNodeVectorFields2load,&
                                        numAvgElemGpScalarFields2load,avgElemGpScalarFields2load,nameAvgElemGpScalarFields2load)
@@ -4538,7 +4489,6 @@ contains
       !!! Save mesh quality
       if (eval_mesh_quality) then
          dsetname = '/VTKHDF/CellData/mesh_quality'
-	write(*,*) dsetname
          call write_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,quality)
       end if
 
