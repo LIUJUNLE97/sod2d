@@ -209,7 +209,6 @@ contains
       call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
 
       dtype = h5_datatype_int4
-	write(*,*) "rovanepra espanyol"
       ds_dims(1) = numElemsGmsh
       dsetname = '/globalIds/elemGid'
       call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
@@ -4369,7 +4368,6 @@ contains
       character(512) :: dsetname
 	!--------------------------------------------------------------------------------
 
-      write(*,*) "la cabra, la cabra, la puta de la cabra"
       call set_vtkhdf_attributes_and_basic_groups(file_id)
 
       !--------------------------------------------------------------------------------

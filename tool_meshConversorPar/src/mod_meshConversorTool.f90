@@ -117,7 +117,7 @@ contains
 ! ################################################################################################
       type(jagged_vector_rp) :: quality
       real(rp) :: quality_elem
-      integer(4) :: ielem, inodeVTK
+      integer(4) :: ielem, ielemVTK
 
 ! ################################################################################################
 ! ################################################################################################
@@ -372,8 +372,8 @@ contains
 	    allocate(quality%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
             do ielem = 1, numElemsMshRank(iMshRank)
                call eval_MeshQuality(numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),ielem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_elem)
-               do inodeVTK = 1, mnnodeVTK
-                  quality%vector(iMshRank)%elems((ielem-1)*mnnodeVTK + inodeVTK) = quality_elem
+               do ielemVTK = 1, numVTKElemsPerMshElem
+                  quality%vector(iMshRank)%elems((ielem-1)*numVTKElemsPerMshElem + ielemVTK) = quality_elem
                end do
             end do
          end do
@@ -391,13 +391,10 @@ contains
       call MPI_Barrier(app_comm,mpi_err)
 
       call create_hdf5_file(meshFile_h5_name,sod2dmsh_h5_fileId)
-	write(*,*) "sa puta mareee"
       call create_hdf5_groups_datasets_in_meshFile_from_tool(mnnode,mnpbou,sod2dmsh_h5_fileId,isPeriodic,isBoundaries,isLinealOutput,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
               vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank)
 
-	write(*,*) "groups to be created"
       call create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,sod2dmsh_h5_fileId,isLinealOutput,evalMeshQuality,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,mnnodeVTK,numVTKElemsPerMshElem)
-	write(*,*) "groups created"
       call MPI_Barrier(app_comm,mpi_err)
 
       do iMshRank=1,numMshRanksInMpiRank
@@ -417,19 +414,16 @@ contains
             bnd_commsMemSize_jv%vector(iMshRank)%elems,bnd_commsMemPosInNgb_jv%vector(iMshRank)%elems,bnd_ranksToComm_jv%vector(iMshRank)%elems,&
             vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank)
 
-	write(*,*) "data to be written"
         call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,sod2dmsh_h5_fileId,evalMeshQuality,mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),&
             numElemsVTKMshRank(iMshRank),sizeConnecVTKMshRank(iMshRank),mnnodeVTK,numVTKElemsPerMshElem,&
             mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),&
             coordVTK_jm%matrix(iMshRank)%elems,connecVTK_jv%vector(iMshRank)%elems,quality%vector(iMshRank)%elems)
-	write(*,*) "data written"
       end do
 
       do iMshRank=(numMshRanksInMpiRank+1),maxNumMshRanks
         call dummy_write_mshRank_data_in_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId,numMshRanks2Part,isPeriodic,isBoundaries,isLinealOutput)
 
         call dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(sod2dmsh_h5_fileId,evalMeshQuality,numMshRanks2Part)
-	write(*,*) "dummy written"
       end do
 
       call MPI_Barrier(app_comm,mpi_err)
