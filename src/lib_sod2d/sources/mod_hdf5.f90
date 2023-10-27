@@ -209,7 +209,7 @@ contains
       call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
 
       dtype = h5_datatype_int4
-
+	write(*,*) "rovanepra espanyol"
       ds_dims(1) = numElemsGmsh
       dsetname = '/globalIds/elemGid'
       call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
@@ -4357,18 +4357,19 @@ contains
 
 !-------------------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,file_id,isLinealOutput,eval_mesh_quality,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,mnnodeVTK,numVTKElemsPerMshElem)
+   subroutine create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,file_id,isLinealOutput,evalMeshQuality,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,mnnodeVTK,numVTKElemsPerMshElem)
       implicit none
       integer(hid_t),intent(in) :: file_id
-      logical,intent(in) :: isLinealOutput, eval_mesh_quality
+      logical,intent(in) :: isLinealOutput,evalMeshQuality
       integer(4),intent(in) :: mporder,mnnode,numMshRanks2Part,numElemsGmsh,mnnodeVTK,numVTKElemsPerMshElem
       integer(8),intent(in) :: numNodesParTotal_i8
       integer(hid_t) :: dtype
       integer(hsize_t) :: ds_dims(1),ds_dims2d(2),aux_ds_dims
       integer(4) :: ds_rank,h5err
       character(512) :: dsetname
-      !--------------------------------------------------------------------------------
+	!--------------------------------------------------------------------------------
 
+      write(*,*) "la cabra, la cabra, la puta de la cabra"
       call set_vtkhdf_attributes_and_basic_groups(file_id)
 
       !--------------------------------------------------------------------------------
@@ -4420,7 +4421,7 @@ contains
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
 
       !-----------------------------------------------------------------------------
-      if (eval_mesh_quality) then
+      if (evalMeshQuality) then
          call select_dtype_rp(dtype)
          dsetname = '/VTKHDF/CellData/mesh_quality'
          call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
@@ -4536,10 +4537,10 @@ contains
          aux_array_i1(iElemL) = mshRank
       end do
       call write_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i1)
-
       !!! Save mesh quality
       if (eval_mesh_quality) then
          dsetname = '/VTKHDF/CellData/mesh_quality'
+	write(*,*) dsetname
          call write_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,quality)
       end if
 

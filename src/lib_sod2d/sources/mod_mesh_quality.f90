@@ -36,11 +36,11 @@ contains
         eta   = Sf/(d*sigma**(2.0_rp/d)) 
     end subroutine
 
-    subroutine eval_MeshQuality(npoin, nelem, coordPar, connecParOrig, dNgp, wgp, quality)
-        integer(4), intent(in) :: npoin, nelem, connecParOrig(nelem, nnode)
+    subroutine eval_MeshQuality(npoin, nelem, ielem, coordPar, connecParOrig, dNgp, wgp, quality)
+        integer(4), intent(in) :: npoin, nelem, ielem, connecParOrig(nelem, nnode)
         real(rp), intent(in)  :: coordPar(npoin, ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
         real(rp), intent(out) :: quality
-        integer(4) :: ielem, igaus
+        integer(4) :: igaus
         real(rp)   :: elemJ(ndime, ndime), idealJ(ndime, ndime), gpvol
         real(rp)   :: eta, volume, modulus
         real(rp)   :: eta_elem
