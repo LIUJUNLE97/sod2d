@@ -4,7 +4,7 @@
 #
 # Export a mesh from Ansa to Sod2D format.
 #
-# Last rev: 23/08/2023
+# Last rev: 27/10/2023
 
 import h5py, numpy as np
 
@@ -508,6 +508,29 @@ def writeElems(base, deck, h5file, nelems,pOrder):
         chunks=True,maxshape=(nelems,nnodeE))
     del elems
 
+# Write important information about the domain, geometry and boundary codes files
+def writeInfo(base, deck, scaleFactor, usedPshells, path):
+    o = open(path+'info.dat', 'w')
+    o.write('Ansa2sod2d' + '\n\n')
+    o.write('This output was generated from the following file ' + '\n' + base.DataBaseName() + ':\n\n')
+    o.write('SCALE FACTOR = ' + str(scaleFactor) + '\n\n')
+    if len(usedPshells)>0:
+        o.write('BOUNDARY_CODES'+'\n')
+        writeBoundaryName(base, deck, o, usedPshells)
+        o.write('END_BOUNDARY_CODES'+'\n')
+        o.close()
+
+# Write the name of the differents boundaries and their codes
+def writeBoundaryName(base, deck, out, usedPshells):
+    i=0
+    for pshell in usedPshells:
+        vals = base.GetEntityCardValues(deck, pshell, ['Name','__id__'])
+        print(vals)
+        pshellname = vals['Name']
+        pshellID = vals['__id__']
+        shellLine = '{:4d} {}\n'.format(pshellID,pshellname)
+        out.write(shellLine)
+
 def main():
     # Open HDF5 file
     h5filename = path+basename+'.h5'
@@ -547,6 +570,11 @@ def main():
 
     # Writing elements
     writeElems(base, deck, h5file, nelems, pOrder)
+
+    
+    print('Writing .info.dat...' + '\n')
+    writeInfo(base, deck, scaleFactor, usedPshells, path)
+    print('.info.dat written...' + '\n')
 
     print("Done!!!")
 
