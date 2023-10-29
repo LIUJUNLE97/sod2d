@@ -1,4 +1,4 @@
-#define ACTUATION 0
+#define ACTUATION 1
 
 module BLFlowSolverIncompDebug_mod
    use mod_arrays
@@ -120,7 +120,10 @@ contains
             bcode = bouCodesNodesPar(iNodeL) ! Boundary element code
             if (bcode == bc_type_far_field_SB) then ! top far field for BL
                ! u_buffer(iNodeL,2) =  0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
-               u_buffer(iNodeL,2) =  0.707107_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp & ! +50% Vmax
+               ! u_buffer(iNodeL,2) =  0.707107_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp & ! +50% Vmax
+               ! u_buffer(iNodeL,2) =  0.658316_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp & ! +40% Vmax
+               ! u_buffer(iNodeL,2) =  0.6112938_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp & ! +30% Vmax
+               u_buffer(iNodeL,2) =  0.5643192_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp & ! +20% Vmax
                                  -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
                u(iNodeL,2,2) = u_buffer(iNodeL,2)
             end if
@@ -463,11 +466,11 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 50000
+      this%save_resultsFile_step = 20000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 50000
-      this%loadRestartFile = .false.
+      this%save_restartFile_step = 20000
+      this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
@@ -479,7 +482,7 @@ contains
       ! numerical params
       flag_les = 1
 
-      maxIter = 20
+      maxIter = 30
       tol = 1e-2
 
       this%cfl_conv = 0.95_rp
