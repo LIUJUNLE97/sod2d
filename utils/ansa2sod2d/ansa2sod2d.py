@@ -525,7 +525,6 @@ def writeBoundaryName(base, deck, out, usedPshells):
     i=0
     for pshell in usedPshells:
         vals = base.GetEntityCardValues(deck, pshell, ['Name','__id__'])
-        print(vals)
         pshellname = vals['Name']
         pshellID = vals['__id__']
         shellLine = '{:4d} {}\n'.format(pshellID,pshellname)
