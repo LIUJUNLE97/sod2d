@@ -340,7 +340,7 @@ module mod_analysis
 
 		subroutine twInfo(nelem,npoin,nbound,surfCode,connec,bound,point2elem,bou_code, &
 			bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coord, &
-			mu_fluid,mu_e,mu_sgs,rho,u,Ftau_neg,Ftau_pos)
+			mu_fluid,mu_e,mu_sgs,rho,u,Ftau_neg,Ftau_pos,nnodesTau_neg,nnodesTau_pos)
 
 			implicit none
 
@@ -352,7 +352,9 @@ module mod_analysis
 			real(rp),    intent(in)  :: mu_e(nelem,ngaus), mu_sgs(nelem,ngaus), mu_fluid(npoin)
 			real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1),coord(npoin,ndime)
 			real(8),    intent(out) :: Ftau_neg(ndime), Ftau_pos(ndime)
+			integer(8), optional, intent(out) :: nnodesTau_neg(ndime), nnodesTau_pos(ndime)
 			real(8)                :: Ftau_n_l(ndime),Ftau_p_l(ndime)
+			integer(8)             :: nnodesTau_n_l(ndime), nnodesTau_p_l(ndime)
 			integer(4)              :: ibound, idime, igaus, ipbou, ielem, jgaus
 			integer(4)              :: numBelem, counter, isoI, isoJ, isoK, ii, jdime, kdime
 			integer(4), allocatable :: lelbo(:)
@@ -384,6 +386,14 @@ module mod_analysis
 			Ftau_neg(:) = 0.0d0
 			Ftau_pos(:) = 0.0d0
 			!$acc end kernels
+			if (present(nnodesTau_neg)) then
+				!$acc kernels
+				nnodesTau_n_l(:) = 0
+				nnodesTau_p_l(:) = 0
+				nnodesTau_neg(:) = 0 ! counter for number of nodes with negative wall shear stress
+				nnodesTau_pos(:) = 0 ! counter for number of nodes with positive wall shear stress
+				!$acc end kernels
+			end if
 			!$acc parallel loop gang private(bnorm)
 			do ibound = 1, numBelem
 				bnorm(1:npbou*ndime) = bounorm(lelbo(ibound),1:npbou*ndime)
@@ -453,10 +463,20 @@ module mod_analysis
 								!$acc atomic update
 								Ftau_n_l(idime) = Ftau_n_l(idime) + real(tau_aux,8)
 								!$acc end atomic
+								if (present(nnodesTau_neg)) then
+									!$acc atomic update
+									nnodesTau_n_l(idime) = nnodesTau_n_l(idime) + 1
+									!$acc end atomic
+								end if
 							else
 								!$acc atomic update
 								Ftau_p_l(idime) = Ftau_p_l(idime) + real(tau_aux,8)
 								!$acc end atomic
+								if (present(nnodesTau_neg)) then
+									!$acc atomic update
+									nnodesTau_p_l(idime) = nnodesTau_p_l(idime) + 1
+									!$acc end atomic
+								end if
 							end if
 						end do
 					end do
@@ -467,6 +487,9 @@ module mod_analysis
 
 			call MPI_Allreduce(Ftau_n_l,Ftau_neg,ndime,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 			call MPI_Allreduce(Ftau_p_l,Ftau_pos,ndime,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
-
+			if (present(nnodesTau_neg)) then
+				call MPI_Allreduce(nnodesTau_n_l,nnodesTau_neg,ndime,mpi_datatype_int8,MPI_SUM,app_comm,mpi_err)
+				call MPI_Allreduce(nnodesTau_p_l,nnodesTau_pos,ndime,mpi_datatype_int8,MPI_SUM,app_comm,mpi_err)
+			end if
 		end subroutine twInfo
 end module mod_analysis

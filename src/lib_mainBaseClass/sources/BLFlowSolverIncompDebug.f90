@@ -35,7 +35,7 @@ module BLFlowSolverIncompDebug_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: BLFlowSolverIncompDebug
 
-      real(rp) , public  ::   d0, U0, rho0, Red0, Re, mu
+      real(rp) , public  ::   d0, U0, rho0, Red0, Re, mu, Lz_marl
       character(512), public   :: fileControlName                            ! Input: path to the file that contains the points defining the
       integer(4), public         :: nRectangleControl                          ! Number of rectangle control
       real(rp), public         :: amplitudeActuation, frequencyActuation , timeBeginActuation    ! Parameters of the actuation
@@ -135,12 +135,14 @@ contains
       call this%getControlNodes()
 #endif
       if (mpi_rank .eq. 0) open(unit=446,file="tw.txt",status='replace')
+      if (mpi_rank .eq. 0) open(unit=447,file="lx.txt",status='replace')
 
    end subroutine BLFlowSolverIncompDebug_beforeTimeIteration
 
    subroutine BLFlowSolverIncompDebug_afterTimeIteration(this)
       class(BLFlowSolverIncompDebug), intent(inout) :: this
       if (mpi_rank .eq. 0) close(446)
+      if (mpi_rank .eq. 0) close(447)
    end subroutine BLFlowSolverIncompDebug_afterTimeIteration
 
    subroutine BLFlowSolverIncompDebug_afterDt(this,istep)
@@ -154,8 +156,7 @@ contains
       real(rp)  :: gradV(ndime),vl(nnode),fact,targ,gradU(ndime),ul(nnode)
       real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
       real(rp) :: yp,eta_y,f_y,f_prim_y
-      real(8) :: Ftau_neg(3), Ftau_pos(3)
-
+      real(8) :: Ftau_neg(3), Ftau_pos(3), lx_recirculation
 
       cd = 1.0_rp
       lx = this%d0*2.5_rp
@@ -274,19 +275,25 @@ contains
          !$acc end parallel loop
       end if
 #endif
-      call this%computeTauW(Ftau_neg, Ftau_pos)
+      call this%computeTauW(Ftau_neg, Ftau_pos, lx_recirculation)
       write(446,'(*(ES12.4,:,","))') this%time, Ftau_neg, Ftau_pos
+      write(447,'(*(ES12.4,:,","))') this%time, lx_recirculation
       call flush(446)
+      call flush(447)
 
    end subroutine BLFlowSolverIncompDebug_afterDt
 
-   subroutine BLFlowSolverIncompDebug_computeTauW(this, Ftau_neg, Ftau_pos)
+   subroutine BLFlowSolverIncompDebug_computeTauW(this, Ftau_neg, Ftau_pos, lx_recirculation)
       class(BLFlowSolverIncompDebug), intent(inout) :: this
       real(8), intent(out) :: Ftau_neg(3), Ftau_pos(3)
+      real(8), intent(out) :: lx_recirculation
+      integer(8) :: nnodesTau_neg(3), nnodesTau_pos(3)
 
       call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, 1, connecParWork, boundPar, &
       point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
-      mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), Ftau_neg, Ftau_pos)
+      mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), Ftau_neg, Ftau_pos, nnodesTau_neg, nnodesTau_pos)
+      ! compute equivalent recirculation length
+      lx_recirculation = real(nnodesTau_neg(1),8) / npbou / this%Lz_marl
    end subroutine BLFlowSolverIncompDebug_computeTauW
 
    subroutine BLFlowSolverIncompDebug_fill_BC_Types(this)
@@ -477,6 +484,8 @@ contains
       this%initial_avgTime = 5000.0_rp
       this%saveAvgFile = .true.
       this%loadAvgFile = .false.
+
+      this%Lz_marl = 125.0_rp
       !----------------------------------------------
 
       ! numerical params
@@ -516,7 +525,7 @@ contains
 
 #if (ACTUATION)
       write(this%fileControlName ,*) "rectangleControl.txt"
-      this%amplitudeActuation = 0.2
+      this%amplitudeActuation = 0.3
       this%frequencyActuation = 0.0025_rp
       this%timeBeginActuation = 0.0_rp
 #endif
