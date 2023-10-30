@@ -368,15 +368,20 @@ contains
       allocate(quality%vector(numMshRanksInMpiRank))
       if(evalMeshQuality) then
          if(mpi_rank.eq.0) write(*,*) "--| Evaluating mesh quality"
+         if(mpi_rank.eq.0) write(*,*) "----| List of tangled elements (GMSH global numeration)"
          do iMshRank=1,numMshRanksInMpiRank
             allocate(quality%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
             do ielem = 1, numElemsMshRank(iMshRank)
                call eval_MeshQuality(numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),ielem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_elem)
+               if (quality_elem < 0) then
+                  write(*,*) elemGidMshRank_jv%vector(iMshRank)%elems(ielem)
+               end if
                do ielemVTK = 1, numVTKElemsPerMshElem
                   quality%vector(iMshRank)%elems((ielem-1)*numVTKElemsPerMshElem + ielemVTK) = quality_elem
                end do
             end do
          end do
+         if(mpi_rank.eq.0) write(*,*) "----| End of list of tangled elements"
          if(mpi_rank.eq.0) write(*,*) "--| Mesh quality evaluated"
       else
       	do iMshRank=1,numMshRanksInMpiRank
