@@ -342,7 +342,6 @@ module time_integ_imex
                   end do
                end do
                !$acc end parallel loop
-               !$acc end parallel loop     
                if(mpi_size.ge.2) then
                   call mpi_halo_atomic_update_real(rho(:,2))
                   call mpi_halo_atomic_update_real(E(:,2))
