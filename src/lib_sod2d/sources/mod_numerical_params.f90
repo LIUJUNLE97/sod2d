@@ -84,6 +84,7 @@ module mod_numerical_params
         real(rp)    :: period_walave   = 1.0_rp
         logical     :: flag_walave     = .false.
         integer(4)  :: flag_walex      = 3
+        integer(4)  :: flag_type_wmles = 1
 
         !
 	    ! viscosity

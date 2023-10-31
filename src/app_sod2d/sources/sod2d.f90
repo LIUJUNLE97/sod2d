@@ -11,6 +11,7 @@
 #define _bluff3d_ 0
 #define _bluff3d_incomp 0
 #define _bl_ 0
+#define _abl_ 0
 
 program main
    use mod_numerical_params
@@ -47,6 +48,9 @@ program main
 #endif
 #if _bl_
    use BLFlowSolver_mod
+#endif
+#if _abl_
+   use ABlFlowSolverIncomp_mod
 #endif
    implicit none
 
@@ -94,6 +98,10 @@ program main
 #if _bl_
    type(BLFlowSolver)  :: blflow
    call blflow%run()
+#endif
+#if _abl_
+   type(ABlFlowSolverIncomp)  :: ablflow
+   call ablflow%run()
 #endif
 
 

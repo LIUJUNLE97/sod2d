@@ -164,19 +164,19 @@ contains
 !---------------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------------
 
-   subroutine create_hdf5_groups_datasets_in_meshFile_from_tool(mnnode,mnpbou,hdf5_file_id,isPeriodic,isBoundaries,isLinealOutput,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
+   subroutine create_hdf5_groups_datasets_in_meshFile_from_tool(mnnode,mnpbou,hdf5_file_id,isPeriodic,isBoundaries,isMapFaces,isLinealOutput,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
                vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,&
-               vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank)
+               vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank)
       implicit none
       integer(4),intent(in) :: mnnode,mnpbou
       integer(hid_t),intent(in) :: hdf5_file_id
-      logical,intent(in) :: isPeriodic,isBoundaries,isLinealOutput
+      logical,intent(in) :: isPeriodic,isBoundaries,isMapFaces,isLinealOutput
       integer(4),intent(in) :: numMshRanks2Part,numElemsGmsh
       integer(8),intent(in) :: numNodesParTotal_i8
       integer(4),intent(in),dimension(0:numMshRanks2Part-1) :: vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank
       integer(4),intent(in),dimension(0:numMshRanks2Part-1) :: vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank
       integer(4),intent(in),dimension(0:numMshRanks2Part-1) :: vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank
-      integer(4),intent(in),dimension(0:numMshRanks2Part-1) :: vecNumPerNodesMshRank
+      integer(4),intent(in),dimension(0:numMshRanks2Part-1) :: vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank
       integer(hid_t) :: dset_id,dspace_id,group_id
       integer(hid_t) :: dtype
       integer(hsize_t) :: ds_dims(1),ds_dims2d(2)
@@ -229,6 +229,10 @@ contains
 
       if(isPeriodic) then
          call create_groups_datasets_periodic_data_hdf5(hdf5_file_id,numMshRanks2Part,vecNumPerNodesMshRank)
+      end if
+
+      if(isMapFaces) then
+         call create_groups_datasets_mappedFaces_data_hdf5(hdf5_file_id,numMshRanks2Part,vecNumPerMapLinkedNodesMshRank)
       end if
 
       !---------------------------------------------------------
@@ -491,6 +495,41 @@ contains
 
    end subroutine create_groups_datasets_periodic_data_hdf5
 
+   subroutine create_groups_datasets_mappedFaces_data_hdf5(file_id,numMshRanks2Part,vecNumPerMapLinkedNodesMshRank)
+      implicit none
+      integer(hid_t),intent(in) :: file_id
+      integer,intent(in) :: numMshRanks2Part
+      integer,intent(in),dimension(0:numMshRanks2Part-1) :: vecNumPerMapLinkedNodesMshRank
+      character(128) :: groupname,dsetname
+      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
+      integer(hid_t) :: dtype
+      integer :: ds_rank,mshRank,accumVal
+
+      groupname = trim('/MappedFaces_data')
+      call create_group_hdf5(file_id,groupname)
+
+      dtype = h5_datatype_int4
+      ds_rank = 1
+      ds_dims(1) = numMshRanks2Part
+
+      dsetname = '/MappedFaces_data/numPerMapLinkedNodesRankPar'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+
+      accumVal=0
+      do mshRank=0,numMshRanks2Part-1
+         accumVal=accumVal+vecNumPerMapLinkedNodesMshRank(mshRank)
+      end do
+      ds_dims(1) = accumVal
+
+      dsetname = '/MappedFaces_data/perMapLinkedNodesRankPar1'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+
+      dsetname = '/MappedFaces_data/perMapLinkedNodesRankPar2'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      !--------------------------------------------------------------------------------------------------------
+
+   end subroutine create_groups_datasets_mappedFaces_data_hdf5
+
    subroutine create_groups_datasets_boundary_data_hdf5(mnpbou,file_id,numMshRanks2Part,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank)
       implicit none
       integer(hid_t),intent(in) :: file_id
@@ -567,22 +606,23 @@ contains
       !--------------------------------------------------------------------------------------------------------
    end subroutine create_groups_datasets_boundary_data_hdf5
 
-   subroutine write_mshRank_data_in_hdf5_meshFile_from_tool(mporder,mnnode,mnpbou,hdf5_file_id,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,isLinealOutput,numElemsGmsh,numBoundFacesGmsh,&
+   subroutine write_mshRank_data_in_hdf5_meshFile_from_tool(mporder,mnnode,mnpbou,hdf5_file_id,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,isMapFaces,isLinealOutput,numElemsGmsh,numBoundFacesGmsh,&
          numElemsMshRank,mshRankElemStart,mshRankElemEnd,mshRankNodeStart_i8,mshRankNodeEnd_i8,numNodesMshRank,numWorkingNodesMshRank,numBoundFacesMshRank,numBoundaryNodesMshRank,numDoFMshRank,maxBoundCode,&
          numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,&
          a2ijk,a2ij,gmsh2ijk,gmsh2ij,vtk2ijk,vtk2ij,&
          elemGidMshRank,globalIdSrlMshRank_i8,globalIdParMshRank_i8,connecParOrigMshRank,connecParWorkMshRank,coordParMshRank,workingNodesMshRank,&
-         boundaryNodesMshRank,dofNodesMshRank,boundFacesCodesMshRank,boundFacesOrigMshRank,boundFacesMshRank,numPerNodesMshRank,masSlaNodesMshRank,&
+         boundaryNodesMshRank,dofNodesMshRank,boundFacesCodesMshRank,boundFacesOrigMshRank,boundFacesMshRank,&
+         numPerNodesMshRank,masSlaNodesMshRank,numPerMapLinkedNodesMshRank,perMapLinkedNodesMshRank,&
          numNodesToCommMshRank,numMshRanksWithComms,nodesToCommMshRank,commsMemPosInLocMshRank,commsMemSizeMshRank,commsMemPosInNgbMshRank,ranksToCommMshRank,&
          bnd_numNodesToCommMshRank,bnd_numMshRanksWithComms,bnd_nodesToCommMshRank,bnd_commsMemPosInLocMshRank,bnd_commsMemSizeMshRank,bnd_commsMemPosInNgbMshRank,bnd_ranksToCommMshRank,&
-         vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank)
+         vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank)
       implicit none
       integer(hid_t),intent(in) :: hdf5_file_id
-      logical,intent(in) :: isPeriodic,isBoundaries,isLinealOutput
+      logical,intent(in) :: isPeriodic,isBoundaries,isMapFaces,isLinealOutput
       integer(4),intent(in) :: mporder,mnnode,mnpbou,mshRank,numMshRanks2Part,numElemsGmsh,numBoundFacesGmsh
       integer(4),intent(in) :: numElemsMshRank,mshRankElemStart,mshRankElemEnd
       integer(8),intent(in) :: mshRankNodeStart_i8,mshRankNodeEnd_i8
-      integer(4),intent(in) :: numNodesMshRank,numWorkingNodesMshRank,numPerNodesMshRank
+      integer(4),intent(in) :: numNodesMshRank,numWorkingNodesMshRank,numPerNodesMshRank,numPerMapLinkedNodesMshRank
       integer(4),intent(in) :: numBoundFacesMshRank,numBoundaryNodesMshRank,numDoFMshRank
       integer(4),intent(in) :: maxBoundCode,numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem
 
@@ -596,13 +636,13 @@ contains
       integer(4),intent(in) :: boundaryNodesMshRank(numBoundaryNodesMshRank),dofNodesMshRank(numDoFMshRank)
       integer(4),intent(in) :: boundFacesCodesMshRank(numBoundFacesMshRank),boundFacesOrigMshRank(numBoundFacesMshRank,mnpbou),boundFacesMshRank(numBoundFacesMshRank,mnpbou)
       integer(4),intent(in) :: numNodesToCommMshRank,numMshRanksWithComms
-      integer(4),intent(in) :: masSlaNodesMshRank(numPerNodesMshRank,2)
+      integer(4),intent(in) :: masSlaNodesMshRank(numPerNodesMshRank,2),perMapLinkedNodesMshRank(numPerMapLinkedNodesMshRank,2)
       integer(4),intent(in),dimension(numMshRanksWithComms) :: nodesToCommMshRank,commsMemPosInLocMshRank,commsMemSizeMshRank,commsMemPosInNgbMshRank,ranksToCommMshRank
       integer(4),intent(in) :: bnd_numNodesToCommMshRank,bnd_numMshRanksWithComms
       integer(4),intent(in),dimension(bnd_numMshRanksWithComms) :: bnd_nodesToCommMshRank,bnd_commsMemPosInLocMshRank,bnd_commsMemSizeMshRank,bnd_commsMemPosInNgbMshRank,bnd_ranksToCommMshRank
 
       integer,intent(in),dimension(0:numMshRanks2Part-1) :: vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank
-      integer,intent(in),dimension(0:numMshRanks2Part-1) :: vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank
+      integer,intent(in),dimension(0:numMshRanks2Part-1) :: vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank
       !-------------------------------------------------------------------------------------------------------------------------------
       character(128) :: dsetname
       integer(hsize_t) :: ms_dims(1),ms_dims2d(2)
@@ -923,8 +963,34 @@ contains
 
          dsetname = '/Periodic_data/masSlaRankPar2'
          call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,masSlaNodesMshRank(:,2))
-         !--------------------------------------------------------------------------------------------------------
       end if
+      !------------------------------------------------------------------------------------------------------------------------
+
+      !------------------------------------------------------------------------------------------------------------------------
+      if(isMapFaces) then
+         ms_dims(1) = 1
+         ms_offset(1) = int(mshRank,hssize_t)
+         allocate(aux_array_i4(1))
+
+         dsetname = '/MappedFaces_data/numPerMapLinkedNodesRankPar'
+         aux_array_i4(1)= numPerMapLinkedNodesMshRank
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+
+         deallocate(aux_array_i4)
+
+         ms_offset(1)=0
+         do i=0,mshRank-1 !from rank 0 mpi_rank-1
+            ms_offset(1)=ms_offset(1)+int(vecNumPerMapLinkedNodesMshRank(i),hssize_t)
+         end do
+         ms_dims(1)=int(numPerMapLinkedNodesMshRank,hsize_t)
+
+         dsetname = '/MappedFaces_data/perMapLinkedNodesRankPar1'
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,perMapLinkedNodesMshRank(:,1))
+
+         dsetname = '/MappedFaces_data/perMapLinkedNodesRankPar2'
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,perMapLinkedNodesMshRank(:,2))
+      end if
+      !------------------------------------------------------------------------------------------------------------------------
 
       !------------------------------------------------------------------------------------------------------------------------
       dsetname = '/order/porder'
@@ -1058,10 +1124,10 @@ contains
 
    end subroutine write_mshRank_data_in_hdf5_meshFile_from_tool
 
-   subroutine dummy_write_mshRank_data_in_hdf5_meshFile_from_tool(hdf5_file_id,numMshRanks2Part,isPeriodic,isBoundaries,isLinealOutput)
+   subroutine dummy_write_mshRank_data_in_hdf5_meshFile_from_tool(hdf5_file_id,numMshRanks2Part,isPeriodic,isBoundaries,isMapFaces,isLinealOutput)
       implicit none
       integer(hid_t),intent(in) :: hdf5_file_id
-      logical,intent(in) :: isPeriodic,isBoundaries,isLinealOutput
+      logical,intent(in) :: isPeriodic,isBoundaries,isMapFaces,isLinealOutput
       integer(4),intent(in) :: numMshRanks2Part
       !-------------------------------------------------------------------------------------------------------------------------------
       character(128) :: dsetname
@@ -1220,7 +1286,6 @@ contains
 
       !------------------------------------------------------------------------------------------------------------------------
       if(isPeriodic) then
-
          dsetname = '/Periodic_data/nPerRankPar'
          call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
 
@@ -1229,8 +1294,21 @@ contains
 
          dsetname = '/Periodic_data/masSlaRankPar2'
          call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
-         !--------------------------------------------------------------------------------------------------------
       end if
+      !------------------------------------------------------------------------------------------------------------------------
+
+      !------------------------------------------------------------------------------------------------------------------------
+      if(isMapFaces) then
+         dsetname = '/MappedFaces_data/numPerMapLinkedNodesRankPar'
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
+
+         dsetname = '/MappedFaces_data/perMapLinkedNodesRankPar1'
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
+
+         dsetname = '/MappedFaces_data/perMapLinkedNodesRankPar2'
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
+      end if
+      !------------------------------------------------------------------------------------------------------------------------
 
       !------------------------------------------------------------------------------------------------------------------------
       dsetname = '/order/porder'
@@ -1353,6 +1431,10 @@ contains
       !-----------------------------------------------------------------------------------------------
       !load periodic data
       call load_periodic_data_hdf5(file_id)
+
+      !-----------------------------------------------------------------------------------------------
+      !load periodic data
+      call load_mappedFaces_data_hdf5(file_id)
 
       !-----------------------------------------------------------------------------------------------
       !load boundary data
@@ -2458,6 +2540,77 @@ contains
       end if
 
    end subroutine load_periodic_data_hdf5
+!--------------------------------------------------------------------------------------------------------------------------------
+
+!--------------------------------------------------------------------------------------------------------------------------------
+   subroutine load_mappedFaces_data_hdf5(file_id)
+      implicit none
+      integer(hid_t),intent(in) :: file_id
+      character(128) :: groupname,dsetname
+      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
+      integer(hid_t) :: dtype
+      integer(4) :: ds_rank,h5err
+      integer(4) :: i,accumVal,iBound,m
+      integer(HSSIZE_T), dimension(1) :: ms_offset
+      integer(4),allocatable :: aux_array(:)
+      logical :: isMappedFacesFolder
+
+      !ELS WORKING NODES SON SEMPRE, NO NOMES PERIODIC
+      !PENSAR SI POSAR AQUI EL CONNECORIG!
+      groupname = trim('/MappedFaces_data')
+
+      call h5lexists_f(file_id,groupname,isMappedFacesFolder,h5err)
+
+      if(mpi_rank.eq.0) write(*,*) 'Loading Mapped Faces data hdf5. -> isMappedFaces:',isMappedFacesFolder
+
+      if(isMappedFacesFolder) then
+         isMappedFaces = .true.
+
+         dtype = h5_datatype_int4
+         ds_rank = 1
+         ds_dims(1) = mpi_size
+         ms_dims(1) = 1
+         ms_offset(1) = int(mpi_rank,hssize_t)
+         allocate(aux_array(1))
+
+         !--------------------------------------------------------------------------------------------------------
+         dsetname = '/MappedFaces_data/numPerMapLinkedNodesRankPar'
+         call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
+         numPerMapLinkedNodesRankPar=aux_array(1)
+
+         allocate(perMapLinkedNodesRankPar(numPerMapLinkedNodesRankPar,2))
+         !--------------------------------------------------------------------------------------------------------
+         deallocate(aux_array)
+         allocate(aux_array(mpi_size))
+         ms_dims(1) = int(mpi_size,hsize_t)
+         ms_offset(1) = 0
+         !read data set numBoundsRankPar of all ranks
+         dsetname = '/MappedFaces_data/numPerMapLinkedNodesRankPar'
+         call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
+
+         ds_dims(1)=0
+         do i=1,mpi_size
+            ds_dims(1)=ds_dims(1)+aux_array(i)
+         end do
+
+         ms_offset(1)=0
+         do i=1,(mpi_rank) !from rank 0 mpi_rank-1
+            ms_offset(1)=ms_offset(1)+int(aux_array(i),hssize_t)
+         end do
+         ms_dims(1)=int(numPerMapLinkedNodesRankPar,hsize_t)
+
+         dsetname = '/MappedFaces_data/perMapLinkedNodesRankPar1'
+         call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,perMapLinkedNodesRankPar(:,1))
+
+         dsetname = '/MappedFaces_data/perMapLinkedNodesRankPar2'
+         call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,perMapLinkedNodesRankPar(:,2))
+         deallocate(aux_array)
+         !-------------------------------------------------------------------------------------------------------
+      else
+         isMappedFaces = .false.
+      end if
+
+   end subroutine load_mappedFaces_data_hdf5
 !--------------------------------------------------------------------------------------------------------------------------------
 
    subroutine load_boundary_data_hdf5(file_id,mnnode,mnpbou)

@@ -6,7 +6,7 @@ module mod_arrays
       ! main allocatable arrays
       ! integer ---------------------------------------------------
       integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
-      integer(4), allocatable :: atoIJ(:),atoIJK(:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
+      integer(4), allocatable :: atoIJ(:),atoIJK(:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
       integer(4), allocatable :: witel(:), buffstep(:)
 
       ! real ------------------------------------------------------
@@ -34,6 +34,9 @@ module mod_arrays
 
       ! exponential average for wall law
       real(rp), allocatable :: walave_u(:,:)
+
+      ! roughness for wall law
+      real(rp), allocatable :: zo(:)      
 
       ! for entropy and sgs visc.
       real(rp),  allocatable :: mue_l(:,:),al_weights(:),am_weights(:),an_weights(:)
@@ -152,6 +155,7 @@ module CFDSolverBase_mod
       procedure, public :: evalJacobians =>CFDSolverBase_evalJacobians
       procedure, public :: evalAtoIJKInverse =>CFDSolverBase_evalAtoIJKInverse
       procedure, public :: eval_elemPerNode_and_nearBoundaryNode =>CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode
+      procedure, public :: set_mappedFaces_linkingNodes =>CFDSolverBase_set_mappedFaces_linkingNodes
       procedure, public :: evalMass=>CFDSolverBase_evalMass
       procedure, public :: evalFirstOutput =>CFDSolverBase_evalFirstOutput
       procedure, public :: evalTimeIteration =>CFDSolverBase_evalTimeIteration
@@ -621,6 +625,7 @@ contains
             listBoundsWallModel(auxBoundCnt) = iBound
          end if
       end do
+      !$acc update device(listBoundsWallModel(:))
 
    end subroutine checkIfWallModelOn
 
@@ -953,6 +958,14 @@ contains
          !$acc enter data create(walave_u(:,:))
          !$acc kernels
          walave_u(:,:) = 0.0_rp
+         !$acc end kernels
+      end if
+
+      if(flag_type_wmles==wmles_type_abl) then
+         allocate(zo(numNodesRankPar))
+         !$acc enter data create(zo(:))
+         !$acc kernels
+         zo(:) = 0.0_rp
          !$acc end kernels
       end if
 
@@ -1343,16 +1356,34 @@ contains
       if(mpi_rank.eq.0) write(111,*) '  --| Evaluating point2elem array...'
       call elemPerNode(nnode,numElemsRankPar,numNodesRankPar,connecParWork,lelpn,point2elem)
 
-      if(mpi_rank.eq.0) write(111,*) '  --| Evaluating lnbn & lnbnNodes arrays...'
-      allocate(lnbn(numBoundsRankPar,npbou))
-      !$acc enter data create(lnbn(:,:))
+      if(mpi_rank.eq.0) write(111,*) '  --| Evaluating lnbnNodes arrays...'
       allocate(lnbnNodes(numNodesRankPar))
       !$acc enter data create(lnbnNodes(:))
-      call nearBoundaryNode(porder,nnode,npbou,numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
+      call nearBoundaryNode(porder,nnode,npbou,numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbnNodes)
 
       call MPI_Barrier(app_comm,mpi_err)
 
    end subroutine CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode
+
+   subroutine CFDSolverBase_set_mappedFaces_linkingNodes(this)
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4) :: iNode,iNodePer,iNodeMap
+
+      if(.not.isMappedFaces) return
+
+      if(mpi_rank.eq.0) write(111,*) '  --| Setting mapped faces linking nodes in lbnbNodes array...'
+
+		!$acc parallel loop  
+		do iNode = 1,numPerMapLinkedNodesRankPar
+         iNodePer = perMapLinkedNodesRankPar(iNode,1)
+         iNodeMap = perMapLinkedNodesRankPar(iNode,2)
+         !if(mpi_rank.eq.0) write(111,*) 'i',iNode,'iNodeMap',iNodeMap,'xyz',coordPar(iNodeMap,:)
+         !if(mpi_rank.eq.0) write(111,*) 'i',iNode,'iNodePer',iNodePer,'xyz',coordPar(iNodePer,:)
+         lnbnNodes(iNodeMap) = iNodePer                  
+		end do
+		!$acc end parallel loop
+
+   end subroutine CFDSolverBase_set_mappedFaces_linkingNodes
 
    subroutine CFDSolverBase_evalMass(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -1541,7 +1572,7 @@ contains
          end if
          call nvtxEndRange
 
-         call nvtxStartRange("RK4 step "//timeStep,istep)
+         call nvtxStartRange("Time-step"//timeStep,istep)
 
          if(flag_implicit == 1) then
             !$acc kernels
@@ -2215,6 +2246,8 @@ contains
 
       ! Eval list Elems per Node and Near Boundary Node
       call this%eval_elemPerNode_and_nearBoundaryNode()
+
+      call this%set_mappedFaces_linkingNodes()   
 
       ! Eval mass
       call this%evalMass()

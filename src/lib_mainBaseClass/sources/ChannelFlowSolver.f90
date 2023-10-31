@@ -92,60 +92,8 @@ contains
 #if _recirculation_||_crazy_
    subroutine ChannelFlowSolver_initialBuffer(this)
       class(ChannelFlowSolver), intent(inout) :: this
-      integer(4) :: ii,iNode,iNodePaired,iNodePerMaster,numPairedNodesInlet
+      integer(4) :: iNode
       real(rp) :: velo,yp
-      real(rp) :: xInlet,yInlet,zInlet,xM,yM,zM,minDist,dist,xTarget,xTol
-      integer(4),allocatable :: pairedNodesInlet(:,:)
-
-      write(*,*) 'Searching for paired nodes...'
-
-      numPairedNodesInlet=0
-      do iNode = 1,numNodesRankPar
-         if(bouCodesNodesPar(iNode) .lt. max_num_bou_codes) then
-            if (bouCodesNodesPar(iNode) == bc_type_recirculation_inlet) then
-               numPairedNodesInlet = numPairedNodesInlet + 1
-            end if
-         end if
-      end do
-
-      write(*,*) 'numPairedNodes:',numPairedNodesInlet
-
-      allocate(pairedNodesInlet(2,numPairedNodesInlet))
-
-      xTarget = 6.0_rp
-      xTol = 1.e-5
-
-      numPairedNodesInlet = 0
-      do iNode = 1,numNodesRankPar
-         if(bouCodesNodesPar(iNode) .lt. max_num_bou_codes) then
-            if (bouCodesNodesPar(iNode) == bc_type_recirculation_inlet) then
-               numPairedNodesInlet = numPairedNodesInlet + 1
-               xInlet = coordPar(iNode,1)
-               yInlet = coordPar(iNode,2)
-               zInlet = coordPar(iNode,3)
-
-               iNodePaired = 0
-               minDist = 1.e9
-               do ii=1,nPerRankPar
-                  iNodePerMaster = masSlaRankPar(ii,1) !master node
-                  xM = coordPar(iNodePerMaster,1)
-                  yM = coordPar(iNodePerMaster,2)
-                  zM = coordPar(iNodePerMaster,3)
-                  if((xM<xTarget+xTol).and.(xM>xTarget-xTol)) then
-                     dist = sqrt((xInlet-xM)*(xInlet-xM) + (yInlet-yM)*(yInlet-yM)+ (zInlet-zM)*(zInlet-zM))
-                     if(dist<minDist) then
-                        iNodePaired = iNodePerMaster
-                        minDist = dist
-                     end if
-                  end if
-               end do
-               write(*,*) 'linked',iNode,iNodePaired,'minDist',minDist
-               pairedNodesInlet(1,numPairedNodesInlet) = iNode
-               pairedNodesInlet(2,numPairedNodesInlet) = iNodePaired
-            end if
-         end if
-      end do
-
 
       !$acc parallel loop
       do iNode = 1,numNodesRankPar
@@ -173,7 +121,7 @@ contains
       real(rp) :: mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "channel_crazy_p4_n10"
+      write(this%mesh_h5_file_name,*) "channel_crazy_p4_n10_dev"
       !write(this%mesh_h5_file_name,*) "channel_crazy_p4_n36"
 
       write(this%results_h5_file_path,*) ""
@@ -186,14 +134,14 @@ contains
       this%final_istep = 10000001
 
       this%save_logFile_first = 1 
-      this%save_logFile_step  = 25
+      this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 2500
+      this%save_resultsFile_step = 100
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 2500
-      this%loadRestartFile = .true.
+      this%save_restartFile_step = 5000
+      this%loadRestartFile = .false.
       this%restartFile_to_load = 2 !1 or 2
       this%continue_oldLogs = .false.
 
@@ -201,6 +149,7 @@ contains
       this%loadAvgFile = .false.
 
       this%saveSurfaceResults = .false.
+      this%saveInitialField = .false.
       !----------------------------------------------
 
       ! numerical params
@@ -256,7 +205,7 @@ contains
       flag_buffer_on = .true.
 
       flag_buffer_on_east = .true.
-      flag_buffer_e_min   = 11.0_rp
+      flag_buffer_e_min   = 12.0_rp
       flag_buffer_e_size  = 1.0_rp 
 
       flag_buffer_on_west = .false.

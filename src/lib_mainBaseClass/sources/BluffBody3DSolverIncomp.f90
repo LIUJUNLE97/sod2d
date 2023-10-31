@@ -42,9 +42,9 @@ contains
    subroutine BluffBody3DSolverIncomp_fill_BC_Types(this)
       class(BluffBody3DSolverIncomp), intent(inout) :: this
 
-      bouCodes2BCType(1) = bc_type_non_slip_adiabatic  !bc_type_slip_wall_model
-      bouCodes2BCType(2) = bc_type_non_slip_adiabatic  !bc_type_slip_wall_model
-      bouCodes2BCType(3) = bc_type_far_field
+      bouCodes2BCType(1) = bc_type_slip_wall_model
+      bouCodes2BCType(2) = bc_type_slip_wall_model
+      bouCodes2BCType(3) = bc_type_outlet_incomp
       bouCodes2BCType(4) = bc_type_far_field
       bouCodes2BCType(5) = bc_type_outlet_incomp
       bouCodes2BCType(6) = bc_type_non_slip_adiabatic
@@ -89,11 +89,11 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 20000
+      this%save_resultsFile_step = 2000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 20000
-      this%loadRestartFile = .false.
+      this%save_restartFile_step = 2000
+      this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
@@ -106,7 +106,7 @@ contains
       flag_les = 1
 
       maxIter=20
-      tol=1e-3
+      tol=1e-2
       
 
       this%cfl_conv = 0.9_rp
@@ -151,8 +151,7 @@ contains
       flag_buffer_t_min = 2.0_rp
       flag_buffer_t_size = 0.5_rp     
 
-      !period_walave   = 1.0_rp
-      !flag_walex      = 4
+      period_walave   = 1.0_rp
 
    end subroutine BluffBody3DSolverIncomp_initializeParameters
 
