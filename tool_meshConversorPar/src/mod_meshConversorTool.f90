@@ -2007,7 +2007,7 @@ contains
       integer(4),dimension(0:mpi_size-1) :: counts_recv_mpi,displacements_mpi
 
       integer(4),parameter :: numQuadVert=4
-      integer(4):: gmshHexVertInd(numQuadVert)!,gmshQuadInnerVertInd(numQuadVert)
+      integer(4):: gmshQuadVertInd(numQuadVert)
 
       integer(4) :: m,iFace,iElem,iBound,iNode,iRank,idime,minDist_mapFaceG,minDist_mapElemG
       integer(4) :: iLink,iMapFace,iPerFace,iFaceG,ind_gmsh,iElemG,iPosFace,iPerFaceG,iPerElemG
@@ -2036,13 +2036,13 @@ contains
 
       !----------------------------------------------------------------------------------------------------------
       !NEW METHOD!
-      call get_gmshHexHOVertIndex(mporder,gmshHexVertInd)
+      call get_gmshQuadHOVertIndex(mporder,gmshQuadVertInd)
 
       avgCoordInRank = 0.0_rp
       do iMapFace=1,numMapFacesInRank
          faceCentroid(:) = 0.0_rp
          do iVert=1,numQuadVert
-            ind_gmsh = gmshHexVertInd(iVert)
+            ind_gmsh = gmshQuadVertInd(iVert)
             iNodeG = connecMapFacesInRank_i8(iMapFace,ind_gmsh)
 
             !iAux = (iMapFace-1)*numQuadVert + iVert
@@ -2151,7 +2151,7 @@ contains
                !iFaceG = listPerFacesInRank(iPerFace)
                faceCentroid(:) = 0.0_rp
                do iVert=1,numQuadVert
-                  ind_gmsh = gmshHexVertInd(iVert)
+                  ind_gmsh = gmshQuadVertInd(iVert)
                   iNodeG = connecPerFacesInRank_i8(iPerFace,ind_gmsh)
 
                   iNode = binarySearch_int_i8(listNodesInRank_i8,iNodeG)
@@ -3193,7 +3193,7 @@ contains
             allocate(connecPerFacesSrl_i8(numPerFacesSrl,mnpbou))
             allocate(connecMapFacesSrl_i8(numMapFacesSrl,mnpbou))
 
-            call read_mapped_and_periodic_boundaries_for_mappedBoundary_from_gmsh_h5_file_in_parallel(mporder,mnpbou,gmsh_h5_fileId,&
+            call read_mapPerBounds_from_gmsh_h5_file_in_parallel(mporder,mnpbou,gmsh_h5_fileId,&
                      numPerFacesSrl,numMapFacesSrl,connecPerFacesSrl_i8,connecMapFacesSrl_i8)
             
             do iMshRank=1,numMshRanksInMpiRank
@@ -3289,7 +3289,7 @@ contains
 
    end subroutine generate_masSlaRankPar
 
-   subroutine read_mapped_and_periodic_boundaries_for_mappedBoundary_from_gmsh_h5_file_in_parallel(mporder,mnpbou,gmsh_h5_fileId,numPerFacesSrl,numMapFacesSrl,&
+   subroutine read_mapPerBounds_from_gmsh_h5_file_in_parallel(mporder,mnpbou,gmsh_h5_fileId,numPerFacesSrl,numMapFacesSrl,&
          connecPerFacesSrl_i8,connecMapFacesSrl_i8)
       implicit none
       integer(4), intent(in) :: mporder,mnpbou,numPerFacesSrl,numMapFacesSrl
@@ -3360,7 +3360,7 @@ contains
       end_time(2) = MPI_Wtime()
       elapsed_time(2) = end_time(2) - start_time(2)
 
-   end subroutine read_mapped_and_periodic_boundaries_for_mappedBoundary_from_gmsh_h5_file_in_parallel
+   end subroutine read_mapPerBounds_from_gmsh_h5_file_in_parallel
 
    subroutine generate_mappedNodeLinksRankPar(mporder,mnnode,mnpbou,mshRank,numPerFacesSrl,numMapFacesSrl,numElemsInRank,elemGidInRank,numNodesInRank,&
          listNodesInRank_i8,coordNodesInRank,connecPerFacesSrl_i8,connecMapFacesSrl_i8,linkedPerToMapElemsAndFacesSrl,numLinkedMapNodesInRank,perMapLinkedNodes_i8)
