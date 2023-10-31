@@ -13,7 +13,7 @@ module mod_constants
 	!
 	! Element characteristics
 	!
-	integer(4), parameter :: porder=2
+	integer(4), parameter :: porder=8
 	integer(4), parameter :: nnode=(porder+1)**3
 	integer(4), parameter :: ngaus=nnode
 	integer(4), parameter :: npbou=(porder+1)**2
@@ -53,7 +53,7 @@ module mod_constants
 	! Types of implicit solvers
 	!
 
-	integer(4), parameter :: implicit_solver_esdirk      = 1
-	integer(4), parameter :: implicit_solver_bdf2_rk10   = 2
+	integer(4), parameter :: implicit_solver_imex   	 = 1
+
 
 end module mod_constants

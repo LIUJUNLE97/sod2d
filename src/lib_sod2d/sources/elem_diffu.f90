@@ -9,16 +9,16 @@ module elem_diffu
    use mod_comms
 
       contains
-        subroutine full_diffusion_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Pr,rho,u,Tem,mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener)
+        subroutine full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Pr,rho_n,rho,u,Tem,mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener)
              implicit none
 
              integer(4), intent(in)  :: nelem, npoin
              integer(4), intent(in)  :: connec(nelem,nnode)
-             real(rp),   intent(in)  :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-             real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime),dlxigp_ip(ngaus,ndime,porder+1)
+             real(rp),   intent(in)  :: Ngp(ngaus,nnode)
+             real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem),dlxigp_ip(ngaus,ndime,porder+1)
              real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
              integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-             real(rp),   intent(in)  :: Cp,Pr,rho(npoin),u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus),Ml(npoin)
+             real(rp),   intent(in)  :: Cp,Pr,rho_n(npoin),rho(npoin),u(npoin,ndime), Tem(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus),Ml(npoin)
              real(rp),   intent(in)  :: mu_fluid(npoin)
              real(rp),   intent(out) :: Rmass(npoin)
              real(rp),   intent(out) :: Rmom(npoin,ndime)
@@ -29,7 +29,7 @@ module elem_diffu
              real(rp)                :: gradU(ndime,ndime), gradT(ndime),tmp1,vol,arho
              real(rp)                :: gradIsoRho(ndime),gradIsoT(ndime),gradIsoU(ndime,ndime)
              real(rp)                :: gradRho(ndime),divDm(ndime),divDr,divDe
-             real(rp)                :: ul(nnode,ndime), rhol(nnode),Teml(nnode),mufluidl(nnode)
+             real(rp)                :: ul(nnode,ndime), rhol(nnode),Teml(nnode),mufluidl(nnode),rhonl(nnode)
              real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
              real(rp)                :: gradTl(nnode,ndime),gradRhol(nnode,ndime),tauUl(nnode,ndime)
 
@@ -41,7 +41,7 @@ module elem_diffu
              Rener(:) = 0.0_rp
              !$acc end kernels
 
-             !$acc parallel loop gang  private(ipoin,ul,Teml,rhol,mufluidl,gradRhol,gradTl,tauUl,tauXl,tauYl,tauZl)
+             !$acc parallel loop gang  private(ipoin,ul,Teml,rhol,rhonl,mufluidl,gradRhol,gradTl,tauUl,tauXl,tauYl,tauZl)
              do ielem = 1,nelem
                 !$acc loop vector
                 do inode = 1,nnode
@@ -50,6 +50,7 @@ module elem_diffu
                 !$acc loop vector
                 do inode = 1,nnode
                    rhol(inode) = rho(ipoin(inode))
+                   rhonl(inode) = rho_n(ipoin(inode))
                    Teml(inode) = Tem(ipoin(inode))
                    mufluidl(inode) = mu_fluid(ipoin(inode))
                 end do
@@ -68,10 +69,8 @@ module elem_diffu
 
                 !$acc loop vector private(tau,gradU,gradT,tauU,gradIsoRho,gradIsoT,gradIsoU,gradRho,divU)
                 do igaus = 1,ngaus
-                   nu_e = c_rho*mu_e(ielem,igaus)/rhol(igaus)
-                   mu_fgp = mufluidl(igaus)+rhol(igaus)*mu_sgs(ielem,igaus)
+                   mu_fgp = mufluidl(igaus)+rhonl(igaus)*mu_sgs(ielem,igaus)
                    mu_egp = mu_e(ielem,igaus)
-                   kappa_e =mufluidl(igaus)*Cp/Pr+c_ener*mu_e(ielem,igaus)/0.4_rp + rhol(igaus)*mu_sgs(ielem,igaus)/0.9_rp
 
                    isoI = gmshAtoI(igaus) 
                    isoJ = gmshAtoJ(igaus) 
@@ -142,10 +141,10 @@ module elem_diffu
 
                 !$acc loop vector private(divDm,divDr,divDe) 
                 do igaus = 1,ngaus
-                   nu_e = c_rho*mu_e(ielem,igaus)/rhol(igaus)
-                   mu_fgp = mufluidl(igaus)+rhol(igaus)*mu_sgs(ielem,igaus)
+                   nu_e = c_rho*mu_e(ielem,igaus)/rhonl(igaus)
+                   mu_fgp = mufluidl(igaus)+rhonl(igaus)*mu_sgs(ielem,igaus)
                    mu_egp = mu_e(ielem,igaus)
-                   kappa_e =mufluidl(igaus)*Cp/Pr+c_ener*mu_e(ielem,igaus)*Cp/Pr + Cp*rhol(igaus)*mu_sgs(ielem,igaus)/0.9_rp
+                   kappa_e =mufluidl(igaus)*Cp/Pr+c_ener*mu_e(ielem,igaus)*Cp/Pr + Cp*rhonl(igaus)*mu_sgs(ielem,igaus)/0.9_rp
 
                    isoI = gmshAtoI(igaus) 
                    isoJ = gmshAtoJ(igaus) 

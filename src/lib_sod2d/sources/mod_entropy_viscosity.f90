@@ -11,7 +11,7 @@ module mod_entropy_viscosity
    implicit none
 
    contains
-      subroutine smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Rrho,Ngp,coord,dNgp,gpvol,wgp, &
+      subroutine smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Ngp,coord,dNgp,gpvol,wgp, &
                             gamma_gas,rho,u,csound,Tem,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
 
               ! TODO: Compute element size h
@@ -19,7 +19,7 @@ module mod_entropy_viscosity
               implicit none
 
               integer(4), intent(in)  :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
-              real(rp),   intent(in)  :: Reta(npoin), Rrho(npoin), Ngp(ngaus,nnode),gamma_gas
+              real(rp),   intent(in)  :: Reta(npoin), Ngp(ngaus,nnode),gamma_gas
               real(rp),   intent(in)  :: rho(npoin), u(npoin,ndime),csound(npoin), Tem(npoin), eta(npoin),helem(nelem,nnode),helem_k(nelem),Ml(npoin)
               real(rp),   intent(out) :: mu_e(nelem,ngaus)
               real(rp),   intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
