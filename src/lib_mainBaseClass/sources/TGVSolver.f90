@@ -81,7 +81,7 @@ contains
       maxIter = 200
       tol = 1e-3
 
-      this%cfl_conv = 0.8_rp !0.5_rp
+      this%cfl_conv = 0.5_rp !0.5_rp
       this%cfl_diff = 100.0_rp !0.5_rp
 
       this%Cp = 1004.0_rp
