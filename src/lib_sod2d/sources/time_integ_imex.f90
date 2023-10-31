@@ -167,10 +167,10 @@ module time_integ_imex
       aij_e(4,4) = bij_e(4)
 #endif
 
-      !$acc update device(bij_i(:))
-      !$acc update device(bij_e(:))
-      !$acc update device(aij_i(:,:))
-      !$acc update device(aij_e(:,:))
+      !$acc enter data copyin(bij_i(:))
+      !$acc enter data copyin(bij_e(:))
+      !$acc enter data copyin(aij_i(:,:))
+      !$acc enter data copyin(aij_e(:,:))
 
       !$acc kernels
       Rsource_imex(1:npoin,1:ndime) = 0.0_rp
