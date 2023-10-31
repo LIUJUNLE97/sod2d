@@ -115,7 +115,7 @@ contains
 ! ################################################################################################
 ! ------------------------ VARS for Mesh Quality ----------------------------------------------------
 ! ################################################################################################
-      type(jagged_vector_rp) :: quality
+      type(jagged_vector_rp) :: quality_jv
       real(rp) :: quality_elem
       integer(4) :: ielem, ielemVTK
 
@@ -365,28 +365,28 @@ contains
       !write(*,*) 'l2[',mpi_rank,']vnbf',vecNumBoundFacesMshRank(:),'vndof',vecNumDoFMshRank(:),'vnbn',vecNumBoundaryNodesMshRank(:)
 
       !----------------------------------------------------------------------------------------------
-      allocate(quality%vector(numMshRanksInMpiRank))
+      allocate(quality_jv%vector(numMshRanksInMpiRank))
       if(evalMeshQuality) then
          if(mpi_rank.eq.0) write(*,*) "--| Evaluating mesh quality"
          if(mpi_rank.eq.0) write(*,*) "----| List of tangled elements (GMSH global numeration)"
          do iMshRank=1,numMshRanksInMpiRank
-            allocate(quality%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
+            allocate(quality_jv%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
             do ielem = 1, numElemsMshRank(iMshRank)
                call eval_MeshQuality(numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),ielem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_elem)
                if (quality_elem < 0) then
                   write(*,*) elemGidMshRank_jv%vector(iMshRank)%elems(ielem)
                end if
                do ielemVTK = 1, numVTKElemsPerMshElem
-                  quality%vector(iMshRank)%elems((ielem-1)*numVTKElemsPerMshElem + ielemVTK) = quality_elem
+                  quality_jv%vector(iMshRank)%elems((ielem-1)*numVTKElemsPerMshElem + ielemVTK) = quality_elem
                end do
             end do
          end do
          if(mpi_rank.eq.0) write(*,*) "----| End of list of tangled elements"
          if(mpi_rank.eq.0) write(*,*) "--| Mesh quality evaluated"
       else
-      	do iMshRank=1,numMshRanksInMpiRank
-		      allocate(quality%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
-	      end do
+         do iMshRank=1,numMshRanksInMpiRank
+            allocate(quality_jv%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
+         end do
       end if
       !----------------------------------------------------------------------------------------------
       start_time(8) = MPI_Wtime()
@@ -422,7 +422,7 @@ contains
         call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,sod2dmsh_h5_fileId,evalMeshQuality,mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),&
             numElemsVTKMshRank(iMshRank),sizeConnecVTKMshRank(iMshRank),mnnodeVTK,numVTKElemsPerMshElem,&
             mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),&
-            coordVTK_jm%matrix(iMshRank)%elems,connecVTK_jv%vector(iMshRank)%elems,quality%vector(iMshRank)%elems)
+            coordVTK_jm%matrix(iMshRank)%elems,connecVTK_jv%vector(iMshRank)%elems,quality_jv%vector(iMshRank)%elems)
       end do
 
       do iMshRank=(numMshRanksInMpiRank+1),maxNumMshRanks
