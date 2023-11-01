@@ -35,7 +35,7 @@ module BLMARLFlowSolverIncomp_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: BLMARLFlowSolverIncomp
 
-      real(rp) , public  ::   d0, U0, rho0, Red0, Re, mu
+      real(rp) , public  ::   d0, U0, rho0, Red0, Re, mu, Lz
       real(rp), public   :: eta_b(45), f(45), f_prim(45)
 
       character(len=64), public :: tag
@@ -45,7 +45,7 @@ module BLMARLFlowSolverIncomp_mod
       real(rp), public :: amplitudeActuation, periodEpisode, previousActuationTime, periodActuation, frequencyActuation, timeBeginActuation ! parameters of the actuation
       integer(4), public :: tw_write_interval, n_pseudo_envs
       real(rp), public :: time_tw
-      real(8), allocatable, public :: Ftau_neg_avg_x(:), Ftau_pos_avg_x(:)
+      real(8), allocatable, public :: lx_recirculation_avg(:)
 
    contains
       procedure, public :: fillBCTypes           => BLMARLFlowSolverIncomp_fill_BC_Types
@@ -159,23 +159,18 @@ contains
       open(unit=444,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_smooth.txt",status='replace')
       call this%getControlNodes()
 #ifdef SMARTREDIS
-      if (mpi_rank .eq. 0) open(unit=447,file="./output_"//trim(adjustl(this%tag))//"/"//"tw_avg.txt",status='replace')
+      if (mpi_rank .eq. 0) open(unit=447,file="./output_"//trim(adjustl(this%tag))//"/"//"lx_avg.txt",status='replace')
       call this%initSmartRedis()
 #endif
 #endif
 
-      if (mpi_rank .eq. 0) open(unit=446,file="./output_"//trim(adjustl(this%tag))//"/"//"tw.txt",status='replace')
+      if (mpi_rank .eq. 0) open(unit=446,file="./output_"//trim(adjustl(this%tag))//"/"//"lx.txt",status='replace')
 
-      allocate(this%Ftau_neg_avg_x(this%n_pseudo_envs))
-      allocate(this%Ftau_pos_avg_x(this%n_pseudo_envs))
-      !$acc enter data create(this%Ftau_neg_avg_x(:))
-      !$acc enter data create(this%Ftau_pos_avg_x(:))
-
-      this%Ftau_neg_avg_x(:) = 0.0d0
-      this%Ftau_pos_avg_x(:) = 0.0d0
+      allocate(this%lx_recirculation_avg(this%n_pseudo_envs))
+      !$acc enter data create(this%lx_recirculation_avg(:))
+      this%lx_recirculation_avg(:) = 0.0d0
+      !$acc update device(this%lx_recirculation_avg(:))
       this%time_tw = 0.0
-      !$acc update device(this%Ftau_neg_avg_x(:))
-      !$acc update device(this%Ftau_pos_avg_x(:))
    end subroutine BLMARLFlowSolverIncomp_beforeTimeIteration
 
    subroutine BLMARLFlowSolverIncomp_afterTimeIteration(this)
@@ -205,7 +200,7 @@ contains
       real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
       real(rp) :: yp,eta_y,f_y,f_prim_y
       real(rp) :: eliti, ave
-      real(8) :: Ftau_neg(this%n_pseudo_envs), Ftau_pos(this%n_pseudo_envs)
+      real(8) :: lx_recirculation(this%n_pseudo_envs)
       integer(4) :: i
 #if ACTUATION
 #ifdef SMARTREDIS
@@ -320,9 +315,9 @@ contains
       end if
 
       ! wall shear stress
-      call this%computeTauW(Ftau_neg, Ftau_pos)
+      call this%computeTauW(lx_recirculation)
       if (mod(istep, this%tw_write_interval) .eq. 0 .and. mpi_rank .eq. 0) then
-         write(446,'(*(ES12.4,:,","))') this%time, Ftau_neg, Ftau_pos
+         write(446,'(*(ES12.4,:,","))') this%time, lx_recirculation
          call flush(446)
       end if
 
@@ -342,11 +337,10 @@ contains
          eliti = this%time_tw/(this%time_tw+this%dt)
          this%time_tw = this%time_tw+this%dt
          ! !$acc kernels
-         this%Ftau_neg_avg_x(:) = ave * Ftau_neg(:) + eliti * this%Ftau_neg_avg_x(:)
-         this%Ftau_pos_avg_x(:) = ave * Ftau_pos(:) + eliti * this%Ftau_pos_avg_x(:)
+         this%lx_recirculation_avg(:) = ave * lx_recirculation(:) + eliti * this%lx_recirculation_avg(:)
          ! !$acc end kernels
          if (mod(istep, this%tw_write_interval) .eq. 0 .and. mpi_rank .eq. 0) then
-            write(447,'(*(ES12.4,:,","))') this%time, this%Ftau_neg_avg_x, this%Ftau_pos_avg_x
+            write(447,'(*(ES12.4,:,","))') this%time, this%lx_recirculation_avg
             call flush(447)
          end if
 
@@ -365,8 +359,8 @@ contains
 
             call this%update_witness(istep, 1) ! manual update of witness points
             call write_state(client, buffwit(:, 1, 1), "ensemble_"//trim(adjustl(this%tag))//".state") ! the streamwise velocity u
-            call write_reward(client, this%Ftau_neg_avg_x, "ensemble_"//trim(adjustl(this%tag))//".reward") ! the streamwise component tw_x
-            if (mpi_rank .eq. 0) write(445,'(*(ES12.4,:,","))') this%time, this%Ftau_neg_avg_x
+            call write_reward(client, this%lx_recirculation_avg, "ensemble_"//trim(adjustl(this%tag))//".reward") ! the streamwise component tw_x
+            if (mpi_rank .eq. 0) write(445,'(*(ES12.4,:,","))') this%time, this%lx_recirculation_avg
             if (mpi_rank .eq. 0) call flush(445)
 
             call read_action(client, "ensemble_"//trim(adjustl(this%tag))//".action") ! modifies action_global (the target control values)
@@ -429,19 +423,18 @@ contains
 #endif
 #endif
 
-   subroutine BLMARLFlowSolverIncomp_computeTauW(this, Ftau_neg, Ftau_pos)
+   subroutine BLMARLFlowSolverIncomp_computeTauW(this, lx_recirculation)
       class(BLMARLFlowSolverIncomp), intent(inout) :: this
-      real(8), intent(out) :: Ftau_neg(this%n_pseudo_envs), Ftau_pos(this%n_pseudo_envs)
-      real(8) :: Ftau_neg_single(3), Ftau_pos_single(3)
+      real(8), intent(out) :: lx_recirculation(this%n_pseudo_envs)
+      real(8) :: lx_r
       integer(4) :: surfCode
 
-		!$acc loop seq
+      !$acc loop seq
       do surfCode=1, this%n_pseudo_envs
-         call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, surfCode, connecParWork, boundPar, &
+         call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, surfCode, 1, connecParWork, boundPar, &
             point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
-            mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), Ftau_neg_single, Ftau_pos_single)
-         Ftau_neg(surfCode) = Ftau_neg_single(1) ! streamwise direction
-         Ftau_pos(surfCode) = Ftau_pos_single(1) ! streamwise direction
+            mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), lx_r)
+         lx_recirculation(surfCode) = lx_r / this%Lz
       end do
    end subroutine BLMARLFlowSolverIncomp_computeTauW
 
@@ -471,7 +464,7 @@ contains
    end subroutine BLMARLFlowSolverIncomp_fill_BC_Types
 
    subroutine BLMARLFlowSolverIncomp_fillBlasius(this)
-      class(BLMARLFlowSolverIncomp), intent(inout) :: this
+     class(BLMARLFlowSolverIncomp), intent(inout) :: this
 
      this%eta_b(1) = real(0.0E+00,rp)
      this%eta_b(2) = real(2.0E-01,rp)
@@ -712,13 +705,14 @@ contains
       !----------------------------------------------
 
       ! wall shear stress output
-      this%n_pseudo_envs = 5
+      this%n_pseudo_envs = 3
+      this%Lz = 125.0_rp / this%n_pseudo_envs
       this%tw_write_interval = 1
 
       ! numerical params
       flag_les = 1
 
-      maxIter = 20
+      maxIter = 30
       tol = 1e-2
 
       this%cfl_conv = 0.95_rp

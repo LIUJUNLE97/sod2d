@@ -37,7 +37,7 @@ module BLTSBDRLFlowSolver_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: BLTSBDRLFlowSolver
 
-      real(rp) , public  ::  M, d0, U0, rho0, Red0, Re, to, po, mu, amp_tbs, x_start, x_rise, x_end, x_fall, x_rerise, x_restart, coeff_tbs
+      real(rp) , public  ::  M, d0, U0, rho0, Red0, Re, to, po, mu, amp_tbs, x_start, x_rise, x_end, x_fall, x_rerise, x_restart, coeff_tbs, Lz
       character(len=64), public :: tag
       logical :: db_clustered = .false.
       integer(4), public       :: countPar                                   ! Number of points in a rectangle of control per partition
@@ -112,7 +112,7 @@ contains
       real(rp)  :: gradIsoV(ndime),gradIsoU(ndime)
       real(rp)  :: gradV(ndime),vl(nnode),fact,targ,gradU(ndime),ul(nnode)
       real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
-      real(8) :: Ftau_neg(ndime), Ftau_pos(ndime)
+      real(8) :: lx_recirculation
 #if ACTUATION
 #ifdef SMARTREDIS
       real(rp) :: action_global_instant(action_global_size)
@@ -155,9 +155,9 @@ contains
 
             call this%update_witness(istep, 1) ! manual update of witness points
             call write_state(client, buffwit(:, 1, 1), "ensemble_"//trim(adjustl(this%tag))//".state") ! the streamwise velocity u
-            call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
-            call write_reward(client, [Ftau_neg(1)], "ensemble_"//trim(adjustl(this%tag))//".reward") ! the streamwise component tw_x
-            if (mpi_rank .eq. 0) write(445,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_pos(1)
+            call this%computeReward(lx_recirculation)
+            call write_reward(client, lx_recirculation, "ensemble_"//trim(adjustl(this%tag))//".reward") ! the streamwise component tw_x
+            if (mpi_rank .eq. 0) write(445,'(*(ES12.4,:,","))') this%time, lx_recirculation
             if (mpi_rank .eq. 0) call flush(445)
 
             call read_action(client, "ensemble_"//trim(adjustl(this%tag))//".action") ! modifies action_global (the target control values)
@@ -186,8 +186,8 @@ contains
 #endif
 #endif
       if (mod(istep, this%tw_write_interval) .eq. 0) then
-         call this%computeReward(bc_type_unsteady_inlet, Ftau_neg, Ftau_pos)
-         if (mpi_rank .eq. 0) write(446,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), Ftau_pos(1)
+         call this%computeReward(lx_recirculation)
+         if (mpi_rank .eq. 0) write(446,'(*(ES12.4,:,","))') this%time, lx_recirculation
          if (mpi_rank .eq. 0) call flush(446)
       end if
 
@@ -300,14 +300,15 @@ contains
 #endif
 #endif
 
-   subroutine BLTSBDRLFlowSolver_computeReward(this, surfCode, Ftau_neg, Ftau_pos)
+   subroutine BLTSBDRLFlowSolver_computeReward(this, lx_recirculation)
       class(BLTSBDRLFlowSolver), intent(inout) :: this
-      integer(4), intent(in) :: surfCode
-      real(8), intent(out) :: Ftau_neg(ndime), Ftau_pos(ndime)
+      real(8), intent(out) :: lx_recirculation
+      real(8) :: lx_r
 
-      call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, surfCode, connecParWork, boundPar, &
+      call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, 1, 1, connecParWork, boundPar, &
          point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
-         mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), Ftau_neg, Ftau_pos)
+         mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), lx_r)
+      lx_recirculation = lx_r / this%Lz
 
    end subroutine BLTSBDRLFlowSolver_computeReward
 
@@ -630,6 +631,7 @@ contains
       ! wall shear stress output
       if (mpi_rank .eq. 0) open(unit=446,file="./output_"//trim(adjustl(this%tag))//"/"//"tw.txt",status='replace')
       this%tw_write_interval = 10
+      this%Lz = 125.0_rp
       !----------------------------------------------
 
       ! numerical params

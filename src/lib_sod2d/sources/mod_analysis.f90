@@ -338,23 +338,21 @@ module mod_analysis
 			end if
 		end subroutine surfInfo
 
-		subroutine twInfo(nelem,npoin,nbound,surfCode,connec,bound,point2elem,bou_code, &
+		subroutine twInfo(nelem,npoin,nbound,surfCode,idime_tw,connec,bound,point2elem,bou_code, &
 			bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coord, &
-			mu_fluid,mu_e,mu_sgs,rho,u,Ftau_neg,Ftau_pos,nnodesTau_neg,nnodesTau_pos)
+			mu_fluid,mu_e,mu_sgs,rho,u,surfArea_neg)
 
 			implicit none
 
-			integer(4), intent(in)  :: npoin, nbound, surfCode, bound(nbound,npbou), bou_code(nbound)
+			integer(4), intent(in)  :: npoin, nbound, surfCode, idime_tw, bound(nbound,npbou), bou_code(nbound)
 			integer(4), intent(in)  :: nelem, connec(nelem,nnode), point2elem(npoin)
 			integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
 			real(rp),    intent(in)  :: wgp_b(npbou), bounorm(nbound,ndime*npbou)
 			real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime)
 			real(rp),    intent(in)  :: mu_e(nelem,ngaus), mu_sgs(nelem,ngaus), mu_fluid(npoin)
 			real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1),coord(npoin,ndime)
-			real(8),    intent(out) :: Ftau_neg(ndime), Ftau_pos(ndime)
-			integer(8), optional, intent(out) :: nnodesTau_neg(ndime), nnodesTau_pos(ndime)
-			real(8)                :: Ftau_n_l(ndime),Ftau_p_l(ndime)
-			integer(8)             :: nnodesTau_n_l(ndime), nnodesTau_p_l(ndime)
+			real(rp), intent(out) :: surfArea_neg
+			real(rp)                :: surfArea_l_neg,surfArea_s_neg
 			integer(4)              :: ibound, idime, igaus, ipbou, ielem, jgaus
 			integer(4)              :: numBelem, counter, isoI, isoJ, isoK, ii, jdime, kdime
 			integer(4), allocatable :: lelbo(:)
@@ -380,23 +378,13 @@ module mod_analysis
 				end if
 			end do
 
-			!$acc kernels
-			Ftau_n_l(:) = 0.0d0
-			Ftau_p_l(:) = 0.0d0
-			Ftau_neg(:) = 0.0d0
-			Ftau_pos(:) = 0.0d0
-			!$acc end kernels
-			if (present(nnodesTau_neg)) then
-				!$acc kernels
-				nnodesTau_n_l(:) = 0
-				nnodesTau_p_l(:) = 0
-				nnodesTau_neg(:) = 0 ! counter for number of nodes with negative wall shear stress
-				nnodesTau_pos(:) = 0 ! counter for number of nodes with positive wall shear stress
-				!$acc end kernels
-			end if
+			surfArea_l_neg = 0.0_rp
+     		surfArea_neg = 0.0_rp
+
 			!$acc parallel loop gang private(bnorm)
 			do ibound = 1, numBelem
 				bnorm(1:npbou*ndime) = bounorm(lelbo(ibound),1:npbou*ndime)
+				surfArea_s_neg = 0.0_rp
 				!$acc loop vector private(tau,ul,rhol,mufluidl,gradIsoU,gradU,face2centoid)
 				do igaus = 1,npbou
 					ielem = point2elem(bound(lelbo(ibound),igaus))
@@ -454,42 +442,19 @@ module mod_analysis
 						nmag = nmag + bnorm((igaus-1)*ndime+idime)*bnorm((igaus-1)*ndime+idime)
 					end do
 					nmag = sqrt(nmag)
+
+					tau_aux = 0.0_rp
 					!$acc loop seq
-					do idime = 1,ndime
-						!$acc loop seq
-						do jdime = 1,ndime
-							tau_aux =  wgp_b(igaus)*tau(idime,jdime)*bnorm((igaus-1)*ndime+jdime)*sig
-							if(tau_aux .lt. 0) then
-								!$acc atomic update
-								Ftau_n_l(idime) = Ftau_n_l(idime) + real(tau_aux,8)
-								!$acc end atomic
-								if (present(nnodesTau_neg)) then
-									!$acc atomic update
-									nnodesTau_n_l(idime) = nnodesTau_n_l(idime) + 1
-									!$acc end atomic
-								end if
-							else
-								!$acc atomic update
-								Ftau_p_l(idime) = Ftau_p_l(idime) + real(tau_aux,8)
-								!$acc end atomic
-								if (present(nnodesTau_neg)) then
-									!$acc atomic update
-									nnodesTau_p_l(idime) = nnodesTau_p_l(idime) + 1
-									!$acc end atomic
-								end if
-							end if
-						end do
+					do jdime = 1,ndime
+						tau_aux = tau_aux + wgp_b(igaus)*tau(idime_tw,jdime)*bnorm((igaus-1)*ndime+jdime)*sig
 					end do
+					if (tau_aux .lt. 0) surfArea_s_neg = surfArea_s_neg + real(nmag*wgp_b(igaus), 8)
 				end do
+				surfArea_l_neg = surfArea_l_neg + surfArea_s_neg
 			end do
 			!$acc end parallel loop
 			deallocate(lelbo)
 
-			call MPI_Allreduce(Ftau_n_l,Ftau_neg,ndime,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
-			call MPI_Allreduce(Ftau_p_l,Ftau_pos,ndime,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
-			if (present(nnodesTau_neg)) then
-				call MPI_Allreduce(nnodesTau_n_l,nnodesTau_neg,ndime,mpi_datatype_int8,MPI_SUM,app_comm,mpi_err)
-				call MPI_Allreduce(nnodesTau_p_l,nnodesTau_pos,ndime,mpi_datatype_int8,MPI_SUM,app_comm,mpi_err)
-			end if
+			call MPI_Allreduce(surfArea_l_neg,surfArea_neg,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 		end subroutine twInfo
 end module mod_analysis

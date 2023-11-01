@@ -29,13 +29,13 @@ module BLFlowSolverTest_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: BLFlowSolverTest
 
-      real(rp) , public  ::  M, d0, U0, rho0, Red0, Re, to, po, mu
+      real(rp) , public  ::  M, d0, U0, rho0, Red0, Re, to, po, mu, Lz
       real(rp), public   :: eta_b(45), f(45), f_prim(45)
+      real(8), public :: lx_recirculation_avg
 
       character(len=64), public :: tag
       real(rp), public :: periodEpisode, time_tw, T_tw
       integer(4), public :: tw_write_interval
-      real(8) :: Ftau_neg_avg_x, Ftau_pos_avg_x
 
    contains
       procedure, public :: fillBCTypes           => BLFlowSolverTest_fill_BC_Types
@@ -56,7 +56,7 @@ contains
       integer(4) :: iNodeL
       real(rp) :: cd, lx, ly, xmin, xmax
       real(rp) :: eliti, ave
-      real(8) :: Ftau_neg(3), Ftau_pos(3)
+      real(8) :: lx_recirculation
 
       cd = 1.0_rp
       lx = this%d0*2.5_rp
@@ -77,32 +77,32 @@ contains
       !$acc end parallel loop
 
       ! wall shear stress computation
-      call this%computeTw(bc_type_non_slip_adiabatic, Ftau_neg, Ftau_pos)
+      call this%computeTw(lx_recirculation)
 
       if(this%time_tw > this%T_tw) this%time_tw = 0.0_rp
       ave = this%dt/(this%time_tw+this%dt)
       eliti = this%time_tw/(this%time_tw+this%dt)
       this%time_tw = this%time_tw+this%dt
 
-      this%Ftau_neg_avg_x = ave * Ftau_neg(1) + eliti * this%Ftau_neg_avg_x
-      this%Ftau_pos_avg_x = ave * Ftau_pos(1) + eliti * this%Ftau_pos_avg_x
+      this%lx_recirculation_avg = ave * lx_recirculation + eliti * this%lx_recirculation_avg
 
       if (mod(istep, this%tw_write_interval) .eq. 0) then
-         if (mpi_rank .eq. 0) write(446,'(*(ES12.4,:,","))') this%time, Ftau_neg(1), this%Ftau_neg_avg_x, Ftau_pos(1), this%Ftau_pos_avg_x
+         if (mpi_rank .eq. 0) write(446,'(*(ES12.4,:,","))') this%time, lx_recirculation, this%lx_recirculation_avg
          if (mpi_rank .eq. 0) call flush(446)
       end if
 
    end subroutine BLFlowSolverTest_afterDt
 
-   subroutine BLFlowSolverTest_computeTw(this, surfCode, Ftau_neg, Ftau_pos)
+   subroutine BLFlowSolverTest_computeTw(this, lx_recirculation)
       class(BLFlowSolverTest), intent(inout) :: this
-      integer(4), intent(in) :: surfCode
-      real(8), intent(out) :: Ftau_neg(ndime), Ftau_pos(ndime)
+      real(8), intent(out) :: lx_recirculation
+      real(8) :: lx_r
 
-      call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, surfCode, connecParWork, boundPar, &
-         point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
-         mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), Ftau_neg, Ftau_pos)
-
+      call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, 1, 1, connecParWork, boundPar, &
+      point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
+      mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), lx_r)
+      ! compute equivalent recirculation length
+      lx_recirculation = lx_r / this%Lz
    end subroutine BLFlowSolverTest_computeTw
 
    subroutine BLFlowSolverTest_fill_BC_Types(this)
@@ -261,9 +261,8 @@ contains
 
    subroutine BLFlowSolverTest_beforeTimeIteration(this)
       class(BLFlowSolverTest), intent(inout) :: this
-      if (mpi_rank .eq. 0) open(unit=446,file="./output_"//trim(adjustl(this%tag))//"/"//"tw.txt",status='replace')
-      this%Ftau_neg_avg_x = 0.0d0
-      this%Ftau_pos_avg_x = 0.0d0
+      if (mpi_rank .eq. 0) open(unit=446,file="./output_"//trim(adjustl(this%tag))//"/"//"lx.txt",status='replace')
+      this%lx_recirculation_avg = 0.0d0
       this%time_tw = 0.0
    end subroutine BLFlowSolverTest_beforeTimeIteration
 
@@ -346,6 +345,7 @@ contains
 
       !----------------------------------------------
       ! wall shear stress output
+      this%Lz = 125.0_rp
       this%T_tw = this%periodEpisode
       this%tw_write_interval = 1
       !----------------------------------------------
