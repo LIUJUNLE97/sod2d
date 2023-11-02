@@ -26,8 +26,7 @@ module time_integ_imex
    real(rp), allocatable, dimension(:,:) :: f_eta_imex
    real(rp), allocatable, dimension(:,:)   :: Rdiff_mass_imex,Rdiff_ener_imex
    real(rp), allocatable, dimension(:) :: auxReta_imex
-   integer(4), parameter :: numSteps = 5
-   !integer(4), parameter :: numSteps = 4
+   integer(4), parameter :: numSteps = 4
    real(rp), dimension(numSteps,numSteps) :: aij_e, aij_i
    real(rp), dimension(numSteps) :: bij_e, bij_i
    logical :: firstTimeStep = .true.
@@ -56,72 +55,7 @@ module time_integ_imex
 
       allocate(Rdiff_mass_imex(npoin,numSteps),Rdiff_ener_imex(npoin,numSteps))
       !$acc enter data create(Rdiff_mass_imex(:,:),Rdiff_ener_imex(:,:))
-#if 1
-      bij_i(1) = 0.0_rp
-      bij_i(2) = 1.5_rp
-      bij_i(3) = -1.5_rp 
-      bij_i(4) = 0.5_rp
-      bij_i(5) = 0.5_rp
 
-      bij_e(1) = 0.25_rp
-      bij_e(2) = 1.75_rp
-      bij_e(3) = 0.75_rp
-      bij_e(4) = -1.75_rp
-      bij_e(5) = 0.0_rp
-
-
-      aij_i(1,1) = 0.0_rp
-      aij_i(1,2) = 0.0_rp
-      aij_i(1,3) = 0.0_rp
-      aij_i(1,4) = 0.0_rp
-      aij_i(1,5) = 0.0_rp
-      aij_i(2,1) = 0.0_rp
-      aij_i(2,2) = 0.5_rp
-      aij_i(2,3) = 0.0_rp
-      aij_i(2,4) = 0.0_rp
-      aij_i(2,5) = 0.0_rp
-      aij_i(3,1) = 0.0_rp
-      aij_i(3,2) = 0.1666666666_rp
-      aij_i(3,3) = 0.5_rp
-      aij_i(3,4) = 0.0_rp
-      aij_i(3,5) = 0.0_rp
-      aij_i(4,1) = 0.0_rp
-      aij_i(4,2) = -0.5_rp
-      aij_i(4,3) = 0.5_rp
-      aij_i(4,4) = 0.5_rp
-      aij_i(4,5) = 0.0_rp
-      aij_i(5,1) = 0.0_rp
-      aij_i(5,2) = 1.5_rp
-      aij_i(5,3) = -1.5_rp
-      aij_i(5,4) = 0.5_rp
-      aij_i(5,5) = 0.5_rp
-
-      aij_e(1,1) = 0.0_rp
-      aij_e(1,2) = 0.0_rp
-      aij_e(1,3) = 0.0_rp
-      aij_e(1,4) = 0.0_rp
-      aij_e(1,5) = 0.0_rp
-      aij_e(2,1) = 0.5_rp
-      aij_e(2,2) = 0.0_rp
-      aij_e(2,3) = 0.0_rp
-      aij_e(2,4) = 0.0_rp
-      aij_e(2,5) = 0.0_rp
-      aij_e(3,1) = 0.6111111111_rp
-      aij_e(3,2) = 0.0555555555_rp
-      aij_e(3,3) = 0.0_rp
-      aij_e(3,4) = 0.0_rp
-      aij_e(3,5) = 0.0_rp
-      aij_e(4,1) = 0.8333333333_rp
-      aij_e(4,2) = -0.8333333333_rp
-      aij_e(4,3) = 0.5_rp
-      aij_e(4,4) = 0.0_rp
-      aij_e(4,5) = 0.0_rp
-      aij_e(5,1) = 0.25_rp
-      aij_e(5,2) = 1.75_rp
-      aij_e(5,3) = 0.75_rp
-      aij_e(5,4) = -1.75_rp
-      aij_e(5,5) = 0.0_rp
-#else
       bij_i(1) = 4.0_rp/15.0_rp 
       bij_i(2) = 1.0_rp/3.0_rp 
       bij_i(3) = 7.0_rp/30.0_rp 
@@ -165,7 +99,6 @@ module time_integ_imex
       aij_e(4,2) = bij_e(2)
       aij_e(4,3) = bij_e(3)
       aij_e(4,4) = bij_e(4)
-#endif
 
       !$acc update device(bij_i(:))
       !$acc update device(bij_e(:))

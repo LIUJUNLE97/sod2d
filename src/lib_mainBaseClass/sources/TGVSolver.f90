@@ -82,7 +82,7 @@ contains
       tol = 1e-3
 
       this%cfl_conv = 0.5_rp !0.5_rp
-      this%cfl_diff = 100.0_rp !0.5_rp
+      this%cfl_diff = 1000.0_rp !0.5_rp
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
