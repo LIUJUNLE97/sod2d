@@ -23,6 +23,7 @@ option(SHARED_LIBS "Compile using shared libraries" OFF)
 
 option(USE_GPU "Compile using GPU" OFF)
 option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
+option(USE_NCCL "Compile using NCCL" OFF)
 
 option(DEBUG_MODE "Set debug mode" OFF)
 

@@ -211,6 +211,15 @@ contains
          !!$acc end parallel loop
       end if
 
+      !$acc update device(rho(:,:))
+      !$acc update device(u(:,:,:))
+      !$acc update device(Tem(:,:))
+      !$acc update device(pr(:,:))
+      !$acc update device(e_int(:,:))
+      !$acc update device(E(:,:))
+      !$acc update device(q(:,:,:))
+      !$acc update device(csound(:))
+
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)

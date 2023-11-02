@@ -88,6 +88,11 @@ contains
             !call close_window_realField_bnd()
         end if
 
+#ifdef NCCL_COMMS
+        nccl_bnd_stat = ncclCommDestroy(nccl_bnd_comm)
+        cuda_bnd_stat = cudaStreamDestroy(nccl_bnd_stream)
+#endif
+
     end subroutine end_comms_bnd
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------

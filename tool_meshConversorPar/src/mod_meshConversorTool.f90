@@ -7,6 +7,7 @@ module mod_meshConversorTool
    use quadrature_rules
    use mod_hdf5
    use iso_c_binding
+   use mod_mesh_quality
    implicit none
 
 !-----------------------------------
@@ -38,11 +39,11 @@ character(*), parameter :: fmt_csv_deb = '(1x,*(g0,","))'
 
 contains
 
-   subroutine read_gmsh_h5_file_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName,numMshRanks2Part,isLinealOutput)
+   subroutine read_gmsh_h5_file_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName,numMshRanks2Part,isLinealOutput,evalMeshQuality)
       implicit none
       character(500), intent(in)  :: gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName
       integer(4),intent(in) :: numMshRanks2Part
-      logical,intent(in) :: isLinealOutput
+      logical,intent(in) :: isLinealOutput, evalMeshQuality
       logical :: isPeriodic=.false.,isBoundaries=.false.,isMapFaces=.false.
 
       integer(4) :: numElemsMpiRank,numNodesMpiRank,numBoundsMpiRank,numLinkedPerElemsSrl,numPerElemsSrl,numMasSlaNodesSrl
@@ -64,7 +65,7 @@ contains
       integer(8),dimension(0:numMshRanks2Part-1) :: iNodeStartPar_i8
       integer(4),dimension(0:numMshRanks2Part-1) :: vecNumWorkingNodes,vecNumNodesToCommMshRank,vecNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecBndNumMshRanksWithComms
       integer(4),dimension(0:numMshRanks2Part-1) :: vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank
-      real(rp),allocatable :: Ngp_l(:,:)
+      real(rp),allocatable :: Ngp_l(:,:),dNgp(:,:,:),wgp(:)
       integer(4) :: iMshRank,mshRank
       integer(hid_t) :: gmsh_h5_fileId, sod2dmsh_h5_fileId
       real(8),dimension(10) :: start_time,end_time,elapsed_time_r
@@ -116,6 +117,13 @@ contains
       integer(4),allocatable :: bnd_numNodesToCommMshRank(:),bnd_numMshRanksWithComms(:)
 
 ! ################################################################################################
+! ------------------------ VARS for Mesh Quality ----------------------------------------------------
+! ################################################################################################
+      type(jagged_vector_rp) :: quality_jv
+      real(rp) :: quality_elem
+      integer(4) :: ielem, ielemVTK
+
+! ################################################################################################
 ! ################################################################################################
 
       start_time(1) = MPI_Wtime()
@@ -140,6 +148,8 @@ contains
       allocate(ijk2a(0:porder,0:porder,0:porder))
 
       allocate(Ngp_l(mngaus,mnnode))
+      allocate(dNgp(ndime,mnnode,mngaus))
+      allocate(wgp(mngaus))
 
       !for the moment we set that the a2ijk is the gmsh2ijk
       a2ijk(:) = gmsh2ijk(:)
@@ -228,7 +238,7 @@ contains
       allocate(auxVTKorder(mnnode))
 
       call generate_new_nodeOrder_and_connectivity(mporder,mnnode,gmsh2ijk,vtk2ijk,a2ijk,auxNewOrderIndex,auxVTKorder)
-      call evalShapeFunctions_Ngp_l(Ngp_l,mporder,mnnode,mngaus,a2ijk)
+      call evalShapeFunctions_Ngp_l(Ngp_l,dNgp,wgp,mporder,mnnode,mngaus,a2ijk)
 
       allocate(globalIdSrl_i8_jv%vector(numMshRanksInMpiRank))
       allocate(globalIdSrlOrdered_i8_jm%matrix(numMshRanksInMpiRank))
@@ -370,11 +380,34 @@ contains
       !write(*,*) 'l2[',mpi_rank,']vnbf',vecNumBoundFacesMshRank(:),'vndof',vecNumDoFMshRank(:),'vnbn',vecNumBoundaryNodesMshRank(:)
 
       !----------------------------------------------------------------------------------------------
+      allocate(quality_jv%vector(numMshRanksInMpiRank))
+      if(evalMeshQuality) then
+         if(mpi_rank.eq.0) write(*,*) "--| Evaluating mesh quality"
+         if(mpi_rank.eq.0) write(*,*) "----| List of tangled elements (GMSH global numeration)"
+         do iMshRank=1,numMshRanksInMpiRank
+            allocate(quality_jv%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
+            do ielem = 1, numElemsMshRank(iMshRank)
+               call eval_MeshQuality(numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),ielem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_elem)
+               if (quality_elem < 0) then
+                  write(*,*) elemGidMshRank_jv%vector(iMshRank)%elems(ielem)
+               end if
+               do ielemVTK = 1, numVTKElemsPerMshElem
+                  quality_jv%vector(iMshRank)%elems((ielem-1)*numVTKElemsPerMshElem + ielemVTK) = quality_elem
+               end do
+            end do
+         end do
+         if(mpi_rank.eq.0) write(*,*) "----| End of list of tangled elements"
+         if(mpi_rank.eq.0) write(*,*) "--| Mesh quality evaluated"
+      else
+         do iMshRank=1,numMshRanksInMpiRank
+            allocate(quality_jv%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
+         end do
+      end if
+      !----------------------------------------------------------------------------------------------
       start_time(8) = MPI_Wtime()
       if(mpi_rank.eq.0) write(*,*) "--| Saving Partitioned HDF5 mesh file:",mesh_h5_fileName
 
       call set_hdf5_meshFile_name(mesh_h5_filePath,mesh_h5_fileName,numMshRanks2Part)
-
       call MPI_Barrier(app_comm,mpi_err)
 
       call create_hdf5_file(meshFile_h5_name,sod2dmsh_h5_fileId)
@@ -382,7 +415,7 @@ contains
       call create_hdf5_groups_datasets_in_meshFile_from_tool(mnnode,mnpbou,sod2dmsh_h5_fileId,isPeriodic,isBoundaries,isMapFaces,isLinealOutput,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
                vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank)
 
-      call create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,sod2dmsh_h5_fileId,isLinealOutput,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,mnnodeVTK,numVTKElemsPerMshElem)
+      call create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,sod2dmsh_h5_fileId,isLinealOutput,evalMeshQuality,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,mnnodeVTK,numVTKElemsPerMshElem)
 
       call MPI_Barrier(app_comm,mpi_err)
 
@@ -403,16 +436,16 @@ contains
             bnd_commsMemSize_jv%vector(iMshRank)%elems,bnd_commsMemPosInNgb_jv%vector(iMshRank)%elems,bnd_ranksToComm_jv%vector(iMshRank)%elems,&
             vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank)
 
-        call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),&
+        call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,sod2dmsh_h5_fileId,evalMeshQuality,mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),&
             numElemsVTKMshRank(iMshRank),sizeConnecVTKMshRank(iMshRank),mnnodeVTK,numVTKElemsPerMshElem,&
             mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),&
-            coordVTK_jm%matrix(iMshRank)%elems,connecVTK_jv%vector(iMshRank)%elems)
+            coordVTK_jm%matrix(iMshRank)%elems,connecVTK_jv%vector(iMshRank)%elems,quality_jv%vector(iMshRank)%elems)
       end do
 
       do iMshRank=(numMshRanksInMpiRank+1),maxNumMshRanks
         call dummy_write_mshRank_data_in_hdf5_meshFile_from_tool(sod2dmsh_h5_fileId,numMshRanks2Part,isPeriodic,isBoundaries,isMapFaces,isLinealOutput)
 
-        call dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(sod2dmsh_h5_fileId,numMshRanks2Part)
+        call dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(sod2dmsh_h5_fileId,evalMeshQuality,numMshRanks2Part)
       end do
 
       call MPI_Barrier(app_comm,mpi_err)
@@ -4974,14 +5007,14 @@ contains
 
    end subroutine get_vector_with_mshRank_values_for_numMshRanks2Part
 
-   subroutine evalShapeFunctions_Ngp_l(Ngp_l,mporder,mnnode,mngaus,a2ijk)
+   subroutine evalShapeFunctions_Ngp_l(Ngp_l,dNgp,wgp,mporder,mnnode,mngaus,a2ijk)
       integer(4),intent(in) :: mporder,mnnode,mngaus
       integer(4),intent(in) :: a2ijk(mnnode)
-      real(rp),intent(out) :: Ngp_l(mngaus,mnnode)
+      real(rp),intent(out) :: Ngp_l(mngaus,mnnode), dNgp(ndime,mnnode,mngaus), wgp(mngaus)
       real(rp) :: s, t, z
       integer(4) :: igaus
-      real(rp) :: xgp(mngaus,ndime), wgp(mngaus)
-      real(rp) :: Ngp(mngaus,mnnode), dNgp(ndime,mnnode,mngaus),dlxigp_ip(mngaus,ndime,mporder+1),dNgp_l(ndime,mnnode,mngaus)
+      real(rp) :: xgp(mngaus,ndime)
+      real(rp) :: Ngp(mngaus,mnnode),dlxigp_ip(mngaus,ndime,mporder+1),dNgp_l(ndime,mnnode,mngaus)
 
       !*********************************************************
 
