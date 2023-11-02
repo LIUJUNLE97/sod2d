@@ -357,8 +357,8 @@ module time_integ_imex
             call nvtxStartRange("Entropy residual")
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               auxReta_imex(lpoin_w(ipoin)) = (1.5_rp*Reta_imex(lpoin_w(ipoin),2)-0.5_rp*Reta_imex(lpoin_w(ipoin),1)) !+ &
-                                              !(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+               auxReta_imex(lpoin_w(ipoin)) = (1.5_rp*Reta_imex(lpoin_w(ipoin),2)-0.5_rp*Reta_imex(lpoin_w(ipoin),1)) + &
+                                              (eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
                Reta_imex(lpoin_w(ipoin),1) = Reta_imex(lpoin_w(ipoin),2)            
             end do
             !$acc end parallel loop
@@ -382,7 +382,7 @@ module time_integ_imex
             !
             ! Compute entropy viscosity
             !
-            call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,auxReta_imex,Ngp,coord,dNgp,gpvol,wgp, &
+            call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,auxReta_imex,Ngp,coord,dNgp,gpvol,wgp, &
                gamma_gas,rho(:,2),u(:,:,2),csound,Tem(:,2),eta(:,2),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
             call nvtxEndRange
             !

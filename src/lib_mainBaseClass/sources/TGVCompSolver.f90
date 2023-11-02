@@ -61,7 +61,7 @@ contains
       this%maxPhysTime = 20.0_rp
       this%final_istep = 10000 
       this%cfl_conv = 0.95_rp
-      this%cfl_diff = 1000.0_rp
+      this%cfl_diff = 100.0_rp
 
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10
