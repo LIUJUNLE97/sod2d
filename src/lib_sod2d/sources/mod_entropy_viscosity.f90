@@ -80,9 +80,9 @@ module mod_entropy_viscosity
                 end do
                 M = maxV/maxC
                 ceM = max(tanh((M**15)*v_pi),ce)
-                !ced = max(1.0_rp-(minJe/maxJe)**2,ce)
-                !ced = max(ced,ceM) 
-                ced = ceM
+                ced = max(1.0_rp-(minJe/maxJe)**2,ce)
+                ced = max(ced,ceM) 
+                !ced = ceM
 
                 mu = 0.0_rp
                 betae = 0.0_rp

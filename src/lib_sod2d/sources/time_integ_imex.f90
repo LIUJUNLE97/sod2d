@@ -268,7 +268,7 @@ module time_integ_imex
                      rho(ipoin,2) = rho(ipoin,2) -dt*aij_e(istep,jstep)*Rmass_imex(ipoin,jstep)-dt*aij_i(istep,jstep)*Rdiff_mass_imex(ipoin,jstep)
                      E(ipoin,2)   = E(ipoin,2)   -dt*aij_e(istep,jstep)*Rener_imex(ipoin,jstep)-dt*aij_i(istep,jstep)*Rdiff_ener_imex(ipoin,jstep)
                      do idime = 1,ndime
-                        q(ipoin,idime,2) = q(ipoin,idime,2) -dt*aij_e(istep,jstep)*Rmom_imex(ipoin,idime,jstep) &
+                        q(ipoin,idime,2) = q(ipoin,idime,2) -dt*aij_e(istep,jstep)*(Rmom_imex(ipoin,idime,jstep)+Rsource_imex(ipoin,idime)+Rwmles_imex(ipoin,idime)) &
                                                             -dt*aij_i(istep,jstep)*Rdiff_mom_imex(ipoin,idime,jstep)
                                            
                      end do
@@ -329,7 +329,6 @@ module time_integ_imex
                                     E(:,2),Rmass_imex(:,istep),Rmom_imex(:,:,istep),Rener_imex(:,istep))
                call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,2),rho(:,2),u(:,:,2),&
                                     Tem(:,2),mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass_imex(:,istep),Rdiff_mom_imex(:,:,istep),Rdiff_ener_imex(:,istep))
-         
             end do
             !if(mpi_rank.eq.0) write(111,*)   " after in"
           

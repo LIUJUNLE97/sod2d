@@ -106,8 +106,8 @@ contains
       period_walave   = 1.0_rp
       flag_walave     = .true.
 
-      this%cfl_conv = 1.9_rp !bdf2
-      this%cfl_diff = 100.0_rp !bdf2
+      this%cfl_conv = 0.95_rp !bdf2
+      this%cfl_diff = 1000.0_rp !bdf2
       !this%cfl_conv = 0.15_rp !exp
       !this%cfl_diff = 0.15_rp !exp
 

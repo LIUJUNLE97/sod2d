@@ -53,15 +53,15 @@ contains
       this%doTimerAnalysis = .true.
       this%saveInitialField = .false.
 
-      flag_implicit = 1
+      flag_implicit = 0
 
       maxIter = 200
       tol = 1e-3
 
       this%maxPhysTime = 20.0_rp
       this%final_istep = 10000 
-      this%cfl_conv = 0.95_rp
-      this%cfl_diff = 100.0_rp
+      this%cfl_conv = 0.5_rp
+      this%cfl_diff = 0.5_rp
 
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10

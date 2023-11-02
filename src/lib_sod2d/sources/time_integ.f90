@@ -447,7 +447,7 @@ module time_integ
             call nvtxStartRange("Entropy residual")
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               Reta(lpoin_w(ipoin)) =  -Reta_sum(lpoin_w(ipoin))!-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+               Reta(lpoin_w(ipoin)) =  -Reta_sum(lpoin_w(ipoin))-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
             end do
             !$acc end parallel loop
             call nvtxEndRange
