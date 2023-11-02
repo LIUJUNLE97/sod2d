@@ -1455,7 +1455,6 @@ contains
       boundFacesCodesInRank(:) = 0
       boundFacesCodesInRank_i8(:) = 0
       !---------------------------------------------------------------
-      !TEST ZONE FOR ELEMENT SELECTION!
       dtype = h5_datatype_int8
 
       if(numBoundsInRank.ne.0) then
@@ -1484,13 +1483,11 @@ contains
       call h5dread_f(dset_id,dtype,boundFacesCodesInRank_i8,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
       deallocate(ms_coords)
-      !write(*,*) 'fs_dims',fs_dims(:),'max_dims',fs_maxdims(:)
 
       call h5pclose_f(plist_id,h5err)
       call h5sclose_f(mspace_id,h5err)
       call h5sclose_f(fspace_id,h5err)
       call h5dclose_f(dset_id,h5err)
-      !END TEST ZONE FOR ELEMENT SELECTION!
       !---------------------------------------------------------------
 
       boundFacesCodesInRank(:) = int(boundFacesCodesInRank_i8(:),4)
@@ -2035,7 +2032,6 @@ contains
       !$acc end kernels
 
       !----------------------------------------------------------------------------------------------------------
-      !NEW METHOD!
       call get_gmshQuadHOVertIndex(mporder,gmshQuadVertInd)
 
       avgCoordInRank = 0.0_rp
@@ -2044,13 +2040,7 @@ contains
          do iVert=1,numQuadVert
             ind_gmsh = gmshQuadVertInd(iVert)
             iNodeG = connecMapFacesInRank_i8(iMapFace,ind_gmsh)
-
-            !iAux = (iMapFace-1)*numQuadVert + iVert
-            !refNodesMapFacesInRank_i8(iAux) = iNodeG
-            !write(*,*) 'imf',iMapFace,'iAux',iAux,'iNodeG',iNodeG
-
             iNode = binarySearch_int_i8(listNodesInRank_i8,iNodeG)
-
 
             do idime=1,ndime
                faceCentroid(idime) =  faceCentroid(idime) + coordNodesInRank(iNode,idime)
@@ -2146,9 +2136,6 @@ contains
             iPerFaceG = listElemsPerFacesInRank(iElem,iBound)
             if(iPerFaceG.ne.0) then
                iPerFace = binarySearch_int_i4(listPerFacesInRank,iPerFaceG)
-               !mapFaceElemInRank(iPosFace) = iElemG
-               !do iPerFace=1,numPerFacesInRank
-               !iFaceG = listPerFacesInRank(iPerFace)
                faceCentroid(:) = 0.0_rp
                do iVert=1,numQuadVert
                   ind_gmsh = gmshQuadVertInd(iVert)
@@ -2259,124 +2246,6 @@ contains
       deallocate(auxListPerFacesSrl,auxListMapFacesSrl,auxListPerElemsSrl,auxListMapElemsSrl)
 
       call quicksort_matrix_int4(linkedPerToMapElemsAndFacesSrl,1)
-
-#if 0
-      !FIRST METHOD, NOT FULLY IMPLEMENTED! BUT NEW IDEA LIKE MORE A LOT TO MEEEE
-
-      call MPI_Allgather(numMapFacesInRank,1,mpi_datatype_int,vecNumMapFacesInRank,1,mpi_datatype_int,app_comm,mpi_err)
-      !write(*,*) '2.vecNumMapFaces',vecNumMapFacesInRank(:)
-      !write(*,*) '[',mpi_rank,']',listMapFacesInRank(:)
-      !if(mpi_rank.eq.0) write(*,*) '1.refNodesMapFacesAll',refNodesMapFacesAll_i8(:)
-      !if(mpi_rank.eq.0) write(*,*) '1.masterMapFacesAll',masterMapFacesAll(:)
-
-      !----------------------------------------------------------------------------------------------------------
-      !  2. Second read the periodic links from h5 file
-      if(mpi_rank.eq.0) write(*,*) "  |-> Generating the node links for mapped and periodic faces..."
-      start_time(2) = MPI_Wtime()
-      !IMPORTANT: for the moment I will this auxiliar matrix with the full size numPerLinkedNodesSrl for performance reasons
-      !if in a future this can be a memory bound problem (which should not be, since the numPerLinkedNodes should not be very big compared with the inner nodes)
-      !rethink the method, maybe do the reading line by line of the hdf5 for all the faces or do the method by chunks
-
-      !ho puc fer nomes amb els nodes de referencia de cada cara?? Aixi linko nomes aquests nodes...
-      !una altre opcio, mirat l'ordre en el ijk i linkar nomes 1...
-      !
-      !1. muntar un vector amb tots els nodes de la cara periodica master i la posicio dels nodes de cada rank
-      numNodesInMapFaceInRank = 0
-      do iFace = 1,numMapFacesInRank
-         do m = 1,mnpbou
-            iNodeG = connecMapFacesInRank_i8(iFace,m)
-            iNode = binarySearch_int_i8(listNodesInRank_i8,iNodeG)
-            if(isNodeInMapFaceInRank_i8(iNode).eq.0) then
-               numNodesInMapFaceInRank = numNodesInMapFaceInRank + 1
-               isNodeInMapFaceInRank_i8(iNode) = iNodeG
-            end if
-         end do
-      end do
-
-      if(numNodesInMapFaceInRank.ne.0) write(*,*) '[',mpi_rank,']numNodesInMapFaceInRank',numNodesInMapFaceInRank
-
-      allocate(listNodesInMapFaceInRank_i8(numNodesInMapFaceInRank))
-      allocate(coordsNodesInMapFaceInRank(numNodesInMapFaceInRank*3))
-      m=0
-      avgCoordInRank = 0.0_rp
-      !coordId = 1;
-      do iNode = 1,numNodesInRank
-         iNodeG = isNodeInMapFaceInRank_i8(iNode)
-         if(iNodeG.ne.0) then
-            m=m+1
-            listNodesInMapFaceInRank_i8(m) = iNodeG
-            coordsNodesInMapFaceInRank((m-1)*3+1) =  coordNodesInRank(iNode,1)
-            coordsNodesInMapFaceInRank((m-1)*3+2) =  coordNodesInRank(iNode,2)
-            coordsNodesInMapFaceInRank((m-1)*3+3) =  coordNodesInRank(iNode,3)
-            avgCoordInRank = (avgCoordInRank*(m-1) + coordNodesInRank(iNode,1))/real(m,rp)
-         end if
-      end do
-
-      call MPI_Allgather(numNodesInMapFaceInRank,1,mpi_datatype_int,vecNumNodesInMapFaceInRank,1,mpi_datatype_int,app_comm,mpi_err)
-      call MPI_Allgather(avgCoordInRank,1,mpi_datatype_real,vecAvgCoordInRank,1,mpi_datatype_real,app_comm,mpi_err)
-      !write(*,*) '3.vecNumNodesInMapFaceInRank',vecnumNodesInMapFaceInRank(:)
-      !write(*,*) '4.vecAvgCoordInRank',vecAvgCoordInRank(:)
-
-      numNodesInMapFaceRawAll = 0
-      avgCoordAll = 0.0_rp
-      do iRank=0,(mpi_size-1)
-         avgCoordAll = avgCoordAll + vecNumNodesInMapFaceInRank(iRank)*vecAvgCoordInRank(iRank)
-         numNodesInMapFaceRawAll = numNodesInMapFaceRawAll + vecNumNodesInMapFaceInRank(iRank)
-      end do
-      avgCoordAll = avgCoordAll/real(numNodesInMapFaceRawAll,rp)
-
-      targetCoord = avgCoordAll - mapFaceGap
-
-      !write(*,*) '[',mpi_rank,']avgCoordAll',avgCoordAll,'numNodesInMapFace',numNodesInMapFaceRawAll
-      !write(*,*) '[',mpi_rank,']targetCoord',targetCoord
-
-      factor_comms_mpi = 1
-      counts_send_mpi = numNodesInMapFaceInRank*factor_comms_mpi
-      counts_recv_mpi(0) = vecNumNodesInMapFaceInRank(0)*factor_comms_mpi
-      displacements_mpi(0) = 0
-      do iMpiRank=1,mpi_size-1
-         counts_recv_mpi(iMpiRank)   = vecNumNodesInMapFaceInRank(iMpiRank)*factor_comms_mpi
-         displacements_mpi(iMpiRank) = displacements_mpi(iMpiRank-1) + counts_recv_mpi(iMpiRank-1)
-      end do
-
-      allocate(listNodesInMapFaceAll_i8(numNodesInMapFaceRawAll))
-      call MPI_Allgatherv(listNodesInMapFaceInRank_i8,counts_send_mpi,mpi_datatype_int8,listNodesInMapFaceAll_i8,counts_recv_mpi,displacements_mpi,mpi_datatype_int8,app_comm,mpi_err)
-
-      !if(mpi_rank.eq.0) write(*,*) '[',mpi_rank,']listNodesInMapFaceAll_i8',listNodesInMapFaceAll_i8(:)
-
-      factor_comms_mpi = 3
-      counts_send_mpi = numNodesInMapFaceInRank*factor_comms_mpi
-      counts_recv_mpi(0) = vecNumNodesInMapFaceInRank(0)*factor_comms_mpi
-      displacements_mpi(0) = 0
-      do iMpiRank=1,mpi_size-1
-         counts_recv_mpi(iMpiRank)   = vecNumNodesInMapFaceInRank(iMpiRank)*factor_comms_mpi
-         displacements_mpi(iMpiRank) = displacements_mpi(iMpiRank-1) + counts_recv_mpi(iMpiRank-1)
-         !write(*,*) 'counts(',iMpiRank,')',counts_recv_mpi(iMpiRank),'disp',displacements_mpi(iMpiRank)
-      end do
-
-      allocate(coordsNodesInMapFaceAll(numNodesInMapFaceRawAll*factor_comms_mpi))
-      call MPI_Allgatherv(coordsNodesInMapFaceInRank,counts_send_mpi,mpi_datatype_real,coordsNodesInMapFaceAll,counts_recv_mpi,displacements_mpi,mpi_datatype_real,app_comm,mpi_err)
-
-
-      numNodesInMapFaceAll = numNodesInMapFaceRawAll
-      do iNode=1,numNodesInMapFaceRawAll
-         iNodeG = listNodesInMapFaceAll_i8(iNode)
-         if(iNodeG.ne.0) then
-            do iNode2=iNode+1,numNodesInMapFaceRawAll
-               iNodeG2 = listNodesInMapFaceAll_i8(iNode2)
-               if(iNodeG.eq.iNodeG2) then
-                  !if(mpi_rank.eq.0) write(*,*) '[',mpi_rank,']iNodeG duplicated',iNodeG2
-                  listNodesInMapFaceAll_i8(iNode2) = 0
-                  numNodesInMapFaceAll = numNodesInMapFaceAll - 1
-               end if
-            end do
-         end if
-      end do
-      !if(mpi_rank.eq.0) write(*,*) '[',mpi_rank,']numNodesInMapFaceAll',numNodesInMapFaceAll
-
-!-------------------------------------------------------------------------------------------
-
-#endif
 
    end subroutine link_mapfaces_and_perfaces_in_parallel
 
@@ -2503,38 +2372,6 @@ contains
       end if
 
       deallocate(elemPartAuxOrig,elemPartAuxPer,elemPartAuxMap)
-
-#if 0 
-      !OLD WAY
-      allocate(elemPartAux(numElems2PartInRank,2))
-      !$acc kernels
-      elemPartAux(:,1)=elemPart(:,1)
-      elemPartAux(:,2)=elemPart(:,2)
-      !$acc end kernels
-
-      deallocate(elemPart)
-      numElems2PartInRank = numElems2PartInRank + numAdditionalElemsInRank
-      allocate(elemPart(numElems2PartInRank,2))
-
-      i=0
-      do j=1,size(elemPartAux(:,1))
-         i=i+1
-         elemPart(i,:)=elemPartAux(i,:)
-      end do
-
-      deallocate(elemPartAux)
-
-      do iElem=1,numPerElemsSrl
-         mshRank = unfoldedPerElems(iElem)
-         if(mshRank.ge.0) then
-            i=i+1
-            iElemG = listPerElemsSrl(iElem)
-            elemPart(i,1) = iElemG
-            elemPart(i,2) = mshRank
-            !write(*,*) '[',mpi_rank,'] unf.Elem ',iElemG,' rank ', mshRank,' i ',i
-         end if
-      end do
-#endif
 
    end subroutine unfold_linked_elems
 
