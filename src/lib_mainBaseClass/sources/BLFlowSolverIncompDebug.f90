@@ -1,4 +1,4 @@
-#define ACTUATION 1
+#define ACTUATION 0 
 
 module BLFlowSolverIncompDebug_mod
    use mod_arrays
@@ -274,7 +274,7 @@ contains
       end if
 #endif
       call this%computeTauW(lx_recirculation)
-      write(446,'(*(ES12.4,:,","))') this%time, lx_recirculation
+      write(446,'(*(ES16.6,:,","))') this%time, lx_recirculation
       call flush(446)
 
    end subroutine BLFlowSolverIncompDebug_afterDt
@@ -469,12 +469,12 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 20000
+      this%save_resultsFile_step = 25000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 20000
+      this%save_restartFile_step = 25000
       this%loadRestartFile = .true.
-      this%restartFile_to_load = 1 !1 or 2
+      this%restartFile_to_load = 1 ! 1 or 2
       this%continue_oldLogs = .false.
 
       this%initial_avgTime = 5000.0_rp
