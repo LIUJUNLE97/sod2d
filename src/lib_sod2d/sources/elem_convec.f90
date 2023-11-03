@@ -46,7 +46,7 @@ module elem_convec
             Rener(:) = 0.0_rp
             !$acc end kernels
 
-            !$acc parallel loop gang private(ipoin,Re_ener,Re_mass,Re_mom,ul,ql,rhol,prl,El,REl,fl,fel,fuel,fuul,fpl,kl,Rkl,fkl,fukl) !!vector_length(vecLength)
+            !$acc parallel loop gang private(ipoin,Re_ener,Re_mass,Re_mom,ul,ql,rhol,prl,El,REl,fl,fel,fuel,fuul,kl,Rkl,fkl,fukl) !!vector_length(vecLength)
             do ielem = 1,nelem
                !$acc loop vector
                do inode = 1,nnode
