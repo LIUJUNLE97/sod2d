@@ -49,8 +49,8 @@ contains
        bouCodes2BCType(1) = bc_type_slip_wall_model
        bouCodes2BCType(2) = bc_type_far_field 
        bouCodes2BCType(3) = bc_type_far_field
-      bouCodes2BCType(4) = bc_type_far_field
-      bouCodes2BCType(5) = bc_type_far_field
+   !   bouCodes2BCType(4) = bc_type_far_field
+   !   bouCodes2BCType(5) = bc_type_far_field
 
 
 #else
@@ -116,12 +116,12 @@ contains
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10
 
-      this%save_resultsFile_first = 5000
-      this%save_resultsFile_step = 5000
+      this%save_resultsFile_first = 4000
+      this%save_resultsFile_step = 4000
 
-      this%save_restartFile_first = 5000
-      this%save_restartFile_step = 5000
-      this%loadRestartFile = .false.
+      this%save_restartFile_first = 4000
+      this%save_restartFile_step = 4000
+      this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
@@ -136,20 +136,20 @@ contains
 
       ! numerical params
       flag_les = 1
-      flag_implicit = 1
-      flag_rk_order=4
+      flag_implicit = 0
+      flag_rk_order=2
 
       maxIter = 20
       tol = 1e-3
 
-      period_walave   = 0.5_rp
+      period_walave   = 1.0_rp
       flag_walave     = .true.
 
 #if CRM
       !this%dt = 1e-3
       !flag_use_constant_dt = 1
       this%cfl_conv = 0.95_rp 
-      this%cfl_diff = 100.0_rp 
+      this%cfl_diff = 0.95_rp 
 #else  
       !this%dt = 5e-3
       !flag_use_constant_dt = 1 
