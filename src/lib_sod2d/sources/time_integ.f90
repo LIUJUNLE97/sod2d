@@ -385,7 +385,7 @@ module time_integ
                   Reta_sum(ipoin)  = Reta_sum(ipoin)  + b_i(istep)*Reta(ipoin)
                   !$acc loop seq
                   do idime = 1,ndime
-                     Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)
+                     Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) !+ b_i(istep)*Rmom(ipoin,idime)
                   end do
                end do
                !$acc end parallel loop

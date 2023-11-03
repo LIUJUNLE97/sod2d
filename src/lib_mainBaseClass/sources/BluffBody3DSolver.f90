@@ -137,7 +137,7 @@ contains
       ! numerical params
       flag_les = 1
       flag_implicit = 0
-      flag_rk_order=2
+      flag_rk_order=4
 
       maxIter = 20
       tol = 1e-3
@@ -148,8 +148,8 @@ contains
 #if CRM
       !this%dt = 1e-3
       !flag_use_constant_dt = 1
-      this%cfl_conv = 0.95_rp 
-      this%cfl_diff = 0.95_rp 
+      this%cfl_conv = 1.95_rp 
+      this%cfl_diff = 1.95_rp 
 #else  
       !this%dt = 5e-3
       !flag_use_constant_dt = 1 
