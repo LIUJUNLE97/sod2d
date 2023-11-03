@@ -318,6 +318,7 @@ module time_integ_imex
                   e_int(lpoin_w(ipoin),2) = (E(lpoin_w(ipoin),2)/rho(lpoin_w(ipoin),2))- &
                      0.5_rp*umag
                   pr(lpoin_w(ipoin),2) = rho(lpoin_w(ipoin),2)*(gamma_gas-1.0_rp)*e_int(lpoin_w(ipoin),2)
+                  e_int(lpoin_w(ipoin),2) = (gamma_gas/(gamma_gas-1.0_rp))*pr(lpoin_w(ipoin),2)/rho(lpoin_w(ipoin),2)
                   csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),2)/rho(lpoin_w(ipoin),2))
                   umag = sqrt(umag)
                   machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
@@ -356,8 +357,8 @@ module time_integ_imex
             call nvtxStartRange("Entropy residual")
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               auxReta_imex(lpoin_w(ipoin)) = (1.5_rp*Reta_imex(lpoin_w(ipoin),2)-0.5_rp*Reta_imex(lpoin_w(ipoin),1)) !+ &
-                                              !(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+               auxReta_imex(lpoin_w(ipoin)) = (1.5_rp*Reta_imex(lpoin_w(ipoin),2)-0.5_rp*Reta_imex(lpoin_w(ipoin),1)) + &
+                                              (eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
                Reta_imex(lpoin_w(ipoin),1) = Reta_imex(lpoin_w(ipoin),2)            
             end do
             !$acc end parallel loop

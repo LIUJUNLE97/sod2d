@@ -34,9 +34,9 @@ module elem_convec
             integer(4)              :: ipoin(nnode)
             real(rp)                 :: Re_mom(nnode,ndime)
             real(rp)                 :: Re_mass(nnode), Re_ener(nnode),aux
-            real(rp)                 :: gradIsoRho(ndime),gradIsoP(ndime), gradIsoE(ndime),gradIsoU(ndime,ndime), gradIsoF(ndime,ndime,ndime), gradIsoQ(ndime,ndime), gradIsoFe(ndime,ndime),gradIsoRE(ndime),gradIsoFue(ndime,ndime),gradIsoFp(ndime,ndime), gradIsok(ndime),gradIsoRk(ndime),gradIsoFuk(ndime,ndime),gradIsoFk(ndime,ndime)
-            real(rp)                 :: gradRho(ndime),gradP(ndime),gradE(ndime),gradU(ndime,ndime),divF(ndime),divU,divFe,divQ,gradQ(ndime,ndime),gradIsoFuu(ndime,ndime,ndime),gradRE(ndime),divFue,divFp,gradk(ndime),divFk,gradRk(ndime),divFuk
-            real(rp)                 :: ul(nnode,ndime), ql(nnode,ndime), rhol(nnode), prl(nnode),El(nnode),fel(nnode,ndime),fl(nnode,ndime,ndime),fuul(nnode,ndime,ndime),divFuu(ndime),REl(nnode),fuel(nnode,ndime),fpl(nnode,ndime),kl(nnode),fkl(nnode,ndime),fukl(nnode,ndime),Rkl(nnode)
+            real(rp)                 :: gradIsoRho(ndime),gradIsoP(ndime), gradIsoE(ndime),gradIsoU(ndime,ndime), gradIsoF(ndime,ndime,ndime), gradIsoQ(ndime,ndime), gradIsoFe(ndime,ndime),gradIsoRE(ndime),gradIsoFue(ndime,ndime), gradIsok(ndime),gradIsoRk(ndime),gradIsoFuk(ndime,ndime),gradIsoFk(ndime,ndime)
+            real(rp)                 :: gradRho(ndime),gradP(ndime),gradE(ndime),gradU(ndime,ndime),divF(ndime),divU,divFe,divQ,gradQ(ndime,ndime),gradIsoFuu(ndime,ndime,ndime),gradRE(ndime),divFue,gradk(ndime),divFk,gradRk(ndime),divFuk
+            real(rp)                 :: ul(nnode,ndime), ql(nnode,ndime), rhol(nnode), prl(nnode),El(nnode),fel(nnode,ndime),fl(nnode,ndime,ndime),fuul(nnode,ndime,ndime),divFuu(ndime),REl(nnode),fuel(nnode,ndime),kl(nnode),fkl(nnode,ndime),fukl(nnode,ndime),Rkl(nnode)
             real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
 
             call nvtxStartRange("Full convection")
@@ -67,7 +67,6 @@ module elem_convec
                      ql(inode,idime) = q(ipoin(inode),idime)
                      fel(inode,idime) = rho(ipoin(inode))*E(ipoin(inode))*u(ipoin(inode),idime)
                      fuel(inode,idime) = E(ipoin(inode))*u(ipoin(inode),idime)
-                     fpl(inode,idime) = pr(ipoin(inode))*u(ipoin(inode),idime)
                      fkl(inode,idime) = rho(ipoin(inode))*kl(inode)*u(ipoin(inode),idime)
                      fukl(inode,idime) = kl(inode)*u(ipoin(inode),idime)
                   end do
@@ -89,7 +88,7 @@ module elem_convec
                   Rkl(inode) = rho(ipoin(inode))*kl(inode)
                   prl(inode) = pr(ipoin(inode))
                end do
-               !$acc loop vector private(dlxi_ip,dleta_ip,dlzeta_ip, gradIsoRho,gradIsoP,gradIsoRE,gradIsoRk, gradIsoE, gradIsok,gradIsoU, gradIsoF, gradIsoFuu, gradIsoQ, gradIsoFe,gradIsoFue,gradIsoFk,gradIsoFuk,gradIsoFp,gradRho,gradP,gradE,gradRE,gradk,gradRk,gradU,divF,divU,divQ,divFe,divFue,divFk,divFuk,gradQ,divFuu,divFp)
+               !$acc loop vector private(dlxi_ip,dleta_ip,dlzeta_ip, gradIsoRho,gradIsoP,gradIsoRE,gradIsoRk, gradIsoE, gradIsok,gradIsoU, gradIsoF, gradIsoFuu, gradIsoQ, gradIsoFe,gradIsoFue,gradIsoFk,gradIsoFuk,gradRho,gradP,gradE,gradRE,gradk,gradRk,gradU,divF,divU,divQ,divFe,divFue,divFk,divFuk,gradQ,divFuu)
                do igaus = 1,ngaus
                   !$acc loop seq
                   do ii=1,porder+1
@@ -115,7 +114,6 @@ module elem_convec
                   gradIsoFue(:,:) = 0.0_rp
                   gradIsoFk(:,:) = 0.0_rp
                   gradIsoFuk(:,:) = 0.0_rp
-                  gradIsoFp(:,:) = 0.0_rp
                   !$acc loop seq
                   do ii=1,porder+1
                      gradIsoRho(1) = gradIsoRho(1) + dlxi_ip(ii)*rhol(invAtoIJK(ii,isoJ,isoK))
@@ -169,10 +167,6 @@ module elem_convec
                         gradIsoFuk(idime,2) = gradIsoFuk(idime,2) + dleta_ip(ii)*fukl(invAtoIJK(isoI,ii,isoK),idime)
                         gradIsoFuk(idime,3) = gradIsoFuk(idime,3) + dlzeta_ip(ii)*fukl(invAtoIJK(isoI,isoJ,ii),idime)
 
-                        gradIsoFp(idime,1) = gradIsoFp(idime,1) + dlxi_ip(ii)*fpl(invAtoIJK(ii,isoJ,isoK),idime)
-                        gradIsoFp(idime,2) = gradIsoFp(idime,2) + dleta_ip(ii)*fpl(invAtoIJK(isoI,ii,isoK),idime)
-                        gradIsoFp(idime,3) = gradIsoFp(idime,3) + dlzeta_ip(ii)*fpl(invAtoIJK(isoI,isoJ,ii),idime)
-
                         !$acc loop seq
                         do jdime=1, ndime
                             gradIsoF(idime,jdime,1) = gradIsoF(idime,jdime,1) + dlxi_ip(ii)*fl(invAtoIJK(ii,isoJ,isoK),idime,jdime)
@@ -200,7 +194,6 @@ module elem_convec
                   divFue = 0.0_rp
                   divFk = 0.0_rp
                   divFuk = 0.0_rp
-                  divFp = 0.0_rp
                   !$acc loop seq
                   do idime=1, ndime
                      !$acc loop seq
@@ -215,7 +208,6 @@ module elem_convec
                          gradRk(idime)  = gradRk(idime) + He(idime,jdime,igaus,ielem) * gradIsoRk(jdime)
                          divFk = divFk + He(idime,jdime,igaus,ielem) * gradIsoFk(idime,jdime)
                          divFuk = divFuk + He(idime,jdime,igaus,ielem) * gradIsoFuk(idime,jdime)
-                         divFp = divFp + He(idime,jdime,igaus,ielem) * gradIsoFp(idime,jdime)
                          !$acc loop seq
                          do kdime=1,ndime
                             gradU(idime,jdime) = gradU(idime,jdime) + He(jdime,kdime,igaus,ielem) * gradIsoU(idime,kdime)
@@ -229,8 +221,6 @@ module elem_convec
                   divQ  = gradQ(1,1)  + gradQ(2,2)  + gradQ(3,3) 
                   Re_mass(igaus) = 0.5_rp*(divQ+rhol(igaus)*divU) 
                   Re_ener(igaus) =0.25_rp*(divFe+El(igaus)*divQ+REl(igaus)*divU+rhol(igaus)*divFue) + &
-                                  !0.5*(divFp+prl(igaus)*divU) + &
-                                  prl(igaus)*divU + &
                                   0.25_rp*(divFk+kl(igaus)*divQ+Rkl(igaus)*divU+rhol(igaus)*divFuk)
                   aux = 0.0_rp
                   !$acc loop seq
@@ -239,8 +229,6 @@ module elem_convec
                      Re_mass(igaus) = Re_mass(igaus) + 0.5_rp*(ul(igaus,idime)*gradRho(idime))
                      Re_ener(igaus) = Re_ener(igaus) + 0.25_rp*(ql(igaus,idime)*gradE(idime)+ul(igaus,idime)*gradRE(idime)+&
                                                                 fuel(igaus,idime)*gradRho(idime)) +&
-                                                     !+ 0.5_rp*(ul(igaus,idime)*gradP(idime)) + &
-                                                     + ul(igaus,idime)*gradP(idime) + &
                                                      0.25_rp*(ql(igaus,idime)*gradk(idime)+ul(igaus,idime)*gradRk(idime)+&
                                                                 fukl(igaus,idime)*gradRho(idime)) 
                      !$acc loop seq
