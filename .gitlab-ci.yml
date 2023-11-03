@@ -4,7 +4,7 @@
 default:
     #image: ubuntu:20.04
     #image: lucasbsc21387/sod2d-image:0.1.1
-    image: lucasbsc21387/archlinux-hpc:latest
+    image: lucasbsc21387/archlinux-hpc:experimental
 
 ## List of stages for jobs, and their order of execution
 stages:
@@ -44,37 +44,55 @@ build-GNU-Release:
 
 # build-OneAPI-Release job configuration
 # TODO: re-enable once alll is working
-#build-OneAPI-Release:
-#    stage: build
-#    script:
-#        # Load necessary modules
-#        - module load compiler/2023.1.0 mkl/2023.1.0 mpi/2021.9.0 hdf5/1.14.0
-#        - ml list
-#        # Set the proper I_MPI compilers
-#        - export I_MPI_CC=icx
-#        - export I_MPI_CXX=icpx
-#        - export I_MPI_F77=ifort
-#        - export I_MPI_F90=ifort
-#        - export I_MPI_FC=ifort
-#        - env | grep I_MPI
-#        # Add a build folder and enter it
-#        - mkdir build && cd build
-#        # Run CMake
-#        #- cmake -DDEBUG_MODE=OFF ..
-#        # Run make
-#        #- make -j 4
+build-OneAPI-Release:
+    stage: build
+    script:
+        # Load necessary modules
+        - module load compiler/2023.1.0 mkl/2023.1.0 mpi/2021.9.0 hdf5/1.14.0
+        - ml list
+        # Set the proper I_MPI compilers
+        - export I_MPI_CC=icx
+        - export I_MPI_CXX=icpx
+        - export I_MPI_F77=ifort
+        - export I_MPI_F90=ifort
+        - export I_MPI_FC=ifort
+        # Add a build folder and enter it
+        - mkdir build && cd build
+        # Run CMake
+        - cmake -DDEBUG_MODE=OFF ..
+        # Run make
+        - make -j 4
+
+build-OneAPI-Debug:
+    stage: build
+    script:
+        # Load necessary modules
+        - module load compiler/2023.1.0 mkl/2023.1.0 mpi/2021.9.0 hdf5/1.14.0
+        - ml list
+        # Set the proper I_MPI compilers
+        - export I_MPI_CC=icx
+        - export I_MPI_CXX=icpx
+        - export I_MPI_F77=ifort
+        - export I_MPI_F90=ifort
+        - export I_MPI_FC=ifort
+        # Add a build folder and enter it
+        - mkdir build && cd build
+        # Run CMake
+        - cmake -DDEBUG_MODE=ON ..
+        # Run make
+        - make -j 4
 
 # build-NVHPC-CPU-Release job configuration
 build-NVHPC-CPU-Release:
     stage: build
     script:
         # Load necessary modules
-        - module load nvhpc-hpcx/23.3 hdf5/1.14.0
+        - module load nvhpc-hpcx-cuda12/23.9 hdf5/1.14.0
         - ml list
         # Add a build folder and enter it
         - mkdir build && cd build
         # Run CMake
-        - cmake -DDEBUG_MODE=OFF -DCMAKE_C_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_CXX_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_Fortran_FLAGS="--gcc-toolchain=/usr/local/bin" ..
+        - cmake -DDEBUG_MODE=OFF -DCMAKE_C_FLAGS="--gcc-toolchain=/home/Apps/GCC12" -DCMAKE_CXX_FLAGS="--gcc-toolchain=/home/Apps/GCC12" -DCMAKE_Fortran_FLAGS="--gcc-toolchain=/home/Apps/GCC12" ..
         # Run make
         - make -j 4
 
@@ -83,12 +101,12 @@ build-NVHPC-GPU-Release:
     stage: build
     script:
         # Load necessary modules
-        - module load nvhpc-hpcx/23.3 hdf5/1.14.0
+        - module load nvhpc-hpcx-cuda12/23.9 hdf5/1.14.0
         - ml list
         # Add a build folder and enter it
         - mkdir build && cd build
         # Run CMake
-        - cmake -DUSE_GPU=ON -DUSE_MEM_MANAGED=ON -DDEBUG_MODE=OFF -DCMAKE_C_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_CXX_FLAGS="--gcc-toolchain=/usr/local/bin" -DCMAKE_Fortran_FLAGS="--gcc-toolchain=/usr/local/bin" ..
+        - cmake -DUSE_GPU=ON -DUSE_MEM_MANAGED=ON -DDEBUG_MODE=OFF -DCMAKE_C_FLAGS="--gcc-toolchain=/home/Apps/GCC12" -DCMAKE_CXX_FLAGS="--gcc-toolchain=/home/Apps/GCC12" -DCMAKE_Fortran_FLAGS="--gcc-toolchain=/home/Apps/GCC12" ..
         # Run make
         - make -j 4
 
