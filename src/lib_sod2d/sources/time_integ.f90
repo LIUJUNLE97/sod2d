@@ -18,7 +18,7 @@ module time_integ
 
    real(rp), allocatable, dimension(:)     :: Rmass,Rener,Reta
    real(rp), allocatable, dimension(:,:)   :: Rmom
-   real(rp), allocatable, dimension(:)   :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta
+   real(rp), allocatable, dimension(:)   :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta,aux_h
    real(rp), allocatable, dimension(:,:) :: aux_u,aux_q
    real(rp), allocatable, dimension(:)   :: Rmass_sum,Rener_sum,Reta_sum,Rdiff_mass,Rdiff_ener
    real(rp), allocatable, dimension(:,:) :: Rmom_sum,Rdiff_mom,f_eta
@@ -39,13 +39,14 @@ module time_integ
       !$acc enter data create(Reta(:))
       !$acc enter data create(Rmom(:,:))
 
-      allocate(aux_rho(npoin),aux_pr(npoin),aux_E(npoin),aux_Tem(npoin),aux_e_int(npoin),aux_eta(npoin))
+      allocate(aux_rho(npoin),aux_pr(npoin),aux_E(npoin),aux_Tem(npoin),aux_e_int(npoin),aux_eta(npoin),aux_h(npoin))
       !$acc enter data create(aux_rho(:))
       !$acc enter data create(aux_pr(:))
       !$acc enter data create(aux_E(:))
       !$acc enter data create(aux_Tem(:))
       !$acc enter data create(aux_e_int(:))
       !$acc enter data create(aux_eta(:))
+      !$acc enter data create(aux_h(:))
       allocate(aux_u(npoin,ndime),aux_q(npoin,ndime))
       !$acc enter data create(aux_u(:,:))
       !$acc enter data create(aux_q(:,:))
@@ -108,7 +109,8 @@ module time_integ
       !$acc exit data delete(aux_Tem(:))
       !$acc exit data delete(aux_e_int(:))
       !$acc exit data delete(aux_eta(:))
-      deallocate(aux_rho,aux_pr,aux_E,aux_Tem,aux_e_int,aux_eta)
+      !$acc exit data delete(aux_h(:))
+      deallocate(aux_rho,aux_pr,aux_E,aux_Tem,aux_e_int,aux_eta,aux_h)
       !$acc exit data delete(aux_u(:,:))
       !$acc exit data delete(aux_q(:,:))
       deallocate(aux_u,aux_q)
@@ -270,7 +272,7 @@ module time_integ
                   end do
                   aux_e_int(lpoin_w(ipoin)) = (aux_E(lpoin_w(ipoin))/aux_rho(lpoin_w(ipoin)))-0.5_rp*umag
                   aux_pr(lpoin_w(ipoin)) = aux_rho(lpoin_w(ipoin))*(gamma_gas-1.0_rp)*aux_e_int(lpoin_w(ipoin))
-                  aux_e_int(lpoin_w(ipoin)) = (gamma_gas/(gamma_gas-1.0_rp))*aux_pr(lpoin_w(ipoin))/aux_rho(lpoin_w(ipoin))
+                  aux_h(lpoin_w(ipoin)) = (gamma_gas/(gamma_gas-1.0_rp))*aux_pr(lpoin_w(ipoin))/aux_rho(lpoin_w(ipoin))
                   aux_Tem(lpoin_w(ipoin)) = aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))*Rgas)
                   aux_eta(lpoin_w(ipoin)) = (aux_rho(lpoin_w(ipoin))/(gamma_gas-1.0_rp))* &
                   log(aux_pr(lpoin_w(ipoin))/(aux_rho(lpoin_w(ipoin))**gamma_gas))
@@ -344,7 +346,7 @@ module time_integ
                ! Compute convective terms
                !
                call nvtxStartRange("CONVECTIONS")
-               call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_u,aux_q,aux_rho,aux_pr,aux_e_int,Rmass(:),Rmom(:,:),Rener(:))
+               call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_u,aux_q,aux_rho,aux_pr,aux_h,Rmass(:),Rmom(:,:),Rener(:))
                call nvtxEndRange
 
                call nvtxStartRange("Add convection and diffusion")
@@ -385,7 +387,7 @@ module time_integ
                   Reta_sum(ipoin)  = Reta_sum(ipoin)  + b_i(istep)*Reta(ipoin)
                   !$acc loop seq
                   do idime = 1,ndime
-                     Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) !+ b_i(istep)*Rmom(ipoin,idime)
+                     Rmom_sum(ipoin,idime) = Rmom_sum(ipoin,idime) + b_i(istep)*Rmom(ipoin,idime)
                   end do
                end do
                !$acc end parallel loop
@@ -448,7 +450,7 @@ module time_integ
             call nvtxStartRange("Entropy residual")
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               Reta(lpoin_w(ipoin)) =  -Reta_sum(lpoin_w(ipoin))-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+               Reta(lpoin_w(ipoin)) =  -Reta_sum(lpoin_w(ipoin))!-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
             end do
             !$acc end parallel loop
             call nvtxEndRange

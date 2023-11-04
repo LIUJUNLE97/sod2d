@@ -25,7 +25,7 @@ module time_integ_imex
    real(rp), allocatable, dimension(:,:,:) :: Rdiff_mom_imex
    real(rp), allocatable, dimension(:,:) :: f_eta_imex
    real(rp), allocatable, dimension(:,:)   :: Rdiff_mass_imex,Rdiff_ener_imex
-   real(rp), allocatable, dimension(:) :: auxReta_imex
+   real(rp), allocatable, dimension(:) :: auxReta_imex,aux_h
    integer(4), parameter :: numSteps = 4
    real(rp), dimension(numSteps,numSteps) :: aij_e, aij_i
    real(rp), dimension(numSteps) :: bij_e, bij_i
@@ -50,8 +50,8 @@ module time_integ_imex
       allocate(Rdiff_mom_imex(npoin,ndime,numSteps))
       !$acc enter data create(Rdiff_mom_imex(:,:,:))
 
-      allocate(auxReta_imex(npoin),f_eta_imex(npoin,ndime))
-      !$acc enter data create(auxReta_imex(:),f_eta_imex(:,:))
+      allocate(auxReta_imex(npoin),f_eta_imex(npoin,ndime),aux_h(npoin))
+      !$acc enter data create(auxReta_imex(:),f_eta_imex(:,:),aux_h(:))
 
       allocate(Rdiff_mass_imex(npoin,numSteps),Rdiff_ener_imex(npoin,numSteps))
       !$acc enter data create(Rdiff_mass_imex(:,:),Rdiff_ener_imex(:,:))
@@ -318,7 +318,7 @@ module time_integ_imex
                   e_int(lpoin_w(ipoin),2) = (E(lpoin_w(ipoin),2)/rho(lpoin_w(ipoin),2))- &
                      0.5_rp*umag
                   pr(lpoin_w(ipoin),2) = rho(lpoin_w(ipoin),2)*(gamma_gas-1.0_rp)*e_int(lpoin_w(ipoin),2)
-                  e_int(lpoin_w(ipoin),2) = (gamma_gas/(gamma_gas-1.0_rp))*pr(lpoin_w(ipoin),2)/rho(lpoin_w(ipoin),2)
+                  aux_h(lpoin_w(ipoin)) = (gamma_gas/(gamma_gas-1.0_rp))*pr(lpoin_w(ipoin),2)/rho(lpoin_w(ipoin),2)
                   csound(lpoin_w(ipoin)) = sqrt(gamma_gas*pr(lpoin_w(ipoin),2)/rho(lpoin_w(ipoin),2))
                   umag = sqrt(umag)
                   machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
@@ -327,7 +327,7 @@ module time_integ_imex
                !$acc end parallel loop
 
                call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),q(:,:,2),rho(:,2),pr(:,2),&
-                                    e_int(:,2),Rmass_imex(:,istep),Rmom_imex(:,:,istep),Rener_imex(:,istep))
+                                    aux_h(:),Rmass_imex(:,istep),Rmom_imex(:,:,istep),Rener_imex(:,istep))
                call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,2),rho(:,2),u(:,:,2),&
                                     Tem(:,2),mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass_imex(:,istep),Rdiff_mom_imex(:,:,istep),Rdiff_ener_imex(:,istep))
             end do
