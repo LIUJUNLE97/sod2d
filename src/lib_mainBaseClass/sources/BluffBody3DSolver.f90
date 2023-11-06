@@ -49,8 +49,8 @@ contains
        bouCodes2BCType(1) = bc_type_slip_wall_model
        bouCodes2BCType(2) = bc_type_far_field 
        bouCodes2BCType(3) = bc_type_far_field
-   !   bouCodes2BCType(4) = bc_type_far_field
-   !   bouCodes2BCType(5) = bc_type_far_field
+      bouCodes2BCType(4) = bc_type_far_field
+      bouCodes2BCType(5) = bc_type_far_field
 
 
 #else
@@ -116,11 +116,11 @@ contains
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10
 
-      this%save_resultsFile_first = 4000
-      this%save_resultsFile_step = 4000
+      this%save_resultsFile_first = 5000
+      this%save_resultsFile_step = 5000
 
-      this%save_restartFile_first = 4000
-      this%save_restartFile_step = 4000
+      this%save_restartFile_first = 5000
+      this%save_restartFile_step = 5000
       this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
@@ -136,7 +136,7 @@ contains
 
       ! numerical params
       flag_les = 1
-      flag_implicit = 0
+      flag_implicit = 1
       flag_rk_order=4
 
       maxIter = 20
@@ -148,8 +148,8 @@ contains
 #if CRM
       !this%dt = 1e-3
       !flag_use_constant_dt = 1
-      this%cfl_conv = 1.95_rp 
-      this%cfl_diff = 1.95_rp 
+      this%cfl_conv = 0.95_rp 
+      this%cfl_diff = 100.0_rp 
 #else  
       !this%dt = 5e-3
       !flag_use_constant_dt = 1 
@@ -189,45 +189,45 @@ contains
       flag_buffer_on = .true.
 #if CRM
 ! Case1 Vangelis
-!      flag_buffer_on_east = .true.
-!      flag_buffer_e_min = 200.0_rp
-!      flag_buffer_e_size = 36.0_rp 
-!
-!      flag_buffer_on_west = .true.
-!      flag_buffer_w_min = -200.0_rp
-!      flag_buffer_w_size = 36.0_rp 
-!
-!      flag_buffer_on_north = .true.
-!      flag_buffer_n_min = 200.0_rp
-!      flag_buffer_n_size = 36.0_rp 
-!      
-!      flag_buffer_on_top = .true.
-!      flag_buffer_t_min = 200.0_rp
-!      flag_buffer_t_size = 36.0_rp
-!
-!      flag_buffer_on_bottom = .true.
-!      flag_buffer_b_min = -200.0_rp
-!      flag_buffer_b_size = 36.0_rp
+      flag_buffer_on_east = .true.
+      flag_buffer_e_min = 200.0_rp
+      flag_buffer_e_size = 36.0_rp 
+
+      flag_buffer_on_west = .true.
+      flag_buffer_w_min = -200.0_rp
+      flag_buffer_w_size = 36.0_rp 
+
+      flag_buffer_on_north = .true.
+      flag_buffer_n_min = 200.0_rp
+      flag_buffer_n_size = 36.0_rp 
+      
+      flag_buffer_on_top = .true.
+      flag_buffer_t_min = 200.0_rp
+      flag_buffer_t_size = 36.0_rp
+
+      flag_buffer_on_bottom = .true.
+      flag_buffer_b_min = -200.0_rp
+      flag_buffer_b_size = 36.0_rp
 
 ! Xevi
-       flag_buffer_e_min = 80.0_rp
-       flag_buffer_e_size = 30.0_rp 
- 
-       flag_buffer_on_west = .true.
-       flag_buffer_w_min = -80.0_rp
-       flag_buffer_w_size = 30.0_rp 
- 
-       flag_buffer_on_north = .true.
-       flag_buffer_n_min = 80.0_rp
-       flag_buffer_n_size = 30.0_rp 
-       
-       flag_buffer_on_top = .true.
-       flag_buffer_t_min = 80.0_rp
-       flag_buffer_t_size = 30.0_rp
- 
-       flag_buffer_on_bottom = .true.
-       flag_buffer_b_min = -80.0_rp
-       flag_buffer_b_size = 30.0_rp
+!       flag_buffer_e_min = 80.0_rp
+!       flag_buffer_e_size = 30.0_rp 
+! 
+!       flag_buffer_on_west = .true.
+!       flag_buffer_w_min = -80.0_rp
+!       flag_buffer_w_size = 30.0_rp 
+! 
+!       flag_buffer_on_north = .true.
+!       flag_buffer_n_min = 80.0_rp
+!       flag_buffer_n_size = 30.0_rp 
+!       
+!       flag_buffer_on_top = .true.
+!       flag_buffer_t_min = 80.0_rp
+!       flag_buffer_t_size = 30.0_rp
+! 
+!       flag_buffer_on_bottom = .true.
+!       flag_buffer_b_min = -80.0_rp
+!       flag_buffer_b_size = 30.0_rp
 #else 
       !!windsor
       flag_buffer_on_east = .true.
