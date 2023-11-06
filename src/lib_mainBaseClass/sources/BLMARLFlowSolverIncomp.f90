@@ -32,11 +32,11 @@ module BLMARLFlowSolverIncomp_mod
 
    real(rp), allocatable, dimension(:,:)  :: rectangleControl       ! Two point coordinates that define each rectangle
    integer(4),  allocatable, dimension(:) :: actionMask             ! Mask that contains whether a point is in a rectangle control or not
+   real(rp), public :: eta_b(45), f(45), f_prim(45)
 
    type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: BLMARLFlowSolverIncomp
 
       real(rp) , public  ::   d0, U0, rho0, Red0, Re, mu, Lz
-      real(rp), public   :: eta_b(45), f(45), f_prim(45)
 
       character(len=64), public :: tag
       logical :: db_clustered = .false.
@@ -129,8 +129,8 @@ contains
    subroutine BLMARLFlowSolverIncomp_initSmartRedis(this)
       class(BLMARLFlowSolverIncomp), intent(inout) :: this
 
-      open(unit=443,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_raw.txt",status='replace')
-      open(unit=445,file="./output_"//trim(adjustl(this%tag))//"/"//"control_tw.txt",status='replace')
+      open(unit=443,file="./output_"//trim(adjustl(this%tag))//"/"//"control_action.txt",status='replace')
+      open(unit=445,file="./output_"//trim(adjustl(this%tag))//"/"//"control_reward.txt",status='replace')
       call init_smartredis(client, this%nwitPar, this%nRectangleControl, this%n_pseudo_envs, trim(adjustl(this%tag)), this%db_clustered)
       if (mpi_rank .eq. 0) write(111, *) "SmartRedis initialised"
       call write_step_type(client, 1, "ensemble_"//trim(adjustl(this%tag))//".step_type")
@@ -147,8 +147,8 @@ contains
          if(bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) then
             bcode = bouCodesNodesPar(iNodeL) ! Boundary element code
             if (bcode == bc_type_far_field_SB) then ! top far field for BL
-               u_buffer(iNodeL,2) =  0.470226_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
-                                 -coordPar(iNodeL,1))/110.485435_rp)**2_rp)
+               u_buffer(iNodeL,2) =  0.5643192_rp*(306.640625_rp-coordPar(iNodeL,1))/110.485435_rp*exp(0.95_rp-((306.640625_rp &
+                                 -coordPar(iNodeL,1))/110.485435_rp)**2_rp) ! +20% Vmax
                u(iNodeL,2,2) = u_buffer(iNodeL,2)
             end if
          end if
@@ -156,7 +156,7 @@ contains
       !$acc end parallel loop
 
 #if ACTUATION
-      open(unit=444,file="./output_"//trim(adjustl(this%tag))//"/"//"control_fortran_smooth.txt",status='replace')
+      open(unit=444,file="./output_"//trim(adjustl(this%tag))//"/"//"control_action_smooth.txt",status='replace')
       call this%getControlNodes()
 #ifdef SMARTREDIS
       if (mpi_rank .eq. 0) open(unit=447,file="./output_"//trim(adjustl(this%tag))//"/"//"lx_avg.txt",status='replace')
@@ -201,7 +201,6 @@ contains
       real(rp) :: yp,eta_y,f_y,f_prim_y
       real(rp) :: eliti, ave
       real(8) :: lx_recirculation(this%n_pseudo_envs)
-      integer(4) :: i
 #if ACTUATION
 #ifdef SMARTREDIS
       real(rp) :: action_global_instant(action_global_size)
@@ -405,6 +404,36 @@ contains
 #endif
    end subroutine BLMARLFlowSolverIncomp_afterDt
 
+   subroutine BLMARLFlowSolverIncomp_computeTauW(this, lx_recirculation)
+      class(BLMARLFlowSolverIncomp), intent(inout) :: this
+      real(8), intent(out) :: lx_recirculation(this%n_pseudo_envs)
+      real(8) :: lx_r
+      integer(4) :: surfCode
+
+      !$acc loop seq
+      do surfCode=1, this%n_pseudo_envs
+         call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, surfCode, 1, connecParWork, boundPar, &
+            point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
+            mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), lx_r)
+         lx_recirculation(surfCode) = lx_r / real(this%Lz, 8)
+      end do
+   end subroutine BLMARLFlowSolverIncomp_computeTauW
+
+   subroutine BLMARLFlowSolverIncomp_fill_BC_Types(this)
+      class(BLMARLFlowSolverIncomp), intent(inout) :: this
+
+#if ACTUATION
+      bouCodes2BCType(1:this%n_pseudo_envs) = bc_type_unsteady_inlet ! walls
+#else
+      bouCodes2BCType(1:this%n_pseudo_envs) = bc_type_non_slip_adiabatic ! walls
+#endif
+      bouCodes2BCType(this%n_pseudo_envs+1) = bc_type_far_field_SB ! upper SB
+      bouCodes2BCType(this%n_pseudo_envs+2) = bc_type_far_field ! inlet
+      bouCodes2BCType(this%n_pseudo_envs+3) = bc_type_outlet_incomp ! outlet
+      !$acc update device(bouCodes2BCType(:))
+
+   end subroutine BLMARLFlowSolverIncomp_fill_BC_Types
+
 #if ACTUATION
 #ifdef SMARTREDIS
       subroutine BLMARLFlowSolverIncomp_smoothControlFunction(this, action_global_instant)
@@ -423,186 +452,146 @@ contains
 #endif
 #endif
 
-   subroutine BLMARLFlowSolverIncomp_computeTauW(this, lx_recirculation)
-      class(BLMARLFlowSolverIncomp), intent(inout) :: this
-      real(8), intent(out) :: lx_recirculation(this%n_pseudo_envs)
-      real(8) :: lx_r
-      integer(4) :: surfCode
-
-      !$acc loop seq
-      do surfCode=1, this%n_pseudo_envs
-         call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, surfCode, 1, connecParWork, boundPar, &
-            point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
-            mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), lx_r)
-         lx_recirculation(surfCode) = lx_r / this%Lz
-      end do
-   end subroutine BLMARLFlowSolverIncomp_computeTauW
-
-   subroutine BLMARLFlowSolverIncomp_fill_BC_Types(this)
-      class(BLMARLFlowSolverIncomp), intent(inout) :: this
-
-#if ACTUATION
-      ! wall + actuation
-      bouCodes2BCType(1) = bc_type_unsteady_inlet ! wall 1
-      bouCodes2BCType(2) = bc_type_unsteady_inlet ! wall 2
-      bouCodes2BCType(3) = bc_type_unsteady_inlet ! wall 3
-      bouCodes2BCType(4) = bc_type_unsteady_inlet ! wall 4
-      bouCodes2BCType(5) = bc_type_unsteady_inlet ! wall 5
-#else
-      ! wall
-      bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! wall 1
-      bouCodes2BCType(2) = bc_type_non_slip_adiabatic ! wall 2
-      bouCodes2BCType(3) = bc_type_non_slip_adiabatic ! wall 3
-      bouCodes2BCType(4) = bc_type_non_slip_adiabatic ! wall 4
-      bouCodes2BCType(5) = bc_type_non_slip_adiabatic ! wall 5
-#endif
-      bouCodes2BCType(6) = bc_type_far_field_SB ! upper part of the domain
-      bouCodes2BCType(7) = bc_type_far_field ! inlet part of the domain
-      bouCodes2BCType(8) = bc_type_outlet_incomp ! outlet part of the domain
-      !$acc update device(bouCodes2BCType(:))
-
-   end subroutine BLMARLFlowSolverIncomp_fill_BC_Types
-
    subroutine BLMARLFlowSolverIncomp_fillBlasius(this)
      class(BLMARLFlowSolverIncomp), intent(inout) :: this
 
-     this%eta_b(1) = real(0.0E+00,rp)
-     this%eta_b(2) = real(2.0E-01,rp)
-     this%eta_b(3) = real(4.0E-01,rp)
-     this%eta_b(4) = real(6.0E-01,rp)
-     this%eta_b(5) = real(8.0E-01,rp)
-     this%eta_b(6) = real(1.0E+00,rp)
-     this%eta_b(7) = real(1.2E+00,rp)
-     this%eta_b(8) = real(1.4E+00,rp)
-     this%eta_b(9) = real(1.6E+00,rp)
-     this%eta_b(10) = real(1.8E+00,rp)
-     this%eta_b(11) = real(2.0E+00,rp)
-     this%eta_b(12) = real(2.2E+00,rp)
-     this%eta_b(13) = real(2.4E+00,rp)
-     this%eta_b(14) = real(2.6E+00,rp)
-     this%eta_b(15) = real(2.8E+00,rp)
-     this%eta_b(16) = real(3.0E+00,rp)
-     this%eta_b(17) = real(3.2E+00,rp)
-     this%eta_b(18) = real(3.4E+00,rp)
-     this%eta_b(19) = real(3.6E+00,rp)
-     this%eta_b(20) = real(3.8E+00,rp)
-     this%eta_b(21) = real(4.0E+00,rp)
-     this%eta_b(22) = real(4.2E+00,rp)
-     this%eta_b(23) = real(4.4E+00,rp)
-     this%eta_b(24) = real(4.6E+00,rp)
-     this%eta_b(25) = real(4.8E+00,rp)
-     this%eta_b(26) = real(5.0E+00,rp)
-     this%eta_b(27) = real(5.2E+00,rp)
-     this%eta_b(28) = real(5.4E+00,rp)
-     this%eta_b(29) = real(5.6E+00,rp)
-     this%eta_b(30) = real(5.8E+00,rp)
-     this%eta_b(31) = real(6.0E+00,rp)
-     this%eta_b(32) = real(6.2E+00,rp)
-     this%eta_b(33) = real(6.4E+00,rp)
-     this%eta_b(34) = real(6.6E+00,rp)
-     this%eta_b(35) = real(6.8E+00,rp)
-     this%eta_b(36) = real(7.0E+00,rp)
-     this%eta_b(37) = real(7.2E+00,rp)
-     this%eta_b(38) = real(7.4E+00,rp)
-     this%eta_b(39) = real(7.6E+00,rp)
-     this%eta_b(40) = real(7.8E+00,rp)
-     this%eta_b(41) = real(8.0E+00,rp)
-     this%eta_b(42) = real(8.2E+00,rp)
-     this%eta_b(43) = real(8.4E+00,rp)
-     this%eta_b(44) = real(8.6E+00,rp)
-     this%eta_b(45) = real(8.8E+00,rp)
+     eta_b(1) = real(0.0E+00,rp)
+     eta_b(2) = real(2.0E-01,rp)
+     eta_b(3) = real(4.0E-01,rp)
+     eta_b(4) = real(6.0E-01,rp)
+     eta_b(5) = real(8.0E-01,rp)
+     eta_b(6) = real(1.0E+00,rp)
+     eta_b(7) = real(1.2E+00,rp)
+     eta_b(8) = real(1.4E+00,rp)
+     eta_b(9) = real(1.6E+00,rp)
+     eta_b(10) = real(1.8E+00,rp)
+     eta_b(11) = real(2.0E+00,rp)
+     eta_b(12) = real(2.2E+00,rp)
+     eta_b(13) = real(2.4E+00,rp)
+     eta_b(14) = real(2.6E+00,rp)
+     eta_b(15) = real(2.8E+00,rp)
+     eta_b(16) = real(3.0E+00,rp)
+     eta_b(17) = real(3.2E+00,rp)
+     eta_b(18) = real(3.4E+00,rp)
+     eta_b(19) = real(3.6E+00,rp)
+     eta_b(20) = real(3.8E+00,rp)
+     eta_b(21) = real(4.0E+00,rp)
+     eta_b(22) = real(4.2E+00,rp)
+     eta_b(23) = real(4.4E+00,rp)
+     eta_b(24) = real(4.6E+00,rp)
+     eta_b(25) = real(4.8E+00,rp)
+     eta_b(26) = real(5.0E+00,rp)
+     eta_b(27) = real(5.2E+00,rp)
+     eta_b(28) = real(5.4E+00,rp)
+     eta_b(29) = real(5.6E+00,rp)
+     eta_b(30) = real(5.8E+00,rp)
+     eta_b(31) = real(6.0E+00,rp)
+     eta_b(32) = real(6.2E+00,rp)
+     eta_b(33) = real(6.4E+00,rp)
+     eta_b(34) = real(6.6E+00,rp)
+     eta_b(35) = real(6.8E+00,rp)
+     eta_b(36) = real(7.0E+00,rp)
+     eta_b(37) = real(7.2E+00,rp)
+     eta_b(38) = real(7.4E+00,rp)
+     eta_b(39) = real(7.6E+00,rp)
+     eta_b(40) = real(7.8E+00,rp)
+     eta_b(41) = real(8.0E+00,rp)
+     eta_b(42) = real(8.2E+00,rp)
+     eta_b(43) = real(8.4E+00,rp)
+     eta_b(44) = real(8.6E+00,rp)
+     eta_b(45) = real(8.8E+00,rp)
 
-     this%f(1)  = real(0.000000000E+00,rp)
-     this%f(2)  = real(6.640999715E-03,rp)
-     this%f(3)  = real(2.655988402E-02,rp)
-     this%f(4)  = real(5.973463750E-02,rp)
-     this%f(5)  = real(1.061082208E-01,rp)
-     this%f(6)  = real(1.655717258E-01,rp)
-     this%f(7)  = real(2.379487173E-01,rp)
-     this%f(8)  = real(3.229815738E-01,rp)
-     this%f(9)  = real(4.203207655E-01,rp)
-     this%f(10) = real(5.295180377E-01,rp)
-     this%f(11) = real(6.500243699E-01,rp)
-     this%f(12) = real(7.811933370E-01,rp)
-     this%f(13) = real(9.222901256E-01,rp)
-     this%f(14) = real(1.072505977E+00,rp)
-     this%f(15) = real(1.230977302E+00,rp)
-     this%f(16) = real(1.396808231E+00,rp)
-     this%f(17) = real(1.569094960E+00,rp)
-     this%f(18) = real(1.746950094E+00,rp)
-     this%f(19) = real(1.929525170E+00,rp)
-     this%f(20) = real(2.116029817E+00,rp)
-     this%f(21) = real(2.305746418E+00,rp)
-     this%f(22) = real(2.498039663E+00,rp)
-     this%f(23) = real(2.692360938E+00,rp)
-     this%f(24) = real(2.888247990E+00,rp)
-     this%f(25) = real(3.085320655E+00,rp)
-     this%f(26) = real(3.283273665E+00,rp)
-     this%f(27) = real(3.481867612E+00,rp)
-     this%f(28) = real(3.680919063E+00,rp)
-     this%f(29) = real(3.880290678E+00,rp)
-     this%f(30) = real(4.079881939E+00,rp)
-     this%f(31) = real(4.279620923E+00,rp)
-     this%f(32) = real(4.479457297E+00,rp)
-     this%f(33) = real(4.679356615E+00,rp)
-     this%f(34) = real(4.879295811E+00,rp)
-     this%f(35) = real(5.079259772E+00,rp)
-     this%f(36) = real(5.279238811E+00,rp)
-     this%f(37) = real(5.479226847E+00,rp)
-     this%f(38) = real(5.679220147E+00,rp)
-     this%f(39) = real(5.879216466E+00,rp)
-     this%f(40) = real(6.079214481E+00,rp)
-     this%f(41) = real(6.279213431E+00,rp)
-     this%f(42) = real(6.479212887E+00,rp)
-     this%f(43) = real(6.679212609E+00,rp)
-     this%f(44) = real(6.879212471E+00,rp)
-     this%f(45) = real(7.079212403E+00,rp)
+     f(1)  = real(0.000000000E+00,rp)
+     f(2)  = real(6.640999715E-03,rp)
+     f(3)  = real(2.655988402E-02,rp)
+     f(4)  = real(5.973463750E-02,rp)
+     f(5)  = real(1.061082208E-01,rp)
+     f(6)  = real(1.655717258E-01,rp)
+     f(7)  = real(2.379487173E-01,rp)
+     f(8)  = real(3.229815738E-01,rp)
+     f(9)  = real(4.203207655E-01,rp)
+     f(10) = real(5.295180377E-01,rp)
+     f(11) = real(6.500243699E-01,rp)
+     f(12) = real(7.811933370E-01,rp)
+     f(13) = real(9.222901256E-01,rp)
+     f(14) = real(1.072505977E+00,rp)
+     f(15) = real(1.230977302E+00,rp)
+     f(16) = real(1.396808231E+00,rp)
+     f(17) = real(1.569094960E+00,rp)
+     f(18) = real(1.746950094E+00,rp)
+     f(19) = real(1.929525170E+00,rp)
+     f(20) = real(2.116029817E+00,rp)
+     f(21) = real(2.305746418E+00,rp)
+     f(22) = real(2.498039663E+00,rp)
+     f(23) = real(2.692360938E+00,rp)
+     f(24) = real(2.888247990E+00,rp)
+     f(25) = real(3.085320655E+00,rp)
+     f(26) = real(3.283273665E+00,rp)
+     f(27) = real(3.481867612E+00,rp)
+     f(28) = real(3.680919063E+00,rp)
+     f(29) = real(3.880290678E+00,rp)
+     f(30) = real(4.079881939E+00,rp)
+     f(31) = real(4.279620923E+00,rp)
+     f(32) = real(4.479457297E+00,rp)
+     f(33) = real(4.679356615E+00,rp)
+     f(34) = real(4.879295811E+00,rp)
+     f(35) = real(5.079259772E+00,rp)
+     f(36) = real(5.279238811E+00,rp)
+     f(37) = real(5.479226847E+00,rp)
+     f(38) = real(5.679220147E+00,rp)
+     f(39) = real(5.879216466E+00,rp)
+     f(40) = real(6.079214481E+00,rp)
+     f(41) = real(6.279213431E+00,rp)
+     f(42) = real(6.479212887E+00,rp)
+     f(43) = real(6.679212609E+00,rp)
+     f(44) = real(6.879212471E+00,rp)
+     f(45) = real(7.079212403E+00,rp)
 
-     this%f_prim(1)  = real(0.000000000E+00,rp)
-     this%f_prim(2)  = real(6.640779210E-02,rp)
-     this%f_prim(3)  = real(1.327641608E-01,rp)
-     this%f_prim(4)  = real(1.989372524E-01,rp)
-     this%f_prim(5)  = real(2.647091387E-01,rp)
-     this%f_prim(6)  = real(3.297800312E-01,rp)
-     this%f_prim(7)  = real(3.937761044E-01,rp)
-     this%f_prim(8)  = real(4.562617647E-01,rp)
-     this%f_prim(9)  = real(5.167567844E-01,rp)
-     this%f_prim(10) = real(5.747581439E-01,rp)
-     this%f_prim(11) = real(6.297657365E-01,rp)
-     this%f_prim(12) = real(6.813103772E-01,rp)
-     this%f_prim(13) = real(7.289819351E-01,rp)
-     this%f_prim(14) = real(7.724550211E-01,rp)
-     this%f_prim(15) = real(8.115096232E-01,rp)
-     this%f_prim(16) = real(8.460444437E-01,rp)
-     this%f_prim(17) = real(8.760814552E-01,rp)
-     this%f_prim(18) = real(9.017612214E-01,rp)
-     this%f_prim(19) = real(9.233296659E-01,rp)
-     this%f_prim(20) = real(9.411179967E-01,rp)
-     this%f_prim(21) = real(9.555182298E-01,rp)
-     this%f_prim(22) = real(9.669570738E-01,rp)
-     this%f_prim(23) = real(9.758708321E-01,rp)
-     this%f_prim(24) = real(9.826835008E-01,rp)
-     this%f_prim(25) = real(9.877895262E-01,rp)
-     this%f_prim(26) = real(9.915419002E-01,rp)
-     this%f_prim(27) = real(9.942455354E-01,rp)
-     this%f_prim(28) = real(9.961553040E-01,rp)
-     this%f_prim(29) = real(9.974777682E-01,rp)
-     this%f_prim(30) = real(9.983754937E-01,rp)
-     this%f_prim(31) = real(9.989728724E-01,rp)
-     this%f_prim(32) = real(9.993625417E-01,rp)
-     this%f_prim(33) = real(9.996117017E-01,rp)
-     this%f_prim(34) = real(9.997678702E-01,rp)
-     this%f_prim(35) = real(9.998638190E-01,rp)
-     this%f_prim(36) = real(9.999216041E-01,rp)
-     this%f_prim(37) = real(9.999557173E-01,rp)
-     this%f_prim(38) = real(9.999754577E-01,rp)
-     this%f_prim(39) = real(9.999866551E-01,rp)
-     this%f_prim(40) = real(9.999928812E-01,rp)
-     this%f_prim(41) = real(9.999962745E-01,rp)
-     this%f_prim(42) = real(9.999980875E-01,rp)
-     this%f_prim(43) = real(9.999990369E-01,rp)
-     this%f_prim(44) = real(9.999995242E-01,rp)
-     this%f_prim(45) = real(9.999997695E-01,rp)
+     f_prim(1)  = real(0.000000000E+00,rp)
+     f_prim(2)  = real(6.640779210E-02,rp)
+     f_prim(3)  = real(1.327641608E-01,rp)
+     f_prim(4)  = real(1.989372524E-01,rp)
+     f_prim(5)  = real(2.647091387E-01,rp)
+     f_prim(6)  = real(3.297800312E-01,rp)
+     f_prim(7)  = real(3.937761044E-01,rp)
+     f_prim(8)  = real(4.562617647E-01,rp)
+     f_prim(9)  = real(5.167567844E-01,rp)
+     f_prim(10) = real(5.747581439E-01,rp)
+     f_prim(11) = real(6.297657365E-01,rp)
+     f_prim(12) = real(6.813103772E-01,rp)
+     f_prim(13) = real(7.289819351E-01,rp)
+     f_prim(14) = real(7.724550211E-01,rp)
+     f_prim(15) = real(8.115096232E-01,rp)
+     f_prim(16) = real(8.460444437E-01,rp)
+     f_prim(17) = real(8.760814552E-01,rp)
+     f_prim(18) = real(9.017612214E-01,rp)
+     f_prim(19) = real(9.233296659E-01,rp)
+     f_prim(20) = real(9.411179967E-01,rp)
+     f_prim(21) = real(9.555182298E-01,rp)
+     f_prim(22) = real(9.669570738E-01,rp)
+     f_prim(23) = real(9.758708321E-01,rp)
+     f_prim(24) = real(9.826835008E-01,rp)
+     f_prim(25) = real(9.877895262E-01,rp)
+     f_prim(26) = real(9.915419002E-01,rp)
+     f_prim(27) = real(9.942455354E-01,rp)
+     f_prim(28) = real(9.961553040E-01,rp)
+     f_prim(29) = real(9.974777682E-01,rp)
+     f_prim(30) = real(9.983754937E-01,rp)
+     f_prim(31) = real(9.989728724E-01,rp)
+     f_prim(32) = real(9.993625417E-01,rp)
+     f_prim(33) = real(9.996117017E-01,rp)
+     f_prim(34) = real(9.997678702E-01,rp)
+     f_prim(35) = real(9.998638190E-01,rp)
+     f_prim(36) = real(9.999216041E-01,rp)
+     f_prim(37) = real(9.999557173E-01,rp)
+     f_prim(38) = real(9.999754577E-01,rp)
+     f_prim(39) = real(9.999866551E-01,rp)
+     f_prim(40) = real(9.999928812E-01,rp)
+     f_prim(41) = real(9.999962745E-01,rp)
+     f_prim(42) = real(9.999980875E-01,rp)
+     f_prim(43) = real(9.999990369E-01,rp)
+     f_prim(44) = real(9.999995242E-01,rp)
+     f_prim(45) = real(9.999997695E-01,rp)
 
   end subroutine BLMARLFlowSolverIncomp_fillBlasius
 
@@ -688,21 +677,12 @@ contains
       this%save_resultsFile_step = 15000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 15000
+      this%save_restartFile_step = 1000! 15000
       this%continue_oldLogs = .false.
 
       this%initial_avgTime = this%timeBeginActuation
       this%saveAvgFile = .true.
       this%loadAvgFile = .false.
-      ! -------- Average results file -------------
-      this%save_avgScalarField_rho     = .false.
-      this%save_avgScalarField_pr      = .true.
-      this%save_avgScalarField_mueff   = .true.
-      this%save_avgVectorField_vel     = .true.
-      this%save_avgVectorField_ve2     = .false.
-      this%save_avgVectorField_vex     = .false.
-      this%save_avgVectorField_vtw     = .false.
-      !----------------------------------------------
 
       ! wall shear stress output
       this%n_pseudo_envs = 3
@@ -717,8 +697,6 @@ contains
 
       this%cfl_conv = 0.95_rp
       this%cfl_diff = 0.95_rp
-      ! flag_use_constant_dt = 1
-      ! this%dt = 0.065_rp
 
       this%d0   = 1.0_rp
       this%U0   = 1.0_rp
@@ -748,22 +726,22 @@ contains
 
       ! witness points
       this%have_witness          = .true.
-      this%nwit                  = 240
+      this%nwit                  = 216
       this%witness_inp_file_name = "witness.txt"
       this%witness_h5_file_name  = "./output_"//trim(adjustl(this%tag))//"/resultwit.h5"
-      this%leapwit               = 5 ! (update witness ever n dts) | in this class, we update the witness points manually
-      this%leapwitsave           = 100 ! how many dts are stored in buffer
-      this%wit_save              = .true. ! save witness or not
-      this%wit_save_u_i          = .true.
-      this%wit_save_pr           = .true.
+      this%leapwit               = 10000001 ! (update witness ever n dts) | in this class, we update the witness points manually
+      this%leapwitsave           = 1 ! how many dts are stored in buffer
+      this%wit_save              = .false. ! save witness or not
+      this%wit_save_u_i          = .false.
+      this%wit_save_pr           = .false.
       this%wit_save_rho          = .false.
       this%continue_witness      = .false.
 
 #if ACTUATION
       write(this%fileControlName,*) "rectangleControl.txt"
 #ifndef SMARTREDIS
-      this%amplitudeActuation = 0.05
-      this%frequencyActuation = 0.0030_rp
+      this%amplitudeActuation = 0.3
+      this%frequencyActuation = 0.0025_rp
 #endif
 #endif
    end subroutine BLMARLFlowSolverIncomp_initializeParameters
@@ -783,7 +761,7 @@ contains
          j = 45
          !$acc loop seq
          label1:do k=1,45
-            if(eta_y<this%eta_b(k)) then
+            if(eta_y<eta_b(k)) then
                j = k
                exit label1
             end if
@@ -797,8 +775,8 @@ contains
             u_buffer(iNodeL,2) = 0.0_rp
             u_buffer(iNodeL,3) = 0.0_rp
          else
-            f_y      = this%f(j-1)      + (this%f(j)-this%f(j-1))*(eta_y-this%eta_b(j-1))/(this%eta_b(j)-this%eta_b(j-1))
-            f_prim_y = this%f_prim(j-1) + (this%f_prim(j)-this%f_prim(j-1))*(eta_y-this%eta_b(j-1))/(this%eta_b(j)-this%eta_b(j-1))
+            f_y      = f(j-1)      + (f(j)-f(j-1))*(eta_y-eta_b(j-1))/(eta_b(j)-eta_b(j-1))
+            f_prim_y = f_prim(j-1) + (f_prim(j)-f_prim(j-1))*(eta_y-eta_b(j-1))/(eta_b(j)-eta_b(j-1))
 
             u_buffer(iNodeL,1) = f_prim_y
             u_buffer(iNodeL,2) = 0.5_rp*sqrt(1.0/(450.0_rp*450.0_rp))*(eta_y*f_prim_y-f_y)
@@ -825,7 +803,7 @@ contains
          j = 45
          !$acc loop seq
          label1:do k=1,45
-            if(eta_y<this%eta_b(k)) then
+            if(eta_y<eta_b(k)) then
                j = k
                exit label1
             end if
@@ -839,8 +817,8 @@ contains
             u(iNodeL,2,2) = 0.0_rp
             u(iNodeL,3,2) = 0.0_rp
          else
-            f_y      = this%f(j-1)      + (this%f(j)-this%f(j-1))*(eta_y-this%eta_b(j-1))/(this%eta_b(j)-this%eta_b(j-1))
-            f_prim_y = this%f_prim(j-1) + (this%f_prim(j)-this%f_prim(j-1))*(eta_y-this%eta_b(j-1))/(this%eta_b(j)-this%eta_b(j-1))
+            f_y      = f(j-1)      + (f(j)-f(j-1))*(eta_y-eta_b(j-1))/(eta_b(j)-eta_b(j-1))
+            f_prim_y = f_prim(j-1) + (f_prim(j)-f_prim(j-1))*(eta_y-eta_b(j-1))/(eta_b(j)-eta_b(j-1))
 
             u(iNodeL,1,2) = f_prim_y
             u(iNodeL,2,2) = 0.5_rp*sqrt(1.0/(450.0_rp*450.0_rp))*(eta_y*f_prim_y-f_y)

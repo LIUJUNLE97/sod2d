@@ -1,4 +1,4 @@
-#define ACTUATION 1
+#define ACTUATION 0
 
 module BLFlowSolverIncompDebug_mod
    use mod_arrays
@@ -154,7 +154,7 @@ contains
       real(rp)  :: gradV(ndime),vl(nnode),fact,targ,gradU(ndime),ul(nnode)
       real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
       real(rp) :: yp,eta_y,f_y,f_prim_y
-      real(8) :: Ftau_neg(3), Ftau_pos(3), lx_recirculation
+      real(8) :: lx_recirculation
 
       cd = 1.0_rp
       lx = this%d0*2.5_rp
@@ -469,10 +469,10 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 20000
+      this%save_resultsFile_step = 25000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 20000
+      this%save_restartFile_step = 25000
       this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
