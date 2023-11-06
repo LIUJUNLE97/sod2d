@@ -53,7 +53,7 @@ module mod_constants
 	! Types of implicit solvers
 	!
 
-	integer(4), parameter :: implicit_solver_esdirk      = 1
-	integer(4), parameter :: implicit_solver_bdf2_rk10   = 2
+	integer(4), parameter :: implicit_solver_imex   	 = 1
+
 
 end module mod_constants

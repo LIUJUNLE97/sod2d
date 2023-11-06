@@ -28,16 +28,10 @@ module mod_numerical_params
         real(rp) :: flag_mu_factor=1.0_rp
 
         ! Implicit solver
-        real(rp)   :: pseudo_max_dt = 1e20
-        real(rp)   :: pseudo_cfl = 1.0_rp
-        real(rp)   :: pseudo_ftau= 8.0_rp
         integer(4) :: maxIter=20
-        integer(4) :: maxIterNonLineal=20
-        integer(4) :: pseudo_steps=10
         real(8)    :: tol=1e-4
         integer(4) :: flag_use_constant_dt = 0
-        integer(4) :: flag_implicit_repeat_dt_if_not_converged = 1
-        integer(4) :: implicit_solver = implicit_solver_bdf2_rk10
+        integer(4) :: implicit_solver = implicit_solver_imex
 
         !
         ! Reference conditions
@@ -84,7 +78,7 @@ module mod_numerical_params
         real(rp)    :: period_walave   = 1.0_rp
         logical     :: flag_walave     = .false.
         integer(4)  :: flag_walex      = 3
-        integer(4)  :: flag_type_wmles = 1
+        integer(4)  :: flag_type_wmles = wmles_type_reichardt
 
         !
 	    ! viscosity

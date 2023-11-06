@@ -85,12 +85,7 @@ contains
       ! numerical params
       flag_les = 0
       flag_implicit = 0
-      implicit_solver = implicit_solver_bdf2_rk10
-
-      maxIterNonLineal=500
       tol=1e-4
-      pseudo_cfl =1.95_rp
-      flag_rk_order=4
 
       this%cfl_conv = 0.9_rp
       this%cfl_diff = 0.9_rp

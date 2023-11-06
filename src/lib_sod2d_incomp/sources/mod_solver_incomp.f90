@@ -50,8 +50,8 @@ module mod_solver_incomp
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime)            
            real(rp)   , intent(inout) :: R(npoin,ndime)
            integer(4)                :: ipoin, iter,ialpha,idime
-           real(rp)                   :: alphaCG, betaCG,Q1(2)
-           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,alpha(5),alpha2(5),aux_alpha,T1
+           real(rp)                   :: alphaCG, betaCG
+           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,alpha(5),alpha2(5),aux_alpha,T1,Q1(2)
           
           call nvtxStartRange("CG solver veloc")
           if (flag_cg_mem_alloc_veloc .eqv. .true.) then
@@ -123,7 +123,7 @@ module mod_solver_incomp
               end do
             end do
 
-            call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+            call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
             auxB = sqrt(auxT2)
             call nvtxEndRange
@@ -162,7 +162,7 @@ module mod_solver_incomp
               !$acc end parallel loop
               auxQ(1) = auxQ1
               auxQ(2) = auxQ2
-              call MPI_Allreduce(auxQ,Q1,2,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+              call MPI_Allreduce(auxQ,Q1,2,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
               alphaCG = real(Q1(1)/Q1(2),rp)
               !$acc parallel loop
               do ipoin = 1,npoin_w
@@ -194,7 +194,7 @@ module mod_solver_incomp
                  end do
               end do
 
-               call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+               call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
                T1 = auxT2
               !
@@ -216,7 +216,7 @@ module mod_solver_incomp
                   end do
               end do
               !$acc end parallel loop
-              call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+              call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
               betaCG = real(auxT2/Q1(1),rp)
               !$acc parallel loop
               do ipoin = 1,npoin_w
@@ -258,8 +258,8 @@ module mod_solver_incomp
            integer(4), intent(in)     :: nboun,bou_codes_nodes(npoin)
            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
            integer(4)                :: ipoin, iter,ialpha,ielem
-           real(rp)                   :: T1, alphaCG, betaCG,Q1(2)
-           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB
+           real(rp)                   :: T1, alphaCG, betaCG
+           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,Q1(2)
           
           call nvtxStartRange("CG solver press")
           if (flag_cg_mem_alloc_pres .eqv. .true.) then
@@ -342,7 +342,7 @@ module mod_solver_incomp
                auxT1 = auxT1+real(r0(ipoin)*r0(ipoin),8)
             end do
 
-            call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+            call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
             auxB = sqrt(auxT2) 
             call nvtxEndRange
@@ -364,7 +364,7 @@ module mod_solver_incomp
               !$acc end parallel loop
               auxQ(1) = auxQ1
               auxQ(2) = auxQ2
-              call MPI_Allreduce(auxQ,Q1,2,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+              call MPI_Allreduce(auxQ,Q1,2,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
               alphaCG = real(Q1(1)/Q1(2),rp)
               !$acc parallel loop
               do ipoin = 1,npoin_w
@@ -384,7 +384,7 @@ module mod_solver_incomp
               end do
               !$acc end parallel loop
 
-               call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+               call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
                T1 = real(auxT2,rp)
               !
@@ -408,7 +408,7 @@ module mod_solver_incomp
                  auxT1 = auxT1+real(r0(ipoin)*(z0(ipoin)-z1(ipoin)),8) ! <r_k,A*s_k-1>
               end do
               !$acc end parallel loop
-              call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+              call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
               betaCG = real(auxT2/Q1(1),rp)
               !$acc parallel loop
               do ipoin = 1,npoin_w

@@ -100,14 +100,11 @@ contains
       ! numerical params
       flag_les = 1
       flag_implicit = 0
-      maxIterNonLineal=200
-      implicit_solver = implicit_solver_bdf2_rk10
-      pseudo_cfl = 1.95_rp !esdirk
+      maxIter=20
       tol = 1e-3
-      flag_implicit_repeat_dt_if_not_converged = 0
        
-      !period_walave   = 1.0_rp
-      !flag_walave     = .true.
+      period_walave   = 1.0_rp
+      flag_walave     = .true.
 
       this%cfl_conv = 1.9_rp !bdf2
       this%cfl_diff = 1.9_rp !bdf2
