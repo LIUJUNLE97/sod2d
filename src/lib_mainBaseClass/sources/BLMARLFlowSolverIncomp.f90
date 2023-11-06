@@ -316,7 +316,7 @@ contains
       ! wall shear stress
       call this%computeTauW(lx_recirculation)
       if (mod(istep, this%tw_write_interval) .eq. 0 .and. mpi_rank .eq. 0) then
-         write(446,'(*(ES12.4,:,","))') this%time, lx_recirculation
+         write(446,'(*(ES16.6,:,","))') this%time, lx_recirculation
          call flush(446)
       end if
 
@@ -339,7 +339,7 @@ contains
          this%lx_recirculation_avg(:) = ave * lx_recirculation(:) + eliti * this%lx_recirculation_avg(:)
          ! !$acc end kernels
          if (mod(istep, this%tw_write_interval) .eq. 0 .and. mpi_rank .eq. 0) then
-            write(447,'(*(ES12.4,:,","))') this%time, this%lx_recirculation_avg
+            write(447,'(*(ES16.6,:,","))') this%time, this%lx_recirculation_avg
             call flush(447)
          end if
 
@@ -359,11 +359,11 @@ contains
             call this%update_witness(istep, 1) ! manual update of witness points
             call write_state(client, buffwit(:, 1, 1), "ensemble_"//trim(adjustl(this%tag))//".state") ! the streamwise velocity u
             call write_reward(client, this%lx_recirculation_avg, "ensemble_"//trim(adjustl(this%tag))//".reward") ! the streamwise component tw_x
-            if (mpi_rank .eq. 0) write(445,'(*(ES12.4,:,","))') this%time, this%lx_recirculation_avg
+            if (mpi_rank .eq. 0) write(445,'(*(ES16.6,:,","))') this%time, this%lx_recirculation_avg
             if (mpi_rank .eq. 0) call flush(445)
 
             call read_action(client, "ensemble_"//trim(adjustl(this%tag))//".action") ! modifies action_global (the target control values)
-            if (mpi_rank .eq. 0) write(443,'(*(ES12.4,:,","))') this%time+this%periodActuation, action_global
+            if (mpi_rank .eq. 0) write(443,'(*(ES16.6,:,","))') this%time+this%periodActuation, action_global
             if (mpi_rank .eq. 0) call flush(443)
 
             ! if the next time that we require actuation value is the last one, write now step_type=0 into database
@@ -374,7 +374,7 @@ contains
 
          ! apply actions to control surfaces
          call this%smoothControlFunction(action_global_instant)
-         if (mpi_rank .eq. 0) write(444,'(*(ES12.4,:,","))') this%time, action_global_instant
+         if (mpi_rank .eq. 0) write(444,'(*(ES16.6,:,","))') this%time, action_global_instant
          call flush(444)
 
          !$acc parallel loop
@@ -388,7 +388,7 @@ contains
          !$acc end parallel loop
 #else
          action_classic = this%amplitudeActuation*sin(2.0_rp*v_pi*this%frequencyActuation*this%time)
-         if (mpi_rank .eq. 0) write(444,'(*(ES12.4,:,","))') this%time, action_classic
+         if (mpi_rank .eq. 0) write(444,'(*(ES16.6,:,","))') this%time, action_classic
          call flush(444)
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
