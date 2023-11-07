@@ -674,10 +674,10 @@ contains
       this%save_logFile_step  = 250
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 15000
+      this%save_resultsFile_step = 25000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 1000! 15000
+      this%save_restartFile_step = 1000 ! 15000
       this%continue_oldLogs = .false.
 
       this%initial_avgTime = this%timeBeginActuation
