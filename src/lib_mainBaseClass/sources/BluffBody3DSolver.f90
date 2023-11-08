@@ -138,6 +138,7 @@ contains
       flag_les = 1
       flag_implicit = 1
       flag_rk_order=4
+      !flag_total_enthalpy = .true.
 
       maxIter = 20
       tol = 1e-3

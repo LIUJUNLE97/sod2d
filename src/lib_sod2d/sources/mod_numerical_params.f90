@@ -17,6 +17,7 @@ module mod_numerical_params
         real(rp) :: T_ilsa = 1.0_rp
 
         ! Discretization parameters
+        logical :: flag_total_enthalpy = .false.
         integer(4)  :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
         integer(4)  :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
         integer(4)  :: flag_normalise_entropy=1
@@ -89,7 +90,6 @@ module mod_numerical_params
         !
         ! FS
         !
-        logical :: flag_fs_incremental = .false.
         logical :: flag_fs_fix_pressure = .true.
 
         !
