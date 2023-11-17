@@ -12,7 +12,7 @@ option(UNIT_TESTING "Enable unit tests" OFF)
 option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
 
-option(TOOL_MESHPART "Compiles tool MeshPart" ON)
+option(TOOL_MESHPART "Compiles tool MeshPart" OFF)
 option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
 
 option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
@@ -21,7 +21,7 @@ option(USE_MN "Compiling in MareNostrum" OFF)
 option(USE_CRAY "Compiling with CrayMpi" OFF)
 option(SHARED_LIBS "Compile using shared libraries" OFF)
 
-option(USE_GPU "Compile using GPU" OFF)
+option(USE_GPU "Compile using GPU" ON)
 option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
 option(USE_NCCL "Compile using NCCL" OFF)
 
