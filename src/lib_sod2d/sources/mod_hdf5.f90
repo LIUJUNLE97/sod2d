@@ -1300,7 +1300,7 @@ contains
       integer(hsize_t),dimension(1) :: fs_dims,fs_maxdims
       integer(1) :: aux_array_i1(1)
 
-      if(mpi_rank.eq.0) write(*,*) '# Loading hdf5 mesh:',trim(adjustl(meshFile_h5_name))
+      if(mpi_rank.eq.0) write(*,*) '# Loading hdf5 mesh: ',trim(adjustl(meshFile_h5_name))
 
       call open_hdf5_file(meshFile_h5_name,file_id)
 
@@ -1395,7 +1395,7 @@ contains
       !close h5 file
       call close_hdf5_file(file_id)
 
-      if(mpi_rank.eq.0) write(*,*) '# Mesh',trim(adjustl(meshFile_h5_name)),'succesfully loaded!'
+      if(mpi_rank.eq.0) write(*,*) '# Mesh ',trim(adjustl(meshFile_h5_name)),' succesfully loaded!'
       mesh_isLoaded = .true.
 
    end subroutine load_hdf5_meshFile
@@ -3508,11 +3508,11 @@ contains
 
    end subroutine interpolate_vectorField_in_nodes
 
-   subroutine interpolate_elemGpScalarField_in_nodes(mnnode,mngaus,Ngp,connecParW,connecParO,origElemGpScalarField,interpNodeScalarField)
+   subroutine interpolate_elemGpScalarField_in_nodes_for_inst(mnnode,mngaus,Ngp,connecParW,connecParO,origElemGpScalarField,interpNodeScalarField)
       implicit none
       integer(4),intent(in) :: mnnode,mngaus,connecParW(numElemsRankPar,mnnode),connecParO(numElemsRankPar,mnnode)
       real(rp),intent(in) :: Ngp(mngaus,mnnode)
-      real(rp_vtk),intent(in) :: origElemGpScalarField(numElemsRankPar,mngaus)
+      real(rp),intent(in) :: origElemGpScalarField(numElemsRankPar,mngaus)
       real(rp_vtk),intent(out) :: interpNodeScalarField(numNodesRankPar)
       integer(4) :: iElem,igp,inode,iPer
       real(rp) :: var_a
@@ -3528,7 +3528,7 @@ contains
                var_a = var_a+Ngp(igp,inode)*origElemGpScalarField(iElem,inode)
             end do
             !$acc atomic write
-            interpNodeScalarField(connecParO(iElem,igp)) = var_a
+            interpNodeScalarField(connecParO(iElem,igp)) = real(var_a,rp_avg)
             !$acc end atomic
          end do
       end do
@@ -3542,7 +3542,43 @@ contains
          !$acc end parallel loop
       end if
 
-   end subroutine interpolate_elemGpScalarField_in_nodes
+   end subroutine interpolate_elemGpScalarField_in_nodes_for_inst
+
+   subroutine interpolate_elemGpScalarField_in_nodes_for_avg(mnnode,mngaus,Ngp,connecParW,connecParO,origElemGpScalarField,interpNodeScalarField)
+      implicit none
+      integer(4),intent(in) :: mnnode,mngaus,connecParW(numElemsRankPar,mnnode),connecParO(numElemsRankPar,mnnode)
+      real(rp),intent(in) :: Ngp(mngaus,mnnode)
+      real(rp_avg),intent(in) :: origElemGpScalarField(numElemsRankPar,mngaus)
+      real(rp_vtk),intent(out) :: interpNodeScalarField(numNodesRankPar)
+      integer(4) :: iElem,igp,inode,iPer
+      real(rp) :: var_a
+
+      !$acc parallel loop gang
+      do iElem = 1,numElemsRankPar
+
+         !$acc loop vector
+         do igp = 1,mngaus
+            var_a = 0.0_rp
+            !$acc loop seq
+            do inode = 1,mnnode
+               var_a = var_a+Ngp(igp,inode)*origElemGpScalarField(iElem,inode)
+            end do
+            !$acc atomic write
+            interpNodeScalarField(connecParO(iElem,igp)) = real(var_a,rp_avg)
+            !$acc end atomic
+         end do
+      end do
+      !$acc end parallel loop
+
+      if(isMeshPeriodic) then
+         !$acc parallel loop
+         do iPer = 1,nPerRankPar
+            interpNodeScalarField(masSlaRankPar(iPer,2)) = interpNodeScalarField(masSlaRankPar(iPer,1))
+         end do
+         !$acc end parallel loop
+      end if
+
+   end subroutine interpolate_elemGpScalarField_in_nodes_for_avg
 
    subroutine interpolate_scalarField_in_elemGp(mnnode,mngaus,Ngp,connecParW,connecParO,origNodeScalarField,interpElemGpScalarField)
       implicit none
@@ -3600,10 +3636,10 @@ contains
       end if
    end subroutine copyPeriodicNodes_vectorField
 
-   subroutine copy_elemGpScalarField_in_nodes(mnnode,connecParW,connecParO,origElemGpScalarField,interpNodeScalarField)
+   subroutine copy_elemGpScalarField_in_nodes_for_inst(mnnode,connecParW,connecParO,origElemGpScalarField,interpNodeScalarField)
       implicit none
       integer(4),intent(in) :: mnnode,connecParW(numElemsRankPar,mnnode),connecParO(numElemsRankPar,mnnode)
-      real(rp_vtk),intent(in) :: origElemGpScalarField(numElemsRankPar,mnnode)
+      real(rp),intent(in) :: origElemGpScalarField(numElemsRankPar,mnnode)
       real(rp_vtk),intent(out) :: interpNodeScalarField(numNodesRankPar)
       integer(4) :: iElem,inode,iPer
 
@@ -3611,7 +3647,7 @@ contains
       do iElem = 1,numElemsRankPar
          !$acc loop vector
          do inode = 1,mnnode
-            interpNodeScalarField(connecParO(iElem,inode)) = origElemGpScalarField(iElem,inode)
+            interpNodeScalarField(connecParO(iElem,inode)) = real(origElemGpScalarField(iElem,inode),rp_vtk)
          end do
       end do
       !$acc end parallel loop
@@ -3623,8 +3659,32 @@ contains
          end do
          !$acc end parallel loop
       end if
+   end subroutine copy_elemGpScalarField_in_nodes_for_inst
 
-   end subroutine copy_elemGpScalarField_in_nodes
+   subroutine copy_elemGpScalarField_in_nodes_for_avg(mnnode,connecParW,connecParO,origElemGpScalarField,interpNodeScalarField)
+      implicit none
+      integer(4),intent(in) :: mnnode,connecParW(numElemsRankPar,mnnode),connecParO(numElemsRankPar,mnnode)
+      real(rp_avg),intent(in) :: origElemGpScalarField(numElemsRankPar,mnnode)
+      real(rp_vtk),intent(out) :: interpNodeScalarField(numNodesRankPar)
+      integer(4) :: iElem,inode,iPer
+
+      !$acc parallel loop gang 
+      do iElem = 1,numElemsRankPar
+         !$acc loop vector
+         do inode = 1,mnnode
+            interpNodeScalarField(connecParO(iElem,inode)) = real(origElemGpScalarField(iElem,inode),rp_vtk)
+         end do
+      end do
+      !$acc end parallel loop
+
+      if(isMeshPeriodic) then
+         !$acc parallel loop
+         do iPer = 1,nPerRankPar
+            interpNodeScalarField(masSlaRankPar(iPer,2)) = interpNodeScalarField(masSlaRankPar(iPer,1))
+         end do
+         !$acc end parallel loop
+      end if
+   end subroutine copy_elemGpScalarField_in_nodes_for_avg
 
    subroutine copy_scalarField_in_elemGp(mnnode,connecParW,connecParO,origNodeScalarField,interpElemGpScalarField)
       implicit none
@@ -3645,6 +3705,41 @@ contains
    end subroutine copy_scalarField_in_elemGp
 
 !----------------------------------------------------------------------------------------------------------------------------------
+   subroutine copy_nodeScalarField2save_in_aux_for_inst(nodeScalarField)
+      implicit none
+      real(rp),intent(inout) :: nodeScalarField(numNodesRankPar)
+
+      !$acc kernels
+      auxNodeScalarField_vtk(:) = real(nodeScalarField(:),rp_vtk)
+      !$acc end kernels
+   end subroutine copy_nodeScalarField2save_in_aux_for_inst
+
+   subroutine copy_nodeScalarField2save_in_aux_for_avg(nodeScalarField)
+      implicit none
+      real(rp_avg),intent(inout) :: nodeScalarField(numNodesRankPar)
+
+      !$acc kernels
+      auxNodeScalarField_vtk(:) = real(nodeScalarField(:),rp_vtk)
+      !$acc end kernels
+   end subroutine copy_nodeScalarField2save_in_aux_for_avg
+
+   subroutine copy_nodeVectorField2save_in_aux_for_inst(nodeVectorField)
+      implicit none
+      real(rp),intent(inout) :: nodeVectorField(numNodesRankPar,ndime)
+
+      !$acc kernels
+      auxNodeVectorField_vtk(:,:) = real(nodeVectorField(:,:),rp_vtk)
+      !$acc end kernels
+   end subroutine copy_nodeVectorField2save_in_aux_for_inst
+
+   subroutine copy_nodeVectorField2save_in_aux_for_avg(nodeVectorField)
+      implicit none
+      real(rp_avg),intent(inout) :: nodeVectorField(numNodesRankPar,ndime)
+
+      !$acc kernels
+      auxNodeVectorField_vtk(:,:) = real(nodeVectorField(:,:),rp_vtk)
+      !$acc end kernels
+   end subroutine copy_nodeVectorField2save_in_aux_for_avg
 
    subroutine save_hdf5_resultsFile_baseFunc(mnnode,mngaus,Ngp_equi,hdf5_fileId,save_type_inst,numNodeScalarFields2save,nodeScalarFields2save,&
                                              numNodeVectorFields2save,nodeVectorFields2save,&
@@ -3681,17 +3776,13 @@ contains
       ! Scalar Fields
       !--------------------------------------------------------------------------------------------------------------------------------------
       do iField=1,numNodeScalarFields2save
-         !if(mpi_rank.eq.0) write(*,*) 'saving field',iField,'name',dsetname
          dsetname = trim(adjustl(groupname))//trim(nodeScalarFields2save(iField)%nameField)
+         !if(mpi_rank.eq.0) write(*,*) 'saving field',iField,'name',dsetname,'type_inst',save_type_inst
 
          if(save_type_inst) then    ! Instantaneous fields
-            !$acc kernels
-            auxNodeScalarField_vtk(:) = real(nodeScalarFields2save(iField)%ptr_rp,rp_vtk)
-            !$acc end kernels
+            call copy_nodeScalarField2save_in_aux_for_inst(nodeScalarFields2save(iField)%ptr_rp)
          else                       ! Averages fields
-            !$acc kernels
-            auxNodeScalarField_vtk(:) = real(nodeScalarFields2save(iField)%ptr_avg,rp_vtk)
-            !$acc end kernels
+            call copy_nodeScalarField2save_in_aux_for_avg(nodeScalarFields2save(iField)%ptr_avg)
          end if
 
           if(isMeshLinealOutput) then
@@ -3722,13 +3813,9 @@ contains
          dsetname = trim(adjustl(groupname))//trim(nodeVectorFields2save(iField)%nameField)
 
          if(save_type_inst) then
-            !$acc kernels
-            auxNodeVectorField_vtk(:,:) = real(nodeVectorFields2save(iField)%ptr_rp,rp_vtk)
-            !$acc end kernels
+            call copy_nodeVectorField2save_in_aux_for_inst(nodeVectorFields2save(iField)%ptr_rp)
          else
-            !$acc kernels
-            auxNodeVectorField_vtk(:,:) = real(nodeVectorFields2save(iField)%ptr_avg,rp_vtk)
-            !$acc end kernels
+            call copy_nodeVectorField2save_in_aux_for_avg(nodeVectorFields2save(iField)%ptr_avg)
          end if
 
          if(isMeshLinealOutput) then
@@ -3748,23 +3835,22 @@ contains
       do iField=1,numElemGpScalarFields2save
          dsetname = trim(adjustl(groupname))//trim(elemGpScalarFields2save(iField)%nameField)
 
-         if(save_type_inst) then
-            !$acc kernels
-            auxNodeVectorField_vtk(:,:) = real(elemGpScalarFields2save(iField)%ptr_rp,rp_vtk)
-            !$acc end kernels
-         else
-            !$acc kernels
-            auxNodeVectorField_vtk(:,:) = real(elemGpScalarFields2save(iField)%ptr_avg,rp_vtk)
-            !$acc end kernels
-         end if
-
          if(isMeshLinealOutput) then
-            call copy_elemGpScalarField_in_nodes(mnnode,connecParWork,connecParOrig,auxNodeVectorField_vtk,auxInterpNodeScalarField)
+            if(save_type_inst) then
+               call copy_elemGpScalarField_in_nodes_for_inst(mnnode,connecParWork,connecParOrig,elemGpScalarFields2save(iField)%ptr_rp,auxInterpNodeScalarField)
+            else
+               call copy_elemGpScalarField_in_nodes_for_avg(mnnode,connecParWork,connecParOrig,elemGpScalarFields2save(iField)%ptr_avg,auxInterpNodeScalarField)
+            end if
          else
-            call interpolate_elemGpScalarField_in_nodes(mnnode,mngaus,Ngp_equi,connecParWork,connecParOrig,auxNodeVectorField_vtk,auxInterpNodeScalarField)
+            if(save_type_inst) then
+               call interpolate_elemGpScalarField_in_nodes_for_inst(mnnode,mngaus,Ngp_equi,connecParWork,connecParOrig,elemGpScalarFields2save(iField)%ptr_rp,auxInterpNodeScalarField)
+            else
+               call interpolate_elemGpScalarField_in_nodes_for_avg(mnnode,mngaus,Ngp_equi,connecParWork,connecParOrig,elemGpScalarFields2save(iField)%ptr_avg,auxInterpNodeScalarField)
+            end if
+
          end if
-         !$acc update host(auxNodeScalarField_vtk(:))
-         call save_array1D_rp_vtk_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,auxInterpNodeVectorField)
+         !$acc update host(auxInterpNodeScalarField(:))
+         call save_array1D_rp_vtk_in_dataset_hdf5_file(hdf5_fileId,dsetname,ds_dims,ms_dims,ms_offset,auxInterpNodeScalarField)
 
       end do
 
@@ -3907,7 +3993,7 @@ contains
 
       call create_hdf5_file(full_hdf5_fileName,hdf5_fileId)
 
-      call save_hdf5_resultsFile_baseFunc(mnnode,mngaus,Ngp,hdf5_fileId,.True.,numNodeScalarFields2save,nodeScalarFields2save,&
+      call save_hdf5_resultsFile_baseFunc(mnnode,mngaus,Ngp,hdf5_fileId,.true.,numNodeScalarFields2save,nodeScalarFields2save,&
                                           numNodeVectorFields2save,nodeVectorFields2save,&
                                           numElemGpScalarFields2save,elemGpScalarFields2save)
 
@@ -3933,15 +4019,14 @@ contains
 
       integer(hid_t) :: hdf5_fileId
       character(512) :: full_hdf5_fileName,dsetname
-      integer(hsize_t),dimension(1) :: ds_dims,ms_dims
-      integer(hssize_t),dimension(1) :: ms_offset
-      real(rp) :: aux_array_rp(1)
+
       !-----------------------------------------------------------------------------------------------
+      
       call set_hdf5_avgResultsFile_name(restartCnt,full_hdf5_fileName)
 
       call create_hdf5_file(full_hdf5_fileName,hdf5_fileId)
 
-      call save_hdf5_resultsFile_baseFunc(mnnode,mngaus,Ngp,hdf5_fileId,.False.,numAvgNodeScalarFields2save,avgNodeScalarFields2save,&
+      call save_hdf5_resultsFile_baseFunc(mnnode,mngaus,Ngp,hdf5_fileId,.false.,numAvgNodeScalarFields2save,avgNodeScalarFields2save,&
                                           numAvgNodeVectorFields2save,avgNodeVectorFields2save,&
                                           numAvgElemGpScalarFields2save,avgElemGpScalarFields2save)
       dsetname = 'elapsed_avgTime'

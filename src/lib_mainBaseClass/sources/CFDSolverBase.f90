@@ -335,6 +335,7 @@ contains
 
       this%nodeScalarFields2save(this%numNodeScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
       this%nodeScalarFields2save(this%numNodeScalarFields2save)%ptr_rp => array2save
+      this%nodeScalarFields2save(this%numNodeScalarFields2save)%ptr_avg => null()
 
    end subroutine CFDSolverBase_add_nodeScalarField2save
 
@@ -358,6 +359,7 @@ contains
 
       this%nodeVectorFields2save(this%numNodeVectorFields2save)%nameField = trim(adjustl(fieldSaveName))
       this%nodeVectorFields2save(this%numNodeVectorFields2save)%ptr_rp => array2save
+      this%nodeVectorFields2save(this%numNodeVectorFields2save)%ptr_avg => null()
 
    end subroutine CFDSolverBase_add_nodeVectorField2save
 
@@ -381,6 +383,7 @@ contains
 
       this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
       this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%ptr_rp => array2save
+      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%ptr_avg => null()
 
    end subroutine CFDSolverBase_add_elemGpScalarField2save
 
@@ -402,6 +405,7 @@ contains
 
       this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
       this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%ptr_avg => array2save
+      this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%ptr_rp => null()
 
    end subroutine CFDSolverBase_add_avgNodeScalarField2save
 
@@ -425,6 +429,7 @@ contains
 
       this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%nameField = trim(adjustl(fieldSaveName))
       this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%ptr_avg => array2save
+      this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%ptr_rp => null()
 
    end subroutine CFDSolverBase_add_avgNodeVectorField2save
 
@@ -448,6 +453,7 @@ contains
 
       this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
       this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%ptr_avg => array2save
+      this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%ptr_rp => null()
 
    end subroutine CFDSolverBase_add_avgElemGpScalarField2save
 
