@@ -4,6 +4,7 @@ module mod_mpi
 #ifndef NOACC
    use openacc
 #endif
+
    implicit none
 
    integer :: mpi_rank, mpi_size, mpi_err
@@ -12,6 +13,7 @@ module mod_mpi
    integer :: mpi_real_size,mpi_real4_size,mpi_real8_size
    integer :: mpi_datatype_int,mpi_datatype_int4,mpi_datatype_int8
    integer :: mpi_datatype_real,mpi_datatype_real4,mpi_datatype_real8
+   integer :: mpi_datatype_real_int
 
    integer :: smNode_comm,smNode_rank,smNode_size
    integer :: num_devices, id_device
@@ -24,7 +26,10 @@ module mod_mpi
 
       integer(mpi_address_kind) :: color_ptr
       logical :: mpi_app_num_flag
-
+      integer(4) :: sizeCustomType
+      integer,dimension(:),allocatable :: blockLengthCustom, dataTypesCustom
+      integer(mpi_address_kind),dimension(:),allocatable :: displacementsCustom
+      
       ! Init MPI_COMM_WORLD communicator (shared accros all applications launched with mpirun MPMD)
       call mpi_init(mpi_err)
       world_comm = MPI_COMM_WORLD
@@ -69,6 +74,20 @@ module mod_mpi
       call MPI_Type_size(mpi_datatype_real,mpi_real_size,mpi_err)
       call MPI_Type_size(mpi_datatype_real4,mpi_real4_size,mpi_err)
       call MPI_Type_size(mpi_datatype_real8,mpi_real8_size,mpi_err)
+
+      !Create MPI structure with [real(rp), integer]
+      sizeCustomType = 2
+      allocate(blockLengthCustom(sizeCustomType),dataTypesCustom(sizeCustomType),displacementsCustom(sizeCustomType))
+      
+      blockLengthCustom(:)  = 1
+      displacementsCustom(1) = 0
+      displacementsCustom(2) = mpi_real_size
+      dataTypesCustom(1) = mpi_datatype_real
+      dataTypesCustom(2) = mpi_datatype_int
+      call MPI_Type_create_struct(sizeCustomType,blockLengthCustom,displacementsCustom,dataTypesCustom,mpi_datatype_real_int,mpi_err)
+      call MPI_Type_commit(mpi_datatype_real_int,mpi_err)
+
+      deallocate(blockLengthCustom,dataTypesCustom,displacementsCustom)
 
       call init_sharedMemoryNode_comm()
 

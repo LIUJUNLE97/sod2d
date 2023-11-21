@@ -6,7 +6,7 @@ module mod_arrays
       ! main allocatable arrays
       ! integer ---------------------------------------------------
       integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
-      integer(4), allocatable :: atoIJ(:),atoIJK(:),lnbn(:,:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
+      integer(4), allocatable :: atoIJ(:),atoIJK(:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
       integer(4), allocatable :: witel(:), buffstep(:)
 
       ! real ------------------------------------------------------
@@ -28,12 +28,12 @@ module mod_arrays
       real(rp), allocatable :: witxi(:,:), Nwit(:,:), buffwit(:,:,:), bufftime(:)
 
       real(rp), allocatable :: u_buffer(:,:)
-      ! implicit auxiliar fields
-      real(rp), allocatable :: impl_rho(:),impl_E(:),impl_eta(:),impl_q(:,:)
-      real(rp), allocatable :: impl_envit(:,:),impl_mu_fluid(:),impl_mu_sgs(:,:)
 
       ! exponential average for wall law
       real(rp), allocatable :: walave_u(:,:)
+
+      ! roughness for wall law
+      real(rp), allocatable :: zo(:)
 
       ! for entropy and sgs visc.
       real(rp),  allocatable :: mue_l(:,:),al_weights(:),am_weights(:),an_weights(:)
@@ -57,6 +57,7 @@ module CFDSolverBase_mod
       use mass_matrix
       use mod_geom
       use time_integ
+      use time_integ_imex
       use mod_analysis
       use mod_numerical_params
       use mod_time_ops
@@ -220,15 +221,26 @@ contains
 
    subroutine CFDSolverBase_initNSSolver(this)
       class(CFDSolverBase), intent(inout) :: this
-
-      call init_rk4_solver(numNodesRankPar)
+      if(flag_implicit == 1) then
+         if (implicit_solver == implicit_solver_imex) then
+            call init_imex_solver(numNodesRankPar)
+         end if
+      else
+         call init_rk4_solver(numNodesRankPar)
+      end if
 
    end subroutine CFDSolverBase_initNSSolver
 
    subroutine CFDSolverBase_endNSSolver(this)
       class(CFDSolverBase), intent(inout) :: this
 
-       call end_rk4_solver()
+      if(flag_implicit == 1) then
+         if (implicit_solver == implicit_solver_imex) then
+            call end_imex_solver()
+         end if
+      else
+         call end_rk4_solver()
+      end if
 
    end subroutine CFDSolverBase_endNSSolver
 
@@ -623,6 +635,7 @@ contains
             listBoundsWallModel(auxBoundCnt) = iBound
          end if
       end do
+      !$acc update device(listBoundsWallModel(:))
 
    end subroutine checkIfWallModelOn
 
@@ -826,22 +839,6 @@ contains
       !$acc enter data create(u_buffer(:,:))
       !$acc enter data create(mue_l(:,:))
 
-      ! implicit
-      allocate(impl_rho(numNodesRankPar))
-      allocate(impl_E(numNodesRankPar))
-      allocate(impl_eta(numNodesRankPar))
-      allocate(impl_q(numNodesRankPar,ndime))
-      allocate(impl_envit(numElemsRankPar,nnode))
-      allocate(impl_mu_fluid(numNodesRankPar))
-      allocate(impl_mu_sgs(numElemsRankPar,nnode))
-      !$acc enter data create(impl_rho(:))
-      !$acc enter data create(impl_E(:))
-      !$acc enter data create(impl_eta(:))
-      !$acc enter data create(impl_q(:,:))
-      !$acc enter data create(impl_envit(:,:))
-      !$acc enter data create(impl_mu_fluid(:))
-      !$acc enter data create(impl_mu_sgs(:,:))
-
       allocate(tauw(numNodesRankPar,ndime))  ! momentum at the buffer
       !$acc enter data create(tauw(:,:))
 
@@ -957,6 +954,15 @@ contains
          walave_u(:,:) = 0.0_rp
          !$acc end kernels
       end if
+
+      if(flag_type_wmles==wmles_type_abl) then
+         allocate(zo(numNodesRankPar))
+         !$acc enter data create(zo(:))
+         !$acc kernels
+         zo(:) = 0.0_rp
+         !$acc end kernels
+      end if
+
       call nvtxEndRange
 
       call MPI_Barrier(app_comm,mpi_err)
@@ -1346,12 +1352,10 @@ contains
       if(mpi_rank.eq.0) write(111,*) '  --| Evaluating point2elem array...'
       call elemPerNode(nnode,numElemsRankPar,numNodesRankPar,connecParWork,lelpn,point2elem)
 
-      if(mpi_rank.eq.0) write(111,*) '  --| Evaluating lnbn & lnbnNodes arrays...'
-      allocate(lnbn(numBoundsRankPar,npbou))
-      !$acc enter data create(lnbn(:,:))
+      if(mpi_rank.eq.0) write(111,*) '  --| Evaluating lnbnNodes arrays...'
       allocate(lnbnNodes(numNodesRankPar))
       !$acc enter data create(lnbnNodes(:))
-      call nearBoundaryNode(porder,nnode,npbou,numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbn,lnbnNodes)
+      call nearBoundaryNode(porder,nnode,npbou,numElemsRankPar,numNodesRankPar,numBoundsRankPar,connecParWork,coordPar,boundPar,bouCodesNodesPar,point2elem,atoIJK,lnbnNodes)
 
       call MPI_Barrier(app_comm,mpi_err)
 
@@ -1509,9 +1513,8 @@ contains
       integer(4) :: icode,istep,inonLineal,iwitstep=0
       character(4) :: timeStep
       real(8) :: iStepTimeRank,iStepTimeMax,iStepEndTime,iStepStartTime,iStepAvgTime
-      real(rp) :: inv_iStep,aux_pseudo_cfl
+      real(rp) :: inv_iStep
       real(rp) :: dtfact,avwei
-      logical :: do__iteration
 
       call MPI_Barrier(app_comm,mpi_err)
 
@@ -1554,62 +1557,19 @@ contains
          end if
          call nvtxEndRange
 
-         call nvtxStartRange("RK4 step "//timeStep,istep)
+         call nvtxStartRange("Time-step"//timeStep,istep)
 
-         if(flag_implicit == 1) then
-            !$acc kernels
-            impl_rho(:) = rho(:,2)
-            impl_E(:) = E(:,2)
-            impl_q(:,:) = q(:,:,2)
-            impl_eta(:) = eta(:,2)
-            impl_envit(:,:) = mu_e(:,:)
-            impl_mu_fluid(:) = mu_fluid(:)
-            impl_mu_sgs(:,:) = mu_sgs(:,:)
-            !$acc end kernels
-            aux_pseudo_cfl = pseudo_cfl
-         end if
+         if(this%doTimerAnalysis) iStepStartTime = MPI_Wtime()
+         call this%callTimeIntegration(istep)
 
-         do__iteration = .true.
-         inonLineal = 1
-         do while(do__iteration .eqv. .true.)
-            if(flag_implicit == 1) then
-               !$acc kernels
-               rho(:,2)    = impl_rho(:)
-               E(:,2)      = impl_E(:)
-               q(:,:,2)    = impl_q(:,:)
-               eta(:,2)    = impl_eta(:)
-               mu_e(:,:)   = impl_envit(:,:)
-               mu_fluid(:) = impl_mu_fluid(:)
-               mu_sgs(:,:) = impl_mu_sgs(:,:)
-               !$acc end kernels
-            else
-               do__iteration = .false.
-            end if
-            if(this%doTimerAnalysis) iStepStartTime = MPI_Wtime()
-            call this%callTimeIntegration(istep)
-            if(flag_implicit == 1 ) then
-               if((this%currentNonLinealIter .gt. maxIterNonLineal) .and. (inonLineal .lt. 4) .and. (flag_implicit_repeat_dt_if_not_converged == 1)) then
-                  inonLineal = inonLineal + 1
-                  pseudo_cfl = pseudo_cfl*0.5_rp
-                  if(mpi_rank.eq.0) write(111,*)"(WARRNING)  non lineal iteration failed in time ",istep," new pseudo cfl ",pseudo_cfl," non lineal tries ",inonLineal
-                  call flush(111)
-               else
-                  do__iteration = .false.
-               end if
-            end if
-         end do
-
-         !if(flag_implicit == 1) then
-            !$acc kernels
-            rho(:,3) = rho(:,1)
-            E(:,3) = E(:,1)
-            q(:,:,3) = q(:,:,1)
-            eta(:,3) = eta(:,1)
-            u(:,:,3) = u(:,:,1)
-            pr(:,3) = pr(:,1)
-            !$acc end kernels
-            pseudo_cfl = aux_pseudo_cfl
-         !end if
+         !$acc kernels
+         rho(:,3) = rho(:,1)
+         E(:,3) = E(:,1)
+         q(:,:,3) = q(:,:,1)
+         eta(:,3) = eta(:,1)
+         u(:,:,3) = u(:,:,1)
+         pr(:,3) = pr(:,1)
+         !$acc end kernels
 
          if(this%doTimerAnalysis) then
             iStepEndTime = MPI_Wtime()
@@ -1801,10 +1761,14 @@ contains
       real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode), dist(numElemsRankPar), xyzwit(ndime), mindist
       real(rp), parameter                 :: wittol=1e-7
       real(rp)                            :: witxyz(this%nwit,ndime), witxyzPar(this%nwit,ndime), witxyzParCand(this%nwit,ndime)
-      real(rp)                            :: locdist(2), globdist(2)
       real(rp)                            :: xmin, ymin, zmin, xmax, ymax, zmax
       real(rp)                            :: xminloc, yminloc, zminloc, xmaxloc, ymaxloc, zmaxloc
       logical                             :: isinside, found
+      type real_int
+	real(rp)   :: realnum
+	integer(4) :: intnum
+      end type
+      type(real_int)                      :: locdist, globdist
 
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
@@ -1921,10 +1885,10 @@ contains
             dist(:)    = (center(:,1)-xyzwit(1))*(center(:,1)-xyzwit(1))+(center(:,2)-xyzwit(2))*(center(:,2)-xyzwit(2))+(center(:,3)-xyzwit(3))*(center(:,3)-xyzwit(3))
             !$acc end kernels
             ielem      = minloc(dist(:),1)
-            locdist(1) = dist(ielem)
-            locdist(2) = mpi_rank
-            call MPI_Allreduce(locdist, globdist, 2, MPI_2REAL, MPI_MINLOC, app_comm, mpi_err)
-            if (mpi_rank .eq. int(globdist(2))) then
+            locdist % realnum = dist(ielem)
+            locdist % intnum  = mpi_rank
+            call MPI_Allreduce(locdist, globdist, 1, mpi_datatype_real_int, MPI_MINLOC, app_comm, mpi_err)
+            if (mpi_rank .eq. globdist % intnum) then
 	       write(*,*) "[NOT FOUND WITNESS] ", xyzwit(:)
                this%nwitPar              = this%nwitPar+1
                witGlob(this%nwitPar)     = witGlobMiss(iwit)
@@ -2011,9 +1975,8 @@ contains
          write(111,*) "--------------------------------------------"
          write(111,*) "    cfl_conv: ",         this%cfl_conv
          write(111,*) "    cfl_diff: ",         this%cfl_diff
-         write(111,*) "    maxIterNonLineal: ", maxIterNonLineal
+         write(111,*) "    maxIter: ",          maxIter
          write(111,*) "    tol: ",              tol
-         write(111,*) "    pseudo_cfl: ",       pseudo_cfl
          write(111,*) "--------------------------------------------"
       end if
 

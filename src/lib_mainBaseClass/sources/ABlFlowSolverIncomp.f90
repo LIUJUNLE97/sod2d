@@ -1,4 +1,4 @@
-module ChannelFlowSolverIncomp_mod
+module ABlFlowSolverIncomp_mod
    use mod_arrays
    use mod_nvtx
 #ifndef NOACC
@@ -27,29 +27,29 @@ module ChannelFlowSolverIncomp_mod
    implicit none
    private
 
-   type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: ChannelFlowSolverIncomp
+   type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: ABlFlowSolverIncomp
 
-      real(rp) , public  :: vo, delta, rho0, Retau, Re, utau, mu
+      real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar
 
    contains
-      procedure, public :: fillBCTypes           => ChannelFlowSolverIncomp_fill_BC_Types
-      procedure, public :: initializeParameters  => ChannelFlowSolverIncomp_initializeParameters
-      procedure, public :: initializeSourceTerms => ChannelFlowSolverIncomp_initializeSourceTerms
-      procedure, public :: evalInitialConditions => ChannelFlowSolverIncomp_evalInitialConditions
-   end type ChannelFlowSolverIncomp
+      procedure, public :: fillBCTypes           => ABlFlowSolverIncomp_fill_BC_Types
+      procedure, public :: initializeParameters  => ABlFlowSolverIncomp_initializeParameters
+      procedure, public :: initializeSourceTerms => ABlFlowSolverIncomp_initializeSourceTerms
+      procedure, public :: evalInitialConditions => ABlFlowSolverIncomp_evalInitialConditions
+   end type ABlFlowSolverIncomp
 contains
 
-   subroutine ChannelFlowSolverIncomp_fill_BC_Types(this)
-      class(ChannelFlowSolverIncomp), intent(inout) :: this
+   subroutine ABlFlowSolverIncomp_fill_BC_Types(this)
+      class(ABlFlowSolverIncomp), intent(inout) :: this
 
-      !bouCodes2BCType(1) = bc_type_slip_wall_model
-      bouCodes2BCType(1) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(1) = bc_type_slip_wall_model
+      bouCodes2BCType(2) = bc_type_slip_adiabatic
       !$acc update device(bouCodes2BCType(:))
 
-   end subroutine ChannelFlowSolverIncomp_fill_BC_Types
+   end subroutine ABlFlowSolverIncomp_fill_BC_Types
 
-   subroutine ChannelFlowSolverIncomp_initializeSourceTerms(this)
-      class(ChannelFlowSolverIncomp), intent(inout) :: this
+   subroutine ABlFlowSolverIncomp_initializeSourceTerms(this)
+      class(ABlFlowSolverIncomp), intent(inout) :: this
       integer(4) :: iNodeL
 
       allocate(source_term(numNodesRankPar,ndime))
@@ -57,30 +57,20 @@ contains
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
-         source_term(iNodeL,1) = (this%utau*this%utau*this%rho0/this%delta)
+         source_term(iNodeL,1) =  this%rho0*this%ustar**2/this%Lz
          source_term(iNodeL,2) = 0.00_rp
          source_term(iNodeL,3) = 0.00_rp
-
-         !just a momentary trick
-         pr(iNodeL,2) = 0.0_rp 
-         rho(iNodeL,2) = this%rho0            
-
-         rho(iNodeL,3) = rho(iNodeL,2)
-         pr(iNodeL,3) =  pr(iNodeL,2)
       end do
       !$acc end parallel loop
 
-      !$acc kernels
-      mu_e(:,:) = 0.0_rp ! Element syabilization viscosity
-      !$acc end kernels
-   end subroutine ChannelFlowSolverIncomp_initializeSourceTerms
+   end subroutine ABlFlowSolverIncomp_initializeSourceTerms
 
-   subroutine ChannelFlowSolverIncomp_initializeParameters(this)
-      class(ChannelFlowSolverIncomp), intent(inout) :: this
+   subroutine ABLFlowSolverIncomp_initializeParameters(this)
+      class(ABlFlowSolverIncomp), intent(inout) :: this
       real(rp) :: mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "channel"
+      write(this%mesh_h5_file_name,*) "abl"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -93,58 +83,54 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 10000
+      this%save_resultsFile_step = 5000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 10000
+      this%save_restartFile_step = 5000
       this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
+      this%continue_oldLogs = .true.
 
       this%saveAvgFile = .true.
-      this%loadAvgFile = .false.
+      this%loadAvgFile = .true.
 
       this%saveSurfaceResults = .false.
       !----------------------------------------------
 
       ! numerical params
       flag_les = 1
+      flag_type_wmles = wmles_type_abl
 
-      !this%cfl_conv = 0.9_rp 
-      !this%cfl_diff = 0.9_rp
-      flag_use_constant_dt = 1
-      this%dt = 5.0e-4
-      flag_cg_prec_bdc = .false.
-
+      this%cfl_conv = 0.9_rp 
+      this%cfl_diff = 0.9_rp
       
-      this%vo = 1.0_rp
-      this%delta  = 1.0_rp
-      this%rho0   = 1.0_rp
-      this%Retau  = 950.0_rp
+      this%rho0   = 1.0_rp !1.2
+      this%Lz = 1500.0_rp
+      this%Lhub = 90.0_rp
+      this%vinf = 8.0_rp
+      this%rough = 0.1682_rp
+      this%ustar = this%vinf*0.41_rp/log(1.0_rp+this%Lhub/this%rough)
+      incomp_viscosity = 1.81e-5
 
-      this%Re     = exp((1.0_rp/0.88_rp)*log(this%Retau/0.09_rp))
-      this%mu    = (this%rho0*2.0_rp*this%delta*this%vo)/this%Re
-      this%utau   = (this%Retau*this%mu)/(this%delta*this%rho0)
-
-      incomp_viscosity = this%mu
       flag_mu_factor = 1.0_rp
 
       nscbc_p_inf = 0.0_rp
 
       maxIter = 200
-      tol = 1e-3
+      tol = 1e-2
 
       flag_fs_fix_pressure = .false.
       
-      period_walave   = 200.0_rp
+      period_walave   = 3600.0_rp
+      this%initial_avgTime = 3600.0_rp
 
-   end subroutine ChannelFlowSolverIncomp_initializeParameters
+   end subroutine ABlFlowSolverIncomp_initializeParameters
 
-   subroutine ChannelFlowSolverIncomp_evalInitialConditions(this)
-      class(ChannelFlowSolverIncomp), intent(inout) :: this
+   subroutine ABlFlowSolverIncomp_evalInitialConditions(this)
+      class(ABlFlowSolverIncomp), intent(inout) :: this
       integer(8) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL, idime
-      real(rp) :: velo, rti(3), yp,velo_aux1
+      real(rp) :: velo, rti(3), zp,velo_aux1
       integer(4)   :: iLine,iNodeGSrl,auxCnt
       logical :: readFiles
       character(512) :: initialField_filePath
@@ -174,13 +160,9 @@ contains
             if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
                iNodeL = matGidSrlOrdered(auxCnt,1)
                auxCnt=auxCnt+1
-               if(coordPar(iNodeL,2)<this%delta) then
-                  yp = coordPar(iNodeL,2)*this%utau*this%rho0/this%mu
-               else
-                  yp = abs(coordPar(iNodeL,2)-2.0_rp*this%delta)*this%utau*this%rho0/this%mu
-               end if
 
-               velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
+               zp = coordPar(iNodeL,3)
+               velo =  this%ustar*log(1.0_rp+zp/this%rough)/0.41_rp
 
                u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(rti(1) -0.5_rp))
                u(iNodeL,2,2) = velo*(0.1_rp*(rti(2) -0.5_rp))
@@ -211,6 +193,7 @@ contains
       ax2(:) = 0.0_rp
       ax3(:) = 0.0_rp
       au(:,:) = 0.0_rp
+      zo(:) = this%rough
       !$acc end kernels
       call nvtxEndRange
 
@@ -231,6 +214,6 @@ contains
       end if
       call nvtxEndRange
 
-   end subroutine ChannelFlowSolverIncomp_evalInitialConditions
+   end subroutine ABlFlowSolverIncomp_evalInitialConditions
 
-end module ChannelFlowSolverIncomp_mod
+end module ABlFlowSolverIncomp_mod

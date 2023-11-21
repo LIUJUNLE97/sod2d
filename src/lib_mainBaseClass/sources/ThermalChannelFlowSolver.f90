@@ -45,6 +45,8 @@ contains
       integer(4) :: iNodeL
 
       allocate(source_term(numNodesRankPar,ndime))
+      !$acc enter data create(source_term(:,:))
+
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
 #if AR2
@@ -208,6 +210,15 @@ contains
          end do
          !!$acc end parallel loop
       end if
+
+      !$acc update device(rho(:,:))
+      !$acc update device(u(:,:,:))
+      !$acc update device(Tem(:,:))
+      !$acc update device(pr(:,:))
+      !$acc update device(e_int(:,:))
+      !$acc update device(E(:,:))
+      !$acc update device(q(:,:,:))
+      !$acc update device(csound(:))
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar

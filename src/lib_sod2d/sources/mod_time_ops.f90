@@ -40,7 +40,6 @@ contains
                aux1 = umag+csound(connec(ielem,inode))
                L3 = max(L3,aux1)
             end do
-            !aux2 = cfl_conv*(helem(ielem))/L3
             aux2 = cfl_conv*(helem(ielem)/real(2.0_rp*porder+1,rp))/L3
             dt_conv = min(dt_conv,aux2)
             if(present(cfl_diff) .and. present(mu_fluid) .and. present(mu_sgs)  .and.  present(rho)) then

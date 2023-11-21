@@ -50,10 +50,10 @@ module mod_solver_incomp
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
            real(rp)   , intent(inout) :: R(npoin,ndime)
            integer(4)                :: ipoin, iter,ialpha,idime
-           real(rp)                   :: alphaCG, betaCG,Q1(2)
-           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,alpha(5),alpha2(5),aux_alpha,T1
+           real(rp)                   :: alphaCG, betaCG
+           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,alpha(5),alpha2(5),aux_alpha,T1,Q1(2)
 
-           call nvtxStartRange("CG solver scalar")
+          call nvtxStartRange("CG solver veloc")
           if (flag_cg_mem_alloc_veloc .eqv. .true.) then
 				allocate(x_u(npoin,ndime), r0_u(npoin,ndime), p0_u(npoin,ndime), qn_u(npoin,ndime), v_u(npoin,ndime), b_u(npoin,ndime),z0_u(npoin,ndime),z1_u(npoin,ndime),M_u(npoin,ndime))
             !$acc enter data create(x_u(:,:), r0_u(:,:), p0_u(:,:), qn_u(:,:), v_u(:,:), b_u(:,:),z0_u(:,:),z1_u(:,:),M_u(:,:))
@@ -64,6 +64,7 @@ module mod_solver_incomp
            !
            ! Initialize solver
            !
+           call nvtxStartRange("CG_u init")
             !$acc parallel loop
             do ipoin = 1,npoin
                !$acc loop seq
@@ -94,9 +95,11 @@ module mod_solver_incomp
 
             call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x_u,mu_fluid,mu_e,mu_sgs,Ml,qn_u)
             if(mpi_size.ge.2) then
+               call nvtxStartRange("CG_u halo")
                do idime = 1,ndime
                   call mpi_halo_atomic_update_real(qn_u(:,idime))
                end do
+               call nvtxEndRange
             end if
 
             !$acc parallel loop
@@ -123,13 +126,14 @@ module mod_solver_incomp
             call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
             auxB = sqrt(auxT2)
-
+            call nvtxEndRange
 
            !
            ! Start iterations
            !
+           call nvtxStartRange("CG_u iters")
            do iter = 1,maxIter
-              call nvtxStartRange("Iteration")
+              call nvtxStartRange("Iter_u")
               call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,mu_fluid,mu_e,mu_sgs,Ml,qn_u)
               if(mpi_size.ge.2) then
                do idime = 1,ndime
@@ -224,6 +228,8 @@ module mod_solver_incomp
               !$acc end parallel loop
               call nvtxEndRange
            end do
+           call nvtxEndRange
+
            if (iter == maxIter) then
                if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[veloc] CG, iters: ",iter," tol ",sqrt(T1)/auxB
            else
@@ -252,10 +258,10 @@ module mod_solver_incomp
            integer(4), intent(in)     :: nboun,bou_codes_nodes(npoin)
            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
            integer(4)                :: ipoin, iter,ialpha,ielem
-           real(rp)                   :: T1, alphaCG, betaCG,Q1(2)
-           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB
+           real(rp)                   :: T1, alphaCG, betaCG
+           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,Q1(2)
 
-           call nvtxStartRange("CG solver scalar")
+          call nvtxStartRange("CG solver press")
           if (flag_cg_mem_alloc_pres .eqv. .true.) then
 				allocate(x(npoin), r0(npoin), p0(npoin), qn(npoin), v(npoin), b(npoin),z0(npoin),z1(npoin),M(npoin),x0(npoin),diag(npoin))
             !$acc enter data create(x(:), r0(:), p0(:), qn(:), v(:), b(:),z0(:),z1(:),M(:),x0(:),diag(:))
@@ -280,6 +286,7 @@ module mod_solver_incomp
            !
            ! Initialize solver
            !
+           call nvtxStartRange("CG_p init")
            !$acc parallel loop
            do ipoin = 1,npoin
                x(ipoin) = 0.0_rp
@@ -308,6 +315,8 @@ module mod_solver_incomp
                b(lpoin_w(1)) = 0.0_rp
                x(lpoin_w(1)) = 0.0_rp
             end if
+
+            call nvtxStartRange("CG_p precond")
             call eval_laplacian_mult(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,x,qn)! A*x0
            !$acc parallel loop
            do ipoin = 1,npoin_w
@@ -325,6 +334,7 @@ module mod_solver_incomp
                end do
                !$acc end parallel loop
             end if
+            call nvtxEndRange
 
             auxT1 = 0.0d0
             !$acc parallel loop reduction(+:auxT1)
@@ -335,12 +345,14 @@ module mod_solver_incomp
             call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
             auxB = sqrt(auxT2)
+            call nvtxEndRange
 
            !
            ! Start iterations
            !
+           call nvtxStartRange("CG_p iters")
            do iter = 1,maxIter
-              call nvtxStartRange("Iteration")
+              call nvtxStartRange("Iter_p")
               call eval_laplacian_mult(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,p0,qn) ! A*s_k-1
               auxQ1 = 0.0d0
               auxQ2 = 0.0d0
@@ -378,7 +390,7 @@ module mod_solver_incomp
               !
               ! Stop cond
               !
-              if (sqrt(T1) .lt. (tol)) then
+              if (sqrt(T1) .lt. (tol*auxB)) then
                  call nvtxEndRange
                  exit
               end if
@@ -405,10 +417,12 @@ module mod_solver_incomp
               !$acc end parallel loop
               call nvtxEndRange
            end do
+           call nvtxEndRange
+
            if (iter == maxIter) then
-               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(T1)," rel tol ",sqrt(T1)/auxB
+               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(T1)/auxB
            else
-               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(T1)," rel tol ",sqrt(T1)/auxB
+               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(T1)/auxB
            endif
 
             !$acc kernels
@@ -430,7 +444,7 @@ module mod_solver_incomp
            integer(4)              :: ipoin(nnode),iNodeL,ipoin_w,jnode
            real(rp)                 :: bl(nnode),xl(nnode)
 
-
+           call nvtxStartRange("smoother_cholesky")
            !$acc parallel loop gang private(bl,ipoin,xl)
            do ielem = 1,nelem
                !$acc loop vector
@@ -465,6 +479,7 @@ module mod_solver_incomp
             x(iNodeL) = x(iNodeL)/real(lelpn(iNodeL),rp)
          end do
          !$acc end parallel loop
+         call nvtxEndRange
 
         end subroutine smoother_cholesky
 end module mod_solver_incomp

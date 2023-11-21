@@ -14,12 +14,12 @@ module mod_bc_routines
 
       contains
 
-         subroutine temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,aux_rho,aux_q,aux_u,aux_p,aux_E,u_buffer)
+         subroutine temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,aux_rho,aux_q,aux_u,aux_p,aux_E,u_buffer)
 
             implicit none
 
             integer(4), intent(in)     :: npoin, nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
-            integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou),lnbn_nodes(npoin)
+            integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn_nodes(npoin)
             real(rp), intent(in)     :: normalsAtNodes(npoin,ndime),u_buffer(npoin,ndime)
             real(rp),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
@@ -189,12 +189,12 @@ module mod_bc_routines
             !$acc end parallel loop
 
          end subroutine temporary_bc_routine_dirichlet_prim
-subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Rmass,Rmom,Rener)
+subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,Rmass,Rmom,Rener)
 
             implicit none
 
             integer(4), intent(in)     :: npoin, nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
-            integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou),lnbn_nodes(npoin)
+            integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn_nodes(npoin)
             real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
             real(rp),    intent(inout) :: Rmass(npoin),Rmom(npoin,ndime),Rener(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
@@ -231,12 +231,12 @@ subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound
 
          end subroutine bc_fix_dirichlet_residual
 
-         subroutine bc_fix_dirichlet_Jacobian(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,Jmass,Jmom,Jener)
+         subroutine bc_fix_dirichlet_Jacobian(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,Jmass,Jmom,Jener)
 
             implicit none
 
             integer(4), intent(in)     :: npoin, nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
-            integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou),lnbn_nodes(npoin)
+            integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn_nodes(npoin)
             real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
             real(rp),    intent(inout) :: Jmass(npoin),Jmom(npoin,ndime),Jener(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
@@ -273,12 +273,12 @@ subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound
 
          end subroutine bc_fix_dirichlet_Jacobian
 
-         subroutine bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn,lnbn_nodes,normalsAtNodes,R)
+         subroutine bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,R)
 
             implicit none
 
             integer(4), intent(in)     :: npoin, nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
-            integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn(nboun,npbou),lnbn_nodes(npoin)
+            integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn_nodes(npoin)
             real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
             real(rp),    intent(inout) :: R(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode

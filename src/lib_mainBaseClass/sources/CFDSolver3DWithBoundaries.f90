@@ -14,6 +14,7 @@ module CFDSolver3DWithBoundaries_mod
    use mass_matrix
    use mod_geom
    use time_integ
+   use time_integ_imex
    use mod_analysis
    use mod_numerical_params
    use mod_time_ops
@@ -46,19 +47,19 @@ contains
 
       this%noBoundaries = .false.
       if(flag_implicit == 1) then
-         if (implicit_solver == implicit_solver_bdf2_rk10) then
-            call rk_implicit_bdf2_rk10_main(istep,this%save_logFile_next,this%currentNonLinealIter,this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbn,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-               1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
-               rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor,mue_l, &
-               ndofRankPar,numBoundaryNodesRankPar,ldofPar,lbnodesPar,boundPar,bouCodesPar,bouCodesNodesPar, & ! Optional args
-               listBoundsWallModel,wgp_b,boundNormalPar,normalsAtNodes,u_buffer,tauw,walave_u=walave_u)                   ! Optional args
+         if (implicit_solver == implicit_solver_imex) then
+            call imex_main(istep,this%save_logFile_next,this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbnNodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+                        1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
+                        rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor,mue_l, &
+                        ndofRankPar,numBoundaryNodesRankPar,ldofPar,lbnodesPar,boundPar,bouCodesPar,bouCodesNodesPar, & ! Optional args
+                        listBoundsWallModel,wgp_b,boundNormalPar,normalsAtNodes,u_buffer,tauw,source_term,walave_u,zo)
          endif
       else
-         call rk_4_main(this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbn,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         call rk_4_main(this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
             1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
             rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor,mue_l, &
             ndofRankPar,numBoundaryNodesRankPar,ldofPar,lbnodesPar,boundPar,bouCodesPar,bouCodesNodesPar, & ! Optional args
-            listBoundsWallModel,wgp_b,boundNormalPar,normalsAtNodes,u_buffer,tauw,walave_u=walave_u)                   ! Optional args
+            listBoundsWallModel,wgp_b,boundNormalPar,normalsAtNodes,u_buffer,tauw,source_term,walave_u,zo)                   ! Optional args
       end if
 
    end subroutine CFDSolver3DWithBoundaries_callTimeIntegration
