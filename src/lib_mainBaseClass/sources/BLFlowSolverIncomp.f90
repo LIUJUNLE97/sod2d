@@ -1,6 +1,6 @@
 #define ACTUATION 0
 
-module BLFlowSolverIncompDebug_mod
+module BLFlowSolverIncomp_mod
    use mod_arrays
    use mod_nvtx
 #ifndef NOACC
@@ -33,31 +33,31 @@ module BLFlowSolverIncompDebug_mod
    integer(4), allocatable, dimension(:) :: actionMask             ! Mask that contains whether a point is in a rectangle control or not
    real(rp), public :: eta_b(45), f(45), f_prim(45)
 
-   type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: BLFlowSolverIncompDebug
+   type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: BLFlowSolverIncomp
 
       real(rp) , public  ::   d0, U0, rho0, Red0, Re, mu, Lz
       character(512), public   :: fileControlName                            ! Input: path to the file that contains the points defining the
       integer(4), public         :: nRectangleControl                          ! Number of rectangle control
       real(rp), public         :: amplitudeActuation, frequencyActuation , timeBeginActuation    ! Parameters of the actuation
    contains
-      procedure, public :: fillBCTypes           => BLFlowSolverIncompDebug_fill_BC_Types
-      procedure, public :: initializeParameters  => BLFlowSolverIncompDebug_initializeParameters
-      procedure, public :: evalInitialConditions => BLFlowSolverIncompDebug_evalInitialConditions
-      procedure, public :: initialBuffer => BLFlowSolverIncompDebug_initialBuffer
-      procedure, public :: fillBlasius => BLFlowSolverIncompDebug_fillBlasius
-      procedure, public :: afterDt => BLFlowSolverIncompDebug_afterDt
-      procedure, public :: beforeTimeIteration => BLFlowSolverIncompDebug_beforeTimeIteration
-      procedure, public :: getControlNodes => BLFlowSolverIncompDebug_getControlNodes
-      procedure, public :: readControlRectangles => BLFlowSolverIncompDebug_readControlRectangles
-      procedure, public :: computeTauW => BLFlowSolverIncompDebug_computeTauW
-      procedure, public :: afterTimeIteration => BLFlowSolverIncompDebug_afterTimeIteration
-      end type BLFlowSolverIncompDebug
+      procedure, public :: fillBCTypes           => BLFlowSolverIncomp_fill_BC_Types
+      procedure, public :: initializeParameters  => BLFlowSolverIncomp_initializeParameters
+      procedure, public :: evalInitialConditions => BLFlowSolverIncomp_evalInitialConditions
+      procedure, public :: initialBuffer => BLFlowSolverIncomp_initialBuffer
+      procedure, public :: fillBlasius => BLFlowSolverIncomp_fillBlasius
+      procedure, public :: afterDt => BLFlowSolverIncomp_afterDt
+      procedure, public :: beforeTimeIteration => BLFlowSolverIncomp_beforeTimeIteration
+      procedure, public :: getControlNodes => BLFlowSolverIncomp_getControlNodes
+      procedure, public :: readControlRectangles => BLFlowSolverIncomp_readControlRectangles
+      procedure, public :: computeTauW => BLFlowSolverIncomp_computeTauW
+      procedure, public :: afterTimeIteration => BLFlowSolverIncomp_afterTimeIteration
+      end type BLFlowSolverIncomp
 contains
 
-   subroutine BLFlowSolverIncompDebug_readControlRectangles(this)
+   subroutine BLFlowSolverIncomp_readControlRectangles(this)
       ! This subroutine reads the file that contains the two points defining a rectanle paralel to the X-Z axis. Several rectangles
       ! can be introduced. In this rectangles is where control will be applied
-      class(BLFlowSolverIncompDebug), intent(inout) :: this
+      class(BLFlowSolverIncomp), intent(inout) :: this
 
       integer(rp)                           :: ii
 
@@ -74,10 +74,10 @@ contains
       close(99)
       !$acc update device(rectangleControl(:,:))
 
-   end subroutine BLFlowSolverIncompDebug_readControlRectangles
+   end subroutine BLFlowSolverIncomp_readControlRectangles
 
-   subroutine BLFlowSolverIncompDebug_getControlNodes(this)
-      class(BLFlowSolverIncompDebug), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_getControlNodes(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
 
       integer(4) :: iNodeL, iRectangleControl, bcode
       real(rp)   :: xPoint, zPoint, x1RectangleControl, x2RectangleControl, z1RectangleControl, z2RectangleControl
@@ -108,10 +108,10 @@ contains
          end if
       end do
       !$acc end parallel loop
-   end subroutine BLFlowSolverIncompDebug_getControlNodes
+   end subroutine BLFlowSolverIncomp_getControlNodes
 
-   subroutine BLFlowSolverIncompDebug_beforeTimeIteration(this)
-      class(BLFlowSolverIncompDebug), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_beforeTimeIteration(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
       integer(4)                 :: iboun,bcode,ipbou,iBoundNode,iNodeL
 
      !$acc parallel loop
@@ -136,15 +136,15 @@ contains
 #endif
       if (mpi_rank .eq. 0) open(unit=446,file="lx.txt",status='replace')
 
-   end subroutine BLFlowSolverIncompDebug_beforeTimeIteration
+   end subroutine BLFlowSolverIncomp_beforeTimeIteration
 
-   subroutine BLFlowSolverIncompDebug_afterTimeIteration(this)
-      class(BLFlowSolverIncompDebug), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_afterTimeIteration(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
       if (mpi_rank .eq. 0) close(446)
-   end subroutine BLFlowSolverIncompDebug_afterTimeIteration
+   end subroutine BLFlowSolverIncomp_afterTimeIteration
 
-   subroutine BLFlowSolverIncompDebug_afterDt(this,istep)
-      class(BLFlowSolverIncompDebug), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_afterDt(this,istep)
+      class(BLFlowSolverIncomp), intent(inout) :: this
       integer(4)              , intent(in)   :: istep
       real(rp) :: cd, lx, ly, xmin, xmax, f1, f2, f3
       integer(4) :: k,j,ielem,iCen,inode,igaus, isoI, isoJ, isoK,ii,jdime,idime,iNodeL,iNodeL2,bcode,isoII, isoJJ, isoKK,type_ijk
@@ -277,10 +277,10 @@ contains
       write(446,'(*(ES16.6,:,","))') this%time, lx_recirculation
       call flush(446)
 
-   end subroutine BLFlowSolverIncompDebug_afterDt
+   end subroutine BLFlowSolverIncomp_afterDt
 
-   subroutine BLFlowSolverIncompDebug_computeTauW(this, lx_recirculation)
-      class(BLFlowSolverIncompDebug), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_computeTauW(this, lx_recirculation)
+      class(BLFlowSolverIncomp), intent(inout) :: this
       real(8), intent(out) :: lx_recirculation
       real(8) :: lx_r
 
@@ -290,10 +290,10 @@ contains
 
       ! compute equivalent recirculation length
       lx_recirculation = lx_r / real(this%Lz, 8)
-   end subroutine BLFlowSolverIncompDebug_computeTauW
+   end subroutine BLFlowSolverIncomp_computeTauW
 
-   subroutine BLFlowSolverIncompDebug_fill_BC_Types(this)
-      class(BLFlowSolverIncompDebug), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_fill_BC_Types(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
 
 #if (ACTUATION)
       bouCodes2BCType(1) = bc_type_unsteady_inlet ! wall + actuation
@@ -305,10 +305,10 @@ contains
       bouCodes2BCType(4) = bc_type_outlet_incomp  ! outlet part of the domain
       !$acc update device(bouCodes2BCType(:))
 
-   end subroutine BLFlowSolverIncompDebug_fill_BC_Types
+   end subroutine BLFlowSolverIncomp_fill_BC_Types
 
-   subroutine BLFlowSolverIncompDebug_fillBlasius(this)
-      class(BLFlowSolverIncompDebug), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_fillBlasius(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
 
      eta_b(1) = real(0.0E+00,rp)
      eta_b(2) = real(2.0E-01,rp)
@@ -448,10 +448,10 @@ contains
      f_prim(44) = real(9.999995242E-01,rp)
      f_prim(45) = real(9.999997695E-01,rp)
 
-  end subroutine BLFlowSolverIncompDebug_fillBlasius
+  end subroutine BLFlowSolverIncomp_fillBlasius
 
-   subroutine BLFlowSolverIncompDebug_initializeParameters(this)
-      class(BLFlowSolverIncompDebug), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_initializeParameters(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
       real(rp) :: mur
 
       write(this%mesh_h5_file_path,*) ""
@@ -538,10 +538,10 @@ contains
       this%wit_save_pr           = .true.
       this%wit_save_rho          = .false.
       this%continue_witness      = .false.
-   end subroutine BLFlowSolverIncompDebug_initializeParameters
+   end subroutine BLFlowSolverIncomp_initializeParameters
 
-   subroutine BLFlowSolverIncompDebug_initialBuffer(this)
-      class(BLFlowSolverIncompDebug), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_initialBuffer(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
       integer(4) :: iNodeL,k,j
       real(rp) :: yp,eta_y,f_y,f_prim_y
 
@@ -579,10 +579,10 @@ contains
       end do
       !$acc end parallel loop
 
-   end subroutine BLFlowSolverIncompDebug_initialBuffer
+   end subroutine BLFlowSolverIncomp_initialBuffer
 
-   subroutine BLFlowSolverIncompDebug_evalInitialConditions(this)
-      class(BLFlowSolverIncompDebug), intent(inout) :: this
+   subroutine BLFlowSolverIncomp_evalInitialConditions(this)
+      class(BLFlowSolverIncomp), intent(inout) :: this
       integer(4) :: iNodeL, idime, j,k
       real(rp) :: yp,eta_y,f_y,f_prim_y
       integer(4)   :: iLine,iNodeGSrl,auxCnt
@@ -642,6 +642,6 @@ contains
          mu_factor(iNodeL) = flag_mu_factor
       end do
       !$acc end parallel loop
-   end subroutine BLFlowSolverIncompDebug_evalInitialConditions
+   end subroutine BLFlowSolverIncomp_evalInitialConditions
 
-end module BLFlowSolverIncompDebug_mod
+end module BLFlowSolverIncomp_mod
