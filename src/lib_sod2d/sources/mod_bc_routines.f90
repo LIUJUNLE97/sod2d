@@ -24,7 +24,7 @@ module mod_bc_routines
             real(rp),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
             real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
-            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm,norm2
+            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm
 
             if(allocate_memory_bcc) then
                allocate_memory_bcc = .false.
@@ -283,12 +283,12 @@ subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound
             real(rp),    intent(inout) :: R(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
 
-         
-            !$acc parallel loop  
+
+            !$acc parallel loop
             do inode = 1,npoin
                if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
                   bcode = bou_codes_nodes(inode) ! Boundary element code
-                  if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic                  
+                  if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic
                      R(inode) = 0.0_rp
                   else if (bcode == bc_type_non_slip_hot) then ! non_slip wall hot
                      R(inode) = 0.0_rp

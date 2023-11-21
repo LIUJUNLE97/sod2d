@@ -2209,8 +2209,6 @@ contains
       ! Eval initial time step
       call this%evalInitialDt()
 
-      !call this%initialBuffer()
-
       call this%beforeTimeIteration()
 
       call this%flush_log_file()

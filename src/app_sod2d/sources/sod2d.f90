@@ -37,7 +37,6 @@ program main
 #endif
 #if _bluff_
    use BluffBodySolver_mod
-   use DLRSolver_mod
 #endif
 #if _bluff_incomp
    use BluffBodySolverIncomp_mod
@@ -86,8 +85,7 @@ program main
    call channel%run()
 #endif
 #if _bluff_
-   !type(BluffBodySolver)  :: bluff
-   type(DLRSolver)  :: bluff
+   type(BluffBodySolver)  :: bluff
    call bluff%run()
 #endif
 #if _bluff_incomp
