@@ -12,7 +12,6 @@
 #define _bluff3d_incomp 0
 #define _bl_ 0
 #define _bl_incomp 1
-#define _tsb_ 0
 
 program main
    use mod_numerical_params
@@ -49,20 +48,13 @@ program main
    use BluffBody3DSolverIncomp_mod
 #endif
 #if _bl_
-   ! use BLFlowSolver_mod
-   use BLFlowSolverTest_mod
-   ! use BLAPGFlowSolver_mod
+    use BLFlowSolver_mod
 #endif
 #if _bl_incomp
    ! use BLFlowSolverIncomp_mod
-   ! use BLFlowSolverIncompTest_mod
-   ! use BLFlowSolverIncompDebug_mod
    use BLMARLFlowSolverIncomp_mod
 #endif
-#if _tsb_
-   ! use BLTSBFlowSolver_mod
-   use BLTSBDRLFlowSolver_mod
-#endif
+
    implicit none
 
 #if _tgv_
@@ -108,27 +100,14 @@ program main
    call bluff3d%run()
 #endif
 #if _bl_
-   ! type(BLFlowSolver)    :: blflow
-   type(BLFlowSolverTest)    :: blflow
-   ! type(BLAPGFlowSolver) :: blflow
+    type(BLFlowSolver)    :: blflow
    call blflow%run()
 #endif
 #if _bl_incomp
    !  type(BLFlowSolverIncomp)    :: blflow
-   !  type(BLFlowSolverIncompTest)    :: blflow
-   !  type(BLFlowSolverIncompDebug)    :: blflow
     type(BLMARLFlowSolverIncomp)    :: blflow
    call blflow%run()
 #endif
-#if _tsb_
-   !  type(BLTSBFlowSolver)  :: bltsbflow
-   type(BLTSBDRLFlowSolver)  :: bltsbdrlflow
-   !  call bltsbflow%run()
-   call bltsbdrlflow%run()
-#endif
-
-
-
 
 end program main
 

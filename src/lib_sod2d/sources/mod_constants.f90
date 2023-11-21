@@ -43,9 +43,8 @@ module mod_constants
       integer(4), parameter :: bc_type_non_slip_hot         = 5
       integer(4), parameter :: bc_type_non_slip_cold        = 6
       integer(4), parameter :: bc_type_slip_adiabatic       = 7
-      integer(4), parameter :: bc_type_slip_SB_wall         = 8
-      integer(4), parameter :: bc_type_far_field_SB         = 9
-      integer(4), parameter :: bc_type_slip_wall_model      = 10
+      integer(4), parameter :: bc_type_far_field_SB         = 8
+      integer(4), parameter :: bc_type_slip_wall_model      = 9
 
 
       !

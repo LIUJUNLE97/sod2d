@@ -77,13 +77,6 @@ module mod_numerical_params
         real(4) :: flag_buffer_b_min = 0.0_rp
         real(4) :: flag_buffer_b_size = 0.0_rp
 
-
-        !
-        ! Include user defined neumann boundary flux correction
-        !
-
-        integer(4)  :: flag_include_neumann_flux=0
-
         !
         ! Wall model averaging
         !
