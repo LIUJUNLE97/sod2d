@@ -654,7 +654,7 @@ contains
    subroutine CFDSolverBase_normalFacesToNodes(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), allocatable    :: aux1(:)
-      integer(4) :: iNodeL,iBound,ipbou,iElem,jgaus,kgaus,idime,iAux
+      integer(4) :: iNodeL,iBound,ipbou,iElem,innerNodeL,bndNodeL,idime,iAux
       real(rp) :: aux(3), normaux,sig
 
       if(mpi_rank.eq.0) write(111,*) "--| Evaluating Normals at Nodes for Wall-Model"
@@ -672,25 +672,25 @@ contains
          !iBound = listBoundsWallModel(iAux)
          iBound = iAux
          iElem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
-         jgaus = connecParWork(iElem,nnode)         ! internal node
+         innerNodeL = connecParWork(iElem,nnode)         ! internal node
          !$acc loop vector private(aux)
          do ipbou = 1,npbou
-            kgaus = boundPar(iBound,ipbou) ! node at the boundary
+            bndNodeL = boundPar(iBound,ipbou) ! node at the boundary
             sig=1.0_rp
             aux(1) = boundNormalPar(iBound,(ipbou-1)*ndime+1)
             aux(2) = boundNormalPar(iBound,(ipbou-1)*ndime+2)
             aux(3) = boundNormalPar(iBound,(ipbou-1)*ndime+3)
             normaux = sqrt(dot_product(aux,aux))
-            if(dot_product(coordPar(jgaus,:)-coordPar(kgaus,:), aux(:)) .lt. 0.0_rp ) then
+            if(dot_product(coordPar(innerNodeL,:)-coordPar(bndNodeL,:), aux(:)) .lt. 0.0_rp ) then
                sig=-1.0_rp
             end if
             !$acc loop seq
             do idime = 1,ndime
                aux(idime) = aux(idime)*sig/normaux
+               !$acc atomic update
+               normalsAtNodes(bndNodeL,idime) = normalsAtNodes(bndNodeL,idime) + aux(idime)
+               !$acc end atomic
             end do
-            normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1) + aux(1)
-            normalsAtNodes(kgaus,2) = normalsAtNodes(kgaus,2) + aux(2)
-            normalsAtNodes(kgaus,3) = normalsAtNodes(kgaus,3) + aux(3)
          end do
       end do
       !$acc end parallel loop
