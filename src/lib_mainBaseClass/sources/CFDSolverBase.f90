@@ -725,8 +725,7 @@ contains
    subroutine CFDSolverBase_boundaryFacesToNodes(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), allocatable    :: aux1(:)
-      integer(4) :: iNodeL,iBound,ipbou,ielem,jgaus,kgaus,idime
-      real(rp) :: aux(3), normaux,sig
+      integer(4) :: iNodeL,iBound,ipbou
 
       allocate(bouCodesNodesPar(numNodesRankPar))
       allocate(aux1(numNodesRankPar))
@@ -749,7 +748,9 @@ contains
       do iBound = 1,numBoundsRankPar
          !$acc loop vector
          do ipbou = 1,npbou
+            !$acc atomic update
             aux1(boundPar(iBound,ipbou)) = min(aux1(boundPar(iBound,ipbou)),bouCodes2BCType(bouCodesPar(iBound)))
+            !$acc end atomic
          end do
       end do
       !$acc end parallel loop

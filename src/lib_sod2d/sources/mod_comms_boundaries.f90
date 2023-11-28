@@ -260,7 +260,7 @@ contains
     !INTEGER ---------------------------------------------------------
     subroutine mpi_halo_boundary_atomic_update_int_iSendiRcv(intField)
         implicit none
-        integer, intent(inout) :: intField(:)
+        integer(4), intent(inout) :: intField(:)
         integer(4) :: i,ireq,ngbRank,tagComm
         integer(4) :: memPos_l,memSize
         integer(4) :: requests(2*bnd_numRanksWithComms)
