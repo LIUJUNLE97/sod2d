@@ -3856,6 +3856,43 @@ contains
 
    end subroutine save_hdf5_resultsFile_baseFunc
 
+!----------------------------------------------------------------------------------------------------------------------------------
+   subroutine copy_aux_in_nodeScalarField2save_for_inst(nodeScalarField)
+      implicit none
+      real(rp),intent(inout) :: nodeScalarField(numNodesRankPar)
+
+      !$acc kernels
+      nodeScalarField(:) = real(auxNodeScalarField_vtk(:),rp)
+      !$acc end kernels
+   end subroutine copy_aux_in_nodeScalarField2save_for_inst
+
+   subroutine copy_aux_in_nodeScalarField2save_for_avg(nodeScalarField)
+      implicit none
+      real(rp_avg),intent(inout) :: nodeScalarField(numNodesRankPar)
+
+      !$acc kernels
+      nodeScalarField(:) = real(auxNodeScalarField_vtk(:),rp_avg)
+      !$acc end kernels
+   end subroutine copy_aux_in_nodeScalarField2save_for_avg
+
+   subroutine copy_aux_in_nodeVectorField2save_for_inst(nodeVectorField)
+      implicit none
+      real(rp),intent(inout) :: nodeVectorField(numNodesRankPar,ndime)
+
+      !$acc kernels
+      nodeVectorField(:,:) = real(auxNodeVectorField_vtk(:,:),rp)
+      !$acc end kernels
+   end subroutine copy_aux_in_nodeVectorField2save_for_inst
+
+   subroutine copy_aux_in_nodeVectorField2save_for_avg(nodeVectorField)
+      implicit none
+      real(rp_avg),intent(inout) :: nodeVectorField(numNodesRankPar,ndime)
+
+      !$acc kernels
+      nodeVectorField(:,:) = real(auxNodeVectorField_vtk(:,:),rp_avg)
+      !$acc end kernels
+   end subroutine copy_aux_in_nodeVectorField2save_for_avg
+!----------------------------------------------------------------------------------------------------------------------------------
 
    subroutine load_hdf5_resultsFile_baseFunc(mnnode,mngaus,Ngp,hdf5_fileId,load_type_inst,numNodeScalarFields2load,nodeScalarFields2load,&
                                              numNodeVectorFields2load,nodeVectorFields2load,&
@@ -3899,13 +3936,9 @@ contains
          end if
 
          if(load_type_inst) then    ! Instantaneous fields
-            !$acc kernels
-            nodeScalarFields2load(iField)%ptr_rp = real(auxNodeScalarField_vtk,rp)
-            !$acc end kernels
+            call copy_aux_in_nodeScalarField2save_for_inst(nodeScalarFields2load(iField)%ptr_rp)
          else                       ! Averages fields
-            !$acc kernels
-            nodeScalarFields2load(iField)%ptr_avg = real(auxNodeScalarField_vtk,rp_avg)
-            !$acc end kernels
+            call copy_aux_in_nodeScalarField2save_for_avg(nodeScalarFields2load(iField)%ptr_avg)
          end if
 
       end do
@@ -3933,13 +3966,9 @@ contains
          end if
 
          if(load_type_inst) then    ! Instantaneous fields
-            !$acc kernels
-            nodeVectorFields2load(iField)%ptr_rp = real(auxNodeVectorField_vtk,rp)
-            !$acc end kernels
+            call copy_aux_in_nodeVectorField2save_for_inst(nodeVectorFields2load(iField)%ptr_rp)
          else                       ! Averages fields
-            !$acc kernels
-            nodeVectorFields2load(iField)%ptr_avg = real(auxNodeVectorField_vtk,rp_avg)
-            !$acc end kernels
+            call copy_aux_in_nodeVectorField2save_for_avg(nodeVectorFields2load(iField)%ptr_avg)
          end if
 
 
@@ -3955,19 +3984,23 @@ contains
          !$acc update device(auxNodeScalarField_vtk(:))
 
          if(isMeshLinealOutput) then
-            call copy_scalarField_in_elemGp(mnnode,connecParWork,connecParOrig,auxNodeScalarField_vtk,auxInterpNodeVectorField)
+!             call copy_scalarField_in_elemGp(mnnode,connecParWork,connecParOrig,auxNodeScalarField_vtk,auxInterpNodeVectorField)
+            call copy_scalarField_in_elemGp(mnnode,connecParWork,connecParOrig,auxNodeScalarField_vtk,auxNodeVectorField_vtk)
          else
-            call interpolate_scalarField_in_elemGp(mnnode,mngaus,Ngp,connecParWork,connecParOrig,auxNodeScalarField_vtk,auxInterpNodeVectorField)
+!             call interpolate_scalarField_in_elemGp(mnnode,mngaus,Ngp,connecParWork,connecParOrig,auxNodeScalarField_vtk,auxInterpNodeVectorField)
+            call interpolate_scalarField_in_elemGp(mnnode,mngaus,Ngp,connecParWork,connecParOrig,auxNodeScalarField_vtk,auxNodeVectorField_vtk)
          end if
 
          if(load_type_inst) then    ! Instantaneous fields
-            !$acc kernels
-            elemGpScalarFields2load(iField)%ptr_rp = real(auxInterpNodeVectorField,rp)
-            !$acc end kernels
+!             !$acc kernels
+!             elemGpScalarFields2load(iField)%ptr_rp = real(auxInterpNodeVectorField,rp)
+!             !$acc end kernels
+            call copy_aux_in_nodeVectorField2save_for_inst(nodeVectorFields2load(iField)%ptr_rp)
          else                       ! Averages fields
-            !$acc kernels
-            elemGpScalarFields2load(iField)%ptr_avg = real(auxInterpNodeVectorField,rp_avg)
-            !$acc end kernels
+!             !$acc kernels
+!             elemGpScalarFields2load(iField)%ptr_avg = real(auxInterpNodeVectorField,rp_avg)
+!             !$acc end kernels
+            call copy_aux_in_nodeVectorField2save_for_avg(nodeVectorFields2load(iField)%ptr_avg)
          end if
       end do
 
