@@ -1939,6 +1939,7 @@ contains
          write(111,*) "  # Constants:"
          write(111,*) "    rp: ",               rp
          write(111,*) "    rp_vtk: ",           rp_vtk
+         write(111,*) "    rp_avg: ",           rp_avg
          write(111,*) "    porder: ",           porder
          write(111,*) "    flag_real_diff: ",   flag_real_diff
          write(111,*) "    flag_diff_suth: ",   flag_diff_suth
