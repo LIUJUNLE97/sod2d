@@ -34,13 +34,13 @@ contains
          if (castVariables) then
             rho_loc  = real(rho(lpoin_w(ipoin))    , rp_avg)
             pr_loc   = real(pr(lpoin_w(ipoin))     , rp_avg)
-            u_loc    = real(u(lpoin_w(ipoin))      , rp_avg)
-            tauw_loc = real(tauw(lpoin_w(ipoin))   , rp_avg)
+            u_loc    = real(u(lpoin_w(ipoin),:)    , rp_avg)
+            tauw_loc = real(tauw(lpoin_w(ipoin),:) , rp_avg)
          else
             rho_loc  = rho(lpoin_w(ipoin))
             pr_loc   = pr(lpoin_w(ipoin)) 
-            u_loc    =  u(lpoin_w(ipoin))
-            tauw_loc = tauw(lpoin_w(ipoin))
+            u_loc    =  u(lpoin_w(ipoin),:)
+            tauw_loc = tauw(lpoin_w(ipoin),:)
          endif
          do idime = 1,ndime
             avvel(lpoin_w(ipoin),idime) = (avvel(lpoin_w(ipoin),idime)*elapsed_avg_time + &
@@ -51,7 +51,7 @@ contains
                                           * inv_denominator
 
             avtw(lpoin_w(ipoin),idime)  = (avtw(lpoin_w(ipoin),idime)*elapsed_avg_time + & 
-                                           tauw(idime)*dt ) &
+                                           tauw_loc(idime)*dt ) &
                                           * inv_denominator
          end do
          avrho(lpoin_w(ipoin))   = (avrho(lpoin_w(ipoin))*elapsed_avg_time + &
