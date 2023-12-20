@@ -22,7 +22,7 @@ module mod_arrays
       real(rp), target,allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:),tauw(:,:)
       real(rp), target,allocatable :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:)
 
-      real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:),avvex(:,:),avtw(:,:)
+      real(rp_avg), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:),avvex(:,:),avtw(:,:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
       real(rp), allocatable :: witxi(:,:), Nwit(:,:), buffwit(:,:,:), bufftime(:)
@@ -115,12 +115,9 @@ module CFDSolverBase_mod
       ! saving parameters
       integer(4), public :: numNodeScalarFields2save,numNodeVectorFields2save,numElemGpScalarFields2save
       integer(4), public :: numAvgNodeScalarFields2save,numAvgNodeVectorFields2save,numAvgElemGpScalarFields2save
-      character(128),public :: nameNodeScalarFields2save(max_num_saved_fields),nameAvgNodeScalarFields2save(max_num_saved_fields),&
-                           nameNodeVectorFields2save(max_num_saved_fields),nameAvgNodeVectorFields2save(max_num_saved_fields),&
-                           nameElemGpScalarFields2save(max_num_saved_fields),nameAvgElemGpScalarFields2save(max_num_saved_fields)
-      type(ptr_array1d_rp),public :: nodeScalarFields2save(max_num_saved_fields),avgNodeScalarFields2save(max_num_saved_fields)
-      type(ptr_array2d_rp),public :: nodeVectorFields2save(max_num_saved_fields),avgNodeVectorFields2save(max_num_saved_fields)
-      type(ptr_array2d_rp),public :: elemGpScalarFields2save(max_num_saved_fields),avgElemGpScalarFields2save(max_num_saved_fields)
+      type(ptr_array1d_rp_save),public :: nodeScalarFields2save(max_num_saved_fields),avgNodeScalarFields2save(max_num_saved_fields)
+      type(ptr_array2d_rp_save),public :: nodeVectorFields2save(max_num_saved_fields),avgNodeVectorFields2save(max_num_saved_fields)
+      type(ptr_array2d_rp_save),public :: elemGpScalarFields2save(max_num_saved_fields),avgElemGpScalarFields2save(max_num_saved_fields)
       logical, public :: save_scalarField_rho,     save_scalarField_muFluid,  save_scalarField_pressure, save_scalarField_energy, &
                          save_scalarField_entropy, save_scalarField_csound,   save_scalarField_machno,   save_scalarField_divU,   &
                          save_scalarField_qcrit,   save_scalarField_muSgs,    save_scalarField_muEnvit,  save_vectorField_vel,    &
@@ -336,8 +333,9 @@ contains
          return
       end if
 
-      this%nameNodeScalarFields2save(this%numNodeScalarFields2save) = trim(adjustl(fieldSaveName))
-      this%nodeScalarFields2save(this%numNodeScalarFields2save)%ptr => array2save
+      this%nodeScalarFields2save(this%numNodeScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%nodeScalarFields2save(this%numNodeScalarFields2save)%ptr_rp => array2save
+      this%nodeScalarFields2save(this%numNodeScalarFields2save)%ptr_avg => null()
 
    end subroutine CFDSolverBase_add_nodeScalarField2save
 
@@ -359,8 +357,9 @@ contains
          return
       end if
 
-      this%nameNodeVectorFields2save(this%numNodeVectorFields2save) = trim(adjustl(fieldSaveName))
-      this%nodeVectorFields2save(this%numNodeVectorFields2save)%ptr => array2save
+      this%nodeVectorFields2save(this%numNodeVectorFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%nodeVectorFields2save(this%numNodeVectorFields2save)%ptr_rp => array2save
+      this%nodeVectorFields2save(this%numNodeVectorFields2save)%ptr_avg => null()
 
    end subroutine CFDSolverBase_add_nodeVectorField2save
 
@@ -382,8 +381,9 @@ contains
          return
       end if
 
-      this%nameElemGpScalarFields2save(this%numElemGpScalarFields2save) = trim(adjustl(fieldSaveName))
-      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%ptr => array2save
+      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%ptr_rp => array2save
+      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%ptr_avg => null()
 
    end subroutine CFDSolverBase_add_elemGpScalarField2save
 
@@ -391,7 +391,7 @@ contains
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       character(*),intent(in) :: fieldSaveName
-      real(rp),target,intent(in) :: array2save(:)
+      real(rp_avg),target,intent(in) :: array2save(:)
 
       this%numAvgNodeScalarFields2save = this%numAvgNodeScalarFields2save + 1
 
@@ -403,8 +403,9 @@ contains
          return
       end if
 
-      this%nameAvgNodeScalarFields2save(this%numAvgNodeScalarFields2save) = trim(adjustl(fieldSaveName))
-      this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%ptr => array2save
+      this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%ptr_avg => array2save
+      this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%ptr_rp => null()
 
    end subroutine CFDSolverBase_add_avgNodeScalarField2save
 
@@ -414,7 +415,7 @@ contains
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       character(*),intent(in) :: fieldSaveName
-      real(rp),target,intent(in) :: array2save(:,:)
+      real(rp_avg),target,intent(in) :: array2save(:,:)
 
       this%numAvgNodeVectorFields2save = this%numAvgNodeVectorFields2save + 1
 
@@ -426,8 +427,9 @@ contains
          return
       end if
 
-      this%nameAvgNodeVectorFields2save(this%numAvgNodeVectorFields2save) = trim(adjustl(fieldSaveName))
-      this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%ptr => array2save
+      this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%ptr_avg => array2save
+      this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%ptr_rp => null()
 
    end subroutine CFDSolverBase_add_avgNodeVectorField2save
 
@@ -437,7 +439,7 @@ contains
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       character(*),intent(in) :: fieldSaveName
-      real(rp),target,intent(in) :: array2save(:,:)
+      real(rp_avg),target,intent(in) :: array2save(:,:)
 
       this%numAvgElemGpScalarFields2save = this%numAvgElemGpScalarFields2save + 1
 
@@ -449,8 +451,9 @@ contains
          return
       end if
 
-      this%nameAvgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save) = trim(adjustl(fieldSaveName))
-      this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%ptr => array2save
+      this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%ptr_avg => array2save
+      this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%ptr_rp => null()
 
    end subroutine CFDSolverBase_add_avgElemGpScalarField2save
 
@@ -1018,9 +1021,9 @@ contains
             if(this%loadAvgFile) then
                if(mpi_rank.eq.0) write(111,*) "--| Loading Avg Results File (TO IMPLEMENT)",this%restartFile_to_load
                call load_avgResults_hdf5_file(nnode,ngaus,Ngp_l,this%restartFile_to_load,this%initial_avgTime,this%elapsed_avgTime,&
-                                       this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
-                                       this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
-                                       this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
+                                       this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,&
+                                       this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,&
+                                       this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save)
 
                if(mpi_rank.eq.0) write(111,*) "   --| Loaded Avg results! Setting initial_avgTime",this%initial_avgTime,"elapsed_avgTime",this%elapsed_avgTime
             end if
@@ -1449,15 +1452,15 @@ contains
       class(CFDSolverBase), intent(inout) :: this
 
       call save_avgResults_hdf5_file(nnode,ngaus,Ngp_equi,this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
-               this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
-               this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
-               this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
+               this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,&
+               this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,&
+               this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
          call save_surface_avgResults_hdf5_file(this%restartFileCnt,&
-                  this%numAvgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
-                  this%numAvgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
-                  this%numAvgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
+                  this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,&
+                  this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,&
+                  this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save)
       end if
 
    end subroutine CFDSolverBase_saveAvgResultsFiles
@@ -1467,15 +1470,15 @@ contains
       integer(4), intent(in) :: istep
 
       call save_instResults_hdf5_file(nnode,ngaus,Ngp_equi,iStep,this%time,&
-               this%numNodeScalarFields2save,this%nodeScalarFields2save,this%nameNodeScalarFields2save,&
-               this%numNodeVectorFields2save,this%nodeVectorFields2save,this%nameNodeVectorFields2save,&
-               this%numElemGpScalarFields2save,this%elemGpScalarFields2save,this%nameElemGpScalarFields2save)
+               this%numNodeScalarFields2save,this%nodeScalarFields2save,&
+               this%numNodeVectorFields2save,this%nodeVectorFields2save,&
+               this%numElemGpScalarFields2save,this%elemGpScalarFields2save)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
          call save_surface_instResults_hdf5_file(istep,&
-               this%numNodeScalarFields2save,this%nameNodeScalarFields2save,&
-               this%numNodeVectorFields2save,this%nameNodeVectorFields2save,&
-               this%numElemGpScalarFields2save,this%nameElemGpScalarFields2save)
+               this%numNodeScalarFields2save,this%nodeScalarFields2save,&
+               this%numNodeVectorFields2save,this%nodeVectorFields2save,&
+               this%numElemGpScalarFields2save,this%elemGpScalarFields2save)
       end if
 
    end subroutine CFDSolverBase_saveInstResultsFiles
@@ -1588,6 +1591,7 @@ contains
 
          call this%evalDt()
 
+         call this%afterDt(istep)
          call nvtxEndRange
 
          if(this%saveAvgFile) then
@@ -1646,7 +1650,7 @@ contains
             call nvtxEndRange
          end if
 
-         call this%afterDt(istep)
+!         call this%afterDt(istep)
 
          if(this%save_logFile_next==istep) then
             this%save_logFile_next = this%save_logFile_next + this%save_logFile_step
@@ -1936,6 +1940,7 @@ contains
          write(111,*) "  # Constants:"
          write(111,*) "    rp: ",               rp
          write(111,*) "    rp_vtk: ",           rp_vtk
+         write(111,*) "    rp_avg: ",           rp_avg
          write(111,*) "    porder: ",           porder
          write(111,*) "    flag_real_diff: ",   flag_real_diff
          write(111,*) "    flag_diff_suth: ",   flag_diff_suth

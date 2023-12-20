@@ -12,7 +12,7 @@ option(UNIT_TESTING "Enable unit tests" OFF)
 option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
 
-option(TOOL_MESHPART "Compiles tool MeshPart" ON)
+option(TOOL_MESHPART "Compiles tool MeshPart" OFF)
 option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
 
 option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)

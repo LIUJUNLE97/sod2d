@@ -41,8 +41,8 @@ contains
       class(TGVSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube"
+      write(this%mesh_h5_file_path,*) "../sod2d_speedup-testing_mesh/"
+      write(this%mesh_h5_file_name,*) "cube_per_p4_n34"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -70,7 +70,7 @@ contains
       this%restartFile_to_load = 2 !1 or 2
       this%continue_oldLogs = .false.
 
-      this%saveAvgFile = .false.
+      this%saveAvgFile = .true.
       this%loadAvgFile = .false.
       !----------------------------------------------
 
@@ -82,7 +82,7 @@ contains
       tol = 1e-3
 
       this%cfl_conv = 0.95_rp !0.5_rp
-      this%cfl_diff = 100.0_rp !0.5_rp
+      this%cfl_diff = 0.95_rp !100.0_rp !0.5_rp
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
