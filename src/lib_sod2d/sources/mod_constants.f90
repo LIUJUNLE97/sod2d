@@ -4,7 +4,7 @@ module mod_constants
 
 	integer(4), parameter :: rp = 4 !(4/8)
 	integer(4), parameter :: rp_vtk = 4 !(4/8)
-	integer(4), parameter :: rp_avg = 4 !(4/8)
+	integer(4), parameter :: rp_avg = 8 !(4/8)
 
 	!
 	! Dimensions
