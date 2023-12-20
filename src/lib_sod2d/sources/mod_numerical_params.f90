@@ -58,20 +58,20 @@ module mod_numerical_params
         logical :: flag_buffer_on_top = .false.
         logical :: flag_buffer_on_bottom = .false.
 
-        real(4) :: flag_buffer_e_min = 0.0_rp
-        real(4) :: flag_buffer_e_size= 0.0_rp
-        real(4) :: flag_buffer_w_min = 0.0_rp
-        real(4) :: flag_buffer_w_size = 0.0_rp
+        real(rp) :: flag_buffer_e_min = 0.0_rp
+        real(rp) :: flag_buffer_e_size= 0.0_rp
+        real(rp) :: flag_buffer_w_min = 0.0_rp
+        real(rp) :: flag_buffer_w_size = 0.0_rp
 
-        real(4) :: flag_buffer_n_min = 0.0_rp
-        real(4) :: flag_buffer_n_size = 0.0_rp
-        real(4) :: flag_buffer_s_min = 0.0_rp
-        real(4) :: flag_buffer_s_size = 0.0_rp
+        real(rp) :: flag_buffer_n_min = 0.0_rp
+        real(rp) :: flag_buffer_n_size = 0.0_rp
+        real(rp) :: flag_buffer_s_min = 0.0_rp
+        real(rp) :: flag_buffer_s_size = 0.0_rp
 
-        real(4) :: flag_buffer_t_min = 0.0_rp
-        real(4) :: flag_buffer_t_size = 0.0_rp
-        real(4) :: flag_buffer_b_min = 0.0_rp
-        real(4) :: flag_buffer_b_size = 0.0_rp
+        real(rp) :: flag_buffer_t_min = 0.0_rp
+        real(rp) :: flag_buffer_t_size = 0.0_rp
+        real(rp) :: flag_buffer_b_min = 0.0_rp
+        real(rp) :: flag_buffer_b_size = 0.0_rp
 
         !
         ! Wall model averaging

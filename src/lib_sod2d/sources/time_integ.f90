@@ -248,7 +248,7 @@ module time_integ
                !$acc end parallel loop
                call nvtxEndRange
 
-               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,aux_rho,aux_q,u_buffer)
+               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,aux_rho,aux_q,aux_E,u_buffer)
 
                !
                ! Apply bcs after update
@@ -426,7 +426,7 @@ module time_integ
             !$acc end parallel loop
             call nvtxEndRange
 
-            if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,rho(:,pos),q(:,:,pos),u_buffer)
+            if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,rho(:,pos),q(:,:,pos),E(:,pos),u_buffer)
 
             !
             ! Apply bcs after update
@@ -507,19 +507,22 @@ module time_integ
 
          end subroutine rk_4_main
 
-         subroutine updateBuffer(npoin,npoin_w,coord,lpoin_w,rho,q,u_buffer)
+         subroutine updateBuffer(npoin,npoin_w,coord,lpoin_w,rho,q,E,u_buffer)
             integer(4),           intent(in)    :: npoin
             integer(4),           intent(in)    :: npoin_w
             real(rp),             intent(in)    :: coord(npoin,ndime)
             integer(4),           intent(in)    :: lpoin_w(npoin_w)
             real(rp),             intent(inout) :: rho(npoin)
+            real(rp),             intent(inout) :: E(npoin)
             real(rp),             intent(inout) :: q(npoin,ndime)
             real(rp),             intent(in) :: u_buffer(npoin,ndime)
             integer(4) :: ipoin
-            real(rp)   :: xs,xb,xi,c1,c2
+            real(rp)   :: xs,xb,xi,c1,c2, E_inf
 
             c1 = 0.01_rp
             c2 = 10.0_rp
+
+            E_inf = (nscbc_rho_inf*0.5_rp*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0_rp))
 
             call nvtxStartRange("Update buffer")
             !$acc parallel loop
@@ -578,6 +581,8 @@ module time_integ
                q(lpoin_w(ipoin),2) = u_buffer(lpoin_w(ipoin),2)*rho(lpoin_w(ipoin)) + xi*(q(lpoin_w(ipoin),2)-u_buffer(lpoin_w(ipoin),2)*rho(lpoin_w(ipoin)))
                q(lpoin_w(ipoin),3) = u_buffer(lpoin_w(ipoin),3)*rho(lpoin_w(ipoin)) + xi*(q(lpoin_w(ipoin),3)-u_buffer(lpoin_w(ipoin),3)*rho(lpoin_w(ipoin)))
 
+               E(lpoin_w(ipoin)) = E_inf + xi*(E(lpoin_w(ipoin))-E_inf)
+               rho(lpoin_w(ipoin)) = nscbc_rho_inf + xi*(rho(lpoin_w(ipoin))-nscbc_rho_inf)
             end do
             !$acc end parallel loop
             call nvtxEndRange
