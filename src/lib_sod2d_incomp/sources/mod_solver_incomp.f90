@@ -23,7 +23,7 @@ module mod_solver_incomp
 
       contains
 
-            subroutine conjGrad_veloc_incomp(igtime,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,numBoundsWM,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+            subroutine conjGrad_veloc_incomp(igtime,fact,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,numBoundsWM,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                                              dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,Rp0,R, &
                                              ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&                   ! Optional args
                                              listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u) ! Optional args
@@ -33,7 +33,7 @@ module mod_solver_incomp
            logical,              intent(in)   :: noBoundaries
            integer(4),           intent(in)    :: igtime,save_logFile_next
            integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w),nboun
-           real(rp)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode),dt
+           real(rp)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode),dt,fact
            real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin,ndime)
            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             real(rp),             intent(inout) :: mu_fluid(npoin)
@@ -106,7 +106,7 @@ module mod_solver_incomp
             do ipoin = 1,npoin_w
                !$acc loop seq
                do idime = 1,ndime
-                  qn_u(lpoin_w(ipoin),idime) = x_u(lpoin_w(ipoin),idime)*Ml(lpoin_w(ipoin))+qn_u(lpoin_w(ipoin),idime)*0.5_rp*dt
+                  qn_u(lpoin_w(ipoin),idime) = x_u(lpoin_w(ipoin),idime)*Ml(lpoin_w(ipoin))+qn_u(lpoin_w(ipoin),idime)*fact*dt
                   r0_u(lpoin_w(ipoin),idime) = b_u(lpoin_w(ipoin),idime)-qn_u(lpoin_w(ipoin),idime) ! b-A*x0
                   z0_u(lpoin_w(ipoin),idime) = r0_u(lpoin_w(ipoin),idime)/M_u(lpoin_w(ipoin),idime)
                   p0_u(lpoin_w(ipoin),idime) = z0_u(lpoin_w(ipoin),idime)
@@ -144,7 +144,7 @@ module mod_solver_incomp
              do ipoin = 1,npoin_w
                !$acc loop seq
                do idime = 1,ndime  
-                  qn_u(lpoin_w(ipoin),idime) = p0_u(lpoin_w(ipoin),idime)*Ml(lpoin_w(ipoin))+qn_u(lpoin_w(ipoin),idime)*0.5_rp*dt
+                  qn_u(lpoin_w(ipoin),idime) = p0_u(lpoin_w(ipoin),idime)*Ml(lpoin_w(ipoin))+qn_u(lpoin_w(ipoin),idime)*fact*dt
               end do
              end do
              !$acc end parallel loop
