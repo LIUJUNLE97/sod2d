@@ -67,4 +67,54 @@ module mod_bc_routines_incomp
             !$acc end parallel loop
 
          end subroutine temporary_bc_routine_dirichlet_pressure_incomp
+
+         subroutine bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_code,bou_codes_nodes, &
+                                             bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,omega,bpress)
+
+            implicit none
+
+            integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun),bou_codes_nodes(npoin)
+            integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin)
+            real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
+            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+            real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)
+            real(rp),   intent(in)  :: rho(npoin),omega(npoin,ndime),mu_fluid(npoin)
+            real(rp),   intent(in)  :: coord(npoin,ndime), gpvol(1,ngaus,nelem)
+            real(rp),   intent(inout) :: bpress(npoin)
+            real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), divU
+            integer(4)              :: idime,igaus,iAux, atoIJ(npbou), bcode, inode, ielem,ibound
+            real(rp)                :: bnorm(ndime),rhol,nmag
+            real(rp)                :: aux(ndime)
+            integer(4)              :: ipoin(npbou)
+            real(rp)                 :: ul(npbou,ndime),auxmag            
+
+            atoIJ(:) = mesh_a2ij(:)
+
+            !$acc parallel loop gang private(bnorm) 
+            do ibound = 1,nboun
+               bcode = bou_code(ibound)
+               if(bcode .lt. max_num_bou_codes) then
+                   ! Boundary element code
+                  if (bcode == bc_type_non_slip_adiabatic) then 
+                     bnorm(1:npbou*ndime) = bounorm(ibound,1:npbou*ndime)
+                      !$acc loop vector private(aux)
+                     do igaus = 1,npbou
+                        aux(1) = bnorm((igaus-1)*ndime+1)
+                        aux(2) = bnorm((igaus-1)*ndime+2)
+                        aux(3) = bnorm((igaus-1)*ndime+3)
+                        auxmag = sqrt(aux(1)*aux(1) + aux(2)*aux(2)  +  aux(3)*aux(3))
+                        inode = bound(ibound,igaus)
+                        nmag = dot_product(aux(:)/auxmag, mu_fluid(inode)*omega(inode,:))
+                        !$acc atomic update
+                        bpress(inode) = bpress(inode)-auxmag*wgp_b(igaus)*nmag
+                        !$acc end atomic
+                     end do
+                  end if
+               end if
+            end do
+            !$acc end parallel loop
+           
+
+         end subroutine bc_routine_pressure_flux
+
       end module mod_bc_routines_incomp

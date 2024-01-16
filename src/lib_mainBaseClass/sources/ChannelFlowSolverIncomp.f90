@@ -131,7 +131,7 @@ contains
 
       nscbc_p_inf = 0.0_rp
 
-      maxIter = 200
+      maxIter = 20
       tol = 1e-3
 
       flag_fs_fix_pressure = .false.

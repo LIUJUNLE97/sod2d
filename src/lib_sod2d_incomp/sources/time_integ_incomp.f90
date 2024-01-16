@@ -18,7 +18,7 @@ module time_integ_incomp
 
    implicit none
 
-   real(rp), allocatable, dimension(:,:,:) :: Rmom
+   real(rp), allocatable, dimension(:,:,:) :: Rmom,aux_omega
    real(rp), allocatable, dimension(:,:) :: aux_q,Rsource,Rwmles
    real(rp), allocatable, dimension(:,:) :: Rdiff_mom
    real(rp), allocatable, dimension(:,:) ::GradP,f_eta,Reta
@@ -33,8 +33,8 @@ module time_integ_incomp
       integer(4),intent(in) :: npoin
       integer(4) :: numSteps
 
-      allocate(Rmom(npoin,ndime,3))
-      !$acc enter data create(Rmom(:,:,:))
+      allocate(Rmom(npoin,ndime,3),aux_omega(npoin,ndime,3))
+      !$acc enter data create(Rmom(:,:,:),aux_omega(:,:,:))
 
       allocate(aux_q(npoin,ndime),Rsource(npoin,ndime),Rwmles(npoin,ndime))
       !$acc enter data create(aux_q(:,:),Rsource(:,:),Rwmles(:,:))
@@ -65,7 +65,8 @@ module time_integ_incomp
 
 
       !$acc exit data delete(Rmom(:,:,:))
-      deallocate(Rmom)
+      !$acc exit data delete(aux_omega(:,:,:))
+      deallocate(Rmom,aux_omega)
 
       !$acc exit data delete(aux_q(:,:))
       !$acc exit data delete(Rsource(:,:))
@@ -83,7 +84,7 @@ module time_integ_incomp
 
    end subroutine end_rk4_solver_incomp
  
-         subroutine ab_main_incomp(igtime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         subroutine ab_main_incomp(igtime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,leviCivi,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
@@ -97,6 +98,7 @@ module time_integ_incomp
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn_nodes(npoin),lelpn(npoin)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             integer(4),           intent(in)    :: ppow
+            real(rp),              intent(in)   :: leviCivi(ndime,ndime,ndime)
             real(rp),             intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
             real(rp),             intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
@@ -185,6 +187,12 @@ module time_integ_incomp
                alpha(3) = 0.0_rp
                !$acc update device(alpha(:))
                !$acc update device(beta(:))
+               
+               !$acc kernels
+               aux_omega(:,:,3) = 0.0_rp
+               aux_omega(:,:,2) = 0.0_rp
+               aux_omega(:,:,1) = 0.0_rp
+               !$acc end kernels
             else 
                if(igtime .eq. 2) then
                   gamma0 = 3.0_rp/2.0_rp
@@ -308,11 +316,22 @@ module time_integ_incomp
             pr(:,2) = -gamma0*pr(:,2)/dt
             !$acc end kernels
 
+            if (noBoundaries .eqv. .false.) then
+               !$acc parallel loop collapse(2)
+               do ipoin = 1,npoin
+                  do idime = 1,ndime
+                     aux_q(ipoin,idime) = (beta(1)*aux_omega(ipoin,idime,2)+beta(2)*aux_omega(ipoin,idime,1)+beta(3)*aux_omega(ipoin,idime,3)) 
+                  end do
+               end do      
+               call bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes, &
+                                             bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,aux_q,pr(:,2))
+            end if
+
             call conjGrad_pressure_incomp(igtime,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,connec,lpoin_w,lelpn,invAtoIJK,gmshAtoI,gmshAtoJ,&
                                           gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,pr(:,1),pr(:,2), &
                                           nboun,bou_codes_nodes,normalsAtNodes)
             if (noBoundaries .eqv. .false.) then
-               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,2))
+               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,2))              
             end if
             call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,pr(:,2),gradP,.true.)
                         
@@ -335,6 +354,12 @@ module time_integ_incomp
 
             if (noBoundaries .eqv. .false.) then
                call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,u(:,:,2),u_buffer)
+               !$acc kernels
+               aux_omega(:,:,3) = aux_omega(:,:,1)
+               aux_omega(:,:,1) = aux_omega(:,:,2)
+               !$acc end kernels
+               call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),aux_q,.true.)
+               call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_q,aux_omega(:,:,2),.false.)
             end if
             !
             ! Compute subgrid viscosity if active
