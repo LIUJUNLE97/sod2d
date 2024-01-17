@@ -86,7 +86,7 @@ module mod_bc_routines_incomp
             real(rp)                :: bnorm(ndime),rhol,nmag
             real(rp)                :: aux(ndime)
             integer(4)              :: ipoin(npbou)
-            real(rp)                 :: ul(npbou,ndime),auxmag            
+            real(rp)                 :: ul(npbou,ndime),auxmag, sig            
 
             atoIJ(:) = mesh_a2ij(:)
 
@@ -104,9 +104,13 @@ module mod_bc_routines_incomp
                         aux(3) = bnorm((igaus-1)*ndime+3)
                         auxmag = sqrt(aux(1)*aux(1) + aux(2)*aux(2)  +  aux(3)*aux(3))
                         inode = bound(ibound,igaus)
+                        ielem = point2elem(inode)
                         nmag = dot_product(aux(:)/auxmag, mu_fluid(inode)*omega(inode,:))
+                        if(dot_product(coord(connec(ielem,nnode),:)-coord(inode,:), aux(:)) .lt. 0.0_rp ) then
+						         sig=-1.0_rp
+					         end if
                         !$acc atomic update
-                        bpress(inode) = bpress(inode)-auxmag*wgp_b(igaus)*nmag
+                        bpress(inode) = bpress(inode)-auxmag*wgp_b(igaus)*nmag*sig
                         !$acc end atomic
                      end do
                   end if
