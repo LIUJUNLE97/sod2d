@@ -37,7 +37,7 @@ module mod_bc_routines_incomp
                      norm = (normalsAtNodes(inode,1)*aux_u(inode,1)) + (normalsAtNodes(inode,2)*aux_u(inode,2)) + (normalsAtNodes(inode,3)*aux_u(inode,3))
                      !$acc loop seq
                      do idime = 1,ndime     
-                        aux_u(inode,idime) = aux_u(inode,idime) - norm*normalsAtNodes(inode,idime)
+                        aux_u(inode,idime) = aux_u(inode,idime) + norm*normalsAtNodes(inode,idime)
                      end do
                   end if
                end if
