@@ -81,39 +81,35 @@ module mod_bc_routines_incomp
             real(rp),   intent(in)  :: rho(npoin),omega(npoin,ndime),mu_fluid(npoin)
             real(rp),   intent(in)  :: coord(npoin,ndime), gpvol(1,ngaus,nelem)
             real(rp),   intent(inout) :: bpress(npoin)
-            real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), divU
-            integer(4)              :: idime,igaus,iAux, atoIJ(npbou), bcode, inode, ielem,ibound
-            real(rp)                :: bnorm(ndime),rhol,nmag
+            integer(4)              :: idime,igaus,bcode, inode, ielem,ibound
+            real(rp)                :: bnorm(npbou*ndime),nmag
             real(rp)                :: aux(ndime)
-            integer(4)              :: ipoin(npbou)
-            real(rp)                 :: ul(npbou,ndime),auxmag, sig            
+            real(rp)                 :: auxmag, sig            
 
-            atoIJ(:) = mesh_a2ij(:)
 
             !$acc parallel loop gang private(bnorm) 
             do ibound = 1,nboun
                bcode = bou_code(ibound)
-               if(bcode .lt. max_num_bou_codes) then
-                   ! Boundary element code
-                  if (bcode == bc_type_non_slip_adiabatic) then 
-                     bnorm(1:npbou*ndime) = bounorm(ibound,1:npbou*ndime)
-                      !$acc loop vector private(aux)
-                     do igaus = 1,npbou
-                        aux(1) = bnorm((igaus-1)*ndime+1)
-                        aux(2) = bnorm((igaus-1)*ndime+2)
-                        aux(3) = bnorm((igaus-1)*ndime+3)
-                        auxmag = sqrt(aux(1)*aux(1) + aux(2)*aux(2)  +  aux(3)*aux(3))
-                        inode = bound(ibound,igaus)
-                        ielem = point2elem(inode)
-                        nmag = dot_product(aux(:)/auxmag, mu_fluid(inode)*omega(inode,:))
-                        if(dot_product(coord(connec(ielem,nnode),:)-coord(inode,:), aux(:)) .lt. 0.0_rp ) then
-						         sig=-1.0_rp
-					         end if
-                        !$acc atomic update
-                        bpress(inode) = bpress(inode)-auxmag*wgp_b(igaus)*nmag*sig
-                        !$acc end atomic
-                     end do
-                  end if
+               ! Boundary element code
+               if (bcode == bc_type_non_slip_adiabatic) then 
+                  bnorm(:) = bounorm(ibound,:)
+                   !$acc loop vector private(aux)
+                  do igaus = 1,npbou
+                     aux(1) = bnorm((igaus-1)*ndime+1)
+                     aux(2) = bnorm((igaus-1)*ndime+2)
+                     aux(3) = bnorm((igaus-1)*ndime+3)
+                     auxmag = sqrt(aux(1)*aux(1) + aux(2)*aux(2)  +  aux(3)*aux(3))
+                     aux(:) = aux(:)/auxmag
+                     inode = bound(ibound,igaus)
+                     ielem = point2elem(inode)
+                     nmag = dot_product(aux(:), mu_fluid(inode)*omega(inode,:))
+                     if(dot_product(coord(connec(ielem,nnode),:)-coord(inode,:), aux(:)) .lt. 0.0_rp ) then
+					         sig=-1.0_rp
+					      end if
+                     !$acc atomic update
+                     bpress(inode) = bpress(inode)+auxmag*wgp_b(igaus)*nmag*sig
+                     !$acc end atomic
+                  end do
                end if
             end do
             !$acc end parallel loop

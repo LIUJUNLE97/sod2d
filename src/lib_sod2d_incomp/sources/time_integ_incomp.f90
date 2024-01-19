@@ -320,7 +320,7 @@ module time_integ_incomp
                !$acc parallel loop collapse(2)
                do ipoin = 1,npoin
                   do idime = 1,ndime
-                     aux_q(ipoin,idime) = (beta(1)*aux_omega(ipoin,idime,2)+beta(2)*aux_omega(ipoin,idime,1)+beta(3)*aux_omega(ipoin,idime,3)) 
+                     aux_q(ipoin,idime) = -(beta(1)*aux_omega(ipoin,idime,2)+beta(2)*aux_omega(ipoin,idime,1)+beta(3)*aux_omega(ipoin,idime,3)) 
                   end do
                end do      
                call bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes, &
@@ -359,7 +359,7 @@ module time_integ_incomp
                aux_omega(:,:,1) = aux_omega(:,:,2)
                !$acc end kernels
                call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),aux_q,.true.)
-               call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_q,aux_omega(:,:,2),.false.)
+               call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_q,aux_omega(:,:,2),.true.)
             end if
             !
             ! Compute subgrid viscosity if active
