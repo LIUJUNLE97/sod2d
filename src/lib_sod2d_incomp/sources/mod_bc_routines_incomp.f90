@@ -107,8 +107,9 @@ module mod_bc_routines_incomp
 					         sig=-1.0_rp
 					      end if
                      !$acc atomic update
-                     bpress(inode) = bpress(inode)+auxmag*wgp_b(igaus)*nmag*sig
+                     bpress(inode) = bpress(inode)-auxmag*wgp_b(igaus)*nmag*sig
                      !$acc end atomic
+                     !write(111,*) "correcion  ",auxmag*wgp_b(igaus)*nmag*sig
                   end do
                end if
             end do

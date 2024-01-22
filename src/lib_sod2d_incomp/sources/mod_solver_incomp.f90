@@ -370,6 +370,10 @@ module mod_solver_incomp
               do ipoin = 1,npoin_w
                  x(lpoin_w(ipoin)) = x(lpoin_w(ipoin))+alphaCG*p0(lpoin_w(ipoin)) ! x_k = x_k-1 + alpha*s_k-1
               end do
+              ! aqui bcc?
+              if (noBoundaries .eqv. .false.) then
+               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,x)              
+              end if
               !$acc parallel loop
               do ipoin = 1,npoin_w
                  r0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))-alphaCG*qn(lpoin_w(ipoin)) ! b-A*p0
@@ -428,6 +432,10 @@ module mod_solver_incomp
             !$acc kernels
             R(:) = x0(:)+x(:)
             !$acc end kernels
+
+            if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
+               R(lpoin_w(1)) = 0.0_rp
+            end if
 
            call nvtxEndRange
 
