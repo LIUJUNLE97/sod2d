@@ -3459,16 +3459,20 @@ contains
       real(rp_vtk),intent(in) :: origNodeScalarField(numNodesRankPar)
       real(rp_vtk),intent(out) :: interpNodeScalarField(numNodesRankPar)
       integer(4) :: iElem,igp,inode
-      real(rp) :: var_a
+      real(rp_vtk) :: var_a,Ngp_vtk(mngaus,mnnode)
+
+      !$acc kernels
+      Ngp_vtk(:,:) = real(Ngp(:,:),rp_vtk)
+      !$acc end kernels
 
       !$acc parallel loop gang
       do iElem = 1,numElemsRankPar
          !$acc loop vector
          do igp = 1,mngaus
-            var_a = 0.0_rp
+            var_a = 0.0_rp_vtk
             !$acc loop seq
             do inode = 1,mnnode
-               var_a = var_a+Ngp(igp,inode)*origNodeScalarField(connecParW(iElem,inode))
+               var_a = var_a+Ngp_vtk(igp,inode)*origNodeScalarField(connecParW(iElem,inode))
             end do
             !$acc atomic write
             interpNodeScalarField(connecParO(iElem,igp)) = var_a
@@ -3486,17 +3490,21 @@ contains
       real(rp_vtk),intent(in) :: origNodeVectorField(numNodesRankPar,ndime)
       real(rp_vtk),intent(out) :: interpNodeVectorField(numNodesRankPar,ndime)
       integer(4) :: iElem,igp,inode,idime
-      real(rp) :: var_a
+      real(rp_vtk) :: var_a,Ngp_vtk(mngaus,mnnode)
+
+      !$acc kernels
+      Ngp_vtk(:,:) = real(Ngp(:,:),rp_vtk)
+      !$acc end kernels
 
       !$acc parallel loop gang
       do iElem = 1,numElemsRankPar
          !$acc loop vector collapse(2)
          do igp = 1,mngaus
             do idime = 1,ndime
-               var_a = 0.0_rp
+               var_a = 0.0_rp_vtk
                !$acc loop seq
                do inode = 1,mnnode
-                  var_a = var_a+Ngp(igp,inode)*origNodeVectorField(connecParW(iElem,inode),idime)
+                  var_a = var_a+Ngp_vtk(igp,inode)*origNodeVectorField(connecParW(iElem,inode),idime)
                end do
                !$acc atomic write
                interpNodeVectorField(connecParO(iElem,igp),idime) = var_a
@@ -3528,7 +3536,7 @@ contains
                var_a = var_a+Ngp(igp,inode)*origElemGpScalarField(iElem,inode)
             end do
             !$acc atomic write
-            interpNodeScalarField(connecParO(iElem,igp)) = real(var_a,rp_avg)
+            interpNodeScalarField(connecParO(iElem,igp)) = real(var_a,rp_vtk)
             !$acc end atomic
          end do
       end do
@@ -3551,20 +3559,24 @@ contains
       real(rp_avg),intent(in) :: origElemGpScalarField(numElemsRankPar,mngaus)
       real(rp_vtk),intent(out) :: interpNodeScalarField(numNodesRankPar)
       integer(4) :: iElem,igp,inode,iPer
-      real(rp) :: var_a
+      real(rp_avg) :: var_a,Ngp_avg(mngaus,mnnode)
+
+      !$acc kernels
+      Ngp_avg(:,:) = real(Ngp(:,:),rp_avg)
+      !$acc end kernels
 
       !$acc parallel loop gang
       do iElem = 1,numElemsRankPar
 
          !$acc loop vector
          do igp = 1,mngaus
-            var_a = 0.0_rp
+            var_a = 0.0_rp_avg
             !$acc loop seq
             do inode = 1,mnnode
-               var_a = var_a+Ngp(igp,inode)*origElemGpScalarField(iElem,inode)
+               var_a = var_a+Ngp_avg(igp,inode)*origElemGpScalarField(iElem,inode)
             end do
             !$acc atomic write
-            interpNodeScalarField(connecParO(iElem,igp)) = real(var_a,rp_avg)
+            interpNodeScalarField(connecParO(iElem,igp)) = real(var_a,rp_vtk)
             !$acc end atomic
          end do
       end do
@@ -3583,19 +3595,24 @@ contains
    subroutine interpolate_scalarField_in_elemGp(mnnode,mngaus,Ngp,connecParW,connecParO,origNodeScalarField,interpElemGpScalarField)
       implicit none
       integer(4),intent(in) :: mnnode,mngaus,connecParW(numElemsRankPar,mnnode),connecParO(numElemsRankPar,mnnode)
-      real(rp_vtk),intent(in) :: Ngp(mngaus,mnnode),origNodeScalarField(numNodesRankPar)
+      real(rp),intent(in) :: Ngp(mngaus,mnnode)
+      real(rp_vtk),intent(in) :: origNodeScalarField(numNodesRankPar)
       real(rp_vtk),intent(out) :: interpElemGpScalarField(numElemsRankPar,mngaus)
       integer(4) :: iElem,igp,inode,iPer
-      real(rp) :: var_a
+      real(rp_vtk) :: var_a,Ngp_vtk(mngaus,mnnode)
+
+      !$acc kernels
+      Ngp_vtk(:,:) = real(Ngp(:,:),rp_vtk)
+      !$acc end kernels
 
       !$acc parallel loop gang
       do iElem = 1,numElemsRankPar
          !$acc loop vector
          do igp = 1,mngaus
-            var_a = 0.0_rp
+            var_a = 0.0_rp_vtk
             !$acc loop seq
             do inode = 1,mnnode
-               var_a = var_a+Ngp(igp,inode)*origNodeScalarField(connecParW(iElem,inode))
+               var_a = var_a+Ngp_vtk(igp,inode)*origNodeScalarField(connecParW(iElem,inode))
             end do
             !$acc atomic write
             interpElemGpScalarField(iElem,igp) = var_a
