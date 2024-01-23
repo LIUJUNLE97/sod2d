@@ -136,11 +136,10 @@ contains
       flag_les = 1
 
       maxIter=20
-      tol=1e-2
+      tol=1e-3
       
 
       this%cfl_conv = 0.95_rp
-      this%cfl_diff = 0.95_rp
 
       this%delta  = 1.0_rp
       this%rho0   = 1.0_rp

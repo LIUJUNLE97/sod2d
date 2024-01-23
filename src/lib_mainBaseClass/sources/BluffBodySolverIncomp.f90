@@ -64,11 +64,9 @@ contains
       ! numerical params
       flag_les = 0
       maxIter = 20
-      tol=1e-2
-   
+      tol=1e-3   
 
       this%cfl_conv = 0.95_rp 
-      this%cfl_diff = 0.95_rp 
       !flag_use_constant_dt = 1
       !this%dt = 1.2e-2
       !----------------------------------------------

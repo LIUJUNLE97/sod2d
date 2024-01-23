@@ -110,11 +110,10 @@ contains
       ! numerical params
       flag_les = 1
 
-      this%cfl_conv = 0.9_rp 
-      this%cfl_diff = 0.9_rp
+      this%cfl_conv = 0.95_rp 
       !flag_use_constant_dt = 1
       !this%dt = 5.0e-4
-      flag_cg_prec_bdc = .false.
+      !flag_cg_prec_bdc = .false.
 
       
       this%vo = 1.0_rp
@@ -132,7 +131,7 @@ contains
       nscbc_p_inf = 0.0_rp
 
       maxIter = 20
-      tol = 1e-2
+      tol = 1e-3
 
       flag_fs_fix_pressure = .false.
       

@@ -101,18 +101,28 @@ module mod_solver_incomp
                end do
                call nvtxEndRange
             end if
-            
             !$acc parallel loop
             do ipoin = 1,npoin_w
                !$acc loop seq
                do idime = 1,ndime
                   qn_u(lpoin_w(ipoin),idime) = x_u(lpoin_w(ipoin),idime)*Ml(lpoin_w(ipoin))+qn_u(lpoin_w(ipoin),idime)*fact*dt
                   r0_u(lpoin_w(ipoin),idime) = b_u(lpoin_w(ipoin),idime)-qn_u(lpoin_w(ipoin),idime) ! b-A*x0
+              end do
+            end do
+            !$acc end parallel loop            
+            if (noBoundaries .eqv. .false.) then
+               call temporary_bc_routine_dirichlet_prim_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0_u,u_buffer)
+            end if            
+            !$acc parallel loop
+            do ipoin = 1,npoin_w
+               !$acc loop seq
+               do idime = 1,ndime
                   z0_u(lpoin_w(ipoin),idime) = r0_u(lpoin_w(ipoin),idime)/M_u(lpoin_w(ipoin),idime)
                   p0_u(lpoin_w(ipoin),idime) = z0_u(lpoin_w(ipoin),idime)
               end do
             end do
             !$acc end parallel loop
+
 
             auxT1 = 0.0d0
             !$acc parallel loop reduction(+:auxT1)
@@ -147,7 +157,6 @@ module mod_solver_incomp
                   qn_u(lpoin_w(ipoin),idime) = p0_u(lpoin_w(ipoin),idime)*Ml(lpoin_w(ipoin))+qn_u(lpoin_w(ipoin),idime)*fact*dt
               end do
              end do
-             !$acc end parallel loop
             
               auxQ1 = 0.0d0
               auxQ2 = 0.0d0
@@ -172,14 +181,22 @@ module mod_solver_incomp
                  end do
               end do
               !$acc end parallel loop
-               if (noBoundaries .eqv. .false.) then
-                  call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,x_u,u_buffer)
-               end if
+
               !$acc parallel loop
               do ipoin = 1,npoin_w
                   !$acc loop seq
                   do idime = 1,ndime 
                      r0_u(lpoin_w(ipoin),idime) = r0_u(lpoin_w(ipoin),idime)-alphaCG*qn_u(lpoin_w(ipoin),idime) ! b-A*p0
+                  end do
+              end do
+              !$acc end parallel loop
+               if (noBoundaries .eqv. .false.) then
+                  call temporary_bc_routine_dirichlet_prim_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0_u,u_buffer)
+               end if
+              !$acc parallel loop
+              do ipoin = 1,npoin_w
+                  !$acc loop seq
+                  do idime = 1,ndime 
                      z1_u(lpoin_w(ipoin),idime) = z0_u(lpoin_w(ipoin),idime) 
                      z0_u(lpoin_w(ipoin),idime) = r0_u(lpoin_w(ipoin),idime)/M_u(lpoin_w(ipoin),idime) 
                   end do
@@ -257,9 +274,11 @@ module mod_solver_incomp
            real(rp)   , intent(inout) :: R(npoin)
            integer(4), intent(in)     :: nboun,bou_codes_nodes(npoin)
            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
-           integer(4)                :: ipoin, iter,ialpha,ielem
+           integer(4)                :: ipoin, iter,ialpha,ielem,inode_press
            real(rp)                   :: T1, alphaCG, betaCG
            real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,Q1(2)
+
+           inode_press = npoin_w*0.5_rp
           
           call nvtxStartRange("CG solver press")
           if (flag_cg_mem_alloc_pres .eqv. .true.) then
@@ -312,8 +331,8 @@ module mod_solver_incomp
             ! Real solver form here
 
             if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
-               b(lpoin_w(1)) = 0.0_rp
-               x(lpoin_w(1)) = 0.0_rp
+               b(lpoin_w(inode_press)) = 0.0_rp
+               x(lpoin_w(inode_press)) = 0.0_rp
             end if
 
             call nvtxStartRange("CG_p precond")
@@ -321,6 +340,13 @@ module mod_solver_incomp
            !$acc parallel loop
            do ipoin = 1,npoin_w
               r0(lpoin_w(ipoin)) = b(lpoin_w(ipoin))-qn(lpoin_w(ipoin)) ! b-A*x0
+           end do
+            !$acc end parallel loop            
+            if (noBoundaries .eqv. .false.) then
+               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0)              
+            end if            
+           !$acc parallel loop
+           do ipoin = 1,npoin_w
               z0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))/M(lpoin_w(ipoin))
               p0(lpoin_w(ipoin)) = z0(lpoin_w(ipoin))
            end do
@@ -339,7 +365,7 @@ module mod_solver_incomp
             auxT1 = 0.0d0
             !$acc parallel loop reduction(+:auxT1)
             do ipoin = 1,npoin
-               auxT1 = auxT1+real(r0(ipoin)*r0(ipoin),8)
+               auxT1 = auxT1+real(b(ipoin)*b(ipoin),8)
             end do
 
             call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
@@ -353,7 +379,7 @@ module mod_solver_incomp
            call nvtxStartRange("CG_p iters")
            do iter = 1,maxIter
               call nvtxStartRange("Iter_p")
-              call eval_laplacian_mult(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,p0,qn) ! A*s_k-1
+              call eval_laplacian_mult(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,p0,qn) ! A*s_k-1           
               auxQ1 = 0.0d0
               auxQ2 = 0.0d0
               !$acc parallel loop reduction(+:auxQ1,auxQ2) 
@@ -370,17 +396,20 @@ module mod_solver_incomp
               do ipoin = 1,npoin_w
                  x(lpoin_w(ipoin)) = x(lpoin_w(ipoin))+alphaCG*p0(lpoin_w(ipoin)) ! x_k = x_k-1 + alpha*s_k-1
               end do
-              ! aqui bcc?
-              if (noBoundaries .eqv. .false.) then
-               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,x)              
-              end if
               !$acc parallel loop
               do ipoin = 1,npoin_w
                  r0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))-alphaCG*qn(lpoin_w(ipoin)) ! b-A*p0
+              end do
+              !$acc end parallel loop
+              if (noBoundaries .eqv. .false.) then
+               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0)              
+              end if
+              !$acc parallel loop
+              do ipoin = 1,npoin_w
                  z1(lpoin_w(ipoin)) = z0(lpoin_w(ipoin)) 
                  z0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))/M(lpoin_w(ipoin)) 
               end do
-              !$acc end parallel loop
+              !$acc end parallel loop                            
               auxT1 = 0.0d0
               !$acc parallel loop reduction(+:auxT1)
               do ipoin = 1,npoin
@@ -434,7 +463,7 @@ module mod_solver_incomp
             !$acc end kernels
 
             if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
-               R(lpoin_w(1)) = 0.0_rp
+               R(lpoin_w(inode_press)) = 0.0_rp
             end if
 
            call nvtxEndRange

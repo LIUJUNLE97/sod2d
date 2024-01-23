@@ -25,11 +25,13 @@ module mod_operators
             real(rp),  intent(inout) :: ResP(npoin)
             real(rp),  intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),p(npoin)
             integer(4),intent(in)    :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            integer(4)               :: ii, ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ipoin(nnode)
+            integer(4)               :: ii, ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ipoin(nnode),inode_press
             !real(rp)                :: p_l(npoin),aux1,auxP(npoin)
             real(rp)                :: gradIsoP(ndime)
             real(rp)                :: gradP(ndime),divDp
             real(rp)                :: pl(nnode),gradPl(nnode,ndime)
+
+            inode_press = npoin_w*0.5_rp
 
             if(allocate_memory_mod_oprators) then
                allocate_memory_mod_oprators = .false.
@@ -44,7 +46,7 @@ module mod_operators
              op_auxP(:) = p(:)
             !$acc end kernels
             if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
-               op_auxP(lpoin_w(1)) = 0.0_rp
+               op_auxP(lpoin_w(inode_press)) = 0.0_rp
             end if
 
             !$acc parallel loop gang  private(ipoin,pl,gradPl)
@@ -123,48 +125,9 @@ module mod_operators
             call nvtxEndRange
 
             if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
-               ResP(lpoin_w(1)) = 0.0_rp
+               ResP(lpoin_w(inode_press)) = 0.0_rp
             end if
         end subroutine eval_laplacian_mult
-
-        subroutine eval_laplacian_mult2(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,p,ResP)
-
-            implicit none
-
-            integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
-            real(rp),   intent(inout)  :: ResP(npoin)
-            real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),p(npoin),Ml(npoin)
-            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-
-            if(allocate_memory_mod_oprators) then
-               allocate_memory_mod_oprators = .false.
-               
-               allocate(op_auxP(npoin))
-               !$acc enter data create(op_auxP(:))
-
-               allocate(op_auxGradP(npoin,ndime))
-               !$acc enter data create(op_auxGradP(:,:))
-
-            end if
-
-            !$acc kernels
-             ResP(:) = 0.0_rp
-             op_auxP(:) = p(:)
-            !$acc end kernels
-            if(mpi_rank.eq.0) then
-               op_auxP(lpoin_w(1)) = nscbc_p_inf
-            end if
-
-            call nvtxStartRange("Eval laplacian mult2")
-            call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,op_auxP,op_auxGradP,.true.)
-            call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,op_auxGradP,ResP)
-            call nvtxEndRange
-
-            if(mpi_rank.eq.0) then
-               ResP(lpoin_w(1)) = 0.0_rp
-            end if
-        end subroutine eval_laplacian_mult2
-
 
         subroutine eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,x,gradX,lump)
 

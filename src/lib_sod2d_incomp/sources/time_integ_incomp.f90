@@ -240,32 +240,32 @@ module time_integ_incomp
             call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),&
                                           mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mom)
                   
-            if((isWallModelOn) ) then
-                  call nvtxStartRange("AB2 wall model")
-                     if((numBoundsWM .ne. 0)) then
-                     !$acc kernels
-                     Rwmles(1:npoin,1:ndime) = 0.0_rp
-                     !$acc end kernels
-                     if(flag_type_wmles == wmles_type_reichardt) then
-                        call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
-                           rho(:,1),walave_u(:,:),tauw,Rwmles)
-                     else if (flag_type_wmles == wmles_type_abl) then
-                        call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
-                           rho(:,1),walave_u(:,:),zo,tauw,Rwmles)
-                     end if
-                  end if
-                  call nvtxEndRange
-
-                  if(mpi_size.ge.2) then
-                     call nvtxStartRange("AB2 halo update")
-                     do idime = 1,ndime
-                        call mpi_halo_atomic_update_real(Rwmles(:,idime))
-                     end do
-                     call nvtxEndRange
-                  end if                  
-            end if
+          !  if((isWallModelOn) ) then
+          !        call nvtxStartRange("AB2 wall model")
+          !           if((numBoundsWM .ne. 0)) then
+          !           !$acc kernels
+          !           Rwmles(1:npoin,1:ndime) = 0.0_rp
+          !           !$acc end kernels
+          !           if(flag_type_wmles == wmles_type_reichardt) then
+          !              call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+          !                 bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
+          !                 rho(:,1),walave_u(:,:),tauw,Rwmles)
+          !           else if (flag_type_wmles == wmles_type_abl) then
+          !              call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+          !                 bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
+          !                 rho(:,1),walave_u(:,:),zo,tauw,Rwmles)
+          !           end if
+          !        end if
+          !        call nvtxEndRange
+          !
+          !        if(mpi_size.ge.2) then
+          !           call nvtxStartRange("AB2 halo update")
+          !           do idime = 1,ndime
+          !              call mpi_halo_atomic_update_real(Rwmles(:,idime))
+          !           end do
+          !           call nvtxEndRange
+          !        end if                  
+          !  end if
 
             call nvtxStartRange("AB2 momentum")
             !$acc parallel loop
@@ -326,7 +326,9 @@ module time_integ_incomp
                call bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes, &
                                              bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,aux_q,pr(:,2))
             end if
-
+            if (noBoundaries .eqv. .false.) then
+               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,1))              
+            end if
             call conjGrad_pressure_incomp(igtime,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,connec,lpoin_w,lelpn,invAtoIJK,gmshAtoI,gmshAtoJ,&
                                           gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,pr(:,1),pr(:,2), &
                                           nboun,bou_codes_nodes,normalsAtNodes)
@@ -339,11 +341,15 @@ module time_integ_incomp
             do ipoin = 1,npoin
                !$acc loop seq
                do idime = 1,ndime
-                  u(ipoin,idime,2) = (u(ipoin,idime,2)-dt*gradP(ipoin,idime)/gamma0)*Ml(ipoin) & 
-                                     -dt*Rwmles(ipoin,idime)/gamma0
+                  u(ipoin,idime,2) = (u(ipoin,idime,2)-dt*gradP(ipoin,idime)/gamma0)*Ml(ipoin) !& 
+                                     !-dt*Rwmles(ipoin,idime)/gamma0
                end do
             end do
             !$acc end parallel loop
+                        
+            if (noBoundaries .eqv. .false.) then
+               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,u(:,:,1),u_buffer)
+            end if
 
             call conjGrad_veloc_incomp(igtime,1.0_rp/gamma0,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,numBoundsWM,connec,lpoin_w,invAtoIJK,gmshAtoI,&
                                        gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,u(:,:,1),u(:,:,2), &
