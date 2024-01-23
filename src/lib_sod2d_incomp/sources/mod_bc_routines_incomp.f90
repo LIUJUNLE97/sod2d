@@ -39,6 +39,7 @@ module mod_bc_routines_incomp
                         aux_u(inode,idime) = aux_u(inode,idime) + norm*normalsAtNodes(inode,idime)
                      end do
                   end if
+               end if ! This guy
             end do
             !$acc end parallel loop
 
