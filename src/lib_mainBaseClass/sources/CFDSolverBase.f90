@@ -1880,7 +1880,7 @@ contains
             locdist % real_1 = dist(ielem)
             locdist % real_2 = mpi_rank
             call MPI_Allreduce(locdist, globdist, 1, MPI_2REAL, MPI_MINLOC, app_comm, mpi_err)
-            mpi_rank_found = globdist % real_2
+            mpi_rank_found = int(globdist % real_2, kind=4)
             if (mpi_rank .eq. mpi_rank_found) then
 	            write(*,*) "[NOT FOUND WITNESS] ", xyzwit(:)
                this%nwitPar              = this%nwitPar+1
