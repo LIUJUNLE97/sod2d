@@ -253,14 +253,9 @@ contains
       flag_les = 0
       flag_implicit = 1
       flag_rk_order=4
-      implicit_solver = implicit_solver_bdf2_rk10
-
-      pseudo_cfl =0.5_rp 
-      pseudo_ftau= 8.0_rp
-      maxIterNonLineal=500
       tol=1e-3
 
-      this%cfl_conv = 20.00_rp
+      this%cfl_conv = 0.80_rp
       this%cfl_diff = 20.00_rp
 
       this%Cp   = 1004.0_rp

@@ -41,8 +41,8 @@ contains
       class(TGVSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube"
+      write(this%mesh_h5_file_path,*) "../sod2d_speedup-testing_mesh/"
+      write(this%mesh_h5_file_name,*) "cube_per_p4_n34"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -55,39 +55,34 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 50001
+      this%final_istep = 500001
       this%maxPhysTime = 20.0_rp
 
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10
 
-      this%save_resultsFile_first = 10000
-      this%save_resultsFile_step = 10000
+      this%save_resultsFile_first = 1
+      this%save_resultsFile_step = 1000
 
-      this%save_restartFile_first = 10000
-      this%save_restartFile_step = 10000
+      this%save_restartFile_first = 1
+      this%save_restartFile_step = 1000
       this%loadRestartFile = .false.
       this%restartFile_to_load = 2 !1 or 2
       this%continue_oldLogs = .false.
 
-      this%saveAvgFile = .false.
+      this%saveAvgFile = .true.
       this%loadAvgFile = .false.
       !----------------------------------------------
 
       ! numerical params
       flag_les = 0
       flag_implicit = 0
-      implicit_solver = implicit_solver_bdf2_rk10
 
-      maxIterNonLineal=500
-      tol=1e-3
-      pseudo_cfl =0.95_rp
-      flag_rk_order=4
+      maxIter = 200
+      tol = 1e-3
 
       this%cfl_conv = 0.95_rp !0.5_rp
-      this%cfl_diff = 0.95_rp !0.5_rp
-      !this%cfl_conv = 100.0_rp
-      !this%cfl_diff = 100.0_rp
+      this%cfl_diff = 0.95_rp !100.0_rp !0.5_rp
 
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp

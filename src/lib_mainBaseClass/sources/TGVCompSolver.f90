@@ -50,6 +50,13 @@ contains
       write(this%io_append_info,*) ""
 
       this%doGlobalAnalysis = .true.
+      this%doTimerAnalysis = .true.
+      this%saveInitialField = .false.
+
+      flag_implicit = 0
+
+      maxIter = 200
+      tol = 1e-3
 
       this%maxPhysTime = 20.0_rp
       this%final_istep = 10000 

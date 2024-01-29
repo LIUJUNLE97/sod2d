@@ -11,6 +11,25 @@ module mod_custom_types
       real(rp),dimension(:,:),pointer :: ptr
    end type ptr_array2d_rp
 
+   type ptr_array1d_rpavg
+      real(rp_avg),dimension(:),pointer :: ptr
+   end type ptr_array1d_rpavg
+
+   type ptr_array2d_rpavg
+      real(rp_avg),dimension(:,:),pointer :: ptr
+   end type ptr_array2d_rpavg
+
+   type ptr_array1d_rp_save
+      real(rp),dimension(:),pointer :: ptr_rp
+      real(rp_avg),dimension(:),pointer :: ptr_avg
+      character(128),public :: nameField
+   end type ptr_array1d_rp_save
+
+   type ptr_array2d_rp_save
+      real(rp),dimension(:,:),pointer :: ptr_rp
+      real(rp_avg),dimension(:,:),pointer :: ptr_avg
+      character(128),public :: nameField
+   end type ptr_array2d_rp_save
 !------------------------------------------------------------------------------------------------------
 
    type vector_int4

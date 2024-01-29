@@ -22,15 +22,12 @@ module mod_arrays
       real(rp), target,allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:),tauw(:,:)
       real(rp), target,allocatable :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:)
 
-      real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:),avvex(:,:),avtw(:,:)
+      real(rp_avg), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:),avvex(:,:),avtw(:,:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
       real(rp), allocatable :: witxi(:,:), Nwit(:,:), buffwit(:,:,:), bufftime(:)
 
       real(rp), allocatable :: u_buffer(:,:)
-      ! implicit auxiliar fields
-      real(rp), allocatable :: impl_rho(:),impl_E(:),impl_eta(:),impl_q(:,:)
-      real(rp), allocatable :: impl_envit(:,:),impl_mu_fluid(:),impl_mu_sgs(:,:)
 
       ! exponential average for wall law
       real(rp), allocatable :: walave_u(:,:)
@@ -60,6 +57,7 @@ module CFDSolverBase_mod
       use mass_matrix
       use mod_geom
       use time_integ
+      use time_integ_imex
       use mod_analysis
       use mod_numerical_params
       use mod_time_ops
@@ -117,12 +115,9 @@ module CFDSolverBase_mod
       ! saving parameters
       integer(4), public :: numNodeScalarFields2save,numNodeVectorFields2save,numElemGpScalarFields2save
       integer(4), public :: numAvgNodeScalarFields2save,numAvgNodeVectorFields2save,numAvgElemGpScalarFields2save
-      character(128),public :: nameNodeScalarFields2save(max_num_saved_fields),nameAvgNodeScalarFields2save(max_num_saved_fields),&
-                           nameNodeVectorFields2save(max_num_saved_fields),nameAvgNodeVectorFields2save(max_num_saved_fields),&
-                           nameElemGpScalarFields2save(max_num_saved_fields),nameAvgElemGpScalarFields2save(max_num_saved_fields)
-      type(ptr_array1d_rp),public :: nodeScalarFields2save(max_num_saved_fields),avgNodeScalarFields2save(max_num_saved_fields)
-      type(ptr_array2d_rp),public :: nodeVectorFields2save(max_num_saved_fields),avgNodeVectorFields2save(max_num_saved_fields)
-      type(ptr_array2d_rp),public :: elemGpScalarFields2save(max_num_saved_fields),avgElemGpScalarFields2save(max_num_saved_fields)
+      type(ptr_array1d_rp_save),public :: nodeScalarFields2save(max_num_saved_fields),avgNodeScalarFields2save(max_num_saved_fields)
+      type(ptr_array2d_rp_save),public :: nodeVectorFields2save(max_num_saved_fields),avgNodeVectorFields2save(max_num_saved_fields)
+      type(ptr_array2d_rp_save),public :: elemGpScalarFields2save(max_num_saved_fields),avgElemGpScalarFields2save(max_num_saved_fields)
       logical, public :: save_scalarField_rho,     save_scalarField_muFluid,  save_scalarField_pressure, save_scalarField_energy, &
                          save_scalarField_entropy, save_scalarField_csound,   save_scalarField_machno,   save_scalarField_divU,   &
                          save_scalarField_qcrit,   save_scalarField_muSgs,    save_scalarField_muEnvit,  save_vectorField_vel,    &
@@ -222,15 +217,26 @@ contains
 
    subroutine CFDSolverBase_initNSSolver(this)
       class(CFDSolverBase), intent(inout) :: this
-      
-      call init_rk4_solver(numNodesRankPar) 
+      if(flag_implicit == 1) then
+         if (implicit_solver == implicit_solver_imex) then 
+            call init_imex_solver(numNodesRankPar)
+         end if
+      else 
+         call init_rk4_solver(numNodesRankPar)
+      end if
 
    end subroutine CFDSolverBase_initNSSolver
 
    subroutine CFDSolverBase_endNSSolver(this)
       class(CFDSolverBase), intent(inout) :: this
       
-       call end_rk4_solver()
+      if(flag_implicit == 1) then
+         if (implicit_solver == implicit_solver_imex) then 
+            call end_imex_solver()
+         end if
+      else 
+         call end_rk4_solver()
+      end if
 
    end subroutine CFDSolverBase_endNSSolver
 
@@ -328,8 +334,9 @@ contains
          return
       end if
 
-      this%nameNodeScalarFields2save(this%numNodeScalarFields2save) = trim(adjustl(fieldSaveName))
-      this%nodeScalarFields2save(this%numNodeScalarFields2save)%ptr => array2save
+      this%nodeScalarFields2save(this%numNodeScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%nodeScalarFields2save(this%numNodeScalarFields2save)%ptr_rp => array2save
+      this%nodeScalarFields2save(this%numNodeScalarFields2save)%ptr_avg => null()
 
    end subroutine CFDSolverBase_add_nodeScalarField2save
 
@@ -351,8 +358,9 @@ contains
          return
       end if
 
-      this%nameNodeVectorFields2save(this%numNodeVectorFields2save) = trim(adjustl(fieldSaveName))
-      this%nodeVectorFields2save(this%numNodeVectorFields2save)%ptr => array2save
+      this%nodeVectorFields2save(this%numNodeVectorFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%nodeVectorFields2save(this%numNodeVectorFields2save)%ptr_rp => array2save
+      this%nodeVectorFields2save(this%numNodeVectorFields2save)%ptr_avg => null()
 
    end subroutine CFDSolverBase_add_nodeVectorField2save
 
@@ -374,8 +382,9 @@ contains
          return
       end if
 
-      this%nameElemGpScalarFields2save(this%numElemGpScalarFields2save) = trim(adjustl(fieldSaveName))
-      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%ptr => array2save
+      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%ptr_rp => array2save
+      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%ptr_avg => null()
 
    end subroutine CFDSolverBase_add_elemGpScalarField2save
 
@@ -383,7 +392,7 @@ contains
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       character(*),intent(in) :: fieldSaveName
-      real(rp),target,intent(in) :: array2save(:)
+      real(rp_avg),target,intent(in) :: array2save(:)
 
       this%numAvgNodeScalarFields2save = this%numAvgNodeScalarFields2save + 1
 
@@ -395,8 +404,9 @@ contains
          return
       end if
 
-      this%nameAvgNodeScalarFields2save(this%numAvgNodeScalarFields2save) = trim(adjustl(fieldSaveName))
-      this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%ptr => array2save
+      this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%ptr_avg => array2save
+      this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%ptr_rp => null()
 
    end subroutine CFDSolverBase_add_avgNodeScalarField2save
 
@@ -406,7 +416,7 @@ contains
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       character(*),intent(in) :: fieldSaveName
-      real(rp),target,intent(in) :: array2save(:,:)
+      real(rp_avg),target,intent(in) :: array2save(:,:)
 
       this%numAvgNodeVectorFields2save = this%numAvgNodeVectorFields2save + 1
 
@@ -418,8 +428,9 @@ contains
          return
       end if
 
-      this%nameAvgNodeVectorFields2save(this%numAvgNodeVectorFields2save) = trim(adjustl(fieldSaveName))
-      this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%ptr => array2save
+      this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%ptr_avg => array2save
+      this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%ptr_rp => null()
 
    end subroutine CFDSolverBase_add_avgNodeVectorField2save
 
@@ -429,7 +440,7 @@ contains
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       character(*),intent(in) :: fieldSaveName
-      real(rp),target,intent(in) :: array2save(:,:)
+      real(rp_avg),target,intent(in) :: array2save(:,:)
 
       this%numAvgElemGpScalarFields2save = this%numAvgElemGpScalarFields2save + 1
 
@@ -441,8 +452,9 @@ contains
          return
       end if
 
-      this%nameAvgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save) = trim(adjustl(fieldSaveName))
-      this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%ptr => array2save
+      this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%ptr_avg => array2save
+      this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%ptr_rp => null()
 
    end subroutine CFDSolverBase_add_avgElemGpScalarField2save
 
@@ -646,7 +658,7 @@ contains
    subroutine CFDSolverBase_normalFacesToNodes(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), allocatable    :: aux1(:)
-      integer(4) :: iNodeL,iBound,ipbou,iElem,jgaus,kgaus,idime,iAux
+      integer(4) :: iNodeL,iBound,ipbou,iElem,innerNodeL,bndNodeL,idime,iAux
       real(rp) :: aux(3), normaux,sig
 
       if(mpi_rank.eq.0) write(111,*) "--| Evaluating Normals at Nodes for Wall-Model"
@@ -664,25 +676,25 @@ contains
          !iBound = listBoundsWallModel(iAux)
          iBound = iAux
          iElem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
-         jgaus = connecParWork(iElem,nnode)         ! internal node
+         innerNodeL = connecParWork(iElem,nnode)         ! internal node
          !$acc loop vector private(aux)
          do ipbou = 1,npbou
-            kgaus = boundPar(iBound,ipbou) ! node at the boundary
+            bndNodeL = boundPar(iBound,ipbou) ! node at the boundary
             sig=1.0_rp
             aux(1) = boundNormalPar(iBound,(ipbou-1)*ndime+1)
             aux(2) = boundNormalPar(iBound,(ipbou-1)*ndime+2)
             aux(3) = boundNormalPar(iBound,(ipbou-1)*ndime+3)
             normaux = sqrt(dot_product(aux,aux))
-            if(dot_product(coordPar(jgaus,:)-coordPar(kgaus,:), aux(:)) .lt. 0.0_rp ) then
+            if(dot_product(coordPar(innerNodeL,:)-coordPar(bndNodeL,:), aux(:)) .lt. 0.0_rp ) then
                sig=-1.0_rp
             end if
             !$acc loop seq
             do idime = 1,ndime
                aux(idime) = aux(idime)*sig/normaux
+               !$acc atomic update
+               normalsAtNodes(bndNodeL,idime) = normalsAtNodes(bndNodeL,idime) + aux(idime)
+               !$acc end atomic
             end do
-            normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1) + aux(1)
-            normalsAtNodes(kgaus,2) = normalsAtNodes(kgaus,2) + aux(2)
-            normalsAtNodes(kgaus,3) = normalsAtNodes(kgaus,3) + aux(3)
          end do
       end do
       !$acc end parallel loop
@@ -717,8 +729,7 @@ contains
    subroutine CFDSolverBase_boundaryFacesToNodes(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), allocatable    :: aux1(:)
-      integer(4) :: iNodeL,iBound,ipbou,ielem,jgaus,kgaus,idime
-      real(rp) :: aux(3), normaux,sig
+      integer(4) :: iNodeL,iBound,ipbou
 
       allocate(bouCodesNodesPar(numNodesRankPar))
       allocate(aux1(numNodesRankPar))
@@ -741,7 +752,9 @@ contains
       do iBound = 1,numBoundsRankPar
          !$acc loop vector
          do ipbou = 1,npbou
+            !$acc atomic update
             aux1(boundPar(iBound,ipbou)) = min(aux1(boundPar(iBound,ipbou)),bouCodes2BCType(bouCodesPar(iBound)))
+            !$acc end atomic
          end do
       end do
       !$acc end parallel loop
@@ -796,14 +809,14 @@ contains
       ! Last rank is for prediction-advance related to entropy viscosity,
       ! where 1 is prediction, 2 is final value
       !
-      allocate(u(numNodesRankPar,ndime,3))  ! Velocity
-      allocate(q(numNodesRankPar,ndime,3))  ! momentum
-      allocate(rho(numNodesRankPar,3))      ! Density
-      allocate(pr(numNodesRankPar,3))       ! Pressure
-      allocate(E(numNodesRankPar,3))        ! Total Energy
+      allocate(u(numNodesRankPar,ndime,4))  ! Velocity
+      allocate(q(numNodesRankPar,ndime,4))  ! momentum
+      allocate(rho(numNodesRankPar,4))      ! Density
+      allocate(pr(numNodesRankPar,4))       ! Pressure
+      allocate(E(numNodesRankPar,4))        ! Total Energy
       allocate(Tem(numNodesRankPar,2))      ! Temperature
       allocate(e_int(numNodesRankPar,2))    ! Internal Energy
-      allocate(eta(numNodesRankPar,3))      ! entropy
+      allocate(eta(numNodesRankPar,4))      ! entropy
       allocate(csound(numNodesRankPar))     ! Speed of sound
       allocate(machno(numNodesRankPar))     ! Speed of sound
       allocate(mu_fluid(numNodesRankPar))   ! Fluid viscosity
@@ -828,22 +841,6 @@ contains
       !$acc enter data create(mu_sgs(:,:))
       !$acc enter data create(u_buffer(:,:))
       !$acc enter data create(mue_l(:,:))
-
-      ! implicit
-      allocate(impl_rho(numNodesRankPar))
-      allocate(impl_E(numNodesRankPar))
-      allocate(impl_eta(numNodesRankPar))
-      allocate(impl_q(numNodesRankPar,ndime))
-      allocate(impl_envit(numElemsRankPar,nnode))
-      allocate(impl_mu_fluid(numNodesRankPar))
-      allocate(impl_mu_sgs(numElemsRankPar,nnode))
-      !$acc enter data create(impl_rho(:))
-      !$acc enter data create(impl_E(:))
-      !$acc enter data create(impl_eta(:))
-      !$acc enter data create(impl_q(:,:))
-      !$acc enter data create(impl_envit(:,:))
-      !$acc enter data create(impl_mu_fluid(:))
-      !$acc enter data create(impl_mu_sgs(:,:))
 
       allocate(tauw(numNodesRankPar,ndime))  ! momentum at the buffer
       !$acc enter data create(tauw(:,:))
@@ -1025,9 +1022,9 @@ contains
             if(this%loadAvgFile) then
                if(mpi_rank.eq.0) write(111,*) "--| Loading Avg Results File (TO IMPLEMENT)",this%restartFile_to_load
                call load_avgResults_hdf5_file(nnode,ngaus,Ngp_l,this%restartFile_to_load,this%initial_avgTime,this%elapsed_avgTime,&
-                                       this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
-                                       this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
-                                       this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
+                                       this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,&
+                                       this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,&
+                                       this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save)
 
                if(mpi_rank.eq.0) write(111,*) "   --| Loaded Avg results! Setting initial_avgTime",this%initial_avgTime,"elapsed_avgTime",this%elapsed_avgTime
             end if
@@ -1476,15 +1473,15 @@ contains
       class(CFDSolverBase), intent(inout) :: this
 
       call save_avgResults_hdf5_file(nnode,ngaus,Ngp_equi,this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
-               this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
-               this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
-               this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
+               this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,&
+               this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,&
+               this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
          call save_surface_avgResults_hdf5_file(this%restartFileCnt,&
-                  this%numAvgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
-                  this%numAvgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
-                  this%numAvgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
+                  this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,&
+                  this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,&
+                  this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save)
       end if
 
    end subroutine CFDSolverBase_saveAvgResultsFiles
@@ -1494,15 +1491,15 @@ contains
       integer(4), intent(in) :: istep
 
       call save_instResults_hdf5_file(nnode,ngaus,Ngp_equi,iStep,this%time,&
-               this%numNodeScalarFields2save,this%nodeScalarFields2save,this%nameNodeScalarFields2save,&
-               this%numNodeVectorFields2save,this%nodeVectorFields2save,this%nameNodeVectorFields2save,&
-               this%numElemGpScalarFields2save,this%elemGpScalarFields2save,this%nameElemGpScalarFields2save)
+               this%numNodeScalarFields2save,this%nodeScalarFields2save,&
+               this%numNodeVectorFields2save,this%nodeVectorFields2save,&
+               this%numElemGpScalarFields2save,this%elemGpScalarFields2save)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
          call save_surface_instResults_hdf5_file(istep,&
-               this%numNodeScalarFields2save,this%nameNodeScalarFields2save,&
-               this%numNodeVectorFields2save,this%nameNodeVectorFields2save,&
-               this%numElemGpScalarFields2save,this%nameElemGpScalarFields2save)
+               this%numNodeScalarFields2save,this%nodeScalarFields2save,&
+               this%numNodeVectorFields2save,this%nodeVectorFields2save,&
+               this%numElemGpScalarFields2save,this%elemGpScalarFields2save)
       end if
 
    end subroutine CFDSolverBase_saveInstResultsFiles
@@ -1527,9 +1524,8 @@ contains
       integer(4) :: icode,istep,inonLineal,iwitstep=0
       character(4) :: timeStep
       real(8) :: iStepTimeRank,iStepTimeMax,iStepEndTime,iStepStartTime,iStepAvgTime
-      real(rp) :: inv_iStep,aux_pseudo_cfl
+      real(rp) :: inv_iStep
       real(rp) :: dtfact,avwei
-      logical :: do__iteration
 
       call MPI_Barrier(app_comm,mpi_err)
 
@@ -1574,60 +1570,24 @@ contains
 
          call nvtxStartRange("Time-step"//timeStep,istep)
 
-         if(flag_implicit == 1) then
-            !$acc kernels
-            impl_rho(:) = rho(:,2)
-            impl_E(:) = E(:,2)
-            impl_q(:,:) = q(:,:,2)
-            impl_eta(:) = eta(:,2)
-            impl_envit(:,:) = mu_e(:,:)
-            impl_mu_fluid(:) = mu_fluid(:)
-            impl_mu_sgs(:,:) = mu_sgs(:,:)
-            !$acc end kernels
-            aux_pseudo_cfl = pseudo_cfl
-         end if
+         if(this%doTimerAnalysis) iStepStartTime = MPI_Wtime()
+         call this%callTimeIntegration(istep)
 
-         do__iteration = .true.
-         inonLineal = 1
-         do while(do__iteration .eqv. .true.)
-            if(flag_implicit == 1) then
-               !$acc kernels
-               rho(:,2)    = impl_rho(:)
-               E(:,2)      = impl_E(:)
-               q(:,:,2)    = impl_q(:,:)
-               eta(:,2)    = impl_eta(:)
-               mu_e(:,:)   = impl_envit(:,:)
-               mu_fluid(:) = impl_mu_fluid(:)
-               mu_sgs(:,:) = impl_mu_sgs(:,:)
-               !$acc end kernels
-            else
-               do__iteration = .false.
-            end if
-            if(this%doTimerAnalysis) iStepStartTime = MPI_Wtime()
-            call this%callTimeIntegration(istep)
-            if(flag_implicit == 1 ) then
-               if((this%currentNonLinealIter .gt. maxIterNonLineal) .and. (inonLineal .lt. 4) .and. (flag_implicit_repeat_dt_if_not_converged == 1)) then
-                  inonLineal = inonLineal + 1
-                  pseudo_cfl = pseudo_cfl*0.5_rp
-                  if(mpi_rank.eq.0) write(111,*)"(WARRNING)  non lineal iteration failed in time ",istep," new pseudo cfl ",pseudo_cfl," non lineal tries ",inonLineal
-                  call flush(111)
-               else
-                  do__iteration = .false.
-               end if
-            end if
-         end do
+         !$acc kernels
+         rho(:,4) = rho(:,3)
+         E(:,4) = E(:,3)
+         q(:,:,4) = q(:,:,3)
+         eta(:,4) = eta(:,3)
+         u(:,:,4) = u(:,:,3)
+         pr(:,4) = pr(:,3)
 
-         !if(flag_implicit == 1) then 
-            !$acc kernels
-            rho(:,3) = rho(:,1)
-            E(:,3) = E(:,1)
-            q(:,:,3) = q(:,:,1)
-            eta(:,3) = eta(:,1)
-            u(:,:,3) = u(:,:,1)
-            pr(:,3) = pr(:,1)
-            !$acc end kernels
-            pseudo_cfl = aux_pseudo_cfl
-         !end if
+         rho(:,3) = rho(:,1)
+         E(:,3) = E(:,1)
+         q(:,:,3) = q(:,:,1)
+         eta(:,3) = eta(:,1)
+         u(:,:,3) = u(:,:,1)
+         pr(:,3) = pr(:,1)
+         !$acc end kernels
 
          if(this%doTimerAnalysis) then
             iStepEndTime = MPI_Wtime()
@@ -1659,6 +1619,7 @@ contains
 
          call this%evalDt()
 
+         call this%afterDt(istep)
          call nvtxEndRange
 
          if(this%saveAvgFile) then
@@ -1717,7 +1678,7 @@ contains
             call nvtxEndRange
          end if
 
-         call this%afterDt(istep)
+!         call this%afterDt(istep)
 
          if(this%save_logFile_next==istep) then
             this%save_logFile_next = this%save_logFile_next + this%save_logFile_step
@@ -1813,7 +1774,7 @@ contains
    subroutine CFDSolverBase_preprocWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)                          :: iwit, jwit, ielem, inode, ifound, nwitParCand, icand, nwitFound, nwit2find, icount=0, imiss=0, myrank
+      integer(4)                          :: iwit, jwit, ielem, inode, ifound, nwitParCand, icand, nwitFound, nwit2find, icount=0, imiss=0, myrank, mpi_rank_found
       integer(4)                          :: witGlobCand(this%nwit), witGlob(this%nwit), witGlobFound(this%nwit*mpi_size)
       integer(4), allocatable             :: witGlobFound2(:), witGlobMiss(:)
       real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode), dist(numElemsRankPar), xyzwit(ndime), mindist
@@ -1822,11 +1783,12 @@ contains
       real(rp)                            :: xmin, ymin, zmin, xmax, ymax, zmax
       real(rp)                            :: xminloc, yminloc, zminloc, xmaxloc, ymaxloc, zmaxloc
       logical                             :: isinside, found
-      type real_int
-	real(rp)   :: realnum
-	integer(4) :: intnum
+      type two_real
+	      real(4) :: real_1
+	      real(4) :: real_2
       end type
-      type(real_int)                      :: locdist, globdist
+      
+      type(two_real)                      :: locdist, globdist
 
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
@@ -1943,16 +1905,17 @@ contains
             dist(:)    = (center(:,1)-xyzwit(1))*(center(:,1)-xyzwit(1))+(center(:,2)-xyzwit(2))*(center(:,2)-xyzwit(2))+(center(:,3)-xyzwit(3))*(center(:,3)-xyzwit(3))
             !$acc end kernels
             ielem      = minloc(dist(:),1)
-            locdist % realnum = dist(ielem)
-            locdist % intnum  = mpi_rank
-            call MPI_Allreduce(locdist, globdist, 1, mpi_datatype_real_int, MPI_MINLOC, app_comm, mpi_err)
-            if (mpi_rank .eq. globdist % intnum) then
-	       write(*,*) "[NOT FOUND WITNESS] ", xyzwit(:)
+            locdist % real_1 = dist(ielem)
+            locdist % real_2 = mpi_rank
+            call MPI_Allreduce(locdist, globdist, 1, MPI_2REAL, MPI_MINLOC, app_comm, mpi_err)
+            mpi_rank_found = int(globdist % real_2, kind=4)
+            if (mpi_rank .eq. mpi_rank_found) then
+	            write(*,*) "[NOT FOUND WITNESS] ", xyzwit(:)
                this%nwitPar              = this%nwitPar+1
                witGlob(this%nwitPar)     = witGlobMiss(iwit)
                witel(this%nwitPar)       = ielem
-	       witxyzPar(this%nwitPar,:) = witxyz(witGlobMiss(iwit),:)
-	       call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzPar(this%nwitPar,:), atoIJK, witxi(this%nwitPar,:), isinside, Nwit(this%nwitPar,:)) 
+	            witxyzPar(this%nwitPar,:) = witxyz(witGlobMiss(iwit),:)
+	            call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzPar(this%nwitPar,:), atoIJK, witxi(this%nwitPar,:), isinside, Nwit(this%nwitPar,:)) 
             end if
          end do
          deallocate(witGlobFound2)
@@ -2007,6 +1970,7 @@ contains
          write(111,*) "  # Constants:"
          write(111,*) "    rp: ",               rp
          write(111,*) "    rp_vtk: ",           rp_vtk
+         write(111,*) "    rp_avg: ",           rp_avg
          write(111,*) "    porder: ",           porder
          write(111,*) "    flag_real_diff: ",   flag_real_diff
          write(111,*) "    flag_diff_suth: ",   flag_diff_suth
@@ -2033,9 +1997,8 @@ contains
          write(111,*) "--------------------------------------------"
          write(111,*) "    cfl_conv: ",         this%cfl_conv
          write(111,*) "    cfl_diff: ",         this%cfl_diff
-         write(111,*) "    maxIterNonLineal: ", maxIterNonLineal
+         write(111,*) "    maxIter: ",          maxIter
          write(111,*) "    tol: ",              tol
-         write(111,*) "    pseudo_cfl: ",       pseudo_cfl
          write(111,*) "--------------------------------------------"
       end if
 

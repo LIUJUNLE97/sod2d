@@ -127,7 +127,7 @@ contains
       real(rp) :: mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "channel_crazy_p4_n36"!"channel"
+      write(this%mesh_h5_file_name,*) "channel_crazy_p4_n50"!"channel"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -146,11 +146,11 @@ contains
 
       this%save_restartFile_first = 1
       this%save_restartFile_step = 5000
-      this%loadRestartFile = .true.
-      this%restartFile_to_load = 2 !1 or 2
+      this%loadRestartFile = .false.
+      this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
-      this%saveAvgFile = .false.
+      this%saveAvgFile = .true.
       this%loadAvgFile = .false.
 
       this%saveSurfaceResults = .false.
@@ -159,11 +159,10 @@ contains
       ! numerical params
       flag_les = 1
 
-      this%cfl_conv = 0.9_rp 
-      this%cfl_diff = 0.9_rp
+      this%cfl_conv = 0.95_rp 
       !flag_use_constant_dt = 1
       !this%dt = 5.0e-4
-      flag_cg_prec_bdc = .false.
+      !flag_cg_prec_bdc = .false.
 
       
       this%vo = 1.0_rp
@@ -180,7 +179,7 @@ contains
 
       nscbc_p_inf = 0.0_rp
 
-      maxIter = 50
+      maxIter = 20
       tol = 1e-3
 
       flag_fs_fix_pressure = .false.

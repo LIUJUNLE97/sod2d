@@ -106,9 +106,9 @@ contains
       
       this%rho0   = 1.0_rp !1.2
       this%Lz = 1500.0_rp
-      this%Lhub = 90.0_rp
-      this%vinf = 8.0_rp
-      this%rough = 0.1682_rp
+      this%Lhub = 90.0_rp ! Joan cas: 10m
+      this%vinf = 8.0_rp ! Joan cas: 0.8854
+      this%rough = 0.1682_rp ! Joan cas:  2.97
       this%ustar = this%vinf*0.41_rp/log(1.0_rp+this%Lhub/this%rough)
       incomp_viscosity = 1.81e-5
 

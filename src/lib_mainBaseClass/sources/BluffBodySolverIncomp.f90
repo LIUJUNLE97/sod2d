@@ -42,11 +42,11 @@ contains
    subroutine BluffBodySolverIncomp_fill_BC_Types(this)
       class(BluffBodySolverIncomp), intent(inout) :: this
 
-      bouCodes2BCType(1) = bc_type_far_field
-      bouCodes2BCType(2) = bc_type_outlet_incomp
-      bouCodes2BCType(3) = bc_type_far_field
-      bouCodes2BCType(4) = bc_type_far_field
-      bouCodes2BCType(5) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(1) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(2) = bc_type_far_field
+      bouCodes2BCType(3) = bc_type_outlet_incomp
+      bouCodes2BCType(4) = bc_type_outlet_incomp
+      bouCodes2BCType(5) = bc_type_outlet_incomp
       !$acc update device(bouCodes2BCType(:))
 
    end subroutine BluffBodySolverIncomp_fill_BC_Types
@@ -56,21 +56,19 @@ contains
       real(rp) :: mul, mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cylin"
+      write(this%mesh_h5_file_name,*) "cyl_p4"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
       ! numerical params
-      flag_les = 1
+      flag_les = 0
       maxIter = 20
-      tol=1e-2
-   
+      tol=1e-3   
 
       this%cfl_conv = 0.95_rp 
-      this%cfl_diff = 0.95_rp 
       !flag_use_constant_dt = 1
-      !this%dt = 2.5e-4
+      !this%dt = 1.2e-2
       !----------------------------------------------
       !  --------------  I/O params -------------
       this%final_istep = 1000000 
@@ -94,7 +92,7 @@ contains
       this%vo = 1.0_rp
       this%delta  = 1.0_rp
       this%rho0   = 1.0_rp
-      this%Re     =  10000.0_rp
+      this%Re     =  100.0_rp
 
       incomp_viscosity = (this%rho0*this%delta*this%vo)/this%Re
       flag_mu_factor = 1.0_rp
@@ -115,11 +113,11 @@ contains
       this%continue_witness      = .false.     
 
  
-      flag_buffer_on = .true.
+      flag_buffer_on = .false.
      !cylinder
      flag_buffer_on_east = .true.
      flag_buffer_e_min = 40.0_rp
-     flag_buffer_e_size = 10.0_rp
+     flag_buffer_e_size = 15.0_rp
 
      flag_buffer_on_west = .true.
      flag_buffer_w_min = -20.0_rp

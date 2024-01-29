@@ -77,9 +77,9 @@ contains
       this%cfl_conv = 0.5_rp
       this%cfl_diff = 0.5_rp
       !flag_use_constant_dt = 1
-      !this%dt = 2.5e-3
+      !this%dt = 5e-3
 
-      maxIter = 200
+      maxIter = 20
       tol = 1e-2
       flag_cg_prec_bdc = .false.
 
@@ -129,7 +129,14 @@ contains
          u(iNodeL,1:ndime,3) = u(iNodeL,1:ndime,2)
          rho(iNodeL,3) = rho(iNodeL,2)
          eta(iNodeL,3) =  eta(iNodeL,2)
-          pr(iNodeL,3) =  pr(iNodeL,2)  
+         pr(iNodeL,3) =  pr(iNodeL,2)  
+
+         q(iNodeL,1:ndime,4) = q(iNodeL,1:ndime,2)
+         u(iNodeL,1:ndime,4) = u(iNodeL,1:ndime,2)
+         rho(iNodeL,4) = rho(iNodeL,2)
+         eta(iNodeL,4) =  eta(iNodeL,2)
+         pr(iNodeL,4) =  pr(iNodeL,2)  
+
       end do
       !$acc end parallel loop
 
