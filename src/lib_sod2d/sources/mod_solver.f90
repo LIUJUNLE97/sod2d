@@ -237,9 +237,7 @@ module mod_solver
                  end do 
               end do
               !$acc end parallel loop
-               !if (noBoundaries .eqv. .false.) then
-                  !call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,x_vars,u_buffer)
-               !end if
+
               !$acc parallel loop
               do ipoin = 1,npoin_w
                   !$acc loop seq

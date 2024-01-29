@@ -808,14 +808,14 @@ contains
       ! Last rank is for prediction-advance related to entropy viscosity,
       ! where 1 is prediction, 2 is final value
       !
-      allocate(u(numNodesRankPar,ndime,3))  ! Velocity
-      allocate(q(numNodesRankPar,ndime,3))  ! momentum
-      allocate(rho(numNodesRankPar,3))      ! Density
-      allocate(pr(numNodesRankPar,3))       ! Pressure
-      allocate(E(numNodesRankPar,3))        ! Total Energy
+      allocate(u(numNodesRankPar,ndime,4))  ! Velocity
+      allocate(q(numNodesRankPar,ndime,4))  ! momentum
+      allocate(rho(numNodesRankPar,4))      ! Density
+      allocate(pr(numNodesRankPar,4))       ! Pressure
+      allocate(E(numNodesRankPar,4))        ! Total Energy
       allocate(Tem(numNodesRankPar,2))      ! Temperature
       allocate(e_int(numNodesRankPar,2))    ! Internal Energy
-      allocate(eta(numNodesRankPar,3))      ! entropy
+      allocate(eta(numNodesRankPar,4))      ! entropy
       allocate(csound(numNodesRankPar))     ! Speed of sound
       allocate(machno(numNodesRankPar))     ! Speed of sound
       allocate(mu_fluid(numNodesRankPar))   ! Fluid viscosity
@@ -1553,6 +1553,13 @@ contains
          call this%callTimeIntegration(istep)
 
          !$acc kernels
+         rho(:,4) = rho(:,3)
+         E(:,4) = E(:,3)
+         q(:,:,4) = q(:,:,3)
+         eta(:,4) = eta(:,3)
+         u(:,:,4) = u(:,:,3)
+         pr(:,4) = pr(:,3)
+
          rho(:,3) = rho(:,1)
          E(:,3) = E(:,1)
          q(:,:,3) = q(:,:,1)

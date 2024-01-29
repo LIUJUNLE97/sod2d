@@ -18,12 +18,13 @@ module time_integ_incomp
 
    implicit none
 
-   real(rp), allocatable, dimension(:,:,:) :: Rmom
+   real(rp), allocatable, dimension(:,:,:) :: Rmom,aux_omega
    real(rp), allocatable, dimension(:,:) :: aux_q,Rsource,Rwmles
-   real(rp), allocatable, dimension(:,:) :: Rmom_sum,Rdiff_mom
+   real(rp), allocatable, dimension(:,:) :: Rdiff_mom
    real(rp), allocatable, dimension(:,:) ::GradP,f_eta,Reta
    real(rp), allocatable, dimension(:) :: auxReta
-
+   real(rp), allocatable, dimension(:)   :: beta, alpha
+   real(rp) :: gamma0
 
    contains
    subroutine init_rk4_solver_incomp(npoin)
@@ -32,20 +33,19 @@ module time_integ_incomp
       integer(4),intent(in) :: npoin
       integer(4) :: numSteps
 
-      allocate(Rmom(npoin,ndime,2))
-      !$acc enter data create(Rmom(:,:,:))
+      allocate(Rmom(npoin,ndime,3),aux_omega(npoin,ndime,3))
+      !$acc enter data create(Rmom(:,:,:),aux_omega(:,:,:))
 
       allocate(aux_q(npoin,ndime),Rsource(npoin,ndime),Rwmles(npoin,ndime))
       !$acc enter data create(aux_q(:,:),Rsource(:,:),Rwmles(:,:))
 
-      allocate(Rmom_sum(npoin,ndime),Rdiff_mom(npoin,ndime))
-      !$acc enter data create(Rmom_sum(:,:))
+      allocate(Rdiff_mom(npoin,ndime))
       !$acc enter data create(Rdiff_mom(:,:))
 
       allocate(gradP(npoin,ndime))
       !$acc enter data create(gradP(:,:))
 
-      allocate(auxReta(npoin),f_eta(npoin,ndime),Reta(npoin,ndime))
+      allocate(auxReta(npoin),f_eta(npoin,ndime),Reta(npoin,3))
       !$acc enter data create(auxReta(:),f_eta(:,:),Reta(:,:))
    
       !$acc kernels
@@ -54,6 +54,8 @@ module time_integ_incomp
       Rwmles(1:npoin,1:ndime) = 0.0_rp
       !$acc end kernels
 
+      allocate(alpha(3),beta(3))
+      !$acc enter data create(alpha(:),beta(:))
       call nvtxEndRange
 
    end subroutine init_rk4_solver_incomp
@@ -63,16 +65,16 @@ module time_integ_incomp
 
 
       !$acc exit data delete(Rmom(:,:,:))
-      deallocate(Rmom)
+      !$acc exit data delete(aux_omega(:,:,:))
+      deallocate(Rmom,aux_omega)
 
       !$acc exit data delete(aux_q(:,:))
       !$acc exit data delete(Rsource(:,:))
       !$acc exit data delete(Rwmles(:,:))
       deallocate(aux_q,Rsource,Rwmles)
 
-      !$acc exit data delete(Rmom_sum(:,:))
       !$acc exit data delete(Rdiff_mom(:,:))
-      deallocate(Rmom_sum,Rdiff_mom)
+      deallocate(Rdiff_mom)
 
       !$acc exit data delete(gradP(:,:))
       deallocate(gradP)
@@ -82,7 +84,7 @@ module time_integ_incomp
 
    end subroutine end_rk4_solver_incomp
  
-         subroutine ab_main_incomp(igtime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         subroutine ab_main_incomp(igtime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,leviCivi,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
@@ -96,6 +98,7 @@ module time_integ_incomp
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn_nodes(npoin),lelpn(npoin)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             integer(4),           intent(in)    :: ppow
+            real(rp),              intent(in)   :: leviCivi(ndime,ndime,ndime)
             real(rp),             intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
             real(rp),             intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
@@ -105,14 +108,14 @@ module time_integ_incomp
             real(rp),             intent(in)    :: mu_factor(npoin)
             real(rp),             intent(in)    :: Rgas, gamma_gas, Cp, Prt
             real(rp),             intent(inout) :: mue_l(nelem,nnode)
-            real(rp),             intent(inout) :: rho(npoin,3)
-            real(rp),             intent(inout) :: u(npoin,ndime,3)
-            real(rp),             intent(inout) :: q(npoin,ndime,3)
-            real(rp),             intent(inout) :: pr(npoin,3)
-            real(rp),             intent(inout) :: E(npoin,3)
+            real(rp),             intent(inout) :: rho(npoin,4)
+            real(rp),             intent(inout) :: u(npoin,ndime,4)
+            real(rp),             intent(inout) :: q(npoin,ndime,4)
+            real(rp),             intent(inout) :: pr(npoin,4)
+            real(rp),             intent(inout) :: E(npoin,4)
             real(rp),             intent(inout) :: Tem(npoin,2)
             real(rp),             intent(inout) :: e_int(npoin,2)
-            real(rp),             intent(inout) :: eta(npoin,3)
+            real(rp),             intent(inout) :: eta(npoin,4)
             real(rp),             intent(inout) :: mu_fluid(npoin)
             real(rp),             intent(inout) :: csound(npoin)
             real(rp),             intent(inout) :: machno(npoin)
@@ -149,6 +152,14 @@ module time_integ_incomp
                end do
                !$acc end parallel loop
                call full_convec_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),aux_q,rho(:,1),Rmom(:,:,1))          
+
+               if(mpi_size.ge.2) then
+                  call nvtxStartRange("AB2 halo update")
+                  do idime = 1,ndime
+                     call mpi_halo_atomic_update_real(Rmom(:,idime,1))
+                  end do
+                  call nvtxEndRange
+               end if               
                !$acc parallel loop
                do ipoin = 1,npoin_w
                   !$acc loop seq
@@ -167,7 +178,46 @@ module time_integ_incomp
 
                call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,1))
             
+               gamma0 = 1.0_rp
+               beta(1) = 1.0_rp
+               beta(2) = 0.0_rp
+               beta(3) = 0.0_rp
+               alpha(1) = 1.0_rp
+               alpha(2) = 0.0_rp
+               alpha(3) = 0.0_rp
+               !$acc update device(alpha(:))
+               !$acc update device(beta(:))
+               
+               !$acc kernels
+               aux_omega(:,:,3) = 0.0_rp
+               aux_omega(:,:,2) = 0.0_rp
+               aux_omega(:,:,1) = 0.0_rp
+               !$acc end kernels
+            else 
+               if(igtime .eq. 2) then
+                  gamma0 = 3.0_rp/2.0_rp
+                  alpha(1) = 2.0_rp
+                  alpha(2) = -0.5_rp
+                  alpha(3) = 0.0_rp
+                  beta(1) = 2.0_rp
+                  beta(2) = -1.0_rp
+                  beta(3) = 0.0_rp
+                  !$acc update device(alpha(:))
+                  !$acc update device(beta(:))           
+               else
+                  gamma0 = 11.0_rp/6.0_rp
+                  alpha(1) = 3.0_rp
+                  alpha(2) = -3.0_rp/2.0_rp
+                  alpha(3) = 1.0_rp/3.0_rp
+                  beta(1) = 3.0_rp
+                  beta(2) = -3.0_rp
+                  beta(3) = 1.0_rp
+                  !$acc update device(alpha(:))
+                  !$acc update device(beta(:))    
+               end if
             end if
+
+
             call nvtxEndRange
 
             if(present(source_term)) then
@@ -177,26 +227,44 @@ module time_integ_incomp
                !$acc end kernels
                call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,1),source_term,Rsource)
                call nvtxEndRange
+
+               if(mpi_size.ge.2) then
+                  call nvtxStartRange("AB2 halo update")
+                  do idime = 1,ndime
+                     call mpi_halo_atomic_update_real(Rsource(:,idime))
+                  end do
+                  call nvtxEndRange
+               end if
             end if
 
             call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),&
                                           mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mom)
                   
-            if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
+            if((isWallModelOn) ) then
                   call nvtxStartRange("AB2 wall model")
-                  !$acc kernels
-                  Rwmles(1:npoin,1:ndime) = 0.0_rp
-                  !$acc end kernels
-                  if(flag_type_wmles == wmles_type_reichardt) then
-                     call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
-                        rho(:,1),walave_u(:,:),tauw,Rwmles)
-                  else if (flag_type_wmles == wmles_type_abl) then
-                     call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
-                        rho(:,1),walave_u(:,:),zo,tauw,Rwmles)
+                     if((numBoundsWM .ne. 0)) then
+                     !$acc kernels
+                     Rwmles(1:npoin,1:ndime) = 0.0_rp
+                     !$acc end kernels
+                     if(flag_type_wmles == wmles_type_reichardt) then
+                        call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
+                           rho(:,1),walave_u(:,:),tauw,Rwmles)
+                     else if (flag_type_wmles == wmles_type_abl) then
+                        call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
+                           rho(:,1),walave_u(:,:),zo,tauw,Rwmles)
+                     end if
                   end if
                   call nvtxEndRange
+          
+                  if(mpi_size.ge.2) then
+                     call nvtxStartRange("AB2 halo update")
+                     do idime = 1,ndime
+                        call mpi_halo_atomic_update_real(Rwmles(:,idime))
+                     end do
+                     call nvtxEndRange
+                  end if                  
             end if
 
             call nvtxStartRange("AB2 momentum")
@@ -211,25 +279,25 @@ module time_integ_incomp
             call full_convec_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),aux_q,rho(:,1),Rmom(:,:,2))
             call nvtxEndRange
 
+            if(mpi_size.ge.2) then
+               call nvtxStartRange("AB2 halo update")
+               do idime = 1,ndime
+                  call mpi_halo_atomic_update_real(Rmom(:,idime,2))
+               end do
+               call nvtxEndRange
+            end if
+
             call nvtxStartRange("AB2 update u(2) & Rmom(1)")
             !$acc parallel loop
             do ipoin = 1,npoin
                !$acc loop seq   
                do idime = 1,ndime
-                  u(ipoin,idime,2) = -dt*(1.5_rp*Rmom(ipoin,idime,2)-0.5_rp*(Rmom(ipoin,idime,1))+0.5_rp*Rdiff_mom(ipoin,idime))&
-                                     -dt*Rsource(ipoin,idime)-dt*Rwmles(ipoin,idime)
+                  u(ipoin,idime,2) = -(beta(1)*Rmom(ipoin,idime,2)+beta(2)*Rmom(ipoin,idime,1)+beta(3)*Rmom(ipoin,idime,3)) & 
+                                     -Rsource(ipoin,idime)
+                  Rmom(ipoin,idime,3) = Rmom(ipoin,idime,1)
                   Rmom(ipoin,idime,1) = Rmom(ipoin,idime,2)
               end do
             end do
-
-            !$acc end parallel loop     
-            if(mpi_size.ge.2) then
-               call nvtxStartRange("AB2 halo update")
-               do idime = 1,ndime
-                  call mpi_halo_atomic_update_real(u(:,idime,2))
-               end do
-               call nvtxEndRange
-            end if
             call nvtxEndRange
             
             call nvtxStartRange("AB2 update u(2)")
@@ -237,27 +305,35 @@ module time_integ_incomp
             do ipoin = 1,npoin
                !$acc loop seq   
                do idime = 1,ndime
-                  u(ipoin,idime,2) =  u(ipoin,idime,2) + u(ipoin,idime,1)*Ml(ipoin)
+                  u(ipoin,idime,2) =  (dt*u(ipoin,idime,2)/Ml(ipoin) + alpha(1)*u(ipoin,idime,1) + alpha(2)*u(ipoin,idime,3) + alpha(3)*u(ipoin,idime,4))/gamma0
               end do
             end do
             !$acc end parallel loop
             call nvtxEndRange
 
-            call conjGrad_veloc_incomp(igtime,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,numBoundsWM,connec,lpoin_w,invAtoIJK,gmshAtoI,&
-                                       gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,u(:,:,1),u(:,:,2), &
-                                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&                      
-                                       listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u)
-
             call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),pr(:,2))
             !$acc kernels
-            pr(:,2) = -pr(:,2)/dt
+            pr(:,2) = -gamma0*pr(:,2)/dt
             !$acc end kernels
 
+            if (noBoundaries .eqv. .false.) then
+               !$acc parallel loop collapse(2)
+               do ipoin = 1,npoin
+                  do idime = 1,ndime
+                     aux_q(ipoin,idime) = -(beta(1)*aux_omega(ipoin,idime,2)+beta(2)*aux_omega(ipoin,idime,1)+beta(3)*aux_omega(ipoin,idime,3)) 
+                  end do
+               end do      
+               call bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes, &
+                                             bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,aux_q,pr(:,2))
+            end if
+            if (noBoundaries .eqv. .false.) then
+               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,1))              
+            end if
             call conjGrad_pressure_incomp(igtime,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,connec,lpoin_w,lelpn,invAtoIJK,gmshAtoI,gmshAtoJ,&
                                           gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,pr(:,1),pr(:,2), &
                                           nboun,bou_codes_nodes,normalsAtNodes)
             if (noBoundaries .eqv. .false.) then
-               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,2))
+               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,2))              
             end if
             call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,pr(:,2),gradP,.true.)
                         
@@ -265,15 +341,31 @@ module time_integ_incomp
             do ipoin = 1,npoin
                !$acc loop seq
                do idime = 1,ndime
-                  u(ipoin,idime,2) = u(ipoin,idime,2)-dt*gradP(ipoin,idime)
+                  u(ipoin,idime,2) = (u(ipoin,idime,2)-dt*gradP(ipoin,idime)/gamma0)*Ml(ipoin) & 
+                                     -dt*Rwmles(ipoin,idime)/gamma0
                end do
             end do
             !$acc end parallel loop
+                        
+            if (noBoundaries .eqv. .false.) then
+               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,u(:,:,1),u_buffer)
+            end if
+
+            call conjGrad_veloc_incomp(igtime,1.0_rp/gamma0,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,numBoundsWM,connec,lpoin_w,invAtoIJK,gmshAtoI,&
+                                       gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,u(:,:,1),u(:,:,2), &
+                                       ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&                      
+                                       listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u)
 
             if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,u(:,:,2),u_buffer)
 
             if (noBoundaries .eqv. .false.) then
                call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,u(:,:,2),u_buffer)
+               !$acc kernels
+               aux_omega(:,:,3) = aux_omega(:,:,1)
+               aux_omega(:,:,1) = aux_omega(:,:,2)
+               !$acc end kernels
+               call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),aux_q,.true.)
+               call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_q,aux_omega(:,:,2),.true.)
             end if
             !
             ! Compute subgrid viscosity if active
@@ -281,6 +373,8 @@ module time_integ_incomp
 
             !$acc parallel loop
             do ipoin = 1,npoin_w
+               eta(lpoin_w(ipoin),4) = eta(lpoin_w(ipoin),3)
+               eta(lpoin_w(ipoin),3) = eta(lpoin_w(ipoin),1)
                eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
                eta(lpoin_w(ipoin),2) = 0.5*(u(lpoin_w(ipoin),1,2)**2 + u(lpoin_w(ipoin),2,2)**2 + u(lpoin_w(ipoin),3,2)**2)
                !$acc loop seq
@@ -301,8 +395,9 @@ module time_integ_incomp
 
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               auxReta(lpoin_w(ipoin)) = (1.5_rp*Reta(lpoin_w(ipoin),2)-0.5_rp*Reta(lpoin_w(ipoin),1)) !+ &
-                                          !(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+               auxReta(lpoin_w(ipoin)) = (beta(1)*Reta(lpoin_w(ipoin),2)+beta(2)*Reta(lpoin_w(ipoin),1)+beta(3)*Reta(lpoin_w(ipoin),3)) !+ &
+                                         !(gamma0*eta(lpoin_w(ipoin),2)-alpha(1)*eta(lpoin_w(ipoin),1)-alpha(2)*eta(lpoin_w(ipoin),3)-alpha(3)*eta(lpoin_w(ipoin),4))/dt
+               Reta(lpoin_w(ipoin),3) = Reta(lpoin_w(ipoin),1)
                Reta(lpoin_w(ipoin),1) = Reta(lpoin_w(ipoin),2)
             end do
             !$acc end parallel loop
