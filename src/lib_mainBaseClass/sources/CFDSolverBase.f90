@@ -1753,7 +1753,7 @@ contains
    subroutine CFDSolverBase_preprocWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)                          :: iwit, jwit, ielem, inode, ifound, nwitParCand, icand, nwitFound, nwit2find, icount=0, imiss=0, myrank
+      integer(4)                          :: iwit, jwit, ielem, inode, ifound, nwitParCand, icand, nwitFound, nwit2find, icount=0, imiss=0, myrank, mpi_rank_found
       integer(4)                          :: witGlobCand(this%nwit), witGlob(this%nwit), witGlobFound(this%nwit*mpi_size)
       integer(4), allocatable             :: witGlobFound2(:), witGlobMiss(:)
       real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode), dist(numElemsRankPar), xyzwit(ndime), mindist
@@ -1762,11 +1762,12 @@ contains
       real(rp)                            :: xmin, ymin, zmin, xmax, ymax, zmax
       real(rp)                            :: xminloc, yminloc, zminloc, xmaxloc, ymaxloc, zmaxloc
       logical                             :: isinside, found
-      type real_int
-	real(rp)   :: realnum
-	integer(4) :: intnum
+      type two_real
+	      real(4) :: real_1
+	      real(4) :: real_2
       end type
-      type(real_int)                      :: locdist, globdist
+      
+      type(two_real)                      :: locdist, globdist
 
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
@@ -1883,16 +1884,17 @@ contains
             dist(:)    = (center(:,1)-xyzwit(1))*(center(:,1)-xyzwit(1))+(center(:,2)-xyzwit(2))*(center(:,2)-xyzwit(2))+(center(:,3)-xyzwit(3))*(center(:,3)-xyzwit(3))
             !$acc end kernels
             ielem      = minloc(dist(:),1)
-            locdist % realnum = dist(ielem)
-            locdist % intnum  = mpi_rank
-            call MPI_Allreduce(locdist, globdist, 1, mpi_datatype_real_int, MPI_MINLOC, app_comm, mpi_err)
-            if (mpi_rank .eq. globdist % intnum) then
-	       write(*,*) "[NOT FOUND WITNESS] ", xyzwit(:)
+            locdist % real_1 = dist(ielem)
+            locdist % real_2 = mpi_rank
+            call MPI_Allreduce(locdist, globdist, 1, MPI_2REAL, MPI_MINLOC, app_comm, mpi_err)
+            mpi_rank_found = int(globdist % real_2, kind=4)
+            if (mpi_rank .eq. mpi_rank_found) then
+	            write(*,*) "[NOT FOUND WITNESS] ", xyzwit(:)
                this%nwitPar              = this%nwitPar+1
                witGlob(this%nwitPar)     = witGlobMiss(iwit)
                witel(this%nwitPar)       = ielem
-	       witxyzPar(this%nwitPar,:) = witxyz(witGlobMiss(iwit),:)
-	       call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzPar(this%nwitPar,:), atoIJK, witxi(this%nwitPar,:), isinside, Nwit(this%nwitPar,:)) 
+	            witxyzPar(this%nwitPar,:) = witxyz(witGlobMiss(iwit),:)
+	            call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzPar(this%nwitPar,:), atoIJK, witxi(this%nwitPar,:), isinside, Nwit(this%nwitPar,:)) 
             end if
          end do
          deallocate(witGlobFound2)
