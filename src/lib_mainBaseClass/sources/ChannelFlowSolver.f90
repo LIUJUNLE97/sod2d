@@ -1,5 +1,4 @@
-#define _recirculation_ 0
-#define _crazy_ 1
+#define _mappedInlet_ 1
 
 module ChannelFlowSolver_mod
    use mod_arrays
@@ -48,11 +47,8 @@ contains
 
       !bouCodes2BCType(1) = bc_type_slip_wall_model
       bouCodes2BCType(2) = bc_type_non_slip_adiabatic
-#if _recirculation_
-      bouCodes2BCType(3) = bc_type_far_field
-#endif
 
-#if _crazy_
+#if _mappedInlet_
       bouCodes2BCType(3) = bc_type_non_slip_adiabatic
       bouCodes2BCType(4) = bc_type_recirculation_inlet !inlet
       bouCodes2BCType(5) = bc_type_far_field !outlet
@@ -72,7 +68,7 @@ contains
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
-#if _recirculation_||_crazy_
+#if _mappedInlet_
          if(coordPar(iNodeL,1)<6.0_rp) then
             source_x = (this%utau*this%utau*this%rho0/this%delta)
          else
@@ -89,7 +85,7 @@ contains
 
    end subroutine ChannelFlowSolver_initializeSourceTerms
 
-#if _recirculation_||_crazy_
+#if _mappedInlet_
    subroutine ChannelFlowSolver_initialBuffer(this)
       class(ChannelFlowSolver), intent(inout) :: this
       integer(4) :: iNode
@@ -122,7 +118,6 @@ contains
 
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "channel_crazy_p4_n10_dev"
-      !write(this%mesh_h5_file_name,*) "channel_crazy_p4_n36"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -190,25 +185,12 @@ contains
       nscbc_gamma_inf = this%gamma_gas
       nscbc_T_C = this%to
 
-#if _recirculation_
-      flag_buffer_on = .true.
-
-      flag_buffer_on_east = .true.
-      flag_buffer_e_min   = 11.0_rp
-      flag_buffer_e_size  = 1.0_rp 
-#endif
-
-#if _crazy_
+#if _mappedInlet_
       flag_buffer_on = .true.
 
       flag_buffer_on_east = .true.
       flag_buffer_e_min   = 12.0_rp
       flag_buffer_e_size  = 1.0_rp 
-
-      flag_buffer_on_west = .false.
-      flag_buffer_w_min   = 7.0_rp
-      flag_buffer_w_size  = 1.0_rp
-
 #endif
 
    end subroutine ChannelFlowSolver_initializeParameters

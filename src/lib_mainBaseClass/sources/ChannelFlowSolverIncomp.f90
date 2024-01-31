@@ -1,4 +1,4 @@
-#define _crazy_ 1
+#define _mappedInlet_ 1
 
 module ChannelFlowSolverIncomp_mod
    use mod_arrays
@@ -47,7 +47,7 @@ contains
 
       !bouCodes2BCType(1) = bc_type_slip_wall_model
       bouCodes2BCType(2) = bc_type_non_slip_adiabatic
-#if _crazy_
+#if _mappedInlet_
       bouCodes2BCType(3) = bc_type_non_slip_adiabatic
       bouCodes2BCType(4) = bc_type_recirculation_inlet !inlet
       bouCodes2BCType(5) = bc_type_outlet_incomp !outlet
@@ -67,7 +67,7 @@ contains
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
-#if _crazy_
+#if _mappedInlet_
          if(coordPar(iNodeL,1)<6.0_rp) then
             source_x = (this%utau*this%utau*this%rho0/this%delta)
          else
@@ -95,7 +95,7 @@ contains
       !$acc end kernels
    end subroutine ChannelFlowSolverIncomp_initializeSourceTerms
 
-#if _crazy_
+#if _mappedInlet_
    subroutine ChannelFlowSolverIncomp_initialBuffer(this)
       class(ChannelFlowSolverIncomp), intent(inout) :: this
       integer(4) :: iNode
@@ -127,7 +127,7 @@ contains
       real(rp) :: mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "channel_crazy_p4_n50"!"channel"
+      write(this%mesh_h5_file_name,*) "channel_crazy_p4_n50"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -142,11 +142,11 @@ contains
       this%save_logFile_step  = 20
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 5000
+      this%save_resultsFile_step = 10000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 5000
-      this%loadRestartFile = .false.
+      this%save_restartFile_step = 10000
+      this%loadRestartFile = .true.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
@@ -187,7 +187,7 @@ contains
       flag_walave = .false.
       period_walave   = 200.0_rp
 
-#if _crazy_
+#if _mappedInlet_
       flag_buffer_on = .true.
 
       flag_buffer_on_east = .true.
