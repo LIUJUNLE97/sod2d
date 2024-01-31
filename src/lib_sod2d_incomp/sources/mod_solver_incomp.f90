@@ -23,35 +23,28 @@ module mod_solver_incomp
 
       contains
 
-            subroutine conjGrad_veloc_incomp(igtime,fact,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,numBoundsWM,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-                                             dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,Rp0,R, &
-                                             ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&                   ! Optional args
-                                             listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u) ! Optional args
+            subroutine conjGrad_veloc_incomp(igtime,fact,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
+                                             gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,Rp0,R, &
+                                             bou_codes_nodes,normalsAtNodes,u_buffer) ! Optional args
 
-           implicit none
+            implicit none
 
-           logical,              intent(in)   :: noBoundaries
-           integer(4),           intent(in)    :: igtime,save_logFile_next
-           integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w),nboun
-           real(rp)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode),dt,fact
-           real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin,ndime)
-           integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            real(rp),             intent(inout) :: mu_fluid(npoin)
-            real(rp),             intent(inout) :: mu_e(nelem,ngaus)
-            real(rp),             intent(inout) :: mu_sgs(nelem,ngaus)
-            integer(4),            intent(in)    :: numBoundsWM
-            integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*)
-            integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun), bou_codes_nodes(npoin)
-            integer(4), optional, intent(in)    :: listBoundsWM(*)
-            real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
-            real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime)
-            real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
-            real(rp), optional, intent(in)      :: source_term(npoin,ndime)
-            real(rp), optional, intent(in)      :: walave_u(npoin,ndime)            
-           real(rp)   , intent(inout) :: R(npoin,ndime)
-           integer(4)                :: ipoin, iter,ialpha,idime
-           real(rp)                   :: alphaCG, betaCG
-           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,alpha(5),alpha2(5),aux_alpha,T1,Q1(2)
+            logical,    intent(in) :: noBoundaries
+            integer(4), intent(in) :: igtime,save_logFile_next
+            integer(4), intent(in) :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w),nboun
+            real(rp),   intent(in) :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode),dt,fact
+            real(rp),   intent(in) :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin,ndime)
+            integer(4), intent(in) :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+            real(rp),   intent(inout) :: mu_fluid(npoin)
+            real(rp),   intent(inout) :: mu_e(nelem,ngaus)
+            real(rp),   intent(inout) :: mu_sgs(nelem,ngaus)
+            integer(4),optional, intent(in) :: bou_codes_nodes(npoin)
+            real(rp),optional,   intent(in) :: normalsAtNodes(npoin,ndime)
+            real(rp),optional,   intent(in) :: u_buffer(npoin,ndime)
+            real(rp), intent(inout) :: R(npoin,ndime)
+            integer(4) :: ipoin,iter,ialpha,idime
+            real(rp)   :: alphaCG,betaCG
+            real(8)    :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,alpha(5),alpha2(5),aux_alpha,T1,Q1(2)
           
           call nvtxStartRange("CG solver veloc")
           if (flag_cg_mem_alloc_veloc .eqv. .true.) then
@@ -181,7 +174,6 @@ module mod_solver_incomp
                  end do
               end do
               !$acc end parallel loop
-
               !$acc parallel loop
               do ipoin = 1,npoin_w
                   !$acc loop seq

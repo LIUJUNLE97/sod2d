@@ -150,6 +150,7 @@ module CFDSolverBase_mod
       procedure, public :: evalJacobians =>CFDSolverBase_evalJacobians
       procedure, public :: evalAtoIJKInverse =>CFDSolverBase_evalAtoIJKInverse
       procedure, public :: eval_elemPerNode_and_nearBoundaryNode =>CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode
+      procedure, public :: set_mappedFaces_linkingNodes =>CFDSolverBase_set_mappedFaces_linkingNodes
       procedure, public :: evalMass=>CFDSolverBase_evalMass
       procedure, public :: evalFirstOutput =>CFDSolverBase_evalFirstOutput
       procedure, public :: evalTimeIteration =>CFDSolverBase_evalTimeIteration
@@ -1361,6 +1362,26 @@ contains
 
    end subroutine CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode
 
+   subroutine CFDSolverBase_set_mappedFaces_linkingNodes(this)
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4) :: iNode,iNodePer,iNodeMap
+
+      if(.not.isMappedFaces) return
+
+      if(mpi_rank.eq.0) write(111,*) '  --| Setting mapped faces linking nodes in lbnbNodes array...'
+
+		!$acc parallel loop  
+		do iNode = 1,numPerMapLinkedNodesRankPar
+         iNodePer = perMapLinkedNodesRankPar(iNode,1)
+         iNodeMap = perMapLinkedNodesRankPar(iNode,2)
+         !if(mpi_rank.eq.0) write(111,*) 'i',iNode,'iNodeMap',iNodeMap,'xyz',coordPar(iNodeMap,:)
+         !if(mpi_rank.eq.0) write(111,*) 'i',iNode,'iNodePer',iNodePer,'xyz',coordPar(iNodePer,:)
+         lnbnNodes(iNodeMap) = iNodePer                  
+		end do
+		!$acc end parallel loop
+
+   end subroutine CFDSolverBase_set_mappedFaces_linkingNodes
+
    subroutine CFDSolverBase_evalMass(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4) :: iElem
@@ -2188,6 +2209,8 @@ contains
 
       ! Eval list Elems per Node and Near Boundary Node
       call this%eval_elemPerNode_and_nearBoundaryNode()
+
+      call this%set_mappedFaces_linkingNodes()   
 
       ! Eval mass
       call this%evalMass()

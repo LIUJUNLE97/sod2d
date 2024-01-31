@@ -31,6 +31,10 @@ integer(4),allocatable :: masSlaRankPar(:,:)
 integer(4) :: nPerRankPar
 logical :: isMeshPeriodic
 
+integer(4),allocatable :: perMapLinkedNodesRankPar(:,:)
+integer(4) :: numPerMapLinkedNodesRankPar
+logical :: isMappedFaces
+
 integer(4) :: numBoundCodes, numBoundsRankPar, totalNumBoundsSrl
 integer(4) :: ndofRankPar, numBoundaryNodesRankPar
 integer(4), allocatable :: boundPar(:,:), boundParOrig(:,:),bouCodesPar(:), ldofPar(:), lbnodesPar(:), bouCodesNodesPar(:)

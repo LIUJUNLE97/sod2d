@@ -115,6 +115,20 @@ module mod_bc_routines
 
                      aux_p(inode) = aux_rho(inode)*(nscbc_gamma_inf-1.0_rp)*((aux_E(inode)/aux_rho(inode))- &
                         0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3))))
+                  else if (bcode == bc_type_recirculation_inlet) then ! recirculation inlet
+                     
+                     aux_q(inode,1) = aux_q(lnbn_nodes(inode),1)
+                     aux_q(inode,2) = aux_q(lnbn_nodes(inode),2)
+                     aux_q(inode,3) = aux_q(lnbn_nodes(inode),3)
+
+                     aux_u(inode,1) = aux_u(lnbn_nodes(inode),1)
+                     aux_u(inode,2) = aux_u(lnbn_nodes(inode),2)
+                     aux_u(inode,3) = aux_u(lnbn_nodes(inode),3)
+
+                     aux_rho(inode) = aux_rho(lnbn_nodes(inode))
+                     aux_E(inode)   = aux_E(lnbn_nodes(inode))
+                     aux_p(inode)   = aux_p(lnbn_nodes(inode))
+
                   else if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic
                      
                      aux_q(inode,1) = 0.0_rp
