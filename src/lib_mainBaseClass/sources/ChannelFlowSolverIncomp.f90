@@ -127,19 +127,19 @@ contains
       real(rp) :: mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "channel_crazy_p4_n50"
+      write(this%mesh_h5_file_name,*) "channel"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
-      write(this%io_append_info,*) "inco"
+      write(this%io_append_info,*) ""
 
       !----------------------------------------------
       !  --------------  I/O params -------------
       this%final_istep = 5000001
 
       this%save_logFile_first = 1 
-      this%save_logFile_step  = 20
+      this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
       this%save_resultsFile_step = 10000

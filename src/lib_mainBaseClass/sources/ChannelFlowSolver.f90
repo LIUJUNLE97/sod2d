@@ -117,7 +117,7 @@ contains
       real(rp) :: mur
 
       write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "channel_crazy_p4_n10_dev"
+      write(this%mesh_h5_file_name,*) "channel"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -132,12 +132,12 @@ contains
       this%save_logFile_step  = 10
 
       this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 100
+      this%save_resultsFile_step = 10000
 
       this%save_restartFile_first = 1
-      this%save_restartFile_step = 5000
+      this%save_restartFile_step = 10000
       this%loadRestartFile = .false.
-      this%restartFile_to_load = 2 !1 or 2
+      this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
       this%saveAvgFile = .true.
