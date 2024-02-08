@@ -3076,8 +3076,10 @@ contains
 
             deallocate(connecPerFacesSrl_i8,connecMapFacesSrl_i8)
          else
-            numPerMapLinkedNodesMshRank(iMshRank)=0
-            allocate(perMapLinkedNodesRankPar_i8_jm%matrix(iMshRank)%elems(0,0))
+            do iMshRank=1,numMshRanksInMpiRank
+               numPerMapLinkedNodesMshRank(iMshRank)=0
+               allocate(perMapLinkedNodesRankPar_i8_jm%matrix(iMshRank)%elems(0,0))
+            end do
          end if
 
 #if _CHECK_
