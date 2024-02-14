@@ -5,10 +5,6 @@ module mod_copy_results
    use mod_comms
    use mod_hdf5
    use mod_meshConversorTool
-#ifndef NOACC
-   use openacc
-   use mod_nvtx
-#endif
 
    implicit none
 
