@@ -41,8 +41,8 @@ contains
       class(TGVSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%mesh_h5_file_path,*) "../sod2d_speedup-testing_mesh/"
-      write(this%mesh_h5_file_name,*) "cube_per_p4_n34"
+      write(this%mesh_h5_file_path,*) ""
+      write(this%mesh_h5_file_name,*) "cube"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
