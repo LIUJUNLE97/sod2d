@@ -54,8 +54,15 @@ include(compilerOps)
 # Configure HDF5 module
 include(hdf5)
 
+# Configure GEMPA
+include(gempa)
+
+# Configure JFORTRAN module
+include(json-fortran)
+
 # Include external projects
-include(ExternalProject)
+#include(ExternalProject) (I think this does nothing)
+add_subdirectory(external)
 
 if(DEBUG_MODE)
     set(CMAKE_BUILD_TYPE Debug)
@@ -85,8 +92,8 @@ endif("${isSystemDir}" STREQUAL "-1")
 add_subdirectory(src)
 
 if(TOOL_MESHPART)
-    include(gempa)
-    add_subdirectory(external)
+    #include(gempa)
+    #add_subdirectory(external)
     add_subdirectory(tool_meshConversorPar)
 endif()
 
