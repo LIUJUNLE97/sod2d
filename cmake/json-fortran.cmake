@@ -1,4 +1,3 @@
-function(set_json-fortran)
-  include_directories(${GEMPA_INCLUDE_DIR})
+function(set_jsonfortran)
   target_link_libraries(${PROJECT_NAME} jsonfortran)
 endfunction()
