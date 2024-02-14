@@ -5,3 +5,9 @@
 [submodule "external/jsonfortran"]
 	path = external/jsonfortran
 	url  = https://github.com/jacobwilliams/json-fortran.git
+[submodule "external/jsonfortran/json-fortran"]
+	path = external/jsonfortran/json-fortran
+	url = https://github.com/jacobwilliams/json-fortran.git
+[submodule "external/json-fortran"]
+	path = external/json-fortran
+	url = https://github.com/jacobwilliams/json-fortran.git
