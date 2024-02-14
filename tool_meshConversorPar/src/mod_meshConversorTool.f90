@@ -41,10 +41,12 @@ contains
 
    subroutine read_gmsh_h5_file_and_do_partitioning_in_parallel(gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName,numMshRanks2Part,isLinealOutput,evalMeshQuality)
       implicit none
-      character(500), intent(in)  :: gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName
+      character(len=*),intent(in)  :: gmsh_filePath,gmsh_fileName,mesh_h5_filePath,mesh_h5_fileName
       integer(4),intent(in) :: numMshRanks2Part
       logical,intent(in) :: isLinealOutput, evalMeshQuality
       logical :: isPeriodic=.false.,isBoundaries=.false.,isMapFaces=.false.
+
+      character(1024) :: meshFile_h5_full_name
 
       integer(4) :: numElemsMpiRank,numNodesMpiRank,numBoundsMpiRank,numLinkedPerElemsSrl,numPerElemsSrl,numMasSlaNodesSrl
       integer(4), allocatable :: listElemsMpiRank(:)
@@ -407,10 +409,10 @@ contains
       start_time(8) = MPI_Wtime()
       if(mpi_rank.eq.0) write(*,*) "--| Saving Partitioned HDF5 mesh file:",mesh_h5_fileName
 
-      call set_hdf5_meshFile_name(mesh_h5_filePath,mesh_h5_fileName,numMshRanks2Part)
+      call set_hdf5_meshFile_name(mesh_h5_filePath,mesh_h5_fileName,numMshRanks2Part,meshFile_h5_full_name)
       call MPI_Barrier(app_comm,mpi_err)
 
-      call create_hdf5_file(meshFile_h5_name,sod2dmsh_h5_fileId)
+      call create_hdf5_file(meshFile_h5_full_name,sod2dmsh_h5_fileId)
 
       call create_hdf5_groups_datasets_in_meshFile_from_tool(mnnode,mnpbou,sod2dmsh_h5_fileId,isPeriodic,isBoundaries,isMapFaces,isLinealOutput,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
                vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank)
@@ -2516,7 +2518,7 @@ contains
 
       !----------------------------------------------------------------------------------------------
 
-      call do_element_partitioning_serial(numElemsSrl,iElemMpiRankStart,iElemMpiRankEnd,numElemsMpiRank)
+      call do_element_partitioning_serial(numElemsSrl,iElemMpiRankStart,iElemMpiRankEnd,numElemsMpiRank,mpi_rank,mpi_size)
 
       !----------------------------------------------------------------------------------------------
 
@@ -3076,8 +3078,10 @@ contains
 
             deallocate(connecPerFacesSrl_i8,connecMapFacesSrl_i8)
          else
-            numPerMapLinkedNodesMshRank(iMshRank)=0
-            allocate(perMapLinkedNodesRankPar_i8_jm%matrix(iMshRank)%elems(0,0))
+            do iMshRank=1,numMshRanksInMpiRank
+               numPerMapLinkedNodesMshRank(iMshRank)=0
+               allocate(perMapLinkedNodesRankPar_i8_jm%matrix(iMshRank)%elems(0,0))
+            end do
          end if
 
 #if _CHECK_
@@ -3354,29 +3358,34 @@ contains
 
    end subroutine generate_mappedNodeLinksRankPar
 
-   subroutine do_element_partitioning_serial(numElems2Par,iElemStart,iElemEnd,iElemsInRank)
+   subroutine do_element_partitioning_serial(numElems2Par,iElemStart,iElemEnd,iElemsInRank,mpiRank,numRanks2Par)
       implicit none
-      integer(4), intent(in) :: numElems2Par
+      integer(4), intent(in) :: numElems2Par,mpiRank,numRanks2Par
       integer(4), intent(out) :: iElemStart,iElemEnd,iElemsInRank
-      integer(4), dimension(0:mpi_size-1) :: vecElemsInMpiRank
+      integer(4), dimension(0:numRanks2Par-1) :: vecElemsInMpiRank
       integer(4) :: iMpiRank
 
-      if(numElems2Par.lt.mpi_size) then
-         write(*,*) 'ERROR! The total number of elements to par:',numElems2Par,'is bigger than the number of cpus used to do the partition',mpi_size,&
+      if(numElems2Par.lt.numRanks2Par) then
+         write(*,*) 'ERROR! The total number of elements to par:',numElems2Par,'is bigger than the number of cpus used to do the partition',numRanks2Par,&
                      'this is CRAZY BRO! The tool is going to crash! Use a reasonable number of CPUs (smaller than num of elements)'
          call MPI_Abort(app_comm,-1,mpi_err)
       end if
+      if(mpiRank.ge.numRanks2Par) then
+         write(*,*) 'ERROR! The mpiRank',mpiRank,'cannot be bigger than numRanks2Par',numRanks2Par,&
+                     'this is CRAZY BRO! The tool is going to crash! Bye!'
+         call MPI_Abort(app_comm,-1,mpi_err)
+      end if
 
-      call distribution_algorithm(numElems2Par,mpi_size,vecElemsInMpiRank)
+      call distribution_algorithm(numElems2Par,numRanks2Par,vecElemsInMpiRank)
 
-      iElemsInRank = vecElemsInMpiRank(mpi_rank)
+      iElemsInRank = vecElemsInMpiRank(mpiRank)
       iElemStart=1
-      do iMpiRank=0,(mpi_rank-1) !find the iElemStart
+      do iMpiRank=0,(mpiRank-1) !find the iElemStart
          iElemStart = iElemStart + vecElemsInMpiRank(iMpiRank)
       end do
       iElemEnd = iElemStart + (iElemsInRank - 1)
 
-      !write(*,*) '#rank ',mpi_rank,' iElemsInRank ',iElemsInRank,' iElemS ',iElemStart,' iElemE ',iElemEnd
+      !write(*,*) '#rank ',mpiRank,' iElemsInRank ',iElemsInRank,' iElemS ',iElemStart,' iElemE ',iElemEnd
 
    end subroutine do_element_partitioning_serial
 
@@ -3764,8 +3773,8 @@ contains
          mshRank=mshRanksInMpiRank(iMshRank)
          mshRankNodeStart_i8(iMshRank) = iNodeStartPar_i8(mshRank)
          mshRankNodeEnd_i8(iMshRank)   = iNodeEndPar_i8(mshRank)
-         !write(*,*) 'mshrank',mshrank,'[',mpi_rank,']nodesInRank',numNodesMshRank(iMshRank),'iNodeS',mshRankNodeStart(iMshRank),'iNodeE',mshRankNodeEnd(iMshRank)
-         !write(*,*) 'mshrank',mshrank,'[',mpi_rank,']start',iNodeStartPar(:),'end',iNodeEndPar(:),'tNNP',numNodesParTotal
+         !write(*,*) 'mshRank',mshRank,'[',mpi_rank,']nodesInRank',numNodesMshRank(iMshRank),'iNodeS',mshRankNodeStart_i8(iMshRank),'iNodeE',mshRankNodeEnd_i8(iMshRank),'start',iNodeStartPar_i8(:),'end',iNodeEndPar_i8(:),'tNNP',numNodesParTotal_i8
+         !write(*,*) 'mshRank',mshRank,'[',mpi_rank,']start',iNodeStartPar_i8(:),'end',iNodeEndPar_i8(:),'tNNP',numNodesParTotal_i8
       end do
    end subroutine define_parallelNodePartitioning
 

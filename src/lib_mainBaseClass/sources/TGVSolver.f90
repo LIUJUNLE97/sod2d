@@ -41,8 +41,8 @@ contains
       class(TGVSolver), intent(inout) :: this
       real(rp) :: mul, mur
 
-      write(this%mesh_h5_file_path,*) "../sod2d_speedup-testing_mesh/"
-      write(this%mesh_h5_file_name,*) "cube_per_p4_n34"
+      write(this%mesh_h5_file_path,*) ""
+      write(this%mesh_h5_file_name,*) "cube_per_p4_n10"
 
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
@@ -55,7 +55,7 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 500001
+      this%final_istep = 1001
       this%maxPhysTime = 20.0_rp
 
       this%save_logFile_first = 1 

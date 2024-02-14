@@ -8,8 +8,8 @@ module mod_hdf5
    use mod_custom_types
    implicit none
 
-   character(256) :: meshFile_h5_name,surface_meshFile_h5_name
-   character(256) :: base_resultsFile_h5_name,base_avgResultsFile_h5_name,base_restartFile_h5_name
+   !character(256) :: meshFile_h5_name,surface_meshFile_h5_name
+   !character(256) :: base_resultsFile_h5_name,base_avgResultsFile_h5_name,base_restartFile_h5_name
 
    integer(hid_t) :: h5_datatype_uint1,h5_datatype_int1,h5_datatype_int4,h5_datatype_int8
    integer(hid_t) :: h5_datatype_real4,h5_datatype_real8
@@ -21,7 +21,7 @@ contains
 
    subroutine init_hdf5_interface()
       implicit none
-      integer :: h5err
+      integer(4) :: h5err
 
       !.init h5 interface
       call h5open_f(h5err)
@@ -38,7 +38,7 @@ contains
 
    subroutine end_hdf5_interface()
       implicit none
-      integer :: h5err
+      integer(4) :: h5err
 
       !close h5 interface
       call h5close_f(h5err)
@@ -81,38 +81,78 @@ contains
    end subroutine
 
 
-   subroutine set_hdf5_meshFile_name(file_path,file_name,numRanks)
+   subroutine set_hdf5_meshFile_name(file_path,file_name,numRanks,meshFile_h5_full_name)
       implicit none
-      character(len=*), intent(in) :: file_path,file_name
+      character(len=*),intent(in) :: file_path,file_name
       integer,intent(in) :: numRanks
+      character(len=*),intent(out) :: meshFile_h5_full_name
       character(len=12) :: aux_numRanks
 
       write(aux_numRanks,'(I0)') numRanks
-      meshFile_h5_name = trim(adjustl(file_path))//trim(adjustl(file_name))//'-'//trim(aux_numRanks)//'.hdf'
+      meshFile_h5_full_name = trim(adjustl(file_path))//trim(adjustl(file_name))//'-'//trim(aux_numRanks)//'.hdf'
    end subroutine set_hdf5_meshFile_name
 
-   subroutine set_hdf5_surface_meshFile_name()
+   subroutine set_hdf5_surface_meshFile_name(meshFile_h5_full_name,surface_meshFile_h5_full_name)
       implicit none
+      character(len=*),intent(in) :: meshFile_h5_full_name
+      character(len=*),intent(out) :: surface_meshFile_h5_full_name
 
-      surface_meshFile_h5_name = 'surface_'//trim(adjustl(meshFile_h5_name))
+      surface_meshFile_h5_full_name = 'surface_'//trim(adjustl(meshFile_h5_full_name))
    end subroutine set_hdf5_surface_meshFile_name
 
-   subroutine set_hdf5_baseResultsFile_name(res_filePath,res_fileName,mesh_fileName,numRanks)
+   subroutine set_hdf5_resultsFile_baseName(res_filePath,res_fileName,mesh_fileName,numRanks,base_resultsFile_h5_full_name)
       implicit none
-      character(len=*), intent(in) :: res_filePath,res_fileName,mesh_fileName
-      integer,intent(in) :: numRanks
+      character(len=*),intent(in) :: res_filePath,res_fileName,mesh_fileName
+      integer(4),intent(in) :: numRanks
+      character(len=*),intent(out) :: base_resultsFile_h5_full_name
       character(len=12) :: aux_numRanks
 
       write(aux_numRanks,'(I0)') numRanks
-      base_resultsFile_h5_name = trim(adjustl(res_filePath))//trim(adjustl(res_fileName))//'_'&
-         //trim(adjustl(mesh_fileName))//'-'//trim(aux_numRanks)//'_'
-      base_avgResultsFile_h5_name = trim(adjustl(res_filePath))//trim(adjustl(res_fileName))//'_AVG_'&
+      base_resultsFile_h5_full_name = trim(adjustl(res_filePath))//trim(adjustl(res_fileName))//'_'&
          //trim(adjustl(mesh_fileName))//'-'//trim(aux_numRanks)//'_'
 
-      base_restartFile_h5_name = trim(adjustl(res_filePath))//'restart_'&
+   end subroutine set_hdf5_resultsFile_baseName
+
+   subroutine set_hdf5_avgResultsFile_baseName(res_filePath,res_fileName,mesh_fileName,numRanks,base_avgResultsFile_h5_full_name)
+      implicit none
+      character(len=*),intent(in) :: res_filePath,res_fileName,mesh_fileName
+      integer(4),intent(in) :: numRanks
+      character(len=*),intent(out) :: base_avgResultsFile_h5_full_name
+      character(len=12) :: aux_numRanks
+
+      write(aux_numRanks,'(I0)') numRanks
+      base_avgResultsFile_h5_full_name = trim(adjustl(res_filePath))//trim(adjustl(res_fileName))//'_AVG_'&
+         //trim(adjustl(mesh_fileName))//'-'//trim(aux_numRanks)//'_'
+   
+   end subroutine set_hdf5_avgResultsFile_baseName
+
+   subroutine set_hdf5_restartFile_baseName(res_filePath,res_fileName,mesh_fileName,numRanks,base_restartFile_h5_full_name)
+      implicit none
+      character(len=*),intent(in) :: res_filePath,res_fileName,mesh_fileName
+      integer(4),intent(in) :: numRanks
+      character(len=*),intent(out) :: base_restartFile_h5_full_name
+      character(len=12) :: aux_numRanks
+
+      write(aux_numRanks,'(I0)') numRanks
+      base_restartFile_h5_full_name = trim(adjustl(res_filePath))//'restart_'&
          //trim(adjustl(mesh_fileName))//'-'//trim(aux_numRanks)//'_'
 
-   end subroutine set_hdf5_baseResultsFile_name
+   end subroutine set_hdf5_restartFile_baseName
+
+   subroutine set_hdf5_all_resultsFile_baseName(res_filePath,res_fileName,mesh_fileName,numRanks,&
+               base_resultsFile_h5_full_name,base_avgResultsFile_h5_full_name,base_restartFile_h5_full_name)
+      implicit none
+      character(len=*),intent(in) :: res_filePath,res_fileName,mesh_fileName
+      integer(4),intent(in) :: numRanks
+      character(len=*),intent(out) :: base_resultsFile_h5_full_name,base_avgResultsFile_h5_full_name,base_restartFile_h5_full_name
+      character(len=12) :: aux_numRanks
+
+      call set_hdf5_resultsFile_baseName(res_filePath,res_fileName,mesh_fileName,numRanks,base_resultsFile_h5_full_name)
+      call set_hdf5_avgResultsFile_baseName(res_filePath,res_fileName,mesh_fileName,numRanks,base_avgResultsFile_h5_full_name)
+      call set_hdf5_restartFile_baseName(res_filePath,res_fileName,mesh_fileName,numRanks,base_restartFile_h5_full_name)
+
+   end subroutine set_hdf5_all_resultsFile_baseName
+
 
 !---------------------------------------------------------------------------------------------------------------
 !---------------------------------------------------------------------------------------------------------------
@@ -1369,8 +1409,9 @@ contains
 
    end subroutine dummy_write_mshRank_data_in_hdf5_meshFile_from_tool
 
-   subroutine load_hdf5_meshFile(mnnode,mnpbou)
+   subroutine load_hdf5_meshFile(meshFile_h5_full_name,mnnode,mnpbou)
       implicit none
+      character(len=*),intent(in) :: meshFile_h5_full_name
       integer(4),intent(in) :: mnnode,mnpbou
       character(256) :: groupname,dsetname
       integer(hid_t) :: file_id,dset_id,fspace_id
@@ -1378,9 +1419,9 @@ contains
       integer(hsize_t),dimension(1) :: fs_dims,fs_maxdims
       integer(1) :: aux_array_i1(1)
 
-      if(mpi_rank.eq.0) write(*,*) '# Loading hdf5 mesh: ',trim(adjustl(meshFile_h5_name))
+      if(mpi_rank.eq.0) write(*,*) '# Loading hdf5 mesh: ',trim(adjustl(meshFile_h5_full_name))
 
-      call open_hdf5_file(meshFile_h5_name,file_id)
+      call open_hdf5_file(meshFile_h5_full_name,file_id)
 
       !-----------------------------------------------------------------------------------------------
 
@@ -1477,7 +1518,7 @@ contains
       !close h5 file
       call close_hdf5_file(file_id)
 
-      if(mpi_rank.eq.0) write(*,*) '# Mesh ',trim(adjustl(meshFile_h5_name)),' succesfully loaded!'
+      if(mpi_rank.eq.0) write(*,*) '# Mesh ',trim(adjustl(meshFile_h5_full_name)),' succesfully loaded!'
       mesh_isLoaded = .true.
 
    end subroutine load_hdf5_meshFile
@@ -2293,20 +2334,25 @@ contains
       integer(4) :: i,h5err
       integer(HSSIZE_T), dimension(1) :: ms_offset
       integer(4),allocatable :: aux_array(:)
+      integer(8),allocatable :: aux_array_i8(:)
 
       !write(*,*) 'Loading parallel data hdf5...'
 
       ms_dims(1) = 1
       ms_offset(1) = int(mpi_rank,hssize_t)
-      allocate(aux_array(1))
+
+      allocate(aux_array_i8(1))
 
       dsetname = '/Parallel_data/rankNodeStart'
-      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-      rankNodeStart=aux_array(1)
+      call read_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
+      rankNodeStart=aux_array_i8(1)
 
       dsetname = '/Parallel_data/rankNodeEnd'
-      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-      rankNodeEnd=aux_array(1)
+      call read_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
+      rankNodeEnd=aux_array_i8(1)
+
+      deallocate(aux_array_i8)
+      allocate(aux_array(1))
 
       dsetname = '/Parallel_data/rankElemStart'
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
@@ -2976,34 +3022,37 @@ contains
 !           RESULTS FILE
 !---------------------------------------------------------------------------------------------------------
 
-   subroutine set_hdf5_resultsFile_name(iStep,full_fileName)
+   subroutine set_hdf5_resultsFile_name(base_resultsFile_h5_full_name,iStep,full_fileName)
       implicit none
-      integer, intent(in) :: iStep
-      character(len=*), intent(out) :: full_fileName
+      character(len=*),intent(in) :: base_resultsFile_h5_full_name
+      integer,intent(in) :: iStep
+      character(len=*),intent(out) :: full_fileName
       character(len=12) :: aux_step
 
       write(aux_step,'(I0)') iStep
-      full_fileName = trim(adjustl(base_resultsFile_h5_name))//trim(aux_step)//'.hdf'
+      full_fileName = trim(adjustl(base_resultsFile_h5_full_name))//trim(aux_step)//'.hdf'
    end subroutine set_hdf5_resultsFile_name
 
-   subroutine set_hdf5_restartFile_name(iStep,full_fileName)
+   subroutine set_hdf5_restartFile_name(base_restartFile_h5_full_name,iStep,full_fileName)
       implicit none
+      character(len=*),intent(in) :: base_restartFile_h5_full_name
       integer, intent(in) :: iStep
       character(len=*), intent(out) :: full_fileName
       character(len=12) :: aux_step
 
       write(aux_step,'(I0)') iStep
-      full_fileName = trim(adjustl(base_restartFile_h5_name))//trim(aux_step)//'.h5'
+      full_fileName = trim(adjustl(base_restartFile_h5_full_name))//trim(aux_step)//'.h5'
    end subroutine set_hdf5_restartFile_name
 
-   subroutine set_hdf5_avgResultsFile_name(iStep,full_fileName)
+   subroutine set_hdf5_avgResultsFile_name(base_avgResultsFile_h5_full_name,iStep,full_fileName)
       implicit none
+      character(len=*),intent(in) :: base_avgResultsFile_h5_full_name
       integer, intent(in) :: iStep
       character(len=*), intent(out) :: full_fileName
       character(len=12) :: aux_step
 
       write(aux_step,'(I0)') iStep
-      full_fileName = trim(adjustl(base_avgResultsFile_h5_name))//trim(aux_step)//'.hdf'
+      full_fileName = trim(adjustl(base_avgResultsFile_h5_full_name))//trim(aux_step)//'.hdf'
    end subroutine set_hdf5_avgResultsFile_name
 
    subroutine set_hdf5_surface_resultsFile_name(surf_res_fileName,res_fileName)
@@ -3364,8 +3413,9 @@ contains
 
 !----------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine save_hdf5_restartFile(mnnode,mngaus,restartCnt,iStep,flag_walave_value,time,rho,u,pr,E,mu_e,mu_t,walave_u)
+   subroutine save_hdf5_restartFile(base_restartFile_h5_full_name,mnnode,mngaus,restartCnt,iStep,flag_walave_value,time,rho,u,pr,E,mu_e,mu_t,walave_u)
       implicit none
+      character(len=*),intent(in) :: base_restartFile_h5_full_name
       integer(4),intent(in) :: mnnode,mngaus
       integer(4),intent(in) :: restartCnt,iStep
       logical,intent(in) :: flag_walave_value
@@ -3405,7 +3455,7 @@ contains
       !-----------------------------------------------------------------------------------------------
       ! Writing HDF5 Files
 
-      call set_hdf5_restartFile_name(restartCnt,full_fileName)
+      call set_hdf5_restartFile_name(base_restartFile_h5_full_name,restartCnt,full_fileName)
 
       call create_hdf5_file(full_fileName,file_id)
 
@@ -3465,8 +3515,9 @@ contains
 
    end subroutine save_hdf5_restartFile
 
-   subroutine load_hdf5_restartFile(mnnode,mngaus,restartCnt,load_step,flag_walave_value,time,rho,u,pr,E,mu_e,mu_t,walave_u)
+   subroutine load_hdf5_restartFile(base_restartFile_h5_full_name,mnnode,mngaus,restartCnt,load_step,flag_walave_value,time,rho,u,pr,E,mu_e,mu_t,walave_u)
       implicit none
+      character(len=*),intent(in) :: base_restartFile_h5_full_name
       integer(4),intent(in) :: mnnode,mngaus,restartCnt
       logical,intent(in) :: flag_walave_value
       integer(4),intent(inout) :: load_step
@@ -3496,7 +3547,7 @@ contains
          call MPI_Abort(app_comm,-1,mpi_err)
       end if
 
-      call set_hdf5_restartFile_name(restartCnt,full_restartFileName)
+      call set_hdf5_restartFile_name(base_restartFile_h5_full_name,restartCnt,full_restartFileName)
       if(mpi_rank.eq.0) write(*,*) '# Loading restart file: ',trim(adjustl(full_restartFileName))
 
       call open_hdf5_file(full_restartFileName,file_id)
@@ -3911,10 +3962,11 @@ contains
       !$acc end kernels
    end subroutine copy_nodeVectorField2save_in_aux_for_avg
 
-   subroutine save_hdf5_resultsFile_baseFunc(mnnode,mngaus,Ngp_equi,hdf5_fileId,save_type_inst,numNodeScalarFields2save,nodeScalarFields2save,&
+   subroutine save_hdf5_resultsFile_baseFunc(meshFile_h5_full_name,mnnode,mngaus,Ngp_equi,hdf5_fileId,save_type_inst,numNodeScalarFields2save,nodeScalarFields2save,&
                                              numNodeVectorFields2save,nodeVectorFields2save,&
                                              numElemGpScalarFields2save,elemGpScalarFields2save)
       implicit none
+      character(len=*),intent(in) :: meshFile_h5_full_name
       integer(4),intent(in) :: mnnode,mngaus
       real(rp),intent(in) :: Ngp_equi(mngaus,mnnode)
       integer(hid_t),intent(in) :: hdf5_fileId
@@ -3931,7 +3983,7 @@ contains
 
       !-----------------------------------------------------------------------------------------------
       !   Creating the VTK-HDF structure
-      call create_vtkhdf_unstructuredGrid_struct_for_resultsFile(mnnode,hdf5_fileId)
+      call create_vtkhdf_unstructuredGrid_struct_for_resultsFile(meshFile_h5_full_name,mnnode,hdf5_fileId)
 
       !-----------------------------------------------------------------------------------------------
       ds_dims(1) = int(totalNumNodesPar,hsize_t)
@@ -4176,10 +4228,12 @@ contains
 
    end subroutine load_hdf5_resultsFile_baseFunc
 
-   subroutine save_instResults_hdf5_file(mnnode,mngaus,Ngp,iStep,time,numNodeScalarFields2save,nodeScalarFields2save,&
+   subroutine save_instResults_hdf5_file(base_resultsFile_h5_full_name,meshFile_h5_full_name,mnnode,mngaus,Ngp,iStep,time,&
+                                          numNodeScalarFields2save,nodeScalarFields2save,&
                                           numNodeVectorFields2save,nodeVectorFields2save,&
                                           numElemGpScalarFields2save,elemGpScalarFields2save)
       implicit none
+      character(len=*),intent(in) :: base_resultsFile_h5_full_name,meshFile_h5_full_name
       integer(4), intent(in) :: mnnode,mngaus,iStep
       real(rp),intent(in) :: Ngp(mngaus,mnnode)
       real(rp),intent(in) :: time
@@ -4192,11 +4246,11 @@ contains
 
       !-----------------------------------------------------------------------------------------------
 
-      call set_hdf5_resultsFile_name(iStep,full_hdf5_fileName)
+      call set_hdf5_resultsFile_name(base_resultsFile_h5_full_name,iStep,full_hdf5_fileName)
 
       call create_hdf5_file(full_hdf5_fileName,hdf5_fileId)
 
-      call save_hdf5_resultsFile_baseFunc(mnnode,mngaus,Ngp,hdf5_fileId,.true.,numNodeScalarFields2save,nodeScalarFields2save,&
+      call save_hdf5_resultsFile_baseFunc(meshFile_h5_full_name,mnnode,mngaus,Ngp,hdf5_fileId,.true.,numNodeScalarFields2save,nodeScalarFields2save,&
                                           numNodeVectorFields2save,nodeVectorFields2save,&
                                           numElemGpScalarFields2save,elemGpScalarFields2save)
 
@@ -4209,10 +4263,12 @@ contains
 
    end subroutine save_instResults_hdf5_file
 
-   subroutine save_avgResults_hdf5_file(mnnode,mngaus,Ngp,restartCnt,initial_avgTime,elapsed_avgTime,numAvgNodeScalarFields2save,avgNodeScalarFields2save,&
+   subroutine save_avgResults_hdf5_file(base_avgResultsFile_h5_full_name,meshFile_h5_full_name,mnnode,mngaus,Ngp,restartCnt,initial_avgTime,elapsed_avgTime,&
+                                       numAvgNodeScalarFields2save,avgNodeScalarFields2save,&
                                        numAvgNodeVectorFields2save,avgNodeVectorFields2save,&
                                        numAvgElemGpScalarFields2save,avgElemGpScalarFields2save)
       implicit none
+      character(len=*),intent(in) :: base_avgResultsFile_h5_full_name,meshFile_h5_full_name
       integer(4), intent(in) :: mnnode,mngaus,restartCnt
       real(rp),intent(in) :: Ngp(mngaus,mnnode)
       real(rp),intent(in) :: initial_avgTime,elapsed_avgTime
@@ -4225,11 +4281,11 @@ contains
 
       !-----------------------------------------------------------------------------------------------
       
-      call set_hdf5_avgResultsFile_name(restartCnt,full_hdf5_fileName)
+      call set_hdf5_avgResultsFile_name(base_avgResultsFile_h5_full_name,restartCnt,full_hdf5_fileName)
 
       call create_hdf5_file(full_hdf5_fileName,hdf5_fileId)
 
-      call save_hdf5_resultsFile_baseFunc(mnnode,mngaus,Ngp,hdf5_fileId,.false.,numAvgNodeScalarFields2save,avgNodeScalarFields2save,&
+      call save_hdf5_resultsFile_baseFunc(meshFile_h5_full_name,mnnode,mngaus,Ngp,hdf5_fileId,.false.,numAvgNodeScalarFields2save,avgNodeScalarFields2save,&
                                           numAvgNodeVectorFields2save,avgNodeVectorFields2save,&
                                           numAvgElemGpScalarFields2save,avgElemGpScalarFields2save)
       dsetname = 'elapsed_avgTime'
@@ -4244,10 +4300,11 @@ contains
 
    end subroutine save_avgResults_hdf5_file
 
-   subroutine load_avgResults_hdf5_file(mnnode,mngaus,Ngp,restartCnt,initial_avgTime,elapsed_avgTime,numAvgNodeScalarFields2load,avgNodeScalarFields2load,&
+   subroutine load_avgResults_hdf5_file(base_avgResultsFile_h5_full_name,mnnode,mngaus,Ngp,restartCnt,initial_avgTime,elapsed_avgTime,numAvgNodeScalarFields2load,avgNodeScalarFields2load,&
                                        numAvgNodeVectorFields2load,avgNodeVectorFields2load,&
                                        numAvgElemGpScalarFields2load,avgElemGpScalarFields2load)
       implicit none
+      character(len=*),intent(in) :: base_avgResultsFile_h5_full_name
       integer(4),intent(in) :: mnnode,mngaus,restartCnt
       real(rp),intent(in) :: Ngp(mngaus,mnnode)
       real(rp),intent(inout) :: initial_avgTime,elapsed_avgTime
@@ -4258,7 +4315,7 @@ contains
       integer(hid_t) :: hdf5_fileId
       character(512) :: full_hdf5_fileName,dsetname
 
-      call set_hdf5_avgResultsFile_name(restartCnt,full_hdf5_fileName)
+      call set_hdf5_avgResultsFile_name(base_avgResultsFile_h5_full_name,restartCnt,full_hdf5_fileName)
 
       call open_hdf5_file(full_hdf5_fileName,hdf5_fileId)
 
@@ -4282,47 +4339,54 @@ contains
 
    !-------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine save_surface_instResults_hdf5_file(iStep,numNodeScalarFields2save,nodeScalarFields2save,&
-                                                  numNodeVectorFields2save,nodeVectorFields2save,&
-                                                  numElemGpScalarFields2save,elemGpScalarFields2save)
+   subroutine save_surface_instResults_hdf5_file(base_resultsFile_h5_full_name,meshFile_h5_full_name,surface_meshFile_h5_full_name,iStep,&
+                                                numNodeScalarFields2save,nodeScalarFields2save,&
+                                                numNodeVectorFields2save,nodeVectorFields2save,&
+                                                numElemGpScalarFields2save,elemGpScalarFields2save)
       implicit none
+      character(len=*),intent(in) :: base_resultsFile_h5_full_name,meshFile_h5_full_name,surface_meshFile_h5_full_name
       integer(4), intent(in) :: iStep
       integer(4),intent(in) :: numNodeScalarFields2save,numNodeVectorFields2save,numElemGpScalarFields2save
       character(512) :: res_hdf5_fileName
       type(ptr_array1d_rp_save),intent(in) :: nodeScalarFields2save(:)
       type(ptr_array2d_rp_save),intent(in) :: nodeVectorFields2save(:),elemGpScalarFields2save(:)
 
-      call set_hdf5_resultsFile_name(iStep,res_hdf5_fileName)
+      call set_hdf5_resultsFile_name(base_resultsFile_h5_full_name,iStep,res_hdf5_fileName)
 
-      call save_surface_results_hdf5_file(res_hdf5_fileName,numNodeScalarFields2save,nodeScalarFields2save,&
-                                             numNodeVectorFields2save,nodeVectorFields2save,&
-                                             numElemGpScalarFields2save,elemGpScalarFields2save)
+      call save_surface_results_hdf5_file(meshFile_h5_full_name,surface_meshFile_h5_full_name,res_hdf5_fileName,&
+                                          numNodeScalarFields2save,nodeScalarFields2save,&
+                                          numNodeVectorFields2save,nodeVectorFields2save,&
+                                          numElemGpScalarFields2save,elemGpScalarFields2save)
 
    end subroutine save_surface_instResults_hdf5_file
 
-   subroutine save_surface_avgResults_hdf5_file(restartCnt,numAvgNodeScalarFields2save,avgNodeScalarFields2save,&
-                                                   numAvgNodeVectorFields2save,avgNodeVectorFields2save,&
-                                                   numAvgElemGpScalarFields2save,avgElemGpScalarFields2save)
+   subroutine save_surface_avgResults_hdf5_file(base_avgResultsFile_h5_full_name,meshFile_h5_full_name,surface_meshFile_h5_full_name,restartCnt,&
+                                                numAvgNodeScalarFields2save,avgNodeScalarFields2save,&
+                                                numAvgNodeVectorFields2save,avgNodeVectorFields2save,&
+                                                numAvgElemGpScalarFields2save,avgElemGpScalarFields2save)
       implicit none
+      character(len=*),intent(in) :: base_avgResultsFile_h5_full_name,meshFile_h5_full_name,surface_meshFile_h5_full_name
       integer(4), intent(in) :: restartCnt
       integer(4),intent(in) :: numAvgNodeScalarFields2save,numAvgNodeVectorFields2save,numAvgElemGpScalarFields2save
       type(ptr_array1d_rp_save),intent(in) :: avgNodeScalarFields2save(:)
       type(ptr_array2d_rp_save),intent(in) :: avgNodeVectorFields2save(:),avgElemGpScalarFields2save(:)
       character(512) :: res_hdf5_fileName
 
-      call set_hdf5_avgResultsFile_name(restartCnt,res_hdf5_fileName)
+      call set_hdf5_avgResultsFile_name(base_avgResultsFile_h5_full_name,restartCnt,res_hdf5_fileName)
 
-      call save_surface_results_hdf5_file(res_hdf5_fileName,numAvgNodeScalarFields2save,avgNodeScalarFields2save,&
-                                             numAvgNodeVectorFields2save,avgNodeVectorFields2save,&
-                                             numAvgElemGpScalarFields2save,avgElemGpScalarFields2save)
+      call save_surface_results_hdf5_file(meshFile_h5_full_name,surface_meshFile_h5_full_name,res_hdf5_fileName,&
+                                          numAvgNodeScalarFields2save,avgNodeScalarFields2save,&
+                                          numAvgNodeVectorFields2save,avgNodeVectorFields2save,&
+                                          numAvgElemGpScalarFields2save,avgElemGpScalarFields2save)
 
    end subroutine save_surface_avgResults_hdf5_file
 
-   subroutine save_surface_results_hdf5_file(res_hdf5_fileName,numNodeScalarFields2save,nodeScalarFields2save,&
+   subroutine save_surface_results_hdf5_file(meshFile_h5_full_name,surface_meshFile_h5_full_name,res_hdf5_fileName,&
+                                             numNodeScalarFields2save,nodeScalarFields2save,&
                                              numNodeVectorFields2save,nodeVectorFields2save,&
                                              numElemGpScalarFields2save,elemGpScalarFields2save)
       implicit none
-      character(512),intent(in) :: res_hdf5_fileName
+      character(512),intent(in) :: meshFile_h5_full_name,surface_meshFile_h5_full_name,res_hdf5_fileName
       integer(4),intent(in) :: numNodeScalarFields2save,numNodeVectorFields2save,numElemGpScalarFields2save
       type(ptr_array1d_rp_save),intent(in) :: nodeScalarFields2save(:)
       type(ptr_array2d_rp_save),intent(in) :: nodeVectorFields2save(:),elemGpScalarFields2save(:)
@@ -4338,15 +4402,15 @@ contains
       call set_vtkhdf_attributes_and_basic_groups(hdf5_fileId)
       !--------------------------------------------------------------------------------------------------------------------------------------
       !--------------------------------------------------------------------------------------------------------------------------------------
-      call h5lcreate_external_f(meshFile_h5_name,'/VTKHDF/Points',hdf5_fileId,'/VTKHDF/Points',h5err)
-      call h5lcreate_external_f(surface_meshFile_h5_name,'/VTKHDF/NumberOfPoints',hdf5_fileId,'/VTKHDF/NumberOfPoints',h5err)
-      call h5lcreate_external_f(surface_meshFile_h5_name,'/VTKHDF/NumberOfCells',hdf5_fileId,'/VTKHDF/NumberOfCells',h5err)
-      call h5lcreate_external_f(surface_meshFile_h5_name,'/VTKHDF/NumberOfConnectivityIds',hdf5_fileId,'/VTKHDF/NumberOfConnectivityIds',h5err)
-      call h5lcreate_external_f(surface_meshFile_h5_name,'/VTKHDF/Offsets',hdf5_fileId,'/VTKHDF/Offsets',h5err)
-      call h5lcreate_external_f(surface_meshFile_h5_name,'/VTKHDF/Connectivity',hdf5_fileId,'/VTKHDF/Connectivity',h5err)
-      call h5lcreate_external_f(surface_meshFile_h5_name,'/VTKHDF/Types',hdf5_fileId,'/VTKHDF/Types',h5err)
-      call h5lcreate_external_f(surface_meshFile_h5_name,'/VTKHDF/CellData/mpi_rank',hdf5_fileId,'/VTKHDF/CellData/mpi_rank',h5err)
-      call h5lcreate_external_f(surface_meshFile_h5_name,'/VTKHDF/CellData/boundCode',hdf5_fileId,'/VTKHDF/CellData/boundCode',h5err)
+      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/Points',hdf5_fileId,'/VTKHDF/Points',h5err)
+      call h5lcreate_external_f(surface_meshFile_h5_full_name,'/VTKHDF/NumberOfPoints',hdf5_fileId,'/VTKHDF/NumberOfPoints',h5err)
+      call h5lcreate_external_f(surface_meshFile_h5_full_name,'/VTKHDF/NumberOfCells',hdf5_fileId,'/VTKHDF/NumberOfCells',h5err)
+      call h5lcreate_external_f(surface_meshFile_h5_full_name,'/VTKHDF/NumberOfConnectivityIds',hdf5_fileId,'/VTKHDF/NumberOfConnectivityIds',h5err)
+      call h5lcreate_external_f(surface_meshFile_h5_full_name,'/VTKHDF/Offsets',hdf5_fileId,'/VTKHDF/Offsets',h5err)
+      call h5lcreate_external_f(surface_meshFile_h5_full_name,'/VTKHDF/Connectivity',hdf5_fileId,'/VTKHDF/Connectivity',h5err)
+      call h5lcreate_external_f(surface_meshFile_h5_full_name,'/VTKHDF/Types',hdf5_fileId,'/VTKHDF/Types',h5err)
+      call h5lcreate_external_f(surface_meshFile_h5_full_name,'/VTKHDF/CellData/mpi_rank',hdf5_fileId,'/VTKHDF/CellData/mpi_rank',h5err)
+      call h5lcreate_external_f(surface_meshFile_h5_full_name,'/VTKHDF/CellData/boundCode',hdf5_fileId,'/VTKHDF/CellData/boundCode',h5err)
       !--------------------------------------------------------------------------------------------------------------------------------------
       !--------------------------------------------------------------------------------------------------------------------------------------
       groupname = '/VTKHDF/PointData/'
@@ -4372,15 +4436,16 @@ contains
    end subroutine save_surface_results_hdf5_file
    !-------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine save_surface_mesh_hdf5_file(mnpbou,gmsh2ij,vtk2ij)
+   subroutine save_surface_mesh_hdf5_file(meshFile_h5_full_name,mnpbou,gmsh2ij,vtk2ij)
       implicit none
+      character(512),intent(in) :: meshFile_h5_full_name
       integer(4),intent(in) :: mnpbou,gmsh2ij(mnpbou),vtk2ij(mnpbou)
       integer(4) :: ds_rank,h5err
       integer(hsize_t),dimension(1) :: ds_dims,ms_dims
       integer(hssize_t),dimension(1) :: ms_offset
 
       integer(hid_t) :: hdf5_fileId
-      character(512) :: groupname,dsetname
+      character(512) :: surface_meshFile_h5_full_name,groupname,dsetname
       integer(hid_t) :: dtype
       integer(1),allocatable :: aux_array_i1(:)
       integer(8),allocatable :: aux_array_i8(:)
@@ -4389,12 +4454,12 @@ contains
       integer(4) :: ii,jj,iBound,iRank,iNodeL
 
       !---------------------------------------------------------------------------------
-      call set_hdf5_surface_meshFile_name()
-      call create_hdf5_file(surface_meshFile_h5_name,hdf5_fileId)
+      call set_hdf5_surface_meshFile_name(meshFile_h5_full_name,surface_meshFile_h5_full_name)
+      call create_hdf5_file(surface_meshFile_h5_full_name,hdf5_fileId)
       call set_vtkhdf_attributes_and_basic_groups(hdf5_fileId)
       !---------------------------------------------------------------------------------
 
-      call h5lcreate_external_f(meshFile_h5_name,'/VTKHDF/Points',hdf5_fileId,'/VTKHDF/Points',h5err)
+      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/Points',hdf5_fileId,'/VTKHDF/Points',h5err)
 
       !-----------------------------------------------------------------------------
       ds_rank = 1
@@ -4521,31 +4586,34 @@ contains
 !        VTKHDF5 FILE
 !---------------------------------------------------------------------------------------------------------
 
-   subroutine set_vtkhdf_resultsFile_name(iStep,full_fileName)
+   subroutine set_vtkhdf_resultsFile_name(base_resultsFile_h5_full_name,iStep,full_fileName)
       implicit none
+      character(len=*),intent(in) :: base_resultsFile_h5_full_name
       integer, intent(in) :: iStep
       character(len=*), intent(out) :: full_fileName
       character(len=12) :: aux_step
 
       write(aux_step,'(I0)') iStep
-      full_fileName = trim(adjustl(base_resultsFile_h5_name))//trim(aux_step)//'-vtk.hdf'
+      full_fileName = trim(adjustl(base_resultsFile_h5_full_name))//trim(aux_step)//'-vtk.hdf'
    end subroutine set_vtkhdf_resultsFile_name
 
-   subroutine set_vtkhdf_avgResultsFile_name(iStep,full_fileName)
+   subroutine set_vtkhdf_avgResultsFile_name(base_avgResultsFile_h5_full_name,iStep,full_fileName)
       implicit none
+      character(len=*),intent(in) :: base_avgResultsFile_h5_full_name
       integer, intent(in) :: iStep
       character(len=*), intent(out) :: full_fileName
       character(len=12) :: aux_step
 
       write(aux_step,'(I0)') iStep
-      full_fileName = trim(adjustl(base_avgResultsFile_h5_name))//trim(aux_step)//'-vtk.hdf'
+      full_fileName = trim(adjustl(base_avgResultsFile_h5_full_name))//trim(aux_step)//'-vtk.hdf'
    end subroutine set_vtkhdf_avgResultsFile_name
 
-   subroutine set_vtkhdf_finalAvgResultsFile_name(full_fileName)
+   subroutine set_vtkhdf_finalAvgResultsFile_name(base_avgResultsFile_h5_full_name,full_fileName)
       implicit none
+      character(len=*),intent(in) :: base_avgResultsFile_h5_full_name
       character(len=*), intent(out) :: full_fileName
 
-      full_fileName = trim(adjustl(base_avgResultsFile_h5_name))//'final-vtk.hdf'
+      full_fileName = trim(adjustl(base_avgResultsFile_h5_full_name))//'-final-vtk.hdf'
    end subroutine set_vtkhdf_finalAvgResultsFile_name
 
    subroutine set_vtkhdf_attributes_and_basic_groups(file_id)
@@ -4988,8 +5056,9 @@ contains
 
    end subroutine dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile
 
-   subroutine create_vtkhdf_unstructuredGrid_struct_for_resultsFile(mnnode,file_id)
+   subroutine create_vtkhdf_unstructuredGrid_struct_for_resultsFile(meshFile_h5_full_name,mnnode,file_id)
       implicit none
+      character(512),intent(in) :: meshFile_h5_full_name
       integer(4),intent(in) :: mnnode
       integer(hid_t),intent(in) :: file_id
       integer(hid_t) :: dtype
@@ -5002,7 +5071,7 @@ contains
       call set_vtkhdf_attributes_and_basic_groups(file_id)
 
       !--------------------------------------------------------------------------------
-      call h5lcreate_external_f(meshFile_h5_name,'/VTKHDF/Points',file_id,'/VTKHDF/Points',h5err) 
+      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/Points',file_id,'/VTKHDF/Points',h5err) 
 
       !-----------------------------------------------------------------------------
       ds_rank = 1
@@ -5031,13 +5100,13 @@ contains
 
       !-----------------------------------------------------------------------------
 
-      call h5lcreate_external_f(meshFile_h5_name,'/VTKHDF/Offsets',file_id,'/VTKHDF/Offsets',h5err)
+      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/Offsets',file_id,'/VTKHDF/Offsets',h5err)
 
-      call h5lcreate_external_f(meshFile_h5_name,'/VTKHDF/Connectivity',file_id,'/VTKHDF/Connectivity',h5err)
+      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/Connectivity',file_id,'/VTKHDF/Connectivity',h5err)
 
-      call h5lcreate_external_f(meshFile_h5_name,'/VTKHDF/Types',file_id,'/VTKHDF/Types',h5err)
+      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/Types',file_id,'/VTKHDF/Types',h5err)
 
-      call h5lcreate_external_f(meshFile_h5_name,'/VTKHDF/CellData/mpi_rank',file_id,'/VTKHDF/CellData/mpi_rank',h5err)
+      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/CellData/mpi_rank',file_id,'/VTKHDF/CellData/mpi_rank',h5err)
 
    end subroutine create_vtkhdf_unstructuredGrid_struct_for_resultsFile
 
@@ -5110,14 +5179,15 @@ contains
 
 !-----------------------------------------------------------------------------------------------------------------------------
 
-   subroutine save_vtkhdf_realFieldFile(mnnode,realField)
+   subroutine save_vtkhdf_realFieldFile(base_resultsFile_h5_full_name,mnnode,realField)
       implicit none
+      character(len=*),intent(in) :: base_resultsFile_h5_full_name
       integer(4),intent(in) :: mnnode
       real(rp),dimension(numNodesRankPar),intent(in) :: realField
       character(512) :: full_fileName
 
       !------------------------------------------------------------------------------------
-      call set_vtkhdf_resultsFile_name(0,full_fileName)
+      call set_vtkhdf_resultsFile_name(base_resultsFile_h5_full_name,0,full_fileName)
       if(mpi_rank.eq.0) write(*,*) '# Saving VTKHDF realField file: ',trim(adjustl(full_fileName))
 
       call write_vtkhdf_realFieldFile(mnnode,full_fileName,realField)

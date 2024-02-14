@@ -12,9 +12,8 @@ module mod_mpi_mesh
 
 logical :: mesh_isLoaded = .false.
 
-integer(4) :: numNodesRankPar,numElemsRankPar,totalNumElements
-integer(4) :: rankNodeStart,rankNodeEnd,rankElemStart,rankElemEnd
-integer(8) :: totalNumNodesPar, totalNumNodesSrl
+integer(4) :: numNodesRankPar,numElemsRankPar,rankElemStart,rankElemEnd,totalNumElements
+integer(8) :: rankNodeStart,rankNodeEnd,totalNumNodesPar,totalNumNodesSrl
 
 integer(4),allocatable :: elemGid(:)
 integer(8),allocatable :: globalIdSrl(:),globalIdPar(:)
