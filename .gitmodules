@@ -1,3 +1,7 @@
 [submodule "external/gempa"]
 	path = external/gempa
-	url = https://gitlab.com/rickbp/gempa.git
+	url  = https://gitlab.com/rickbp/gempa.git
+
+[submodule "external/jasonfortran"]
+	path = external/jasonfortran
+	url  = https://github.com/jacobwilliams/json-fortran.git
