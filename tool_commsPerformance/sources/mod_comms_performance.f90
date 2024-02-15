@@ -150,13 +150,14 @@ contains
       call init_comms(useIntInComms,useRealInComms)
    end subroutine init_comms_performance
 
-   subroutine debug_comms_real()
+   subroutine debug_comms_real(base_resultsFile_h5_full_name)
       implicit none
+      character(512),intent(in) :: base_resultsFile_h5_full_name
 
       res_rfield(:) = 10.0_rp
       call mpi_halo_atomic_update_real(res_rfield) !using default method
 
-      call save_vtkhdf_realFieldFile(nnode,res_rfield)
+      call save_vtkhdf_realFieldFile(base_resultsFile_h5_full_name,nnode,res_rfield)
 
    end subroutine debug_comms_real
 

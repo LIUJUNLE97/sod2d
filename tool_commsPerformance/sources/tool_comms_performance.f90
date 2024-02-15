@@ -12,8 +12,7 @@ program tool_commsPerfomance
     integer :: lineCnt
     integer :: numNodesSrl,numNodesB_1r,numIters
     character(256) :: parameter2read
-    character(512) :: mesh_h5_file_path,mesh_h5_file_name
-    character(512) :: results_h5_file_path,results_h5_file_name
+    character(512) :: mesh_h5_file_path,mesh_h5_file_name,meshFile_h5_full_name
 
     logical :: useMesh=.false.
     logical :: useIntInComms=.false.,useRealInComms=.false.
@@ -78,8 +77,8 @@ program tool_commsPerfomance
 
     if(useMesh) then
         call init_hdf5_interface()
-        call set_hdf5_meshFile_name(mesh_h5_file_path,mesh_h5_file_name,mpi_size)
-        call load_hdf5_meshfile(nnode,npbou)
+        call set_hdf5_meshFile_name(mesh_h5_file_path,mesh_h5_file_name,mpi_size,meshFile_h5_full_name)
+        call load_hdf5_meshfile(meshFile_h5_full_name)
     else
         call create_dummy_1Dmesh(numNodesSrl,numNodesB_1r)
     end if
