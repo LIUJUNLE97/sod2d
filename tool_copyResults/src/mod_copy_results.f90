@@ -89,6 +89,8 @@ contains
       allocate(               quality_jv%vector(numTrgtRanksInMpiRank))
 
 
+      if(mpi_rank.eq.0) write(*,*) ' # Generating new partitioning and connec...'
+
       do iTrgtRank=1,numTrgtRanksInMpiRank
          trgtRank = trgtRanksInMpiRank(iTrgtRank)
 
@@ -125,6 +127,8 @@ contains
       allocate(numElemsVTKTrgtRank(numTrgtRanksInMpiRank))
       allocate(sizeConnecVTKTrgtRank(numTrgtRanksInMpiRank))
 
+      if(mpi_rank.eq.0) write(*,*) ' # Generating new node ordering and mapping between meshes...'
+
       do iTrgtRank=1,numTrgtRanksInMpiRank
          trgtRank = trgtRanksInMpiRank(iTrgtRank)
 
@@ -152,6 +156,8 @@ contains
 
       !Writing new results file in target N procs
       !---------------------------------------------------------------------------------------------------------------
+      if(mpi_rank.eq.0) write(*,*) ' # Generating new results files in',target_Nprocs,'N procs'
+
       call create_hdf5_file(target_full_hdf5_fileName,targetRes_hdf5_file_id)
       
       call create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,targetRes_hdf5_file_id,isMeshLinealOutput,.false.,&
@@ -200,6 +206,7 @@ contains
 
       call close_hdf5_file(sourceRes_hdf5_file_id)
 
+      if(mpi_rank.eq.0) write(*,*) ' # New results file ',trim(target_full_hdf5_fileName),' succesfully generated!'
       !---------------------------------------------------------------------------------------------------------------
 
       !----------------------------------------------------------------------------------------------
