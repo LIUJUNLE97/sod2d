@@ -13,6 +13,7 @@ option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
 
 option(TOOL_MESHPART "Compiles tool MeshPart" OFF)
+option(TOOL_COPYRES  "Compiles tool CopyResults" OFF)
 option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
 
 option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
@@ -88,6 +89,10 @@ if(TOOL_MESHPART)
     include(gempa)
     add_subdirectory(external)
     add_subdirectory(tool_meshConversorPar)
+endif()
+
+if(TOOL_COPYRES)
+    add_subdirectory(tool_copyResults)
 endif()
 
 if(TOOL_COMMPERF)

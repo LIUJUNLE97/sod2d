@@ -66,7 +66,7 @@ program tool_meshConversorPar
     parameter2read = 'eval_mesh_quality'
     call read_inputFile_logical(lineCnt,parameter2read,eval_mesh_quality)
 
-    close(99)
+    call close_inputFile()
     if(mpi_rank.eq.0) write(*,*) '## End of Reading input file: ',trim(adjustl(input_file))
 
 !---------------------------------------------------------------------------------------------------------
