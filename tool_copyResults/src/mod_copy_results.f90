@@ -70,7 +70,7 @@ contains
       call get_porder_values(mporder,mnnode,mngaus,mnpbou)
 
       !Loading original mesh file
-      call load_hdf5_meshFile(source_meshFile_h5_full_name,mnnode,mnpbou)
+      call load_hdf5_meshFile(source_meshFile_h5_full_name)
 
       !Distributing the target_Nprocs in the current Nprocs
       call distribute_ranks2Part_in_mpiRank(target_Nprocs,trgtRankInMpiRankStart,trgtRankInMpiRankEnd,numTrgtRanksInMpiRank,maxNumTrgtRanks,trgtRanksInMpiRank,mapTrgtRankToMpiRank)

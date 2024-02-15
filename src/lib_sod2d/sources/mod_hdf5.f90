@@ -6,10 +6,8 @@ module mod_hdf5
    use mod_comms
    use mod_comms_boundaries
    use mod_custom_types
+   use mod_ijk_indices
    implicit none
-
-   !character(256) :: meshFile_h5_name,surface_meshFile_h5_name
-   !character(256) :: base_resultsFile_h5_name,base_avgResultsFile_h5_name,base_restartFile_h5_name
 
    integer(hid_t) :: h5_datatype_uint1,h5_datatype_int1,h5_datatype_int4,h5_datatype_int8
    integer(hid_t) :: h5_datatype_real4,h5_datatype_real8
@@ -1409,13 +1407,12 @@ contains
 
    end subroutine dummy_write_mshRank_data_in_hdf5_meshFile_from_tool
 
-   subroutine load_hdf5_meshFile(meshFile_h5_full_name,mnnode,mnpbou)
+   subroutine load_hdf5_meshFile(meshFile_h5_full_name)
       implicit none
       character(len=*),intent(in) :: meshFile_h5_full_name
-      integer(4),intent(in) :: mnnode,mnpbou
       character(256) :: groupname,dsetname
       integer(hid_t) :: file_id,dset_id,fspace_id
-      integer(4) :: h5err
+      integer(4) :: mnnode,mngaus,mnpbou,h5err
       integer(hsize_t),dimension(1) :: fs_dims,fs_maxdims
       integer(1) :: aux_array_i1(1)
 
@@ -1457,7 +1454,7 @@ contains
 
       !-----------------------------------------------------------------------------------------------
       !load porder
-      call load_porder_hdf5(file_id,mnnode,mnpbou)
+      call load_porder_hdf5(file_id,mnnode,mngaus,mnpbou)
 
       !-----------------------------------------------------------------------------------------------
       !load the parallel data
@@ -2957,10 +2954,10 @@ contains
 
    end subroutine load_meshOutputInfo_hdf5
 
-   subroutine load_porder_hdf5(file_id,mnnode,mnpbou)
+   subroutine load_porder_hdf5(file_id,mnnode,mngaus,mnpbou)
       implicit none
       integer(hid_t),intent(in) :: file_id
-      integer(4),intent(in) :: mnnode,mnpbou
+      integer(4),intent(out) :: mnnode,mngaus,mnpbou
       character(128) :: dsetname
       integer(hsize_t), dimension(1) :: ms_dims
       integer(hssize_t), dimension(1) :: ms_offset
@@ -2981,6 +2978,8 @@ contains
          write(*,*) 'FATAL ERROR! mesh_porder',mesh_porder,' different to porder',porder
          call MPI_Abort(app_comm,-1,mpi_err)
       end if
+
+      call get_porder_values(mesh_porder,mnnode,mngaus,mnpbou)
 
       !------------------------------------------------------------------------------------------------
       allocate(mesh_a2ijk(mnnode))

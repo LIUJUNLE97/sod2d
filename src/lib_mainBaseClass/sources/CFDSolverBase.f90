@@ -587,7 +587,7 @@ contains
       this%useIntInComms=.true.
       this%useRealInComms=.true.
 
-      call load_hdf5_meshfile(this%meshFile_h5_full_name,nnode,npbou)
+      call load_hdf5_meshfile(this%meshFile_h5_full_name)
 
       ! init comms
       call init_comms(this%useIntInComms,this%useRealInComms)
