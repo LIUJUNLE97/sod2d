@@ -7,7 +7,6 @@ program main
    use json_module
    use CFDSolverBase_mod
    use TGVSolver_mod
-   use TGVMultiSolver_mod
    use TGVCompSolver_mod
    use TGVSolverIncomp_mod
    use ChannelFlowSolver_mod
@@ -39,8 +38,6 @@ program main
       allocate(TGVCompSolver::solver) 
    else if(value .eq. "TGVSolverIncomp") then
       allocate(TGVSolverIncomp::solver) 
-   else if(value .eq. "TGVMultiSolver") then
-      allocate(TGVMultiSolver::solver) 
    else if(value .eq. "ChannelFlowSolver") then
       allocate(ChannelFlowSolver::solver) 
    else if(value .eq. "ChannelFlowSolverIncomp") then
