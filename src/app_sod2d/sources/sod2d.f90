@@ -21,10 +21,18 @@ program main
 
    logical :: found
    character(len=:) , allocatable :: value
+   character(len=100) :: json_filename
    class(CFDSolverBase), pointer :: solver
 
+   ! Get the name of the JSON file
+   call get_command_argument(1, json_filename)
+
+   ! Append the extension
+   json_filename = trim(json_filename) // ".json"
+   write(*,*), "Reading the JSON file : ", json_filename
+
    call json%initialize()
-   call json%load_file('sod2d.json')
+   call json%load_file(json_filename)
    if (json%failed()) then 
       write(*,*) " There is a syntax error of the JSON file "
       stop 1
