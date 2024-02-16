@@ -97,4 +97,6 @@ module mod_numerical_params
         !
 
         logical :: flag_cg_prec_bdc = .false. !Block Diagonal Cholesky
+       
+        character(len=100) :: json_filename
 end module mod_numerical_params

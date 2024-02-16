@@ -21,8 +21,8 @@ program main
 
    logical :: found
    character(len=:) , allocatable :: value
-   character(len=100) :: json_filename
    class(CFDSolverBase), pointer :: solver
+    type(json_file) :: json
 
    ! Get the name of the JSON file
    call get_command_argument(1, json_filename)
@@ -39,6 +39,8 @@ program main
    end if
 
    call json%get("type", value, found)
+
+   call json%destroy()
 
    if(value .eq. "TGVSolver") then
       allocate(TGVSolver::solver) 

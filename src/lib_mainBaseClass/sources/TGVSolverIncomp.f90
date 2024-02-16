@@ -4,7 +4,6 @@ module TGVSolverIncomp_mod
 #ifndef NOACC
    use cudafor
 #endif   
-   use json_module
    use elem_qua
    use elem_hex
    use jacobian_oper
@@ -37,12 +36,44 @@ module TGVSolverIncomp_mod
 contains
 
    subroutine TGVSolverIncomp_initializeParameters(this)
+      use json_module
       class(TGVSolverIncomp), intent(inout) :: this
       logical :: found
+      logical :: found
+      type(json_file) :: json
+      character(len=:) , allocatable :: value
 
-      call this%loadJSONMeshFileData()
-      call this%loadJSONResultsFileData()
-      call this%loadJSONIOParams()
+      call json%initialize()
+      call json%load_file(json_filename)
+
+      call json%get("save_logFile_first",this%save_logFile_first, found)
+      call json%get("save_logFile_step",this%save_logFile_step, found)
+
+      call json%get("save_resultsFile_first",this%save_resultsFile_first, found)
+      call json%get("save_resultsFile_step" ,this%save_resultsFile_step, found)
+
+      call json%get("save_restartFile_first",this%save_restartFile_first, found)
+      call json%get("save_restartFile_step" ,this%save_restartFile_step, found)
+
+      call json%get("loadRestartFile" ,this%loadRestartFile, found)
+      call json%get("restartFile_to_load" ,this%restartFile_to_load, found)
+      call json%get("continue_oldLogs" ,this%continue_oldLogs, found)
+      call json%get("saveAvgFile" ,this%saveAvgFile, found)
+      call json%get("loadAvgFile" ,this%loadAvgFile, found)
+
+      call json%get("saveSurfaceResults",this%saveSurfaceResults, found)
+
+      call json%get("saveInitialField",this%saveInitialField, found)
+
+      call json%get("mesh_h5_file_path",value, found)
+      write(this%mesh_h5_file_path,*) value
+      call json%get("mesh_h5_file_name",value, found)
+      write(this%mesh_h5_file_name,*) value
+      
+      call json%get("results_h5_file_path",value, found)
+      write(this%results_h5_file_path,*) value
+      call json%get("results_h5_file_name",value, found)
+      write(this%results_h5_file_name,*) value
 
       call json%get("doGlobalAnalysis",this%doGlobalAnalysis, found)
       call json%get("doTimerAnalysis",this%doTimerAnalysis, found)
@@ -63,6 +94,8 @@ contains
       flag_fs_fix_pressure = .false.
       flag_mu_factor = 1.0_rp
       nscbc_p_inf = 0.0_rp
+
+      call json%destroy()
 
    end subroutine TGVSolverIncomp_initializeParameters
 
