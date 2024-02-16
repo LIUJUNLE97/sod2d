@@ -1,5 +1,6 @@
 module mod_arrays
       use mod_constants
+      use json_module
 
       implicit none
 
@@ -38,9 +39,12 @@ module mod_arrays
       ! for entropy and sgs visc.
       real(rp),  allocatable :: mue_l(:,:),al_weights(:),am_weights(:),an_weights(:)
 
+      type(json_file) :: json
+
 end module mod_arrays
 
 module CFDSolverBase_mod
+      use json_module
       use mod_arrays
       use mod_nvtx
 #ifndef NOACC
@@ -179,6 +183,10 @@ module CFDSolverBase_mod
       procedure, public :: initNSSolver => CFDSolverBase_initNSSolver
       procedure, public :: endNSSolver => CFDSolverBase_endNSSolver
 
+      procedure, public :: loadJSONMeshFileData => CFDSolverBase_loadJSONMeshFileData 
+      procedure, public :: loadJSONResultsFileData => CFDSolverBase_loadJSONResultsFileData 
+      procedure, public :: loadJSONIOParams=> CFDSolverBase_loadJSONIOParams 
+
       procedure :: open_log_file
       procedure :: close_log_file
       procedure :: open_analysis_files
@@ -190,6 +198,55 @@ module CFDSolverBase_mod
       procedure :: checkIfSymmetryOn
    end type CFDSolverBase
 contains
+
+   subroutine CFDSolverBase_loadJSONIOParams(this)
+      class(CFDSolverBase), intent(inout) :: this
+      logical :: found
+
+      call json%get("save_logFile_first",this%save_logFile_first, found)
+      call json%get("save_logFile_step",this%save_logFile_step, found)
+
+      call json%get("save_resultsFile_first",this%save_resultsFile_first, found)
+      call json%get("save_resultsFile_step" ,this%save_resultsFile_step, found)
+
+      call json%get("save_restartFile_first",this%save_restartFile_first, found)
+      call json%get("save_restartFile_step" ,this%save_restartFile_step, found)
+
+      call json%get("loadRestartFile" ,this%loadRestartFile, found)
+      call json%get("restartFile_to_load" ,this%restartFile_to_load, found)
+      call json%get("continue_oldLogs" ,this%continue_oldLogs, found)
+      call json%get("saveAvgFile" ,this%saveAvgFile, found)
+      call json%get("loadAvgFile" ,this%loadAvgFile, found)
+
+      call json%get("saveSurfaceResults",this%saveSurfaceResults, found)
+
+      call json%get("saveInitialField",this%saveInitialField, found)
+
+   end subroutine CFDSolverBase_loadJSONIOParams
+
+   subroutine CFDSolverBase_loadJSONMeshFileData(this)
+      class(CFDSolverBase), intent(inout) :: this
+      logical :: found
+      character(len=:) , allocatable :: value
+
+      call json%get("mesh_h5_file_path",value, found)
+      write(this%mesh_h5_file_path,*) value
+      call json%get("mesh_h5_file_name",value, found)
+      write(this%mesh_h5_file_name,*) value
+
+   end subroutine CFDSolverBase_loadJSONMeshFileData
+
+   subroutine CFDSolverBase_loadJSONResultsFileData(this)
+      class(CFDSolverBase), intent(inout) :: this
+      logical :: found
+      character(len=:) , allocatable :: value
+
+      call json%get("results_h5_file_path",value, found)
+      write(this%results_h5_file_path,*) value
+      call json%get("results_h5_file_name",value, found)
+      write(this%results_h5_file_name,*) value
+
+   end subroutine CFDSolverBase_loadJSONResultsFileData
 
    subroutine CFDSolverBase_printDt(this)
       class(CFDSolverBase), intent(inout) :: this

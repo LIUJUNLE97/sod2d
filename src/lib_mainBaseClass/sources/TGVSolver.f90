@@ -4,8 +4,7 @@ module TGVSolver_mod
 #ifndef NOACC
    use cudafor
 #endif   
-   
-
+   use json_module
    use elem_qua
    use elem_hex
    use jacobian_oper
@@ -40,57 +39,34 @@ contains
    subroutine TGVSolver_initializeParameters(this)
       class(TGVSolver), intent(inout) :: this
       real(rp) :: mul, mur
+      logical :: found
 
-      write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube"
+      call this%loadJSONMeshFileData()
+      call this%loadJSONResultsFileData()
+      call this%loadJSONIOParams()
 
-      write(this%results_h5_file_path,*) ""
-      write(this%results_h5_file_name,*) "results"
+      call json%get("doGlobalAnalysis",this%doGlobalAnalysis, found)
+      call json%get("doTimerAnalysis",this%doTimerAnalysis, found)
 
-      write(this%io_append_info,*) ""
+      call json%get("final_istep",this%final_istep, found)
+      call json%get("maxPhysTime",this%maxPhysTime, found)
 
-      this%doGlobalAnalysis = .true.
-      this%doTimerAnalysis = .true.
-      this%saveInitialField = .false.
+      call json%get("cfl_conv",this%cfl_conv, found)
+      call json%get("cfl_diff",this%cfl_diff, found)
 
-      !----------------------------------------------
-      !  --------------  I/O params -------------
-      this%final_istep = 500001
-      this%maxPhysTime = 20.0_rp
+      call json%get("flag_implicit",flag_implicit, found)
 
-      this%save_logFile_first = 1 
-      this%save_logFile_step  = 10
+      call json%get("maxIter",maxIter, found)
+      call json%get("tol",tol, found)
 
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 1000
+      call json%get("Cp",this%Cp, found)
+      call json%get("Prt",this%Prt, found)
+      call json%get("M",this%M, found)
+      call json%get("Re",this%Re, found)
+      call json%get("rho",this%rho0, found)
+      call json%get("gamma_gas",this%gamma_gas, found)
 
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 1000
-      this%loadRestartFile = .false.
-      this%restartFile_to_load = 2 !1 or 2
-      this%continue_oldLogs = .false.
-
-      this%saveAvgFile = .true.
-      this%loadAvgFile = .false.
-      !----------------------------------------------
-
-      ! numerical params
-      flag_les = 0
-      flag_implicit = 0
-
-      maxIter = 200
-      tol = 1e-3
-
-      this%cfl_conv = 0.95_rp !0.5_rp
-      this%cfl_diff = 0.95_rp !100.0_rp !0.5_rp
-
-      this%Cp = 1004.0_rp
-      this%Prt = 0.71_rp
-      this%M  = 0.1_rp
-      this%Re = 1600.0_rp
-      this%rho0   = 1.0_rp
-      this%gamma_gas = 1.40_rp
-
+      ! fixed by the type of base class parameters
       mul    = (this%rho0*1.0_rp*1.0_rp)/this%Re
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
       this%to = 1.0_rp*1.0_rp/(this%gamma_gas*this%Rgas*this%M*this%M)
@@ -101,19 +77,6 @@ contains
       nscbc_p_inf = this%po
       nscbc_Rgas_inf = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
-
-      !Witness points parameters
-      this%have_witness          = .false.
-      this%witness_inp_file_name = "witness.txt"
-      this%witness_h5_file_name  = "resultwit.h5"
-      this%leapwit               = 1
-      this%leapwitsave           = 20
-      this%nwit                  = 12
-      this%wit_save_u_i          = .true.
-      this%wit_save_pr           = .true.
-      this%wit_save_rho          = .true.
-      this%continue_witness      = .false.
-
    end subroutine TGVSolver_initializeParameters
 
    subroutine TGVSolver_evalInitialConditions(this)

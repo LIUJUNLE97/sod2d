@@ -3,8 +3,8 @@
 program main
 
    use mod_numerical_params
+   use mod_arrays
    use json_module
-
    use CFDSolverBase_mod
    use TGVSolver_mod
    use TGVMultiSolver_mod
@@ -20,15 +20,18 @@ program main
    use ABlFlowSolverIncomp_mod
    implicit none
 
-   type(json_file) :: config
    logical :: found
    character(len=:) , allocatable :: value
    class(CFDSolverBase), pointer :: solver
 
-   call config%initialize()
-   call config%load_file('sod2d.json'); if (config%failed()) stop
+   call json%initialize()
+   call json%load_file('sod2d.json')
+   if (json%failed()) then 
+      write(*,*) " There is a syntax error of the JSON file "
+      stop 1
+   end if
 
-   call config%get("type", value, found)
+   call json%get("type", value, found)
 
    if(value .eq. "TGVSolver") then
       allocate(TGVSolver::solver) 

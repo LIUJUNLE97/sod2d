@@ -40,55 +40,41 @@ contains
    subroutine TGVCompSolver_initializeParameters(this)
       class(TGVCompSolver), intent(inout) :: this
       real(rp) :: mul, mur
+      logical :: found
 
-      write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube"
+      call this%loadJSONMeshFileData()
+      call this%loadJSONResultsFileData()
+      call this%loadJSONIOParams()
 
-      write(this%results_h5_file_path,*) ""
-      write(this%results_h5_file_name,*) "results"
+      call json%get("doGlobalAnalysis",this%doGlobalAnalysis, found)
+      call json%get("doTimerAnalysis",this%doTimerAnalysis, found)
 
-      write(this%io_append_info,*) ""
+      call json%get("final_istep",this%final_istep, found)
+      call json%get("maxPhysTime",this%maxPhysTime, found)
 
-      this%doGlobalAnalysis = .true.
-      this%doTimerAnalysis = .true.
-      this%saveInitialField = .false.
+      call json%get("cfl_conv",this%cfl_conv, found)
+      call json%get("cfl_diff",this%cfl_diff, found)
 
-      flag_implicit = 0
+      call json%get("flag_implicit",flag_implicit, found)
 
-      maxIter = 200
-      tol = 1e-3
+      call json%get("maxIter",maxIter, found)
+      call json%get("tol",tol, found)
 
-      this%maxPhysTime = 20.0_rp
-      this%final_istep = 10000 
-      this%cfl_conv = 0.5_rp
-      this%cfl_diff = 0.5_rp
+      call json%get("M",this%Ma, found)
+      call json%get("L",this%L, found)
+      call json%get("v0",this%V0, found)
+      call json%get("Prt",this%Prt, found)
+      call json%get("T0",this%T0, found)
+      call json%get("Re",this%Re, found)
+      call json%get("gamma_gas",this%gamma_gas, found)
 
-      this%save_logFile_first = 1 
-      this%save_logFile_step  = 10
-
-      this%loadRestartFile = .false.
-      this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 500
-
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 500
-
-      this%Ma = 1.25_rp
-      this%L = 1.0_rp
-      this%V0 = 1.0_rp
-      this%Prt = 0.71_rp
-      this%T0  = 1.0_rp
-      this%Re = 1600.0_rp
-      this%gamma_gas = 1.40_rp
-      
-      this%Rgas = 1.0_rp*1.0_rp/(1.4_rp*1.0_rp*1.25_rp*1.25_rp)
+      ! fixed by the type of base class parameters
+      this%Rgas = this%V0*this%V0/(this%gamma_gas*this%T0*this%Ma*this%Ma)
       this%Cp = this%gamma_gas*this%Rgas/(this%gamma_gas-1.0_rp)
-      this%rho0 = (1.0_rp/(1.4_rp*1.25*1.25))/(this%Rgas*this%T0)
+      this%rho0 = (1.0_rp/(this%gamma_gas*this%Ma*this%Ma))/(this%Rgas*this%T0)
 
-      mul    = (this%rho0*1.0_rp*1.0_rp)/this%Re
-      this%P0 = 1.0_rp/(this%Ma*this%Ma*1.4_rp)
+      mul    = (this%rho0*this%V0*this%L)/this%Re
+      this%P0 = 1.0_rp/(this%Ma*this%Ma*this%gamma_gas)
       mur = 0.000001458_rp*(this%T0**1.50_rp)/(this%T0+110.40_rp)
       flag_mu_factor = mul/mur
 

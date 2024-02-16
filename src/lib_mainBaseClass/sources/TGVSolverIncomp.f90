@@ -4,8 +4,7 @@ module TGVSolverIncomp_mod
 #ifndef NOACC
    use cudafor
 #endif   
-   
-
+   use json_module
    use elem_qua
    use elem_hex
    use jacobian_oper
@@ -39,58 +38,31 @@ contains
 
    subroutine TGVSolverIncomp_initializeParameters(this)
       class(TGVSolverIncomp), intent(inout) :: this
+      logical :: found
 
-      write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube"
+      call this%loadJSONMeshFileData()
+      call this%loadJSONResultsFileData()
+      call this%loadJSONIOParams()
 
-      write(this%results_h5_file_path,*) ""
-      write(this%results_h5_file_name,*) "results"
+      call json%get("doGlobalAnalysis",this%doGlobalAnalysis, found)
+      call json%get("doTimerAnalysis",this%doTimerAnalysis, found)
 
-      this%doGlobalAnalysis = .true.
-      this%doTimerAnalysis = .true.
-      this%saveInitialField = .true.
+      call json%get("final_istep",this%final_istep, found)
+      call json%get("maxPhysTime",this%maxPhysTime, found)
 
-      !----------------------------------------------
-      !  --------------  I/O params -------------
-      this%final_istep = 50001
-      this%maxPhysTime = 20.0_rp
+      call json%get("cfl_conv",this%cfl_conv, found)
+      call json%get("cfl_diff",this%cfl_diff, found)
 
-      this%save_logFile_first = 1 
-      this%save_logFile_step  = 10
+      call json%get("maxIter",maxIter, found)
+      call json%get("tol",tol, found)
 
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 200
+      call json%get("Re",this%Re, found)
 
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 200
-      this%loadRestartFile = .false.
-      this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
-
-      this%saveAvgFile = .false.
-      this%loadAvgFile = .false.
-      !----------------------------------------------
-
-      ! numerical params
-      flag_les = 0
-
-      this%cfl_conv = 0.5_rp
-      this%cfl_diff = 0.5_rp
-      !flag_use_constant_dt = 1
-      !this%dt = 5e-3
-
-      maxIter = 20
-      tol = 1e-2
-      flag_cg_prec_bdc = .false.
-
-      this%Re = 1600.0_rp
-
+      ! fixed by the type of base class parameters
       incomp_viscosity = 1.0_rp/this%Re
-      flag_mu_factor = 1.0_rp
-
-      nscbc_p_inf = 0.0_rp
-
       flag_fs_fix_pressure = .false.
+      flag_mu_factor = 1.0_rp
+      nscbc_p_inf = 0.0_rp
 
    end subroutine TGVSolverIncomp_initializeParameters
 

@@ -45,12 +45,14 @@ contains
    subroutine ChannelFlowSolverIncomp_fill_BC_Types(this)
       class(ChannelFlowSolverIncomp), intent(inout) :: this
 
-      !bouCodes2BCType(1) = bc_type_slip_wall_model
-      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
 #if _mappedInlet_
+      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
       bouCodes2BCType(3) = bc_type_non_slip_adiabatic
       bouCodes2BCType(4) = bc_type_recirculation_inlet !inlet
       bouCodes2BCType(5) = bc_type_outlet_incomp !outlet
+#else
+      !bouCodes2BCType(1) = bc_type_slip_wall_model
+      bouCodes2BCType(1) = bc_type_non_slip_adiabatic
 #endif
 
       !$acc update device(bouCodes2BCType(:))
