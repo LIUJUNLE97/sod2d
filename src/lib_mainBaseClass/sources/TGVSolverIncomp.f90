@@ -37,8 +37,8 @@ contains
 
    subroutine TGVSolverIncomp_initializeParameters(this)
       use json_module
+      implicit none
       class(TGVSolverIncomp), intent(inout) :: this
-      logical :: found
       logical :: found
       type(json_file) :: json
       character(len=:) , allocatable :: value

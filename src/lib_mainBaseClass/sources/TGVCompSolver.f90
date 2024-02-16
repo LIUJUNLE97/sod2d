@@ -37,6 +37,7 @@ contains
 
    subroutine TGVCompSolver_initializeParameters(this)
       use json_module
+      implicit none
       class(TGVCompSolver), intent(inout) :: this
       real(rp) :: mul, mur
       logical :: found
