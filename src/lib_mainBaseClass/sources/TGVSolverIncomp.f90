@@ -39,55 +39,59 @@ contains
       use json_module
       implicit none
       class(TGVSolverIncomp), intent(inout) :: this
-      logical :: found
+      logical :: found, found_aux = .false.
       type(json_file) :: json
       character(len=:) , allocatable :: value
 
       call json%initialize()
       call json%load_file(json_filename)
+      
+      ! get(label,target,is found?, default value)
 
-      call json%get("save_logFile_first",this%save_logFile_first, found)
-      call json%get("save_logFile_step",this%save_logFile_step, found)
-
-      call json%get("save_resultsFile_first",this%save_resultsFile_first, found)
-      call json%get("save_resultsFile_step" ,this%save_resultsFile_step, found)
-
-      call json%get("save_restartFile_first",this%save_restartFile_first, found)
-      call json%get("save_restartFile_step" ,this%save_restartFile_step, found)
-
-      call json%get("loadRestartFile" ,this%loadRestartFile, found)
-      call json%get("restartFile_to_load" ,this%restartFile_to_load, found)
-      call json%get("continue_oldLogs" ,this%continue_oldLogs, found)
-      call json%get("saveAvgFile" ,this%saveAvgFile, found)
-      call json%get("loadAvgFile" ,this%loadAvgFile, found)
-
-      call json%get("saveSurfaceResults",this%saveSurfaceResults, found)
-
-      call json%get("saveInitialField",this%saveInitialField, found)
-
-      call json%get("mesh_h5_file_path",value, found)
+      call json%get("mesh_h5_file_path",value, found,""); if(found .eqv. .false.) found_aux = .true.
       write(this%mesh_h5_file_path,*) value
-      call json%get("mesh_h5_file_name",value, found)
+      call json%get("mesh_h5_file_name",value, found,"cube"); if(found .eqv. .false.) found_aux = .true.
       write(this%mesh_h5_file_name,*) value
       
-      call json%get("results_h5_file_path",value, found)
+      call json%get("results_h5_file_path",value, found,""); if(found .eqv. .false.) found_aux = .true.
       write(this%results_h5_file_path,*) value
-      call json%get("results_h5_file_name",value, found)
+      call json%get("results_h5_file_name",value, found,"results"); if(found .eqv. .false.) found_aux = .true.
       write(this%results_h5_file_name,*) value
 
-      call json%get("doGlobalAnalysis",this%doGlobalAnalysis, found)
-      call json%get("doTimerAnalysis",this%doTimerAnalysis, found)
+      call json%get("save_logFile_first",this%save_logFile_first, found, 1); if(found .eqv. .false.) found_aux = .true.
+      call json%get("save_logFile_step",this%save_logFile_step, found, 10); if(found .eqv. .false.) found_aux = .true.
 
-      call json%get("final_istep",this%final_istep, found)
-      call json%get("maxPhysTime",this%maxPhysTime, found)
+      call json%get("save_resultsFile_first",this%save_resultsFile_first, found,1); if(found .eqv. .false.) found_aux = .true.
+      call json%get("save_resultsFile_step" ,this%save_resultsFile_step, found,200); if(found .eqv. .false.) found_aux = .true.
 
-      call json%get("cfl_conv",this%cfl_conv, found)
-      call json%get("cfl_diff",this%cfl_diff, found)
+      call json%get("save_restartFile_first",this%save_restartFile_first, found,1); if(found .eqv. .false.) found_aux = .true.
+      call json%get("save_restartFile_step" ,this%save_restartFile_step, found,200); if(found .eqv. .false.) found_aux = .true.
 
-      call json%get("maxIter",maxIter, found)
-      call json%get("tol",tol, found)
+      call json%get("loadRestartFile" ,this%loadRestartFile, found, .false.); if(found .eqv. .false.) found_aux = .true.
+      call json%get("restartFile_to_load" ,this%restartFile_to_load, found,1); if(found .eqv. .false.) found_aux = .true.
 
-      call json%get("Re",this%Re, found)
+      call json%get("continue_oldLogs" ,this%continue_oldLogs, found, .false.); if(found .eqv. .false.) found_aux = .true.
+      call json%get("saveAvgFile" ,this%saveAvgFile, found, .false.); if(found .eqv. .false.) found_aux = .true.
+
+      call json%get("loadAvgFile" ,this%loadAvgFile, found, .false.); if(found .eqv. .false.) found_aux = .true.
+
+      call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); if(found .eqv. .false.) found_aux = .true.
+
+      call json%get("saveInitialField",this%saveInitialField, found,.true.); if(found .eqv. .false.) found_aux = .true.
+
+      call json%get("doGlobalAnalysis",this%doGlobalAnalysis, found, .false.); if(found .eqv. .false.) found_aux = .true.
+      call json%get("doTimerAnalysis",this%doTimerAnalysis, found, .true.); if(found .eqv. .false.) found_aux = .true.
+
+      call json%get("final_istep",this%final_istep, found,500001); if(found .eqv. .false.) found_aux = .true.
+      call json%get("maxPhysTime",this%maxPhysTime, found,20.0_rp); if(found .eqv. .false.) found_aux = .true.
+
+      call json%get("cfl_conv",this%cfl_conv, found,0.5_rp); if(found .eqv. .false.) found_aux = .true.
+      call json%get("cfl_diff",this%cfl_diff, found,0.5_rp); if(found .eqv. .false.) found_aux = .true.
+
+      call json%get("maxIter",maxIter, found,20); if(found .eqv. .false.) found_aux = .true.
+      call json%get("tol",tol, found,0.01d0); if(found .eqv. .false.) found_aux = .true.
+
+      call json%get("Re",this%Re, found,1600.0_rp); if(found .eqv. .false.) found_aux = .true.
 
       ! fixed by the type of base class parameters
       incomp_viscosity = 1.0_rp/this%Re
@@ -97,6 +101,7 @@ contains
 
       call json%destroy()
 
+      if(found_aux .and.mpi_rank .eq. 0) write(111,*) 'WARNING! JSON file missing a parameter, overwrtting with the default value'
    end subroutine TGVSolverIncomp_initializeParameters
 
    subroutine TGVSolverIncomp_evalInitialConditions(this)

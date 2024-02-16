@@ -45,4 +45,9 @@
    "Re":1600.0,
    "rho":1.0,
    "gamma_gas":1.4
+
+   "bouCodes": ["bc_type_slip_wall_model",
+                "",
+                ""]
+         
 }
