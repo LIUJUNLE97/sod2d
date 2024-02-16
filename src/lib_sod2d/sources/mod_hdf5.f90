@@ -3982,7 +3982,7 @@ contains
 
       !-----------------------------------------------------------------------------------------------
       !   Creating the VTK-HDF structure
-      call create_vtkhdf_unstructuredGrid_struct_for_resultsFile(meshFile_h5_full_name,mnnode,hdf5_fileId)
+      call create_vtkhdf_unstructuredGrid_struct_for_resultsFile(meshFile_h5_full_name,hdf5_fileId)
 
       !-----------------------------------------------------------------------------------------------
       ds_dims(1) = int(totalNumNodesPar,hsize_t)
@@ -5055,11 +5055,10 @@ contains
 
    end subroutine dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile
 
-   subroutine create_vtkhdf_unstructuredGrid_struct_for_resultsFile(meshFile_h5_full_name,mnnode,file_id)
+   subroutine create_vtkhdf_unstructuredGrid_struct_for_resultsFile(meshFile_h5_full_name,res_file_id)
       implicit none
       character(512),intent(in) :: meshFile_h5_full_name
-      integer(4),intent(in) :: mnnode
-      integer(hid_t),intent(in) :: file_id
+      integer(hid_t),intent(in) :: res_file_id
       integer(hid_t) :: dtype
       integer(hsize_t), dimension(1) :: ds_dims,ms_dims
       integer(hssize_t), dimension(1) :: ms_offset
@@ -5067,45 +5066,17 @@ contains
       character(512) :: dsetname
       integer(8),allocatable :: aux_array_i8(:)
 
-      call set_vtkhdf_attributes_and_basic_groups(file_id)
+      call set_vtkhdf_attributes_and_basic_groups(res_file_id)
 
       !--------------------------------------------------------------------------------
-      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/Points',file_id,'/VTKHDF/Points',h5err) 
-
-      !-----------------------------------------------------------------------------
-      ds_rank = 1
-      ds_dims(1) = int(mpi_size,hsize_t)
-      ms_dims(1) = 1
-      ms_offset(1) = int(mpi_rank,hssize_t)
-      dtype = h5_datatype_int8
-      allocate(aux_array_i8(1))
-
-      dsetname = '/VTKHDF/NumberOfPoints'
-      aux_array_i8(1) = int(numNodesRankPar,8)
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
-
-      dsetname = '/VTKHDF/NumberOfCells'
-      aux_array_i8(1) = int(numElemsVTKRankPar,8)!numElemsRankPar
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
-
-      dsetname = '/VTKHDF/NumberOfConnectivityIds'
-      aux_array_i8(1) = int(sizeConnecVTKRankPar,8)!numElemsRankPar*mnnode
-      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-      call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
-
-      deallocate(aux_array_i8)
-
-      !-----------------------------------------------------------------------------
-
-      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/Offsets',file_id,'/VTKHDF/Offsets',h5err)
-
-      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/Connectivity',file_id,'/VTKHDF/Connectivity',h5err)
-
-      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/Types',file_id,'/VTKHDF/Types',h5err)
-
-      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/CellData/mpi_rank',file_id,'/VTKHDF/CellData/mpi_rank',h5err)
+      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/Points',res_file_id,'/VTKHDF/Points',h5err) 
+      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/NumberOfPoints',res_file_id,'/VTKHDF/NumberOfPoints',h5err)
+      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/NumberOfCells',res_file_id,'/VTKHDF/NumberOfCells',h5err)
+      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/NumberOfConnectivityIds',res_file_id,'/VTKHDF/NumberOfConnectivityIds',h5err)
+      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/Offsets',res_file_id,'/VTKHDF/Offsets',h5err)
+      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/Connectivity',res_file_id,'/VTKHDF/Connectivity',h5err)
+      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/Types',res_file_id,'/VTKHDF/Types',h5err)
+      call h5lcreate_external_f(meshFile_h5_full_name,'/VTKHDF/CellData/mpi_rank',res_file_id,'/VTKHDF/CellData/mpi_rank',h5err)
 
    end subroutine create_vtkhdf_unstructuredGrid_struct_for_resultsFile
 
