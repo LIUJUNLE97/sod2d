@@ -13,7 +13,7 @@ program tool_copy_results
     character(256) :: parameter2read
     character(512) :: mesh_h5_filePath,mesh_h5_fileName
     character(512) :: results_h5_filePath,results_h5_fileName
-    integer(4) :: results_step,target_Nprocs
+    integer(4) :: results_first,results_last,results_step,target_Nprocs
 
     logical :: useMesh=.false.
     logical :: useIntInComms=.false.,useRealInComms=.false.
@@ -55,19 +55,28 @@ program tool_copy_results
     parameter2read = 'results_h5_fileName'
     call read_inputFile_string(lineCnt,parameter2read,results_h5_fileName)
 
-    !5. results_step-----------------------------------------------------------------
-    parameter2read = 'results_step'
-    call read_inputFile_integer(lineCnt,parameter2read,results_step)
-
-    !6. target_Nprocs-----------------------------------------------------------------
+    !5. target_Nprocs-----------------------------------------------------------------
     parameter2read = 'target_Nprocs'
     call read_inputFile_integer(lineCnt,parameter2read,target_Nprocs)
+
+    !6. results_first----------------------------------------------------------------
+    parameter2read = 'results_first'
+    call read_inputFile_integer(lineCnt,parameter2read,results_first)
+
+    !7. results_last-----------------------------------------------------------------
+    parameter2read = 'results_last'
+    call read_inputFile_integer(lineCnt,parameter2read,results_last)
+
+    !8. results_step-----------------------------------------------------------------
+    parameter2read = 'results_step'
+    call read_inputFile_integer(lineCnt,parameter2read,results_step)
 
     call close_inputFile()
     if(mpi_rank.eq.0) write(*,*) '## End of Reading input file: ',trim(adjustl(input_file))
 
 !---------------------------------------------------------------------------------------------------------
-    call copy_results_same_mesh_Npartitions(mesh_h5_filePath,mesh_h5_fileName,results_h5_filePath,results_h5_fileName,results_step,target_Nprocs)
+    call copy_results_same_mesh_Npartitions(mesh_h5_filePath,mesh_h5_fileName,results_h5_filePath,results_h5_fileName,target_Nprocs,&
+                                            results_first,results_last,results_step)
 !---------------------------------------------------------------------------------------------------------
 
     call end_mpi()
