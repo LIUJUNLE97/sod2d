@@ -35,7 +35,7 @@
    "cfl_conv":0.95,
    "cfl_diff":0.95,
 
-   "flag_implicit":false,
+   "flag_implicit":0,
    "maxIter":200,
    "tol":1e-3,
 
