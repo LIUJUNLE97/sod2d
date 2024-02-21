@@ -17,6 +17,7 @@ program main
    use BluffBody3DSolverIncomp_mod
    use BLFlowSolver_mod
    use ABlFlowSolverIncomp_mod
+   use MappedInletIncomp_mod
    implicit none
 
    logical :: found
@@ -29,7 +30,7 @@ program main
 
    ! Append the extension
    json_filename = trim(json_filename) // ".json"
-   write(*,*), "Reading the JSON file : ", json_filename
+   !write(*,*), "Reading the JSON file : ", json_filename
 
    call json%initialize()
    call json%load_file(json_filename)
@@ -64,6 +65,8 @@ program main
       allocate(BLFlowSolver::solver) 
    else if(value .eq. "ABlFlowSolverIncomp") then
       allocate(ABlFlowSolverIncomp::solver) 
+   else if(value .eq. "MappedInletIncomp") then
+      allocate(MappedInletIncomp::solver) 
    else
       write(*,*) " Solver not implemented in SOD2D : ",value
       stop 1

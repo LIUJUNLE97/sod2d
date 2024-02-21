@@ -176,6 +176,9 @@ module CFDSolverBase_mod
       procedure, public :: initNSSolver => CFDSolverBase_initNSSolver
       procedure, public :: endNSSolver => CFDSolverBase_endNSSolver
 
+      procedure, public :: checkFound => CFDSolverBase_checkFound
+      procedure, public :: readJSONBCTypes => CFDSolverBase_readJSONBCTypes
+
       procedure :: open_log_file
       procedure :: close_log_file
       procedure :: open_analysis_files
@@ -187,6 +190,85 @@ module CFDSolverBase_mod
       procedure :: checkIfSymmetryOn
    end type CFDSolverBase
 contains
+
+   subroutine CFDSolverBase_readJSONBCTypes(this)
+      use json_module
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      logical :: found, found_aux = .false.
+      type(json_file) :: json
+      integer :: json_nbouCodes,iBouCodes,id
+      TYPE(json_core) :: jCore
+      TYPE(json_value), pointer :: bouCodesPointer, testPointer, p
+      character(len=:) , allocatable :: value
+
+      call json%initialize()
+      call json%load_file(json_filename)
+
+      call json%info("bouCodes",n_children=json_nbouCodes)
+      call json%get_core(jCore)
+      call json%get('bouCodes', bouCodesPointer, found)
+
+      do iBouCodes=1, json_nbouCodes
+            call jCore%get_child(bouCodesPointer, iBouCodes, testPointer, found)
+            call jCore%get_child(testPointer, 'id', p, found)
+            if(found) then
+               call jCore%get(p,id)
+            else
+               if(mpi_rank .eq. 0) then
+                  write(111,*) 'ERROR! JSON file error on the bouCodes definition, you need to define the id'
+                  stop 1      
+               end if
+            end if
+            call jCore%get_child(testPointer, 'bc_type', p, found)
+            if(found) then
+               call jCore%get(p,value)
+               if(value .eq. "bc_type_far_field") then
+                  bouCodes2BCType(id) = bc_type_far_field
+               else if(value .eq. "bc_type_outlet_incomp") then
+                  bouCodes2BCType(id) = bc_type_outlet_incomp
+               else if(value .eq. "bc_type_recirculation_inlet") then
+                  bouCodes2BCType(id) = bc_type_recirculation_inlet
+               else if(value .eq. "bc_type_non_slip_adiabatic") then
+                  bouCodes2BCType(id) = bc_type_non_slip_adiabatic
+               else if(value .eq. "bc_type_non_slip_hot") then
+                  bouCodes2BCType(id) = bc_type_non_slip_hot
+               else if(value .eq. "bc_type_non_slip_cold") then
+                  bouCodes2BCType(id) = bc_type_non_slip_cold
+               else if(value .eq. "bc_type_slip_adiabatic") then
+                  bouCodes2BCType(id) = bc_type_slip_adiabatic
+               else if(value .eq. "bc_type_slip_wall_model") then
+                  bouCodes2BCType(id) = bc_type_slip_wall_model
+               else if(value .eq. "bc_type_top_abl") then
+                  bouCodes2BCType(id) = bc_type_top_abl
+               end if
+            else
+               if(mpi_rank .eq. 0) then
+                  write(111,*) 'ERROR! JSON file error on the bouCodes definition, you need to define the bc_type'
+                  stop 1      
+               end if
+            end if
+      end do
+
+      !$acc update device(bouCodes2BCType(:))
+
+      call json%destroy()
+
+      if(found_aux .and.mpi_rank .eq. 0) then
+         write(111,*) 'ERROR! JSON file missing bouCodes definition'
+         stop 1      
+      end if
+
+   end subroutine CFDSolverBase_readJSONBCTypes
+
+   subroutine CFDSolverBase_checkFound(this,found,found_aux)
+      class(CFDSolverBase), intent(inout) :: this
+      logical , intent(in)    :: found
+      logical , intent(inout) :: found_aux
+
+      if(found .eqv. .false.) found_aux = .true.
+
+   end subroutine CFDSolverBase_checkFound
 
    subroutine CFDSolverBase_printDt(this)
       class(CFDSolverBase), intent(inout) :: this
