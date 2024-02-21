@@ -42,9 +42,7 @@ contains
    subroutine ABlFlowSolverIncomp_fill_BC_Types(this)
       class(ABlFlowSolverIncomp), intent(inout) :: this
 
-      bouCodes2BCType(1) = bc_type_slip_wall_model
-      bouCodes2BCType(2) = bc_type_slip_adiabatic
-      !$acc update device(bouCodes2BCType(:))
+      call this%readJSONBCTypes()
 
    end subroutine ABlFlowSolverIncomp_fill_BC_Types
 
@@ -66,8 +64,18 @@ contains
    end subroutine ABlFlowSolverIncomp_initializeSourceTerms
 
    subroutine ABLFlowSolverIncomp_initializeParameters(this)
+      use json_module
+      implicit none
       class(ABlFlowSolverIncomp), intent(inout) :: this
       real(rp) :: mur
+      logical :: found, found_aux = .false.
+      type(json_file) :: json
+      character(len=:) , allocatable :: value
+
+      call json%initialize()
+      call json%load_file(json_filename)
+      
+      ! get(label,target,is found?, default value)
 
       write(this%mesh_h5_file_path,*) ""
       write(this%mesh_h5_file_name,*) "abl"
@@ -77,52 +85,65 @@ contains
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 10000001
+      call json%get("mesh_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+      write(this%mesh_h5_file_path,*) value
+      call json%get("mesh_h5_file_name",value, found,"channel"); call this%checkFound(found,found_aux)
+      write(this%mesh_h5_file_name,*) value
 
-      this%save_logFile_first = 1 
-      this%save_logFile_step  = 10
+      call json%get("results_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+      write(this%results_h5_file_path,*) value
+      call json%get("results_h5_file_name",value, found,"results"); call this%checkFound(found,found_aux)
+      write(this%results_h5_file_name,*) value
 
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 5000
+      !  --------------  I/O params -------------
 
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 5000
-      this%loadRestartFile = .true.
-      this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .true.
+      call json%get("final_istep",this%final_istep, found,5000001); call this%checkFound(found,found_aux)
 
-      this%saveAvgFile = .true.
-      this%loadAvgFile = .true.
+      call json%get("save_logFile_first",this%save_logFile_first, found, 1); call this%checkFound(found,found_aux)
+      call json%get("save_logFile_step",this%save_logFile_step, found, 10); call this%checkFound(found,found_aux)
 
-      this%saveSurfaceResults = .false.
-      !----------------------------------------------
+      call json%get("save_resultsFile_first",this%save_resultsFile_first, found,1); call this%checkFound(found,found_aux)
+      call json%get("save_resultsFile_step" ,this%save_resultsFile_step, found,10000); call this%checkFound(found,found_aux)
+
+      call json%get("save_restartFile_first",this%save_restartFile_first, found,1); call this%checkFound(found,found_aux)
+      call json%get("save_restartFile_step" ,this%save_restartFile_step, found,10000); call this%checkFound(found,found_aux)
+
+
+      call json%get("loadRestartFile" ,this%loadRestartFile, found, .true.); call this%checkFound(found,found_aux)
+      call json%get("restartFile_to_load" ,this%restartFile_to_load, found,1); call this%checkFound(found,found_aux)
+
+      call json%get("continue_oldLogs" ,this%continue_oldLogs, found, .false.); call this%checkFound(found,found_aux)
+
+      call json%get("saveAvgFile" ,this%saveAvgFile, found, .true.); call this%checkFound(found,found_aux)
+      call json%get("loadAvgFile" ,this%loadAvgFile, found, .false.); call this%checkFound(found,found_aux)
+
+      call json%get("initial_avgTime",this%initial_avgTime, found,3600.0_rp); call this%checkFound(found,found_aux)
+
+      call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
 
       ! numerical params
-      flag_les = 1
-      flag_type_wmles = wmles_type_abl
+      call json%get("flag_les",flag_les, found,1); call this%checkFound(found,found_aux)
+      call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
+      call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
+      call json%get("flag_walave",flag_walave, found,.true.); call this%checkFound(found,found_aux)
+      call json%get("period_walave",period_walave, found,3600.0_rp); call this%checkFound(found,found_aux)
 
-      this%cfl_conv = 0.9_rp 
-      this%cfl_diff = 0.9_rp
+      call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
       
-      this%rho0   = 1.0_rp !1.2
-      this%Lz = 1500.0_rp
-      this%Lhub = 90.0_rp ! Joan cas: 10m
-      this%vinf = 8.0_rp ! Joan cas: 0.8854
-      this%rough = 0.1682_rp ! Joan cas:  2.97
-      this%ustar = this%vinf*0.41_rp/log(1.0_rp+this%Lhub/this%rough)
-      incomp_viscosity = 1.81e-5
+      call json%get("rho0",this%rho0, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("Lz",this%Lz, found,1500.0_rp); call this%checkFound(found,found_aux)
+      call json%get("Lhub",this%Lhub, found,90.0_rp); call this%checkFound(found,found_aux)
+      call json%get("vinf",this%vinf, found,8.0_rp); call this%checkFound(found,found_aux)
+      call json%get("rough",this%rough, found,0.1682_rp); call this%checkFound(found,found_aux)
 
-      flag_mu_factor = 1.0_rp
-
+      ! fixed by the type of base class parameters
+      flag_fs_fix_pressure = .false.
+      flag_type_wmles = wmles_type_abl
       nscbc_p_inf = 0.0_rp
 
-      maxIter = 200
-      tol = 1e-2
-
-      flag_fs_fix_pressure = .false.
-      
-      period_walave   = 3600.0_rp
-      this%initial_avgTime = 3600.0_rp
+      this%ustar = this%vinf*0.41_rp/log(1.0_rp+this%Lhub/this%rough)
+      incomp_viscosity = 1.81e-5
+      flag_mu_factor = 1.0_rp
 
    end subroutine ABlFlowSolverIncomp_initializeParameters
 
