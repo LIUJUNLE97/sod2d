@@ -6,7 +6,7 @@ module mod_numerical_params
 
         ! Time integration algorithm
         integer(4) :: flag_rk_order=4 
-        integer(4) :: flag_implicit=0 !Explicit: RK, Implicit: BDF2
+        integer(4) :: flag_implicit=0 
 
 
         ! LES 
