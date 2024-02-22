@@ -84,7 +84,7 @@ module time_integ_incomp
 
    end subroutine end_rk4_solver_incomp
  
-         subroutine ab_main_incomp(igtime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,leviCivi,&
+         subroutine ab_main_incomp(igtime,iltime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,leviCivi,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
@@ -93,7 +93,7 @@ module time_integ_incomp
             implicit none
 
             logical,              intent(in)   :: noBoundaries,isWallModelOn
-            integer(4),           intent(in)    :: igtime,save_logFile_next
+            integer(4),           intent(in)    :: igtime,iltime,save_logFile_next
             integer(4),           intent(in)    :: nelem, nboun, npoin
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn_nodes(npoin),lelpn(npoin)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
@@ -142,7 +142,7 @@ module time_integ_incomp
             integer(4)                          :: istep, ipoin, idime,icode
 
             call nvtxStartRange("AB2 init")
-            if(igtime .eq. 1) then
+            if(iltime .eq. 1) then
                !$acc parallel loop
                do ipoin = 1,npoin
                   !$acc loop seq
@@ -194,7 +194,7 @@ module time_integ_incomp
                aux_omega(:,:,1) = 0.0_rp
                !$acc end kernels
             else 
-               if(igtime .eq. 2) then
+               if(iltime .eq. 2) then
                   gamma0 = 3.0_rp/2.0_rp
                   alpha(1) = 2.0_rp
                   alpha(2) = -0.5_rp
@@ -242,7 +242,7 @@ module time_integ_incomp
                   
             if((isWallModelOn) ) then
                   call nvtxStartRange("AB2 wall model")
-                     if((numBoundsWM .ne. 0)) then
+                  if((numBoundsWM .ne. 0)) then
                      !$acc kernels
                      Rwmles(1:npoin,1:ndime) = 0.0_rp
                      !$acc end kernels

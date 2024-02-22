@@ -36,8 +36,50 @@ module ABlFlowSolverIncomp_mod
       procedure, public :: initializeParameters  => ABlFlowSolverIncomp_initializeParameters
       procedure, public :: initializeSourceTerms => ABlFlowSolverIncomp_initializeSourceTerms
       procedure, public :: evalInitialConditions => ABlFlowSolverIncomp_evalInitialConditions
+      procedure, public :: eval_vars_after_load_hdf5_resultsFile => ABlFlowSolverIncomp_eval_vars_after_load_hdf5_resultsFile 
    end type ABlFlowSolverIncomp
 contains
+
+   subroutine ABlFlowSolverIncomp_eval_vars_after_load_hdf5_resultsFile(this)
+      implicit none
+      class(ABlFlowSolverIncomp), intent(inout) :: this
+      integer :: iNodeL,idime
+
+      !values loaded -> rho,u,pr,E,mu_e,mu_sgs
+
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
+         eta(iNodeL,2) =0.5_rp*dot_product(u(iNodeL,1:ndime,2),u(iNodeL,1:ndime,2))
+
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+         u(iNodeL,1:ndime,3) = u(iNodeL,1:ndime,2)
+         rho(iNodeL,3) = rho(iNodeL,2)
+         eta(iNodeL,3) =  eta(iNodeL,2)
+         pr(iNodeL,3) =  pr(iNodeL,2)  
+
+         q(iNodeL,1:ndime,4) = q(iNodeL,1:ndime,2)
+         u(iNodeL,1:ndime,4) = u(iNodeL,1:ndime,2)
+         rho(iNodeL,4) = rho(iNodeL,2)
+         eta(iNodeL,4) =  eta(iNodeL,2)
+         pr(iNodeL,4) =  pr(iNodeL,2)  
+
+         mu_factor(iNodeL) = flag_mu_factor
+      end do
+      !$acc end parallel loop
+
+
+      !$acc kernels
+      kres(:) = 0.0_rp
+      etot(:) = 0.0_rp
+      ax1(:) = 0.0_rp
+      ax2(:) = 0.0_rp
+      ax3(:) = 0.0_rp
+      au(:,:) = 0.0_rp
+      zo(:) = this%rough
+      !$acc end kernels
+
+   end subroutine ABlFlowSolverIncomp_eval_vars_after_load_hdf5_resultsFile
 
    subroutine ABlFlowSolverIncomp_fill_BC_Types(this)
       class(ABlFlowSolverIncomp), intent(inout) :: this

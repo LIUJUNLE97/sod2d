@@ -79,7 +79,7 @@ module CFDSolverBase_mod
       integer(4), public :: save_restartFile_first,save_restartFile_step,save_restartFile_next
       integer(4), public :: save_resultsFile_first,save_resultsFile_step,save_resultsFile_next
       integer(4), public :: restartFileCnt,restartFile_to_load
-      integer(4), public :: initial_istep,final_istep,load_step
+      integer(4), public :: initial_istep,final_istep,load_step,local_step
 
       integer(4), public :: currentNonLinealIter
       integer(4), public :: nwit,nwitPar,leapwit
@@ -178,13 +178,13 @@ module CFDSolverBase_mod
 
       procedure, public :: checkFound => CFDSolverBase_checkFound
       procedure, public :: readJSONBCTypes => CFDSolverBase_readJSONBCTypes
+      procedure, public :: eval_vars_after_load_hdf5_resultsFile => CFDSolverBase_eval_vars_after_load_hdf5_resultsFile 
 
       procedure :: open_log_file
       procedure :: close_log_file
       procedure :: open_analysis_files
       procedure :: close_analysis_files
       procedure :: flush_log_file
-      procedure :: eval_vars_after_load_hdf5_resultsFile
       procedure :: eval_initial_mu_sgs
       procedure :: checkIfWallModelOn
       procedure :: checkIfSymmetryOn
@@ -1616,6 +1616,7 @@ contains
 
       call this%initNSSolver()
 
+      this%local_step=1
       do istep = this%initial_istep,this%final_istep
          !if (istep==this%nsave.and.mpi_rank.eq.0) write(111,*) '   --| STEP: ', istep
          call nvtxStartRange("Init pred "//timeStep,istep)
@@ -1793,6 +1794,7 @@ contains
             ! TODO: check if we want to save the last step
             exit
          end if
+         this%local_step = this%local_step + 1
       end do
       call nvtxEndRange
 
@@ -2172,7 +2174,7 @@ contains
 
    end subroutine flush_log_file
 
-   subroutine eval_vars_after_load_hdf5_resultsFile(this)
+   subroutine CFDSolverBase_eval_vars_after_load_hdf5_resultsFile(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       integer :: iNodeL,idime
@@ -2219,7 +2221,7 @@ contains
       au(:,:) = 0.0_rp
       !$acc end kernels
 
-   end subroutine eval_vars_after_load_hdf5_resultsFile
+   end subroutine CFDSolverBase_eval_vars_after_load_hdf5_resultsFile
 
    subroutine CFDSolverBase_run(this)
       implicit none
