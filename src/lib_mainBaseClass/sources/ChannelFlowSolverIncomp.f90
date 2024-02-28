@@ -1,4 +1,4 @@
-#define _mappedInlet_ 1
+#define _mappedInlet_ 0
 
 module ChannelFlowSolverIncomp_mod
    use mod_arrays
@@ -38,7 +38,9 @@ module ChannelFlowSolverIncomp_mod
       procedure, public :: initializeParameters  => ChannelFlowSolverIncomp_initializeParameters
       procedure, public :: initializeSourceTerms => ChannelFlowSolverIncomp_initializeSourceTerms
       procedure, public :: evalInitialConditions => ChannelFlowSolverIncomp_evalInitialConditions
+#if _mappedInlet_
       procedure, public :: initialBuffer         => ChannelFlowSolverIncomp_initialBuffer
+#endif
    end type ChannelFlowSolverIncomp
 contains
 
