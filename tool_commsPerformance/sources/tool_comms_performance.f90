@@ -13,6 +13,8 @@ program tool_commsPerfomance
     integer :: numNodesSrl,numNodesB_1r,numIters
     character(256) :: parameter2read
     character(512) :: mesh_h5_file_path,mesh_h5_file_name,meshFile_h5_full_name
+    character(1024) :: log_file_comms,log_file_append
+    character(128) :: aux_string_mpisize,aux_string_numNodes,aux_string_nodesBound
 
     logical :: useMesh=.false.
     logical :: useIntInComms=.false.,useRealInComms=.false.
@@ -75,6 +77,7 @@ program tool_commsPerfomance
 
     call close_inputFile()
 
+    !-----------------------------------------------------------------------------------
     if(useMesh) then
         call init_hdf5_interface()
         call set_hdf5_meshFile_name(mesh_h5_file_path,mesh_h5_file_name,mpi_size,meshFile_h5_full_name)
@@ -83,10 +86,22 @@ program tool_commsPerfomance
         call create_dummy_1Dmesh(numNodesSrl,numNodesB_1r)
     end if
 
-   call init_comms_performance(useIntInComms,useRealInComms)
+    call init_comms_performance(useIntInComms,useRealInComms)
+
+    if(mpi_rank.eq.0) then
+        write(aux_string_mpisize,'(I0)') mpi_size
+        if(useMesh) then
+            log_file_append = trim(adjustl(mesh_h5_file_name))
+        else
+            write(aux_string_numNodes,'(I0)') numNodesSrl
+            write(aux_string_nodesBound,'(I0)') numNodesB_1r
+            log_file_append = 'mesh1D_'//trim(aux_string_numNodes)//'_bound_'//trim(aux_string_nodesBound)
+        end if
+        log_file_comms = 'commPerf_'//trim(adjustl(log_file_append))//'-'//trim(aux_string_mpisize)//'.dat'
+    end if
 
    !call debug_comms_float()
-   call test_comms_performance_real(numIters)
+   call test_comms_performance_real(numIters,log_file_comms)
 
 
    !call nvtxStartRange("saxpy loop")

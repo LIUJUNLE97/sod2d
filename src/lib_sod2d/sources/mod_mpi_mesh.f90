@@ -484,6 +484,21 @@ contains
       call MPI_Win_free(window_id,mpi_err)
       !--------------------------------------------------------------------------------------
 
+      !put info in the GPU
+      !---------------------------------------------------------------------------
+      !$acc enter data create(nodesToComm(:))
+      !$acc update device(nodesToComm(:))
+
+      !$acc enter data create(ranksToComm(:))
+      !$acc update device(ranksToComm(:))
+
+      !$acc enter data create(commsMemPosInLoc(:))
+      !$acc update device(commsMemPosInLoc(:))
+
+      !$acc enter data create(commsMemSize(:))
+      !$acc update device(commsMemSize(:))
+      !---------------------------------------------------------------------------
+
       !write(*,*) '[',mpi_rank,']csNumNodes->',commSchemeNumNodes(:)
       !write(*,*) '[',mpi_rank,']csStartEnd->',commSchemeStartEndNodes(:)
       !write(*,*) '[',mpi_rank,']numRanksWC->',numRanksWithComms
