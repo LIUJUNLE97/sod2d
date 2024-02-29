@@ -178,6 +178,7 @@ module CFDSolverBase_mod
 
       procedure, public :: checkFound => CFDSolverBase_checkFound
       procedure, public :: readJSONBCTypes => CFDSolverBase_readJSONBCTypes
+      procedure, public :: readJSONBuffer => CFDSolverBase_readJSONBuffer
       procedure, public :: eval_vars_after_load_hdf5_resultsFile => CFDSolverBase_eval_vars_after_load_hdf5_resultsFile 
 
       procedure :: open_log_file
@@ -190,6 +191,165 @@ module CFDSolverBase_mod
       procedure :: checkIfSymmetryOn
    end type CFDSolverBase
 contains
+
+   subroutine CFDSolverBase_readJSONBuffer(this)
+      use json_module
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      logical :: found, found_aux = .false.
+      type(json_file) :: json
+      integer :: json_nbuff,iBuff,id
+      TYPE(json_core) :: jCore
+      TYPE(json_value), pointer :: buffPointer, testPointer, p
+      character(len=:) , allocatable :: value
+
+      call json%initialize()
+      call json%load_file(json_filename)
+
+      call json%info("buffer",n_children=json_nbuff)
+      call json%get_core(jCore)
+      call json%get('buffer', buffPointer, found_aux)
+
+      if(found_aux .eqv. .true.) flag_buffer_on = .true.
+
+
+      do iBuff=1, json_nbuff
+            call jCore%get_child(buffPointer, iBuff, testPointer, found)
+            call jCore%get_child(testPointer, 'type', p, found)
+            if(found) then
+               call jCore%get(p,value)
+               if(value .eq. "east")  then
+                  flag_buffer_on_east = .true.
+                  call jCore%get_child(testPointer, 'min', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_e_min)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define east min position'
+                        stop 1      
+                     end if
+                  end if
+                  call jCore%get_child(testPointer, 'size', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_e_size)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define east size'
+                        stop 1      
+                     end if
+                  end if
+               else if (value .eq. "west") then
+                  flag_buffer_on_west = .true.
+                  call jCore%get_child(testPointer, 'min', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_w_min)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define west min position'
+                        stop 1      
+                     end if
+                  end if
+                  call jCore%get_child(testPointer, 'size', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_w_size)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define west size'
+                        stop 1      
+                     end if
+                  end if
+               else if (value .eq. "north") then
+                  flag_buffer_on_north = .true.
+                  call jCore%get_child(testPointer, 'min', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_n_min)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define north min position'
+                        stop 1      
+                     end if
+                  end if
+                  call jCore%get_child(testPointer, 'size', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_n_size)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define north size'
+                        stop 1      
+                     end if
+                  end if
+               else if (value .eq. "south") then
+                  flag_buffer_on_south = .true.
+                  call jCore%get_child(testPointer, 'min', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_s_min)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define south min position'
+                        stop 1      
+                     end if
+                  end if
+                  call jCore%get_child(testPointer, 'size', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_s_size)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define south size'
+                        stop 1      
+                     end if
+                  end if
+               else if (value .eq. "top") then
+                  flag_buffer_on_top = .true.
+                  call jCore%get_child(testPointer, 'min', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_t_min)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define top min position'
+                        stop 1      
+                     end if
+                  end if
+                  call jCore%get_child(testPointer, 'size', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_t_size)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define top size'
+                        stop 1      
+                     end if
+                  end if
+               else if (value .eq. "bottom") then
+                  flag_buffer_on_bottom = .true.
+                  call jCore%get_child(testPointer, 'min', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_b_min)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define bottom min position'
+                        stop 1      
+                     end if
+                  end if
+                  call jCore%get_child(testPointer, 'size', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_b_size)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define bottom size'
+                        stop 1      
+                     end if
+                  end if
+               end if
+            else
+               if(mpi_rank .eq. 0) then
+                  write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define at least one buffer type'
+                  stop 1      
+               end if
+            end if
+      end do
+
+      call json%destroy()
+
+   end subroutine CFDSolverBase_readJSONBuffer
 
    subroutine CFDSolverBase_readJSONBCTypes(this)
       use json_module
@@ -207,7 +367,7 @@ contains
 
       call json%info("bouCodes",n_children=json_nbouCodes)
       call json%get_core(jCore)
-      call json%get('bouCodes', bouCodesPointer, found)
+      call json%get('bouCodes', bouCodesPointer, found_aux)
 
       do iBouCodes=1, json_nbouCodes
             call jCore%get_child(bouCodesPointer, iBouCodes, testPointer, found)
@@ -254,7 +414,7 @@ contains
 
       call json%destroy()
 
-      if(found_aux .and.mpi_rank .eq. 0) then
+      if((found_aux .eqv. .false.) .and.mpi_rank .eq. 0) then
          write(111,*) 'ERROR! JSON file missing bouCodes definition'
          stop 1      
       end if
