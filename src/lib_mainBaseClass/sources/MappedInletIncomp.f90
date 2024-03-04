@@ -43,12 +43,7 @@ contains
    subroutine MappedInletIncomp_fill_BC_Types(this)
       class(MappedInletIncomp), intent(inout) :: this
 
-      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
-      bouCodes2BCType(3) = bc_type_non_slip_adiabatic
-      bouCodes2BCType(4) = bc_type_recirculation_inlet !inlet
-      bouCodes2BCType(5) = bc_type_outlet_incomp !outlet
-
-      !$acc update device(bouCodes2BCType(:))
+      call this%readJSONBCTypes()
 
    end subroutine MappedInletIncomp_fill_BC_Types
 
@@ -112,53 +107,68 @@ contains
    end subroutine MappedInletIncomp_initialBuffer
 
    subroutine MappedInletIncomp_initializeParameters(this)
+      use json_module
+      implicit none
       class(MappedInletIncomp), intent(inout) :: this
       real(rp) :: mur
+      logical :: found, found_aux = .false.
+      type(json_file) :: json
+      character(len=:) , allocatable :: value
 
-      write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "channel"
+      call json%initialize()
+      call json%load_file(json_filename)
+      
+      ! get(label,target,is found?, default value)
 
-      write(this%results_h5_file_path,*) ""
-      write(this%results_h5_file_name,*) "results"
+      call json%get("mesh_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+      write(this%mesh_h5_file_path,*) value
+      call json%get("mesh_h5_file_name",value, found,"channel"); call this%checkFound(found,found_aux)
+      write(this%mesh_h5_file_name,*) value
 
-      write(this%io_append_info,*) ""
+      call json%get("results_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+      write(this%results_h5_file_path,*) value
+      call json%get("results_h5_file_name",value, found,"results"); call this%checkFound(found,found_aux)
+      write(this%results_h5_file_name,*) value
 
-      !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 5000001
 
-      this%save_logFile_first = 1 
-      this%save_logFile_step  = 10
+      call json%get("final_istep",this%final_istep, found,5000001); call this%checkFound(found,found_aux)
 
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 10000
+      call json%get("save_logFile_first",this%save_logFile_first, found, 1); call this%checkFound(found,found_aux)
+      call json%get("save_logFile_step",this%save_logFile_step, found, 10); call this%checkFound(found,found_aux)
 
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 10000
-      this%loadRestartFile = .true.
-      this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
+      call json%get("save_resultsFile_first",this%save_resultsFile_first, found,1); call this%checkFound(found,found_aux)
+      call json%get("save_resultsFile_step" ,this%save_resultsFile_step, found,10000); call this%checkFound(found,found_aux)
 
-      this%saveAvgFile = .true.
-      this%loadAvgFile = .false.
+      call json%get("save_restartFile_first",this%save_restartFile_first, found,1); call this%checkFound(found,found_aux)
+      call json%get("save_restartFile_step" ,this%save_restartFile_step, found,10000); call this%checkFound(found,found_aux)
 
-      this%saveSurfaceResults = .false.
-      !----------------------------------------------
+
+      call json%get("loadRestartFile" ,this%loadRestartFile, found, .true.); call this%checkFound(found,found_aux)
+      call json%get("restartFile_to_load" ,this%restartFile_to_load, found,1); call this%checkFound(found,found_aux)
+
+      call json%get("continue_oldLogs" ,this%continue_oldLogs, found, .false.); call this%checkFound(found,found_aux)
+
+      call json%get("saveAvgFile" ,this%saveAvgFile, found, .true.); call this%checkFound(found,found_aux)
+      call json%get("loadAvgFile" ,this%loadAvgFile, found, .false.); call this%checkFound(found,found_aux)
+
+      call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
 
       ! numerical params
-      flag_les = 1
+      call json%get("flag_les",flag_les, found,1); call this%checkFound(found,found_aux)
+      call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
+      call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
+      call json%get("flag_walave",flag_walave, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("period_walave",period_walave, found,200.0_rp); call this%checkFound(found,found_aux)
 
-      this%cfl_conv = 0.95_rp 
-      !flag_use_constant_dt = 1
-      !this%dt = 5.0e-4
-      !flag_cg_prec_bdc = .false.
-
+      call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
       
-      this%vo = 1.0_rp
-      this%delta  = 1.0_rp
-      this%rho0   = 1.0_rp
-      this%Retau  = 950.0_rp
+      call json%get("v0",this%vo, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("delta",this%delta, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("rho0",this%rho0, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("Retau",this%Retau, found,950.0_rp); call this%checkFound(found,found_aux)
 
+      ! fixed by the type of base class parameters
       this%Re     = exp((1.0_rp/0.88_rp)*log(this%Retau/0.09_rp))
       this%mu    = (this%rho0*2.0_rp*this%delta*this%vo)/this%Re
       this%utau   = (this%Retau*this%mu)/(this%delta*this%rho0)
@@ -168,19 +178,13 @@ contains
 
       nscbc_p_inf = 0.0_rp
 
-      maxIter = 20
-      tol = 1e-3
-
       flag_fs_fix_pressure = .false.
-      
-      flag_walave = .false.
-      period_walave   = 200.0_rp
 
-      flag_buffer_on = .true.
+      call this%readJSONBuffer()
 
-      flag_buffer_on_east = .true.
-      flag_buffer_e_min   = 12.0_rp
-      flag_buffer_e_size  = 1.0_rp 
+      call json%destroy()
+
+      if(found_aux .and.mpi_rank .eq. 0) write(111,*) 'WARNING! JSON file missing a parameter, overwrtting with the default value'
 
    end subroutine MappedInletIncomp_initializeParameters
 
