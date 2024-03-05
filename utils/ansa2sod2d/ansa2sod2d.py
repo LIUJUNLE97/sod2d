@@ -546,12 +546,15 @@ def main():
     nnodes = info['NODE'].total
     pOrder = getPolynomialOrder(info)
     nbouns, usedPshells, shells, nper, periodicPshells, pershells = checkShells(base, deck)
+    nhang  = dims_group.create_dataset('numHangingNodes',(1,),dtype='i8',data=0)
     # Write dims
     dset = dims_group.create_dataset('order',(1,),dtype='i8',data=pOrder)
     dset = dims_group.create_dataset('numNodes',(1,),dtype='i8',data=nnodes)
     elems_dset = dims_group.create_dataset('numElements',(1,),dtype='i8',data=nelems)
     bound_dset = dims_group.create_dataset('numBoundaryFaces',(1,),dtype='i8',data=nbouns)
     per_dset   = dims_group.create_dataset('numPeriodicFaces',(1,),dtype='i8',data=nper)
+    dset = dims_group.create_dataset('numHangingNodesP2C',(1,),dtype='i8',data=0)
+    dset = dims_group.create_dataset('numHangingNodesC2P',(1,),dtype='i8',data=0)
     # Renumbering nodes
     renumberNodes(base, deck, nnodes)
     # Writing nodes coordinates
