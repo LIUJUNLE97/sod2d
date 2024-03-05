@@ -12,7 +12,8 @@ option(UNIT_TESTING "Enable unit tests" OFF)
 option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
 
-option(TOOL_MESHPART "Compiles tool MeshPart" ON)
+option(TOOL_MESHPART "Compiles tool MeshPart" OFF)
+option(TOOL_COPYRES  "Compiles tool CopyResults" OFF)
 option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
 
 option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
@@ -23,6 +24,7 @@ option(SHARED_LIBS "Compile using shared libraries" OFF)
 
 option(USE_GPU "Compile using GPU" OFF)
 option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
+option(USE_NCCL "Compile using NCCL" OFF)
 
 option(DEBUG_MODE "Set debug mode" OFF)
 
@@ -87,6 +89,10 @@ if(TOOL_MESHPART)
     include(gempa)
     add_subdirectory(external)
     add_subdirectory(tool_meshConversorPar)
+endif()
+
+if(TOOL_COPYRES)
+    add_subdirectory(tool_copyResults)
 endif()
 
 if(TOOL_COMMPERF)

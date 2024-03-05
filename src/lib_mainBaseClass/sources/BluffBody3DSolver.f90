@@ -46,11 +46,12 @@ contains
 
 #if CRM
       
-      bouCodes2BCType(1) = bc_type_slip_wall_model
-      bouCodes2BCType(2) = bc_type_far_field 
-      bouCodes2BCType(3) = bc_type_far_field
-      bouCodes2BCType(4) = bc_type_far_field
-      bouCodes2BCType(5) = bc_type_far_field
+       bouCodes2BCType(1) = bc_type_slip_wall_model
+       bouCodes2BCType(2) = bc_type_slip_adiabatic 
+       bouCodes2BCType(3) = bc_type_far_field
+    !  bouCodes2BCType(4) = bc_type_far_field
+    !  bouCodes2BCType(5) = bc_type_far_field
+
 
 #else
      ! bouCodes2BCType(1) = bc_type_non_slip_adiabatic ! floor
@@ -115,43 +116,41 @@ contains
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10
 
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 12000
+      this%save_resultsFile_first = 5000
+      this%save_resultsFile_step = 5000
 
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 12000
-      this%loadRestartFile = .true.
+      this%save_restartFile_first = 5000
+      this%save_restartFile_step = 5000
+      this%loadRestartFile = .false.
       this%restartFile_to_load = 1 !1 or 2
       this%continue_oldLogs = .false.
 
       this%initial_avgTime = 0.0_rp
       this%saveAvgFile = .false.
       this%loadAvgFile = .false.
+      this%saveSurfaceResults = .true.
+      this%saveInitialField = .false.
+      
+      this%saveSurfaceResults = .true.
       !----------------------------------------------
 
       ! numerical params
       flag_les = 1
       flag_implicit = 0
-      implicit_solver = implicit_solver_bdf2_rk10
       flag_rk_order=4
-      flag_implicit_repeat_dt_if_not_converged = 0
-#if CRM    
-      pseudo_cfl =1.5_rp 
-#else
-      pseudo_cfl =1.5_rp 
-#endif
-      pseudo_ftau= 6.0_rp
-      maxIterNonLineal=20
-      tol=1e-4
+      !flag_total_enthalpy = .true.
 
-      period_walave   = 0.5_rp
+      maxIter = 20
+      tol = 1e-3
+
+      period_walave   = 1.0_rp
       flag_walave     = .true.
 
 #if CRM
       !this%dt = 1e-3
       !flag_use_constant_dt = 1
-      this%cfl_conv = 0.9_rp 
-      this%cfl_diff = 0.9_rp 
+      this%cfl_conv = 0.95_rp 
+      this%cfl_diff = 0.95_rp 
 #else  
       !this%dt = 5e-3
       !flag_use_constant_dt = 1 
@@ -187,25 +186,10 @@ contains
       nscbc_c_inf = sqrt(this%gamma_gas*this%po/this%rho0)
       nscbc_Rgas_inf = this%Rgas
 
-      ! -------- Instantaneous results file -------------
-      this%save_scalarField_rho        = .true.
-      this%save_scalarField_muFluid    = .false.
-      this%save_scalarField_pressure   = .true.
-      this%save_scalarField_energy     = .false.
-      this%save_scalarField_entropy    = .false.
-      this%save_scalarField_csound     = .false.
-      this%save_scalarField_machno     = .true.
-      this%save_scalarField_divU       = .false.
-      this%save_scalarField_qcrit      = .true.
-      this%save_scalarField_muSgs      = .false.
-      this%save_scalarField_muEnvit    = .false.
-      this%save_vectorField_vel        = .true.
-      this%save_vectorField_gradRho    = .false.
-      this%save_vectorField_curlU      = .true.
-
 
       flag_buffer_on = .true.
 #if CRM
+! Case1 Vangelis
       flag_buffer_on_east = .true.
       flag_buffer_e_min = 200.0_rp
       flag_buffer_e_size = 36.0_rp 
@@ -225,6 +209,26 @@ contains
       flag_buffer_on_bottom = .true.
       flag_buffer_b_min = -200.0_rp
       flag_buffer_b_size = 36.0_rp
+
+! Xevi
+!       flag_buffer_e_min = 80.0_rp
+!       flag_buffer_e_size = 30.0_rp 
+! 
+!       flag_buffer_on_west = .true.
+!       flag_buffer_w_min = -80.0_rp
+!       flag_buffer_w_size = 30.0_rp 
+! 
+!       flag_buffer_on_north = .true.
+!       flag_buffer_n_min = 80.0_rp
+!       flag_buffer_n_size = 30.0_rp 
+!       
+!       flag_buffer_on_top = .true.
+!       flag_buffer_t_min = 80.0_rp
+!       flag_buffer_t_size = 30.0_rp
+! 
+!       flag_buffer_on_bottom = .true.
+!       flag_buffer_b_min = -80.0_rp
+!       flag_buffer_b_size = 30.0_rp
 #else 
       !!windsor
       flag_buffer_on_east = .true.

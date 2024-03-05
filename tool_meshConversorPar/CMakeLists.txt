@@ -42,6 +42,9 @@ else()
                         ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_comms.f90
                         ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_comms_boundaries.f90
                         ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_hdf5.f90
+                        ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/jacobian_oper.f90
+                        ${CMAKE_CURRENT_LIST_DIR}/src/mod_mesh_quality.f90
+                        ${CMAKE_CURRENT_LIST_DIR}/src/mod_partition_utils.f90
                         ${CMAKE_CURRENT_LIST_DIR}/src/mod_meshConversorTool.f90
                         ${CMAKE_CURRENT_LIST_DIR}/src/tool_meshConversorPar.f90)
 endif()
@@ -66,5 +69,3 @@ if(SHARED_LIBS)
 endif()
 
 # FFLAGS depend on the compiler
-# TODO: check if can safely be removed later
-# get_filename_component (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)

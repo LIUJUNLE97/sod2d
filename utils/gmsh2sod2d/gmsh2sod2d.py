@@ -103,20 +103,24 @@ argpar.add_argument('-s','--size',type=int,help='maximum size of the data block 
 argpar.add_argument('-p','--periodic',type=str,help='codes of periodic boundaries, if any, as a string')
 argpar.add_argument('--scale',type=str,help='scaling vector (default: 1,1,1)')
 argpar.add_argument('-2','--is2D',action='store_true',help='parse a 2D mesh instead')
+argpar.add_argument('-m','--mappedinlet',type=str,help='[mappedInletId,<x,y,z>,gap]')
 
 # Parse inputs
 args = argpar.parse_args()
-if not args.output:   args.output = args.mesh_file
-if not args.periodic: args.periodic = []
-else:                 args.periodic = [int(i) for i in args.periodic.split(',')]
-if not args.order:    args.order 	= 3
-if not args.scale:    args.scale    = '1,1,1'
+if not args.output:  	 args.output = args.mesh_file
+if not args.periodic:	 args.periodic = []
+else:                	 args.periodic = [int(i) for i in args.periodic.split(',')]
+if not args.order:   	 args.order 	= 3
+if not args.scale:   	 args.scale    = '1,1,1'
+if not args.mappedinlet: args.mappedinlet = '0,x,0.0'
 
 args.scale   = [float(i) for i in args.scale.split(',')]
 default_size = True if not args.size else False
 dim_id       = 2 if args.is2D else 3
+args.mappedinlet = [str(i) for i in args.mappedinlet.split(',')]
 
-
+if len(args.mappedinlet) != 3:
+	raiseError('arg array mappedinlet must have 3 values! [bocoid,dir(x,y,z),gap]')
 
 # Print info in screen
 print('--|')
@@ -129,6 +133,24 @@ print('--|',flush=True)
 h5filename = args.output+'.h5'
 h5file = h5py.File(h5filename,'w')
 dims_group = h5file.create_group('dims')
+
+#mapped inlet
+mappedinlet_id  = int(args.mappedinlet[0])
+
+if mappedinlet_id != 0:
+	mapped_group = h5file.create_group('mappedInlet')
+	if args.mappedinlet[1] == 'x':
+		mappedinlet_dir = 1
+	elif args.mappedinlet[1] == 'y':
+		mappedinlet_dir = 2
+	elif args.mappedinlet[1] == 'z':
+		mappedinlet_dir = 3
+	else:
+		raiseError('mapped inlet dir must be <x,y,z>')
+	mappedinlet_gap = float(args.mappedinlet[2])
+	dset = mapped_group.create_dataset('dir',(1,),dtype='i8',data=mappedinlet_dir)
+	dset = mapped_group.create_dataset('gap',(1,),dtype='f8',data=mappedinlet_gap)
+	print('--| mapped inlet id: %i dir %i gap %f'%(mappedinlet_id,mappedinlet_dir,mappedinlet_gap),end='',flush=True)
 
 # Open GMSH file
 args.mesh_file += '.msh'
@@ -234,7 +256,7 @@ id_interior  = int(zones['code'][np.logical_not(zones['isbc'])])
 nel_interior, nel_boundary = 0, 0
 lnods_ndim, lnodb_ndim     = 0, 0
 nbatchi, nbatchb           = 0, 0
-nel_periodic 					= 0
+nel_periodic, nel_mapped 	= 0, 0
 lnodp_ndim						= 0
 nbatchp							= 0
 
@@ -245,14 +267,16 @@ for ibatch in range(numBatches):
 	print('--|   Batch %d... '%(ibatch+1),end='',flush=True)	
 	# Read from text file
 	nread = min(args.size,nelems-ibatch*args.size)
-	iel_interior, iel_boundary, iel_periodic = 0, 0, 0
+	iel_interior, iel_boundary, iel_periodic, iel_mapped = 0, 0, 0, 0
 	eltyi = -np.ones((nread,),np.int32)
 	eltyb = -np.ones((nread,),np.int32)
 	eltyp = -np.ones((nread,),np.int32)
+	eltym = -np.ones((nread,),np.int32)
 	codeb = -np.ones((nread,),np.int32)
 	lnods = np.zeros((nread,nnode),np.int32)
 	lnodb = np.zeros((nread,npbou),np.int32)
 	lnodp = np.zeros((nread,npbou),np.int32)
+	lnodm = np.zeros((nread,npbou),np.int32)
 	# Read the file line by line
 	for iline in range(nread):
 		# Read one line
@@ -290,10 +314,16 @@ for ibatch in range(numBatches):
 			codeb[iel_boundary]             = elkind
 			lnodb_ndim                      = max(lnodb_ndim,npbou)
 			iel_boundary                   += 1
+			if elkind == mappedinlet_id:
+				eltym[iel_boundary]             = eltype
+				lnodm[iel_boundary,:len(conec)] = conec
+				iel_mapped += 1
+				#print('reading boundary element mapped inlet: %d'%iel_mapped,flush=True)
 	# Finish the batch read
 	nel_interior += iel_interior
 	nel_boundary += iel_boundary
 	nel_periodic += iel_periodic
+	nel_mapped   += iel_mapped
 	# Get rid of unwanted interior points
 	to_keep = eltyi != -1
 	eltyi   = eltyi[to_keep]
@@ -307,15 +337,21 @@ for ibatch in range(numBatches):
 	to_keep = eltyp != -1
 	eltyp   = eltyp[to_keep]
 	lnodp   = lnodp[to_keep,:]
+	# Get rid of unwanted mapped points
+	to_keep = eltym != -1
+	eltym   = eltym[to_keep]
+	lnodm   = lnodm[to_keep,:]
 	#codep   = codep[to_keep]
 	lnods_len=len(lnods)
 	lnodb_len=len(lnodb)
 	lnodp_len=len(lnodp)
+	lnodm_len=len(lnodm)
 	lcode_len=len(codeb)
-	print('--| lnods_len <%d> lnodb_len <%d> londp_len <%d> lcode_len<%d>'%(lnods_len,lnodb_len,lnodp_len,lcode_len),flush=True)
+	print('--| lnods_len <%d> lnodb_len <%d> londp_len <%d> lcode_len<%d> lnodm_len<%d>'%(lnods_len,lnodb_len,lnodp_len,lcode_len,lnodm_len),flush=True)
 	if ibatch == 0:
 		connec_dset = h5file.create_dataset('connec',(nel_interior,lnods_ndim),dtype='i8',data=lnods,chunks=True,maxshape=(None,lnods_ndim))
 		bounds_dset = h5file.create_dataset('boundFaces',(nel_boundary,lnodb_ndim),dtype='i8',data=lnodb,chunks=True,maxshape=(None,lnodb_ndim))
+		mapped_dset = h5file.create_dataset('mappedFaces',(nel_mapped,lnodb_ndim),dtype='i8',data=lnodm,chunks=True,maxshape=(None,lnodb_ndim))
 		per_dset = h5file.create_dataset('periodicFaces',(nel_periodic,lnodp_ndim),dtype='i8',data=lnodp,chunks=True,maxshape=(None,lnodp_ndim))
 		boundId_dset = h5file.create_dataset('boundFacesId',(nel_boundary,),dtype='i8',data=codeb,chunks=True,maxshape=(None))
 	else:
@@ -325,6 +361,9 @@ for ibatch in range(numBatches):
 		if lnodb_len != 0:
 			h5file['boundFaces'].resize((h5file['boundFaces'].shape[0] + lnodb.shape[0]), axis=0)
 			h5file['boundFaces'][-lnodb.shape[0]:] = lnodb
+		if lnodm_len != 0:
+			h5file['mappedFaces'].resize((h5file['mappedFaces'].shape[0] + lnodm.shape[0]), axis=0)
+			h5file['mappedFaces'][-lnodm.shape[0]:] = lnodm
 		if lnodp_len != 0:
 			h5file['periodicFaces'].resize((h5file['periodicFaces'].shape[0] + lnodp.shape[0]), axis=0)
 			h5file['periodicFaces'][-lnodp.shape[0]:] = lnodp
@@ -335,7 +374,7 @@ for ibatch in range(numBatches):
 
 print('done!')
 print('--|',flush=True)
-print('--| Found %d inner elements, %d boundary elements, %d per elems'%(nel_interior,nel_boundary,nel_periodic),flush=True)
+print('--| Elems found: %d inner, %d boundary, %d mapped, %d periodic'%(nel_interior,nel_boundary,nel_mapped,nel_periodic),flush=True)
 
 #lnods_len=len(lnods)
 #lnodb_len=len(lnodb)
@@ -345,6 +384,7 @@ print('--| Found %d inner elements, %d boundary elements, %d per elems'%(nel_int
 elems_dset = dims_group.create_dataset('numElements',(1,),dtype='i8',data=nel_interior)
 bound_dset = dims_group.create_dataset('numBoundaryFaces',(1,),dtype='i8',data=nel_boundary)
 per_dset   = dims_group.create_dataset('numPeriodicFaces',(1,),dtype='i8',data=nel_periodic)
+mapped_dset = dims_group.create_dataset('numMappedFaces',(1,),dtype='i8',data=nel_mapped)
 
 #connec_group = h5file.create_group('connectivity')
 #connec_dset = h5file.create_dataset('connec',(nel_interior,lnods_ndim),dtype='i4',data=lnods)
@@ -354,10 +394,10 @@ per_dset   = dims_group.create_dataset('numPeriodicFaces',(1,),dtype='i8',data=n
 
 del lnods
 del lnodb
+del lnodm
 del lnodp
 del codeb
 
-dummy_lnodp = np.zeros((0,2),np.int32) 
 #---- implemented by me from scratch ----- #
 num_bounds_per = 0
 if(len(args.periodic) != 0):

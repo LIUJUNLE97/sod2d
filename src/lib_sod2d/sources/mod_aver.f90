@@ -14,42 +14,60 @@ contains
       real(rp),intent(in),dimension(npoin)            :: rho, pr, mu_fluid
       real(rp),intent(in),dimension(npoin,ndime)      :: u,tauw
       real(rp),intent(in),dimension(nelem,ngaus)      :: mu_e, mu_sgs
-      real(rp),intent(inout),dimension(npoin)         :: avrho,avpr,avmueff
-      real(rp),intent(inout),dimension(npoin,ndime)   :: avvel,avve2,avvex,avtw
+      real(rp_avg),intent(inout),dimension(npoin)         :: avrho,avpr,avmueff
+      real(rp_avg),intent(inout),dimension(npoin,ndime)   :: avvel,avve2,avvex,avtw
       integer(4)                                      :: iPoin,iDime,iElem,iNode
-      real(rp)                                        :: envit(npoin),mut(npoin)
-      real(rp)                                        :: inv_denominator
+      real(rp_avg)                                   :: envit(npoin),mut(npoin)
+      real(rp_avg)                                   :: inv_denominator
+      real(rp_avg)                                   :: rho_loc, pr_loc, mu_fluid_loc
+      real(rp_avg),dimension(ndime)                  :: u_loc, tauw_loc
+      logical                                         :: castVariables=.false.
+
+      if (rp_avg.ne.rp) then
+         castVariables = .true.
+      endif
 
       inv_denominator = 1.0_rp / (elapsed_avg_time + dt)
 
       !$acc parallel loop
       do ipoin = 1,npoin_w
+         if (castVariables) then
+            rho_loc  = real(rho(lpoin_w(ipoin))    , rp_avg)
+            pr_loc   = real(pr(lpoin_w(ipoin))     , rp_avg)
+            u_loc    = real(u(lpoin_w(ipoin),:)    , rp_avg)
+            tauw_loc = real(tauw(lpoin_w(ipoin),:) , rp_avg)
+         else
+            rho_loc  = rho(lpoin_w(ipoin))
+            pr_loc   = pr(lpoin_w(ipoin)) 
+            u_loc    =  u(lpoin_w(ipoin),:)
+            tauw_loc = tauw(lpoin_w(ipoin),:)
+         endif
          do idime = 1,ndime
             avvel(lpoin_w(ipoin),idime) = (avvel(lpoin_w(ipoin),idime)*elapsed_avg_time + &
-                                           rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*dt ) &
+                                           rho_loc*u_loc(idime)*dt ) &
                                           * inv_denominator
             avve2(lpoin_w(ipoin),idime) = (avve2(lpoin_w(ipoin),idime)*elapsed_avg_time + &
-                                           rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),idime)*u(lpoin_w(ipoin),idime)*dt ) &
+                                           rho_loc*u_loc(idime)*u_loc(idime)*dt ) &
                                           * inv_denominator
 
             avtw(lpoin_w(ipoin),idime)  = (avtw(lpoin_w(ipoin),idime)*elapsed_avg_time + & 
-                                           tauw(lpoin_w(ipoin),idime)*dt ) &
+                                           tauw_loc(idime)*dt ) &
                                           * inv_denominator
          end do
          avrho(lpoin_w(ipoin))   = (avrho(lpoin_w(ipoin))*elapsed_avg_time + &
-                                    rho(lpoin_w(ipoin))*dt ) &
+                                    rho_loc*dt ) &
                                     * inv_denominator
          avpr(lpoin_w(ipoin))    = (avpr(lpoin_w(ipoin))*elapsed_avg_time + &
-                                    pr(lpoin_w(ipoin))*dt) &
+                                    pr_loc*dt) &
                                     * inv_denominator
          avvex(lpoin_w(ipoin),1) = (avvex(lpoin_w(ipoin),1)*elapsed_avg_time + &
-                                    rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),1)*u(lpoin_w(ipoin),2)*dt) &
+                                    rho_loc*u_loc(1)*u_loc(2)*dt) &
                                     * inv_denominator
          avvex(lpoin_w(ipoin),2) = (avvex(lpoin_w(ipoin),2)*elapsed_avg_time + &
-                                    rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),1)*u(lpoin_w(ipoin),3)*dt) &
+                                    rho_loc*u_loc(1)*u_loc(3)*dt) &
                                     * inv_denominator
          avvex(lpoin_w(ipoin),3) = (avvex(lpoin_w(ipoin),3)*elapsed_avg_time + &
-                                    rho(lpoin_w(ipoin))*u(lpoin_w(ipoin),2)*u(lpoin_w(ipoin),3)*dt) &
+                                    rho_loc*u_loc(2)*u_loc(3)*dt) &
                                     * inv_denominator
       end do
       !$acc end parallel loop
@@ -67,13 +85,25 @@ contains
          end do
       end do
       !$acc end parallel loop
-      !$acc parallel loop
-      do ipoin = 1,npoin_w
-         avmueff(lpoin_w(ipoin)) =  (avmueff(lpoin_w(ipoin))*elapsed_avg_time + &
-                                    (mu_fluid(lpoin_w(ipoin))+envit(lpoin_w(ipoin))+mut(lpoin_w(ipoin)))*dt) &
-                                    * inv_denominator
-      end do
-      !$acc end parallel loop
+      if (castVariables) then
+          !$acc parallel loop
+          do ipoin = 1,npoin_w
+             avmueff(lpoin_w(ipoin)) =  (avmueff(lpoin_w(ipoin))*elapsed_avg_time + &
+                                        (mu_fluid(lpoin_w(ipoin))+envit(lpoin_w(ipoin))+mut(lpoin_w(ipoin)))*dt) &
+                                        * inv_denominator
+          end do
+          !$acc end parallel loop
+      else
+          !$acc parallel loop
+          do ipoin = 1,npoin_w
+             avmueff(lpoin_w(ipoin)) =  (avmueff(lpoin_w(ipoin))*elapsed_avg_time + &
+                                        ( real(mu_fluid(lpoin_w(ipoin)),rp_avg)+ &
+                                          real(envit(lpoin_w(ipoin)), rp_avg) + &
+                                          real(mut(lpoin_w(ipoin)), rp_avg) &
+                                        )*dt) * inv_denominator
+          end do
+          !$acc end parallel loop
+      endif
 
       elapsed_avg_time = elapsed_avg_time + dt
 

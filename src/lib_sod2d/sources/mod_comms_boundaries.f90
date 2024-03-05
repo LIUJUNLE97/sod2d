@@ -88,6 +88,11 @@ contains
             !call close_window_realField_bnd()
         end if
 
+#ifdef NCCL_COMMS
+        nccl_bnd_stat = ncclCommDestroy(nccl_bnd_comm)
+        cuda_bnd_stat = cudaStreamDestroy(nccl_bnd_stream)
+#endif
+
     end subroutine end_comms_bnd
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
@@ -255,7 +260,7 @@ contains
     !INTEGER ---------------------------------------------------------
     subroutine mpi_halo_boundary_atomic_update_int_iSendiRcv(intField)
         implicit none
-        integer, intent(inout) :: intField(:)
+        integer(4), intent(inout) :: intField(:)
         integer(4) :: i,ireq,ngbRank,tagComm
         integer(4) :: memPos_l,memSize
         integer(4) :: requests(2*bnd_numRanksWithComms)

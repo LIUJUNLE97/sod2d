@@ -1,6 +1,6 @@
 module elem_qua
 
-	use mod_numerical_params
+	use mod_constants
 	use mod_maths
 
 	implicit none
@@ -15,7 +15,7 @@ module elem_qua
 			!$acc enter data copyin(quad_order_edges)
 		end subroutine init_quad_info
 
-		subroutine quad_highorder(mporder,mnpbou,xi,eta,atoIJ,N,dN) ! QUA16 element
+		subroutine quad_highorder(mporder,mnpbou,xi,eta,atoIJ,N,dN)
 			implicit none
 			integer(4),intent(in) :: mporder,mnpbou
 			real(rp),intent(in)   :: xi,eta

@@ -1,3 +1,5 @@
+#define _mappedInlet_ 0
+
 module ChannelFlowSolverIncomp_mod
    use mod_arrays
    use mod_nvtx
@@ -36,6 +38,9 @@ module ChannelFlowSolverIncomp_mod
       procedure, public :: initializeParameters  => ChannelFlowSolverIncomp_initializeParameters
       procedure, public :: initializeSourceTerms => ChannelFlowSolverIncomp_initializeSourceTerms
       procedure, public :: evalInitialConditions => ChannelFlowSolverIncomp_evalInitialConditions
+#if _mappedInlet_
+      procedure, public :: initialBuffer         => ChannelFlowSolverIncomp_initialBuffer
+#endif
    end type ChannelFlowSolverIncomp
 contains
 
@@ -43,7 +48,13 @@ contains
       class(ChannelFlowSolverIncomp), intent(inout) :: this
 
       !bouCodes2BCType(1) = bc_type_slip_wall_model
-      bouCodes2BCType(1) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(2) = bc_type_non_slip_adiabatic
+#if _mappedInlet_
+      bouCodes2BCType(3) = bc_type_non_slip_adiabatic
+      bouCodes2BCType(4) = bc_type_recirculation_inlet !inlet
+      bouCodes2BCType(5) = bc_type_outlet_incomp !outlet
+#endif
+
       !$acc update device(bouCodes2BCType(:))
 
    end subroutine ChannelFlowSolverIncomp_fill_BC_Types
@@ -51,13 +62,24 @@ contains
    subroutine ChannelFlowSolverIncomp_initializeSourceTerms(this)
       class(ChannelFlowSolverIncomp), intent(inout) :: this
       integer(4) :: iNodeL
+      real(rp) :: source_x
 
       allocate(source_term(numNodesRankPar,ndime))
       !$acc enter data create(source_term(:,:))
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
-         source_term(iNodeL,1) = (this%utau*this%utau*this%rho0/this%delta)
+#if _mappedInlet_
+         if(coordPar(iNodeL,1)<6.0_rp) then
+            source_x = (this%utau*this%utau*this%rho0/this%delta)
+         else
+            source_x = 0.
+         end if
+#else
+         source_x = (this%utau*this%utau*this%rho0/this%delta)
+#endif
+
+         source_term(iNodeL,1) = source_x 
          source_term(iNodeL,2) = 0.00_rp
          source_term(iNodeL,3) = 0.00_rp
 
@@ -75,6 +97,33 @@ contains
       !$acc end kernels
    end subroutine ChannelFlowSolverIncomp_initializeSourceTerms
 
+#if _mappedInlet_
+   subroutine ChannelFlowSolverIncomp_initialBuffer(this)
+      class(ChannelFlowSolverIncomp), intent(inout) :: this
+      integer(4) :: iNode
+      real(rp) :: velo,yp
+
+      !$acc parallel loop
+      do iNode = 1,numNodesRankPar
+
+         if(coordPar(iNode,2)<this%delta) then
+            yp = coordPar(iNode,2)*this%utau*this%rho0/this%mu
+         else
+            yp = abs(coordPar(iNode,2)-2.0_rp*this%delta)*this%utau*this%rho0/this%mu
+         end if
+
+         velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
+
+         u_buffer(iNode,1) = velo
+         u_buffer(iNode,2) = 0.0_rp
+         u_buffer(iNode,3) = 0.0_rp  
+
+      end do
+      !$acc end parallel loop
+
+   end subroutine ChannelFlowSolverIncomp_initialBuffer
+#endif
+
    subroutine ChannelFlowSolverIncomp_initializeParameters(this)
       class(ChannelFlowSolverIncomp), intent(inout) :: this
       real(rp) :: mur
@@ -85,9 +134,11 @@ contains
       write(this%results_h5_file_path,*) ""
       write(this%results_h5_file_name,*) "results"
 
+      write(this%io_append_info,*) ""
+
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 10000001
+      this%final_istep = 5000001
 
       this%save_logFile_first = 1 
       this%save_logFile_step  = 10
@@ -110,11 +161,10 @@ contains
       ! numerical params
       flag_les = 1
 
-      !this%cfl_conv = 0.9_rp 
-      !this%cfl_diff = 0.9_rp
-      flag_use_constant_dt = 1
-      this%dt = 5.0e-4
-      flag_cg_prec_bdc = .false.
+      this%cfl_conv = 0.95_rp 
+      !flag_use_constant_dt = 1
+      !this%dt = 5.0e-4
+      !flag_cg_prec_bdc = .false.
 
       
       this%vo = 1.0_rp
@@ -131,12 +181,21 @@ contains
 
       nscbc_p_inf = 0.0_rp
 
-      maxIter = 200
+      maxIter = 20
       tol = 1e-3
 
       flag_fs_fix_pressure = .false.
       
+      flag_walave = .false.
       period_walave   = 200.0_rp
+
+#if _mappedInlet_
+      flag_buffer_on = .true.
+
+      flag_buffer_on_east = .true.
+      flag_buffer_e_min   = 12.0_rp
+      flag_buffer_e_size  = 1.0_rp 
+#endif
 
    end subroutine ChannelFlowSolverIncomp_initializeParameters
 

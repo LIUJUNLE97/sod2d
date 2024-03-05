@@ -23,35 +23,28 @@ module mod_solver_incomp
 
       contains
 
-            subroutine conjGrad_veloc_incomp(igtime,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,numBoundsWM,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-                                             dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,Rp0,R, &
-                                             ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&                   ! Optional args
-                                             listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u) ! Optional args
+            subroutine conjGrad_veloc_incomp(igtime,fact,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
+                                             gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,Rp0,R, &
+                                             bou_codes_nodes,normalsAtNodes,u_buffer) ! Optional args
 
-           implicit none
+            implicit none
 
-           logical,              intent(in)   :: noBoundaries
-           integer(4),           intent(in)    :: igtime,save_logFile_next
-           integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w),nboun
-           real(rp)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode),dt
-           real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin,ndime)
-           integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            real(rp),             intent(inout) :: mu_fluid(npoin)
-            real(rp),             intent(inout) :: mu_e(nelem,ngaus)
-            real(rp),             intent(inout) :: mu_sgs(nelem,ngaus)
-            integer(4),            intent(in)    :: numBoundsWM
-            integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*)
-            integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun), bou_codes_nodes(npoin)
-            integer(4), optional, intent(in)    :: listBoundsWM(*)
-            real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
-            real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime)
-            real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
-            real(rp), optional, intent(in)      :: source_term(npoin,ndime)
-            real(rp), optional, intent(in)      :: walave_u(npoin,ndime)            
-           real(rp)   , intent(inout) :: R(npoin,ndime)
-           integer(4)                :: ipoin, iter,ialpha,idime
-           real(rp)                   :: alphaCG, betaCG,Q1(2)
-           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,alpha(5),alpha2(5),aux_alpha,T1
+            logical,    intent(in) :: noBoundaries
+            integer(4), intent(in) :: igtime,save_logFile_next
+            integer(4), intent(in) :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w),nboun
+            real(rp),   intent(in) :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode),dt,fact
+            real(rp),   intent(in) :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin,ndime)
+            integer(4), intent(in) :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+            real(rp),   intent(inout) :: mu_fluid(npoin)
+            real(rp),   intent(inout) :: mu_e(nelem,ngaus)
+            real(rp),   intent(inout) :: mu_sgs(nelem,ngaus)
+            integer(4),optional, intent(in) :: bou_codes_nodes(npoin)
+            real(rp),optional,   intent(in) :: normalsAtNodes(npoin,ndime)
+            real(rp),optional,   intent(in) :: u_buffer(npoin,ndime)
+            real(rp), intent(inout) :: R(npoin,ndime)
+            integer(4) :: ipoin,iter,ialpha,idime
+            real(rp)   :: alphaCG,betaCG
+            real(8)    :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,alpha(5),alpha2(5),aux_alpha,T1,Q1(2)
           
           call nvtxStartRange("CG solver veloc")
           if (flag_cg_mem_alloc_veloc .eqv. .true.) then
@@ -101,18 +94,28 @@ module mod_solver_incomp
                end do
                call nvtxEndRange
             end if
-            
             !$acc parallel loop
             do ipoin = 1,npoin_w
                !$acc loop seq
                do idime = 1,ndime
-                  qn_u(lpoin_w(ipoin),idime) = x_u(lpoin_w(ipoin),idime)*Ml(lpoin_w(ipoin))+qn_u(lpoin_w(ipoin),idime)*0.5_rp*dt
+                  qn_u(lpoin_w(ipoin),idime) = x_u(lpoin_w(ipoin),idime)*Ml(lpoin_w(ipoin))+qn_u(lpoin_w(ipoin),idime)*fact*dt
                   r0_u(lpoin_w(ipoin),idime) = b_u(lpoin_w(ipoin),idime)-qn_u(lpoin_w(ipoin),idime) ! b-A*x0
+              end do
+            end do
+            !$acc end parallel loop            
+            if (noBoundaries .eqv. .false.) then
+               call temporary_bc_routine_dirichlet_prim_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0_u,u_buffer)
+            end if            
+            !$acc parallel loop
+            do ipoin = 1,npoin_w
+               !$acc loop seq
+               do idime = 1,ndime
                   z0_u(lpoin_w(ipoin),idime) = r0_u(lpoin_w(ipoin),idime)/M_u(lpoin_w(ipoin),idime)
                   p0_u(lpoin_w(ipoin),idime) = z0_u(lpoin_w(ipoin),idime)
               end do
             end do
             !$acc end parallel loop
+
 
             auxT1 = 0.0d0
             !$acc parallel loop reduction(+:auxT1)
@@ -123,7 +126,7 @@ module mod_solver_incomp
               end do
             end do
 
-            call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+            call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
             auxB = sqrt(auxT2)
             call nvtxEndRange
@@ -144,10 +147,9 @@ module mod_solver_incomp
              do ipoin = 1,npoin_w
                !$acc loop seq
                do idime = 1,ndime  
-                  qn_u(lpoin_w(ipoin),idime) = p0_u(lpoin_w(ipoin),idime)*Ml(lpoin_w(ipoin))+qn_u(lpoin_w(ipoin),idime)*0.5_rp*dt
+                  qn_u(lpoin_w(ipoin),idime) = p0_u(lpoin_w(ipoin),idime)*Ml(lpoin_w(ipoin))+qn_u(lpoin_w(ipoin),idime)*fact*dt
               end do
              end do
-             !$acc end parallel loop
             
               auxQ1 = 0.0d0
               auxQ2 = 0.0d0
@@ -162,7 +164,7 @@ module mod_solver_incomp
               !$acc end parallel loop
               auxQ(1) = auxQ1
               auxQ(2) = auxQ2
-              call MPI_Allreduce(auxQ,Q1,2,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+              call MPI_Allreduce(auxQ,Q1,2,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
               alphaCG = real(Q1(1)/Q1(2),rp)
               !$acc parallel loop
               do ipoin = 1,npoin_w
@@ -172,14 +174,21 @@ module mod_solver_incomp
                  end do
               end do
               !$acc end parallel loop
-               if (noBoundaries .eqv. .false.) then
-                  call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,x_u,u_buffer)
-               end if
               !$acc parallel loop
               do ipoin = 1,npoin_w
                   !$acc loop seq
                   do idime = 1,ndime 
                      r0_u(lpoin_w(ipoin),idime) = r0_u(lpoin_w(ipoin),idime)-alphaCG*qn_u(lpoin_w(ipoin),idime) ! b-A*p0
+                  end do
+              end do
+              !$acc end parallel loop
+               if (noBoundaries .eqv. .false.) then
+                  call temporary_bc_routine_dirichlet_prim_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0_u,u_buffer)
+               end if
+              !$acc parallel loop
+              do ipoin = 1,npoin_w
+                  !$acc loop seq
+                  do idime = 1,ndime 
                      z1_u(lpoin_w(ipoin),idime) = z0_u(lpoin_w(ipoin),idime) 
                      z0_u(lpoin_w(ipoin),idime) = r0_u(lpoin_w(ipoin),idime)/M_u(lpoin_w(ipoin),idime) 
                   end do
@@ -194,7 +203,7 @@ module mod_solver_incomp
                  end do
               end do
 
-               call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+               call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
                T1 = auxT2
               !
@@ -216,7 +225,7 @@ module mod_solver_incomp
                   end do
               end do
               !$acc end parallel loop
-              call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+              call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
               betaCG = real(auxT2/Q1(1),rp)
               !$acc parallel loop
               do ipoin = 1,npoin_w
@@ -257,9 +266,11 @@ module mod_solver_incomp
            real(rp)   , intent(inout) :: R(npoin)
            integer(4), intent(in)     :: nboun,bou_codes_nodes(npoin)
            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
-           integer(4)                :: ipoin, iter,ialpha,ielem
-           real(rp)                   :: T1, alphaCG, betaCG,Q1(2)
-           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB
+           integer(4)                :: ipoin, iter,ialpha,ielem,inode_press
+           real(rp)                   :: T1, alphaCG, betaCG
+           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,Q1(2)
+
+           inode_press = npoin_w*0.5_rp
           
           call nvtxStartRange("CG solver press")
           if (flag_cg_mem_alloc_pres .eqv. .true.) then
@@ -312,8 +323,8 @@ module mod_solver_incomp
             ! Real solver form here
 
             if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
-               b(lpoin_w(1)) = 0.0_rp
-               x(lpoin_w(1)) = 0.0_rp
+               b(lpoin_w(inode_press)) = 0.0_rp
+               x(lpoin_w(inode_press)) = 0.0_rp
             end if
 
             call nvtxStartRange("CG_p precond")
@@ -321,6 +332,13 @@ module mod_solver_incomp
            !$acc parallel loop
            do ipoin = 1,npoin_w
               r0(lpoin_w(ipoin)) = b(lpoin_w(ipoin))-qn(lpoin_w(ipoin)) ! b-A*x0
+           end do
+            !$acc end parallel loop            
+            if (noBoundaries .eqv. .false.) then
+               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0)              
+            end if            
+           !$acc parallel loop
+           do ipoin = 1,npoin_w
               z0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))/M(lpoin_w(ipoin))
               p0(lpoin_w(ipoin)) = z0(lpoin_w(ipoin))
            end do
@@ -339,10 +357,10 @@ module mod_solver_incomp
             auxT1 = 0.0d0
             !$acc parallel loop reduction(+:auxT1)
             do ipoin = 1,npoin
-               auxT1 = auxT1+real(r0(ipoin)*r0(ipoin),8)
+               auxT1 = auxT1+real(b(ipoin)*b(ipoin),8)
             end do
 
-            call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+            call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
             auxB = sqrt(auxT2) 
             call nvtxEndRange
@@ -353,7 +371,7 @@ module mod_solver_incomp
            call nvtxStartRange("CG_p iters")
            do iter = 1,maxIter
               call nvtxStartRange("Iter_p")
-              call eval_laplacian_mult(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,p0,qn) ! A*s_k-1
+              call eval_laplacian_mult(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,p0,qn) ! A*s_k-1           
               auxQ1 = 0.0d0
               auxQ2 = 0.0d0
               !$acc parallel loop reduction(+:auxQ1,auxQ2) 
@@ -364,7 +382,7 @@ module mod_solver_incomp
               !$acc end parallel loop
               auxQ(1) = auxQ1
               auxQ(2) = auxQ2
-              call MPI_Allreduce(auxQ,Q1,2,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+              call MPI_Allreduce(auxQ,Q1,2,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
               alphaCG = real(Q1(1)/Q1(2),rp)
               !$acc parallel loop
               do ipoin = 1,npoin_w
@@ -373,10 +391,17 @@ module mod_solver_incomp
               !$acc parallel loop
               do ipoin = 1,npoin_w
                  r0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))-alphaCG*qn(lpoin_w(ipoin)) ! b-A*p0
+              end do
+              !$acc end parallel loop
+              if (noBoundaries .eqv. .false.) then
+               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0)              
+              end if
+              !$acc parallel loop
+              do ipoin = 1,npoin_w
                  z1(lpoin_w(ipoin)) = z0(lpoin_w(ipoin)) 
                  z0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))/M(lpoin_w(ipoin)) 
               end do
-              !$acc end parallel loop
+              !$acc end parallel loop                            
               auxT1 = 0.0d0
               !$acc parallel loop reduction(+:auxT1)
               do ipoin = 1,npoin
@@ -384,7 +409,7 @@ module mod_solver_incomp
               end do
               !$acc end parallel loop
 
-               call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+               call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
                T1 = real(auxT2,rp)
               !
@@ -408,7 +433,7 @@ module mod_solver_incomp
                  auxT1 = auxT1+real(r0(ipoin)*(z0(ipoin)-z1(ipoin)),8) ! <r_k,A*s_k-1>
               end do
               !$acc end parallel loop
-              call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+              call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
               betaCG = real(auxT2/Q1(1),rp)
               !$acc parallel loop
               do ipoin = 1,npoin_w
@@ -428,6 +453,10 @@ module mod_solver_incomp
             !$acc kernels
             R(:) = x0(:)+x(:)
             !$acc end kernels
+
+            if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
+               R(lpoin_w(inode_press)) = 0.0_rp
+            end if
 
            call nvtxEndRange
 

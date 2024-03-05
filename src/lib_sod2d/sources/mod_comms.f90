@@ -1,5 +1,8 @@
 module mod_comms
     use mod_mpi_mesh
+#ifdef NCCL_COMMS
+    use nccl
+#endif
 
 !-- Select type of communication for mpi_atomic_updates
 #define _SENDRCV_ 0
@@ -24,6 +27,14 @@ module mod_comms
     logical :: isInt,isReal
     logical :: isLockBarrier,isPSCWBarrier
 
+#ifdef NCCL_COMMS
+    integer                        :: cuda_stat
+    type(ncclResult)               :: nccl_stat
+    type(ncclUniqueId)             :: nccl_uid
+    type(ncclComm)                 :: nccl_comm
+    integer(kind=cuda_stream_kind) :: nccl_stream
+#endif
+
 contains
 
 !-----------------------------------------------------------------------------------------------------------------------
@@ -41,6 +52,9 @@ contains
 #endif
 #if _PUTFENCE_
         if(mpi_rank.eq.0) write(111,*) "--| Comm. scheme: Put(Fence)"
+#endif
+#ifdef NCCL_COMMS
+        if(mpi_rank.eq.0) write(111,*) "--| Comm. scheme: NCCL"
 #endif
 
         isInt=.false.
@@ -79,6 +93,15 @@ contains
         call setPSCWAssertNoCheckFlags(useAssertNoCheckFlags)
         call setLockBarrier(useLockBarrier)
 
+#ifdef NCCL_COMMS
+        if (mpi_rank == 0) then
+            nccl_stat = ncclGetUniqueId(nccl_uid)
+        end if
+        call MPI_Bcast(nccl_uid, int( sizeof(ncclUniqueId), kind = 4 ), MPI_BYTE, 0, app_comm, mpi_err)
+        nccl_stat = ncclCommInitRank(nccl_comm, mpi_size, nccl_uid, mpi_rank);
+        cuda_stat = cudaStreamCreate(nccl_stream);
+#endif
+
     end subroutine init_comms
 
     subroutine end_comms()
@@ -102,6 +125,10 @@ contains
             call close_window_realField()
         end if
 
+#ifdef NCCL_COMMS
+        nccl_stat = ncclCommDestroy(nccl_comm)
+        cuda_stat = cudaStreamDestroy(nccl_stream)
+#endif
     end subroutine end_comms
 
     subroutine setFenceFlags(useFenceFlags)
@@ -492,6 +519,21 @@ contains
 
         call fill_sendBuffer_real(realField)
 
+#if NCCL_COMMS
+        nccl_stat = ncclGroupStart()
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            nccl_stat = ncclRecv(aux_realField_r(mempos_l), memSize, ncclFloat, ngbRank, nccl_comm, nccl_stream)
+            nccl_stat = ncclSend(aux_realField_s(mempos_l), memSize, ncclFloat, ngbRank, nccl_comm, nccl_stream)
+        end do
+        !$acc end host_data
+        nccl_stat = ncclGroupEnd()
+        cuda_stat = cudaStreamSynchronize(nccl_stream)
+#else
         ireq=0
         !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
         do i=1,numRanksWithComms
@@ -508,6 +550,7 @@ contains
         !$acc end host_data
 
         call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+#endif
 
         call copy_from_rcvBuffer_real(realField)
     end subroutine mpi_halo_atomic_update_real_iSendiRcv
@@ -878,8 +921,11 @@ contains
         call copy_from_rcvBuffer_get_real(realField)
     end subroutine mpi_halo_atomic_update_real_get_lock
 
+!---------------------------------------------------------------------------------
+!    FOR TESTING AND DEVEL STUFF!
+!---------------------------------------------------------------------------------
+
 !------------- ONLY BUFFERS -------------------------------------------
-!for testing and devel stuff
     !INTEGER ---------------------------------------------------------
     subroutine mpi_halo_atomic_update_int_onlybuffers(intfield)
         implicit none
@@ -902,6 +948,113 @@ contains
         call copy_from_rcvbuffer_real(realfield)
 
     end subroutine mpi_halo_atomic_update_real_onlybuffers
+!---------------------------------------------------------------------------------
+    subroutine mpi_halo_atomic_update_real_iSendiRcv_noCudaAware(realField)
+        implicit none
+        real(rp), intent(inout) :: realField(:)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*numRanksWithComms)
+
+        call fill_sendBuffer_real(realField)
+
+        ireq=0
+
+        !$acc update host(aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_realField_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+        end do
+
+        call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+        !$acc update device(aux_realField_r(:))
+        call copy_from_rcvBuffer_real(realField)
+    end subroutine mpi_halo_atomic_update_real_iSendiRcv_noCudaAware
+
+    subroutine mpi_halo_atomic_update_real_sendRcv_noCudaAware(realField)
+        implicit none
+        real(rp), intent(inout) :: realField(:)
+        integer(4) :: i,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+
+        call fill_sendBuffer_real(realField)
+
+        !$acc update host(aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            call MPI_Sendrecv(aux_realField_s(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
+                              aux_realField_r(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
+                              app_comm, MPI_STATUS_IGNORE, mpi_err)
+        end do
+
+        !$acc update device(aux_realField_r(:))
+        call copy_from_rcvBuffer_real(realField)
+    end subroutine mpi_halo_atomic_update_real_sendRcv_noCudaAware
+
+    !REAL
+    subroutine mpi_halo_atomic_update_real_put_fence_noCudaAware(realField)
+        implicit none
+        real(rp), intent(inout) :: realField(:)
+        integer(4) :: i,ngbRank
+        integer(4) :: memPos_l,memSize
+
+        call fill_sendBuffer_real(realField)
+
+        call MPI_Win_fence(beginFence,window_id_real,mpi_err)
+
+        !$acc update host(aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+
+            call MPI_Put(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,memPos_t,memSize,mpi_datatype_real,window_id_real,mpi_err)
+        end do
+
+        call MPI_Win_fence(endFence,window_id_real,mpi_err)
+
+        !$acc update device(aux_realField_r(:))
+        call copy_from_rcvBuffer_real(realField)
+    end subroutine mpi_halo_atomic_update_real_put_fence_noCudaAware
+ 
+    subroutine mpi_halo_atomic_update_real_get_fence_noCudaAware(realField)
+        implicit none
+        real(rp), intent(inout) :: realField(:)
+        integer(4) :: i,ngbRank
+        integer(4) :: memPos_l,memSize
+
+        call fill_sendBuffer_get_real(realField)
+
+        call MPI_Win_fence(beginFence,window_id_real,mpi_err)
+
+        !$acc update host(aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+
+            call MPI_Get(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,memPos_t,memSize,mpi_datatype_real,window_id_real,mpi_err)
+        end do
+
+        call MPI_Win_fence(endFence,window_id_real,mpi_err)
+
+        !$acc update device(aux_realField_s(:))
+        call copy_from_rcvBuffer_get_real(realField)
+    end subroutine mpi_halo_atomic_update_real_get_fence_noCudaAware
 
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
