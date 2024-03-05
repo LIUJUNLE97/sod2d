@@ -395,11 +395,13 @@ def writeBoundsAlt(base, deck, h5file, nshells, shells, pOrder, nameDataSet):
 # Write boundary codes
 def writeBC(base, deck, h5file, usedPshells, nbouns):
     bound_codes = np.zeros((nbouns,))
+    iShell = 0
     for pshell in usedPshells:
         code = base.GetEntityCardValues(deck, pshell, ['ZONE_ID'])['ZONE_ID']
         shells = base.CollectEntities(deck, pshell, 'SHELL', recursive = True)
-        for i, shell in enumerate(shells):
-            bound_codes[i] = code
+        for shell in shells:
+            bound_codes[iShell] = code
+            iShell+=1
     boundId_dset = h5file.create_dataset('boundFacesId',(nbouns,),dtype='i8',data=bound_codes,
         chunks=True,maxshape=(nbouns))
     del bound_codes
