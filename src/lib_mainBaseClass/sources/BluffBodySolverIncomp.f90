@@ -152,8 +152,20 @@ contains
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-         pr(iNodeL,2) = 0.0_rp
-         rho(iNodeL,2) = this%rho0
+         eta(iNodeL,2) =0.5_rp*dot_product(u(iNodeL,1:ndime,2),u(iNodeL,1:ndime,2))
+         q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
+
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+         u(iNodeL,1:ndime,3) = u(iNodeL,1:ndime,2)
+         rho(iNodeL,3) = rho(iNodeL,2)
+         eta(iNodeL,3) =  eta(iNodeL,2)
+         pr(iNodeL,3) =  pr(iNodeL,2)  
+
+         q(iNodeL,1:ndime,4) = q(iNodeL,1:ndime,2)
+         u(iNodeL,1:ndime,4) = u(iNodeL,1:ndime,2)
+         rho(iNodeL,4) = rho(iNodeL,2)
+         eta(iNodeL,4) =  eta(iNodeL,2)
+         pr(iNodeL,4) =  pr(iNodeL,2)  
       end do
       !$acc end parallel loop
 
