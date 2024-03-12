@@ -1,4 +1,4 @@
-module ABlFlowSolverIncomp_mod
+module MappedInletIncomp_mod
    use mod_arrays
    use mod_nvtx
 #ifndef NOACC
@@ -27,88 +27,89 @@ module ABlFlowSolverIncomp_mod
    implicit none
    private
 
-   type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: ABlFlowSolverIncomp
+   type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: MappedInletIncomp
 
-      real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar
+      real(rp) , public  :: vo, delta, rho0, Retau, Re, utau, mu
 
    contains
-      procedure, public :: fillBCTypes           => ABlFlowSolverIncomp_fill_BC_Types
-      procedure, public :: initializeParameters  => ABlFlowSolverIncomp_initializeParameters
-      procedure, public :: initializeSourceTerms => ABlFlowSolverIncomp_initializeSourceTerms
-      procedure, public :: evalInitialConditions => ABlFlowSolverIncomp_evalInitialConditions
-      procedure, public :: eval_vars_after_load_hdf5_resultsFile => ABlFlowSolverIncomp_eval_vars_after_load_hdf5_resultsFile 
-   end type ABlFlowSolverIncomp
+      procedure, public :: fillBCTypes           => MappedInletIncomp_fill_BC_Types
+      procedure, public :: initializeParameters  => MappedInletIncomp_initializeParameters
+      procedure, public :: initializeSourceTerms => MappedInletIncomp_initializeSourceTerms
+      procedure, public :: evalInitialConditions => MappedInletIncomp_evalInitialConditions
+      procedure, public :: initialBuffer         => MappedInletIncomp_initialBuffer
+   end type MappedInletIncomp
 contains
 
-   subroutine ABlFlowSolverIncomp_eval_vars_after_load_hdf5_resultsFile(this)
-      implicit none
-      class(ABlFlowSolverIncomp), intent(inout) :: this
-      integer :: iNodeL,idime
-
-      !values loaded -> rho,u,pr,E,mu_e,mu_sgs
-
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
-         q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
-         eta(iNodeL,2) =0.5_rp*dot_product(u(iNodeL,1:ndime,2),u(iNodeL,1:ndime,2))
-
-         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
-         u(iNodeL,1:ndime,3) = u(iNodeL,1:ndime,2)
-         rho(iNodeL,3) = rho(iNodeL,2)
-         eta(iNodeL,3) =  eta(iNodeL,2)
-         pr(iNodeL,3) =  pr(iNodeL,2)  
-
-         q(iNodeL,1:ndime,4) = q(iNodeL,1:ndime,2)
-         u(iNodeL,1:ndime,4) = u(iNodeL,1:ndime,2)
-         rho(iNodeL,4) = rho(iNodeL,2)
-         eta(iNodeL,4) =  eta(iNodeL,2)
-         pr(iNodeL,4) =  pr(iNodeL,2)  
-
-         mu_factor(iNodeL) = flag_mu_factor
-      end do
-      !$acc end parallel loop
-
-
-      !$acc kernels
-      kres(:) = 0.0_rp
-      etot(:) = 0.0_rp
-      ax1(:) = 0.0_rp
-      ax2(:) = 0.0_rp
-      ax3(:) = 0.0_rp
-      au(:,:) = 0.0_rp
-      zo(:) = this%rough
-      !$acc end kernels
-
-   end subroutine ABlFlowSolverIncomp_eval_vars_after_load_hdf5_resultsFile
-
-   subroutine ABlFlowSolverIncomp_fill_BC_Types(this)
-      class(ABlFlowSolverIncomp), intent(inout) :: this
+   subroutine MappedInletIncomp_fill_BC_Types(this)
+      class(MappedInletIncomp), intent(inout) :: this
 
       call this%readJSONBCTypes()
 
-   end subroutine ABlFlowSolverIncomp_fill_BC_Types
+   end subroutine MappedInletIncomp_fill_BC_Types
 
-   subroutine ABlFlowSolverIncomp_initializeSourceTerms(this)
-      class(ABlFlowSolverIncomp), intent(inout) :: this
+   subroutine MappedInletIncomp_initializeSourceTerms(this)
+      class(MappedInletIncomp), intent(inout) :: this
       integer(4) :: iNodeL
+      real(rp) :: source_x
 
       allocate(source_term(numNodesRankPar,ndime))
       !$acc enter data create(source_term(:,:))
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
-         source_term(iNodeL,1) =  this%rho0*this%ustar**2/this%Lz
+         if(coordPar(iNodeL,1)<6.0_rp) then
+            source_x = (this%utau*this%utau*this%rho0/this%delta)
+         else
+            source_x = 0.
+         end if
+
+         source_term(iNodeL,1) = source_x 
          source_term(iNodeL,2) = 0.00_rp
          source_term(iNodeL,3) = 0.00_rp
+
+         !just a momentary trick
+         pr(iNodeL,2) = 0.0_rp 
+         rho(iNodeL,2) = this%rho0            
+
+         rho(iNodeL,3) = rho(iNodeL,2)
+         pr(iNodeL,3) =  pr(iNodeL,2)
       end do
       !$acc end parallel loop
 
-   end subroutine ABlFlowSolverIncomp_initializeSourceTerms
+      !$acc kernels
+      mu_e(:,:) = 0.0_rp ! Element syabilization viscosity
+      !$acc end kernels
+   end subroutine MappedInletIncomp_initializeSourceTerms
 
-   subroutine ABLFlowSolverIncomp_initializeParameters(this)
+   subroutine MappedInletIncomp_initialBuffer(this)
+      class(MappedInletIncomp), intent(inout) :: this
+      integer(4) :: iNode
+      real(rp) :: velo,yp
+
+      !$acc parallel loop
+      do iNode = 1,numNodesRankPar
+
+         if(coordPar(iNode,2)<this%delta) then
+            yp = coordPar(iNode,2)*this%utau*this%rho0/this%mu
+         else
+            yp = abs(coordPar(iNode,2)-2.0_rp*this%delta)*this%utau*this%rho0/this%mu
+         end if
+
+         velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
+
+         u_buffer(iNode,1) = velo
+         u_buffer(iNode,2) = 0.0_rp
+         u_buffer(iNode,3) = 0.0_rp  
+
+      end do
+      !$acc end parallel loop
+
+   end subroutine MappedInletIncomp_initialBuffer
+
+   subroutine MappedInletIncomp_initializeParameters(this)
       use json_module
       implicit none
-      class(ABlFlowSolverIncomp), intent(inout) :: this
+      class(MappedInletIncomp), intent(inout) :: this
       real(rp) :: mur
       logical :: found, found_aux = .false.
       type(json_file) :: json
@@ -119,14 +120,6 @@ contains
       
       ! get(label,target,is found?, default value)
 
-      write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "abl"
-
-      write(this%results_h5_file_path,*) ""
-      write(this%results_h5_file_name,*) "results"
-
-      !----------------------------------------------
-      !  --------------  I/O params -------------
       call json%get("mesh_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
       write(this%mesh_h5_file_path,*) value
       call json%get("mesh_h5_file_name",value, found,"channel"); call this%checkFound(found,found_aux)
@@ -159,41 +152,47 @@ contains
       call json%get("saveAvgFile" ,this%saveAvgFile, found, .true.); call this%checkFound(found,found_aux)
       call json%get("loadAvgFile" ,this%loadAvgFile, found, .false.); call this%checkFound(found,found_aux)
 
-      call json%get("initial_avgTime",this%initial_avgTime, found,3600.0_rp); call this%checkFound(found,found_aux)
-
       call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
 
       ! numerical params
       call json%get("flag_les",flag_les, found,1); call this%checkFound(found,found_aux)
       call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
-      call json%get("flag_walave",flag_walave, found,.true.); call this%checkFound(found,found_aux)
-      call json%get("period_walave",period_walave, found,3600.0_rp); call this%checkFound(found,found_aux)
+      call json%get("flag_walave",flag_walave, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("period_walave",period_walave, found,200.0_rp); call this%checkFound(found,found_aux)
 
       call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
       
+      call json%get("v0",this%vo, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("delta",this%delta, found,1.0_rp); call this%checkFound(found,found_aux)
       call json%get("rho0",this%rho0, found,1.0_rp); call this%checkFound(found,found_aux)
-      call json%get("Lz",this%Lz, found,1500.0_rp); call this%checkFound(found,found_aux)
-      call json%get("Lhub",this%Lhub, found,90.0_rp); call this%checkFound(found,found_aux)
-      call json%get("vinf",this%vinf, found,8.0_rp); call this%checkFound(found,found_aux)
-      call json%get("rough",this%rough, found,0.1682_rp); call this%checkFound(found,found_aux)
+      call json%get("Retau",this%Retau, found,950.0_rp); call this%checkFound(found,found_aux)
 
       ! fixed by the type of base class parameters
-      flag_fs_fix_pressure = .false.
-      flag_type_wmles = wmles_type_abl
-      nscbc_p_inf = 0.0_rp
+      this%Re     = exp((1.0_rp/0.88_rp)*log(this%Retau/0.09_rp))
+      this%mu    = (this%rho0*2.0_rp*this%delta*this%vo)/this%Re
+      this%utau   = (this%Retau*this%mu)/(this%delta*this%rho0)
 
-      this%ustar = this%vinf*0.41_rp/log(1.0_rp+this%Lhub/this%rough)
-      incomp_viscosity = 1.81e-5
+      incomp_viscosity = this%mu
       flag_mu_factor = 1.0_rp
 
-   end subroutine ABlFlowSolverIncomp_initializeParameters
+      nscbc_p_inf = 0.0_rp
 
-   subroutine ABlFlowSolverIncomp_evalInitialConditions(this)
-      class(ABlFlowSolverIncomp), intent(inout) :: this
+      flag_fs_fix_pressure = .false.
+
+      call this%readJSONBuffer()
+
+      call json%destroy()
+
+      if(found_aux .and.mpi_rank .eq. 0) write(111,*) 'WARNING! JSON file missing a parameter, overwrtting with the default value'
+
+   end subroutine MappedInletIncomp_initializeParameters
+
+   subroutine MappedInletIncomp_evalInitialConditions(this)
+      class(MappedInletIncomp), intent(inout) :: this
       integer(8) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL, idime
-      real(rp) :: velo, rti(3), zp,velo_aux1
+      real(rp) :: velo, rti(3), yp,velo_aux1
       integer(4)   :: iLine,iNodeGSrl,auxCnt
       logical :: readFiles
       character(512) :: initialField_filePath
@@ -223,9 +222,13 @@ contains
             if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
                iNodeL = matGidSrlOrdered(auxCnt,1)
                auxCnt=auxCnt+1
+               if(coordPar(iNodeL,2)<this%delta) then
+                  yp = coordPar(iNodeL,2)*this%utau*this%rho0/this%mu
+               else
+                  yp = abs(coordPar(iNodeL,2)-2.0_rp*this%delta)*this%utau*this%rho0/this%mu
+               end if
 
-               zp = coordPar(iNodeL,3)
-               velo =  this%ustar*log(1.0_rp+zp/this%rough)/0.41_rp
+               velo = this%utau*((1.0_rp/0.41_rp)*log(1.0_rp+0.41_rp*yp)+7.8_rp*(1.0_rp-exp(-yp/11.0_rp)-(yp/11.0_rp)*exp(-yp/3.0_rp))) 
 
                u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(rti(1) -0.5_rp))
                u(iNodeL,2,2) = velo*(0.1_rp*(rti(2) -0.5_rp))
@@ -256,7 +259,6 @@ contains
       ax2(:) = 0.0_rp
       ax3(:) = 0.0_rp
       au(:,:) = 0.0_rp
-      zo(:) = this%rough
       !$acc end kernels
       call nvtxEndRange
 
@@ -277,6 +279,6 @@ contains
       end if
       call nvtxEndRange
 
-   end subroutine ABlFlowSolverIncomp_evalInitialConditions
+   end subroutine MappedInletIncomp_evalInitialConditions
 
-end module ABlFlowSolverIncomp_mod
+end module MappedInletIncomp_mod

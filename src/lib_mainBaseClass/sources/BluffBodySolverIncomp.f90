@@ -29,7 +29,7 @@ module BluffBodySolverIncomp_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: BluffBodySolverIncomp
 
-      real(rp) , public  :: vo, M, delta, rho0, Re
+      real(rp) , public  :: vo, delta, rho0, Re, aoa
 
    contains
       procedure, public :: fillBCTypes           =>BluffBodySolverIncomp_fill_BC_Types
@@ -42,58 +42,71 @@ contains
    subroutine BluffBodySolverIncomp_fill_BC_Types(this)
       class(BluffBodySolverIncomp), intent(inout) :: this
 
-      bouCodes2BCType(1) = bc_type_non_slip_adiabatic
-      bouCodes2BCType(2) = bc_type_far_field
-      bouCodes2BCType(3) = bc_type_outlet_incomp
-      bouCodes2BCType(4) = bc_type_outlet_incomp
-      bouCodes2BCType(5) = bc_type_outlet_incomp
-      !$acc update device(bouCodes2BCType(:))
+      call this%readJSONBCTypes()
 
    end subroutine BluffBodySolverIncomp_fill_BC_Types
 
    subroutine BluffBodySolverIncomp_initializeParameters(this)
+      use json_module
+      implicit none
       class(BluffBodySolverIncomp), intent(inout) :: this
       real(rp) :: mul, mur
+      logical :: found, found_aux = .false.
+      type(json_file) :: json
+      character(len=:) , allocatable :: value
 
-      write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cyl_p4"
+      call json%initialize()
+      call json%load_file(json_filename)
 
-      write(this%results_h5_file_path,*) ""
-      write(this%results_h5_file_name,*) "results"
+      ! get(label,target,is found?, default value)
 
-      ! numerical params
-      flag_les = 0
-      maxIter = 20
-      tol=1e-3   
+      call json%get("mesh_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+      write(this%mesh_h5_file_path,*) value
+      call json%get("mesh_h5_file_name",value, found,"cylin"); call this%checkFound(found,found_aux)
+      write(this%mesh_h5_file_name,*) value
 
-      this%cfl_conv = 0.95_rp 
-      !flag_use_constant_dt = 1
-      !this%dt = 1.2e-2
-      !----------------------------------------------
+      call json%get("results_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+      write(this%results_h5_file_path,*) value
+      call json%get("results_h5_file_name",value, found,"results"); call this%checkFound(found,found_aux)
+      write(this%results_h5_file_name,*) value
+
       !  --------------  I/O params -------------
-      this%final_istep = 1000000 
+      call json%get("final_istep",this%final_istep, found,1000001); call this%checkFound(found,found_aux)
 
-      this%save_logFile_first = 1
-      this%save_logFile_step  = 10
+      call json%get("save_logFile_first",this%save_logFile_first, found, 1); call this%checkFound(found,found_aux)
+      call json%get("save_logFile_step",this%save_logFile_step, found, 10); call this%checkFound(found,found_aux)
 
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 10000
+      call json%get("save_resultsFile_first",this%save_resultsFile_first, found,1); call this%checkFound(found,found_aux)
+      call json%get("save_resultsFile_step" ,this%save_resultsFile_step, found,10000); call this%checkFound(found,found_aux)
 
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 10000
-      this%loadRestartFile = .false.
-      this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
+      call json%get("save_restartFile_first",this%save_restartFile_first, found,1); call this%checkFound(found,found_aux)
+      call json%get("save_restartFile_step" ,this%save_restartFile_step, found,10000); call this%checkFound(found,found_aux)
 
-      this%saveAvgFile = .true.
-      this%loadAvgFile = .false.
+
+      call json%get("loadRestartFile" ,this%loadRestartFile, found, .false.); call this%checkFound(found,found_aux)
+      call json%get("restartFile_to_load" ,this%restartFile_to_load, found,1); call this%checkFound(found,found_aux)
+
+      call json%get("continue_oldLogs" ,this%continue_oldLogs, found, .false.); call this%checkFound(found,found_aux)
+
+      call json%get("saveAvgFile" ,this%saveAvgFile, found, .true.); call this%checkFound(found,found_aux)
+      call json%get("loadAvgFile" ,this%loadAvgFile, found, .false.); call this%checkFound(found,found_aux)
+
+      call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
       !----------------------------------------------
+      ! numerical params
+      call json%get("flag_les",flag_les, found,1); call this%checkFound(found,found_aux)
+      call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
+      call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
 
-      this%vo = 1.0_rp
-      this%delta  = 1.0_rp
-      this%rho0   = 1.0_rp
-      this%Re     =  100.0_rp
+      call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
 
+      call json%get("v0",this%vo, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("delta",this%delta, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("rho0",this%rho0, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("Re",this%Re, found,10000.0_rp); call this%checkFound(found,found_aux)
+      call json%get("aoa",this%aoa, found,0.0_rp); call this%checkFound(found,found_aux)
+
+      ! fixed by the type of base class parameters
       incomp_viscosity = (this%rho0*this%delta*this%vo)/this%Re
       flag_mu_factor = 1.0_rp
 
@@ -102,34 +115,24 @@ contains
       nscbc_rho_inf = this%rho0
 
       !Witness points parameters
-      this%have_witness          = .false.
-      this%witness_inp_file_name = "witness.txt"
-      this%witness_h5_file_name  = "resultwit.h5"
-      this%leapwit               = 1
-      this%nwit                  = 17986
-      this%wit_save_u_i          = .true.
-      this%wit_save_pr           = .true.
-      this%wit_save_rho          = .true.
-      this%continue_witness      = .false.     
+      call json%get("have_witness",this%have_witness, found,.false.); call this%checkFound(found,found_aux)
+      if(this%have_witness .eqv. .true.) then
+         call json%get("witness_inp_file_name",value, found,"witness.txt"); call this%checkFound(found,found_aux)
+         write(this%witness_inp_file_name,*) value
+         call json%get("witness_h5_file_name",value, found,"resultwit.h5"); call this%checkFound(found,found_aux)
+         write(this%witness_h5_file_name,*) value
 
- 
-      flag_buffer_on = .false.
-     !cylinder
-     flag_buffer_on_east = .true.
-     flag_buffer_e_min = 40.0_rp
-     flag_buffer_e_size = 15.0_rp
+         call json%get("leapwit",this%leapwit, found,1); call this%checkFound(found,found_aux)
+         call json%get("nwit",this%nwit, found,17986); call this%checkFound(found,found_aux)
+         call json%get("wit_save_u_i",this%wit_save_u_i, found,.true.); call this%checkFound(found,found_aux)
+         call json%get("wit_save_pr",this%wit_save_pr, found,.true.); call this%checkFound(found,found_aux)
+         call json%get("wit_save_rho",this%wit_save_rho, found,.true.); call this%checkFound(found,found_aux)
+         call json%get("continue_witness",this%continue_witness, found,.false.); call this%checkFound(found,found_aux)
+      end if  
 
-     flag_buffer_on_west = .true.
-     flag_buffer_w_min = -20.0_rp
-     flag_buffer_w_size = 10.0_rp
+      call this%readJSONBuffer()
 
-     flag_buffer_on_north = .true.
-     flag_buffer_n_min = 20.0_rp
-     flag_buffer_n_size = 10.0_rp
-
-     flag_buffer_on_south = .true.
-     flag_buffer_s_min = -20.0_rp
-     flag_buffer_s_size = 10.0_rp
+      call json%destroy()
 
    end subroutine BluffBodySolverIncomp_initializeParameters
 
@@ -141,16 +144,28 @@ contains
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-         u(iNodeL,1,2) = this%vo
-         u(iNodeL,2,2) = 0.0_rp
+         u(iNodeL,1,2) = this%vo*cos(this%aoa*v_pi/180.0_rp)
+         u(iNodeL,2,2) = this%vo*sin(this%aoa*v_pi/180.0_rp)
          u(iNodeL,3,2) = 0.0_rp
       end do
       !$acc end parallel loop
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-         pr(iNodeL,2) = 0.0_rp
-         rho(iNodeL,2) = this%rho0
+         eta(iNodeL,2) =0.5_rp*dot_product(u(iNodeL,1:ndime,2),u(iNodeL,1:ndime,2))
+         q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
+
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+         u(iNodeL,1:ndime,3) = u(iNodeL,1:ndime,2)
+         rho(iNodeL,3) = rho(iNodeL,2)
+         eta(iNodeL,3) =  eta(iNodeL,2)
+         pr(iNodeL,3) =  pr(iNodeL,2)  
+
+         q(iNodeL,1:ndime,4) = q(iNodeL,1:ndime,2)
+         u(iNodeL,1:ndime,4) = u(iNodeL,1:ndime,2)
+         rho(iNodeL,4) = rho(iNodeL,2)
+         eta(iNodeL,4) =  eta(iNodeL,2)
+         pr(iNodeL,4) =  pr(iNodeL,2)  
       end do
       !$acc end parallel loop
 
@@ -175,8 +190,8 @@ contains
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-            u_buffer(iNodeL,1) = this%vo
-            u_buffer(iNodeL,2) = 0.0_rp
+            u_buffer(iNodeL,1) = this%vo*cos(this%aoa*v_pi/180.0_rp)
+            u_buffer(iNodeL,2) = this%vo*sin(this%aoa*v_pi/180.0_rp)
             u_buffer(iNodeL,3) = 0.0_rp  
       end do
       !$acc end parallel loop

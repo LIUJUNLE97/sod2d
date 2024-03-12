@@ -4,8 +4,6 @@ module TGVCompSolver_mod
 #ifndef NOACC
    use cudafor
 #endif
-   
-
    use elem_qua
    use elem_hex
    use jacobian_oper
@@ -38,63 +36,86 @@ module TGVCompSolver_mod
 contains
 
    subroutine TGVCompSolver_initializeParameters(this)
+      use json_module
+      implicit none
       class(TGVCompSolver), intent(inout) :: this
       real(rp) :: mul, mur
+      logical :: found, found_aux = .false.
+      type(json_file) :: json
+      character(len=:) , allocatable :: value
 
-      write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "cube"
+      call json%initialize()
+      call json%load_file(json_filename)
 
-      write(this%results_h5_file_path,*) ""
-      write(this%results_h5_file_name,*) "results"
+      ! get(label,target,is found?, default value)
 
-      write(this%io_append_info,*) ""
+      call json%get("mesh_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+      write(this%mesh_h5_file_path,*) value
+      call json%get("mesh_h5_file_name",value, found,"cube"); call this%checkFound(found,found_aux)
+      write(this%mesh_h5_file_name,*) value
+      call json%get("results_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+      write(this%results_h5_file_path,*) value
+      call json%get("results_h5_file_name",value, found,"results"); call this%checkFound(found,found_aux)
+      write(this%results_h5_file_name,*) value
 
-      this%doGlobalAnalysis = .true.
-      this%doTimerAnalysis = .true.
-      this%saveInitialField = .false.
+      call json%get("save_logFile_first",this%save_logFile_first, found,1); call this%checkFound(found,found_aux)
+      call json%get("save_logFile_step",this%save_logFile_step, found,10); call this%checkFound(found,found_aux)
 
-      flag_implicit = 0
+      call json%get("save_resultsFile_first",this%save_resultsFile_first,found,1); call this%checkFound(found,found_aux)
+      call json%get("save_resultsFile_step" ,this%save_resultsFile_step,found,1000); call this%checkFound(found,found_aux)
 
-      maxIter = 200
-      tol = 1e-3
+      call json%get("save_restartFile_first",this%save_restartFile_first,found,1); call this%checkFound(found,found_aux)
+      call json%get("save_restartFile_step" ,this%save_restartFile_step,found,1000); call this%checkFound(found,found_aux)
 
-      this%maxPhysTime = 20.0_rp
-      this%final_istep = 10000 
-      this%cfl_conv = 0.5_rp
-      this%cfl_diff = 0.5_rp
+      call json%get("loadRestartFile" ,this%loadRestartFile, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("restartFile_to_load" ,this%restartFile_to_load, found,1); call this%checkFound(found,found_aux)
+      call json%get("continue_oldLogs" ,this%continue_oldLogs, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("saveAvgFile" ,this%saveAvgFile, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("loadAvgFile" ,this%loadAvgFile, found,.false.); call this%checkFound(found,found_aux)
 
-      this%save_logFile_first = 1 
-      this%save_logFile_step  = 10
+      call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
 
-      this%loadRestartFile = .false.
-      this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 500
+      call json%get("saveInitialField",this%saveInitialField, found,.true.); call this%checkFound(found,found_aux)
 
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 500
+      call json%get("doGlobalAnalysis",this%doGlobalAnalysis, found,.true.); call this%checkFound(found,found_aux)
+      call json%get("doTimerAnalysis",this%doTimerAnalysis, found,.true.); call this%checkFound(found,found_aux)
 
-      this%Ma = 1.25_rp
-      this%L = 1.0_rp
-      this%V0 = 1.0_rp
-      this%Prt = 0.71_rp
-      this%T0  = 1.0_rp
-      this%Re = 1600.0_rp
-      this%gamma_gas = 1.40_rp
-      
-      this%Rgas = 1.0_rp*1.0_rp/(1.4_rp*1.0_rp*1.25_rp*1.25_rp)
+      call json%get("final_istep",this%final_istep, found,500001); call this%checkFound(found,found_aux)
+      call json%get("maxPhysTime",this%maxPhysTime, found,20.0_rp); call this%checkFound(found,found_aux)
+
+      call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
+      call json%get("cfl_diff",this%cfl_diff, found,0.95_rp); call this%checkFound(found,found_aux)
+
+      call json%get("flag_implicit",flag_implicit, found,1); call this%checkFound(found,found_aux)
+
+      call json%get("maxIter",maxIter, found,200); call this%checkFound(found,found_aux)
+      call json%get("tol",tol, found, 0.001d0); call this%checkFound(found,found_aux)
+
+      call json%get("M",this%Ma, found,1.25_rp); call this%checkFound(found,found_aux)
+      call json%get("L",this%L, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("v0",this%V0, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("Prt",this%Prt, found,0.71_rp); call this%checkFound(found,found_aux)
+      call json%get("T0",this%T0, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("Re",this%Re, found,1600.0_rp); call this%checkFound(found,found_aux)
+      call json%get("gamma_gas",this%gamma_gas, found,1.4_rp); call this%checkFound(found,found_aux)
+
+      ! fixed by the type of base class parameters
+      this%Rgas = this%V0*this%V0/(this%gamma_gas*this%T0*this%Ma*this%Ma)
       this%Cp = this%gamma_gas*this%Rgas/(this%gamma_gas-1.0_rp)
-      this%rho0 = (1.0_rp/(1.4_rp*1.25*1.25))/(this%Rgas*this%T0)
+      this%rho0 = (1.0_rp/(this%gamma_gas*this%Ma*this%Ma))/(this%Rgas*this%T0)
 
-      mul    = (this%rho0*1.0_rp*1.0_rp)/this%Re
-      this%P0 = 1.0_rp/(this%Ma*this%Ma*1.4_rp)
+      mul    = (this%rho0*this%V0*this%L)/this%Re
+      this%P0 = 1.0_rp/(this%Ma*this%Ma*this%gamma_gas)
       mur = 0.000001458_rp*(this%T0**1.50_rp)/(this%T0+110.40_rp)
       flag_mu_factor = mul/mur
 
       nscbc_p_inf = this%P0
       nscbc_Rgas_inf = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
+
+      call json%destroy()
+
+      if(found_aux .and.mpi_rank .eq. 0) write(111,*) 'WARNING! JSON file missing a parameter, overwrtting with the default value'
 
    end subroutine TGVCompSolver_initializeParameters
 
