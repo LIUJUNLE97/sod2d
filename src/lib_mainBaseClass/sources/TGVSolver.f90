@@ -72,6 +72,8 @@ contains
       call json%get("continue_oldLogs" ,this%continue_oldLogs, found,.false.); call this%checkFound(found,found_aux)
       call json%get("saveAvgFile" ,this%saveAvgFile, found,.false.); call this%checkFound(found,found_aux)
       call json%get("loadAvgFile" ,this%loadAvgFile, found,.false.); call this%checkFound(found,found_aux)
+      !----------------------------------------------
+      !  --------------  I/O params -------------
 
       call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
 

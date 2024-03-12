@@ -99,6 +99,8 @@ module CFDSolverBase_mod
       character(512) :: results_h5_file_path,results_h5_file_name
       character(512) :: io_prepend_path,io_append_info
       character(512) :: witness_inp_file_name,witness_h5_file_name
+      character(512) :: meshFile_h5_full_name,surface_meshFile_h5_full_name
+      character(512) :: base_resultsFile_h5_full_name,base_avgResultsFile_h5_full_name,base_restartFile_h5_full_name
 
       ! main real parameters
       real(rp) , public                   :: cfl_conv,cfl_diff
@@ -817,13 +819,14 @@ contains
 
       call nvtxStartRange("Open mesh")
 
-      call set_hdf5_meshFile_name(this%mesh_h5_file_path,this%mesh_h5_file_name,mpi_size)
-      call set_hdf5_baseResultsFile_name(this%results_h5_file_path,this%results_h5_file_name,this%mesh_h5_file_name,mpi_size)
+      call set_hdf5_meshFile_name(this%mesh_h5_file_path,this%mesh_h5_file_name,mpi_size,this%meshFile_h5_full_name)
+      call set_hdf5_all_resultsFile_baseName(this%results_h5_file_path,this%results_h5_file_name,this%mesh_h5_file_name,mpi_size,&
+                        this%base_resultsFile_h5_full_name,this%base_avgResultsFile_h5_full_name,this%base_restartFile_h5_full_name)
 
       this%useIntInComms=.true.
       this%useRealInComms=.true.
 
-      call load_hdf5_meshfile(nnode,npbou)
+      call load_hdf5_meshfile(this%meshFile_h5_full_name)
 
       ! init comms
       call init_comms(this%useIntInComms,this%useRealInComms)
@@ -831,7 +834,7 @@ contains
       call init_comms_bnd(this%useIntInComms,this%useRealInComms)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
-         call save_surface_mesh_hdf5_file(npbou,mesh_gmsh2ij,mesh_vtk2ij)
+         call save_surface_mesh_hdf5_file(this%meshFile_h5_full_name,npbou,mesh_gmsh2ij,mesh_vtk2ij)
       end if
 
       call nvtxEndRange
@@ -1232,7 +1235,8 @@ contains
 
       if(this%loadRestartFile) then
          if(mpi_rank.eq.0) write(111,*) "--| Loading restart file ",this%restartFile_to_load
-         call load_hdf5_restartFile(nnode,ngaus,this%restartFile_to_load,this%load_step,flag_walave,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
+         call load_hdf5_restartFile(this%base_restartFile_h5_full_name,nnode,ngaus,this%restartFile_to_load,this%load_step,flag_walave,this%time,&
+                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
 
          if((flag_les.eq.0).and.(flag_les_ilsa.eq.0)) then
             !$acc kernels
@@ -1260,7 +1264,8 @@ contains
 
             if(this%loadAvgFile) then
                if(mpi_rank.eq.0) write(111,*) "--| Loading Avg Results File (TO IMPLEMENT)",this%restartFile_to_load
-               call load_avgResults_hdf5_file(nnode,ngaus,Ngp_l,this%restartFile_to_load,this%initial_avgTime,this%elapsed_avgTime,&
+               call load_avgResults_hdf5_file(this%base_avgResultsFile_h5_full_name,nnode,ngaus,Ngp_l,this%restartFile_to_load,&
+                                       this%initial_avgTime,this%elapsed_avgTime,&
                                        this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,&
                                        this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,&
                                        this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save)
@@ -1695,7 +1700,8 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
       
-      call save_hdf5_restartFile(nnode,ngaus,this%restartFileCnt,istep,flag_walave,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
+      call save_hdf5_restartFile(this%base_restartFile_h5_full_name,nnode,ngaus,this%restartFileCnt,istep,flag_walave,this%time,&
+                                 rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
 
       if(this%restartFileCnt .eq. 1) then
          this%restartFileCnt = 2
@@ -1711,13 +1717,15 @@ contains
    subroutine CFDSolverBase_saveAvgResultsFiles(this)
       class(CFDSolverBase), intent(inout) :: this
 
-      call save_avgResults_hdf5_file(nnode,ngaus,Ngp_equi,this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
+      call save_avgResults_hdf5_file(this%base_avgResultsFile_h5_full_name,this%meshFile_h5_full_name,nnode,ngaus,Ngp_equi,&
+               this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
                this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,&
                this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,&
                this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
-         call save_surface_avgResults_hdf5_file(this%restartFileCnt,&
+         call save_surface_avgResults_hdf5_file(this%base_avgResultsFile_h5_full_name,this%meshFile_h5_full_name,&
+                  this%surface_meshFile_h5_full_name,this%restartFileCnt,&
                   this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,&
                   this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,&
                   this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save)
@@ -1729,13 +1737,14 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
 
-      call save_instResults_hdf5_file(nnode,ngaus,Ngp_equi,iStep,this%time,&
+      call save_instResults_hdf5_file(this%base_resultsFile_h5_full_name,this%meshFile_h5_full_name,&
+               nnode,ngaus,Ngp_equi,iStep,this%time,&
                this%numNodeScalarFields2save,this%nodeScalarFields2save,&
                this%numNodeVectorFields2save,this%nodeVectorFields2save,&
                this%numElemGpScalarFields2save,this%elemGpScalarFields2save)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
-         call save_surface_instResults_hdf5_file(istep,&
+         call save_surface_instResults_hdf5_file(this%base_resultsFile_h5_full_name,this%meshFile_h5_full_name,this%surface_meshFile_h5_full_name,istep,&
                this%numNodeScalarFields2save,this%nodeScalarFields2save,&
                this%numNodeVectorFields2save,this%nodeVectorFields2save,&
                this%numElemGpScalarFields2save,this%elemGpScalarFields2save)

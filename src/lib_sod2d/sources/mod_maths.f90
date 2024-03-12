@@ -22,7 +22,7 @@ module mod_maths
 
          call ZELEGL(mporder,roots_d,legendre_aux)
 
-         roots = real(roots_d)
+         roots = real(roots_d,rp)
 
       end subroutine getGaussLobattoLegendre_roots
       !----------------------------------------------------------------------------------
@@ -36,8 +36,8 @@ module mod_maths
          call ZELEGL(mporder,roots_d,legendre_aux)
          call WELEGL(mporder,roots_d,legendre_aux,weights_d)
 
-         roots = real(roots_d)
-         weights = real(weights_d)
+         roots = real(roots_d,rp)
+         weights = real(weights_d,rp)
 
       end subroutine getGaussLobattoLegendre_weights_and_roots
       !----------------------------------------------------------------------------------

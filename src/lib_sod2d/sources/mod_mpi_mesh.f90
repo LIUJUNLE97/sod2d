@@ -12,9 +12,8 @@ module mod_mpi_mesh
 
 logical :: mesh_isLoaded = .false.
 
-integer(4) :: numNodesRankPar,numElemsRankPar,totalNumElements
-integer(4) :: rankNodeStart,rankNodeEnd,rankElemStart,rankElemEnd
-integer(8) :: totalNumNodesPar, totalNumNodesSrl
+integer(4) :: numNodesRankPar,numElemsRankPar,rankElemStart,rankElemEnd,totalNumElements
+integer(8) :: rankNodeStart,rankNodeEnd,totalNumNodesPar,totalNumNodesSrl
 
 integer(4),allocatable :: elemGid(:)
 integer(8),allocatable :: globalIdSrl(:),globalIdPar(:)
@@ -484,6 +483,21 @@ contains
       call MPI_Win_fence(0,window_id,mpi_err)
       call MPI_Win_free(window_id,mpi_err)
       !--------------------------------------------------------------------------------------
+
+      !put info in the GPU
+      !---------------------------------------------------------------------------
+      !$acc enter data create(nodesToComm(:))
+      !$acc update device(nodesToComm(:))
+
+      !$acc enter data create(ranksToComm(:))
+      !$acc update device(ranksToComm(:))
+
+      !$acc enter data create(commsMemPosInLoc(:))
+      !$acc update device(commsMemPosInLoc(:))
+
+      !$acc enter data create(commsMemSize(:))
+      !$acc update device(commsMemSize(:))
+      !---------------------------------------------------------------------------
 
       !write(*,*) '[',mpi_rank,']csNumNodes->',commSchemeNumNodes(:)
       !write(*,*) '[',mpi_rank,']csStartEnd->',commSchemeStartEndNodes(:)

@@ -921,8 +921,11 @@ contains
         call copy_from_rcvBuffer_get_real(realField)
     end subroutine mpi_halo_atomic_update_real_get_lock
 
+!---------------------------------------------------------------------------------
+!    FOR TESTING AND DEVEL STUFF!
+!---------------------------------------------------------------------------------
+
 !------------- ONLY BUFFERS -------------------------------------------
-!for testing and devel stuff
     !INTEGER ---------------------------------------------------------
     subroutine mpi_halo_atomic_update_int_onlybuffers(intfield)
         implicit none
@@ -945,6 +948,113 @@ contains
         call copy_from_rcvbuffer_real(realfield)
 
     end subroutine mpi_halo_atomic_update_real_onlybuffers
+!---------------------------------------------------------------------------------
+    subroutine mpi_halo_atomic_update_real_iSendiRcv_noCudaAware(realField)
+        implicit none
+        real(rp), intent(inout) :: realField(:)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*numRanksWithComms)
+
+        call fill_sendBuffer_real(realField)
+
+        ireq=0
+
+        !$acc update host(aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_realField_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+        end do
+
+        call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+        !$acc update device(aux_realField_r(:))
+        call copy_from_rcvBuffer_real(realField)
+    end subroutine mpi_halo_atomic_update_real_iSendiRcv_noCudaAware
+
+    subroutine mpi_halo_atomic_update_real_sendRcv_noCudaAware(realField)
+        implicit none
+        real(rp), intent(inout) :: realField(:)
+        integer(4) :: i,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+
+        call fill_sendBuffer_real(realField)
+
+        !$acc update host(aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            call MPI_Sendrecv(aux_realField_s(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
+                              aux_realField_r(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
+                              app_comm, MPI_STATUS_IGNORE, mpi_err)
+        end do
+
+        !$acc update device(aux_realField_r(:))
+        call copy_from_rcvBuffer_real(realField)
+    end subroutine mpi_halo_atomic_update_real_sendRcv_noCudaAware
+
+    !REAL
+    subroutine mpi_halo_atomic_update_real_put_fence_noCudaAware(realField)
+        implicit none
+        real(rp), intent(inout) :: realField(:)
+        integer(4) :: i,ngbRank
+        integer(4) :: memPos_l,memSize
+
+        call fill_sendBuffer_real(realField)
+
+        call MPI_Win_fence(beginFence,window_id_real,mpi_err)
+
+        !$acc update host(aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+
+            call MPI_Put(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,memPos_t,memSize,mpi_datatype_real,window_id_real,mpi_err)
+        end do
+
+        call MPI_Win_fence(endFence,window_id_real,mpi_err)
+
+        !$acc update device(aux_realField_r(:))
+        call copy_from_rcvBuffer_real(realField)
+    end subroutine mpi_halo_atomic_update_real_put_fence_noCudaAware
+ 
+    subroutine mpi_halo_atomic_update_real_get_fence_noCudaAware(realField)
+        implicit none
+        real(rp), intent(inout) :: realField(:)
+        integer(4) :: i,ngbRank
+        integer(4) :: memPos_l,memSize
+
+        call fill_sendBuffer_get_real(realField)
+
+        call MPI_Win_fence(beginFence,window_id_real,mpi_err)
+
+        !$acc update host(aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = commsMemPosInLoc(i)
+            memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
+            memSize  = commsMemSize(i)
+
+            call MPI_Get(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,memPos_t,memSize,mpi_datatype_real,window_id_real,mpi_err)
+        end do
+
+        call MPI_Win_fence(endFence,window_id_real,mpi_err)
+
+        !$acc update device(aux_realField_s(:))
+        call copy_from_rcvBuffer_get_real(realField)
+    end subroutine mpi_halo_atomic_update_real_get_fence_noCudaAware
 
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------

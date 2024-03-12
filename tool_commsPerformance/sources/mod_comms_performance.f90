@@ -8,17 +8,26 @@ module mod_comms_performance
    use mod_nvtx
 #endif
 
-#define _ONLYBUFFERS_ 1
+#define _ONLYBUFFERS1_ 1
+#define _ONLYBUFFERS2_ 1
+#define _ONLYBUFFERS3_ 1
+#define _ONLYBUFFERS4_ 1
 #define _SENDRECV_ 1
+#define _SENDRECV_NOCUDAAWARE_ 1
 #define _ISENDIRECV_ 1
+#define _ISENDIRECV_NOCUDAAWARE_ 1
 #define _PUTFENCEFLAGOFF_ 1
+#define _PUTFENCEFLAGOFF_NOCUDAAWARE_ 1
 #define _PUTFENCEFLAGON_ 1
+#define _PUTFENCEFLAGON_NOCUDAAWARE_ 1
 #define _PUTPSCWON_ 0
 #define _PUTPSCWOFF_ 0
 #define _PUTLOCKBON_ 0
 #define _PUTLOCKBOFF_ 0
 #define _GETFENCEFLAGOFF_ 1
+#define _GETFENCEFLAGOFF_NOCUDAAWARE_ 1
 #define _GETFENCEFLAGON_ 1
+#define _GETFENCEFLAGON_NOCUDAAWARE_ 1
 #define _GETPSCWON_ 0
 #define _GETPSCWOFF_ 0
 #define _GETLOCKBON_ 0
@@ -142,45 +151,55 @@ contains
 
       if(useIntInComms) then
          allocate(res_ifield(numNodesRankPar))
+        !$acc enter data create(res_ifield(:))
       end if
       if(useRealInComms) then
          allocate(res_rfield(numNodesRankPar))
+        !$acc enter data create(res_rfield(:))
       end if
 
       call init_comms(useIntInComms,useRealInComms)
    end subroutine init_comms_performance
 
-   subroutine debug_comms_real()
+   subroutine debug_comms_real(base_resultsFile_h5_full_name)
       implicit none
+      character(512),intent(in) :: base_resultsFile_h5_full_name
 
       res_rfield(:) = 10.0_rp
       call mpi_halo_atomic_update_real(res_rfield) !using default method
 
-      call save_vtkhdf_realFieldFile(nnode,res_rfield)
+      call save_vtkhdf_realFieldFile(base_resultsFile_h5_full_name,nnode,res_rfield)
 
    end subroutine debug_comms_real
 
-   subroutine test_comms_performance_real(numIters)
+   subroutine test_comms_performance_real(numIters,log_file_name)
       implicit none
-      integer,intent(in) :: numIters
+      integer(4),intent(in) :: numIters
+      character(len=*),intent(in) :: log_file_name
       real(8) :: start_time,end_time,elapsed_time_r,elapsed_time
-      real(8) :: array_timers(20)
+      real(8) :: array_timers(40)
       real(rp) :: refValue2check
-      integer :: numRanksNodeCnt(numNodesRankPar)
-      integer :: iter,iTimer,iter2check
+      integer(4) :: numRanksNodeCnt(numNodesRankPar)
+      integer(4) :: iter,iTimer,iter2check
       logical :: isOk
+      integer(4),parameter :: log_file_id = 87
 
       iter2check = 5
       refValue2check = 1.0_rp
+
+      if(mpi_rank.eq.0) then
+         write(*,*) 'Writing results in',adjustl(log_file_name)
+         open(unit=log_file_id,file=log_file_name,status='replace')
+      end if
 
       call evalNumRanksNodeCnt(numRanksNodeCnt)
 
       call MPI_Barrier(app_comm,mpi_err)
       iTimer = 0
-#if _ONLYBUFFERS_
+#if _ONLYBUFFERS1_
       !---------------------------------------------------------------
       !$acc kernels
-          res_rfield(:) = 0.0_4
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
@@ -194,7 +213,7 @@ contains
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
-          res_rfield(:) = refValue2check
+      res_rfield(:) = refValue2check
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
@@ -203,13 +222,16 @@ contains
       end do
       call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
       !----------------------------!
-      if(mpi_rank.eq.0) write(*,*) 'OnlyBuffers real time:',elapsed_time,'isOk',isOk
+      if(mpi_rank.eq.0) then
+         write(*,*) 'OnlyBuffers1 real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'OB1',elapsed_time,isOk
+      end if
       !---------------------------------------------------------------
 #endif
-#if _ONLYBUFFERS_
+#if _ONLYBUFFERS2_
       !---------------------------------------------------------------
       !$acc kernels
-          res_rfield(:) = 0.0_rp
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
@@ -223,7 +245,7 @@ contains
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
-          res_rfield(:) = refValue2check
+      res_rfield(:) = refValue2check
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
@@ -232,13 +254,16 @@ contains
       end do
       call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
       !----------------------------!
-      if(mpi_rank.eq.0) write(*,*) 'OnlyBuffers2 real time:',elapsed_time,'isOk',isOk
+      if(mpi_rank.eq.0) then
+         write(*,*) 'OnlyBuffers2 real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'OB2',elapsed_time,isOk
+      end if
       !---------------------------------------------------------------
 #endif
 #if _SENDRECV_
       !---------------------------------------------------------------
       !$acc kernels
-          res_rfield(:) = 0.0_4
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
@@ -252,7 +277,7 @@ contains
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
-          res_rfield(:) = refValue2check
+      res_rfield(:) = refValue2check
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
@@ -261,13 +286,49 @@ contains
       end do
       call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
       !----------------------------!
-      if(mpi_rank.eq.0) write(*,*) 'SendRecv real time:',elapsed_time,'isOk',isOk
+      if(mpi_rank.eq.0) then
+         write(*,*) 'SendRecv real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'SR(CA)',elapsed_time,isOk
+      end if
       !---------------------------------------------------------------
 #endif
+#if _SENDRECV_NOCUDAAWARE_
+      !---------------------------------------------------------------
+      !$acc kernels
+      res_rfield(:) = 0.0_rp
+      !$acc end kernels
+      call MPI_Barrier(app_comm,mpi_err)
+      start_time = MPI_Wtime()
+      do iter=1,numIters
+         call mpi_halo_atomic_update_real_sendRcv_noCudaAware(res_rfield)
+      end do
+      end_time = MPI_Wtime()
+      elapsed_time_r = end_time - start_time
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
+      iTimer=iTimer+1
+      array_timers(iTimer) = elapsed_time;
+      !---- CHECK IF WORKS OK -----!
+      !$acc kernels
+      res_rfield(:) = refValue2check
+      !$acc end kernels
+      call MPI_Barrier(app_comm,mpi_err)
+      do iter=1,iter2check
+         call mpi_halo_atomic_update_real_sendRcv_noCudaAware(res_rfield)
+         call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
+      end do
+      call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
+      !----------------------------!
+      if(mpi_rank.eq.0) then
+         write(*,*) 'SendRecvNoCudaAware real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'SR(noCA)',elapsed_time,isOk
+      end if
+      !---------------------------------------------------------------
+#endif
+
 #if _ISENDIRECV_
       !---------------------------------------------------------------
       !$acc kernels
-          res_rfield(:) = 0.0_4
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
@@ -281,7 +342,7 @@ contains
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
-          res_rfield(:) = refValue2check
+      res_rfield(:) = refValue2check
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
@@ -290,13 +351,48 @@ contains
       end do
       call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
       !----------------------------!
-      if(mpi_rank.eq.0) write(*,*) 'ISendIRecv real time:',elapsed_time,'isOk',isOk
+      if(mpi_rank.eq.0) then
+         write(*,*) 'ISendIRecv real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'iSR(CA)',elapsed_time,isOk
+      end if
+      !---------------------------------------------------------------
+#endif
+#if _ISENDIRECV_NOCUDAAWARE_
+      !---------------------------------------------------------------
+      !$acc kernels
+      res_rfield(:) = 0.0_rp
+      !$acc end kernels
+      call MPI_Barrier(app_comm,mpi_err)
+      start_time = MPI_Wtime()
+      do iter=1,numIters
+         call mpi_halo_atomic_update_real_iSendiRcv_noCudaAware(res_rfield)
+      end do
+      end_time = MPI_Wtime()
+      elapsed_time_r = end_time - start_time
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
+      iTimer=iTimer+1
+      array_timers(iTimer) = elapsed_time;
+      !---- CHECK IF WORKS OK -----!
+      !$acc kernels
+      res_rfield(:) = refValue2check
+      !$acc end kernels
+      call MPI_Barrier(app_comm,mpi_err)
+      do iter=1,iter2check
+         call mpi_halo_atomic_update_real_iSendiRcv_noCudaAware(res_rfield)
+         call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
+      end do
+      call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
+      !----------------------------!
+      if(mpi_rank.eq.0) then
+         write(*,*) 'ISendIRecvNoCudaAware real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'iSR(noCA)',elapsed_time,isOk
+      end if
       !---------------------------------------------------------------
 #endif
 #if _PUTFENCEFLAGOFF_
       !---------------------------------------------------------------
       !$acc kernels
-          res_rfield(:) = 0.0_rp
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setFenceFlags(.false.)
       call MPI_Barrier(app_comm,mpi_err)
@@ -311,7 +407,7 @@ contains
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
-          res_rfield(:) = refValue2check
+      res_rfield(:) = refValue2check
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
@@ -320,13 +416,49 @@ contains
       end do
       call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
       !----------------------------!
-      if(mpi_rank.eq.0) write(*,*) 'PUT(Fence-flagsOFF) real time:',elapsed_time,'isOk',isOk
+      if(mpi_rank.eq.0) then
+         write(*,*) 'PUT(Fence-OFF) real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'PUT(fenceOff,CA)',elapsed_time,isOk
+      end if
+      !---------------------------------------------------------------
+#endif
+#if _PUTFENCEFLAGOFF_NOCUDAAWARE_
+      !---------------------------------------------------------------
+      !$acc kernels
+      res_rfield(:) = 0.0_rp
+      !$acc end kernels
+      call setFenceFlags(.false.)
+      call MPI_Barrier(app_comm,mpi_err)
+      start_time = MPI_Wtime()
+      do iter=1,numIters
+         call mpi_halo_atomic_update_real_put_fence_noCudaAware(res_rfield)
+      end do
+      end_time = MPI_Wtime()
+      elapsed_time_r = end_time - start_time
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
+      iTimer=iTimer+1
+      array_timers(iTimer) = elapsed_time;
+      !---- CHECK IF WORKS OK -----!
+      !$acc kernels
+      res_rfield(:) = refValue2check
+      !$acc end kernels
+      call MPI_Barrier(app_comm,mpi_err)
+      do iter=1,iter2check
+         call mpi_halo_atomic_update_real_put_fence_noCudaAware(res_rfield)
+         call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
+      end do
+      call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
+      !----------------------------!
+      if(mpi_rank.eq.0) then
+         write(*,*) 'PUT(Fence-OFF)NoCudaAware real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'PUT(fenceOff,noCA)',elapsed_time,isOk
+      end if
       !---------------------------------------------------------------
 #endif
 #if _PUTFENCEFLAGON_
       !---------------------------------------------------------------
       !$acc kernels
-          res_rfield(:) = 0.0_rp
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setFenceFlags(.true.)
       call MPI_Barrier(app_comm,mpi_err)
@@ -341,7 +473,7 @@ contains
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
-          res_rfield(:) = refValue2check
+      res_rfield(:) = refValue2check
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
@@ -350,13 +482,49 @@ contains
       end do
       call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
       !----------------------------!
-      if(mpi_rank.eq.0) write(*,*) 'PUT(Fence-flagsON) real time:',elapsed_time,'isOk',isOk
+      if(mpi_rank.eq.0) then
+         write(*,*) 'PUT(Fence-ON) real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'PUT(fenceOn,CA)',elapsed_time,isOk
+      end if
+      !---------------------------------------------------------------
+#endif
+#if _PUTFENCEFLAGON_NOCUDAAWARE_
+      !---------------------------------------------------------------
+      !$acc kernels
+      res_rfield(:) = 0.0_rp
+      !$acc end kernels
+      call setFenceFlags(.true.)
+      call MPI_Barrier(app_comm,mpi_err)
+      start_time = MPI_Wtime()
+      do iter=1,numIters
+         call mpi_halo_atomic_update_real_put_fence_noCudaAware(res_rfield)
+      end do
+      end_time = MPI_Wtime()
+      elapsed_time_r = end_time - start_time
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
+      iTimer=iTimer+1
+      array_timers(iTimer) = elapsed_time;
+      !---- CHECK IF WORKS OK -----!
+      !$acc kernels
+      res_rfield(:) = refValue2check
+      !$acc end kernels
+      call MPI_Barrier(app_comm,mpi_err)
+      do iter=1,iter2check
+         call mpi_halo_atomic_update_real_put_fence_noCudaAware(res_rfield)
+         call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
+      end do
+      call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
+      !----------------------------!
+      if(mpi_rank.eq.0) then
+         write(*,*) 'PUT(Fence-ON)NoCudaAware real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'PUT(fenceOn,noCA)',elapsed_time,isOk
+      end if
       !---------------------------------------------------------------
 #endif
 #if _PUTPSCWON_
       !---------------------------------------------------------------
       !$acc kernels
-          res_rfield(:) = 0.0_rp
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setPSCWAssertNoCheckFlags(.true.)
       call MPI_Barrier(app_comm,mpi_err)
@@ -371,7 +539,7 @@ contains
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
-          res_rfield(:) = refValue2check
+      res_rfield(:) = refValue2check
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
@@ -384,6 +552,9 @@ contains
       !---------------------------------------------------------------
 #endif
 #if _PUTPSCWOFF_
+      !---------------------------------------------------------------
+      !$acc kernels
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setPSCWAssertNoCheckFlags(.false.)
       call MPI_Barrier(app_comm,mpi_err)
@@ -398,7 +569,7 @@ contains
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
-          res_rfield(:) = refValue2check
+      res_rfield(:) = refValue2check
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
@@ -413,7 +584,7 @@ contains
 #if _PUTLOCKBON_
       !---------------------------------------------------------------
       !$acc kernels
-          res_rfield(:) = 0.0_rp
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setLockBarrier(.true.)
       call MPI_Barrier(app_comm,mpi_err)
@@ -428,7 +599,7 @@ contains
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
-          res_rfield(:) = refValue2check
+      res_rfield(:) = refValue2check
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
@@ -443,7 +614,7 @@ contains
 #if _PUTLOCKBOFF_
       !---------------------------------------------------------------
       !$acc kernels
-          res_rfield(:) = 0.0_rp
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setLockBarrier(.false.)
       call MPI_Barrier(app_comm,mpi_err)
@@ -473,7 +644,7 @@ contains
 #if _GETFENCEFLAGOFF_
       !---------------------------------------------------------------
       !$acc kernels
-          res_rfield(:) = 0.0_rp
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setFenceFlags(.false.)
       call MPI_Barrier(app_comm,mpi_err)
@@ -488,7 +659,7 @@ contains
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
-          res_rfield(:) = refValue2check
+      res_rfield(:) = refValue2check
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
@@ -497,13 +668,49 @@ contains
       end do
       call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
       !----------------------------!
-      if(mpi_rank.eq.0) write(*,*) 'GET(Fence-flagsOFF) real time:',elapsed_time,'isOk',isOk
+      if(mpi_rank.eq.0) then
+         write(*,*) 'GET(Fence-OFF) real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'GET(fenceOff,CA)',elapsed_time,isOk
+      end if
+      !---------------------------------------------------------------
+#endif
+#if _GETFENCEFLAGOFF_NOCUDAAWARE_
+      !---------------------------------------------------------------
+      !$acc kernels
+      res_rfield(:) = 0.0_rp
+      !$acc end kernels
+      call setFenceFlags(.false.)
+      call MPI_Barrier(app_comm,mpi_err)
+      start_time = MPI_Wtime()
+      do iter=1,numIters
+         call mpi_halo_atomic_update_real_get_fence_noCudaAware(res_rfield)
+      end do
+      end_time = MPI_Wtime()
+      elapsed_time_r = end_time - start_time
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
+      iTimer=iTimer+1
+      array_timers(iTimer) = elapsed_time;
+      !---- CHECK IF WORKS OK -----!
+      !$acc kernels
+      res_rfield(:) = refValue2check
+      !$acc end kernels
+      call MPI_Barrier(app_comm,mpi_err)
+      do iter=1,iter2check
+         call mpi_halo_atomic_update_real_get_fence_noCudaAware(res_rfield)
+         call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
+      end do
+      call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
+      !----------------------------!
+      if(mpi_rank.eq.0) then
+         write(*,*) 'GET(Fence-OFF)NoCudaAware real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'GET(fenceOff,noCA)',elapsed_time,isOk
+      end if
       !---------------------------------------------------------------
 #endif
 #if _GETFENCEFLAGON_
       !---------------------------------------------------------------
       !$acc kernels
-          res_rfield(:) = 0.0_rp
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setFenceFlags(.true.)
       call MPI_Barrier(app_comm,mpi_err)
@@ -518,7 +725,7 @@ contains
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
-          res_rfield(:) = refValue2check
+      res_rfield(:) = refValue2check
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
@@ -527,13 +734,49 @@ contains
       end do
       call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
       !----------------------------!
-      if(mpi_rank.eq.0) write(*,*) 'GET(Fence-flagsON) real time:',elapsed_time,'isOk',isOk
+      if(mpi_rank.eq.0) then
+         write(*,*) 'GET(Fence-ON) real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'GET(fenceOn,CA)',elapsed_time,isOk
+      end if
+      !---------------------------------------------------------------
+#endif
+#if _GETFENCEFLAGON_NOCUDAAWARE_
+      !---------------------------------------------------------------
+      !$acc kernels
+      res_rfield(:) = 0.0_rp
+      !$acc end kernels
+      call setFenceFlags(.true.)
+      call MPI_Barrier(app_comm,mpi_err)
+      start_time = MPI_Wtime()
+      do iter=1,numIters
+         call mpi_halo_atomic_update_real_get_fence_noCudaAware(res_rfield)
+      end do
+      end_time = MPI_Wtime()
+      elapsed_time_r = end_time - start_time
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
+      iTimer=iTimer+1
+      array_timers(iTimer) = elapsed_time;
+      !---- CHECK IF WORKS OK -----!
+      !$acc kernels
+      res_rfield(:) = refValue2check
+      !$acc end kernels
+      call MPI_Barrier(app_comm,mpi_err)
+      do iter=1,iter2check
+         call mpi_halo_atomic_update_real_get_fence_noCudaAware(res_rfield)
+         call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
+      end do
+      call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
+      !----------------------------!
+      if(mpi_rank.eq.0) then
+         write(*,*) 'GET(Fence-ON)NoCudaAware real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'GET(fenceOn,noCA)',elapsed_time,isOk
+      end if
       !---------------------------------------------------------------
 #endif
 #if _GETPSCWON_
       !---------------------------------------------------------------
       !$acc kernels
-          res_rfield(:) = 0.0_rp
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setPSCWAssertNoCheckFlags(.true.)
       call MPI_Barrier(app_comm,mpi_err)
@@ -548,7 +791,7 @@ contains
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
-          res_rfield(:) = refValue2check
+      res_rfield(:) = refValue2check
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
@@ -563,7 +806,7 @@ contains
 #if _GETPSCWOFF_
       !---------------------------------------------------------------
       !$acc kernels
-          res_rfield(:) = 0.0_rp
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setPSCWAssertNoCheckFlags(.false.)
       call MPI_Barrier(app_comm,mpi_err)
@@ -578,7 +821,7 @@ contains
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
-          res_rfield(:) = refValue2check
+      res_rfield(:) = refValue2check
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
@@ -593,7 +836,7 @@ contains
 #if _GETLOCKBON_
       !---------------------------------------------------------------
       !$acc kernels
-          res_rfield(:) = 0.0_rp
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setLockBarrier(.true.)
       call MPI_Barrier(app_comm,mpi_err)
@@ -608,7 +851,7 @@ contains
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
-          res_rfield(:) = refValue2check
+      res_rfield(:) = refValue2check
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
@@ -623,7 +866,7 @@ contains
 #if _GETLOCKBOFF_
       !---------------------------------------------------------------
       !$acc kernels
-          res_rfield(:) = 0.0_rp
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call setLockBarrier(.false.)
       call MPI_Barrier(app_comm,mpi_err)
@@ -638,7 +881,7 @@ contains
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
-          res_rfield(:) = refValue2check
+      res_rfield(:) = refValue2check
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
@@ -650,10 +893,10 @@ contains
       if(mpi_rank.eq.0) write(*,*) 'GET(Lock-BarrierOFF) real time:',elapsed_time,'isOk',isOk
       !---------------------------------------------------------------
 #endif
-#if _ONLYBUFFERS_
+#if _ONLYBUFFERS3_
       !---------------------------------------------------------------
       !$acc kernels
-          res_rfield(:) = 0.0_rp
+      res_rfield(:) = 0.0_rp
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       start_time = MPI_Wtime()
@@ -667,7 +910,7 @@ contains
       array_timers(iTimer) = elapsed_time;
       !---- CHECK IF WORKS OK -----!
       !$acc kernels
-          res_rfield(:) = refValue2check
+      res_rfield(:) = refValue2check
       !$acc end kernels
       call MPI_Barrier(app_comm,mpi_err)
       do iter=1,iter2check
@@ -676,8 +919,46 @@ contains
       end do
       call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
       !----------------------------!
-      if(mpi_rank.eq.0) write(*,*) 'OnlyBuffers real time:',elapsed_time,'isOk',isOk
+      if(mpi_rank.eq.0) then
+         write(*,*) 'OnlyBuffers3 real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'OB3',elapsed_time,isOk
+      end if
       !---------------------------------------------------------------
+#endif
+#if _ONLYBUFFERS4_
+      !---------------------------------------------------------------
+      !$acc kernels
+      res_rfield(:) = 0.0_rp
+      !$acc end kernels
+      call MPI_Barrier(app_comm,mpi_err)
+      start_time = MPI_Wtime()
+      do iter=1,numIters
+         call mpi_halo_atomic_update_real_onlyBuffers(res_rfield)
+      end do
+      end_time = MPI_Wtime()
+      elapsed_time_r = end_time - start_time
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
+      iTimer=iTimer+1
+      array_timers(iTimer) = elapsed_time;
+      !---- CHECK IF WORKS OK -----!
+      !$acc kernels
+      res_rfield(:) = refValue2check
+      !$acc end kernels
+      call MPI_Barrier(app_comm,mpi_err)
+      do iter=1,iter2check
+         call mpi_halo_atomic_update_real_onlyBuffers(res_rfield)
+         call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
+      end do
+      call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
+      !----------------------------!
+      if(mpi_rank.eq.0) then
+         write(*,*) 'OnlyBuffers4 real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'OB4',elapsed_time,isOk
+      end if
+      !---------------------------------------------------------------
+
+      if(mpi_rank.eq.0) close(unit=log_file_id)
+
 #endif
    end subroutine test_comms_performance_real
 
@@ -695,6 +976,7 @@ contains
 
       isOk = .true.
 
+      !$acc update host(realField(:))
       do i=1,numNodesToComm
          iNodeL = nodesToComm(i)
          value = real(realField(iNodeL),8)
@@ -712,12 +994,18 @@ contains
       integer,intent(inout) :: numRanksNodeCnt(numNodesRankPar)
       integer :: i,iNodeL
 
+      !$acc kernels
       numRanksNodeCnt(:)=1
+      !$acc end kernels
 
+      !$acc parallel loop
       do i= 1,numNodesToComm
          iNodeL = nodesToComm(i)
+         !$acc atomic update
          numRanksNodeCnt(iNodeL) = numRanksNodeCnt(iNodeL) + 1
+         !$acc end atomic
       end do
+      !$acc end parallel loop
    end subroutine evalNumRanksNodeCnt
 
    subroutine normalize_realField_in_sharedNodes(numRanksNodeCnt,realField)
@@ -726,9 +1014,11 @@ contains
       real(rp), intent(inout) :: realField(numNodesRankPar)
       integer :: i,iNodeL
 
+      !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          realField(iNodeL) = realField(iNodeL) / real(numRanksNodeCnt(iNodeL),rp)
       end do
+      !$acc end parallel loop
    end subroutine normalize_realField_in_sharedNodes
 
 #if 0
