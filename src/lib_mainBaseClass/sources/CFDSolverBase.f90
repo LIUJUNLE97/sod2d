@@ -69,6 +69,7 @@ module CFDSolverBase_mod
       use mod_custom_types
       use mod_witness_points
       use mod_filters
+      use mod_InSitu
    implicit none
    private
 
@@ -840,6 +841,9 @@ contains
       call nvtxEndRange
 
       call MPI_Barrier(app_comm,mpi_err)
+
+      ! Initialize InSitu & correct (substract 1)  connecVTK
+      call init_InSitu()
 
    end subroutine CFDSolverBase_openMesh
 
@@ -1927,6 +1931,9 @@ contains
             call nvtxEndRange
          end if
 
+         ! InSitu - pass data
+         call run_InSitu(u(:,:,2),istep)
+
 !         call this%afterDt(istep)
 
          if(this%save_logFile_next==istep) then
@@ -2504,6 +2511,9 @@ contains
 
       ! End hdf5 interface
       call end_hdf5_interface()
+
+      ! Finalize InSitu   - bettre done before end_comms
+      call end_InSitu()
 
       ! End comms
       call end_comms()
