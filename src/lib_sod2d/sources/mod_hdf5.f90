@@ -1508,6 +1508,10 @@ contains
       !load connectivity
       call load_connectivity_hdf5(file_id,mnnode)
 
+      !-----------------------------------------------------------------------------------------------
+      !load VTK connectivity
+      call load_vtk_connectivity_hdf5(file_id)
+
       !--------------------------------------------------------------------------------
       !load globalIds
       call load_globalIds_hdf5(file_id)
@@ -2322,6 +2326,34 @@ contains
       !$acc update device(workingNodesPar(:))
 
    end subroutine load_connectivity_hdf5
+
+   subroutine load_vtk_connectivity_hdf5(file_id)
+      implicit none
+      integer(hid_t),intent(in) :: file_id
+      character(128) :: dsetname
+      integer(hsize_t), dimension(1) :: ms_dims
+      integer(hssize_t), dimension(1) :: ms_offset
+      integer(8),allocatable :: aux_array_i8(:)
+
+      !write(*,*) 'Loading connectivity data hdf5...'
+
+      allocate(aux_array_i8(sizeConnecVTKRankPar))
+      allocate(connecVTK(sizeConnecVTKRankPar))
+      !!!!$acc enter data create(connecVTK(:))
+
+      ms_dims(1)   = int(sizeConnecVTKRankPar,hsize_t)
+      ms_offset(1) = int((rankElemStart-1)*mesh_numVTKElemsPerMshElem,hssize_t)*int(mesh_VTKnnode,hssize_t)
+
+      dsetname = '/VTKHDF/Connectivity'
+      call read_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
+
+      connecVTK(:) = int(aux_array_i8(:),4)
+      !write(*,*) 'connecVTK[',mpi_rank,'] ',connecVTK(:)
+      !!!!$acc update device(connecVTK(:))
+
+      deallocate(aux_array_i8)
+
+   end subroutine load_vtk_connectivity_hdf5
 
    subroutine load_parallel_data_hdf5(file_id)
       implicit none
