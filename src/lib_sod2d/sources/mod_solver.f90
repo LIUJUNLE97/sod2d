@@ -230,7 +230,7 @@ module mod_solver
               auxQ(1) = auxQ1
               auxQ(2) = auxQ2
               call MPI_Allreduce(auxQ,Q1,2,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
-              alphaCG = Q1(1)/Q1(2)\
+              alphaCG = Q1(1)/Q1(2)
               call nvtxEndRange
 
               call nvtxStartRange("PCG x^[n+1]")
