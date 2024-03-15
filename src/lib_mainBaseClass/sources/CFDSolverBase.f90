@@ -1788,7 +1788,7 @@ contains
       this%local_step=1
       do istep = this%initial_istep,this%final_istep
          !if (istep==this%nsave.and.mpi_rank.eq.0) write(111,*) '   --| STEP: ', istep
-         call nvtxStartRange("Init pred "//timeStep,istep)
+         call nvtxStartRange("Init pred")
          !$acc kernels
          rho(:,1) = rho(:,2)
          u(:,:,1) = u(:,:,2)
@@ -1804,7 +1804,7 @@ contains
          !
          ! Exponential averaging for wall law
          !
-         call nvtxStartRange("Wall Average "//timeStep,istep)
+         call nvtxStartRange("Wall Average")
          if(flag_walave) then
             !
             ! outside acc kernels following pseudo_cfl in next loop
@@ -1817,7 +1817,7 @@ contains
          end if
          call nvtxEndRange
 
-         call nvtxStartRange("Time-step"//timeStep,istep)
+         call nvtxStartRange("Time-step")
 
          if(this%doTimerAnalysis) iStepStartTime = MPI_Wtime()
          call this%callTimeIntegration(istep)
@@ -1874,7 +1874,7 @@ contains
          if(this%saveAvgFile) then
             ! Update the accumulators for averaging
             if(this%time .ge. this%initial_avgTime) then
-               call nvtxStartRange("Accumulate"//timeStep,istep)
+               call nvtxStartRange("Accumulate")
 
                call eval_average_iter(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,this%dt,this%elapsed_avgTime,&
                                  rho,u,pr,mu_fluid,mu_e,mu_sgs,tauw,avrho,avpre,avvel,avve2,avvex,avmueff,avtw)
@@ -1906,12 +1906,12 @@ contains
 
             if(this%saveAvgFile) then
                if (mpi_rank.eq.0) write(111,*) '   - Saving avgResults file step:',this%restartFileCnt
-               call nvtxStartRange("Output AVG"//timeStep,istep)
+               call nvtxStartRange("Output AVG")
                call this%saveAvgResultsFiles
                call nvtxEndRange
             end if
 
-            call nvtxStartRange("Saving_restart_file"//timeStep,istep)
+            call nvtxStartRange("Saving_restart_file")
             call this%saveRestartFile(istep)
             call nvtxEndRange
 
@@ -1921,7 +1921,7 @@ contains
          if (this%save_resultsFile_next == istep) then
             this%save_resultsFile_next = this%save_resultsFile_next + this%save_resultsFile_step
             if (mpi_rank.eq.0) write(111,*) ' - Saving results file step:',istep,'(next to save',this%save_resultsFile_next,')'
-            call nvtxStartRange("Output "//timeStep,istep)
+            call nvtxStartRange("Output")
             call compute_fieldDerivs(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
             call this%saveInstResultsFiles(istep)
             call nvtxEndRange
