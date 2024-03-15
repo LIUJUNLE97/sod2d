@@ -89,7 +89,6 @@ module mod_solver
 
            !if(mpi_rank.eq.0) write(111,*) "--|[IMEX] CG begin"
           
-          call nvtxStartRange("CG solver veloc")
           if (flag_cg_mem_alloc_vars .eqv. .true.) then
 				allocate(x_vars(npoin,nvars), r0_vars(npoin,nvars), p0_vars(npoin,nvars), qn_vars(npoin,nvars), v_vars(npoin,nvars), b_vars(npoin,nvars),z0_vars(npoin,nvars),z1_vars(npoin,nvars),M_vars(npoin,nvars))
             	!$acc enter data create(x_vars(:,:), r0_vars(:,:), p0_vars(:,:), qn_vars(:,:), v_vars(:,:), b_vars(:,:),z0_vars(:,:),z1_vars(:,:),M_vars(:,:))
@@ -101,7 +100,7 @@ module mod_solver
            !
            ! Initialize solver
            !
-           call nvtxStartRange("CG_vars init")
+           call nvtxStartRange("PCG init")
             !$acc parallel loop
             do ipoin = 1,npoin
                !$acc loop seq
@@ -149,7 +148,7 @@ module mod_solver
 			
             !if(mpi_rank.eq.0) write(111,*) "--|[IMEX] CG before atomic"
 			   if(mpi_size.ge.2) then
-               call nvtxStartRange("CG_vars halo")
+               call nvtxStartRange("PCG halo")
                do ivars = 1,nvars 
                   call mpi_halo_atomic_update_real(qn_vars(:,ivars))
                end do
@@ -190,14 +189,14 @@ module mod_solver
             call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
             auxB = sqrt(auxT2)
 
+            call nvtxEndRange
+
             !if(mpi_rank.eq.0) write(111,*) "--|[IMEX] CG before loop"
            !
            ! Start iterations
            !
-           call nvtxStartRange("CG_vars iters")
-           
+           call nvtxStartRange("PCG iters")
            do iter = 1,maxIter
-              call nvtxStartRange("Iter_vars")
               call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),p0_vars(:,1),aux_u_vars,&
                  aux_Tem_vars,mu_fluid,mu_e,mu_sgs,Ml,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2))              
 			      if(mpi_size.ge.2) then
@@ -205,6 +204,7 @@ module mod_solver
                   call mpi_halo_atomic_update_real(qn_vars(:,ivars))
                 end do              
                end if
+               call nvtxStartRange("PCG qn_vars")
                !$acc parallel loop
                do ipoin = 1,npoin_w
                  !$acc loop seq
@@ -213,7 +213,9 @@ module mod_solver
                 end do
                end do
                !$acc end parallel loop
+               call nvtxEndRange
             
+              call nvtxStartRange("PCG alpha")
               auxQ1 = 0.0d0
               auxQ2 = 0.0d0
               !$acc parallel loop reduction(+:auxQ1,auxQ2) 
@@ -228,7 +230,10 @@ module mod_solver
               auxQ(1) = auxQ1
               auxQ(2) = auxQ2
               call MPI_Allreduce(auxQ,Q1,2,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
-              alphaCG = Q1(1)/Q1(2)
+              alphaCG = Q1(1)/Q1(2)\
+              call nvtxEndRange
+
+              call nvtxStartRange("PCG x^[n+1]")
               !$acc parallel loop
               do ipoin = 1,npoin_w
                  !$acc loop seq
@@ -237,7 +242,9 @@ module mod_solver
                  end do 
               end do
               !$acc end parallel loop
+              call nvtxEndRange
 
+              call nvtxStartRange("PCG r^[n+1]")
               !$acc parallel loop
               do ipoin = 1,npoin_w
                   !$acc loop seq
@@ -248,6 +255,8 @@ module mod_solver
                   end do
               end do
               !$acc end parallel loop
+              call nvtxEndRange
+
               auxT1 = 0.0d0
               !$acc parallel loop reduction(+:auxT1)
               do ipoin = 1,npoin
@@ -264,12 +273,12 @@ module mod_solver
               ! Stop cond
               !
               if (sqrt(T1) .lt. (tol*auxB)) then
-                 call nvtxEndRange
                  exit
               end if
               !
               ! Update p
               !
+              call nvtxStartRange("PCG p^[k+1]")
               auxT1 = 0.0d0
               !$acc parallel loop reduction(+:auxT1)
               do ipoin = 1,npoin
@@ -326,7 +335,6 @@ module mod_solver
             
             !if(mpi_rank.eq.0) write(111,*) "--|[IMEX] CG end loop"
            
-           call nvtxEndRange
 
         end subroutine conjGrad_imex
 
