@@ -834,7 +834,7 @@ contains
       call init_comms_bnd(this%useIntInComms,this%useRealInComms)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
-         call save_surface_mesh_hdf5_file(this%meshFile_h5_full_name,npbou,mesh_gmsh2ij,mesh_vtk2ij)
+         call save_surface_mesh_hdf5_file(this%meshFile_h5_full_name,this%surface_meshFile_h5_full_name,npbou,mesh_gmsh2ij,mesh_vtk2ij)
       end if
 
       call nvtxEndRange
