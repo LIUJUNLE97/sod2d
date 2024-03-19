@@ -337,11 +337,11 @@ contains
       !integer(8),intent(out) :: globalIdSrlTrgtRank_i8(numNodesTrgtRank),globalIdParTrgtRank_i8(numNodesTrgtRank)
       !integer(8),intent(out),dimension(numNodesTrgtRank,2) :: globalIdSrlOrderedTrgtRank_i8
 
-      integer(4),dimension(numNodesTrgtRank) :: isNodeAdded
+      integer(4) :: isNodeAdded(numNodesTrgtRank),auxVTKorder(mnnode)
       integer(4) :: m,indConn,indexIJK,indexGMSH,indexNew,nodeIndexCnt,indPosListNodes
       integer(4) :: iNodeL,iNodeMpi,iElem
       integer(8) :: iNodeGsrl,iNodeGpar
-      integer(4) :: ii,jj,kk,igp,jgp,kgp
+      integer(4) :: ii,jj,kk,igp,jgp,kgp,indexVTK
       integer(4),allocatable :: ijk_sod2d_to_gmsh(:),ijk_gmsh_to_sod2d(:)
 
       call set_allocate_array_ijk_sod2d_criteria(mporder,ijk_sod2d_to_gmsh,ijk_gmsh_to_sod2d)
@@ -354,6 +354,16 @@ contains
       indConn = -1
 
       !----------------------------------------------------------------------------------------------------------
+      do kk = 0,mporder
+         do ii = 0,mporder
+            do jj = 0,mporder
+
+               indexIJK = ((mporder+1)**2)*kk+(mporder+1)*ii+jj+1
+               auxVTKorder(mesh_a2ijk(indexIJK)) = mesh_vtk2ijk(indexIJK)
+
+            end do
+         end do
+      end do
 
       do iElem=1,numElemsTrgtRank
          !write(*,*) '# iElem',iElem
@@ -388,7 +398,7 @@ contains
             !write(*,*) ' -inode',m,'iNode',iNodeL,'iNodeMpi',iNodeMpi
 
             if(.not.(linOutput)) then
-               indConn = (iElem-1)*mnnode + mesh_vtk2ijk(m)
+               indConn = (iElem-1)*mnnode + auxVTKorder(m)
                connecVTKTrgtRank(indConn) = iNodeL
             end if
 
