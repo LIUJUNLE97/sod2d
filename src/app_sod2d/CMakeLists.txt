@@ -20,6 +20,7 @@ if(SHARED_LIBS)
 else()
    set_mpi()
    set_hdf5()
+   set_jsonfortran()
 endif()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)

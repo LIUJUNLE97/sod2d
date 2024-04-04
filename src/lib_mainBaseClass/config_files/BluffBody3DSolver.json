@@ -1,0 +1,69 @@
+{
+   "type":"BluffBody3DSolver",
+
+   "mesh_h5_file_path":"",
+   "mesh_h5_file_name":"cetaceo",
+
+   "results_h5_file_path":"",
+   "results_h5_file_name":"results",
+
+   "final_istep":1000001,
+
+   "save_logFile_first":1,
+   "save_logFile_step":10,
+
+   "save_resultsFile_first":1,
+   "save_resultsFile_step":10000,
+
+   "save_restartFile_first":1,
+   "save_restartFile_step":10000,
+
+   "loadRestartFile":false,
+   "restartFile_to_load":1,
+
+   "continue_oldLogs":false,
+
+   "saveAvgFile":true,
+   "loadAvgFile":false,
+
+   "saveSurfaceResults":true,
+
+   "flag_les":1,
+
+   "flag_implicit":1,
+   "maxIter":20,
+   "tol":1e-5,
+
+   "flag_walave":true,
+   "period_walave":1.0,
+
+   "cfl_conv":0.75,
+   "cfl_diff":100.0,
+
+   "Cp":1004.0,
+   "Prt":0.71,
+   "v0":1.0,
+   "M":0.2,
+   "delta":1.0,
+   "rho0":1.0,
+   "Re":19646243.0,
+   "gamma_gas":1.4,
+   "aoa_alpha":15.0,
+   "aoa_beta":0.0,
+
+   "bouCodes":
+   [
+      {"id":1, "bc_type":"bc_type_far_field"},
+      {"id":2, "bc_type":"bc_type_far_field"},
+      {"id":3, "bc_type":"bc_type_slip_wall_model"}
+   ],
+
+   "buffer":
+   [
+      {"type":"east","min":400,"size":50},
+      {"type":"west","min":-400,"size":50},
+      {"type":"north","min":400,"size":50},
+      {"type":"top","min":400,"size":50},
+      {"type":"bottom","min":-400,"size":50}
+   ]
+}

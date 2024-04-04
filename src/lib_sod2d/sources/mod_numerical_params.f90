@@ -6,7 +6,7 @@ module mod_numerical_params
 
         ! Time integration algorithm
         integer(4) :: flag_rk_order=4 
-        integer(4) :: flag_implicit=0 !Explicit: RK, Implicit: BDF2
+        integer(4) :: flag_implicit=0 
 
 
         ! LES 
@@ -97,4 +97,6 @@ module mod_numerical_params
         !
 
         logical :: flag_cg_prec_bdc = .false. !Block Diagonal Cholesky
+       
+        character(len=100) :: json_filename
 end module mod_numerical_params

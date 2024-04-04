@@ -1,6 +1,7 @@
 module mod_comms
     use mod_mpi_mesh
 #ifdef NCCL_COMMS
+    use cudafor
     use nccl
 #endif
 

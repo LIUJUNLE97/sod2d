@@ -110,8 +110,6 @@ module time_integ_imex
       Rwmles_imex(1:npoin,1:ndime) = 0.0_rp
       !$acc end kernels
 
-      call nvtxEndRange
-
    end subroutine init_imex_solver
 
    subroutine end_imex_solver()
@@ -294,9 +292,11 @@ module time_integ_imex
                end do
                !$acc end parallel loop
                !if(mpi_rank.eq.0) write(111,*)   " before cg"
+               call nvtxStartRange("IMEX_CONJ_GRAD")
                call conjGrad_imex(aij_i(istep,istep),igtime,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,numBoundsWM,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                                  dlxigp_ip,He,gpvol,Ngp,Ml,gamma_gas,Rgas,Cp,Prt,mu_fluid,mu_e,mu_sgs,rho(:,1),rho(:,2),E(:,1),E(:,2),q(:,:,1),q(:,:,2), &
-                                 ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer) 
+                                 ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer)
+               call nvtxEndRange
                !if(mpi_rank.eq.0) write(111,*)   " after cg"
 
                if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,rho(:,2),q(:,:,2),E(:,2),u_buffer)
@@ -383,10 +383,10 @@ module time_integ_imex
                call nvtxEndRange
             end if
 
-            call nvtxStartRange("Entropy viscosity evaluation")
             !
             ! Compute entropy viscosity
             !
+            call nvtxStartRange("Entropy viscosity evaluation")
             call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,auxReta_imex,Ngp,coord,dNgp,gpvol,wgp, &
                gamma_gas,rho(:,2),u(:,:,2),csound,Tem(:,2),eta(:,2),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
             call nvtxEndRange

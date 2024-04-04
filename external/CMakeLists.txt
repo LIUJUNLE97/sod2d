@@ -19,3 +19,23 @@ else()
   add_subdirectory(gempa)
   set(GEMPA_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/gempa/include" CACHE INTERNAL "GEMPA: include directory" FORCE)
 endif()
+
+message("-- Checking if JF submodule has already been cloned...")
+set(SKIP_DOC_GEN TRUE CACHE INTERNAL "")
+if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/json-fortran/CMakeLists.txt")
+  message("  -- JF submodule has not been cloned yet, cloning...")
+  include(FetchContent)
+  FetchContent_Declare(
+    json-fortran
+    GIT_REPOSITORY https://github.com/jacobwilliams/json-fortran.git
+    GIT_TAG        master
+  )
+  FetchContent_GetProperties(json-fortran)
+  if(NOT json-fortran_POPULATED)
+    FetchContent_Populate(json-fortran)
+    add_subdirectory(${json-fortran_SOURCE_DIR} ${json-fortran_BINARY_DIR})
+  endif()
+else()
+  message(" -- Adding JF to compilation list...")
+  add_subdirectory(json-fortran)
+endif()

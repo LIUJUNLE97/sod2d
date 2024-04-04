@@ -18,7 +18,8 @@ option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
 
 option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
 option(USE_PCPOWER "Compiling in PC-POWER" OFF)
-option(USE_MN "Compiling in MareNostrum" OFF)
+option(USE_MN4 "Compiling in MareNostrum" OFF)
+option(USE_MN5 "Compiling in MareNostrum5" OFF)
 option(USE_CRAY "Compiling with CrayMpi" OFF)
 option(SHARED_LIBS "Compile using shared libraries" OFF)
 
@@ -55,8 +56,15 @@ include(compilerOps)
 # Configure HDF5 module
 include(hdf5)
 
+# Configure GEMPA
+include(gempa)
+
+# Configure JFORTRAN module
+include(json-fortran)
+
 # Include external projects
-include(ExternalProject)
+#include(ExternalProject) (I think this does nothing)
+add_subdirectory(external)
 
 if(DEBUG_MODE)
     set(CMAKE_BUILD_TYPE Debug)
@@ -86,8 +94,8 @@ endif("${isSystemDir}" STREQUAL "-1")
 add_subdirectory(src)
 
 if(TOOL_MESHPART)
-    include(gempa)
-    add_subdirectory(external)
+    #include(gempa)
+    #add_subdirectory(external)
     add_subdirectory(tool_meshConversorPar)
 endif()
 

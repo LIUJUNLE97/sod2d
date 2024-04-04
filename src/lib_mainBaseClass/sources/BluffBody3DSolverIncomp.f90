@@ -1,5 +1,3 @@
-#define CRM 1
-
 module BluffBody3DSolverIncomp_mod
    use mod_arrays
    use mod_nvtx
@@ -31,7 +29,7 @@ module BluffBody3DSolverIncomp_mod
 
    type, public, extends(CFDSolver3DWithBoundariesIncomp) :: BluffBody3DSolverIncomp
 
-      real(rp) , public  :: vo,delta, rho0, Re, aoa
+      real(rp) , public  :: vo,delta, rho0, Re, aoa_alpha, aoa_beta
 
    contains
       procedure, public :: fillBCTypes           =>BluffBody3DSolverIncomp_fill_BC_Types
@@ -43,42 +41,21 @@ contains
 
    subroutine BluffBody3DSolverIncomp_fill_BC_Types(this)
       class(BluffBody3DSolverIncomp), intent(inout) :: this
-#if CRM
       
-       bouCodes2BCType(1) = bc_type_slip_wall_model
-       bouCodes2BCType(2) = bc_type_slip_adiabatic 
-       bouCodes2BCType(3) = bc_type_far_field
-
-#else
-
-
-      bouCodes2BCType(1) = bc_type_slip_wall_model
-      bouCodes2BCType(2) = bc_type_slip_wall_model
-      bouCodes2BCType(3) = bc_type_outlet_incomp
-      bouCodes2BCType(4) = bc_type_far_field
-      bouCodes2BCType(5) = bc_type_outlet_incomp
-      bouCodes2BCType(6) = bc_type_non_slip_adiabatic
-      bouCodes2BCType(7) = bc_type_non_slip_adiabatic
-#endif
-      !$acc update device(bouCodes2BCType(:))
+      call this%readJSONBCTypes()
 
    end subroutine BluffBody3DSolverIncomp_fill_BC_Types
 
-      subroutine BluffBody3DSolverIncomp_initialBuffer(this)
+   subroutine BluffBody3DSolverIncomp_initialBuffer(this)
       class(BluffBody3DSolverIncomp), intent(inout) :: this
       integer(4) :: iNodeL
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-#if CRM
-            u_buffer(iNodeL,1) = this%vo*cos(this%aoa*v_pi/180.0_rp)
-            u_buffer(iNodeL,2) = 0.0_rp
-            u_buffer(iNodeL,3) = this%vo*sin(this%aoa*v_pi/180.0_rp)    
-#else
-            u_buffer(iNodeL,1) = tanh(coordPar(iNodeL,3)*1000.0_rp)*this%vo
-            u_buffer(iNodeL,2) = 0.0_rp
-            u_buffer(iNodeL,3) = 0.0_rp  
-#endif
+
+         u_buffer(iNodeL,1) = this%vo*cos(this%aoa_alpha*v_pi/180.0_rp)*cos(this%aoa_beta*v_pi/180.0_rp)
+         u_buffer(iNodeL,2) = this%vo*sin(this%aoa_beta*v_pi/180.0_rp) 
+         u_buffer(iNodeL,3) = this%vo*sin(this%aoa_alpha*v_pi/180.0_rp)    
          !just a momentary trick
          pr(iNodeL,2) = 0.0_rp 
          rho(iNodeL,2) = this%rho0            
@@ -91,68 +68,72 @@ contains
    end subroutine BluffBody3DSolverIncomp_initialBuffer
 
    subroutine BluffBody3DSolverIncomp_initializeParameters(this)
+      use json_module
+      implicit none
       class(BluffBody3DSolverIncomp), intent(inout) :: this
       real(rp) :: mul, mur
+      logical :: found, found_aux = .false.
+      type(json_file) :: json
+      character(len=:) , allocatable :: value
 
+      call json%initialize()
+      call json%load_file(json_filename)
 
-#if CRM
-      write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "crm"
-#else
-      write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "windsor"
-      !write(this%mesh_h5_file_name,*) "auto"
-#endif
+      ! get(label,target,is found?, default value)
 
+      call json%get("mesh_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+      write(this%mesh_h5_file_path,*) value
+      call json%get("mesh_h5_file_name",value, found,"cetaceo"); call this%checkFound(found,found_aux)
+      write(this%mesh_h5_file_name,*) value
 
-
-      write(this%results_h5_file_path,*) ""
-      write(this%results_h5_file_name,*) "results"
+      call json%get("results_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+      write(this%results_h5_file_path,*) value
+      call json%get("results_h5_file_name",value, found,"results"); call this%checkFound(found,found_aux)
+      write(this%results_h5_file_name,*) value
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 800000001
+      
+      call json%get("final_istep",this%final_istep, found,1000001); call this%checkFound(found,found_aux)
 
-      this%save_logFile_first = 1 
-      this%save_logFile_step  = 10
+      call json%get("save_logFile_first",this%save_logFile_first, found, 1); call this%checkFound(found,found_aux)
+      call json%get("save_logFile_step",this%save_logFile_step, found, 10); call this%checkFound(found,found_aux)
 
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 10000
+      call json%get("save_resultsFile_first",this%save_resultsFile_first, found,1); call this%checkFound(found,found_aux)
+      call json%get("save_resultsFile_step" ,this%save_resultsFile_step, found,10000); call this%checkFound(found,found_aux)
 
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 10000
-      this%loadRestartFile = .true.
-      this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
+      call json%get("save_restartFile_first",this%save_restartFile_first, found,1); call this%checkFound(found,found_aux)
+      call json%get("save_restartFile_step" ,this%save_restartFile_step, found,10000); call this%checkFound(found,found_aux)
 
-      this%initial_avgTime = 0.0_rp
-      this%saveAvgFile = .false.
-      this%loadAvgFile = .false.
 
-      this%saveSurfaceResults = .true.
+      call json%get("loadRestartFile" ,this%loadRestartFile, found, .false.); call this%checkFound(found,found_aux)
+      call json%get("restartFile_to_load" ,this%restartFile_to_load, found,1); call this%checkFound(found,found_aux)
+
+      call json%get("continue_oldLogs" ,this%continue_oldLogs, found, .false.); call this%checkFound(found,found_aux)
+
+      call json%get("saveAvgFile" ,this%saveAvgFile, found, .true.); call this%checkFound(found,found_aux)
+      call json%get("loadAvgFile" ,this%loadAvgFile, found, .false.); call this%checkFound(found,found_aux)
+
+      call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.true.); call this%checkFound(found,found_aux)
       !----------------------------------------------
 
       ! numerical params
-      flag_les = 1
+      call json%get("flag_les",flag_les, found,1); call this%checkFound(found,found_aux)
+      call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
+      call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
+      call json%get("period_walave",period_walave, found,1.0_rp); call this%checkFound(found,found_aux)
 
-      maxIter=20
-      tol=1e-3
-      
+      call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
 
-      this%cfl_conv = 0.95_rp
+      call json%get("v0",this%vo, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("delta",this%delta, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("rho0",this%rho0, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("Re",this%Re, found,5600000.0_rp); call this%checkFound(found,found_aux)
+      call json%get("aoa_alpha",this%aoa_alpha, found,11.0_rp); call this%checkFound(found,found_aux)
+      call json%get("aoa_beta",this%aoa_beta, found,0.0_rp); call this%checkFound(found,found_aux)
 
-      this%delta  = 1.0_rp
-      this%rho0   = 1.0_rp
-      this%vo = 1.0_rp
+      ! fixed by the type of base class parameters
 
-#if CRM
-      this%Re  =  5600000.0_rp
-      this%aoa = 11.00_rp
-#else
-      this%Re     =  2900000.0_rp
-      this%aoa = 0.0_rp
-#endif  
-   
       mul    = (this%rho0*this%delta*this%vo)/this%Re
       incomp_viscosity = mul
       flag_mu_factor = 1.0_rp
@@ -161,51 +142,9 @@ contains
       nscbc_p_inf = 0.0_rp
       nscbc_rho_inf = this%rho0
 
+      call this%readJSONBuffer()
 
-      flag_buffer_on = .true.
-#if CRM
-      flag_buffer_on_east = .true.
-      flag_buffer_e_min = 200.0_rp
-      flag_buffer_e_size = 36.0_rp 
-
-      flag_buffer_on_west = .true.
-      flag_buffer_w_min = -200.0_rp
-      flag_buffer_w_size = 36.0_rp 
-
-      flag_buffer_on_north = .true.
-      flag_buffer_n_min = 200.0_rp
-      flag_buffer_n_size = 36.0_rp 
-      
-      flag_buffer_on_top = .true.
-      flag_buffer_t_min = 200.0_rp
-      flag_buffer_t_size = 36.0_rp
-
-      flag_buffer_on_bottom = .true.
-      flag_buffer_b_min = -200.0_rp
-      flag_buffer_b_size = 36.0_rp
-#else 
-      !!windsor
-      flag_buffer_on_east = .true.
-      flag_buffer_e_min = 5.5_rp
-      flag_buffer_e_size = 1.0_rp
-
-      flag_buffer_on_west = .true.
-      flag_buffer_w_min = -3.5_rp
-      flag_buffer_w_size = 1.0_rp
-
-      flag_buffer_on_north = .true.
-      flag_buffer_n_min = 1.5_rp
-      flag_buffer_n_size = 0.5_rp
-
-      flag_buffer_on_south = .true.
-      flag_buffer_s_min = -1.5_rp
-      flag_buffer_s_size = 0.5_rp
-
-      flag_buffer_on_top = .true.
-      flag_buffer_t_min = 2.0_rp
-      flag_buffer_t_size = 0.5_rp     
-#endif
-      period_walave   = 1.0_rp
+      call json%destroy()
 
    end subroutine BluffBody3DSolverIncomp_initializeParameters
 
@@ -216,22 +155,28 @@ contains
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-#if CRM
-            u(iNodeL,1,2) = this%vo*cos(this%aoa*v_pi/180.0_rp)
-            u(iNodeL,2,2) = 0.0_rp
-            u(iNodeL,3,2) = this%vo*sin(this%aoa*v_pi/180.0_rp)    
-#else
-         u(iNodeL,1,2) = tanh(coordPar(iNodeL,3)*1000.0_rp)*this%vo
-         u(iNodeL,2,2) = 0.0_rp
-         u(iNodeL,3,2) = 0.0_rp  
-#endif
+         u(iNodeL,1,2) = this%vo*cos(this%aoa_alpha*v_pi/180.0_rp)*cos(this%aoa_beta*v_pi/180.0_rp)
+         u(iNodeL,2,2) = this%vo*sin(this%aoa_beta*v_pi/180.0_rp) 
+         u(iNodeL,3,2) = this%vo*sin(this%aoa_alpha*v_pi/180.0_rp)    
       end do
       !$acc end parallel loop
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-         pr(iNodeL,2) = 0.0_rp
-         rho(iNodeL,2) = this%rho0
+         eta(iNodeL,2) =0.5_rp*dot_product(u(iNodeL,1:ndime,2),u(iNodeL,1:ndime,2))
+         q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
+
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+         u(iNodeL,1:ndime,3) = u(iNodeL,1:ndime,2)
+         rho(iNodeL,3) = rho(iNodeL,2)
+         eta(iNodeL,3) =  eta(iNodeL,2)
+         pr(iNodeL,3) =  pr(iNodeL,2)  
+
+         q(iNodeL,1:ndime,4) = q(iNodeL,1:ndime,2)
+         u(iNodeL,1:ndime,4) = u(iNodeL,1:ndime,2)
+         rho(iNodeL,4) = rho(iNodeL,2)
+         eta(iNodeL,4) =  eta(iNodeL,2)
+         pr(iNodeL,4) =  pr(iNodeL,2)  
       end do
       !$acc end parallel loop
 
