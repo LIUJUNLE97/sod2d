@@ -4,7 +4,7 @@
 #
 # Export a mesh from Ansa to Sod2D format.
 #
-# Last rev: 27/10/2023
+# Last rev: 04/04/2024
 
 import h5py, numpy as np
 
@@ -18,7 +18,9 @@ deck = constants.CGNS
 path = "/home/sgome1/HAMR/TEST/"
 basename = 'tgv4'
 scaleFactor = 1.0
-perDist = np.pi*2
+perDist = 0.0
+mappedDist = 0.0 # Distance between the outlet and the inlet.
+mappedDir = 1 # Normal direction of the inlet patch. 1, 2 or 3 equivalent to x,y and z directions correspondingly.
 ###############################
 ##### End Case Definition #####
 ###############################
@@ -278,21 +280,28 @@ def getPolynomialOrder(info):
 # Collect only shell PIDs in which "USE_IN_MODEL" option is YES, i.e. for avoid collecting top_cap PID.
 def checkShells(base, deck):
     shells = []
-    pershells = []
     usedPshells = []
+    pershells = []
     periodicPshells = []
+    mappedshells = []
+    mappedPshells = []
     pshells = base.CollectEntities(deck, None, 'SHELL_PROPERTY')
     for pshell in pshells:
         vals = base.GetEntityCardValues(deck, pshell, ['USE_IN_MODEL', 'TYPE'])
         if vals['USE_IN_MODEL'] == 'YES':
-            usedPshells.append(pshell)
-            pidShells = base.CollectEntities(deck, pshell, 'SHELL', recursive = True)
-            shells = shells + pidShells 
-        elif vals['TYPE'] != 'Interior':
-            periodicPshells.append(pshell)
-            pidShells = base.CollectEntities(deck, pshell, 'SHELL', recursive = True)
-            pershells = pershells + pidShells
-    return(len(shells), usedPshells, shells, len(pershells), periodicPshells, pershells)
+            if vals['TYPE'] == 'Periodic':
+                periodicPshells.append(pshell)
+                pidShells = base.CollectEntities(deck, pshell, 'SHELL', recursive = True)
+                pershells = pershells + pidShells
+            elif vals['TYPE'] == 'Extrapolate':
+                mappedPshells.append(pshell)
+                pidShells = base.CollectEntities(deck, pshell, 'SHELL', recursive = True)
+                mappedshells = mappedshells + pidShells
+            else:
+                usedPshells.append(pshell)
+                pidShells = base.CollectEntities(deck, pshell, 'SHELL', recursive = True)
+                shells = shells + pidShells
+    return(len(shells), usedPshells, shells, len(pershells), periodicPshells, pershells, len(mappedshells), mappedPshells, mappedshells)
 
 # Renumber nodes
 def renumberNodes(base, deck, nnodes):
@@ -383,14 +392,7 @@ def writeBoundsAlt(base, deck, h5file, nshells, shells, pOrder, nameDataSet):
         bounds = bounds[:,order]
     bounds_dset = h5file.create_dataset(nameDataSet,(nshells,nnodeB),dtype='i8',data=bounds,
     chunks=True,maxshape=(nshells,nnodeB))
-    
-
-    if nameDataSet == 'periodicFaces':
-        perNodes = bounds.flatten().astype('int32')
-        del bounds
-        return perNodes
-    else:
-        del bounds
+    del bounds
 
 # Write boundary codes
 def writeBC(base, deck, h5file, usedPshells, nbouns):
@@ -437,57 +439,59 @@ def periodicPair(base, deck, h5file, periodicPshells, nbouns, dims_group):
         chunks=True,maxshape=(npairs,2))
     del pairs
 
-def periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, perDist,pOrder):
-    parentPIDS = periodicPshells[:len(periodicPshells)//2]
-    childPIDS = periodicPshells[len(periodicPshells)//2:]
-    for parentPID, childPID in zip(parentPIDS,childPIDS):
-        parentShells = base.CollectEntities(deck, parentPID, 'SHELL', recursive = True)
-        childShells = base.CollectEntities(deck, childPID, 'SHELL', recursive = True)
-        elems = base.CollectEntities(deck, None, 'SOLID', recursive = True)
-        parentPairs = mesh.MatchShellsAndSolids(parentShells, elems)
-        childPairs = mesh.MatchShellsAndSolids(childShells, elems)
-        del elems
-        parentDic={}
-        childDic={}
-        for i in range(int(len(parentPairs)/2)):
-            parentDic[parentPairs[i*2-2]._id] = parentPairs[i*2-1]._id
-            childDic[childPairs[i*2-2]._id] = childPairs[i*2-1]._id
-        parentNodes = np.zeros((len(parentShells),(pOrder+1)**2),dtype='int32')
-        childNodes = np.zeros((len(childShells),(pOrder+1)**2),dtype='int32')
-        i = 0
-        for parentShell,childShell in zip(parentShells,childShells):
-            parentShellNodes = getElemFaceNodes(deck, base, parentDic[parentShell._id], parentShell, pOrder)
-            childShellNodes = getElemFaceNodes(deck, base, childDic[childShell._id], childShell, pOrder)
-            parentNodes[i,:] = parentShellNodes
-            childNodes[i,:] = childShellNodes
-            i+=1
-        uniqueParentNodes = np.unique(parentNodes.flatten())
-        uniqueChildNodes = np.unique(childNodes.flatten())
+def periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, perDist, pOrder, nper):
+    if nper != 0:
+        parentPIDS = periodicPshells[:len(periodicPshells)//2]
+        childPIDS = periodicPshells[len(periodicPshells)//2:]
+        for parentPID, childPID in zip(parentPIDS,childPIDS):
+            parentShells = base.CollectEntities(deck, parentPID, 'SHELL', recursive = True)
+            childShells = base.CollectEntities(deck, childPID, 'SHELL', recursive = True)
+            elems = base.CollectEntities(deck, None, 'SOLID', recursive = True)
+            parentPairs = mesh.MatchShellsAndSolids(parentShells, elems)
+            childPairs = mesh.MatchShellsAndSolids(childShells, elems)
+            del elems
+            parentDic={}
+            childDic={}
+            for i in range(int(len(parentPairs)/2)):
+                parentDic[parentPairs[i*2-2]._id] = parentPairs[i*2-1]._id
+                childDic[childPairs[i*2-2]._id] = childPairs[i*2-1]._id
+            parentNodes = np.zeros((len(parentShells),(pOrder+1)**2),dtype='int32')
+            childNodes = np.zeros((len(childShells),(pOrder+1)**2),dtype='int32')
+            i = 0
+            for parentShell,childShell in zip(parentShells,childShells):
+                parentShellNodes = getElemFaceNodes(deck, base, parentDic[parentShell._id], parentShell, pOrder)
+                childShellNodes = getElemFaceNodes(deck, base, childDic[childShell._id], childShell, pOrder)
+                parentNodes[i,:] = parentShellNodes
+                childNodes[i,:] = childShellNodes
+                i+=1
+            uniqueParentNodes = np.unique(parentNodes.flatten())
+            uniqueChildNodes = np.unique(childNodes.flatten())
 
-        xyzParent = np.zeros((len(uniqueParentNodes),3))
-        xyzChild = np.zeros((len(uniqueChildNodes),3))
-        for i,idNode in enumerate(uniqueParentNodes):
-            node = base.GetEntity(deck, 'NODE', idNode)
-            vals = base.GetEntityCardValues(deck, node, ['X', 'Y', 'Z'])
-            xyzParent[i,:] = [vals['X'],vals['Y'],vals['Z']]
-        for i,idNode in enumerate(uniqueChildNodes):
-            node = base.GetEntity(deck, 'NODE', idNode)
-            vals = base.GetEntityCardValues(deck, node, ['X', 'Y', 'Z'])
-            xyzChild[i,:] = [vals['X'],vals['Y'],vals['Z']]
+            xyzParent = np.zeros((len(uniqueParentNodes),3))
+            xyzChild = np.zeros((len(uniqueChildNodes),3))
+            for i,idNode in enumerate(uniqueParentNodes):
+                node = base.GetEntity(deck, 'NODE', idNode)
+                vals = base.GetEntityCardValues(deck, node, ['X', 'Y', 'Z'])
+                xyzParent[i,:] = [vals['X'],vals['Y'],vals['Z']]
+            for i,idNode in enumerate(uniqueChildNodes):
+                node = base.GetEntity(deck, 'NODE', idNode)
+                vals = base.GetEntityCardValues(deck, node, ['X', 'Y', 'Z'])
+                xyzChild[i,:] = [vals['X'],vals['Y'],vals['Z']]
 
-        localPairs = np.zeros((len(uniqueParentNodes),2),dtype = 'int32')
-        for i,xyz in enumerate(xyzParent):
-            dist = np.abs(np.sqrt(np.sum((xyzChild-xyz)**2,axis=1))-perDist)
-            iChild = uniqueChildNodes[np.argmin(dist)]
-            iParent = uniqueParentNodes[i]
-            localPairs[i,:] = np.array([iParent,iChild])
-            xyzChild = np.delete(xyzChild,np.argmin(dist),0)
-            uniqueChildNodes = np.delete(uniqueChildNodes,np.argmin(dist))
-        if 'pairs' in locals():
-            pairs = np.vstack((pairs,localPairs))
-        else:
-            pairs = localPairs
-
+            localPairs = np.zeros((len(uniqueParentNodes),2),dtype = 'int32')
+            for i,xyz in enumerate(xyzParent):
+                dist = np.abs(np.sqrt(np.sum((xyzChild-xyz)**2,axis=1))-perDist)
+                iChild = uniqueChildNodes[np.argmin(dist)]
+                iParent = uniqueParentNodes[i]
+                localPairs[i,:] = np.array([iParent,iChild])
+                xyzChild = np.delete(xyzChild,np.argmin(dist),0)
+                uniqueChildNodes = np.delete(uniqueChildNodes,np.argmin(dist))
+            if 'pairs' in locals():
+                pairs = np.vstack((pairs,localPairs))
+            else:
+                pairs = localPairs
+    else:
+        pairs = np.zeros((0,2),dtype = 'int32')
     dset = dims_group.create_dataset('numPeriodicLinks',(1,),dtype='i8',data=len(pairs))
     pairs_dset = h5file.create_dataset('periodicLinks',(len(pairs),2),dtype='i8',data=pairs,
         chunks=True,maxshape=(len(pairs),2))
@@ -545,7 +549,7 @@ def main():
     nelems = info['ELEMENT'].children['SOLID'].total
     nnodes = info['NODE'].total
     pOrder = getPolynomialOrder(info)
-    nbouns, usedPshells, shells, nper, periodicPshells, pershells = checkShells(base, deck)
+    nbouns, usedPshells, shells, nper, periodicPshells, pershells, nmapped, mappedPshells, mappedshells = checkShells(base, deck)
     nhang  = dims_group.create_dataset('numHangingNodes',(1,),dtype='i8',data=0)
     # Write dims
     dset = dims_group.create_dataset('order',(1,),dtype='i8',data=pOrder)
@@ -553,35 +557,60 @@ def main():
     elems_dset = dims_group.create_dataset('numElements',(1,),dtype='i8',data=nelems)
     bound_dset = dims_group.create_dataset('numBoundaryFaces',(1,),dtype='i8',data=nbouns)
     per_dset   = dims_group.create_dataset('numPeriodicFaces',(1,),dtype='i8',data=nper)
+    mapped_dset = dims_group.create_dataset('numMappedFaces',(1,),dtype='i8',data=nmapped)
     dset = dims_group.create_dataset('numHangingNodesP2C',(1,),dtype='i8',data=0)
     dset = dims_group.create_dataset('numHangingNodesC2P',(1,),dtype='i8',data=0)
+    # Write mapped info
+    mapped_group = h5file.create_group('mappedInlet')
+    if 'mappedDir' in globals() and 'mappedDist' in globals() and nmapped > 0:
+        dset = mapped_group.create_dataset('dir',(1,),dtype='i8',data=mappedDir)
+        dset = mapped_group.create_dataset('gap',(1,),dtype='f8',data=mappedDist)
+    elif mappedDir not in globals() and mappedDist not in globals() and nmapped == 0:
+        dset = mapped_group.create_dataset('dir',(1,),dtype='i8',data=1)
+        dset = mapped_group.create_dataset('gap',(1,),dtype='f8',data=0.0)
+    else:
+        print('You have mapped inlets defined in your mesh but not correctly defined the mapped distance and direction. Check their definitions and try again')
+        return
+
     # Renumbering nodes
     renumberNodes(base, deck, nnodes)
+    
     # Writing nodes coordinates
     writeNodes(base, deck, h5file, scaleFactor, nnodes)
+    
     # Writing boundaries
     # writeBounds(base, deck, h5file, nbouns, shells, pOrder, 'boundFaces')
     writeBoundsAlt(base, deck, h5file, nbouns, shells, pOrder, 'boundFaces')
+    
     # Writing boundary codes
     writeBC(base, deck, h5file, usedPshells, nbouns)
+    
     # Writing periodic boundaries
-    if len(periodicPshells) > 0:
-        # writeBounds(base, deck, h5file, nper, pershells, pOrder, 'periodicFaces')
-        perNodes = writeBoundsAlt(base, deck, h5file, nper, pershells, pOrder, 'periodicFaces')
-        # Writing periodic pairs
-        # periodicPair(base, deck, h5file, periodicPshells, nper, dims_group)
-        periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, perDist, pOrder)
+    ## writeBounds(base, deck, h5file, nper, pershells, pOrder, 'periodicFaces')
+    writeBoundsAlt(base, deck, h5file, nper, pershells, pOrder, 'periodicFaces')
+    
+    # Writing periodic pairs
+    ## periodicPair(base, deck, h5file, periodicPshells, nper, dims_group)
+    if nper > 0 and 'perDist' in globals():
+        periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, perDist, pOrder, nper)
+    elif nper == 0 and 'perDist' not in globals():
+        periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, 0.0, pOrder, nper)
+    else:
+        print('You have periodic boundaries defined in your mesh but not correclty defined the periodic distance. Check its definition and try again')
+        return
+
+    # Writing mapped boundaries
+    ## writeBounds(base, deck, h5file, nmapped, mappedshells, pOrder, 'mappedFaces')
+    writeBoundsAlt(base, deck, h5file, nmapped, mappedshells, pOrder, 'mappedFaces')
 
     # Writing elements
     writeElems(base, deck, h5file, nelems, pOrder)
-
     
     print('Writing .info.dat...' + '\n')
     writeInfo(base, deck, scaleFactor, usedPshells, path)
     print('.info.dat written...' + '\n')
 
     print("Done!!!")
-
 
 if __name__ == '__main__':
     main()
