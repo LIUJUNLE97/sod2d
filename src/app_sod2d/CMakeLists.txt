@@ -11,12 +11,14 @@ else()
                        ${CMAKE_CURRENT_LIST_DIR}/sources/*.f90)
 endif()
 include_directories(${CMAKE_BINARY_DIR}/modules)
-
-set(CPP_SRC_FILES 
-${CMAKE_CURRENT_LIST_DIR}/../lib_sod2d/sources/senseiCInterface.h
-${CMAKE_CURRENT_LIST_DIR}/../lib_sod2d/sources/senseiCInterface.cpp
-${CMAKE_CURRENT_LIST_DIR}/../lib_sod2d/sources/senseiDataAdaptor.h
-${CMAKE_CURRENT_LIST_DIR}/../lib_sod2d/sources/senseiDataAdaptor.cpp)
+find_package(SENSEI)
+if(SENSEI_found)
+   set(CPP_SRC_FILES 
+   ${CMAKE_CURRENT_LIST_DIR}/../lib_sod2d/sources/senseiCInterface.h
+   ${CMAKE_CURRENT_LIST_DIR}/../lib_sod2d/sources/senseiCInterface.cpp
+   ${CMAKE_CURRENT_LIST_DIR}/../lib_sod2d/sources/senseiDataAdaptor.h
+   ${CMAKE_CURRENT_LIST_DIR}/../lib_sod2d/sources/senseiDataAdaptor.cpp)
+endif()
 
 add_executable(${PROJECT_NAME} ${SRC_FILES} ${CPP_SRC_FILES})   # Build executable from listed sources
 set_property(TARGET ${PROJECT_NAME} PROPERTY LINKER_LANGUAGE Fortran)
@@ -29,11 +31,11 @@ else()
    set_jsonfortran()
 endif()
 
-find_package(SENSEI REQUIRED)
-
-find_file(SENSEI_CONFIG_FILE DOC "config for SENSEI's configuarable analysis adaptor" REQUIRED)
-target_compile_definitions(${PROJECT_NAME} PRIVATE SENSEI_CONFIG_FILE="${SENSEI_CONFIG_FILE}")
-target_link_libraries(${PROJECT_NAME} sensei)
+if(SENSEI_found)
+   find_file(SENSEI_CONFIG_FILE DOC "config for SENSEI's configuarable analysis adaptor" REQUIRED)
+   target_compile_definitions(${PROJECT_NAME} PRIVATE SENSEI_CONFIG_FILE="${SENSEI_CONFIG_FILE}")
+   target_link_libraries(${PROJECT_NAME} sensei)
+endif()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
 install(DIRECTORY ${CMAKE_Fortran_MODULE_DIRECTORY} DESTINATION include)

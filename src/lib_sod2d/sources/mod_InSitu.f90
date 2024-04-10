@@ -6,6 +6,7 @@ module mod_InSitu
 contains
 
    subroutine init_InSitu()
+#ifdef SENSEI_CONFIG_FILE
       implicit none
       integer rank, size, err
       integer(4) :: ii
@@ -19,11 +20,13 @@ contains
 !     do ii = 1,numElemsRankPar*nnode
 !        connecVTK(ii) = connecVTK(ii)-1
 !     end do
-
+#endif
    end subroutine init_InSitu
 
    subroutine end_InSitu()
+#ifdef SENSEI_CONFIG_FILE
       call finalize_sensei()
+#endif
    end subroutine end_InSitu
 
    subroutine run_InSitu(u,istep)
@@ -32,6 +35,7 @@ contains
       real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u
       integer(4) :: ielem,inode,inodeL
       logical, save :: first_time=.true.
+#ifdef SENSEI_CONFIG_FILE
       if(rp==4) then
          ! element list
          ! do ielem = 1,numElemsRankPar
@@ -58,6 +62,7 @@ contains
 
       end if
       first_time = .false.
+#endif
    end subroutine run_InSitu
 
 end module mod_InSitu

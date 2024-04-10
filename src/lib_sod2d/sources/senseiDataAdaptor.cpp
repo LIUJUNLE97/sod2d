@@ -76,7 +76,7 @@ int DataAdaptor::GetMesh(const std::string &meshName, bool structureOnly, svtkDa
     mesh = m_grid;
     return 0;
   }  
-  auto numPointsPerElement = 64; //4x4x4 SVTK_LAGRANGE_HEXAHEDRON
+  auto numPointsPerElement = 8; 
   auto numElements = numConnections / numPointsPerElement;
   auto grid = svtk::MakeSmartPointer(svtkUnstructuredGrid::New());
   std::cerr << "creating mesh with " << numVertices << " verticees, " << numElements << " elements and " << numConnections << " connections" << std::endl;
@@ -100,7 +100,7 @@ int DataAdaptor::GetMesh(const std::string &meshName, bool structureOnly, svtkDa
       {
           l->SetId(j, connectivity[i*numPointsPerElement + j]);
       }
-      grid->InsertNextCell(SVTK_LAGRANGE_HEXAHEDRON, l);
+      grid->InsertNextCell(SVTK_HEXAHEDRON, l);
   }
   
   mesh = grid;
