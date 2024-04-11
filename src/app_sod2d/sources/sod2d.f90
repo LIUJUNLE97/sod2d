@@ -29,7 +29,15 @@ program main
    call get_command_argument(1, json_filename)
 
    ! Append the extension
-   json_filename = trim(json_filename) // ".json"
+   json_filename = trim(json_filename)
+   if (json_filename == "") then 
+      write(*,*) " No configuration JSON file given on command line "
+      stop 1
+   end if
+   write(*,*) " json test ", json_filename(len_trim(json_filename) - 4:)
+   if(len_trim(json_filename) < 4 .or. json_filename(len_trim(json_filename) - 4:) /= ".json") then
+      json_filename = trim(json_filename) // ".json"
+   end if
    !write(*,*), "Reading the JSON file : ", json_filename
 
    call json%initialize()
