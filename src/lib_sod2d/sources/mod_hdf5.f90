@@ -4467,16 +4467,17 @@ contains
    end subroutine save_surface_results_hdf5_file
    !-------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine save_surface_mesh_hdf5_file(meshFile_h5_full_name,mnpbou,gmsh2ij,vtk2ij)
+   subroutine save_surface_mesh_hdf5_file(meshFile_h5_full_name,surface_meshFile_h5_full_name,mnpbou,gmsh2ij,vtk2ij)
       implicit none
       character(512),intent(in) :: meshFile_h5_full_name
+      character(512),intent(out) :: surface_meshFile_h5_full_name
       integer(4),intent(in) :: mnpbou,gmsh2ij(mnpbou),vtk2ij(mnpbou)
       integer(4) :: ds_rank,h5err
       integer(hsize_t),dimension(1) :: ds_dims,ms_dims
       integer(hssize_t),dimension(1) :: ms_offset
 
       integer(hid_t) :: hdf5_fileId
-      character(512) :: surface_meshFile_h5_full_name,groupname,dsetname
+      character(512) :: dsetname
       integer(hid_t) :: dtype
       integer(1),allocatable :: aux_array_i1(:)
       integer(8),allocatable :: aux_array_i8(:)
