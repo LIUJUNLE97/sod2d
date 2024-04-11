@@ -15,11 +15,11 @@ deck = constants.CGNS
 ###############################
 #####   Case Definition   #####
 ###############################
-path = "/home/sgome1/HAMR/TEST/"
-basename = 'tgv4'
+path = "/home/sgome1/ANSA2SOD/"
+basename = 'mapped'
 scaleFactor = 1.0
-perDist = 0.0
-mappedDist = 0.0 # Distance between the outlet and the inlet.
+perDists = [250,200,200] # List with the distances between periodic faces.
+mappedDist = 100 # Distance between the outlet and the inlet.
 mappedDir = 1 # Normal direction of the inlet patch. 1, 2 or 3 equivalent to x,y and z directions correspondingly.
 ###############################
 ##### End Case Definition #####
@@ -293,14 +293,14 @@ def checkShells(base, deck):
                 periodicPshells.append(pshell)
                 pidShells = base.CollectEntities(deck, pshell, 'SHELL', recursive = True)
                 pershells = pershells + pidShells
-            elif vals['TYPE'] == 'Extrapolate':
-                mappedPshells.append(pshell)
-                pidShells = base.CollectEntities(deck, pshell, 'SHELL', recursive = True)
-                mappedshells = mappedshells + pidShells
             else:
                 usedPshells.append(pshell)
                 pidShells = base.CollectEntities(deck, pshell, 'SHELL', recursive = True)
                 shells = shells + pidShells
+            if vals['TYPE'] == 'Extrapolate':
+                mappedPshells.append(pshell)
+                pidShells = base.CollectEntities(deck, pshell, 'SHELL', recursive = True)
+                mappedshells = mappedshells + pidShells
     return(len(shells), usedPshells, shells, len(pershells), periodicPshells, pershells, len(mappedshells), mappedPshells, mappedshells)
 
 # Renumber nodes
@@ -443,7 +443,9 @@ def periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, perDist, pO
     if nper != 0:
         parentPIDS = periodicPshells[:len(periodicPshells)//2]
         childPIDS = periodicPshells[len(periodicPshells)//2:]
+        iPer = 0
         for parentPID, childPID in zip(parentPIDS,childPIDS):
+            perDist = perDists[iPer]
             parentShells = base.CollectEntities(deck, parentPID, 'SHELL', recursive = True)
             childShells = base.CollectEntities(deck, childPID, 'SHELL', recursive = True)
             elems = base.CollectEntities(deck, None, 'SOLID', recursive = True)
@@ -490,6 +492,7 @@ def periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, perDist, pO
                 pairs = np.vstack((pairs,localPairs))
             else:
                 pairs = localPairs
+            iPer += 1
     else:
         pairs = np.zeros((0,2),dtype = 'int32')
     dset = dims_group.create_dataset('numPeriodicLinks',(1,),dtype='i8',data=len(pairs))
@@ -565,7 +568,7 @@ def main():
     if 'mappedDir' in globals() and 'mappedDist' in globals() and nmapped > 0:
         dset = mapped_group.create_dataset('dir',(1,),dtype='i8',data=mappedDir)
         dset = mapped_group.create_dataset('gap',(1,),dtype='f8',data=mappedDist)
-    elif mappedDir not in globals() and mappedDist not in globals() and nmapped == 0:
+    elif 'mappedDir' not in globals() and 'mappedDist' not in globals() and nmapped == 0:
         dset = mapped_group.create_dataset('dir',(1,),dtype='i8',data=1)
         dset = mapped_group.create_dataset('gap',(1,),dtype='f8',data=0.0)
     else:
@@ -591,10 +594,10 @@ def main():
     
     # Writing periodic pairs
     ## periodicPair(base, deck, h5file, periodicPshells, nper, dims_group)
-    if nper > 0 and 'perDist' in globals():
-        periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, perDist, pOrder, nper)
-    elif nper == 0 and 'perDist' not in globals():
-        periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, 0.0, pOrder, nper)
+    if nper > 0 and 'perDists' in globals():
+        periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, perDists, pOrder, nper)
+    elif nper == 0 and 'perDists' not in globals():
+        periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, [0.0], pOrder, nper)
     else:
         print('You have periodic boundaries defined in your mesh but not correclty defined the periodic distance. Check its definition and try again')
         return
