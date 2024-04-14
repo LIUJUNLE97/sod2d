@@ -123,8 +123,10 @@ contains
 ! ------------------------ VARS for Mesh Quality ----------------------------------------------------
 ! ################################################################################################
       type(jagged_vector_rp) :: quality_jv
-      real(rp) :: quality_elem
+      real(rp) :: quality_elem, auxAvg
       integer(4) :: ielem, ielemVTK
+      real(rp) :: maxQuality, minQuality, avgQuality
+      real(rp) :: rankMaxQuality, rankMinQuality, rankAvgQuality
 
 ! ################################################################################################
 ! ################################################################################################
@@ -385,22 +387,61 @@ contains
       !----------------------------------------------------------------------------------------------
       allocate(quality_jv%vector(numMshRanksInMpiRank))
       if(evalMeshQuality) then
-         if(mpi_rank.eq.0) write(*,*) "--| Evaluating mesh quality"
-         if(mpi_rank.eq.0) write(*,*) "----| List of tangled elements (GMSH global numeration)"
+         ! Open a file for outputting realted information
+         if(mpi_rank.eq.0) open(unit=555, file="meshQuality.txt", status="unknown", action="write", form="formatted")
+         if(mpi_rank.eq.0) write(555,*) "--| Evaluating mesh quality"
+         if(mpi_rank.eq.0) write(555,*) "----| List of tangled elements (GMSH global numeration)"
+         if(mpi_rank.eq.0) call flush(555)
+         ! Initialize vars to get high-level info about mesh quality
+         maxQuality = 0.0_rp          ! Max absolute
+         minQuality = 0.0_rp     ! Min absolute
+         avgQuality = 0.0_rp          ! Avg across all ranks
+         rankMaxQuality = 0.0_rp      ! Max in this rank
+         rankMinQuality = 100000.0_rp ! Min in this rank
+         rankAvgQuality = 0.0_rp      ! Avg in this rank
          do iMshRank=1,numMshRanksInMpiRank
             allocate(quality_jv%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
+            auxAvg = 0.0_rp
             do ielem = 1, numElemsMshRank(iMshRank)
                call eval_MeshQuality(numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),ielem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_elem)
+               ! Compute rank max, min and avg
+               rankMaxQuality = max(rankMaxQuality, quality_elem)
+               rankMinQuality = min(rankMinQuality, quality_elem)
+               auxAvg = auxAvg + quality_elem
                if (quality_elem < 0) then
-                  write(*,*) elemGidMshRank_jv%vector(iMshRank)%elems(ielem)
+                  ! Write data to file
+                  if(mpi_rank .eq. 0) then
+                     write(555,*) "----| Tangled element found in rank:", mpi_rank
+                     write(555,*) "------| Element:", ielem
+                     write(555,*) "------| Quality:", quality_elem
+                     write(555,*) "?", elemGidMshRank_jv%vector(iMshRank)%elems(ielem) ! TODO: ask this to Benet
+                  end if
+                  !write(*,*) elemGidMshRank_jv%vector(iMshRank)%elems(ielem)
                end if
                do ielemVTK = 1, numVTKElemsPerMshElem
                   quality_jv%vector(iMshRank)%elems((ielem-1)*numVTKElemsPerMshElem + ielemVTK) = quality_elem
                end do
             end do
+            auxAvg = auxAvg / numElemsMshRank(iMshRank)
+            rankAvgQuality = rankAvgQuality + auxAvg
          end do
-         if(mpi_rank.eq.0) write(*,*) "----| End of list of tangled elements"
-         if(mpi_rank.eq.0) write(*,*) "--| Mesh quality evaluated"
+         rankAvgQuality = rankAvgQuality / numMshRanksInMpiRank
+         if(mpi_rank.eq.0) write(555,*) "----| End of list of tangled elements"
+         if(mpi_rank.eq.0) write(555,*) "--| Mesh quality evaluated"
+         ! Compute max, min and avg across all ranks
+         call MPI_Allreduce(rankMaxQuality, maxQuality, 1, mpi_datatype_real, MPI_MAX, app_comm, mpi_err)
+         call MPI_Allreduce(rankMinQuality, minQuality, 1, mpi_datatype_real, MPI_MIN, app_comm, mpi_err)
+         call MPI_Allreduce(rankAvgQuality, avgQuality, 1, mpi_datatype_real, MPI_SUM, app_comm, mpi_err)
+         avgQuality = avgQuality / mpi_size
+         ! Write high-level data to file
+         if(mpi_rank.eq.0) then
+            write(555,*) "--| Mesh statistics"
+            write(555,*) "----| Max quality:", maxQuality
+            write(555,*) "----| Min quality:", minQuality
+            write(555,*) "----| Avg quality:", avgQuality
+         end if
+         ! Close the file
+         if(mpi_rank.eq.0) close(555)
       else
          do iMshRank=1,numMshRanksInMpiRank
             allocate(quality_jv%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
