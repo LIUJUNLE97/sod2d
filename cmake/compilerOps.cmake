@@ -181,9 +181,9 @@ else()
 endif()
 
 if(USE_SENSEI)
-	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-DSENSEI_CONFIG_FILE")
-	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-DSENSEI_CONFIG_FILE")
-	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-DSENSEI_CONFIG_FILE")
+	set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-DUSE_SENSEI")
+	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-DUSE_SENSEI")
+	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-DUSE_SENSEI")
 endif()
 
 # Adjust stringg so ; is removed from the command

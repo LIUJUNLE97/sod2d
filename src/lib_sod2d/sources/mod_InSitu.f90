@@ -6,7 +6,7 @@ module mod_InSitu
 contains
 
    subroutine init_InSitu()
-#ifdef SENSEI_CONFIG_FILE
+#ifdef USE_SENSEI
       implicit none
       integer rank, size, err
       integer(4) :: ii
@@ -24,7 +24,7 @@ contains
    end subroutine init_InSitu
 
    subroutine end_InSitu()
-#ifdef SENSEI_CONFIG_FILE
+#ifdef USE_SENSEI
       call finalize_sensei()
 #endif
    end subroutine end_InSitu
@@ -35,7 +35,7 @@ contains
       real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u
       integer(4) :: ielem,inode,inodeL
       logical, save :: first_time=.true.
-#ifdef SENSEI_CONFIG_FILE
+#ifdef USE_SENSEI
       if(rp==4) then
          ! element list
          ! do ielem = 1,numElemsRankPar
