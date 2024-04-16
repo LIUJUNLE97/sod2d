@@ -163,6 +163,8 @@ contains
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
+         rho(iNodeL,2) = this%rho0
+
          eta(iNodeL,2) =0.5_rp*dot_product(u(iNodeL,1:ndime,2),u(iNodeL,1:ndime,2))
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
 
