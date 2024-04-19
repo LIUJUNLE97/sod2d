@@ -2209,6 +2209,67 @@ contains
 
    end subroutine write_dataspace_1d_int8_hyperslab_parallel
 
+   subroutine write_dataspace_1d_int8_hyperslab_parallel_by_chunks(file_id,dsetname,ms_dims,ms_offset,array1d,maxChunkSize)
+      implicit none
+      integer(4),parameter :: ms_rank = 1
+      integer(hid_t),intent(in) :: file_id
+      character(len=*),intent(in) :: dsetname
+      integer(hsize_t),intent(in) :: ms_dims(ms_rank)
+      integer(hssize_t),intent(in) :: ms_offset(ms_rank)
+      integer(8),intent(in) :: array1d(ms_dims(1))
+      integer(4),intent(in) :: maxChunkSize
+      integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id
+      integer(hsize_t),dimension(ms_rank) :: fs_dims,fs_maxdims
+      integer(4) :: h5err
+      !-----------------------------------------------------------
+      integer(hsize_t) :: chunk_ms_dims(ms_rank)
+      integer(hssize_t) :: chunk_ms_offset(ms_rank)
+      integer(8) :: numChunksInRank,numChunksMax,chunkSize
+      integer(4) :: iChunk,iAux,iArray
+      integer(8), allocatable :: vecChunks(:)
+      integer(8), allocatable :: auxArray_i8(:)
+      !----------------------------------------------------------------------------------------------------------
+      !chunk2sing = 50
+
+      numChunksInRank = ceiling(real(ms_dims(1))/real(maxChunkSize))
+
+      call MPI_Allreduce(numChunksInRank,numChunksMax,1,mpi_datatype_int8,MPI_MAX,app_comm,mpi_err)
+
+      chunkSize = ceiling(real(ms_dims(1))/real(numChunksMax))
+
+      if(mpi_rank.eq.0) then
+         write(*,*) ' # Writing array ',trim(adjustl(dsetname)),' by chunks:'
+         write(*,*) '  -numChunks',numChunksMax,'chunkSize',chunkSize
+      end if
+
+      allocate(vecChunks(numChunksMax))
+      call distribution_algorithm_int8(ms_dims(1),numChunksMax,vecChunks)
+
+      !initial offset
+      chunk_ms_offset(1) = ms_offset(1)
+      iArray=0
+      do iChunk=1,numChunksMax
+         chunk_ms_dims(1) = int(vecChunks(iChunk),hsize_t)
+         allocate(auxArray_i8(chunk_ms_dims(1)))
+         !if((mpi_rank.eq.0).and.(mod(iChunk,chunk2sing).eq.0)) write(*,*) '  - Chunk(elems)',iChunk,'/',numChunks,'(chunksize',maxRows2read,')'
+
+         do iAux=1,chunk_ms_dims(1)
+            iArray=iArray+1
+            auxArray_i8(iAux) = array1d(iArray)
+         end do
+
+         call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,chunk_ms_dims,chunk_ms_offset,auxArray_i8)
+
+         deallocate(auxArray_i8)
+         chunk_ms_offset(1) = chunk_ms_offset(1) + chunk_ms_dims(1)
+      end do
+      !write(*,*) 'elemCnt',elemCnt,'numElemsRank',numElemsInRank
+
+      deallocate(vecChunks)
+      !----------------------------------------------------------------------------------------------------------
+
+   end subroutine write_dataspace_1d_int8_hyperslab_parallel_by_chunks
+
 
    subroutine read_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,array1d)
       implicit none
@@ -4863,14 +4924,14 @@ contains
 
    end subroutine create_groups_datasets_vtkhdf_unstructuredGrid_meshFile
 
-   subroutine write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,file_id,eval_mesh_quality,mshRank,numMshRanks2Part,numElemsMshRank,numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,mshRankElemStart,mshRankElemEnd,mshRankNodeStart_i8,mshRankNodeEnd_i8,numNodesMshRank,coordVTKMshRank,connecVTKMshRank,quality)
+   subroutine write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,file_id,eval_mesh_quality,mshRank,numMshRanks2Part,numElemsMshRank,numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,mshRankElemStart,mshRankElemEnd,mshRankNodeStart_i8,mshRankNodeEnd_i8,numNodesMshRank,coordVTKMshRank,connecVTKMshRank,quality,connecChunkSize)
       implicit none
       integer(hid_t),intent(in) :: file_id
       logical, intent(in) :: eval_mesh_quality
       integer(4),intent(in) :: mporder,mnnode,mshRank,numMshRanks2Part
       integer(4),intent(in) :: numElemsMshRank,numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,mshRankElemStart,mshRankElemEnd
       integer(8),intent(in) :: mshRankNodeStart_i8,mshRankNodeEnd_i8
-      integer(4),intent(in) :: numNodesMshRank
+      integer(4),intent(in) :: numNodesMshRank,connecChunkSize
       real(rp),intent(in)   :: coordVTKMshRank(numNodesMshRank,3), quality(numVTKElemsPerMshElem)
       integer(4),intent(in) :: connecVTKMshRank(sizeConnecVTKMshRank)
 
@@ -4944,7 +5005,8 @@ contains
          aux_array_i8(ii) = connecVTKMshRank(ii)-1
       end do
 
-      call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
+      call write_dataspace_1d_int8_hyperslab_parallel_by_chunks(file_id,dsetname,ms_dims,ms_offset,aux_array_i8,connecChunkSize)
+      !call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
       deallocate(aux_array_i8)
 
       !-----------------------------------------------------------------------------
@@ -4982,10 +5044,10 @@ contains
 
    end subroutine write_mshRank_data_vtkhdf_unstructuredGrid_meshFile
 
-   subroutine dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(file_id,eval_mesh_quality,numMshRanks2Part)
+   subroutine dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(file_id,eval_mesh_quality,numMshRanks2Part,connecChunkSize)
       implicit none
       integer(hid_t),intent(in) :: file_id
-      integer(4),intent(in) :: numMshRanks2Part
+      integer(4),intent(in) :: numMshRanks2Part,connecChunkSize
       logical,intent(in) :: eval_mesh_quality
       integer(hsize_t), dimension(1) :: ms_dims
       integer(hsize_t), dimension(2) :: ms_dims2d
@@ -5033,7 +5095,8 @@ contains
 
       !-----------------------------------------------------------------------------
       dsetname = '/VTKHDF/Connectivity'
-      call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,empty_array_i8)
+      call write_dataspace_1d_int8_hyperslab_parallel_by_chunks(file_id,dsetname,ms_dims,ms_offset,empty_array_i8,connecChunkSize)
+      !call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,empty_array_i8)
 
       !-----------------------------------------------------------------------------
       dsetname = '/VTKHDF/Types'

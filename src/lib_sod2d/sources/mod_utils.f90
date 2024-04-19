@@ -618,6 +618,28 @@ contains
 
    end subroutine distribution_algorithm
 
+   subroutine distribution_algorithm_int8(elems2dist,num2div,finalElemDist)
+      implicit none
+      integer(8),intent(in) :: elems2dist,num2div
+      integer(8),intent(out) :: finalElemDist(num2div)
+      integer(8) :: ii,auxDiv,remainingE2D,elems2me
+
+      remainingE2D = elems2dist
+      do ii = 1,num2div
+         auxDiv = num2div-(ii - 1)
+         elems2me = remainingE2D / auxDiv
+         finalElemDist(ii) = elems2me
+         remainingE2D = remainingE2D - elems2me
+         !write(*,*) 'ii',ii,'auxD',auxDiv,'e2m',elems2me,'rE2D',remainingE2D
+      end do
+
+      if(remainingE2D.ne.0) then
+         write(*,*) 'MASSIVE ERROR IN distribution_algorithm in mod_utils.f90! Check!'
+         call MPI_Abort(app_comm,-1,mpi_err)
+      end if
+      !write(*,*) 'elems2dist',elems2dist,'num2div',num2div,'finalElemD',finalElemDist(:)
+
+   end subroutine distribution_algorithm_int8
 
 end module mod_utils
 
