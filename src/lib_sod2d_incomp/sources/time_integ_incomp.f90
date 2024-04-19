@@ -49,7 +49,7 @@ module time_integ_incomp
       !$acc enter data create(auxReta(:),f_eta(:,:),Reta(:,:))
    
       !$acc kernels
-      Rmom(1:npoin,1:ndime,1:2) = 0.0_rp
+      Rmom(1:npoin,1:ndime,1:3) = 0.0_rp
       Rsource(1:npoin,1:ndime) = 0.0_rp
       Rwmles(1:npoin,1:ndime) = 0.0_rp
       !$acc end kernels
