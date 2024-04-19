@@ -1186,7 +1186,7 @@ contains
       integer(8), allocatable, intent(inout) :: connecFacesInRank_i8(:,:)
 
       integer(4) :: iFace,iChunk,iFaceG,numFacesToRead,iElem,iVert,ind_gmsh,iElemL,iElemG,iAux,jAux,nodeCnt
-      integer(4) :: faces2readInChunk,maxFaces2read,face2sing=50
+      integer(4) :: faces2readInChunk,maxFaces2read,face2sing=50000
       integer(8) :: iNodeG_inFace,iNodeG_inElem,iFaceNodes_i8(mnpbou)
       integer(8),allocatable :: auxFacesInRank_i8(:,:)
       logical :: vertexFound
