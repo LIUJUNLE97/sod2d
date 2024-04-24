@@ -99,6 +99,9 @@ contains
       call json%get("Re",this%Re, found,1600.0_rp); call this%checkFound(found,found_aux)
       call json%get("gamma_gas",this%gamma_gas, found,1.4_rp); call this%checkFound(found,found_aux)
 
+      call json%get("flag_rk_ls",flag_rk_ls, found,.false.); 
+      call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
+
       ! fixed by the type of base class parameters
       this%Rgas = this%V0*this%V0/(this%gamma_gas*this%T0*this%Ma*this%Ma)
       this%Cp = this%gamma_gas*this%Rgas/(this%gamma_gas-1.0_rp)

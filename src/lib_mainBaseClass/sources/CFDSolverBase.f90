@@ -55,6 +55,7 @@ module CFDSolverBase_mod
       use mod_geom
       use time_integ
       use time_integ_imex
+      use time_integ_ls
       use mod_analysis
       use mod_numerical_params
       use mod_time_ops
@@ -463,7 +464,11 @@ contains
             call init_imex_solver(numNodesRankPar)
          end if
       else 
-         call init_rk4_solver(numNodesRankPar)
+         if(flag_rk_ls .eqv. .false.) then
+            call init_rk4_solver(numNodesRankPar)
+         else
+            call init_rk4_ls_solver(numNodesRankPar)
+         end if
       end if
 
    end subroutine CFDSolverBase_initNSSolver
@@ -476,7 +481,11 @@ contains
             call end_imex_solver()
          end if
       else 
-         call end_rk4_solver()
+         if(flag_rk_ls .eqv. .false.) then
+            call end_rk4_solver()
+         else
+            call end_rk4_ls_solver()
+         end if
       end if
 
    end subroutine CFDSolverBase_endNSSolver

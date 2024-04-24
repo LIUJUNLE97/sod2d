@@ -39,7 +39,7 @@ module elem_diffu
              call nvtxStartRange("Full diffusion")
              twoThirds = 2.0_rp/3.0_rp
              if(present(initialze)) then
-               if (initialze .eq. .true.) then
+               if (initialze .eqv. .true.) then
                !$acc kernels
                   Rmom(:,:) = 0.0_rp
                   Rmass(:) = 0.0_rp
