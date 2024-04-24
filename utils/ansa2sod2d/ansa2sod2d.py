@@ -4,7 +4,7 @@
 #
 # Export a mesh from Ansa to Sod2D format.
 #
-# Last rev: 04/04/2024
+# Last rev: 24/04/2024
 
 import h5py, numpy as np
 
@@ -21,6 +21,7 @@ scaleFactor = 1.0
 perDists = [250,200,200] # List with the distances between periodic faces.
 mappedDist = 100 # Distance between the outlet and the inlet.
 mappedDir = 1 # Normal direction of the inlet patch. 1, 2 or 3 equivalent to x,y and z directions correspondingly.
+nBatches = 10
 ###############################
 ##### End Case Definition #####
 ###############################
@@ -317,13 +318,22 @@ def renumberNodes(base, deck, nnodes):
         i+=1
 
 # Write nodes
-def writeNodes(base, deck, h5file, scaleFactor, nnodes):
-    xyz = np.zeros((nnodes,3))
-    for i in range(1, nnodes+1):
-        node = base.GetEntity(deck, 'NODE', i)
-        vals = base.GetEntityCardValues(deck, node, ['X', 'Y', 'Z'])
-        xyz[i-1,:] = np.array([vals['X'],vals['Y'],vals['Z']])*scaleFactor
-    nodes_dset = h5file.create_dataset('coords',(nnodes,3),dtype='f8',data=xyz,chunks=True,maxshape=(nnodes,3))
+def writeNodes(base, deck, h5file, scaleFactor, nnodes, numBatches):
+    ranges = np.linspace(1,nnodes+1,numBatches+1,dtype='int32')
+    for iBatch  in range(numBatches):
+        iniNode = ranges[iBatch]
+        endNode = ranges[iBatch+1]
+        nNodesInRange = endNode-iniNode
+        xyz = np.zeros((nNodesInRange,3))
+        for i,iNode in enumerate(range(iniNode, endNode)):
+            node = base.GetEntity(deck, 'NODE', iNode)
+            vals = base.GetEntityCardValues(deck, node, ['X', 'Y', 'Z'])
+            xyz[i,:] = np.array([vals['X'],vals['Y'],vals['Z']])*scaleFactor
+        if iBatch == 0:
+            nodes_dset = h5file.create_dataset('coords',(nNodesInRange,3),dtype='f8',data=xyz,chunks=True,maxshape=(None,3))
+        else:
+            h5file['coords'].resize((h5file['coords'].shape[0] + nNodesInRange), axis=0)
+            h5file['coords'][-nNodesInRange:] = xyz
     del xyz
 
 # Write boundary elements
@@ -375,24 +385,32 @@ def getElemFaceNodes(deck, base, elemID, shell, pOrder):
             break
     return bound
 
-def writeBoundsAlt(base, deck, h5file, nshells, shells, pOrder, nameDataSet):
+def writeBoundsAlt(base, deck, h5file, nshells, shells, pOrder, nameDataSet, numBatches):
     nnodeB = (pOrder+1)**2
-    bounds = np.zeros((nshells,nnodeB))
     if nshells > 0:
+        order = ordering(pOrder,'GMSH').getIJ2_()
         elems = base.CollectEntities(deck, None, 'SOLID', recursive = True)
         pairs = mesh.MatchShellsAndSolids(shells, elems)
         del elems
         d={}
         for i in range(int(len(pairs)/2)):
             d[pairs[i*2-2]._id] = pairs[i*2-1]._id
-        for iShell,shell in enumerate(shells):
-            bound = getElemFaceNodes(deck, base, d[shell._id], shell, pOrder)
-            bounds[iShell,:] = bound
-        order = ordering(pOrder,'GMSH').getIJ2_()
-        bounds = bounds[:,order]
-    bounds_dset = h5file.create_dataset(nameDataSet,(nshells,nnodeB),dtype='i8',data=bounds,
-    chunks=True,maxshape=(nshells,nnodeB))
-    del bounds
+        ranges = np.linspace(0,nshells,numBatches+1,dtype='int32')
+        for iBatch  in range(numBatches):
+            iniElem = ranges[iBatch]
+            endElem = ranges[iBatch+1]
+            nElemsInRange = endElem-iniElem
+            bounds = np.zeros((nElemsInRange,nnodeB))
+            for iShell,shell in enumerate(shells[iniElem:endElem]):
+                bound = getElemFaceNodes(deck, base, d[shell._id], shell, pOrder)
+                bounds[iShell,:] = bound
+            bounds = bounds[:,order]
+            if iBatch == 0:
+                bounds_dset = h5file.create_dataset(nameDataSet,(nElemsInRange,nnodeB),dtype='i8',data=bounds,chunks=True,maxshape=(None,nnodeB))
+            else:
+                h5file[nameDataSet].resize((h5file[nameDataSet].shape[0] + nElemsInRange), axis=0)
+                h5file[nameDataSet][-nElemsInRange:] = bounds
+        del bounds
 
 # Write boundary codes
 def writeBC(base, deck, h5file, usedPshells, nbouns):
@@ -501,20 +519,28 @@ def periodicPairAlt(base, deck, h5file, periodicPshells, dims_group, perDist, pO
     del pairs
 
 # Write solids
-def writeElems(base, deck, h5file, nelems,pOrder):
+def writeElems(base, deck, h5file, nelems, pOrder, numBatches):
     nodes = ordering(pOrder,'CGNS')._nodesIJK
     NOD_HEXA = ordering(pOrder,'CGNS').nodesAnsa(nodes)
     nnodeE = len(NOD_HEXA)
-    connec = np.zeros((nelems,nnodeE))
     elems = base.CollectEntities(deck, None, 'SOLID', recursive = True)
-    for i, elem in enumerate(elems):
-        hvals = base.GetEntityCardValues(deck, elem, NOD_HEXA)
-        for j in range(len(NOD_HEXA)):
-            connec[i,j] = hvals[NOD_HEXA[j]]
     order = ordering(pOrder,'GMSH').getIJK2_()
-    connec = connec[:,order]
-    connec_dset = h5file.create_dataset('connec',(nelems,nnodeE),dtype='i8',data=connec,
-        chunks=True,maxshape=(nelems,nnodeE))
+    ranges = np.linspace(0,nelems,numBatches+1,dtype='int32')
+    for iBatch  in range(numBatches):
+        iniElem = ranges[iBatch]
+        endElem = ranges[iBatch+1]
+        nElemsInRange = endElem-iniElem
+        connec = np.zeros((nElemsInRange,nnodeE))
+        for i, elem in enumerate(elems[iniElem:endElem]):
+            hvals = base.GetEntityCardValues(deck, elem, NOD_HEXA)
+            for j in range(len(NOD_HEXA)):
+                connec[i,j] = hvals[NOD_HEXA[j]]
+        connec = connec[:,order]
+        if iBatch == 0:
+            connec_dset = h5file.create_dataset('connec',(nElemsInRange,nnodeE),dtype='i8',data=connec,chunks=True,maxshape=(None,nnodeE))
+        else:
+            h5file['connec'].resize((h5file['connec'].shape[0] + nElemsInRange), axis=0)
+            h5file['connec'][-nElemsInRange:] = connec
     del elems
 
 # Write important information about the domain, geometry and boundary codes files
@@ -575,22 +601,27 @@ def main():
         print('You have mapped inlets defined in your mesh but not correctly defined the mapped distance and direction. Check their definitions and try again')
         return
 
+    if 'nBatches' not in globals():
+        numBatches = 1
+    else:
+        numBatches = nBatches
+
     # Renumbering nodes
     renumberNodes(base, deck, nnodes)
     
     # Writing nodes coordinates
-    writeNodes(base, deck, h5file, scaleFactor, nnodes)
+    writeNodes(base, deck, h5file, scaleFactor, nnodes, numBatches)
     
     # Writing boundaries
     # writeBounds(base, deck, h5file, nbouns, shells, pOrder, 'boundFaces')
-    writeBoundsAlt(base, deck, h5file, nbouns, shells, pOrder, 'boundFaces')
+    writeBoundsAlt(base, deck, h5file, nbouns, shells, pOrder, 'boundFaces', numBatches)
     
     # Writing boundary codes
     writeBC(base, deck, h5file, usedPshells, nbouns)
     
     # Writing periodic boundaries
     ## writeBounds(base, deck, h5file, nper, pershells, pOrder, 'periodicFaces')
-    writeBoundsAlt(base, deck, h5file, nper, pershells, pOrder, 'periodicFaces')
+    writeBoundsAlt(base, deck, h5file, nper, pershells, pOrder, 'periodicFaces', numBatches)
     
     # Writing periodic pairs
     ## periodicPair(base, deck, h5file, periodicPshells, nper, dims_group)
@@ -604,10 +635,10 @@ def main():
 
     # Writing mapped boundaries
     ## writeBounds(base, deck, h5file, nmapped, mappedshells, pOrder, 'mappedFaces')
-    writeBoundsAlt(base, deck, h5file, nmapped, mappedshells, pOrder, 'mappedFaces')
+    writeBoundsAlt(base, deck, h5file, nmapped, mappedshells, pOrder, 'mappedFaces', numBatches)
 
     # Writing elements
-    writeElems(base, deck, h5file, nelems, pOrder)
+    writeElems(base, deck, h5file, nelems, pOrder, numBatches)
     
     print('Writing .info.dat...' + '\n')
     writeInfo(base, deck, scaleFactor, usedPshells, path)
