@@ -13,7 +13,6 @@
 *.h5
 *.log
 *.dat
-*.py
 *.hdf
 *.sh
 *.err

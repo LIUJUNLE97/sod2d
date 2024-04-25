@@ -178,6 +178,22 @@ contains
       call json%get("vinf",this%vinf, found,8.0_rp); call this%checkFound(found,found_aux)
       call json%get("rough",this%rough, found,0.1682_rp); call this%checkFound(found,found_aux)
 
+      !Witness points parameters
+      call json%get("have_witness",this%have_witness, found,.false.)
+      if(this%have_witness .eqv. .true.) then
+         call json%get("witness_inp_file_name",value, found,"witness.txt"); call this%checkFound(found,found_aux)
+         write(this%witness_inp_file_name,*) value
+         call json%get("witness_h5_file_name",value, found,"resultwit.h5"); call this%checkFound(found,found_aux)
+         write(this%witness_h5_file_name,*) value
+
+         call json%get("leapwit",this%leapwit, found,1); call this%checkFound(found,found_aux)
+         call json%get("nwit",this%nwit, found,17986); call this%checkFound(found,found_aux)
+         call json%get("wit_save_u_i",this%wit_save_u_i, found,.true.); call this%checkFound(found,found_aux)
+         call json%get("wit_save_pr",this%wit_save_pr, found,.true.); call this%checkFound(found,found_aux)
+         call json%get("wit_save_rho",this%wit_save_rho, found,.true.); call this%checkFound(found,found_aux)
+         call json%get("continue_witness",this%continue_witness, found,.false.); call this%checkFound(found,found_aux)
+      end if  
+
       ! fixed by the type of base class parameters
       flag_fs_fix_pressure = .false.
       flag_type_wmles = wmles_type_abl
