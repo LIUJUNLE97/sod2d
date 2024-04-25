@@ -421,7 +421,7 @@ contains
             allocate(quality_jv%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
             auxAvg = 0.0_rp
             do ielem = 1, numElemsMshRank(iMshRank)
-               call eval_MeshQuality(numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),ielem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_elem)
+               call eval_MeshQuality(mnnode,mngaus,numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),ielem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_elem)
                ! Compute rank max, min and avg
                rankMaxQuality = max(rankMaxQuality, quality_elem)
                rankMinQuality = min(rankMinQuality, quality_elem)
