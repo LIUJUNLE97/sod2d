@@ -135,6 +135,9 @@ contains
       call json%get("Retau",this%Retau, found,950.0_rp); call this%checkFound(found,found_aux)
       call json%get("gamma_gas",this%gamma_gas, found,1.4_rp); call this%checkFound(found,found_aux)
 
+      call json%get("flag_rk_ls",flag_rk_ls, found,.false.); 
+      call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
+
       ! fixed by the type of base class parameters
       this%Re     = exp((1.0_rp/0.88_rp)*log(this%Retau/0.09_rp))
       this%mu    = (this%rho0*2.0_rp*this%delta*this%vo)/this%Re
