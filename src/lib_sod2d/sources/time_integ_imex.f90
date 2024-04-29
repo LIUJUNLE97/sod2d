@@ -303,6 +303,7 @@ module time_integ_imex
 
                if (noBoundaries .eqv. .false.) then
                   call nvtxStartRange("BCS_AFTER_UPDATE")
+                  if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet(q(:,:,2),u(:,:,2),rho(:,2),E(:,2),pr(:,2))
                   call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,rho(:,2),q(:,:,2),u(:,:,2),pr(:,2),E(:,2),u_buffer)
                   call nvtxEndRange
                end if

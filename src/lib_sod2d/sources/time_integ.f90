@@ -255,6 +255,7 @@ module time_integ
                !
                if (noBoundaries .eqv. .false.) then
                   call nvtxStartRange("BCS_AFTER_UPDATE")
+                  if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet(aux_q(:,:),aux_u(:,:),aux_rho(:),aux_E(:),aux_pr(:))
                   call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,aux_rho(:),aux_q(:,:),aux_u(:,:),aux_pr(:),aux_E(:),u_buffer)
                   call nvtxEndRange
                end if
@@ -433,6 +434,7 @@ module time_integ
             !
             if (noBoundaries .eqv. .false.) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
+               if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet(q(:,:,pos),u(:,:,pos),rho(:,pos),E(:,pos),pr(:,pos))
                call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos),u_buffer)
                call nvtxEndRange
             end if

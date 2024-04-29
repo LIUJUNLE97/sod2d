@@ -349,16 +349,7 @@ module time_integ_incomp
                         
             if (noBoundaries .eqv. .false.) then
 
-               if(isMappedFaces.and.isMeshPeriodic) then
-                  !$acc parallel loop
-                  do iPer = 1,nPerRankPar
-                     u(masSlaRankPar(iPer,2),1,1) = u(masSlaRankPar(iPer,1),1,1)
-                     u(masSlaRankPar(iPer,2),2,1) = u(masSlaRankPar(iPer,1),2,1)
-                     u(masSlaRankPar(iPer,2),3,1) = u(masSlaRankPar(iPer,1),3,1)
-                  end do
-                  !$acc end parallel loop
-               end if
-
+               if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet_incomp(u(:,:,1))
                call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,1),u_buffer)
             end if
 
@@ -370,15 +361,7 @@ module time_integ_incomp
 
             if (noBoundaries .eqv. .false.) then
 
-               if(isMappedFaces.and.isMeshPeriodic) then
-                  !$acc parallel loop
-                  do iPer = 1,nPerRankPar
-                     u(masSlaRankPar(iPer,2),1,2) = u(masSlaRankPar(iPer,1),1,2)
-                     u(masSlaRankPar(iPer,2),2,2) = u(masSlaRankPar(iPer,1),2,2)
-                     u(masSlaRankPar(iPer,2),3,2) = u(masSlaRankPar(iPer,1),3,2)
-                  end do
-                  !$acc end parallel loop
-               end if
+               if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet_incomp(u(:,:,2))
 
                call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer)
                !$acc kernels
