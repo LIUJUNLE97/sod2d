@@ -139,7 +139,7 @@ module time_integ_incomp
             real(rp), optional, intent(in)      :: source_term(npoin,ndime)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
             real(rp), optional, intent(in)      :: zo(npoin)
-            integer(4)                          :: istep, ipoin, idime,icode
+            integer(4)                          :: istep,ipoin,idime,icode,iPer
 
             call nvtxStartRange("AB2 init")
             if(iltime .eq. 1) then
@@ -348,6 +348,17 @@ module time_integ_incomp
             !$acc end parallel loop
                         
             if (noBoundaries .eqv. .false.) then
+
+               if(isMappedFaces.and.isMeshPeriodic) then
+                  !$acc parallel loop
+                  do iPer = 1,nPerRankPar
+                     u(masSlaRankPar(iPer,2),1,1) = u(masSlaRankPar(iPer,1),1,1)
+                     u(masSlaRankPar(iPer,2),2,1) = u(masSlaRankPar(iPer,1),2,1)
+                     u(masSlaRankPar(iPer,2),3,1) = u(masSlaRankPar(iPer,1),3,1)
+                  end do
+                  !$acc end parallel loop
+               end if
+
                call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,1),u_buffer)
             end if
 
@@ -358,6 +369,17 @@ module time_integ_incomp
             if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,u(:,:,2),u_buffer)
 
             if (noBoundaries .eqv. .false.) then
+
+               if(isMappedFaces.and.isMeshPeriodic) then
+                  !$acc parallel loop
+                  do iPer = 1,nPerRankPar
+                     u(masSlaRankPar(iPer,2),1,2) = u(masSlaRankPar(iPer,1),1,2)
+                     u(masSlaRankPar(iPer,2),2,2) = u(masSlaRankPar(iPer,1),2,2)
+                     u(masSlaRankPar(iPer,2),3,2) = u(masSlaRankPar(iPer,1),3,2)
+                  end do
+                  !$acc end parallel loop
+               end if
+
                call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer)
                !$acc kernels
                aux_omega(:,:,3) = aux_omega(:,:,1)
