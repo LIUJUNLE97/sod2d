@@ -180,7 +180,7 @@ module time_integ_ls
             integer(4)                          :: pos
             integer(4)                          :: istep, ipoin, idime,icode
             real(rp),    dimension(npoin)       :: Rrho
-            real(rp)                            :: umag
+            real(rp)                            :: umag, rho_min, rho_avg
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! New version of RK4 using loops                 !
@@ -241,6 +241,7 @@ module time_integ_ls
                   call nvtxEndRange
                end if
 
+
                !
                ! Update velocity and equations of state
                !
@@ -260,7 +261,7 @@ module time_integ_ls
                end do
                !$acc end parallel loop
                call nvtxEndRange
-
+                
                ! Compute viscosities and diffusion
                !
                !
@@ -360,8 +361,11 @@ module time_integ_ls
                end do
                !$acc end parallel loop
                call nvtxEndRange
+               !call limit_rho(nelem,npoin,connec,rho(:,pos),epsilon(umag))
             end do
             call nvtxEndRange
+
+
 
             if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,rho(:,pos),q(:,:,pos),E(:,pos),u_buffer)
 
@@ -419,7 +423,7 @@ module time_integ_ls
             !$acc parallel loop
             do ipoin = 1,npoin_w
                auxReta(lpoin_w(ipoin)) = (1.5_rp*Reta(lpoin_w(ipoin),2)-0.5_rp*Reta(lpoin_w(ipoin),1)) !+ &
- !                                             (eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+                                              !(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
                Reta(lpoin_w(ipoin),1) = Reta(lpoin_w(ipoin),2)            
             end do
             !$acc end parallel loop
@@ -462,5 +466,37 @@ module time_integ_ls
             end if
 
          end subroutine rk_4_ls_main
+
+         subroutine limit_rho(nelem,npoin,connec,rho,eps)  
+
+            implicit none
+
+            integer(4),           intent(in)    :: nelem,npoin,connec(nelem,nnode)
+            real(rp),             intent(in)    :: eps
+            real(rp),             intent(inout) :: rho(npoin)
+            real(rp)                            :: rho_min, rho_avg, fact
+            integer(4)                          :: ielem, inode, ipoin
+
+            !$acc parallel loop 
+            do ielem = 1,nelem
+                rho_min = real(1e6, rp)
+                rho_avg = 0.0_rp
+                !$acc loop seq
+                do inode = 1,nnode
+                        ipoin = connec(ielem,inode)
+                        rho_min = min(rho_min, rho(ipoin))
+                        rho_avg = rho_avg + rho(ipoin)
+                end do
+                rho_avg = rho_avg/real(nnode,rp)
+                fact = min(1.0_rp,(rho_avg-eps)/(rho_avg-rho_min))
+                !$acc loop seq
+                do inode = 1,nnode
+                        ipoin = connec(ielem,inode)
+                        rho(ipoin) = rho_avg + fact*(rho(ipoin)-rho_avg)
+                end do
+             end do
+            !$acc end parallel loop
+
+            end subroutine limit_rho
 
       end module time_integ_ls
