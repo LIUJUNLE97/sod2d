@@ -131,7 +131,7 @@ contains
       nscbc_Rgas_inf = this%Rgas
 
       !Witness points parameters
-      call json%get("have_witness",this%have_witness, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("have_witness",this%have_witness, found,.false.)
       if(this%have_witness .eqv. .true.) then
          call json%get("witness_inp_file_name",value, found,"witness.txt"); call this%checkFound(found,found_aux)
          write(this%witness_inp_file_name,*) value

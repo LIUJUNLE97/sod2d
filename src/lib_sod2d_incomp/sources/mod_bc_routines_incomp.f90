@@ -158,4 +158,19 @@ module mod_bc_routines_incomp
 
          end subroutine bc_routine_pressure_flux
 
+         subroutine copy_periodicNodes_for_mappedInlet_incomp(uField)
+            implicit none
+            real(rp),intent(inout) :: uField(numNodesRankPar,ndime)
+            integer(4) :: iPer
+
+            !$acc parallel loop
+            do iPer = 1,nPerRankPar
+               uField(masSlaRankPar(iPer,2),1) = uField(masSlaRankPar(iPer,1),1)
+               uField(masSlaRankPar(iPer,2),2) = uField(masSlaRankPar(iPer,1),2)
+               uField(masSlaRankPar(iPer,2),3) = uField(masSlaRankPar(iPer,1),3)
+            end do
+            !$acc end parallel loop
+
+         end subroutine copy_periodicNodes_for_mappedInlet_incomp
+
       end module mod_bc_routines_incomp

@@ -303,4 +303,29 @@ subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound
             !$acc end parallel loop
 
          end subroutine bc_fix_dirichlet_residual_entropy
+
+         subroutine copy_periodicNodes_for_mappedInlet(q,u,rho,E,p)
+            implicit none
+            real(rp),intent(inout) :: rho(numNodesRankPar),q(numNodesRankPar,ndime),u(numNodesRankPar,ndime),p(numNodesRankPar),E(numNodesRankPar)
+            integer(4) :: iPer
+
+            !$acc parallel loop
+            do iPer = 1,nPerRankPar
+               u(masSlaRankPar(iPer,2),1) = u(masSlaRankPar(iPer,1),1)
+               u(masSlaRankPar(iPer,2),2) = u(masSlaRankPar(iPer,1),2)
+               u(masSlaRankPar(iPer,2),3) = u(masSlaRankPar(iPer,1),3)
+
+               q(masSlaRankPar(iPer,2),1) = q(masSlaRankPar(iPer,1),1)
+               q(masSlaRankPar(iPer,2),2) = q(masSlaRankPar(iPer,1),2)
+               q(masSlaRankPar(iPer,2),3) = q(masSlaRankPar(iPer,1),3)
+               
+               rho(masSlaRankPar(iPer,2)) = rho(masSlaRankPar(iPer,1))
+               E(masSlaRankPar(iPer,2))   = E(masSlaRankPar(iPer,1))
+               p(masSlaRankPar(iPer,2))   = p(masSlaRankPar(iPer,1))
+            end do
+            !$acc end parallel loop
+
+         end subroutine copy_periodicNodes_for_mappedInlet
+
+
       end module mod_bc_routines

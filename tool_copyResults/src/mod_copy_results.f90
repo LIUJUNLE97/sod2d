@@ -24,7 +24,7 @@ contains
       logical :: evalMeshQuality=.false.
       integer(8),dimension(0:target_Nprocs-1) :: iNodeStartPar_i8
 
-      integer(4) :: iTrgtRank,trgtRank
+      integer(4) :: iTrgtRank,trgtRank,connecChunkSize
       integer(4) :: trgtRankInMpiRankStart,trgtRankInMpiRankEnd,numTrgtRanksInMpiRank,maxNumTrgtRanks
       integer(4),allocatable :: trgtRanksInMpiRank(:),mapTrgtRankToMpiRank(:)
 
@@ -157,6 +157,8 @@ contains
       !---------------------------------------------------------------------------------------------------------------
       if(mpi_rank.eq.0) write(*,*) ' 3. Generating new mesh partitioned in',target_Nprocs,'N procs'
 
+      connecChunkSize = 10000000
+
       !call create_hdf5_file(target_full_resultsFile_h5,targetRes_hdf5_file_id)
       call create_hdf5_file(target_meshFile_h5_full_name,targetMesh_hdf5_file_id)
       
@@ -169,11 +171,11 @@ contains
         call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,targetMesh_hdf5_file_id,evalMeshQuality,trgtRank,target_Nprocs,&
             numElemsTrgtRank(iTrgtRank),numElemsVTKTrgtRank(iTrgtRank),sizeConnecVTKTrgtRank(iTrgtRank),mesh_VTKnnode,mesh_numVTKElemsPerMshElem,&
             trgtRankElemStart(iTrgtRank),trgtRankElemEnd(iTrgtRank),trgtRankNodeStart_i8(iTrgtRank),trgtRankNodeEnd_i8(iTrgtRank),numNodesTrgtRank(iTrgtRank),&
-            coordVTKTrgtRank_jm%matrix(iTrgtRank)%elems,connecVTKTrgtRank_jv%vector(iTrgtRank)%elems,quality_jv%vector(iTrgtRank)%elems)
+            coordVTKTrgtRank_jm%matrix(iTrgtRank)%elems,connecVTKTrgtRank_jv%vector(iTrgtRank)%elems,quality_jv%vector(iTrgtRank)%elems,connecChunkSize)
       end do
 
       do iTrgtRank=(numTrgtRanksInMpiRank+1),maxNumTrgtRanks
-        call dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(targetMesh_hdf5_file_id,evalMeshQuality,target_Nprocs)
+        call dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(targetMesh_hdf5_file_id,evalMeshQuality,target_Nprocs,connecChunkSize)
       end do
 
       call close_hdf5_file(targetMesh_hdf5_file_id)
