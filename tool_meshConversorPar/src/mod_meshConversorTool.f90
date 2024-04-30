@@ -123,10 +123,13 @@ contains
 ! ------------------------ VARS for Mesh Quality ----------------------------------------------------
 ! ################################################################################################
       type(jagged_vector_rp) :: quality_jv
-      real(rp) :: quality_elem, auxAvg
-      integer(4) :: ielem, ielemVTK
+      real(rp) :: quality_elem,auxAvg,elemVertOrig(3)
+      integer(4) :: iElem,iNode,iElemVTK,iElemGid
+      integer(4) :: numTangledElemsMpiRank,numTangledElemsMshRank,numTangledElemsTotal
       real(rp) :: maxQuality, minQuality, avgQuality
       real(rp) :: rankMaxQuality, rankMinQuality, rankAvgQuality
+      character(len=12) :: aux_numRanks,aux_mpiRank
+      character(len=512) :: meshquality_filename,meshqualitySum_filename
 
 ! ################################################################################################
 ! ################################################################################################
@@ -406,10 +409,24 @@ contains
       allocate(quality_jv%vector(numMshRanksInMpiRank))
       if(evalMeshQuality) then
          ! Open a file for outputting realted information
-         if(mpi_rank.eq.0) open(unit=555, file="meshQuality.txt", status="unknown", action="write", form="formatted")
-         if(mpi_rank.eq.0) write(555,*) "--| Evaluating mesh quality"
-         if(mpi_rank.eq.0) write(555,*) "----| List of tangled elements (GMSH global numeration)"
-         if(mpi_rank.eq.0) call flush(555)
+         write(aux_mpiRank,'(I0)') mpi_rank
+         write(aux_numRanks,'(I0)') numMshRanks2Part
+         !-----------------------------------------------------------------------------------------------
+         meshquality_filename = "meshQuality_"//trim(adjustl(mesh_h5_fileName))//'-'//trim(aux_numRanks)//'_rank'//trim(aux_mpiRank)//'.dat'
+         open(unit=555, file=meshquality_filename, status="unknown", action="write", form="formatted")
+         write(555,*) "--| Evaluating mesh quality"
+         write(555,*) "----| List of tangled elements (GMSH global numeration)"
+         call flush(555)
+         !-----------------------------------------------------------------------------------------------
+         if(mpi_rank.eq.0) then
+            meshqualitySum_filename = "meshQualitySummary_"//trim(adjustl(mesh_h5_fileName))//'-'//trim(aux_numRanks)//'.dat'
+            open(unit=554, file=meshqualitySum_filename, status="unknown", action="write", form="formatted")
+            write(554,*) "--| Evaluating mesh quality (summary)"
+            call flush(554)
+         end if
+         !-----------------------------------------------------------------------------------------------
+         call MPI_Barrier(app_comm,mpi_err)
+
          ! Initialize vars to get high-level info about mesh quality
          maxQuality = 0.0_rp          ! Max absolute
          minQuality = 0.0_rp     ! Min absolute
@@ -417,49 +434,65 @@ contains
          rankMaxQuality = 0.0_rp      ! Max in this rank
          rankMinQuality = 100000.0_rp ! Min in this rank
          rankAvgQuality = 0.0_rp      ! Avg in this rank
+         numTangledElemsMpiRank=0
          do iMshRank=1,numMshRanksInMpiRank
             allocate(quality_jv%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
             auxAvg = 0.0_rp
-            do ielem = 1, numElemsMshRank(iMshRank)
-               call eval_MeshQuality(mnnode,mngaus,numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),ielem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_elem)
+            numTangledElemsMshRank=0
+            do iElem = 1, numElemsMshRank(iMshRank)
+               call eval_MeshQuality(mnnode,mngaus,numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),iElem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_elem)
                ! Compute rank max, min and avg
                rankMaxQuality = max(rankMaxQuality, quality_elem)
                rankMinQuality = min(rankMinQuality, quality_elem)
                auxAvg = auxAvg + quality_elem
                if (quality_elem < 0) then
+                  numTangledElemsMshRank=numTangledElemsMshRank+1
                   ! Write data to file
-                  if(mpi_rank .eq. 0) then
-                     write(555,*) "----| Tangled element found in rank:", mpi_rank
-                     write(555,*) "------| Element:", ielem
-                     write(555,*) "------| Quality:", quality_elem
-                     write(555,*) "?", elemGidMshRank_jv%vector(iMshRank)%elems(ielem) ! TODO: ask this to Benet
-                  end if
-                  !write(*,*) elemGidMshRank_jv%vector(iMshRank)%elems(ielem)
+                  mshRank = mshRanksInMpiRank(iMshRank)
+                  iElemGid = elemGidMshRank_jv%vector(iMshRank)%elems(iElem)
+
+                  iNode = connecParOrig_jm%matrix(iMshRank)%elems(iElem,1)
+                  elemVertOrig(:)= coordPar_jm%matrix(iMshRank)%elems(iNode,:)
+
+                  write(555,*) "# Tangled element",numTangledElemsMshRank," found in mshRank",mshRank
+                  write(555,*) "  elem(lid)",iElem
+                  write(555,*) "  elem(gid)",iElemGid
+                  write(555,*) "  quality",quality_elem
+                  write(555,*) "  vertex0",elemVertOrig(:)
                end if
-               do ielemVTK = 1, numVTKElemsPerMshElem
-                  quality_jv%vector(iMshRank)%elems((ielem-1)*numVTKElemsPerMshElem + ielemVTK) = quality_elem
+               do iElemVTK = 1, numVTKElemsPerMshElem
+                  quality_jv%vector(iMshRank)%elems((iElem-1)*numVTKElemsPerMshElem + iElemVTK) = quality_elem
                end do
             end do
             auxAvg = auxAvg / numElemsMshRank(iMshRank)
             rankAvgQuality = rankAvgQuality + auxAvg
+            numTangledElemsMpiRank=numTangledElemsMpiRank+numTangledElemsMshRank
          end do
          rankAvgQuality = rankAvgQuality / numMshRanksInMpiRank
-         if(mpi_rank.eq.0) write(555,*) "----| End of list of tangled elements"
-         if(mpi_rank.eq.0) write(555,*) "--| Mesh quality evaluated"
+         call MPI_Barrier(app_comm,mpi_err)
+         write(555,*) "----| End of list of tangled elements"
+         write(555,*) "--| Mesh quality evaluated"
+         write(555,*) "--| Mesh statistics in rank"
+         write(555,*) "----| Num.Tangled Elems:",numTangledElemsMpiRank
+         write(555,*) "----| Max quality:",rankMaxQuality
+         write(555,*) "----| Min quality:",rankMinQuality
+         write(555,*) "----| Avg quality:",rankAvgQuality
+         close(555)
          ! Compute max, min and avg across all ranks
+         call MPI_Allreduce(numTangledElemsMpiRank,numTangledElemsTotal,1,mpi_datatype_int4,MPI_SUM,app_comm,mpi_err)
          call MPI_Allreduce(rankMaxQuality, maxQuality, 1, mpi_datatype_real, MPI_MAX, app_comm, mpi_err)
          call MPI_Allreduce(rankMinQuality, minQuality, 1, mpi_datatype_real, MPI_MIN, app_comm, mpi_err)
          call MPI_Allreduce(rankAvgQuality, avgQuality, 1, mpi_datatype_real, MPI_SUM, app_comm, mpi_err)
          avgQuality = avgQuality / mpi_size
          ! Write high-level data to file
          if(mpi_rank.eq.0) then
-            write(555,*) "--| Mesh statistics"
-            write(555,*) "----| Max quality:", maxQuality
-            write(555,*) "----| Min quality:", minQuality
-            write(555,*) "----| Avg quality:", avgQuality
+            write(554,*) "--| Mesh statistics"
+            write(554,*) "----| Num.Tangled Elems:",numTangledElemsTotal
+            write(554,*) "----| Max quality:", maxQuality
+            write(554,*) "----| Min quality:", minQuality
+            write(554,*) "----| Avg quality:", avgQuality
+            close(554)
          end if
-         ! Close the file
-         if(mpi_rank.eq.0) close(555)
       else
          do iMshRank=1,numMshRanksInMpiRank
             allocate(quality_jv%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
@@ -621,8 +654,9 @@ contains
       numPerLinks=int(aux_array_i8(1),4)
 
       dsetname = '/dims/numMappedFaces'
-      call read_dataspace_1d_int8_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
-      numMapFaces=int(aux_array_i8(1),4)
+      !call read_dataspace_1d_int8_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
+      !numMapFaces=int(aux_array_i8(1),4)
+      numMapFaces=0!int(aux_array_i8(1),4)
 
       if(numBoundFaces.ne.0) isBoundaries = .true.
       if(numPerFaces.ne.0) isPeriodic = .true.
