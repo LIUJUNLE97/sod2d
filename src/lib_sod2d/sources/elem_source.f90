@@ -17,7 +17,7 @@ contains
 
    ! integrates a constant source term (s[ndime]) for each cartessian
    ! direction in the momentum equations 
-   subroutine mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,s,Rmom)
+   subroutine mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u,s,Rmom,fact)
 
 
       implicit none
@@ -29,6 +29,7 @@ contains
       real(rp),    intent(in)    :: gpvol(1,ngaus,nelem)
       real(rp),    intent(in)    :: s(npoin,ndime), u(npoin,ndime)
       real(rp),    intent(inout) :: Rmom(npoin,ndime)
+      real(rp), optional, intent(in)  :: fact
       integer(4)                :: ielem, igaus, idime, inode
       real(rp)                   :: Re(nnode,ndime)
 
@@ -44,7 +45,7 @@ contains
          do idime = 1,ndime
             do inode = 1,nnode
                !$acc atomic update
-               Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)-gpvol(1,inode,ielem)*s(connec(ielem,inode),idime)
+               Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)-fact*gpvol(1,inode,ielem)*s(connec(ielem,inode),idime)
                !$acc end atomic
             end do
          end do

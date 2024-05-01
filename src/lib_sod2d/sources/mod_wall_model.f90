@@ -12,7 +12,7 @@ contains
 #if 1  
 
    subroutine evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_code, &
-         bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,ui,tauw,Rdiff)
+         bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,ui,tauw,Rdiff,fact)
 
       implicit none
 
@@ -26,6 +26,7 @@ contains
       real(rp),   intent(inout) :: tauw(npoin,ndime)
       real(rp),   intent(in)  :: coord(npoin,ndime), gpvol(1,ngaus,nelem)
       real(rp),   intent(inout) :: Rdiff(npoin,ndime)
+      real(rp), optional, intent(in)  :: fact
       real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), tau(ndime,ndime), divU
       integer(4)              :: iBound,iElem,idime,igaus,iAux
       real(rp)                :: bnorm(npbou*ndime),rhol,tmag
@@ -166,7 +167,7 @@ contains
             !$acc loop seq
             do idime = 1,ndime
                !$acc atomic update
-               Rdiff(bound(iBound,igaus),idime) = Rdiff(bound(iBound,igaus),idime)+auxmag*wgp_b(igaus)*tmag*tvelo(idime)
+               Rdiff(bound(iBound,igaus),idime) = Rdiff(bound(iBound,igaus),idime)+fact*auxmag*wgp_b(igaus)*tmag*tvelo(idime)
                !$acc end atomic
                !$acc atomic write
                tauw(bound(iBound,igaus),idime) = tmag*tvelo(idime)
@@ -399,7 +400,7 @@ contains
 #endif
 
    subroutine evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_code, &
-         bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,ui,zo,tauw,Rdiff)
+         bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,ui,zo,tauw,Rdiff,fact)
 
       implicit none
 
@@ -413,6 +414,7 @@ contains
       real(rp),   intent(inout) :: tauw(npoin,ndime)
       real(rp),   intent(in)  :: coord(npoin,ndime), gpvol(1,ngaus,nelem)
       real(rp),   intent(inout) :: Rdiff(npoin,ndime)
+      real(rp), optional, intent(in)  :: fact
       real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), tau(ndime,ndime), divU
       integer(4)              :: iBound,iElem,idime,igaus,iAux
       real(rp)                :: bnorm(npbou*ndime),rhol,tmag
@@ -510,7 +512,7 @@ contains
             !$acc loop seq
             do idime = 1,ndime
                !$acc atomic update
-               Rdiff(bound(iBound,igaus),idime) = Rdiff(bound(iBound,igaus),idime)+auxmag*wgp_b(igaus)*tmag*tvelo(idime)
+               Rdiff(bound(iBound,igaus),idime) = Rdiff(bound(iBound,igaus),idime)+fact*auxmag*wgp_b(igaus)*tmag*tvelo(idime)
                !$acc end atomic
                !$acc atomic write
                tauw(bound(iBound,igaus),idime) = tmag*tvelo(idime)

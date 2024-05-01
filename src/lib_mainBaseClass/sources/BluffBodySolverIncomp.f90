@@ -106,6 +106,8 @@ contains
       call json%get("Re",this%Re, found,10000.0_rp); call this%checkFound(found,found_aux)
       call json%get("aoa",this%aoa, found,0.0_rp); call this%checkFound(found,found_aux)
 
+      call json%get("c_sgs",c_sgs, found,0.025_rp); 
+
       ! fixed by the type of base class parameters
       incomp_viscosity = (this%rho0*this%delta*this%vo)/this%Re
       flag_mu_factor = 1.0_rp

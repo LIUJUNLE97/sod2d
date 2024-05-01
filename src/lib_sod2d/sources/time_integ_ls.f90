@@ -283,7 +283,7 @@ module time_integ_ls
                !
                if(present(source_term)) then
                   call nvtxStartRange("SOURCE TERM")
-                  call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom)
+                  call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom,-1.0_rp)
                   call nvtxEndRange
                end if
                !
@@ -294,16 +294,16 @@ module time_integ_ls
                   if(flag_walave) then
                      if(flag_type_wmles == wmles_type_reichardt) then
                         call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,rho(:,pos),walave_u(:,:),tauw,Rmom)
+                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,rho(:,pos),walave_u(:,:),tauw,Rmom,-1.0_rp)
                      else if (flag_type_wmles == wmles_type_abl) then
                         call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                                              bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
-                                             rho(:,pos),walave_u(:,:),zo,tauw,Rmom)
+                                             rho(:,pos),walave_u(:,:),zo,tauw,Rmom,-1.0_rp)
                      end if   
                   else
                      if(flag_type_wmles == wmles_type_reichardt) then
                         call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,rho(:,pos),u(:,:,pos),tauw,Rmom)
+                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,rho(:,pos),u(:,:,pos),tauw,Rmom,-1.0_rp)
                      else
                         write(1,*) "--| Only Reichardt wall model can work without time filtering!"
                         stop 1

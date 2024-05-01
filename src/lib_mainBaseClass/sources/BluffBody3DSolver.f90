@@ -135,6 +135,7 @@ contains
 
       call json%get("flag_rk_ls",flag_rk_ls, found,.false.); 
       call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
+      call json%get("c_sgs",c_sgs, found,0.025_rp); 
       !Witness points parameters
       call json%get("have_witness",this%have_witness, found,.false.)
       if(this%have_witness .eqv. .true.) then
