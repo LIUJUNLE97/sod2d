@@ -38,10 +38,14 @@ contains
       real(rp)                :: vkinv,diffd,parco,yplus,onovu,yplu2
       real(rp)                :: ypele,expye,expyt,oneoe,firsl,ypel2
       real(rp)                :: pplus,densi,gradp,grpr2,py,sq,inv,ln4,uplus,vol
-      real(rp)                :: ux,uy,uz,px,pz
+      real(rp)                :: ux,uy,uz,px,pz,aux_fact
       integer(4)              :: atoIJ(npbou)
 
       atoIJ(:) = mesh_a2ij(:)
+
+      if(present(fact)) then
+         aux_fact = fact
+      end if
 
       !$acc parallel loop gang private(bnorm,uiex,point)
       do iAux = 1,numBoundsWM
@@ -167,7 +171,7 @@ contains
             !$acc loop seq
             do idime = 1,ndime
                !$acc atomic update
-               Rdiff(bound(iBound,igaus),idime) = Rdiff(bound(iBound,igaus),idime)+fact*auxmag*wgp_b(igaus)*tmag*tvelo(idime)
+               Rdiff(bound(iBound,igaus),idime) = Rdiff(bound(iBound,igaus),idime)+aux_fact*auxmag*wgp_b(igaus)*tmag*tvelo(idime)
                !$acc end atomic
                !$acc atomic write
                tauw(bound(iBound,igaus),idime) = tmag*tvelo(idime)
@@ -422,10 +426,14 @@ contains
       ! wall law stuff
       real(rp)                :: y,ul,nul,uistar,tvelo(ndime),uiex(ndime),auxmag,auxvn,surf
       integer(4)              :: isoI,isoJ,isoK,jgaus,type_ijk,ii,isoII,isoJJ,isoKK
-      real(rp)                :: point(ndime),pointF(ndime),normalF(ndime)
+      real(rp)                :: point(ndime),pointF(ndime),normalF(ndime),aux_fact
       integer(4)              :: atoIJ(npbou)
 
       atoIJ(:) = mesh_a2ij(:)
+
+      if(present(fact)) then
+         aux_fact = fact
+      end if
 
       !$acc parallel loop gang private(bnorm,uiex,point)
       do iAux = 1,numBoundsWM
@@ -512,7 +520,7 @@ contains
             !$acc loop seq
             do idime = 1,ndime
                !$acc atomic update
-               Rdiff(bound(iBound,igaus),idime) = Rdiff(bound(iBound,igaus),idime)+fact*auxmag*wgp_b(igaus)*tmag*tvelo(idime)
+               Rdiff(bound(iBound,igaus),idime) = Rdiff(bound(iBound,igaus),idime)+aux_fact*auxmag*wgp_b(igaus)*tmag*tvelo(idime)
                !$acc end atomic
                !$acc atomic write
                tauw(bound(iBound,igaus),idime) = tmag*tvelo(idime)
