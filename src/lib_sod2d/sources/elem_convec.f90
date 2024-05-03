@@ -17,7 +17,7 @@ module elem_convec
 
       contains
 
-        subroutine full_convec_ijk_H(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,q,rho,pr,E,Rmass,Rmom,Rener)
+        subroutine full_convec_ijk_H(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,q,rho,pr,E,Rmass,Rmom,Rener,initialze,fact)
 
             implicit none
 
@@ -31,6 +31,8 @@ module elem_convec
             real(rp),    intent(out) :: Rmass(npoin)
             real(rp),    intent(out) :: Rmom(npoin,ndime)
             real(rp),    intent(out) :: Rener(npoin)
+            logical, optional, intent(in)    :: initialze
+            real(rp), optional, intent(in)  :: fact
             integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,kdime,ii
             integer(4)              :: ipoin(nnode)
             real(rp)                 :: Re_mom(nnode,ndime)
@@ -39,13 +41,27 @@ module elem_convec
             real(rp)                 :: gradRho(ndime),gradP(ndime),gradE(ndime),gradU(ndime,ndime),divF(ndime),divU,divFe,divQ,gradQ(ndime,ndime),gradIsoFuu(ndime,ndime,ndime)
             real(rp)                 :: ul(nnode,ndime), ql(nnode,ndime), rhol(nnode), prl(nnode),El(nnode),fel(nnode,ndime),fl(nnode,ndime,ndime),fuul(nnode,ndime,ndime),divFuu(ndime)
             real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
+            real(rp)  :: aux_fact = 1.0_rp
 
             call nvtxStartRange("Full convection")
-            !$acc kernels
-            Rmom(:,:) = 0.0_rp
-            Rmass(:) = 0.0_rp
-            Rener(:) = 0.0_rp
-            !$acc end kernels
+            if(present(initialze)) then
+               if (initialze .eqv. .true.) then
+               !$acc kernels
+                  Rmom(:,:) = 0.0_rp
+                  Rmass(:) = 0.0_rp
+                  Rener(:) = 0.0_rp
+                  !$acc end kernels
+               end if
+            else
+               !$acc kernels
+               Rmom(:,:) = 0.0_rp
+               Rmass(:) = 0.0_rp
+               Rener(:) = 0.0_rp
+               !$acc end kernels
+            end if
+            if(present(fact)) then
+               aux_fact = fact
+            end if
 
             !$acc parallel loop gang private(ipoin,Re_ener,Re_mass,Re_mom,ul,ql,rhol,prl,El,fl,fel,fuul) !!vector_length(vecLength)
             do ielem = 1,nelem
@@ -188,17 +204,17 @@ module elem_convec
                do idime = 1,ndime
                   do inode = 1,nnode
                      !$acc atomic update
-                     Rmom(ipoin(inode),idime) = Rmom(ipoin(inode),idime)+Re_mom(inode,idime)
+                     Rmom(ipoin(inode),idime) = Rmom(ipoin(inode),idime)+aux_fact*Re_mom(inode,idime)
                      !$acc end atomic
                   end do
                end do
                !$acc loop vector
                do inode = 1,nnode
                   !$acc atomic update
-                  Rmass(ipoin(inode)) = Rmass(ipoin(inode))+Re_mass(inode)
+                  Rmass(ipoin(inode)) = Rmass(ipoin(inode))+aux_fact*Re_mass(inode)
                   !$acc end atomic
                   !$acc atomic update
-                  Rener(ipoin(inode)) = Rener(ipoin(inode))+Re_ener(inode)
+                  Rener(ipoin(inode)) = Rener(ipoin(inode))+aux_fact*Re_ener(inode)
                   !$acc end atomic
                end do
             end do
@@ -208,7 +224,7 @@ module elem_convec
          end subroutine full_convec_ijk_H
 
 
-         subroutine full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,q,rho,pr,E,Rmass,Rmom,Rener)
+         subroutine full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,q,rho,pr,E,Rmass,Rmom,Rener,initialze,fact)
 
             implicit none
 
@@ -222,6 +238,8 @@ module elem_convec
             real(rp),    intent(out) :: Rmass(npoin)
             real(rp),    intent(out) :: Rmom(npoin,ndime)
             real(rp),    intent(out) :: Rener(npoin)
+            logical, optional, intent(in)    :: initialze
+            real(rp), optional, intent(in)  :: fact
             integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,kdime,ii
             integer(4)              :: ipoin(nnode)
             real(rp)                 :: Re_mom(nnode,ndime)
@@ -230,13 +248,27 @@ module elem_convec
             real(rp)                 :: gradRho(ndime),gradP(ndime),gradE(ndime),gradU(ndime,ndime),divF(ndime),divU,divFe,divQ,gradQ(ndime,ndime),gradIsoFuu(ndime,ndime,ndime),gradRE(ndime),divFue,gradk(ndime),divFk,gradRk(ndime),divFuk
             real(rp)                 :: ul(nnode,ndime), ql(nnode,ndime), rhol(nnode), prl(nnode),El(nnode),fel(nnode,ndime),fl(nnode,ndime,ndime),fuul(nnode,ndime,ndime),divFuu(ndime),REl(nnode),fuel(nnode,ndime),kl(nnode),fkl(nnode,ndime),fukl(nnode,ndime),Rkl(nnode)
             real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
+            real(rp)  :: aux_fact = 1.0_rp
 
             call nvtxStartRange("Full convection")
-            !$acc kernels
-            Rmom(:,:) = 0.0_rp
-            Rmass(:) = 0.0_rp
-            Rener(:) = 0.0_rp
-            !$acc end kernels
+            if(present(initialze)) then
+               if (initialze .eqv. .true.) then
+               !$acc kernels
+                  Rmom(:,:) = 0.0_rp
+                  Rmass(:) = 0.0_rp
+                  Rener(:) = 0.0_rp
+                  !$acc end kernels
+               end if
+            else
+               !$acc kernels
+               Rmom(:,:) = 0.0_rp
+               Rmass(:) = 0.0_rp
+               Rener(:) = 0.0_rp
+               !$acc end kernels
+            end if
+            if(present(fact)) then
+               aux_fact = fact
+            end if
 
             !$acc parallel loop gang private(ipoin,Re_ener,Re_mass,Re_mom,ul,ql,rhol,prl,El,REl,fl,fel,fuel,fuul,kl,Rkl,fkl,fukl) !!vector_length(vecLength)
             do ielem = 1,nelem
@@ -440,17 +472,17 @@ module elem_convec
                do idime = 1,ndime
                   do inode = 1,nnode
                      !$acc atomic update
-                     Rmom(ipoin(inode),idime) = Rmom(ipoin(inode),idime)+Re_mom(inode,idime)
+                     Rmom(ipoin(inode),idime) = Rmom(ipoin(inode),idime)+aux_fact*Re_mom(inode,idime)
                      !$acc end atomic
                   end do
                end do
                !$acc loop vector
                do inode = 1,nnode
                   !$acc atomic update
-                  Rmass(ipoin(inode)) = Rmass(ipoin(inode))+Re_mass(inode)
+                  Rmass(ipoin(inode)) = Rmass(ipoin(inode))+aux_fact*Re_mass(inode)
                   !$acc end atomic
                   !$acc atomic update
-                  Rener(ipoin(inode)) = Rener(ipoin(inode))+Re_ener(inode)
+                  Rener(ipoin(inode)) = Rener(ipoin(inode))+aux_fact*Re_ener(inode)
                   !$acc end atomic
                end do
             end do
@@ -460,7 +492,7 @@ module elem_convec
          end subroutine full_convec_ijk
 
          subroutine generic_scalar_convec_ijk(nelem,npoin,connec,Ngp, &
-               dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,q,eta,u,Rconvec)
+               dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,q,eta,u,Rconvec,initialze,fact)
 
             implicit none
 
@@ -474,17 +506,31 @@ module elem_convec
             real(rp),    intent(in)  :: eta(npoin)
             real(rp),    intent(in)  :: u(npoin,ndime)
             real(rp),    intent(out) :: Rconvec(npoin)
+            logical, optional, intent(in)    :: initialze
+            real(rp), optional, intent(in)  :: fact
             integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ii
             integer(4)               :: ipoin(nnode)
             real(rp)                 :: gradIsoE(ndime),gradIsoU(ndime,ndime),gradIsoFe(ndime,ndime)
             real(rp)                 :: gradE(ndime),gradU(ndime,ndime),divU,divFe
             real(rp)                 :: ul(nnode,ndime), fel(nnode,ndime), etal(nnode), Re(nnode)
             real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
+            real(rp)  :: aux_fact = 1.0_rp
 
             call nvtxStartRange("Generic Convection")
-            !$acc kernels
-            Rconvec(:) = 0.0_rp
-            !$acc end kernels
+            if(present(initialze)) then
+               if (initialze .eqv. .true.) then
+                  !$acc kernels
+                  Rconvec(:) = 0.0_rp
+                  !$acc end kernels
+               end if
+            else
+               !$acc kernels
+               Rconvec(:) = 0.0_rp
+               !$acc end kernels
+            end if
+            if(present(fact)) then
+               aux_fact = fact
+            end if
             !$acc parallel loop gang  private(ipoin,Re,ul,fel,etal) !!vector_length(vecLength)
             do ielem = 1,nelem
                !$acc loop vector
@@ -560,7 +606,7 @@ module elem_convec
                !$acc loop vector
                do inode = 1,nnode
                   !$acc atomic update
-                  Rconvec(ipoin(inode)) = Rconvec(ipoin(inode))+Re(inode)
+                  Rconvec(ipoin(inode)) = Rconvec(ipoin(inode))+aux_fact*Re(inode)
                   !$acc end atomic
                end do
             end do

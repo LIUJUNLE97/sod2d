@@ -9,7 +9,7 @@ module elem_diffu
    use mod_comms
 
       contains
-        subroutine full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Pr,rho_n,rho,u,Tem,mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener)
+        subroutine full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Pr,rho_n,rho,u,Tem,mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener,initialze,fact)
              implicit none
 
              integer(4), intent(in)  :: nelem, npoin
@@ -23,6 +23,8 @@ module elem_diffu
              real(rp),   intent(out) :: Rmass(npoin)
              real(rp),   intent(out) :: Rmom(npoin,ndime)
              real(rp),   intent(out) :: Rener(npoin)
+             logical, optional, intent(in)    :: initialze
+             real(rp), optional, intent(in)  :: fact
              integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
              integer(4)              :: ipoin(nnode)
              real(rp)                :: kappa_e, mu_fgp, mu_egp,divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
@@ -32,14 +34,28 @@ module elem_diffu
              real(rp)                :: ul(nnode,ndime), rhol(nnode),Teml(nnode),mufluidl(nnode),rhonl(nnode)
              real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
              real(rp)                :: gradTl(nnode,ndime),gradRhol(nnode,ndime),tauUl(nnode,ndime)
+             real(rp)  :: aux_fact = 1.0_rp
 
              call nvtxStartRange("Full diffusion")
              twoThirds = 2.0_rp/3.0_rp
-             !$acc kernels
-             Rmass(:) = 0.0_rp
-             Rmom(:,:) = 0.0_rp
-             Rener(:) = 0.0_rp
-             !$acc end kernels
+             if(present(initialze)) then
+               if (initialze .eqv. .true.) then
+               !$acc kernels
+                  Rmom(:,:) = 0.0_rp
+                  Rmass(:) = 0.0_rp
+                  Rener(:) = 0.0_rp
+                  !$acc end kernels
+               end if
+            else
+               !$acc kernels
+               Rmom(:,:) = 0.0_rp
+               Rmass(:) = 0.0_rp
+               Rener(:) = 0.0_rp
+               !$acc end kernels
+            end if
+            if(present(fact)) then
+               aux_fact = fact
+            end if
 
              !$acc parallel loop gang  private(ipoin,ul,Teml,rhol,rhonl,mufluidl,gradRhol,gradTl,tauUl,tauXl,tauYl,tauZl)
              do ielem = 1,nelem
@@ -181,14 +197,14 @@ module elem_diffu
                    end do
 
                    !$acc atomic update
-                   Rmass(ipoin(igaus)) = Rmass(ipoin(igaus))+nu_e*divDr
+                   Rmass(ipoin(igaus)) = Rmass(ipoin(igaus))+aux_fact*nu_e*divDr
                    !$acc end atomic
                    !$acc atomic update
-                   Rener(ipoin(igaus)) = Rener(ipoin(igaus))+divDe
+                   Rener(ipoin(igaus)) = Rener(ipoin(igaus))+aux_fact*divDe
                    !$acc end atomic
                    do idime = 1,ndime
                       !$acc atomic update
-                      Rmom(ipoin(igaus),idime) = Rmom(ipoin(igaus),idime)+divDm(idime)
+                      Rmom(ipoin(igaus),idime) = Rmom(ipoin(igaus),idime)+aux_fact*divDm(idime)
                       !$acc end atomic
                    end do
                 end do

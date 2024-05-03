@@ -25,6 +25,7 @@ module time_integ
 
    real(rp), allocatable, dimension(:)   :: a_i, b_i, c_i,b_i2
    real(rp), allocatable, dimension(:,:) :: a_ij
+   logical :: firstTimeStep = .true.
 
    contains
 
@@ -198,6 +199,30 @@ module time_integ
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             !
             pos = 2 ! Set correction as default value
+            if(firstTimeStep .eqv. .true.) then
+               firstTimeStep = .false.
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
+                  end do
+               end do
+               !$acc end parallel loop
+               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:))
+
+               if(mpi_size.ge.2) then
+                  call mpi_halo_atomic_update_real(Reta(:))
+               end if
+               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:))   
+
+               call nvtxStartRange("Entropy viscosity evaluation")
+               call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,Reta(:),Ngp,coord,dNgp,gpvol,wgp, &
+                  gamma_gas,rho(:,1),u(:,:,1),csound,Tem(:,1),eta(:,1),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
+               call nvtxEndRange
+            end if
+
 
             !
             ! Initialize variables to zero
