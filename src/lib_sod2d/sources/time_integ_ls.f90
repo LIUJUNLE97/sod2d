@@ -19,7 +19,7 @@ module time_integ_ls
 
    real(rp), allocatable, dimension(:)   :: aux_h
    real(rp), allocatable, dimension(:)   :: K2mass,K2ener
-   real(rp), allocatable, dimension(:,:) :: K2mom,f_eta
+   real(rp), allocatable, dimension(:,:) :: K2mom,f_eta,Rwmles
    real(rp), allocatable, dimension(:)   :: Rmass,Rener
    real(rp), allocatable, dimension(:,:) :: Rmom
    real(rp), allocatable, dimension(:,:) :: Reta
@@ -44,11 +44,12 @@ module time_integ_ls
       !$acc enter data create(Rener(:))
       !$acc enter data create(auxReta(:))
 
-      allocate(K2mom(npoin,ndime),f_eta(npoin,ndime),Reta(npoin,2),Rmom(npoin,ndime))
+      allocate(K2mom(npoin,ndime),f_eta(npoin,ndime),Reta(npoin,2),Rmom(npoin,ndime),Rwmles(npoin,ndime))
       !$acc enter data create(K2mom(:,:))
       !$acc enter data create(Rmom(:,:))
       !$acc enter data create(f_eta(:,:))
       !$acc enter data create(Reta(:,:))
+      !$acc enter data create(Rwmles(:,:))
 
       allocate(a_i(flag_rk_ls_stages),b_i(flag_rk_ls_stages))
       !$acc enter data create(a_i(:))
@@ -116,7 +117,8 @@ module time_integ_ls
       !$acc exit data delete(Rmom(:,:))
       !$acc exit data delete(f_eta(:,:))
       !$acc exit data delete(Reta(:,:))
-      deallocate(K2mom,f_eta,Reta,Rmom)
+      !$acc exit data delete(Rwmles(:,:))
+      deallocate(K2mom,f_eta,Reta,Rmom,Rwmles)
 
       !$acc exit data delete(a_i(:))
       !$acc exit data delete(b_i(:))
@@ -219,9 +221,41 @@ module time_integ_ls
                !$acc loop seq
                do idime = 1,ndime
                   K2mom(ipoin,idime) = 0.0_rp
+                  Rwmles(ipoin,idime) = 0.0_rp
                end do
             end do
             !$acc end parallel loop
+
+                           !
+               ! Evaluate wall models
+
+            if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
+               call nvtxStartRange("WALL MODEL")
+               if(flag_type_wmles == wmles_type_reichardt) then
+                  call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                  bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,rho(:,pos),walave_u(:,:),tauw,Rwmles,-1.0_rp)
+               else if (flag_type_wmles == wmles_type_abl) then
+                  call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                                       bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
+                                       rho(:,pos),walave_u(:,:),zo,tauw,Rwmles,-1.0_rp)
+               end if   
+               call nvtxEndRange                              
+            end if
+
+            if(mpi_size.ge.2) then
+               call nvtxStartRange("MPI_comms_tI")
+               do idime = 1,ndime
+                  call mpi_halo_atomic_update_real(Rwmles(:,idime))
+               end do
+               call nvtxEndRange
+            end if
+
+            !
+            ! Call lumped mass matrix solver
+            !
+            call nvtxStartRange("Call solver")
+            call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rwmles(:,:))
+            call nvtxEndRange
 
             !
             ! Loop over all RK steps
@@ -275,8 +309,11 @@ module time_integ_ls
                !
                ! Compute diffusion terms with values at current substep
                !
-               call nvtxStartRange("DIFFUSIONS")
+               call nvtxStartRange("CONVDIFFS")
+
                call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),rho(:,pos),u(:,:,pos),Tem(:,pos),mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener,.true.,-1.0_rp)
+               call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),q(:,:,pos),rho(:,pos),pr(:,pos),aux_h,Rmass,Rmom,Rener,.false.,-1.0_rp)               
+               
                call nvtxEndRange
                !
                ! Call source term if applicable
@@ -286,43 +323,6 @@ module time_integ_ls
                   call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom,-1.0_rp)
                   call nvtxEndRange
                end if
-               !
-               ! Evaluate wall models
-
-               if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
-                  call nvtxStartRange("WALL MODEL")
-                  if(flag_walave) then
-                     if(flag_type_wmles == wmles_type_reichardt) then
-                        call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,rho(:,pos),walave_u(:,:),tauw,Rmom,-1.0_rp)
-                     else if (flag_type_wmles == wmles_type_abl) then
-                        call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                                             bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
-                                             rho(:,pos),walave_u(:,:),zo,tauw,Rmom,-1.0_rp)
-                     end if   
-                  else
-                     if(flag_type_wmles == wmles_type_reichardt) then
-                        call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,rho(:,pos),u(:,:,pos),tauw,Rmom,-1.0_rp)
-                     else
-                        write(1,*) "--| Only Reichardt wall model can work without time filtering!"
-                        stop 1
-                     end if
-                  end if
-                  call nvtxEndRange
-               end if
-
-               !
-               !
-               ! Compute convective terms
-               !
-               call nvtxStartRange("CONVECTIONS")
-               if(flag_total_enthalpy .eqv. .true.) then
-                  call full_convec_ijk_H(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),q(:,:,pos),rho(:,pos),pr(:,pos),E(:,pos),Rmass,Rmom,Rener,.false.,-1.0_rp)
-               else 
-                  call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),q(:,:,pos),rho(:,pos),pr(:,pos),aux_h,Rmass,Rmom,Rener,.false.,-1.0_rp)
-               end if
-               call nvtxEndRange
 
                !TESTING NEW LOCATION FOR MPICOMMS
                if(mpi_size.ge.2) then
@@ -355,7 +355,7 @@ module time_integ_ls
                   E(lpoin_w(ipoin),pos) = E(lpoin_w(ipoin),pos) + b_i(istep)*K2ener(lpoin_w(ipoin))
                   !$acc loop seq
                   do idime = 1,ndime
-                     K2mom(lpoin_w(ipoin),idime) = a_i(istep)*K2mom(lpoin_w(ipoin),idime) + Rmom(lpoin_w(ipoin),idime)*dt
+                     K2mom(lpoin_w(ipoin),idime) = a_i(istep)*K2mom(lpoin_w(ipoin),idime) + (Rmom(lpoin_w(ipoin),idime)+Rwmles(lpoin_w(ipoin),idime))*dt
                      q(lpoin_w(ipoin),idime,pos) = q(lpoin_w(ipoin),idime,pos) + b_i(istep)*K2mom(lpoin_w(ipoin),idime)
                   end do
                end do
@@ -477,7 +477,7 @@ module time_integ_ls
             real(rp)                            :: rho_min, rho_avg, fact
             integer(4)                          :: ielem, inode, ipoin
 
-            !$acc parallel loop 
+            !$acc parallel loop gang 
             do ielem = 1,nelem
                 rho_min = real(1e6, rp)
                 rho_avg = 0.0_rp
@@ -489,7 +489,7 @@ module time_integ_ls
                 end do
                 rho_avg = rho_avg/real(nnode,rp)
                 fact = min(1.0_rp,(rho_avg-eps)/(rho_avg-rho_min))
-                !$acc loop seq
+                !$acc loop vector
                 do inode = 1,nnode
                         ipoin = connec(ielem,inode)
                         rho(ipoin) = rho_avg + fact*(rho(ipoin)-rho_avg)

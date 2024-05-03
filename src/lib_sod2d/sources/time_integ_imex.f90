@@ -299,7 +299,7 @@ module time_integ_imex
                                  ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer)
                call nvtxEndRange
                !if(mpi_rank.eq.0) write(111,*)   " after cg"
-
+               
                !call limit_rho(nelem,npoin,connec,rho(:,2),epsilon(umag))
 
                if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,rho(:,2),q(:,:,2),E(:,2),u_buffer)
