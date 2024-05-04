@@ -38,8 +38,9 @@ contains
       real(rp)                :: vkinv,diffd,parco,yplus,onovu,yplu2
       real(rp)                :: ypele,expye,expyt,oneoe,firsl,ypel2
       real(rp)                :: pplus,densi,gradp,grpr2,py,sq,inv,ln4,uplus,vol
-      real(rp)                :: ux,uy,uz,px,pz,aux_fact
+      real(rp)                :: ux,uy,uz,px,pz
       integer(4)              :: atoIJ(npbou)
+      real(rp)  :: aux_fact = 1.0_rp
 
       atoIJ(:) = mesh_a2ij(:)
 
