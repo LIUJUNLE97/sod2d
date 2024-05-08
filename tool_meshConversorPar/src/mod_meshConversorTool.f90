@@ -654,9 +654,8 @@ contains
       numPerLinks=int(aux_array_i8(1),4)
 
       dsetname = '/dims/numMappedFaces'
-      !call read_dataspace_1d_int8_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
-      !numMapFaces=int(aux_array_i8(1),4)
-      numMapFaces=0!int(aux_array_i8(1),4)
+      call read_dataspace_1d_int8_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_dims,ms_offset,aux_array_i8)
+      numMapFaces=int(aux_array_i8(1),4)
 
       if(numBoundFaces.ne.0) isBoundaries = .true.
       if(numPerFaces.ne.0) isPeriodic = .true.
