@@ -296,7 +296,7 @@ module time_integ_imex
                call nvtxStartRange("IMEX_CONJ_GRAD")
                call conjGrad_imex(aij_i(istep,istep),igtime,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,numBoundsWM,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                                  dlxigp_ip,He,gpvol,Ngp,Ml,gamma_gas,Rgas,Cp,Prt,mu_fluid,mu_e,mu_sgs,rho(:,1),rho(:,2),E(:,1),E(:,2),q(:,:,1),q(:,:,2), &
-                                 ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer)
+                                 ndof,nbnodes,ldof,lbnodes,lnbn_nodes,bound,bou_codes,bou_codes_nodes,listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer)
                call nvtxEndRange
                !if(mpi_rank.eq.0) write(111,*)   " after cg"
                
