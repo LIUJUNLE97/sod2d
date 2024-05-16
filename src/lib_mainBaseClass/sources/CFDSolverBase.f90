@@ -7,7 +7,7 @@ module mod_arrays
       ! integer ---------------------------------------------------
       integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
       integer(4), allocatable :: atoIJ(:),atoIJK(:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
-      integer(4), allocatable :: witel(:), buffstep(:)
+      integer(4), allocatable :: witel(:), buffstep(:),maskMapped(:)
 
       ! real ------------------------------------------------------
       real(rp), allocatable :: normalsAtNodes(:,:)
@@ -1220,6 +1220,12 @@ contains
          zo(:) = 0.0_rp
          !$acc end kernels
       end if
+
+      allocate(maskMapped(numNodesRankPar))
+      !$acc enter data create(maskMapped(:))
+      !$acc kernels
+      maskMapped(:) = 0
+      !$acc end kernels
 
       call nvtxEndRange
 

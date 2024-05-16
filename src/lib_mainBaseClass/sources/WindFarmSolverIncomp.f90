@@ -28,16 +28,34 @@ module WindFarmSolverIncomp_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: WindFarmSolverIncomp
 
-      real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar
-
+      real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar,wind_alpha,prec_x_out
    contains
       procedure, public :: fillBCTypes           => WindFarmSolverIncomp_fill_BC_Types
       procedure, public :: initializeParameters  => WindFarmSolverIncomp_initializeParameters
       procedure, public :: initializeSourceTerms => WindFarmSolverIncomp_initializeSourceTerms
       procedure, public :: evalInitialConditions => WindFarmSolverIncomp_evalInitialConditions
+      procedure, public :: initialBuffer         => WindFarmSolverIncomp_initialBuffer
       procedure, public :: eval_vars_after_load_hdf5_resultsFile => WindFarmSolverIncomp_eval_vars_after_load_hdf5_resultsFile 
    end type WindFarmSolverIncomp
 contains
+
+   subroutine  WindFarmSolverIncomp_initialBuffer(this)
+      class(WindFarmSolverIncomp), intent(inout) :: this
+      integer(4) :: iNode
+      real(rp) :: velo,zp
+
+      !$acc parallel loop
+      do iNode = 1,numNodesRankPar         
+         zp = coordPar(iNode,3)
+         velo =  this%ustar*log(1.0_rp+zp/this%rough)/0.41_rp
+
+         u(iNode,1,2) = velo*cos(this%wind_alpha*v_pi/180.0_rp)
+         u(iNode,2,2) = velo*sin(this%wind_alpha*v_pi/180.0_rp)
+         u(iNode,3,2) = 0.0_rp         
+      end do
+      !$acc end parallel loop
+
+   end subroutine  WindFarmSolverIncomp_initialBuffer
 
    subroutine WindFarmSolverIncomp_eval_vars_after_load_hdf5_resultsFile(this)
       implicit none
@@ -176,6 +194,12 @@ contains
       call json%get("Lhub",this%Lhub, found,90.0_rp); call this%checkFound(found,found_aux)
       call json%get("vinf",this%vinf, found,8.0_rp); call this%checkFound(found,found_aux)
       call json%get("rough",this%rough, found,0.1682_rp); call this%checkFound(found,found_aux)
+      call json%get("wind_alpha",this%wind_alpha, found,90.0_rp); call this%checkFound(found,found_aux)
+
+      this%wind_alpha = this%wind_alpha-90.0_rp !North is 0 , East is 90, South is 180 and West is 270 in a x-y axis
+
+      call json%get("prec_x_out",this%prec_x_out, found,0.0_rp); call this%checkFound(found,found_aux)
+      
 
       !Witness points parameters
       call json%get("have_witness",this%have_witness, found,.false.)
@@ -201,6 +225,8 @@ contains
       this%ustar = this%vinf*0.41_rp/log(1.0_rp+this%Lhub/this%rough)
       incomp_viscosity = 1.81e-5
       flag_mu_factor = 1.0_rp
+
+      call this%readJSONBuffer()
 
    end subroutine WindFarmSolverIncomp_initializeParameters
 
@@ -242,8 +268,8 @@ contains
                zp = coordPar(iNodeL,3)
                velo =  this%ustar*log(1.0_rp+zp/this%rough)/0.41_rp
 
-               u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(rti(1) -0.5_rp))
-               u(iNodeL,2,2) = velo*(0.1_rp*(rti(2) -0.5_rp))
+               u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(rti(1) -0.5_rp))*cos(this%wind_alpha*v_pi/180.0_rp)
+               u(iNodeL,2,2) = velo*(0.1_rp*(rti(2) -0.5_rp))*velo*sin(this%wind_alpha*v_pi/180.0_rp)
                u(iNodeL,3,2) = velo*(0.1_rp*(rti(3) -0.5_rp))
             end if
             if(auxCnt.gt.numNodesRankPar) then
@@ -257,7 +283,10 @@ contains
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             pr(iNodeL,2) = 0.0_rp 
-            rho(iNodeL,2) = this%rho0            
+            rho(iNodeL,2) = this%rho0        
+            if (coordPar(iNodeL,1) .le. this%prec_x_out) then
+               maskMapped(iNodeL) = 1
+            end if
          end do
          !$acc end parallel loop
       end if
