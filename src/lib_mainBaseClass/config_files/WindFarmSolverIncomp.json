@@ -1,0 +1,52 @@
+{
+   "type":"ABlFlowSolverIncomp",
+
+   "mesh_h5_file_path":"",
+   "mesh_h5_file_name":"wf",
+
+   "results_h5_file_path":"",
+   "results_h5_file_name":"results",
+
+   "final_istep":5000001,
+
+   "save_logFile_first":1,
+   "save_logFile_step":10,
+
+   "save_resultsFile_first":1,
+   "save_resultsFile_step":5000,
+
+   "save_restartFile_first":1,
+   "save_restartFile_step":5000,
+
+   "loadRestartFile":true,
+   "restartFile_to_load":1,
+
+   "continue_oldLogs":false,
+
+   "saveAvgFile":true,
+   "loadAvgFile":false,
+
+   "initial_avgTime": 3600.0,
+
+   "saveSurfaceResults":false,
+
+   "flag_les":1,
+   "maxIter":20,
+   "tol":1e-3,
+   "flag_walave":true,
+   "period_walave":3600.0,
+
+   "cfl_conv":0.95,
+
+   "rho0":1.0,
+   "Lz":1500.0,
+   "Lhub":90.0,
+   "vinf":8.0,
+   "rough":0.1682,
+
+   "bouCodes":
+   [
+      {"id":1, "bc_type":"bc_type_slip_wall_model"},
+      {"id":2, "bc_type":"bc_type_slip_adiabatic"}
+   ]
+}
