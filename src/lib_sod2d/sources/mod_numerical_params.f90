@@ -6,7 +6,9 @@ module mod_numerical_params
 
         ! Time integration algorithm
         integer(4) :: flag_rk_order=4 
-        integer(4) :: flag_implicit=0 
+        integer(4) :: flag_implicit=0
+        integer(4) :: flag_rk_ls_stages=5  
+        logical :: flag_rk_ls = .true.
 
 
         ! LES 

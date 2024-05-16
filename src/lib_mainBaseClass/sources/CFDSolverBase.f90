@@ -55,6 +55,7 @@ module CFDSolverBase_mod
       use mod_geom
       use time_integ
       use time_integ_imex
+      use time_integ_ls
       use mod_analysis
       use mod_numerical_params
       use mod_time_ops
@@ -464,7 +465,11 @@ contains
             call init_imex_solver(numNodesRankPar)
          end if
       else 
-         call init_rk4_solver(numNodesRankPar)
+         if(flag_rk_ls .eqv. .false.) then
+            call init_rk4_solver(numNodesRankPar)
+         else
+            call init_rk4_ls_solver(numNodesRankPar)
+         end if
       end if
 
    end subroutine CFDSolverBase_initNSSolver
@@ -477,7 +482,11 @@ contains
             call end_imex_solver()
          end if
       else 
-         call end_rk4_solver()
+         if(flag_rk_ls .eqv. .false.) then
+            call end_rk4_solver()
+         else
+            call end_rk4_ls_solver()
+         end if
       end if
 
    end subroutine CFDSolverBase_endNSSolver
@@ -2015,6 +2024,7 @@ contains
       integer(4), intent(in)              :: istep
       integer(4)                          :: iwit, iwitglobal, itewit
       real(rp)                            :: start, finish
+      character(512)                      :: fname
 
       if ((this%continue_witness .eqv. .false.) .AND. (this%continue_oldLogs .eqv. .false.)) then
          itewit = istep/(this%leapwit)
@@ -2025,7 +2035,8 @@ contains
       if ((this%continue_witness .eqv. .true.) .AND. (this%continue_oldLogs .eqv. .true.)) then
          itewit = this%load_stepwit + (istep - this%load_step)/(this%leapwit)
       end if
-      call update_witness_hdf5(itewit, this%leapwitsave, buffwit, this%nwit, this%nwitPar, this%nvarwit, this%witness_h5_file_name, bufftime, buffstep, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      fname = trim(adjustl(this%witness_h5_file_name))
+      call update_witness_hdf5(itewit, this%leapwitsave, buffwit, this%nwit, this%nwitPar, this%nvarwit, fname, bufftime, buffstep, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
    end subroutine CFDSolverBase_save_witness
 
    subroutine CFDSolverBase_preprocWitnessPoints(this)
@@ -2040,6 +2051,8 @@ contains
       real(rp)                            :: xmin, ymin, zmin, xmax, ymax, zmax
       real(rp)                            :: xminloc, yminloc, zminloc, xmaxloc, ymaxloc, zmaxloc
       logical                             :: isinside, found
+      character(512)                      :: input, output
+
       type two_real
 	      real(4) :: real_1
 	      real(4) :: real_2
@@ -2093,7 +2106,8 @@ contains
       !$acc end kernels
       ifound  = 0
       icand   = 0
-      call read_points(this%witness_inp_file_name, this%nwit, witxyz)
+      input = trim(adjustl(this%witness_inp_file_name))
+      call read_points(input, this%nwit, witxyz)
       do iwit = 1, this%nwit
 	 if (witxyz(iwit,1) < xmin .OR. witxyz(iwit,2) < ymin .OR. witxyz(iwit,3) < zmin .OR. witxyz(iwit,1) > xmax .OR. witxyz(iwit,2) > ymax .OR. witxyz(iwit,3) > zmax) then
 		write(*,*) "FATAL ERROR!! Witness point out of bounds", witxyz(iwit,:)
@@ -2182,7 +2196,8 @@ contains
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
-      call create_witness_hdf5(this%witness_h5_file_name, nnode, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      output = trim(adjustl(this%witness_h5_file_name))
+      call create_witness_hdf5(output, nnode, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
       if(mpi_rank.eq.0) then
          write(*,*) "--| End of preprocessing witness points"
       end if
@@ -2191,8 +2206,10 @@ contains
    subroutine CFDSolverBase_loadWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
+      character(512)                      :: output
       
-      call load_witness_hdf5(this%witness_h5_file_name, nnode, this%nwit, this%load_step, this%load_stepwit, this%nwitPar, witel, witxi, Nwit)
+      output = trim(adjustl(this%witness_h5_file_name))
+      call load_witness_hdf5(output, nnode, this%nwit, this%load_step, this%load_stepwit, this%nwitPar, witel, witxi, Nwit)
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))

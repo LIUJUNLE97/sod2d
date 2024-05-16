@@ -303,4 +303,69 @@ subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound
             !$acc end parallel loop
 
          end subroutine bc_fix_dirichlet_residual_entropy
+
+         subroutine copy_periodicNodes_for_mappedInlet(q,u,rho,E,p)
+            implicit none
+            real(rp),intent(inout) :: rho(numNodesRankPar),q(numNodesRankPar,ndime),u(numNodesRankPar,ndime),p(numNodesRankPar),E(numNodesRankPar)
+            integer(4) :: iPer
+
+            !$acc parallel loop
+            do iPer = 1,nPerRankPar
+               u(masSlaRankPar(iPer,2),1) = u(masSlaRankPar(iPer,1),1)
+               u(masSlaRankPar(iPer,2),2) = u(masSlaRankPar(iPer,1),2)
+               u(masSlaRankPar(iPer,2),3) = u(masSlaRankPar(iPer,1),3)
+
+               q(masSlaRankPar(iPer,2),1) = q(masSlaRankPar(iPer,1),1)
+               q(masSlaRankPar(iPer,2),2) = q(masSlaRankPar(iPer,1),2)
+               q(masSlaRankPar(iPer,2),3) = q(masSlaRankPar(iPer,1),3)
+               
+               rho(masSlaRankPar(iPer,2)) = rho(masSlaRankPar(iPer,1))
+               E(masSlaRankPar(iPer,2))   = E(masSlaRankPar(iPer,1))
+               p(masSlaRankPar(iPer,2))   = p(masSlaRankPar(iPer,1))
+            end do
+            !$acc end parallel loop
+
+         end subroutine copy_periodicNodes_for_mappedInlet
+
+
+         subroutine temporary_bc_routine_dirichlet_prim_solver(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,aux_rho_r,aux_q,aux_E,u_buffer)
+
+            implicit none
+
+            integer(4), intent(in)     :: npoin, nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
+            integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn_nodes(npoin)
+            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime),u_buffer(npoin,ndime)
+            real(rp),    intent(inout) :: aux_rho_r(npoin),aux_q(npoin,ndime),aux_E(npoin)
+            integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
+            real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
+            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm
+
+         
+
+            !$acc parallel loop  
+            do inode = 1,npoin
+               if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
+                  bcode = bou_codes_nodes(inode) ! Boundary element code
+                   if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic
+                     
+                     aux_q(inode,1) = 0.0_rp
+                     aux_q(inode,2) = 0.0_rp
+                     aux_q(inode,3) = 0.0_rp
+
+                     aux_rho_r(inode) = 0.0_rp
+                     
+                  else if ((bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic)) then ! slip)
+                     norm = (normalsAtNodes(inode,1)*aux_q(inode,1)) + (normalsAtNodes(inode,2)*aux_q(inode,2)) + (normalsAtNodes(inode,3)*aux_q(inode,3))
+                     !$acc loop seq
+                     do idime = 1,ndime     
+                        aux_q(inode,idime) = aux_q(inode,idime) - norm*normalsAtNodes(inode,idime)
+                     end do
+                     aux_rho_r(inode) = 0.0_rp
+                  end if
+               end if
+            end do
+            !$acc end parallel loop
+
+         end subroutine temporary_bc_routine_dirichlet_prim_solver
+
       end module mod_bc_routines

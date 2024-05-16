@@ -137,14 +137,14 @@ module jacobian_oper
 
 		end subroutine
 
-		subroutine compute_jacobian(nelem, npoin, ielem, igaus, dNgp, wigp, coord, connec, Je, gpvol)
+		subroutine compute_jacobian(mnnode,mngaus,nelem,npoin,ielem,igaus,dNgp,wigp,coord,connec,Je,gpvol)
 			implicit none
 
-			integer(4), intent(in)  :: ielem, igaus, npoin, nelem
-			integer(4), intent(in)  :: connec(nelem,nnode)
-			real(rp),   intent(in)  :: wigp, coord(npoin,ndime), dNgp(ndime,nnode,ngaus)
-			real(rp),   intent(out) :: Je(ndime,ndime), gpvol
-			integer(4)              :: idime, jdime
+			integer(4), intent(in)  :: mnnode,mngaus,ielem,igaus,npoin,nelem
+			integer(4), intent(in)  :: connec(nelem,mnnode)
+			real(rp),   intent(in)  :: wigp,coord(npoin,ndime),dNgp(ndime,mnnode,mngaus)
+			real(rp),   intent(out) :: Je(ndime,ndime),gpvol
+			integer(4)              :: idime,jdime
 			
 			Je(:,:) = 0.0_rp
 			do idime = 1,ndime

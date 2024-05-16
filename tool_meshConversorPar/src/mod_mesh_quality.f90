@@ -8,7 +8,7 @@ contains
     subroutine ideal_hexa(mnnode, nelem, npoin, ielem, coord, connec, idealJ)
         implicit none
         integer(4), intent(in)  :: mnnode, ielem, npoin, nelem
-        integer(4), intent(in)  :: connec(nelem,nnode)
+        integer(4), intent(in)  :: connec(nelem,mnnode)
         real(rp),   intent(in)  :: coord(npoin,ndime)
         real(rp),   intent(out) :: idealJ(ndime,ndime)
         integer(4)              :: ncorner, nedge
@@ -36,20 +36,20 @@ contains
         eta   = Sf/(d*sigma**(2.0_rp/d)) 
     end subroutine
 
-    subroutine eval_MeshQuality(npoin, nelem, ielem, coordPar, connecParOrig, dNgp, wgp, quality)
-        integer(4), intent(in) :: npoin, nelem, ielem, connecParOrig(nelem, nnode)
-        real(rp), intent(in)  :: coordPar(npoin, ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
+    subroutine eval_MeshQuality(mnnode,mngaus,npoin, nelem, ielem, coordPar, connecParOrig, dNgp, wgp, quality)
+        integer(4), intent(in) :: mnnode,mngaus,npoin,nelem,ielem,connecParOrig(nelem,mnnode)
+        real(rp), intent(in)  :: coordPar(npoin,ndime),dNgp(ndime,mnnode,mngaus),wgp(mngaus)
         real(rp), intent(out) :: quality
         integer(4) :: igaus
-        real(rp)   :: elemJ(ndime, ndime), idealJ(ndime, ndime), gpvol
-        real(rp)   :: eta, volume, modulus
+        real(rp)   :: elemJ(ndime,ndime),idealJ(ndime,ndime),gpvol
+        real(rp)   :: eta,volume,modulus
         real(rp)   :: eta_elem
 
         eta_elem = 0.0_rp
         volume = 0.0_rp
-        call ideal_hexa(nnode,nelem,npoin,ielem,coordPar,connecParOrig,idealJ) !Assumim que el jacobià de l'element ideal és constant
-        do igaus = 1, ngaus
-            call compute_jacobian(nelem,npoin,ielem,igaus,dNgp,wgp(igaus),coordPar,connecParOrig,elemJ,gpvol)
+        call ideal_hexa(mnnode,nelem,npoin,ielem,coordPar,connecParOrig,idealJ) !Assumim que el jacobià de l'element ideal és constant
+        do igaus = 1,mngaus
+            call compute_jacobian(mnnode,mngaus,nelem,npoin,ielem,igaus,dNgp,wgp(igaus),coordPar,connecParOrig,elemJ,gpvol)
             elemJ = transpose(elemJ)
             call shape_measure(elemJ, idealJ, eta)
             eta_elem = eta_elem + eta*eta*gpvol

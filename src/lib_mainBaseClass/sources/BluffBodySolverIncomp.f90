@@ -106,6 +106,8 @@ contains
       call json%get("Re",this%Re, found,10000.0_rp); call this%checkFound(found,found_aux)
       call json%get("aoa",this%aoa, found,0.0_rp); call this%checkFound(found,found_aux)
 
+      call json%get("c_sgs",c_sgs, found,0.025_rp); 
+
       ! fixed by the type of base class parameters
       incomp_viscosity = (this%rho0*this%delta*this%vo)/this%Re
       flag_mu_factor = 1.0_rp
@@ -115,7 +117,7 @@ contains
       nscbc_rho_inf = this%rho0
 
       !Witness points parameters
-      call json%get("have_witness",this%have_witness, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("have_witness",this%have_witness, found,.false.)
       if(this%have_witness .eqv. .true.) then
          call json%get("witness_inp_file_name",value, found,"witness.txt"); call this%checkFound(found,found_aux)
          write(this%witness_inp_file_name,*) value
@@ -152,6 +154,8 @@ contains
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
+         rho(iNodeL,2) = this%rho0
+
          eta(iNodeL,2) =0.5_rp*dot_product(u(iNodeL,1:ndime,2),u(iNodeL,1:ndime,2))
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
 

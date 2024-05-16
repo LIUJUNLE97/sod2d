@@ -135,6 +135,25 @@ contains
       call json%get("Retau",this%Retau, found,950.0_rp); call this%checkFound(found,found_aux)
       call json%get("gamma_gas",this%gamma_gas, found,1.4_rp); call this%checkFound(found,found_aux)
 
+      call json%get("flag_rk_ls",flag_rk_ls, found,.false.); 
+      call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
+      call json%get("c_sgs",c_sgs, found,0.025_rp); 
+      !Witness points parameters
+      call json%get("have_witness",this%have_witness, found,.false.)
+      if(this%have_witness .eqv. .true.) then
+         call json%get("witness_inp_file_name",value, found,"witness.txt"); call this%checkFound(found,found_aux)
+         write(this%witness_inp_file_name,*) value
+         call json%get("witness_h5_file_name",value, found,"resultwit.h5"); call this%checkFound(found,found_aux)
+         write(this%witness_h5_file_name,*) value
+
+         call json%get("leapwit",this%leapwit, found,1); call this%checkFound(found,found_aux)
+         call json%get("nwit",this%nwit, found,17986); call this%checkFound(found,found_aux)
+         call json%get("wit_save_u_i",this%wit_save_u_i, found,.true.); call this%checkFound(found,found_aux)
+         call json%get("wit_save_pr",this%wit_save_pr, found,.true.); call this%checkFound(found,found_aux)
+         call json%get("wit_save_rho",this%wit_save_rho, found,.true.); call this%checkFound(found,found_aux)
+         call json%get("continue_witness",this%continue_witness, found,.false.); call this%checkFound(found,found_aux)
+      end if  
+
       ! fixed by the type of base class parameters
       this%Re     = exp((1.0_rp/0.88_rp)*log(this%Retau/0.09_rp))
       this%mu    = (this%rho0*2.0_rp*this%delta*this%vo)/this%Re
