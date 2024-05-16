@@ -12,7 +12,7 @@ else()
 endif()
 include_directories(${CMAKE_BINARY_DIR}/modules)
 
-add_executable(${PROJECT_NAME} ${SRC_FILES})   # Build executable from listed sources
+add_executable(${PROJECT_NAME} ${SRC_FILES})    # Build executable from listed sources
 set_property(TARGET ${PROJECT_NAME} PROPERTY LINKER_LANGUAGE Fortran)
 
 if(SHARED_LIBS)
@@ -21,6 +21,9 @@ else()
    set_mpi()
    set_hdf5()
    set_jsonfortran()
+   if (USE_SENSEI)
+      target_link_libraries(${PROJECT_NAME} lib_senseiInterface)
+   endif()
 endif()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)

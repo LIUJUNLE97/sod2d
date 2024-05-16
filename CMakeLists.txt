@@ -27,6 +27,8 @@ option(USE_GPU "Compile using GPU" OFF)
 option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
 option(USE_NCCL "Compile using NCCL" OFF)
 
+option(USE_SENSEI "Compile using SENSEI" OFF)
+
 option(DEBUG_MODE "Set debug mode" OFF)
 
 # Folder with files configuring extra CMake options
@@ -61,6 +63,9 @@ include(gempa)
 
 # Configure JFORTRAN module
 include(json-fortran)
+
+# Configure SENSEI
+include(sensei)
 
 # Include external projects
 #include(ExternalProject) (I think this does nothing)
