@@ -218,7 +218,7 @@ module time_integ
                call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:))   
 
                call nvtxStartRange("Entropy viscosity evaluation")
-               call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,Reta(:),Ngp,coord,dNgp,gpvol,wgp, &
+               call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta(:),Ngp,coord,dNgp,gpvol,wgp, &
                   gamma_gas,rho(:,1),u(:,:,1),csound,Tem(:,1),eta(:,1),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
                call nvtxEndRange
             end if

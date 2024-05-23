@@ -193,6 +193,9 @@ module time_integ_incomp
                aux_omega(:,:,2) = 0.0_rp
                aux_omega(:,:,1) = 0.0_rp
                !$acc end kernels
+
+               call smart_visc_spectral_incomp(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Ngp,coord,dNgp,gpvol,wgp, &
+                                            rho(:,1),u(:,:,1),eta(:,1),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
             else 
                if(iltime .eq. 2) then
                   gamma0 = 3.0_rp/2.0_rp
@@ -443,7 +446,7 @@ module time_integ_incomp
             call nvtxStartRange("Update buffer")
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               if(maskMapped(lpoin_w(ipoin)) .eq. 0) then
+               if(maskMapped(lpoin_w(ipoin)) == 0) then
                   xi = 1.0_rp
                   !east
                   if(flag_buffer_on_east .eqv. .true.) then

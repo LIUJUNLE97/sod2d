@@ -7,7 +7,7 @@ module mod_arrays
       ! integer ---------------------------------------------------
       integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
       integer(4), allocatable :: atoIJ(:),atoIJK(:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
-      integer(4), allocatable :: witel(:), buffstep(:),maskMapped(:)
+      integer(4), allocatable :: witel(:), buffstep(:),maskMapped(:),ad(:)
 
       ! real ------------------------------------------------------
       real(rp), allocatable :: normalsAtNodes(:,:)
@@ -1215,9 +1215,12 @@ contains
 
       if(flag_type_wmles==wmles_type_abl) then
          allocate(zo(numNodesRankPar))
+         allocate(ad(numNodesRankPar))
          !$acc enter data create(zo(:))
+         !$acc enter data create(ad(:))
          !$acc kernels
          zo(:) = 0.0_rp
+         ad(:) = 0
          !$acc end kernels
       end if
 
