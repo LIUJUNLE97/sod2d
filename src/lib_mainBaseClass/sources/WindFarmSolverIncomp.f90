@@ -28,7 +28,7 @@ module WindFarmSolverIncomp_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: WindFarmSolverIncomp
 
-      real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar,wind_alpha,prec_x_out, CT, D, pos_x,pos_y,pos_z,vol_correct
+      real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar,wind_alpha,CT, D, pos_x,pos_y,pos_z,vol_correct
    contains
       procedure, public :: fillBCTypes           => WindFarmSolverIncomp_fill_BC_Types
       procedure, public :: initializeParameters  => WindFarmSolverIncomp_initializeParameters
@@ -259,8 +259,6 @@ contains
 
       this%wind_alpha = this%wind_alpha-90.0_rp !North is 0 , East is 90, South is 180 and West is 270 in a x-y axis
 
-      call json%get("prec_x_out",this%prec_x_out, found,0.0_rp); call this%checkFound(found,found_aux)
-
       call json%get("CT",this%CT, found,0.78_rp); call this%checkFound(found,found_aux)
       call json%get("D",this%D, found,126.0_rp); call this%checkFound(found,found_aux)
       call json%get("pos_x",this%pos_x, found,500.0_rp); call this%checkFound(found,found_aux)
@@ -350,11 +348,6 @@ contains
          do iNodeL = 1,numNodesRankPar
             pr(iNodeL,2) = 0.0_rp 
             rho(iNodeL,2) = this%rho0        
-            if (coordPar(iNodeL,1) .le. this%prec_x_out) then
-               maskMapped(iNodeL) = 1
-            else
-               maskMapped(iNodeL) = 0
-            endif
          end do
          !$acc end parallel loop
       end if
