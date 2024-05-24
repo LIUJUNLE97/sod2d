@@ -209,7 +209,7 @@ module time_integ_ls
                call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,1))   
 
                call nvtxStartRange("Entropy viscosity evaluation")
-               call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,Reta(:,1),Ngp,coord,dNgp,gpvol,wgp, &
+               call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta(:,1),Ngp,coord,dNgp,gpvol,wgp, &
                   gamma_gas,rho(:,1),u(:,:,1),csound,Tem(:,1),eta(:,1),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
                call nvtxEndRange
             end if
@@ -264,7 +264,7 @@ module time_integ_ls
 
             do istep = 1,flag_rk_ls_stages
 
-               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,rho(:,pos),q(:,:,pos),E(:,pos),u_buffer)
+               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,maskMapped,rho(:,pos),q(:,:,pos),E(:,pos),u_buffer)
 
                !
                ! Apply bcs after update
@@ -367,7 +367,7 @@ module time_integ_ls
 
 
 
-            if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,rho(:,pos),q(:,:,pos),E(:,pos),u_buffer)
+            if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,maskMapped,rho(:,pos),q(:,:,pos),E(:,pos),u_buffer)
 
             !
             ! Apply bcs after update

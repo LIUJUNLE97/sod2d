@@ -1,5 +1,5 @@
 {
-   "type":"ABlFlowSolverIncomp",
+   "type":"WindFarmSolverIncomp",
 
    "mesh_h5_file_path":"",
    "mesh_h5_file_name":"wf",
@@ -7,16 +7,18 @@
    "results_h5_file_path":"",
    "results_h5_file_name":"results",
 
-   "final_istep":5000001,
+   "final_istep":10000001,
+
+   "saveInitialField":true,
 
    "save_logFile_first":1,
    "save_logFile_step":10,
 
    "save_resultsFile_first":1,
-   "save_resultsFile_step":5000,
+   "save_resultsFile_step":10000,
 
    "save_restartFile_first":1,
-   "save_restartFile_step":5000,
+   "save_restartFile_step":10000,
 
    "loadRestartFile":false,
    "restartFile_to_load":1,
@@ -28,15 +30,15 @@
 
    "initial_avgTime": 3600.0,
 
-   "saveSurfaceResults":false,
+   "saveSurfaceResults":true,
 
    "flag_les":1,
    "maxIter":20,
-   "tol":1e-3,
+   "tol":1e-5,
    "flag_walave":true,
    "period_walave":3600.0,
 
-   "cfl_conv":0.95,
+   "cfl_conv":0.5,
 
    "rho0":1.0,
    "Lz":1500.0,
@@ -45,20 +47,22 @@
    "rough":0.1682,
    "wind_alpha": 90.0,
    "prec_x_out":-200.0,
+   "CT": 0.78,
+   "D": 126.0,
+   "pos_x": 500.0,
+   "pos_y": 700.0,
+   "pos_z": 90.0,
+
 
    "bouCodes":
    [
       {"id":1, "bc_type":"bc_type_slip_wall_model"},
       {"id":2, "bc_type":"bc_type_slip_adiabatic"},
-      {"id":3, "bc_type":"bc_type_outlet_incomp"},
-      {"id":4, "bc_type":"bc_type_slip_adiabatic"},
-      {"id":5, "bc_type":"bc_type_recirculation_inlet"}
+      {"id":4, "bc_type":"bc_type_outlet_incomp"},
+      {"id":3, "bc_type":"bc_type_recirculation_inlet"}
    ],
-
    "buffer":
    [
-      {"type":"east","min":-5500,"size":500},
-      {"type":"north","min":4900,"size":100},
-      {"type":"south","min":100,"size":100}
+      {"type":"east","min":6500,"size":500}
    ]
 }
