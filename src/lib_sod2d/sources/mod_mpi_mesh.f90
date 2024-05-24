@@ -31,7 +31,8 @@ integer(4) :: nPerRankPar
 logical :: isMeshPeriodic
 
 integer(4),allocatable :: perMapLinkedNodesRankPar(:,:)
-integer(4) :: numPerMapLinkedNodesRankPar
+integer(4) :: numPerMapLinkedNodesRankPar,perMapFaceDir
+real(rp) :: perMapFaceGapCoord
 logical :: isMappedFaces
 
 integer(4) :: numBoundCodes, numBoundsRankPar, totalNumBoundsSrl
