@@ -11,6 +11,10 @@ stages:
     - build
     #- test
 
+## before launching the buuilds, get thhe submodules
+before_script:
+    - git submodule update --init --recursive
+
 ## Confgure the build jobs
 
 # build-GNU-Debug job configuration
