@@ -38,7 +38,8 @@ module WindFarmSolverIncomp_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: WindFarmSolverIncomp
 
-      real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar,wind_alpha,N_ad
+      real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar,wind_alpha
+      integer(4), public :: N_ad
    contains
       procedure, public :: fillBCTypes           => WindFarmSolverIncomp_fill_BC_Types
       procedure, public :: initializeParameters  => WindFarmSolverIncomp_initializeParameters
