@@ -380,19 +380,16 @@ module time_integ_incomp
 
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               eta(lpoin_w(ipoin),4) = eta(lpoin_w(ipoin),3)
-               eta(lpoin_w(ipoin),3) = eta(lpoin_w(ipoin),1)
-               eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
                eta(lpoin_w(ipoin),2) = 0.5*(u(lpoin_w(ipoin),1,2)**2 + u(lpoin_w(ipoin),2,2)**2 + u(lpoin_w(ipoin),3,2)**2)
                !$acc loop seq
                do idime = 1,ndime
-                  f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,2)*eta(lpoin_w(ipoin),2)
+                  f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
                end do
             end do
             !$acc end parallel loop
 
             call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,2),u(:,:,2),Reta(:,2))
+               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:,2))
 
             if(mpi_size.ge.2) then
                call mpi_halo_atomic_update_real(Reta(:,2))
@@ -402,8 +399,8 @@ module time_integ_incomp
 
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               auxReta(lpoin_w(ipoin)) = (beta(1)*Reta(lpoin_w(ipoin),2)+beta(2)*Reta(lpoin_w(ipoin),1)+beta(3)*Reta(lpoin_w(ipoin),3)) !+ &
-                                         !(gamma0*eta(lpoin_w(ipoin),2)-alpha(1)*eta(lpoin_w(ipoin),1)-alpha(2)*eta(lpoin_w(ipoin),3)-alpha(3)*eta(lpoin_w(ipoin),4))/dt
+               auxReta(lpoin_w(ipoin)) = (beta(1)*Reta(lpoin_w(ipoin),2)+beta(2)*Reta(lpoin_w(ipoin),1)+beta(3)*Reta(lpoin_w(ipoin),3)) + &
+                                         (gamma0*eta(lpoin_w(ipoin),2)-alpha(1)*eta(lpoin_w(ipoin),1)-alpha(2)*eta(lpoin_w(ipoin),3)-alpha(3)*eta(lpoin_w(ipoin),4))/dt
                Reta(lpoin_w(ipoin),3) = Reta(lpoin_w(ipoin),1)
                Reta(lpoin_w(ipoin),1) = Reta(lpoin_w(ipoin),2)
             end do
