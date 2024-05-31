@@ -31,13 +31,16 @@ contains
       real(rp),    intent(inout) :: Rmom(npoin,ndime)
       real(rp), optional, intent(in)  :: fact
       integer(4)                :: ielem, igaus, idime, inode
-      real(rp)                   :: Re(nnode,ndime), aux_fact
+      real(rp)                   :: Re(nnode,ndime)
+      real(rp)  :: aux_fact = 1.0_rp
 
       call nvtxStartRange("Momentum source term")
 
       !oriol: I will assue that you will call
       !this subroutine at least having convection so Rmom is
       !already initialized
+
+      
 
       if(present(fact)) then
          aux_fact = fact

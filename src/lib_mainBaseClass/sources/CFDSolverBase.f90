@@ -7,7 +7,7 @@ module mod_arrays
       ! integer ---------------------------------------------------
       integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
       integer(4), allocatable :: atoIJ(:),atoIJK(:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
-      integer(4), allocatable :: witel(:), buffstep(:)
+      integer(4), allocatable :: witel(:), buffstep(:),maskMapped(:),ad(:)
 
       ! real ------------------------------------------------------
       real(rp), allocatable :: normalsAtNodes(:,:)
@@ -1215,11 +1215,20 @@ contains
 
       if(flag_type_wmles==wmles_type_abl) then
          allocate(zo(numNodesRankPar))
+         allocate(ad(numNodesRankPar))
          !$acc enter data create(zo(:))
+         !$acc enter data create(ad(:))
          !$acc kernels
          zo(:) = 0.0_rp
+         ad(:) = 0
          !$acc end kernels
       end if
+
+      allocate(maskMapped(numNodesRankPar))
+      !$acc enter data create(maskMapped(:))
+      !$acc kernels
+      maskMapped(:) = 1 !1 for calculation domain / 0 for recirculating domain where buffer is not applied
+      !$acc end kernels
 
       call nvtxEndRange
 
@@ -1621,7 +1630,7 @@ contains
 
    subroutine CFDSolverBase_set_mappedFaces_linkingNodes(this)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: iNode,iNodePer,iNodeMap
+      integer(4) :: iNode,iNodePer,iNodeMap,perMapFaceAbsDir
 
       if(.not.isMappedFaces) return
 
@@ -1636,6 +1645,23 @@ contains
          lnbnNodes(iNodeMap) = iNodePer                  
 		end do
 		!$acc end parallel loop
+
+      !---------------------------------------------------------------------------------------------------------------------
+
+      if(mpi_rank.eq.0) write(111,*) '  --| Applying Mask Mapped from pos',perMapFaceGapCoord,'at dir',perMapFaceDir
+      !maskMapped by default is 1, and here we set it to 0 in the precursor domain so the buffer is not applied
+      !i.e.: if maskMapped=1: buffer IS applied // if maskMapped=0: buffer IS NOT applied
+
+      perMapFaceAbsDir = abs(perMapFaceDir)
+      !$acc parallel loop
+      do iNode = 1,numNodesRankPar
+         if(perMapFaceDir.ge.0) then !positive x,y,z
+            if (coordPar(iNode,perMapFaceAbsDir) .le. perMapFaceGapCoord) maskMapped(iNode) = 0
+         else !negative x,y,z
+            if (coordPar(iNode,perMapFaceAbsDir) .ge. perMapFaceGapCoord) maskMapped(iNode) = 0
+         end if
+      end do
+      !$acc end parallel loop
 
    end subroutine CFDSolverBase_set_mappedFaces_linkingNodes
 

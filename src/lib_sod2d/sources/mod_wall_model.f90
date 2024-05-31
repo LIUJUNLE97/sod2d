@@ -427,8 +427,10 @@ contains
       ! wall law stuff
       real(rp)                :: y,ul,nul,uistar,tvelo(ndime),uiex(ndime),auxmag,auxvn,surf
       integer(4)              :: isoI,isoJ,isoK,jgaus,type_ijk,ii,isoII,isoJJ,isoKK
-      real(rp)                :: point(ndime),pointF(ndime),normalF(ndime),aux_fact
+      real(rp)                :: point(ndime),pointF(ndime),normalF(ndime)
       integer(4)              :: atoIJ(npbou)
+      real(rp)  :: aux_fact = 1.0_rp
+      
 
       atoIJ(:) = mesh_a2ij(:)
 

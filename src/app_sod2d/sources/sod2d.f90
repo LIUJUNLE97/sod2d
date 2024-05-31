@@ -18,6 +18,7 @@ program main
    use BLFlowSolver_mod
    use ABlFlowSolverIncomp_mod
    use MappedInletIncomp_mod
+   use WindFarmSolverIncomp_mod
    implicit none
 
    logical :: found
@@ -75,6 +76,8 @@ program main
       allocate(ABlFlowSolverIncomp::solver) 
    else if(value .eq. "MappedInletIncomp") then
       allocate(MappedInletIncomp::solver) 
+   else if(value .eq. "WindFarmSolverIncomp") then
+      allocate(WindFarmSolverIncomp::solver) 
    else
       write(*,*) " Solver not implemented in SOD2D : ",value
       stop 1

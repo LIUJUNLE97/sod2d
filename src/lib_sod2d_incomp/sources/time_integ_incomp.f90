@@ -84,7 +84,7 @@ module time_integ_incomp
 
    end subroutine end_rk4_solver_incomp
  
-         subroutine ab_main_incomp(igtime,iltime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,leviCivi,&
+         subroutine ab_main_incomp(igtime,iltime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,leviCivi,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
@@ -97,7 +97,7 @@ module time_integ_incomp
             integer(4),           intent(in)    :: nelem, nboun, npoin
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn_nodes(npoin),lelpn(npoin)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            integer(4),           intent(in)    :: ppow
+            integer(4),           intent(in)    :: ppow,maskMapped(npoin)
             real(rp),              intent(in)   :: leviCivi(ndime,ndime,ndime)
             real(rp),             intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
             real(rp),             intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
@@ -193,6 +193,9 @@ module time_integ_incomp
                aux_omega(:,:,2) = 0.0_rp
                aux_omega(:,:,1) = 0.0_rp
                !$acc end kernels
+
+               call smart_visc_spectral_incomp(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Ngp,coord,dNgp,gpvol,wgp, &
+                                            rho(:,1),u(:,:,1),eta(:,1),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
             else 
                if(iltime .eq. 2) then
                   gamma0 = 3.0_rp/2.0_rp
@@ -357,7 +360,7 @@ module time_integ_incomp
                                        gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,u(:,:,1),u(:,:,2),&
                                        bou_codes_nodes,normalsAtNodes,u_buffer)
 
-            if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,u(:,:,2),u_buffer)
+            if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
 
             if (noBoundaries .eqv. .false.) then
 
@@ -426,12 +429,12 @@ module time_integ_incomp
             end if
          end subroutine ab_main_incomp
 
-         subroutine updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,u,u_buffer)
+         subroutine updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u,u_buffer)
             implicit none
             integer(4),           intent(in)    :: npoin
             integer(4),           intent(in)    :: npoin_w
             real(rp),             intent(in)    :: coord(npoin,ndime)
-            integer(4),           intent(in)    :: lpoin_w(npoin_w)
+            integer(4),           intent(in)    :: lpoin_w(npoin_w),maskMapped(npoin)
             real(rp),             intent(inout) :: u(npoin,ndime)
             real(rp),             intent(in) :: u_buffer(npoin,ndime)
             integer(4) :: ipoin
@@ -449,7 +452,7 @@ module time_integ_incomp
                   xs = coord(lpoin_w(ipoin),1)
                   if(xs>flag_buffer_e_min) then
                      xb = (xs-flag_buffer_e_min)/flag_buffer_e_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
                !west
@@ -457,7 +460,7 @@ module time_integ_incomp
                   xs = coord(lpoin_w(ipoin),1)
                   if(xs<flag_buffer_w_min) then
                      xb = (flag_buffer_w_min-xs)/flag_buffer_w_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
                !north
@@ -465,7 +468,7 @@ module time_integ_incomp
                   xs = coord(lpoin_w(ipoin),2)
                   if(xs>flag_buffer_n_min) then
                      xb = (xs-flag_buffer_n_min)/flag_buffer_n_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
                !south
@@ -473,7 +476,7 @@ module time_integ_incomp
                   xs = coord(lpoin_w(ipoin),2)
                   if(xs<flag_buffer_s_min) then
                      xb = (flag_buffer_s_min-xs)/flag_buffer_s_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
                !north
@@ -481,7 +484,7 @@ module time_integ_incomp
                   xs = coord(lpoin_w(ipoin),3)
                   if(xs>flag_buffer_t_min) then
                      xb = (xs-flag_buffer_t_min)/flag_buffer_t_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
                !bottom
@@ -489,14 +492,13 @@ module time_integ_incomp
                   xs = coord(lpoin_w(ipoin),3)
                   if(xs<flag_buffer_b_min) then
                      xb = (flag_buffer_b_min-xs)/flag_buffer_b_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
 
                u(lpoin_w(ipoin),1) = u_buffer(lpoin_w(ipoin),1) + xi*(u(lpoin_w(ipoin),1)-u_buffer(lpoin_w(ipoin),1))
                u(lpoin_w(ipoin),2) = u_buffer(lpoin_w(ipoin),2) + xi*(u(lpoin_w(ipoin),2)-u_buffer(lpoin_w(ipoin),2))
                u(lpoin_w(ipoin),3) = u_buffer(lpoin_w(ipoin),3) + xi*(u(lpoin_w(ipoin),3)-u_buffer(lpoin_w(ipoin),3))
-
             end do
             !$acc end parallel loop
             call nvtxEndRange
