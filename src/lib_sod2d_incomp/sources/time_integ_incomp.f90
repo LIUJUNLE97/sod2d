@@ -446,61 +446,59 @@ module time_integ_incomp
             call nvtxStartRange("Update buffer")
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               if(maskMapped(lpoin_w(ipoin)) == 0) then
-                  xi = 1.0_rp
-                  !east
-                  if(flag_buffer_on_east .eqv. .true.) then
-                     xs = coord(lpoin_w(ipoin),1)
-                     if(xs>flag_buffer_e_min) then
-                        xb = (xs-flag_buffer_e_min)/flag_buffer_e_size
-                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
-                     end if
+               xi = 1.0_rp
+               !east
+               if(flag_buffer_on_east .eqv. .true.) then
+                  xs = coord(lpoin_w(ipoin),1)
+                  if(xs>flag_buffer_e_min) then
+                     xb = (xs-flag_buffer_e_min)/flag_buffer_e_size
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
-                  !west
-                  if(flag_buffer_on_west .eqv. .true.) then
-                     xs = coord(lpoin_w(ipoin),1)
-                     if(xs<flag_buffer_w_min) then
-                        xb = (flag_buffer_w_min-xs)/flag_buffer_w_size
-                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
-                     end if
-                  end if
-                  !north
-                  if(flag_buffer_on_north .eqv. .true.) then
-                     xs = coord(lpoin_w(ipoin),2)
-                     if(xs>flag_buffer_n_min) then
-                        xb = (xs-flag_buffer_n_min)/flag_buffer_n_size
-                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
-                     end if
-                  end if
-                  !south
-                  if(flag_buffer_on_south .eqv. .true.) then
-                     xs = coord(lpoin_w(ipoin),2)
-                     if(xs<flag_buffer_s_min) then
-                        xb = (flag_buffer_s_min-xs)/flag_buffer_s_size
-                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
-                     end if
-                  end if
-                  !north
-                  if(flag_buffer_on_top .eqv. .true.) then
-                     xs = coord(lpoin_w(ipoin),3)
-                     if(xs>flag_buffer_t_min) then
-                        xb = (xs-flag_buffer_t_min)/flag_buffer_t_size
-                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
-                     end if
-                  end if
-                  !bottom
-                  if(flag_buffer_on_bottom .eqv. .true.) then
-                     xs = coord(lpoin_w(ipoin),3)
-                     if(xs<flag_buffer_b_min) then
-                        xb = (flag_buffer_b_min-xs)/flag_buffer_b_size
-                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
-                     end if
-                  end if
-
-                  u(lpoin_w(ipoin),1) = u_buffer(lpoin_w(ipoin),1) + xi*(u(lpoin_w(ipoin),1)-u_buffer(lpoin_w(ipoin),1))
-                  u(lpoin_w(ipoin),2) = u_buffer(lpoin_w(ipoin),2) + xi*(u(lpoin_w(ipoin),2)-u_buffer(lpoin_w(ipoin),2))
-                  u(lpoin_w(ipoin),3) = u_buffer(lpoin_w(ipoin),3) + xi*(u(lpoin_w(ipoin),3)-u_buffer(lpoin_w(ipoin),3))
                end if
+               !west
+               if(flag_buffer_on_west .eqv. .true.) then
+                  xs = coord(lpoin_w(ipoin),1)
+                  if(xs<flag_buffer_w_min) then
+                     xb = (flag_buffer_w_min-xs)/flag_buffer_w_size
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                  end if
+               end if
+               !north
+               if(flag_buffer_on_north .eqv. .true.) then
+                  xs = coord(lpoin_w(ipoin),2)
+                  if(xs>flag_buffer_n_min) then
+                     xb = (xs-flag_buffer_n_min)/flag_buffer_n_size
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                  end if
+               end if
+               !south
+               if(flag_buffer_on_south .eqv. .true.) then
+                  xs = coord(lpoin_w(ipoin),2)
+                  if(xs<flag_buffer_s_min) then
+                     xb = (flag_buffer_s_min-xs)/flag_buffer_s_size
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                  end if
+               end if
+               !north
+               if(flag_buffer_on_top .eqv. .true.) then
+                  xs = coord(lpoin_w(ipoin),3)
+                  if(xs>flag_buffer_t_min) then
+                     xb = (xs-flag_buffer_t_min)/flag_buffer_t_size
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                  end if
+               end if
+               !bottom
+               if(flag_buffer_on_bottom .eqv. .true.) then
+                  xs = coord(lpoin_w(ipoin),3)
+                  if(xs<flag_buffer_b_min) then
+                     xb = (flag_buffer_b_min-xs)/flag_buffer_b_size
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                  end if
+               end if
+
+               u(lpoin_w(ipoin),1) = u_buffer(lpoin_w(ipoin),1) + xi*(u(lpoin_w(ipoin),1)-u_buffer(lpoin_w(ipoin),1))
+               u(lpoin_w(ipoin),2) = u_buffer(lpoin_w(ipoin),2) + xi*(u(lpoin_w(ipoin),2)-u_buffer(lpoin_w(ipoin),2))
+               u(lpoin_w(ipoin),3) = u_buffer(lpoin_w(ipoin),3) + xi*(u(lpoin_w(ipoin),3)-u_buffer(lpoin_w(ipoin),3))
             end do
             !$acc end parallel loop
             call nvtxEndRange

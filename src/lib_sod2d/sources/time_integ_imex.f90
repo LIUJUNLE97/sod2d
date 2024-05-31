@@ -305,7 +305,7 @@ module time_integ_imex
                
                !call limit_rho(nelem,npoin,connec,rho(:,2),epsilon(umag))
 
-               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,rho(:,2),q(:,:,2),E(:,2),u_buffer)
+               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,maskMapped,rho(:,2),q(:,:,2),E(:,2),u_buffer)
 
                if (noBoundaries .eqv. .false.) then
                   call nvtxStartRange("BCS_AFTER_UPDATE")

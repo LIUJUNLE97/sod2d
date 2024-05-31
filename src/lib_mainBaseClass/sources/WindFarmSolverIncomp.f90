@@ -38,7 +38,7 @@ module WindFarmSolverIncomp_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: WindFarmSolverIncomp
 
-      real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar,wind_alpha,prec_x_out,N_ad
+      real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar,wind_alpha,N_ad
    contains
       procedure, public :: fillBCTypes           => WindFarmSolverIncomp_fill_BC_Types
       procedure, public :: initializeParameters  => WindFarmSolverIncomp_initializeParameters
@@ -213,7 +213,7 @@ end subroutine WindFarmSolverIncomp_readJSONAD
 
             !$acc parallel loop  
             do iNodeL = 1,numNodesRankPar
-               if(maskMapped(iNodeL) == 1) then
+               if(maskMapped(iNodeL) == 0) then
                   source_term(iNodeL,1) = (this%rho0*this%ustar**2/this%Lz)*cos(this%wind_alpha*v_pi/180.0_rp)
                   source_term(iNodeL,2) = (this%rho0*this%ustar**2/this%Lz)*sin(this%wind_alpha*v_pi/180.0_rp)
                   source_term(iNodeL,3) = 0.00_rp
@@ -310,7 +310,7 @@ end subroutine WindFarmSolverIncomp_readJSONAD
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
-         if(maskMapped(iNodeL)==1) then
+         if(maskMapped(iNodeL)==0) then
             source_term(iNodeL,1) = (this%rho0*this%ustar**2/this%Lz)*cos(this%wind_alpha*v_pi/180.0_rp)
             source_term(iNodeL,2) = (this%rho0*this%ustar**2/this%Lz)*sin(this%wind_alpha*v_pi/180.0_rp)
             source_term(iNodeL,3) = 0.00_rp
@@ -398,8 +398,6 @@ end subroutine WindFarmSolverIncomp_readJSONAD
 
       this%wind_alpha = this%wind_alpha-90.0_rp !North is 0 , East is 90, South is 180 and West is 270 in a x-y axis
 
-      call json%get("prec_x_out",this%prec_x_out, found,0.0_rp); call this%checkFound(found,found_aux)
-
       !Witness points parameters
       call json%get("have_witness",this%have_witness, found,.false.)
       if(this%have_witness .eqv. .true.) then
@@ -484,11 +482,6 @@ end subroutine WindFarmSolverIncomp_readJSONAD
          do iNodeL = 1,numNodesRankPar
             pr(iNodeL,2) = 0.0_rp 
             rho(iNodeL,2) = this%rho0        
-            if (coordPar(iNodeL,1) .le. this%prec_x_out) then
-               maskMapped(iNodeL) = 1
-            else
-               maskMapped(iNodeL) = 0
-            endif
          end do
          !$acc end parallel loop
       end if

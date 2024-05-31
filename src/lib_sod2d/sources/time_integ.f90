@@ -273,7 +273,7 @@ module time_integ
                !$acc end parallel loop
                call nvtxEndRange
 
-               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,aux_rho,aux_q,aux_E,u_buffer)
+               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,maskMapped,aux_rho,aux_q,aux_E,u_buffer)
 
                !
                ! Apply bcs after update
@@ -452,7 +452,7 @@ module time_integ
             !$acc end parallel loop
             call nvtxEndRange
 
-            if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,rho(:,pos),q(:,:,pos),E(:,pos),u_buffer)
+            if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,maskMapped,rho(:,pos),q(:,:,pos),E(:,pos),u_buffer)
 
             !
             ! Apply bcs after update
@@ -534,11 +534,11 @@ module time_integ
 
          end subroutine rk_4_main
 
-         subroutine updateBuffer(npoin,npoin_w,coord,lpoin_w,rho,q,E,u_buffer)
+         subroutine updateBuffer(npoin,npoin_w,coord,lpoin_w,maskMapped,rho,q,E,u_buffer)
             integer(4),           intent(in)    :: npoin
             integer(4),           intent(in)    :: npoin_w
             real(rp),             intent(in)    :: coord(npoin,ndime)
-            integer(4),           intent(in)    :: lpoin_w(npoin_w)
+            integer(4),           intent(in)    :: lpoin_w(npoin_w),maskMapped(npoin)
             real(rp),             intent(inout) :: rho(npoin)
             real(rp),             intent(inout) :: E(npoin)
             real(rp),             intent(inout) :: q(npoin,ndime)
@@ -560,7 +560,7 @@ module time_integ
                   xs = coord(lpoin_w(ipoin),1)
                   if(xs>flag_buffer_e_min) then
                      xb = (xs-flag_buffer_e_min)/flag_buffer_e_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
                !west
@@ -568,7 +568,7 @@ module time_integ
                   xs = coord(lpoin_w(ipoin),1)
                   if(xs<flag_buffer_w_min) then
                      xb = (flag_buffer_w_min-xs)/flag_buffer_w_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
                !north
@@ -576,7 +576,7 @@ module time_integ
                   xs = coord(lpoin_w(ipoin),2)
                   if(xs>flag_buffer_n_min) then
                      xb = (xs-flag_buffer_n_min)/flag_buffer_n_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
                !south
@@ -584,7 +584,7 @@ module time_integ
                   xs = coord(lpoin_w(ipoin),2)
                   if(xs<flag_buffer_s_min) then
                      xb = (flag_buffer_s_min-xs)/flag_buffer_s_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
                !north
@@ -592,7 +592,7 @@ module time_integ
                   xs = coord(lpoin_w(ipoin),3)
                   if(xs>flag_buffer_t_min) then
                      xb = (xs-flag_buffer_t_min)/flag_buffer_t_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
                !bottom
@@ -600,7 +600,7 @@ module time_integ
                   xs = coord(lpoin_w(ipoin),3)
                   if(xs<flag_buffer_b_min) then
                      xb = (flag_buffer_b_min-xs)/flag_buffer_b_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                   end if
                end if
 

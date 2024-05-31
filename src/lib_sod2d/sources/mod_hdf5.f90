@@ -547,8 +547,8 @@ contains
    subroutine create_groups_datasets_mappedFaces_data_hdf5(file_id,numMshRanks2Part,vecNumPerMapLinkedNodesMshRank)
       implicit none
       integer(hid_t),intent(in) :: file_id
-      integer,intent(in) :: numMshRanks2Part
-      integer,intent(in),dimension(0:numMshRanks2Part-1) :: vecNumPerMapLinkedNodesMshRank
+      integer(4),intent(in) :: numMshRanks2Part
+      integer(4),intent(in),dimension(0:numMshRanks2Part-1) :: vecNumPerMapLinkedNodesMshRank
       character(128) :: groupname,dsetname
       integer(hsize_t), dimension(1) :: ds_dims,ms_dims
       integer(hid_t) :: dtype
@@ -576,6 +576,14 @@ contains
       dsetname = '/MappedFaces_data/perMapLinkedNodesRankPar2'
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       !--------------------------------------------------------------------------------------------------------
+
+      ds_dims(1) = 1
+      dsetname = '/MappedFaces_data/mapFaceDir'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+
+      call select_dtype_rp(dtype)
+      dsetname = '/MappedFaces_data/mapFaceGapCoord'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
 
    end subroutine create_groups_datasets_mappedFaces_data_hdf5
 
@@ -657,7 +665,7 @@ contains
 
    subroutine write_mshRank_data_in_hdf5_meshFile_from_tool(mporder,mnnode,mnpbou,hdf5_file_id,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,isMapFaces,isLinealOutput,numElemsGmsh,numBoundFacesGmsh,&
          numElemsMshRank,mshRankElemStart,mshRankElemEnd,mshRankNodeStart_i8,mshRankNodeEnd_i8,numNodesMshRank,numWorkingNodesMshRank,numBoundFacesMshRank,numBoundaryNodesMshRank,numDoFMshRank,maxBoundCode,&
-         numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,&
+         numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,mapFaceDir,mapFaceGapCoord,&
          a2ijk,a2ij,gmsh2ijk,gmsh2ij,vtk2ijk,vtk2ij,&
          elemGidMshRank,globalIdSrlMshRank_i8,globalIdParMshRank_i8,connecParOrigMshRank,connecParWorkMshRank,coordParMshRank,workingNodesMshRank,&
          boundaryNodesMshRank,dofNodesMshRank,boundFacesCodesMshRank,boundFacesOrigMshRank,boundFacesMshRank,&
@@ -685,7 +693,8 @@ contains
       integer(4),intent(in) :: boundaryNodesMshRank(numBoundaryNodesMshRank),dofNodesMshRank(numDoFMshRank)
       integer(4),intent(in) :: boundFacesCodesMshRank(numBoundFacesMshRank),boundFacesOrigMshRank(numBoundFacesMshRank,mnpbou),boundFacesMshRank(numBoundFacesMshRank,mnpbou)
       integer(4),intent(in) :: numNodesToCommMshRank,numMshRanksWithComms
-      integer(4),intent(in) :: masSlaNodesMshRank(numPerNodesMshRank,2),perMapLinkedNodesMshRank(numPerMapLinkedNodesMshRank,2)
+      integer(4),intent(in) :: masSlaNodesMshRank(numPerNodesMshRank,2),perMapLinkedNodesMshRank(numPerMapLinkedNodesMshRank,2),mapFaceDir
+      real(rp),  intent(in) :: mapFaceGapCoord
       integer(4),intent(in),dimension(numMshRanksWithComms) :: nodesToCommMshRank,commsMemPosInLocMshRank,commsMemSizeMshRank,commsMemPosInNgbMshRank,ranksToCommMshRank
       integer(4),intent(in) :: bnd_numNodesToCommMshRank,bnd_numMshRanksWithComms
       integer(4),intent(in),dimension(bnd_numMshRanksWithComms) :: bnd_nodesToCommMshRank,bnd_commsMemPosInLocMshRank,bnd_commsMemSizeMshRank,bnd_commsMemPosInNgbMshRank,bnd_ranksToCommMshRank
@@ -700,6 +709,7 @@ contains
       integer(1),allocatable :: aux_array_i1(:)
       integer(4),allocatable :: aux_array_i4(:)
       integer(8),allocatable :: aux_array_i8(:)
+      real(rp) :: aux_array_rp(1)
       !-------------------------------------------------------------------------------------------------------------------------------
 
       ms_dims(1) = int(numNodesMshRank,hsize_t)
@@ -1038,6 +1048,23 @@ contains
 
          dsetname = '/MappedFaces_data/perMapLinkedNodesRankPar2'
          call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,perMapLinkedNodesMshRank(:,2))
+
+         ms_dims(1) = 0
+         ms_offset(1) = 0
+         if(mshRank.eq.0) ms_dims(1) = 1
+
+         allocate(aux_array_i4(ms_dims(1)))
+
+         dsetname = '/MappedFaces_data/mapFaceDir'
+         if(mshRank.eq.0) aux_array_i4(1) = mapFaceDir
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+
+         deallocate(aux_array_i4)
+
+         dsetname = '/MappedFaces_data/mapFaceGapCoord'
+         if(mshRank.eq.0) aux_array_rp(1) = mapFaceGapCoord
+         call write_dataspace_1d_real_rp_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_rp)
+
       end if
       !------------------------------------------------------------------------------------------------------------------------
 
@@ -1356,6 +1383,13 @@ contains
 
          dsetname = '/MappedFaces_data/perMapLinkedNodesRankPar2'
          call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
+
+         dsetname = '/MappedFaces_data/mapFaceDir'
+         call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
+
+         dsetname = '/MappedFaces_data/mapFaceGapCoord'
+         call write_dataspace_1d_real_rp_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_rp)
+
       end if
       !------------------------------------------------------------------------------------------------------------------------
 
@@ -2699,7 +2733,8 @@ contains
       integer(4) :: ds_rank,h5err
       integer(4) :: i,accumVal,iBound,m
       integer(HSSIZE_T), dimension(1) :: ms_offset
-      integer(4),allocatable :: aux_array(:)
+      integer(4),allocatable :: aux_array_i4(:)
+      real(rp),allocatable :: aux_array_rp(:)
       logical :: isMappedFacesFolder
 
       !ELS WORKING NODES SON SEMPRE, NO NOMES PERIODIC
@@ -2718,31 +2753,31 @@ contains
          ds_dims(1) = mpi_size
          ms_dims(1) = 1
          ms_offset(1) = int(mpi_rank,hssize_t)
-         allocate(aux_array(1))
+         allocate(aux_array_i4(1))
 
          !--------------------------------------------------------------------------------------------------------
          dsetname = '/MappedFaces_data/numPerMapLinkedNodesRankPar'
-         call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
-         numPerMapLinkedNodesRankPar=aux_array(1)
+         call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+         numPerMapLinkedNodesRankPar=aux_array_i4(1)
 
          allocate(perMapLinkedNodesRankPar(numPerMapLinkedNodesRankPar,2))
          !--------------------------------------------------------------------------------------------------------
-         deallocate(aux_array)
-         allocate(aux_array(mpi_size))
+         deallocate(aux_array_i4)
+         allocate(aux_array_i4(mpi_size))
          ms_dims(1) = int(mpi_size,hsize_t)
          ms_offset(1) = 0
          !read data set numBoundsRankPar of all ranks
          dsetname = '/MappedFaces_data/numPerMapLinkedNodesRankPar'
-         call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
+         call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
          ds_dims(1)=0
          do i=1,mpi_size
-            ds_dims(1)=ds_dims(1)+aux_array(i)
+            ds_dims(1)=ds_dims(1)+aux_array_i4(i)
          end do
 
          ms_offset(1)=0
          do i=1,(mpi_rank) !from rank 0 mpi_rank-1
-            ms_offset(1)=ms_offset(1)+int(aux_array(i),hssize_t)
+            ms_offset(1)=ms_offset(1)+int(aux_array_i4(i),hssize_t)
          end do
          ms_dims(1)=int(numPerMapLinkedNodesRankPar,hsize_t)
 
@@ -2751,8 +2786,27 @@ contains
 
          dsetname = '/MappedFaces_data/perMapLinkedNodesRankPar2'
          call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,perMapLinkedNodesRankPar(:,2))
-         deallocate(aux_array)
-         !-------------------------------------------------------------------------------------------------------
+         deallocate(aux_array_i4)
+
+         !------------------------------------------------------------------------------------------------------------------
+         allocate(aux_array_i4(1))
+         ms_dims(1) = 1
+         ms_offset(1) = 0
+         dsetname = '/MappedFaces_data/mapFaceDir'
+         call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+         perMapFaceDir = aux_array_i4(1)
+
+         deallocate(aux_array_i4)
+         allocate(aux_array_rp(1))
+
+         dsetname = '/MappedFaces_data/mapFaceGapCoord'
+         call read_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_rp)
+         perMapFaceGapCoord = aux_array_rp(1)
+
+         deallocate(aux_array_rp)
+
+         !------------------------------------------------------------------------------------------------------------------
+ 
       else
          isMappedFaces = .false.
       end if

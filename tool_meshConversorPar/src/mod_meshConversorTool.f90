@@ -109,6 +109,9 @@ contains
       integer(4) :: mshRankInMpiRankStart,mshRankInMpiRankEnd,numMshRanksInMpiRank,maxNumMshRanks
       integer(4), allocatable :: mshRanksInMpiRank(:),mapMshRankToMpiRank(:)
 
+      integer(4) :: mapFaceDir
+      real(rp) :: mapFaceGapCoord
+
 ! ################################################################################################
 ! ------------------------ VARS for MPI COMMS ----------------------------------------------------
 ! ################################################################################################
@@ -168,7 +171,7 @@ contains
       call read_elems_nodes_gmsh_h5_file_in_parallel(mporder,mnnode,mnpbou,gmsh2ijk,gmsh_h5_fileId,isPeriodic,isMapFaces,numElemsGmsh,numNodesGmsh_i8,numPerFacesGmsh,numPerLinkedNodesGmsh,numMapFacesGmsh,&
                      numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,listNodesMpiRank_i8,connecMpiRank_i8,coordNodesMpiRank,&
                      numLinkedPerElemsSrl,linkedPerElemsSrl,numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl_i8,&
-                     linkedPerToMapElemsAndFacesSrl)
+                     linkedPerToMapElemsAndFacesSrl,mapFaceDir,mapFaceGapCoord)
       end_time(2) = MPI_Wtime()
       elapsed_time_r(2) = end_time(2) - start_time(2)
 
@@ -521,7 +524,7 @@ contains
          call write_mshRank_data_in_hdf5_meshFile_from_tool(mporder,mnnode,mnpbou,sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,isMapFaces,isLinealOutput,numElemsGmsh,numBoundFacesGmsh,&
             numElemsMshRank(iMshRank),mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),&
             mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),numWorkingNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),numBoundaryNodesMshRank(iMshRank),numDoFMshRank(iMshRank),maxBoundCode,&
-            numElemsVTKMshRank(iMshRank),sizeConnecVTKMshRank(iMshRank),mnnodeVTK,numVTKElemsPerMshElem,&
+            numElemsVTKMshRank(iMshRank),sizeConnecVTKMshRank(iMshRank),mnnodeVTK,numVTKElemsPerMshElem,mapFaceDir,mapFaceGapCoord,&
             a2ijk,a2ij,gmsh2ijk,gmsh2ij,vtk2ijk,vtk2ij,&
             elemGidMshRank_jv%vector(iMshRank)%elems,globalIdSrl_i8_jv%vector(iMshRank)%elems,globalIdPar_i8_jv%vector(iMshRank)%elems,&
             connecParOrig_jm%matrix(iMshRank)%elems,connecParWork_jm%matrix(iMshRank)%elems,coordPar_jm%matrix(iMshRank)%elems,workingNodesPar_jv%vector(iMshRank)%elems,&
@@ -1116,7 +1119,7 @@ contains
 
    subroutine read_mapped_faces_from_gmsh_h5_file_in_parallel(mporder,mnnode,mnpbou,gmsh_h5_fileId,numMapFacesSrl,numElemsInRank,listElemsInRank,&
                      numNodesInRank,numPerFacesInRank,connecInRank_i8,listNodesInRank_i8,coordNodesInRank,numBoundElemsMpiRank,listBoundElemsMpiRank,&
-                     listElemsPerFacesInRank,listPerFacesInRank,connecPerFacesInRank_i8,linkedPerToMapElemsAndFacesSrl)
+                     listElemsPerFacesInRank,listPerFacesInRank,connecPerFacesInRank_i8,linkedPerToMapElemsAndFacesSrl,mapFaceDir,mapFaceGapCoord)
       implicit none
       integer(4), intent(in) :: mporder,mnnode,mnpbou
       integer(hid_t),intent(in) :: gmsh_h5_fileId
@@ -1127,7 +1130,9 @@ contains
       integer(4),intent(in) :: listElemsPerFacesInRank(:,:),listPerFacesInRank(:)
       integer(8),intent(in) :: connecPerFacesInRank_i8(:,:)
       integer(4),intent(out) :: linkedPerToMapElemsAndFacesSrl(numMapFacesSrl,4)
-      integer(4) :: mapFaceDir,numMapFacesInRank,h5err
+      integer(4),intent(out) :: mapFaceDir
+      real(rp),intent(out)  :: mapFaceGapCoord
+      integer(4) :: numMapFacesInRank,h5err
       real(rp) :: mapFaceGap
       integer(4),allocatable :: listElemsMapFacesInRank(:,:),listMapFacesInRank(:)
       integer(8),allocatable :: connecMapFacesInRank_i8(:,:)
@@ -1152,13 +1157,16 @@ contains
                numMapFacesSrl,numElemsInRank,numMapFacesInRank,numNodesInRank,numPerFacesInRank,listElemsInRank,&
                listElemsMapFacesInRank,listMapFacesInRank,connecMapFacesInRank_i8,&
                listElemsPerFacesInRank,listPerFacesInRank,connecPerFacesInRank_i8,&
-               listNodesInRank_i8,coordNodesInRank,linkedPerToMapElemsAndFacesSrl)
+               listNodesInRank_i8,coordNodesInRank,linkedPerToMapElemsAndFacesSrl,mapFaceGapCoord)
 
+      !changing mapFaceDir depeneding on the mapFaceGap (pos or neg)
+      if(mapFaceGap<0.0_rp) mapFaceDir = -1*mapFaceDir
+
+      !--------------------------------------------------------------------------------------------------------------------
       end_time(1) = MPI_Wtime()
       elapsed_time(1) = end_time(1) - start_time(1)
 
-
-      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),1,mpi_datatype_real8,MPI_MAX,0,app_comm,h5err)
+      call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),1,mpi_datatype_real8,MPI_MAX,0,app_comm,mpi_err)
 
       if(mpi_rank.eq.0) then
          write(*,*) '   1.Time Read Map Faces',elapsed_time(1)
@@ -2126,7 +2134,7 @@ contains
                numMapFacesSrl,numElemsInRank,numMapFacesInRank,numNodesInRank,numPerFacesInRank,listElemsInRank,&
                listElemsMapFacesInRank,listMapFacesInRank,connecMapFacesInRank_i8,&
                listElemsPerFacesInRank,listPerFacesInRank,connecPerFacesInRank_i8,&
-               listNodesInRank_i8,coordNodesInRank,linkedPerToMapElemsAndFacesSrl)
+               listNodesInRank_i8,coordNodesInRank,linkedPerToMapElemsAndFacesSrl,mapFaceGapCoord)
       implicit none
       integer(4),intent(in) :: mporder,mnpbou
       integer(4),intent(in) :: mapFaceDir,numMapFacesSrl,numElemsInRank,numMapFacesInRank,numNodesInRank,numPerFacesInRank
@@ -2135,6 +2143,7 @@ contains
       integer(8),intent(in) :: connecMapFacesInRank_i8(numMapFacesInRank,mnpbou),listNodesInRank_i8(numNodesInRank),connecPerFacesInRank_i8(numPerFacesInRank,mnpbou)
       real(rp),intent(in)   :: mapFaceGap,coordNodesInRank(numNodesInRank,ndime)
       integer(4),intent(out) :: linkedPerToMapElemsAndFacesSrl(numMapFacesSrl,4)
+      real(rp),intent(out)  :: mapFaceGapCoord
 
       real(rp) :: avgCoordInRank,avgCoordAll,targetCoord,minTargetCoord,maxTargetCoord
       real(rp) :: minCentroidDist,centroidDistAbs,centroidDist(ndime),faceCentroid(ndime)
@@ -2221,6 +2230,7 @@ contains
       maxTargetCoord = targetCoord + abs(mapFaceGap)*0.01
       !write(*,*) '[',mpi_rank,']avgCoordAll',avgCoordAll,'numNodesInMapFace',numNodesInMapFaceRawAll
       !write(*,*) '[',mpi_rank,']targetCoord',targetCoord
+      mapFaceGapCoord =  0.5*(targetCoord + avgCoordAll) !targetCoord !to comment with oriol
       !-----------------------------------------------------------------------------------------------------------
 
       !-----------------------------------------------------------------------------------------------------------
@@ -2611,15 +2621,16 @@ contains
    subroutine read_elems_nodes_gmsh_h5_file_in_parallel(mporder,mnnode,mnpbou,gmsh2ijk,gmsh_h5_fileId,isPeriodic,isMapFaces,numElemsSrl,numNodesSrl_i8,numPerFacesSrl,numPerLinkedNodesSrl,numMapFacesSrl,&
                      numElemsMpiRank,listElemsMpiRank,numNodesMpiRank,listNodesMpiRank_i8,connecMpiRank_i8,coordNodesMpiRank,&
                      numLinkedPerElemsSrl,linkedPerElemsSrl,numPerElemsSrl,listPerElemsSrl,numMasSlaNodesSrl,masSlaNodesSrl_i8,&
-                     linkedPerToMapElemsAndFacesSrl)
+                     linkedPerToMapElemsAndFacesSrl,mapFaceDir,mapFaceGapCoord)
       implicit none
       integer(4),intent(in)     :: mporder,mnnode,mnpbou,gmsh2ijk(mnnode)
       integer(hid_t),intent(in) :: gmsh_h5_fileId
       logical,intent(in)        :: isPeriodic,isMapFaces
       integer(4),intent(in)     :: numElemsSrl,numPerFacesSrl,numPerLinkedNodesSrl,numMapFacesSrl
       integer(8),intent(in)     :: numNodesSrl_i8
-      integer(4),intent(out)    :: numElemsMpiRank,numNodesMpiRank
-      integer(4),intent(out)    :: numLinkedPerElemsSrl,numPerElemsSrl,numMasSlaNodesSrl
+      integer(4),intent(out)    :: numElemsMpiRank,numNodesMpiRank,numLinkedPerElemsSrl,numPerElemsSrl,numMasSlaNodesSrl
+      integer(4),intent(out)    :: mapFaceDir
+      real(rp),intent(out)      :: mapFaceGapCoord
       integer(8),allocatable,intent(inout) :: listNodesMpiRank_i8(:),connecMpiRank_i8(:,:),masSlaNodesSrl_i8(:,:)
       integer(4),allocatable,intent(inout) :: listElemsMpiRank(:),linkedPerElemsSrl(:,:),listPerElemsSrl(:),linkedPerToMapElemsAndFacesSrl(:,:)
       real(rp), allocatable, intent(inout) :: coordNodesMpiRank(:,:)
@@ -2683,9 +2694,11 @@ contains
 
             call read_mapped_faces_from_gmsh_h5_file_in_parallel(mporder,mnnode,mnpbou,gmsh_h5_fileId,numMapFacesSrl,numElemsMpiRank,listElemsMpiRank,&
                      numNodesMpiRank,numPerFacesMpiRank,connecMpiRank_i8,listNodesMpiRank_i8,coordNodesMpiRank,numBoundElemsMpiRank,listBoundElemsMpiRank,&
-                     listElemsPerFacesInRank,listPerFacesInRank,connecPerFacesInRank_i8,linkedPerToMapElemsAndFacesSrl)
+                     listElemsPerFacesInRank,listPerFacesInRank,connecPerFacesInRank_i8,linkedPerToMapElemsAndFacesSrl,mapFaceDir,mapFaceGapCoord)
             end_time(3) = MPI_Wtime()
          else
+            mapFaceDir = 0
+            mapFaceGapCoord = 0.0_rp
             allocate(linkedPerToMapElemsAndFacesSrl(0,0))
          end if
 
