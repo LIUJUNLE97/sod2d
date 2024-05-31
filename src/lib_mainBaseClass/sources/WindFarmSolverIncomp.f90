@@ -1,5 +1,15 @@
+module mod_arrays_wf
+   use mod_constants
+
+   implicit none
+
+   real(rp), allocatable :: CT(:), D(:),pos_x(:),pos_y(:),pos_z(:),vol_correct(:),ad_alpha(:)
+
+end module mod_arrays_wf
+
 module WindFarmSolverIncomp_mod
    use mod_arrays
+   use mod_arrays_wf
    use mod_nvtx
 #ifndef NOACC
    use cudafor
@@ -28,7 +38,7 @@ module WindFarmSolverIncomp_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: WindFarmSolverIncomp
 
-      real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar,wind_alpha,prec_x_out, CT, D, pos_x,pos_y,pos_z,vol_correct
+      real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar,wind_alpha,prec_x_out,N_ad
    contains
       procedure, public :: fillBCTypes           => WindFarmSolverIncomp_fill_BC_Types
       procedure, public :: initializeParameters  => WindFarmSolverIncomp_initializeParameters
@@ -37,57 +47,186 @@ module WindFarmSolverIncomp_mod
       procedure, public :: initialBuffer         => WindFarmSolverIncomp_initialBuffer
       procedure, public :: eval_vars_after_load_hdf5_resultsFile => WindFarmSolverIncomp_eval_vars_after_load_hdf5_resultsFile 
       procedure, public :: afterDt => WindFarmSolverIncomp_afterDt
+      procedure, public :: readJSONAD => WindFarmSolverIncomp_readJSONAD
    end type WindFarmSolverIncomp
 contains
 
+subroutine WindFarmSolverIncomp_readJSONAD(this)
+   use json_module
+   implicit none
+   class(WindFarmSolverIncomp), intent(inout) :: this
+   logical :: found, found_aux = .false.
+   type(json_file) :: json
+   integer :: json_nad,iAD,id
+   TYPE(json_core) :: jCore
+   TYPE(json_value), pointer :: buffPointer, testPointer, p
+   character(len=:) , allocatable :: value
+
+   call json%initialize()
+   call json%load_file(json_filename)
+
+   call json%info("AD",n_children=json_nad)
+   call json%get_core(jCore)
+   call json%get('AD', buffPointer, found_aux)
+
+   if(json_nad .gt. 0) then
+
+      this%N_ad =  json_nad 
+
+      allocate(CT(this%N_ad))
+      allocate(D(this%N_ad))
+      allocate(pos_x(this%N_ad))
+      allocate(pos_y(this%N_ad))
+      allocate(pos_z(this%N_ad))
+      allocate(vol_correct(this%N_ad))
+      allocate(ad_alpha(this%N_ad))
+      !$acc enter data create(CT(:),D(:),pos_x(:),pos_y(:),pos_z(:),vol_correct(:),ad_alpha(:))
+
+      
+      do iAD=1, this%N_ad
+         call jCore%get_child(buffPointer, iAD, testPointer, found)
+         
+         call jCore%get_child(testPointer, 'id', p, found)
+         if(found) then
+            call jCore%get(p,id)
+         else
+            if(mpi_rank .eq. 0) then
+               write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define the AD id'
+               stop 1      
+            end if
+         end if
+
+         call jCore%get_child(testPointer, 'CT', p, found)
+         if(found) then
+            call jCore%get(p,CT(id))
+         else
+            if(mpi_rank .eq. 0) then
+               write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define the AD CT'
+               stop 1      
+            end if
+         end if
+
+         call jCore%get_child(testPointer, 'D', p, found)
+         if(found) then
+            call jCore%get(p,D(id))
+         else
+            if(mpi_rank .eq. 0) then
+               write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define the AD D'
+               stop 1      
+            end if
+         end if
+
+         call jCore%get_child(testPointer, 'x', p, found)
+         if(found) then
+            call jCore%get(p,pos_x(id))
+         else
+            if(mpi_rank .eq. 0) then
+               write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define the AD x'
+               stop 1      
+            end if
+         end if
+
+         call jCore%get_child(testPointer, 'y', p, found)
+         if(found) then
+            call jCore%get(p,pos_y(id))
+         else
+            if(mpi_rank .eq. 0) then
+               write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define the AD y'
+               stop 1      
+            end if
+         end if
+
+         call jCore%get_child(testPointer, 'z', p, found)
+         if(found) then
+            call jCore%get(p,pos_z(id))
+         else
+            if(mpi_rank .eq. 0) then
+               write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define the AD z'
+               stop 1      
+            end if
+         end if
+
+         call jCore%get_child(testPointer, 'ad_alpha', p, found)
+         if(found) then
+            call jCore%get(p,ad_alpha(id))
+            ad_alpha(id) = ad_alpha(id)-90.0_rp 
+         else
+            if(mpi_rank .eq. 0) then
+               write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define the AD ad_alpha'
+               stop 1      
+            end if
+         end if
+      end do
+   end if
+
+   !$acc update device(CT(:),D(:),pos_x(:),pos_y(:),pos_z(:),ad_alpha(:))
+
+   call json%destroy()
+
+end subroutine WindFarmSolverIncomp_readJSONAD
 
    subroutine WindFarmSolverIncomp_afterDt(this,istep)
       class(WindFarmSolverIncomp), intent(inout) :: this
       integer(4), intent(in) :: istep
-      integer :: iNodeL,idime
+      integer :: iNodeL,idime,iAD
       real(rp) :: x_ad,y_ad,z_ad,radius
-      real(8) :: vol_T,vol_T2
+      real(8) :: vol_T(this%N_ad),vol_T2(this%N_ad)
 
       if(istep == 1) then
-         vol_T = 0.0d0
-         !! Wind farm pre-processing
-         !$acc parallel loop reduction(+:vol_T)
-         do iNodeL = 1,numNodesRankPar
-            x_ad =  coordPar(iNodeL,1)
-            y_ad =  coordPar(iNodeL,2)
-            z_ad =  coordPar(iNodeL,3)
+         if(this%N_ad .gt. 0) then
+            vol_T(:) = 0.0d0
+            !! Wind farm pre-processing
+            !$acc parallel loop reduction(+:vol_T)
+            do iNodeL = 1,numNodesRankPar
+               x_ad =  coordPar(iNodeL,1)*cos(this%wind_alpha*v_pi/180.0_rp)+coordPar(iNodeL,2)*sin(ad_alpha(iAD)*v_pi/180.0_rp)
+               y_ad = -coordPar(iNodeL,1)*sin(this%wind_alpha*v_pi/180.0_rp)+coordPar(iNodeL,2)*cos(ad_alpha(iAD)*v_pi/180.0_rp)
+               z_ad =  coordPar(iNodeL,3)
+               
+               ad(iNodeL) = 0
 
-            if((x_ad .gt. (this%pos_x-(0.05_rp*this%D))) .and. (x_ad .le. (this%pos_x+(0.05_rp*this%D)))) then
-               radius = sqrt( (y_ad-this%pos_y)**2 + (z_ad-this%pos_z)**2 )
-               if(radius .le. (this%D*0.5_rp)) then 
-                  vol_T = vol_T + real(Ml(iNodeL),8)
-                  ad(iNodeL) = 1
+               !$acc loop seq
+               do iAD=1,this%N_ad
+                  if((x_ad .gt. (pos_x(iAD)-(0.05_rp*D(iAD)))) .and. (x_ad .le. (pos_x(iAD)+(0.05_rp*D(iAD))))) then
+                     radius = sqrt( (y_ad-pos_y(iAD))**2 + (z_ad-pos_z(iAD))**2 )
+                     if(radius .le. (D(iAD)*0.5_rp)) then 
+                        vol_T(iAD) = vol_T(iAD) + real(Ml(iNodeL),8)
+                        ad(iNodeL) = iAD
+                     end if
+                  end if
+               end do
+            end do
+            !$acc end parallel loop
+
+            !$acc loop seq
+            do iAD=1,this%N_ad            
+               call MPI_Allreduce(vol_T(iAD),vol_T2(iAD),1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
+            end do
+
+            !$acc loop seq
+            do iAD=1,this%N_ad
+               vol_correct(iAD) = real(vol_T2(iAD),rp)/(v_pi*((D(iAD)*0.5_rp)**2)*(D(iAD)*0.1_rp))
+               if(mpi_rank.eq.0)  write(111,*) " volT",vol_T2(iAD)," corr ",vol_correct(iAD)
+               if(mpi_rank.eq.0)  write(111,*) " s prec",(this%rho0*this%ustar**2/this%Lz)," s ad ",0.5_rp*(CT(iAD)/(0.1_rp*D(iAD)))*(this%vinf**2)
+            end do
+
+            !$acc update device(vol_correct(:))
+
+            !$acc parallel loop  
+            do iNodeL = 1,numNodesRankPar
+               if(maskMapped(iNodeL) == 1) then
+                  source_term(iNodeL,1) = (this%rho0*this%ustar**2/this%Lz)*cos(this%wind_alpha*v_pi/180.0_rp)
+                  source_term(iNodeL,2) = (this%rho0*this%ustar**2/this%Lz)*sin(this%wind_alpha*v_pi/180.0_rp)
+                  source_term(iNodeL,3) = 0.00_rp
+               else if(ad(iNodeL) .ne. 0) then
+                  iAD = ad(iNodeL)
+                  source_term(iNodeL,1) = -0.5_rp*(CT(iAD)/(0.1_rp*D(iAD)))*(this%vinf**2)*vol_correct(iAD)*cos(ad_alpha(iAD)*v_pi/180.0_rp)
+                  source_term(iNodeL,2) = -0.5_rp*(CT(iAD)/(0.1_rp*D(iAD)))*(this%vinf**2)*vol_correct(iAD)*sin(ad_alpha(iAD)*v_pi/180.0_rp)
+                  source_term(iNodeL,3) = 0.0_rp
+                  !write(111,*) " node ",iNodeL," ID ",iAD," source ",source_term(iNodeL,1)," alpha ",ad_alpha(iAD)
                end if
-            end if
-            
-         end do
-         !$acc end parallel loop
-
-         call MPI_Allreduce(vol_T,vol_T2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
-
-         this%vol_correct = real(vol_T2,rp)/(v_pi*((this%D*0.5_rp)**2)*(this%D*0.1_rp))
-
-         if(mpi_rank.eq.0)  write(111,*) " volT",vol_T2," corr ",this%vol_correct
-         if(mpi_rank.eq.0)  write(111,*) " s prec",(this%rho0*this%ustar**2/this%Lz)," s ad ",0.5_rp*(this%CT/(0.1_rp*this%D))*(this%vinf**2)
-
-         !$acc parallel loop  
-         do iNodeL = 1,numNodesRankPar
-            if(maskMapped(iNodeL) == 1) then
-               source_term(iNodeL,1) = (this%rho0*this%ustar**2/this%Lz)*cos(this%wind_alpha*v_pi/180.0_rp)
-               source_term(iNodeL,2) = (this%rho0*this%ustar**2/this%Lz)*sin(this%wind_alpha*v_pi/180.0_rp)
-               source_term(iNodeL,3) = 0.00_rp
-            else if(ad(iNodeL) == 1) then
-               source_term(iNodeL,1) = -0.5_rp*(this%CT/(0.1_rp*this%D))*(this%vinf**2)*this%vol_correct*cos(this%wind_alpha*v_pi/180.0_rp)
-               source_term(iNodeL,2) = -0.5_rp*(this%CT/(0.1_rp*this%D))*(this%vinf**2)*this%vol_correct*sin(this%wind_alpha*v_pi/180.0_rp)
-               source_term(iNodeL,3) = 0.0_rp
-            end if
-         end do
-         !$acc end parallel loop
+            end do
+            !$acc end parallel loop
+         end if
       end if
 
 
@@ -261,12 +400,6 @@ contains
 
       call json%get("prec_x_out",this%prec_x_out, found,0.0_rp); call this%checkFound(found,found_aux)
 
-      call json%get("CT",this%CT, found,0.78_rp); call this%checkFound(found,found_aux)
-      call json%get("D",this%D, found,126.0_rp); call this%checkFound(found,found_aux)
-      call json%get("pos_x",this%pos_x, found,500.0_rp); call this%checkFound(found,found_aux)
-      call json%get("pos_y",this%pos_y, found,2500.0_rp); call this%checkFound(found,found_aux)
-      call json%get("pos_z",this%pos_z, found,90.0_rp); call this%checkFound(found,found_aux)
-
       !Witness points parameters
       call json%get("have_witness",this%have_witness, found,.false.)
       if(this%have_witness .eqv. .true.) then
@@ -293,6 +426,7 @@ contains
       flag_mu_factor = 1.0_rp
 
       call this%readJSONBuffer()
+      call this%readJSONAD()
 
    end subroutine WindFarmSolverIncomp_initializeParameters
 
