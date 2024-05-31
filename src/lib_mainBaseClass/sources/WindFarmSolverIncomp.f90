@@ -178,8 +178,8 @@ end subroutine WindFarmSolverIncomp_readJSONAD
             !! Wind farm pre-processing
             !$acc parallel loop reduction(+:vol_T)
             do iNodeL = 1,numNodesRankPar
-               x_ad =  coordPar(iNodeL,1)*cos(this%wind_alpha*v_pi/180.0_rp)+coordPar(iNodeL,2)*sin(ad_alpha(iAD)*v_pi/180.0_rp)
-               y_ad = -coordPar(iNodeL,1)*sin(this%wind_alpha*v_pi/180.0_rp)+coordPar(iNodeL,2)*cos(ad_alpha(iAD)*v_pi/180.0_rp)
+               x_ad =  coordPar(iNodeL,1)*cos(ad_alpha(iAD)*v_pi/180.0_rp)+coordPar(iNodeL,2)*sin(ad_alpha(iAD)*v_pi/180.0_rp)
+               y_ad = -coordPar(iNodeL,1)*sin(ad_alpha(iAD)*v_pi/180.0_rp)+coordPar(iNodeL,2)*cos(ad_alpha(iAD)*v_pi/180.0_rp)
                z_ad =  coordPar(iNodeL,3)
                
                ad(iNodeL) = 0
