@@ -2483,9 +2483,6 @@ contains
       ! Eval or load initial conditions
       call this%evalOrLoadInitialConditions()
 
-      ! Init of the source terms
-      call this%initializeSourceTerms()
-
       ! Eval  viscosty factor
       call this%evalViscosityFactor()
 
@@ -2511,6 +2508,9 @@ contains
       call this%eval_elemPerNode_and_nearBoundaryNode()
 
       call this%set_mappedFaces_linkingNodes()   
+
+      ! Init of the source terms
+      call this%initializeSourceTerms()
 
       ! Eval mass
       call this%evalMass()

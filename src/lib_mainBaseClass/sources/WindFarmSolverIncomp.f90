@@ -173,7 +173,7 @@ end subroutine WindFarmSolverIncomp_readJSONAD
       real(rp) :: x_ad,y_ad,z_ad,radius
       real(8) :: vol_T(this%N_ad),vol_T2(this%N_ad)
 
-      if(istep == 1) then
+      if(istep == 1) then !esto va a dar problemas en continues
          if(this%N_ad .gt. 0) then
             vol_T(:) = 0.0d0
             !! Wind farm pre-processing
