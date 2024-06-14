@@ -266,11 +266,9 @@ module mod_solver_incomp
            real(rp)   , intent(inout) :: R(npoin)
            integer(4), intent(in)     :: nboun,bou_codes_nodes(npoin)
            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
-           integer(4)                :: ipoin, iter,ialpha,ielem,inode_press
+           integer(4)                :: ipoin, iter,ialpha,ielem
            real(rp)                   :: T1, alphaCG, betaCG
            real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,Q1(2)
-
-           inode_press = npoin_w*0.5_rp
           
           call nvtxStartRange("CG solver press")
           if (flag_cg_mem_alloc_pres .eqv. .true.) then
@@ -322,9 +320,12 @@ module mod_solver_incomp
                
             ! Real solver form here
 
-            if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
-               b(lpoin_w(inode_press)) = 0.0_rp
-               x(lpoin_w(inode_press)) = 0.0_rp
+            if(flag_fs_fix_pressure) then
+               !$acc kernels
+               b(inode_fix_press) = 0.0_rp
+               x(inode_fix_press) = nscbc_p_inf               
+               !$acc end kernels
+               
             end if
 
             call nvtxStartRange("CG_p precond")
@@ -335,7 +336,7 @@ module mod_solver_incomp
            end do
             !$acc end parallel loop            
             if (noBoundaries .eqv. .false.) then
-               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0)              
+               call temporary_bc_routine_dirichlet_pressure_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0)              
             end if            
            !$acc parallel loop
            do ipoin = 1,npoin_w
@@ -394,7 +395,7 @@ module mod_solver_incomp
               end do
               !$acc end parallel loop
               if (noBoundaries .eqv. .false.) then
-               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0)              
+               call temporary_bc_routine_dirichlet_pressure_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0)              
               end if
               !$acc parallel loop
               do ipoin = 1,npoin_w
@@ -454,8 +455,10 @@ module mod_solver_incomp
             R(:) = x0(:)+x(:)
             !$acc end kernels
 
-            if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
-               R(lpoin_w(inode_press)) = 0.0_rp
+            if(flag_fs_fix_pressure) then
+               !$acc kernels
+               R(inode_fix_press) = nscbc_p_inf
+               !$acc end kernels
             end if
 
            call nvtxEndRange

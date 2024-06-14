@@ -184,6 +184,7 @@ module CFDSolverBase_mod
       procedure, public :: readJSONBCTypes => CFDSolverBase_readJSONBCTypes
       procedure, public :: readJSONBuffer => CFDSolverBase_readJSONBuffer
       procedure, public :: eval_vars_after_load_hdf5_resultsFile => CFDSolverBase_eval_vars_after_load_hdf5_resultsFile 
+      procedure, public :: findFixPressure => CFDSolverBase_findFixPressure
 
       procedure :: open_log_file
       procedure :: close_log_file
@@ -195,6 +196,22 @@ module CFDSolverBase_mod
       procedure :: checkIfSymmetryOn
    end type CFDSolverBase
 contains
+
+   subroutine CFDSolverBase_findFixPressure(this)
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4) :: ielem
+
+      ielem = numElemsRankPar*0.5
+
+      if(mpi_rank.eq.0) then
+          inode_fix_press =  connecParWork(ielem,atoIJK(nnode))
+          write(111,*) '--| Node to fix pressure',inode_fix_press
+      else
+         flag_fs_fix_pressure = .false.
+      end if
+
+   end subroutine CFDSolverBase_findFixPressure
 
    subroutine CFDSolverBase_readJSONBuffer(this)
       use json_module
@@ -403,8 +420,6 @@ contains
                   bouCodes2BCType(id) = bc_type_slip_adiabatic
                else if(value .eq. "bc_type_slip_wall_model") then
                   bouCodes2BCType(id) = bc_type_slip_wall_model
-               else if(value .eq. "bc_type_top_abl") then
-                  bouCodes2BCType(id) = bc_type_top_abl
                end if
             else
                if(mpi_rank .eq. 0) then
@@ -2514,6 +2529,9 @@ contains
 
       ! Eval mass
       call this%evalMass()
+
+      ! Find Pressure Node to fix
+      if(flag_fs_fix_pressure) call this%findFixPressure()
 
       ! Preprocess witness points
       if (this%have_witness) then
