@@ -340,8 +340,8 @@ module mod_bc_routines_incomp
                   aux_ufb = gradU(1,1)+gradU(2,2)+gradU(3,3)
                   !$acc loop seq
                   do idime=1, ndime
-                     u_flux_buffer(inode,idime) =  (aux_p*normal(idime) +  0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta))))*normal(idime) + mu_fgp*aux_ufb*normal(idime))/mu_fgp
-                     !u_flux_buffer(inode,idime) =  (aux_p*normal(idime) +  0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta))))*normal(idime))/mu_fgp
+                     !u_flux_buffer(inode,idime) =  (aux_p*normal(idime) +  0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta))))*normal(idime) + mu_fgp*aux_ufb*normal(idime))/mu_fgp
+                     u_flux_buffer(inode,idime) =  (aux_p*normal(idime) +  0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta))))*normal(idime))/mu_fgp
                   end do 
                end if
             end if
