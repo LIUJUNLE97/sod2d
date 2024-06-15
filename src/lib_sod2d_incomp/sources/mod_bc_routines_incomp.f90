@@ -157,7 +157,6 @@ module mod_bc_routines_incomp
             do ibound = 1,nboun
                bcode = bou_code(ibound)
                ! Boundary element code
-               !if ((bcode == bc_type_non_slip_adiabatic) .or. (bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic)) then 
                if (bcode == bc_type_non_slip_adiabatic) then 
                   bnorm(:) = bounorm(ibound,:)
                    !$acc loop vector private(aux)
@@ -268,35 +267,21 @@ module mod_bc_routines_incomp
          real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime),tau(ndime,ndime)
          integer(4)              :: iBound,iElem,idime,igaus,iAux,inode,bcode
          integer(4)              :: jdime, isoI, isoJ, isoK,kdime,ii
-         real(rp)                :: normal(ndime),ul(nnode,ndime),aux_p, aux(ndime),aux_u,aux_s,aux_ufb,auxmag,mu_fgp
-         real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
+         real(rp)                :: normal(ndime),aux_p, aux(ndime),aux_u,aux_s,aux_ufb,auxmag,mu_fgp
    
-         !$acc parallel loop private(normal,ul,dlxi_ip,dleta_ip,dlzeta_ip,gradIsoU,gradU,aux)
+         !$acc parallel loop private(normal,gradIsoU,gradU,aux,tau)
          do inode = 1,npoin
             if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
                bcode = bou_codes_nodes(inode) ! Boundary element code
                if (bcode == bc_type_outlet_incomp) then 
                   iElem = point2elem(inode)
-                  normal = normalsAtNodes(inode,:)
+                  normal(1:ndime) = normalsAtNodes(inode,1:ndime)
                   auxmag = sqrt(normal(1)*normal(1) + normal(2)*normal(2)  +  normal(3)*normal(3))
                   normal(:) = normal(:)/auxmag
 
-                  !$acc loop vector collapse(2)
-                  do idime = 1,ndime
-                     do igaus = 1,nnode
-                        ul(igaus,idime)  = u(connec(ielem,igaus),idime)
-                     end do
-                  end do
-
                   igaus = minloc(abs(connec(iElem,:)-inode),1)
-                  mu_fgp = mu_fluid(inode)+ mu_sgs(ielem,igaus)+mu_e(ielem,igaus)
+                  mu_fgp = mu_fluid(inode)+ mu_sgs(iElem,igaus)+mu_e(iElem,igaus)
 
-                  !$acc loop seq
-                  do ii=1,porder+1
-                     dlxi_ip(ii) = dlxigp_ip(igaus,1,ii)
-                     dleta_ip(ii) = dlxigp_ip(igaus,2,ii)
-                     dlzeta_ip(ii) = dlxigp_ip(igaus,3,ii)
-                  end do
                   isoI = gmshAtoI(igaus) 
                   isoJ = gmshAtoJ(igaus) 
                   isoK = gmshAtoK(igaus) 
@@ -306,9 +291,9 @@ module mod_bc_routines_incomp
                   do ii=1,porder+1
                      !$acc loop seq
                      do idime=1,ndime
-                        gradIsoU(idime,1) = gradIsoU(idime,1) + dlxi_ip(ii)*ul(invAtoIJK(ii,isoJ,isoK),idime)
-                        gradIsoU(idime,2) = gradIsoU(idime,2) + dleta_ip(ii)*ul(invAtoIJK(isoI,ii,isoK),idime)
-                        gradIsoU(idime,3) = gradIsoU(idime,3) + dlzeta_ip(ii)*ul(invAtoIJK(isoI,isoJ,ii),idime)
+                        gradIsoU(idime,1) = gradIsoU(idime,1) + dlxigp_ip(igaus,1,ii)*u(connec(iElem,invAtoIJK(ii,isoJ,isoK)),idime)
+                        gradIsoU(idime,2) = gradIsoU(idime,2) + dlxigp_ip(igaus,2,ii)*u(connec(iElem,invAtoIJK(isoI,ii,isoK)),idime)
+                        gradIsoU(idime,3) = gradIsoU(idime,3) + dlxigp_ip(igaus,3,ii)*u(connec(iElem,invAtoIJK(isoI,isoJ,ii)),idime)
                      end do
                   end do
                      
@@ -332,7 +317,6 @@ module mod_bc_routines_incomp
                      end do
                   end do
 
-
                   aux(:) = 0.0_rp                    
                   !$acc loop seq
                   do idime=1, ndime
@@ -352,17 +336,17 @@ module mod_bc_routines_incomp
                      aux_s = aux_s + normal(idime)*u(inode,idime)
                   end do 
                   aux_p = mu_fgp*aux_p - 0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta)))) 
-                  p_buffer(inode) = aux_p
+                  p_buffer(inode) = 0.0_rp*aux_p
                   aux_ufb = gradU(1,1)+gradU(2,2)+gradU(3,3)
                   !$acc loop seq
                   do idime=1, ndime
                      u_flux_buffer(inode,idime) =  (aux_p*normal(idime) +  0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta))))*normal(idime) + mu_fgp*aux_ufb*normal(idime))/mu_fgp
+                     !u_flux_buffer(inode,idime) =  (aux_p*normal(idime) +  0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta))))*normal(idime))/mu_fgp
                   end do 
                end if
             end if
          end do
-         !$acc end parallel loop
-   
+         !$acc end parallel loop   
       end subroutine evalPAtOutlet
 
       end module mod_bc_routines_incomp

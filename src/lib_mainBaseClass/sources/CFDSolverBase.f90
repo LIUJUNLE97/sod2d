@@ -2546,7 +2546,8 @@ contains
       if(this%isFreshStart) call this%evalFirstOutput()
       call this%flush_log_file()
 
-      if(this%isWallModelOn .or. this%isSymmetryOn) call  this%normalFacesToNodes()
+      if (this%noBoundaries .eqv. .false.)  call  this%normalFacesToNodes()
+
 
       ! Eval initial time step
       call this%evalInitialDt()
