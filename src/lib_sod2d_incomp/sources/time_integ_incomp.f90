@@ -525,11 +525,11 @@ module time_integ_incomp
                         xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
                      end if
                   end if
-
-                  u(lpoin_w(ipoin),1) = u_buffer(lpoin_w(ipoin),1) + xi*(u(lpoin_w(ipoin),1)-u_buffer(lpoin_w(ipoin),1))
-                  u(lpoin_w(ipoin),2) = u_buffer(lpoin_w(ipoin),2) + xi*(u(lpoin_w(ipoin),2)-u_buffer(lpoin_w(ipoin),2))
-                  u(lpoin_w(ipoin),3) = u_buffer(lpoin_w(ipoin),3) + xi*(u(lpoin_w(ipoin),3)-u_buffer(lpoin_w(ipoin),3))
                end if
+
+               u(lpoin_w(ipoin),1) = u_buffer(lpoin_w(ipoin),1) + xi*(u(lpoin_w(ipoin),1)-u_buffer(lpoin_w(ipoin),1))
+               u(lpoin_w(ipoin),2) = u_buffer(lpoin_w(ipoin),2) + xi*(u(lpoin_w(ipoin),2)-u_buffer(lpoin_w(ipoin),2))
+               u(lpoin_w(ipoin),3) = u_buffer(lpoin_w(ipoin),3) + xi*(u(lpoin_w(ipoin),3)-u_buffer(lpoin_w(ipoin),3))
             end do
             !$acc end parallel loop
             call nvtxEndRange
