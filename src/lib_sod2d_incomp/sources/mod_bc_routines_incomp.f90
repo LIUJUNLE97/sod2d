@@ -135,15 +135,15 @@ module mod_bc_routines_incomp
 
          end subroutine temporary_bc_routine_dirichlet_pressure_residual_incomp
 
-         subroutine bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_code,bou_codes_nodes, &
+         subroutine bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_code,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
                                              bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,omega,bpress)
 
             implicit none
 
-            integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun),bou_codes_nodes(npoin)
+            integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun),bou_codes_nodes(npoin),numBoundCodes
             integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin)
             real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
-            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode),bouCodes2BCType(numBoundCodes)
             real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)
             real(rp),   intent(in)  :: rho(npoin),omega(npoin,ndime),mu_fluid(npoin)
             real(rp),   intent(in)  :: coord(npoin,ndime), gpvol(1,ngaus,nelem)
@@ -156,9 +156,9 @@ module mod_bc_routines_incomp
 
             !$acc parallel loop gang private(bnorm) 
             do ibound = 1,nboun
-               bcode = bou_code(ibound)
+               bcode = bouCodes2BCType(bou_code(ibound))
                ! Boundary element code
-               if (bcode == bc_type_non_slip_adiabatic) then 
+               if ((bcode == bc_type_non_slip_adiabatic)) then 
                   bnorm(:) = bounorm(ibound,:)
                    !$acc loop vector private(aux)
                   do igaus = 1,npbou
@@ -180,17 +180,15 @@ module mod_bc_routines_incomp
                end if
             end do
             !$acc end parallel loop
-           
-
          end subroutine bc_routine_pressure_flux
 
-         subroutine bc_routine_momentum_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_code,bou_codes_nodes, &
+         subroutine bc_routine_momentum_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_code,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
                                              bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,u_flux_buffer,R)
 
             implicit none
 
-            integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun),bou_codes_nodes(npoin)
-            integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin)
+            integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun),bou_codes_nodes(npoin),numBoundCodes
+            integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin),bouCodes2BCType(numBoundCodes)
             real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)
@@ -207,7 +205,7 @@ module mod_bc_routines_incomp
             !$acc end kernels
             !$acc parallel loop gang private(bnorm) 
             do ibound = 1,nboun
-               bcode = bou_code(ibound)
+               bcode = bouCodes2BCType(bou_code(ibound))
                ! Boundary element code
                if (bcode == bc_type_outlet_incomp) then 
                   bnorm(:) = bounorm(ibound,:)
@@ -232,8 +230,6 @@ module mod_bc_routines_incomp
                end if
             end do
             !$acc end parallel loop
-           
-
          end subroutine bc_routine_momentum_flux         
 
          subroutine copy_periodicNodes_for_mappedInlet_incomp(uField)
@@ -248,30 +244,30 @@ module mod_bc_routines_incomp
                uField(masSlaRankPar(iPer,2),3) = uField(masSlaRankPar(iPer,1),3)
             end do
             !$acc end parallel loop
-
          end subroutine copy_periodicNodes_for_mappedInlet_incomp
 
-         subroutine evalPAtOutlet(nelem,npoin,nboun,connec,bound,point2elem,bou_code,bou_codes_nodes, &
-            bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,gpvol,mu_fluid,mu_e,mu_sgs,rho,u,p_buffer,u_flux_buffer)
+         subroutine evalPAtOutlet(nelem,npoin,npoin_w,nboun,connec,bound,point2elem,bou_code,bou_codes_nodes,lpoin_w, &
+            bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,mu_e,mu_sgs,rho,u,p_buffer,u_flux_buffer)
    
          implicit none
    
-         integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun),bou_codes_nodes(npoin)
-         integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin)
+         integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun),bou_codes_nodes(npoin),npoin_w
+         integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin),lpoin_w(npoin_w)
          real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
          integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
          real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)
          real(rp),   intent(in)  :: rho(npoin),u(npoin,ndime),mu_fluid(npoin)
-         real(rp),   intent(in)  :: gpvol(1,ngaus,nelem),mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
+         real(rp),   intent(in)  :: coord(npoin,ndime),gpvol(1,ngaus,nelem),mu_e(nelem,ngaus), mu_sgs(nelem,ngaus)
          real(rp),   intent(inout) :: p_buffer(npoin)
          real(rp),   intent(inout) :: u_flux_buffer(npoin,ndime)
          real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime),tau(ndime,ndime)
          integer(4)              :: iBound,iElem,idime,igaus,iAux,inode,bcode
-         integer(4)              :: jdime, isoI, isoJ, isoK,kdime,ii
-         real(rp)                :: normal(ndime),aux_p, aux(ndime),aux_u,aux_s,aux_ufb,auxmag,mu_fgp
+         integer(4)              :: jdime, isoI, isoJ, isoK,kdime,ii,ipoin
+         real(rp)                :: normal(ndime),aux_p, aux(ndime),aux_u,aux_s,aux_ufb,auxmag,mu_fgp,sig
    
          !$acc parallel loop private(normal,gradIsoU,gradU,aux,tau)
-         do inode = 1,npoin
+         do ipoin = 1,npoin_w
+            inode = lpoin_w(ipoin)
             if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
                bcode = bou_codes_nodes(inode) ! Boundary element code
                if (bcode == bc_type_outlet_incomp) then 
@@ -279,9 +275,14 @@ module mod_bc_routines_incomp
                   normal(1:ndime) = normalsAtNodes(inode,1:ndime)
                   auxmag = sqrt(normal(1)*normal(1) + normal(2)*normal(2)  +  normal(3)*normal(3))
                   normal(:) = normal(:)/auxmag
+                  if(dot_product(coord(connec(ielem,nnode),:)-coord(inode,:), aux(:)) .lt. 0.0_rp ) then
+                     sig=-1.0_rp
+                  end if
+                  normal(:) = sig*normal(:)
 
                   igaus = minloc(abs(connec(iElem,:)-inode),1)
                   mu_fgp = mu_fluid(inode)+ mu_sgs(iElem,igaus)+mu_e(iElem,igaus)
+
 
                   isoI = gmshAtoI(igaus) 
                   isoJ = gmshAtoJ(igaus) 
@@ -336,13 +337,13 @@ module mod_bc_routines_incomp
                      aux_u = aux_u + u(inode,idime)*u(inode,idime)
                      aux_s = aux_s + normal(idime)*u(inode,idime)
                   end do 
-                  aux_p = mu_fgp*aux_p - 0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta)))) 
-                  p_buffer(inode) = 0.0_rp*aux_p
+                  aux_p = (mu_fgp*aux_p - 0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta)))))*0.0_rp
+                  p_buffer(inode) = aux_p
                   aux_ufb = gradU(1,1)+gradU(2,2)+gradU(3,3)
                   !$acc loop seq
                   do idime=1, ndime
-                     !u_flux_buffer(inode,idime) =  (aux_p*normal(idime) +  0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta))))*normal(idime) + mu_fgp*aux_ufb*normal(idime))/mu_fgp
-                     u_flux_buffer(inode,idime) =  (aux_p*normal(idime) +  0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta))))*normal(idime))/mu_fgp
+                     u_flux_buffer(inode,idime) =  (aux_p*normal(idime) +  0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta))))*normal(idime) - mu_fgp*aux_ufb*normal(idime))/mu_fgp
+                     !u_flux_buffer(inode,idime) =  (aux_p*normal(idime) +  0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta))))*normal(idime))/mu_fgp
                   end do 
                end if
             end if

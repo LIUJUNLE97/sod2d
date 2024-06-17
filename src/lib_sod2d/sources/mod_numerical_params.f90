@@ -47,7 +47,7 @@ module mod_numerical_params
         real(rp) :: nscbc_Rgas_inf   = 1.0_rp
         real(rp) :: nscbc_T_H   = 293.0_rp
         real(rp) :: nscbc_T_C   = 293.0_rp
-        real(rp) :: nscbc_delta   = 0.1_rp
+        real(rp) :: nscbc_delta   = 0.01_rp
 
         !
         ! Penalisation buffer zone

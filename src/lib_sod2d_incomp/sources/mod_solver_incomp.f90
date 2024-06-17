@@ -119,10 +119,10 @@ module mod_solver_incomp
 
             auxT1 = 0.0d0
             !$acc parallel loop reduction(+:auxT1)
-            do ipoin = 1,npoin
+            do ipoin = 1,npoin_w
                !$acc loop seq
               do idime = 1,ndime 
-               auxT1 = auxT1+real(r0_u(ipoin,idime)*r0_u(ipoin,idime),8)
+               auxT1 = auxT1+real(r0_u(lpoin_w(ipoin),idime)*r0_u(lpoin_w(ipoin),idime),8)
               end do
             end do
 
@@ -196,10 +196,10 @@ module mod_solver_incomp
               !$acc end parallel loop
               auxT1 = 0.0d0
               !$acc parallel loop reduction(+:auxT1)
-              do ipoin = 1,npoin
+              do ipoin = 1,npoin_w
                   !$acc loop seq
                  do idime = 1,ndime 
-                  auxT1 = auxT1+real(r0_u(ipoin,idime)*r0_u(ipoin,idime),8)
+                  auxT1 = auxT1+real(r0_u(lpoin_w(ipoin),idime)*r0_u(lpoin_w(ipoin),idime),8)
                  end do
               end do
 
@@ -218,10 +218,10 @@ module mod_solver_incomp
               !
               auxT1 = 0.0d0
               !$acc parallel loop reduction(+:auxT1)
-              do ipoin = 1,npoin
+              do ipoin = 1,npoin_w
                  !$acc loop seq
                   do idime = 1,ndime 
-                     auxT1 = auxT1+real(r0_u(ipoin,idime)*(z0_u(ipoin,idime)-z1_u(ipoin,idime)),8) ! <r_k,A*s_k-1>
+                     auxT1 = auxT1+real(r0_u(lpoin_w(ipoin),idime)*(z0_u(lpoin_w(ipoin),idime)-z1_u(lpoin_w(ipoin),idime)),8) ! <r_k,A*s_k-1>
                   end do
               end do
               !$acc end parallel loop
@@ -357,9 +357,8 @@ module mod_solver_incomp
 
             auxT1 = 0.0d0
             !$acc parallel loop reduction(+:auxT1)
-            do ipoin = 1,npoin
-               !auxT1 = auxT1+real(b(ipoin)*b(ipoin),8)
-               auxT1 = auxT1+real(r0(ipoin)*r0(ipoin),8)
+            do ipoin = 1,npoin_w
+               auxT1 = auxT1+real(b(lpoin_w(ipoin))*b(lpoin_w(ipoin)),8)
             end do
 
             call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
@@ -406,8 +405,8 @@ module mod_solver_incomp
               !$acc end parallel loop                            
               auxT1 = 0.0d0
               !$acc parallel loop reduction(+:auxT1)
-              do ipoin = 1,npoin
-                 auxT1 = auxT1+real(r0(ipoin)*r0(ipoin),8)
+              do ipoin = 1,npoin_w
+                 auxT1 = auxT1+real(r0(lpoin_w(ipoin))*r0(lpoin_w(ipoin)),8)
               end do
               !$acc end parallel loop
 
@@ -431,8 +430,8 @@ module mod_solver_incomp
               !
               auxT1 = 0.0d0
               !$acc parallel loop reduction(+:auxT1)
-              do ipoin = 1,npoin
-                 auxT1 = auxT1+real(r0(ipoin)*(z0(ipoin)-z1(ipoin)),8) ! <r_k,A*s_k-1>
+              do ipoin = 1,npoin_w
+                 auxT1 = auxT1+real(r0(lpoin_w(ipoin))*(z0(lpoin_w(ipoin))-z1(lpoin_w(ipoin))),8) ! <r_k,A*s_k-1>
               end do
               !$acc end parallel loop
               call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
