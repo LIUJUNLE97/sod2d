@@ -13,7 +13,7 @@ module mod_operators
 
       logical :: allocate_memory_mod_oprators = .true.
       !for eval_laplacian_mult
-      real(rp),allocatable :: op_auxP(:),op_auxGradP(:,:)
+      real(rp),allocatable :: op_auxP(:)
 
        contains
 

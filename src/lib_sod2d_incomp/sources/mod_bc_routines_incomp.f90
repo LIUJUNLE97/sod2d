@@ -9,7 +9,8 @@ module mod_bc_routines_incomp
    implicit none
 
       contains
-               subroutine temporary_bc_routine_dirichlet_prim_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,aux_u,u_buffer)
+            
+         subroutine temporary_bc_routine_dirichlet_prim_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,aux_u,u_buffer)
 
             implicit none
 

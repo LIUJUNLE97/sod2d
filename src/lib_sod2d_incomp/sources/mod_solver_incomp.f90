@@ -358,7 +358,8 @@ module mod_solver_incomp
             auxT1 = 0.0d0
             !$acc parallel loop reduction(+:auxT1)
             do ipoin = 1,npoin
-               auxT1 = auxT1+real(b(ipoin)*b(ipoin),8)
+               !auxT1 = auxT1+real(b(ipoin)*b(ipoin),8)
+               auxT1 = auxT1+real(r0(ipoin)*r0(ipoin),8)
             end do
 
             call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
