@@ -325,8 +325,8 @@ module time_integ_incomp
             call nvtxStartRange("AB2 update u(2)")
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               !$acc loop seq   
                ipoin_w = lpoin_w(ipoin)
+               !$acc loop seq   
                do idime = 1,ndime
                   !write(*,*) 'Ml(',ipoin_w,')',Ml(ipoin_w),'gmma0',gamma0
                   u(ipoin_w,idime,2) =  (dt*u(ipoin_w,idime,2)/Ml(ipoin_w) + alpha(1)*u(ipoin_w,idime,1) + alpha(2)*u(ipoin_w,idime,3) + alpha(3)*u(ipoin_w,idime,4))/gamma0
