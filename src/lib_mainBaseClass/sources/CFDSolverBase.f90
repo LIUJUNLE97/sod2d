@@ -1226,6 +1226,8 @@ contains
          !$acc kernels
          walave_u(:,:) = 0.0_rp
          !$acc end kernels
+      else
+         allocate(walave_u(0,0)) !dummy allocation
       end if
 
       if(flag_type_wmles==wmles_type_abl) then

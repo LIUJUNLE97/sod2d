@@ -145,7 +145,7 @@ module time_integ_incomp
             real(rp), optional, intent(in)      :: source_term(npoin,ndime)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
             real(rp), optional, intent(in)      :: zo(npoin)
-            integer(4)                          :: istep,ipoin,idime,icode,iPer
+            integer(4)                          :: istep,ipoin,idime,icode,iPer,ipoin_w
 
             call nvtxStartRange("AB2 init")
             if(iltime .eq. 1) then
@@ -324,10 +324,12 @@ module time_integ_incomp
             
             call nvtxStartRange("AB2 update u(2)")
             !$acc parallel loop
-            do ipoin = 1,npoin
+            do ipoin = 1,npoin_w
                !$acc loop seq   
+               ipoin_w = lpoin_w(ipoin)
                do idime = 1,ndime
-                  u(ipoin,idime,2) =  (dt*u(ipoin,idime,2)/Ml(ipoin) + alpha(1)*u(ipoin,idime,1) + alpha(2)*u(ipoin,idime,3) + alpha(3)*u(ipoin,idime,4))/gamma0
+                  !write(*,*) 'Ml(',ipoin_w,')',Ml(ipoin_w),'gmma0',gamma0
+                  u(ipoin_w,idime,2) =  (dt*u(ipoin_w,idime,2)/Ml(ipoin_w) + alpha(1)*u(ipoin_w,idime,1) + alpha(2)*u(ipoin_w,idime,3) + alpha(3)*u(ipoin_w,idime,4))/gamma0
               end do
             end do
             !$acc end parallel loop
