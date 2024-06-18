@@ -40,10 +40,15 @@ contains
 
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
-    subroutine init_comms(useInt,useReal)
+    subroutine init_comms(useInt,useReal,initWindowsArg)
         implicit none
-        logical, intent(in) :: useInt,useReal
-        logical :: useFenceFlags,useAssertNoCheckFlags,useLockBarrier
+        logical,intent(in) :: useInt,useReal
+        logical,intent(in),optional :: initWindowsArg
+        logical :: useFenceFlags,useAssertNoCheckFlags,useLockBarrier,initWindows=.false.
+
+        if(present(initWindowsArg)) then
+           initWindows = initWindowsArg
+        end if
 
 #if _SENDRCV_
         if(mpi_rank.eq.0) write(111,*) "--| Comm. scheme: Send-Recv"
@@ -53,6 +58,7 @@ contains
 #endif
 #if _PUTFENCE_
         if(mpi_rank.eq.0) write(111,*) "--| Comm. scheme: Put(Fence)"
+        initWindows = .true. !forcing initWindows to true
 #endif
 #ifdef NCCL_COMMS
         if(mpi_rank.eq.0) write(111,*) "--| Comm. scheme: NCCL"
@@ -69,7 +75,7 @@ contains
             !$acc enter data create(aux_intField_s(:))
             !$acc enter data create(aux_intField_r(:))
 
-            call init_window_intField()
+            if(initWindows) call init_window_intField()
         end if
 
         if(useReal) then
@@ -80,7 +86,7 @@ contains
             !$acc enter data create(aux_realField_s(:))
             !$acc enter data create(aux_realField_r(:))
 
-            call init_window_realField()
+            if(initWindows) call init_window_realField()
         end if
 
         call MPI_Comm_group(app_comm,worldGroup,mpi_err)
