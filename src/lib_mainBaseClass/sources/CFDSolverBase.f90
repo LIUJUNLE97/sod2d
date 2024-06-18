@@ -200,13 +200,23 @@ contains
    subroutine CFDSolverBase_findFixPressure(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: ielem
+      integer(4) :: ielem, iRankl, iNodeL,iRank
 
       ielem = numElemsRankPar*0.5
+      iRankl = mpi_size + 1
+      !$acc parallel loop  
+      do iNodeL = 1,numNodesRankPar
+         if(maskMapped(iNodeL) == 0) then
+            iRankl = mpi_rank
+         end if
+      end do
+      !$acc end parallel loop
+      call MPI_Allreduce(iRankl,iRank,1,mpi_datatype_int,MPI_MIN,app_comm,mpi_err)
 
-      if(mpi_rank.eq.0) then
+      if(iRank == (mpi_size+1)) iRank = 0
+      if(mpi_rank.eq.iRank) then
           inode_fix_press =  connecParWork(ielem,atoIJK(nnode))
-          write(111,*) '--| Node to fix pressure',inode_fix_press
+          write(111,*) '--| Node to fix pressure',inode_fix_press, " mpi_rank ",iRank
       else
          flag_fs_fix_pressure = .false.
       end if

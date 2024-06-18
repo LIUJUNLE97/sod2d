@@ -349,6 +349,13 @@ module mod_bc_routines_incomp
             end if
          end do
          !$acc end parallel loop   
+         if(mpi_size.ge.2) then
+            call nvtxStartRange("MPI_comms_tI")
+            call mpi_halo_max_boundary_update_real_iSendiRcv(u_flux_buffer(:,1))
+            call mpi_halo_max_boundary_update_real_iSendiRcv(u_flux_buffer(:,2))
+            call mpi_halo_max_boundary_update_real_iSendiRcv(u_flux_buffer(:,3))
+            call nvtxEndRange
+         end if
       end subroutine evalPAtOutlet
 
       end module mod_bc_routines_incomp
