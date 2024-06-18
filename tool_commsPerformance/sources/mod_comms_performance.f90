@@ -148,6 +148,7 @@ contains
    subroutine init_comms_performance(useIntInComms,useRealInComms)
       implicit none
       logical, intent(in) :: useIntInComms,useRealInComms
+      logical :: initWindows=.true.
 
       if(useIntInComms) then
          allocate(res_ifield(numNodesRankPar))
@@ -158,7 +159,7 @@ contains
         !$acc enter data create(res_rfield(:))
       end if
 
-      call init_comms(useIntInComms,useRealInComms)
+      call init_comms(useIntInComms,useRealInComms,initWindows)
    end subroutine init_comms_performance
 
    subroutine debug_comms_real(base_resultsFile_h5_full_name)

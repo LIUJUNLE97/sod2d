@@ -18,12 +18,12 @@ module time_integ_incomp
 
    implicit none
 
-   real(rp), allocatable, dimension(:,:,:) :: Rmom,aux_omega
-   real(rp), allocatable, dimension(:,:) :: aux_q,Rsource,Rwmles
-   real(rp), allocatable, dimension(:,:) :: Rdiff_mom
-   real(rp), allocatable, dimension(:,:) ::GradP,f_eta,Reta
-   real(rp), allocatable, dimension(:) :: auxReta
+   real(rp), allocatable, dimension(:,:,:) :: Rmom,aux_omega,aux_temp
+   real(rp), allocatable, dimension(:,:) :: aux_q,Rsource,Rwmles,u_flux_buffer
+   real(rp), allocatable, dimension(:,:) ::GradP,f_eta,Reta,Rflux
+   real(rp), allocatable, dimension(:) :: auxReta, p_buffer
    real(rp), allocatable, dimension(:)   :: beta, alpha
+   real(rp), allocatable, dimension(:,:) :: Rdiff_mom
    real(rp) :: gamma0
 
    contains
@@ -33,25 +33,28 @@ module time_integ_incomp
       integer(4),intent(in) :: npoin
       integer(4) :: numSteps
 
-      allocate(Rmom(npoin,ndime,3),aux_omega(npoin,ndime,3))
-      !$acc enter data create(Rmom(:,:,:),aux_omega(:,:,:))
+      allocate(Rmom(npoin,ndime,3),aux_omega(npoin,ndime,3),aux_temp(npoin,ndime,3))
+      !$acc enter data create(Rmom(:,:,:),aux_omega(:,:,:),aux_temp(:,:,:))
 
-      allocate(aux_q(npoin,ndime),Rsource(npoin,ndime),Rwmles(npoin,ndime))
-      !$acc enter data create(aux_q(:,:),Rsource(:,:),Rwmles(:,:))
-
-      allocate(Rdiff_mom(npoin,ndime))
-      !$acc enter data create(Rdiff_mom(:,:))
+      allocate(aux_q(npoin,ndime),Rsource(npoin,ndime),Rwmles(npoin,ndime),u_flux_buffer(npoin,ndime),Rflux(npoin,ndime))
+      !$acc enter data create(aux_q(:,:),Rsource(:,:),Rwmles(:,:),u_flux_buffer(:,:),Rflux(:,:))
 
       allocate(gradP(npoin,ndime))
       !$acc enter data create(gradP(:,:))
 
-      allocate(auxReta(npoin),f_eta(npoin,ndime),Reta(npoin,3))
-      !$acc enter data create(auxReta(:),f_eta(:,:),Reta(:,:))
+      allocate(Rdiff_mom(npoin,ndime))
+      !$acc enter data create(Rdiff_mom(:,:))
+
+      allocate(auxReta(npoin),f_eta(npoin,ndime),Reta(npoin,3),p_buffer(npoin))
+      !$acc enter data create(auxReta(:),f_eta(:,:),Reta(:,:),p_buffer(:))
    
       !$acc kernels
       Rmom(1:npoin,1:ndime,1:3) = 0.0_rp
       Rsource(1:npoin,1:ndime) = 0.0_rp
       Rwmles(1:npoin,1:ndime) = 0.0_rp
+      Rflux(1:npoin,1:ndime) = 0.0_rp
+      p_buffer(1:npoin) = nscbc_p_inf
+      u_flux_buffer(1:npoin,1:ndime) = 0.0_rp
       !$acc end kernels
 
       allocate(alpha(3),beta(3))
@@ -66,12 +69,15 @@ module time_integ_incomp
 
       !$acc exit data delete(Rmom(:,:,:))
       !$acc exit data delete(aux_omega(:,:,:))
-      deallocate(Rmom,aux_omega)
+      !$acc exit data delete(aux_temp(:,:,:))
+      deallocate(Rmom,aux_omega,aux_temp)
 
       !$acc exit data delete(aux_q(:,:))
       !$acc exit data delete(Rsource(:,:))
       !$acc exit data delete(Rwmles(:,:))
-      deallocate(aux_q,Rsource,Rwmles)
+      !$acc exit data delete(u_flux_buffer(:,:))
+      !$acc exit data delete(Rflux(:,:))
+      deallocate(aux_q,Rsource,Rwmles,u_flux_buffer,Rflux)
 
       !$acc exit data delete(Rdiff_mom(:,:))
       deallocate(Rdiff_mom)
@@ -79,15 +85,15 @@ module time_integ_incomp
       !$acc exit data delete(gradP(:,:))
       deallocate(gradP)
 
-      !$acc exit data delete(f_eta(:,:),auxReta(:),Reta(:,:))
-      deallocate(f_eta,auxReta,Reta)
+      !$acc exit data delete(f_eta(:,:),auxReta(:),Reta(:,:),p_buffer(:))
+      deallocate(f_eta,auxReta,Reta,p_buffer)
 
    end subroutine end_rk4_solver_incomp
  
          subroutine ab_main_incomp(igtime,iltime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,leviCivi,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
-                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
+                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType,&               ! Optional args
                          listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u,zo)  ! Optional args
 
             implicit none
@@ -130,16 +136,16 @@ module time_integ_incomp
             real(rp),             intent(in)    :: coord(npoin,ndime)
             real(rp),             intent(in)  ::  wgp(ngaus)
             integer(4),            intent(in)    :: numBoundsWM
-            integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*)
+            integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*),numBoundCodes
             integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun), bou_codes_nodes(npoin)
-            integer(4), optional, intent(in)    :: listBoundsWM(*)
+            integer(4), optional, intent(in)    :: listBoundsWM(*),bouCodes2BCType(*)
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
             real(rp), optional, intent(in)      :: source_term(npoin,ndime)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
             real(rp), optional, intent(in)      :: zo(npoin)
-            integer(4)                          :: istep,ipoin,idime,icode,iPer
+            integer(4)                          :: istep,ipoin,idime,icode,iPer,ipoin_w
 
             call nvtxStartRange("AB2 init")
             if(iltime .eq. 1) then
@@ -162,9 +168,10 @@ module time_integ_incomp
                end if               
                !$acc parallel loop
                do ipoin = 1,npoin_w
+                  ipoin_w = lpoin_w(ipoin)
                   !$acc loop seq
                   do idime = 1,ndime
-                     f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
+                     f_eta(ipoin_w,idime) = u(ipoin_w,idime,1)*eta(ipoin_w,1)
                   end do
                end do
                !$acc end parallel loop
@@ -206,7 +213,7 @@ module time_integ_incomp
                   beta(2) = -1.0_rp
                   beta(3) = 0.0_rp
                   !$acc update device(alpha(:))
-                  !$acc update device(beta(:))           
+                  !$acc update device(beta(:))      
                else
                   gamma0 = 11.0_rp/6.0_rp
                   alpha(1) = 3.0_rp
@@ -216,12 +223,26 @@ module time_integ_incomp
                   beta(2) = -3.0_rp
                   beta(3) = 1.0_rp
                   !$acc update device(alpha(:))
-                  !$acc update device(beta(:))    
+                  !$acc update device(beta(:))              
                end if
             end if
-
-
             call nvtxEndRange
+
+            if (noBoundaries .eqv. .false.) then
+
+               call evalPAtOutlet(nelem,npoin,npoin_w,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,lpoin_w, &
+                  bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,mu_e,mu_sgs,rho,u(:,:,1),p_buffer,u_flux_buffer)
+               call bc_routine_momentum_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
+                  bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,u_flux_buffer,Rflux)
+
+               if(mpi_size.ge.2) then
+                  call nvtxStartRange("AB2 halo update")
+                  do idime = 1,ndime
+                     call mpi_halo_atomic_update_real(Rflux(:,idime))
+                  end do
+                  call nvtxEndRange
+               end if
+            end if
 
             if(present(source_term)) then
                call nvtxStartRange("AB2 source")
@@ -292,23 +313,25 @@ module time_integ_incomp
 
             call nvtxStartRange("AB2 update u(2) & Rmom(1)")
             !$acc parallel loop
-            do ipoin = 1,npoin
+            do ipoin = 1,npoin_w
+               ipoin_w = lpoin_w(ipoin)
                !$acc loop seq   
                do idime = 1,ndime
-                  u(ipoin,idime,2) = -(beta(1)*Rmom(ipoin,idime,2)+beta(2)*Rmom(ipoin,idime,1)+beta(3)*Rmom(ipoin,idime,3)) & 
-                                     -Rsource(ipoin,idime)
-                  Rmom(ipoin,idime,3) = Rmom(ipoin,idime,1)
-                  Rmom(ipoin,idime,1) = Rmom(ipoin,idime,2)
+                  u(ipoin_w,idime,2) = -(beta(1)*Rmom(ipoin_w,idime,2)+beta(2)*Rmom(ipoin_w,idime,1)+beta(3)*Rmom(ipoin_w,idime,3)) & 
+                                     -Rsource(ipoin_w,idime)
+                  Rmom(ipoin_w,idime,3) = Rmom(ipoin_w,idime,1)
+                  Rmom(ipoin_w,idime,1) = Rmom(ipoin_w,idime,2)
               end do
             end do
             call nvtxEndRange
             
             call nvtxStartRange("AB2 update u(2)")
             !$acc parallel loop
-            do ipoin = 1,npoin
+            do ipoin = 1,npoin_w
+               ipoin_w = lpoin_w(ipoin)
                !$acc loop seq   
                do idime = 1,ndime
-                  u(ipoin,idime,2) =  (dt*u(ipoin,idime,2)/Ml(ipoin) + alpha(1)*u(ipoin,idime,1) + alpha(2)*u(ipoin,idime,3) + alpha(3)*u(ipoin,idime,4))/gamma0
+                  u(ipoin_w,idime,2) =  (dt*u(ipoin_w,idime,2)/Ml(ipoin_w) + alpha(1)*u(ipoin_w,idime,1) + alpha(2)*u(ipoin_w,idime,3) + alpha(3)*u(ipoin_w,idime,4))/gamma0
               end do
             end do
             !$acc end parallel loop
@@ -319,41 +342,46 @@ module time_integ_incomp
             pr(:,2) = -gamma0*pr(:,2)/dt
             !$acc end kernels
 
+            !if (noBoundaries .eqv. .false.) then
+            !   !$acc parallel loop 
+            !   do ipoin = 1,npoin_w
+            !      ipoin_w = lpoin_w(ipoin)
+            !      !$acc loop seq   
+            !      do idime = 1,ndime
+            !         aux_q(ipoin_w,idime) = -mu_fluid(ipoin_w)*(beta(1)*aux_omega(ipoin_w,idime,2)+beta(2)*aux_omega(ipoin_w,idime,1)+beta(3)*aux_omega(ipoin_w,idime,3)) !&
+            !                             ! -(beta(1)*aux_temp(ipoin_w,idime,2)+beta(2)*aux_temp(ipoin_w,idime,1)+beta(3)*aux_temp(ipoin_w,idime,3)) !&
+            !                             ! -(beta(1)*Rmom(ipoin_w,idime,2)+beta(2)*Rmom(ipoin_w,idime,1)+beta(3)*Rmom(ipoin_w,idime,3))
+            !      end do
+            !   end do      
+            !   call bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
+            !                                 bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,aux_q,pr(:,2))
+            !end if
             if (noBoundaries .eqv. .false.) then
-               !$acc parallel loop collapse(2)
-               do ipoin = 1,npoin
-                  do idime = 1,ndime
-                     aux_q(ipoin,idime) = -(beta(1)*aux_omega(ipoin,idime,2)+beta(2)*aux_omega(ipoin,idime,1)+beta(3)*aux_omega(ipoin,idime,3)) 
-                  end do
-               end do      
-               call bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes, &
-                                             bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,aux_q,pr(:,2))
-            end if
-            if (noBoundaries .eqv. .false.) then
-               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,1))              
+               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,1),p_buffer)              
             end if
             call conjGrad_pressure_incomp(igtime,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,connec,lpoin_w,lelpn,invAtoIJK,gmshAtoI,gmshAtoJ,&
                                           gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,pr(:,1),pr(:,2), &
                                           nboun,bou_codes_nodes,normalsAtNodes)
             if (noBoundaries .eqv. .false.) then
-               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,2))              
+               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,2),p_buffer)              
             end if
+ 
             call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,pr(:,2),gradP,.true.)
                         
             !$acc parallel loop
-            do ipoin = 1,npoin
+            do ipoin = 1,npoin_w
+               ipoin_w = lpoin_w(ipoin)
                !$acc loop seq
                do idime = 1,ndime
-                  u(ipoin,idime,2) = (u(ipoin,idime,2)-dt*gradP(ipoin,idime)/gamma0)*Ml(ipoin) & 
-                                     -dt*Rwmles(ipoin,idime)/gamma0
+                  u(ipoin_w,idime,2) = (u(ipoin_w,idime,2)-dt*gradP(ipoin_w,idime)/gamma0)*Ml(ipoin_w) & 
+                                     -dt*Rwmles(ipoin_w,idime)/gamma0-dt*Rflux(ipoin_w,idime)/gamma0
                end do
             end do
             !$acc end parallel loop
                         
             if (noBoundaries .eqv. .false.) then
-
                if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet_incomp(u(:,:,1))
-               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,1),u_buffer)
+               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,1),u_buffer) 
             end if
 
             call conjGrad_veloc_incomp(igtime,1.0_rp/gamma0,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
@@ -367,12 +395,25 @@ module time_integ_incomp
                if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet_incomp(u(:,:,2))
 
                call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer)
-               !$acc kernels
-               aux_omega(:,:,3) = aux_omega(:,:,1)
-               aux_omega(:,:,1) = aux_omega(:,:,2)
-               !$acc end kernels
-               call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),aux_q,.true.)
-               call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_q,aux_omega(:,:,2),.true.)
+               !!$acc kernels
+               !aux_omega(:,:,3) = aux_omega(:,:,1)
+               !aux_omega(:,:,1) = aux_omega(:,:,2)
+               !!$acc end kernels
+               !call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),aux_q,.true.)
+               !call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_q,aux_omega(:,:,2),.true.)
+               !!$acc kernels
+               !aux_temp(:,:,3) = aux_temp(:,:,1)
+               !aux_temp(:,:,1) = aux_temp(:,:,2)
+               !!$acc end kernels
+               !!$acc parallel loop 
+               !do ipoin = 1,npoin_w
+               !   ipoin_w = lpoin_w(ipoin)
+               !   !$acc loop seq
+               !   do idime = 1,ndime
+               !      aux_temp(ipoin_w,idime,2) = (u(ipoin_w,idime,2)*gamma0 - alpha(1)*u(ipoin_w,idime,1) - alpha(2)*u(ipoin_w,idime,3) - alpha(3)*u(ipoin_w,idime,4))/dt
+               !   end do
+               !end do
+               !!$acc end parallel loop
             end if
             !
             ! Compute subgrid viscosity if active
@@ -380,10 +421,11 @@ module time_integ_incomp
 
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               eta(lpoin_w(ipoin),2) = 0.5*(u(lpoin_w(ipoin),1,2)**2 + u(lpoin_w(ipoin),2,2)**2 + u(lpoin_w(ipoin),3,2)**2)
+               ipoin_w = lpoin_w(ipoin)
+               eta(ipoin_w,2) = 0.5*(u(ipoin_w,1,2)**2 + u(ipoin_w,2,2)**2 + u(ipoin_w,3,2)**2)
                !$acc loop seq
                do idime = 1,ndime
-                  f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
+                  f_eta(ipoin_w,idime) = u(ipoin_w,idime,1)*eta(ipoin_w,1)
                end do
             end do
             !$acc end parallel loop
@@ -399,10 +441,11 @@ module time_integ_incomp
 
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               auxReta(lpoin_w(ipoin)) =  (beta(1)*Reta(lpoin_w(ipoin),2)+beta(2)*Reta(lpoin_w(ipoin),1)+beta(3)*Reta(lpoin_w(ipoin),3)) !+ &
+               ipoin_w = lpoin_w(ipoin)
+               auxReta(ipoin_w) =  (beta(1)*Reta(ipoin_w,2)+beta(2)*Reta(ipoin_w,1)+beta(3)*Reta(ipoin_w,3)) !+ &
                                          !(gamma0*eta(lpoin_w(ipoin),2)-alpha(1)*eta(lpoin_w(ipoin),1)-alpha(2)*eta(lpoin_w(ipoin),3)-alpha(3)*eta(lpoin_w(ipoin),4))/dt
-               Reta(lpoin_w(ipoin),3) = Reta(lpoin_w(ipoin),1)
-               Reta(lpoin_w(ipoin),1) = Reta(lpoin_w(ipoin),2)
+               Reta(ipoin_w,3) = Reta(ipoin_w,1)
+               Reta(ipoin_w,1) = Reta(ipoin_w,2)
             end do
             !$acc end parallel loop
 
@@ -444,52 +487,54 @@ module time_integ_incomp
             !$acc parallel loop
             do ipoin = 1,npoin_w
                xi = 1.0_rp
-               !east
-               if(flag_buffer_on_east .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),1)
-                  if(xs>flag_buffer_e_min) then
-                     xb = (xs-flag_buffer_e_min)/flag_buffer_e_size
-                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+               if (maskMapped(lpoin_w(ipoin)) == 1) then
+                  !east
+                  if(flag_buffer_on_east .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),1)
+                     if(xs>flag_buffer_e_min) then
+                        xb = (xs-flag_buffer_e_min)/flag_buffer_e_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
                   end if
-               end if
-               !west
-               if(flag_buffer_on_west .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),1)
-                  if(xs<flag_buffer_w_min) then
-                     xb = (flag_buffer_w_min-xs)/flag_buffer_w_size
-                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                  !west
+                  if(flag_buffer_on_west .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),1)
+                     if(xs<flag_buffer_w_min) then
+                        xb = (flag_buffer_w_min-xs)/flag_buffer_w_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
                   end if
-               end if
-               !north
-               if(flag_buffer_on_north .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),2)
-                  if(xs>flag_buffer_n_min) then
-                     xb = (xs-flag_buffer_n_min)/flag_buffer_n_size
-                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                  !north
+                  if(flag_buffer_on_north .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),2)
+                     if(xs>flag_buffer_n_min) then
+                        xb = (xs-flag_buffer_n_min)/flag_buffer_n_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
                   end if
-               end if
-               !south
-               if(flag_buffer_on_south .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),2)
-                  if(xs<flag_buffer_s_min) then
-                     xb = (flag_buffer_s_min-xs)/flag_buffer_s_size
-                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                  !south
+                  if(flag_buffer_on_south .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),2)
+                     if(xs<flag_buffer_s_min) then
+                        xb = (flag_buffer_s_min-xs)/flag_buffer_s_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
                   end if
-               end if
-               !north
-               if(flag_buffer_on_top .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),3)
-                  if(xs>flag_buffer_t_min) then
-                     xb = (xs-flag_buffer_t_min)/flag_buffer_t_size
-                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                  !north
+                  if(flag_buffer_on_top .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),3)
+                     if(xs>flag_buffer_t_min) then
+                        xb = (xs-flag_buffer_t_min)/flag_buffer_t_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
                   end if
-               end if
-               !bottom
-               if(flag_buffer_on_bottom .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),3)
-                  if(xs<flag_buffer_b_min) then
-                     xb = (flag_buffer_b_min-xs)/flag_buffer_b_size
-                     xi = maskMapped(lpoin_w(ipoin))*min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                  !bottom
+                  if(flag_buffer_on_bottom .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),3)
+                     if(xs<flag_buffer_b_min) then
+                        xb = (flag_buffer_b_min-xs)/flag_buffer_b_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
                   end if
                end if
 

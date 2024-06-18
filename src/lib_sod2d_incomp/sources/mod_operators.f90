@@ -13,7 +13,7 @@ module mod_operators
 
       logical :: allocate_memory_mod_oprators = .true.
       !for eval_laplacian_mult
-      real(rp),allocatable :: op_auxP(:),op_auxGradP(:,:)
+      real(rp),allocatable :: op_auxP(:)
 
        contains
 
@@ -25,13 +25,11 @@ module mod_operators
             real(rp),  intent(inout) :: ResP(npoin)
             real(rp),  intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),p(npoin)
             integer(4),intent(in)    :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            integer(4)               :: ii, ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ipoin(nnode),inode_press
+            integer(4)               :: ii, ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ipoin(nnode)
             !real(rp)                :: p_l(npoin),aux1,auxP(npoin)
             real(rp)                :: gradIsoP(ndime)
             real(rp)                :: gradP(ndime),divDp
             real(rp)                :: pl(nnode),gradPl(nnode,ndime)
-
-            inode_press = npoin_w*0.5_rp
 
             if(allocate_memory_mod_oprators) then
                allocate_memory_mod_oprators = .false.
@@ -45,9 +43,6 @@ module mod_operators
              ResP(:) = 0.0_rp
              op_auxP(:) = p(:)
             !$acc end kernels
-            if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
-               op_auxP(lpoin_w(inode_press)) = 0.0_rp
-            end if
 
             !$acc parallel loop gang  private(ipoin,pl,gradPl)
             do ielem = 1,nelem
@@ -124,8 +119,10 @@ module mod_operators
             end if
             call nvtxEndRange
 
-            if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
-               ResP(lpoin_w(inode_press)) = 0.0_rp
+            if(flag_fs_fix_pressure) then
+               !$acc kernels
+               ResP(inode_fix_press) = 0.0_rp              
+               !$acc end kernels
             end if
         end subroutine eval_laplacian_mult
 

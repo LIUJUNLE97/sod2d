@@ -173,7 +173,7 @@ end subroutine WindFarmSolverIncomp_readJSONAD
       real(rp) :: x_ad,y_ad,z_ad,radius
       real(8) :: vol_T(this%N_ad),vol_T2(this%N_ad)
 
-      if(istep == 1) then
+      if(istep == 1) then !esto va a dar problemas en continues
          if(this%N_ad .gt. 0) then
             vol_T(:) = 0.0d0
             !! Wind farm pre-processing
@@ -387,6 +387,7 @@ end subroutine WindFarmSolverIncomp_readJSONAD
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
       call json%get("flag_walave",flag_walave, found,.true.); call this%checkFound(found,found_aux)
       call json%get("period_walave",period_walave, found,3600.0_rp); call this%checkFound(found,found_aux)
+      call json%get("flag_fs_fix_pressure",flag_fs_fix_pressure, found,.false.); call this%checkFound(found,found_aux)
 
       call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
       
@@ -416,9 +417,9 @@ end subroutine WindFarmSolverIncomp_readJSONAD
       end if  
 
       ! fixed by the type of base class parameters
-      flag_fs_fix_pressure = .false.
       flag_type_wmles = wmles_type_abl
       nscbc_p_inf = 0.0_rp
+      nscbc_u_inf = this%vinf
 
       this%ustar = this%vinf*0.41_rp/log(1.0_rp+this%Lhub/this%rough)
       incomp_viscosity = 1.81e-5

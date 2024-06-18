@@ -85,7 +85,7 @@ module mod_solver
             real(rp)   , intent(inout) :: R_mom(npoin,ndime)
            integer(4)                :: ipoin, iter,ialpha,idime,ivars, ipoinl
            real(rp)                   :: alphaCG, betaCG,umag,rhol,El,e_int_l
-           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,alpha(5),alpha2(5),aux_alpha,T1,Q1(2)
+           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,alpha(5),alpha2(5),aux_alpha,Q1(2)
 
            !if(mpi_rank.eq.0) write(111,*) "--|[IMEX] CG begin"
           
@@ -268,11 +268,10 @@ module mod_solver
 
                call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
-               T1 = auxT2
               !
               ! Stop cond
               !
-              if (sqrt(T1) .lt. (tol*auxB)) then
+              if (sqrt(auxT2) .lt. (tol*auxB)) then
                  exit
               end if
               !
@@ -316,9 +315,9 @@ module mod_solver
            call nvtxEndRange
 
            if (iter == maxIter) then
-               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[IMEX] CG, iters: ",iter," tol ",sqrt(T1)/auxB
+               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[IMEX] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
            else
-               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[IMEX] CG, iters: ",iter," tol ",sqrt(T1)/auxB
+               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[IMEX] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
            endif
             
 			   !$acc parallel loop

@@ -44,7 +44,7 @@ module mod_solver_incomp
             real(rp), intent(inout) :: R(npoin,ndime)
             integer(4) :: ipoin,iter,ialpha,idime
             real(rp)   :: alphaCG,betaCG
-            real(8)    :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,alpha(5),alpha2(5),aux_alpha,T1,Q1(2)
+            real(8)    :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,alpha(5),alpha2(5),aux_alpha,Q1(2)
           
           call nvtxStartRange("CG solver veloc")
           if (flag_cg_mem_alloc_veloc .eqv. .true.) then
@@ -119,10 +119,10 @@ module mod_solver_incomp
 
             auxT1 = 0.0d0
             !$acc parallel loop reduction(+:auxT1)
-            do ipoin = 1,npoin
+            do ipoin = 1,npoin_w
                !$acc loop seq
               do idime = 1,ndime 
-               auxT1 = auxT1+real(r0_u(ipoin,idime)*r0_u(ipoin,idime),8)
+               auxT1 = auxT1+real(r0_u(lpoin_w(ipoin),idime)*r0_u(lpoin_w(ipoin),idime),8)
               end do
             end do
 
@@ -196,20 +196,19 @@ module mod_solver_incomp
               !$acc end parallel loop
               auxT1 = 0.0d0
               !$acc parallel loop reduction(+:auxT1)
-              do ipoin = 1,npoin
+              do ipoin = 1,npoin_w
                   !$acc loop seq
                  do idime = 1,ndime 
-                  auxT1 = auxT1+real(r0_u(ipoin,idime)*r0_u(ipoin,idime),8)
+                  auxT1 = auxT1+real(r0_u(lpoin_w(ipoin),idime)*r0_u(lpoin_w(ipoin),idime),8)
                  end do
               end do
 
                call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
-               T1 = auxT2
               !
               ! Stop cond
               !
-              if (sqrt(T1) .lt. (tol*auxB)) then
+              if (sqrt(auxT2) .lt. (tol*auxB)) then
                  call nvtxEndRange
                  exit
               end if
@@ -218,10 +217,10 @@ module mod_solver_incomp
               !
               auxT1 = 0.0d0
               !$acc parallel loop reduction(+:auxT1)
-              do ipoin = 1,npoin
+              do ipoin = 1,npoin_w
                  !$acc loop seq
                   do idime = 1,ndime 
-                     auxT1 = auxT1+real(r0_u(ipoin,idime)*(z0_u(ipoin,idime)-z1_u(ipoin,idime)),8) ! <r_k,A*s_k-1>
+                     auxT1 = auxT1+real(r0_u(lpoin_w(ipoin),idime)*(z0_u(lpoin_w(ipoin),idime)-z1_u(lpoin_w(ipoin),idime)),8) ! <r_k,A*s_k-1>
                   end do
               end do
               !$acc end parallel loop
@@ -240,9 +239,9 @@ module mod_solver_incomp
            call nvtxEndRange
 
            if (iter == maxIter) then
-               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[veloc] CG, iters: ",iter," tol ",sqrt(T1)/auxB
+               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[veloc] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
            else
-               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[veloc] CG, iters: ",iter," tol ",sqrt(T1)/auxB
+               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[veloc] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
            endif
             
             !$acc kernels
@@ -266,11 +265,9 @@ module mod_solver_incomp
            real(rp)   , intent(inout) :: R(npoin)
            integer(4), intent(in)     :: nboun,bou_codes_nodes(npoin)
            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
-           integer(4)                :: ipoin, iter,ialpha,ielem,inode_press
-           real(rp)                   :: T1, alphaCG, betaCG
+           integer(4)                :: ipoin, iter,ialpha,ielem
+           real(rp)                   :: alphaCG, betaCG
            real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,Q1(2)
-
-           inode_press = npoin_w*0.5_rp
           
           call nvtxStartRange("CG solver press")
           if (flag_cg_mem_alloc_pres .eqv. .true.) then
@@ -322,9 +319,12 @@ module mod_solver_incomp
                
             ! Real solver form here
 
-            if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
-               b(lpoin_w(inode_press)) = 0.0_rp
-               x(lpoin_w(inode_press)) = 0.0_rp
+            if(flag_fs_fix_pressure) then
+               !$acc kernels
+               b(inode_fix_press) = 0.0_rp
+               x(inode_fix_press) = nscbc_p_inf               
+               !$acc end kernels
+               
             end if
 
             call nvtxStartRange("CG_p precond")
@@ -335,7 +335,7 @@ module mod_solver_incomp
            end do
             !$acc end parallel loop            
             if (noBoundaries .eqv. .false.) then
-               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0)              
+               call temporary_bc_routine_dirichlet_pressure_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0)              
             end if            
            !$acc parallel loop
            do ipoin = 1,npoin_w
@@ -356,8 +356,8 @@ module mod_solver_incomp
 
             auxT1 = 0.0d0
             !$acc parallel loop reduction(+:auxT1)
-            do ipoin = 1,npoin
-               auxT1 = auxT1+real(b(ipoin)*b(ipoin),8)
+            do ipoin = 1,npoin_w
+               auxT1 = auxT1+real(b(lpoin_w(ipoin))*b(lpoin_w(ipoin)),8)
             end do
 
             call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
@@ -394,7 +394,7 @@ module mod_solver_incomp
               end do
               !$acc end parallel loop
               if (noBoundaries .eqv. .false.) then
-               call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0)              
+               call temporary_bc_routine_dirichlet_pressure_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0)              
               end if
               !$acc parallel loop
               do ipoin = 1,npoin_w
@@ -404,18 +404,16 @@ module mod_solver_incomp
               !$acc end parallel loop                            
               auxT1 = 0.0d0
               !$acc parallel loop reduction(+:auxT1)
-              do ipoin = 1,npoin
-                 auxT1 = auxT1+real(r0(ipoin)*r0(ipoin),8)
+              do ipoin = 1,npoin_w
+                 auxT1 = auxT1+real(r0(lpoin_w(ipoin))*r0(lpoin_w(ipoin)),8)
               end do
               !$acc end parallel loop
 
                call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
-
-               T1 = real(auxT2,rp)
               !
               ! Stop cond
               !
-              if (sqrt(T1) .lt. (tol*auxB)) then
+              if (sqrt(auxT2) .lt. (tol*auxB)) then
                  call nvtxEndRange
                  exit
               end if
@@ -429,8 +427,8 @@ module mod_solver_incomp
               !
               auxT1 = 0.0d0
               !$acc parallel loop reduction(+:auxT1)
-              do ipoin = 1,npoin
-                 auxT1 = auxT1+real(r0(ipoin)*(z0(ipoin)-z1(ipoin)),8) ! <r_k,A*s_k-1>
+              do ipoin = 1,npoin_w
+                 auxT1 = auxT1+real(r0(lpoin_w(ipoin))*(z0(lpoin_w(ipoin))-z1(lpoin_w(ipoin))),8) ! <r_k,A*s_k-1>
               end do
               !$acc end parallel loop
               call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
@@ -445,17 +443,19 @@ module mod_solver_incomp
            call nvtxEndRange
 
            if (iter == maxIter) then
-               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(T1)/auxB
+               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
            else
-               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(T1)/auxB
+               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
            endif
             
             !$acc kernels
             R(:) = x0(:)+x(:)
             !$acc end kernels
 
-            if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
-               R(lpoin_w(inode_press)) = 0.0_rp
+            if(flag_fs_fix_pressure) then
+               !$acc kernels
+               R(inode_fix_press) = nscbc_p_inf
+               !$acc end kernels
             end if
 
            call nvtxEndRange

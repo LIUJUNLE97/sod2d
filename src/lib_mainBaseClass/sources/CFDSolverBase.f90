@@ -184,6 +184,7 @@ module CFDSolverBase_mod
       procedure, public :: readJSONBCTypes => CFDSolverBase_readJSONBCTypes
       procedure, public :: readJSONBuffer => CFDSolverBase_readJSONBuffer
       procedure, public :: eval_vars_after_load_hdf5_resultsFile => CFDSolverBase_eval_vars_after_load_hdf5_resultsFile 
+      procedure, public :: findFixPressure => CFDSolverBase_findFixPressure
 
       procedure :: open_log_file
       procedure :: close_log_file
@@ -195,6 +196,32 @@ module CFDSolverBase_mod
       procedure :: checkIfSymmetryOn
    end type CFDSolverBase
 contains
+
+   subroutine CFDSolverBase_findFixPressure(this)
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4) :: ielem, iRankl, iNodeL,iRank
+
+      ielem = numElemsRankPar*0.5
+      iRankl = mpi_size + 1
+      !$acc parallel loop  
+      do iNodeL = 1,numNodesRankPar
+         if(maskMapped(iNodeL) == 0) then
+            iRankl = mpi_rank
+         end if
+      end do
+      !$acc end parallel loop
+      call MPI_Allreduce(iRankl,iRank,1,mpi_datatype_int,MPI_MIN,app_comm,mpi_err)
+
+      if(iRank == (mpi_size+1)) iRank = 0
+      if(mpi_rank.eq.iRank) then
+          inode_fix_press =  connecParWork(ielem,atoIJK(nnode))
+          write(111,*) '--| Node to fix pressure',inode_fix_press, " mpi_rank ",iRank
+      else
+         flag_fs_fix_pressure = .false.
+      end if
+
+   end subroutine CFDSolverBase_findFixPressure
 
    subroutine CFDSolverBase_readJSONBuffer(this)
       use json_module
@@ -403,8 +430,6 @@ contains
                   bouCodes2BCType(id) = bc_type_slip_adiabatic
                else if(value .eq. "bc_type_slip_wall_model") then
                   bouCodes2BCType(id) = bc_type_slip_wall_model
-               else if(value .eq. "bc_type_top_abl") then
-                  bouCodes2BCType(id) = bc_type_top_abl
                end if
             else
                if(mpi_rank .eq. 0) then
@@ -1211,6 +1236,8 @@ contains
          !$acc kernels
          walave_u(:,:) = 0.0_rp
          !$acc end kernels
+      else
+         allocate(walave_u(0,0)) !dummy allocation
       end if
 
       if(flag_type_wmles==wmles_type_abl) then
@@ -2483,9 +2510,6 @@ contains
       ! Eval or load initial conditions
       call this%evalOrLoadInitialConditions()
 
-      ! Init of the source terms
-      call this%initializeSourceTerms()
-
       ! Eval  viscosty factor
       call this%evalViscosityFactor()
 
@@ -2512,8 +2536,14 @@ contains
 
       call this%set_mappedFaces_linkingNodes()   
 
+      ! Init of the source terms
+      call this%initializeSourceTerms()
+
       ! Eval mass
       call this%evalMass()
+
+      ! Find Pressure Node to fix
+      if(flag_fs_fix_pressure) call this%findFixPressure()
 
       ! Preprocess witness points
       if (this%have_witness) then
@@ -2528,7 +2558,8 @@ contains
       if(this%isFreshStart) call this%evalFirstOutput()
       call this%flush_log_file()
 
-      if(this%isWallModelOn .or. this%isSymmetryOn) call  this%normalFacesToNodes()
+      if (this%noBoundaries .eqv. .false.)  call  this%normalFacesToNodes()
+
 
       ! Eval initial time step
       call this%evalInitialDt()

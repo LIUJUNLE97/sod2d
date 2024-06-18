@@ -37,6 +37,7 @@
    "tol":1e-5,
    "flag_walave":true,
    "period_walave":3600.0,
+   "flag_fs_fix_pressure":true,  
 
    "cfl_conv":0.5,
 
