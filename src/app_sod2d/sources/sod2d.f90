@@ -11,6 +11,7 @@ program main
    use TGVSolverIncomp_mod
    use ChannelFlowSolver_mod
    use ChannelFlowSolverIncomp_mod
+   use ThermalBubbleSolver_mod
    use BluffBodySolver_mod
    use BluffBodySolverIncomp_mod
    use BluffBody3DSolver_mod
@@ -62,6 +63,8 @@ program main
       allocate(ChannelFlowSolver::solver) 
    else if(value .eq. "ChannelFlowSolverIncomp") then
       allocate(ChannelFlowSolverIncomp::solver) 
+   else if(value .eq. "ThermalBubbleSolver") then
+      allocate(ThermalBubbleSolver::solver) 
    else if(value .eq. "BluffBodySolver") then
       allocate(BluffBodySolver::solver) 
    else if(value .eq. "BluffBodySolverIncomp") then

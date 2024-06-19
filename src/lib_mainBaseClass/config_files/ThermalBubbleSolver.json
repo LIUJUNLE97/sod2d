@@ -1,0 +1,64 @@
+{
+   "type":"ThermalBubbleSolver",
+
+   "mesh_h5_file_path":"",
+   "mesh_h5_file_name":"bubble",
+
+   "results_h5_file_path":"",
+   "results_h5_file_name":"results",
+
+   "final_istep":5000001,
+
+   "save_logFile_first":1,
+   "save_logFile_step":10,
+
+   "save_resultsFile_first":1,
+   "save_resultsFile_step":10000,
+
+   "save_restartFile_first":1,
+   "save_restartFile_step":10000,
+
+   "loadRestartFile":false,
+   "restartFile_to_load":1,
+
+   "continue_oldLogs":false,
+
+   "saveAvgFile":false,
+   "loadAvgFile":false,
+
+   "saveSurfaceResults":false,
+
+   "flag_les":0,
+
+   "flag_implicit":0,
+   "maxIter":20,
+   "tol":1e-3,
+
+   "flag_walave":false,
+   "period_walave":200.0,
+
+   "cfl_conv":1.5,
+   "cfl_diff":1.5,
+
+
+   "Cp":1005.2,
+   "Cv":717.1,
+   "R":287.0,
+   "Prt":0.71,
+   "mu":0.0,
+   "po":101325.0,
+   "to":288.15,
+   "g":9.81,
+   
+   "PTc":0.5,
+   "rc": 250.0,
+   "xc": 500.0,
+   "yc": 500.0,
+   "zc": 260.0,
+
+
+   "bouCodes":
+   [
+      {"id":1, "bc_type":"bc_type_non_slip_adiabatic"}
+   ]
+}
