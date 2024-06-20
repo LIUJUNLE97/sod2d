@@ -150,6 +150,8 @@ contains
       flag_walave   = .false.
       !period_walave = 200.0_rp
 
+      ce = 1.0_rp
+
       !  --------------  Thermodynamic parameters -------------
 
       call json%get("ThermodynamicParameters.Cp",this%Cp,   found, 1005.2_rp);   call this%checkFound(found,found_aux)
