@@ -24,7 +24,7 @@ module mod_bc_routines
             real(rp),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
             real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
-            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm
+            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm,z
 
             if(allocate_memory_bcc) then
                allocate_memory_bcc = .false.
@@ -178,6 +178,24 @@ module mod_bc_routines
                         aux_q(inode,idime) = aux_q(inode,idime) - norm*normalsAtNodes(inode,idime)
                      end do
                      aux_rho(inode) = nscbc_rho_inf
+
+                     aux_u(inode,1) = aux_q(inode,1)/aux_rho(inode)
+                     aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
+                     aux_u(inode,3) = aux_q(inode,3)/aux_rho(inode)
+
+                     aux_E(inode) = aux_E(inode) + &
+                                    aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
+
+                  else if ((bcode == bc_type_slip_atmosphere)) then ! slip
+                     aux_E(inode) = aux_E(inode) - &
+                                    aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
+                     norm = (normalsAtNodes(inode,1)*aux_q(inode,1)) + (normalsAtNodes(inode,2)*aux_q(inode,2)) + (normalsAtNodes(inode,3)*aux_q(inode,3))
+                     !$acc loop seq
+                     do idime = 1,ndime     
+                        aux_q(inode,idime) = aux_q(inode,idime) - norm*normalsAtNodes(inode,idime)
+                     end do
+                     z = coordPar(inode,3)
+                     aux_rho(inode) = (nscbc_p_inf/nscbc_Rgas_inf/nscbc_T_C)*(1.0_rp - (nscbc_gamma_inf-1.0_rp)*nscbc_g*z/nscbc_gamma_inf/nscbc_Rgas_inf/nscbc_T_C)**(nscbc_gamma_inf/(nscbc_gamma_inf-1))
 
                      aux_u(inode,1) = aux_q(inode,1)/aux_rho(inode)
                      aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
@@ -354,7 +372,7 @@ subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound
 
                      aux_rho_r(inode) = 0.0_rp
                      
-                  else if ((bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic)) then ! slip)
+                  else if ((bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic) .or. (bcode == bc_type_slip_atmosphere)) then ! slip)
                      norm = (normalsAtNodes(inode,1)*aux_q(inode,1)) + (normalsAtNodes(inode,2)*aux_q(inode,2)) + (normalsAtNodes(inode,3)*aux_q(inode,3))
                      !$acc loop seq
                      do idime = 1,ndime     

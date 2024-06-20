@@ -430,6 +430,8 @@ contains
                   bouCodes2BCType(id) = bc_type_slip_adiabatic
                else if(value .eq. "bc_type_slip_wall_model") then
                   bouCodes2BCType(id) = bc_type_slip_wall_model
+               else if(value .eq. "bc_type_slip_atmosphere") then
+                  bouCodes2BCType(id) = bc_type_slip_atmosphere
                end if
             else
                if(mpi_rank .eq. 0) then
