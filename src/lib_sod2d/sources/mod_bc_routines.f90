@@ -194,8 +194,8 @@ module mod_bc_routines
                      do idime = 1,ndime     
                         aux_q(inode,idime) = aux_q(inode,idime) - norm*normalsAtNodes(inode,idime)
                      end do
-                     !z = coordPar(inode,3)
-                     !aux_rho(inode) = (nscbc_p_inf/nscbc_Rgas_inf/nscbc_T_C)*(1.0_rp - (nscbc_gamma_inf-1.0_rp)*nscbc_g*z/nscbc_gamma_inf/nscbc_Rgas_inf/nscbc_T_C)**(nscbc_gamma_inf/(nscbc_gamma_inf-1))
+                     z = coordPar(inode,3)
+                     aux_rho(inode) = (nscbc_p_inf/nscbc_Rgas_inf/nscbc_T_C)*(1.0_rp - (nscbc_gamma_inf-1.0_rp)*nscbc_g*z/nscbc_gamma_inf/nscbc_Rgas_inf/nscbc_T_C)**(nscbc_gamma_inf/(nscbc_gamma_inf-1))
 
                      aux_u(inode,1) = aux_q(inode,1)/aux_rho(inode)
                      aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
