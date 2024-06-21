@@ -28,14 +28,18 @@
    },
 
    "NumericalParameters" : {
-      "flag_les":0,
+      "flag_les"          : 0,
+      "c_sgs"             : 0.025,
+      "envit_ce"          : 1.0,
 
-      "flag_implicit":0,
-      "maxIter":20,
-      "tol":1e-3,
-   
-      "cfl_conv":1.5,
-      "cfl_diff":1.5
+      "flag_rk_ls"        : false,
+      "flag_rk_ls_stages" : 5,
+      "flag_implicit"     : 0,
+      "maxIter"           : 20,
+      "tol"               : 1e-3,
+
+      "cfl_conv"          : 1.5,
+      "cfl_diff"          : 1.5
    },
 
    "ThermodynamicParameters" : {

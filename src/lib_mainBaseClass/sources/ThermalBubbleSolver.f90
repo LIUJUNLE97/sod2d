@@ -100,33 +100,34 @@ contains
      
       !  --------------  File parameters -------------
 
-      call json%get("FileParameters.mesh_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+      call json%get("FileParameters.mesh_h5_file_path", value, found, ""); call this%checkFound(found,found_aux)
       write(this%mesh_h5_file_path,*) value
-      call json%get("FileParameters.mesh_h5_file_name",value, found,"bubble"); call this%checkFound(found,found_aux)
+      call json%get("FileParameters.mesh_h5_file_name", value, found, "bubble"); call this%checkFound(found,found_aux)
       write(this%mesh_h5_file_name,*) value
 
-      call json%get("FileParameters.results_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+      call json%get("FileParameters.results_h5_file_path", value, found, ""); call this%checkFound(found,found_aux)
       write(this%results_h5_file_path,*) value
-      call json%get("FileParameters.results_h5_file_name",value, found,"results"); call this%checkFound(found,found_aux)
+      call json%get("FileParameters.results_h5_file_name", value, found, "results"); call this%checkFound(found,found_aux)
       write(this%results_h5_file_name,*) value
 
       !  --------------  I/O parameters -------------
 
-      call json%get("IOParameters.final_istep",this%final_istep, found,5000001); call this%checkFound(found,found_aux)
+      call json%get("IOParameters.maxPhysTime", this%maxPhysTime, found, 1200.0_rp); call this%checkFound(found,found_aux)
+      call json%get("IOParameters.final_istep", this%final_istep, found, 5000001);   call this%checkFound(found,found_aux)
 
-      call json%get("IOParameters.save_logFile_first",this%save_logFile_first, found, 1); call this%checkFound(found,found_aux)
-      call json%get("IOParameters.save_logFile_step",this%save_logFile_step, found, 10); call this%checkFound(found,found_aux)
+      call json%get("IOParameters.save_logFile_first", this%save_logFile_first, found, 1);   call this%checkFound(found,found_aux)
+      call json%get("IOParameters.save_logFile_step", this%save_logFile_step,   found, 10);  call this%checkFound(found,found_aux)
 
-      call json%get("IOParameters.save_resultsFile_first",this%save_resultsFile_first, found,1); call this%checkFound(found,found_aux)
-      call json%get("IOParameters.save_resultsFile_step" ,this%save_resultsFile_step, found,10000); call this%checkFound(found,found_aux)
+      call json%get("IOParameters.save_resultsFile_first", this%save_resultsFile_first, found, 1);     call this%checkFound(found,found_aux)
+      call json%get("IOParameters.save_resultsFile_step" , this%save_resultsFile_step,  found, 10000); call this%checkFound(found,found_aux)
 
-      call json%get("IOParameters.save_restartFile_first",this%save_restartFile_first, found,1); call this%checkFound(found,found_aux)
-      call json%get("IOParameters.save_restartFile_step" ,this%save_restartFile_step, found,10000); call this%checkFound(found,found_aux)
+      call json%get("IOParameters.save_restartFile_first", this%save_restartFile_first, found, 1);     call this%checkFound(found,found_aux)
+      call json%get("IOParameters.save_restartFile_step" , this%save_restartFile_step,  found, 10000); call this%checkFound(found,found_aux)
 
-      call json%get("IOParameters.loadRestartFile" ,this%loadRestartFile, found, .true.); call this%checkFound(found,found_aux)
-      call json%get("IOParameters.restartFile_to_load" ,this%restartFile_to_load, found,1); call this%checkFound(found,found_aux)
+      call json%get("IOParameters.loadRestartFile",     this%loadRestartFile,     found, .true.); call this%checkFound(found,found_aux)
+      call json%get("IOParameters.restartFile_to_load", this%restartFile_to_load, found, 1);      call this%checkFound(found,found_aux)
 
-      call json%get("IOParameters.continue_oldLogs" ,this%continue_oldLogs, found, .false.); call this%checkFound(found,found_aux)
+      call json%get("IOParameters.continue_oldLogs", this%continue_oldLogs, found, .false.); call this%checkFound(found,found_aux)
 
       this%saveAvgFile = .false. ! Do not save averages
       this%loadAvgFile = .false.
@@ -135,33 +136,33 @@ contains
 
       !  --------------  Numerical parameters -------------
 
-      call json%get("NumericalParameters.flag_les",flag_les, found,1); call this%checkFound(found,found_aux)
-      call json%get("NumericalParameters.flag_implicit",flag_implicit, found,1); call this%checkFound(found,found_aux)
-      call json%get("NumericalParameters.maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
-      call json%get("NumericalParameters.tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
+      call json%get("NumericalParameters.flag_les",flag_les, found, 1);        call this%checkFound(found,found_aux)
+      call json%get("NumericalParameters.c_sgs",   c_sgs,    found, 0.025_rp); call this%checkFound(found,found_aux)
+      
+      call json%get("NumericalParameters.flag_implicit", flag_implicit, found, 1);       call this%checkFound(found,found_aux)
+      call json%get("NumericalParameters.maxIter",       maxIter,       found, 20);      call this%checkFound(found,found_aux)
+      call json%get("NumericalParameters.tol",           tol,           found, 0.001d0); call this%checkFound(found,found_aux)
+      call json%get("NumericalParameters.envit_ce",      ce,            found, 1.0_rp);  call this%checkFound(found,found_aux)
        
-      call json%get("NumericalParameters.cfl_conv",this%cfl_conv, found,1.5_rp); call this%checkFound(found,found_aux)
-      call json%get("NumericalParameters.cfl_diff",this%cfl_diff, found,1.5_rp); call this%checkFound(found,found_aux)
+      call json%get("NumericalParameters.cfl_conv", this%cfl_conv, found, 1.5_rp); call this%checkFound(found,found_aux)
+      call json%get("NumericalParameters.cfl_diff", this%cfl_diff, found, 1.5_rp); call this%checkFound(found,found_aux)
 
-      call json%get("flag_rk_ls",flag_rk_ls, found,.false.); 
-      call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
-      call json%get("c_sgs",c_sgs, found,0.025_rp); 
+      call json%get("NumericalParameters.flag_rk_ls",flag_rk_ls, found,.false.); 
+      call json%get("NumericalParameters.flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
 
       flag_walave   = .false.
       !period_walave = 200.0_rp
 
-      ce = 1.0_rp
-
       !  --------------  Thermodynamic parameters -------------
 
-      call json%get("ThermodynamicParameters.Cp",this%Cp,   found, 1005.2_rp);   call this%checkFound(found,found_aux)
-      call json%get("ThermodynamicParameters.Cv",this%Cv,   found, 717.1_rp);    call this%checkFound(found,found_aux)
-      call json%get("ThermodynamicParameters.R" ,this%Rgas, found, 287.0_rp);    call this%checkFound(found,found_aux)
-      call json%get("ThermodynamicParameters.Prt",this%Prt, found, 0.71_rp);     call this%checkFound(found,found_aux)
-      call json%get("ThermodynamicParameters.mu",this%mu,   found, 1.0_rp);      call this%checkFound(found,found_aux)
-      call json%get("ThermodynamicParameters.po",this%po,   found, 101325.0_rp); call this%checkFound(found,found_aux)
-      call json%get("ThermodynamicParameters.to",this%to,   found, 288.15_rp);   call this%checkFound(found,found_aux)
-      call json%get("ThermodynamicParameters.g",this%g0,    found, 9.81_rp);     call this%checkFound(found,found_aux)  
+      call json%get("ThermodynamicParameters.Cp",  this%Cp,   found, 1005.2_rp);   call this%checkFound(found,found_aux)
+      call json%get("ThermodynamicParameters.Cv",  this%Cv,   found, 717.1_rp);    call this%checkFound(found,found_aux)
+      call json%get("ThermodynamicParameters.R" ,  this%Rgas, found, 287.0_rp);    call this%checkFound(found,found_aux)
+      call json%get("ThermodynamicParameters.Prt", this%Prt,  found, 0.71_rp);     call this%checkFound(found,found_aux)
+      call json%get("ThermodynamicParameters.mu",  this%mu,   found, 1.0_rp);      call this%checkFound(found,found_aux)
+      call json%get("ThermodynamicParameters.po",  this%po,   found, 101325.0_rp); call this%checkFound(found,found_aux)
+      call json%get("ThermodynamicParameters.to",  this%to,   found, 288.15_rp);   call this%checkFound(found,found_aux)
+      call json%get("ThermodynamicParameters.g",   this%g0,   found, 9.81_rp);     call this%checkFound(found,found_aux)  
       
       if (this%mu .eq. 0.0_rp) flag_real_diff = 0
       flag_diff_suth = 0 ! Deactivate Sutherland viscosity
@@ -171,11 +172,11 @@ contains
 
       !  --------------  Thermodynamic parameters -------------
 
-      call json%get("BubbleParameters.Tc",this%Tc, found, 0.5_rp);   call this%checkFound(found,found_aux)  
-      call json%get("BubbleParameters.rc",this%rc, found, 250.0_rp); call this%checkFound(found,found_aux)  
-      call json%get("BubbleParameters.xc",this%xc, found, 500.0_rp); call this%checkFound(found,found_aux)  
-      call json%get("BubbleParameters.yc",this%yc, found, 500.0_rp); call this%checkFound(found,found_aux)  
-      call json%get("BubbleParameters.zc",this%zc, found, 260.0_rp); call this%checkFound(found,found_aux)  
+      call json%get("BubbleParameters.Tc", this%Tc, found, 0.5_rp);   call this%checkFound(found,found_aux)  
+      call json%get("BubbleParameters.rc", this%rc, found, 250.0_rp); call this%checkFound(found,found_aux)  
+      call json%get("BubbleParameters.xc", this%xc, found, 500.0_rp); call this%checkFound(found,found_aux)  
+      call json%get("BubbleParameters.yc", this%yc, found, 500.0_rp); call this%checkFound(found,found_aux)  
+      call json%get("BubbleParameters.zc", this%zc, found, 260.0_rp); call this%checkFound(found,found_aux)  
     
       !  --------------  Witness parameters -------------
 
@@ -202,6 +203,7 @@ contains
       integer(4) :: iNodeL
 
       ! Set up thermal bubble
+      ! TODO: add bubble shapes
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          ! Spatial coordinates
@@ -216,6 +218,7 @@ contains
       end do
       !$acc end parallel loop
 
+      ! TODO: add atmospheric profiles
       ! Set up initial conditions
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
