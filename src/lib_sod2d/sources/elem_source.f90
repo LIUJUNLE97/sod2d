@@ -62,4 +62,44 @@ contains
 
    end subroutine mom_source_const_vect
 
+   subroutine ener_source(nelem,npoin,connec,Ngp,dNgp,He,gpvol,q,Rener,fact)
+
+
+      implicit none
+
+      integer(4), intent(in)    :: nelem, npoin
+      integer(4), intent(in)    :: connec(nelem,nnode)
+      real(rp),    intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+      real(rp),    intent(in)    :: He(ndime,ndime,ngaus,nelem)
+      real(rp),    intent(in)    :: gpvol(1,ngaus,nelem)
+      real(rp),    intent(in)    :: q(npoin,ndime)
+      real(rp),    intent(inout) :: Rener(npoin)
+      real(rp), optional, intent(in)  :: fact
+      integer(4)                :: ielem, igaus, idime, inode
+      real(rp)  :: aux_fact = 1.0_rp
+
+      call nvtxStartRange("Momentum source term")
+
+      !oriol: I will assue that you will call
+      !this subroutine at least having convection so Rmom is
+      !already initialized
+
+      if(present(fact)) then
+         aux_fact = fact
+      end if
+
+      !$acc parallel loop gang 
+      do ielem = 1,nelem
+         !$acc loop vector 
+        do inode = 1,nnode
+            !$acc atomic update
+            Rener(connec(ielem,inode)) = Rener(connec(ielem,inode))+aux_fact*gpvol(1,inode,ielem)*q(connec(ielem,inode),3)*nscbc_g
+            !$acc end atomic
+         end do
+      end do
+      !$acc end parallel loop
+      call nvtxEndRange
+
+   end subroutine ener_source
+
 end module elem_source

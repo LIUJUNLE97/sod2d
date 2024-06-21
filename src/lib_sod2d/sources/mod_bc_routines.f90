@@ -24,7 +24,7 @@ module mod_bc_routines
             real(rp),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
             real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
-            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm,z
+            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm,z,rho_inf,p_inf,c_inf
 
             if(allocate_memory_bcc) then
                allocate_memory_bcc = .false.
@@ -187,6 +187,9 @@ module mod_bc_routines
                                     aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
 
                   else if ((bcode == bc_type_slip_atmosphere)) then ! slip
+#if 1
+                     z = coordPar(inode,3)
+                     aux_rho(inode) = (nscbc_p_inf/nscbc_Rgas_inf/nscbc_T_C)*(1.0_rp - (nscbc_gamma_inf-1.0_rp)*nscbc_g*z/nscbc_gamma_inf/nscbc_Rgas_inf/nscbc_T_C)**(nscbc_gamma_inf/(nscbc_gamma_inf-1))                     
                      aux_E(inode) = aux_E(inode) - &
                                     aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
                      norm = (normalsAtNodes(inode,1)*aux_q(inode,1)) + (normalsAtNodes(inode,2)*aux_q(inode,2)) + (normalsAtNodes(inode,3)*aux_q(inode,3))
@@ -194,8 +197,6 @@ module mod_bc_routines
                      do idime = 1,ndime     
                         aux_q(inode,idime) = aux_q(inode,idime) - norm*normalsAtNodes(inode,idime)
                      end do
-                     !z = coordPar(inode,3)
-                     !aux_rho(inode) = (nscbc_p_inf/nscbc_Rgas_inf/nscbc_T_C)*(1.0_rp - (nscbc_gamma_inf-1.0_rp)*nscbc_g*z/nscbc_gamma_inf/nscbc_Rgas_inf/nscbc_T_C)**(nscbc_gamma_inf/(nscbc_gamma_inf-1))
 
                      aux_u(inode,1) = aux_q(inode,1)/aux_rho(inode)
                      aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
@@ -203,7 +204,31 @@ module mod_bc_routines
 
                      aux_E(inode) = aux_E(inode) + &
                                     aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
+#else
+                     z = coordPar(inode,3)
+                     rho_inf = (nscbc_p_inf/nscbc_Rgas_inf/nscbc_T_C)*(1.0_rp - (nscbc_gamma_inf-1.0_rp)*nscbc_g*z/nscbc_gamma_inf/nscbc_Rgas_inf/nscbc_T_C)**(nscbc_gamma_inf/(nscbc_gamma_inf-1))
+                     p_inf = nscbc_p_inf*(1.0_rp - (nscbc_gamma_inf-1.0_rp)*nscbc_g*z/nscbc_gamma_inf/nscbc_Rgas_inf/nscbc_T_C)**(nscbc_gamma_inf/(nscbc_gamma_inf-1))                     
+                     E_inf = (rho_inf*0.5_rp*nscbc_u_inf**2 + p_inf/(nscbc_gamma_inf-1.0_rp))
+                     c_inf = sqrt(nscbc_gamma_inf*p_inf/rho_inf)
 
+                     sl = min(nscbc_u_inf-c_inf, aux_u2(inode,1) - sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)))
+                     sr =  max(aux_u2(inode,1) + sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)), nscbc_u_inf+c_inf)
+
+                     rho_hll = (sr*aux_rho2(inode)-sl*rho_inf+rho_inf*nscbc_u_inf-aux_q2(inode,1))/(sr-sl)
+                     E_hll   = (sr*aux_E2(inode)-sl*E_inf+nscbc_u_inf*(E_inf+p_inf)-aux_u2(inode,1)*(aux_E2(inode)+aux_p2(inode)))/(sr-sl)
+
+                     aux_rho(inode) = rho_hll
+                     aux_E(inode) = E_hll
+                     
+                     !$acc loop seq
+                     do idime = 1,ndime 
+                        sl = min(u_buffer(inode,idime)-c_inf, aux_u2(inode,idime) - sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)))
+                        sr =  max(aux_u2(inode,idime) + sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)), u_buffer(inode,idime)+c_inf)
+                        q_hll   = (sr*aux_q2(inode,idime)-sl*rho_inf*u_buffer(inode,idime)+rho_inf*u_buffer(inode,idime)**2-aux_u2(inode,idime)*aux_q2(inode,idime))/(sr-sl)
+
+                        aux_q(inode,idime) = q_hll                    
+                     end do 
+#endif                               
                   end if
                end if
             end do

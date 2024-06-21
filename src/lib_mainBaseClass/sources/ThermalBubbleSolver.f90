@@ -184,6 +184,7 @@ contains
 
       !  --------------  Boundary parameters -------------
 
+      nscbc_u_inf     = 0.0_rp
       nscbc_rho_inf   = this%rho0
       nscbc_p_inf     = this%po
       nscbc_Rgas_inf  = this%Rgas

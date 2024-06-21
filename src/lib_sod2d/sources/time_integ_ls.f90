@@ -321,6 +321,7 @@ module time_integ_ls
                if(present(source_term)) then
                   call nvtxStartRange("SOURCE TERM")
                   call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom,-1.0_rp)
+                  call ener_source(nelem,npoin,connec,Ngp,dNgp,He,gpvol,q(:,:,pos),Rener,-1.0_rp)
                   call nvtxEndRange
                end if
 
