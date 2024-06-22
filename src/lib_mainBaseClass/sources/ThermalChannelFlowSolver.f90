@@ -44,7 +44,7 @@ contains
       class(ThermalChannelFlowSolver), intent(inout) :: this
       integer(4) :: iNodeL
 
-      allocate(source_term(numNodesRankPar,ndime))
+      allocate(source_term(numNodesRankPar,ndime+1))
       !$acc enter data create(source_term(:,:))
 
       !$acc parallel loop  
@@ -56,6 +56,7 @@ contains
 #endif
          source_term(iNodeL,2) = 0.00_rp
          source_term(iNodeL,3) = 0.00_rp
+         source_term(iNodeL,4) = 0.00_rp
       end do
       !$acc end parallel loop
    end subroutine ThermalChannelFlowSolver_initializeSourceTerms
