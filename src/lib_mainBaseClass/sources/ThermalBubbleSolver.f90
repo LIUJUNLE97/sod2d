@@ -51,17 +51,21 @@ contains
    subroutine ThermalBubbleSolver_initializeSourceTerms(this)
       class(ThermalBubbleSolver), intent(inout) :: this
       integer(4) :: iNodeL
-      real(rp) :: source
+      real(rp)   :: source_mom, source_ener
 
-      allocate(source_term(numNodesRankPar,ndime))
+      allocate(source_term(numNodesRankPar,ndime+1))
       !$acc enter data create(source_term(:,:))
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
-         source = -rho(iNodeL,2)*this%g0
+         source_mom  = -rho(iNodeL,2)*this%g0 ! rho*g
+         source_ener = -q(iNodeL,3,2)*this%g0 ! rho*w*g
+         ! Three components of momentum
          source_term(iNodeL,1) = 0.0_rp
          source_term(iNodeL,2) = 0.0_rp
-         source_term(iNodeL,3) = source
+         source_term(iNodeL,3) = source_mom
+         ! Energy
+         source_term(iNodeL,4) = source_ener
       end do
       !$acc end parallel loop
 
@@ -71,14 +75,18 @@ contains
       class(ThermalBubbleSolver), intent(inout) :: this
       integer(4), intent(in) :: istep
       integer(4) :: iNodeL
-      real(rp) :: source
+      real(rp)   :: source_mom, source_ener
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
-         source = -rho(iNodeL,2)*this%g0
+         source_mom  = -rho(iNodeL,2)*this%g0 ! rho*g
+         source_ener = -q(iNodeL,3,2)*this%g0 ! rho*w*g
+         ! Three components of momentum
          source_term(iNodeL,1) = 0.0_rp
          source_term(iNodeL,2) = 0.0_rp
-         source_term(iNodeL,3) = source
+         source_term(iNodeL,3) = source_mom
+         ! Energy
+         source_term(iNodeL,4) = source_ener
       end do
       !$acc end parallel loop
 

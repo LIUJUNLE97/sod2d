@@ -237,7 +237,7 @@ module time_integ_imex
                !$acc kernels
                Rsource_imex(1:npoin,1:ndime) = 0.0_rp
                !$acc end kernels
-               call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,1),source_term,Rsource_imex)
+               call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,1),source_term(:,1:ndime),Rsource_imex)
             end if
 
             if(isWallModelOn) then

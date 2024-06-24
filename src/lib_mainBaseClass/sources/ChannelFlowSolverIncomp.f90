@@ -49,7 +49,7 @@ contains
       integer(4) :: iNodeL
       real(rp) :: source_x
 
-      allocate(source_term(numNodesRankPar,ndime))
+      allocate(source_term(numNodesRankPar,ndime+1))
       !$acc enter data create(source_term(:,:))
 
       !$acc parallel loop  
@@ -59,6 +59,7 @@ contains
          source_term(iNodeL,1) = source_x 
          source_term(iNodeL,2) = 0.00_rp
          source_term(iNodeL,3) = 0.00_rp
+         source_term(iNodeL,4) = 0.00_rp
 
          !just a momentary trick
          pr(iNodeL,2) = 0.0_rp 
