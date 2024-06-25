@@ -53,6 +53,7 @@ project(sod2d LANGUAGES C CXX Fortran)
 include(mpi)
 
 # Configure compiler options
+include(nvidia-smi-cc)
 include(compilerOps)
 
 # Configure HDF5 module
