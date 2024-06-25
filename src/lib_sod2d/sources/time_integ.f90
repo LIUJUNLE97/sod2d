@@ -185,7 +185,7 @@ module time_integ
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
-            real(rp), optional, intent(in)      :: source_term(npoin,ndime)
+            real(rp), optional, intent(in)      :: source_term(npoin,ndime+1)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: pos
