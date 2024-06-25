@@ -234,8 +234,8 @@ contains
          z = coordPar(iNodeL,3)
          u(iNodeL,1:ndime,2) = 0.0_rp  ! Velocity is set to zero
          ! Navas-Montilla (2023) eq. 71 (adiabatic atmosphere)
-         pr(iNodeL,2)        = this%po*(1.0_rp - (this%gamma_gas-1.0_rp)*this%g0*z/this%gamma_gas/this%Rgas/this%to)**(this%gamma_gas/(this%gamma_gas-1))
-         rho(iNodeL,2)       = (this%po/this%Rgas/Tem(iNodeL,2))*(1.0_rp - (this%gamma_gas-1.0_rp)*this%g0*z/this%gamma_gas/this%Rgas/this%to)**(this%gamma_gas/(this%gamma_gas-1))
+         pr(iNodeL,2)        = this%po*(1.0_rp - (this%gamma_gas-1.0_rp)*this%g0*z/this%gamma_gas/this%Rgas/this%to)**(this%gamma_gas/(this%gamma_gas-1.0_rp))
+         rho(iNodeL,2)       = (this%po/this%Rgas/Tem(iNodeL,2))*(1.0_rp - (this%gamma_gas-1.0_rp)*this%g0*z/this%gamma_gas/this%Rgas/this%to)**(this%gamma_gas/(this%gamma_gas-1.0_rp))
          
          e_int(iNodeL,2)     = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp)) ! Internal energy
          E(iNodeL,2)         = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2)) + e_int(iNodeL,2))
