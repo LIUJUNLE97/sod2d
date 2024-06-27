@@ -17,10 +17,10 @@
       "save_logFile_step"      : 10,
    
       "save_resultsFile_first" : 1,
-      "save_resultsFile_step"  : 1000,
+      "save_resultsFile_step"  : 5000,
    
       "save_restartFile_first" : 1,
-      "save_restartFile_step"  : 10000,
+      "save_restartFile_step"  : 5000,
    
       "loadRestartFile"        : false,
       "restartFile_to_load"    : 1,
@@ -39,8 +39,8 @@
       "maxIter"           : 20,
       "tol"               : 1e-3,
 
-      "cfl_conv"          : 0.5,
-      "cfl_diff"          : 0.5
+      "cfl_conv"          : 1.5,
+      "cfl_diff"          : 1.5
    },
 
    "ThermodynamicParameters" : {
