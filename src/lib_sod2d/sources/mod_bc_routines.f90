@@ -187,8 +187,8 @@ module mod_bc_routines
                                     aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
 
                   else if ((bcode == bc_type_slip_atmosphere)) then ! slip
-                     z = coordPar(inode,3)
-                     aux_rho(inode) = (nscbc_p_inf/nscbc_Rgas_inf/nscbc_T_C)*(1.0_rp - (nscbc_gamma_inf-1.0_rp)*nscbc_g*z/nscbc_gamma_inf/nscbc_Rgas_inf/nscbc_T_C)**(nscbc_gamma_inf/(nscbc_gamma_inf-1.0_rp))                     
+                     !z = coordPar(inode,3)
+                     !aux_rho(inode) = (nscbc_p_inf/nscbc_Rgas_inf/nscbc_T_C)*(1.0_rp - (nscbc_gamma_inf-1.0_rp)*nscbc_g*z/nscbc_gamma_inf/nscbc_Rgas_inf/nscbc_T_C)**(nscbc_gamma_inf/(nscbc_gamma_inf-1.0_rp))                     
                      
                      aux_E(inode) = aux_E(inode) - &
                                     aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))

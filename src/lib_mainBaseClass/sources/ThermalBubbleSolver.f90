@@ -65,7 +65,7 @@ contains
          source_term(iNodeL,2) = 0.0_rp
          source_term(iNodeL,3) = source_mom
          ! Energy
-         source_term(iNodeL,4) = 0.0_rp!source_ener
+         source_term(iNodeL,4) = source_ener
       end do
       !$acc end parallel loop
 
@@ -86,7 +86,7 @@ contains
          source_term(iNodeL,2) = 0.0_rp
          source_term(iNodeL,3) = source_mom
          ! Energy
-         source_term(iNodeL,4) = 0.0_rp!source_ener
+         source_term(iNodeL,4) = source_ener
       end do
       !$acc end parallel loop
 
