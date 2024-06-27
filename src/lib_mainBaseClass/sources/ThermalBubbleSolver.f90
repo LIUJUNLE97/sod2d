@@ -196,6 +196,7 @@ contains
       nscbc_rho_inf   = this%rho0
       nscbc_p_inf     = this%p0
       nscbc_Rgas_inf  = this%Rgas
+      nscbc_Cp_inf    = this%Cp
       nscbc_gamma_inf = this%gamma_gas
       nscbc_T_C       = this%T0
       nscbc_g         = this%g0
@@ -213,8 +214,8 @@ contains
 
       ! Set up the atmosphere
       ! TODO: add more atmospheres
-      aux = (this%gamma_gas - 1.0_rp)/this%gamma_gas*this%g0/this%Rgas/this%T0
       ! Adiabatic atmosphere
+      aux = (this%gamma_gas - 1.0_rp)/this%gamma_gas*this%g0/this%Rgas/this%T0
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          ! Spatial coordinates

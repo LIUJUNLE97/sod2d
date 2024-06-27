@@ -24,7 +24,7 @@ module mod_bc_routines
             real(rp),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
             real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
-            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm,z
+            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm,z,T_inf,p_inf
 
             if(allocate_memory_bcc) then
                allocate_memory_bcc = .false.
@@ -187,8 +187,18 @@ module mod_bc_routines
                                     aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
 
                   else if ((bcode == bc_type_slip_atmosphere)) then ! slip
-                     !z = coordPar(inode,3)
-                     !aux_rho(inode) = (nscbc_p_inf/nscbc_Rgas_inf/nscbc_T_C)*(1.0_rp - (nscbc_gamma_inf-1.0_rp)*nscbc_g*z/nscbc_gamma_inf/nscbc_Rgas_inf/nscbc_T_C)**(nscbc_gamma_inf/(nscbc_gamma_inf-1.0_rp))                     
+                     ! Compute value for the density
+                     z = coordPar(inode,3)
+                     ! Set up the atmosphere, Navas-Montilla (2023) eq. 71 (adiabatic atmosphere)
+                     ! https://farside.ph.utexas.edu/teaching/sm1/lectures/node56.html
+                     rr    = (nscbc_gamma_inf - 1.0_rp)/nscbc_gamma_inf*nscbc_g/nscbc_Rgas_inf/nscbc_T_C ! Reused variable
+                     T_inf = nscbc_T_C*(1.0_rp - rr*z)
+                     p_inf = nscbc_p_inf*(1.0_rp - rr*z)**(nscbc_Cp_inf/nscbc_Rgas_inf)
+                     ! WARNING: here for numerical approximation is important to either use
+                     ! (gamma-1)/gamma or Cp/R as otherwise we incur in approximation issues!
+                     
+                     ! Density is set with the equation of state
+                     aux_rho(inode) = p_inf/nscbc_Rgas_inf/T_inf
                      
                      aux_E(inode) = aux_E(inode) - &
                                     aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
