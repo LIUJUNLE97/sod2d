@@ -29,7 +29,7 @@ module ThermalBubbleSolver_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: ThermalBubbleSolver
 
-      real(rp) , public  :: Cv, rho0, mu, to, po, g0, Tc, rc, xc, yc, zc
+      real(rp) , public  :: Cv, rho0, mu, T0, p0, g0, Tc, rc, xc, yc, zc
 
    contains
       procedure, public :: fillBCTypes           => ThermalBubbleSolver_fill_BC_Types
@@ -65,7 +65,7 @@ contains
          source_term(iNodeL,2) = 0.0_rp
          source_term(iNodeL,3) = source_mom
          ! Energy
-         source_term(iNodeL,4) = source_ener
+         source_term(iNodeL,4) = 0.0_rp!source_ener
       end do
       !$acc end parallel loop
 
@@ -86,7 +86,7 @@ contains
          source_term(iNodeL,2) = 0.0_rp
          source_term(iNodeL,3) = source_mom
          ! Energy
-         source_term(iNodeL,4) = source_ener
+         source_term(iNodeL,4) = 0.0_rp!source_ener
       end do
       !$acc end parallel loop
 
@@ -168,15 +168,15 @@ contains
       call json%get("ThermodynamicParameters.R" ,  this%Rgas, found, 287.0_rp);    call this%checkFound(found,found_aux)
       call json%get("ThermodynamicParameters.Prt", this%Prt,  found, 0.71_rp);     call this%checkFound(found,found_aux)
       call json%get("ThermodynamicParameters.mu",  this%mu,   found, 1.0_rp);      call this%checkFound(found,found_aux)
-      call json%get("ThermodynamicParameters.po",  this%po,   found, 101325.0_rp); call this%checkFound(found,found_aux)
-      call json%get("ThermodynamicParameters.to",  this%to,   found, 288.15_rp);   call this%checkFound(found,found_aux)
+      call json%get("ThermodynamicParameters.po",  this%p0,   found, 101325.0_rp); call this%checkFound(found,found_aux)
+      call json%get("ThermodynamicParameters.to",  this%T0,   found, 288.15_rp);   call this%checkFound(found,found_aux)
       call json%get("ThermodynamicParameters.g",   this%g0,   found, 9.81_rp);     call this%checkFound(found,found_aux)  
       
       if (this%mu .eq. 0.0_rp) flag_real_diff = 0
       flag_diff_suth = 0 ! Deactivate Sutherland viscosity
       ! fixed by the type of base class parameters
       this%gamma_gas = this%Cp/this%Cv
-      this%rho0      = this%po/this%Rgas/this%to
+      this%rho0      = this%p0/this%Rgas/this%T0
 
       !  --------------  Thermodynamic parameters -------------
 
@@ -194,10 +194,10 @@ contains
 
       nscbc_u_inf     = 0.0_rp
       nscbc_rho_inf   = this%rho0
-      nscbc_p_inf     = this%po
+      nscbc_p_inf     = this%p0
       nscbc_Rgas_inf  = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
-      nscbc_T_C       = this%to
+      nscbc_T_C       = this%T0
       nscbc_g         = this%g0
 
       call json%destroy()
@@ -208,8 +208,25 @@ contains
 
    subroutine ThermalBubbleSolver_evalInitialConditions(this)
       class(ThermalBubbleSolver), intent(inout) :: this
-      real(rp)   :: x, y, z
+      real(rp)   :: x, y, z, aux, dtheta
       integer(4) :: iNodeL
+
+      ! Set up the atmosphere
+      ! TODO: add more atmospheres
+      aux = (this%gamma_gas - 1.0_rp)/this%gamma_gas*this%g0/this%Rgas/this%T0
+      ! Adiabatic atmosphere
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         ! Spatial coordinates
+         z = coordPar(iNodeL,3)
+         ! Set up the atmosphere, Navas-Montilla (2023) eq. 71 (adiabatic atmosphere)
+         ! https://farside.ph.utexas.edu/teaching/sm1/lectures/node56.html
+         Tem(iNodeL,2) = this%T0*(1.0_rp - aux*z)
+         pr(iNodeL,2)  = this%p0*(1.0_rp - aux*z)**(this%Cp/this%Rgas) !(this%gamma_gas/(this%gamma_gas-1.0_rp))
+         ! WARNING: here for numerical approximation is important to either use
+         ! (gamma-1)/gamma or Cp/R as otherwise we incur in approximation issues!
+      end do
+      !$acc end parallel loop
 
       ! Set up thermal bubble
       ! TODO: add bubble shapes
@@ -219,24 +236,26 @@ contains
          x = coordPar(iNodeL,1)
          y = coordPar(iNodeL,2)
          z = coordPar(iNodeL,3)
-         Tem(iNodeL,2) = this%to ! Background temperature
          ! Now set the thermal bubble shape (TODO: hardcoded for now)
          if(((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc) + (z-this%zc)*(z-this%zc)) .le. this%rc*this%rc) then
-            Tem(iNodeL,2) = Tem(iNodeL,2) + this%Tc/2.0_rp*(1.0_rp + cos(v_pi*sqrt((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc) + (z-this%zc)*(z-this%zc))/this%rc))
+             aux = this%Tc/2.0_rp*(1.0_rp + cos(v_pi*sqrt((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc) + (z-this%zc)*(z-this%zc))/this%rc))
          end if
+         ! We computed the perturbation in terms of potential temperature now convert it to static temperature
+         ! https://en.wikipedia.org/wiki/Potential_temperature
+         Tem(iNodeL,2) = Tem(iNodeL,2) + aux*(pr(iNodeL,2)/this%p0)**(this%Rgas/this%Cp)
+         ! WARNING: here for numerical approximation is important to either use
+         ! (gamma/gamma-1) or R/Cp as otherwise we incur in approximation issues!
       end do
       !$acc end parallel loop
 
-      ! TODO: add atmospheric profiles
       ! Set up initial conditions
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-         z = coordPar(iNodeL,3)
-         u(iNodeL,1:ndime,2) = 0.0_rp  ! Velocity is set to zero
-         ! Navas-Montilla (2023) eq. 71 (adiabatic atmosphere)
-         pr(iNodeL,2)        = this%po*(1.0_rp - (this%gamma_gas-1.0_rp)*this%g0*z/this%gamma_gas/this%Rgas/this%to)**(this%gamma_gas/(this%gamma_gas-1.0_rp))
-         rho(iNodeL,2)       = (this%po/this%Rgas/Tem(iNodeL,2))*(1.0_rp - (this%gamma_gas-1.0_rp)*this%g0*z/this%gamma_gas/this%Rgas/this%to)**(this%gamma_gas/(this%gamma_gas-1.0_rp))
-         
+         ! Velocity is set to zero
+         u(iNodeL,1:ndime,2) = 0.0_rp
+         ! Density is set with the equation of state
+         rho(iNodeL,2)       = pr(iNodeL,2)/this%Rgas/Tem(iNodeL,2)
+
          e_int(iNodeL,2)     = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp)) ! Internal energy
          E(iNodeL,2)         = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2)) + e_int(iNodeL,2))
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
@@ -257,7 +276,7 @@ contains
       !$acc end parallel loop
 
       !$acc kernels
-      mu_e(:,:)   = 0.0_rp ! Element syabilization viscosity
+      mu_e(:,:)   = 0.0_rp ! Element stabilization viscosity
       mu_sgs(:,:) = 0.0_rp
       kres(:)     = 0.0_rp
       etot(:)     = 0.0_rp
