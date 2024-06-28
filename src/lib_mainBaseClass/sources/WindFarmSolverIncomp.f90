@@ -305,7 +305,7 @@ end subroutine WindFarmSolverIncomp_readJSONAD
       integer(4) :: iNodeL
 
 
-      allocate(source_term(numNodesRankPar,ndime+1))
+      allocate(source_term(numNodesRankPar,ndime))
       !$acc enter data create(source_term(:,:))
 
 

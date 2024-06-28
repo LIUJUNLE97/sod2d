@@ -52,7 +52,7 @@ contains
       integer(4) :: iNodeL
       real(rp) :: source_x
 
-      allocate(source_term(numNodesRankPar,ndime+1))
+      allocate(source_term(numNodesRankPar,ndime))
       !$acc enter data create(source_term(:,:))
 
       !$acc parallel loop  
