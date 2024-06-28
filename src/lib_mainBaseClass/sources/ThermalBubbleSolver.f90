@@ -288,8 +288,8 @@ contains
             y = coordPar(iNodeL,2)
             z = coordPar(iNodeL,3)
             ! Now set the thermal bubble shape
-            if(((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc)) .le. this%rc*this%rc) then
-               aux = this%Tc/2.0_rp*(1.0_rp + cos(v_pi*sqrt((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc))/this%rc))
+            if(((x-this%xc)*(x-this%xc) + (z-this%zc)*(z-this%zc)) .le. this%rc*this%rc) then
+               aux = this%Tc/2.0_rp*(1.0_rp + cos(v_pi*sqrt((x-this%xc)*(x-this%xc) + (z-this%zc)*(z-this%zc))/this%rc))
             end if
             ! We computed the perturbation in terms of potential temperature now convert it to static temperature
             ! https://en.wikipedia.org/wiki/Potential_temperature
@@ -306,10 +306,10 @@ contains
             y = coordPar(iNodeL,2)
             z = coordPar(iNodeL,3)
             ! Now set the thermal bubble shape
-            if(((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc)) .le. this%rc*this%rc) then
+            if(((x-this%xc)*(x-this%xc) + (z-this%zc)*(z-this%zc)) .le. this%rc*this%rc) then
                aux = this%Tc
             else
-               aux = this%Tc*exp(-sqrt(((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc)) - 50.0_rp)*sqrt(((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc)) - 50.0_rp)/100.0_rp/100.0_rp)
+               aux = this%Tc*exp(-sqrt(((x-this%xc)*(x-this%xc) + (z-this%zc)*(z-this%zc)) - 50.0_rp)*sqrt(((x-this%xc)*(x-this%xc) + (z-this%zc)*(z-this%zc)) - 50.0_rp)/100.0_rp/100.0_rp)
             endif
             ! We computed the perturbation in terms of potential temperature now convert it to static temperature
             ! https://en.wikipedia.org/wiki/Potential_temperature
