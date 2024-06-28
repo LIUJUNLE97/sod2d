@@ -45,7 +45,7 @@ module time_integ_imex
       allocate(Rmass_imex(npoin,numSteps),Rener_imex(npoin,numSteps),Reta_imex(npoin,2))
       !$acc enter data create(Rmass_imex(:,:),Rener_imex(:,:),Reta_imex(:,:))
 
-      allocate(Rsource_imex(npoin,ndime),Rwmles_imex(npoin,ndime))
+      allocate(Rsource_imex(npoin,ndime+2),Rwmles_imex(npoin,ndime))
       !$acc enter data create(Rsource_imex(:,:),Rwmles_imex(:,:))
 
       allocate(Rdiff_mom_imex(npoin,ndime,numSteps))
@@ -107,7 +107,7 @@ module time_integ_imex
       !$acc enter data copyin(aij_e(:,:))
 
       !$acc kernels
-      Rsource_imex(1:npoin,1:ndime) = 0.0_rp
+      Rsource_imex(1:npoin,1:ndime+2) = 0.0_rp
       Rwmles_imex(1:npoin,1:ndime) = 0.0_rp
       !$acc end kernels
 
@@ -184,7 +184,7 @@ module time_integ_imex
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
-            real(rp), optional, intent(in)      :: source_term(npoin,ndime+1)
+            real(rp), optional, intent(in)      :: source_term(npoin,ndime+2)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: istep, ipoin, idime,icode,jstep
@@ -235,9 +235,10 @@ module time_integ_imex
 
             if(present(source_term)) then
                !$acc kernels
-               Rsource_imex(1:npoin,1:ndime) = 0.0_rp
+               Rsource_imex(1:npoin,1:ndime+2) = 0.0_rp
                !$acc end kernels
-               call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,1),source_term(:,1:ndime),Rsource_imex)
+               call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,1),source_term(:,2:ndime+2),Rsource_imex(:,2:ndime+2))
+               call ener_source_const(nelem,npoin,connec,Ngp,dNgp,He,gpvol,source_term(:,2),Rsource_imex(:,2))
             end if
 
             if(isWallModelOn) then
@@ -260,11 +261,11 @@ module time_integ_imex
             do istep = 2,numSteps 
                !$acc parallel loop
                do ipoin = 1,npoin
-                  rho(ipoin,2) =  0.0_rp
-                  E(ipoin,2) =  0.0_rp
+                  rho(ipoin,2) =  -dt*Rsource_imex(ipoin,1)
+                  E(ipoin,2)   =  -dt*Rsource_imex(ipoin,2)
                   !$acc loop seq   
                   do idime = 1,ndime
-                     q(ipoin,idime,2) =  -dt*(Rsource_imex(ipoin,idime)+Rwmles_imex(ipoin,idime))
+                     q(ipoin,idime,2) =  -dt*(Rsource_imex(ipoin,idime+2)+Rwmles_imex(ipoin,idime))
                   end do
                   do jstep = 1, istep-1
                      rho(ipoin,2) = rho(ipoin,2) -dt*aij_e(istep,jstep)*Rmass_imex(ipoin,jstep)-dt*aij_i(istep,jstep)*Rdiff_mass_imex(ipoin,jstep)
