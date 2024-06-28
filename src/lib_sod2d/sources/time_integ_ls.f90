@@ -176,7 +176,7 @@ module time_integ_ls
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
-            real(rp), optional, intent(in)      :: source_term(npoin,ndime+1)
+            real(rp), optional, intent(in)      :: source_term(npoin,ndime+2)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: pos
@@ -320,8 +320,8 @@ module time_integ_ls
                !
                if(present(source_term)) then
                   call nvtxStartRange("SOURCE TERM")
-                  call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term(:,1:ndime),Rmom,-1.0_rp)
-                  call ener_source_const(nelem,npoin,connec,Ngp,dNgp,He,gpvol,source_term(:,ndime+1),Rener,-1.0_rp)
+                  call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term(:,2:ndime+2),Rmom,-1.0_rp)
+                  call ener_source_const(nelem,npoin,connec,Ngp,dNgp,He,gpvol,source_term(:,2),Rener,-1.0_rp)
                   call nvtxEndRange
                end if                 
 

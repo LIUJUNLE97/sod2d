@@ -64,19 +64,20 @@ contains
       integer(4) :: iNodeL
       real(rp)   :: source_mom, source_ener
 
-      allocate(source_term(numNodesRankPar,ndime+1))
+      allocate(source_term(numNodesRankPar,ndime+2))
       !$acc enter data create(source_term(:,:))
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
          source_mom  = -rho(iNodeL,2)*this%g0 ! rho*g
          source_ener = -q(iNodeL,3,2)*this%g0 ! rho*w*g
-         ! Three components of momentum
-         source_term(iNodeL,1) = 0.0_rp
-         source_term(iNodeL,2) = 0.0_rp
-         source_term(iNodeL,3) = source_mom
-         ! Energy
-         source_term(iNodeL,4) = source_ener
+         
+         source_term(iNodeL,1) = 0.0_rp      ! Mass
+         source_term(iNodeL,2) = source_ener ! Energy
+         ! Momentum
+         source_term(iNodeL,3) = 0.0_rp
+         source_term(iNodeL,4) = 0.0_rp
+         source_term(iNodeL,5) = source_mom
       end do
       !$acc end parallel loop
 
@@ -92,12 +93,13 @@ contains
       do iNodeL = 1,numNodesRankPar
          source_mom  = -rho(iNodeL,2)*this%g0 ! rho*g
          source_ener = -q(iNodeL,3,2)*this%g0 ! rho*w*g
-         ! Three components of momentum
-         source_term(iNodeL,1) = 0.0_rp
-         source_term(iNodeL,2) = 0.0_rp
-         source_term(iNodeL,3) = source_mom
-         ! Energy
-         source_term(iNodeL,4) = source_ener
+
+         source_term(iNodeL,1) = 0.0_rp      ! Mass
+         source_term(iNodeL,2) = source_ener ! Energy
+         ! Momentum
+         source_term(iNodeL,3) = 0.0_rp
+         source_term(iNodeL,4) = 0.0_rp
+         source_term(iNodeL,5) = source_mom
       end do
       !$acc end parallel loop
 

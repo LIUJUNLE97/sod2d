@@ -51,16 +51,19 @@ contains
       integer(4) :: iNodeL
       real(rp) :: source_x
 
-      allocate(source_term(numNodesRankPar,ndime+1))
+      allocate(source_term(numNodesRankPar,ndime+2))
       !$acc enter data create(source_term(:,:))
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
          source_x = (this%utau*this%utau*this%rho0/this%delta)
-         source_term(iNodeL,1) = source_x
-         source_term(iNodeL,2) = 0.0_rp
-         source_term(iNodeL,3) = 0.0_rp
+         
+         source_term(iNodeL,1) = 0.0_rp ! Mass
+         source_term(iNodeL,2) = 0.0_rp ! Energy
+         ! Momentum
+         source_term(iNodeL,3) = source_x
          source_term(iNodeL,4) = 0.0_rp
+         source_term(iNodeL,5) = 0.0_rp
       end do
       !$acc end parallel loop
 
