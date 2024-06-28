@@ -24,7 +24,7 @@ module time_integ_imex
    real(rp), allocatable, dimension(:,:) :: Rmass_imex, Rener_imex,Reta_imex
    real(rp), allocatable, dimension(:,:) :: Rsource_imex,Rwmles_imex
    real(rp), allocatable, dimension(:,:,:) :: Rdiff_mom_imex
-   real(rp), allocatable, dimension(:,:) :: f_eta_imex
+   real(rp), allocatable, dimension(:,:) :: f_eta_imex, f_eta_imex2
    real(rp), allocatable, dimension(:,:)   :: Rdiff_mass_imex,Rdiff_ener_imex
    real(rp), allocatable, dimension(:) :: auxReta_imex,aux_h
    integer(4), parameter :: numSteps = 4
@@ -51,8 +51,8 @@ module time_integ_imex
       allocate(Rdiff_mom_imex(npoin,ndime,numSteps))
       !$acc enter data create(Rdiff_mom_imex(:,:,:))
 
-      allocate(auxReta_imex(npoin),f_eta_imex(npoin,ndime),aux_h(npoin))
-      !$acc enter data create(auxReta_imex(:),f_eta_imex(:,:),aux_h(:))
+      allocate(auxReta_imex(npoin),f_eta_imex(npoin,ndime),f_eta_imex2(npoin,ndime),aux_h(npoin))
+      !$acc enter data create(auxReta_imex(:),f_eta_imex(:,:),f_eta_imex2(:,:),aux_h(:))
 
       allocate(Rdiff_mass_imex(npoin,numSteps),Rdiff_ener_imex(npoin,numSteps))
       !$acc enter data create(Rdiff_mass_imex(:,:),Rdiff_ener_imex(:,:))
@@ -201,6 +201,7 @@ module time_integ_imex
                   do idime = 1,ndime
                      f_eta_imex(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
                   end do
+                  aux_h(lpoin_w(ipoin)) = (gamma_gas/(gamma_gas-1.0_rp))*pr(lpoin_w(ipoin),1)/rho(lpoin_w(ipoin),1)
                end do
                !$acc end parallel loop
                call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
@@ -211,7 +212,8 @@ module time_integ_imex
                end if
                call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta_imex(:,1))   
                
-               call full_convec_ijk_H(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),q(:,:,1),rho(:,1),pr(:,1),E(:,1),Rmass_imex(:,1),Rmom_imex(:,:,1),Rener_imex(:,1))     
+               call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),q(:,:,1),rho(:,1),pr(:,1),&
+                                    aux_h(:),Rmass_imex(:,1),Rmom_imex(:,:,1),Rener_imex(:,1))
                call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),rho(:,1),u(:,:,1),&
                                        Tem(:,1),mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass_imex(:,1),Rdiff_mom_imex(:,:,1),Rdiff_ener_imex(:,1))
                
@@ -352,13 +354,13 @@ module time_integ_imex
                   log(pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)**gamma_gas))
                !$acc loop seq
                do idime = 1,ndime
-                  f_eta_imex(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,2)*eta(lpoin_w(ipoin),2)
+                  f_eta_imex(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
                end do
             end do
             !$acc end parallel loop
 
             call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta_imex,eta(:,2),u(:,:,2),Reta_imex(:,2))
+               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta_imex,eta(:,1),u(:,:,1),Reta_imex(:,2))
 
             if(mpi_size.ge.2) then
                call mpi_halo_atomic_update_real(Reta_imex(:,2))

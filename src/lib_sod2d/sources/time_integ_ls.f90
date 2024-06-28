@@ -405,14 +405,14 @@ module time_integ_ls
                   log(pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)**gamma_gas))
                !$acc loop seq
                do idime = 1,ndime
-                  f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,2)*eta(lpoin_w(ipoin),2)
+                  f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
                end do
             end do
             !$acc end parallel loop
             call nvtxEndRange
 
             call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,2),u(:,:,2),Reta(:,2))
+               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:,2))
 
             if(mpi_size.ge.2) then
                call mpi_halo_atomic_update_real(Reta(:,2))

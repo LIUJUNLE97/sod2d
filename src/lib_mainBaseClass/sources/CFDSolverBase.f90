@@ -432,6 +432,14 @@ contains
                   bouCodes2BCType(id) = bc_type_slip_wall_model
                else if(value .eq. "bc_type_slip_atmosphere") then
                   bouCodes2BCType(id) = bc_type_slip_atmosphere
+               else if(value .eq. "bc_type_symmetry") then
+                  bouCodes2BCType(id) = bc_type_symmetry
+               else if(value .eq. "bc_type_slip_isothermal") then
+                  bouCodes2BCType(id) = bc_type_slip_isothermal
+               else if(value .eq. "bc_type_far_field_supersonic") then
+                  bouCodes2BCType(id) = bc_type_far_field_supersonic
+               else if(value .eq. "bc_type_outlet_supersonic") then
+                  bouCodes2BCType(id) = bc_type_outlet_supersonic
                end if
             else
                if(mpi_rank .eq. 0) then

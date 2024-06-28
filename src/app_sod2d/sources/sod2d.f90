@@ -20,6 +20,7 @@ program main
    use ABlFlowSolverIncomp_mod
    use MappedInletIncomp_mod
    use WindFarmSolverIncomp_mod
+   use SupersonicForwardStep_mod
    implicit none
 
    logical :: found
@@ -81,6 +82,8 @@ program main
       allocate(MappedInletIncomp::solver) 
    else if(value .eq. "WindFarmSolverIncomp") then
       allocate(WindFarmSolverIncomp::solver) 
+   else if(value .eq. "SupersonicForwardStep") then
+      allocate(SupersonicForwardStep::solver)       
    else
       write(*,*) " Solver not implemented in SOD2D : ",value
       stop 1
