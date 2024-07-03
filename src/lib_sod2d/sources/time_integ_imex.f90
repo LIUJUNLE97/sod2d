@@ -316,6 +316,14 @@ module time_integ_imex
                   call nvtxEndRange
                end if
 
+               if(flag_force_2D) then
+                  !$acc parallel loop
+                  do ipoin = 1,npoin
+                     q(ipoin,3,2) =  0.0_rp
+                  end do
+                  !$acc end parallel loop
+               end if
+
                !$acc parallel loop
                do ipoin = 1,npoin_w
                   umag = 0.0_rp
@@ -371,8 +379,8 @@ module time_integ_imex
             call nvtxStartRange("Entropy residual")
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               auxReta_imex(lpoin_w(ipoin)) = (1.5_rp*Reta_imex(lpoin_w(ipoin),2)-0.5_rp*Reta_imex(lpoin_w(ipoin),1)) !+ &
-                                              !(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+               auxReta_imex(lpoin_w(ipoin)) = (1.5_rp*Reta_imex(lpoin_w(ipoin),2)-0.5_rp*Reta_imex(lpoin_w(ipoin),1)) + &
+                                             factor_comp*(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
                Reta_imex(lpoin_w(ipoin),1) = Reta_imex(lpoin_w(ipoin),2)            
             end do
             !$acc end parallel loop

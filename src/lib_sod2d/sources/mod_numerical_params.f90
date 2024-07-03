@@ -20,10 +20,13 @@ module mod_numerical_params
 
         ! Discretization parameters
         logical :: flag_total_enthalpy = .false.
+        logical :: flag_high_mach = .true.
         integer(4)  :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
         integer(4)  :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
         integer(4)  :: flag_normalise_entropy=1
-        real(rp) :: ce = 0.1_rp   
+        real(rp) :: ce_comp = 0.1_rp
+        real(rp) :: ce = 0.1_rp
+        real(rp) :: factor_comp = 0.0_rp   
         real(rp) :: cmax = 0.5_rp 
         real(rp) :: cglob =1.0_rp
         real(rp) :: c_rho =1.0_rp
@@ -102,6 +105,11 @@ module mod_numerical_params
         !
 
         logical :: flag_cg_prec_bdc = .false. !Block Diagonal Cholesky
+
+        !
+        ! force 2D
+        !
+        logical :: flag_force_2D = .false.
        
         character(len=100) :: json_filename
 end module mod_numerical_params

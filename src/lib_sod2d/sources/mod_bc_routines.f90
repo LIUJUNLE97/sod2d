@@ -153,6 +153,7 @@ module mod_bc_routines
 
                      aux_rho(inode) = nscbc_rho_inf
                      !aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
+                     
                   else if (bcode == bc_type_non_slip_hot) then ! non_slip wall hot
 
                      aux_q(inode,1) = 0.0_rp
@@ -302,6 +303,20 @@ subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound
                      Rmass(inode) = 0.0_rp
                      Rener(inode) = 0.0_rp
                   else if (bcode == bc_type_non_slip_cold) then ! non_slip wall cold
+                     Rmom(inode,1) = 0.0_rp
+                     Rmom(inode,2) = 0.0_rp
+                     Rmom(inode,3) = 0.0_rp
+
+                     Rmass(inode) = 0.0_rp
+                     Rener(inode) = 0.0_rp
+                  else if (bcode == bc_type_far_field_supersonic) then ! non_slip wall cold
+                     Rmom(inode,1) = 0.0_rp
+                     Rmom(inode,2) = 0.0_rp
+                     Rmom(inode,3) = 0.0_rp
+
+                     Rmass(inode) = 0.0_rp
+                     Rener(inode) = 0.00_rp
+                  else if (bcode == bc_type_recirculation_inlet) then ! non_slip wall cold
                      Rmom(inode,1) = 0.0_rp
                      Rmom(inode,2) = 0.0_rp
                      Rmom(inode,3) = 0.0_rp

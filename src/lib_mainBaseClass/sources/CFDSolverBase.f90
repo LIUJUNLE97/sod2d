@@ -132,6 +132,7 @@ module CFDSolverBase_mod
       procedure, public :: run => CFDSolverBase_run
       procedure, public :: initializeDefaultParameters => CFDSolverBase_initializeDefaultParameters
       procedure, public :: initializeParameters => CFDSolverBase_initializeParameters
+      procedure, public :: optimzeParameters => CFDSolverBase_optimizeParameters
       procedure, public :: initializeSourceTerms => CFDSolverBase_initializeSourceTerms
       procedure, public :: openMesh => CFDSolverBase_openMesh
       procedure, public :: evalCharLength => CFDSolverBase_evalCharLength
@@ -600,6 +601,7 @@ contains
       this%save_avgVectorField_vex     = .true.
       this%save_avgVectorField_vtw     = .true.
 
+
    end subroutine CFDSolverBase_initializeDefaultParameters
 
 !--------------------------------------------------------------------------------------------------------------------------
@@ -858,6 +860,16 @@ contains
       class(CFDSolverBase), intent(inout) :: this
 
    end subroutine CFDSolverBase_initializeParameters
+
+   subroutine CFDSolverBase_optimizeParameters(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      if(flag_high_mach) then
+         factor_comp = 1.0_rp
+      end if
+
+   end subroutine CFDSolverBase_optimizeParameters
+
 
    subroutine CFDSolverBase_openMesh(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -2492,6 +2504,8 @@ contains
       ! Main simulation parameters
       call this%initializeDefaultParameters()
       call this%initializeParameters()
+      call this%optimzeParameters()
+
 
       ! Open log file
       call this%open_log_file()

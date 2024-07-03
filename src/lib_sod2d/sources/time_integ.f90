@@ -285,6 +285,13 @@ module time_integ
                   call nvtxEndRange
                end if
 
+               if(flag_force_2D) then
+                  !$acc parallel loop
+                  do ipoin = 1,npoin
+                     aux_q(ipoin,3) =  0.0_rp
+                  end do
+               end if
+
                !
                ! Update velocity and equations of state
                !
@@ -464,10 +471,19 @@ module time_integ
                call nvtxEndRange
             end if
 
+            if(flag_force_2D) then
+               !$acc parallel loop
+               do ipoin = 1,npoin
+                  q(ipoin,3,2) =  0.0_rp
+               end do
+               !$acc end parallel loop
+            end if
+
             !
             ! Update velocity and equations of state
             !
             call nvtxStartRange("Update u and EOS")
+            
 
             !$acc parallel loop
             do ipoin = 1,npoin_w
@@ -493,7 +509,7 @@ module time_integ
             call nvtxStartRange("Entropy residual")
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               Reta(lpoin_w(ipoin)) =  -Reta_sum(lpoin_w(ipoin))!-(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+               Reta(lpoin_w(ipoin)) =  -Reta_sum(lpoin_w(ipoin))-factor_comp*(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
             end do
             !$acc end parallel loop
             call nvtxEndRange
@@ -516,7 +532,7 @@ module time_integ
             !
             ! Compute entropy viscosity
             !
-            call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Ngp,coord,dNgp,gpvol,wgp, &
+            call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Ngp,coord,dNgp,gpvol,wgp, &
                gamma_gas,rho(:,pos),u(:,:,pos),csound,Tem(:,pos),eta(:,pos),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
             call nvtxEndRange
             !
@@ -616,5 +632,99 @@ module time_integ
             !$acc end parallel loop
             call nvtxEndRange
          end subroutine updateBuffer
+         subroutine limit_rho(nelem,npoin,connec,rho,eps)  
 
+            implicit none
+
+            integer(4),           intent(in)    :: nelem,npoin,connec(nelem,nnode)
+            real(rp),             intent(in)    :: eps
+            real(rp),             intent(inout) :: rho(npoin)
+            real(rp)                            :: rho_min, rho_avg, fact
+            integer(4)                          :: ielem, inode, ipoin
+
+            !$acc parallel loop gang 
+            do ielem = 1,nelem
+                rho_min = real(1e6, rp)
+                rho_avg = 0.0_rp
+                !$acc loop seq
+                do inode = 1,nnode
+                        ipoin = connec(ielem,inode)
+                        rho_min = min(rho_min, rho(ipoin))
+                        rho_avg = rho_avg + rho(ipoin)
+                end do
+                rho_avg = rho_avg/real(nnode,rp)
+                fact = min(1.0_rp,(rho_avg-eps)/(rho_avg-rho_min))
+                !$acc loop vector
+                do inode = 1,nnode
+                        ipoin = connec(ielem,inode)
+                        rho(ipoin) = rho_avg + fact*(rho(ipoin)-rho_avg)
+                end do
+             end do
+            !$acc end parallel loop
+
+            end subroutine limit_rho
+            
+            subroutine limit_states(nelem,npoin,connec,point2elem,rho,E,q,pr,eps)  
+
+               implicit none
+   
+               integer(4),           intent(in)    :: nelem,npoin,connec(nelem,nnode),point2elem(npoin)
+               real(rp),             intent(in)    :: eps
+               real(rp),             intent(out)   :: pr(npoin)
+               real(rp),             intent(inout) :: E(npoin)
+               real(rp),             intent(inout) :: q(npoin,ndime)
+               real(rp),             intent(inout) :: rho(npoin)
+               real(rp)                            :: pr_min, pr_avg, fact,rho_avg,E_avg,q_x_avg,q_y_avg,q_z_avg
+               integer(4)                          :: ielem, inode, ipoin
+   
+               !$acc parallel loop gang 
+               do ielem = 1,nelem
+                   pr_min = real(1e6, rp)
+                   pr_avg = 0.0_rp
+                   rho_avg = 0.0_rp
+                   E_avg = 0.0_rp
+                   q_x_avg = 0.0_rp
+                   q_y_avg = 0.0_rp
+                   q_z_avg = 0.0_rp
+                   !$acc loop seq
+                   do inode = 1,nnode
+                     ipoin   = connec(ielem,inode)
+                     pr_min  = min(pr_min, pr(ipoin))
+                     pr_avg  = pr_avg + pr(ipoin)
+                     rho_avg = rho_avg + rho(ipoin)
+                     E_avg   = E_avg + E(ipoin)
+                     q_x_avg = q_x_avg + q(ipoin,1)
+                     q_y_avg = q_y_avg + q(ipoin,2)
+                     q_z_avg = q_z_avg + q(ipoin,3)
+                  end do
+                  pr_avg  = pr_avg/real(nnode,rp)
+                  rho_avg = rho_avg/real(nnode,rp)
+                  E_avg   = E_avg/real(nnode,rp)
+                  q_x_avg = q_x_avg/real(nnode,rp)
+                  q_y_avg = q_y_avg/real(nnode,rp)
+                  q_z_avg = q_z_avg/real(nnode,rp) 
+
+                  fact = min(1.0_rp,(pr_avg-eps)/(pr_avg-pr_min))
+                  
+                  !$acc loop vector
+                  do inode = 1,nnode
+                     !$acc atomic write
+                     rho(ipoin) = rho_avg + fact*(rho(ipoin)-rho_avg)
+                      !$acc end atomic
+                     !$acc atomic write
+                     E(ipoin)   = E_avg   + fact*(E(ipoin)-E_avg)
+                      !$acc end atomic
+                     !$acc atomic write
+                     q(ipoin,1) = q_x_avg + fact*(q(ipoin,1)-q_x_avg)
+                      !$acc end atomic
+                     !$acc atomic write
+                     q(ipoin,2) = q_y_avg + fact*(q(ipoin,2)-q_y_avg)
+                      !$acc end atomic
+                     !$acc atomic write
+                     q(ipoin,3) = q_z_avg + fact*(q(ipoin,3)-q_z_avg)
+                      !$acc end atomic
+                  end do
+                end do
+               !$acc end parallel loop
+            end subroutine limit_states    
       end module time_integ

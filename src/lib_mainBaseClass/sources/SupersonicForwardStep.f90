@@ -103,32 +103,45 @@ contains
 
       call json%get("flag_rk_ls",flag_rk_ls, found,.true.); 
       call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
+      call json%get("flag_high_mach",flag_high_mach, found,.true.); call this%checkFound(found,found_aux)
 
       this%saveInitialField = .false.
 
+      !ce = 100.0_rp
       this%maxPhysTime = 5
       flag_real_diff = 0
+      flag_force_2D = .true.
+      flag_normalise_entropy = 1
       !flag_use_constant_dt = 1
-      !this%dt = 0.001_rp
+      !this%dt = 0.0001_rp
       !flag_rk_ls = .false.
 
       ! fixed by the type of base class parameters
-      this%Rgas = 0.714285_rp
-      this%gamma_gas = this%Rgas/1.78571_rp + 1.0_rp
-      this%Cp = this%Rgas + 1.78571_rp 
+      !this%Rgas = 0.714285_rp
+      !this%gamma_gas = this%Rgas/1.78571_rp + 1.0_rp
+      !this%Cp = this%Rgas + 1.78571_rp 
+      !this%to = 1.0_rp
+      !this%po = 1.0_rp
+      
       this%to = 1.0_rp
       this%po = 1.0_rp
+      this%rho0 = 1.4_rp
+      this%Rgas = this%po/(this%rho0*this%to)
+      this%gamma_gas = 1.40_rp
+      this%Cp = this%Rgas*this%gamma_gas/(this%gamma_gas-1.0_rp)
       this%rho0 = this%po/this%Rgas/this%to
+
       mul    = real(18.0e-6,rp)
       mur = 0.000001458_rp*(this%to**1.50_rp)/(this%to+110.40_rp)
-      flag_mu_factor = 0.0_rp!mul/mur
-      this%Prt = 0.71_rp
+      flag_mu_factor = mul/mur
+      this%Prt = this%Cp*real(18.0e-6,rp)/real(32.3e-6,rp)
+      !this%Prt = 0.71_rp
 
-      nscbc_u_inf = 3.0_rp
+      nscbc_c_inf = sqrt(this%gamma_gas*this%Rgas*this%to)
+      nscbc_u_inf = 3.0_rp*nscbc_c_inf
       nscbc_p_inf = this%po
       nscbc_rho_inf = this%po/this%Rgas/this%to
       nscbc_gamma_inf = this%gamma_gas
-      nscbc_c_inf = sqrt(this%gamma_gas*this%Rgas*this%to)
       nscbc_Rgas_inf = this%Rgas
 
       call this%readJSONBuffer()
@@ -146,7 +159,7 @@ contains
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-         u(iNodeL,1,2) = 3.0_rp
+         u(iNodeL,1,2) = 3.0_rp*nscbc_c_inf
          u(iNodeL,2,2) = 0.0_rp
          u(iNodeL,3,2) = 0.0_rp
       end do
@@ -162,6 +175,7 @@ contains
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
          eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
+         !eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(rho(iNodeL,2)*e_int(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
          machno(iNodeL) = sqrt(dot_product(u(iNodeL,:,2),u(iNodeL,:,2)))/csound(iNodeL)
 
          q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
@@ -192,7 +206,7 @@ contains
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-            u_buffer(iNodeL,1) = 3.0_rp
+            u_buffer(iNodeL,1) = 3.0_rp*nscbc_c_inf
             u_buffer(iNodeL,2) = 0.0_rp
             u_buffer(iNodeL,3) = 0.0_rp  
       end do
