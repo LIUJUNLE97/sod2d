@@ -133,9 +133,9 @@ contains
 
       mul    = real(18.0e-6,rp)
       mur = 0.000001458_rp*(this%to**1.50_rp)/(this%to+110.40_rp)
-      flag_mu_factor = mul/mur
-      this%Prt = this%Cp*real(18.0e-6,rp)/real(32.3e-6,rp)
-      !this%Prt = 0.71_rp
+      flag_mu_factor = 0.0_rp*mul/mur
+      !this%Prt = this%Cp*real(18.0e-6,rp)/real(32.3e-6,rp)
+      this%Prt = 0.71_rp
 
       nscbc_c_inf = sqrt(this%gamma_gas*this%Rgas*this%to)
       nscbc_u_inf = 3.0_rp*nscbc_c_inf
