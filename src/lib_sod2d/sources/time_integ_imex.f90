@@ -235,14 +235,6 @@ module time_integ_imex
                !$acc end parallel loop
             end if
 
-            if(present(source_term)) then
-               !$acc kernels
-               Rsource_imex(1:npoin,1:ndime+2) = 0.0_rp
-               !$acc end kernels
-               call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,1),source_term(:,2:ndime+2),Rsource_imex(:,2:ndime+2))
-               call ener_source_const(nelem,npoin,connec,Ngp,dNgp,He,gpvol,source_term(:,2),Rsource_imex(:,2))
-            end if
-
             if(isWallModelOn) then
                   !$acc kernels
                   Rwmles_imex(1:npoin,1:ndime) = 0.0_rp
@@ -261,6 +253,15 @@ module time_integ_imex
             end if
             !if(mpi_rank.eq.0) write(111,*)   " before in"
             do istep = 2,numSteps 
+
+               if(present(source_term)) then
+                  !$acc kernels
+                  Rsource_imex(1:npoin,1:ndime+2) = 0.0_rp
+                  !$acc end kernels
+                  call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,1),source_term(:,2:ndime+2),Rsource_imex(:,2:ndime+2))
+                  call ener_source_const(nelem,npoin,connec,Ngp,dNgp,He,gpvol,source_term(:,2),Rsource_imex(:,2))
+               end if
+
                !$acc parallel loop
                do ipoin = 1,npoin
                   rho(ipoin,2) =  -dt*Rsource_imex(ipoin,1)
