@@ -4,7 +4,7 @@ function(set_cc)
 	# Obtain the git hash and store it to a variable
 	execute_process(
 		COMMAND nvidia-smi --query-gpu=compute_cap --format=csv
-		COMMAND tail +2
+		COMMAND tail -n 1
 		COMMAND tr -d .
 		OUTPUT_VARIABLE GPU_CC
 		OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -20,8 +20,8 @@ function(set_cuda)
 	execute_process(
 		COMMAND nvcc --version
 		COMMAND grep release
-		COMMAND cut -d ' ' -f 5
-		COMMAND cut -d ',' -f 1
+		COMMAND cut -d " " -f 5
+		COMMAND cut -d "," -f 1
 		OUTPUT_VARIABLE GPU_CUDA
 		OUTPUT_STRIP_TRAILING_WHITESPACE
 	)
