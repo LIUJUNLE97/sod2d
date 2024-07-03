@@ -114,6 +114,8 @@ contains
       type(json_file) :: json
       character(len=:) , allocatable :: value
 
+      flag_high_mach = .true. ! New entropy normalization
+
       call json%initialize()
       call json%load_file(json_filename)
 
@@ -222,9 +224,11 @@ contains
 
       call json%get("BubbleParameters.shape", value, found, "cosine2D"); call this%checkFound(found,found_aux)
       if (value .eq. "cosine2D") then
-         this%bubble_shape = bubble_shape_cosine2D  
+         this%bubble_shape = bubble_shape_cosine2D 
+         flag_force_2D     = .true. 
       elseif (value .eq. "gaussian2D") then
          this%bubble_shape = bubble_shape_gaussian2D
+         flag_force_2D     = .true. 
       elseif (value .eq. "cosine3D") then
          this%bubble_shape = bubble_shape_cosine3D
       else
