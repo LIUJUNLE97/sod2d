@@ -67,17 +67,19 @@ contains
       allocate(source_term(numNodesRankPar,ndime+2))
       !$acc enter data create(source_term(:,:))
 
+      ! The "up" coordinate (gravity) is set to v 
+      ! since w can be set to zero in 2D cases
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
          source_mom  = -rho(iNodeL,2)*this%g0 ! rho*g
-         source_ener = -q(iNodeL,3,2)*this%g0 ! rho*w*g
+         source_ener = -q(iNodeL,2,2)*this%g0 ! rho*v*g
          
          source_term(iNodeL,1) = 0.0_rp      ! Mass
          source_term(iNodeL,2) = source_ener ! Energy
          ! Momentum
          source_term(iNodeL,3) = 0.0_rp
-         source_term(iNodeL,4) = 0.0_rp
-         source_term(iNodeL,5) = source_mom
+         source_term(iNodeL,4) = source_mom
+         source_term(iNodeL,5) = 0.0_rp
       end do
       !$acc end parallel loop
 
@@ -92,14 +94,14 @@ contains
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
          source_mom  = -rho(iNodeL,2)*this%g0 ! rho*g
-         source_ener = -q(iNodeL,3,2)*this%g0 ! rho*w*g
+         source_ener = -q(iNodeL,2,2)*this%g0 ! rho*w*g
 
          source_term(iNodeL,1) = 0.0_rp      ! Mass
          source_term(iNodeL,2) = source_ener ! Energy
          ! Momentum
          source_term(iNodeL,3) = 0.0_rp
-         source_term(iNodeL,4) = 0.0_rp
-         source_term(iNodeL,5) = source_mom
+         source_term(iNodeL,4) = source_mom
+         source_term(iNodeL,5) = 0.0_rp
       end do
       !$acc end parallel loop
 
@@ -225,10 +227,10 @@ contains
       call json%get("BubbleParameters.shape", value, found, "cosine2D"); call this%checkFound(found,found_aux)
       if (value .eq. "cosine2D") then
          this%bubble_shape = bubble_shape_cosine2D 
-         flag_force_2D     = .true. 
+         flag_force_2D     = .true. ! Sets the z component to zero
       elseif (value .eq. "gaussian2D") then
          this%bubble_shape = bubble_shape_gaussian2D
-         flag_force_2D     = .true. 
+         flag_force_2D     = .true. ! Sets the z component to zero
       elseif (value .eq. "cosine3D") then
          this%bubble_shape = bubble_shape_cosine3D
       else
