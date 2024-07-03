@@ -275,11 +275,11 @@ contains
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             ! Spatial coordinates
-            z = coordPar(iNodeL,3)
+            y = coordPar(iNodeL,2) 
             ! Set up the atmosphere, Navas-Montilla (2023) eq. 71 (adiabatic atmosphere)
             ! https://farside.ph.utexas.edu/teaching/sm1/lectures/node56.html
-            Tem(iNodeL,2) = this%T0*(1.0_rp - aux*z)
-            pr(iNodeL,2)  = this%p0*(1.0_rp - aux*z)**(this%Cp/this%Rgas) !(this%gamma_gas/(this%gamma_gas-1.0_rp))
+            Tem(iNodeL,2) = this%T0*(1.0_rp - aux*y)
+            pr(iNodeL,2)  = this%p0*(1.0_rp - aux*y)**(this%Cp/this%Rgas) !(this%gamma_gas/(this%gamma_gas-1.0_rp))
             ! WARNING: here for numerical approximation is important to either use
             ! (gamma-1)/gamma or Cp/R as otherwise we incur in approximation issues!
          end do
@@ -296,8 +296,8 @@ contains
             y = coordPar(iNodeL,2)
             z = coordPar(iNodeL,3)
             ! Now set the thermal bubble shape
-            if(((x-this%xc)*(x-this%xc) + (z-this%zc)*(z-this%zc)) .le. this%rc*this%rc) then
-               aux = this%Tc/2.0_rp*(1.0_rp + cos(v_pi*sqrt((x-this%xc)*(x-this%xc) + (z-this%zc)*(z-this%zc))/this%rc))
+            if(((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc)) .le. this%rc*this%rc) then
+               aux = this%Tc/2.0_rp*(1.0_rp + cos(v_pi*sqrt((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc))/this%rc))
             end if
             ! We computed the perturbation in terms of potential temperature now convert it to static temperature
             ! https://en.wikipedia.org/wiki/Potential_temperature
@@ -314,10 +314,10 @@ contains
             y = coordPar(iNodeL,2)
             z = coordPar(iNodeL,3)
             ! Now set the thermal bubble shape
-            if(((x-this%xc)*(x-this%xc) + (z-this%zc)*(z-this%zc)) .le. this%rc*this%rc) then
+            if(((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc)) .le. this%rc*this%rc) then
                aux = this%Tc
             else
-               aux = this%Tc*exp(-sqrt(((x-this%xc)*(x-this%xc) + (z-this%zc)*(z-this%zc)) - 50.0_rp)*sqrt(((x-this%xc)*(x-this%xc) + (z-this%zc)*(z-this%zc)) - 50.0_rp)/100.0_rp/100.0_rp)
+               aux = this%Tc*exp(-sqrt(((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc)) - 50.0_rp)*sqrt(((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc)) - 50.0_rp)/100.0_rp/100.0_rp)
             endif
             ! We computed the perturbation in terms of potential temperature now convert it to static temperature
             ! https://en.wikipedia.org/wiki/Potential_temperature

@@ -227,12 +227,12 @@ module mod_bc_routines
 
                   else if ((bcode == bc_type_slip_atmosphere)) then ! slip
                      ! Compute value for the density
-                     z = coordPar(inode,3)
+                     y = coordPar(inode,2)
                      ! Set up the atmosphere, Navas-Montilla (2023) eq. 71 (adiabatic atmosphere)
                      ! https://farside.ph.utexas.edu/teaching/sm1/lectures/node56.html
                      rr    = (nscbc_gamma_inf - 1.0_rp)/nscbc_gamma_inf*nscbc_g/nscbc_Rgas_inf/nscbc_T_C ! Reused variable
-                     T_inf = nscbc_T_C*(1.0_rp - rr*z)
-                     p_inf = nscbc_p_inf*(1.0_rp - rr*z)**(nscbc_Cp_inf/nscbc_Rgas_inf)
+                     T_inf = nscbc_T_C*(1.0_rp - rr*y)
+                     p_inf = nscbc_p_inf*(1.0_rp - rr*y)**(nscbc_Cp_inf/nscbc_Rgas_inf)
                      ! WARNING: here for numerical approximation is important to either use
                      ! (gamma-1)/gamma or Cp/R as otherwise we incur in approximation issues!
                      
