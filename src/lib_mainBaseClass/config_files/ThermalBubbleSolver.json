@@ -10,22 +10,38 @@
    },
 
    "IOParameters":{
-      "maxPhysTime"            : 1200.0,
-      "final_istep"            : 5000001,
+      "maxPhysTime"               : 1200.0,
+      "final_istep"               : 5000001,
 
-      "save_logFile_first"     : 1,
-      "save_logFile_step"      : 10,
+      "save_logFile_first"        : 1,
+      "save_logFile_step"         : 10,
    
-      "save_resultsFile_first" : 1,
-      "save_resultsFile_step"  : 1000,
+      "save_resultsFile_first"    : 1,
+      "save_resultsFile_step"     : 5000,
+
+      "save_restartFile_first"    : 1,
+      "save_restartFile_step"     : 5000,
    
-      "save_restartFile_first" : 1,
-      "save_restartFile_step"  : 10000,
+      "save_scalarField_rho"      : true, 
+      "save_scalarField_Tem"      : true,
+      "save_scalarField_pressure" : true,
+      "save_scalarField_energy"   : true,
+      "save_scalarField_muFluid"  : false,
+      "save_scalarField_entropy"  : true,
+      "save_scalarField_csound"   : false, 
+      "save_scalarField_machno"   : false, 
+      "save_scalarField_divU"     : false, 
+      "save_scalarField_qcrit"    : false, 
+      "save_scalarField_muSgs"    : false, 
+      "save_scalarField_muEnvit"  : true,
+      "save_vectorField_vel"      : true,
+      "save_vectorField_gradRho"  : false,
+      "save_vectorField_curlU"    : false,
+
+      "loadRestartFile"           : false,
+      "restartFile_to_load"       : 1,
    
-      "loadRestartFile"        : false,
-      "restartFile_to_load"    : 1,
-   
-      "continue_oldLogs"       : false
+      "continue_oldLogs"          : false
    },
 
    "NumericalParameters" : {
@@ -43,19 +59,23 @@
       "cfl_diff"          : 1.5
    },
 
+   "AtmosphericParameters" : {
+      "type" : "adiabatic",
+      "p"    : 101325.0,
+      "T"    : 288.15,
+      "g"    : 9.81
+   },
+
    "ThermodynamicParameters" : {
       "Cp"  : 1005.2,
       "Cv"  : 717.1,
       "R"   : 287.0,
       "Prt" : 0.71,
-      "mu"  : 0.0,
-      "po"  : 101325.0,
-      "to"  : 288.15,
-      "g"   : 9.81
+      "mu"  : 0.0
    },
    
    "BubbleParameters": {
-      "shape" : "TODO",
+      "shape" : "cosine3D",
       "Tc"    : 0.5,
       "rc"    : 250.0,
       "xc"    : 500.0,

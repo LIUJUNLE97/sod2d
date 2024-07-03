@@ -249,7 +249,7 @@ module time_integ_incomp
                !$acc kernels
                Rsource(1:npoin,1:ndime) = 0.0_rp
                !$acc end kernels
-               call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,1),source_term,Rsource)
+               call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,1),source_term(:,1:ndime),Rsource)
                call nvtxEndRange
 
                if(mpi_size.ge.2) then

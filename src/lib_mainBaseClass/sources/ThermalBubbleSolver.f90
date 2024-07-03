@@ -27,9 +27,20 @@ module ThermalBubbleSolver_mod
    implicit none
    private
 
+   ! Types for atmospheric profile
+   integer(4), parameter :: atmos_type_adiabatic = 1
+
+   ! Types for bubble shape
+   integer(4), parameter :: bubble_shape_cosine2D   = 1
+   integer(4), parameter :: bubble_shape_gaussian2D = 2
+   integer(4), parameter :: bubble_shape_cosine3D   = 3   
+
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: ThermalBubbleSolver
 
-      real(rp) , public  :: Cv, rho0, mu, to, po, g0, Tc, rc, xc, yc, zc
+      real(rp) , public  :: Cv, rho0, mu, T0, p0, g0, Tc, rc, xc, yc, zc
+      integer(4), public :: atmos_type, bubble_shape
+      logical, public    :: save_scalarField_Tem
+
 
    contains
       procedure, public :: fillBCTypes           => ThermalBubbleSolver_fill_BC_Types
@@ -51,17 +62,22 @@ contains
    subroutine ThermalBubbleSolver_initializeSourceTerms(this)
       class(ThermalBubbleSolver), intent(inout) :: this
       integer(4) :: iNodeL
-      real(rp) :: source
+      real(rp)   :: source_mom, source_ener
 
-      allocate(source_term(numNodesRankPar,ndime))
+      allocate(source_term(numNodesRankPar,ndime+2))
       !$acc enter data create(source_term(:,:))
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
-         source = -rho(iNodeL,2)*this%g0
-         source_term(iNodeL,1) = 0.0_rp
-         source_term(iNodeL,2) = 0.0_rp
-         source_term(iNodeL,3) = source
+         source_mom  = -rho(iNodeL,2)*this%g0 ! rho*g
+         source_ener = -q(iNodeL,3,2)*this%g0 ! rho*w*g
+         
+         source_term(iNodeL,1) = 0.0_rp      ! Mass
+         source_term(iNodeL,2) = source_ener ! Energy
+         ! Momentum
+         source_term(iNodeL,3) = 0.0_rp
+         source_term(iNodeL,4) = 0.0_rp
+         source_term(iNodeL,5) = source_mom
       end do
       !$acc end parallel loop
 
@@ -71,14 +87,19 @@ contains
       class(ThermalBubbleSolver), intent(inout) :: this
       integer(4), intent(in) :: istep
       integer(4) :: iNodeL
-      real(rp) :: source
+      real(rp)   :: source_mom, source_ener
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
-         source = -rho(iNodeL,2)*this%g0
-         source_term(iNodeL,1) = 0.0_rp
-         source_term(iNodeL,2) = 0.0_rp
-         source_term(iNodeL,3) = source
+         source_mom  = -rho(iNodeL,2)*this%g0 ! rho*g
+         source_ener = -q(iNodeL,3,2)*this%g0 ! rho*w*g
+
+         source_term(iNodeL,1) = 0.0_rp      ! Mass
+         source_term(iNodeL,2) = source_ener ! Energy
+         ! Momentum
+         source_term(iNodeL,3) = 0.0_rp
+         source_term(iNodeL,4) = 0.0_rp
+         source_term(iNodeL,5) = source_mom
       end do
       !$acc end parallel loop
 
@@ -124,6 +145,22 @@ contains
       call json%get("IOParameters.save_restartFile_first", this%save_restartFile_first, found, 1);     call this%checkFound(found,found_aux)
       call json%get("IOParameters.save_restartFile_step" , this%save_restartFile_step,  found, 10000); call this%checkFound(found,found_aux)
 
+      call json%get("IOParameters.save_scalarField_rho",      this%save_scalarField_rho,      found, .true.); 
+      call json%get("IOParameters.save_scalarField_Tem",      this%save_scalarField_Tem,      found, .true.); 
+      call json%get("IOParameters.save_scalarField_pressure", this%save_scalarField_pressure, found, .true.); 
+      call json%get("IOParameters.save_scalarField_energy",   this%save_scalarField_energy,   found, .true.); 
+      call json%get("IOParameters.save_scalarField_muFluid",  this%save_scalarField_muFluid,  found, .false.); 
+      call json%get("IOParameters.save_scalarField_entropy",  this%save_scalarField_entropy,  found, .true.); 
+      call json%get("IOParameters.save_scalarField_csound",   this%save_scalarField_csound,   found, .false.); 
+      call json%get("IOParameters.save_scalarField_machno",   this%save_scalarField_machno,   found, .false.); 
+      call json%get("IOParameters.save_scalarField_divU",     this%save_scalarField_divU,     found, .false.); 
+      call json%get("IOParameters.save_scalarField_qcrit",    this%save_scalarField_qcrit,    found, .false.); 
+      call json%get("IOParameters.save_scalarField_muSgs",    this%save_scalarField_muSgs,    found, .false.); 
+      call json%get("IOParameters.save_scalarField_muEnvit",  this%save_scalarField_muEnvit,  found, .true.); 
+      call json%get("IOParameters.save_vectorField_vel",      this%save_vectorField_vel,      found, .true.); 
+      call json%get("IOParameters.save_vectorField_gradRho",  this%save_vectorField_gradRho,  found, .false.); 
+      call json%get("IOParameters.save_vectorField_curlU",    this%save_vectorField_curlU,    found, .false.); 
+
       call json%get("IOParameters.loadRestartFile",     this%loadRestartFile,     found, .true.); call this%checkFound(found,found_aux)
       call json%get("IOParameters.restartFile_to_load", this%restartFile_to_load, found, 1);      call this%checkFound(found,found_aux)
 
@@ -155,23 +192,45 @@ contains
 
       !  --------------  Thermodynamic parameters -------------
 
-      call json%get("ThermodynamicParameters.Cp",  this%Cp,   found, 1005.2_rp);   call this%checkFound(found,found_aux)
-      call json%get("ThermodynamicParameters.Cv",  this%Cv,   found, 717.1_rp);    call this%checkFound(found,found_aux)
-      call json%get("ThermodynamicParameters.R" ,  this%Rgas, found, 287.0_rp);    call this%checkFound(found,found_aux)
-      call json%get("ThermodynamicParameters.Prt", this%Prt,  found, 0.71_rp);     call this%checkFound(found,found_aux)
-      call json%get("ThermodynamicParameters.mu",  this%mu,   found, 1.0_rp);      call this%checkFound(found,found_aux)
-      call json%get("ThermodynamicParameters.po",  this%po,   found, 101325.0_rp); call this%checkFound(found,found_aux)
-      call json%get("ThermodynamicParameters.to",  this%to,   found, 288.15_rp);   call this%checkFound(found,found_aux)
-      call json%get("ThermodynamicParameters.g",   this%g0,   found, 9.81_rp);     call this%checkFound(found,found_aux)  
+      call json%get("ThermodynamicParameters.Cp",  this%Cp,   found, 1005.2_rp); call this%checkFound(found,found_aux)
+      call json%get("ThermodynamicParameters.Cv",  this%Cv,   found, 717.1_rp);  call this%checkFound(found,found_aux)
+      call json%get("ThermodynamicParameters.R" ,  this%Rgas, found, 287.0_rp);  call this%checkFound(found,found_aux)
+      call json%get("ThermodynamicParameters.Prt", this%Prt,  found, 0.71_rp);   call this%checkFound(found,found_aux)
+      call json%get("ThermodynamicParameters.mu",  this%mu,   found, 1.0_rp);    call this%checkFound(found,found_aux)
       
       if (this%mu .eq. 0.0_rp) flag_real_diff = 0
       flag_diff_suth = 0 ! Deactivate Sutherland viscosity
       ! fixed by the type of base class parameters
       this%gamma_gas = this%Cp/this%Cv
-      this%rho0      = this%po/this%Rgas/this%to
+
+      !  --------------  Atmosphere parameters -------------
+      
+      call json%get("AtmosphericParameters.type", value, found, "adiabatic"); call this%checkFound(found,found_aux)
+      if (value .eq. "adiabatic") then
+         this%atmos_type = atmos_type_adiabatic
+      else
+         write(*,*) "INVALID ATMOSPHERIC TYPE!"
+         stop 1
+      end if
+      call json%get("AtmosphericParameters.p", this%p0, found, 100000.0_rp); call this%checkFound(found,found_aux)
+      call json%get("AtmosphericParameters.T", this%T0, found, 288.15_rp);   call this%checkFound(found,found_aux)
+      call json%get("AtmosphericParameters.g", this%g0, found, 9.81_rp);     call this%checkFound(found,found_aux)  
+
+      this%rho0 = this%p0/this%Rgas/this%T0
 
       !  --------------  Thermodynamic parameters -------------
 
+      call json%get("BubbleParameters.shape", value, found, "cosine2D"); call this%checkFound(found,found_aux)
+      if (value .eq. "cosine2D") then
+         this%bubble_shape = bubble_shape_cosine2D  
+      elseif (value .eq. "gaussian2D") then
+         this%bubble_shape = bubble_shape_gaussian2D
+      elseif (value .eq. "cosine3D") then
+         this%bubble_shape = bubble_shape_cosine3D
+      else
+         write(*,*) "INVALID BUBBLE SHAPE!"
+         stop 1
+      end if
       call json%get("BubbleParameters.Tc", this%Tc, found, 0.5_rp);   call this%checkFound(found,found_aux)  
       call json%get("BubbleParameters.rc", this%rc, found, 250.0_rp); call this%checkFound(found,found_aux)  
       call json%get("BubbleParameters.xc", this%xc, found, 500.0_rp); call this%checkFound(found,found_aux)  
@@ -186,10 +245,11 @@ contains
 
       nscbc_u_inf     = 0.0_rp
       nscbc_rho_inf   = this%rho0
-      nscbc_p_inf     = this%po
+      nscbc_p_inf     = this%p0
       nscbc_Rgas_inf  = this%Rgas
+      nscbc_Cp_inf    = this%Cp
       nscbc_gamma_inf = this%gamma_gas
-      nscbc_T_C       = this%to
+      nscbc_T_C       = this%T0
       nscbc_g         = this%g0
 
       call json%destroy()
@@ -200,35 +260,94 @@ contains
 
    subroutine ThermalBubbleSolver_evalInitialConditions(this)
       class(ThermalBubbleSolver), intent(inout) :: this
-      real(rp)   :: x, y, z
+      real(rp)   :: x, y, z, aux, dtheta
       integer(4) :: iNodeL
 
-      ! Set up thermal bubble
-      ! TODO: add bubble shapes
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
-         ! Spatial coordinates
-         x = coordPar(iNodeL,1)
-         y = coordPar(iNodeL,2)
-         z = coordPar(iNodeL,3)
-         Tem(iNodeL,2) = this%to ! Background temperature
-         ! Now set the thermal bubble shape (TODO: hardcoded for now)
-         if(((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc) + (z-this%zc)*(z-this%zc)) .le. this%rc*this%rc) then
-            Tem(iNodeL,2) = Tem(iNodeL,2) + this%Tc/2.0_rp*(1.0_rp + cos(v_pi*sqrt((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc) + (z-this%zc)*(z-this%zc))/this%rc))
-         end if
-      end do
-      !$acc end parallel loop
+      ! Set up the atmosphere
+      if (this%atmos_type .eq. atmos_type_adiabatic) then ! Adiabatic atmosphere
+         aux = (this%gamma_gas - 1.0_rp)/this%gamma_gas*this%g0/this%Rgas/this%T0
+         !$acc parallel loop
+         do iNodeL = 1,numNodesRankPar
+            ! Spatial coordinates
+            z = coordPar(iNodeL,3)
+            ! Set up the atmosphere, Navas-Montilla (2023) eq. 71 (adiabatic atmosphere)
+            ! https://farside.ph.utexas.edu/teaching/sm1/lectures/node56.html
+            Tem(iNodeL,2) = this%T0*(1.0_rp - aux*z)
+            pr(iNodeL,2)  = this%p0*(1.0_rp - aux*z)**(this%Cp/this%Rgas) !(this%gamma_gas/(this%gamma_gas-1.0_rp))
+            ! WARNING: here for numerical approximation is important to either use
+            ! (gamma-1)/gamma or Cp/R as otherwise we incur in approximation issues!
+         end do
+         !$acc end parallel loop
+      ! TODO: add more atmospheres
+      endif
 
-      ! TODO: add atmospheric profiles
+      ! Set up thermal bubble
+      if (this%bubble_shape .eq. bubble_shape_cosine2D) then
+         !$acc parallel loop
+         do iNodeL = 1,numNodesRankPar
+            ! Spatial coordinates
+            x = coordPar(iNodeL,1)
+            y = coordPar(iNodeL,2)
+            z = coordPar(iNodeL,3)
+            ! Now set the thermal bubble shape
+            if(((x-this%xc)*(x-this%xc) + (z-this%zc)*(z-this%zc)) .le. this%rc*this%rc) then
+               aux = this%Tc/2.0_rp*(1.0_rp + cos(v_pi*sqrt((x-this%xc)*(x-this%xc) + (z-this%zc)*(z-this%zc))/this%rc))
+            end if
+            ! We computed the perturbation in terms of potential temperature now convert it to static temperature
+            ! https://en.wikipedia.org/wiki/Potential_temperature
+            Tem(iNodeL,2) = Tem(iNodeL,2) + aux*(pr(iNodeL,2)/this%p0)**(this%Rgas/this%Cp)
+            ! WARNING: here for numerical approximation is important to either use
+            ! (gamma/gamma-1) or R/Cp as otherwise we incur in approximation issues!
+         end do
+         !$acc end parallel loop        
+      elseif (this%bubble_shape .eq. bubble_shape_gaussian2D) then
+         !$acc parallel loop
+         do iNodeL = 1,numNodesRankPar
+            ! Spatial coordinates
+            x = coordPar(iNodeL,1)
+            y = coordPar(iNodeL,2)
+            z = coordPar(iNodeL,3)
+            ! Now set the thermal bubble shape
+            if(((x-this%xc)*(x-this%xc) + (z-this%zc)*(z-this%zc)) .le. this%rc*this%rc) then
+               aux = this%Tc
+            else
+               aux = this%Tc*exp(-sqrt(((x-this%xc)*(x-this%xc) + (z-this%zc)*(z-this%zc)) - 50.0_rp)*sqrt(((x-this%xc)*(x-this%xc) + (z-this%zc)*(z-this%zc)) - 50.0_rp)/100.0_rp/100.0_rp)
+            endif
+            ! We computed the perturbation in terms of potential temperature now convert it to static temperature
+            ! https://en.wikipedia.org/wiki/Potential_temperature
+            Tem(iNodeL,2) = Tem(iNodeL,2) + aux*(pr(iNodeL,2)/this%p0)**(this%Rgas/this%Cp)
+            ! WARNING: here for numerical approximation is important to either use
+            ! (gamma/gamma-1) or R/Cp as otherwise we incur in approximation issues!
+         end do
+         !$acc end parallel loop   
+      elseif (this%bubble_shape .eq. bubble_shape_cosine3D) then
+         !$acc parallel loop
+         do iNodeL = 1,numNodesRankPar
+            ! Spatial coordinates
+            x = coordPar(iNodeL,1)
+            y = coordPar(iNodeL,2)
+            z = coordPar(iNodeL,3)
+            ! Now set the thermal bubble shape
+            if(((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc) + (z-this%zc)*(z-this%zc)) .le. this%rc*this%rc) then
+               aux = this%Tc/2.0_rp*(1.0_rp + cos(v_pi*sqrt((x-this%xc)*(x-this%xc) + (y-this%yc)*(y-this%yc) + (z-this%zc)*(z-this%zc))/this%rc))
+            end if
+            ! We computed the perturbation in terms of potential temperature now convert it to static temperature
+            ! https://en.wikipedia.org/wiki/Potential_temperature
+            Tem(iNodeL,2) = Tem(iNodeL,2) + aux*(pr(iNodeL,2)/this%p0)**(this%Rgas/this%Cp)
+            ! WARNING: here for numerical approximation is important to either use
+            ! (gamma/gamma-1) or R/Cp as otherwise we incur in approximation issues!
+         end do
+         !$acc end parallel loop
+      endif
+
       ! Set up initial conditions
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-         z = coordPar(iNodeL,3)
-         u(iNodeL,1:ndime,2) = 0.0_rp  ! Velocity is set to zero
-         ! Navas-Montilla (2023) eq. 71
-         pr(iNodeL,2)        = this%po*(1 - (this%gamma_gas-1.0_rp)*this%g0*z/this%gamma_gas/this%Rgas/this%to)**(this%gamma_gas/(this%gamma_gas-1))
-         rho(iNodeL,2)       = (this%po/this%Rgas/Tem(iNodeL,2))*(1 - (this%gamma_gas-1.0_rp)*this%g0*z/this%gamma_gas/this%Rgas/this%to)**(this%gamma_gas/(this%gamma_gas-1))
-         
+         ! Velocity is set to zero
+         u(iNodeL,1:ndime,2) = 0.0_rp
+         ! Density is set with the equation of state
+         rho(iNodeL,2)       = pr(iNodeL,2)/this%Rgas/Tem(iNodeL,2)
+
          e_int(iNodeL,2)     = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp)) ! Internal energy
          E(iNodeL,2)         = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2)) + e_int(iNodeL,2))
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
@@ -249,7 +368,7 @@ contains
       !$acc end parallel loop
 
       !$acc kernels
-      mu_e(:,:)   = 0.0_rp ! Element syabilization viscosity
+      mu_e(:,:)   = 0.0_rp ! Element stabilization viscosity
       mu_sgs(:,:) = 0.0_rp
       kres(:)     = 0.0_rp
       etot(:)     = 0.0_rp
@@ -277,7 +396,9 @@ contains
 
       !---------   nodeScalars  -----------------------------
       !------------------------------------------------------
-      call this%add_nodeScalarField2save('Tem',Tem(:,2))
+      if(this%save_scalarField_Tem) then !Tem(numNodesRankPar,3)
+         call this%add_nodeScalarField2save('Tem',Tem(:,2))
+      end if
       !------------------------------------------------------
       if(this%save_scalarField_rho) then !rho(numNodesRankPar,3)
          call this%add_nodeScalarField2save('rho',rho(:,2))
@@ -299,35 +420,35 @@ contains
          call this%add_nodeScalarField2save('eta',eta(:,2))
       end if
       !------------------------------------------------------
-!      if(this%save_scalarField_csound) then !csound(numNodesRankPar)
-!         call this%add_nodeScalarField2save('csound',csound(:))
-!      end if
-!      !------------------------------------------------------
-!      if(this%save_scalarField_machno) then !machno(numNodesRankPar)
-!         call this%add_nodeScalarField2save('machno',machno(:))
-!      end if
-!      !------------------------------------------------------
-!      if(this%save_scalarField_divU) then !divU(numNodesRankPar)
-!         call this%add_nodeScalarField2save('divU',divU(:))
-!      end if
-!      !------------------------------------------------------
-!      if(this%save_scalarField_qcrit) then !qcrit(numNodesRankPar)
-!         call this%add_nodeScalarField2save('qcrit',qcrit(:))
-!      end if
+      if(this%save_scalarField_csound) then !csound(numNodesRankPar)
+         call this%add_nodeScalarField2save('csound',csound(:))
+      end if
+      !------------------------------------------------------
+      if(this%save_scalarField_machno) then !machno(numNodesRankPar)
+         call this%add_nodeScalarField2save('machno',machno(:))
+      end if
+      !------------------------------------------------------
+      if(this%save_scalarField_divU) then !divU(numNodesRankPar)
+         call this%add_nodeScalarField2save('divU',divU(:))
+      end if
+      !------------------------------------------------------
+      if(this%save_scalarField_qcrit) then !qcrit(numNodesRankPar)
+         call this%add_nodeScalarField2save('qcrit',qcrit(:))
+      end if
 
       !---------------  vectorScalars   -------------------------------------
       !----------------------------------------------------------------------
       if(this%save_vectorField_vel) then !u(numNodesRankPar,ndime,2)
          call this%add_nodeVectorField2save('u',u(:,:,2))
       end if
-!      !----------------------------------------------------------------------
-!      if(this%save_vectorField_gradRho) then !gradRho(numNodesRankPar,ndime)
-!         call this%add_nodeVectorField2save('gradRho',gradRho(:,:))
-!      end if
-!      !----------------------------------------------------------------------
-!      if(this%save_vectorField_curlU) then !curlU(numNodesRankPar,ndime)
-!         call this%add_nodeVectorField2save('curlU',curlU(:,:))
-!      end if
+      !----------------------------------------------------------------------
+      if(this%save_vectorField_gradRho) then !gradRho(numNodesRankPar,ndime)
+         call this%add_nodeVectorField2save('gradRho',gradRho(:,:))
+      end if
+      !----------------------------------------------------------------------
+      if(this%save_vectorField_curlU) then !curlU(numNodesRankPar,ndime)
+         call this%add_nodeVectorField2save('curlU',curlU(:,:))
+      end if
       !----------------------------------------------------------------------
 
       !-------------    elemGpScalars   -------------------------------------

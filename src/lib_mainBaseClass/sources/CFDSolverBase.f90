@@ -486,7 +486,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4) :: iNodeL
 
-      allocate(source_term(numNodesRankPar,ndime))
+      allocate(source_term(numNodesRankPar,ndime+2))
       !$acc enter data create(source_term(:,:))
       !$acc kernels
       source_term(:,:) = 0.00_rp
