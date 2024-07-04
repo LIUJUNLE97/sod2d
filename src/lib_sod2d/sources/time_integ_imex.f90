@@ -15,7 +15,6 @@ module time_integ_imex
    use mod_operators
    use mod_solver
    use time_integ, only :  updateBuffer
-   use time_integ_ls, only :  limit_rho
 
 
    implicit none
