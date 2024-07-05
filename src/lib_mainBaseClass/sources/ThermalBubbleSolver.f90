@@ -45,9 +45,9 @@ module ThermalBubbleSolver_mod
    contains
       procedure, public :: fillBCTypes           => ThermalBubbleSolver_fill_BC_Types
       procedure, public :: initializeParameters  => ThermalBubbleSolver_initializeParameters
-      procedure, public :: initializeSourceTerms => ThermalBubbleSolver_initializeSourceTerms
+    !  procedure, public :: initializeSourceTerms => ThermalBubbleSolver_initializeSourceTerms
       procedure, public :: evalInitialConditions => ThermalBubbleSolver_evalInitialConditions
-      procedure, public :: afterDt               => ThermalBubbleSolver_afterDt
+     ! procedure, public :: afterDt               => ThermalBubbleSolver_afterDt
       procedure, public :: setFields2Save        => ThermalBubbleSolver_setFields2Save
    end type ThermalBubbleSolver
 contains
@@ -59,53 +59,53 @@ contains
 
    end subroutine ThermalBubbleSolver_fill_BC_Types
 
-   subroutine ThermalBubbleSolver_initializeSourceTerms(this)
-      class(ThermalBubbleSolver), intent(inout) :: this
-      integer(4) :: iNodeL
-      real(rp)   :: source_mom, source_ener
+!   subroutine ThermalBubbleSolver_initializeSourceTerms(this)
+!      class(ThermalBubbleSolver), intent(inout) :: this
+!      integer(4) :: iNodeL
+!      real(rp)   :: source_mom, source_ener
 
-      allocate(source_term(numNodesRankPar,ndime+2))
-      !$acc enter data create(source_term(:,:))
+!      allocate(source_term(numNodesRankPar,ndime+2))
+!      !$acc enter data create(source_term(:,:))
 
-      ! The "up" coordinate (gravity) is set to v 
-      ! since w can be set to zero in 2D cases
-      !$acc parallel loop  
-      do iNodeL = 1,numNodesRankPar
-         source_mom  = -rho(iNodeL,2)*this%g0 ! rho*g
-         source_ener = -q(iNodeL,2,2)*this%g0 ! rho*v*g
+!      ! The "up" coordinate (gravity) is set to v 
+!      ! since w can be set to zero in 2D cases
+!      !$acc parallel loop  
+!      do iNodeL = 1,numNodesRankPar
+!         source_mom  = -rho(iNodeL,2)*this%g0 ! rho*g
+!         source_ener = -q(iNodeL,2,2)*this%g0 ! rho*v*g
          
-         source_term(iNodeL,1) = 0.0_rp      ! Mass
-         source_term(iNodeL,2) = source_ener ! Energy
+!         source_term(iNodeL,1) = 0.0_rp      ! Mass
+!         source_term(iNodeL,2) = source_ener ! Energy
+!         ! Momentum
+!         source_term(iNodeL,3) = 0.0_rp
+!         source_term(iNodeL,4) = source_mom
+!         source_term(iNodeL,5) = 0.0_rp
+!      end do
+!      !$acc end parallel loop
+
+!   end subroutine ThermalBubbleSolver_initializeSourceTerms
+
+!   subroutine ThermalBubbleSolver_afterDt(this,istep)
+!      class(ThermalBubbleSolver), intent(inout) :: this
+!      integer(4), intent(in) :: istep
+!      integer(4) :: iNodeL
+!      real(rp)   :: source_mom, source_ener
+
+!      !$acc parallel loop  
+!      do iNodeL = 1,numNodesRankPar
+!         source_mom  = -rho(iNodeL,2)*this%g0 ! rho*g
+!         source_ener = -q(iNodeL,2,2)*this%g0 ! rho*w*g
+
+!         source_term(iNodeL,1) = 0.0_rp      ! Mass
+!         source_term(iNodeL,2) = source_ener ! Energy
          ! Momentum
-         source_term(iNodeL,3) = 0.0_rp
-         source_term(iNodeL,4) = source_mom
-         source_term(iNodeL,5) = 0.0_rp
-      end do
-      !$acc end parallel loop
+!         source_term(iNodeL,3) = 0.0_rp
+!         source_term(iNodeL,4) = source_mom
+!         source_term(iNodeL,5) = 0.0_rp
+!      end do
+!      !$acc end parallel loop
 
-   end subroutine ThermalBubbleSolver_initializeSourceTerms
-
-   subroutine ThermalBubbleSolver_afterDt(this,istep)
-      class(ThermalBubbleSolver), intent(inout) :: this
-      integer(4), intent(in) :: istep
-      integer(4) :: iNodeL
-      real(rp)   :: source_mom, source_ener
-
-      !$acc parallel loop  
-      do iNodeL = 1,numNodesRankPar
-         source_mom  = -rho(iNodeL,2)*this%g0 ! rho*g
-         source_ener = -q(iNodeL,2,2)*this%g0 ! rho*w*g
-
-         source_term(iNodeL,1) = 0.0_rp      ! Mass
-         source_term(iNodeL,2) = source_ener ! Energy
-         ! Momentum
-         source_term(iNodeL,3) = 0.0_rp
-         source_term(iNodeL,4) = source_mom
-         source_term(iNodeL,5) = 0.0_rp
-      end do
-      !$acc end parallel loop
-
-   end subroutine ThermalBubbleSolver_afterDt
+!   end subroutine ThermalBubbleSolver_afterDt
 
    subroutine ThermalBubbleSolver_initializeParameters(this)
       use json_module
@@ -117,6 +117,7 @@ contains
       character(len=:) , allocatable :: value
 
       flag_high_mach = .true. ! New entropy normalization
+      flag_bouyancy_effect = .true.
 
       call json%initialize()
       call json%load_file(json_filename)
@@ -202,7 +203,10 @@ contains
       call json%get("ThermodynamicParameters.Prt", this%Prt,  found, 0.71_rp);   call this%checkFound(found,found_aux)
       call json%get("ThermodynamicParameters.mu",  this%mu,   found, 1.0_rp);    call this%checkFound(found,found_aux)
       
-      if (this%mu .eq. 0.0_rp) flag_real_diff = 0
+      if (this%mu .eq. 0.0_rp) then
+         flag_real_diff = 0
+         flag_mu_factor = 0.0_rp
+      end if
       flag_diff_suth = 0 ! Deactivate Sutherland viscosity
       ! fixed by the type of base class parameters
       this%gamma_gas = this%Cp/this%Cv
@@ -256,7 +260,14 @@ contains
       nscbc_Cp_inf    = this%Cp
       nscbc_gamma_inf = this%gamma_gas
       nscbc_T_C       = this%T0
-      nscbc_g         = this%g0
+      nscbc_g_x = 0.0_rp
+      !if(flag_force_2D) then
+         nscbc_g_y = this%g0
+         nscbc_g_z = 0.0_rp
+      !else !pensava que en 3D feies z
+      !   nscbc_g_z = this%g0
+      !   nscbc_g_y = 0.0_rp
+      !end if
 
       call json%destroy()
 

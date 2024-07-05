@@ -253,12 +253,17 @@ module time_integ_imex
             !if(mpi_rank.eq.0) write(111,*)   " before in"
             do istep = 2,numSteps 
 
-               if(present(source_term)) then
+               if(present(source_term) .or.flag_bouyancy_effect) then
                   !$acc kernels
                   Rsource_imex(1:npoin,1:ndime+2) = 0.0_rp
                   !$acc end kernels
-                  call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,1),source_term(:,3:ndime+2),Rsource_imex(:,3:ndime+2))
-                  call ener_source_const(nelem,npoin,connec,Ngp,dNgp,He,gpvol,source_term(:,2),Rsource_imex(:,2))
+                  if(flag_bouyancy_effect) then
+                     call mom_source_bouyancy_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,2),Rsource_imex(:,3:ndime+2))
+                     call ener_source_bouyancy(nelem,npoin,connec,Ngp,dNgp,He,gpvol,q(:,:,2),Rsource_imex(:,2))
+                  else if(present(source_term)) then
+                     call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,1),source_term(:,3:ndime+2),Rsource_imex(:,3:ndime+2))
+                     call ener_source_const(nelem,npoin,connec,Ngp,dNgp,He,gpvol,source_term(:,2),Rsource_imex(:,2))
+                  end if
                end if
 
                !$acc parallel loop

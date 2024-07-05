@@ -21,6 +21,7 @@ module mod_numerical_params
         ! Discretization parameters
         logical :: flag_total_enthalpy = .false.
         logical :: flag_high_mach = .true.
+        logical :: flag_bouyancy_effect = .true.
         integer(4)  :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
         integer(4)  :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
         integer(4)  :: flag_normalise_entropy=1
@@ -52,7 +53,10 @@ module mod_numerical_params
         real(rp) :: nscbc_T_H       = 293.0_rp
         real(rp) :: nscbc_T_C       = 293.0_rp
         real(rp) :: nscbc_delta     = 0.01_rp
-        real(rp) :: nscbc_g         = 9.81_rp
+        real(rp) :: nscbc_g_x       = 0.0_rp
+        real(rp) :: nscbc_g_y       = 0.0_rp
+        real(rp) :: nscbc_g_z       = 9.81_rp
+
 
         !
         ! Penalisation buffer zone

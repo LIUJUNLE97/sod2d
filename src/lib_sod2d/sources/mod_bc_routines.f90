@@ -24,7 +24,9 @@ module mod_bc_routines
             real(rp),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
             real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
-            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm,y,T_inf,p_inf
+            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm,y,T_inf,p_inf,nscbc_g
+
+            nscbc_g = sqrt(nscbc_g_x**2+nscbc_g_y**2+nscbc_g_z**2)
 
             if(allocate_memory_bcc) then
                allocate_memory_bcc = .false.
