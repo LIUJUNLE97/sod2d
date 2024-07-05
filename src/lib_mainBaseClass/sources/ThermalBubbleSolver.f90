@@ -37,7 +37,7 @@ module ThermalBubbleSolver_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: ThermalBubbleSolver
 
-      real(rp) , public  :: Cv, rho0, mu, T0, p0, g0, Tc, rc, xc, yc, zc
+      real(rp) , public  :: Cv, rho0, mu, T0, p0, g0(ndime), Tc, rc, xc, yc, zc
       integer(4), public :: atmos_type, bubble_shape
       logical, public    :: save_scalarField_Tem
 
@@ -168,9 +168,11 @@ contains
          write(*,*) "INVALID ATMOSPHERIC TYPE!"
          stop 1
       end if
-      call json%get("AtmosphericParameters.p", this%p0, found, 100000.0_rp); call this%checkFound(found,found_aux)
-      call json%get("AtmosphericParameters.T", this%T0, found, 288.15_rp);   call this%checkFound(found,found_aux)
-      call json%get("AtmosphericParameters.g", this%g0, found, 9.81_rp);     call this%checkFound(found,found_aux)  
+      call json%get("AtmosphericParameters.p",  this%p0,    found, 100000.0_rp); call this%checkFound(found,found_aux)
+      call json%get("AtmosphericParameters.T",  this%T0,    found, 288.15_rp);   call this%checkFound(found,found_aux)
+      call json%get("AtmosphericParameters.gx", this%g0(1), found, 0.0_rp);      call this%checkFound(found,found_aux)  
+      call json%get("AtmosphericParameters.gy", this%g0(2), found, 9.81_rp);     call this%checkFound(found,found_aux)  
+      call json%get("AtmosphericParameters.gz", this%g0(3), found, 0.0_rp);      call this%checkFound(found,found_aux)  
 
       this%rho0 = this%p0/this%Rgas/this%T0
 
@@ -208,9 +210,9 @@ contains
       nscbc_Cp_inf    = this%Cp
       nscbc_gamma_inf = this%gamma_gas
       nscbc_T_C       = this%T0
-      nscbc_g_x       = 0.0_rp
-      nscbc_g_y       = this%g0
-      nscbc_g_z       = 0.0_rp
+      nscbc_g_x       = this%g0(1)
+      nscbc_g_y       = this%g0(2)
+      nscbc_g_z       = this%g0(3)
 
       call json%destroy()
 
