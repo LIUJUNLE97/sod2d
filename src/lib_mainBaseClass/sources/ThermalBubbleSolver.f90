@@ -227,7 +227,7 @@ contains
 
       ! Set up the atmosphere
       if (this%atmos_type .eq. atmos_type_adiabatic) then ! Adiabatic atmosphere
-         aux = (this%gamma_gas - 1.0_rp)/this%gamma_gas*this%g0/this%Rgas/this%T0
+         aux = (this%gamma_gas - 1.0_rp)/this%gamma_gas*this%g0(2)/this%Rgas/this%T0
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
             ! Spatial coordinates
