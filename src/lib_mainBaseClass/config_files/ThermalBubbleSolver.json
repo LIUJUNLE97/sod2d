@@ -55,15 +55,17 @@
       "maxIter"           : 20,
       "tol"               : 1e-3,
 
-      "cfl_conv"          : 1.5,
-      "cfl_diff"          : 1.5
+      "cfl_conv"          : 0.5,
+      "cfl_diff"          : 0.5
    },
 
    "AtmosphericParameters" : {
       "type" : "adiabatic",
       "p"    : 101325.0,
       "T"    : 288.15,
-      "g"    : 9.81
+      "gx"   : 0.0,
+      "gy"   : 9.81,
+      "gz"   : 0.0
    },
 
    "ThermodynamicParameters" : {
