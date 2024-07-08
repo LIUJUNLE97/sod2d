@@ -31,10 +31,12 @@ module mod_entropy_viscosity
               real(rp)                :: betae,mu,vol,vol2
               real(rp)                :: L3, aux1, aux2, aux3
               real(rp)                :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas, maxV, maxC
-              real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe, M, ceM
+              real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe, M, ceM, fact_low_mach =1.0_rp
               integer(4)              :: ii,jj,kk,mm,nn,ll
 
              Rgas = nscbc_Rgas_inf
+             if(flag_drop_c_in_envit) fact_low_mach = 0.0_rp
+
 
              !$acc kernels
              mue_l(:,:) = mu_e(:,:)
@@ -89,7 +91,7 @@ module mod_entropy_viscosity
                 !$acc loop vector reduction(max:betae)
                 do inode = 1,nnode
                    aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
-                   aux3 = sqrt(Rgas*gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
+                   aux3 = fact_low_mach*sqrt(Rgas*gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
                    aux1 = aux2+aux3
                    betae = max(betae,(rho(connec(ielem,inode))*helem_k(ielem))*(cmax/real(porder,rp))*aux1)
                 end do
@@ -141,10 +143,12 @@ module mod_entropy_viscosity
               real(rp)                :: betae,mu,vol,vol2
               real(rp)                :: L3, aux1, aux2, aux3
               real(rp)                :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas, maxV, maxC
-              real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe, M, ceM
+              real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe, M, ceM, fact_low_mach =1.0_rp
               integer(4)              :: ii,jj,kk,mm,nn,ll
 
              Rgas = nscbc_Rgas_inf
+
+             if(flag_drop_c_in_envit) fact_low_mach = 0.0_rp
 
              !$acc kernels
              mue_l(:,:) = mu_e(:,:)
@@ -212,7 +216,7 @@ module mod_entropy_viscosity
                 !$acc loop vector reduction(max:betae)
                 do inode = 1,nnode
                    aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
-                   aux3 = sqrt(Rgas*gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
+                   aux3 = fact_low_mach*sqrt(Rgas*gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
                    aux1 = aux2+aux3
                    betae = max(betae,(rho(connec(ielem,inode))*helem_k(ielem))*(cmax/real(porder,rp))*aux1)
                 end do

@@ -116,8 +116,9 @@ contains
       type(json_file) :: json
       character(len=:) , allocatable :: value
 
-      flag_high_mach = .true. ! New entropy normalization
+      flag_high_mach = .false. ! New entropy normalization
       flag_bouyancy_effect = .true.
+      flag_drop_c_in_envit = .true.
 
       call json%initialize()
       call json%load_file(json_filename)
