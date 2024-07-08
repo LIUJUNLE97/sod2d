@@ -20,7 +20,7 @@ module mod_numerical_params
 
         ! Discretization parameters
         logical :: flag_total_enthalpy = .false.
-        logical :: flag_high_mach = .true.
+        logical :: flag_high_mach = .false.
         logical :: flag_bouyancy_effect = .false.
         logical :: flag_drop_c_in_envit = .false.
         integer(4)  :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
