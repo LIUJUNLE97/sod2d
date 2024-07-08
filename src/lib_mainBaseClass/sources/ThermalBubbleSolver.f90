@@ -66,9 +66,9 @@ contains
       type(json_file) :: json
       character(len=:) , allocatable :: value
 
-      flag_high_mach = .false. ! New entropy normalization
-      flag_bouyancy_effect = .true.
-      flag_drop_c_in_envit = .true.
+      flag_high_mach       = .false. ! High Mach entropy normalization
+      flag_drop_c_in_envit = .true.  ! Do not account for speed of sound in entropy viscosity
+      flag_bouyancy_effect = .true.  ! Buoyancy forces in momentum and energy
 
       call json%initialize()
       call json%load_file(json_filename)
