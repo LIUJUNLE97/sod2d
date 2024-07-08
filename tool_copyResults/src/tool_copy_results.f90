@@ -13,7 +13,7 @@ program tool_copy_results
     character(256) :: parameter2read
     character(512) :: mesh_h5_filePath,mesh_h5_fileName
     character(512) :: results_h5_filePath,results_h5_fileName
-    integer(4) :: results_first,results_last,results_step,target_Nprocs
+    integer(4) :: type_resultsFile,results_first,results_last,results_step,target_Nprocs
 
     logical :: useMesh=.false.
     logical :: useIntInComms=.false.,useRealInComms=.false.
@@ -59,24 +59,39 @@ program tool_copy_results
     parameter2read = 'target_Nprocs'
     call read_inputFile_integer(lineCnt,parameter2read,target_Nprocs)
 
-    !6. results_first----------------------------------------------------------------
-    parameter2read = 'results_first'
-    call read_inputFile_integer(lineCnt,parameter2read,results_first)
+    !6. type_resultsFile-------------------------------------------------------------
+    parameter2read = 'type_resultsFile'
+    call read_inputFile_integer(lineCnt,parameter2read,type_resultsFile)
 
-    !7. results_last-----------------------------------------------------------------
-    parameter2read = 'results_last'
-    call read_inputFile_integer(lineCnt,parameter2read,results_last)
+    if(type_resultsFile .eq. 1) then
+        !7. results_first----------------------------------------------------------------
+        parameter2read = 'results_first'
+        call read_inputFile_integer(lineCnt,parameter2read,results_first)
 
-    !8. results_step-----------------------------------------------------------------
-    parameter2read = 'results_step'
-    call read_inputFile_integer(lineCnt,parameter2read,results_step)
+        !8. results_last-----------------------------------------------------------------
+        parameter2read = 'results_last'
+        call read_inputFile_integer(lineCnt,parameter2read,results_last)
+
+        !9. results_step-----------------------------------------------------------------
+        parameter2read = 'results_step'
+        call read_inputFile_integer(lineCnt,parameter2read,results_step)
+    else if(type_resultsFile .le. 3) then
+        parameter2read = 'results_first'
+        call read_inputFile_integer(lineCnt,parameter2read,results_first)
+
+        results_last = results_first
+        results_step = 1
+    else
+        write(*,*) "Wrong type_resultsFile! Must be 1,2 or 3 (1:inst, 2:avg, 3:restart, 4:inst_to_restart[todo])! Aborting!"
+       	call MPI_Abort(app_comm,-1,mpi_err)
+    end if
 
     call close_inputFile()
     if(mpi_rank.eq.0) write(*,*) '## End of Reading input file: ',trim(adjustl(input_file))
 
 !---------------------------------------------------------------------------------------------------------
     call copy_results_same_mesh_Npartitions(mesh_h5_filePath,mesh_h5_fileName,results_h5_filePath,results_h5_fileName,target_Nprocs,&
-                                            results_first,results_last,results_step)
+                                            type_resultsFile,results_first,results_last,results_step)
 !---------------------------------------------------------------------------------------------------------
 
     call end_mpi()

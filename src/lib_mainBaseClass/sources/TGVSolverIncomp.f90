@@ -21,6 +21,7 @@ module TGVSolverIncomp_mod
    use mod_mpi
    use mod_mpi_mesh
    use mod_hdf5
+   use mod_saveFields
    use CFDSolverPeriodicIncomp_mod
    implicit none
    private
@@ -108,6 +109,8 @@ contains
          call json%get("wit_save_rho",this%wit_save_rho, found,.true.); call this%checkFound(found,found_aux)
          call json%get("continue_witness",this%continue_witness, found,.false.); call this%checkFound(found,found_aux)
       end if  
+
+      call read_json_saveFields(json)
 
       ! fixed by the type of base class parameters
       incomp_viscosity = 1.0_rp/this%Re

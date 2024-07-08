@@ -16,6 +16,9 @@ include(mpi)
 # Configure HDF5 module
 include(hdf5)
 
+# Configure JFORTRAN module
+include(json-fortran)
+
 # Set a default build type
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
@@ -37,19 +40,20 @@ file(GLOB SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_const
     ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_comms.f90
     ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_comms_boundaries.f90
     ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_hdf5.f90
+    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_saveFields.f90
     ${CMAKE_CURRENT_LIST_DIR}/../tool_meshConversorPar/src/mod_partition_utils.f90
     ${CMAKE_CURRENT_LIST_DIR}/src/*.f90) 
    
 add_executable(${PROJECT_NAME} ${SRC_FILES})   # Build executable from listed sources
 set_property(TARGET ${PROJECT_NAME} PROPERTY LINKER_LANGUAGE Fortran)
 
-set_mpi()
 if(SHARED_LIBS)
     target_link_libraries(${PROJECT_NAME} lib_sod2d)
 else()
+    set_mpi()
     set_hdf5()
+    set_jsonfortran()
 endif()
-set_mpi()
 
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)
 if(SHARED_LIBS)

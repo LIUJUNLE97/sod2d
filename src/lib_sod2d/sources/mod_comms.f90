@@ -25,7 +25,7 @@ module mod_comms
     integer :: beginFence=0,endFence=0
     integer :: startAssert=0,postAssert=0
 
-    logical :: isInt,isReal
+    logical :: isInt=.false.,isReal=.false.,isIntWindow=.false.,isRealWindow=.false.
     logical :: isLockBarrier,isPSCWBarrier
 
 #ifdef NCCL_COMMS
@@ -64,8 +64,10 @@ contains
         if(mpi_rank.eq.0) write(111,*) "--| Comm. scheme: NCCL"
 #endif
 
-        isInt=.false.
-        isReal=.false.
+        isInt        =.false.
+        isReal       =.false.
+        isIntWindow  =.false.
+        isRealWindow =.false.
 
         if(useInt) then
             isInt = .true.
@@ -120,16 +122,16 @@ contains
             deallocate(aux_intField_s)
             deallocate(aux_intField_r)
 
-            call close_window_intField()
+            if(isIntWindow) call close_window_intField()
         end if
 
-        if(isreal) then
+        if(isReal) then
            !$acc exit data delete(aux_realField_s(:))
            !$acc exit data delete(aux_realField_r(:))
             deallocate(aux_realField_s)
             deallocate(aux_realField_r)
 
-            call close_window_realField()
+            if(isRealWindow) call close_window_realField()
         end if
 
 #ifdef NCCL_COMMS
@@ -177,6 +179,8 @@ contains
     subroutine init_window_intField()
         implicit none
 
+        isIntWindow=.true.
+
         window_buffer_size = mpi_integer_size*numNodesToComm
         !$acc host_data use_device(aux_intField_r(:),aux_intField_s(:))
         call MPI_Win_create(aux_intField_r,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id_int,mpi_err)
@@ -192,6 +196,8 @@ contains
 !-------------------------------------------------------------------------------------
     subroutine init_window_realField()
         implicit none
+
+        isRealWindow=.true.
 
         window_buffer_size = mpi_real_size*numNodesToComm
         !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))

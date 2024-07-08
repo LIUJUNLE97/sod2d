@@ -4,6 +4,7 @@ module mod_copy_results
    use mod_mpi_mesh
    use mod_comms
    use mod_hdf5
+   use mod_saveFields
    use mod_partition_utils
 
    implicit none
@@ -11,20 +12,21 @@ module mod_copy_results
 contains
 
    subroutine copy_results_same_mesh_Npartitions(mesh_h5_filePath,mesh_h5_fileName,results_h5_filePath,results_h5_fileName,target_Nprocs,&
-                                                results_first,results_last,results_step)
+                                                type_resultsFile,results_first,results_last,results_step)
       implicit none
       character(len=*), intent(in)  :: mesh_h5_filePath,mesh_h5_fileName,results_h5_filePath,results_h5_fileName
-      integer(4),intent(in) :: target_Nprocs,results_first,results_last,results_step
+      integer(4),intent(in) :: target_Nprocs,type_resultsFile,results_first,results_last,results_step
       character(512) :: source_meshFile_h5_full_name,target_meshFile_h5_full_name
       character(512) :: source_base_resultsFile_h5,target_base_resultsFile_h5
       character(512) :: source_full_resultsFile_h5,target_full_resultsFile_h5
       integer(4) :: mporder,mnnode,mngaus,mnpbou
       integer(4) :: res_inst,targetRank,target_numNodesRankPar
-      integer(4) :: iNodeTrgt,iNodeMpi,dsetScaCnt,dsetVecCnt
+      integer(4) :: iNodeTrgt,iNodeMpi
       logical :: evalMeshQuality=.false.
       integer(8),dimension(0:target_Nprocs-1) :: iNodeStartPar_i8
 
-      integer(4) :: iTrgtRank,trgtRank,connecChunkSize
+      integer(4) :: connecChunkSize = 10000000
+      integer(4) :: iTrgtRank,trgtRank
       integer(4) :: trgtRankInMpiRankStart,trgtRankInMpiRankEnd,numTrgtRanksInMpiRank,maxNumTrgtRanks
       integer(4),allocatable :: trgtRanksInMpiRank(:),mapTrgtRankToMpiRank(:)
 
@@ -38,9 +40,8 @@ contains
       type(jagged_matrix_rp) :: coordTrgtRank_jm,coordVTKTrgtRank_jm
       type(jagged_vector_rp) :: quality_jv
 
-      character(len=256),dimension(max_num_saved_fields) :: datasetsScalarFields,datasetsVectorFields
-      logical,dimension(max_num_saved_fields) :: datasetsScaExist,datasetsVecExist
-
+      integer(4) :: numDsetSca,numDsetVec
+      character(len=256),dimension(:),allocatable :: datasetsScalarFields,datasetsVectorFields
 
       integer(hid_t) :: targetRes_hdf5_file_id,sourceRes_hdf5_file_id,targetMesh_hdf5_file_id
       integer(hsize_t),dimension(1) :: ms_dims
@@ -52,10 +53,10 @@ contains
       call init_hdf5_interface()
       !----------------------------------------------------------------------------------------------
 
+      call init_saveFields()
+
       call set_hdf5_meshFile_name(mesh_h5_filePath,mesh_h5_fileName,mpi_size,source_meshFile_h5_full_name)
       call set_hdf5_meshFile_name(mesh_h5_filePath,mesh_h5_fileName,target_Nprocs,target_meshFile_h5_full_name)
-      call set_hdf5_resultsFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,mpi_size,source_base_resultsFile_h5)
-      call set_hdf5_resultsFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,target_Nprocs,target_base_resultsFile_h5)
 
       if(mpi_rank.eq.0) then
          write(*,*) 'Source mesh: ',trim(source_meshFile_h5_full_name)
@@ -68,6 +69,8 @@ contains
       !Loading original mesh file
       call load_hdf5_meshFile(source_meshFile_h5_full_name)
 
+      !---------------------------------------------------------------------------------------------
+      ! Generacio malla dummy, en un futur fer possible que lusuari introdeuxi una ja feta!
       if(mpi_rank.eq.0) then
          write(*,*) '# Generating new mesh file:',trim(target_meshFile_h5_full_name)
       end if
@@ -157,8 +160,6 @@ contains
       !---------------------------------------------------------------------------------------------------------------
       if(mpi_rank.eq.0) write(*,*) ' 3. Generating new mesh partitioned in',target_Nprocs,'N procs'
 
-      connecChunkSize = 10000000
-
       !call create_hdf5_file(target_full_resultsFile_h5,targetRes_hdf5_file_id)
       call create_hdf5_file(target_meshFile_h5_full_name,targetMesh_hdf5_file_id)
       
@@ -180,11 +181,39 @@ contains
 
       call close_hdf5_file(targetMesh_hdf5_file_id)
       !----------------------------------------------------------------------------------------------------------------------------------     
+      
+      !Fins aqui la generacio de la malla dummy!
+      !Ara anem a per la generacio dels fitxers de resultats!
+
+      if(type_resultsFile .eq. 1) then
+         call set_hdf5_resultsFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,mpi_size,source_base_resultsFile_h5)
+         call set_hdf5_resultsFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,target_Nprocs,target_base_resultsFile_h5)
+      else if(type_resultsFile .eq. 2) then
+         call set_hdf5_avgResultsFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,mpi_size,source_base_resultsFile_h5)
+         call set_hdf5_avgResultsFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,target_Nprocs,target_base_resultsFile_h5)
+      else if(type_resultsFile .eq. 3) then
+         call set_hdf5_restartFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,mpi_size,source_base_resultsFile_h5)
+         call set_hdf5_restartFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,target_Nprocs,target_base_resultsFile_h5)
+      else
+         write(*,*) "Wrong type_resultsFile! Must be 1,2 or 3 (1:inst, 2:avg, 3:restart)! Aborting!"
+       	call MPI_Abort(app_comm,-1,mpi_err)
+      end if
 
       do res_inst=results_first,results_last,results_step
 
-         call set_hdf5_resultsFile_name(source_base_resultsFile_h5,res_inst,source_full_resultsFile_h5)
-         call set_hdf5_resultsFile_name(target_base_resultsFile_h5,res_inst,target_full_resultsFile_h5)
+         if(type_resultsFile .eq. 1) then
+            ! INST RESULTS
+            call set_hdf5_resultsFile_name(source_base_resultsFile_h5,res_inst,source_full_resultsFile_h5)
+            call set_hdf5_resultsFile_name(target_base_resultsFile_h5,res_inst,target_full_resultsFile_h5)
+         else if(type_resultsFile .eq. 2) then
+            ! AVG RESULTS
+            call set_hdf5_avgResultsFile_name(source_base_resultsFile_h5,res_inst,source_full_resultsFile_h5)
+            call set_hdf5_avgResultsFile_name(target_base_resultsFile_h5,res_inst,target_full_resultsFile_h5)
+         else if(type_resultsFile .eq. 3) then
+            ! RESTART FILES
+            call set_hdf5_restartFile_name(source_base_resultsFile_h5,res_inst,source_full_resultsFile_h5)
+            call set_hdf5_restartFile_name(target_base_resultsFile_h5,res_inst,target_full_resultsFile_h5)
+         end if
 
          if(mpi_rank.eq.0) then
             write(*,*) '# Doing results inst:',res_inst
@@ -194,19 +223,20 @@ contains
 
          call open_hdf5_file(source_full_resultsFile_h5,sourceRes_hdf5_file_id)
 
-         call check_datasets_in_source_results_file(sourceRes_hdf5_file_id,dsetScaCnt,dsetVecCnt,&
-               datasetsScalarFields,datasetsVectorFields,datasetsScaExist,datasetsVecExist)
+         call generate_datasets_to_copy(type_resultsFile,sourceRes_hdf5_file_id,numDsetSca,numDsetVec,datasetsScalarFields,datasetsVectorFields)
 
          call create_hdf5_file(target_full_resultsFile_h5,targetRes_hdf5_file_id)
 
          call create_vtkhdf_unstructuredGrid_struct_for_resultsFile(target_meshFile_h5_full_name,targetRes_hdf5_file_id)
 
          call create_fields_datasets_in_new_results_file(targetRes_hdf5_file_id,numNodesTrgtTotal_i8,&
-               dsetScaCnt,dsetVecCnt,datasetsScalarFields,datasetsVectorFields,datasetsScaExist,datasetsVecExist)
+               numDsetSca,numDsetVec,datasetsScalarFields,datasetsVectorFields)
 
          call copy_datasets_results_from_source_to_target(sourceRes_hdf5_file_id,targetRes_hdf5_file_id,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
                   numNodesTrgtRank,trgtRankNodeStart_i8,numNodesTrgtTotal_i8,mapNodeIdTrgtToMpi_jv,&
-                  dsetScaCnt,dsetVecCnt,datasetsScalarFields,datasetsVectorFields,datasetsScaExist,datasetsVecExist)
+                  numDsetSca,numDsetVec,datasetsScalarFields,datasetsVectorFields)
+
+         deallocate(datasetsScalarFields,datasetsVectorFields)
 
          call close_hdf5_file(targetRes_hdf5_file_id)
          if(mpi_rank.eq.0) write(*,*) ' # New results file ',trim(target_full_resultsFile_h5),' succesfully generated!'
@@ -505,39 +535,34 @@ contains
 
    subroutine copy_datasets_results_from_source_to_target(source_file_id,target_file_id,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
                                                          numNodesTrgtRank,trgtRankNodeStart,numNodesTrgtTotal,mapNodeIdTrgtToMpi_jv,&
-                                                         dsetScaCnt,dsetVecCnt,datasetsScalarFields,datasetsVectorFields,datasetsScaExist,datasetsVecExist)
+                                                         numDsetSca,numDsetVec,datasetsScalarFields,datasetsVectorFields)
       implicit none
       integer(hid_t),intent(in) :: source_file_id,target_file_id
       integer(4),intent(in) :: numTrgtRanksInMpiRank,maxNumTrgtRanks
       integer(4),intent(in) :: numNodesTrgtRank(numTrgtRanksInMpiRank)
       integer(8),intent(in) :: trgtRankNodeStart(numTrgtRanksInMpiRank),numNodesTrgtTotal
       type(jagged_vector_int4),intent(in) :: mapNodeIdTrgtToMpi_jv
-      integer(4),intent(in) :: dsetScaCnt,dsetVecCnt
+      integer(4),intent(in) :: numDsetSca,numDsetVec
       character(256),intent(in) :: datasetsScalarFields(max_num_saved_fields),datasetsVectorFields(max_num_saved_fields)
-      logical,intent(in) :: datasetsScaExist(max_num_saved_fields),datasetsVecExist(max_num_saved_fields)
 
       real(rp_vtk) :: sourceScalarField(numNodesRankPar),sourceVectorField(numNodesRankPar,ndime)
       integer(4) :: iTrgtRank,iSca,iVec
       character(512) :: dsetname
 
-      do iSca=1,dsetScaCnt
+      do iSca=1,numDsetSca
          dsetname = datasetsScalarFields(iSca)
-         if(datasetsScaExist(iSca)) then 
-            if(mpi_rank.eq.0) write(*,*) '  - Copying scalar field',trim(adjustl(dsetname)),'(id',iSca,')...'
-            call read_and_load_source_scalarfield(dsetname,source_file_id,sourceScalarField)
-            call copy_scalarfield_dataset_results_in_target(dsetname,sourceScalarField,target_file_id,numTrgtRanksInMpiRank,&
-                     maxNumTrgtRanks,numNodesTrgtRank,trgtRankNodeStart,numNodesTrgtTotal,mapNodeIdTrgtToMpi_jv)
-         end if
+         if(mpi_rank.eq.0) write(*,*) '  - Copying scalar field ',trim(adjustl(dsetname)),' (id',iSca,')...'
+         call read_and_load_source_scalarfield(dsetname,source_file_id,sourceScalarField)
+         call copy_scalarfield_dataset_results_in_target(dsetname,sourceScalarField,target_file_id,numTrgtRanksInMpiRank,&
+                  maxNumTrgtRanks,numNodesTrgtRank,trgtRankNodeStart,numNodesTrgtTotal,mapNodeIdTrgtToMpi_jv)
       end do
 
-      do iVec=1,dsetVecCnt
+      do iVec=1,numDsetVec
          dsetname = datasetsVectorFields(iVec)
-         if(datasetsVecExist(iVec)) then 
-            if(mpi_rank.eq.0) write(*,*) '  - Copying vector field',trim(adjustl(dsetname)),'(id',iVec,')...'
-            call read_and_load_source_vectorfield(dsetname,source_file_id,sourceVectorField)
-            call copy_vectorfield_dataset_results_in_target(dsetname,sourceVectorField,target_file_id,numTrgtRanksInMpiRank,&
-                     maxNumTrgtRanks,numNodesTrgtRank,trgtRankNodeStart,numNodesTrgtTotal,mapNodeIdTrgtToMpi_jv)
-         end if
+         if(mpi_rank.eq.0) write(*,*) '  - Copying vector field ',trim(adjustl(dsetname)),' (id',iVec,')...'
+         call read_and_load_source_vectorfield(dsetname,source_file_id,sourceVectorField)
+         call copy_vectorfield_dataset_results_in_target(dsetname,sourceVectorField,target_file_id,numTrgtRanksInMpiRank,&
+                  maxNumTrgtRanks,numNodesTrgtRank,trgtRankNodeStart,numNodesTrgtTotal,mapNodeIdTrgtToMpi_jv)
       end do
 
    end subroutine copy_datasets_results_from_source_to_target
@@ -744,11 +769,111 @@ contains
 
    end subroutine dummy_copy_vectorfield_result_in_trgtRank
 
+   subroutine generate_datasets_to_copy(type_resultsFile,src_file_id,numDsetSca,numDsetVec,datasetsScalarFields,datasetsVectorFields)
+      implicit none
+      integer(4),intent(in) :: type_resultsFile
+      integer(hid_t),intent(in) :: src_file_id
+      integer(4),intent(inout) :: numDsetSca,numDsetVec
+      character(256),intent(inout),allocatable :: datasetsScalarFields(:),datasetsVectorFields(:)
+      character(512) :: groupname,dsetname
+      integer(4) :: ii,h5err,maxNumDsetSca,maxNumDsetVec
+      logical :: dset_exists
+   
+      groupname = '/VTKHDF/PointData/'
+      numDsetSca = 0
+      numDsetVec = 0
+
+      if(type_resultsFile .eq. 1) then
+         ! INST RESULTS ------------------------------------------------------------------------------
+         maxNumDsetSca = numNodeScalarFields+numElGPScalarFields
+         maxNumDsetVec = numNodeVectorFields
+
+         allocate(datasetsScalarFields(maxNumDsetSca))
+         allocate(datasetsVectorFields(maxNumDsetVec))
+
+         do ii=1,numNodeScalarFields
+            dsetname = trim(adjustl(groupname))//trim(adjustl(nodeScalarNameFields(ii)))
+            call h5lexists_f(src_file_id,dsetname,dset_exists,h5err)
+            if(dset_exists) then
+               numDsetSca = numDsetSca + 1
+               datasetsScalarFields(numDsetSca) = dsetname
+            end if
+         end do
+
+         do ii=1,numElGPScalarFields
+            dsetname = trim(adjustl(groupname))//trim(adjustl(elGPScalarNameFields(ii)))
+            call h5lexists_f(src_file_id,dsetname,dset_exists,h5err)
+            if(dset_exists) then
+               numDsetSca = numDsetSca + 1
+               datasetsScalarFields(numDsetSca) = dsetname
+            end if
+         end do
+
+         do ii=1,numNodeVectorFields
+            dsetname = trim(adjustl(groupname))//trim(adjustl(nodeVectorNameFields(ii)))
+            call h5lexists_f(src_file_id,dsetname,dset_exists,h5err)
+            if(dset_exists) then
+               numDsetVec = numDsetVec + 1
+               datasetsVectorFields(numDsetVec) = dsetname
+            end if
+         end do
+         !--------------------------------------------------------------------------------------------
+      else if(type_resultsFile .eq. 2) then
+         ! AVG RESULTS -------------------------------------------------------------------------------
+         maxNumDsetSca = numAvgNodeScalarFields
+         maxNumDsetVec = numAvgNodeVectorFields
+
+         allocate(datasetsScalarFields(maxNumDsetSca))
+         allocate(datasetsVectorFields(maxNumDsetVec))
+
+         do ii=1,numAvgNodeScalarFields
+            dsetname = trim(adjustl(groupname))//trim(adjustl(avgNodeScalarNameFields(ii)))
+            call h5lexists_f(src_file_id,dsetname,dset_exists,h5err)
+            if(dset_exists) then
+               numDsetSca = numDsetSca + 1
+               datasetsScalarFields(numDsetSca) = dsetname
+            end if
+         end do
+
+         do ii=1,numAvgNodeVectorFields
+            dsetname = trim(adjustl(groupname))//trim(adjustl(avgNodeVectorNameFields(ii)))
+            call h5lexists_f(src_file_id,dsetname,dset_exists,h5err)
+            if(dset_exists) then
+               numDsetVec = numDsetVec + 1
+               datasetsVectorFields(numDsetVec) = dsetname
+            end if
+         end do
+         !--------------------------------------------------------------------------------------------
+
+      else if(type_resultsFile .eq. 3) then
+         ! RESTART FILES
+         maxNumDsetSca = numRestartFields
+         maxNumDsetVec = 0
+
+         allocate(datasetsScalarFields(maxNumDsetSca))
+         allocate(datasetsVectorFields(maxNumDsetVec))
+
+         do ii=1,numRestartFields
+            dsetname = trim(adjustl(restartNameFields(ii)))
+            call h5lexists_f(src_file_id,dsetname,dset_exists,h5err)
+            if(dset_exists) then
+               numDsetSca = numDsetSca + 1
+               datasetsScalarFields(numDsetSca) = dsetname
+            end if
+         end do
+
+      end if
+
+
+
+   end subroutine generate_datasets_to_copy
+
+#if 0
    subroutine check_datasets_in_source_results_file(src_file_id,dsetScaCnt,dsetVecCnt,datasetsScalarFields,datasetsVectorFields,&
                                                    datasetsScaExist,datasetsVecExist)
       implicit none
       integer(hid_t),intent(in) :: src_file_id
-      integer(4),intent(inout) :: dsetScaCnt,dsetVecCnt
+      integer(4),intent(in) :: dsetScaCnt,dsetVecCnt
       character(256),intent(out) :: datasetsScalarFields(max_num_saved_fields),datasetsVectorFields(max_num_saved_fields)
       logical,intent(out) :: datasetsScaExist(max_num_saved_fields),datasetsVecExist(max_num_saved_fields)
       integer(4) :: h5err
@@ -759,9 +884,8 @@ contains
 	   !--------------------------------------------------------------------------------
 
       !----------------------------------------------------------------------------------------------------------------------------------
-      groupname = '/VTKHDF/PointData/'
-      dsetScaCnt = 0
-      dsetVecCnt = 0
+#if 0
+
 
       !--------------------------------------------------
       dsetname = trim(adjustl(groupname))//'rho'
@@ -821,7 +945,7 @@ contains
       dsetVecCnt=dsetVecCnt+1
       datasetsVectorFields(dsetVecCnt) = dsetname
       !--------------------------------------------------
-
+#endif
       !--------------------------------------------------------------------------------
       datasetsScaExist(:) = .false.
       datasetsVecExist(:) = .false.
@@ -841,15 +965,15 @@ contains
       end do
 
    end subroutine check_datasets_in_source_results_file
+#endif
 
-   subroutine create_fields_datasets_in_new_results_file(trgt_file_id,numNodesParTotal_i8,dsetScaCnt,dsetVecCnt,&
-                                    datasetsScalarFields,datasetsVectorFields,datasetsScaExist,datasetsVecExist)
+   subroutine create_fields_datasets_in_new_results_file(trgt_file_id,numNodesParTotal_i8,numDsetSca,numDsetVec,&
+                                    datasetsScalarFields,datasetsVectorFields)
       implicit none
       integer(hid_t),intent(in) :: trgt_file_id
       integer(8),intent(in) :: numNodesParTotal_i8
-      integer(4),intent(in) :: dsetScaCnt,dsetVecCnt
-      character(256),intent(in) :: datasetsScalarFields(max_num_saved_fields),datasetsVectorFields(max_num_saved_fields)
-      logical,intent(in) :: datasetsScaExist(max_num_saved_fields),datasetsVecExist(max_num_saved_fields)
+      integer(4),intent(in) :: numDsetSca,numDsetVec
+      character(256),intent(in) :: datasetsScalarFields(numDsetSca),datasetsVectorFields(numDsetVec)
       integer(hid_t) :: dtype
       integer(hsize_t) :: ds_dims(1),ds_dims2d(2),aux_ds_dims
       integer(4) :: ds_rank,h5err,iSca,iVec
@@ -862,24 +986,18 @@ contains
       ds_rank = 1
       ds_dims(1) = numNodesParTotal_i8
 
-      do iSca=1,dsetScaCnt
+      do iSca=1,numDsetSca
          dsetname = datasetsScalarFields(iSca)
-         if(datasetsScaExist(iSca)) then 
-            !write(*,*) 'creating datascavec',dsetname
-            call create_dataspace_hdf5(trgt_file_id,dsetname,ds_rank,ds_dims,dtype)
-         end if
+         call create_dataspace_hdf5(trgt_file_id,dsetname,ds_rank,ds_dims,dtype)
       end do
       !----------------------------------------------------------------------
       ds_rank = 2
       ds_dims2d(1) = ndime
       ds_dims2d(2) = numNodesParTotal_i8
 
-      do iVec=1,dsetVecCnt
+      do iVec=1,numDsetVec
          dsetname = datasetsVectorFields(iVec)
-         if(datasetsVecExist(iVec)) then 
-            !write(*,*) 'creating datasetvec',dsetname
-            call create_dataspace_hdf5(trgt_file_id,dsetname,ds_rank,ds_dims2d,dtype)
-         end if
+         call create_dataspace_hdf5(trgt_file_id,dsetname,ds_rank,ds_dims2d,dtype)
       end do
       !----------------------------------------------------------------------
 
