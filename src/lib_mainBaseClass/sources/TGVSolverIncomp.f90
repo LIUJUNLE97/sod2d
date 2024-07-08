@@ -110,8 +110,6 @@ contains
          call json%get("continue_witness",this%continue_witness, found,.false.); call this%checkFound(found,found_aux)
       end if  
 
-      call read_json_saveFields(json)
-
       ! fixed by the type of base class parameters
       incomp_viscosity = 1.0_rp/this%Re
       flag_fs_fix_pressure = .false.

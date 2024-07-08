@@ -3,7 +3,7 @@ module mod_saveFields
    use mod_constants
    use mod_mpi
    use mod_custom_types
-   use json_module
+   !use json_module
 
    !------------------------------------------------------------------------------------------------------------------------
    integer(4), parameter :: indNS_rho = 1, indNS_mu = 2, indNS_pr = 3, indNS_ener = 4, indNS_eta = 5, &
@@ -226,35 +226,41 @@ contains
 
    end subroutine initializeNameFields
 
-   subroutine read_json_saveFields(json)
+   subroutine read_json_saveFields(json_filename)
+      use json_module
       implicit none
-      type(json_file),intent(inout) :: json
+      character(len=*),intent(in) :: json_filename
+      type(json_file) :: json_f
       logical :: isFound
-      
-      !if not found in the json file, the default value is preserved!
-      call json%get("save_nodeScalarField_rho",    save_nodeScalarField_rho    , isFound, save_nodeScalarField_rho)    
-      call json%get("save_nodeScalarField_muFluid",save_nodeScalarField_muFluid, isFound, save_nodeScalarField_muFluid)
-      call json%get("save_nodeScalarField_pr",     save_nodeScalarField_pr     , isFound, save_nodeScalarField_pr)
-      call json%get("save_nodeScalarField_energy", save_nodeScalarField_energy , isFound, save_nodeScalarField_energy)
-      call json%get("save_nodeScalarField_entropy",save_nodeScalarField_entropy, isFound, save_nodeScalarField_entropy)
-      call json%get("save_nodeScalarField_csound", save_nodeScalarField_csound , isFound, save_nodeScalarField_csound)
-      call json%get("save_nodeScalarField_machno", save_nodeScalarField_machno , isFound, save_nodeScalarField_machno)
-      call json%get("save_nodeScalarField_divU",   save_nodeScalarField_divU   , isFound, save_nodeScalarField_divU)
-      call json%get("save_nodeScalarField_qcrit",  save_nodeScalarField_qcrit  , isFound, save_nodeScalarField_qcrit)
-      call json%get("save_elGPScalarField_muSgs",  save_elGPScalarField_muSgs  , isFound, save_elGPScalarField_muSgs)
-      call json%get("save_elGPScalarField_muEnvit",save_elGPScalarField_muEnvit, isFound, save_elGPScalarField_muEnvit)
-      call json%get("save_nodeVectorField_vel",    save_nodeVectorField_vel    , isFound, save_nodeVectorField_vel)
-      call json%get("save_nodeVectorField_gradRho",save_nodeVectorField_gradRho, isFound, save_nodeVectorField_gradRho)
-      call json%get("save_nodeVectorField_curlU",  save_nodeVectorField_curlU  , isFound, save_nodeVectorField_curlU)
-                                                      
-      call json%get("save_avgNodeScalarField_rho",  save_avgNodeScalarField_rho  , isFound, save_avgNodeScalarField_rho)
-      call json%get("save_avgNodeScalarField_pr",   save_avgNodeScalarField_pr   , isFound, save_avgNodeScalarField_pr)
-      call json%get("save_avgNodeScalarField_mueff",save_avgNodeScalarField_mueff, isFound, save_avgNodeScalarField_mueff)
-      call json%get("save_avgNodeVectorField_vel",  save_avgNodeVectorField_vel  , isFound, save_avgNodeVectorField_vel)
-      call json%get("save_avgNodeVectorField_ve2",  save_avgNodeVectorField_ve2  , isFound, save_avgNodeVectorField_ve2)
-      call json%get("save_avgNodeVectorField_vex",  save_avgNodeVectorField_vex  , isFound, save_avgNodeVectorField_vex)
-      call json%get("save_avgNodeVectorField_tw",   save_avgNodeVectorField_tw   , isFound, save_avgNodeVectorField_tw)
 
+      call json_f%initialize()
+      call json_f%load_file(json_filename)
+
+      !if not found in the json file, the default value is preserved!
+      call json_f%get("save_nodeScalarField_rho",    save_nodeScalarField_rho    , isFound, save_nodeScalarField_rho)    
+      call json_f%get("save_nodeScalarField_muFluid",save_nodeScalarField_muFluid, isFound, save_nodeScalarField_muFluid)
+      call json_f%get("save_nodeScalarField_pr",     save_nodeScalarField_pr     , isFound, save_nodeScalarField_pr)
+      call json_f%get("save_nodeScalarField_energy", save_nodeScalarField_energy , isFound, save_nodeScalarField_energy)
+      call json_f%get("save_nodeScalarField_entropy",save_nodeScalarField_entropy, isFound, save_nodeScalarField_entropy)
+      call json_f%get("save_nodeScalarField_csound", save_nodeScalarField_csound , isFound, save_nodeScalarField_csound)
+      call json_f%get("save_nodeScalarField_machno", save_nodeScalarField_machno , isFound, save_nodeScalarField_machno)
+      call json_f%get("save_nodeScalarField_divU",   save_nodeScalarField_divU   , isFound, save_nodeScalarField_divU)
+      call json_f%get("save_nodeScalarField_qcrit",  save_nodeScalarField_qcrit  , isFound, save_nodeScalarField_qcrit)
+      call json_f%get("save_elGPScalarField_muSgs",  save_elGPScalarField_muSgs  , isFound, save_elGPScalarField_muSgs)
+      call json_f%get("save_elGPScalarField_muEnvit",save_elGPScalarField_muEnvit, isFound, save_elGPScalarField_muEnvit)
+      call json_f%get("save_nodeVectorField_vel",    save_nodeVectorField_vel    , isFound, save_nodeVectorField_vel)
+      call json_f%get("save_nodeVectorField_gradRho",save_nodeVectorField_gradRho, isFound, save_nodeVectorField_gradRho)
+      call json_f%get("save_nodeVectorField_curlU",  save_nodeVectorField_curlU  , isFound, save_nodeVectorField_curlU)
+
+      call json_f%get("save_avgNodeScalarField_rho",  save_avgNodeScalarField_rho  , isFound, save_avgNodeScalarField_rho)
+      call json_f%get("save_avgNodeScalarField_pr",   save_avgNodeScalarField_pr   , isFound, save_avgNodeScalarField_pr)
+      call json_f%get("save_avgNodeScalarField_mueff",save_avgNodeScalarField_mueff, isFound, save_avgNodeScalarField_mueff)
+      call json_f%get("save_avgNodeVectorField_vel",  save_avgNodeVectorField_vel  , isFound, save_avgNodeVectorField_vel)
+      call json_f%get("save_avgNodeVectorField_ve2",  save_avgNodeVectorField_ve2  , isFound, save_avgNodeVectorField_ve2)
+      call json_f%get("save_avgNodeVectorField_vex",  save_avgNodeVectorField_vex  , isFound, save_avgNodeVectorField_vex)
+      call json_f%get("save_avgNodeVectorField_tw",   save_avgNodeVectorField_tw   , isFound, save_avgNodeVectorField_tw)
+
+      call json_f%destroy()
    end subroutine
 
    subroutine setFields2Save(rho,mu_fluid,pr,E,eta,csound,machno,divU,qcrit,u,gradRho,curlU,mu_sgs,mu_e,&

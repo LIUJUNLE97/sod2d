@@ -2233,7 +2233,7 @@ contains
       call this%initializeDefaultParameters()
       call this%initializeParameters()
 
-      !call read_json_saveFields()
+      call read_json_saveFields(json_filename)
 
       ! Open log file
       call this%open_log_file()

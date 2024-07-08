@@ -119,8 +119,6 @@ contains
          call json%get("continue_witness",this%continue_witness, found,.false.); call this%checkFound(found,found_aux)
       end if  
 
-      call read_json_saveFields(json)
-
       ! fixed by the type of base class parameters
       mul    = (this%rho0*1.0_rp*1.0_rp)/this%Re
       this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
@@ -134,7 +132,6 @@ contains
       nscbc_gamma_inf = this%gamma_gas
 
       call json%destroy()
-
 
       if(found_aux .and.mpi_rank .eq. 0) write(111,*) 'WARNING! JSON file missing a parameter, overwrtting with the default value'
    end subroutine TGVSolver_initializeParameters
