@@ -267,7 +267,7 @@ contains
       real(rp_avg),intent(in),dimension(:,:) :: avvel,avve2,avvex,avtw
 
 
-		if(saveFieldsInitialized .eq. .false.) then
+		if(saveFieldsInitialized .eqv. .false.) then
          write(*,*) "FATAL ERROR in setFields2Save! Save Fields NOT properly initialized! Aborting!"
        	call MPI_Abort(app_comm,-1,mpi_err)
       end if
