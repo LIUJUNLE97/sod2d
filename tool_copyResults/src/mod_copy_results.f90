@@ -12,42 +12,30 @@ module mod_copy_results
 contains
 
    subroutine copy_results_same_mesh_Npartitions(mesh_h5_filePath,mesh_h5_fileName,results_h5_filePath,results_h5_fileName,target_Nprocs,&
-                                                type_resultsFile,results_first,results_last,results_step)
+                                                type_resultsFile,generateMesh,results_first,results_last,results_step)
       implicit none
       character(len=*), intent(in)  :: mesh_h5_filePath,mesh_h5_fileName,results_h5_filePath,results_h5_fileName
       integer(4),intent(in) :: target_Nprocs,type_resultsFile,results_first,results_last,results_step
+      logical,intent(in) :: generateMesh
       character(512) :: source_meshFile_h5_full_name,target_meshFile_h5_full_name
       character(512) :: source_base_resultsFile_h5,target_base_resultsFile_h5
       character(512) :: source_full_resultsFile_h5,target_full_resultsFile_h5
-      integer(4) :: mporder,mnnode,mngaus,mnpbou
-      integer(4) :: res_inst,targetRank,target_numNodesRankPar
-      integer(4) :: iNodeTrgt,iNodeMpi
-      logical :: evalMeshQuality=.false.
-      integer(8),dimension(0:target_Nprocs-1) :: iNodeStartPar_i8
+      integer(4) :: mporder,mnnode,mngaus,mnpbou,res_ii,res_step,restart_file,load_step
+      real(rp) :: time
+      character(128) :: dsetname
 
-      integer(4) :: connecChunkSize = 10000000
-      integer(4) :: iTrgtRank,trgtRank
-      integer(4) :: trgtRankInMpiRankStart,trgtRankInMpiRankEnd,numTrgtRanksInMpiRank,maxNumTrgtRanks
-      integer(4),allocatable :: trgtRanksInMpiRank(:),mapTrgtRankToMpiRank(:)
+      integer(4) :: numTrgtRanksInMpiRank,maxNumTrgtRanks
+      integer(4),allocatable :: numNodesTrgtRank(:)
 
       integer(8) :: numNodesTrgtTotal_i8
       integer(8),allocatable :: trgtRankNodeStart_i8(:),trgtRankNodeEnd_i8(:)
-      integer(4),allocatable :: mpiRankElemStart(:),mpiRankElemEnd(:),trgtRankElemStart(:),trgtRankElemEnd(:)
-      integer(4),allocatable :: numElemsTrgtRank(:),numNodesTrgtRank(:)
-      integer(4),allocatable :: numElemsVTKTrgtRank(:),sizeConnecVTKTrgtRank(:)
-      type(jagged_vector_int4) :: listNodesTrgtRankMpiId_jv,mapNodeIdTrgtToMpi_jv,connecVTKTrgtRank_jv
-      type(jagged_matrix_int4) :: connecTrgtRankMpiId_jm,connecParOrigTrgtRank_jm
-      type(jagged_matrix_rp) :: coordTrgtRank_jm,coordVTKTrgtRank_jm
-      type(jagged_vector_rp) :: quality_jv
+      type(jagged_vector_int4) :: mapNodeIdTrgtToMpi_jv
 
-      integer(4) :: numDsetSca,numDsetVec
-      character(len=256),dimension(:),allocatable :: datasetsScalarFields,datasetsVectorFields
+      integer(hid_t) :: targetRes_hdf5_file_id,sourceRes_hdf5_file_id
 
-      integer(hid_t) :: targetRes_hdf5_file_id,sourceRes_hdf5_file_id,targetMesh_hdf5_file_id
-      integer(hsize_t),dimension(1) :: ms_dims
-      integer(hssize_t),dimension(1) :: ms_offset
-      integer(4),allocatable :: aux_array_i4(:)
-      integer(4) :: target_vecNumNodesRankPar(target_Nprocs)
+      integer(4) :: numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S
+      character(len=256),allocatable :: dsetsScalarFieldsOrig(:),dsetsVectorFieldsOrig(:),dsetsV2SFieldsOrig(:)
+      character(len=256),allocatable :: dsetsScalarFieldsTrgt(:),dsetsVectorFieldsTrgt(:),dsetsV2SFieldsTrgt(:,:)
 
       !----------------------------------------------------------------------------------------------
       call init_hdf5_interface()
@@ -69,30 +57,238 @@ contains
       !Loading original mesh file
       call load_hdf5_meshFile(source_meshFile_h5_full_name)
 
-      !---------------------------------------------------------------------------------------------
-      ! Generacio malla dummy, en un futur fer possible que lusuari introdeuxi una ja feta!
-      if(mpi_rank.eq.0) then
-         write(*,*) '# Generating new mesh file:',trim(target_meshFile_h5_full_name)
+      if(generateMesh) then
+         call generate_new_mesh_for_viz(target_meshFile_h5_full_name,mporder,mnnode,target_Nprocs,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
+                                       numNodesTrgtRank,numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8,mapNodeIdTrgtToMpi_jv)
+
+      else
+         if(mpi_size .eq. target_Nprocs) then
+            call do_naive_one_to_one_mapping(numTrgtRanksInMpiRank,maxNumTrgtRanks,numNodesTrgtRank,&
+                                       numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8,mapNodeIdTrgtToMpi_jv)
+         else
+            write(*,*) "OPTION NOT YET IMPLEMENTED! Aborting!"
+       	   call MPI_Abort(app_comm,-1,mpi_err)
+            !call open_mesh_and_do_mapping(target_meshFile_h5_full_name,mporder,mnnode,target_Nprocs,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
+            !                              numNodesTrgtRank,trgtRanksInMpiRank,mapTrgtRankToMpiRank,&
+            !                              numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8,mapNodeIdTrgtToMpi_jv)
+         end if
+      end if
+      
+      !-----------------------------------------------------------------------------------------------
+      !   Generacio de fitxers resultats!
+
+      res_step = results_step
+
+      if(type_resultsFile .eq. 1) then
+         call set_hdf5_resultsFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,mpi_size,source_base_resultsFile_h5)
+         call set_hdf5_resultsFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,target_Nprocs,target_base_resultsFile_h5)
+      else if(type_resultsFile .eq. 2) then
+         call set_hdf5_avgResultsFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,mpi_size,source_base_resultsFile_h5)
+         call set_hdf5_avgResultsFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,target_Nprocs,target_base_resultsFile_h5)
+      else if(type_resultsFile .eq. 3) then
+         call set_hdf5_restartFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,mpi_size,source_base_resultsFile_h5)
+         call set_hdf5_restartFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,target_Nprocs,target_base_resultsFile_h5)
+      else if(type_resultsFile .eq. 4) then
+         call set_hdf5_resultsFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,mpi_size,source_base_resultsFile_h5)
+         call set_hdf5_restartFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,target_Nprocs,target_base_resultsFile_h5)
+         restart_file = results_step
+         res_step = 1
+      else
+         write(*,*) "Wrong type_resultsFile! Must be 1,2,3 or 4 (1:inst, 2:avg, 3:restart, 4:inst_2_restart)! Aborting!"
+       	call MPI_Abort(app_comm,-1,mpi_err)
       end if
 
+      do res_ii=results_first,results_last,res_step
+
+         if(type_resultsFile .eq. 1) then
+            ! INST RESULTS
+            call set_hdf5_resultsFile_name(source_base_resultsFile_h5,res_ii,source_full_resultsFile_h5)
+            call set_hdf5_resultsFile_name(target_base_resultsFile_h5,res_ii,target_full_resultsFile_h5)
+         else if(type_resultsFile .eq. 2) then
+            ! AVG RESULTS
+            call set_hdf5_avgResultsFile_name(source_base_resultsFile_h5,res_ii,source_full_resultsFile_h5)
+            call set_hdf5_avgResultsFile_name(target_base_resultsFile_h5,res_ii,target_full_resultsFile_h5)
+         else if(type_resultsFile .eq. 3) then
+            ! RESTART FILES
+            call set_hdf5_restartFile_name(source_base_resultsFile_h5,res_ii,source_full_resultsFile_h5)
+            call set_hdf5_restartFile_name(target_base_resultsFile_h5,res_ii,target_full_resultsFile_h5)
+         else if(type_resultsFile .eq. 4) then
+            ! INST 2 RESTART
+            call set_hdf5_resultsFile_name(source_base_resultsFile_h5,res_ii,source_full_resultsFile_h5)
+            call set_hdf5_restartFile_name(target_base_resultsFile_h5,restart_file,target_full_resultsFile_h5)
+         end if
+
+         if(mpi_rank.eq.0) then
+            write(*,*) '# Doing results ii:',res_ii
+            write(*,*) ' - Source resFile: ',trim(source_full_resultsFile_h5)
+            write(*,*) ' - Target resFile: ',trim(target_full_resultsFile_h5)
+         end if
+
+         call open_hdf5_file(source_full_resultsFile_h5,sourceRes_hdf5_file_id)
+
+         call generate_dsets_to_copy(type_resultsFile,sourceRes_hdf5_file_id,numDsetSca,numDsetVec,numDsetV2S,&
+                                     maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S,&
+                                     dsetsScalarFieldsOrig,dsetsVectorFieldsOrig,dsetsV2SFieldsOrig,&
+                                     dsetsScalarFieldsTrgt,dsetsVectorFieldsTrgt,dsetsV2SFieldsTrgt)
+
+         call create_hdf5_file(target_full_resultsFile_h5,targetRes_hdf5_file_id)
+
+         if(type_resultsFile .le. 2) then
+            call create_vtkhdf_unstructuredGrid_struct_for_resultsFile(target_meshFile_h5_full_name,targetRes_hdf5_file_id)
+         end if
+
+         call create_fields_dsets_in_new_results_file(targetRes_hdf5_file_id,numNodesTrgtTotal_i8,&
+               numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S,&
+               dsetsScalarFieldsTrgt,dsetsVectorFieldsTrgt,dsetsV2SFieldsTrgt)
+
+         call copy_dsets_results_from_source_to_target(sourceRes_hdf5_file_id,targetRes_hdf5_file_id,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
+                  numNodesTrgtRank,trgtRankNodeStart_i8,numNodesTrgtTotal_i8,mapNodeIdTrgtToMpi_jv,&
+                  numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S,&
+                  dsetsScalarFieldsOrig,dsetsVectorFieldsOrig,dsetsV2SFieldsOrig,&
+                  dsetsScalarFieldsTrgt,dsetsVectorFieldsTrgt,dsetsV2SFieldsTrgt)
+
+         deallocate(dsetsScalarFieldsOrig,dsetsVectorFieldsOrig)
+         deallocate(dsetsScalarFieldsTrgt,dsetsVectorFieldsTrgt)
+         deallocate(dsetsV2SFieldsOrig,dsetsV2SFieldsTrgt)
+
+         if(type_resultsFile .eq. 1) then
+            ! INST RESULTS
+            dsetname = 'time'
+            call read_real_rp_in_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,time)
+            call save_real_rp_in_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,time)
+         else if(type_resultsFile .eq. 2) then
+            dsetname = 'elapsed_avgTime'
+            call read_real_rp_in_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,time)
+            call save_real_rp_in_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,time)
+
+            dsetname = 'initial_avgTime'
+            call read_real_rp_in_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,time)
+            call save_real_rp_in_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,time)
+         else if(type_resultsFile .eq. 3) then
+            dsetname = 'time'
+            call read_real_rp_in_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,time)
+            call save_real_rp_in_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,time)
+
+            dsetname = 'istep'
+            call read_int4_in_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,load_step)
+            call save_int4_in_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,load_step)
+         else if(type_resultsFile .eq. 4) then
+            dsetname = 'time'
+            call read_real_rp_in_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,time)
+            call save_real_rp_in_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,time)
+
+            dsetname = 'istep'
+            call save_int4_in_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,res_ii)
+         end if
+
+         call close_hdf5_file(targetRes_hdf5_file_id)
+         if(mpi_rank.eq.0) write(*,*) ' # New results file ',trim(target_full_resultsFile_h5),' succesfully generated!'
+
+         call close_hdf5_file(sourceRes_hdf5_file_id)
+
+      end do
+
+      !---------------------------------------------------------------------------------------------------------------
+
+      !----------------------------------------------------------------------------------------------
+      call end_hdf5_interface()
+      !----------------------------------------------------------------------------------------------
+
+   end subroutine copy_results_same_mesh_Npartitions
+
+   subroutine do_naive_one_to_one_mapping(numTrgtRanksInMpiRank,maxNumTrgtRanks,&
+                                       numNodesTrgtRank,numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8,mapNodeIdTrgtToMpi_jv)
+      implicit none
+      integer(4),intent(inout) :: numTrgtRanksInMpiRank,maxNumTrgtRanks
+      integer(4),intent(inout),allocatable :: numNodesTrgtRank(:)
+      integer(8),intent(inout) :: numNodesTrgtTotal_i8
+      integer(8),intent(inout),allocatable :: trgtRankNodeStart_i8(:),trgtRankNodeEnd_i8(:)
+      type(jagged_vector_int4),intent(inout) :: mapNodeIdTrgtToMpi_jv
+      integer(4) :: iNode
+
+      numTrgtRanksInMpiRank = 1
+      maxNumTrgtRanks = 1
+
+      allocate(numNodesTrgtRank(1))
+      allocate(trgtRankNodeStart_i8(1))
+      allocate(trgtRankNodeEnd_i8(1))
+      numNodesTrgtRank(1)     = numNodesRankPar
+      trgtRankNodeStart_i8(1) = rankNodeStart
+      trgtRankNodeEnd_i8(1)   = rankNodeEnd
+
+      numNodesTrgtTotal_i8 = totalNumNodesPar
+
+      allocate(mapNodeIdTrgtToMpi_jv%vector(1))
+      allocate(mapNodeIdTrgtToMpi_jv%vector(1)%elems(numNodesRankPar))
+
+      do iNode=1,numNodesRankPar
+         mapNodeIdTrgtToMpi_jv%vector(1)%elems(iNode) = iNode
+      end do
+
+   end subroutine
+
+   subroutine generate_new_mesh_for_viz(target_meshFile_h5_full_name,mporder,mnnode,target_Nprocs,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
+                                       numNodesTrgtRank,numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8,mapNodeIdTrgtToMpi_jv)
+      implicit none
+      character(*),intent(in) :: target_meshFile_h5_full_name
+      integer(4),intent(in) :: mporder,mnnode,target_Nprocs
+      integer(4),intent(inout) :: numTrgtRanksInMpiRank,maxNumTrgtRanks
+      integer(4),intent(inout),allocatable :: numNodesTrgtRank(:)
+      integer(8),intent(inout) :: numNodesTrgtTotal_i8
+      integer(8),intent(inout),allocatable :: trgtRankNodeStart_i8(:),trgtRankNodeEnd_i8(:)
+      type(jagged_vector_int4),intent(inout) :: mapNodeIdTrgtToMpi_jv
+
+      integer(4) :: trgtRankInMpiRankStart,trgtRankInMpiRankEnd
+      integer(4),allocatable :: trgtRanksInMpiRank(:),mapTrgtRankToMpiRank(:)
+      integer(4),allocatable :: mpiRankElemStart(:),mpiRankElemEnd(:),trgtRankElemStart(:),trgtRankElemEnd(:)
+      integer(4),allocatable :: numElemsTrgtRank(:)
+      integer(4),allocatable :: numElemsVTKTrgtRank(:),sizeConnecVTKTrgtRank(:)
+      type(jagged_vector_int4) :: listNodesTrgtRankMpiId_jv,connecVTKTrgtRank_jv
+      type(jagged_matrix_int4) :: connecTrgtRankMpiId_jm,connecParOrigTrgtRank_jm
+      type(jagged_matrix_rp) :: coordTrgtRank_jm,coordVTKTrgtRank_jm
+      type(jagged_vector_rp) :: quality_jv
+
+      integer(8),dimension(0:target_Nprocs-1) :: iNodeStartPar_i8
+      integer(4) :: connecChunkSize = 10000000
+      logical :: evalMeshQuality=.false.
+      integer(4) :: iTrgtRank,trgtRank
+      integer(hid_t) :: targetMesh_hdf5_file_id
+
+      !---------------------------------------------------------------------------------------------
+      ! Generacio malla dummy, en un futur fer possible que lusuari introdeuxi una ja feta!
+      if(mpi_rank.eq.0) write(*,*) '# Generating new target mesh file:',trim(target_meshFile_h5_full_name)
+      if(mpi_rank.eq.0) write(*,*) ' 1. Generating new partitioning and connec...'
+
       !Distributing the target_Nprocs in the current Nprocs
-      call distribute_ranks2Part_in_mpiRank(target_Nprocs,trgtRankInMpiRankStart,trgtRankInMpiRankEnd,numTrgtRanksInMpiRank,maxNumTrgtRanks,trgtRanksInMpiRank,mapTrgtRankToMpiRank)
+      call distribute_ranks2Part_in_mpiRank(target_Nprocs,trgtRankInMpiRankStart,trgtRankInMpiRankEnd,&
+                        numTrgtRanksInMpiRank,maxNumTrgtRanks,trgtRanksInMpiRank,mapTrgtRankToMpiRank)
 
+      !---------------------------------------------------------
+      allocate(    numNodesTrgtRank(numTrgtRanksInMpiRank))
+      allocate(trgtRankNodeStart_i8(numTrgtRanksInMpiRank))
+      allocate(  trgtRankNodeEnd_i8(numTrgtRanksInMpiRank))
+      numNodesTrgtRank(:)     = 0
+      trgtRankNodeStart_i8(:) = 0
+      trgtRankNodeEnd_i8(:)   = 0
 
-      allocate(   numElemsTrgtRank(numTrgtRanksInMpiRank))
-      allocate(  trgtRankElemStart(numTrgtRanksInMpiRank))
-      allocate(    trgtRankElemEnd(numTrgtRanksInMpiRank))
-      allocate(   mpiRankElemStart(numTrgtRanksInMpiRank))
-      allocate(     mpiRankElemEnd(numTrgtRanksInMpiRank))
-      allocate(   numNodesTrgtRank(numTrgtRanksInMpiRank))
+      allocate(mapNodeIdTrgtToMpi_jv%vector(numTrgtRanksInMpiRank))
+      !----------------------------------------------------------------------------
+
+      allocate(    numElemsTrgtRank(numTrgtRanksInMpiRank))
+      allocate(   trgtRankElemStart(numTrgtRanksInMpiRank))
+      allocate(     trgtRankElemEnd(numTrgtRanksInMpiRank))
+      allocate(    mpiRankElemStart(numTrgtRanksInMpiRank))
+      allocate(      mpiRankElemEnd(numTrgtRanksInMpiRank))
+      numElemsTrgtRank(:)     = 0
+      trgtRankElemStart(:)    = 0
+      trgtRankElemEnd(:)      = 0
+      mpiRankElemStart(:)     = 0
+      mpiRankElemEnd(:)       = 0
 
       allocate(listNodesTrgtRankMpiId_jv%vector(numTrgtRanksInMpiRank))
       allocate(   connecTrgtRankMpiId_jm%matrix(numTrgtRanksInMpiRank))
       allocate(         coordTrgtRank_jm%matrix(numTrgtRanksInMpiRank))
       allocate(               quality_jv%vector(numTrgtRanksInMpiRank))
-
-
-      if(mpi_rank.eq.0) write(*,*) ' 1. Generating new partitioning and connec...'
 
       do iTrgtRank=1,numTrgtRanksInMpiRank
          trgtRank = trgtRanksInMpiRank(iTrgtRank)
@@ -112,22 +308,17 @@ contains
 
       end do
       
-      allocate(trgtRankNodeStart_i8(numTrgtRanksInMpiRank))
-      allocate(trgtRankNodeEnd_i8(numTrgtRanksInMpiRank))
-
-      trgtRankNodeStart_i8(:) = 0
-      trgtRankNodeEnd_i8(:) = 0
-
       call define_parallelNodePartitioning(target_Nprocs,numTrgtRanksInMpiRank,numNodesTrgtRank,trgtRanksInMpiRank,mapTrgtRankToMpiRank,&
                                           trgtRankNodeStart_i8,trgtRankNodeEnd_i8,iNodeStartPar_i8,numNodesTrgtTotal_i8)
 
-      allocate(mapNodeIdTrgtToMpi_jv%vector(numTrgtRanksInMpiRank))
       allocate(coordVTKTrgtRank_jm%matrix(numTrgtRanksInMpiRank))
       allocate(connecVTKTrgtRank_jv%vector(numTrgtRanksInMpiRank))
       allocate(connecParOrigTrgtRank_jm%matrix(numTrgtRanksInMpiRank))
 
       allocate(numElemsVTKTrgtRank(numTrgtRanksInMpiRank))
       allocate(sizeConnecVTKTrgtRank(numTrgtRanksInMpiRank))
+      numElemsVTKTrgtRank(:)   = 0
+      sizeConnecVTKTrgtRank(:) = 0
 
       if(mpi_rank.eq.0) write(*,*) ' 2. Generating new node ordering and mapping between meshes...'
 
@@ -145,7 +336,6 @@ contains
          allocate(connecVTKTrgtRank_jv%vector(iTrgtRank)%elems(sizeConnecVTKTrgtRank(iTrgtRank)))
          allocate(connecParOrigTrgtRank_jm%matrix(iTrgtRank)%elems(numElemsTrgtRank(iTrgtRank),mnnode))
 
-
          call reorder_nodes_in_trgtRank(mporder,mnnode,trgtRank,target_Nprocs,&
                numElemsTrgtRank(iTrgtRank),numNodesTrgtRank(iTrgtRank),sizeConnecVTKTrgtRank(iTrgtRank),isMeshLinealOutput,&
                listNodesTrgtRankMpiId_jv%vector(iTrgtRank)%elems,connecTrgtRankMpiId_jm%matrix(iTrgtRank)%elems,&
@@ -155,12 +345,9 @@ contains
 
       end do
 
-
-      !Writing new results file in target N procs
       !---------------------------------------------------------------------------------------------------------------
       if(mpi_rank.eq.0) write(*,*) ' 3. Generating new mesh partitioned in',target_Nprocs,'N procs'
 
-      !call create_hdf5_file(target_full_resultsFile_h5,targetRes_hdf5_file_id)
       call create_hdf5_file(target_meshFile_h5_full_name,targetMesh_hdf5_file_id)
       
       call create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,targetMesh_hdf5_file_id,isMeshLinealOutput,.false.,&
@@ -181,77 +368,90 @@ contains
 
       call close_hdf5_file(targetMesh_hdf5_file_id)
       !----------------------------------------------------------------------------------------------------------------------------------     
-      
-      !Fins aqui la generacio de la malla dummy!
-      !Ara anem a per la generacio dels fitxers de resultats!
 
-      if(type_resultsFile .eq. 1) then
-         call set_hdf5_resultsFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,mpi_size,source_base_resultsFile_h5)
-         call set_hdf5_resultsFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,target_Nprocs,target_base_resultsFile_h5)
-      else if(type_resultsFile .eq. 2) then
-         call set_hdf5_avgResultsFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,mpi_size,source_base_resultsFile_h5)
-         call set_hdf5_avgResultsFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,target_Nprocs,target_base_resultsFile_h5)
-      else if(type_resultsFile .eq. 3) then
-         call set_hdf5_restartFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,mpi_size,source_base_resultsFile_h5)
-         call set_hdf5_restartFile_baseName(results_h5_filePath,results_h5_fileName,mesh_h5_fileName,target_Nprocs,target_base_resultsFile_h5)
-      else
-         write(*,*) "Wrong type_resultsFile! Must be 1,2 or 3 (1:inst, 2:avg, 3:restart)! Aborting!"
-       	call MPI_Abort(app_comm,-1,mpi_err)
-      end if
+   end subroutine generate_new_mesh_for_viz
 
-      do res_inst=results_first,results_last,results_step
+   subroutine open_mesh_and_do_mapping(target_meshFile_h5_full_name,mporder,mnnode,target_Nprocs,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
+                                       numNodesTrgtRank,trgtRanksInMpiRank,mapTrgtRankToMpiRank,&
+                                       numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8,mapNodeIdTrgtToMpi_jv)
+      implicit none
+      character(*),intent(in) :: target_meshFile_h5_full_name
+      integer(4),intent(in) :: mporder,mnnode,target_Nprocs,numTrgtRanksInMpiRank,maxNumTrgtRanks
+      integer(4),intent(in) :: trgtRanksInMpiRank(numTrgtRanksInMpiRank),mapTrgtRankToMpiRank(numTrgtRanksInMpiRank)
+      integer(4),intent(inout) :: numNodesTrgtRank(numTrgtRanksInMpiRank)
+      integer(8),intent(inout) :: numNodesTrgtTotal_i8,trgtRankNodeStart_i8(numTrgtRanksInMpiRank),trgtRankNodeEnd_i8(numTrgtRanksInMpiRank)
+      type(jagged_vector_int4),intent(inout) :: mapNodeIdTrgtToMpi_jv
 
-         if(type_resultsFile .eq. 1) then
-            ! INST RESULTS
-            call set_hdf5_resultsFile_name(source_base_resultsFile_h5,res_inst,source_full_resultsFile_h5)
-            call set_hdf5_resultsFile_name(target_base_resultsFile_h5,res_inst,target_full_resultsFile_h5)
-         else if(type_resultsFile .eq. 2) then
-            ! AVG RESULTS
-            call set_hdf5_avgResultsFile_name(source_base_resultsFile_h5,res_inst,source_full_resultsFile_h5)
-            call set_hdf5_avgResultsFile_name(target_base_resultsFile_h5,res_inst,target_full_resultsFile_h5)
-         else if(type_resultsFile .eq. 3) then
-            ! RESTART FILES
-            call set_hdf5_restartFile_name(source_base_resultsFile_h5,res_inst,source_full_resultsFile_h5)
-            call set_hdf5_restartFile_name(target_base_resultsFile_h5,res_inst,target_full_resultsFile_h5)
-         end if
+      integer(4) :: iTrgtRank,trgtRank
+      integer(8) :: rankNodeMax_i8
+      integer(8),allocatable :: aux_array_i8(:)
 
-         if(mpi_rank.eq.0) then
-            write(*,*) '# Doing results inst:',res_inst
-            write(*,*) ' - Source resFile: ',trim(source_full_resultsFile_h5)
-            write(*,*) ' - Target resFile: ',trim(target_full_resultsFile_h5)
-         end if
+      character(128) :: dsetname
+      integer(hid_t) :: targetMesh_hdf5_file_id
+      integer(hsize_t), dimension(1) :: ms_dims
+      integer(hssize_t), dimension(1) :: ms_offset
 
-         call open_hdf5_file(source_full_resultsFile_h5,sourceRes_hdf5_file_id)
+      if(mpi_rank.eq.0) write(*,*) '# Opening target mesh file:',trim(target_meshFile_h5_full_name)
 
-         call generate_datasets_to_copy(type_resultsFile,sourceRes_hdf5_file_id,numDsetSca,numDsetVec,datasetsScalarFields,datasetsVectorFields)
+      call open_hdf5_file(target_meshFile_h5_full_name,targetMesh_hdf5_file_id)
 
-         call create_hdf5_file(target_full_resultsFile_h5,targetRes_hdf5_file_id)
+      rankNodeMax_i8 = 0
+      do iTrgtRank=1,numTrgtRanksInMpiRank
+         trgtRank = trgtRanksInMpiRank(iTrgtRank)
 
-         call create_vtkhdf_unstructuredGrid_struct_for_resultsFile(target_meshFile_h5_full_name,targetRes_hdf5_file_id)
+         ms_dims(1) = 1
+         ms_offset(1) = int(trgtRank,hssize_t)
 
-         call create_fields_datasets_in_new_results_file(targetRes_hdf5_file_id,numNodesTrgtTotal_i8,&
-               numDsetSca,numDsetVec,datasetsScalarFields,datasetsVectorFields)
+         allocate(aux_array_i8(1))
 
-         call copy_datasets_results_from_source_to_target(sourceRes_hdf5_file_id,targetRes_hdf5_file_id,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
-                  numNodesTrgtRank,trgtRankNodeStart_i8,numNodesTrgtTotal_i8,mapNodeIdTrgtToMpi_jv,&
-                  numDsetSca,numDsetVec,datasetsScalarFields,datasetsVectorFields)
+         dsetname = '/Parallel_data/rankNodeStart'
+         call read_dataspace_1d_int8_hyperslab_parallel(targetMesh_hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
+         trgtRankNodeStart_i8(iTrgtRank)=aux_array_i8(1)
 
-         deallocate(datasetsScalarFields,datasetsVectorFields)
+         dsetname = '/Parallel_data/rankNodeEnd'
+         call read_dataspace_1d_int8_hyperslab_parallel(targetMesh_hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
+         trgtRankNodeEnd_i8(iTrgtRank)=aux_array_i8(1)
 
-         call close_hdf5_file(targetRes_hdf5_file_id)
-         if(mpi_rank.eq.0) write(*,*) ' # New results file ',trim(target_full_resultsFile_h5),' succesfully generated!'
+         numNodesTrgtRank(iTrgtRank) = trgtRankNodeEnd_i8(iTrgtRank) - trgtRankNodeStart_i8(iTrgtRank) + 1
 
-         call close_hdf5_file(sourceRes_hdf5_file_id)
+         rankNodeMax_i8 = max(rankNodeMax_i8,trgtRankNodeEnd_i8(iTrgtRank))
+
+         !write(*,*) 'trgtRank',trgtRank,'tRNS',trgtRankNodeStart_i8(iTrgtRank),'tRNE',trgtRankNodeEnd_i8(iTrgtRank),'nNTR',numNodesTrgtRank(iTrgtRank)
+
+         deallocate(aux_array_i8)
+
+         !!!!allocate(trgtGlobalIdSrl(numNodesTrgtRank(iTrgtRank)))
+         !!!!ms_dims(1) = int(numNodesTrgtRank(iTrgtRank),hsize_t)
+         !!!!ms_offset(1) = int(trgtRankNodeStart_i8(iTrgtRank),hssize_t)-1
+
+         !!!!dsetname = '/globalIds/globalIdSrl'
+         !!!!call read_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,globalIdSrl)
+
+
 
       end do
 
-      !---------------------------------------------------------------------------------------------------------------
+      do iTrgtRank=(numTrgtRanksInMpiRank+1),maxNumTrgtRanks
 
-      !----------------------------------------------------------------------------------------------
-      call end_hdf5_interface()
-      !----------------------------------------------------------------------------------------------
+         ms_dims(1) = 0
+         ms_offset(1) = 0
+         allocate(aux_array_i8(0))
 
-   end subroutine copy_results_same_mesh_Npartitions
+         dsetname = '/Parallel_data/rankNodeStart'
+         call read_dataspace_1d_int8_hyperslab_parallel(targetMesh_hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
+
+         dsetname = '/Parallel_data/rankNodeEnd'
+         call read_dataspace_1d_int8_hyperslab_parallel(targetMesh_hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
+
+         deallocate(aux_array_i8)
+      end do
+
+      call MPI_Allreduce(rankNodeMax_i8,numNodesTrgtTotal_i8,1,mpi_datatype_int8,MPI_MAX,app_comm, mpi_err)
+      !write(*,*) 'numNodesTrgtTotal_i8',numNodesTrgtTotal_i8
+
+      call close_hdf5_file(targetMesh_hdf5_file_id)
+
+   end subroutine
 
    subroutine get_mesh_porder_from_hdf5(meshFile_h5_full_name,mporder)
       implicit none
@@ -533,39 +733,56 @@ contains
 
    end subroutine reorder_nodes_in_trgtRank
 
-   subroutine copy_datasets_results_from_source_to_target(source_file_id,target_file_id,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
-                                                         numNodesTrgtRank,trgtRankNodeStart,numNodesTrgtTotal,mapNodeIdTrgtToMpi_jv,&
-                                                         numDsetSca,numDsetVec,datasetsScalarFields,datasetsVectorFields)
+   subroutine copy_dsets_results_from_source_to_target(source_file_id,target_file_id,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
+                           numNodesTrgtRank,trgtRankNodeStart,numNodesTrgtTotal,mapNodeIdTrgtToMpi_jv,&
+                           numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S,&
+                           dsetsScalarFieldsOrig,dsetsVectorFieldsOrig,dsetsV2SFieldsOrig,dsetsScalarFieldsTrgt,dsetsVectorFieldsTrgt,dsetsV2SFieldsTrgt)
       implicit none
       integer(hid_t),intent(in) :: source_file_id,target_file_id
       integer(4),intent(in) :: numTrgtRanksInMpiRank,maxNumTrgtRanks
       integer(4),intent(in) :: numNodesTrgtRank(numTrgtRanksInMpiRank)
       integer(8),intent(in) :: trgtRankNodeStart(numTrgtRanksInMpiRank),numNodesTrgtTotal
       type(jagged_vector_int4),intent(in) :: mapNodeIdTrgtToMpi_jv
-      integer(4),intent(in) :: numDsetSca,numDsetVec
-      character(256),intent(in) :: datasetsScalarFields(max_num_saved_fields),datasetsVectorFields(max_num_saved_fields)
+      integer(4),intent(in) :: numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S
+      character(256),intent(in) :: dsetsScalarFieldsOrig(maxNumDsetSca),dsetsVectorFieldsOrig(maxNumDsetVec),dsetsV2SFieldsOrig(maxNumDsetV2S)
+      character(256),intent(in) :: dsetsScalarFieldsTrgt(maxNumDsetSca),dsetsVectorFieldsTrgt(maxNumDsetVec),dsetsV2SFieldsTrgt(maxNumDsetV2S,ndime)
 
       real(rp_vtk) :: sourceScalarField(numNodesRankPar),sourceVectorField(numNodesRankPar,ndime)
-      integer(4) :: iTrgtRank,iSca,iVec
-      character(512) :: dsetname
+      integer(4) :: iTrgtRank,iSca,iVec,iDim
+      character(512) :: dsetnameOrig,dsetnameTrgt
 
       do iSca=1,numDsetSca
-         dsetname = datasetsScalarFields(iSca)
-         if(mpi_rank.eq.0) write(*,*) '  - Copying scalar field ',trim(adjustl(dsetname)),' (id',iSca,')...'
-         call read_and_load_source_scalarfield(dsetname,source_file_id,sourceScalarField)
-         call copy_scalarfield_dataset_results_in_target(dsetname,sourceScalarField,target_file_id,numTrgtRanksInMpiRank,&
+         dsetnameOrig = dsetsScalarFieldsOrig(iSca)
+         dsetnameTrgt = dsetsScalarFieldsTrgt(iSca)
+         if(mpi_rank.eq.0) write(*,*) ' # Copying scalar field ',trim(adjustl(dsetnameOrig)),' (id',iSca,')...'
+         call read_and_load_source_scalarfield(dsetnameOrig,source_file_id,sourceScalarField)
+         call copy_scalarfield_dataset_results_in_target(dsetnameTrgt,sourceScalarField,target_file_id,numTrgtRanksInMpiRank,&
                   maxNumTrgtRanks,numNodesTrgtRank,trgtRankNodeStart,numNodesTrgtTotal,mapNodeIdTrgtToMpi_jv)
       end do
 
       do iVec=1,numDsetVec
-         dsetname = datasetsVectorFields(iVec)
-         if(mpi_rank.eq.0) write(*,*) '  - Copying vector field ',trim(adjustl(dsetname)),' (id',iVec,')...'
-         call read_and_load_source_vectorfield(dsetname,source_file_id,sourceVectorField)
-         call copy_vectorfield_dataset_results_in_target(dsetname,sourceVectorField,target_file_id,numTrgtRanksInMpiRank,&
+         dsetnameOrig = dsetsVectorFieldsOrig(iVec)
+         dsetnameTrgt = dsetsVectorFieldsTrgt(iVec)
+         if(mpi_rank.eq.0) write(*,*) ' # Copying vector field ',trim(adjustl(dsetnameOrig)),' (id',iVec,')...'
+         call read_and_load_source_vectorfield(dsetnameOrig,source_file_id,sourceVectorField)
+         call copy_vectorfield_dataset_results_in_target(dsetnameTrgt,sourceVectorField,target_file_id,numTrgtRanksInMpiRank,&
                   maxNumTrgtRanks,numNodesTrgtRank,trgtRankNodeStart,numNodesTrgtTotal,mapNodeIdTrgtToMpi_jv)
       end do
 
-   end subroutine copy_datasets_results_from_source_to_target
+      do iVec=1,numDsetV2S
+         dsetnameOrig = dsetsV2SFieldsOrig(iVec)
+         if(mpi_rank.eq.0) write(*,*) ' # Copying vector field ',trim(adjustl(dsetnameOrig)),' (id',iVec,')...'
+         call read_and_load_source_vectorfield(dsetnameOrig,source_file_id,sourceVectorField)
+         do iDim=1,ndime
+            dsetnameTrgt = dsetsV2SFieldsTrgt(iVec,iDim)
+            if(mpi_rank.eq.0) write(*,*) '  - in scalar field ',trim(adjustl(dsetnameOrig)),' (dim',iDim,')...'
+            call copy_scalarfield_dataset_results_in_target(dsetnameTrgt,sourceVectorField(:,iDim),target_file_id,numTrgtRanksInMpiRank,&
+                  maxNumTrgtRanks,numNodesTrgtRank,trgtRankNodeStart,numNodesTrgtTotal,mapNodeIdTrgtToMpi_jv)
+         end do
+      end do
+
+
+   end subroutine copy_dsets_results_from_source_to_target
 
    subroutine copy_scalarfield_dataset_results_in_target(dsetname,sourceScalarField,target_file_id,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
                                              numNodesTrgtRank,trgtRankNodeStart,numNodesTrgtTotal,mapNodeIdTrgtToMpi_jv)
@@ -769,34 +986,45 @@ contains
 
    end subroutine dummy_copy_vectorfield_result_in_trgtRank
 
-   subroutine generate_datasets_to_copy(type_resultsFile,src_file_id,numDsetSca,numDsetVec,datasetsScalarFields,datasetsVectorFields)
+   subroutine generate_dsets_to_copy(type_resultsFile,src_file_id,numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S,&
+            dsetsScalarFieldsOrig,dsetsVectorFieldsOrig,dsetsV2SFieldsOrig,dsetsScalarFieldsTrgt,dsetsVectorFieldsTrgt,dsetsV2SFieldsTrgt)
       implicit none
       integer(4),intent(in) :: type_resultsFile
       integer(hid_t),intent(in) :: src_file_id
-      integer(4),intent(inout) :: numDsetSca,numDsetVec
-      character(256),intent(inout),allocatable :: datasetsScalarFields(:),datasetsVectorFields(:)
+      integer(4),intent(inout) :: numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S
+      character(256),intent(inout),allocatable :: dsetsScalarFieldsOrig(:),dsetsVectorFieldsOrig(:),dsetsV2SFieldsOrig(:)
+      character(256),intent(inout),allocatable :: dsetsScalarFieldsTrgt(:),dsetsVectorFieldsTrgt(:),dsetsV2SFieldsTrgt(:,:)
       character(512) :: groupname,dsetname
-      integer(4) :: ii,h5err,maxNumDsetSca,maxNumDsetVec
+      integer(4) :: ii,h5err
       logical :: dset_exists
    
       groupname = '/VTKHDF/PointData/'
       numDsetSca = 0
       numDsetVec = 0
+      numDsetV2S = 0
+      maxNumDsetSca = 0
+      maxNumDsetVec = 0
+      maxNumDsetV2S = 0
 
       if(type_resultsFile .eq. 1) then
          ! INST RESULTS ------------------------------------------------------------------------------
          maxNumDsetSca = numNodeScalarFields+numElGPScalarFields
          maxNumDsetVec = numNodeVectorFields
 
-         allocate(datasetsScalarFields(maxNumDsetSca))
-         allocate(datasetsVectorFields(maxNumDsetVec))
+         allocate(dsetsScalarFieldsOrig(maxNumDsetSca))
+         allocate(dsetsVectorFieldsOrig(maxNumDsetVec))
+         allocate(dsetsScalarFieldsTrgt(maxNumDsetSca))
+         allocate(dsetsVectorFieldsTrgt(maxNumDsetVec))
+         allocate(dsetsV2SFieldsOrig(maxNumDsetV2S))
+         allocate(dsetsV2SFieldsTrgt(maxNumDsetV2S,ndime))
 
          do ii=1,numNodeScalarFields
             dsetname = trim(adjustl(groupname))//trim(adjustl(nodeScalarNameFields(ii)))
             call h5lexists_f(src_file_id,dsetname,dset_exists,h5err)
             if(dset_exists) then
                numDsetSca = numDsetSca + 1
-               datasetsScalarFields(numDsetSca) = dsetname
+               dsetsScalarFieldsOrig(numDsetSca) = dsetname
+               dsetsScalarFieldsTrgt(numDsetSca) = dsetname
             end if
          end do
 
@@ -805,7 +1033,8 @@ contains
             call h5lexists_f(src_file_id,dsetname,dset_exists,h5err)
             if(dset_exists) then
                numDsetSca = numDsetSca + 1
-               datasetsScalarFields(numDsetSca) = dsetname
+               dsetsScalarFieldsOrig(numDsetSca) = dsetname
+               dsetsScalarFieldsTrgt(numDsetSca) = dsetname
             end if
          end do
 
@@ -814,7 +1043,8 @@ contains
             call h5lexists_f(src_file_id,dsetname,dset_exists,h5err)
             if(dset_exists) then
                numDsetVec = numDsetVec + 1
-               datasetsVectorFields(numDsetVec) = dsetname
+               dsetsVectorFieldsOrig(numDsetVec) = dsetname
+               dsetsVectorFieldsTrgt(numDsetVec) = dsetname
             end if
          end do
          !--------------------------------------------------------------------------------------------
@@ -823,15 +1053,20 @@ contains
          maxNumDsetSca = numAvgNodeScalarFields
          maxNumDsetVec = numAvgNodeVectorFields
 
-         allocate(datasetsScalarFields(maxNumDsetSca))
-         allocate(datasetsVectorFields(maxNumDsetVec))
+         allocate(dsetsScalarFieldsOrig(maxNumDsetSca))
+         allocate(dsetsScalarFieldsTrgt(maxNumDsetSca))
+         allocate(dsetsVectorFieldsOrig(maxNumDsetVec))
+         allocate(dsetsVectorFieldsTrgt(maxNumDsetVec))
+         allocate(dsetsV2SFieldsOrig(maxNumDsetV2S))
+         allocate(dsetsV2SFieldsTrgt(maxNumDsetV2S,ndime))
 
          do ii=1,numAvgNodeScalarFields
             dsetname = trim(adjustl(groupname))//trim(adjustl(avgNodeScalarNameFields(ii)))
             call h5lexists_f(src_file_id,dsetname,dset_exists,h5err)
             if(dset_exists) then
                numDsetSca = numDsetSca + 1
-               datasetsScalarFields(numDsetSca) = dsetname
+               dsetsScalarFieldsOrig(numDsetSca) = dsetname
+               dsetsScalarFieldsTrgt(numDsetSca) = dsetname
             end if
          end do
 
@@ -840,7 +1075,8 @@ contains
             call h5lexists_f(src_file_id,dsetname,dset_exists,h5err)
             if(dset_exists) then
                numDsetVec = numDsetVec + 1
-               datasetsVectorFields(numDsetVec) = dsetname
+               dsetsVectorFieldsOrig(numDsetVec) = dsetname
+               dsetsVectorFieldsTrgt(numDsetVec) = dsetname
             end if
          end do
          !--------------------------------------------------------------------------------------------
@@ -848,34 +1084,104 @@ contains
       else if(type_resultsFile .eq. 3) then
          ! RESTART FILES
          maxNumDsetSca = numRestartFields
-         maxNumDsetVec = 0
 
-         allocate(datasetsScalarFields(maxNumDsetSca))
-         allocate(datasetsVectorFields(maxNumDsetVec))
+         allocate(dsetsScalarFieldsOrig(maxNumDsetSca))
+         allocate(dsetsScalarFieldsTrgt(maxNumDsetSca))
+         allocate(dsetsVectorFieldsOrig(maxNumDsetVec))
+         allocate(dsetsVectorFieldsTrgt(maxNumDsetVec))
+         allocate(dsetsV2SFieldsOrig(maxNumDsetV2S))
+         allocate(dsetsV2SFieldsTrgt(maxNumDsetV2S,ndime))
 
          do ii=1,numRestartFields
             dsetname = trim(adjustl(restartNameFields(ii)))
             call h5lexists_f(src_file_id,dsetname,dset_exists,h5err)
             if(dset_exists) then
                numDsetSca = numDsetSca + 1
-               datasetsScalarFields(numDsetSca) = dsetname
+               dsetsScalarFieldsOrig(numDsetSca) = dsetname
+               dsetsScalarFieldsTrgt(numDsetSca) = dsetname
             end if
          end do
+      else if(type_resultsFile .eq. 4) then
+         ! INST TO RESTART FILES
+         maxNumDsetSca = 5 !rho,pr,ener,mut,mue
+         maxNumDsetV2S = 1 !u_x,u_y,u_z
+
+         allocate(dsetsScalarFieldsOrig(maxNumDsetSca))
+         allocate(dsetsScalarFieldsTrgt(maxNumDsetSca))
+         allocate(dsetsVectorFieldsOrig(maxNumDsetVec))
+         allocate(dsetsVectorFieldsTrgt(maxNumDsetVec))
+         allocate(dsetsV2SFieldsOrig(maxNumDsetV2S))
+         allocate(dsetsV2SFieldsTrgt(maxNumDsetV2S,ndime))
+
+         !RHO
+         numDsetSca = numDsetSca + 1
+         dsetname = trim(adjustl(groupname))//trim(adjustl(nodeScalarNameFields(indNS_rho)))
+         dsetsScalarFieldsOrig(numDsetSca) = dsetname
+         dsetname = trim(adjustl(restartNameFields(indRF_rho)))
+         dsetsScalarFieldsTrgt(numDsetSca) = dsetname
+
+         !PR
+         numDsetSca = numDsetSca + 1
+         dsetname = trim(adjustl(groupname))//trim(adjustl(nodeScalarNameFields(indNS_pr)))
+         dsetsScalarFieldsOrig(numDsetSca) = dsetname
+         dsetname = trim(adjustl(restartNameFields(indRF_pr)))
+         dsetsScalarFieldsTrgt(numDsetSca) = dsetname
+
+         !ENER
+         numDsetSca = numDsetSca + 1
+         dsetname = trim(adjustl(groupname))//trim(adjustl(nodeScalarNameFields(indNS_ener)))
+         dsetsScalarFieldsOrig(numDsetSca) = dsetname
+         dsetname = trim(adjustl(restartNameFields(indRF_ener)))
+         dsetsScalarFieldsTrgt(numDsetSca) = dsetname
+
+         !MUT
+         numDsetSca = numDsetSca + 1
+         dsetname = trim(adjustl(groupname))//trim(adjustl(elGPScalarNameFields(indES_mut)))
+         dsetsScalarFieldsOrig(numDsetSca) = dsetname
+         dsetname = trim(adjustl(restartNameFields(indRF_mut)))
+         dsetsScalarFieldsTrgt(numDsetSca) = dsetname
+
+         !MUE
+         numDsetSca = numDsetSca + 1
+         dsetname = trim(adjustl(groupname))//trim(adjustl(elGPScalarNameFields(indES_mue)))
+         dsetsScalarFieldsOrig(numDsetSca) = dsetname
+         dsetname = trim(adjustl(restartNameFields(indRF_mue)))
+         dsetsScalarFieldsTrgt(numDsetSca) = dsetname
+
+         !VEL (ux,uy,uz)
+         numDsetV2S = numDsetV2S + 1
+         dsetname = trim(adjustl(groupname))//trim(adjustl(nodeVectorNameFields(indNV_vel)))
+         dsetsV2SFieldsOrig(numDsetV2S) = dsetname
+         dsetname = trim(adjustl(restartNameFields(indRF_ux)))
+         dsetsV2SFieldsTrgt(numDsetV2S,1) = dsetname
+         dsetname = trim(adjustl(restartNameFields(indRF_uy)))
+         dsetsV2SFieldsTrgt(numDsetV2S,2) = dsetname
+         dsetname = trim(adjustl(restartNameFields(indRF_uz)))
+         dsetsV2SFieldsTrgt(numDsetV2S,3) = dsetname
+
+         !!!do ii=1,numRestartFields
+         !!!   !dsetname = trim(adjustl(groupname))//trim(adjustl(nodeScalarNameFields(ii)))
+         !!!   !dsetname = trim(adjustl(restartNameFields(ii)))
+         !!!   call h5lexists_f(src_file_id,dsetname,dset_exists,h5err)
+         !!!   if(dset_exists) then
+         !!!      numDsetSca = numDsetSca + 1
+         !!!      dsetsScalarFieldsOrig(numDsetSca) = dsetname
+         !!!      dsetsScalarFieldsTrgt(numDsetSca) = dsetname
+         !!!   end if
+         !!!end do
 
       end if
 
-
-
-   end subroutine generate_datasets_to_copy
+   end subroutine generate_dsets_to_copy
 
 #if 0
-   subroutine check_datasets_in_source_results_file(src_file_id,dsetScaCnt,dsetVecCnt,datasetsScalarFields,datasetsVectorFields,&
-                                                   datasetsScaExist,datasetsVecExist)
+   subroutine check_dsets_in_source_results_file(src_file_id,dsetScaCnt,dsetVecCnt,dsetsScalarFields,dsetsVectorFields,&
+                                                   dsetsScaExist,dsetsVecExist)
       implicit none
       integer(hid_t),intent(in) :: src_file_id
       integer(4),intent(in) :: dsetScaCnt,dsetVecCnt
-      character(256),intent(out) :: datasetsScalarFields(max_num_saved_fields),datasetsVectorFields(max_num_saved_fields)
-      logical,intent(out) :: datasetsScaExist(max_num_saved_fields),datasetsVecExist(max_num_saved_fields)
+      character(256),intent(out) :: dsetsScalarFields(max_num_saved_fields),dsetsVectorFields(max_num_saved_fields)
+      logical,intent(out) :: dsetsScaExist(max_num_saved_fields),dsetsVecExist(max_num_saved_fields)
       integer(4) :: h5err
       character(512) :: groupname,dsetname
       logical :: dset_exists
@@ -890,93 +1196,93 @@ contains
       !--------------------------------------------------
       dsetname = trim(adjustl(groupname))//'rho'
       dsetScaCnt=dsetScaCnt+1
-      datasetsScalarFields(dsetScaCnt) = dsetname
+      dsetsScalarFields(dsetScaCnt) = dsetname
       !--------------------------------------------------
       dsetname = trim(adjustl(groupname))//'mu_fluid'
       dsetScaCnt=dsetScaCnt+1
-      datasetsScalarFields(dsetScaCnt) = dsetname
+      dsetsScalarFields(dsetScaCnt) = dsetname
       !--------------------------------------------------
       dsetname = trim(adjustl(groupname))//'pr'
       dsetScaCnt=dsetScaCnt+1
-      datasetsScalarFields(dsetScaCnt) = dsetname
+      dsetsScalarFields(dsetScaCnt) = dsetname
       !--------------------------------------------------
       dsetname = trim(adjustl(groupname))//'E'
       dsetScaCnt=dsetScaCnt+1
-      datasetsScalarFields(dsetScaCnt) = dsetname
+      dsetsScalarFields(dsetScaCnt) = dsetname
       !--------------------------------------------------
       dsetname = trim(adjustl(groupname))//'eta'
       dsetScaCnt=dsetScaCnt+1
-      datasetsScalarFields(dsetScaCnt) = dsetname
+      dsetsScalarFields(dsetScaCnt) = dsetname
       !--------------------------------------------------
       dsetname = trim(adjustl(groupname))//'csound'
       dsetScaCnt=dsetScaCnt+1
-      datasetsScalarFields(dsetScaCnt) = dsetname
+      dsetsScalarFields(dsetScaCnt) = dsetname
       !--------------------------------------------------
       dsetname = trim(adjustl(groupname))//'machno'
       dsetScaCnt=dsetScaCnt+1
-      datasetsScalarFields(dsetScaCnt) = dsetname
+      dsetsScalarFields(dsetScaCnt) = dsetname
       !--------------------------------------------------
       dsetname = trim(adjustl(groupname))//'divU'
       dsetScaCnt=dsetScaCnt+1
-      datasetsScalarFields(dsetScaCnt) = dsetname
+      dsetsScalarFields(dsetScaCnt) = dsetname
       !--------------------------------------------------
       dsetname = trim(adjustl(groupname))//'qcrit'
       dsetScaCnt=dsetScaCnt+1
-      datasetsScalarFields(dsetScaCnt) = dsetname
+      dsetsScalarFields(dsetScaCnt) = dsetname
       !--------------------------------------------------
       dsetname = trim(adjustl(groupname))//'mut'
       dsetScaCnt=dsetScaCnt+1
-      datasetsScalarFields(dsetScaCnt) = dsetname
+      dsetsScalarFields(dsetScaCnt) = dsetname
       !--------------------------------------------------
       dsetname = trim(adjustl(groupname))//'mue'
       dsetScaCnt=dsetScaCnt+1
-      datasetsScalarFields(dsetScaCnt) = dsetname
+      dsetsScalarFields(dsetScaCnt) = dsetname
       !--------------------------------------------------
       !--------------------------------------------------
       dsetname = trim(adjustl(groupname))//'u'
       dsetVecCnt=dsetVecCnt+1
-      datasetsVectorFields(dsetVecCnt) = dsetname
+      dsetsVectorFields(dsetVecCnt) = dsetname
       !--------------------------------------------------
       dsetname = trim(adjustl(groupname))//'gradRho'
       dsetVecCnt=dsetVecCnt+1
-      datasetsVectorFields(dsetVecCnt) = dsetname
+      dsetsVectorFields(dsetVecCnt) = dsetname
       !--------------------------------------------------
       dsetname = trim(adjustl(groupname))//'curlU'
       dsetVecCnt=dsetVecCnt+1
-      datasetsVectorFields(dsetVecCnt) = dsetname
+      dsetsVectorFields(dsetVecCnt) = dsetname
       !--------------------------------------------------
 #endif
       !--------------------------------------------------------------------------------
-      datasetsScaExist(:) = .false.
-      datasetsVecExist(:) = .false.
+      dsetsScaExist(:) = .false.
+      dsetsVecExist(:) = .false.
 
       do iSca=1,dsetScaCnt
-         dsetname = datasetsScalarFields(iSca)
+         dsetname = dsetsScalarFields(iSca)
          call h5lexists_f(src_file_id,dsetname,dset_exists,h5err)
-         datasetsScaExist(iSca) = dset_exists
+         dsetsScaExist(iSca) = dset_exists
          !write(*,*) 'checking if scaf',dsetname,'exists:',dset_exists
       end do
 
       do iVec=1,dsetVecCnt
-         dsetname = datasetsVectorFields(iVec)
+         dsetname = dsetsVectorFields(iVec)
          call h5lexists_f(src_file_id,dsetname,dset_exists,h5err)
-         datasetsVecExist(iVec) = dset_exists
+         dsetsVecExist(iVec) = dset_exists
          !write(*,*) 'checking if vec',dsetname,'exists:',dset_exists
       end do
 
-   end subroutine check_datasets_in_source_results_file
+   end subroutine check_dsets_in_source_results_file
 #endif
 
-   subroutine create_fields_datasets_in_new_results_file(trgt_file_id,numNodesParTotal_i8,numDsetSca,numDsetVec,&
-                                    datasetsScalarFields,datasetsVectorFields)
+   subroutine create_fields_dsets_in_new_results_file(trgt_file_id,numNodesParTotal_i8,numDsetSca,numDsetVec,numDsetV2S,&
+               maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S,dsetsScalarFields,dsetsVectorFields,dsetsV2SFields)
       implicit none
       integer(hid_t),intent(in) :: trgt_file_id
       integer(8),intent(in) :: numNodesParTotal_i8
-      integer(4),intent(in) :: numDsetSca,numDsetVec
-      character(256),intent(in) :: datasetsScalarFields(numDsetSca),datasetsVectorFields(numDsetVec)
+      integer(4),intent(in) :: numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S
+      character(256),intent(in) :: dsetsScalarFields(maxNumDsetSca),dsetsVectorFields(maxNumDsetVec),dsetsV2SFields(maxNumDsetV2S,ndime)
       integer(hid_t) :: dtype
       integer(hsize_t) :: ds_dims(1),ds_dims2d(2),aux_ds_dims
-      integer(4) :: ds_rank,h5err,iSca,iVec
+      integer(4) :: ds_rank,h5err,iSca,iVec,iDim
       character(512) :: dsetname
       !--------------------------------------------------------------------------------
 
@@ -987,20 +1293,28 @@ contains
       ds_dims(1) = numNodesParTotal_i8
 
       do iSca=1,numDsetSca
-         dsetname = datasetsScalarFields(iSca)
+         dsetname = dsetsScalarFields(iSca)
          call create_dataspace_hdf5(trgt_file_id,dsetname,ds_rank,ds_dims,dtype)
       end do
+
+      do iSca=1,numDsetV2S
+         do iDim=1,ndime
+            dsetname = dsetsV2SFields(iSca,iDim)
+            call create_dataspace_hdf5(trgt_file_id,dsetname,ds_rank,ds_dims,dtype)
+         end do
+      end do
+
       !----------------------------------------------------------------------
       ds_rank = 2
       ds_dims2d(1) = ndime
       ds_dims2d(2) = numNodesParTotal_i8
 
       do iVec=1,numDsetVec
-         dsetname = datasetsVectorFields(iVec)
+         dsetname = dsetsVectorFields(iVec)
          call create_dataspace_hdf5(trgt_file_id,dsetname,ds_rank,ds_dims2d,dtype)
       end do
       !----------------------------------------------------------------------
 
-   end subroutine create_fields_datasets_in_new_results_file
+   end subroutine create_fields_dsets_in_new_results_file
 
 end module mod_copy_results

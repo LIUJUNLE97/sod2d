@@ -14,9 +14,7 @@ program tool_copy_results
     character(512) :: mesh_h5_filePath,mesh_h5_fileName
     character(512) :: results_h5_filePath,results_h5_fileName
     integer(4) :: type_resultsFile,results_first,results_last,results_step,target_Nprocs
-
-    logical :: useMesh=.false.
-    logical :: useIntInComms=.false.,useRealInComms=.false.
+    logical :: generateNewMesh=.false.
 
     call init_mpi()
 
@@ -47,40 +45,62 @@ program tool_copy_results
     parameter2read = 'mesh_h5_fileName'
     call read_inputFile_string(lineCnt,parameter2read,mesh_h5_fileName)
 
-    !3. results_h5_filePath-----------------------------------------------------------
+    !3. generate_mesh
+    parameter2read = 'generate_mesh'
+    call read_inputFile_logical(lineCnt,parameter2read,generateNewMesh)
+
+    !4. results_h5_filePath-----------------------------------------------------------
     parameter2read = 'results_h5_filePath'
     call read_inputFile_string(lineCnt,parameter2read,results_h5_filePath)
 
-    !4. results_h5_fileName-----------------------------------------------------------
+    !5. results_h5_fileName-----------------------------------------------------------
     parameter2read = 'results_h5_fileName'
     call read_inputFile_string(lineCnt,parameter2read,results_h5_fileName)
 
-    !5. target_Nprocs-----------------------------------------------------------------
+    !6. target_Nprocs-----------------------------------------------------------------
     parameter2read = 'target_Nprocs'
     call read_inputFile_integer(lineCnt,parameter2read,target_Nprocs)
 
-    !6. type_resultsFile-------------------------------------------------------------
+    !7. type_resultsFile-------------------------------------------------------------
     parameter2read = 'type_resultsFile'
     call read_inputFile_integer(lineCnt,parameter2read,type_resultsFile)
 
     if(type_resultsFile .eq. 1) then
-        !7. results_first----------------------------------------------------------------
+        !8. results_first----------------------------------------------------------------
         parameter2read = 'results_first'
         call read_inputFile_integer(lineCnt,parameter2read,results_first)
 
-        !8. results_last-----------------------------------------------------------------
+        !9. results_last-----------------------------------------------------------------
         parameter2read = 'results_last'
         call read_inputFile_integer(lineCnt,parameter2read,results_last)
 
-        !9. results_step-----------------------------------------------------------------
+        !10. results_step-----------------------------------------------------------------
         parameter2read = 'results_step'
         call read_inputFile_integer(lineCnt,parameter2read,results_step)
-    else if(type_resultsFile .le. 3) then
-        parameter2read = 'results_first'
+    else if(type_resultsFile .eq. 2) then
+        !8. resAvg_file----------------------------------------------------------------
+        parameter2read = 'resAvg_file'
         call read_inputFile_integer(lineCnt,parameter2read,results_first)
 
         results_last = results_first
         results_step = 1
+    else if(type_resultsFile .eq. 3) then
+        !8. restart_file----------------------------------------------------------------
+        parameter2read = 'restart_file'
+        call read_inputFile_integer(lineCnt,parameter2read,results_first)
+
+        results_last = results_first
+        results_step = 1
+    else if(type_resultsFile .le. 4) then
+        !8. results_file-----------------------------------------------------------------
+        parameter2read = 'results_file'
+        call read_inputFile_integer(lineCnt,parameter2read,results_first)
+
+        !9. restart_file-----------------------------------------------------------------
+        parameter2read = 'restart_file'
+        call read_inputFile_integer(lineCnt,parameter2read,results_step)
+        
+        results_last = results_first
     else
         write(*,*) "Wrong type_resultsFile! Must be 1,2 or 3 (1:inst, 2:avg, 3:restart, 4:inst_to_restart[todo])! Aborting!"
        	call MPI_Abort(app_comm,-1,mpi_err)
@@ -91,7 +111,7 @@ program tool_copy_results
 
 !---------------------------------------------------------------------------------------------------------
     call copy_results_same_mesh_Npartitions(mesh_h5_filePath,mesh_h5_fileName,results_h5_filePath,results_h5_fileName,target_Nprocs,&
-                                            type_resultsFile,results_first,results_last,results_step)
+                                            type_resultsFile,generateNewMesh,results_first,results_last,results_step)
 !---------------------------------------------------------------------------------------------------------
 
     call end_mpi()
