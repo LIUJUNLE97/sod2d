@@ -58,9 +58,9 @@ contains
       do iNodeL = 1,numNodesRankPar
          if(coordPar(iNodeL,2) < ly) then
             if((coordPar(iNodeL,1)<xmax)  .and. (coordPar(iNodeL,1)>xmin)) then
-               source_term(iNodeL,1) = -0.5_rp*rho(iNodeL,2)*cd*u(iNodeL,1,2)*abs(u(iNodeL,1,2))/lx
-               source_term(iNodeL,2) = 0.00_rp
-               source_term(iNodeL,3) = 0.00_rp
+               source_term(iNodeL,3) = -0.5_rp*rho(iNodeL,2)*cd*u(iNodeL,1,2)*abs(u(iNodeL,1,2))/lx
+               source_term(iNodeL,4) = 0.00_rp
+               source_term(iNodeL,5) = 0.00_rp
             end if
          end if
       end do

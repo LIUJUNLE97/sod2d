@@ -17,7 +17,6 @@ option(TOOL_COPYRES  "Compiles tool CopyResults" OFF)
 option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
 
 option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
-option(USE_PCPOWER "Compiling in PC-POWER" OFF)
 option(USE_MN4 "Compiling in MareNostrum" OFF)
 option(USE_MN5 "Compiling in MareNostrum5" OFF)
 option(USE_CRAY "Compiling with CrayMpi" OFF)
@@ -53,6 +52,7 @@ project(sod2d LANGUAGES C CXX Fortran)
 include(mpi)
 
 # Configure compiler options
+include(gpu)
 include(compilerOps)
 
 # Configure HDF5 module

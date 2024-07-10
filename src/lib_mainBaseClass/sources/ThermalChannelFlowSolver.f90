@@ -44,18 +44,21 @@ contains
       class(ThermalChannelFlowSolver), intent(inout) :: this
       integer(4) :: iNodeL
 
-      allocate(source_term(numNodesRankPar,ndime))
+      allocate(source_term(numNodesRankPar,ndime+2))
       !$acc enter data create(source_term(:,:))
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
+         source_term(iNodeL,1) = 0.00_rp ! Mass
+         source_term(iNodeL,2) = 0.00_rp ! Energy
+         ! Momentum
 #if AR2
-        source_term(iNodeL,1) = 1.637569999999e+03
+        source_term(iNodeL,3) = 1.637569999999e+03
 #else
-        source_term(iNodeL,1) = 4.839800000060e+03
+        source_term(iNodeL,3) = 4.839800000060e+03
 #endif
-         source_term(iNodeL,2) = 0.00_rp
-         source_term(iNodeL,3) = 0.00_rp
+         source_term(iNodeL,4) = 0.00_rp
+         source_term(iNodeL,5) = 0.00_rp
       end do
       !$acc end parallel loop
    end subroutine ThermalChannelFlowSolver_initializeSourceTerms

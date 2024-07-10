@@ -11,6 +11,7 @@ program main
    use TGVSolverIncomp_mod
    use ChannelFlowSolver_mod
    use ChannelFlowSolverIncomp_mod
+   use ThermalBubbleSolver_mod
    use BluffBodySolver_mod
    use BluffBodySolverIncomp_mod
    use BluffBody3DSolver_mod
@@ -19,6 +20,7 @@ program main
    use ABlFlowSolverIncomp_mod
    use MappedInletIncomp_mod
    use WindFarmSolverIncomp_mod
+   use SupersonicForwardStep_mod
    implicit none
 
    logical :: found
@@ -62,6 +64,8 @@ program main
       allocate(ChannelFlowSolver::solver) 
    else if(value .eq. "ChannelFlowSolverIncomp") then
       allocate(ChannelFlowSolverIncomp::solver) 
+   else if(value .eq. "ThermalBubbleSolver") then
+      allocate(ThermalBubbleSolver::solver) 
    else if(value .eq. "BluffBodySolver") then
       allocate(BluffBodySolver::solver) 
    else if(value .eq. "BluffBodySolverIncomp") then
@@ -78,6 +82,8 @@ program main
       allocate(MappedInletIncomp::solver) 
    else if(value .eq. "WindFarmSolverIncomp") then
       allocate(WindFarmSolverIncomp::solver) 
+   else if(value .eq. "SupersonicForwardStep") then
+      allocate(SupersonicForwardStep::solver)       
    else
       write(*,*) " Solver not implemented in SOD2D : ",value
       stop 1

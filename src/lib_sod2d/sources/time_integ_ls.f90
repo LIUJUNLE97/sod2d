@@ -176,7 +176,7 @@ module time_integ_ls
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
-            real(rp), optional, intent(in)      :: source_term(npoin,ndime)
+            real(rp), optional, intent(in)      :: source_term(npoin,ndime+2)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: pos
@@ -275,7 +275,14 @@ module time_integ_ls
                   call nvtxEndRange
                end if
 
-
+               if(flag_force_2D) then
+                  !$acc parallel loop
+                  do ipoin = 1,npoin
+                     q(ipoin,3,2) =  0.0_rp
+                  end do
+                  !$acc end parallel loop
+               end if
+               
                !
                ! Update velocity and equations of state
                !
@@ -313,15 +320,27 @@ module time_integ_ls
 
                call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),rho(:,pos),u(:,:,pos),Tem(:,pos),mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener,.true.,-1.0_rp)
                call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),q(:,:,pos),rho(:,pos),pr(:,pos),aux_h,Rmass,Rmom,Rener,.false.,-1.0_rp)               
-               
+               !call full_convec_ijk_H(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),q(:,:,pos),rho(:,pos),pr(:,pos),E(:,pos),Rmass(:),Rmom(:,:),Rener(:),.false.,-1.0_rp)
+
                call nvtxEndRange
                !
                ! Call source term if applicable
                !
-               if(present(source_term)) then
-                  call nvtxStartRange("SOURCE TERM")
-                  call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term,Rmom,-1.0_rp)
-                  call nvtxEndRange
+               !if(present(source_term)) then
+               !   call nvtxStartRange("SOURCE TERM")
+               !   call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,:,pos),source_term(:,3:ndime+2),Rmom,-1.0_rp)
+               !   call ener_source_const(nelem,npoin,connec,Ngp,dNgp,He,gpvol,source_term(:,2),Rener,-1.0_rp)
+               !   call nvtxEndRange
+               !end if
+               
+               if(present(source_term) .or.flag_bouyancy_effect) then
+                  if(flag_bouyancy_effect) then
+                     call mom_source_bouyancy_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,pos),Rmom,-1.0_rp)
+                     call ener_source_bouyancy(nelem,npoin,connec,Ngp,dNgp,He,gpvol,q(:,:,pos),Rener,-1.0_rp)
+                  else if(present(source_term)) then
+                     call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,pos),source_term(:,3:ndime+2),Rmom,-1.0_rp)
+                     call ener_source_const(nelem,npoin,connec,Ngp,dNgp,He,gpvol,source_term(:,2),Rener,-1.0_rp)
+                  end if
                end if
 
                !TESTING NEW LOCATION FOR MPICOMMS
@@ -378,6 +397,14 @@ module time_integ_ls
                call nvtxEndRange
             end if
 
+            if(flag_force_2D) then
+               !$acc parallel loop
+               do ipoin = 1,npoin
+                  q(ipoin,3,2) =  0.0_rp
+               end do
+               !$acc end parallel loop
+            end if
+
             !
             ! Update velocity and equations of state
             !
@@ -404,14 +431,14 @@ module time_integ_ls
                   log(pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)**gamma_gas))
                !$acc loop seq
                do idime = 1,ndime
-                  f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,2)*eta(lpoin_w(ipoin),2)
+                  f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
                end do
             end do
             !$acc end parallel loop
             call nvtxEndRange
 
             call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,2),u(:,:,2),Reta(:,2))
+               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:,2))
 
             if(mpi_size.ge.2) then
                call mpi_halo_atomic_update_real(Reta(:,2))
@@ -422,8 +449,8 @@ module time_integ_ls
             call nvtxStartRange("Entropy residual")
             !$acc parallel loop
             do ipoin = 1,npoin_w
-               auxReta(lpoin_w(ipoin)) = (1.5_rp*Reta(lpoin_w(ipoin),2)-0.5_rp*Reta(lpoin_w(ipoin),1)) !+ &
-                                              !(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+               auxReta(lpoin_w(ipoin)) = (1.5_rp*Reta(lpoin_w(ipoin),2)-0.5_rp*Reta(lpoin_w(ipoin),1)) + &
+                                          factor_comp*(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
                Reta(lpoin_w(ipoin),1) = Reta(lpoin_w(ipoin),2)            
             end do
             !$acc end parallel loop
@@ -465,38 +492,6 @@ module time_integ_ls
                call nvtxEndRange
             end if
 
-         end subroutine rk_4_ls_main
-
-         subroutine limit_rho(nelem,npoin,connec,rho,eps)  
-
-            implicit none
-
-            integer(4),           intent(in)    :: nelem,npoin,connec(nelem,nnode)
-            real(rp),             intent(in)    :: eps
-            real(rp),             intent(inout) :: rho(npoin)
-            real(rp)                            :: rho_min, rho_avg, fact
-            integer(4)                          :: ielem, inode, ipoin
-
-            !$acc parallel loop gang 
-            do ielem = 1,nelem
-                rho_min = real(1e6, rp)
-                rho_avg = 0.0_rp
-                !$acc loop seq
-                do inode = 1,nnode
-                        ipoin = connec(ielem,inode)
-                        rho_min = min(rho_min, rho(ipoin))
-                        rho_avg = rho_avg + rho(ipoin)
-                end do
-                rho_avg = rho_avg/real(nnode,rp)
-                fact = min(1.0_rp,(rho_avg-eps)/(rho_avg-rho_min))
-                !$acc loop vector
-                do inode = 1,nnode
-                        ipoin = connec(ielem,inode)
-                        rho(ipoin) = rho_avg + fact*(rho(ipoin)-rho_avg)
-                end do
-             end do
-            !$acc end parallel loop
-
-            end subroutine limit_rho
+         end subroutine rk_4_ls_main        
 
       end module time_integ_ls
