@@ -117,6 +117,8 @@ contains
          call json%get("continue_witness",this%continue_witness, found,.false.); call this%checkFound(found,found_aux)
       end if  
 
+      flag_high_mach = .true.
+
       ! fixed by the type of base class parameters
       this%Rgas = this%V0*this%V0/(this%gamma_gas*this%T0*this%Ma*this%Ma)
       this%Cp = this%gamma_gas*this%Rgas/(this%gamma_gas-1.0_rp)

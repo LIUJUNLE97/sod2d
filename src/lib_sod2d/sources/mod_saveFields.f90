@@ -7,8 +7,8 @@ module mod_saveFields
 
    !------------------------------------------------------------------------------------------------------------------------
    integer(4), parameter :: indNS_rho = 1, indNS_mu = 2, indNS_pr = 3, indNS_ener = 4, indNS_eta = 5, &
-                            indNS_csound = 6, indNS_machno = 7, indNS_divU = 8, indNS_qcrit = 9
-	integer(4), parameter :: numNodeScalarFields = 9
+                            indNS_csound = 6, indNS_machno = 7, indNS_divU = 8, indNS_qcrit = 9, indNS_temp = 10
+	integer(4), parameter :: numNodeScalarFields = 10
 
    integer(4), parameter :: indES_mut = 1, indES_mue = 2 
    integer(4), parameter :: numElGPScalarFields = 2
@@ -45,10 +45,12 @@ module mod_saveFields
    type(ptr_array2d_rp_save) :: elGPScalarFields2save(numElGPScalarFields),avgElGPScalarFields2save(numAvgELGPScalarFields)
    logical :: save_nodeScalarField_rho,     save_nodeScalarField_muFluid,  save_nodeScalarField_pr,       save_nodeScalarField_energy, &
               save_nodeScalarField_entropy, save_nodeScalarField_csound,   save_nodeScalarField_machno,   save_nodeScalarField_divU,   &
-              save_nodeScalarField_qcrit,   save_elGPScalarField_muSgs,    save_elGPScalarField_muEnvit,  save_nodeVectorField_vel,    &
-              save_nodeVectorField_gradRho, save_nodeVectorField_curlU
-   logical :: save_avgNodeScalarField_rho,  save_avgNodeScalarField_pr,    save_avgNodeScalarField_mueff, save_avgNodeVectorField_vel, &
-              save_avgNodeVectorField_ve2,  save_avgNodeVectorField_vex,   save_avgNodeVectorField_tw
+              save_nodeScalarField_qcrit,   save_nodeScalarField_temp
+   logical :: save_elGPScalarField_muSgs, save_elGPScalarField_muEnvit
+   logical :: save_nodeVectorField_vel, save_nodeVectorField_gradRho, save_nodeVectorField_curlU
+   
+   logical :: save_avgNodeScalarField_rho, save_avgNodeScalarField_pr, save_avgNodeScalarField_mueff
+   logical :: save_avgNodeVectorField_vel, save_avgNodeVectorField_ve2, save_avgNodeVectorField_vex, save_avgNodeVectorField_tw
 
 contains
 
@@ -92,6 +94,7 @@ contains
       save_nodeScalarField_machno   = .false.
       save_nodeScalarField_divU     = .false.
       save_nodeScalarField_qcrit    = .false.
+      save_nodeScalarField_temp     = .false.
       save_elGPScalarField_muSgs    = .false.
       save_elGPScalarField_muEnvit  = .false.
       save_nodeVectorField_vel      = .false.
@@ -122,6 +125,7 @@ contains
       save_nodeScalarField_machno   = .true.
       save_nodeScalarField_divU     = .true.
       save_nodeScalarField_qcrit    = .true.
+      save_nodeScalarField_temp     = .false.
       save_elGPScalarField_muSgs    = .true.
       save_elGPScalarField_muEnvit  = .true.
       save_nodeVectorField_vel      = .true.
@@ -152,6 +156,7 @@ contains
       save_nodeScalarField_machno   = .false.
       save_nodeScalarField_divU     = .false.
       save_nodeScalarField_qcrit    = .true.
+      save_nodeScalarField_temp     = .false.
       save_elGPScalarField_muSgs    = .true.
       save_elGPScalarField_muEnvit  = .true.
       save_nodeVectorField_vel      = .true.
@@ -185,6 +190,7 @@ contains
       nodeScalarNameFields(indNS_machno)  = 'machno'
       nodeScalarNameFields(indNS_divU)    = 'divU'
       nodeScalarNameFields(indNS_qcrit)   = 'qcrit'
+      nodeScalarNameFields(indNS_temp)    = 'temp'
       !----------  vectorScalars   ------------------------------------------
       !----------------------------------------------------------------------
       nodeVectorNameFields(indNV_vel)     = 'u'
@@ -246,6 +252,7 @@ contains
       call json_f%get("save_nodeScalarField_machno", save_nodeScalarField_machno , isFound, save_nodeScalarField_machno)
       call json_f%get("save_nodeScalarField_divU",   save_nodeScalarField_divU   , isFound, save_nodeScalarField_divU)
       call json_f%get("save_nodeScalarField_qcrit",  save_nodeScalarField_qcrit  , isFound, save_nodeScalarField_qcrit)
+      call json_f%get("save_nodeScalarField_temp",   save_nodeScalarField_temp   , isFound, save_nodeScalarField_temp)
       call json_f%get("save_elGPScalarField_muSgs",  save_elGPScalarField_muSgs  , isFound, save_elGPScalarField_muSgs)
       call json_f%get("save_elGPScalarField_muEnvit",save_elGPScalarField_muEnvit, isFound, save_elGPScalarField_muEnvit)
       call json_f%get("save_nodeVectorField_vel",    save_nodeVectorField_vel    , isFound, save_nodeVectorField_vel)
@@ -263,10 +270,10 @@ contains
       call json_f%destroy()
    end subroutine
 
-   subroutine setFields2Save(rho,mu_fluid,pr,E,eta,csound,machno,divU,qcrit,u,gradRho,curlU,mu_sgs,mu_e,&
+   subroutine setFields2Save(rho,mu_fluid,pr,E,eta,csound,machno,divU,qcrit,Tem,u,gradRho,curlU,mu_sgs,mu_e,&
                              avrho,avpre,avmueff,avvel,avve2,avvex,avtw)
       implicit none
-      real(rp),intent(in),dimension(:) :: rho,mu_fluid,pr,E,eta,csound,machno,divU,qcrit
+      real(rp),intent(in),dimension(:) :: rho,mu_fluid,pr,E,eta,csound,machno,divU,qcrit,Tem
       real(rp),intent(in),dimension(:,:) :: u,gradRho,curlU
       real(rp),intent(in),dimension(:,:) :: mu_sgs,mu_e
       real(rp_avg),intent(in),dimension(:) :: avrho,avpre,avmueff
@@ -317,6 +324,10 @@ contains
       !------------------------------------------------------
       if(save_nodeScalarField_qcrit) then 
          call add_nodeScalarField2save(nodeScalarNameFields(indNS_qcrit),qcrit(:))
+      end if
+      !------------------------------------------------------
+      if(save_nodeScalarField_temp) then
+         call add_nodeScalarField2save(nodeScalarNameFields(indNS_ener),Tem(:))
       end if
 
       !---------------  vectorScalars   -------------------------------------

@@ -1,4 +1,4 @@
-module BluffBodySolver_mod
+module SupersonicForwardStep_mod
    use mod_arrays
    use mod_nvtx
 #ifndef NOACC
@@ -27,33 +27,33 @@ module BluffBodySolver_mod
    implicit none
    private
 
-   type, public, extends(CFDSolverPeriodicWithBoundaries) :: BluffBodySolver
+   type, public, extends(CFDSolverPeriodicWithBoundaries) :: SupersonicForwardStep
 
-      real(rp) , public  :: vo, M, delta, rho0, Re, to, po, aoa
+      real(rp) , public  :: rho0,to, po
 
    contains
-      procedure, public :: fillBCTypes           =>BluffBodySolver_fill_BC_Types
-      procedure, public :: initializeParameters  => BluffBodySolver_initializeParameters
-      procedure, public :: evalInitialConditions => BluffBodySolver_evalInitialConditions
-      procedure, public :: initialBuffer => BluffBodySolver_initialBuffer
-   end type BluffBodySolver
+      procedure, public :: fillBCTypes           =>SupersonicForwardStep_fill_BC_Types
+      procedure, public :: initializeParameters  => SupersonicForwardStep_initializeParameters
+      procedure, public :: evalInitialConditions => SupersonicForwardStep_evalInitialConditions
+      procedure, public :: initialBuffer => SupersonicForwardStep_initialBuffer
+   end type SupersonicForwardStep
 contains
 
-   subroutine BluffBodySolver_fill_BC_Types(this)
-      class(BluffBodySolver), intent(inout) :: this
+   subroutine SupersonicForwardStep_fill_BC_Types(this)
+      class(SupersonicForwardStep), intent(inout) :: this
 
       call this%readJSONBCTypes()
 
-   end subroutine BluffBodySolver_fill_BC_Types
+   end subroutine SupersonicForwardStep_fill_BC_Types
 
-   subroutine BluffBodySolver_initializeParameters(this)
+   subroutine SupersonicForwardStep_initializeParameters(this)
       use json_module
       implicit none
-      class(BluffBodySolver), intent(inout) :: this
-      real(rp) :: mul, mur
+      class(SupersonicForwardStep), intent(inout) :: this
       logical :: found, found_aux = .false.
       type(json_file) :: json
       character(len=:) , allocatable :: value
+      real(rp) :: mul, mur
 
       call json%initialize()
       call json%load_file(json_filename)
@@ -94,78 +94,73 @@ contains
       call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
 
       ! numerical params
-      call json%get("flag_les",flag_les, found,1); call this%checkFound(found,found_aux)
       call json%get("flag_implicit",flag_implicit, found,1); call this%checkFound(found,found_aux)
       call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
-      call json%get("flag_high_mach",flag_high_mach, found,.false.); call this%checkFound(found,found_aux)
-
 
       call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
       call json%get("cfl_diff",this%cfl_diff, found,0.95_rp); call this%checkFound(found,found_aux)
 
-      call json%get("Cp",this%Cp, found,1004.0_rp); call this%checkFound(found,found_aux)
-      call json%get("Prt",this%Prt, found,0.71_rp); call this%checkFound(found,found_aux)
-      call json%get("v0",this%vo, found,1.0_rp); call this%checkFound(found,found_aux)
-      call json%get("M",this%M, found,1.0_rp); call this%checkFound(found,found_aux)
-      call json%get("delta",this%delta, found,1.0_rp); call this%checkFound(found,found_aux)
-      call json%get("rho0",this%rho0, found,1.0_rp); call this%checkFound(found,found_aux)
-      call json%get("Re",this%Re, found,10000.0_rp); call this%checkFound(found,found_aux)
-      call json%get("gamma_gas",this%gamma_gas, found,1.4_rp); call this%checkFound(found,found_aux)
-      call json%get("aoa",this%aoa, found,0.0_rp); call this%checkFound(found,found_aux)
-
-      call json%get("flag_rk_ls",flag_rk_ls, found,.false.); 
+      call json%get("flag_rk_ls",flag_rk_ls, found,.true.); 
       call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
-      call json%get("c_sgs",c_sgs, found,0.025_rp); 
+      call json%get("flag_high_mach",flag_high_mach, found,.true.); call this%checkFound(found,found_aux)
+
+      this%saveInitialField = .false.
+
+      !ce = 100.0_rp
+      this%maxPhysTime = 5
+      flag_real_diff = 0
+      flag_force_2D = .true.
+      flag_normalise_entropy = 1
+      !flag_use_constant_dt = 1
+      !this%dt = 0.0001_rp
+      !flag_rk_ls = .false.
 
       ! fixed by the type of base class parameters
-      mul    = (this%rho0*this%delta*this%vo)/this%Re
-      this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
-      this%to = this%vo*this%vo/(this%gamma_gas*this%Rgas*this%M*this%M)
-      this%po = this%rho0*this%Rgas*this%to
+      !this%Rgas = 0.714285_rp
+      !this%gamma_gas = this%Rgas/1.78571_rp + 1.0_rp
+      !this%Cp = this%Rgas + 1.78571_rp 
+      !this%to = 1.0_rp
+      !this%po = 1.0_rp
+      
+      this%to = 1.0_rp
+      this%po = 1.0_rp
+      this%rho0 = 1.4_rp
+      this%Rgas = this%po/(this%rho0*this%to)
+      this%gamma_gas = 1.40_rp
+      this%Cp = this%Rgas*this%gamma_gas/(this%gamma_gas-1.0_rp)
+      this%rho0 = this%po/this%Rgas/this%to
+
+      mul    = real(18.0e-6,rp)
       mur = 0.000001458_rp*(this%to**1.50_rp)/(this%to+110.40_rp)
-      flag_mu_factor = mul/mur
+      flag_mu_factor = 0.0_rp*mul/mur
+      !this%Prt = this%Cp*real(18.0e-6,rp)/real(32.3e-6,rp)
+      this%Prt = 0.71_rp
 
-      nscbc_u_inf = this%vo
+      nscbc_c_inf = sqrt(this%gamma_gas*this%Rgas*this%to)
+      nscbc_u_inf = 3.0_rp*nscbc_c_inf
       nscbc_p_inf = this%po
-      nscbc_rho_inf = this%rho0
+      nscbc_rho_inf = this%po/this%Rgas/this%to
       nscbc_gamma_inf = this%gamma_gas
-      nscbc_c_inf = sqrt(this%gamma_gas*this%po/this%rho0)
       nscbc_Rgas_inf = this%Rgas
-
-      !Witness points parameters
-      call json%get("have_witness",this%have_witness, found,.false.)
-      if(this%have_witness .eqv. .true.) then
-         call json%get("witness_inp_file_name",value, found,"witness.txt"); call this%checkFound(found,found_aux)
-         write(this%witness_inp_file_name,*) value
-         call json%get("witness_h5_file_name",value, found,"resultwit.h5"); call this%checkFound(found,found_aux)
-         write(this%witness_h5_file_name,*) value
-
-         call json%get("leapwit",this%leapwit, found,1); call this%checkFound(found,found_aux)
-         call json%get("nwit",this%nwit, found,17986); call this%checkFound(found,found_aux)
-         call json%get("wit_save_u_i",this%wit_save_u_i, found,.true.); call this%checkFound(found,found_aux)
-         call json%get("wit_save_pr",this%wit_save_pr, found,.true.); call this%checkFound(found,found_aux)
-         call json%get("wit_save_rho",this%wit_save_rho, found,.true.); call this%checkFound(found,found_aux)
-         call json%get("continue_witness",this%continue_witness, found,.false.); call this%checkFound(found,found_aux)
-      end if  
 
       call this%readJSONBuffer()
 
       call json%destroy()
 
       if(found_aux .and.mpi_rank .eq. 0) write(111,*) 'WARNING! JSON file missing a parameter, overwrtting with the default value'
-   end subroutine BluffBodySolver_initializeParameters
+   end subroutine SupersonicForwardStep_initializeParameters
 
-   subroutine BluffBodySolver_evalInitialConditions(this)
-      class(BluffBodySolver), intent(inout) :: this
+   subroutine SupersonicForwardStep_evalInitialConditions(this)
+      class(SupersonicForwardStep), intent(inout) :: this
       integer(rp) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL
       logical :: readFiles
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-         u(iNodeL,1,2) = this%vo*cos(this%aoa*v_pi/180.0_rp)
-         u(iNodeL,2,2) = this%vo*sin(this%aoa*v_pi/180.0_rp)
+         u(iNodeL,1,2) = 3.0_rp*nscbc_c_inf
+         u(iNodeL,2,2) = 0.0_rp
          u(iNodeL,3,2) = 0.0_rp
       end do
       !$acc end parallel loop
@@ -173,14 +168,15 @@ contains
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          pr(iNodeL,2) = this%po
-         rho(iNodeL,2) = this%po/this%Rgas/this%to
+         rho(iNodeL,2) = this%rho0
          e_int(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp))
-         Tem(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*this%Rgas)
+         Tem(iNodeL,2) = this%to
          E(iNodeL,2) = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))+e_int(iNodeL,2))
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
          eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
-         machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
+         !eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(rho(iNodeL,2)*e_int(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
+         machno(iNodeL) = sqrt(dot_product(u(iNodeL,:,2),u(iNodeL,:,2)))/csound(iNodeL)
 
          q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
          rho(iNodeL,3) = rho(iNodeL,2)
@@ -201,21 +197,21 @@ contains
       !$acc end kernels
       call nvtxEndRange
 
-   end subroutine BluffBodySolver_evalInitialConditions
+   end subroutine SupersonicForwardStep_evalInitialConditions
 
 
-   subroutine BluffBodySolver_initialBuffer(this)
-      class(BluffBodySolver), intent(inout) :: this
+   subroutine SupersonicForwardStep_initialBuffer(this)
+      class(SupersonicForwardStep), intent(inout) :: this
       integer(4) :: iNodeL
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-            u_buffer(iNodeL,1) = this%vo*cos(this%aoa*v_pi/180.0_rp)
-            u_buffer(iNodeL,2) = this%vo*sin(this%aoa*v_pi/180.0_rp)
+            u_buffer(iNodeL,1) = 3.0_rp*nscbc_c_inf
+            u_buffer(iNodeL,2) = 0.0_rp
             u_buffer(iNodeL,3) = 0.0_rp  
       end do
       !$acc end parallel loop
 
-   end subroutine BluffBodySolver_initialBuffer
+   end subroutine SupersonicForwardStep_initialBuffer
 
-end module BluffBodySolver_mod
+end module SupersonicForwardStep_mod

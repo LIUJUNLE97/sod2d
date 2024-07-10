@@ -51,15 +51,19 @@ contains
       integer(4) :: iNodeL
       real(rp) :: source_x
 
-      allocate(source_term(numNodesRankPar,ndime))
+      allocate(source_term(numNodesRankPar,ndime+2))
       !$acc enter data create(source_term(:,:))
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
          source_x = (this%utau*this%utau*this%rho0/this%delta)
-         source_term(iNodeL,1) = source_x
-         source_term(iNodeL,2) = 0.0_rp
-         source_term(iNodeL,3) = 0.0_rp
+         
+         source_term(iNodeL,1) = 0.0_rp ! Mass
+         source_term(iNodeL,2) = 0.0_rp ! Energy
+         ! Momentum
+         source_term(iNodeL,3) = source_x
+         source_term(iNodeL,4) = 0.0_rp
+         source_term(iNodeL,5) = 0.0_rp
       end do
       !$acc end parallel loop
 
@@ -119,6 +123,7 @@ contains
       call json%get("flag_implicit",flag_implicit, found,1); call this%checkFound(found,found_aux)
       call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
+      call json%get("flag_high_mach",flag_high_mach, found,.false.); call this%checkFound(found,found_aux)
        
       call json%get("flag_walave",flag_walave, found,.false.); call this%checkFound(found,found_aux)
       call json%get("period_walave",period_walave, found,200.0_rp); call this%checkFound(found,found_aux)

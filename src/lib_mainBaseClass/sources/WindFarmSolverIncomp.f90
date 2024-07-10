@@ -315,6 +315,7 @@ end subroutine WindFarmSolverIncomp_readJSONAD
             source_term(iNodeL,1) = (this%rho0*this%ustar**2/this%Lz)*cos(this%wind_alpha*v_pi/180.0_rp)
             source_term(iNodeL,2) = (this%rho0*this%ustar**2/this%Lz)*sin(this%wind_alpha*v_pi/180.0_rp)
             source_term(iNodeL,3) = 0.00_rp
+            source_term(iNodeL,4) = 0.00_rp
          end if
       end do
       !$acc end parallel loop

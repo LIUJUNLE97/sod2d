@@ -66,6 +66,7 @@ contains
          source_term(iNodeL,1) = source_x 
          source_term(iNodeL,2) = 0.00_rp
          source_term(iNodeL,3) = 0.00_rp
+         source_term(iNodeL,4) = 0.00_rp
 
          !just a momentary trick
          pr(iNodeL,2) = 0.0_rp 

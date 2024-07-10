@@ -126,6 +126,7 @@ module CFDSolverBase_mod
       procedure, public :: initializeDefaultParameters => CFDSolverBase_initializeDefaultParameters
       procedure, public :: initializeParameters => CFDSolverBase_initializeParameters
       !-------------------------------------------------------------------------------------------------------
+      procedure, public :: optimizeParameters => CFDSolverBase_optimizeParameters
       procedure, public :: initializeSourceTerms => CFDSolverBase_initializeSourceTerms
       procedure, public :: openMesh => CFDSolverBase_openMesh
       procedure, public :: evalCharLength => CFDSolverBase_evalCharLength
@@ -414,6 +415,16 @@ contains
                   bouCodes2BCType(id) = bc_type_slip_adiabatic
                else if(value .eq. "bc_type_slip_wall_model") then
                   bouCodes2BCType(id) = bc_type_slip_wall_model
+               else if(value .eq. "bc_type_slip_atmosphere") then
+                  bouCodes2BCType(id) = bc_type_slip_atmosphere
+               else if(value .eq. "bc_type_symmetry") then
+                  bouCodes2BCType(id) = bc_type_symmetry
+               else if(value .eq. "bc_type_slip_isothermal") then
+                  bouCodes2BCType(id) = bc_type_slip_isothermal
+               else if(value .eq. "bc_type_far_field_supersonic") then
+                  bouCodes2BCType(id) = bc_type_far_field_supersonic
+               else if(value .eq. "bc_type_outlet_supersonic") then
+                  bouCodes2BCType(id) = bc_type_outlet_supersonic
                end if
             else
                if(mpi_rank .eq. 0) then
@@ -459,7 +470,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4) :: iNodeL
 
-      allocate(source_term(numNodesRankPar,ndime))
+      allocate(source_term(numNodesRankPar,ndime+2))
       !$acc enter data create(source_term(:,:))
       !$acc kernels
       source_term(:,:) = 0.00_rp
@@ -583,6 +594,7 @@ contains
 
       call this%initializeDefaultCustomSettings()
 
+
    end subroutine CFDSolverBase_initializeDefaultParameters
 
 !--------------------------------------------------------------------------------------------------------------------------
@@ -591,6 +603,16 @@ contains
       class(CFDSolverBase), intent(inout) :: this
 
    end subroutine CFDSolverBase_initializeParameters
+
+   subroutine CFDSolverBase_optimizeParameters(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      if(flag_high_mach) then
+         factor_comp = 1.0_rp
+      end if
+
+   end subroutine CFDSolverBase_optimizeParameters
+
 
    subroutine CFDSolverBase_openMesh(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -2233,6 +2255,8 @@ contains
       call this%initializeDefaultParameters()
       call this%initializeParameters()
 
+      call this%optimizeParameters()
+
       call read_json_saveFields(json_filename)
 
       ! Open log file
@@ -2257,7 +2281,7 @@ contains
       call init_filters()
 
       ! Setting fields to be saved
-      call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,&
+      call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
                           u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
                           avrho,avpre,avmueff,avvel,avve2,avvex,avtw)
 
