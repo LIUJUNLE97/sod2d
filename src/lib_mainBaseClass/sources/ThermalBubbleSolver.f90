@@ -39,14 +39,11 @@ module ThermalBubbleSolver_mod
 
       real(rp) , public  :: Cv, rho0, mu, T0, p0, g0(ndime), Tc, rc, xc, yc, zc
       integer(4), public :: atmos_type, bubble_shape
-      logical, public    :: save_scalarField_Tem
-
 
    contains
       procedure, public :: fillBCTypes           => ThermalBubbleSolver_fill_BC_Types
       procedure, public :: initializeParameters  => ThermalBubbleSolver_initializeParameters
       procedure, public :: evalInitialConditions => ThermalBubbleSolver_evalInitialConditions
-      procedure, public :: setFields2Save        => ThermalBubbleSolver_setFields2Save
    end type ThermalBubbleSolver
 contains
 
@@ -98,22 +95,6 @@ contains
 
       call json%get("IOParameters.save_restartFile_first", this%save_restartFile_first, found, 1);     call this%checkFound(found,found_aux)
       call json%get("IOParameters.save_restartFile_step" , this%save_restartFile_step,  found, 10000); call this%checkFound(found,found_aux)
-
-      call json%get("IOParameters.save_scalarField_rho",      this%save_scalarField_rho,      found, .true.); 
-      call json%get("IOParameters.save_scalarField_Tem",      this%save_scalarField_Tem,      found, .true.); 
-      call json%get("IOParameters.save_scalarField_pressure", this%save_scalarField_pressure, found, .true.); 
-      call json%get("IOParameters.save_scalarField_energy",   this%save_scalarField_energy,   found, .true.); 
-      call json%get("IOParameters.save_scalarField_muFluid",  this%save_scalarField_muFluid,  found, .false.); 
-      call json%get("IOParameters.save_scalarField_entropy",  this%save_scalarField_entropy,  found, .true.); 
-      call json%get("IOParameters.save_scalarField_csound",   this%save_scalarField_csound,   found, .false.); 
-      call json%get("IOParameters.save_scalarField_machno",   this%save_scalarField_machno,   found, .false.); 
-      call json%get("IOParameters.save_scalarField_divU",     this%save_scalarField_divU,     found, .false.); 
-      call json%get("IOParameters.save_scalarField_qcrit",    this%save_scalarField_qcrit,    found, .false.); 
-      call json%get("IOParameters.save_scalarField_muSgs",    this%save_scalarField_muSgs,    found, .false.); 
-      call json%get("IOParameters.save_scalarField_muEnvit",  this%save_scalarField_muEnvit,  found, .true.); 
-      call json%get("IOParameters.save_vectorField_vel",      this%save_vectorField_vel,      found, .true.); 
-      call json%get("IOParameters.save_vectorField_gradRho",  this%save_vectorField_gradRho,  found, .false.); 
-      call json%get("IOParameters.save_vectorField_curlU",    this%save_vectorField_curlU,    found, .false.); 
 
       call json%get("IOParameters.loadRestartFile",     this%loadRestartFile,     found, .true.); call this%checkFound(found,found_aux)
       call json%get("IOParameters.restartFile_to_load", this%restartFile_to_load, found, 1);      call this%checkFound(found,found_aux)
@@ -349,83 +330,5 @@ contains
       !$acc end parallel loop
 
    end subroutine ThermalBubbleSolver_evalInitialConditions
-
-   subroutine ThermalBubbleSolver_setFields2Save(this)
-      implicit none
-      class(ThermalBubbleSolver), intent(inout) :: this
-
-      if(mpi_rank.eq.0) write(*,*) 'Setting fields to be saved'
-      !-----------------------------------------------------------------------
-
-      !---------   nodeScalars  -----------------------------
-      !------------------------------------------------------
-      if(this%save_scalarField_Tem) then !Tem(numNodesRankPar,3)
-         call this%add_nodeScalarField2save('Tem',Tem(:,2))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_rho) then !rho(numNodesRankPar,3)
-         call this%add_nodeScalarField2save('rho',rho(:,2))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_muFluid) then !mu_fluid(numNodesRankPar)
-         call this%add_nodeScalarField2save('mu_fluid',mu_fluid(:))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_pressure) then !pr(numNodesRankPar,2)
-         call this%add_nodeScalarField2save('pr',pr(:,2))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_energy) then !E(numNodesRankPar,3)
-         call this%add_nodeScalarField2save('E',E(:,2))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_entropy) then !eta(numNodesRankPar,3)
-         call this%add_nodeScalarField2save('eta',eta(:,2))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_csound) then !csound(numNodesRankPar)
-         call this%add_nodeScalarField2save('csound',csound(:))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_machno) then !machno(numNodesRankPar)
-         call this%add_nodeScalarField2save('machno',machno(:))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_divU) then !divU(numNodesRankPar)
-         call this%add_nodeScalarField2save('divU',divU(:))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_qcrit) then !qcrit(numNodesRankPar)
-         call this%add_nodeScalarField2save('qcrit',qcrit(:))
-      end if
-
-      !---------------  vectorScalars   -------------------------------------
-      !----------------------------------------------------------------------
-      if(this%save_vectorField_vel) then !u(numNodesRankPar,ndime,2)
-         call this%add_nodeVectorField2save('u',u(:,:,2))
-      end if
-      !----------------------------------------------------------------------
-      if(this%save_vectorField_gradRho) then !gradRho(numNodesRankPar,ndime)
-         call this%add_nodeVectorField2save('gradRho',gradRho(:,:))
-      end if
-      !----------------------------------------------------------------------
-      if(this%save_vectorField_curlU) then !curlU(numNodesRankPar,ndime)
-         call this%add_nodeVectorField2save('curlU',curlU(:,:))
-      end if
-      !----------------------------------------------------------------------
-
-      !-------------    elemGpScalars   -------------------------------------
-      !----------------------------------------------------------------------
-      if(this%save_scalarField_muSgs) then !mu_sgs(numElemsRankPar,ngaus)
-         call this%add_elemGpScalarField2save('mut',mu_sgs(:,:))
-      end if
-      !----------------------------------------------------------------------
-      if(this%save_scalarField_muEnvit) then !mu_e(numElemsRankPar,ngaus)
-         call this%add_elemGpScalarField2save('mue',mu_e(:,:))
-      end if
-      !----------------------------------------------------------------------
-
-   end subroutine ThermalBubbleSolver_setFields2Save
-
 
 end module ThermalBubbleSolver_mod

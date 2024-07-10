@@ -21,6 +21,7 @@ module TGVSolver_mod
    use mod_mpi
    use mod_mpi_mesh
    use mod_hdf5
+   use mod_saveFields
    use CFDSolverPeriodic_mod
    implicit none
    private
@@ -131,7 +132,6 @@ contains
       nscbc_gamma_inf = this%gamma_gas
 
       call json%destroy()
-
 
       if(found_aux .and.mpi_rank .eq. 0) write(111,*) 'WARNING! JSON file missing a parameter, overwrtting with the default value'
    end subroutine TGVSolver_initializeParameters

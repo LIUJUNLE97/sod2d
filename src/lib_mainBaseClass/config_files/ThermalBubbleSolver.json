@@ -21,28 +21,28 @@
 
       "save_restartFile_first"    : 1,
       "save_restartFile_step"     : 5000,
-   
-      "save_scalarField_rho"      : true, 
-      "save_scalarField_Tem"      : true,
-      "save_scalarField_pressure" : true,
-      "save_scalarField_energy"   : true,
-      "save_scalarField_muFluid"  : false,
-      "save_scalarField_entropy"  : true,
-      "save_scalarField_csound"   : false, 
-      "save_scalarField_machno"   : false, 
-      "save_scalarField_divU"     : false, 
-      "save_scalarField_qcrit"    : false, 
-      "save_scalarField_muSgs"    : false, 
-      "save_scalarField_muEnvit"  : true,
-      "save_vectorField_vel"      : true,
-      "save_vectorField_gradRho"  : false,
-      "save_vectorField_curlU"    : false,
 
       "loadRestartFile"           : false,
       "restartFile_to_load"       : 1,
    
       "continue_oldLogs"          : false
    },
+
+   "save_nodeScalarField_rho"     : true, 
+   "save_nodeScalarField_pr"      : true,
+   "save_nodeScalarField_energy"  : true,
+   "save_nodeScalarField_muFluid" : false,
+   "save_nodeScalarField_entropy" : true,
+   "save_nodeScalarField_csound"  : false, 
+   "save_nodeScalarField_machno"  : false, 
+   "save_nodeScalarField_divU"    : false, 
+   "save_nodeScalarField_qcrit"   : false, 
+   "save_nodeScalarField_temp"    : true,
+   "save_elGPScalarField_muSgs"   : false, 
+   "save_elGPScalarField_muEnvit" : true,
+   "save_nodeVectorField_vel"     : true,
+   "save_nodeVectorField_gradRho" : false,
+   "save_nodeVectorField_curlU"   : false,
 
    "NumericalParameters" : {
       "flag_les"          : 0,
