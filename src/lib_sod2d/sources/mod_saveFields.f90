@@ -327,7 +327,7 @@ contains
       end if
       !------------------------------------------------------
       if(save_nodeScalarField_temp) then
-         call add_nodeScalarField2save(nodeScalarNameFields(indNS_ener),Tem(:))
+         call add_nodeScalarField2save(nodeScalarNameFields(indNS_temp),Tem(:))
       end if
 
       !---------------  vectorScalars   -------------------------------------
