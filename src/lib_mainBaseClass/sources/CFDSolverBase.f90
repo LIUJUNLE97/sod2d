@@ -607,9 +607,9 @@ contains
    subroutine CFDSolverBase_optimizeParameters(this)
       class(CFDSolverBase), intent(inout) :: this
 
-      if(flag_high_mach) then
-         factor_comp = 1.0_rp
-      end if
+      !if(flag_high_mach) then !too less disipation in complex scenarious
+      !   factor_comp = 1.0_rp
+      !end if
 
    end subroutine CFDSolverBase_optimizeParameters
 
