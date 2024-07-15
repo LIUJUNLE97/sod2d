@@ -167,7 +167,7 @@ module mod_solver
 
             if (noBoundaries .eqv. .false.) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine_dirichlet_prim_solver(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,r0_vars(:,1),r0_vars(:,3:5),r0_vars(:,2),u_buffer)
+               call bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,r0_vars(:,1),r0_vars(:,3:5),r0_vars(:,2))
                call nvtxEndRange
             end if
             if(flag_force_2D) then
@@ -255,7 +255,7 @@ module mod_solver
 
               if (noBoundaries .eqv. .false.) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
-               call temporary_bc_routine_dirichlet_prim_solver(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,r0_vars(:,1),r0_vars(:,3:5),r0_vars(:,2),u_buffer)
+               call bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,r0_vars(:,1),r0_vars(:,3:5),r0_vars(:,2))
                call nvtxEndRange
               end if            
               
