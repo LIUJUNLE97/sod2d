@@ -182,31 +182,40 @@ module CFDSolverBase_mod
    end type CFDSolverBase
 contains
 
-   subroutine CFDSolverBase_findFixPressure(this)
-      implicit none
-      class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: ielem, iRankl, iNodeL,iRank
+subroutine CFDSolverBase_findFixPressure(this)
+   implicit none
+   class(CFDSolverBase), intent(inout) :: this
+   integer(4) :: ielem, iRankl, iNodeL,iRank
 
-      ielem = numElemsRankPar*0.5
-      iRankl = mpi_size + 1
-      !$acc parallel loop  
-      do iNodeL = 1,numNodesRankPar
-         if(maskMapped(iNodeL) == 0) then
-            iRankl = mpi_rank
-         end if
-      end do
-      !$acc end parallel loop
-      call MPI_Allreduce(iRankl,iRank,1,mpi_datatype_int,MPI_MIN,app_comm,mpi_err)
-
-      if(iRank == (mpi_size+1)) iRank = 0
-      if(mpi_rank.eq.iRank) then
-          inode_fix_press =  connecParWork(ielem,atoIJK(nnode))
-          write(111,*) '--| Node to fix pressure',inode_fix_press, " mpi_rank ",iRank
-      else
-         flag_fs_fix_pressure = .false.
+   ielem = numElemsRankPar*0.5
+   iRankl = mpi_size + 1
+   !$acc parallel loop  
+   do iNodeL = 1,numNodesRankPar
+      if(maskMapped(iNodeL) .eq. 0) then
+         iRankl = mpi_rank
       end if
+   end do
+   !$acc end parallel loop
+   call MPI_Allreduce(iRankl,iRank,1,mpi_datatype_int,MPI_MIN,app_comm,mpi_err)
 
-   end subroutine CFDSolverBase_findFixPressure
+   if(iRank == (mpi_size+1)) iRank = 0
+   if(mpi_rank.eq.iRank) then
+       inode_fix_press =  connecParWork(ielem,atoIJK(nnode))
+       if(maskMapped(inode_fix_press) .eq. 1) then
+               do iNodeL = 1,numNodesRankPar
+                     if(maskMapped(iNodeL) .eq. 0) then
+                       inode_fix_press = iNodeL
+                       exit
+                     end if
+               end do
+       end if
+       !inode_fix_press = 4084081  ! 11500000 mid cedval mesh
+       write(111,*) '--| Node to fix pressure',inode_fix_press, " mpi_rank ",iRank,"  coord ",coordPar(inode_fix_press,1:3)," dir  ", perMapFaceDir
+   else
+      flag_fs_fix_pressure = .false.
+   end if
+
+end subroutine CFDSolverBase_findFixPressure
 
    subroutine CFDSolverBase_readJSONBuffer(this)
       use json_module
@@ -1456,6 +1465,8 @@ contains
          end if
       end do
       !$acc end parallel loop
+
+      !$acc update host(maskMapped(:))
 
    end subroutine CFDSolverBase_set_mappedFaces_linkingNodes
 
