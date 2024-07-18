@@ -13,7 +13,7 @@ module mod_operators
 
       logical :: allocate_memory_mod_oprators = .true.
       !for eval_laplacian_mult
-      real(rp),allocatable :: op_auxP(:),op_auxGradP(:,:)
+      real(rp),allocatable :: op_auxP(:)
 
        contains
 
@@ -43,9 +43,6 @@ module mod_operators
              ResP(:) = 0.0_rp
              op_auxP(:) = p(:)
             !$acc end kernels
-            if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
-               op_auxP(lpoin_w(1)) = 0.0_rp
-            end if
 
             !$acc parallel loop gang  private(ipoin,pl,gradPl)
             do ielem = 1,nelem
@@ -122,49 +119,12 @@ module mod_operators
             end if
             call nvtxEndRange
 
-            if((mpi_rank.eq.0) .and. (flag_fs_fix_pressure .eqv. .true.)) then
-               ResP(lpoin_w(1)) = 0.0_rp
+            if(flag_fs_fix_pressure) then
+               !$acc kernels
+               ResP(inode_fix_press) = 0.0_rp              
+               !$acc end kernels
             end if
         end subroutine eval_laplacian_mult
-
-        subroutine eval_laplacian_mult2(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,p,ResP)
-
-            implicit none
-
-            integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
-            real(rp),   intent(inout)  :: ResP(npoin)
-            real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),p(npoin),Ml(npoin)
-            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-
-            if(allocate_memory_mod_oprators) then
-               allocate_memory_mod_oprators = .false.
-               
-               allocate(op_auxP(npoin))
-               !$acc enter data create(op_auxP(:))
-
-               allocate(op_auxGradP(npoin,ndime))
-               !$acc enter data create(op_auxGradP(:,:))
-
-            end if
-
-            !$acc kernels
-             ResP(:) = 0.0_rp
-             op_auxP(:) = p(:)
-            !$acc end kernels
-            if(mpi_rank.eq.0) then
-               op_auxP(lpoin_w(1)) = nscbc_p_inf
-            end if
-
-            call nvtxStartRange("Eval laplacian mult2")
-            call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,op_auxP,op_auxGradP,.true.)
-            call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,op_auxGradP,ResP)
-            call nvtxEndRange
-
-            if(mpi_rank.eq.0) then
-               ResP(lpoin_w(1)) = 0.0_rp
-            end if
-        end subroutine eval_laplacian_mult2
-
 
         subroutine eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,x,gradX,lump)
 
@@ -459,4 +419,99 @@ module mod_operators
             call nvtxEndRange
 
     end subroutine eval_laplacian_diag
+
+   subroutine compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,curlU,makeConti)
+
+      implicit none
+
+      integer(4), intent(in)  :: nelem, npoin, npoin_w, lpoin_w(npoin), connec(nelem,nnode), lelpn(npoin)
+      real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem), dNgp(ndime,nnode,ngaus)
+      real(rp),   intent(in)  :: u(npoin,ndime)
+      real(rp),   intent(in)  :: leviCivi(ndime,ndime,ndime)
+      real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1)
+      integer(4), intent(in)  :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+      real(rp),   intent(out) :: curlU(npoin,ndime)
+      logical,    intent(in)  :: makeConti
+      integer(4)              :: iNodeL, ielem, idime, inode, igaus, ipoin, jdime,kdime,isoI, isoJ, isoK , ii
+      real(rp)                :: gpcar(ndime,nnode), u_e(nnode,ndime), aux1, aux2
+      real(rp)                :: gradu_e(ndime,ndime)
+      real(rp)                :: gradIsoU(ndime,ndime)
+
+      !$acc kernels
+      curlU(:,:) = 0.0_rp
+      !$acc end kernels
+      !$acc parallel loop gang private(u_e)
+      do ielem = 1,nelem
+         !$acc loop vector
+         do inode = 1,nnode
+            u_e(inode,1) = u(connec(ielem,inode),1)
+            u_e(inode,2) = u(connec(ielem,inode),2)
+            u_e(inode,3) = u(connec(ielem,inode),3)
+         end do
+         !$acc loop vector private(gradu_e,gradIsoU)
+         do igaus = 1,ngaus
+            isoI = gmshAtoI(igaus) 
+            isoJ = gmshAtoJ(igaus) 
+            isoK = gmshAtoK(igaus) 
+
+            gradIsoU(:,:) = 0.0_rp
+            !$acc loop seq
+            do ii=1,porder+1
+               !$acc loop seq
+               do idime=1,ndime
+                  gradIsoU(idime,1) = gradIsoU(idime,1) + dlxigp_ip(igaus,1,ii)*u_e(invAtoIJK(ii,isoJ,isoK),idime)
+                  gradIsoU(idime,2) = gradIsoU(idime,2) + dlxigp_ip(igaus,2,ii)*u_e(invAtoIJK(isoI,ii,isoK),idime)
+                  gradIsoU(idime,3) = gradIsoU(idime,3) + dlxigp_ip(igaus,3,ii)*u_e(invAtoIJK(isoI,isoJ,ii),idime)
+               end do
+            end do
+
+            gradu_e(:,:) = 0.0_rp
+            !$acc loop seq
+            do idime=1, ndime
+               !$acc loop seq
+               do jdime=1, ndime
+                  !$acc loop seq
+                  do kdime=1,ndime
+                     gradu_e(idime,jdime) = gradu_e(idime,jdime) + He(jdime,kdime,igaus,ielem) * gradIsoU(idime,kdime)
+                  end do
+               end do
+            end do
+
+            !$acc loop seq
+            do idime = 1,ndime
+               !$acc loop seq
+               do jdime = 1,ndime
+                  !$acc loop seq
+                  do kdime = 1,ndime
+                     !$acc atomic update
+                     curlU(connec(ielem,igaus),idime) = curlU(connec(ielem,igaus),idime) + leviCivi(idime,jdime,kdime)*gradu_e(jdime,kdime)
+                     !$acc end atomic
+                  end do
+               end do
+            end do
+         end do
+      end do
+      !$acc end parallel loop
+
+      if(mpi_size.ge.2) then
+         call nvtxStartRange("MPI_comms_post")
+         do idime = 1,ndime
+            call mpi_halo_atomic_update_real(curlU(:,idime))
+         end do
+         call nvtxEndRange
+      end if
+
+      if(makeConti .eqv. .true.) then
+         !$acc parallel loop
+         do ipoin = 1,npoin_w
+            iNodeL=lpoin_w(ipoin)
+            !$acc loop seq
+            do idime = 1,ndime
+               curlU(iNodeL,idime) = curlU(iNodeL,idime)/real(lelpn(iNodeL),rp)
+            end do
+         end do
+         !$acc end parallel loop
+      end if
+
+   end subroutine compute_vorticity    
 end module mod_operators

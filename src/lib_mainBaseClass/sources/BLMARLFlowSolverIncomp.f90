@@ -45,7 +45,7 @@ module BLMARLFlowSolverIncomp_mod
       real(rp), public :: amplitudeActuation, periodEpisode, previousActuationTime, periodActuation, frequencyActuation, timeBeginActuation ! parameters of the actuation
       integer(4), public :: tw_write_interval, n_pseudo_envs
       real(rp), public :: time_tw
-      real(8), allocatable, public :: lx_recirculation_avg(:)
+      real(rp), allocatable, public :: lx_recirculation_avg(:)
 
    contains
       procedure, public :: fillBCTypes           => BLMARLFlowSolverIncomp_fill_BC_Types
@@ -200,7 +200,7 @@ contains
       real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
       real(rp) :: yp,eta_y,f_y,f_prim_y
       real(rp) :: eliti, ave
-      real(8) :: lx_recirculation(this%n_pseudo_envs)
+      real(rp) :: lx_recirculation(this%n_pseudo_envs)
 #if ACTUATION
 #ifdef SMARTREDIS
       real(rp) :: action_global_instant(action_global_size)
@@ -406,8 +406,8 @@ contains
 
    subroutine BLMARLFlowSolverIncomp_computeTauW(this, lx_recirculation)
       class(BLMARLFlowSolverIncomp), intent(inout) :: this
-      real(8), intent(out) :: lx_recirculation(this%n_pseudo_envs)
-      real(8) :: lx_r
+      real(rp), intent(out) :: lx_recirculation(this%n_pseudo_envs)
+      real(rp) :: lx_r
       integer(4) :: surfCode
 
       !$acc loop seq
@@ -415,7 +415,7 @@ contains
          call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, surfCode, 1, connecParWork, boundPar, &
             point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
             mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), lx_r)
-         lx_recirculation(surfCode) = lx_r / real(this%Lz, 8)
+         lx_recirculation(surfCode) = lx_r / this%Lz
       end do
    end subroutine BLMARLFlowSolverIncomp_computeTauW
 

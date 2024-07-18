@@ -5,8 +5,10 @@ module mod_numerical_params
     implicit none
 
         ! Time integration algorithm
-        integer(4) :: flag_rk_order=4
-        integer(4) :: flag_implicit=0 !Explicit: RK, Implicit: BDF2
+        integer(4) :: flag_rk_order=4 
+        integer(4) :: flag_implicit=0
+        integer(4) :: flag_rk_ls_stages=5  
+        logical :: flag_rk_ls = .true.
 
 
         ! LES
@@ -38,13 +40,14 @@ module mod_numerical_params
         ! Reference conditions
         !
         real(rp) :: nscbc_u_inf   = 1.0_rp
-        real(rp) :: nscbc_p_inf = 1.0_rp
+        real(rp) :: nscbc_p_inf = 0.0_rp
         real(rp) :: nscbc_gamma_inf = 1.0_rp
         real(rp) :: nscbc_c_inf = 1.0_rp
         real(rp) :: nscbc_rho_inf   = 1.0_rp
         real(rp) :: nscbc_Rgas_inf   = 1.0_rp
         real(rp) :: nscbc_T_H   = 293.0_rp
         real(rp) :: nscbc_T_C   = 293.0_rp
+        real(rp) :: nscbc_delta   = 0.01_rp
 
         !
         ! Penalisation buffer zone
@@ -57,20 +60,20 @@ module mod_numerical_params
         logical :: flag_buffer_on_top = .false.
         logical :: flag_buffer_on_bottom = .false.
 
-        real(4) :: flag_buffer_e_min = 0.0_rp
-        real(4) :: flag_buffer_e_size= 0.0_rp
-        real(4) :: flag_buffer_w_min = 0.0_rp
-        real(4) :: flag_buffer_w_size = 0.0_rp
+        real(rp) :: flag_buffer_e_min = 0.0_rp
+        real(rp) :: flag_buffer_e_size= 0.0_rp
+        real(rp) :: flag_buffer_w_min = 0.0_rp
+        real(rp) :: flag_buffer_w_size = 0.0_rp
 
-        real(4) :: flag_buffer_n_min = 0.0_rp
-        real(4) :: flag_buffer_n_size = 0.0_rp
-        real(4) :: flag_buffer_s_min = 0.0_rp
-        real(4) :: flag_buffer_s_size = 0.0_rp
+        real(rp) :: flag_buffer_n_min = 0.0_rp
+        real(rp) :: flag_buffer_n_size = 0.0_rp
+        real(rp) :: flag_buffer_s_min = 0.0_rp
+        real(rp) :: flag_buffer_s_size = 0.0_rp
 
-        real(4) :: flag_buffer_t_min = 0.0_rp
-        real(4) :: flag_buffer_t_size = 0.0_rp
-        real(4) :: flag_buffer_b_min = 0.0_rp
-        real(4) :: flag_buffer_b_size = 0.0_rp
+        real(rp) :: flag_buffer_t_min = 0.0_rp
+        real(rp) :: flag_buffer_t_size = 0.0_rp
+        real(rp) :: flag_buffer_b_min = 0.0_rp
+        real(rp) :: flag_buffer_b_size = 0.0_rp
 
         !
         ! Wall model averaging
@@ -89,11 +92,14 @@ module mod_numerical_params
         !
         ! FS
         !
-        logical :: flag_fs_fix_pressure = .true.
+        logical :: flag_fs_fix_pressure = .false.
+        integer(4)  :: inode_fix_press = 1
 
         !
         ! CG
         !
 
         logical :: flag_cg_prec_bdc = .false. !Block Diagonal Cholesky
+       
+        character(len=100) :: json_filename
 end module mod_numerical_params

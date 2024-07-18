@@ -25,6 +25,7 @@ module time_integ
 
    real(rp), allocatable, dimension(:)   :: a_i, b_i, c_i,b_i2
    real(rp), allocatable, dimension(:,:) :: a_ij
+   logical :: firstTimeStep = .true.
 
    contains
 
@@ -134,7 +135,7 @@ module time_integ
 
    end subroutine end_rk4_solver
 
-         subroutine rk_4_main(noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+         subroutine rk_4_main(noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
@@ -146,7 +147,7 @@ module time_integ
             integer(4),           intent(in)    :: nelem, nboun, npoin
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn_nodes(npoin)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode),gmshAtoJ(nnode),gmshAtoK(nnode)
-            integer(4),           intent(in)    :: ppow
+            integer(4),           intent(in)    :: ppow,maskMapped(npoin)
             real(rp),             intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
             real(rp),             intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
@@ -155,14 +156,14 @@ module time_integ
             real(rp),             intent(in)    :: Ml(npoin)
             real(rp),             intent(in)    :: mu_factor(npoin)
             real(rp),             intent(in)    :: Rgas, gamma_gas, Cp, Prt
-            real(rp),             intent(inout) :: rho(npoin,3)
-            real(rp),             intent(inout) :: u(npoin,ndime,3)
-            real(rp),             intent(inout) :: q(npoin,ndime,3)
-            real(rp),             intent(inout) :: pr(npoin,3)
-            real(rp),             intent(inout) :: E(npoin,3)
+            real(rp),             intent(inout) :: rho(npoin,4)
+            real(rp),             intent(inout) :: u(npoin,ndime,4)
+            real(rp),             intent(inout) :: q(npoin,ndime,4)
+            real(rp),             intent(inout) :: pr(npoin,4)
+            real(rp),             intent(inout) :: E(npoin,4)
             real(rp),             intent(inout) :: Tem(npoin,2)
             real(rp),             intent(inout) :: e_int(npoin,2)
-            real(rp),             intent(inout) :: eta(npoin,3)
+            real(rp),             intent(inout) :: eta(npoin,4)
             real(rp),             intent(inout) :: mu_fluid(npoin)
             real(rp),             intent(inout) :: csound(npoin)
             real(rp),             intent(inout) :: machno(npoin)
@@ -198,6 +199,30 @@ module time_integ
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             !
             pos = 2 ! Set correction as default value
+            if(firstTimeStep .eqv. .true.) then
+               firstTimeStep = .false.
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
+                  end do
+               end do
+               !$acc end parallel loop
+               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:))
+
+               if(mpi_size.ge.2) then
+                  call mpi_halo_atomic_update_real(Reta(:))
+               end if
+               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:))   
+
+               call nvtxStartRange("Entropy viscosity evaluation")
+               call smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta(:),Ngp,coord,dNgp,gpvol,wgp, &
+                  gamma_gas,rho(:,1),u(:,:,1),csound,Tem(:,1),eta(:,1),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
+               call nvtxEndRange
+            end if
+
 
             !
             ! Initialize variables to zero
@@ -248,13 +273,14 @@ module time_integ
                !$acc end parallel loop
                call nvtxEndRange
 
-               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,aux_rho,aux_q,u_buffer)
+               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,maskMapped,aux_rho,aux_q,aux_E,u_buffer)
 
                !
                ! Apply bcs after update
                !
                if (noBoundaries .eqv. .false.) then
                   call nvtxStartRange("BCS_AFTER_UPDATE")
+                  if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet(aux_q(:,:),aux_u(:,:),aux_rho(:),aux_E(:),aux_pr(:))
                   call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,aux_rho(:),aux_q(:,:),aux_u(:,:),aux_pr(:),aux_E(:),u_buffer)
                   call nvtxEndRange
                end if
@@ -426,13 +452,14 @@ module time_integ
             !$acc end parallel loop
             call nvtxEndRange
 
-            if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,rho(:,pos),q(:,:,pos),u_buffer)
+            if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,maskMapped,rho(:,pos),q(:,:,pos),E(:,pos),u_buffer)
 
             !
             ! Apply bcs after update
             !
             if (noBoundaries .eqv. .false.) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
+               if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet(q(:,:,pos),u(:,:,pos),rho(:,pos),E(:,pos),pr(:,pos))
                call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,rho(:,pos),q(:,:,pos),u(:,:,pos),pr(:,pos),E(:,pos),u_buffer)
                call nvtxEndRange
             end if
@@ -507,70 +534,75 @@ module time_integ
 
          end subroutine rk_4_main
 
-         subroutine updateBuffer(npoin,npoin_w,coord,lpoin_w,rho,q,u_buffer)
+         subroutine updateBuffer(npoin,npoin_w,coord,lpoin_w,maskMapped,rho,q,E,u_buffer)
             integer(4),           intent(in)    :: npoin
             integer(4),           intent(in)    :: npoin_w
             real(rp),             intent(in)    :: coord(npoin,ndime)
-            integer(4),           intent(in)    :: lpoin_w(npoin_w)
+            integer(4),           intent(in)    :: lpoin_w(npoin_w),maskMapped(npoin)
             real(rp),             intent(inout) :: rho(npoin)
+            real(rp),             intent(inout) :: E(npoin)
             real(rp),             intent(inout) :: q(npoin,ndime)
             real(rp),             intent(in) :: u_buffer(npoin,ndime)
             integer(4) :: ipoin
-            real(rp)   :: xs,xb,xi,c1,c2
+            real(rp)   :: xs,xb,xi,c1,c2, E_inf
 
             c1 = 0.01_rp
             c2 = 10.0_rp
+
+            E_inf = (nscbc_rho_inf*0.5_rp*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0_rp))
 
             call nvtxStartRange("Update buffer")
             !$acc parallel loop
             do ipoin = 1,npoin_w
                xi = 1.0_rp
-               !east
-               if(flag_buffer_on_east .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),1)
-                  if(xs>flag_buffer_e_min) then
-                     xb = (xs-flag_buffer_e_min)/flag_buffer_e_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+               if(maskMapped(lpoin_w(ipoin)) == 1) then
+                  !east
+                  if(flag_buffer_on_east .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),1)
+                     if(xs>flag_buffer_e_min) then
+                        xb = (xs-flag_buffer_e_min)/flag_buffer_e_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
                   end if
-               end if
-               !west
-               if(flag_buffer_on_west .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),1)
-                  if(xs<flag_buffer_w_min) then
-                     xb = (flag_buffer_w_min-xs)/flag_buffer_w_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                  !west
+                  if(flag_buffer_on_west .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),1)
+                     if(xs<flag_buffer_w_min) then
+                        xb = (flag_buffer_w_min-xs)/flag_buffer_w_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
                   end if
-               end if
-               !north
-               if(flag_buffer_on_north .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),2)
-                  if(xs>flag_buffer_n_min) then
-                     xb = (xs-flag_buffer_n_min)/flag_buffer_n_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                  !north
+                  if(flag_buffer_on_north .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),2)
+                     if(xs>flag_buffer_n_min) then
+                        xb = (xs-flag_buffer_n_min)/flag_buffer_n_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
                   end if
-               end if
-               !south
-               if(flag_buffer_on_south .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),2)
-                  if(xs<flag_buffer_s_min) then
-                     xb = (flag_buffer_s_min-xs)/flag_buffer_s_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                  !south
+                  if(flag_buffer_on_south .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),2)
+                     if(xs<flag_buffer_s_min) then
+                        xb = (flag_buffer_s_min-xs)/flag_buffer_s_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
                   end if
-               end if
-               !north
-               if(flag_buffer_on_top .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),3)
-                  if(xs>flag_buffer_t_min) then
-                     xb = (xs-flag_buffer_t_min)/flag_buffer_t_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                  !north
+                  if(flag_buffer_on_top .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),3)
+                     if(xs>flag_buffer_t_min) then
+                        xb = (xs-flag_buffer_t_min)/flag_buffer_t_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
                   end if
-               end if
-               !bottom
-               if(flag_buffer_on_bottom .eqv. .true.) then
-                  xs = coord(lpoin_w(ipoin),3)
-                  if(xs<flag_buffer_b_min) then
-                     xb = (flag_buffer_b_min-xs)/flag_buffer_b_size
-                     xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                  !bottom
+                  if(flag_buffer_on_bottom .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),3)
+                     if(xs<flag_buffer_b_min) then
+                        xb = (flag_buffer_b_min-xs)/flag_buffer_b_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
                   end if
                end if
 
@@ -578,6 +610,8 @@ module time_integ
                q(lpoin_w(ipoin),2) = u_buffer(lpoin_w(ipoin),2)*rho(lpoin_w(ipoin)) + xi*(q(lpoin_w(ipoin),2)-u_buffer(lpoin_w(ipoin),2)*rho(lpoin_w(ipoin)))
                q(lpoin_w(ipoin),3) = u_buffer(lpoin_w(ipoin),3)*rho(lpoin_w(ipoin)) + xi*(q(lpoin_w(ipoin),3)-u_buffer(lpoin_w(ipoin),3)*rho(lpoin_w(ipoin)))
 
+               E(lpoin_w(ipoin)) = E_inf + xi*(E(lpoin_w(ipoin))-E_inf)
+               rho(lpoin_w(ipoin)) = nscbc_rho_inf + xi*(rho(lpoin_w(ipoin))-nscbc_rho_inf)
             end do
             !$acc end parallel loop
             call nvtxEndRange

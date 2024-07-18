@@ -15,6 +15,7 @@ module time_integ_imex
    use mod_operators
    use mod_solver
    use time_integ, only :  updateBuffer
+   use time_integ_ls, only :  limit_rho
 
 
    implicit none
@@ -110,8 +111,6 @@ module time_integ_imex
       Rwmles_imex(1:npoin,1:ndime) = 0.0_rp
       !$acc end kernels
 
-      call nvtxEndRange
-
    end subroutine init_imex_solver
 
    subroutine end_imex_solver()
@@ -134,7 +133,7 @@ module time_integ_imex
       deallocate(Rdiff_mass_imex,Rdiff_ener_imex)
 
    end subroutine end_imex_solver
-        subroutine imex_main(igtime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+        subroutine imex_main(igtime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
@@ -147,7 +146,7 @@ module time_integ_imex
             integer(4),           intent(in)    :: nelem, nboun, npoin
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn_nodes(npoin),lelpn(npoin)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            integer(4),           intent(in)    :: ppow
+            integer(4),           intent(in)    :: ppow,maskMapped(npoin)
             real(rp),             intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
             real(rp),             intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
@@ -157,14 +156,14 @@ module time_integ_imex
             real(rp),             intent(in)    :: mu_factor(npoin)
             real(rp),             intent(in)    :: Rgas, gamma_gas, Cp, Prt
             real(rp),             intent(inout) :: mue_l(nelem,nnode)
-            real(rp),             intent(inout) :: rho(npoin,3)
-            real(rp),             intent(inout) :: u(npoin,ndime,3)
-            real(rp),             intent(inout) :: q(npoin,ndime,3)
-            real(rp),             intent(inout) :: pr(npoin,3)
-            real(rp),             intent(inout) :: E(npoin,3)
+            real(rp),             intent(inout) :: rho(npoin,4)
+            real(rp),             intent(inout) :: u(npoin,ndime,4)
+            real(rp),             intent(inout) :: q(npoin,ndime,4)
+            real(rp),             intent(inout) :: pr(npoin,4)
+            real(rp),             intent(inout) :: E(npoin,4)
             real(rp),             intent(inout) :: Tem(npoin,2)
             real(rp),             intent(inout) :: e_int(npoin,2)
-            real(rp),             intent(inout) :: eta(npoin,3)
+            real(rp),             intent(inout) :: eta(npoin,4)
             real(rp),             intent(inout) :: mu_fluid(npoin)
             real(rp),             intent(inout) :: csound(npoin)
             real(rp),             intent(inout) :: machno(npoin)
@@ -215,6 +214,9 @@ module time_integ_imex
                call full_convec_ijk_H(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),q(:,:,1),rho(:,1),pr(:,1),E(:,1),Rmass_imex(:,1),Rmom_imex(:,:,1),Rener_imex(:,1))     
                call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),rho(:,1),u(:,:,1),&
                                        Tem(:,1),mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass_imex(:,1),Rdiff_mom_imex(:,:,1),Rdiff_ener_imex(:,1))
+               
+               call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,Reta_imex(:,1),Ngp,coord,dNgp,gpvol,wgp, &
+                  gamma_gas,rho(:,1),u(:,:,1),csound,Tem(:,1),eta(:,1),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
             else 
                !$acc parallel loop
                do ipoin = 1,npoin
@@ -294,15 +296,20 @@ module time_integ_imex
                end do
                !$acc end parallel loop
                !if(mpi_rank.eq.0) write(111,*)   " before cg"
+               call nvtxStartRange("IMEX_CONJ_GRAD")
                call conjGrad_imex(aij_i(istep,istep),igtime,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,numBoundsWM,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                                  dlxigp_ip,He,gpvol,Ngp,Ml,gamma_gas,Rgas,Cp,Prt,mu_fluid,mu_e,mu_sgs,rho(:,1),rho(:,2),E(:,1),E(:,2),q(:,:,1),q(:,:,2), &
-                                 ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer) 
+                                 ndof,nbnodes,ldof,lbnodes,lnbn_nodes,bound,bou_codes,bou_codes_nodes,listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer)
+               call nvtxEndRange
                !if(mpi_rank.eq.0) write(111,*)   " after cg"
+               
+               !call limit_rho(nelem,npoin,connec,rho(:,2),epsilon(umag))
 
-               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,rho(:,2),q(:,:,2),u_buffer)
+               if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,maskMapped,rho(:,2),q(:,:,2),E(:,2),u_buffer)
 
                if (noBoundaries .eqv. .false.) then
                   call nvtxStartRange("BCS_AFTER_UPDATE")
+                  if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet(q(:,:,2),u(:,:,2),rho(:,2),E(:,2),pr(:,2))
                   call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,rho(:,2),q(:,:,2),u(:,:,2),pr(:,2),E(:,2),u_buffer)
                   call nvtxEndRange
                end if
@@ -383,10 +390,10 @@ module time_integ_imex
                call nvtxEndRange
             end if
 
-            call nvtxStartRange("Entropy viscosity evaluation")
             !
             ! Compute entropy viscosity
             !
+            call nvtxStartRange("Entropy viscosity evaluation")
             call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,auxReta_imex,Ngp,coord,dNgp,gpvol,wgp, &
                gamma_gas,rho(:,2),u(:,:,2),csound,Tem(:,2),eta(:,2),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
             call nvtxEndRange

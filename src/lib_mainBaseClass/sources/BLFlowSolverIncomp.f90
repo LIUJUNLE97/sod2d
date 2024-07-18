@@ -154,7 +154,7 @@ contains
       real(rp)  :: gradV(ndime),vl(nnode),fact,targ,gradU(ndime),ul(nnode)
       real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
       real(rp) :: yp,eta_y,f_y,f_prim_y
-      real(8) :: lx_recirculation
+      real(rp) :: lx_recirculation
 
       cd = 1.0_rp
       lx = this%d0*2.5_rp
@@ -281,15 +281,15 @@ contains
 
    subroutine BLFlowSolverIncomp_computeTauW(this, lx_recirculation)
       class(BLFlowSolverIncomp), intent(inout) :: this
-      real(8), intent(out) :: lx_recirculation
-      real(8) :: lx_r
+      real(rp), intent(out) :: lx_recirculation
+      real(rp) :: lx_r
 
       call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, 1, 1, connecParWork, boundPar, &
       point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
       mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), lx_r)
 
       ! compute equivalent recirculation length
-      lx_recirculation = lx_r / real(this%Lz, 8)
+      lx_recirculation = lx_r / this%Lz
    end subroutine BLFlowSolverIncomp_computeTauW
 
    subroutine BLFlowSolverIncomp_fill_BC_Types(this)

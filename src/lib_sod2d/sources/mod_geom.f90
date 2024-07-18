@@ -82,7 +82,9 @@ module mod_geom
 				!$acc loop seq
 				do iNode = 1,mnnode
 					iNodeL = connec(iElem,iNode)
-					point2elem(iNodeL) = iElem
+					!$acc atomic update
+					point2elem(iNodeL) = max(point2elem(iNodeL),iElem)
+					!$acc end atomic
 					!$acc atomic update
 					lelpn(iNodeL) = lelpn(iNodeL)+1
 					!$acc end atomic

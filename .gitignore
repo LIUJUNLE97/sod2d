@@ -13,7 +13,6 @@
 *.h5
 *.log
 *.dat
-*.py
 *.hdf
 *.sh
 *.err
@@ -25,6 +24,3 @@
 .flake8
 .isort.cfg
 .markdownlint.yaml
-
-# Load modules files
-*.mod.sh

@@ -150,7 +150,7 @@ module mod_smartredis
    ! Writes the reward values: wall shear stress integral for both positive and negative values
    subroutine write_reward(client, Ftau_neg, key)
       type(client_type), intent(inout) :: client
-      real(8), intent(in) :: Ftau_neg(n_pseudo_envs)
+      real(rp), intent(in) :: Ftau_neg(n_pseudo_envs)
       character(len=*), intent(in) :: key
 
       integer :: error

@@ -58,7 +58,8 @@ module mod_entropy_viscosity_incomp
 
                  maxEta = maxEta/real(npoin_w_g,rp)
 
-                 norm_r = 0.0_rp
+                 !norm_r = 0.0_rp
+                 norm_r = tiny(norm_r)
                  !$acc parallel loop reduction(max:norm_r)
                  do ipoin = 1,npoin_w
                     norm_r = max(norm_r, abs(eta(lpoin_w(ipoin))-maxEta))
@@ -94,6 +95,7 @@ module mod_entropy_viscosity_incomp
                 end do
                 !$acc loop vector
                 do inode = 1,nnode
+                  !write(*,*) 'inode',inode,'norm',norm
                    R1 = rho(connec(ielem,inode))*abs(Reta(connec(ielem,inode)))/norm
                    Ve = ced*R1*(helem(ielem,inode))**2
                    mue_l(ielem,inode) = cglob*min(Ve,betae)

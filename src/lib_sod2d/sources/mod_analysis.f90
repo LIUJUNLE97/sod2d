@@ -191,10 +191,11 @@ module mod_analysis
 		!> @param[out] surfArea The area of the selected surface
 		subroutine surfInfo(iter,time,nelem,npoin,nbound,surfCode,connec,bound,point2elem,bou_code, &
 					bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coord, &
-					mu_fluid,mu_e,mu_sgs,rho,u,pr,surfArea,Fpr,Ftau)
+					mu_fluid,mu_e,mu_sgs,rho,u,pr,surfArea,Fpr,Ftau,write_surfFile)
 
 			implicit none
 
+			logical, intent(in) :: write_surfFile
 			integer(4), intent(in)  :: iter, npoin, nbound, surfCode, bound(nbound,npbou), bou_code(nbound)
 			integer(4), intent(in)  :: nelem, connec(nelem,nnode), point2elem(npoin)
 			integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
@@ -330,7 +331,7 @@ module mod_analysis
 			call MPI_Allreduce(Fpr_l,Fpr,ndime,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
 			call MPI_Allreduce(Ftau_l,Ftau,ndime,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
 
-			if(mpi_rank.eq.0) then
+			if((mpi_rank.eq.0) .and. (write_surfFile)) then
 				write(888+surfCode,"(I8,1X,A)",ADVANCE="NO") iter, ","
 				write(888+surfCode,50) time, ",", dble(surfArea), ",", dble(Fpr(1)), ",", dble(Fpr(2)), ",", dble(Fpr(3)), ",", dble(Ftau(1)), ",", dble(Ftau(2)), ",", dble(Ftau(3)), ""
 				!50 format(16(1X,E10.4,1X,A))

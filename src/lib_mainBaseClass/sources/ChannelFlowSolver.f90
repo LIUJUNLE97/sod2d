@@ -29,7 +29,7 @@ module ChannelFlowSolver_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: ChannelFlowSolver
 
-      real(rp) , public  :: vo, M, delta, U0, rho0, Retau, Re, utau, to, po, mu
+      real(rp) , public  :: vo, M, delta, rho0, Retau, Re, utau, to, po, mu
 
    contains
       procedure, public :: fillBCTypes           => ChannelFlowSolver_fill_BC_Types
@@ -42,85 +42,119 @@ contains
    subroutine ChannelFlowSolver_fill_BC_Types(this)
       class(ChannelFlowSolver), intent(inout) :: this
 
-      !bouCodes2BCType(1) = bc_type_slip_wall_model
-      bouCodes2BCType(1) = bc_type_non_slip_adiabatic
-      !$acc update device(bouCodes2BCType(:))
+      call this%readJSONBCTypes()
 
    end subroutine ChannelFlowSolver_fill_BC_Types
 
    subroutine ChannelFlowSolver_initializeSourceTerms(this)
       class(ChannelFlowSolver), intent(inout) :: this
       integer(4) :: iNodeL
+      real(rp) :: source_x
 
       allocate(source_term(numNodesRankPar,ndime))
       !$acc enter data create(source_term(:,:))
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
-         source_term(iNodeL,1) = (this%utau*this%utau*this%rho0/this%delta)
-         source_term(iNodeL,2) = 0.00_rp
-         source_term(iNodeL,3) = 0.00_rp
+         source_x = (this%utau*this%utau*this%rho0/this%delta)
+         source_term(iNodeL,1) = source_x
+         source_term(iNodeL,2) = 0.0_rp
+         source_term(iNodeL,3) = 0.0_rp
       end do
       !$acc end parallel loop
 
    end subroutine ChannelFlowSolver_initializeSourceTerms
 
    subroutine ChannelFlowSolver_initializeParameters(this)
+      use json_module
+      implicit none
       class(ChannelFlowSolver), intent(inout) :: this
       real(rp) :: mur
+      logical :: found, found_aux = .false.
+      type(json_file) :: json
+      character(len=:) , allocatable :: value
 
-      write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "channel"
+      call json%initialize()
+      call json%load_file(json_filename)
 
-      write(this%results_h5_file_path,*) ""
-      write(this%results_h5_file_name,*) "results"
+      ! get(label,target,is found?, default value)
 
-      !----------------------------------------------
+      call json%get("mesh_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+      write(this%mesh_h5_file_path,*) value
+      call json%get("mesh_h5_file_name",value, found,"channel"); call this%checkFound(found,found_aux)
+      write(this%mesh_h5_file_name,*) value
+
+      call json%get("results_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+      write(this%results_h5_file_path,*) value
+      call json%get("results_h5_file_name",value, found,"results"); call this%checkFound(found,found_aux)
+      write(this%results_h5_file_name,*) value
+
       !  --------------  I/O params -------------
-      this%final_istep = 10000001
 
-      this%save_logFile_first = 1 
-      this%save_logFile_step  = 10
+      call json%get("final_istep",this%final_istep, found,5000001); call this%checkFound(found,found_aux)
 
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 20000
+      call json%get("save_logFile_first",this%save_logFile_first, found, 1); call this%checkFound(found,found_aux)
+      call json%get("save_logFile_step",this%save_logFile_step, found, 10); call this%checkFound(found,found_aux)
 
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 20000
-      this%loadRestartFile = .true.
-      this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
+      call json%get("save_resultsFile_first",this%save_resultsFile_first, found,1); call this%checkFound(found,found_aux)
+      call json%get("save_resultsFile_step" ,this%save_resultsFile_step, found,10000); call this%checkFound(found,found_aux)
 
-      this%saveAvgFile = .true.
-      this%loadAvgFile = .false.
+      call json%get("save_restartFile_first",this%save_restartFile_first, found,1); call this%checkFound(found,found_aux)
+      call json%get("save_restartFile_step" ,this%save_restartFile_step, found,10000); call this%checkFound(found,found_aux)
 
-      this%saveSurfaceResults = .false.
+
+      call json%get("loadRestartFile" ,this%loadRestartFile, found, .true.); call this%checkFound(found,found_aux)
+      call json%get("restartFile_to_load" ,this%restartFile_to_load, found,1); call this%checkFound(found,found_aux)
+
+      call json%get("continue_oldLogs" ,this%continue_oldLogs, found, .false.); call this%checkFound(found,found_aux)
+
+      call json%get("saveAvgFile" ,this%saveAvgFile, found, .true.); call this%checkFound(found,found_aux)
+      call json%get("loadAvgFile" ,this%loadAvgFile, found, .false.); call this%checkFound(found,found_aux)
+
+      call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
       !----------------------------------------------
 
       ! numerical params
-      flag_les = 1
-      flag_implicit = 0
-      maxIter=20
-      tol = 1e-3
+      call json%get("flag_les",flag_les, found,1); call this%checkFound(found,found_aux)
+      call json%get("flag_implicit",flag_implicit, found,1); call this%checkFound(found,found_aux)
+      call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
+      call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
        
-      period_walave   = 1.0_rp
-      flag_walave     = .true.
+      call json%get("flag_walave",flag_walave, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("period_walave",period_walave, found,200.0_rp); call this%checkFound(found,found_aux)
 
-      this%cfl_conv = 1.9_rp !bdf2
-      this%cfl_diff = 1.9_rp !bdf2
-      !this%cfl_conv = 0.15_rp !exp
-      !this%cfl_diff = 0.15_rp !exp
+      call json%get("cfl_conv",this%cfl_conv, found,1.5_rp); call this%checkFound(found,found_aux)
+      call json%get("cfl_diff",this%cfl_diff, found,1.5_rp); call this%checkFound(found,found_aux)
 
-      this%Cp = 1004.0_rp
-      this%Prt = 0.71_rp
-      this%vo = 1.0_rp
-      this%M  = 0.2_rp
-      this%delta  = 1.0_rp
-      this%U0     = 1.0_rp
-      this%rho0   = 1.0_rp
-      this%Retau  = 950.0_rp
-      this%gamma_gas = 1.40_rp
+      call json%get("Cp",this%Cp, found,1004.0_rp); call this%checkFound(found,found_aux)
+      call json%get("Prt",this%Prt, found,0.71_rp); call this%checkFound(found,found_aux)
+      call json%get("v0",this%vo, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("M",this%M, found,0.2_rp); call this%checkFound(found,found_aux)
+      call json%get("delta",this%delta, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("rho0",this%rho0, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("Retau",this%Retau, found,950.0_rp); call this%checkFound(found,found_aux)
+      call json%get("gamma_gas",this%gamma_gas, found,1.4_rp); call this%checkFound(found,found_aux)
 
+      call json%get("flag_rk_ls",flag_rk_ls, found,.false.); 
+      call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
+      call json%get("c_sgs",c_sgs, found,0.025_rp); 
+      !Witness points parameters
+      call json%get("have_witness",this%have_witness, found,.false.)
+      if(this%have_witness .eqv. .true.) then
+         call json%get("witness_inp_file_name",value, found,"witness.txt"); call this%checkFound(found,found_aux)
+         write(this%witness_inp_file_name,*) value
+         call json%get("witness_h5_file_name",value, found,"resultwit.h5"); call this%checkFound(found,found_aux)
+         write(this%witness_h5_file_name,*) value
+
+         call json%get("leapwit",this%leapwit, found,1); call this%checkFound(found,found_aux)
+         call json%get("nwit",this%nwit, found,17986); call this%checkFound(found,found_aux)
+         call json%get("wit_save_u_i",this%wit_save_u_i, found,.true.); call this%checkFound(found,found_aux)
+         call json%get("wit_save_pr",this%wit_save_pr, found,.true.); call this%checkFound(found,found_aux)
+         call json%get("wit_save_rho",this%wit_save_rho, found,.true.); call this%checkFound(found,found_aux)
+         call json%get("continue_witness",this%continue_witness, found,.false.); call this%checkFound(found,found_aux)
+      end if  
+
+      ! fixed by the type of base class parameters
       this%Re     = exp((1.0_rp/0.88_rp)*log(this%Retau/0.09_rp))
       this%mu    = (this%rho0*2.0_rp*this%delta*this%vo)/this%Re
       this%utau   = (this%Retau*this%mu)/(this%delta*this%rho0)
@@ -134,6 +168,10 @@ contains
       nscbc_Rgas_inf = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
       nscbc_T_C = this%to
+
+      call json%destroy()
+
+      if(found_aux .and.mpi_rank .eq. 0) write(111,*) 'WARNING! JSON file missing a parameter, overwrtting with the default value'
 
    end subroutine ChannelFlowSolver_initializeParameters
 

@@ -1,5 +1,9 @@
 module mod_comms_boundaries
     use mod_mpi_mesh
+#ifdef NCCL_COMMS
+    use cudafor
+    use nccl
+#endif
 
 !-- Select type of communication for mpi_boundary_atomic_updates
 #define _ISENDIRCV_ 1
@@ -16,6 +20,13 @@ module mod_comms_boundaries
     integer :: window_id_bnd_int,window_id_bnd_real
 
     logical :: bnd_isInt,bnd_isReal
+
+#ifdef NCCL_COMMS
+    integer                        :: cuda_bnd_stat
+    type(ncclResult)               :: nccl_bnd_stat
+    type(ncclComm)                 :: nccl_bnd_comm
+    integer(kind=cuda_stream_kind) :: nccl_bnd_stream
+#endif
 
 contains
 
@@ -260,7 +271,7 @@ contains
     !INTEGER ---------------------------------------------------------
     subroutine mpi_halo_boundary_atomic_update_int_iSendiRcv(intField)
         implicit none
-        integer, intent(inout) :: intField(:)
+        integer(4), intent(inout) :: intField(:)
         integer(4) :: i,ireq,ngbRank,tagComm
         integer(4) :: memPos_l,memSize
         integer(4) :: requests(2*bnd_numRanksWithComms)

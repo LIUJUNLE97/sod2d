@@ -36,8 +36,49 @@ module CFDSolverPeriodicIncomp_mod
       procedure, public :: evalDt                           => CFDSolverPeriodicIncomp_evalDt
       procedure, public :: initNSSolver                     => CFDSolverPeriodicIncomp_initNSSolver
       procedure, public :: endNSSolver                      => CFDSolverPeriodicIncomp_endNSSolver
+      procedure, public :: eval_vars_after_load_hdf5_resultsFile => CFDSolverPeriodicIncomp_eval_vars_after_load_hdf5_resultsFile 
    end type CFDSolverPeriodicIncomp
 contains
+   subroutine CFDSolverPeriodicIncomp_eval_vars_after_load_hdf5_resultsFile(this)
+      implicit none
+      class(CFDSolverPeriodicIncomp), intent(inout) :: this
+      integer :: iNodeL,idime
+
+      !values loaded -> rho,u,pr,E,mu_e,mu_sgs
+
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
+         eta(iNodeL,2) =0.5_rp*dot_product(u(iNodeL,1:ndime,2),u(iNodeL,1:ndime,2))
+
+         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
+         u(iNodeL,1:ndime,3) = u(iNodeL,1:ndime,2)
+         rho(iNodeL,3) = rho(iNodeL,2)
+         eta(iNodeL,3) =  eta(iNodeL,2)
+         pr(iNodeL,3) =  pr(iNodeL,2)  
+
+         q(iNodeL,1:ndime,4) = q(iNodeL,1:ndime,2)
+         u(iNodeL,1:ndime,4) = u(iNodeL,1:ndime,2)
+         rho(iNodeL,4) = rho(iNodeL,2)
+         eta(iNodeL,4) =  eta(iNodeL,2)
+         pr(iNodeL,4) =  pr(iNodeL,2)  
+
+         mu_factor(iNodeL) = flag_mu_factor
+      end do
+      !$acc end parallel loop
+
+
+      !$acc kernels
+      kres(:) = 0.0_rp
+      etot(:) = 0.0_rp
+      ax1(:) = 0.0_rp
+      ax2(:) = 0.0_rp
+      ax3(:) = 0.0_rp
+      au(:,:) = 0.0_rp
+      !$acc end kernels
+
+   end subroutine CFDSolverPeriodicIncomp_eval_vars_after_load_hdf5_resultsFile
+
    subroutine CFDSolverPeriodicIncomp_initNSSolver(this)
       class(CFDSolverPeriodicIncomp), intent(inout) :: this
       
@@ -163,7 +204,7 @@ contains
       integer(4)                    , intent(in)    :: istep
 
       this%noBoundaries = .true.
-      call ab_main_incomp(istep,this%save_logFile_next,this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbnNodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+      call ab_main_incomp(istep,this%local_step,this%save_logFile_next,this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbnNodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,this%leviCivi,&
             1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
             rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor,mue_l)
 

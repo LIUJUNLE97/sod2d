@@ -11,22 +11,26 @@ set(TEST_VERSION "${TEST_VERSION_MAJOR}.${TEST_VERSION_MINOR}.${TEST_VERSION_PAT
 option(UNIT_TESTING "Enable unit tests" OFF)
 option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
-option(USE_SMARTREDIS "Compile using SmartRedis" OFF)
+option(USE_SMARTREDIS "Compile using SmartRedis" ON)
 
-option(TOOL_MESHPART "Compiles tool MeshPart" ON)
+option(TOOL_MESHPART "Compiles tool MeshPart" OFF)
+option(TOOL_COPYRES  "Compiles tool CopyResults" OFF)
 option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
 
 option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
 option(USE_PCPOWER "Compiling in PC-POWER" OFF)
 option(USE_ALVIS "Compiling in Alvis" OFF)
 option(USE_BERZELIUS "Compiling in Berzelius" OFF)
-option(USE_MN "Compiling in MareNostrum" OFF)
+option(USE_MN4 "Compiling in MareNostrum" OFF)
+option(USE_MN5 "Compiling in MareNostrum5" OFF)
 option(USE_CRAY "Compiling with CrayMpi" OFF)
 option(SHARED_LIBS "Compile using shared libraries" OFF)
 
-option(USE_GPU "Compile using GPU" OFF)
+option(USE_GPU "Compile using GPU" ON)
 option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
 option(USE_NCCL "Compile using NCCL" OFF)
+
+option(USE_SENSEI "Compile using SENSEI" OFF)
 
 option(DEBUG_MODE "Set debug mode" OFF)
 
@@ -60,8 +64,18 @@ include(hdf5)
 # Include SmartRedis
 include(smartredis)
 
+# Configure GEMPA
+include(gempa)
+
+# Configure JFORTRAN module
+include(json-fortran)
+
+# Configure SENSEI
+include(sensei)
+
 # Include external projects
-include(ExternalProject)
+#include(ExternalProject) (I think this does nothing)
+add_subdirectory(external)
 
 if(DEBUG_MODE)
     set(CMAKE_BUILD_TYPE Debug)
@@ -91,9 +105,13 @@ endif("${isSystemDir}" STREQUAL "-1")
 add_subdirectory(src)
 
 if(TOOL_MESHPART)
-    include(gempa)
-    add_subdirectory(external)
+    #include(gempa)
+    #add_subdirectory(external)
     add_subdirectory(tool_meshConversorPar)
+endif()
+
+if(TOOL_COPYRES)
+    add_subdirectory(tool_copyResults)
 endif()
 
 if(TOOL_COMMPERF)

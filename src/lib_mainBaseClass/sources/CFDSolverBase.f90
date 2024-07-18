@@ -7,7 +7,7 @@ module mod_arrays
       ! integer ---------------------------------------------------
       integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
       integer(4), allocatable :: atoIJ(:),atoIJK(:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
-      integer(4), allocatable :: witel(:), buffstep(:)
+      integer(4), allocatable :: witel(:), buffstep(:),maskMapped(:),ad(:)
 
       ! real ------------------------------------------------------
       real(rp), allocatable :: normalsAtNodes(:,:)
@@ -22,7 +22,7 @@ module mod_arrays
       real(rp), target,allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:),tauw(:,:)
       real(rp), target,allocatable :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:)
 
-      real(rp), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:),avvex(:,:),avtw(:,:)
+      real(rp_avg), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:),avvex(:,:),avtw(:,:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
       real(rp), allocatable :: witxi(:,:), Nwit(:,:), buffwit(:,:,:), bufftime(:)
@@ -46,9 +46,6 @@ module CFDSolverBase_mod
 #ifndef NOACC
       use cudafor
 #endif
-
-
-
       use elem_qua
       use elem_hex
       use jacobian_oper
@@ -58,6 +55,7 @@ module CFDSolverBase_mod
       use mod_geom
       use time_integ
       use time_integ_imex
+      use time_integ_ls
       use mod_analysis
       use mod_numerical_params
       use mod_time_ops
@@ -72,6 +70,7 @@ module CFDSolverBase_mod
       use mod_custom_types
       use mod_witness_points
       use mod_filters
+      use mod_InSitu
    implicit none
    private
 
@@ -82,7 +81,7 @@ module CFDSolverBase_mod
       integer(4), public :: save_restartFile_first,save_restartFile_step,save_restartFile_next
       integer(4), public :: save_resultsFile_first,save_resultsFile_step,save_resultsFile_next
       integer(4), public :: restartFileCnt,restartFile_to_load
-      integer(4), public :: initial_istep,final_istep,load_step
+      integer(4), public :: initial_istep,final_istep,load_step,local_step
 
       integer(4), public :: currentNonLinealIter
       integer(4), public :: nwit,nwitPar,leapwit
@@ -102,6 +101,8 @@ module CFDSolverBase_mod
       character(512) :: results_h5_file_path,results_h5_file_name
       character(512) :: io_prepend_path,io_append_info
       character(512) :: witness_inp_file_name,witness_h5_file_name
+      character(512) :: meshFile_h5_full_name,surface_meshFile_h5_full_name
+      character(512) :: base_resultsFile_h5_full_name,base_avgResultsFile_h5_full_name,base_restartFile_h5_full_name
 
       ! main real parameters
       real(rp) , public                   :: cfl_conv,cfl_diff
@@ -115,12 +116,9 @@ module CFDSolverBase_mod
       ! saving parameters
       integer(4), public :: numNodeScalarFields2save,numNodeVectorFields2save,numElemGpScalarFields2save
       integer(4), public :: numAvgNodeScalarFields2save,numAvgNodeVectorFields2save,numAvgElemGpScalarFields2save
-      character(128),public :: nameNodeScalarFields2save(max_num_saved_fields),nameAvgNodeScalarFields2save(max_num_saved_fields),&
-                           nameNodeVectorFields2save(max_num_saved_fields),nameAvgNodeVectorFields2save(max_num_saved_fields),&
-                           nameElemGpScalarFields2save(max_num_saved_fields),nameAvgElemGpScalarFields2save(max_num_saved_fields)
-      type(ptr_array1d_rp),public :: nodeScalarFields2save(max_num_saved_fields),avgNodeScalarFields2save(max_num_saved_fields)
-      type(ptr_array2d_rp),public :: nodeVectorFields2save(max_num_saved_fields),avgNodeVectorFields2save(max_num_saved_fields)
-      type(ptr_array2d_rp),public :: elemGpScalarFields2save(max_num_saved_fields),avgElemGpScalarFields2save(max_num_saved_fields)
+      type(ptr_array1d_rp_save),public :: nodeScalarFields2save(max_num_saved_fields),avgNodeScalarFields2save(max_num_saved_fields)
+      type(ptr_array2d_rp_save),public :: nodeVectorFields2save(max_num_saved_fields),avgNodeVectorFields2save(max_num_saved_fields)
+      type(ptr_array2d_rp_save),public :: elemGpScalarFields2save(max_num_saved_fields),avgElemGpScalarFields2save(max_num_saved_fields)
       logical, public :: save_scalarField_rho,     save_scalarField_muFluid,  save_scalarField_pressure, save_scalarField_energy, &
                          save_scalarField_entropy, save_scalarField_csound,   save_scalarField_machno,   save_scalarField_divU,   &
                          save_scalarField_qcrit,   save_scalarField_muSgs,    save_scalarField_muEnvit,  save_vectorField_vel,    &
@@ -153,6 +151,7 @@ module CFDSolverBase_mod
       procedure, public :: evalJacobians =>CFDSolverBase_evalJacobians
       procedure, public :: evalAtoIJKInverse =>CFDSolverBase_evalAtoIJKInverse
       procedure, public :: eval_elemPerNode_and_nearBoundaryNode =>CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode
+      procedure, public :: set_mappedFaces_linkingNodes =>CFDSolverBase_set_mappedFaces_linkingNodes
       procedure, public :: evalMass=>CFDSolverBase_evalMass
       procedure, public :: evalFirstOutput =>CFDSolverBase_evalFirstOutput
       procedure, public :: evalTimeIteration =>CFDSolverBase_evalTimeIteration
@@ -183,17 +182,288 @@ module CFDSolverBase_mod
       procedure, public :: initNSSolver => CFDSolverBase_initNSSolver
       procedure, public :: endNSSolver => CFDSolverBase_endNSSolver
 
+      procedure, public :: checkFound => CFDSolverBase_checkFound
+      procedure, public :: readJSONBCTypes => CFDSolverBase_readJSONBCTypes
+      procedure, public :: readJSONBuffer => CFDSolverBase_readJSONBuffer
+      procedure, public :: eval_vars_after_load_hdf5_resultsFile => CFDSolverBase_eval_vars_after_load_hdf5_resultsFile 
+      procedure, public :: findFixPressure => CFDSolverBase_findFixPressure
+
       procedure :: open_log_file
       procedure :: close_log_file
       procedure :: open_analysis_files
       procedure :: close_analysis_files
       procedure :: flush_log_file
-      procedure :: eval_vars_after_load_hdf5_resultsFile
       procedure :: eval_initial_mu_sgs
       procedure :: checkIfWallModelOn
       procedure :: checkIfSymmetryOn
    end type CFDSolverBase
 contains
+
+   subroutine CFDSolverBase_findFixPressure(this)
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4) :: ielem, iRankl, iNodeL,iRank
+
+      ielem = numElemsRankPar*0.5
+      iRankl = mpi_size + 1
+      !$acc parallel loop  
+      do iNodeL = 1,numNodesRankPar
+         if(maskMapped(iNodeL) == 0) then
+            iRankl = mpi_rank
+         end if
+      end do
+      !$acc end parallel loop
+      call MPI_Allreduce(iRankl,iRank,1,mpi_datatype_int,MPI_MIN,app_comm,mpi_err)
+
+      if(iRank == (mpi_size+1)) iRank = 0
+      if(mpi_rank.eq.iRank) then
+          inode_fix_press =  connecParWork(ielem,atoIJK(nnode))
+          write(111,*) '--| Node to fix pressure',inode_fix_press, " mpi_rank ",iRank
+      else
+         flag_fs_fix_pressure = .false.
+      end if
+
+   end subroutine CFDSolverBase_findFixPressure
+
+   subroutine CFDSolverBase_readJSONBuffer(this)
+      use json_module
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      logical :: found, found_aux = .false.
+      type(json_file) :: json
+      integer :: json_nbuff,iBuff,id
+      TYPE(json_core) :: jCore
+      TYPE(json_value), pointer :: buffPointer, testPointer, p
+      character(len=:) , allocatable :: value
+
+      call json%initialize()
+      call json%load_file(json_filename)
+
+      call json%info("buffer",n_children=json_nbuff)
+      call json%get_core(jCore)
+      call json%get('buffer', buffPointer, found_aux)
+
+      if(found_aux .eqv. .true.) flag_buffer_on = .true.
+
+
+      do iBuff=1, json_nbuff
+            call jCore%get_child(buffPointer, iBuff, testPointer, found)
+            call jCore%get_child(testPointer, 'type', p, found)
+            if(found) then
+               call jCore%get(p,value)
+               if(value .eq. "east")  then
+                  flag_buffer_on_east = .true.
+                  call jCore%get_child(testPointer, 'min', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_e_min)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define east min position'
+                        stop 1      
+                     end if
+                  end if
+                  call jCore%get_child(testPointer, 'size', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_e_size)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define east size'
+                        stop 1      
+                     end if
+                  end if
+               else if (value .eq. "west") then
+                  flag_buffer_on_west = .true.
+                  call jCore%get_child(testPointer, 'min', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_w_min)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define west min position'
+                        stop 1      
+                     end if
+                  end if
+                  call jCore%get_child(testPointer, 'size', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_w_size)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define west size'
+                        stop 1      
+                     end if
+                  end if
+               else if (value .eq. "north") then
+                  flag_buffer_on_north = .true.
+                  call jCore%get_child(testPointer, 'min', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_n_min)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define north min position'
+                        stop 1      
+                     end if
+                  end if
+                  call jCore%get_child(testPointer, 'size', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_n_size)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define north size'
+                        stop 1      
+                     end if
+                  end if
+               else if (value .eq. "south") then
+                  flag_buffer_on_south = .true.
+                  call jCore%get_child(testPointer, 'min', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_s_min)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define south min position'
+                        stop 1      
+                     end if
+                  end if
+                  call jCore%get_child(testPointer, 'size', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_s_size)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define south size'
+                        stop 1      
+                     end if
+                  end if
+               else if (value .eq. "top") then
+                  flag_buffer_on_top = .true.
+                  call jCore%get_child(testPointer, 'min', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_t_min)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define top min position'
+                        stop 1      
+                     end if
+                  end if
+                  call jCore%get_child(testPointer, 'size', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_t_size)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define top size'
+                        stop 1      
+                     end if
+                  end if
+               else if (value .eq. "bottom") then
+                  flag_buffer_on_bottom = .true.
+                  call jCore%get_child(testPointer, 'min', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_b_min)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define bottom min position'
+                        stop 1      
+                     end if
+                  end if
+                  call jCore%get_child(testPointer, 'size', p, found)
+                  if(found) then
+                     call jCore%get(p,flag_buffer_b_size)
+                  else
+                     if(mpi_rank .eq. 0) then
+                        write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define bottom size'
+                        stop 1      
+                     end if
+                  end if
+               end if
+            else
+               if(mpi_rank .eq. 0) then
+                  write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define at least one buffer type'
+                  stop 1      
+               end if
+            end if
+      end do
+
+      call json%destroy()
+
+   end subroutine CFDSolverBase_readJSONBuffer
+
+   subroutine CFDSolverBase_readJSONBCTypes(this)
+      use json_module
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      logical :: found, found_aux = .false.
+      type(json_file) :: json
+      integer :: json_nbouCodes,iBouCodes,id
+      TYPE(json_core) :: jCore
+      TYPE(json_value), pointer :: bouCodesPointer, testPointer, p
+      character(len=:) , allocatable :: value
+
+      call json%initialize()
+      call json%load_file(json_filename)
+
+      call json%info("bouCodes",n_children=json_nbouCodes)
+      call json%get_core(jCore)
+      call json%get('bouCodes', bouCodesPointer, found_aux)
+
+      do iBouCodes=1, json_nbouCodes
+            call jCore%get_child(bouCodesPointer, iBouCodes, testPointer, found)
+            call jCore%get_child(testPointer, 'id', p, found)
+            if(found) then
+               call jCore%get(p,id)
+            else
+               if(mpi_rank .eq. 0) then
+                  write(111,*) 'ERROR! JSON file error on the bouCodes definition, you need to define the id'
+                  stop 1      
+               end if
+            end if
+            call jCore%get_child(testPointer, 'bc_type', p, found)
+            if(found) then
+               call jCore%get(p,value)
+               if(value .eq. "bc_type_far_field") then
+                  bouCodes2BCType(id) = bc_type_far_field
+               else if(value .eq. "bc_type_outlet_incomp") then
+                  bouCodes2BCType(id) = bc_type_outlet_incomp
+               else if(value .eq. "bc_type_recirculation_inlet") then
+                  bouCodes2BCType(id) = bc_type_recirculation_inlet
+               else if(value .eq. "bc_type_non_slip_adiabatic") then
+                  bouCodes2BCType(id) = bc_type_non_slip_adiabatic
+               else if(value .eq. "bc_type_non_slip_hot") then
+                  bouCodes2BCType(id) = bc_type_non_slip_hot
+               else if(value .eq. "bc_type_non_slip_cold") then
+                  bouCodes2BCType(id) = bc_type_non_slip_cold
+               else if(value .eq. "bc_type_slip_adiabatic") then
+                  bouCodes2BCType(id) = bc_type_slip_adiabatic
+               else if(value .eq. "bc_type_slip_wall_model") then
+                  bouCodes2BCType(id) = bc_type_slip_wall_model
+               else if(value .eq. "bc_type_unsteady_inlet") then
+                  bouCodes2BCType(id) = bc_type_unsteady_inlet
+               else if(value .eq. "bc_type_far_field_SB") then
+                  bouCodes2BCType(id) = bc_type_far_field_SB 
+               end if
+            else
+               if(mpi_rank .eq. 0) then
+                  write(111,*) 'ERROR! JSON file error on the bouCodes definition, you need to define the bc_type'
+                  stop 1      
+               end if
+            end if
+      end do
+
+      !$acc update device(bouCodes2BCType(:))
+
+      call json%destroy()
+
+      if((found_aux .eqv. .false.) .and.mpi_rank .eq. 0) then
+         write(111,*) 'ERROR! JSON file missing bouCodes definition'
+         stop 1      
+      end if
+
+   end subroutine CFDSolverBase_readJSONBCTypes
+
+   subroutine CFDSolverBase_checkFound(this,found,found_aux)
+      class(CFDSolverBase), intent(inout) :: this
+      logical , intent(in)    :: found
+      logical , intent(inout) :: found_aux
+
+      if(found .eqv. .false.) found_aux = .true.
+
+   end subroutine CFDSolverBase_checkFound
 
    subroutine CFDSolverBase_printDt(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -225,8 +495,12 @@ contains
          if (implicit_solver == implicit_solver_imex) then
             call init_imex_solver(numNodesRankPar)
          end if
-      else
-         call init_rk4_solver(numNodesRankPar)
+      else 
+         if(flag_rk_ls .eqv. .false.) then
+            call init_rk4_solver(numNodesRankPar)
+         else
+            call init_rk4_ls_solver(numNodesRankPar)
+         end if
       end if
 
    end subroutine CFDSolverBase_initNSSolver
@@ -238,8 +512,12 @@ contains
          if (implicit_solver == implicit_solver_imex) then
             call end_imex_solver()
          end if
-      else
-         call end_rk4_solver()
+      else 
+         if(flag_rk_ls .eqv. .false.) then
+            call end_rk4_solver()
+         else
+            call end_rk4_ls_solver()
+         end if
       end if
 
    end subroutine CFDSolverBase_endNSSolver
@@ -338,8 +616,9 @@ contains
          return
       end if
 
-      this%nameNodeScalarFields2save(this%numNodeScalarFields2save) = trim(adjustl(fieldSaveName))
-      this%nodeScalarFields2save(this%numNodeScalarFields2save)%ptr => array2save
+      this%nodeScalarFields2save(this%numNodeScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%nodeScalarFields2save(this%numNodeScalarFields2save)%ptr_rp => array2save
+      this%nodeScalarFields2save(this%numNodeScalarFields2save)%ptr_avg => null()
 
    end subroutine CFDSolverBase_add_nodeScalarField2save
 
@@ -361,8 +640,9 @@ contains
          return
       end if
 
-      this%nameNodeVectorFields2save(this%numNodeVectorFields2save) = trim(adjustl(fieldSaveName))
-      this%nodeVectorFields2save(this%numNodeVectorFields2save)%ptr => array2save
+      this%nodeVectorFields2save(this%numNodeVectorFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%nodeVectorFields2save(this%numNodeVectorFields2save)%ptr_rp => array2save
+      this%nodeVectorFields2save(this%numNodeVectorFields2save)%ptr_avg => null()
 
    end subroutine CFDSolverBase_add_nodeVectorField2save
 
@@ -384,8 +664,9 @@ contains
          return
       end if
 
-      this%nameElemGpScalarFields2save(this%numElemGpScalarFields2save) = trim(adjustl(fieldSaveName))
-      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%ptr => array2save
+      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%ptr_rp => array2save
+      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%ptr_avg => null()
 
    end subroutine CFDSolverBase_add_elemGpScalarField2save
 
@@ -393,7 +674,7 @@ contains
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       character(*),intent(in) :: fieldSaveName
-      real(rp),target,intent(in) :: array2save(:)
+      real(rp_avg),target,intent(in) :: array2save(:)
 
       this%numAvgNodeScalarFields2save = this%numAvgNodeScalarFields2save + 1
 
@@ -405,8 +686,9 @@ contains
          return
       end if
 
-      this%nameAvgNodeScalarFields2save(this%numAvgNodeScalarFields2save) = trim(adjustl(fieldSaveName))
-      this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%ptr => array2save
+      this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%ptr_avg => array2save
+      this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%ptr_rp => null()
 
    end subroutine CFDSolverBase_add_avgNodeScalarField2save
 
@@ -416,7 +698,7 @@ contains
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       character(*),intent(in) :: fieldSaveName
-      real(rp),target,intent(in) :: array2save(:,:)
+      real(rp_avg),target,intent(in) :: array2save(:,:)
 
       this%numAvgNodeVectorFields2save = this%numAvgNodeVectorFields2save + 1
 
@@ -428,8 +710,9 @@ contains
          return
       end if
 
-      this%nameAvgNodeVectorFields2save(this%numAvgNodeVectorFields2save) = trim(adjustl(fieldSaveName))
-      this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%ptr => array2save
+      this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%ptr_avg => array2save
+      this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%ptr_rp => null()
 
    end subroutine CFDSolverBase_add_avgNodeVectorField2save
 
@@ -439,7 +722,7 @@ contains
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       character(*),intent(in) :: fieldSaveName
-      real(rp),target,intent(in) :: array2save(:,:)
+      real(rp_avg),target,intent(in) :: array2save(:,:)
 
       this%numAvgElemGpScalarFields2save = this%numAvgElemGpScalarFields2save + 1
 
@@ -451,8 +734,9 @@ contains
          return
       end if
 
-      this%nameAvgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save) = trim(adjustl(fieldSaveName))
-      this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%ptr => array2save
+      this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
+      this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%ptr_avg => array2save
+      this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%ptr_rp => null()
 
    end subroutine CFDSolverBase_add_avgElemGpScalarField2save
 
@@ -576,13 +860,14 @@ contains
 
       call nvtxStartRange("Open mesh")
 
-      call set_hdf5_meshFile_name(this%mesh_h5_file_path,this%mesh_h5_file_name,mpi_size)
-      call set_hdf5_baseResultsFile_name(this%results_h5_file_path,this%results_h5_file_name,this%mesh_h5_file_name,mpi_size)
+      call set_hdf5_meshFile_name(this%mesh_h5_file_path,this%mesh_h5_file_name,mpi_size,this%meshFile_h5_full_name)
+      call set_hdf5_all_resultsFile_baseName(this%results_h5_file_path,this%results_h5_file_name,this%mesh_h5_file_name,mpi_size,&
+                        this%base_resultsFile_h5_full_name,this%base_avgResultsFile_h5_full_name,this%base_restartFile_h5_full_name)
 
       this%useIntInComms=.true.
       this%useRealInComms=.true.
 
-      call load_hdf5_meshfile(nnode,npbou)
+      call load_hdf5_meshfile(this%meshFile_h5_full_name)
 
       ! init comms
       call init_comms(this%useIntInComms,this%useRealInComms)
@@ -590,12 +875,15 @@ contains
       call init_comms_bnd(this%useIntInComms,this%useRealInComms)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
-         call save_surface_mesh_hdf5_file(npbou,mesh_gmsh2ij,mesh_vtk2ij)
+         call save_surface_mesh_hdf5_file(this%meshFile_h5_full_name,this%surface_meshFile_h5_full_name,npbou,mesh_gmsh2ij,mesh_vtk2ij)
       end if
 
       call nvtxEndRange
 
       call MPI_Barrier(app_comm,mpi_err)
+
+      ! Initialize InSitu & correct (substract 1)  connecVTK
+      call init_InSitu()
 
    end subroutine CFDSolverBase_openMesh
 
@@ -656,7 +944,7 @@ contains
    subroutine CFDSolverBase_normalFacesToNodes(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), allocatable    :: aux1(:)
-      integer(4) :: iNodeL,iBound,ipbou,iElem,jgaus,kgaus,idime,iAux
+      integer(4) :: iNodeL,iBound,ipbou,iElem,innerNodeL,bndNodeL,idime,iAux
       real(rp) :: aux(3), normaux,sig
 
       if(mpi_rank.eq.0) write(111,*) "--| Evaluating Normals at Nodes for Wall-Model"
@@ -674,25 +962,25 @@ contains
          !iBound = listBoundsWallModel(iAux)
          iBound = iAux
          iElem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
-         jgaus = connecParWork(iElem,nnode)         ! internal node
+         innerNodeL = connecParWork(iElem,nnode)         ! internal node
          !$acc loop vector private(aux)
          do ipbou = 1,npbou
-            kgaus = boundPar(iBound,ipbou) ! node at the boundary
+            bndNodeL = boundPar(iBound,ipbou) ! node at the boundary
             sig=1.0_rp
             aux(1) = boundNormalPar(iBound,(ipbou-1)*ndime+1)
             aux(2) = boundNormalPar(iBound,(ipbou-1)*ndime+2)
             aux(3) = boundNormalPar(iBound,(ipbou-1)*ndime+3)
             normaux = sqrt(dot_product(aux,aux))
-            if(dot_product(coordPar(jgaus,:)-coordPar(kgaus,:), aux(:)) .lt. 0.0_rp ) then
+            if(dot_product(coordPar(innerNodeL,:)-coordPar(bndNodeL,:), aux(:)) .lt. 0.0_rp ) then
                sig=-1.0_rp
             end if
             !$acc loop seq
             do idime = 1,ndime
                aux(idime) = aux(idime)*sig/normaux
+               !$acc atomic update
+               normalsAtNodes(bndNodeL,idime) = normalsAtNodes(bndNodeL,idime) + aux(idime)
+               !$acc end atomic
             end do
-            normalsAtNodes(kgaus,1) = normalsAtNodes(kgaus,1) + aux(1)
-            normalsAtNodes(kgaus,2) = normalsAtNodes(kgaus,2) + aux(2)
-            normalsAtNodes(kgaus,3) = normalsAtNodes(kgaus,3) + aux(3)
          end do
       end do
       !$acc end parallel loop
@@ -727,8 +1015,7 @@ contains
    subroutine CFDSolverBase_boundaryFacesToNodes(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), allocatable    :: aux1(:)
-      integer(4) :: iNodeL,iBound,ipbou,ielem,jgaus,kgaus,idime
-      real(rp) :: aux(3), normaux,sig
+      integer(4) :: iNodeL,iBound,ipbou
 
       allocate(bouCodesNodesPar(numNodesRankPar))
       allocate(aux1(numNodesRankPar))
@@ -751,7 +1038,9 @@ contains
       do iBound = 1,numBoundsRankPar
          !$acc loop vector
          do ipbou = 1,npbou
+            !$acc atomic update
             aux1(boundPar(iBound,ipbou)) = min(aux1(boundPar(iBound,ipbou)),bouCodes2BCType(bouCodesPar(iBound)))
+            !$acc end atomic
          end do
       end do
       !$acc end parallel loop
@@ -806,14 +1095,14 @@ contains
       ! Last rank is for prediction-advance related to entropy viscosity,
       ! where 1 is prediction, 2 is final value
       !
-      allocate(u(numNodesRankPar,ndime,3))  ! Velocity
-      allocate(q(numNodesRankPar,ndime,3))  ! momentum
-      allocate(rho(numNodesRankPar,3))      ! Density
-      allocate(pr(numNodesRankPar,3))       ! Pressure
-      allocate(E(numNodesRankPar,3))        ! Total Energy
+      allocate(u(numNodesRankPar,ndime,4))  ! Velocity
+      allocate(q(numNodesRankPar,ndime,4))  ! momentum
+      allocate(rho(numNodesRankPar,4))      ! Density
+      allocate(pr(numNodesRankPar,4))       ! Pressure
+      allocate(E(numNodesRankPar,4))        ! Total Energy
       allocate(Tem(numNodesRankPar,2))      ! Temperature
       allocate(e_int(numNodesRankPar,2))    ! Internal Energy
-      allocate(eta(numNodesRankPar,3))      ! entropy
+      allocate(eta(numNodesRankPar,4))      ! entropy
       allocate(csound(numNodesRankPar))     ! Speed of sound
       allocate(machno(numNodesRankPar))     ! Speed of sound
       allocate(mu_fluid(numNodesRankPar))   ! Fluid viscosity
@@ -953,15 +1242,26 @@ contains
          !$acc kernels
          walave_u(:,:) = 0.0_rp
          !$acc end kernels
+      else
+         allocate(walave_u(0,0)) !dummy allocation
       end if
 
       if(flag_type_wmles==wmles_type_abl) then
          allocate(zo(numNodesRankPar))
+         allocate(ad(numNodesRankPar))
          !$acc enter data create(zo(:))
+         !$acc enter data create(ad(:))
          !$acc kernels
          zo(:) = 0.0_rp
+         ad(:) = 0
          !$acc end kernels
       end if
+
+      allocate(maskMapped(numNodesRankPar))
+      !$acc enter data create(maskMapped(:))
+      !$acc kernels
+      maskMapped(:) = 1 !1 for calculation domain / 0 for recirculating domain where buffer is not applied
+      !$acc end kernels
 
       call nvtxEndRange
 
@@ -990,7 +1290,8 @@ contains
 
       if(this%loadRestartFile) then
          if(mpi_rank.eq.0) write(111,*) "--| Loading restart file ",this%restartFile_to_load
-         call load_hdf5_restartFile(nnode,ngaus,this%restartFile_to_load,this%load_step,flag_walave,flag_buffer_on,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u,u_buffer)
+         call load_hdf5_restartFile(this%base_restartFile_h5_full_name,nnode,ngaus,this%restartFile_to_load,this%load_step,flag_walave,this%time,&
+                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
 
          if((flag_les.eq.0).and.(flag_les_ilsa.eq.0)) then
             !$acc kernels
@@ -1018,10 +1319,11 @@ contains
 
             if(this%loadAvgFile) then
                if(mpi_rank.eq.0) write(111,*) "--| Loading Avg Results File (TO IMPLEMENT)",this%restartFile_to_load
-               call load_avgResults_hdf5_file(nnode,ngaus,Ngp_l,this%restartFile_to_load,this%initial_avgTime,this%elapsed_avgTime,&
-                                       this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
-                                       this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
-                                       this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
+               call load_avgResults_hdf5_file(this%base_avgResultsFile_h5_full_name,nnode,ngaus,Ngp_l,this%restartFile_to_load,&
+                                       this%initial_avgTime,this%elapsed_avgTime,&
+                                       this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,&
+                                       this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,&
+                                       this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save)
 
                if(mpi_rank.eq.0) write(111,*) "   --| Loaded Avg results! Setting initial_avgTime",this%initial_avgTime,"elapsed_avgTime",this%elapsed_avgTime
             end if
@@ -1043,8 +1345,6 @@ contains
       else
          if(mpi_rank.eq.0) write(111,*) "--| Evaluating Initial Conditions..."
          call this%evalInitialConditions()
-         if(mpi_rank.eq.0) write(111,*) "--| Evaluating Initial u_buffer..."
-         call this%initialBuffer()
       end if
 
       call MPI_Barrier(app_comm,mpi_err)
@@ -1361,6 +1661,43 @@ contains
 
    end subroutine CFDSolverBase_eval_elemPerNode_and_nearBoundaryNode
 
+   subroutine CFDSolverBase_set_mappedFaces_linkingNodes(this)
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4) :: iNode,iNodePer,iNodeMap,perMapFaceAbsDir
+
+      if(.not.isMappedFaces) return
+
+      if(mpi_rank.eq.0) write(111,*) '  --| Setting mapped faces linking nodes in lbnbNodes array...'
+
+		!$acc parallel loop  
+		do iNode = 1,numPerMapLinkedNodesRankPar
+         iNodePer = perMapLinkedNodesRankPar(iNode,1)
+         iNodeMap = perMapLinkedNodesRankPar(iNode,2)
+         !if(mpi_rank.eq.0) write(111,*) 'i',iNode,'iNodeMap',iNodeMap,'xyz',coordPar(iNodeMap,:)
+         !if(mpi_rank.eq.0) write(111,*) 'i',iNode,'iNodePer',iNodePer,'xyz',coordPar(iNodePer,:)
+         lnbnNodes(iNodeMap) = iNodePer                  
+		end do
+		!$acc end parallel loop
+
+      !---------------------------------------------------------------------------------------------------------------------
+
+      if(mpi_rank.eq.0) write(111,*) '  --| Applying Mask Mapped from pos',perMapFaceGapCoord,'at dir',perMapFaceDir
+      !maskMapped by default is 1, and here we set it to 0 in the precursor domain so the buffer is not applied
+      !i.e.: if maskMapped=1: buffer IS applied // if maskMapped=0: buffer IS NOT applied
+
+      perMapFaceAbsDir = abs(perMapFaceDir)
+      !$acc parallel loop
+      do iNode = 1,numNodesRankPar
+         if(perMapFaceDir.ge.0) then !positive x,y,z
+            if (coordPar(iNode,perMapFaceAbsDir) .le. perMapFaceGapCoord) maskMapped(iNode) = 0
+         else !negative x,y,z
+            if (coordPar(iNode,perMapFaceAbsDir) .ge. perMapFaceGapCoord) maskMapped(iNode) = 0
+         end if
+      end do
+      !$acc end parallel loop
+
+   end subroutine CFDSolverBase_set_mappedFaces_linkingNodes
+
    subroutine CFDSolverBase_evalMass(this)
       class(CFDSolverBase), intent(inout) :: this
       integer(4) :: iElem
@@ -1404,7 +1741,7 @@ contains
             call nvtxStartRange("Surface info")
             call surfInfo(0,0.0_rp,numElemsRankPar,numNodesRankPar,numBoundsRankPar,iCode,connecParWork,boundPar,point2elem,&
                bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode))
+               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),.TRUE.)
             call nvtxEndRange
          end do
       end if
@@ -1434,8 +1771,9 @@ contains
    subroutine CFDSolverBase_saveRestartFile(this,istep)
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
-
-      call save_hdf5_restartFile(nnode,ngaus,this%restartFileCnt,istep,flag_walave,flag_buffer_on,this%time,rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u,u_buffer)
+      
+      call save_hdf5_restartFile(this%base_restartFile_h5_full_name,nnode,ngaus,this%restartFileCnt,istep,flag_walave,this%time,&
+                                 rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
 
       if(this%restartFileCnt .eq. 1) then
          this%restartFileCnt = 2
@@ -1451,16 +1789,18 @@ contains
    subroutine CFDSolverBase_saveAvgResultsFiles(this)
       class(CFDSolverBase), intent(inout) :: this
 
-      call save_avgResults_hdf5_file(nnode,ngaus,Ngp_equi,this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
-               this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
-               this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
-               this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
+      call save_avgResults_hdf5_file(this%base_avgResultsFile_h5_full_name,this%meshFile_h5_full_name,nnode,ngaus,Ngp_equi,&
+               this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
+               this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,&
+               this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,&
+               this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
-         call save_surface_avgResults_hdf5_file(this%restartFileCnt,&
-                  this%numAvgNodeScalarFields2save,this%nameAvgNodeScalarFields2save,&
-                  this%numAvgNodeVectorFields2save,this%nameAvgNodeVectorFields2save,&
-                  this%numAvgElemGpScalarFields2save,this%nameAvgElemGpScalarFields2save)
+         call save_surface_avgResults_hdf5_file(this%base_avgResultsFile_h5_full_name,this%meshFile_h5_full_name,&
+                  this%surface_meshFile_h5_full_name,this%restartFileCnt,&
+                  this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,&
+                  this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,&
+                  this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save)
       end if
 
    end subroutine CFDSolverBase_saveAvgResultsFiles
@@ -1479,16 +1819,17 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4), intent(in) :: istep
 
-      call save_instResults_hdf5_file(nnode,ngaus,Ngp_equi,iStep,this%time,&
-               this%numNodeScalarFields2save,this%nodeScalarFields2save,this%nameNodeScalarFields2save,&
-               this%numNodeVectorFields2save,this%nodeVectorFields2save,this%nameNodeVectorFields2save,&
-               this%numElemGpScalarFields2save,this%elemGpScalarFields2save,this%nameElemGpScalarFields2save)
+      call save_instResults_hdf5_file(this%base_resultsFile_h5_full_name,this%meshFile_h5_full_name,&
+               nnode,ngaus,Ngp_equi,iStep,this%time,&
+               this%numNodeScalarFields2save,this%nodeScalarFields2save,&
+               this%numNodeVectorFields2save,this%nodeVectorFields2save,&
+               this%numElemGpScalarFields2save,this%elemGpScalarFields2save)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
-         call save_surface_instResults_hdf5_file(istep,&
-               this%numNodeScalarFields2save,this%nameNodeScalarFields2save,&
-               this%numNodeVectorFields2save,this%nameNodeVectorFields2save,&
-               this%numElemGpScalarFields2save,this%nameElemGpScalarFields2save)
+         call save_surface_instResults_hdf5_file(this%base_resultsFile_h5_full_name,this%meshFile_h5_full_name,this%surface_meshFile_h5_full_name,istep,&
+               this%numNodeScalarFields2save,this%nodeScalarFields2save,&
+               this%numNodeVectorFields2save,this%nodeVectorFields2save,&
+               this%numElemGpScalarFields2save,this%elemGpScalarFields2save)
       end if
 
    end subroutine CFDSolverBase_saveInstResultsFiles
@@ -1526,9 +1867,10 @@ contains
 
       call this%initNSSolver()
 
+      this%local_step=1
       do istep = this%initial_istep,this%final_istep
          !if (istep==this%nsave.and.mpi_rank.eq.0) write(111,*) '   --| STEP: ', istep
-         call nvtxStartRange("Init pred "//timeStep,istep)
+         call nvtxStartRange("Init pred")
          !$acc kernels
          rho(:,1) = rho(:,2)
          u(:,:,1) = u(:,:,2)
@@ -1544,7 +1886,7 @@ contains
          !
          ! Exponential averaging for wall law
          !
-         call nvtxStartRange("Wall Average "//timeStep,istep)
+         call nvtxStartRange("Wall Average")
          if(flag_walave) then
             !
             ! outside acc kernels following pseudo_cfl in next loop
@@ -1557,12 +1899,19 @@ contains
          end if
          call nvtxEndRange
 
-         call nvtxStartRange("Time-step"//timeStep,istep)
+         call nvtxStartRange("Time-step")
 
          if(this%doTimerAnalysis) iStepStartTime = MPI_Wtime()
          call this%callTimeIntegration(istep)
 
          !$acc kernels
+         rho(:,4) = rho(:,3)
+         E(:,4) = E(:,3)
+         q(:,:,4) = q(:,:,3)
+         eta(:,4) = eta(:,3)
+         u(:,:,4) = u(:,:,3)
+         pr(:,4) = pr(:,3)
+
          rho(:,3) = rho(:,1)
          E(:,3) = E(:,1)
          q(:,:,3) = q(:,:,1)
@@ -1601,12 +1950,13 @@ contains
 
          call this%evalDt()
 
+         call this%afterDt(istep)
          call nvtxEndRange
 
          if(this%saveAvgFile) then
             ! Update the accumulators for averaging
             if(this%time .ge. this%initial_avgTime) then
-               call nvtxStartRange("Accumulate"//timeStep,istep)
+               call nvtxStartRange("Accumulate")
 
                call eval_average_iter(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,this%dt,this%elapsed_avgTime,&
                                  rho,u,pr,mu_fluid,mu_e,mu_sgs,tauw,avrho,avpre,avvel,avve2,avvex,avmueff,avtw)
@@ -1622,7 +1972,7 @@ contains
                   call nvtxStartRange("Surface info")
                   call surfInfo(istep,this%time,numElemsRankPar,numNodesRankPar,numBoundsRankPar,icode,connecParWork,boundPar,point2elem, &
                      bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode))
+                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),.TRUE.)
 
                   call nvtxEndRange
                   if(mpi_rank.eq.0) call flush(888+icode)
@@ -1637,12 +1987,12 @@ contains
 
             if(this%saveAvgFile) then
                if (mpi_rank.eq.0) write(111,*) '   - Saving avgResults file step:',this%restartFileCnt
-               call nvtxStartRange("Output AVG"//timeStep,istep)
+               call nvtxStartRange("Output AVG")
                call this%saveAvgResultsFiles
                call nvtxEndRange
             end if
 
-            call nvtxStartRange("Saving_restart_file"//timeStep,istep)
+            call nvtxStartRange("Saving_restart_file")
             call this%saveRestartFile(istep)
             call nvtxEndRange
 
@@ -1652,13 +2002,16 @@ contains
          if (this%save_resultsFile_next == istep) then
             this%save_resultsFile_next = this%save_resultsFile_next + this%save_resultsFile_step
             if (mpi_rank.eq.0) write(111,*) ' - Saving results file step:',istep,'(next to save',this%save_resultsFile_next,')'
-            call nvtxStartRange("Output "//timeStep,istep)
+            call nvtxStartRange("Output")
             call compute_fieldDerivs(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,lelpn,He,dNgp,this%leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),gradRho,curlU,divU,Qcrit)
             call this%saveInstResultsFiles(istep)
             call nvtxEndRange
          end if
 
-         call this%afterDt(istep)
+         ! InSitu - pass data
+         call run_InSitu(u(:,:,2),istep)
+
+!         call this%afterDt(istep)
 
          if(this%save_logFile_next==istep) then
             this%save_logFile_next = this%save_logFile_next + this%save_logFile_step
@@ -1695,6 +2048,7 @@ contains
             ! TODO: check if we want to save the last step
             exit
          end if
+         this%local_step = this%local_step + 1
       end do
       call nvtxEndRange
 
@@ -1739,6 +2093,7 @@ contains
       integer(4), intent(in)              :: istep
       integer(4)                          :: iwit, iwitglobal, itewit
       real(rp)                            :: start, finish
+      character(512)                      :: fname
 
       if ((this%continue_witness .eqv. .false.) .AND. (this%continue_oldLogs .eqv. .false.)) then
          itewit = istep/(this%leapwit)
@@ -1749,13 +2104,14 @@ contains
       if ((this%continue_witness .eqv. .true.) .AND. (this%continue_oldLogs .eqv. .true.)) then
          itewit = this%load_stepwit + (istep - this%load_step)/(this%leapwit)
       end if
-      call update_witness_hdf5(itewit, this%leapwitsave, buffwit, this%nwit, this%nwitPar, this%nvarwit, this%witness_h5_file_name, bufftime, buffstep, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      fname = trim(adjustl(this%witness_h5_file_name))
+      call update_witness_hdf5(itewit, this%leapwitsave, buffwit, this%nwit, this%nwitPar, this%nvarwit, fname, bufftime, buffstep, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
    end subroutine CFDSolverBase_save_witness
 
    subroutine CFDSolverBase_preprocWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      integer(4)                          :: iwit, jwit, ielem, inode, ifound, nwitParCand, icand, nwitFound, nwit2find, icount=0, imiss=0, myrank
+      integer(4)                          :: iwit, jwit, ielem, inode, ifound, nwitParCand, icand, nwitFound, nwit2find, icount=0, imiss=0, myrank, mpi_rank_found
       integer(4)                          :: witGlobCand(this%nwit), witGlob(this%nwit), witGlobFound(this%nwit*mpi_size)
       integer(4), allocatable             :: witGlobFound2(:), witGlobMiss(:)
       real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode), dist(numElemsRankPar), xyzwit(ndime), mindist
@@ -1764,11 +2120,14 @@ contains
       real(rp)                            :: xmin, ymin, zmin, xmax, ymax, zmax
       real(rp)                            :: xminloc, yminloc, zminloc, xmaxloc, ymaxloc, zmaxloc
       logical                             :: isinside, found
-      type real_int
-	real(rp)   :: realnum
-	integer(4) :: intnum
+      character(512)                      :: input, output
+
+      type two_real
+	      real(4) :: real_1
+	      real(4) :: real_2
       end type
-      type(real_int)                      :: locdist, globdist
+      
+      type(two_real)                      :: locdist, globdist
 
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
@@ -1816,7 +2175,8 @@ contains
       !$acc end kernels
       ifound  = 0
       icand   = 0
-      call read_points(this%witness_inp_file_name, this%nwit, witxyz)
+      input = trim(adjustl(this%witness_inp_file_name))
+      call read_points(input, this%nwit, witxyz)
       do iwit = 1, this%nwit
 	 if (witxyz(iwit,1) < xmin .OR. witxyz(iwit,2) < ymin .OR. witxyz(iwit,3) < zmin .OR. witxyz(iwit,1) > xmax .OR. witxyz(iwit,2) > ymax .OR. witxyz(iwit,3) > zmax) then
 		write(*,*) "FATAL ERROR!! Witness point out of bounds", witxyz(iwit,:)
@@ -1885,16 +2245,17 @@ contains
             dist(:)    = (center(:,1)-xyzwit(1))*(center(:,1)-xyzwit(1))+(center(:,2)-xyzwit(2))*(center(:,2)-xyzwit(2))+(center(:,3)-xyzwit(3))*(center(:,3)-xyzwit(3))
             !$acc end kernels
             ielem      = minloc(dist(:),1)
-            locdist % realnum = dist(ielem)
-            locdist % intnum  = mpi_rank
-            call MPI_Allreduce(locdist, globdist, 1, mpi_datatype_real_int, MPI_MINLOC, app_comm, mpi_err)
-            if (mpi_rank .eq. globdist % intnum) then
-	       write(*,*) "[NOT FOUND WITNESS] ", xyzwit(:)
+            locdist % real_1 = dist(ielem)
+            locdist % real_2 = mpi_rank
+            call MPI_Allreduce(locdist, globdist, 1, MPI_2REAL, MPI_MINLOC, app_comm, mpi_err)
+            mpi_rank_found = int(globdist % real_2, kind=4)
+            if (mpi_rank .eq. mpi_rank_found) then
+	            write(*,*) "[NOT FOUND WITNESS] ", xyzwit(:)
                this%nwitPar              = this%nwitPar+1
                witGlob(this%nwitPar)     = witGlobMiss(iwit)
                witel(this%nwitPar)       = ielem
-	       witxyzPar(this%nwitPar,:) = witxyz(witGlobMiss(iwit),:)
-	       call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzPar(this%nwitPar,:), atoIJK, witxi(this%nwitPar,:), isinside, Nwit(this%nwitPar,:))
+	            witxyzPar(this%nwitPar,:) = witxyz(witGlobMiss(iwit),:)
+	            call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzPar(this%nwitPar,:), atoIJK, witxi(this%nwitPar,:), isinside, Nwit(this%nwitPar,:)) 
             end if
          end do
          deallocate(witGlobFound2)
@@ -1904,7 +2265,8 @@ contains
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
-      if (this%wit_save) call create_witness_hdf5(this%witness_h5_file_name, nnode, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      output = trim(adjustl(this%witness_h5_file_name))
+      if (this%wit_save) call create_witness_hdf5(output, nnode, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
       if(mpi_rank.eq.0) then
          write(*,*) "--| End of preprocessing witness points"
       end if
@@ -1913,8 +2275,10 @@ contains
    subroutine CFDSolverBase_loadWitnessPoints(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-
-      call load_witness_hdf5(this%witness_h5_file_name, nnode, this%nwit, this%load_step, this%load_stepwit, this%nwitPar, witel, witxi, Nwit)
+      character(512)                      :: output
+      
+      output = trim(adjustl(this%witness_h5_file_name))
+      call load_witness_hdf5(output, nnode, this%nwit, this%load_step, this%load_stepwit, this%nwitPar, witel, witxi, Nwit)
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
@@ -1949,6 +2313,7 @@ contains
          write(111,*) "  # Constants:"
          write(111,*) "    rp: ",               rp
          write(111,*) "    rp_vtk: ",           rp_vtk
+         write(111,*) "    rp_avg: ",           rp_avg
          write(111,*) "    porder: ",           porder
          write(111,*) "    flag_real_diff: ",   flag_real_diff
          write(111,*) "    flag_diff_suth: ",   flag_diff_suth
@@ -2071,7 +2436,7 @@ contains
 
    end subroutine flush_log_file
 
-   subroutine eval_vars_after_load_hdf5_resultsFile(this)
+   subroutine CFDSolverBase_eval_vars_after_load_hdf5_resultsFile(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       integer :: iNodeL,idime
@@ -2118,7 +2483,7 @@ contains
       au(:,:) = 0.0_rp
       !$acc end kernels
 
-   end subroutine eval_vars_after_load_hdf5_resultsFile
+   end subroutine CFDSolverBase_eval_vars_after_load_hdf5_resultsFile
 
    subroutine CFDSolverBase_run(this)
       implicit none
@@ -2161,9 +2526,6 @@ contains
       ! Eval or load initial conditions
       call this%evalOrLoadInitialConditions()
 
-      ! Init of the source terms
-      call this%initializeSourceTerms()
-
       ! Eval  viscosty factor
       call this%evalViscosityFactor()
 
@@ -2188,8 +2550,16 @@ contains
       ! Eval list Elems per Node and Near Boundary Node
       call this%eval_elemPerNode_and_nearBoundaryNode()
 
+      call this%set_mappedFaces_linkingNodes()   
+
+      ! Init of the source terms
+      call this%initializeSourceTerms()
+
       ! Eval mass
       call this%evalMass()
+
+      ! Find Pressure Node to fix
+      if(flag_fs_fix_pressure) call this%findFixPressure()
 
       ! Preprocess witness points
       if (this%have_witness) then
@@ -2204,10 +2574,13 @@ contains
       if(this%isFreshStart) call this%evalFirstOutput()
       call this%flush_log_file()
 
-      if(this%isWallModelOn .or. this%isSymmetryOn) call  this%normalFacesToNodes()
+      if (this%noBoundaries .eqv. .false.)  call  this%normalFacesToNodes()
+
 
       ! Eval initial time step
       call this%evalInitialDt()
+
+      call this%initialBuffer()
 
       call this%beforeTimeIteration()
 
@@ -2233,6 +2606,9 @@ contains
 
       ! End hdf5 interface
       call end_hdf5_interface()
+
+      ! Finalize InSitu   - bettre done before end_comms
+      call end_InSitu()
 
       ! End comms
       call end_comms()

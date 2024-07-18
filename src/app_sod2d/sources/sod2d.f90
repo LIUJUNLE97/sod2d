@@ -1,120 +1,96 @@
 ! main.f90
 
-#define _tgv_ 0
-#define _tgv_multi 0
-#define _tgv_comp 0
-#define _tgv_incomp 0
-#define _channel_ 0
-#define _channel_incomp 0
-#define _bluff_ 0
-#define _bluff_incomp 0
-#define _bluff3d_ 0
-#define _bluff3d_incomp 0
-#define _bl_ 0
-#define _bl_incomp 1
-#define _abl_ 0
-
 program main
+
    use mod_numerical_params
-#if _tgv_
+   use mod_arrays
+   use json_module
+   use CFDSolverBase_mod
    use TGVSolver_mod
-#endif
-#if _tgv_multi
-   use TGVMultiSolver_mod
-#endif
-#if _tgv_comp
    use TGVCompSolver_mod
-#endif
-#if _tgv_incomp
    use TGVSolverIncomp_mod
-#endif
-#if _channel_
    use ChannelFlowSolver_mod
-   !use ThermalChannelFlowSolver_mod
-#endif
-#if _channel_incomp
    use ChannelFlowSolverIncomp_mod
-#endif
-#if _bluff_
    use BluffBodySolver_mod
-#endif
-#if _bluff_incomp
    use BluffBodySolverIncomp_mod
-#endif
-#if _bluff3d_
+   use BluffBodySolverIncompAFC_mod
+   use BluffBodySolverIncompDRL_mod
    use BluffBody3DSolver_mod
-#endif
-#if _bluff3d_incomp
    use BluffBody3DSolverIncomp_mod
-#endif
-#if _bl_
    use BLFlowSolver_mod
-#endif
-#if _bl_incomp
-   ! use BLFlowSolverIncomp_mod
-   use BLMARLFlowSolverIncomp_mod
-#endif
-#if _abl_
    use ABlFlowSolverIncomp_mod
-#endif
+   use MappedInletIncomp_mod
+   use WindFarmSolverIncomp_mod
    implicit none
 
-#if _tgv_
-   type(TGVSolver)  :: tgv
-   call tgv%run()
-#endif
-#if _tgv_comp
-   type(TGVCompSolver)  :: tgv
-   call tgv%run()
-#endif
-#if _tgv_incomp
-   type(TGVSolverIncomp)  :: tgv
-   call tgv%run()
-#endif
-#if _tgv_multi
-   type(TGVMultiSolver)  :: tgv_multi
-   call tgv_multi%run()
-#endif
-#if _channel_
-   !type(ThermalChannelFlowSolver) :: channel
-   type(ChannelFlowSolver)  :: channel
-   call channel%run()
-#endif
-#if _channel_incomp
-   type(ChannelFlowSolverIncomp)  :: channel
-   call channel%run()
-#endif
-#if _bluff_
-   type(BluffBodySolver)  :: bluff
-   call bluff%run()
-#endif
-#if _bluff_incomp
-   type(BluffBodySolverIncomp)  :: bluff
-   call bluff%run()
-#endif
-#if _bluff3d_
-   type(BluffBody3DSolver)  :: bluff3d
-   call bluff3d%run()
-#endif
-#if _bluff3d_incomp
-   type(BluffBody3DSolverIncomp)  :: bluff3d
-   call bluff3d%run()
-#endif
-#if _bl_
-   type(BLFlowSolver)    :: blflow
-   call blflow%run()
-#endif
-#if _bl_incomp
-   ! type(BLFlowSolverIncomp)    :: blflow
-   type(BLMARLFlowSolverIncomp)    :: blflow
-   call blflow%run()
-#endif
-#if _abl_
-   type(ABlFlowSolverIncomp)  :: ablflow
-   call ablflow%run()
-#endif
+   logical :: found
+   character(len=:) , allocatable :: value
+   class(CFDSolverBase), pointer :: solver
+    type(json_file) :: json
 
+   ! Get the name of the JSON file
+   call get_command_argument(1, json_filename)
 
+   ! Append the extension
+   json_filename = trim(json_filename)
+   if (json_filename == "") then 
+      write(*,*) " No configuration JSON file given on command line "
+      stop 1
+   end if
+   write(*,*) " json test ", json_filename(len_trim(json_filename) - 4:)
+   if(len_trim(json_filename) < 4 .or. json_filename(len_trim(json_filename) - 4:) /= ".json") then
+      json_filename = trim(json_filename) // ".json"
+   end if
+   !write(*,*), "Reading the JSON file : ", json_filename
 
+   call json%initialize()
+   call json%load_file(json_filename)
+   if (json%failed()) then 
+      write(*,*) " There is a syntax error of the JSON file "
+      stop 1
+   end if
+
+   call json%get("type", value, found)
+
+   call json%destroy()
+
+   if(value .eq. "TGVSolver") then
+      allocate(TGVSolver::solver) 
+   else if(value .eq. "TGVCompSolver") then
+      allocate(TGVCompSolver::solver) 
+   else if(value .eq. "TGVSolverIncomp") then
+      allocate(TGVSolverIncomp::solver) 
+   else if(value .eq. "ChannelFlowSolver") then
+      allocate(ChannelFlowSolver::solver) 
+   else if(value .eq. "ChannelFlowSolverIncomp") then
+      allocate(ChannelFlowSolverIncomp::solver) 
+   else if(value .eq. "BluffBodySolver") then
+      allocate(BluffBodySolver::solver) 
+   else if(value .eq. "BluffBodySolverIncomp") then
+      allocate(BluffBodySolverIncomp::solver)
+   else if(value .eq. "BluffBodySolverIncompAFC") then
+      allocate(BluffBodySolverIncompAFC::solver)
+#ifdef SMARTREDIS
+   else if(value .eq. "BluffBodySolverIncompDRL") then
+      allocate(BluffBodySolverIncompDRL::solver)  
+#endif  
+   else if(value .eq. "BluffBody3DSolver") then
+      allocate(BluffBody3DSolver::solver) 
+   else if(value .eq. "BluffBody3DSolverIncomp") then
+      allocate(BluffBody3DSolverIncomp::solver) 
+   else if(value .eq. "BLFlowSolver") then
+      allocate(BLFlowSolver::solver) 
+   else if(value .eq. "ABlFlowSolverIncomp") then
+      allocate(ABlFlowSolverIncomp::solver) 
+   else if(value .eq. "MappedInletIncomp") then
+      allocate(MappedInletIncomp::solver) 
+   else if(value .eq. "WindFarmSolverIncomp") then
+      allocate(WindFarmSolverIncomp::solver) 
+   else
+      write(*,*) " Solver not implemented in SOD2D : ",value
+      stop 1
+   end if
+
+   call solver%run()
 
 end program main
