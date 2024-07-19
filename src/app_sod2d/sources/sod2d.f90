@@ -11,16 +11,18 @@ program main
    use TGVSolverIncomp_mod
    use ChannelFlowSolver_mod
    use ChannelFlowSolverIncomp_mod
-   use BluffBodySolver_mod
-   use BluffBodySolverIncomp_mod
    use BluffBodySolverIncompAFC_mod
    use BluffBodySolverIncompDRL_mod
+   use ThermalBubbleSolver_mod
+   use BluffBodySolver_mod
+   use BluffBodySolverIncomp_mod
    use BluffBody3DSolver_mod
    use BluffBody3DSolverIncomp_mod
    use BLFlowSolver_mod
    use ABlFlowSolverIncomp_mod
    use MappedInletIncomp_mod
    use WindFarmSolverIncomp_mod
+   use SupersonicForwardStep_mod
    implicit none
 
    logical :: found
@@ -37,7 +39,7 @@ program main
       write(*,*) " No configuration JSON file given on command line "
       stop 1
    end if
-   write(*,*) " json test ", json_filename(len_trim(json_filename) - 4:)
+   !write(*,*) " json test ", json_filename(len_trim(json_filename) - 4:)
    if(len_trim(json_filename) < 4 .or. json_filename(len_trim(json_filename) - 4:) /= ".json") then
       json_filename = trim(json_filename) // ".json"
    end if
@@ -64,16 +66,18 @@ program main
       allocate(ChannelFlowSolver::solver) 
    else if(value .eq. "ChannelFlowSolverIncomp") then
       allocate(ChannelFlowSolverIncomp::solver) 
-   else if(value .eq. "BluffBodySolver") then
-      allocate(BluffBodySolver::solver) 
-   else if(value .eq. "BluffBodySolverIncomp") then
-      allocate(BluffBodySolverIncomp::solver)
    else if(value .eq. "BluffBodySolverIncompAFC") then
       allocate(BluffBodySolverIncompAFC::solver)
 #ifdef SMARTREDIS
    else if(value .eq. "BluffBodySolverIncompDRL") then
       allocate(BluffBodySolverIncompDRL::solver)  
 #endif  
+   else if(value .eq. "ThermalBubbleSolver") then
+      allocate(ThermalBubbleSolver::solver) 
+   else if(value .eq. "BluffBodySolver") then
+      allocate(BluffBodySolver::solver) 
+   else if(value .eq. "BluffBodySolverIncomp") then
+      allocate(BluffBodySolverIncomp::solver) 
    else if(value .eq. "BluffBody3DSolver") then
       allocate(BluffBody3DSolver::solver) 
    else if(value .eq. "BluffBody3DSolverIncomp") then
@@ -86,6 +90,8 @@ program main
       allocate(MappedInletIncomp::solver) 
    else if(value .eq. "WindFarmSolverIncomp") then
       allocate(WindFarmSolverIncomp::solver) 
+   else if(value .eq. "SupersonicForwardStep") then
+      allocate(SupersonicForwardStep::solver)       
    else
       write(*,*) " Solver not implemented in SOD2D : ",value
       stop 1

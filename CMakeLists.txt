@@ -11,22 +11,19 @@ set(TEST_VERSION "${TEST_VERSION_MAJOR}.${TEST_VERSION_MINOR}.${TEST_VERSION_PAT
 option(UNIT_TESTING "Enable unit tests" OFF)
 option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
-option(USE_SMARTREDIS "Compile using SmartRedis" ON)
+option(USE_SMARTREDIS "Compile using SmartRedis" OFF)
 
 option(TOOL_MESHPART "Compiles tool MeshPart" OFF)
 option(TOOL_COPYRES  "Compiles tool CopyResults" OFF)
 option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
 
 option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
-option(USE_PCPOWER "Compiling in PC-POWER" OFF)
-option(USE_ALVIS "Compiling in Alvis" OFF)
-option(USE_BERZELIUS "Compiling in Berzelius" OFF)
 option(USE_MN4 "Compiling in MareNostrum" OFF)
 option(USE_MN5 "Compiling in MareNostrum5" OFF)
 option(USE_CRAY "Compiling with CrayMpi" OFF)
 option(SHARED_LIBS "Compile using shared libraries" OFF)
 
-option(USE_GPU "Compile using GPU" ON)
+option(USE_GPU "Compile using GPU" OFF)
 option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
 option(USE_NCCL "Compile using NCCL" OFF)
 
@@ -56,6 +53,7 @@ project(sod2d LANGUAGES C CXX Fortran)
 include(mpi)
 
 # Configure compiler options
+include(gpu)
 include(compilerOps)
 
 # Configure HDF5 module

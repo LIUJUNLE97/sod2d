@@ -3559,16 +3559,21 @@ contains
 
 !----------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine save_hdf5_restartFile(base_restartFile_h5_full_name,mnnode,mngaus,restartCnt,iStep,flag_walave_value,time,rho,u,pr,E,mu_e,mu_t,walave_u)
+   subroutine save_hdf5_restartFile(base_restartFile_h5_full_name,mnnode,mngaus,restartCnt,iStep,flag_walave_value,time,&
+                                    rho,u,pr,E,mu_e,mu_t,walave_u,&
+                                    numRestartFields,restartNameFields,indRF_rho,indRF_ux,indRF_uy,indRF_uz,indRF_pr,&
+                                    indRF_ener,indRF_mut,indRF_mue,indRF_walavex,indRF_walavey,indRF_walavez)
       implicit none
       character(len=*),intent(in) :: base_restartFile_h5_full_name
-      integer(4),intent(in) :: mnnode,mngaus
-      integer(4),intent(in) :: restartCnt,iStep
+      integer(4),intent(in) :: mnnode,mngaus,restartCnt,iStep,numRestartFields
       logical,intent(in) :: flag_walave_value
       real(rp),intent(in) :: time
-      real(rp),intent(inout),dimension(numNodesRankPar)       :: rho,pr,E
+      real(rp),intent(inout),dimension(numNodesRankPar) :: rho,pr,E
       real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u,walave_u
       real(rp),intent(inout),dimension(numElemsRankPar,mngaus) :: mu_e,mu_t
+      character(128),intent(in) :: restartNameFields(numRestartFields)
+      integer(4),intent(in) :: indRF_rho,indRF_ux,indRF_uy,indRF_uz,indRF_pr,indRF_ener,&
+                               indRF_mut,indRF_mue,indRF_walavex,indRF_walavey,indRF_walavez
 
       integer(hid_t) :: file_id,plist_id,dtype
       integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
@@ -3611,38 +3616,38 @@ contains
       ms_offset(1) = int(rankNodeStart,hssize_t)-1
       !-----------------------------------------------------------------------------------------------
 
-      dsetname = 'rho'
+      dsetname = trim(restartNameFields(indRF_rho))
       call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,rho)
 
-      dsetname = 'u_x'
+      dsetname = trim(restartNameFields(indRF_ux))
       call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u(:,1))
 
-      dsetname = 'u_y'
+      dsetname = trim(restartNameFields(indRF_uy))
       call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u(:,2))
 
-      dsetname = 'u_z'
+      dsetname = trim(restartNameFields(indRF_uz))
       call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,u(:,3))
 
-      dsetname = 'pr'
+      dsetname = trim(restartNameFields(indRF_pr))
       call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,pr)
 
-      dsetname = 'E'
+      dsetname = trim(restartNameFields(indRF_ener))
       call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,E)
 
-      dsetname = 'mue'
+      dsetname = trim(restartNameFields(indRF_mue))
       call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_mu_e)
 
-      dsetname = 'mut'
+      dsetname = trim(restartNameFields(indRF_mut))
       call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,aux_mu_t)
 
       if(flag_walave_value) then
-         dsetname = 'walave_u_x'
+         dsetname = trim(restartNameFields(indRF_walavex))
          call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,walave_u(:,1))
 
-         dsetname = 'walave_u_y'
+         dsetname = trim(restartNameFields(indRF_walavey))
          call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,walave_u(:,2))
 
-         dsetname = 'walave_u_z'
+         dsetname = trim(restartNameFields(indRF_walavez))
          call save_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ds_dims,ms_dims,ms_offset,walave_u(:,3))
       end if
 
@@ -3661,16 +3666,22 @@ contains
 
    end subroutine save_hdf5_restartFile
 
-   subroutine load_hdf5_restartFile(base_restartFile_h5_full_name,mnnode,mngaus,restartCnt,load_step,flag_walave_value,time,rho,u,pr,E,mu_e,mu_t,walave_u)
+   subroutine load_hdf5_restartFile(base_restartFile_h5_full_name,mnnode,mngaus,restartCnt,load_step,flag_walave_value,time,&
+                                    rho,u,pr,E,mu_e,mu_t,walave_u,&
+                                    numRestartFields,restartNameFields,indRF_rho,indRF_ux,indRF_uy,indRF_uz,indRF_pr,&
+                                    indRF_ener,indRF_mut,indRF_mue,indRF_walavex,indRF_walavey,indRF_walavez)
       implicit none
       character(len=*),intent(in) :: base_restartFile_h5_full_name
-      integer(4),intent(in) :: mnnode,mngaus,restartCnt
+      integer(4),intent(in) :: mnnode,mngaus,restartCnt,numRestartFields
       logical,intent(in) :: flag_walave_value
       integer(4),intent(inout) :: load_step
       real(rp),intent(inout) :: time
-      real(rp),intent(inout),dimension(numNodesRankPar)       :: rho,pr,E
+      real(rp),intent(inout),dimension(numNodesRankPar) :: rho,pr,E
       real(rp),intent(inout),dimension(numNodesRankPar,ndime) :: u,walave_u
       real(rp),intent(inout),dimension(numElemsRankPar,mngaus) :: mu_e,mu_t
+      character(128),intent(in) :: restartNameFields(numRestartFields)
+      integer(4),intent(in) :: indRF_rho,indRF_ux,indRF_uy,indRF_uz,indRF_pr,indRF_ener,&
+                               indRF_mut,indRF_mue,indRF_walavex,indRF_walavey,indRF_walavez
 
       character(512) :: full_restartFileName
       integer(hid_t) :: file_id,plist_id
@@ -3710,32 +3721,32 @@ contains
       ms_dims(1) = int(numNodesRankPar,hsize_t)
       ms_offset(1) = int(rankNodeStart,hssize_t)-1
 
-      dsetname = 'rho'
+      dsetname = trim(restartNameFields(indRF_rho))
       call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,rho)
 
-      dsetname = 'u_x'
+      dsetname = trim(restartNameFields(indRF_ux))
       call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,1))
 
-      dsetname = 'u_y'
+      dsetname = trim(restartNameFields(indRF_uy))
       call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,2))
 
-      dsetname = 'u_z'
+      dsetname = trim(restartNameFields(indRF_uz))
       call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,u(:,3))
 
-      dsetname = 'pr'
+      dsetname = trim(restartNameFields(indRF_pr))
       call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,pr)
 
-      dsetname = 'E'
+      dsetname = trim(restartNameFields(indRF_ener))
       call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,E)
 
-      dsetname = 'mue'
+      dsetname = trim(restartNameFields(indRF_mue))
       call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_mu_e)
 
-      dsetname = 'mut'
+      dsetname = trim(restartNameFields(indRF_mut))
       call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,aux_mu_t)
 
       if(flag_walave_value) then
-         dsetname = 'walave_u_x'
+         dsetname = trim(restartNameFields(indRF_walavex))
          call h5lexists_f(file_id,dsetname, link_exists, h5err)
          if(h5err /= 0) then
             write(*,*) ' error checking if walave_u_x exists in restart file'
@@ -3746,9 +3757,9 @@ contains
             if(mpi_rank.eq.0) write(111,*) ' walave_u exists'
             call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,walave_u(:,1))
             ! I suposse that if walave_u_x exists then y and z also exist - no need to check again
-            dsetname = 'walave_u_y'
+            dsetname = trim(restartNameFields(indRF_walavey))
             call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,walave_u(:,2))
-            dsetname = 'walave_u_z'
+            dsetname = trim(restartNameFields(indRF_walavez))
             call read_array1D_rp_in_dataset_hdf5_file(file_id,dsetname,ms_dims,ms_offset,walave_u(:,3))
          else
             if(mpi_rank.eq.0) write(111,*) ' walave_u does not exist - using u'

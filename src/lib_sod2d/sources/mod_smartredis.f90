@@ -147,17 +147,17 @@ module mod_smartredis
       !$acc update device(action_global(:))
    end subroutine read_action
 
-   ! Writes the reward values: wall shear stress integral for both positive and negative values
-   subroutine write_reward(client, Ftau_neg, key)
+   ! Writes the reward values
+   subroutine write_reward(client, reward, key)
       type(client_type), intent(inout) :: client
-      real(rp), intent(in) :: Ftau_neg(n_pseudo_envs)
+      real(rp), intent(in) :: reward(n_pseudo_envs)
       character(len=*), intent(in) :: key
 
       integer :: error
       logical :: is_error
 
       if (mpi_rank .eq. 0) then
-         error = client%put_tensor(key, Ftau_neg, shape(Ftau_neg))
+         error = client%put_tensor(key, reward, shape(reward))
          is_error = client%SR_error_parser(error)
          if (error /= 0) stop 'Error in SmartRedis write_reward.'
       end if

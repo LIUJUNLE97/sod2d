@@ -24,7 +24,9 @@ module mod_bc_routines
             real(rp),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
             real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
-            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm
+            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm,y,T_inf,p_inf,nscbc_g
+
+            nscbc_g = sqrt(nscbc_g_x**2+nscbc_g_y**2+nscbc_g_z**2)
 
             if(allocate_memory_bcc) then
                allocate_memory_bcc = .false.
@@ -126,6 +128,18 @@ module mod_bc_routines
                      aux_u(inode,3) = u_buffer(inode,3)
 
                      aux_rho(inode) = nscbc_rho_inf
+                  else if (bcode == bc_type_far_field_supersonic) then
+                     
+                        aux_q(inode,1) = u_buffer(inode,1)*nscbc_rho_inf
+                        aux_q(inode,2) = u_buffer(inode,2)*nscbc_rho_inf
+                        aux_q(inode,3) = u_buffer(inode,3)*nscbc_rho_inf
+   
+                        aux_u(inode,1) = u_buffer(inode,1)
+                        aux_u(inode,2) = u_buffer(inode,2)
+                        aux_u(inode,3) = u_buffer(inode,3)
+   
+                        aux_rho(inode) = nscbc_rho_inf
+                        aux_E(inode)   = (nscbc_rho_inf*0.5_rp*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0_rp))
                   else if (bcode == bc_type_recirculation_inlet) then ! recirculation inlet
                      
                      aux_q(inode,1) = aux_q(lnbn_nodes(inode),1)
@@ -139,7 +153,7 @@ module mod_bc_routines
                      aux_rho(inode) = aux_rho(lnbn_nodes(inode))
                      aux_E(inode)   = aux_E(lnbn_nodes(inode))
                      aux_p(inode)   = aux_p(lnbn_nodes(inode))
-
+         
                   else if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic
 
                      aux_q(inode,1) = 0.0_rp
@@ -152,6 +166,7 @@ module mod_bc_routines
 
                      aux_rho(inode) = nscbc_rho_inf
                      !aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
+                     
                   else if (bcode == bc_type_non_slip_hot) then ! non_slip wall hot
 
                      aux_q(inode,1) = 0.0_rp
@@ -180,9 +195,17 @@ module mod_bc_routines
                      !aux_p(inode) = nscbc_p_inf
                      aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
 
-                  else if ((bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic)) then ! slip
-                     aux_E(inode) = aux_E(inode) - &
-                                    aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
+                  else if ((bcode == bc_type_symmetry) ) then 
+                     norm = (normalsAtNodes(inode,1)*aux_q(inode,1)) + (normalsAtNodes(inode,2)*aux_q(inode,2)) + (normalsAtNodes(inode,3)*aux_q(inode,3))
+                     !$acc loop seq
+                     do idime = 1,ndime     
+                        aux_q(inode,idime) = aux_q(inode,idime) - norm*normalsAtNodes(inode,idime)
+                     end do
+
+                     aux_u(inode,1) = aux_q(inode,1)/aux_rho(inode)
+                     aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
+                     aux_u(inode,3) = aux_q(inode,3)/aux_rho(inode)              
+                  else if (bcode == bc_type_slip_isothermal) then ! slip
                      norm = (normalsAtNodes(inode,1)*aux_q(inode,1)) + (normalsAtNodes(inode,2)*aux_q(inode,2)) + (normalsAtNodes(inode,3)*aux_q(inode,3))
                      !$acc loop seq
                      do idime = 1,ndime
@@ -194,9 +217,57 @@ module mod_bc_routines
                      aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
                      aux_u(inode,3) = aux_q(inode,3)/aux_rho(inode)
 
+                     aux_E(inode) =  nscbc_p_inf/(nscbc_gamma_inf-1.0_rp) + &
+                                    aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))                  
+                  else if ((bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic)) then ! slip
+                     norm = (normalsAtNodes(inode,1)*aux_q(inode,1)) + (normalsAtNodes(inode,2)*aux_q(inode,2)) + (normalsAtNodes(inode,3)*aux_q(inode,3))
+                    ! aux_E(inode) = aux_E(inode) - &
+                    ! aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
+                     !$acc loop seq
+                     do idime = 1,ndime     
+                        aux_q(inode,idime) = aux_q(inode,idime) - norm*normalsAtNodes(inode,idime)
+                     end do
+                     !aux_rho(inode) = nscbc_rho_inf
+
+                     aux_u(inode,1) = aux_q(inode,1)/aux_rho(inode)
+                     aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
+                     aux_u(inode,3) = aux_q(inode,3)/aux_rho(inode)
+
+                     !aux_E(inode) =  nscbc_p_inf/(nscbc_gamma_inf-1.0_rp) + &
+                     !               aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
+                     !aux_E(inode) = aux_E(inode) + &
+                     !aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
+
+                  else if ((bcode == bc_type_slip_atmosphere)) then ! slip
+                     ! Compute value for the density
+                     y = coordPar(inode,2)
+                     ! Set up the atmosphere, Navas-Montilla (2023) eq. 71 (adiabatic atmosphere)
+                     ! https://farside.ph.utexas.edu/teaching/sm1/lectures/node56.html
+                     rr    = (nscbc_gamma_inf - 1.0_rp)/nscbc_gamma_inf*nscbc_g/nscbc_Rgas_inf/nscbc_T_C ! Reused variable
+                     T_inf = nscbc_T_C*(1.0_rp - rr*y)
+                     p_inf = nscbc_p_inf*(1.0_rp - rr*y)**(nscbc_Cp_inf/nscbc_Rgas_inf)
+                     ! WARNING: here for numerical approximation is important to either use
+                     ! (gamma-1)/gamma or Cp/R as otherwise we incur in approximation issues!
+                     
+                     ! Density is set with the equation of state
+                     aux_rho(inode) = p_inf/nscbc_Rgas_inf/T_inf
+                     
+                     aux_E(inode) = aux_E(inode) - &
+                                    aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
+                     
+                     norm = (normalsAtNodes(inode,1)*aux_q(inode,1)) + (normalsAtNodes(inode,2)*aux_q(inode,2)) + (normalsAtNodes(inode,3)*aux_q(inode,3))
+                     !$acc loop seq
+                     do idime = 1,ndime     
+                        aux_q(inode,idime) = aux_q(inode,idime) - norm*normalsAtNodes(inode,idime)
+                     end do
+
+                     aux_u(inode,1) = aux_q(inode,1)/aux_rho(inode)
+                     aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
+                     aux_u(inode,3) = aux_q(inode,3)/aux_rho(inode)
+
                      aux_E(inode) = aux_E(inode) + &
                                     aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
-
+                               
                   end if
                end if
             end do
@@ -232,6 +303,20 @@ subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound
                      Rmass(inode) = 0.0_rp
                      Rener(inode) = 0.0_rp
                   else if (bcode == bc_type_non_slip_cold) then ! non_slip wall cold
+                     Rmom(inode,1) = 0.0_rp
+                     Rmom(inode,2) = 0.0_rp
+                     Rmom(inode,3) = 0.0_rp
+
+                     Rmass(inode) = 0.0_rp
+                     Rener(inode) = 0.0_rp
+                  else if (bcode == bc_type_far_field_supersonic) then ! non_slip wall cold
+                     Rmom(inode,1) = 0.0_rp
+                     Rmom(inode,2) = 0.0_rp
+                     Rmom(inode,3) = 0.0_rp
+
+                     Rmass(inode) = 0.0_rp
+                     Rener(inode) = 0.00_rp
+                  else if (bcode == bc_type_recirculation_inlet) then ! non_slip wall cold
                      Rmom(inode,1) = 0.0_rp
                      Rmom(inode,2) = 0.0_rp
                      Rmom(inode,3) = 0.0_rp
@@ -365,7 +450,7 @@ subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound
 
                      aux_rho_r(inode) = 0.0_rp
                      
-                  else if ((bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic)) then ! slip)
+                  else if ((bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic) .or. (bcode == bc_type_slip_atmosphere)) then ! slip)
                      norm = (normalsAtNodes(inode,1)*aux_q(inode,1)) + (normalsAtNodes(inode,2)*aux_q(inode,2)) + (normalsAtNodes(inode,3)*aux_q(inode,3))
                      !$acc loop seq
                      do idime = 1,ndime     

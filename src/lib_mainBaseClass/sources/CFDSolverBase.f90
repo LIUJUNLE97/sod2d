@@ -68,6 +68,7 @@ module CFDSolverBase_mod
       use mod_comms
       use mod_comms_boundaries
       use mod_custom_types
+      use mod_saveFields
       use mod_witness_points
       use mod_filters
       use mod_InSitu
@@ -112,26 +113,20 @@ module CFDSolverBase_mod
       real(rp) , public                   :: loadtimewit=0.0_rp
       logical  , public                   :: noBoundaries
 
-
-      ! saving parameters
-      integer(4), public :: numNodeScalarFields2save,numNodeVectorFields2save,numElemGpScalarFields2save
-      integer(4), public :: numAvgNodeScalarFields2save,numAvgNodeVectorFields2save,numAvgElemGpScalarFields2save
-      type(ptr_array1d_rp_save),public :: nodeScalarFields2save(max_num_saved_fields),avgNodeScalarFields2save(max_num_saved_fields)
-      type(ptr_array2d_rp_save),public :: nodeVectorFields2save(max_num_saved_fields),avgNodeVectorFields2save(max_num_saved_fields)
-      type(ptr_array2d_rp_save),public :: elemGpScalarFields2save(max_num_saved_fields),avgElemGpScalarFields2save(max_num_saved_fields)
-      logical, public :: save_scalarField_rho,     save_scalarField_muFluid,  save_scalarField_pressure, save_scalarField_energy, &
-                         save_scalarField_entropy, save_scalarField_csound,   save_scalarField_machno,   save_scalarField_divU,   &
-                         save_scalarField_qcrit,   save_scalarField_muSgs,    save_scalarField_muEnvit,  save_vectorField_vel,    &
-                         save_vectorField_gradRho, save_vectorField_curlU
-      logical, public :: save_avgScalarField_rho,  save_avgScalarField_pr,    save_avgScalarField_mueff, save_avgVectorField_vel, &
-                         save_avgVectorField_ve2,  save_avgVectorField_vex,   save_avgVectorField_vtw
-
    contains
       procedure, public :: printDt => CFDSolverBase_printDt
       procedure, public :: printAll => CFDSolverBase_printAll
       procedure, public :: run => CFDSolverBase_run
+      !-------------------------------------------------------------------------------------------------------
+      procedure, public :: initializeDefaultFileNames => CFDSolverBase_initializeDefaultFileNames
+      procedure, public :: initializeDefaultVariables => CFDSolverBase_initializeDefaultVariables
+      procedure, public :: initializeDefaultFlags => CFDSolverBase_initializeDefaultFlags
+      procedure, public :: initializeDefaultSaveFields => CFDSolverBase_initializeDefaultSaveFields
+      procedure, public :: initializeDefaultCustomSettings => CFDSolverBase_initializeDefaultCustomSettings
       procedure, public :: initializeDefaultParameters => CFDSolverBase_initializeDefaultParameters
       procedure, public :: initializeParameters => CFDSolverBase_initializeParameters
+      !-------------------------------------------------------------------------------------------------------
+      procedure, public :: optimizeParameters => CFDSolverBase_optimizeParameters
       procedure, public :: initializeSourceTerms => CFDSolverBase_initializeSourceTerms
       procedure, public :: openMesh => CFDSolverBase_openMesh
       procedure, public :: evalCharLength => CFDSolverBase_evalCharLength
@@ -169,16 +164,6 @@ module CFDSolverBase_mod
 
       procedure, public :: initialBuffer =>CFDSolverBase_initialBuffer
 
-      procedure, public :: add_nodeScalarField2save   => CFDSolverBase_add_nodeScalarField2save
-      procedure, public :: add_nodeVectorField2save   => CFDSolverBase_add_nodeVectorField2save
-      procedure, public :: add_elemGpScalarField2save => CFDSolverBase_add_elemGpScalarField2save
-
-      procedure, public :: add_avgNodeScalarField2save   => CFDSolverBase_add_avgNodeScalarField2save
-      procedure, public :: add_avgNodeVectorField2save   => CFDSolverBase_add_avgNodeVectorField2save
-      procedure, public :: add_avgElemGpScalarField2save => CFDSolverBase_add_avgElemGpScalarField2save
-
-      procedure, public :: setFields2Save => CFDSolverBase_setFields2Save
-
       procedure, public :: initNSSolver => CFDSolverBase_initNSSolver
       procedure, public :: endNSSolver => CFDSolverBase_endNSSolver
 
@@ -199,31 +184,40 @@ module CFDSolverBase_mod
    end type CFDSolverBase
 contains
 
-   subroutine CFDSolverBase_findFixPressure(this)
-      implicit none
-      class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: ielem, iRankl, iNodeL,iRank
+subroutine CFDSolverBase_findFixPressure(this)
+   implicit none
+   class(CFDSolverBase), intent(inout) :: this
+   integer(4) :: ielem, iRankl, iNodeL,iRank
 
-      ielem = numElemsRankPar*0.5
-      iRankl = mpi_size + 1
-      !$acc parallel loop  
-      do iNodeL = 1,numNodesRankPar
-         if(maskMapped(iNodeL) == 0) then
-            iRankl = mpi_rank
-         end if
-      end do
-      !$acc end parallel loop
-      call MPI_Allreduce(iRankl,iRank,1,mpi_datatype_int,MPI_MIN,app_comm,mpi_err)
-
-      if(iRank == (mpi_size+1)) iRank = 0
-      if(mpi_rank.eq.iRank) then
-          inode_fix_press =  connecParWork(ielem,atoIJK(nnode))
-          write(111,*) '--| Node to fix pressure',inode_fix_press, " mpi_rank ",iRank
-      else
-         flag_fs_fix_pressure = .false.
+   ielem = numElemsRankPar*0.5
+   iRankl = mpi_size + 1
+   !$acc parallel loop  
+   do iNodeL = 1,numNodesRankPar
+      if(maskMapped(iNodeL) .eq. 0) then
+         iRankl = mpi_rank
       end if
+   end do
+   !$acc end parallel loop
+   call MPI_Allreduce(iRankl,iRank,1,mpi_datatype_int,MPI_MIN,app_comm,mpi_err)
 
-   end subroutine CFDSolverBase_findFixPressure
+   if(iRank == (mpi_size+1)) iRank = 0
+   if(mpi_rank.eq.iRank) then
+       inode_fix_press =  connecParWork(ielem,atoIJK(nnode))
+       if(maskMapped(inode_fix_press) .eq. 1) then
+               do iNodeL = 1,numNodesRankPar
+                     if(maskMapped(iNodeL) .eq. 0) then
+                       inode_fix_press = iNodeL
+                       exit
+                     end if
+               end do
+       end if
+       !inode_fix_press = 4084081  ! 11500000 mid cedval mesh
+       write(111,*) '--| Node to fix pressure',inode_fix_press, " mpi_rank ",iRank,"  coord ",coordPar(inode_fix_press,1:3)," dir  ", perMapFaceDir
+   else
+      flag_fs_fix_pressure = .false.
+   end if
+
+end subroutine CFDSolverBase_findFixPressure
 
    subroutine CFDSolverBase_readJSONBuffer(this)
       use json_module
@@ -436,6 +430,16 @@ contains
                   bouCodes2BCType(id) = bc_type_unsteady_inlet
                else if(value .eq. "bc_type_far_field_SB") then
                   bouCodes2BCType(id) = bc_type_far_field_SB 
+               else if(value .eq. "bc_type_slip_atmosphere") then
+                  bouCodes2BCType(id) = bc_type_slip_atmosphere
+               else if(value .eq. "bc_type_symmetry") then
+                  bouCodes2BCType(id) = bc_type_symmetry
+               else if(value .eq. "bc_type_slip_isothermal") then
+                  bouCodes2BCType(id) = bc_type_slip_isothermal
+               else if(value .eq. "bc_type_far_field_supersonic") then
+                  bouCodes2BCType(id) = bc_type_far_field_supersonic
+               else if(value .eq. "bc_type_outlet_supersonic") then
+                  bouCodes2BCType(id) = bc_type_outlet_supersonic
                end if
             else
                if(mpi_rank .eq. 0) then
@@ -481,7 +485,7 @@ contains
       class(CFDSolverBase), intent(inout) :: this
       integer(4) :: iNodeL
 
-      allocate(source_term(numNodesRankPar,ndime))
+      allocate(source_term(numNodesRankPar,ndime+2))
       !$acc enter data create(source_term(:,:))
       !$acc kernels
       source_term(:,:) = 0.00_rp
@@ -522,7 +526,7 @@ contains
 
    end subroutine CFDSolverBase_endNSSolver
 
-   subroutine CFDSolverBase_initializeDefaultParameters(this)
+   subroutine CFDSolverBase_initializeDefaultFileNames(this)
       class(CFDSolverBase), intent(inout) :: this
 
       write(this%mesh_h5_file_path,*) "./"
@@ -533,6 +537,28 @@ contains
 
       write(this%io_prepend_path,*) "./"
       write(this%io_append_info,*) ""
+
+   end subroutine CFDSolverBase_initializeDefaultFileNames
+
+   subroutine CFDSolverBase_initializeDefaultFlags(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      this%loadRestartFile    = .false.
+      this%saveAvgFile        = .false.
+      this%loadAvgFile        = .false.
+      this%continue_oldLogs   = .false.
+      this%doGlobalAnalysis   = .false.
+      this%doTimerAnalysis    = .false.
+      this%isFreshStart       = .true.
+      this%saveInitialField   = .false.
+      this%saveSurfaceResults = .false.
+      this%isWallModelOn      = .false.
+      this%isSymmetryOn       = .false.
+
+   end subroutine CFDSolverBase_initializeDefaultFlags
+
+   subroutine CFDSolverBase_initializeDefaultVariables(this)
+      class(CFDSolverBase), intent(inout) :: this
 
       this%time = 0.0_rp
       this%initial_istep = 1
@@ -554,306 +580,54 @@ contains
       this%elapsed_avgTime = 0.0_rp
       !--------------------------------------------------------------------------
 
-      this%loadRestartFile    = .false.
-      this%saveAvgFile        = .false.
-      this%loadAvgFile        = .false.
-      this%continue_oldLogs   = .false.
-      this%doGlobalAnalysis   = .false.
-      this%doTimerAnalysis    = .false.
-      this%isFreshStart       = .true.
-      this%saveInitialField   = .false.
-      this%saveSurfaceResults = .false.
-      this%isWallModelOn      = .false.
-      this%isSymmetryOn=.false.
-      !@JORDI: discuss which other parameters can be set as default....
+   end subroutine CFDSolverBase_initializeDefaultVariables
 
-      this%numNodeScalarFields2save    = 0
-      this%numNodeVectorFields2save    = 0
-      this%numElemGpScalarFields2save  = 0
-      this%save_scalarField_rho        = .true.
-      this%save_scalarField_muFluid    = .true.
-      this%save_scalarField_pressure   = .true.
-      this%save_scalarField_energy     = .true.
-      this%save_scalarField_entropy    = .true.
-      this%save_scalarField_csound     = .true.
-      this%save_scalarField_machno     = .true.
-      this%save_scalarField_divU       = .true.
-      this%save_scalarField_qcrit      = .true.
-      this%save_scalarField_muSgs      = .true.
-      this%save_scalarField_muEnvit    = .true.
-      this%save_vectorField_vel        = .true.
-      this%save_vectorField_gradRho    = .true.
-      this%save_vectorField_curlU      = .true.
+   subroutine CFDSolverBase_initializeDefaultSaveFields(this)
+      class(CFDSolverBase), intent(inout) :: this
 
-      this%numAvgNodeScalarFields2save    = 0
-      this%numAvgNodeVectorFields2save    = 0
-      this%numAvgElemGpScalarFields2save  = 0
-      this%save_avgScalarField_rho     = .true.
-      this%save_avgScalarField_pr      = .true.
-      this%save_avgScalarField_mueff   = .true.
-      this%save_avgVectorField_vel     = .true.
-      this%save_avgVectorField_ve2     = .true.
-      this%save_avgVectorField_vex     = .true.
-      this%save_avgVectorField_vtw     = .true.
+      call initializeDefaultSaveFieldsCompressible()
+
+   end subroutine CFDSolverBase_initializeDefaultSaveFields
+
+   subroutine CFDSolverBase_initializeDefaultCustomSettings(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      !empty !to be overwritten
+
+   end subroutine CFDSolverBase_initializeDefaultCustomSettings
+
+   subroutine CFDSolverBase_initializeDefaultParameters(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      call this%initializeDefaultFileNames()
+
+      call this%initializeDefaultVariables()
+
+      call this%initializeDefaultFlags()
+
+      call this%initializeDefaultSaveFields()
+
+      call this%initializeDefaultCustomSettings()
+
 
    end subroutine CFDSolverBase_initializeDefaultParameters
 
 !--------------------------------------------------------------------------------------------------------------------------
 
-   subroutine CFDSolverBase_add_nodeScalarField2save(this,fieldSaveName,array2save)
-      implicit none
-      class(CFDSolverBase), intent(inout) :: this
-      character(*),intent(in) :: fieldSaveName
-      real(rp),target,intent(in) :: array2save(:)
-
-      this%numNodeScalarFields2save = this%numNodeScalarFields2save + 1
-
-      if(this%numNodeScalarFields2save .gt. max_num_saved_fields) then
-         if(mpi_rank.eq.0) then
-            write(111,*) 'WARNING! Trying to add node scalarfield ',fieldSaveName,' num ',this%numNodeScalarFields2save,' but max_num_saved_fields ',max_num_saved_fields
-            write(111,*) 'node scalarfield NOT ADDED! If required, modify max_num_saved_fields in mod_constants.f90'
-         end if
-         return
-      end if
-
-      this%nodeScalarFields2save(this%numNodeScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
-      this%nodeScalarFields2save(this%numNodeScalarFields2save)%ptr_rp => array2save
-      this%nodeScalarFields2save(this%numNodeScalarFields2save)%ptr_avg => null()
-
-   end subroutine CFDSolverBase_add_nodeScalarField2save
-
-!--------------------------------------------------------------------------------------------------------------------------
-
-   subroutine CFDSolverBase_add_nodeVectorField2save(this,fieldSaveName,array2save)
-      implicit none
-      class(CFDSolverBase), intent(inout) :: this
-      character(*),intent(in) :: fieldSaveName
-      real(rp),target,intent(in) :: array2save(:,:)
-
-      this%numNodeVectorFields2save = this%numNodeVectorFields2save + 1
-
-      if(this%numNodeVectorFields2save .gt. max_num_saved_fields) then
-         if(mpi_rank.eq.0) then
-            write(111,*) 'WARNING! Trying to add node vectorfield ',fieldSaveName,' num ',this%numNodeVectorFields2save,' but max_num_saved_fields ',max_num_saved_fields
-            write(111,*) 'node vectorfield NOT ADDED! If required, modify max_num_saved_fields in mod_constants.f90'
-         end if
-         return
-      end if
-
-      this%nodeVectorFields2save(this%numNodeVectorFields2save)%nameField = trim(adjustl(fieldSaveName))
-      this%nodeVectorFields2save(this%numNodeVectorFields2save)%ptr_rp => array2save
-      this%nodeVectorFields2save(this%numNodeVectorFields2save)%ptr_avg => null()
-
-   end subroutine CFDSolverBase_add_nodeVectorField2save
-
-!--------------------------------------------------------------------------------------------------------------------------
-
-   subroutine CFDSolverBase_add_elemGpScalarField2save(this,fieldSaveName,array2save)
-      implicit none
-      class(CFDSolverBase), intent(inout) :: this
-      character(*),intent(in) :: fieldSaveName
-      real(rp),target,intent(in) :: array2save(:,:)
-
-      this%numElemGpScalarFields2save = this%numElemGpScalarFields2save + 1
-
-      if(this%numElemGpScalarFields2save .gt. max_num_saved_fields) then
-         if(mpi_rank.eq.0) then
-            write(111,*) 'WARNING! Trying to add elemGp scalarfield ',fieldSaveName,' num ',this%numElemGpScalarFields2save,' but max_num_saved_fields ',max_num_saved_fields
-            write(111,*) 'elemGp scalarfield NOT ADDED! If required, modify max_num_saved_fields in mod_constants.f90'
-         end if
-         return
-      end if
-
-      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
-      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%ptr_rp => array2save
-      this%elemGpScalarFields2save(this%numElemGpScalarFields2save)%ptr_avg => null()
-
-   end subroutine CFDSolverBase_add_elemGpScalarField2save
-
-   subroutine CFDSolverBase_add_avgNodeScalarField2save(this,fieldSaveName,array2save)
-      implicit none
-      class(CFDSolverBase), intent(inout) :: this
-      character(*),intent(in) :: fieldSaveName
-      real(rp_avg),target,intent(in) :: array2save(:)
-
-      this%numAvgNodeScalarFields2save = this%numAvgNodeScalarFields2save + 1
-
-      if(this%numAvgNodeScalarFields2save .gt. max_num_saved_fields) then
-         if(mpi_rank.eq.0) then
-            write(111,*) 'WARNING! Trying to add node scalarfield ',fieldSaveName,' num ',this%numAvgNodeScalarFields2save,' but max_num_saved_fields ',max_num_saved_fields
-            write(111,*) 'node scalarfield NOT ADDED! If required, modify max_num_saved_fields in mod_constants.f90'
-         end if
-         return
-      end if
-
-      this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
-      this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%ptr_avg => array2save
-      this%avgNodeScalarFields2save(this%numAvgNodeScalarFields2save)%ptr_rp => null()
-
-   end subroutine CFDSolverBase_add_avgNodeScalarField2save
-
-!--------------------------------------------------------------------------------------------------------------------------
-
-   subroutine CFDSolverBase_add_avgNodeVectorField2save(this,fieldSaveName,array2save)
-      implicit none
-      class(CFDSolverBase), intent(inout) :: this
-      character(*),intent(in) :: fieldSaveName
-      real(rp_avg),target,intent(in) :: array2save(:,:)
-
-      this%numAvgNodeVectorFields2save = this%numAvgNodeVectorFields2save + 1
-
-      if(this%numAvgNodeVectorFields2save .gt. max_num_saved_fields) then
-         if(mpi_rank.eq.0) then
-            write(111,*) 'WARNING! Trying to add node vectorfield ',fieldSaveName,' num ',this%numAvgNodeVectorFields2save,' but max_num_saved_fields ',max_num_saved_fields
-            write(111,*) 'node vectorfield NOT ADDED! If required, modify max_num_saved_fields in mod_constants.f90'
-         end if
-         return
-      end if
-
-      this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%nameField = trim(adjustl(fieldSaveName))
-      this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%ptr_avg => array2save
-      this%avgNodeVectorFields2save(this%numAvgNodeVectorFields2save)%ptr_rp => null()
-
-   end subroutine CFDSolverBase_add_avgNodeVectorField2save
-
-!--------------------------------------------------------------------------------------------------------------------------
-
-   subroutine CFDSolverBase_add_avgElemGpScalarField2save(this,fieldSaveName,array2save)
-      implicit none
-      class(CFDSolverBase), intent(inout) :: this
-      character(*),intent(in) :: fieldSaveName
-      real(rp_avg),target,intent(in) :: array2save(:,:)
-
-      this%numAvgElemGpScalarFields2save = this%numAvgElemGpScalarFields2save + 1
-
-      if(this%numAvgElemGpScalarFields2save .gt. max_num_saved_fields) then
-         if(mpi_rank.eq.0) then
-            write(111,*) 'WARNING! Trying to add elemGp scalarfield ',fieldSaveName,' num ',this%numAvgElemGpScalarFields2save,' but max_num_saved_fields ',max_num_saved_fields
-            write(111,*) 'elemGp scalarfield NOT ADDED! If required, modify max_num_saved_fields in mod_constants.f90'
-         end if
-         return
-      end if
-
-      this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%nameField = trim(adjustl(fieldSaveName))
-      this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%ptr_avg => array2save
-      this%avgElemGpScalarFields2save(this%numAvgElemGpScalarFields2save)%ptr_rp => null()
-
-   end subroutine CFDSolverBase_add_avgElemGpScalarField2save
-
-!--------------------------------------------------------------------------------------------------------------------------
-
-   subroutine CFDSolverBase_setFields2Save(this)
-      implicit none
-      class(CFDSolverBase), intent(inout) :: this
-
-      if(mpi_rank.eq.0) write(*,*) 'Setting default fields to be saved'
-      !-----------------------------------------------------------------------
-
-      !---------   nodeScalars  -----------------------------
-      !------------------------------------------------------
-      if(this%save_scalarField_rho) then !rho(numNodesRankPar,3)
-         call this%add_nodeScalarField2save('rho',rho(:,2))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_muFluid) then !mu_fluid(numNodesRankPar)
-         call this%add_nodeScalarField2save('mu_fluid',mu_fluid(:))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_pressure) then !pr(numNodesRankPar,2)
-         call this%add_nodeScalarField2save('pr',pr(:,2))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_energy) then !E(numNodesRankPar,3)
-         call this%add_nodeScalarField2save('E',E(:,2))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_entropy) then !eta(numNodesRankPar,3)
-         call this%add_nodeScalarField2save('eta',eta(:,2))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_csound) then !csound(numNodesRankPar)
-         call this%add_nodeScalarField2save('csound',csound(:))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_machno) then !machno(numNodesRankPar)
-         call this%add_nodeScalarField2save('machno',machno(:))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_divU) then !divU(numNodesRankPar)
-         call this%add_nodeScalarField2save('divU',divU(:))
-      end if
-      !------------------------------------------------------
-      if(this%save_scalarField_qcrit) then !qcrit(numNodesRankPar)
-         call this%add_nodeScalarField2save('qcrit',qcrit(:))
-      end if
-
-      !---------------  vectorScalars   -------------------------------------
-      !----------------------------------------------------------------------
-      if(this%save_vectorField_vel) then !u(numNodesRankPar,ndime,2)
-         call this%add_nodeVectorField2save('u',u(:,:,2))
-      end if
-      !----------------------------------------------------------------------
-      if(this%save_vectorField_gradRho) then !gradRho(numNodesRankPar,ndime)
-         call this%add_nodeVectorField2save('gradRho',gradRho(:,:))
-      end if
-      !----------------------------------------------------------------------
-      if(this%save_vectorField_curlU) then !curlU(numNodesRankPar,ndime)
-         call this%add_nodeVectorField2save('curlU',curlU(:,:))
-      end if
-      !----------------------------------------------------------------------
-
-      !-------------    elemGpScalars   -------------------------------------
-      !----------------------------------------------------------------------
-      if(this%save_scalarField_muSgs) then !mu_sgs(numElemsRankPar,ngaus)
-         call this%add_elemGpScalarField2save('mut',mu_sgs(:,:))
-      end if
-      !----------------------------------------------------------------------
-      if(this%save_scalarField_muEnvit) then !mu_e(numElemsRankPar,ngaus)
-         call this%add_elemGpScalarField2save('mue',mu_e(:,:))
-      end if
-      !----------------------------------------------------------------------
-
-
-      !----------------------  AVERAGE FIELDS  ------------------------------
-
-      !---------   nodeScalars  -----------------------------------
-      !------------------------------------------------------------
-      if(this%save_avgScalarField_rho) then
-         call this%add_avgNodeScalarField2save('avrho',avrho(:))
-      end if
-       !------------------------------------------------------------
-      if(this%save_avgScalarField_pr) then
-         call this%add_avgNodeScalarField2save('avpre',avpre(:))
-      end if
-      !------------------------------------------------------------
-      if(this%save_avgScalarField_mueff) then
-         call this%add_avgNodeScalarField2save('avmueff',avmueff(:))
-      end if
-
-      !---------------  vectorScalars   -------------------------------------
-      !----------------------------------------------------------------------
-      if(this%save_avgVectorField_vel) then
-         call this%add_avgNodeVectorField2save('avvel',avvel(:,:))
-      end if
-      if(this%save_avgVectorField_ve2) then
-         call this%add_avgNodeVectorField2save('avve2',avve2(:,:))
-      end if
-      if(this%save_avgVectorField_vex) then
-         call this%add_avgNodeVectorField2save('avvex',avvex(:,:))
-      end if
-      if(this%save_avgVectorField_vtw) then
-         call this%add_avgNodeVectorField2save('avvtw',avtw(:,:))
-      end if
-      !----------------------------------------------------------------------
-
-      !------------------------------------------------------
-
-   end subroutine CFDSolverBase_setFields2Save
-
    subroutine CFDSolverBase_initializeParameters(this)
       class(CFDSolverBase), intent(inout) :: this
 
    end subroutine CFDSolverBase_initializeParameters
+
+   subroutine CFDSolverBase_optimizeParameters(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+      !if(flag_high_mach) then !too less disipation in complex scenarious
+      !   factor_comp = 1.0_rp
+      !end if
+
+   end subroutine CFDSolverBase_optimizeParameters
+
 
    subroutine CFDSolverBase_openMesh(this)
       class(CFDSolverBase), intent(inout) :: this
@@ -1291,7 +1065,9 @@ contains
       if(this%loadRestartFile) then
          if(mpi_rank.eq.0) write(111,*) "--| Loading restart file ",this%restartFile_to_load
          call load_hdf5_restartFile(this%base_restartFile_h5_full_name,nnode,ngaus,this%restartFile_to_load,this%load_step,flag_walave,this%time,&
-                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
+                                    rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u,&
+                                    numRestartFields,restartNameFields,indRF_rho,indRF_ux,indRF_uy,indRF_uz,indRF_pr,&
+                                    indRF_ener,indRF_mut,indRF_mue,indRF_walavex,indRF_walavey,indRF_walavez)
 
          if((flag_les.eq.0).and.(flag_les_ilsa.eq.0)) then
             !$acc kernels
@@ -1321,9 +1097,9 @@ contains
                if(mpi_rank.eq.0) write(111,*) "--| Loading Avg Results File (TO IMPLEMENT)",this%restartFile_to_load
                call load_avgResults_hdf5_file(this%base_avgResultsFile_h5_full_name,nnode,ngaus,Ngp_l,this%restartFile_to_load,&
                                        this%initial_avgTime,this%elapsed_avgTime,&
-                                       this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,&
-                                       this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,&
-                                       this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save)
+                                       numAvgNodeScalarFields2save,avgNodeScalarFields2save,&
+                                       numAvgNodeVectorFields2save,avgNodeVectorFields2save,&
+                                       numAvgElGPScalarFields2save,avgElGPScalarFields2save)
 
                if(mpi_rank.eq.0) write(111,*) "   --| Loaded Avg results! Setting initial_avgTime",this%initial_avgTime,"elapsed_avgTime",this%elapsed_avgTime
             end if
@@ -1696,6 +1472,8 @@ contains
       end do
       !$acc end parallel loop
 
+      !$acc update host(maskMapped(:))
+
    end subroutine CFDSolverBase_set_mappedFaces_linkingNodes
 
    subroutine CFDSolverBase_evalMass(this)
@@ -1773,7 +1551,9 @@ contains
       integer(4), intent(in) :: istep
       
       call save_hdf5_restartFile(this%base_restartFile_h5_full_name,nnode,ngaus,this%restartFileCnt,istep,flag_walave,this%time,&
-                                 rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u)
+                                 rho(:,2),u(:,:,2),pr(:,2),E(:,2),mu_e,mu_sgs,walave_u,&
+                                 numRestartFields,restartNameFields,indRF_rho,indRF_ux,indRF_uy,indRF_uz,indRF_pr,&
+                                 indRF_ener,indRF_mut,indRF_mue,indRF_walavex,indRF_walavey,indRF_walavez)
 
       if(this%restartFileCnt .eq. 1) then
          this%restartFileCnt = 2
@@ -1791,16 +1571,16 @@ contains
 
       call save_avgResults_hdf5_file(this%base_avgResultsFile_h5_full_name,this%meshFile_h5_full_name,nnode,ngaus,Ngp_equi,&
                this%restartFileCnt,this%initial_avgTime,this%elapsed_avgTime,&
-               this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,&
-               this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,&
-               this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save)
+               numAvgNodeScalarFields2save,avgNodeScalarFields2save,&
+               numAvgNodeVectorFields2save,avgNodeVectorFields2save,&
+               numAvgElGPScalarFields2save,avgElGPScalarFields2save)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
          call save_surface_avgResults_hdf5_file(this%base_avgResultsFile_h5_full_name,this%meshFile_h5_full_name,&
                   this%surface_meshFile_h5_full_name,this%restartFileCnt,&
-                  this%numAvgNodeScalarFields2save,this%avgNodeScalarFields2save,&
-                  this%numAvgNodeVectorFields2save,this%avgNodeVectorFields2save,&
-                  this%numAvgElemGpScalarFields2save,this%avgElemGpScalarFields2save)
+                  numAvgNodeScalarFields2save,avgNodeScalarFields2save,&
+                  numAvgNodeVectorFields2save,avgNodeVectorFields2save,&
+                  numAvgElGPScalarFields2save,avgElGPScalarFields2save)
       end if
 
    end subroutine CFDSolverBase_saveAvgResultsFiles
@@ -1821,15 +1601,15 @@ contains
 
       call save_instResults_hdf5_file(this%base_resultsFile_h5_full_name,this%meshFile_h5_full_name,&
                nnode,ngaus,Ngp_equi,iStep,this%time,&
-               this%numNodeScalarFields2save,this%nodeScalarFields2save,&
-               this%numNodeVectorFields2save,this%nodeVectorFields2save,&
-               this%numElemGpScalarFields2save,this%elemGpScalarFields2save)
+               numNodeScalarFields2save,nodeScalarFields2save,&
+               numNodeVectorFields2save,nodeVectorFields2save,&
+               numElGPScalarFields2save,elGPScalarFields2save)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
          call save_surface_instResults_hdf5_file(this%base_resultsFile_h5_full_name,this%meshFile_h5_full_name,this%surface_meshFile_h5_full_name,istep,&
-               this%numNodeScalarFields2save,this%nodeScalarFields2save,&
-               this%numNodeVectorFields2save,this%nodeVectorFields2save,&
-               this%numElemGpScalarFields2save,this%elemGpScalarFields2save)
+               numNodeScalarFields2save,nodeScalarFields2save,&
+               numNodeVectorFields2save,nodeVectorFields2save,&
+               numElGPScalarFields2save,elGPScalarFields2save)
       end if
 
    end subroutine CFDSolverBase_saveInstResultsFiles
@@ -2495,9 +2275,16 @@ contains
       ! Init HDF5 interface
       call init_hdf5_interface()
 
+      ! Init Save Fields vars and arrays
+      call init_saveFields()
+
       ! Main simulation parameters
       call this%initializeDefaultParameters()
       call this%initializeParameters()
+
+      call this%optimizeParameters()
+
+      call read_json_saveFields(json_filename)
 
       ! Open log file
       call this%open_log_file()
@@ -2521,7 +2308,9 @@ contains
       call init_filters()
 
       ! Setting fields to be saved
-      call this%setFields2Save()
+      call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
+                          u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
+                          avrho,avpre,avmueff,avvel,avve2,avvex,avtw)
 
       ! Eval or load initial conditions
       call this%evalOrLoadInitialConditions()

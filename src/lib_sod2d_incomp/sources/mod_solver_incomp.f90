@@ -177,7 +177,7 @@ module mod_solver_incomp
               !$acc parallel loop
               do ipoin = 1,npoin_w
                   !$acc loop seq
-                  do idime = 1,ndime
+                  do idime = 1,ndime 
                      r0_u(lpoin_w(ipoin),idime) = r0_u(lpoin_w(ipoin),idime)-alphaCG*qn_u(lpoin_w(ipoin),idime) ! b-A*p0
                   end do
               end do
