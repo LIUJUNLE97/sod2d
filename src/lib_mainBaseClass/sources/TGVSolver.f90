@@ -145,6 +145,7 @@ contains
 
       if(mpi_rank.eq.0) write(*,*) "--| TGV - Setting Initial Conditions..."
 
+      call nvtxStartRange("TGV Init")
       V0 = 1.0_rp
       L  = 1.0_rp
 

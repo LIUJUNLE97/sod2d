@@ -181,6 +181,7 @@ contains
       logical :: readFiles
       character(512) :: initialField_filePath
 
+      call nvtxStartRange("BluffBody3D Init")
       readFiles = .false.
 
       if(readFiles) then

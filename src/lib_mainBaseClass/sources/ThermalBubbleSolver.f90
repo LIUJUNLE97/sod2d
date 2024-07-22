@@ -207,6 +207,7 @@ contains
       real(rp)   :: x, y, z, aux, dtheta
       integer(4) :: iNodeL
 
+      call nvtxStartRange("ThermalBubble Init")
       ! Set up the atmosphere
       if (this%atmos_type .eq. atmos_type_adiabatic) then ! Adiabatic atmosphere
          aux = (this%gamma_gas - 1.0_rp)/this%gamma_gas*this%g0(2)/this%Rgas/this%T0
@@ -321,13 +322,13 @@ contains
       ax3(:)      = 0.0_rp
       au(:,:)     = 0.0_rp
       !$acc end kernels
-      call nvtxEndRange
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          mu_factor(iNodeL) = flag_mu_factor
       end do
       !$acc end parallel loop
+      call nvtxEndRange
 
    end subroutine ThermalBubbleSolver_evalInitialConditions
 

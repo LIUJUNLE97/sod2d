@@ -341,6 +341,7 @@ contains
       real(rp) :: yp,eta_y,f_y,f_prim_y
       integer(4)   :: iLine,iNodeGSrl,auxCnt
 
+      call nvtxStartRange("BLFlow Init")
       call this%fillBlasius()
 
       !$acc parallel loop
