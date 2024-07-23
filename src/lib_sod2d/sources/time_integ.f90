@@ -34,6 +34,8 @@ module time_integ
       integer(4),intent(in) :: npoin
       integer(4) :: numSteps
 
+      call nvtxStartRange("Init RK4 solver")
+
       allocate(Rmass(npoin),Rener(npoin),Reta(npoin),Rmom(npoin,ndime))
       !$acc enter data create(Rmass(:))
       !$acc enter data create(Rener(:))

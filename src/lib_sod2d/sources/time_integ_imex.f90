@@ -38,6 +38,8 @@ module time_integ_imex
       implicit none
       integer(4),intent(in) :: npoin
 
+      call nvtxStartRange("Init IMEX solver")
+
       allocate(Rmom_imex(npoin,ndime,numSteps))
       !$acc enter data create(Rmom_imex(:,:,:))
 
@@ -109,6 +111,8 @@ module time_integ_imex
       Rsource_imex(1:npoin,1:ndime+2) = 0.0_rp
       Rwmles_imex(1:npoin,1:ndime) = 0.0_rp
       !$acc end kernels
+
+      call nvtxEndRange
 
    end subroutine init_imex_solver
 

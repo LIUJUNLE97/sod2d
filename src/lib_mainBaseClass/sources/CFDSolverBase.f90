@@ -1623,7 +1623,7 @@ end subroutine CFDSolverBase_findFixPressure
 
       call MPI_Barrier(app_comm,mpi_err)
 
-      call nvtxStartRange("Start RK4")
+      call nvtxStartRange("Start time-integration")
       if(mpi_rank.eq.0) then
          write(*,*) 'Strarting evalTimeItarion! All info will be written in the log file: ',this%log_file_name
          write(111,*) 'Doing evalTimeIteration. Ini step:',this%initial_istep,'| End step:',this%final_istep
