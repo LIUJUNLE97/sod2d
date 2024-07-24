@@ -33,6 +33,8 @@ module time_integ_incomp
       integer(4),intent(in) :: npoin
       integer(4) :: numSteps
 
+      call nvtxStartRange("Init Incomp solver")
+
       allocate(Rmom(npoin,ndime,3),aux_omega(npoin,ndime,3),aux_temp(npoin,ndime,3))
       !$acc enter data create(Rmom(:,:,:),aux_omega(:,:,:),aux_temp(:,:,:))
 
