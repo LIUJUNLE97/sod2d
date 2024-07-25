@@ -19,6 +19,9 @@ program main
    use BluffBody3DSolver_mod
    use BluffBody3DSolverIncomp_mod
    use BLFlowSolver_mod
+   use BLFlowSolverIncomp_mod
+   use BLFlowSolverIncompAFC_mod
+   use BLFlowSolverIncompDRL_mod
    use ABlFlowSolverIncomp_mod
    use MappedInletIncomp_mod
    use WindFarmSolverIncomp_mod
@@ -83,7 +86,15 @@ program main
    else if(value .eq. "BluffBody3DSolverIncomp") then
       allocate(BluffBody3DSolverIncomp::solver) 
    else if(value .eq. "BLFlowSolver") then
-      allocate(BLFlowSolver::solver) 
+      allocate(BLFlowSolver::solver)
+   else if(value .eq. "BLFlowSolverIncomp") then
+      allocate(BLFlowSolverIncomp::solver)
+   else if(value .eq. "BLFlowSolverIncompAFC") then
+      allocate(BLFlowSolverIncompAFC::solver)  
+#ifdef SMARTREDIS
+   else if(value .eq. "BLFlowSolverIncompDRL") then
+      allocate(BLFlowSolverIncompDRL::solver) 
+#endif
    else if(value .eq. "ABlFlowSolverIncomp") then
       allocate(ABlFlowSolverIncomp::solver) 
    else if(value .eq. "MappedInletIncomp") then

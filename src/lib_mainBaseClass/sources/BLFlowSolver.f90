@@ -29,7 +29,7 @@ module BLFlowSolver_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundaries) :: BLFlowSolver
 
-      real(rp) , public  ::  M, d0, U0, rho0, Red0, Re, to, po, mu
+      real(rp) , public  ::  M, d0, U0, rho0, Red0, Re, to, po, mu, xmin_tripping, lx_tripping, ly_tripping
       real(rp), public   :: eta_b(45), f(45), f_prim(45)
 
    contains
@@ -48,10 +48,13 @@ contains
       integer(4) :: iNodeL 
       real(rp) :: cd, lx, ly, xmin, xmax
 
+      ! Tripping transition
       cd = 1.0_rp
-      lx = this%d0*2.5_rp
-      ly = this%d0*2.5_rp
-      xmin = 20.0_rp*this%d0
+
+      lx = this%lx_tripping*this%d0
+      ly = this%ly_tripping*this%d0
+
+      xmin = this%xmin_tripping*this%d0
       xmax = xmin+lx
 
       !$acc parallel loop  
@@ -70,9 +73,7 @@ contains
    subroutine BLFlowSolver_fill_BC_Types(this)
       class(BLFlowSolver), intent(inout) :: this
 
-      bouCodes2BCType(1) = bc_type_slip_wall_model
-      bouCodes2BCType(2) = bc_type_far_field
-      !$acc update device(bouCodes2BCType(:))
+      call this%readJSONBCTypes()
 
    end subroutine BLFlowSolver_fill_BC_Types
 
@@ -220,53 +221,70 @@ contains
   end subroutine BLFlowSolver_fillBlasius
 
    subroutine BLFlowSolver_initializeParameters(this)
+      use json_module
+      implicit none
       class(BLFlowSolver), intent(inout) :: this
-      real(rp) :: mur
+      real(rp) :: mul, mur
+      logical :: found, found_aux = .false.
+      type(json_file) :: json
+      character(len=:) , allocatable :: value
 
-      write(this%mesh_h5_file_path,*) ""
-      write(this%mesh_h5_file_name,*) "bl"
+      call json%initialize()
+      call json%load_file(json_filename)
 
-      write(this%results_h5_file_path,*) ""
-      write(this%results_h5_file_name,*) "results"
+      ! get(label,target,is found?, default value)
+
+      call json%get("mesh_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+      write(this%mesh_h5_file_path,*) value
+      call json%get("mesh_h5_file_name",value, found,"bl"); call this%checkFound(found,found_aux)
+      write(this%mesh_h5_file_name,*) value
+
+      call json%get("results_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+      write(this%results_h5_file_path,*) value
+      call json%get("results_h5_file_name",value, found,"results"); call this%checkFound(found,found_aux)
+      write(this%results_h5_file_name,*) value
 
       !----------------------------------------------
       !  --------------  I/O params -------------
-      this%final_istep = 9000000 
+      call json%get("final_istep",this%final_istep, found,1000001); call this%checkFound(found,found_aux)
 
-      this%save_logFile_first = 1 
-      this%save_logFile_step  = 10
+      call json%get("save_logFile_first",this%save_logFile_first, found, 1); call this%checkFound(found,found_aux)
+      call json%get("save_logFile_step",this%save_logFile_step, found, 10); call this%checkFound(found,found_aux)
 
-      this%save_resultsFile_first = 1
-      this%save_resultsFile_step = 50000
+      call json%get("save_resultsFile_first",this%save_resultsFile_first, found,1); call this%checkFound(found,found_aux)
+      call json%get("save_resultsFile_step" ,this%save_resultsFile_step, found,10000); call this%checkFound(found,found_aux)
 
-      this%save_restartFile_first = 1
-      this%save_restartFile_step = 50000
-      this%loadRestartFile = .false.
-      this%restartFile_to_load = 1 !1 or 2
-      this%continue_oldLogs = .false.
+      call json%get("save_restartFile_first",this%save_restartFile_first, found,1); call this%checkFound(found,found_aux)
+      call json%get("save_restartFile_step" ,this%save_restartFile_step, found,10000); call this%checkFound(found,found_aux)
 
-      this%saveAvgFile = .false.
-      this%loadAvgFile = .false.
+      call json%get("loadRestartFile" ,this%loadRestartFile, found, .false.); call this%checkFound(found,found_aux)
+      call json%get("restartFile_to_load" ,this%restartFile_to_load, found,1); call this%checkFound(found,found_aux)
+ 
+      call json%get("continue_oldLogs" ,this%continue_oldLogs, found, .false.); call this%checkFound(found,found_aux)
+
+      call json%get("saveAvgFile" ,this%saveAvgFile, found, .true.); call this%checkFound(found,found_aux)
+      call json%get("loadAvgFile" ,this%loadAvgFile, found, .false.); call this%checkFound(found,found_aux)
       !----------------------------------------------
 
       ! numerical params
-      flag_les = 0
-      flag_implicit = 1
-      flag_rk_order=4
-      tol=1e-3
+      call json%get("flag_les",flag_les, found,0); call this%checkFound(found,found_aux)
+      call json%get("flag_implicit",flag_implicit, found,1); call this%checkFound(found,found_aux)
+      call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
+      call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
 
-      this%cfl_conv = 0.80_rp
-      this%cfl_diff = 20.00_rp
+      call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
+      call json%get("cfl_diff",this%cfl_diff, found,0.95_rp); call this%checkFound(found,found_aux)
 
-      this%Cp   = 1004.0_rp
-      this%Prt  = 0.71_rp
-      this%M    = 0.1_rp
-      this%d0   = 1.0_rp
-      this%U0   = 1.0_rp
-      this%rho0 = 1.0_rp
+      call json%get("Cp",this%Cp, found,1004.0_rp); call this%checkFound(found,found_aux)
+      call json%get("Prt",this%Prt, found,0.71_rp); call this%checkFound(found,found_aux)
+      call json%get("M",this%M, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("d0",this%d0, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("U0",this%U0, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("rho0",this%rho0, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("Red0",this%Red0, found,100.0_rp); call this%checkFound(found,found_aux)
+      call json%get("gamma_gas",this%gamma_gas, found,1.4_rp); call this%checkFound(found,found_aux)
 
-      this%Red0  = 450.0_rp
-      this%gamma_gas = 1.40_rp
+      call json%get("flag_rk_order",flag_rk_ls_stages, found,4);
 
       this%mu    = this%rho0*this%d0*this%U0/this%Red0
 
@@ -283,12 +301,30 @@ contains
       nscbc_c_inf = sqrt(this%gamma_gas*this%po/this%rho0)
       nscbc_Rgas_inf = this%Rgas
 
+      ! Tripping region
+      call json%get("xmin_tripping",this%xmin_tripping, found,0.0); call this%checkFound(found,found_aux)
+      call json%get("lx_tripping",this%lx_tripping, found,1.0); call this%checkFound(found,found_aux)
+      call json%get("ly_tripping",this%ly_tripping, found,1.0); call this%checkFound(found,found_aux)
 
-      flag_buffer_on = .true.
-      ! x outlet
-      flag_buffer_on_east = .true.
-      flag_buffer_e_min = 13000.0_rp
-      flag_buffer_e_size = 500.0_rp 
+      !Witness points parameters
+      call json%get("have_witness",this%have_witness, found,.false.)
+      if(this%have_witness .eqv. .true.) then
+         call json%get("witness_inp_file_name",value, found,"witness.txt"); call this%checkFound(found,found_aux)
+         write(this%witness_inp_file_name,*) value
+         call json%get("witness_h5_file_name",value, found,"resultwit.h5"); call this%checkFound(found,found_aux)
+         write(this%witness_h5_file_name,*) value
+
+         call json%get("leapwit",this%leapwit, found,1); call this%checkFound(found,found_aux)
+         call json%get("nwit",this%nwit, found,17986); call this%checkFound(found,found_aux)
+         call json%get("wit_save_u_i",this%wit_save_u_i, found,.true.); call this%checkFound(found,found_aux)
+         call json%get("wit_save_pr",this%wit_save_pr, found,.true.); call this%checkFound(found,found_aux)
+         call json%get("wit_save_rho",this%wit_save_rho, found,.true.); call this%checkFound(found,found_aux)
+         call json%get("continue_witness",this%continue_witness, found,.false.); call this%checkFound(found,found_aux)
+      end if  
+
+      call this%readJSONBuffer()
+
+      call json%destroy()
 
    end subroutine BLFlowSolver_initializeParameters
 
@@ -336,10 +372,8 @@ contains
 
    subroutine BLFlowSolver_evalInitialConditions(this)
       class(BLFlowSolver), intent(inout) :: this
-      integer(4) :: matGidSrlOrdered(numNodesRankPar,2)
-      integer(4) :: iNodeL, idime, j,k
+      integer(4) :: iNodeL, j,k
       real(rp) :: yp,eta_y,f_y,f_prim_y
-      integer(4)   :: iLine,iNodeGSrl,auxCnt
 
       call this%fillBlasius()
 

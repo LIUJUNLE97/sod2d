@@ -1,10 +1,9 @@
-module BLFlowSolverIncomp_mod
+module BLFlowSolverIncompAFC_mod
    use mod_arrays
    use mod_nvtx
 #ifndef NOACC
    use cudafor
 #endif
-
 
    use elem_qua
    use elem_hex
@@ -27,26 +26,102 @@ module BLFlowSolverIncomp_mod
    implicit none
    private
 
+   real(rp), allocatable, dimension(:,:)  :: rectangleControl
+   integer(4),  allocatable, dimension(:) :: actionMask
    real(rp), public :: eta_b(45), f(45), f_prim(45)
 
-   type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: BLFlowSolverIncomp
+   type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: BLFlowSolverIncompAFC
 
       real(rp) , public  ::   d0, U0, rho0, Red0, mu, vmax_SB, xc_SB, eps_SB, psi_SB, xmin_tripping, lx_tripping, ly_tripping
 
+      character(512), public :: fileControlName
+      integer(4), public :: nRectangleControl, flag_MassConservationStrategy
+      real(rp), public :: amplitudeActuation, frequencyActuation, timeBeginActuation, spanLength
+      integer(4), public :: n_pseudo_envs
+
    contains
-      procedure, public :: fillBCTypes           => BLFlowSolverIncomp_fill_BC_Types
-      procedure, public :: initializeParameters  => BLFlowSolverIncomp_initializeParameters
-      procedure, public :: evalInitialConditions => BLFlowSolverIncomp_evalInitialConditions
-      procedure, public :: initialBuffer => BLFlowSolverIncomp_initialBuffer
-      procedure, public :: fillBlasius => BLFlowSolverIncomp_fillBlasius
-      procedure, public :: afterDt => BLFlowSolverIncomp_afterDt
-      procedure, public :: beforeTimeIteration => BLFlowSolverIncomp_beforeTimeIteration
-      end type BLFlowSolverIncomp
+      procedure, public :: fillBCTypes           => BLFlowSolverIncompAFC_fill_BC_Types
+      procedure, public :: initializeParameters  => BLFlowSolverIncompAFC_initializeParameters
+      procedure, public :: evalInitialConditions => BLFlowSolverIncompAFC_evalInitialConditions
+      procedure, public :: initialBuffer => BLFlowSolverIncompAFC_initialBuffer
+      procedure, public :: fillBlasius => BLFlowSolverIncompAFC_fillBlasius
+      procedure, public :: afterDt => BLFlowSolverIncompAFC_afterDt
+      procedure, public :: beforeTimeIteration => BLFlowSolverIncompAFC_beforeTimeIteration
+      procedure, public :: afterTimeIteration => BLFlowSolverIncompAFC_afterTimeIteration
+      procedure, public :: computeTauW => BLFlowSolverIncompAFC_computeTauW
+      procedure, public :: getControlNodes => BLFlowSolverIncompAFC_getControlNodes
+      procedure, public :: readControlRectangles => BLFlowSolverIncompAFC_readControlRectangles
+
+   end type BLFlowSolverIncompAFC
 contains
 
-   subroutine BLFlowSolverIncomp_beforeTimeIteration(this)
-      class(BLFlowSolverIncomp), intent(inout) :: this
-      integer(4) :: bcode,iNodeL
+   subroutine BLFlowSolverIncompAFC_readControlRectangles(this)
+
+      class(BLFlowSolverIncompAFC), intent(inout) :: this
+
+      integer(rp) :: ii
+
+      open(unit=99, file=trim(adjustl(this%fileControlName)), status='old', action='read')
+
+      read(99,*) this%nRectangleControl
+      allocate(rectangleControl(2,2*this%nRectangleControl))
+      !$acc enter data create(rectangleControl(:,:))
+      do ii = 1, this%nRectangleControl
+         read(99, *) rectangleControl(:,2*ii-1)  ! First point [xMin, zMin]
+         read(99, *) rectangleControl(:,2*ii  )  ! Second point [xMax, zMax]
+         read(99, *)
+      end do
+      close(99)
+      !$acc update device(rectangleControl(:,:))
+
+   end subroutine BLFlowSolverIncompAFC_readControlRectangles
+
+   subroutine BLFlowSolverIncompAFC_getControlNodes(this)
+      class(BLFlowSolverIncompAFC), intent(inout) :: this
+
+      integer(4) :: iNodeL, iRectangleControl, bcode
+      real(rp)   :: xPoint, zPoint, x1RectangleControl, x2RectangleControl, z1RectangleControl, z2RectangleControl
+
+      call this%readControlRectangles()
+
+      allocate(actionMask(numNodesRankPar))
+      !$acc enter data create(actionMask(:))
+
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         actionMask(iNodeL) = 0
+
+         if (bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) then
+            bcode = bouCodesNodesPar(iNodeL)
+
+            if (bcode == bc_type_unsteady_inlet) then
+               do iRectangleControl = 1,this%nRectangleControl
+
+                  ! Mesh node coordinates
+                  xPoint = coordPar(iNodeL,1)
+                  zPoint = coordPar(iNodeL,3)
+
+                  ! Control surfaces xMin, zMin, xMax, zMax coordinatess
+                  x1RectangleControl = rectangleControl(1,2*iRectangleControl-1)
+                  z1RectangleControl = rectangleControl(2,2*iRectangleControl-1)
+                  x2RectangleControl = rectangleControl(1,2*iRectangleControl  )
+                  z2RectangleControl = rectangleControl(2,2*iRectangleControl  )
+
+                  ! Check if the mesh point is within the control surface limits
+                  if (xPoint >= x1RectangleControl .and. xPoint <= x2RectangleControl .and. zPoint >= z1RectangleControl .and. zPoint <= z2RectangleControl) then
+                     actionMask(iNodeL) = iRectangleControl
+                     exit
+                  endif
+               end do
+            end if
+         end if
+      end do
+      !$acc end parallel loop
+   end subroutine BLFlowSolverIncompAFC_getControlNodes
+
+   subroutine BLFlowSolverIncompAFC_beforeTimeIteration(this)
+      class(BLFlowSolverIncompAFC), intent(inout) :: this
+      integer(4) :: iboun,bcode,ipbou,iBoundNode,iNodeL
 
      !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
@@ -61,17 +136,36 @@ contains
       end do
       !$acc end parallel loop
 
-   end subroutine BLFlowSolverIncomp_beforeTimeIteration
+      ! Open file to save the instantaneous action
+      if (mpi_rank .eq. 0) open(unit=444,file="control_action_smooth.txt",status='replace')
 
-   subroutine BLFlowSolverIncomp_afterDt(this,istep)
-      class(BLFlowSolverIncomp), intent(inout) :: this
-      integer(4)              , intent(in)   :: istep
+      ! Open file to save the instantaneous separation length
+      if (mpi_rank .eq. 0) open(unit=446,file="lx.txt",status='replace')
+
+      ! Obtain the mask of the control nodes (>0)
+      call this%getControlNodes()
+
+   end subroutine BLFlowSolverIncompAFC_beforeTimeIteration
+
+   subroutine BLFlowSolverIncompAFC_afterTimeIteration(this)
+      class(BLFlowSolverIncompAFC), intent(inout) :: this
+
+      if (mpi_rank .eq. 0) close(444)
+      if (mpi_rank .eq. 0) close(446)
+
+   end subroutine BLFlowSolverIncompAFC_afterTimeIteration
+
+   subroutine BLFlowSolverIncompAFC_afterDt(this,istep)
+      class(BLFlowSolverIncompAFC), intent(inout) :: this
+      integer(4) , intent(in)   :: istep
       real(rp) :: cd, lx, ly, xmin, xmax
       integer(4) :: ielem,iCen,inode,igaus, isoI, isoJ, isoK,ii,jdime,idime,iNodeL,bcode,isoII, isoJJ, isoKK,type_ijk
+      integer(4) :: invert
       real(rp) :: xp, yp, yc
       real(rp)  :: gradIsoV(ndime)
       real(rp)  :: gradV(ndime),vl(nnode)
       real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
+      real(rp) :: action_classic, lx_recirculation(this%n_pseudo_envs)
 
       ! Tripping transition
       cd = 1.0_rp
@@ -180,17 +274,69 @@ contains
          call nvtxEndRange
       end if
 
-   end subroutine BLFlowSolverIncomp_afterDt
+      ! Compute wall shear stress
+      call this%computeTauW(lx_recirculation)
+      if (this%save_logFile_next .eq. istep .and. mpi_rank .eq. 0) then
+         write(446,'(*(ES16.6,:,","))') this%time, lx_recirculation
+         call flush(446)
+      end if
 
-   subroutine BLFlowSolverIncomp_fill_BC_Types(this)
-      class(BLFlowSolverIncomp), intent(inout) :: this
+      !  Start actuating when t > timeBeginActuation
+      if (this%time .gt. this%timeBeginActuation) then
+
+         action_classic = this%amplitudeActuation*sin(2.0_rp*v_pi*this%frequencyActuation*(this%time - this%timeBeginActuation))
+         if (this%save_logFile_next .eq. istep .and. mpi_rank .eq. 0) then
+            write(444,'(*(ES16.6,:,","))') this%time, action_classic
+            call flush(444)
+         end if
+         !$acc parallel loop
+         do iNodeL = 1,numNodesRankPar
+            if (actionMask(iNodeL) .gt. 0) then
+
+               ! Apply mass conservation strategy: Consecutive actuators are paired so that the opposite mass flow rate is forced (when the flag is activated)
+               ! EVEN NUMBER OF ACTUATORS REQUIRED !
+               if (MOD(actionMask(iNodeL),2) .eq. 0 .and. this%flag_MassConservationStrategy .eq. 1) then
+                  invert = -1
+               else 
+                  invert = 1
+               end if
+
+               u_buffer(iNodeL,1) = 0.0_rp
+               u_buffer(iNodeL,2) = action_classic * invert
+               u_buffer(iNodeL,3) = 0.0_rp
+
+            end if
+         end do
+         !$acc end parallel loop
+
+      end if
+
+   end subroutine BLFlowSolverIncompAFC_afterDt
+
+   subroutine BLFlowSolverIncompAFC_computeTauW(this, lx_recirculation)
+      class(BLFlowSolverIncompAFC), intent(inout) :: this
+      real(rp), intent(out) :: lx_recirculation(this%n_pseudo_envs)
+      real(rp) :: lx_r
+      integer(4) :: surfCode
+
+      !$acc loop seq
+      do surfCode=1, this%n_pseudo_envs
+         call twInfo(numElemsRankPar, numNodesRankPar, numBoundsRankPar, surfCode, 1, connecParWork, boundPar, &
+            point2elem, bouCodesPar, boundNormalPar, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, dlxigp_ip, He, coordPar, &
+            mu_fluid, mu_e, mu_sgs, rho(:,2), u(:,:,2), lx_r)
+         lx_recirculation(surfCode) = lx_r / (this%spanLength / dble(this%n_pseudo_envs))
+      end do
+   end subroutine BLFlowSolverIncompAFC_computeTauW
+
+   subroutine BLFlowSolverIncompAFC_fill_BC_Types(this)
+      class(BLFlowSolverIncompAFC), intent(inout) :: this
 
       call this%readJSONBCTypes()
 
-   end subroutine BLFlowSolverIncomp_fill_BC_Types
+   end subroutine BLFlowSolverIncompAFC_fill_BC_Types
 
-   subroutine BLFlowSolverIncomp_fillBlasius(this)
-      class(BLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncompAFC_fillBlasius(this)
+     class(BLFlowSolverIncompAFC), intent(inout) :: this
 
      eta_b(1) = real(0.0E+00,rp)
      eta_b(2) = real(2.0E-01,rp)
@@ -330,12 +476,12 @@ contains
      f_prim(44) = real(9.999995242E-01,rp)
      f_prim(45) = real(9.999997695E-01,rp)
 
-  end subroutine BLFlowSolverIncomp_fillBlasius
+  end subroutine BLFlowSolverIncompAFC_fillBlasius
 
-   subroutine BLFlowSolverIncomp_initializeParameters(this)
+   subroutine BLFlowSolverIncompAFC_initializeParameters(this)
       use json_module
       implicit none
-      class(BLFlowSolverIncomp), intent(inout) :: this
+      class(BLFlowSolverIncompAFC), intent(inout) :: this
       real(rp) :: mul, mur
       logical :: found, found_aux = .false.
       type(json_file) :: json
@@ -343,8 +489,8 @@ contains
 
       call json%initialize()
       call json%load_file(json_filename)
-
-      ! get(label,target,is found?, default value)
+      
+ ! get(label,target,is found?, default value)
 
       call json%get("mesh_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
       write(this%mesh_h5_file_path,*) value
@@ -412,8 +558,21 @@ contains
 
       ! Tripping region
       call json%get("xmin_tripping",this%xmin_tripping, found,0.0); call this%checkFound(found,found_aux)
+      call json%get("ymin_tripping",this%xmin_tripping, found,0.0); call this%checkFound(found,found_aux)
       call json%get("lx_tripping",this%lx_tripping, found,1.0); call this%checkFound(found,found_aux)
       call json%get("ly_tripping",this%ly_tripping, found,1.0); call this%checkFound(found,found_aux)
+
+      ! Actuation Parameters
+      call json%get("fileControlName",value, found,"rectangleControl.txt"); call this%checkFound(found,found_aux)       ! Jet surface limits (file name)
+      write(this%fileControlName,*) value
+      call json%get("amplitudeActuation",this%amplitudeActuation, found,1.0_rp); call this%checkFound(found,found_aux)  ! Actuation amplitude
+      call json%get("frequencyActuation",this%frequencyActuation, found,1.0_rp); call this%checkFound(found,found_aux)  ! Actuation frequency
+      call json%get("timeBeginActuation",this%timeBeginActuation, found,0.0_rp); call this%checkFound(found,found_aux)  ! Time start actuation
+      call json%get("flag_MassConservationStrategy",this%flag_MassConservationStrategy, found,0); call this%checkFound(found,found_aux)   ! Apply mass conservation strategy
+
+      ! Parameters to compute mean separation length
+      call json%get("spanLength",this%spanLength, found,1.0_rp); call this%checkFound(found,found_aux)  ! Spanwise length
+      call json%get("n_pseudo_envs",this%n_pseudo_envs, found,1); call this%checkFound(found,found_aux)  ! Number of pseudo-environemnts (extrusions)
 
       ! witness points
       call json%get("have_witness",this%have_witness, found,.false.)
@@ -435,12 +594,13 @@ contains
 
       call json%destroy()
 
-   end subroutine BLFlowSolverIncomp_initializeParameters
+   end subroutine BLFlowSolverIncompAFC_initializeParameters
 
-   subroutine BLFlowSolverIncomp_initialBuffer(this)
-      class(BLFlowSolverIncomp), intent(inout) :: this
+   subroutine BLFlowSolverIncompAFC_initialBuffer(this)
+      class(BLFlowSolverIncompAFC), intent(inout) :: this
       integer(4) :: iNodeL,k,j
       real(rp) :: yp,eta_y,f_y,f_prim_y
+
 
       call this%fillBlasius()
 
@@ -475,11 +635,11 @@ contains
       end do
       !$acc end parallel loop
 
-   end subroutine BLFlowSolverIncomp_initialBuffer
+   end subroutine BLFlowSolverIncompAFC_initialBuffer
 
-   subroutine BLFlowSolverIncomp_evalInitialConditions(this)
-      class(BLFlowSolverIncomp), intent(inout) :: this
-      integer(4) :: iNodeL, j,k
+   subroutine BLFlowSolverIncompAFC_evalInitialConditions(this)
+      class(BLFlowSolverIncompAFC), intent(inout) :: this
+      integer(4) :: iNodeL, idime, j,k
       real(rp) :: yp,eta_y,f_y,f_prim_y
 
       call this%fillBlasius()
@@ -536,6 +696,6 @@ contains
          mu_factor(iNodeL) = flag_mu_factor
       end do
       !$acc end parallel loop
-   end subroutine BLFlowSolverIncomp_evalInitialConditions
+   end subroutine BLFlowSolverIncompAFC_evalInitialConditions
 
-end module BLFlowSolverIncomp_mod
+end module BLFlowSolverIncompAFC_mod

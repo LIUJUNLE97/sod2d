@@ -1,22 +1,23 @@
 {
-   "type":"BLFlowSolver",
+   "type":"BLFlowSolverIncomp",
 
    "mesh_h5_file_path":"",
-   "mesh_h5_file_name":"bl",
+   "mesh_h5_file_name":"bl_les",
 
    "results_h5_file_path":"",
    "results_h5_file_name":"results",
 
    "final_istep":9000001,
+   "maxPhysTime":20000.0,
 
    "save_logFile_first":1,
    "save_logFile_step":10,
 
    "save_resultsFile_first":1,
-   "save_resultsFile_step":50000,
+   "save_resultsFile_step":25000,
 
    "save_restartFile_first":1,
-   "save_restartFile_step":50000,
+   "save_restartFile_step":25000,
 
    "loadRestartFile":false,
    "restartFile_to_load":1,
@@ -25,25 +26,28 @@
 
    "saveAvgFile":true,
    "loadAvgFile":false,
+   "initial_avgTime":5000,
 
-   "flag_les":0,
+   "saveSurfaceResults":false,
 
-   "maxIter":20,
-   "tol":1e-3,
+   "flag_les":1,
 
-   "cfl_conv":0.80,
-   "cfl_diff":20.0,
+   "maxIter":30,
+   "tol":1e-2,
 
-   "Cp":1004.0,
-   "Prt":0.71,
-   "M" :0.1,
-   "d0":1.0,
+   "cfl_conv":0.95,
+
    "U0":1.0,
+   "d0":1.0,
    "rho0":1.0,
-   "Red0":450.0,
-   "gamma_gas":1.4,
+   "Red0":450,
 
-   "xmin_tripping":20.0,
+   "vmax_SB":0.4,
+   "xc_SB":306.640625,
+   "eps_SB":110.485435,
+   "psi_SB":0.95,
+
+   "xmin_tripping":-40.0,
    "lx_tripping":2.5,
    "ly_tripping":2.5,
 
@@ -59,12 +63,15 @@
 
    "bouCodes":
    [
-      {"id":1, "bc_type":"bc_type_slip_wall_modelc"},
-      {"id":2, "bc_type":"bc_type_far_field"},
+      {"id":1, "bc_type":"bc_type_non_slip_adiabatic"},
+      {"id":2, "bc_type":"bc_type_far_field_SB"},
+      {"id":3, "bc_type":"bc_type_far_field"},
+      {"id":4, "bc_type":"bc_type_outlet_incomp"},
    ],
 
    "buffer":
    [
-      {"type":"east","min":13000.0,"size":500.0},
+      {"type":"east","min":950,"size":50},
+      {"type":"west","min":-50,"size":50},
    ]
 }
