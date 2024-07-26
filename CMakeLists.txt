@@ -23,7 +23,7 @@ option(USE_MN5 "Compiling in MareNostrum5" OFF)
 option(USE_CRAY "Compiling with CrayMpi" OFF)
 option(SHARED_LIBS "Compile using shared libraries" OFF)
 
-option(USE_GPU "Compile using GPU" ON)
+option(USE_GPU "Compile using GPU" OFF)
 option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
 option(USE_NCCL "Compile using NCCL" OFF)
 

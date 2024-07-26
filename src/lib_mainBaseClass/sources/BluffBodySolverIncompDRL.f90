@@ -49,6 +49,7 @@ module BluffBodySolverIncompDRL_mod
       procedure, public :: readControlRectangles => BluffBodySolverIncompDRL_readControlRectangles
       procedure, public :: getControlNodes       => BluffBodySolverIncompDRL_getControlNodes
       procedure, public :: beforeTimeIteration => BluffBodySolverIncompDRL_beforeTimeIteration
+      procedure, public :: afterTimeIteration => BluffBodySolverIncompDRL_afterTimeIteration
       procedure, public :: afterDt => BluffBodySolverIncompDRL_afterDt
       procedure, public :: fillBCTypes           => BluffBodySolverIncompDRL_fill_BC_Types
       procedure, public :: initializeParameters  => BluffBodySolverIncompDRL_initializeParameters
@@ -141,8 +142,8 @@ contains
       class(BluffBodySolverIncompDRL), intent(inout) :: this
 
       ! Open files to save the action and reward
-      open(unit=443,file=trim(adjustl(this%output_dir))//"control_action.txt",status='replace')
-      open(unit=445,file=trim(adjustl(this%output_dir))//"control_reward.txt",status='replace')
+      if (mpi_rank .eq. 0) open(unit=443,file=trim(adjustl(this%output_dir))//"control_action.txt",status='replace')
+      if (mpi_rank .eq. 0) open(unit=445,file=trim(adjustl(this%output_dir))//"control_reward.txt",status='replace')
 
       ! Initialise smartredis database 
       call init_smartredis(client, this%nwitPar, this%nRectangleControl, this%n_pseudo_envs, trim(adjustl(this%tag)), this%db_clustered)
@@ -160,7 +161,7 @@ contains
       integer(4) :: bcode, iNodeL
 
       ! Open file to save the instantaneous action
-      open(unit=444,file=trim(adjustl(this%output_dir))//"smooth_control_action.txt",status='replace')
+      if (mpi_rank .eq. 0) open(unit=444,file=trim(adjustl(this%output_dir))//"smooth_control_action.txt",status='replace')
 
       ! Open file to save the lift and drag coefficients
       if (mpi_rank .eq. 0) open(unit=446,file=trim(adjustl(this%output_dir))//"ClCd.txt",status='replace')
@@ -206,6 +207,19 @@ contains
       this%nextActuationTime = this%timeBeginActuation ! The first "nextActuationTime" is the initial actuation time
 
    end subroutine BluffBodySolverIncompDRL_beforeTimeIteration
+
+   subroutine BluffBodySolverIncompDRL_afterTimeIteration(this)
+      class(BluffBodySolverIncompDRL), intent(inout) :: this
+
+      if (mpi_rank .eq. 0) close(444)
+      if (mpi_rank .eq. 0) close(446)
+      if (mpi_rank .eq. 0) close(443)
+      if (mpi_rank .eq. 0) close(445)
+      if (mpi_rank .eq. 0) close(447)
+      call write_step_type(client, 0, "ensemble_"//trim(adjustl(this%tag))//".step_type")
+      call end_smartredis(client)
+
+   end subroutine BluffBodySolverIncompDRL_afterTimeIteration
 
    subroutine BluffBodySolverIncompDRL_afterDt(this,istep)
       class(BluffBodySolverIncompDRL), intent(inout) :: this
@@ -291,8 +305,7 @@ contains
             if (mpi_rank .eq. 0) call flush(443)
 
             ! if the next time that we require actuation value is the last one, write now step_type=0 into database
-            ! 2* this%periodActuation to avoid desynchronization problems with the environments. Otherwise, one env may finish without updating the final state (see how this%maxPhysTime is defined)
-            if (this%time + 2.0 * this%periodActuation .gt. this%maxPhysTime) then
+            if (this%time + 1.0 * this%periodActuation .gt. this%maxPhysTime) then
                call write_step_type(client, 0, "ensemble_"//trim(adjustl(this%tag))//".step_type")
             end if
          end if
@@ -441,7 +454,7 @@ contains
       read(timeBeginActuation_str,*,iostat=ierr) this%timeBeginActuation
 
       ! Set the final simulation time as the episode duration
-      this%maxPhysTime =  this%timeBeginActuation + this%periodEpisode + this%periodActuation
+      this%maxPhysTime =  this%timeBeginActuation + this%periodEpisode
 
       if (mpi_rank .eq. 0) then
          write(*,*) "RL simulation params:"
@@ -538,7 +551,7 @@ contains
          call json%get("witness_inp_file_name",value, found,"witness.txt"); call this%checkFound(found,found_aux)
          write(this%witness_inp_file_name,*) value
          call json%get("witness_h5_file_name",value, found,"resultwit.h5"); call this%checkFound(found,found_aux)
-         write(this%witness_h5_file_name,*) "./output_"//trim(adjustl(this%tag))//"/"//value
+         write(this%witness_h5_file_name,*) trim(adjustl(this%output_dir))//value
 
          call json%get("leapwit",this%leapwit, found,1); call this%checkFound(found,found_aux)
          call json%get("leapwitsave",this%leapwitsave, found,100); call this%checkFound(found,found_aux)

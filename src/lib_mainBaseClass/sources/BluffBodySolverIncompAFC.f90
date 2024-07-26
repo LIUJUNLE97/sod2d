@@ -42,6 +42,7 @@ module BluffBodySolverIncompAFC_mod
       procedure, public :: readControlRectangles => BluffBodySolverIncompAFC_readControlRectangles
       procedure, public :: getControlNodes       => BluffBodySolverIncompAFC_getControlNodes
       procedure, public :: beforeTimeIteration => BluffBodySolverIncompAFC_beforeTimeIteration
+      procedure, public :: afterTimeIteration => BluffBodySolverIncompAFC_afterTimeIteration
       procedure, public :: afterDt => BluffBodySolverIncompAFC_afterDt
       procedure, public :: fillBCTypes           => BluffBodySolverIncompAFC_fill_BC_Types
       procedure, public :: initializeParameters  => BluffBodySolverIncompAFC_initializeParameters
@@ -132,7 +133,7 @@ contains
       integer(4) :: bcode, iNodeL
 
       ! Open file to save the instantaneous action
-      open(unit=444,file="instantaneous_action.txt",status='replace')
+      if (mpi_rank .eq. 0) open(unit=444,file="instantaneous_action.txt",status='replace')
 
       ! Obtain the mask of the control nodes (>0)
       call this%getControlNodes()
@@ -154,6 +155,13 @@ contains
       !$acc end parallel loop
 
    end subroutine BluffBodySolverIncompAFC_beforeTimeIteration
+
+   subroutine BluffBodySolverIncompAFC_afterTimeIteration(this)
+      class(BluffBodySolverIncompAFC), intent(inout) :: this
+
+      if (mpi_rank .eq. 0) close(444)
+
+   end subroutine BluffBodySolverIncompAFC_afterTimeIteration
 
    subroutine BluffBodySolverIncompAFC_afterDt(this,istep)
       class(BluffBodySolverIncompAFC), intent(inout) :: this
