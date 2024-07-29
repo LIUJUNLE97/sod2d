@@ -18,7 +18,6 @@ program main
    use BluffBodySolverIncomp_mod
    use BluffBody3DSolver_mod
    use BluffBody3DSolverIncomp_mod
-   use BLFlowSolver_mod
    use BLFlowSolverIncomp_mod
    use BLFlowSolverIncompAFC_mod
    use BLFlowSolverIncompDRL_mod
@@ -85,8 +84,6 @@ program main
       allocate(BluffBody3DSolver::solver) 
    else if(value .eq. "BluffBody3DSolverIncomp") then
       allocate(BluffBody3DSolverIncomp::solver) 
-   else if(value .eq. "BLFlowSolver") then
-      allocate(BLFlowSolver::solver)
    else if(value .eq. "BLFlowSolverIncomp") then
       allocate(BLFlowSolverIncomp::solver)
    else if(value .eq. "BLFlowSolverIncompAFC") then
