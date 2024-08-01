@@ -424,6 +424,8 @@ end subroutine CFDSolverBase_findFixPressure
                   bouCodes2BCType(id) = bc_type_slip_adiabatic
                else if(value .eq. "bc_type_slip_wall_model") then
                   bouCodes2BCType(id) = bc_type_slip_wall_model
+               else if(value .eq. "bc_type_slip_wall_model_iso") then
+                  bouCodes2BCType(id) = bc_type_slip_wall_model_iso                  
                else if(value .eq. "bc_type_slip_atmosphere") then
                   bouCodes2BCType(id) = bc_type_slip_atmosphere
                else if(value .eq. "bc_type_symmetry") then
@@ -667,6 +669,9 @@ end subroutine CFDSolverBase_findFixPressure
       this%isWallModelOn = .false.
       do iBound = 1,numBoundCodes
          if(bouCodes2BCType(iBound) .eq. bc_type_slip_wall_model) then
+            this%isWallModelOn = .true.
+            if(mpi_rank.eq.0) write(111,*) "--| Wall-Model activated in Boundary id",iBound
+         else if(bouCodes2BCType(iBound) .eq. bc_type_slip_wall_model_iso) then
             this%isWallModelOn = .true.
             if(mpi_rank.eq.0) write(111,*) "--| Wall-Model activated in Boundary id",iBound
          end if

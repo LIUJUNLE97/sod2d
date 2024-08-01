@@ -50,7 +50,8 @@ module mod_constants
 	integer(4), parameter :: bc_type_slip_adiabatic       = 10
 	integer(4), parameter :: bc_type_slip_isothermal      = 11
 	integer(4), parameter :: bc_type_slip_wall_model      = 12
-	integer(4), parameter :: bc_type_slip_atmosphere      = 13
+	integer(4), parameter :: bc_type_slip_wall_model_iso  = 13
+	integer(4), parameter :: bc_type_slip_atmosphere      = 14
 	
 
 	! Type of wall models
