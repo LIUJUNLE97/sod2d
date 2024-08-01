@@ -323,20 +323,8 @@ contains
          do iNodeL = 1,numNodesRankPar
             if (actionMask(iNodeL) .gt. 0) then
 
-               !u_buffer(iNodeL,1) = action_global_instant(actionMask(iNodeL))*sin(this%alphaActuation*v_pi/180_rp)
-               !u_buffer(iNodeL,2) = action_global_instant(actionMask(iNodeL))*cos(this%alphaActuation*v_pi/180_rp)
-               !u_buffer(iNodeL,3) = 0.0_rp
-
-               ! With a specific jet velocity function (action_global_instant here is Q==mass flow rate)
-               xPoint = coordPar(iNodeL,1)
-               yPoint = coordPar(iNodeL,2)
-               if (yPoint < 0.0_rp) then ! For the lower surface, compute the jet velocity as for the upper surface (take the symmetry point)
-                  yPoint = -yPoint
-               end if
-               theta = atan2((yPoint - 0.0_rp), (xPoint - 0.0_rp)) ! Angle of the current point
-
-               u_buffer(iNodeL,1) = (action_global_instant(actionMask(iNodeL)) * ((v_pi)/(this%rho0*(10 *v_pi/180)*this%delta)) * cos((v_pi/(10 *v_pi/180))*(theta-(90 *v_pi/180)))) * cos(theta)
-               u_buffer(iNodeL,2) = (action_global_instant(actionMask(iNodeL)) * ((v_pi)/(this%rho0*(10 *v_pi/180)*this%delta)) * cos((v_pi/(10 *v_pi/180))*(theta-(90 *v_pi/180)))) * sin(theta)
+               u_buffer(iNodeL,1) = action_global_instant(actionMask(iNodeL))*sin(this%alphaActuation*v_pi/180_rp)
+               u_buffer(iNodeL,2) = action_global_instant(actionMask(iNodeL))*cos(this%alphaActuation*v_pi/180_rp)
                u_buffer(iNodeL,3) = 0.0_rp
 
             end if
@@ -358,17 +346,13 @@ contains
       do surfCode = 1, this%n_pseudo_envs
 
          ! Summ the pressure and viscous forces in the x and y direction
-         !Fy(surfCode) = 2.0_rp * (Fpr(2,surfCode) + Ftau(2,surfCode)) / (this%rho0 * (this%delta*this%spanLength/this%n_pseudo_envs) * (this%vo*this%vo))
-         !Fx(surfCode) = 2.0_rp * (Fpr(1,surfCode) + Ftau(1,surfCode)) / (this%rho0 * (this%delta*this%spanLength/this%n_pseudo_envs) * (this%vo*this%vo))
+         Fy(surfCode) = 2.0_rp * (Fpr(2,surfCode) + Ftau(2,surfCode)) / (this%rho0 * (this%delta*this%spanLength/this%n_pseudo_envs) * (this%vo*this%vo))
+         Fx(surfCode) = 2.0_rp * (Fpr(1,surfCode) + Ftau(1,surfCode)) / (this%rho0 * (this%delta*this%spanLength/this%n_pseudo_envs) * (this%vo*this%vo))
 
          ! Now consider the AoA
-         !CL(surfCode) = -Fx(surfCode)*sin(this%AoA) + Fy(surfCode)*cos(this%AoA)
-         !CD(surfCode) = Fx(surfCode)*cos(this%AoA) + Fy(surfCode)*sin(this%AoA)
+         CL(surfCode) = -Fx(surfCode)*sin(this%AoA) + Fy(surfCode)*cos(this%AoA)
+         CD(surfCode) = Fx(surfCode)*cos(this%AoA) + Fy(surfCode)*sin(this%AoA)
 
-         ! ONLY CONSIDER THE PRESSURE FORCES 
-         CL(surfCode) = 2.0_rp * Fpr(2,surfCode) / (this%rho0 * (this%delta*this%spanLength/this%n_pseudo_envs) * (this%vo*this%vo))
-         CD(surfCode) = 2.0_rp * Fpr(1,surfCode) / (this%rho0 * (this%delta*this%spanLength/this%n_pseudo_envs) * (this%vo*this%vo))  
-         
       end do
 
    end subroutine BluffBodySolverIncompDRL_computeClCd

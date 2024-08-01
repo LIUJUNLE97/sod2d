@@ -203,21 +203,9 @@ contains
 
                if  (this%spanFreqActuation .eq. 0) then
 
-                  !u_buffer(iNodeL,1) = action_classic*sin(this%alphaActuation*v_pi/180_rp) * invert
-                  !u_buffer(iNodeL,2) = action_classic*cos(this%alphaActuation*v_pi/180_rp) * invert
-                  !u_buffer(iNodeL,3) = 0.0_rp * invert
-
-                  ! With a specific jet velocity function (action_global_instant here is Q==mass flow rate)
-                  xPoint = coordPar(iNodeL,1)
-                  yPoint = coordPar(iNodeL,2)
-                  if (yPoint < 0.0_rp) then ! For the lower surface, compute the jet velocity as for the upper surface (take the symmetry point)
-                     yPoint = -yPoint
-                  end if
-                  theta = atan2((yPoint - 0.0_rp), (xPoint - 0.0_rp)) ! Angle of the current point
-
-                  u_buffer(iNodeL,1) = (action_classic * ((v_pi)/(this%rho0*(10 *v_pi/180)*this%delta)) * cos((v_pi/(10 *v_pi/180))*(theta-(90 *v_pi/180)))) * cos(theta)
-                  u_buffer(iNodeL,2) = (action_classic * ((v_pi)/(this%rho0*(10 *v_pi/180)*this%delta)) * cos((v_pi/(10 *v_pi/180))*(theta-(90 *v_pi/180)))) * sin(theta)
-                  u_buffer(iNodeL,3) = 0.0_rp
+                  u_buffer(iNodeL,1) = action_classic*sin(this%alphaActuation*v_pi/180_rp) * invert
+                  u_buffer(iNodeL,2) = action_classic*cos(this%alphaActuation*v_pi/180_rp) * invert
+                  u_buffer(iNodeL,3) = 0.0_rp * invert
 
                else
 
