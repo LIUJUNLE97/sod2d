@@ -25,7 +25,7 @@ module mod_constants
       real(rp), parameter :: v_pi = 2.0_rp*asin(1.0_rp) ! Value of Pi
 
       ! No of boundary codes
-      integer(4), parameter :: max_num_bou_codes = 16
+      integer(4), parameter :: max_num_bou_codes = 17
 
       ! No of max saved fields (size of pointer arrays)
       integer(4), parameter :: max_num_saved_fields = 50
@@ -49,9 +49,11 @@ module mod_constants
 	integer(4), parameter :: bc_type_slip_adiabatic       = 10
 	integer(4), parameter :: bc_type_slip_isothermal      = 11
 	integer(4), parameter :: bc_type_slip_wall_model      = 12
-	integer(4), parameter :: bc_type_slip_atmosphere      = 13
-	integer(4), parameter :: bc_type_unsteady_inlet       = 14
-	integer(4), parameter :: bc_type_far_field_SB         = 15
+	integer(4), parameter :: bc_type_slip_wall_model_iso  = 13
+	integer(4), parameter :: bc_type_slip_atmosphere      = 14
+	integer(4), parameter :: bc_type_unsteady_inlet       = 15
+	integer(4), parameter :: bc_type_far_field_SB         = 16
+
 	
 
 	! Type of wall models

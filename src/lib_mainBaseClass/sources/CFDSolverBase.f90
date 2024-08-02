@@ -430,6 +430,8 @@ end subroutine CFDSolverBase_findFixPressure
                   bouCodes2BCType(id) = bc_type_unsteady_inlet
                else if(value .eq. "bc_type_far_field_SB") then
                   bouCodes2BCType(id) = bc_type_far_field_SB 
+               else if(value .eq. "bc_type_slip_wall_model_iso") then
+                  bouCodes2BCType(id) = bc_type_slip_wall_model_iso                  
                else if(value .eq. "bc_type_slip_atmosphere") then
                   bouCodes2BCType(id) = bc_type_slip_atmosphere
                else if(value .eq. "bc_type_symmetry") then
@@ -673,6 +675,9 @@ end subroutine CFDSolverBase_findFixPressure
       this%isWallModelOn = .false.
       do iBound = 1,numBoundCodes
          if(bouCodes2BCType(iBound) .eq. bc_type_slip_wall_model) then
+            this%isWallModelOn = .true.
+            if(mpi_rank.eq.0) write(111,*) "--| Wall-Model activated in Boundary id",iBound
+         else if(bouCodes2BCType(iBound) .eq. bc_type_slip_wall_model_iso) then
             this%isWallModelOn = .true.
             if(mpi_rank.eq.0) write(111,*) "--| Wall-Model activated in Boundary id",iBound
          end if
@@ -1639,7 +1644,7 @@ end subroutine CFDSolverBase_findFixPressure
 
       call MPI_Barrier(app_comm,mpi_err)
 
-      call nvtxStartRange("Start RK4")
+      call nvtxStartRange("Start time-integration")
       if(mpi_rank.eq.0) then
          write(*,*) 'Strarting evalTimeItarion! All info will be written in the log file: ',this%log_file_name
          write(111,*) 'Doing evalTimeIteration. Ini step:',this%initial_istep,'| End step:',this%final_istep

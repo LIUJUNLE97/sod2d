@@ -305,7 +305,8 @@ contains
             if (mpi_rank .eq. 0) call flush(443)
 
             ! if the next time that we require actuation value is the last one, write now step_type=0 into database
-            if (this%time + 1.0 * this%periodActuation .gt. this%maxPhysTime) then
+            ! 2* this%periodActuation to avoid desynchronization problems with the environments. Otherwise, one env may finish without updating the final state (see how this%maxPhysTime is defined)
+            if (this%time + 2.0 * this%periodActuation .gt. this%maxPhysTime) then
                call write_step_type(client, 0, "ensemble_"//trim(adjustl(this%tag))//".step_type")
             end if
          end if
@@ -438,7 +439,7 @@ contains
       read(timeBeginActuation_str,*,iostat=ierr) this%timeBeginActuation
 
       ! Set the final simulation time as the episode duration
-      this%maxPhysTime =  this%timeBeginActuation + this%periodEpisode
+      this%maxPhysTime =  this%timeBeginActuation + this%periodEpisode + this%periodActuation
 
       if (mpi_rank .eq. 0) then
          write(*,*) "RL simulation params:"
