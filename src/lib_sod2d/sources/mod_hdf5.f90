@@ -1794,14 +1794,14 @@ contains
       real(rp) :: array2d_tr(ms_dims(1),ms_dims(2)) !FORTRAN is COLUMN-MAJOR & HDF5 is ROW-MAJOR
 
       !For the moment, this loop is done with data in the host (before saving in hdf5)
-      !!!!$acc kernels 
+      !!!!$acc kernels
       do ii=1,ms_dims(1)
          do jj=1,ms_dims(2)
             array2d_tr(ii,jj)=array2d(jj,ii)
          end do
       end do
       !!!!$acc end kernels
-      !!!!$acc update device(host(:,:)) 
+      !!!!$acc update device(host(:,:))
 
       call select_dtype_rp(dtype)
 
@@ -3062,7 +3062,7 @@ contains
       integer(hid_t),intent(in) :: file_id
       character(128) :: dsetname
       integer(hsize_t), dimension(1) :: ms_dims
-      integer(hssize_t), dimension(1) :: ms_offset 
+      integer(hssize_t), dimension(1) :: ms_offset
       integer(1) :: aux_array_i1(1)
       integer(4) :: aux_array_i4(1)
 
@@ -4021,7 +4021,7 @@ contains
       real(rp_vtk),intent(out) :: interpNodeScalarField(numNodesRankPar)
       integer(4) :: iElem,inode,iPer
 
-      !$acc parallel loop gang 
+      !$acc parallel loop gang
       do iElem = 1,numElemsRankPar
          !$acc loop vector
          do inode = 1,mnnode

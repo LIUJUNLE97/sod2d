@@ -61,7 +61,7 @@ module mod_solver_incomp
             !$acc parallel loop
             do ipoin = 1,npoin
                !$acc loop seq
-               do idime = 1,ndime           
+               do idime = 1,ndime
                   r0_u(ipoin,idime) = 0.0_rp
                   p0_u(ipoin,idime) = 0.0_rp
                   qn_u(ipoin,idime) = 0.0_rp
@@ -71,19 +71,19 @@ module mod_solver_incomp
                   z1_u(ipoin,idime) = 0.0_rp
                   M_u(ipoin,idime) = Ml(ipoin)/dt
                end do
-            end do 
+            end do
             !$acc end parallel loop
 
             !$acc parallel loop
             do ipoin = 1,npoin_w
                !$acc loop seq
-               do idime = 1,ndime   
+               do idime = 1,ndime
                   b_u(lpoin_w(ipoin),idime) = R(lpoin_w(ipoin),idime)
                   x_u(lpoin_w(ipoin),idime) = Rp0(lpoin_w(ipoin),idime)
                end do
             end do
             !$acc end parallel loop
-               
+
             ! Real solver form here
 
             call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x_u,mu_fluid,mu_e,mu_sgs,Ml,qn_u)
@@ -141,7 +141,7 @@ module mod_solver_incomp
               if(mpi_size.ge.2) then
                do idime = 1,ndime
                   call mpi_halo_atomic_update_real(qn_u(:,idime))
-                  end do              
+                  end do
                end if
              !$acc parallel loop
              do ipoin = 1,npoin_w
@@ -153,10 +153,10 @@ module mod_solver_incomp
             
               auxQ1 = 0.0d0
               auxQ2 = 0.0d0
-              !$acc parallel loop reduction(+:auxQ1,auxQ2) 
+              !$acc parallel loop reduction(+:auxQ1,auxQ2)
               do ipoin = 1,npoin_w
                   !$acc loop seq
-                  do idime = 1,ndime 
+                  do idime = 1,ndime
                    auxQ1 = auxQ1+real(r0_u(lpoin_w(ipoin),idime)*z0_u(lpoin_w(ipoin),idime),8) ! <s_k-1,r_k-1>
                    auxQ2 = auxQ2+real(p0_u(lpoin_w(ipoin),idime)*qn_u(lpoin_w(ipoin),idime),8) ! <s_k-1,A*s_k-1>
                  end do
@@ -169,7 +169,7 @@ module mod_solver_incomp
               !$acc parallel loop
               do ipoin = 1,npoin_w
                  !$acc loop seq
-                  do idime = 1,ndime 
+                  do idime = 1,ndime
                      x_u(lpoin_w(ipoin),idime) = x_u(lpoin_w(ipoin),idime)+alphaCG*p0_u(lpoin_w(ipoin),idime) ! x_k = x_k-1 + alpha*s_k-1
                  end do
               end do
@@ -229,7 +229,7 @@ module mod_solver_incomp
               !$acc parallel loop
               do ipoin = 1,npoin_w
                   !$acc loop seq
-                  do idime = 1,ndime 
+                  do idime = 1,ndime
                      p0_u(lpoin_w(ipoin),idime) = z0_u(lpoin_w(ipoin),idime)+betaCG*p0_u(lpoin_w(ipoin),idime) ! s_k = r_k+beta*s_k-1
                   end do
               end do
@@ -243,7 +243,7 @@ module mod_solver_incomp
            else
                if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[veloc] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
            endif
-            
+
             !$acc kernels
             R(:,:) = x_u(:,:)
             !$acc end kernels
@@ -268,7 +268,7 @@ module mod_solver_incomp
            integer(4)                :: ipoin, iter,ialpha,ielem
            real(rp)                   :: alphaCG, betaCG
            real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,Q1(2)
-          
+
           call nvtxStartRange("CG solver press")
           if (flag_cg_mem_alloc_pres .eqv. .true.) then
 				allocate(x(npoin), r0(npoin), p0(npoin), qn(npoin), v(npoin), b(npoin),z0(npoin),z1(npoin),M(npoin),x0(npoin),diag(npoin))
@@ -281,7 +281,7 @@ module mod_solver_incomp
                !$acc enter data create(L(:,:,:),Lt(:,:,:))
                call eval_laplacian_BDL(nelem,npoin,connec,He,dNgp,invAtoIJK,gpvol,diag,L)
 
-               !$acc parallel loop gang 
+               !$acc parallel loop gang
                do ielem = 1,nelem
                   Lt(:,:,ielem) = transpose(L(:,:,ielem))
                end do
@@ -296,7 +296,7 @@ module mod_solver_incomp
            !
            call nvtxStartRange("CG_p init")
            !$acc parallel loop
-           do ipoin = 1,npoin           
+           do ipoin = 1,npoin
                x(ipoin) = 0.0_rp
                r0(ipoin) = 0.0_rp
                p0(ipoin) = 0.0_rp
@@ -316,7 +316,7 @@ module mod_solver_incomp
                b(lpoin_w(ipoin)) = R(lpoin_w(ipoin)) - qn(lpoin_w(ipoin))
             end do
             !$acc end parallel loop
-               
+
             ! Real solver form here
 
             if(flag_fs_fix_pressure) then
@@ -345,7 +345,7 @@ module mod_solver_incomp
             !$acc end parallel loop
 
             if(flag_cg_prec_bdc .eqv. .true.) then
-               call smoother_cholesky(nelem,npoin,npoin_w,lpoin_w,lelpn,connec,r0,z0)   
+               call smoother_cholesky(nelem,npoin,npoin_w,lpoin_w,lelpn,connec,r0,z0)
                !$acc parallel loop
                do ipoin = 1,npoin_w
                   p0(lpoin_w(ipoin)) = z0(lpoin_w(ipoin))
@@ -362,7 +362,7 @@ module mod_solver_incomp
 
             call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
-            auxB = sqrt(auxT2) 
+            auxB = sqrt(auxT2)
             call nvtxEndRange
 
            !
@@ -374,7 +374,7 @@ module mod_solver_incomp
               call eval_laplacian_mult(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,p0,qn) ! A*s_k-1           
               auxQ1 = 0.0d0
               auxQ2 = 0.0d0
-              !$acc parallel loop reduction(+:auxQ1,auxQ2) 
+              !$acc parallel loop reduction(+:auxQ1,auxQ2)
               do ipoin = 1,npoin_w
                  auxQ1 = auxQ1+real(r0(lpoin_w(ipoin))*z0(lpoin_w(ipoin)),8) ! <s_k-1,r_k-1>
                  auxQ2 = auxQ2+real(p0(lpoin_w(ipoin))*qn(lpoin_w(ipoin)),8) ! <s_k-1,A*s_k-1>
@@ -417,7 +417,7 @@ module mod_solver_incomp
                  call nvtxEndRange
                  exit
               end if
-               
+
                if(flag_cg_prec_bdc .eqv. .true.) then
                   call smoother_cholesky(nelem,npoin,npoin_w,lpoin_w,lelpn,connec,r0,z0)
                endif
@@ -447,7 +447,7 @@ module mod_solver_incomp
            else
                if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
            endif
-            
+
             !$acc kernels
             R(:) = x0(:)+x(:)
             !$acc end kernels
@@ -482,7 +482,7 @@ module mod_solver_incomp
                   bl(inode)  = b(ipoin(inode))
                end do
                xl(1) = bl(1)/L(1,1,ielem)
-               !$acc loop vector 
+               !$acc loop vector
                do inode=2,nnode
                   jnode = inode-1
                   xl(inode) = (bl(inode) - dot_product(L(inode,1:jnode,ielem),xl(1:jnode)))/L(inode,inode,ielem)
@@ -490,11 +490,11 @@ module mod_solver_incomp
 
                x(ipoin(nnode)) = xl(nnode)/Lt(nnode,nnode,ielem)
 
-               !$acc loop vector 
+               !$acc loop vector
                do inode=nnode-1,1,-1
                   jnode = inode+1
                   x(ipoin(inode)) = (xl(inode) - dot_product(Lt(inode,jnode:nnode,ielem),x(ipoin(jnode:nnode))))/Lt(inode,inode,ielem)
-               end do              
+               end do
 
            end do
 
@@ -509,6 +509,6 @@ module mod_solver_incomp
          end do
          !$acc end parallel loop
          call nvtxEndRange
-          
-        end subroutine smoother_cholesky   
+
+        end subroutine smoother_cholesky
 end module mod_solver_incomp

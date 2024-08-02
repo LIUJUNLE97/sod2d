@@ -5,9 +5,9 @@ set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/modules)
 if(SHARED_LIBS)
    file(GLOB_RECURSE SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.f90)
 else()
-   file(GLOB SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/../lib_sod2d/sources/*.f90 
-                       ${CMAKE_CURRENT_LIST_DIR}/../lib_sod2d_incomp/sources/*.f90 
-                       ${CMAKE_CURRENT_LIST_DIR}/../lib_mainBaseClass/sources/*.f90 
+   file(GLOB SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/../lib_sod2d/sources/*.f90
+                       ${CMAKE_CURRENT_LIST_DIR}/../lib_sod2d_incomp/sources/*.f90
+                       ${CMAKE_CURRENT_LIST_DIR}/../lib_mainBaseClass/sources/*.f90
                        ${CMAKE_CURRENT_LIST_DIR}/sources/*.f90)
 endif()
 include_directories(${CMAKE_BINARY_DIR}/modules)
@@ -20,6 +20,7 @@ if(SHARED_LIBS)
 else()
    set_mpi()
    set_hdf5()
+   set_smartredis()
    set_jsonfortran()
    if (USE_SENSEI)
       target_link_libraries(${PROJECT_NAME} lib_senseiInterface)

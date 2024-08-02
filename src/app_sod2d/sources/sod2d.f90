@@ -11,12 +11,16 @@ program main
    use TGVSolverIncomp_mod
    use ChannelFlowSolver_mod
    use ChannelFlowSolverIncomp_mod
+   use BluffBodySolverIncompAFC_mod
+   use BluffBodySolverIncompDRL_mod
    use ThermalBubbleSolver_mod
    use BluffBodySolver_mod
    use BluffBodySolverIncomp_mod
    use BluffBody3DSolver_mod
    use BluffBody3DSolverIncomp_mod
-   use BLFlowSolver_mod
+   use BLFlowSolverIncomp_mod
+   use BLFlowSolverIncompAFC_mod
+   use BLFlowSolverIncompDRL_mod
    use ABlFlowSolverIncomp_mod
    use MappedInletIncomp_mod
    use WindFarmSolverIncomp_mod
@@ -64,6 +68,12 @@ program main
       allocate(ChannelFlowSolver::solver) 
    else if(value .eq. "ChannelFlowSolverIncomp") then
       allocate(ChannelFlowSolverIncomp::solver) 
+   else if(value .eq. "BluffBodySolverIncompAFC") then
+      allocate(BluffBodySolverIncompAFC::solver)
+#ifdef SMARTREDIS
+   else if(value .eq. "BluffBodySolverIncompDRL") then
+      allocate(BluffBodySolverIncompDRL::solver)  
+#endif  
    else if(value .eq. "ThermalBubbleSolver") then
       allocate(ThermalBubbleSolver::solver) 
    else if(value .eq. "BluffBodySolver") then
@@ -74,8 +84,14 @@ program main
       allocate(BluffBody3DSolver::solver) 
    else if(value .eq. "BluffBody3DSolverIncomp") then
       allocate(BluffBody3DSolverIncomp::solver) 
-   else if(value .eq. "BLFlowSolver") then
-      allocate(BLFlowSolver::solver) 
+   else if(value .eq. "BLFlowSolverIncomp") then
+      allocate(BLFlowSolverIncomp::solver)
+   else if(value .eq. "BLFlowSolverIncompAFC") then
+      allocate(BLFlowSolverIncompAFC::solver)  
+#ifdef SMARTREDIS
+   else if(value .eq. "BLFlowSolverIncompDRL") then
+      allocate(BLFlowSolverIncompDRL::solver) 
+#endif
    else if(value .eq. "ABlFlowSolverIncomp") then
       allocate(ABlFlowSolverIncomp::solver) 
    else if(value .eq. "MappedInletIncomp") then
@@ -92,4 +108,3 @@ program main
    call solver%run()
 
 end program main
-

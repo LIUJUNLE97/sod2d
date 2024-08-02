@@ -30,7 +30,7 @@ module mod_bc_routines
 
             if(allocate_memory_bcc) then
                allocate_memory_bcc = .false.
-               
+
                allocate(aux_rho2(npoin),aux_p2(npoin),aux_E2(npoin))
                !$acc enter data create(aux_rho2(:))
                !$acc enter data create(aux_p2(:))
@@ -40,7 +40,7 @@ module mod_bc_routines
                !$acc enter data create(aux_q2(:,:))
             end if
 
-            !$acc parallel loop  
+            !$acc parallel loop
             do inode = 1,npoin
                if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
                   aux_q2(inode,1) = aux_q(lnbn_nodes(inode),1)
@@ -62,7 +62,7 @@ module mod_bc_routines
                call nvtxEndRange
             end if
 
-            !$acc parallel loop  
+            !$acc parallel loop
             do inode = 1,npoin
                if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
                   aux_u2(inode,1) = aux_q2(inode,1)/aux_rho2(inode)
@@ -75,7 +75,7 @@ module mod_bc_routines
             end do
             !$acc end parallel loop
 
-            !$acc parallel loop  
+            !$acc parallel loop
             do inode = 1,npoin
                if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
                   bcode = bou_codes_nodes(inode) ! Boundary element code
@@ -142,9 +142,9 @@ module mod_bc_routines
                      aux_rho(inode) = aux_rho(lnbn_nodes(inode))
                      aux_E(inode)   = aux_E(lnbn_nodes(inode))
                      aux_p(inode)   = aux_p(lnbn_nodes(inode))
-
+         
                   else if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic
-                     
+
                      aux_q(inode,1) = 0.0_rp
                      aux_q(inode,2) = 0.0_rp
                      aux_q(inode,3) = 0.0_rp
@@ -197,7 +197,7 @@ module mod_bc_routines
                   else if (bcode == bc_type_slip_isothermal) then ! slip
                      norm = (normalsAtNodes(inode,1)*aux_q(inode,1)) + (normalsAtNodes(inode,2)*aux_q(inode,2)) + (normalsAtNodes(inode,3)*aux_q(inode,3))
                      !$acc loop seq
-                     do idime = 1,ndime     
+                     do idime = 1,ndime
                         aux_q(inode,idime) = aux_q(inode,idime) - norm*normalsAtNodes(inode,idime)
                      end do
                      aux_rho(inode) = nscbc_rho_inf
@@ -289,12 +289,12 @@ subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound
             real(rp),    intent(inout) :: Rmass(npoin),Rmom(npoin,ndime),Rener(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
 
-         
-            !$acc parallel loop  
+
+            !$acc parallel loop
             do inode = 1,npoin
                if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
                   bcode = bou_codes_nodes(inode) ! Boundary element code
-                  if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic                  
+                  if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic
                      Rmom(inode,1) = 0.0_rp
                      Rmom(inode,2) = 0.0_rp
                      Rmom(inode,3) = 0.0_rp
@@ -345,12 +345,12 @@ subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound
             real(rp),    intent(inout) :: Jmass(npoin),Jmom(npoin,ndime),Jener(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
 
-         
-            !$acc parallel loop  
+
+            !$acc parallel loop
             do inode = 1,npoin
                if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
                   bcode = bou_codes_nodes(inode) ! Boundary element code
-                  if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic                  
+                  if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic
                      Jmom(inode,1) = 0.0_rp
                      Jmom(inode,2) = 0.0_rp
                      Jmom(inode,3) = 0.0_rp
@@ -387,12 +387,12 @@ subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound
             real(rp),    intent(inout) :: R(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
 
-         
-            !$acc parallel loop  
+
+            !$acc parallel loop
             do inode = 1,npoin
                if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
                   bcode = bou_codes_nodes(inode) ! Boundary element code
-                  if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic                  
+                  if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic
                      R(inode) = 0.0_rp
                   else if (bcode == bc_type_non_slip_hot) then ! non_slip wall hot
                      R(inode) = 0.0_rp
