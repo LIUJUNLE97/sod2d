@@ -505,7 +505,7 @@ contains
       !----------------------------------------------
       !  --------------  I/O params -------------
       call json%get("final_istep",this%final_istep, found,1000001); call this%checkFound(found,found_aux)
-      call json%get("maxPhysTime",this%maxPhysTime, found,1000.0); call this%checkFound(found,found_aux)
+      call json%get("maxPhysTime",this%maxPhysTime, found,1000.0_rp); call this%checkFound(found,found_aux)
 
       call json%get("save_logFile_first",this%save_logFile_first, found, 1); call this%checkFound(found,found_aux)
       call json%get("save_logFile_step",this%save_logFile_step, found, 10); call this%checkFound(found,found_aux)
@@ -521,7 +521,7 @@ contains
 
       call json%get("continue_oldLogs" ,this%continue_oldLogs, found, .false.); call this%checkFound(found,found_aux)
 
-      call json%get("initial_avgTime",this%initial_avgTime, found, 0.0); call this%checkFound(found,found_aux)
+      call json%get("initial_avgTime",this%initial_avgTime, found, 0.0_rp); call this%checkFound(found,found_aux)
       call json%get("saveAvgFile" ,this%saveAvgFile, found, .true.); call this%checkFound(found,found_aux)
       call json%get("loadAvgFile" ,this%loadAvgFile, found, .false.); call this%checkFound(found,found_aux)
 
@@ -551,16 +551,16 @@ contains
       nscbc_rho_inf = this%rho0
 
       ! Separation bubble top velocity parameters
-      call json%get("vmax_SB",this%vmax_SB, found,0.4); call this%checkFound(found,found_aux)
-      call json%get("xc_SB",this%xc_SB, found,306.640625); call this%checkFound(found,found_aux)
-      call json%get("eps_SB",this%eps_SB, found,110.485435); call this%checkFound(found,found_aux)
-      call json%get("psi_SB",this%psi_SB, found,0.95); call this%checkFound(found,found_aux)
+      call json%get("vmax_SB",this%vmax_SB, found,0.4_rp); call this%checkFound(found,found_aux)
+      call json%get("xc_SB",this%xc_SB, found,306.640625_rp); call this%checkFound(found,found_aux)
+      call json%get("eps_SB",this%eps_SB, found,110.485435_rp); call this%checkFound(found,found_aux)
+      call json%get("psi_SB",this%psi_SB, found,0.95_rp); call this%checkFound(found,found_aux)
 
       ! Tripping region
-      call json%get("xmin_tripping",this%xmin_tripping, found,0.0); call this%checkFound(found,found_aux)
-      call json%get("ymin_tripping",this%xmin_tripping, found,0.0); call this%checkFound(found,found_aux)
-      call json%get("lx_tripping",this%lx_tripping, found,1.0); call this%checkFound(found,found_aux)
-      call json%get("ly_tripping",this%ly_tripping, found,1.0); call this%checkFound(found,found_aux)
+      call json%get("xmin_tripping",this%xmin_tripping, found,0.0_rp); call this%checkFound(found,found_aux)
+      call json%get("ymin_tripping",this%xmin_tripping, found,0.0_rp); call this%checkFound(found,found_aux)
+      call json%get("lx_tripping",this%lx_tripping, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("ly_tripping",this%ly_tripping, found,1.0_rp); call this%checkFound(found,found_aux)
 
       ! Actuation Parameters
       call json%get("fileControlName",value, found,"rectangleControl.txt"); call this%checkFound(found,found_aux)       ! Jet surface limits (file name)
