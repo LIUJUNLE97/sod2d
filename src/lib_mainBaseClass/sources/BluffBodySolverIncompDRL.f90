@@ -291,8 +291,8 @@ contains
 
             ! Write current state and reward into the smartedis database and then read action
             call this%update_witness(istep, 1) ! manual update of witness points
-            !call write_state(client, buffwit(:, 1, 1), "ensemble_"//trim(adjustl(this%tag))//".state") ! the streamwise velocity u
-            call write_state(client, buffwit(:, 1, 4), "ensemble_"//trim(adjustl(this%tag))//".state") ! pressure
+            !call write_state(client, buffwit(:, 1, 1), "ensemble_"//trim(adjustl(this%tag))//".state", witGlob) ! the streamwise velocity u
+            call write_state(client, buffwit(:, 1, 4), "ensemble_"//trim(adjustl(this%tag))//".state", witGlob) ! pressure
 
             call write_reward(client, this%reward, "ensemble_"//trim(adjustl(this%tag))//".reward")
             if (mpi_rank .eq. 0) write(445,'(*(ES16.6,:,","))') this%time, this%reward
