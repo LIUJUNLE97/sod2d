@@ -3074,7 +3074,7 @@ contains
          end do
          mshRankElemEnd(iMshRank) = mshRankElemStart(iMshRank) + numElemsInMshRank(jj)-1
       end do
-      !write(*,*) 'numElemsMshRank[',mpi_rank,']',numElemsMshRank(:),'eStart',mshRankElemStart(:),'eEnd ',mshRankElemEnd(:)
+      !write(*,*) 'numElemsMshRank[',mpi_rank,']',numElemsMshRank(:),'mshRanksInMpiRank',mshRanksInMpiRank(:),'eStart',mshRankElemStart(:),'eEnd ',mshRankElemEnd(:)
 
       numBoundElemsMshRank(:) = 0
 !------------------------------------------------------------------------------
