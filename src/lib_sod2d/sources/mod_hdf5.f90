@@ -708,8 +708,6 @@ contains
 
       ms_dims(1) = int(numNodesMshRank,hsize_t)
       ms_offset(1) = int(mshRankNodeStart_i8,hssize_t)-1
-      !write(*,*) '(1)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-      !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(1)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
 
       dsetname = '/globalIds/globalIdSrl'
       call write_dataspace_1d_int8_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,globalIdSrlMshRank_i8)
@@ -719,8 +717,6 @@ contains
 
       ms_dims(1) = int(numElemsMshRank,hsize_t)
       ms_offset(1) = int(mshRankElemStart,hssize_t)-1
-      !write(*,*) '(2)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-      !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(2)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
 
       dsetname = '/globalIds/elemGid'
       call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,elemGidMshRank)
@@ -731,8 +727,6 @@ contains
          ms_dims2d(2) = int(numNodesMshRank,hsize_t)
          ms_offset2d(1) = 0
          ms_offset2d(2) = int(mshRankNodeStart_i8,hssize_t)-1
-         !write(*,*) '(3)[',mpi_rank,'][',mshRank,']ms_dims2d(1)(2) ',ms_dims2d(1),' ',ms_dims2d(2),' ms_offset2d(1)(2)',ms_offset2d(1),' ',ms_offset2d(2)
-         !if((ms_dims2d(2)+ms_offset2d(2))>=2147483647) write(*,*) '(3)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims2d(2)+ms_offset2d(2)
 
          dsetname = '/Coords/Points'
          call write_dataspace_2d_tr_real_rp_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims2d,ms_offset2d,coordParMshRank)
@@ -743,18 +737,14 @@ contains
       if(numMshRanks2Part.ge.2) then
          ms_dims(1) = 1
          ms_offset(1) = int(mshRank,hssize_t)
-         !write(*,*) '(4)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-         !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(4)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
          allocate(aux_array_i8(1))
 
          dsetname = '/Parallel_data/rankNodeStart'
          aux_array_i8(1)=mshRankNodeStart_i8
-         !write(*,*) '(rankNodeStart)[',mpi_rank,'][',mshRank,']ms_dims(1)',ms_dims(1),'ms_offset(1)',ms_offset(1),'aux',aux_array_i8(1),'mRNS',mshRankNodeStart_i8
          call write_dataspace_1d_int8_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
 
          dsetname = '/Parallel_data/rankNodeEnd'
          aux_array_i8(1)=mshRankNodeEnd_i8
-         !write(*,*) '(rankNodeEnd)[',mpi_rank,'][',mshRank,']ms_dims(1)',ms_dims(1),'ms_offset(1)',ms_offset(1),'aux',aux_array_i8(1),'mRNS',mshRankNodeEnd_i8
          call write_dataspace_1d_int8_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
 
          deallocate(aux_array_i8)
@@ -762,12 +752,10 @@ contains
 
          dsetname = '/Parallel_data/rankElemStart'
          aux_array_i4(1)=mshRankElemStart
-         !write(*,*) '(rankElemStart)[',mpi_rank,'][',mshRank,']ms_dims(1)',ms_dims(1),'ms_offset(1)',ms_offset(1),'aux',aux_array_i4(1),'mRES',mshRankElemStart
          call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
          dsetname = '/Parallel_data/rankElemEnd'
          aux_array_i4(1)=mshRankElemEnd
-         !write(*,*) '(rankElemEnd)[',mpi_rank,'][',mshRank,']ms_dims(1)',ms_dims(1),'ms_offset(1)',ms_offset(1),'aux',aux_array_i4(1),'mREE',mshRankElemEnd
          call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
 
          dsetname = '/Parallel_data/numRanksWithComms'
@@ -785,9 +773,6 @@ contains
             ms_offset(1)=ms_offset(1)+int(vecNumMshRanksWithComms(i),hssize_t)
          end do
          ms_dims(1)=int(numMshRanksWithComms,hsize_t)
-         !write(*,*) '(5)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-         !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(5)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
-         !write(*,*) '[',mshRank,']ms_offset',ms_offset(1),'ms_dims(1)',ms_dims(1)!,' ds_dims ',ds_dims(1)
 
          dsetname = '/Parallel_data/ranksToComm'
          call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,ranksToCommMshRank)
@@ -806,8 +791,6 @@ contains
             ms_offset(1)=ms_offset(1)+int(vecNumNodesToCommMshRank(i),hssize_t)
          end do
          ms_dims(1)=int(numNodesToCommMshRank,hsize_t)
-         !write(*,*) '(6)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-         !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(6)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
 
          dsetname = '/Parallel_data/nodesToComm'
          call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,nodesToCommMshRank)
@@ -821,8 +804,6 @@ contains
          if(mshRank.eq.0) then
             ms_dims(1) = 1
             ms_offset(1) = int(mshRank,hssize_t)
-            !write(*,*) '(7)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-            !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(7)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
             allocate(aux_array_i4(1))
             aux_array_i4(1)=maxBoundCode
 
@@ -831,8 +812,6 @@ contains
          else
             ms_dims(1) = 0
             ms_offset(1) = 0
-            !write(*,*) '(8)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-            !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(8)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
             allocate(aux_array_i4(0))
 
             call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
@@ -841,8 +820,6 @@ contains
 
          ms_dims(1) = 1
          ms_offset(1) = int(mshRank,hssize_t)
-         !write(*,*) '(9)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-         !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(9)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
          allocate(aux_array_i4(1))
 
          dsetname = '/Boundary_data/numBoundsRankPar'
@@ -864,8 +841,6 @@ contains
             ms_offset(1)=ms_offset(1)+int(vecNumDoFMshRank(i),hssize_t)
          end do
          ms_dims(1)=int(numDoFMshRank,hsize_t)
-         !write(*,*) '(10)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-         !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(10)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
 
          dsetname = '/Boundary_data/ldofPar'
          call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,dofNodesMshRank)
@@ -875,8 +850,6 @@ contains
             ms_offset(1)=ms_offset(1)+int(vecNumBoundaryNodesMshRank(i),hssize_t)
          end do
          ms_dims(1)=int(numBoundaryNodesMshRank,hsize_t)
-         !write(*,*) '(11)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-         !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(11)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
 
          dsetname = '/Boundary_data/lbnodesPar'
          call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,boundaryNodesMshRank)
@@ -886,8 +859,6 @@ contains
             ms_offset(1)=ms_offset(1)+int(vecNumBoundFacesMshRank(i),hssize_t)
          end do
          ms_dims(1)=int(numBoundFacesMshRank,hsize_t)
-         !write(*,*) '(12)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-         !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(12)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
 
          dsetname = '/Boundary_data/bouCodesPar'
          call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,boundFacesCodesMshRank)
@@ -904,8 +875,6 @@ contains
 
          ms_dims(1) = int(ms_dims(1),hsize_t)*int(mnpbou,hsize_t)
          ms_offset(1) = ms_offset(1)*int(mnpbou,hssize_t)
-         !write(*,*) '(13)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-         !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(13)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
 
          dsetname = '/Boundary_data/boundPar'
          call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
@@ -928,8 +897,6 @@ contains
          if(numMshRanks2Part.ge.2) then
             ms_dims(1) = 1
             ms_offset(1) = int(mshRank,hssize_t)
-            !write(*,*) '(14)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-            !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(14)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
             allocate(aux_array_i4(1))
 
             dsetname = '/Parallel_data_boundary/numRanksWithComms'
@@ -947,8 +914,6 @@ contains
                ms_offset(1)=ms_offset(1)+int(vecBndNumMshRanksWithComms(i),hssize_t)
             end do
             ms_dims(1)=int(bnd_numMshRanksWithComms,hsize_t)
-            !write(*,*) '(15)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-            !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(15)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
 
             dsetname = '/Parallel_data_boundary/ranksToComm'
             call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,bnd_ranksToCommMshRank)
@@ -967,8 +932,6 @@ contains
                ms_offset(1)=ms_offset(1)+int(vecBndNumNodesToCommMshRank(i),hssize_t)
             end do
             ms_dims(1)=int(bnd_numNodesToCommMshRank,hsize_t)
-            !write(*,*) '(16)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-            !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(16)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
 
             dsetname = '/Parallel_data_boundary/nodesToComm'
             call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,bnd_nodesToCommMshRank)
@@ -981,8 +944,6 @@ contains
       !---------------------------------------------------------------------------------------------------------------------
       ms_dims(1) = 1
       ms_offset(1) = int(mshRank,hssize_t)
-      !write(*,*) '(17)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-      !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(17)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
       allocate(aux_array_i4(1))
 
       dsetname = '/Connectivity/numWorkingNodesRankPar'
@@ -994,8 +955,6 @@ contains
       allocate(aux_array_i4(numElemsMshRank*mnnode))
       ms_dims(1) = int(numElemsMshRank,hsize_t)*int(mnnode,hsize_t)
       ms_offset(1) = int((mshRankElemStart-1),hssize_t)*int(mnnode,hssize_t)
-      !write(*,*) '(18)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-      !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(18)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
       !-----------------------------------------------------------------------------------------------------
       i=1
       do iElemL=1,numElemsMshRank
@@ -1027,8 +986,6 @@ contains
          ms_offset(1)=ms_offset(1)+int(vecNumWorkingNodes(i),hssize_t)
       end do
       ms_dims(1)=int(numWorkingNodesMshRank,hsize_t)
-      !write(*,*) '(19)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-      !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(19)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
 
       dsetname = '/Connectivity/workingNodesPar'
       call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,workingNodesMshRank)
@@ -1038,8 +995,6 @@ contains
       if(isPeriodic) then
          ms_dims(1) = 1
          ms_offset(1) = int(mshRank,hssize_t)
-         !write(*,*) '(20)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-         !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(20)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
          allocate(aux_array_i4(1))
 
          dsetname = '/Periodic_data/nPerRankPar'
@@ -1053,8 +1008,6 @@ contains
             ms_offset(1)=ms_offset(1)+int(vecNumPerNodesMshRank(i),hssize_t)
          end do
          ms_dims(1)=int(numPerNodesMshRank,hsize_t)
-         !write(*,*) '(21)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-         !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(21)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
 
          dsetname = '/Periodic_data/masSlaRankPar1'
          call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,masSlaNodesMshRank(:,1))
@@ -1068,8 +1021,6 @@ contains
       if(isMapFaces) then
          ms_dims(1) = 1
          ms_offset(1) = int(mshRank,hssize_t)
-         !write(*,*) '(22)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-         !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(22)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
          allocate(aux_array_i4(1))
 
          dsetname = '/MappedFaces_data/numPerMapLinkedNodesRankPar'
@@ -1083,8 +1034,6 @@ contains
             ms_offset(1)=ms_offset(1)+int(vecNumPerMapLinkedNodesMshRank(i),hssize_t)
          end do
          ms_dims(1)=int(numPerMapLinkedNodesMshRank,hsize_t)
-         !write(*,*) '(23)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-         !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(23)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
 
          dsetname = '/MappedFaces_data/perMapLinkedNodesRankPar1'
          call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,perMapLinkedNodesMshRank(:,1))
@@ -5167,8 +5116,6 @@ contains
       ms_dims2d(2) = int(numNodesMshRank,hsize_t)
       ms_offset2d(1) = 0
       ms_offset2d(2) = int((mshRankNodeStart_i8-1),hssize_t)
-      !write(*,*) '(VTK1)[',mpi_rank,'][',mshRank,']ms_dims2d(1)(2) ',ms_dims2d(1),' ',ms_dims2d(2),' ms_offset2d(1)(2)',ms_offset2d(1),' ',ms_offset2d(2)
-      !if((ms_dims2d(2)+ms_offset2d(2))>=2147483647) write(*,*) '(VTK1)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims2d(2)+ms_offset2d(2)
       !--------------------------------------------------------------------------------
 
       dsetname = '/VTKHDF/Points'
@@ -5178,8 +5125,6 @@ contains
       !-----------------------------------------------------------------------------
       ms_dims(1) = 1
       ms_offset(1) = int(mshRank,hssize_t)
-      !write(*,*) '(VTK2)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-      !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(VTK2)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
 
       allocate(aux_array_i8(1))
 
@@ -5211,8 +5156,6 @@ contains
 
       ms_dims(1)   = aux_ms_dims
       ms_offset(1) = aux_ms_offset
-      !write(*,*) '(VTK3)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-      !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(VTK3)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
 
       call write_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
       deallocate(aux_array_i8)
@@ -5226,8 +5169,6 @@ contains
 
       ms_dims(1)   = aux_ms_dims
       ms_offset(1) = aux_ms_offset
-      !write(*,*) '(VTK4)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-      !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(VTK4)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
 
       do ii = 1,sizeConnecVTKMshRank
          aux_array_i8(ii) = int((connecVTKMshRank(ii)-1),8)
@@ -5251,8 +5192,6 @@ contains
 
       ms_dims(1)   = aux_ms_dims
       ms_offset(1) = aux_ms_offset
-      !write(*,*) '(VTK5)[',mpi_rank,'][',mshRank,']ms_dims(1) ',ms_dims(1),' ms_offset(1)',ms_offset(1)
-      !if((ms_dims(1)+ms_offset(1))>=2147483647) write(*,*) '(VTK5)(LIMIT32 OVER)[',mpi_rank,'][',mshRank,']',ms_dims(1)+ms_offset(1)
 
       call write_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i1)
 
