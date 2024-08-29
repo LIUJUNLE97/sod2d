@@ -351,8 +351,8 @@ contains
          Fx(surfCode) = 2.0_rp * (Fpr(1,surfCode) + Ftau(1,surfCode)) / (this%rho0 * (this%delta*this%spanLength/this%n_pseudo_envs) * (this%vo*this%vo))
 
          ! Now consider the AoA
-         CL(surfCode) = -Fx(surfCode)*sin(this%AoA) + Fy(surfCode)*cos(this%AoA)
-         CD(surfCode) = Fx(surfCode)*cos(this%AoA) + Fy(surfCode)*sin(this%AoA)
+         CL(surfCode) = -Fx(surfCode)*sin(this%AoA*v_pi/180_rp) + Fy(surfCode)*cos(this%AoA*v_pi/180_rp)
+         CD(surfCode) = Fx(surfCode)*cos(this%AoA*v_pi/180_rp) + Fy(surfCode)*sin(this%AoA*v_pi/180_rp)
 
       end do
 
