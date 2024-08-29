@@ -1561,7 +1561,7 @@ contains
       !-----------------------------------------------------------------------------------------------
       !load periodic data
       call load_mappedFaces_data_hdf5(file_id)
-      if(mpi_rank.eq.0) write(*,*) 'Flag load mapped'
+
       !-----------------------------------------------------------------------------------------------
       !load boundary data
       call load_boundary_data_hdf5(file_id,mnnode,mnpbou)
@@ -1576,23 +1576,23 @@ contains
          allocate(bnd_commsMemPosInNgb(bnd_numRanksWithComms))
          allocate(bnd_commsMemSize(bnd_numRanksWithComms))
       end if
-      if(mpi_rank.eq.0) write(*,*) 'Flag load boundary'
+
       !-----------------------------------------------------------------------------------------------
       !load the coordinates
       call load_coordinates_hdf5(file_id)
-      if(mpi_rank.eq.0) write(*,*) 'Flag load coordinates'
+
       !-----------------------------------------------------------------------------------------------
       !load connectivity
       call load_connectivity_hdf5(file_id,mnnode)
-      if(mpi_rank.eq.0) write(*,*) 'Flag load connec'
+
       !-----------------------------------------------------------------------------------------------
       !load VTK connectivity
       call load_vtk_connectivity_hdf5(file_id)
-      if(mpi_rank.eq.0) write(*,*) 'Flag load vtk connec'
+
       !--------------------------------------------------------------------------------
       !load globalIds
       call load_globalIds_hdf5(file_id)
-      if(mpi_rank.eq.0) write(*,*) 'Flag load global ids'
+
       !close h5 file
       call close_hdf5_file(file_id)
 
@@ -2458,7 +2458,7 @@ contains
       integer(hssize_t), dimension(1) :: ms_offset
       integer(4),allocatable :: aux_array(:)
 
-      !write(*,*) 'Loading connectivity data hdf5...'
+      if(mpi_rank.eq.0) write(*,*) 'Loading mesh Connectivity data hdf5...'
 
       ms_dims(1) = int(numElemsRankPar,hsize_t)*int(mnnode,hsize_t)
       ms_offset(1) = int((rankElemStart-1),hssize_t)*int(mnnode,hssize_t)
@@ -2545,14 +2545,14 @@ contains
       integer(hssize_t), dimension(1) :: ms_offset
       integer(8),allocatable :: aux_array_i8(:)
 
-      !write(*,*) 'Loading connectivity data hdf5...'
+      if(mpi_rank.eq.0) write(*,*) 'Loading mesh VTK-Connectivity data hdf5...'
 
       allocate(aux_array_i8(sizeConnecVTKRankPar))
       allocate(connecVTK(sizeConnecVTKRankPar))
       !!!!$acc enter data create(connecVTK(:))
 
       ms_dims(1)   = int(sizeConnecVTKRankPar,hsize_t)
-      ms_offset(1) = int((rankElemStart-1)*mesh_numVTKElemsPerMshElem,hssize_t)*int(mesh_VTKnnode,hssize_t)
+      ms_offset(1) = int((rankElemStart-1),hssize_t)*int(mesh_numVTKElemsPerMshElem,hssize_t)*int(mesh_VTKnnode,hssize_t)
 
       dsetname = '/VTKHDF/Connectivity'
       call read_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
@@ -2575,7 +2575,7 @@ contains
       integer(4),allocatable :: aux_array(:)
       integer(8),allocatable :: aux_array_i8(:)
 
-      !write(*,*) 'Loading parallel data hdf5...'
+      if(mpi_rank.eq.0) write(*,*) 'Loading mesh Parallel data hdf5...'
 
       ms_dims(1) = 1
       ms_offset(1) = int(mpi_rank,hssize_t)
@@ -2688,6 +2688,7 @@ contains
       integer(4),allocatable :: aux_array(:)
 
       !write(*,*) 'Loading parallel data hdf5...'
+      if(mpi_rank.eq.0) write(*,*) 'Loading mesh Parallel Boundary data hdf5...'
 
       ms_dims(1) = 1
       ms_offset(1) = int(mpi_rank,hssize_t)
@@ -2786,7 +2787,7 @@ contains
 
       call h5lexists_f(file_id,groupname,isPeriodicFolder,h5err)
 
-      if(mpi_rank.eq.0) write(*,*) 'Loading Periodic data hdf5. -> isPeriodic:',isPeriodicFolder
+      if(mpi_rank.eq.0) write(*,*) 'Loading mesh Periodic data hdf5... -> isPeriodic:',isPeriodicFolder
 
       if(isPeriodicFolder) then
          isMeshPeriodic = .true.
@@ -2858,7 +2859,7 @@ contains
 
       call h5lexists_f(file_id,groupname,isMappedFacesFolder,h5err)
 
-      if(mpi_rank.eq.0) write(*,*) 'Loading Mapped Faces data hdf5. -> isMappedFaces:',isMappedFacesFolder
+      if(mpi_rank.eq.0) write(*,*) 'Loading mesh Mapped Faces data hdf5... -> isMappedFaces:',isMappedFacesFolder
 
       if(isMappedFacesFolder) then
          isMappedFaces = .true.
@@ -2949,7 +2950,7 @@ contains
 
       isMeshBoundaries = isBoundaryFolder
 
-      if(mpi_rank.eq.0) write(*,*) 'Loading Boundary data hdf5. -> isBoundaryFolder:',isBoundaryFolder
+      if(mpi_rank.eq.0) write(*,*) 'Loading mesh Boundary data hdf5... -> isBoundaryFolder:',isBoundaryFolder
 
       if(isMeshBoundaries) then
          dtype = h5_datatype_int4
@@ -3110,6 +3111,8 @@ contains
       integer(hsize_t), dimension(2) :: ms_dims2d
       integer(hssize_t), dimension(2) :: ms_offset2d
 
+      if(mpi_rank.eq.0) write(*,*) 'Loading mesh Coordinates data hdf5...'
+
       allocate(coordPar(numNodesRankPar,ndime))
       !$acc enter data create(coordPar(:,:))
 
@@ -3137,6 +3140,8 @@ contains
       integer(HSSIZE_T), dimension(1) :: ms_offset
       integer(4) :: iNodeL
       integer(8) :: iNodeGSrl,max_iNodeGSrl_l,max_iNodeGSrl_g
+
+      if(mpi_rank.eq.0) write(*,*) 'Loading mesh Global IDs data hdf5...'
 
       allocate(globalIdSrl(numNodesRankPar))
       allocate(globalIdPar(numNodesRankPar))
