@@ -159,7 +159,7 @@ module mod_smartredis
       character(len=*), intent(in) :: key ! actions name to read from database
 
       integer, parameter :: interval = 100 ! polling interval in milliseconds
-      integer, parameter :: tries = 1000 ! huge(1) ! infinite number of polling tries
+      integer, parameter :: tries = 10000 ! huge(1) ! infinite number of polling tries
       ! logical(1) :: exists ! receives whether the tensor exists
       logical :: exists ! receives whether the tensor exists
       logical :: is_error
