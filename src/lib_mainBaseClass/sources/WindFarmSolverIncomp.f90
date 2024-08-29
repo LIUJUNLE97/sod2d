@@ -315,7 +315,6 @@ end subroutine WindFarmSolverIncomp_readJSONAD
             source_term(iNodeL,1) = (this%rho0*this%ustar**2/this%Lz)*cos(this%wind_alpha*v_pi/180.0_rp)
             source_term(iNodeL,2) = (this%rho0*this%ustar**2/this%Lz)*sin(this%wind_alpha*v_pi/180.0_rp)
             source_term(iNodeL,3) = 0.00_rp
-            source_term(iNodeL,4) = 0.00_rp
          end if
       end do
       !$acc end parallel loop
@@ -381,6 +380,8 @@ end subroutine WindFarmSolverIncomp_readJSONAD
       call json%get("initial_avgTime",this%initial_avgTime, found,3600.0_rp); call this%checkFound(found,found_aux)
 
       call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
+
+      call json%get("doTimerAnalysis",this%doTimerAnalysis, found,.false.)
 
       ! numerical params
       call json%get("flag_les",flag_les, found,1); call this%checkFound(found,found_aux)

@@ -44,7 +44,7 @@ module elem_hex
 
 		subroutine hexa_edges(mnnode,ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
 			implicit none
-			
+
 			integer(4), intent(in)   :: mnnode,iElem, nelem, npoin
 			integer(4), intent(in)   :: connec(nelem,mnnode)
 			real(rp),   intent(in)   :: coord(npoin,ndime)
@@ -52,22 +52,22 @@ module elem_hex
 			real(rp),   intent(out)  :: dist(12,ndime)
 			integer(4)               :: ind(mnnode)
 			real(rp)                 :: xp(12,ndime)
-			
+
 			ind = connec(ielem,:)
 			ncorner = 8
 			nedge = 12
-			
+
 			xp(1:8,1:ndime) = coord(ind(1:8),1:ndime) ! Corner coordinates
 			dist(1,:) = xp(2,:)-xp(1,:)
 			dist(2,:) = xp(3,:)-xp(2,:)
 			dist(3,:) = xp(4,:)-xp(3,:)
 			dist(4,:) = xp(1,:)-xp(4,:)
-			
+
 			dist(5,:) = xp(6,:)-xp(5,:)
 			dist(6,:) = xp(7,:)-xp(6,:)
 			dist(7,:) = xp(8,:)-xp(7,:)
 			dist(8,:) = xp(5,:)-xp(8,:)
-			
+
 			dist(9,:) = xp(5,:)-xp(1,:)
 			dist(10,:) = xp(6,:)-xp(2,:)
 			dist(11,:) = xp(7,:)-xp(3,:)

@@ -5,10 +5,10 @@
 !  - Compute the element to which the point belongs and its isoparametric coordinates (xi_1, xi_2, xi_3) ** Possible additional subroutine for domain splitting**         !
 !  - Interpolation of the magnitude to the witness point considering the value at the nodes of the element                                                                !
 !  - Output of the magnitude values at the witness points in HDF5 format.                                                                                                 !
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!   
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 module mod_witness_points
-   
+
    use mod_constants
    use elem_hex
 
@@ -20,7 +20,7 @@ module mod_witness_points
          ! The coordinates of the wintess points are written as: X Y Z
          !
          implicit none
-         character(512), intent(in)  :: fname           ! Input 1: path to the witness points file   
+         character(512), intent(in)  :: fname           ! Input 1: path to the witness points file
          integer(4),     intent(in)  :: np              ! Input 2: number of witness points
          real(rp),       intent(out) :: xyz(np,ndime)   ! Output 2: coordinates of the witness points in a 1D array as xyz = [x1, y1, z1, ..., xn, yn, zn]
          integer(4)                  :: ii
@@ -41,12 +41,12 @@ module mod_witness_points
          implicit none
          real(rp), intent(in)   :: elpoints(nnode, ndime)   ! Input 1: coordinates of the element nodes following the gmesh ordering
          real(rp), intent(in)   :: wit(ndime)               ! Input 2: coordinates of the point we are looking the isoparametric coordinates from
-         integer(4), intent(in) :: atoIJK(nnode)            ! Input 3: mesh atoIJK 
+         integer(4), intent(in) :: atoIJK(nnode)            ! Input 3: mesh atoIJK
          real(rp), intent(out)  :: xi(ndime)                ! Output 1: isoparametric coordinates of the point
          logical,  intent(out)  :: isinside                 ! Output 2: return if the point is inside the element
          real(rp), intent(out)  :: Niwit(nnode)             ! Output 3: shape functions evaluated at the point
          real(rp)               :: xi_0(ndime), xi_n(ndime)
-         real(rp)               :: N(nnode), N_lagrange(nnode) 
+         real(rp)               :: N(nnode), N_lagrange(nnode)
          real(rp)               :: dlxigp_ip(ndime, porder+1)
          real(rp)               :: dN(ndime, nnode), dN_lagrange(ndime, nnode)
          real(rp)               :: f(ndime)
@@ -152,10 +152,10 @@ module mod_witness_points
          !
          implicit none
          real(rp),intent(in)   :: xiwit(ndime)    ! Input 1: isoparametric coordinates of the point we want to interpolate to
-         real(rp),intent(in)   :: elvalues(nnode) ! Input 2: values of the magnitude at the element nodes 
+         real(rp),intent(in)   :: elvalues(nnode) ! Input 2: values of the magnitude at the element nodes
          real(rp),intent(in)   :: N(nnode)        ! Input 3: shape function evaluated at the witness point
          real(rp),intent(out)  :: witval          ! Output 1: value interpolated at the point
-         
+
          witval = 0.0_rp
 
          call var_interpolate(nnode,elvalues,N,witval)

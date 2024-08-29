@@ -12,6 +12,7 @@ add_definitions(-D__BUILD_VERSION__="${TEST_VERSION}")
 
 set_mpi()
 set_hdf5()
+set_smartredis()
 
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${TEST_VERSION} SOVERSION ${TEST_VERSION_MAJOR})
 set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)

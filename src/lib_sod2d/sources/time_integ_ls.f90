@@ -34,6 +34,8 @@ module time_integ_ls
       implicit none
       integer(4),intent(in) :: npoin
 
+      call nvtxStartRange("Init RK_LS solver")
+
       allocate(aux_h(npoin))
       !$acc enter data create(aux_h(:))
 

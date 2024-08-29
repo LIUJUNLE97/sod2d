@@ -11,6 +11,7 @@ set(TEST_VERSION "${TEST_VERSION_MAJOR}.${TEST_VERSION_MINOR}.${TEST_VERSION_PAT
 option(UNIT_TESTING "Enable unit tests" OFF)
 option(USE_MPI "Compile using MPI" ON)
 option(USE_HDF5 "Compile using HDF5" ON)
+option(USE_SMARTREDIS "Compile using SmartRedis" OFF)
 
 option(TOOL_MESHPART "Compiles tool MeshPart" OFF)
 option(TOOL_COPYRES  "Compiles tool CopyResults" OFF)
@@ -39,7 +40,7 @@ if(USE_CRAY)
     set(ENV{CC} "cc")
     set(ENV{CXX} "CC")
     set(ENV{FC} "ftn")
-else()    
+else()
     set(ENV{CC} "mpicc")
     set(ENV{CXX} "mpicxx")
     set(ENV{FC} "mpif90")
@@ -57,6 +58,9 @@ include(compilerOps)
 
 # Configure HDF5 module
 include(hdf5)
+
+# Include SmartRedis
+include(smartredis)
 
 # Configure GEMPA
 include(gempa)

@@ -235,12 +235,11 @@ contains
    subroutine quicksort_matrix_int8(int_matrix,sort_col,firstrow,lastrow)
       integer(8), intent(inout)::int_matrix(:,:)
       integer(4), intent(in) :: sort_col
-      integer(4), intent(in),optional::firstrow,lastrow
+      integer(8), intent(in),optional::firstrow,lastrow
       integer(8), dimension(:), allocatable :: temp
-      integer(4) :: i,j,left,right,low,high
+      integer(8) :: i,j,left,right,low,high
       integer(8) :: pivot
-      ! If your compiler lacks storage_size(), replace
-      ! storage_size(i) by 64
+      !If your compiler lacks storage_size(), replace storage_size(i) by 64
       integer(8) :: stack(2,storage_size(i)),stack_ptr,num_rows
 
       num_rows=size(int_matrix(1,:))
@@ -431,12 +430,11 @@ contains
 
    subroutine quicksort_array_int8(int_array,firstrow,lastrow)
       integer(8), intent(inout)::int_array(:)
-      integer(4), intent(in),optional::firstrow,lastrow
+      integer(8), intent(in),optional::firstrow,lastrow
       integer(8) :: temp
-      integer(4) :: i,j,left,right,low,high,pivot
-      ! If your compiler lacks storage_size(), replace
-      ! storage_size(i) by 64
-      integer(4) :: stack(2,storage_size(i)),stack_ptr
+      integer(8) :: i,j,left,right,low,high,pivot
+      !If your compiler lacks storage_size(), replace storage_size(i) by 64
+      integer(8) :: stack(2,storage_size(i)),stack_ptr
 
       if(present(firstrow)) then
          low=firstrow
