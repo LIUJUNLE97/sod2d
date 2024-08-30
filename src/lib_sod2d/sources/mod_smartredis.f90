@@ -93,10 +93,34 @@ module mod_smartredis
       if (error /= 0) stop 'Error in SmartRedis client destruction'
    end subroutine end_smartredis
 
+   ! Recover the original ordering of the witness points
+   subroutine sort_state(state_global, state_global_sorted, witGlob)
+      implicit none
+      integer(4) , intent(in) :: witGlob(state_global_size)
+      real(rp), intent(in) :: state_global(state_global_size)
+      real(rp), intent(out) :: state_global_sorted(state_global_size)
+      integer(4) :: iWit, witGlob_argsort(state_global_size)
+
+      !$acc parallel loop
+      do iWit = 1, state_global_size
+         witGlob_argsort( witGlob(iWit) ) = iWit
+      end do
+      !$acc end parallel loop
+
+      !$acc parallel loop
+      do iWit = 1, state_global_size
+         state_global_sorted(iWit) = state_global(witGlob_argsort(iWit))
+      end do
+      !$acc end parallel loop
+
+   end subroutine sort_state
+
    ! Write witness points state into DB
-   subroutine write_state(client, state_local, key)
+   subroutine write_state(client, state_local, key, witGlob)
       type(client_type), intent(inout) :: client
       real(rp), intent(in) :: state_local(state_local_size) ! local witness points state values
+      integer(4), intent(in) :: witGlob(state_local_size)
+      integer(4) :: witGlob_global(state_global_size)
       character(len=*), intent(in) :: key ! state name to write to database
       integer :: error
       logical :: is_error
@@ -108,6 +132,18 @@ module mod_smartredis
          state_global, state_sizes, state_displs, mpi_datatype_real, & ! root receives it into state_global
          0, app_comm, error &                                          ! rank 0 is root
       )
+
+      ! gather the witGlob array to sort the witness points
+      call mpi_gatherv( &
+         witGlob, state_local_size, mpi_datatype_int4, &
+         witGlob_global, state_sizes, state_displs, mpi_datatype_int4, &
+         0, app_comm, error &
+      )
+
+      ! sort witness points
+      if (mpi_rank .eq. 0) then
+         call sort_state(state_global, state_global, witGlob_global)
+      end if
 
       ! write global state into DB
       if (mpi_rank .eq. 0) then
@@ -123,7 +159,7 @@ module mod_smartredis
       character(len=*), intent(in) :: key ! actions name to read from database
 
       integer, parameter :: interval = 100 ! polling interval in milliseconds
-      integer, parameter :: tries = 1000 ! huge(1) ! infinite number of polling tries
+      integer, parameter :: tries = 10000 ! huge(1) ! infinite number of polling tries
       ! logical(1) :: exists ! receives whether the tensor exists
       logical :: exists ! receives whether the tensor exists
       logical :: is_error

@@ -8,6 +8,7 @@ module mod_arrays
       integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
       integer(4), allocatable :: atoIJ(:),atoIJK(:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
       integer(4), allocatable :: witel(:), buffstep(:),maskMapped(:),ad(:)
+      integer(4), allocatable :: witGlob(:)
 
       ! real ------------------------------------------------------
       real(rp), allocatable :: normalsAtNodes(:,:)
@@ -1897,7 +1898,7 @@ end subroutine CFDSolverBase_findFixPressure
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       integer(4)                          :: iwit, jwit, ielem, inode, ifound, nwitParCand, icand, nwitFound, nwit2find, icount=0, imiss=0, myrank, mpi_rank_found
-      integer(4)                          :: witGlobCand(this%nwit), witGlob(this%nwit), witGlobFound(this%nwit*mpi_size)
+      integer(4)                          :: witGlobCand(this%nwit), witGlobFound(this%nwit*mpi_size)
       integer(4), allocatable             :: witGlobFound2(:), witGlobMiss(:)
       real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode), dist(numElemsRankPar), xyzwit(ndime), mindist
       real(rp), parameter                 :: wittol=1e-7
@@ -1917,6 +1918,8 @@ end subroutine CFDSolverBase_findFixPressure
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
       end if
+
+      allocate(witGlob(this%nwit))
 
       !$acc parallel loop gang
       do ielem = 1, numElemsRankPar
