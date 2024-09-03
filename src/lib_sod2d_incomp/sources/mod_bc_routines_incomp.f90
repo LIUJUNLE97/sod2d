@@ -275,6 +275,7 @@ module mod_bc_routines_incomp
                   normal(1:ndime) = normalsAtNodes(inode,1:ndime)
                   auxmag = sqrt(normal(1)*normal(1) + normal(2)*normal(2)  +  normal(3)*normal(3))
                   normal(:) = normal(:)/auxmag
+                  sig=1.0_rp
                   if(dot_product(coord(connec(ielem,nnode),:)-coord(inode,:), aux(:)) .lt. 0.0_rp ) then
                      sig=-1.0_rp
                   end if
