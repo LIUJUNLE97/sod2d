@@ -171,8 +171,10 @@ module mod_bc_routines_incomp
                      ielem = point2elem(inode)
                      nmag = dot_product(aux(:), omega(inode,:))
                      if(dot_product(coord(connec(ielem,nnode),:)-coord(inode,:), aux(:)) .lt. 0.0_rp ) then
-					         sig=-1.0_rp
-					      end if
+                        sig=1.0_rp
+                     else
+                        sig=-1.0_rp
+                     end if
                      !$acc atomic update
                      bpress(inode) = bpress(inode)+auxmag*wgp_b(igaus)*nmag*sig
                      !$acc end atomic
@@ -218,8 +220,10 @@ module mod_bc_routines_incomp
                      inode = bound(ibound,igaus)
                      ielem = point2elem(inode)
                      if(dot_product(coord(connec(ielem,nnode),:)-coord(inode,:), aux(:)) .lt. 0.0_rp ) then
-					         sig=-1.0_rp
-					      end if
+                        sig=1.0_rp
+                     else
+                        sig=-1.0_rp
+                     end if
                      !$acc loop seq
                      do idime = 1,ndime
                         !$acc atomic update
@@ -275,8 +279,9 @@ module mod_bc_routines_incomp
                   normal(1:ndime) = normalsAtNodes(inode,1:ndime)
                   auxmag = sqrt(normal(1)*normal(1) + normal(2)*normal(2)  +  normal(3)*normal(3))
                   normal(:) = normal(:)/auxmag
-                  sig=1.0_rp
-                  if(dot_product(coord(connec(ielem,nnode),:)-coord(inode,:), aux(:)) .lt. 0.0_rp ) then
+                  if(dot_product(coord(connec(ielem,nnode),:)-coord(inode,:), normal(:)) .lt. 0.0_rp ) then
+                     sig=1.0_rp
+                  else
                      sig=-1.0_rp
                   end if
                   normal(:) = sig*normal(:)
