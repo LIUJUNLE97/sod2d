@@ -8,6 +8,7 @@ module mod_arrays
       integer(4), allocatable :: lelpn(:),point2elem(:),bouCodes2BCType(:)
       integer(4), allocatable :: atoIJ(:),atoIJK(:),invAtoIJK(:,:,:),gmshAtoI(:),gmshAtoJ(:),gmshAtoK(:),lnbnNodes(:)
       integer(4), allocatable :: witel(:), buffstep(:),maskMapped(:),ad(:)
+      integer(4), allocatable :: witGlob(:)
 
       ! real ------------------------------------------------------
       real(rp), allocatable :: normalsAtNodes(:,:)
@@ -33,7 +34,7 @@ module mod_arrays
       real(rp), allocatable :: walave_u(:,:)
 
       ! roughness for wall law
-      real(rp), allocatable :: zo(:)      
+      real(rp), allocatable :: zo(:)
 
       ! for entropy and sgs visc.
       real(rp),  allocatable :: mue_l(:,:),al_weights(:),am_weights(:),an_weights(:)
@@ -94,7 +95,7 @@ module CFDSolverBase_mod
       logical, public :: loadRestartFile=.false.,saveAvgFile=.false.,loadAvgFile=.false.,saveInitialField=.false.,saveSurfaceResults=.false.,continue_oldLogs=.false.
       logical, public :: doGlobalAnalysis=.false.,isFreshStart=.true.,doTimerAnalysis=.false.,isWallModelOn=.false.,isSymmetryOn=.false.
       logical, public :: useIntInComms=.false.,useRealInComms=.false.
-      logical, public    :: have_witness=.false.,wit_save_u_i=.false.,wit_save_pr=.false.,wit_save_rho=.false., continue_witness=.false.
+      logical, public :: have_witness=.false.,wit_save_u_i=.false.,wit_save_pr=.false.,wit_save_rho=.false., continue_witness=.false.,wit_save=.true.
 
       ! main char variables
       character(512) :: log_file_name
@@ -155,6 +156,8 @@ module CFDSolverBase_mod
       procedure, public :: saveAvgResultsFiles =>CFDSolverBase_saveAvgResultsFiles
       procedure, public :: saveInstResultsFiles =>CFDSolverBase_saveInstResultsFiles
       procedure, public :: afterDt =>CFDSolverBase_afterDt
+      procedure, public :: beforeTimeIteration =>CFDSolverBase_beforeTimeIteration
+      procedure, public :: afterTimeIteration =>CFDSolverBase_afterTimeIteration
       procedure, public :: update_witness =>CFDSolverBase_update_witness
       procedure, public :: preprocWitnessPoints =>CFDSolverBase_preprocWitnessPoints
       procedure, public :: loadWitnessPoints =>CFDSolverBase_loadWitnessPoints
@@ -424,6 +427,12 @@ end subroutine CFDSolverBase_findFixPressure
                   bouCodes2BCType(id) = bc_type_slip_adiabatic
                else if(value .eq. "bc_type_slip_wall_model") then
                   bouCodes2BCType(id) = bc_type_slip_wall_model
+               else if(value .eq. "bc_type_unsteady_inlet") then
+                  bouCodes2BCType(id) = bc_type_unsteady_inlet
+               else if(value .eq. "bc_type_far_field_SB") then
+                  bouCodes2BCType(id) = bc_type_far_field_SB 
+               else if(value .eq. "bc_type_slip_wall_model_iso") then
+                  bouCodes2BCType(id) = bc_type_slip_wall_model_iso                  
                else if(value .eq. "bc_type_slip_atmosphere") then
                   bouCodes2BCType(id) = bc_type_slip_atmosphere
                else if(value .eq. "bc_type_symmetry") then
@@ -490,7 +499,7 @@ end subroutine CFDSolverBase_findFixPressure
    subroutine CFDSolverBase_initNSSolver(this)
       class(CFDSolverBase), intent(inout) :: this
       if(flag_implicit == 1) then
-         if (implicit_solver == implicit_solver_imex) then 
+         if (implicit_solver == implicit_solver_imex) then
             call init_imex_solver(numNodesRankPar)
          end if
       else 
@@ -505,9 +514,9 @@ end subroutine CFDSolverBase_findFixPressure
 
    subroutine CFDSolverBase_endNSSolver(this)
       class(CFDSolverBase), intent(inout) :: this
-      
+
       if(flag_implicit == 1) then
-         if (implicit_solver == implicit_solver_imex) then 
+         if (implicit_solver == implicit_solver_imex) then
             call end_imex_solver()
          end if
       else 
@@ -667,6 +676,9 @@ end subroutine CFDSolverBase_findFixPressure
       this%isWallModelOn = .false.
       do iBound = 1,numBoundCodes
          if(bouCodes2BCType(iBound) .eq. bc_type_slip_wall_model) then
+            this%isWallModelOn = .true.
+            if(mpi_rank.eq.0) write(111,*) "--| Wall-Model activated in Boundary id",iBound
+         else if(bouCodes2BCType(iBound) .eq. bc_type_slip_wall_model_iso) then
             this%isWallModelOn = .true.
             if(mpi_rank.eq.0) write(111,*) "--| Wall-Model activated in Boundary id",iBound
          end if
@@ -1172,7 +1184,7 @@ end subroutine CFDSolverBase_findFixPressure
       call nvtxStartRange("MU_SGS")
       if(flag_les_ilsa == 1) then
          this%dt = 1.0_rp !To avoid 0.0 division inside sgs_ilsa_visc calc
-         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3,mue_l) 
+         call sgs_ilsa_visc(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,Ngp,dNgp,He,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,this%dt,rho(:,2),u(:,:,2),mu_sgs,mu_fluid,mu_e,kres,etot,au,ax1,ax2,ax3,mue_l)
       else
          call sgs_visc(numElemsRankPar,numNodesRankPar,connecParWork,Ngp,dNgp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,2),u(:,:,2),Ml,mu_sgs,mue_l)
       end if
@@ -1206,7 +1218,7 @@ end subroutine CFDSolverBase_findFixPressure
          call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
       else
          call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
-      end if   
+      end if
 
    end subroutine CFDSolverBase_evalDt
 
@@ -1513,7 +1525,7 @@ end subroutine CFDSolverBase_findFixPressure
             call nvtxStartRange("Surface info")
             call surfInfo(0,0.0_rp,numElemsRankPar,numNodesRankPar,numBoundsRankPar,iCode,connecParWork,boundPar,point2elem,&
                bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode))
+               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),.TRUE.)
             call nvtxEndRange
          end do
       end if
@@ -1578,6 +1590,16 @@ end subroutine CFDSolverBase_findFixPressure
       end if
 
    end subroutine CFDSolverBase_saveAvgResultsFiles
+
+   subroutine CFDSolverBase_beforeTimeIteration(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+   end subroutine CFDSolverBase_beforeTimeIteration
+
+   subroutine CFDSolverBase_afterTimeIteration(this)
+      class(CFDSolverBase), intent(inout) :: this
+
+   end subroutine CFDSolverBase_afterTimeIteration
 
    subroutine CFDSolverBase_saveInstResultsFiles(this,istep)
       class(CFDSolverBase), intent(inout) :: this
@@ -1724,7 +1746,6 @@ end subroutine CFDSolverBase_findFixPressure
 
                call eval_average_iter(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,this%dt,this%elapsed_avgTime,&
                                  rho,u,pr,mu_fluid,mu_e,mu_sgs,tauw,avrho,avpre,avvel,avve2,avvex,avmueff,avtw)
-
                call nvtxEndRange
             end if
          end if
@@ -1737,7 +1758,7 @@ end subroutine CFDSolverBase_findFixPressure
                   call nvtxStartRange("Surface info")
                   call surfInfo(istep,this%time,numElemsRankPar,numNodesRankPar,numBoundsRankPar,icode,connecParWork,boundPar,point2elem, &
                      bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode))
+                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),.TRUE.)
 
                   call nvtxEndRange
                   if(mpi_rank.eq.0) call flush(888+icode)
@@ -1791,7 +1812,7 @@ end subroutine CFDSolverBase_findFixPressure
                   call this%update_witness(istep, iwitstep)
                end if
                if ((istep-this%load_step > 0) .and. (mod((istep-this%load_step),this%leapwitsave*this%leapwit)==0)) then
-                  call this%save_witness(istep)
+                  if (this%wit_save) call this%save_witness(istep)
                   iwitstep = 0
                end if
             else
@@ -1800,11 +1821,12 @@ end subroutine CFDSolverBase_findFixPressure
                   call this%update_witness(istep, iwitstep)
                end if
                if ((istep > 0) .and. (mod((istep),this%leapwitsave*this%leapwit)==0)) then
-                  call this%save_witness(istep)
+                  if (this%wit_save) call this%save_witness(istep)
                   iwitstep = 0
                end if
             end if
          end if
+
 
          ! End simulation when physical time is reached (user defined)
          if (this%time .ge. this%maxPhysTime) then
@@ -1876,7 +1898,7 @@ end subroutine CFDSolverBase_findFixPressure
       implicit none
       class(CFDSolverBase), intent(inout) :: this
       integer(4)                          :: iwit, jwit, ielem, inode, ifound, nwitParCand, icand, nwitFound, nwit2find, icount=0, imiss=0, myrank, mpi_rank_found
-      integer(4)                          :: witGlobCand(this%nwit), witGlob(this%nwit), witGlobFound(this%nwit*mpi_size)
+      integer(4)                          :: witGlobCand(this%nwit), witGlobFound(this%nwit*mpi_size)
       integer(4), allocatable             :: witGlobFound2(:), witGlobMiss(:)
       real(rp)                            :: xi(ndime), radwit(numElemsRankPar), maxL, center(numElemsRankPar,ndime), aux1, aux2, aux3, auxvol, helemmax(numElemsRankPar), Niwit(nnode), dist(numElemsRankPar), xyzwit(ndime), mindist
       real(rp), parameter                 :: wittol=1e-7
@@ -1896,6 +1918,8 @@ end subroutine CFDSolverBase_findFixPressure
       if(mpi_rank.eq.0) then
          write(*,*) "--| Preprocessing witness points"
       end if
+
+      allocate(witGlob(this%nwit))
 
       !$acc parallel loop gang
       do ielem = 1, numElemsRankPar
@@ -1953,7 +1977,7 @@ end subroutine CFDSolverBase_findFixPressure
          end if
       end do
       nwitParCand = icand
-      
+
       do iwit = 1, nwitParCand
 	 !$acc kernels
          radwit(:) = ((witxyzParCand(iwit, 1)-center(:,1))*(witxyzParCand(iwit, 1)-center(:,1))+(witxyzParCand(iwit, 2)-center(:,2))*(witxyzParCand(iwit, 2)-center(:,2))+(witxyzParCand(iwit, 3)-center(:,3))*(witxyzParCand(iwit, 3)-center(:,3)))-maxL*maxL
@@ -2025,12 +2049,12 @@ end subroutine CFDSolverBase_findFixPressure
          deallocate(witGlobFound2)
          deallocate(witGlobMiss)
       end if
-      
+
       allocate(buffwit(this%nwitPar,this%leapwitsave,this%nvarwit))
       allocate(bufftime(this%leapwitsave))
       allocate(buffstep(this%leapwitsave))
       output = trim(adjustl(this%witness_h5_file_name))
-      call create_witness_hdf5(output, nnode, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
+      if (this%wit_save) call create_witness_hdf5(output, nnode, witxyzPar, witel, witxi, Nwit, this%nwit, this%nwitPar, witGlob, this%wit_save_u_i, this%wit_save_pr, this%wit_save_rho)
       if(mpi_rank.eq.0) then
          write(*,*) "--| End of preprocessing witness points"
       end if
@@ -2061,7 +2085,7 @@ end subroutine CFDSolverBase_findFixPressure
             this%io_append_info = trim(adjustl(this%io_append_info))
         else
             this%io_append_info = "."//trim(adjustl(this%io_append_info))
-         end if 
+         end if
 
          this%log_file_name = trim(adjustl(this%io_prepend_path))//'sod2d_'//trim(adjustl(this%mesh_h5_file_name))//'-'//trim(aux_string_mpisize)//trim(this%io_append_info)//'.log'
          if(this%continue_oldLogs) then
@@ -2355,10 +2379,15 @@ end subroutine CFDSolverBase_findFixPressure
 
       call this%initialBuffer()
 
+      call this%beforeTimeIteration()
+
       call this%flush_log_file()
 
       ! Do the time iteration
       call this%evalTimeIteration()
+
+      ! After the time iteration
+      call this%afterTimeIteration()
 
       call this%close_log_file()
       call this%close_analysis_files()

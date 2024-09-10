@@ -1,7 +1,7 @@
 module mod_numerical_params
 
     use mod_constants
-    
+
     implicit none
 
         ! Time integration algorithm
@@ -11,7 +11,7 @@ module mod_numerical_params
         logical :: flag_rk_ls = .true.
 
 
-        ! LES 
+        ! LES
         integer(4) :: flag_les=0
         integer(4) :: flag_les_ilsa=0
         real(rp) :: c_sgs = 0.025_rp
@@ -62,7 +62,6 @@ module mod_numerical_params
         !
         ! Penalisation buffer zone
         !
-
         logical :: flag_buffer_on = .false.
         logical :: flag_buffer_on_east = .false.
         logical :: flag_buffer_on_west = .false.

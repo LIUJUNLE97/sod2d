@@ -191,10 +191,11 @@ module mod_analysis
 		!> @param[out] surfArea The area of the selected surface
 		subroutine surfInfo(iter,time,nelem,npoin,nbound,surfCode,connec,bound,point2elem,bou_code, &
 					bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coord, &
-					mu_fluid,mu_e,mu_sgs,rho,u,pr,surfArea,Fpr,Ftau)
+					mu_fluid,mu_e,mu_sgs,rho,u,pr,surfArea,Fpr,Ftau,write_surfFile)
 
 			implicit none
 
+			logical, intent(in) :: write_surfFile
 			integer(4), intent(in)  :: iter, npoin, nbound, surfCode, bound(nbound,npbou), bou_code(nbound)
 			integer(4), intent(in)  :: nelem, connec(nelem,nnode), point2elem(npoin)
 			integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
@@ -330,7 +331,7 @@ module mod_analysis
 			call MPI_Allreduce(Fpr_l,Fpr,ndime,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
 			call MPI_Allreduce(Ftau_l,Ftau,ndime,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
 
-			if(mpi_rank.eq.0) then
+			if((mpi_rank.eq.0) .and. (write_surfFile)) then
 				write(888+surfCode,"(I8,1X,A)",ADVANCE="NO") iter, ","
 				write(888+surfCode,50) time, ",", dble(surfArea), ",", dble(Fpr(1)), ",", dble(Fpr(2)), ",", dble(Fpr(3)), ",", dble(Ftau(1)), ",", dble(Ftau(2)), ",", dble(Ftau(3)), ""
 				!50 format(16(1X,E10.4,1X,A))
@@ -338,4 +339,123 @@ module mod_analysis
 			end if
 		end subroutine surfInfo
 
+		subroutine twInfo(nelem,npoin,nbound,surfCode,idime_tw,connec,bound,point2elem,bou_code, &
+			bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coord, &
+			mu_fluid,mu_e,mu_sgs,rho,u,surfArea_neg)
+
+			implicit none
+
+			integer(4), intent(in)  :: npoin, nbound, surfCode, idime_tw, bound(nbound,npbou), bou_code(nbound)
+			integer(4), intent(in)  :: nelem, connec(nelem,nnode), point2elem(npoin)
+			integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+			real(rp),    intent(in)  :: wgp_b(npbou), bounorm(nbound,ndime*npbou)
+			real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime)
+			real(rp),    intent(in)  :: mu_e(nelem,ngaus), mu_sgs(nelem,ngaus), mu_fluid(npoin)
+			real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1),coord(npoin,ndime)
+			real(rp), intent(out) :: surfArea_neg
+			real(rp)                :: surfArea_l_neg,surfArea_s_neg
+			integer(4)              :: ibound, idime, igaus, ipbou, ielem, jgaus
+			integer(4)              :: numBelem, counter, isoI, isoJ, isoK, ii, jdime, kdime
+			integer(4), allocatable :: lelbo(:)
+			real(rp)                 :: bnorm(npbou*ndime), nmag, ul(nnode,ndime), rhol(nnode)
+			real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), tau(ndime,ndime), divU
+			real(rp)                :: mu_fgp, mu_egp, mufluidl(nnode),face2centoid(ndime),sig,aux(ndime),tau_aux
+
+			! Create lelbo for the surface, where lelbo is a list of boundary elements belonging to that surface
+			numBelem = 0
+			!$acc parallel loop reduction(+:numBelem)
+			do ibound = 1, nbound
+				if (bou_code(ibound) == surfCode) then
+					numBelem = numBelem + 1
+				end if
+			end do
+			!$acc end parallel loop
+			counter = 0
+			allocate(lelbo(numBelem))
+			do ibound = 1, nbound
+				if (bou_code(ibound) == surfCode) then
+					counter = counter + 1
+					lelbo(counter) = ibound!bou_code(ibound,1)
+				end if
+			end do
+
+			surfArea_l_neg = 0.0_rp
+     		surfArea_neg = 0.0_rp
+
+			!$acc parallel loop gang private(bnorm)
+			do ibound = 1, numBelem
+				bnorm(1:npbou*ndime) = bounorm(lelbo(ibound),1:npbou*ndime)
+				surfArea_s_neg = 0.0_rp
+				!$acc loop vector private(tau,ul,rhol,mufluidl,gradIsoU,gradU,face2centoid)
+				do igaus = 1,npbou
+					ielem = point2elem(bound(lelbo(ibound),igaus))
+					jgaus = minloc(abs(connec(ielem,:)-bound(lelbo(ibound),igaus)),1)
+					ul(1:nnode,1:ndime) = u(connec(ielem,:),1:ndime)
+					rhol(1:nnode) = rho(connec(ielem,:))
+					mufluidl(1:nnode) = mu_fluid(connec(ielem,1:nnode))
+					mu_fgp = mufluidl(jgaus)+rhol(jgaus)*mu_sgs(ielem,jgaus)
+					mu_egp = mu_e(ielem,jgaus)
+					isoI = gmshAtoI(jgaus)
+					isoJ = gmshAtoJ(jgaus)
+					isoK = gmshAtoK(jgaus)
+
+					sig=1.0_rp
+					aux(1) = bnorm((igaus-1)*ndime+1)
+					aux(2) = bnorm((igaus-1)*ndime+2)
+					aux(3) = bnorm((igaus-1)*ndime+3)
+					if(dot_product(coord(connec(ielem,nnode),:)-coord(connec(ielem,jgaus),:), aux(:)) .lt. 0.0_rp ) then
+						sig=-1.0_rp
+					end if
+
+					gradIsoU(:,:) = 0.0_rp
+					!$acc loop seq
+					do ii = 1,porder+1
+						!$acc loop seq
+						do idime = 1,ndime
+							gradIsoU(idime,1) = gradIsoU(idime,1)+dlxigp_ip(jgaus,1,ii)*ul(invAtoIJK(ii,isoJ,isoK),idime)
+							gradIsoU(idime,2) = gradIsoU(idime,2)+dlxigp_ip(jgaus,2,ii)*ul(invAtoIJK(isoI,ii,isoK),idime)
+							gradIsoU(idime,3) = gradIsoU(idime,3)+dlxigp_ip(jgaus,3,ii)*ul(invAtoIJK(isoI,isoJ,ii),idime)
+						end do
+					end do
+					gradU(:,:) = 0.0_rp
+					!$acc loop seq
+					do idime = 1,ndime
+						!$acc loop seq
+						do jdime = 1,ndime
+							!$acc loop seq
+							do kdime = 1,ndime
+								gradU(idime,jdime) = gradU(idime,jdime) + He(jdime,kdime,jgaus,ielem)*gradIsoU(idime,kdime)
+							end do
+						end do
+					end do
+					divU = gradU(1,1)+gradU(2,2)+gradU(3,3)
+					!$acc loop seq
+					do idime = 1,ndime
+						!$acc loop seq
+						do jdime = 1,ndime
+							tau(idime,jdime) = (mu_fgp+mu_egp)*(gradU(idime,jdime)+gradU(jdime,idime))
+						end do
+						tau(idime,idime) = tau(idime,idime) - (mu_fgp)*(2.0_rp/3.0_rp)*divU
+					end do
+					nmag = 0.0_rp
+					!$acc loop seq
+					do idime = 1,ndime
+						nmag = nmag + bnorm((igaus-1)*ndime+idime)*bnorm((igaus-1)*ndime+idime)
+					end do
+					nmag = sqrt(nmag)
+
+					tau_aux = 0.0_rp
+					!$acc loop seq
+					do jdime = 1,ndime
+						tau_aux = tau_aux + wgp_b(igaus)*tau(idime_tw,jdime)*bnorm((igaus-1)*ndime+jdime)*sig
+					end do
+					if (tau_aux .lt. 0) surfArea_s_neg = surfArea_s_neg + real(nmag*wgp_b(igaus), 8)
+				end do
+				surfArea_l_neg = surfArea_l_neg + surfArea_s_neg
+			end do
+			!$acc end parallel loop
+			deallocate(lelbo)
+
+			call MPI_Allreduce(surfArea_l_neg,surfArea_neg,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
+		end subroutine twInfo
 end module mod_analysis

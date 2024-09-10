@@ -3,8 +3,8 @@ module CFDSolver3DWithBoundaries_mod
    use mod_nvtx
 #ifndef NOACC
    use cudafor
-#endif   
-   
+#endif
+
 
    use elem_qua
    use elem_hex
@@ -36,7 +36,7 @@ contains
 
    subroutine CFDSolver3DWithBoundaries_fill_BC_Types(this)
       class(CFDSolver3DWithBoundaries), intent(inout) :: this
-   
+
       if(mpi_rank.eq.0) write(111,*) "--| Boundary types must be defined "
       stop 1
    end subroutine CFDSolver3DWithBoundaries_fill_BC_Types
@@ -53,7 +53,7 @@ contains
                         1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor,mue_l, &
                         ndofRankPar,numBoundaryNodesRankPar,ldofPar,lbnodesPar,boundPar,bouCodesPar,bouCodesNodesPar, & ! Optional args
-                        listBoundsWallModel,wgp_b,boundNormalPar,normalsAtNodes,u_buffer,tauw,source_term,walave_u,zo)         
+                        listBoundsWallModel,wgp_b,boundNormalPar,normalsAtNodes,u_buffer,tauw,source_term,walave_u,zo)
          endif
       else
          if(flag_rk_ls .eqv. .false.) then

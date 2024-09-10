@@ -101,6 +101,8 @@ contains
 
       call json%get("IOParameters.continue_oldLogs", this%continue_oldLogs, found, .false.); call this%checkFound(found,found_aux)
 
+      call json%get("IOParameters.doTimerAnalysis",this%doTimerAnalysis, found,.false.)
+
       this%saveAvgFile = .false. ! Do not save averages
       this%loadAvgFile = .false.
 

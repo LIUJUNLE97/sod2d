@@ -81,7 +81,7 @@ contains
       call json%get("saveInitialField",this%saveInitialField, found,.true.); call this%checkFound(found,found_aux)
 
       call json%get("doGlobalAnalysis",this%doGlobalAnalysis, found, .false.); call this%checkFound(found,found_aux)
-      call json%get("doTimerAnalysis",this%doTimerAnalysis, found, .true.); call this%checkFound(found,found_aux)
+      call json%get("doTimerAnalysis",this%doTimerAnalysis, found, .false.)
 
       call json%get("final_istep",this%final_istep, found,500001); call this%checkFound(found,found_aux)
       call json%get("maxPhysTime",this%maxPhysTime, found,20.0_rp); call this%checkFound(found,found_aux)

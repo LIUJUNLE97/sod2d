@@ -93,6 +93,8 @@ contains
 
       call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
 
+      call json%get("doTimerAnalysis",this%doTimerAnalysis, found,.false.)
+
       ! numerical params
       call json%get("flag_implicit",flag_implicit, found,1); call this%checkFound(found,found_aux)
       call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)

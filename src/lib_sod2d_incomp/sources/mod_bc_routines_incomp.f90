@@ -25,7 +25,7 @@ module mod_bc_routines_incomp
             do inode = 1,npoin
                if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
                   bcode = bou_codes_nodes(inode) ! Boundary element code
-                  if (bcode == bc_type_far_field) then ! inlet just for aligened inlets with x
+                  if (bcode == bc_type_far_field .or. bcode == bc_type_far_field_SB .or. bcode == bc_type_unsteady_inlet) then ! inlet just for aligened inlets with x
                      aux_u(inode,1) = 0.0_rp
                      aux_u(inode,2) = 0.0_rp
                      aux_u(inode,3) = 0.0_rp
@@ -66,7 +66,7 @@ module mod_bc_routines_incomp
             do inode = 1,npoin
                if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
                   bcode = bou_codes_nodes(inode) ! Boundary element code
-                  if (bcode == bc_type_far_field) then ! inlet just for aligened inlets with x
+                  if (bcode == bc_type_far_field .or. bcode == bc_type_far_field_SB .or. bcode == bc_type_unsteady_inlet) then ! inlet just for aligened inlets with x
                      aux_u(inode,1) = u_buffer(inode,1)
                      aux_u(inode,2) = u_buffer(inode,2)
                      aux_u(inode,3) = u_buffer(inode,3)
@@ -171,8 +171,10 @@ module mod_bc_routines_incomp
                      ielem = point2elem(inode)
                      nmag = dot_product(aux(:), omega(inode,:))
                      if(dot_product(coord(connec(ielem,nnode),:)-coord(inode,:), aux(:)) .lt. 0.0_rp ) then
-					         sig=-1.0_rp
-					      end if
+                        sig=1.0_rp
+                     else
+                        sig=-1.0_rp
+                     end if
                      !$acc atomic update
                      bpress(inode) = bpress(inode)+auxmag*wgp_b(igaus)*nmag*sig
                      !$acc end atomic
@@ -218,8 +220,10 @@ module mod_bc_routines_incomp
                      inode = bound(ibound,igaus)
                      ielem = point2elem(inode)
                      if(dot_product(coord(connec(ielem,nnode),:)-coord(inode,:), aux(:)) .lt. 0.0_rp ) then
-					         sig=-1.0_rp
-					      end if
+                        sig=1.0_rp
+                     else
+                        sig=-1.0_rp
+                     end if
                      !$acc loop seq
                      do idime = 1,ndime
                         !$acc atomic update
@@ -275,7 +279,9 @@ module mod_bc_routines_incomp
                   normal(1:ndime) = normalsAtNodes(inode,1:ndime)
                   auxmag = sqrt(normal(1)*normal(1) + normal(2)*normal(2)  +  normal(3)*normal(3))
                   normal(:) = normal(:)/auxmag
-                  if(dot_product(coord(connec(ielem,nnode),:)-coord(inode,:), aux(:)) .lt. 0.0_rp ) then
+                  if(dot_product(coord(connec(ielem,nnode),:)-coord(inode,:), normal(:)) .lt. 0.0_rp ) then
+                     sig=1.0_rp
+                  else
                      sig=-1.0_rp
                   end if
                   normal(:) = sig*normal(:)

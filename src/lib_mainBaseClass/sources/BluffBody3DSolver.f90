@@ -107,6 +107,8 @@ contains
       call json%get("loadAvgFile" ,this%loadAvgFile, found, .false.); call this%checkFound(found,found_aux)
 
       call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.true.); call this%checkFound(found,found_aux)
+
+      call json%get("doTimerAnalysis",this%doTimerAnalysis, found,.false.)
       !----------------------------------------------
 
       ! numerical params
