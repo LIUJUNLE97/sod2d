@@ -334,8 +334,8 @@ module mod_analysis
 			if((mpi_rank.eq.0) .and. (write_surfFile)) then
 				write(888+surfCode,"(I8,1X,A)",ADVANCE="NO") iter, ","
 				write(888+surfCode,50) time, ",", dble(surfArea), ",", dble(Fpr(1)), ",", dble(Fpr(2)), ",", dble(Fpr(3)), ",", dble(Ftau(1)), ",", dble(Ftau(2)), ",", dble(Ftau(3)), ""
-				!50 format(16(1X,E10.4,1X,A))
-				50 format(16(1X,F16.8,1X,A))
+				50 format(16(1X,E12.5,1X,A))
+				!50 format(16(1X,F16.8,1X,A))
 			end if
 		end subroutine surfInfo
 
