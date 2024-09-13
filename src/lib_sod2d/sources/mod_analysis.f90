@@ -334,8 +334,8 @@ module mod_analysis
 			if((mpi_rank.eq.0) .and. (write_surfFile)) then
 				write(888+surfCode,"(I8,1X,A)",ADVANCE="NO") iter, ","
 				write(888+surfCode,50) time, ",", dble(surfArea), ",", dble(Fpr(1)), ",", dble(Fpr(2)), ",", dble(Fpr(3)), ",", dble(Ftau(1)), ",", dble(Ftau(2)), ",", dble(Ftau(3)), ""
-				!50 format(16(1X,E10.4,1X,A))
-				50 format(16(1X,F16.8,1X,A))
+				50 format(16(1X,ES12.5,1X,A))
+				!50 format(16(1X,F16.8,1X,A))
 			end if
 		end subroutine surfInfo
 
@@ -449,13 +449,13 @@ module mod_analysis
 					do jdime = 1,ndime
 						tau_aux = tau_aux + wgp_b(igaus)*tau(idime_tw,jdime)*bnorm((igaus-1)*ndime+jdime)*sig
 					end do
-					if (tau_aux .lt. 0) surfArea_s_neg = surfArea_s_neg + real(nmag*wgp_b(igaus), 8)
+					if (tau_aux .lt. 0) surfArea_s_neg = surfArea_s_neg + nmag*wgp_b(igaus)
 				end do
 				surfArea_l_neg = surfArea_l_neg + surfArea_s_neg
 			end do
 			!$acc end parallel loop
 			deallocate(lelbo)
 
-			call MPI_Allreduce(surfArea_l_neg,surfArea_neg,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
+			call MPI_Allreduce(surfArea_l_neg,surfArea_neg,1,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
 		end subroutine twInfo
 end module mod_analysis
