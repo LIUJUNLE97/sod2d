@@ -117,4 +117,11 @@ module mod_numerical_params
         logical :: flag_force_2D = .false.
        
         character(len=100) :: json_filename
+
+        !
+        ! species
+        !
+        logical :: flag_activate_species = .true.
+        integer(4) ::  nspecies = 0
+
 end module mod_numerical_params
