@@ -1061,7 +1061,7 @@ end subroutine CFDSolverBase_findFixPressure
          !$acc kernels
          eta_Yk(:,:,:) = 0.0_rp
          mu_e_Yk(:,:,:) = 0.0_rp
-         Yk(:,:) = 0.0_rp
+         Yk(:,:,:) = 0.0_rp
          Yk_buffer(:,:) = 0.0_rp
          !$acc end kernels
       end if
