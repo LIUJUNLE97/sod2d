@@ -164,6 +164,7 @@ contains
       integer(4) :: iNodeL
       logical :: readFiles
 
+      call nvtxStartRange("BluffBodySolver Init")
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          u(iNodeL,1,2) = this%vo*cos(this%aoa*v_pi/180.0_rp)

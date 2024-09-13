@@ -154,29 +154,42 @@ module mod_entropy_viscosity
              mue_l(:,:) = mu_e(:,:)
              !$acc end kernels
 
+              call nvtxStartRange("Norrmallize Entropy")
               if(flag_normalise_entropy .eq. 1) then
-                  if(flag_high_mach) then               
+                  if(flag_high_mach) then
+                     call nvtxStartRange("High Mach path")
+                     call nvtxStartRange("maxEta_r")
                      maxEta_r = 100000.0_rp
                      !$acc parallel loop reduction(min:maxEta_r)
                      do ipoin = 1,npoin_w
                         maxEta_r = min(maxEta_r , rho(lpoin_w(ipoin)))
                      end do
                      !$acc end parallel loop
+                     call nvtxEndRange
 
+                     call nvtxStartRange("MPI_Allreduce | maxEta")
                      call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real,MPI_MIN,app_comm,mpi_err)
-                     norm = maxEta 
+                     call nvtxEndRange
+                     norm = maxEta
                      ce = ce_comp
+                     call nvtxEndRange
                   else
+                     call nvtxStartRange("Low Mach path")
+                     call nvtxStartRange("maxEta_r")
                      maxEta_r = 0.0_rp
                      !$acc parallel loop reduction(+:maxEta_r)
                      do ipoin = 1,npoin_w
                         maxEta_r = maxEta_r + eta(lpoin_w(ipoin))
                      end do
                      !$acc end parallel loop
+                     call nvtxEndRange
 
+                     call nvtxStartRange("MPI_Allreduce | maxEta & npoin_w_g")
                      call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
                      call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,app_comm,mpi_err)
+                     call nvtxEndRange
 
+                     call nvtxStartRange("maxEta")
                      maxEta = maxEta/real(npoin_w_g,rp)
 
                      norm_r = 0.0_rp
@@ -185,13 +198,19 @@ module mod_entropy_viscosity
                         norm_r = max(norm_r, abs(eta(lpoin_w(ipoin))-maxEta))
                      end do
                      !$acc end parallel loop
+                     call nvtxEndRange
 
-                     call MPI_Allreduce(norm_r,norm,1,mpi_datatype_real,MPI_MAX,app_comm,mpi_err)  
+                     call nvtxStartRange("MPI_Allreduce | norm")
+                     call MPI_Allreduce(norm_r,norm,1,mpi_datatype_real,MPI_MAX,app_comm,mpi_err)
+                     call nvtxEndRange
+                     call nvtxEndRange
                   endif
               else
                  norm = 1.0_rp
               end if
+              call nvtxEndRange
 
+              call nvtxStartRange("Compute mu_e")
               !$acc parallel loop gang
               do ielem = 1,nelem
                 maxJe=0.0_rp
@@ -247,5 +266,6 @@ module mod_entropy_viscosity
                 end do
               end do
               !$acc end parallel loop
+              call nvtxEndRange
       end subroutine smart_visc_spectral_imex     
 end module mod_entropy_viscosity

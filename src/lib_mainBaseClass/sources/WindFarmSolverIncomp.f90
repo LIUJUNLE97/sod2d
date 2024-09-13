@@ -443,6 +443,7 @@ end subroutine WindFarmSolverIncomp_readJSONAD
 
       readFiles = .false.
 
+      call nvtxStartRange("WindFarm_incomp Init")
       if(readFiles) then
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
          write(initialField_filePath,*) ""
