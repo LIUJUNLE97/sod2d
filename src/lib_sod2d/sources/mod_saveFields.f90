@@ -1,6 +1,7 @@
 module mod_saveFields
 
    use mod_constants
+   use mod_numerical_params , only : nspecies
    use mod_mpi
    use mod_custom_types
    !use json_module
@@ -271,13 +272,16 @@ contains
    end subroutine
 
    subroutine setFields2Save(rho,mu_fluid,pr,E,eta,csound,machno,divU,qcrit,Tem,u,gradRho,curlU,mu_sgs,mu_e,&
-                             avrho,avpre,avmueff,avvel,avve2,avvex,avtw)
+                             avrho,avpre,avmueff,avvel,avve2,avvex,avtw,Yk)
       implicit none
       real(rp),intent(in),dimension(:) :: rho,mu_fluid,pr,E,eta,csound,machno,divU,qcrit,Tem
       real(rp),intent(in),dimension(:,:) :: u,gradRho,curlU
       real(rp),intent(in),dimension(:,:) :: mu_sgs,mu_e
       real(rp_avg),intent(in),dimension(:) :: avrho,avpre,avmueff
       real(rp_avg),intent(in),dimension(:,:) :: avvel,avve2,avvex,avtw
+      real(rp),intent(in),dimension(:,:),optional :: Yk
+      integer(4) :: ispc
+      character(128) :: dsetname
 
 
 		if(saveFieldsInitialized .eqv. .false.) then
@@ -354,7 +358,14 @@ contains
          call add_elGPScalarField2save(elGPScalarNameFields(indES_mue),mu_e(:,:))
       end if
       !----------------------------------------------------------------------
-
+      
+      !---------------  Species   -------------------------------------
+      if(present(Yk)) then
+         do ispc = 1, nspecies
+            dsetname='Yk-'//char(ispc)
+            call add_nodeScalarField2save(dsetname,Yk(:,ispc))
+         end do
+      end if
 
       !----------------------  AVERAGE FIELDS  ------------------------------
 
@@ -387,8 +398,11 @@ contains
          call add_avgNodeVectorField2save(avgNodeVectorNameFields(indANV_tw),avtw(:,:))
       end if
       !----------------------------------------------------------------------
-
+      
+      
+   
    end subroutine setFields2Save
+
 
 !--------------------------------------------------------------------------------------------------------------------------
 

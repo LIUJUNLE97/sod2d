@@ -121,7 +121,7 @@ module mod_numerical_params
         !
         ! species
         !
-        logical :: flag_activate_species = .true.
+        logical :: flag_use_species = .false.
         integer(4) ::  nspecies = 0
 
 end module mod_numerical_params
