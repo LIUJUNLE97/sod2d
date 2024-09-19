@@ -116,6 +116,15 @@ contains
       flag_mu_factor = 1.0_rp
       nscbc_p_inf = 0.0_rp
 
+      ! with one species
+      call json%get("flag_use_species",flag_use_species, found, .false.)
+      if(flag_use_species .eqv. .true.) then
+         nspecies = 1
+         this%Prt=0.71_rp
+         this%Cp=1.0_rp
+         write(*,*) ' species load'
+      end if
+
       call json%destroy()
 
       if(found_aux .and.mpi_rank .eq. 0) write(111,*) 'WARNING! JSON file missing a parameter, overwrtting with the default value'
@@ -166,6 +175,26 @@ contains
 
       end do
       !$acc end parallel loop
+      if(flag_use_species .eqv. .true.) then
+         !$acc parallel loop
+         do iNodeL=1,numNodesRankPar
+            x = coordPar(iNodeL,1)
+            y = coordPar(iNodeL,2)
+            z = coordPar(iNodeL,3)
+
+            if(x .lt. v_pi) then
+               Yk(iNodeL,1,1) =  1.0_rp
+               Yk(iNodeL,1,2) =  1.0_rp
+               Yk(iNodeL,1,3) =  1.0_rp
+               Yk(iNodeL,1,4) =  1.0_rp
+               eta_Yk(iNodeL,1,1) = 0.5_rp
+               eta_Yk(iNodeL,1,2) = 0.5_rp
+               eta_Yk(iNodeL,1,3) = 0.5_rp
+               eta_Yk(iNodeL,1,4) = 0.5_rp
+            end if            
+         end do
+         !$acc end parallel loop
+      end if
 
       !$acc kernels
       mu_e(:,:) = 0.0_rp ! Element syabilization viscosity

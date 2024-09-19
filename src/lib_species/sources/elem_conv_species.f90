@@ -63,15 +63,15 @@ module elem_convec_species
         do ielem = 1,nelem
             !$acc loop vector collapse(2)
             do idime = 1,ndime
-            do inode = 1,nnode
-                ul(inode,idime) = u(connec(ielem,inode),idime)
-                fykl(inode,idime) = rho(connec(ielem,inode))*u(connec(ielem,inode),idime)*Yk(connec(ielem,inode))
-            end do
+                do inode = 1,nnode
+                    ul(inode,idime) = u(connec(ielem,inode),idime)
+                    fykl(inode,idime) = rho(connec(ielem,inode))*u(connec(ielem,inode),idime)*Yk(connec(ielem,inode))
+                end do
             end do
             !$acc loop vector
             do inode = 1,nnode
-            rhol(inode) = rho(connec(ielem,inode))
-            ykl(inode) = Yk(connec(ielem,inode))
+                rhol(inode) = rho(connec(ielem,inode))
+                ykl(inode) = Yk(connec(ielem,inode))
             end do
             !$acc loop vector private(gradIsoY,gradIsoU,gradIsoFy,gradY,gradU,divU,divFy,gradIsoRho,gradRho, dlxi_ip, dleta_ip, dlzeta_ip)
             do igaus = 1,ngaus
@@ -125,9 +125,11 @@ module elem_convec_species
             end do
 
             Re(igaus) = 0.5_rp*(divFy+ykl(igaus)*rhol(igaus)*divU)
+            !Re(igaus) = 0.5_rp*(divFy)
             !$acc loop seq
             do idime=1, ndime
                 Re(igaus) = Re(igaus) + 0.5_rp*(ykl(igaus)*ul(igaus,idime)*gradRho(idime)+rhol(igaus)*ul(igaus,idime)*gradY(idime))
+                !Re(igaus) = Re(igaus) + 0.5_rp*(rhol(igaus)*ul(igaus,idime)*gradY(idime))
             end do
             Re(igaus) = gpvol(1,igaus,ielem)*Re(igaus)
             end do

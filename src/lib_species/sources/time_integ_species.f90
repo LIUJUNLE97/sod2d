@@ -26,6 +26,7 @@ module time_integ_species
       implicit none
       integer(4),intent(in) :: npoin
 
+      write(*,*) "--| Allocating species"
 
       allocate(auxReta(npoin))
       !$acc enter data create(auxReta(:))
@@ -190,7 +191,6 @@ module time_integ_species
             ! Loop over all RK steps
             !
             call nvtxStartRange("Loop over RK steps")
-
             do istep = 1,flag_rk_ls_stages
                do ispc = 1,nspecies
                   !
@@ -231,7 +231,7 @@ module time_integ_species
                   call nvtxStartRange("Accumulate residuals")
                   !$acc parallel loop
                   do ipoin = 1,npoin_w
-                     K2spc(lpoin_w(ipoin),ispc) = a_i(istep)*K2spc(lpoin_w(ipoin),ispc) + (Rspc(lpoin_w(ipoin),ispc))*dt
+                     K2spc(lpoin_w(ipoin),ispc) = a_i(istep)*K2spc(lpoin_w(ipoin),ispc) + Rspc(lpoin_w(ipoin),ispc)*dt
                      Yk(lpoin_w(ipoin),ispc,pos) = Yk(lpoin_w(ipoin),ispc,pos) + b_i(istep)*K2spc(lpoin_w(ipoin),ispc)
                   end do
                   !$acc end parallel loop
@@ -259,17 +259,17 @@ module time_integ_species
                !$acc parallel loop
                do ipoin = 1,npoin_w
                   eta_Yk(lpoin_w(ipoin),ispc,1) = eta_Yk(lpoin_w(ipoin),ispc,2)
-                  eta_Yk(lpoin_w(ipoin),ispc,2) = Yk(lpoin_w(ipoin),ispc,pos)*Yk(lpoin_w(ipoin),ispc,pos)
+                  eta_Yk(lpoin_w(ipoin),ispc,2) = 0.5_rp*Yk(lpoin_w(ipoin),ispc,pos)*Yk(lpoin_w(ipoin),ispc,pos)
                   !$acc loop seq
                   do idime = 1,ndime
-                     f_eta(lpoin_w(ipoin),idime,ispc) = u(lpoin_w(ipoin),idime,2)*eta_Yk(lpoin_w(ipoin),ispc,2)
+                     f_eta(lpoin_w(ipoin),idime,ispc) = u(lpoin_w(ipoin),idime,1)*eta_Yk(lpoin_w(ipoin),ispc,1)
                   end do
                end do
                !$acc end parallel loop
                call nvtxEndRange
 
                call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta(:,:,ispc),eta_Yk(:,ispc,2),u(:,:,2),Reta(:,ispc,2))
+                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta(:,:,ispc),eta_Yk(:,ispc,1),u(:,:,1),Reta(:,ispc,2))
 
                if(mpi_size.ge.2) then
                   call mpi_halo_atomic_update_real(Reta(:,ispc,2))
@@ -280,8 +280,8 @@ module time_integ_species
                call nvtxStartRange("Entropy residual")
                !$acc parallel loop
                do ipoin = 1,npoin_w
-                  auxReta(lpoin_w(ipoin)) = (1.5_rp*Reta(lpoin_w(ipoin),ispc,2)-0.5_rp*Reta(lpoin_w(ipoin),ispc,1)) !+ &
-                                                !(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+                  auxReta(lpoin_w(ipoin)) = (1.5_rp*Reta(lpoin_w(ipoin),ispc,2)-0.5_rp*Reta(lpoin_w(ipoin),ispc,1)) + &
+                                             (eta_Yk(lpoin_w(ipoin),ispc,2)-eta_Yk(lpoin_w(ipoin),ispc,1))/dt
                   Reta(lpoin_w(ipoin),ispc,1) = Reta(lpoin_w(ipoin),ispc,2)            
                end do
                !$acc end parallel loop

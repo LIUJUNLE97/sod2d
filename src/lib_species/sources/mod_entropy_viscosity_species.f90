@@ -39,7 +39,7 @@ module mod_entropy_viscosity_species
         mue_l(:,:) = mu_e(:,:)
         !$acc end kernels
 
-        if(flag_normalise_entropy .eq. 1) then
+        if(flag_normalise_entropy_species .eq. 1) then
             maxEta_r = 0.0_rp
             !$acc parallel loop reduction(+:maxEta_r)
             do ipoin = 1,npoin_w
@@ -73,7 +73,7 @@ module mod_entropy_viscosity_species
                 minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
                 maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
             end do
-            ced = max(1.0_rp-(minJe/maxJe)**2,ce)
+            ced = max(1.0_rp-(minJe/maxJe)**2,ce_species)
 
             mu = 0.0_rp
             betae = 0.0_rp
@@ -87,6 +87,7 @@ module mod_entropy_viscosity_species
                 R1 = rho(connec(ielem,inode))*abs(Reta(connec(ielem,inode)))/norm
                 Ve = ced*R1*(helem(ielem,inode))**2
                 mue_l(ielem,inode) = cglob*min(Ve,betae)
+                !mue_l(ielem,inode) = cglob*betae
             end do
             !$acc loop vector collapse(3)
             do ii=1,porder+1

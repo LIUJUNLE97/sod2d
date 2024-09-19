@@ -60,6 +60,7 @@ module CFDSolverBase_mod
       use time_integ
       use time_integ_imex
       use time_integ_ls
+      use time_integ_species
       use mod_analysis
       use mod_numerical_params
       use mod_time_ops
@@ -511,6 +512,9 @@ end subroutine CFDSolverBase_findFixPressure
          else
             call init_rk4_ls_solver(numNodesRankPar)
          end if
+      end if
+      if(flag_use_species .eqv. .true.) then
+         call init_rk4_species_solver(numNodesRankPar)
       end if
 
    end subroutine CFDSolverBase_initNSSolver
@@ -2362,13 +2366,14 @@ end subroutine CFDSolverBase_findFixPressure
       call init_filters()
 
       ! Setting fields to be saved
-      call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
-                          u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
-                          avrho,avpre,avmueff,avvel,avve2,avvex,avtw)
       if(flag_use_species .eqv. .true.) then
          call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
          u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
-         avrho,avpre,avmueff,avvel,avve2,avvex,avtw,Yk(:,:,2))
+         avrho,avpre,avmueff,avvel,avve2,avvex,avtw,Yk(:,:,2),mu_e_Yk)
+      else
+         call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
+                          u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
+                          avrho,avpre,avmueff,avvel,avve2,avvex,avtw)
       end if
 
       ! Eval or load initial conditions

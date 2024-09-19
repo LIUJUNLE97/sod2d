@@ -86,6 +86,9 @@ contains
       class(CFDSolverPeriodicIncomp), intent(inout) :: this
       
       call init_rk4_solver_incomp(numNodesRankPar) 
+      if(flag_use_species .eqv. .true.) then
+         call init_rk4_species_solver(numNodesRankPar)
+      end if
 
    end subroutine CFDSolverPeriodicIncomp_initNSSolver
 

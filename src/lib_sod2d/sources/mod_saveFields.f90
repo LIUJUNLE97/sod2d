@@ -272,7 +272,7 @@ contains
    end subroutine
 
    subroutine setFields2Save(rho,mu_fluid,pr,E,eta,csound,machno,divU,qcrit,Tem,u,gradRho,curlU,mu_sgs,mu_e,&
-                             avrho,avpre,avmueff,avvel,avve2,avvex,avtw,Yk)
+                             avrho,avpre,avmueff,avvel,avve2,avvex,avtw,Yk,mu_e_Yk)
       implicit none
       real(rp),intent(in),dimension(:) :: rho,mu_fluid,pr,E,eta,csound,machno,divU,qcrit,Tem
       real(rp),intent(in),dimension(:,:) :: u,gradRho,curlU
@@ -280,6 +280,7 @@ contains
       real(rp_avg),intent(in),dimension(:) :: avrho,avpre,avmueff
       real(rp_avg),intent(in),dimension(:,:) :: avvel,avve2,avvex,avtw
       real(rp),intent(in),dimension(:,:),optional :: Yk
+      real(rp),intent(in),dimension(:,:,:),optional :: mu_e_Yk
       integer(4) :: ispc
       character(128) :: dsetname
 
@@ -362,8 +363,10 @@ contains
       !---------------  Species   -------------------------------------
       if(present(Yk)) then
          do ispc = 1, nspecies
-            dsetname='Yk-'//char(ispc)
+            dsetname=trim(adjustl('Yk'))   !//char(ispc)
             call add_nodeScalarField2save(dsetname,Yk(:,ispc))
+            dsetname=trim(adjustl('mue_Yk'))   !//char(ispc)
+            call add_elGPScalarField2save(dsetname,mu_e_Yk(:,:,ispc))
          end do
       end if
 
