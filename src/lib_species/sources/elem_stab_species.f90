@@ -126,8 +126,8 @@ module elem_stab_species
         implicit none
 
         integer(4), intent(in)   :: nelem, npoin,connec(nelem,nnode)
-        real(rp),    intent(in)  :: u(npoin,ndime),helem_k(nelem)
-        real(rp),    intent(out) :: tau(nelem),dt
+        real(rp),    intent(in)  :: u(npoin,ndime),helem_k(nelem),dt
+        real(rp),    intent(out) :: tau(nelem)
         integer(4)               :: ielem, inode
         real(rp)                 :: taul
         real(rp)                 :: aux1
