@@ -29,14 +29,14 @@ module elem_diffu_incomp
              real(rp)                :: divDm(ndime)
              real(rp)                :: ul(nnode,ndime), mufluidl(nnode)
              real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
-             real(rp)                :: gradRhol(nnode,ndime)
+             real(rp)                :: gradRhol(nnode,ndime),muel(nnode)
 
              call nvtxStartRange("Full diffusion")
              !$acc kernels
              Rmom(:,:) = 0.0_rp
              !$acc end kernels
 
-             !$acc parallel loop gang  private(ipoin,ul,mufluidl,tauXl,tauYl,tauZl)
+             !$acc parallel loop gang  private(ipoin,ul,mufluidl,tauXl,tauYl,tauZl,muel)
              do ielem = 1,nelem
                 !$acc loop vector
                 do inode = 1,nnode
@@ -45,6 +45,7 @@ module elem_diffu_incomp
                 !$acc loop vector
                 do inode = 1,nnode
                    mufluidl(inode) = mu_fluid(ipoin(inode))
+                   muel(inode) = mu_e(ielem,inode) + mu_sgs(ielem,inode)!let's remeber to put rho
                 end do
                 !$acc loop vector collapse(2)
                 do inode = 1,nnode
@@ -58,7 +59,7 @@ module elem_diffu_incomp
 
                 !$acc loop vector private(tau,gradU,gradIsoU,divU)
                 do igaus = 1,ngaus
-                   mu_fgp = mufluidl(igaus)+ mu_sgs(ielem,igaus)+mu_e(ielem,igaus) !let's remeber to put rho
+                   mu_fgp = mufluidl(igaus)+ muel(igaus) 
 
                    isoI = gmshAtoI(igaus) 
                    isoJ = gmshAtoJ(igaus) 

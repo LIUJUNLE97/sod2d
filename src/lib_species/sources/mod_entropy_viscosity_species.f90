@@ -87,7 +87,6 @@ module mod_entropy_viscosity_species
                 R1 = rho(connec(ielem,inode))*abs(Reta(connec(ielem,inode)))/norm
                 Ve = ced*R1*(helem(ielem,inode))**2
                 mue_l(ielem,inode) = cglob*min(Ve,betae)
-                !mue_l(ielem,inode) = cglob*betae
             end do
             !$acc loop vector collapse(3)
             do ii=1,porder+1

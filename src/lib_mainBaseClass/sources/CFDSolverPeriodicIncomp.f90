@@ -14,6 +14,7 @@ module CFDSolverPeriodicIncomp_mod
    use mass_matrix
    use mod_geom
    use time_integ_incomp
+   use time_integ_species_imex
    use time_integ_species
    use mod_analysis
    use mod_numerical_params
@@ -87,7 +88,8 @@ contains
       
       call init_rk4_solver_incomp(numNodesRankPar) 
       if(flag_use_species .eqv. .true.) then
-         call init_rk4_species_solver(numNodesRankPar)
+         call init_imex_species_solver(numNodesRankPar,numElemsRankPar)
+         !call init_rk4_ls_species_solver(numNodesRankPar,numElemsRankPar)
       end if
 
    end subroutine CFDSolverPeriodicIncomp_initNSSolver
@@ -144,13 +146,19 @@ contains
    subroutine CFDSolverPeriodicIncomp_callTimeIntegration(this,istep)
       class(CFDSolverPeriodicIncomp), intent(inout) :: this
       integer(4)                    , intent(in)    :: istep
+      integer(4) :: ispc
 
       this%noBoundaries = .true.
 
       if(flag_use_species .eqv. .true.) then
-         call rk_4_species_main(this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-         1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Cp,this%Prt, &
-         rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,workingNodesPar,mu_fluid,mue_l)   
+         do ispc = 1,nspecies
+            call imex_species_main(ispc,istep,this%local_step,this%save_logFile_next,this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+            1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Cp,this%Prt, &
+            rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,workingNodesPar,mu_fluid,mue_l)   
+            !call rk_4_ls_species_main(ispc,this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+            !1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Cp,this%Prt, &
+            !rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,workingNodesPar,mu_fluid,mue_l)   
+         end do
       end if
 
       call ab_main_incomp(istep,this%local_step,this%save_logFile_next,this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbnNodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,this%leviCivi,&

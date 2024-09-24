@@ -1,4 +1,4 @@
-module elem_diffu_species
+module elem_stab_species
 
     use mod_nvtx
     use mod_numerical_params
@@ -10,7 +10,7 @@ module elem_diffu_species
  
     contains
 
-    subroutine species_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Pr,rho,Yk,mu_fluid,mu_e,mu_sgs,Ml,RYk,initialze,fact)
+    subroutine species_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Yk,gradYk,tau,Ml,RYk,initialze,fact)
             implicit none
 
             integer(4), intent(in)  :: nelem, npoin
@@ -19,17 +19,16 @@ module elem_diffu_species
             real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem),dlxigp_ip(ngaus,ndime,porder+1)
             real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
             integer(4), intent(in)  ::  invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            real(rp),    intent(in)  :: Cp,Pr,rho(npoin), Yk(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus),Ml(npoin)
-            real(rp),    intent(in)  :: mu_fluid(npoin)
+            real(rp),    intent(in)  :: Yk(npoin), gradYk(npoin,ndime), tau(nelem),Ml(npoin)
             real(rp),    intent(out) :: RYk(npoin)
             logical, optional, intent(in)    :: initialze
             real(rp), optional, intent(in)  :: fact
             integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
             real(rp)                 :: kappa_y, mu_fgp
-            real(rp)                 :: gradY(ndime),tmp1,vol,arho
+            real(rp)                 :: gradY(ndime),tmp1,vol
             real(rp)                 :: gradIsoY(ndime)
             real(rp)                 :: divDy
-            real(rp)                 :: rhol(nnode),ykl(nnode),mufluidl(nnode),muel(nnode)
+            real(rp)                 :: ykl(nnode),gradykl(nnode,ndime)
             real(rp)                 :: gradYl(nnode,ndime)
             real(rp)  :: aux_fact = 1.0_rp
 
@@ -50,16 +49,18 @@ module elem_diffu_species
                 aux_fact = fact
              end if
  
-            !$acc parallel loop gang  private(ykl,rhol,mufluidl,muel)
+            !$acc parallel loop gang  private(ykl,gradykl)
             do ielem = 1,nelem
                 !$acc loop vector
                 do inode = 1,nnode
-                    rhol(inode) = rho(connec(ielem,inode))
                     ykl(inode) = Yk(connec(ielem,inode))
-                    mufluidl(inode) = mu_fluid(connec(ielem,inode))
-                    muel(inode) = mu_e(ielem,inode) + Cp*rhol(inode)*mu_sgs(ielem,inode)/0.9_rp
+                    !$acc loop seq
+                    do idime=1,ndime
+                        gradykl(inode,idime) = gradYk(connec(ielem,inode),idime)
+                    end do
                 end do
                 
+                kappa_y = tau(ielem)
                 gradYl(:,:) = 0.0_rp
                 !$acc loop vector private(gradY,gradIsoY)
                 do igaus = 1,ngaus
@@ -86,14 +87,12 @@ module elem_diffu_species
 
                     !$acc loop seq
                     do idime = 1,ndime
-                        gradYl(igaus,idime) =  gradY(idime)
+                        gradYl(igaus,idime) =  (gradykl(igaus,idime) - gradY(idime))
                     end do
                 end do
 
                 !$acc loop vector private(divDy) 
                 do igaus = 1,ngaus
-                    kappa_y =mufluidl(igaus)*Cp/Pr + muel(igaus)
-
                     isoI = gmshAtoI(igaus) 
                     isoJ = gmshAtoJ(igaus) 
                     isoK = gmshAtoK(igaus) 
@@ -117,6 +116,36 @@ module elem_diffu_species
             end do
             !$acc end parallel loop
         call nvtxEndRange
-    end subroutine species_diffusion_ijk
+    end subroutine species_stab_ijk
 
-end module elem_diffu_species
+
+    subroutine species_tau(nelem,npoin,connec,u,helem_k,dt,tau)
+
+        ! TODO: Compute element size h
+
+        implicit none
+
+        integer(4), intent(in)   :: nelem, npoin,connec(nelem,nnode)
+        real(rp),    intent(in)  :: u(npoin,ndime),helem_k(nelem)
+        real(rp),    intent(out) :: tau(nelem),dt
+        integer(4)               :: ielem, inode
+        real(rp)                 :: taul
+        real(rp)                 :: aux1
+
+
+        !$acc parallel loop gang 
+        do ielem = 1,nelem
+            taul = 0.0_rp
+            !$acc loop vector reduction(max:taul)
+            do inode = 1,nnode
+                aux1 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
+                taul = max(taul,(helem_k(ielem))*(c_species_stab/real(porder,rp))*aux1)
+            end do
+            tau(ielem) = min(dt,taul)
+        end do
+        !$acc end parallel loop
+
+    end subroutine species_tau
+
+
+end module elem_stab_species

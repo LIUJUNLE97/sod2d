@@ -36,6 +36,7 @@ module mod_numerical_params
         real(rp) :: c_rho =1.0_rp
         real(rp) :: c_ener = 1.0_rp
         real(rp) :: flag_mu_factor=1.0_rp
+        real(rp) :: c_species_stab = 0.5_rp
 
         ! Implicit solver
         integer(4) :: maxIter=20

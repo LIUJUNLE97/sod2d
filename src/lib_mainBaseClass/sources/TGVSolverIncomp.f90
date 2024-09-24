@@ -182,7 +182,7 @@ contains
             y = coordPar(iNodeL,2)
             z = coordPar(iNodeL,3)
 
-            if(x .lt. v_pi) then
+            if(x .lt. 3.0_rp) then
                Yk(iNodeL,1,1) =  1.0_rp
                Yk(iNodeL,1,2) =  1.0_rp
                Yk(iNodeL,1,3) =  1.0_rp

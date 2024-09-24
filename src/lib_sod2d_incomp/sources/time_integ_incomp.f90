@@ -23,7 +23,6 @@ module time_integ_incomp
    real(rp), allocatable, dimension(:,:) ::GradP,f_eta,Reta,Rflux
    real(rp), allocatable, dimension(:) :: auxReta, p_buffer
    real(rp), allocatable, dimension(:)   :: beta, alpha
-   real(rp), allocatable, dimension(:,:) :: Rdiff_mom
    real(rp) :: gamma0
 
    contains
@@ -43,9 +42,6 @@ module time_integ_incomp
 
       allocate(gradP(npoin,ndime))
       !$acc enter data create(gradP(:,:))
-
-      allocate(Rdiff_mom(npoin,ndime))
-      !$acc enter data create(Rdiff_mom(:,:))
 
       allocate(auxReta(npoin),f_eta(npoin,ndime),Reta(npoin,3),p_buffer(npoin))
       !$acc enter data create(auxReta(:),f_eta(:,:),Reta(:,:),p_buffer(:))
@@ -81,8 +77,6 @@ module time_integ_incomp
       !$acc exit data delete(Rflux(:,:))
       deallocate(aux_q,Rsource,Rwmles,u_flux_buffer,Rflux)
 
-      !$acc exit data delete(Rdiff_mom(:,:))
-      deallocate(Rdiff_mom)
 
       !$acc exit data delete(gradP(:,:))
       deallocate(gradP)
@@ -203,7 +197,7 @@ module time_integ_incomp
                aux_omega(:,:,1) = 0.0_rp
                !$acc end kernels
 
-               call smart_visc_spectral_incomp(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Ngp,coord,dNgp,gpvol,wgp, &
+               call smart_visc_spectral_incomp(nelem,npoin,npoin_w,connec,lpoin_w,Reta(:,1),Ngp,coord,dNgp,gpvol,wgp, &
                                             rho(:,1),u(:,:,1),eta(:,1),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
             else 
                if(iltime .eq. 2) then
@@ -262,9 +256,6 @@ module time_integ_incomp
                   call nvtxEndRange
                end if
             end if
-
-            call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),&
-                                          mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mom)
                   
             if((isWallModelOn) ) then
                   call nvtxStartRange("AB2 wall model")

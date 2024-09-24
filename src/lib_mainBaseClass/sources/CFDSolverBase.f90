@@ -60,6 +60,7 @@ module CFDSolverBase_mod
       use time_integ
       use time_integ_imex
       use time_integ_ls
+      use time_integ_species_imex
       use time_integ_species
       use mod_analysis
       use mod_numerical_params
@@ -514,7 +515,8 @@ end subroutine CFDSolverBase_findFixPressure
          end if
       end if
       if(flag_use_species .eqv. .true.) then
-         call init_rk4_species_solver(numNodesRankPar)
+         !call init_imex_species_solver(numNodesRankPar,numElemsRankPar)
+         call init_rk4_ls_species_solver(numNodesRankPar,numElemsRankPar)
       end if
 
    end subroutine CFDSolverBase_initNSSolver
