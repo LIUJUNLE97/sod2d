@@ -215,7 +215,7 @@ module time_integ_species_imex
                !$acc end parallel loop
 
                call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta(:,:1),eta_Yk(:,ispc,1),u(:,:,1),Reta(:,2))
+                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta(:,:,1),eta_Yk(:,ispc,1),u(:,:,1),Reta(:,2))
                call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
                   gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta(:,:,2),eta_Yk(:,ispc,2),u(:,:,2),auxReta)
 
