@@ -120,7 +120,7 @@ contains
       call json%get("flag_use_species",flag_use_species, found, .false.)
       if(flag_use_species .eqv. .true.) then
          nspecies = 1
-         this%Prt=0.71_rp
+         this%Prt=1.0_rp
          this%Cp=1.0_rp
          write(*,*) ' species load'
       end if

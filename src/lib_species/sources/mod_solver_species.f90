@@ -8,18 +8,21 @@ module mod_solver_species
       use mod_bc_routines_species
       use elem_diffu_species
       use mod_solver
+      use mod_operators
+      use elem_stab_species
 
 
       implicit none
 
 	   real(rp)  , allocatable, dimension(:) :: x, r0, p0, qn,b,z0,z1,M
+      real(rp)  , allocatable, dimension(:,:) :: grad
 	   logical  :: flag_cg_mem_alloc_species=.true.
 
 
       contains
 
         subroutine conjGrad_species(ispc,igtime,fact,dt,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
-                                    gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,Cp,Prt,rho,Rp0,R, &
+                                    gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,tau,Cp,Prt,rho,Rp0,R, &
                                     bou_codes,bound,nbnodes,lbnodes,lnbn_nodes,bou_codes_nodes,normalsAtNodes,Yk_buffer) ! Optional args
            implicit none
 
@@ -27,7 +30,7 @@ module mod_solver_species
            integer(4),           intent(in)    :: ispc,igtime,save_logFile_next
            integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w)
            real(rp)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode),fact,dt
-           real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin)
+           real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin),tau(nelem)
            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
            real(rp)   , intent(inout) :: R(npoin)
            integer(4), intent(in)     :: nboun, nbnodes, lbnodes(*),lnbn_nodes(npoin)
@@ -40,8 +43,8 @@ module mod_solver_species
 
           call nvtxStartRange("CG solver press")
           if (flag_cg_mem_alloc_species .eqv. .true.) then
-				allocate(x(npoin), r0(npoin), p0(npoin), qn(npoin), b(npoin),z0(npoin),z1(npoin),M(npoin))
-            !$acc enter data create(x(:), r0(:), p0(:), qn(:), b(:),z0(:),z1(:),M(:))
+				allocate(x(npoin), r0(npoin), p0(npoin), qn(npoin), b(npoin),z0(npoin),z1(npoin),M(npoin),grad(npoin,ndime))
+            !$acc enter data create(x(:), r0(:), p0(:), qn(:), b(:),z0(:),z1(:),M(:),grad(:,:))
 				flag_cg_mem_alloc_species = .false.
 			 end if
 
@@ -65,7 +68,9 @@ module mod_solver_species
             ! Real solver form here
 
             call nvtxStartRange("CG_Yk precond")
-            call species_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho,x,mu_fluid,mu_e,mu_sgs,Ml,qn)
+            call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,x,grad,.true.)
+            call species_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x,grad,tau,Ml,qn,.true.,-1.0_rp)
+            call species_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho,x,mu_fluid,mu_e,mu_sgs,Ml,qn,.false.,1.0_rp)
             if(mpi_size.ge.2) then
                call nvtxStartRange("CG_Yk halo")
                call mpi_halo_atomic_update_real(qn)
@@ -92,7 +97,9 @@ module mod_solver_species
            call nvtxStartRange("CG_p iters")
            do iter = 1,maxIter
               call nvtxStartRange("Iter_p")
-              call species_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho,p0,mu_fluid,mu_e,mu_sgs,Ml,qn)          
+              call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,p0,grad,.true.)
+              call species_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0,grad,tau,Ml,qn,.true.,-1.0_rp)
+              call species_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho,p0,mu_fluid,mu_e,mu_sgs,Ml,qn,.false.,1.0_rp)          
               if(mpi_size.ge.2) then
                call mpi_halo_atomic_update_real(qn)
               end if

@@ -29,7 +29,7 @@ module mod_numerical_params
         integer(4)  :: flag_normalise_entropy_species=1
         real(rp) :: ce_comp = 1.0_rp
         real(rp) :: ce = 0.1_rp
-        real(rp) :: ce_species = 0.1_rp
+        real(rp) :: ce_species = 1.0_rp
         real(rp) :: factor_comp = 0.0_rp   
         real(rp) :: cmax = 0.5_rp 
         real(rp) :: cglob =1.0_rp
@@ -37,6 +37,7 @@ module mod_numerical_params
         real(rp) :: c_ener = 1.0_rp
         real(rp) :: flag_mu_factor=1.0_rp
         real(rp) :: c_species_stab = 0.5_rp
+        logical :: flag_entropy_stab_in_species = .true.
 
         ! Implicit solver
         integer(4) :: maxIter=20

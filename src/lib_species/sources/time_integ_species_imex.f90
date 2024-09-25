@@ -14,8 +14,8 @@ module time_integ_species_imex
 
    implicit none
 
-   real(rp), allocatable, dimension(:,:,:) :: RYk
-   real(rp), allocatable, dimension(:,:) ::f_eta,Reta,Rflux,gradYk
+   real(rp), allocatable, dimension(:,:,:) :: RYk,f_eta
+   real(rp), allocatable, dimension(:,:) ::Reta,Rflux,gradYk
    real(rp), allocatable, dimension(:) :: auxReta,Rstab,tau
    real(rp), allocatable, dimension(:)   :: beta, alpha
    real(rp) :: gamma0
@@ -29,11 +29,11 @@ module time_integ_species_imex
 
       call nvtxStartRange("Init species solver")
 
-      allocate(RYk(npoin,nspecies,3))
-      !$acc enter data create(RYk(:,:,:))
+      allocate(RYk(npoin,nspecies,3),f_eta(npoin,ndime,2))
+      !$acc enter data create(RYk(:,:,:),f_eta(:,:,:))
 
-      allocate(auxReta(npoin),f_eta(npoin,ndime),Reta(npoin,3),gradYk(npoin,ndime),Rstab(npoin),tau(nelem))
-      !$acc enter data create(auxReta(:),f_eta(:,:),Reta(:,:),gradYk(:,:),Rstab(:),tau)
+      allocate(auxReta(npoin),Reta(npoin,3),gradYk(npoin,ndime),Rstab(npoin),tau(nelem))
+      !$acc enter data create(auxReta(:),Reta(:,:),gradYk(:,:),Rstab(:),tau)
    
       !$acc kernels
       RYk(1:npoin,1:nspecies,1:3) = 0.0_rp
@@ -103,29 +103,30 @@ module time_integ_species_imex
                   call mpi_halo_atomic_update_real(RYk(:,ispc,1))
                   call nvtxEndRange
                end if    
-#if 0
-               !$acc parallel loop
-               do ipoin = 1,npoin_w
-                  ipoin_w = lpoin_w(ipoin)
-                  !$acc loop seq
-                  do idime = 1,ndime
-                     f_eta(ipoin_w,idime) = u(ipoin_w,idime,1)*eta_Yk(ipoin_w,ispc,1)
+               if(flag_entropy_stab_in_species .eqv. .true.) then 
+                  !$acc parallel loop
+                  do ipoin = 1,npoin_w
+                     ipoin_w = lpoin_w(ipoin)
+                     !$acc loop seq
+                     do idime = 1,ndime
+                        f_eta(ipoin_w,idime,1) = u(ipoin_w,idime,1)*eta_Yk(ipoin_w,ispc,1)
+                     end do
                   end do
-               end do
-               !$acc end parallel loop
+                  !$acc end parallel loop
 
-               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta_Yk(:,ispc,1),u(:,:,1),Reta(:,1))
+                  call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+                     gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta(:,:,1),eta_Yk(:,ispc,1),u(:,:,1),Reta(:,1))
 
-               if(mpi_size.ge.2) then
-                  call mpi_halo_atomic_update_real(Reta(:,1))
+                  if(mpi_size.ge.2) then
+                     call mpi_halo_atomic_update_real(Reta(:,1))
+                  end if
+
+                  call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,1))
+                  
+                  call species_smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta(:,1),Ngp,coord,dNgp,gpvol,wgp, &
+                     rho(:,1),u(:,:,1),eta_Yk(:,ispc,1),helem_l,helem,Ml,mu_e_Yk(:,:,ispc),invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
                end if
 
-               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,1))
-               
-               call species_smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta(:,1),Ngp,coord,dNgp,gpvol,wgp, &
-                  rho(:,1),u(:,:,1),eta_Yk(:,ispc,1),helem_l,helem,Ml,mu_e_Yk(:,:,ispc),invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
-#endif
                gamma0 = 1.0_rp
                beta(1) = 1.0_rp
                beta(2) = 0.0_rp
@@ -161,8 +162,6 @@ module time_integ_species_imex
             call nvtxEndRange
 
             call species_tau(nelem,npoin,connec,u(:,:,1),helem,dt,tau)
-            call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,Yk(:,ispc,1),gradYk,.true.)
-            call species_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Yk(:,ispc,1),gradYk,tau,Ml,Rstab)
 
             call nvtxStartRange("AB2 species")
 
@@ -180,7 +179,7 @@ module time_integ_species_imex
             !$acc parallel loop
             do ipoin = 1,npoin_w
                ipoin_w = lpoin_w(ipoin)
-               Yk(ipoin_w,ispc,2) = Yk(ipoin_w,ispc,2) + Rstab(ipoin_w)
+               Yk(ipoin_w,ispc,2) = Yk(ipoin_w,ispc,2) !+ Rstab(ipoin_w)
                Yk(ipoin_w,ispc,2) = -(beta(1)*RYk(ipoin_w,ispc,2)+beta(2)*RYk(ipoin_w,ispc,1)+beta(3)*RYk(ipoin_w,ispc,3))
                Yk(ipoin_w,ispc,2) = Ml(ipoin_w)*(dt*Yk(ipoin_w,ispc,2)/Ml(ipoin_w) + alpha(1)*Yk(ipoin_w,ispc,1) + alpha(2)*Yk(ipoin_w,ispc,3) + alpha(3)*Yk(ipoin_w,ispc,4))/gamma0
                RYk(ipoin_w,ispc,3) = RYk(ipoin_w,ispc,1)
@@ -191,54 +190,60 @@ module time_integ_species_imex
             call nvtxEndRange
             
             call conjGrad_species(ispc,igtime,1.0_rp/gamma0,dt,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
-                             gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e_Yk(:,:,ispc),mu_sgs,Cp,Prt,rho(:,2),Yk(:,ispc,1),Yk(:,ispc,2),&
+                             gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e_Yk(:,:,ispc),mu_sgs,tau,Cp,Prt,rho(:,2),Yk(:,ispc,1),Yk(:,ispc,2),&
                              bou_codes,bound,nbnodes,lbnodes,lnbn_nodes,bou_codes_nodes,normalsAtNodes,Yk_buffer)
 
             if (noBoundaries .eqv. .false.) then
                call temporary_bc_routine_dirichlet_species(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,Yk(:,ispc,2),Yk_buffer(:,ispc))
             end if
             !call limit_rho(nelem,npoin,connec,Yk(:,ispc,2),epsilon(1.0_rp))
-#if 0
+
             !
             ! Compute subgrid viscosity if active
             !
-            !$acc parallel loop
-            do ipoin = 1,npoin_w
-               ipoin_w = lpoin_w(ipoin)
-               eta_Yk(ipoin_w,ispc,2) = 0.5_rp*Yk(ipoin_w,ispc,2)*Yk(ipoin_w,ispc,2)
-               !$acc loop seq
-               do idime = 1,ndime
-                  f_eta(ipoin_w,idime) = u(ipoin_w,idime,1)*eta_Yk(ipoin_w,ispc,1)
+            if(flag_entropy_stab_in_species .eqv. .true.) then 
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  ipoin_w = lpoin_w(ipoin)
+                  eta_Yk(ipoin_w,ispc,2) = 0.5_rp*Yk(ipoin_w,ispc,2)*Yk(ipoin_w,ispc,2)
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     f_eta(ipoin_w,idime,1) = u(ipoin_w,idime,1)*eta_Yk(ipoin_w,ispc,1)
+                     f_eta(ipoin_w,idime,2) = u(ipoin_w,idime,2)*eta_Yk(ipoin_w,ispc,2)
+                  end do
                end do
-            end do
-            !$acc end parallel loop
+               !$acc end parallel loop
 
-            call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta_Yk(:,ispc,1),u(:,:,1),Reta(:,2))
+               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta(:,:1),eta_Yk(:,ispc,1),u(:,:,1),Reta(:,2))
+               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta(:,:,2),eta_Yk(:,ispc,2),u(:,:,2),auxReta)
 
-            if(mpi_size.ge.2) then
-               call mpi_halo_atomic_update_real(Reta(:,2))
+               if(mpi_size.ge.2) then
+                  call mpi_halo_atomic_update_real(Reta(:,2))
+                  call mpi_halo_atomic_update_real(auxReta)
+               end if
+
+               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,2))
+               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,auxReta)
+
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  ipoin_w = lpoin_w(ipoin)
+                  auxReta(ipoin_w) =  (beta(1)*Reta(ipoin_w,2)+beta(2)*Reta(ipoin_w,1)+beta(3)*Reta(ipoin_w,3)) + &
+                                    -auxReta(ipoin_w)
+                  Reta(ipoin_w,3) = Reta(ipoin_w,1)
+                  Reta(ipoin_w,1) = Reta(ipoin_w,2)
+               end do
+               !$acc end parallel loop
+
+               if (noBoundaries .eqv. .false.) then
+                  call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,auxReta)
+               end if
+
+               call species_smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,auxReta,Ngp,coord,dNgp,gpvol,wgp, &
+                                             rho(:,2),u(:,:,2),eta_Yk(:,ispc,2),helem_l,helem,Ml,mu_e_Yk(:,:,ispc),invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
             end if
-
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,2))
-
-            !$acc parallel loop
-            do ipoin = 1,npoin_w
-               ipoin_w = lpoin_w(ipoin)
-               auxReta(ipoin_w) =  (beta(1)*Reta(ipoin_w,2)+beta(2)*Reta(ipoin_w,1)+beta(3)*Reta(ipoin_w,3)) + &
-                                    (gamma0*eta_Yk(ipoin_w,ispc,2)-alpha(1)*eta_Yk(ipoin_w,ispc,1)-alpha(2)*eta_Yk(ipoin_w,ispc,3)-alpha(3)*eta_Yk(ipoin_w,ispc,4))/dt
-               Reta(ipoin_w,3) = Reta(ipoin_w,1)
-               Reta(ipoin_w,1) = Reta(ipoin_w,2)
-            end do
-            !$acc end parallel loop
-
-            if (noBoundaries .eqv. .false.) then
-               call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,auxReta)
-            end if
-
-            call species_smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,auxReta,Ngp,coord,dNgp,gpvol,wgp, &
-                                            rho(:,2),u(:,:,2),eta_Yk(:,ispc,2),helem_l,helem,Ml,mu_e_Yk(:,:,ispc),invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
-#endif
          end subroutine imex_species_main
 
        end module time_integ_species_imex
