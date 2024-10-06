@@ -50,14 +50,14 @@ module elem_diffu_species
                 aux_fact = fact
              end if
  
-            !$acc parallel loop gang  private(ykl,rhol,mufluidl,muel)
+            !$acc parallel loop gang  private(ykl,rhol,mufluidl,muel,gradYl)
             do ielem = 1,nelem
                 !$acc loop vector
                 do inode = 1,nnode
                     rhol(inode) = rho(connec(ielem,inode))
                     ykl(inode) = Yk(connec(ielem,inode))
-                    mufluidl(inode) = mu_fluid(connec(ielem,inode))
-                    muel(inode) = mu_e(ielem,inode) + Cp*rhol(inode)*mu_sgs(ielem,inode)/0.9_rp
+                    mufluidl(inode) = mu_fluid(connec(ielem,inode))*Cp/Pr + Cp*rhol(inode)*mu_sgs(ielem,inode)/0.9_rp
+                    muel(inode) = mu_e(ielem,inode)*Cp/Pr
                 end do
                 
                 gradYl(:,:) = 0.0_rp
@@ -92,7 +92,7 @@ module elem_diffu_species
 
                 !$acc loop vector private(divDy) 
                 do igaus = 1,ngaus
-                    kappa_y =mufluidl(igaus)*Cp/Pr + muel(igaus)
+                    kappa_y = mufluidl(igaus) + muel(igaus)
 
                     isoI = gmshAtoI(igaus) 
                     isoJ = gmshAtoJ(igaus) 

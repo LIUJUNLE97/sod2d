@@ -10,7 +10,7 @@ module elem_stab_species
  
     contains
 
-    subroutine species_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Yk,gradYk,tau,Ml,RYk,initialze,fact)
+    subroutine species_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Yk,gradYk,Cp,Prt,rho,tau,Ml,RYk,initialze,fact)
             implicit none
 
             integer(4), intent(in)  :: nelem, npoin
@@ -19,7 +19,7 @@ module elem_stab_species
             real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem),dlxigp_ip(ngaus,ndime,porder+1)
             real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
             integer(4), intent(in)  ::  invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            real(rp),    intent(in)  :: Yk(npoin), gradYk(npoin,ndime), tau(nelem),Ml(npoin)
+            real(rp),    intent(in)  :: Yk(npoin), gradYk(npoin,ndime), tau(nelem),Ml(npoin),rho(npoin),Cp,Prt
             real(rp),    intent(out) :: RYk(npoin)
             logical, optional, intent(in)    :: initialze
             real(rp), optional, intent(in)  :: fact
@@ -28,7 +28,7 @@ module elem_stab_species
             real(rp)                 :: gradY(ndime),tmp1,vol
             real(rp)                 :: gradIsoY(ndime)
             real(rp)                 :: divDy
-            real(rp)                 :: ykl(nnode),gradykl(nnode,ndime)
+            real(rp)                 :: ykl(nnode),gradykl(nnode,ndime),rhol(nnode)
             real(rp)                 :: gradYl(nnode,ndime)
             real(rp)  :: aux_fact = 1.0_rp
 
@@ -49,19 +49,19 @@ module elem_stab_species
                 aux_fact = fact
              end if
  
-            !$acc parallel loop gang  private(ykl,gradykl)
+            !$acc parallel loop gang  private(ykl,gradykl,gradYl,kappa_y,rhol)
             do ielem = 1,nelem
                 !$acc loop vector
                 do inode = 1,nnode
-                    ykl(inode) = Yk(connec(ielem,inode))
+                    ykl(inode)  = Yk(connec(ielem,inode))
+                    rhol(inode) = rho(connec(ielem,inode))
                     !$acc loop seq
                     do idime=1,ndime
                         gradykl(inode,idime) = gradYk(connec(ielem,inode),idime)
+                        gradYl(inode,idime) = 0.0_rp
                     end do
                 end do
                 
-                kappa_y = tau(ielem)
-                gradYl(:,:) = 0.0_rp
                 !$acc loop vector private(gradY,gradIsoY)
                 do igaus = 1,ngaus
                     isoI = gmshAtoI(igaus) 
@@ -98,6 +98,7 @@ module elem_stab_species
                     isoK = gmshAtoK(igaus) 
 
                     divDy = 0.0_rp
+                    kappa_y = tau(ielem)*rhol(igaus)*Cp/Prt
                     
                     !$acc loop seq
                     do ii=1,porder+1
@@ -141,7 +142,7 @@ module elem_stab_species
                 aux1 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
                 taul = max(taul,(helem_k(ielem))*(c_species_stab/real(porder,rp))*aux1)
             end do
-            tau(ielem) = min(dt,taul)
+            tau(ielem) = taul
         end do
         !$acc end parallel loop
 

@@ -120,8 +120,8 @@ contains
       call json%get("flag_use_species",flag_use_species, found, .false.)
       if(flag_use_species .eqv. .true.) then
          nspecies = 1
-         this%Prt=1.0_rp
-         this%Cp=1.0_rp
+         this%Prt=0.7_rp
+         this%Cp=1000.0_rp
          write(*,*) ' species load'
       end if
 
@@ -183,14 +183,23 @@ contains
             z = coordPar(iNodeL,3)
 
             if(x .lt. 3.0_rp) then
-               Yk(iNodeL,1,1) =  1.0_rp
-               Yk(iNodeL,1,2) =  1.0_rp
-               Yk(iNodeL,1,3) =  1.0_rp
-               Yk(iNodeL,1,4) =  1.0_rp
-               eta_Yk(iNodeL,1,1) = 0.5_rp
-               eta_Yk(iNodeL,1,2) = 0.5_rp
-               eta_Yk(iNodeL,1,3) = 0.5_rp
-               eta_Yk(iNodeL,1,4) = 0.5_rp
+               Yk(iNodeL,1,1) =  280.0_rp
+               Yk(iNodeL,1,2) =  Yk(iNodeL,1,1)
+               Yk(iNodeL,1,3) =  Yk(iNodeL,1,1)
+               Yk(iNodeL,1,4) =  Yk(iNodeL,1,1)
+               eta_Yk(iNodeL,1,1) = 0.5_rp*Yk(iNodeL,1,1)*Yk(iNodeL,1,1)
+               eta_Yk(iNodeL,1,2) = 0.5_rp*Yk(iNodeL,1,1)*Yk(iNodeL,1,1)
+               eta_Yk(iNodeL,1,3) = 0.5_rp*Yk(iNodeL,1,1)*Yk(iNodeL,1,1)
+               eta_Yk(iNodeL,1,4) = 0.5_rp*Yk(iNodeL,1,1)*Yk(iNodeL,1,1)
+            else
+               Yk(iNodeL,1,1) =  270.0_rp
+               Yk(iNodeL,1,2) =  Yk(iNodeL,1,1)
+               Yk(iNodeL,1,3) =  Yk(iNodeL,1,1)
+               Yk(iNodeL,1,4) =  Yk(iNodeL,1,1)
+               eta_Yk(iNodeL,1,1) = 0.5_rp*Yk(iNodeL,1,1)*Yk(iNodeL,1,1)
+               eta_Yk(iNodeL,1,2) = 0.5_rp*Yk(iNodeL,1,1)*Yk(iNodeL,1,1)
+               eta_Yk(iNodeL,1,3) = 0.5_rp*Yk(iNodeL,1,1)*Yk(iNodeL,1,1)
+               eta_Yk(iNodeL,1,4) = 0.5_rp*Yk(iNodeL,1,1)*Yk(iNodeL,1,1)
             end if            
          end do
          !$acc end parallel loop

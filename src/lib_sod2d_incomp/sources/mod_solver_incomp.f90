@@ -8,6 +8,8 @@ module mod_solver_incomp
       use mod_bc_routines_incomp
       use mod_operators
       use elem_diffu_incomp
+      use elem_stab_incomp
+      use elem_stab_species, only : species_tau
 
 
 
@@ -17,6 +19,8 @@ module mod_solver_incomp
 	   real(rp)  , allocatable, dimension(:) :: x, r0, p0, qn, v, b,z0,z1,M,x0,diag
       real(rp)  , allocatable, dimension(:,:) :: x_u, r0_u, p0_u, qn_u, v_u, b_u,z0_u,z1_u,M_u
       real(rp)  , allocatable, dimension(:,:,:) :: L,Lt
+      real(rp)  , allocatable, dimension(:,:) :: TauPX,TauPY,TauPZ
+      real(rp)  , allocatable, dimension(:) :: tau
 	   logical  :: flag_cg_mem_alloc_pres=.true.
       logical  :: flag_cg_mem_alloc_veloc=.true.
 
@@ -24,7 +28,7 @@ module mod_solver_incomp
       contains
 
             subroutine conjGrad_veloc_incomp(igtime,fact,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
-                                             gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,Rp0,R, &
+                                             gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem_k,mu_fluid,mu_e,mu_sgs,Rp0,R, &
                                              bou_codes_nodes,normalsAtNodes,u_buffer) ! Optional args
 
             implicit none
@@ -35,9 +39,9 @@ module mod_solver_incomp
             real(rp),   intent(in) :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode),dt,fact
             real(rp),   intent(in) :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin,ndime)
             integer(4), intent(in) :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            real(rp),   intent(inout) :: mu_fluid(npoin)
-            real(rp),   intent(inout) :: mu_e(nelem,ngaus)
-            real(rp),   intent(inout) :: mu_sgs(nelem,ngaus)
+            real(rp),   intent(in) :: mu_fluid(npoin),helem_k(nelem)
+            real(rp),   intent(in) :: mu_e(nelem,ngaus)
+            real(rp),   intent(in) :: mu_sgs(nelem,ngaus)
             integer(4),optional, intent(in) :: bou_codes_nodes(npoin)
             real(rp),optional,   intent(in) :: normalsAtNodes(npoin,ndime)
             real(rp),optional,   intent(in) :: u_buffer(npoin,ndime)
@@ -50,6 +54,9 @@ module mod_solver_incomp
           if (flag_cg_mem_alloc_veloc .eqv. .true.) then
 				allocate(x_u(npoin,ndime), r0_u(npoin,ndime), p0_u(npoin,ndime), qn_u(npoin,ndime), v_u(npoin,ndime), b_u(npoin,ndime),z0_u(npoin,ndime),z1_u(npoin,ndime),M_u(npoin,ndime))
             !$acc enter data create(x_u(:,:), r0_u(:,:), p0_u(:,:), qn_u(:,:), v_u(:,:), b_u(:,:),z0_u(:,:),z1_u(:,:),M_u(:,:))
+
+            allocate(tau(nelem),TauPX(npoin,ndime),TauPY(npoin,ndime),TauPZ(npoin,ndime))
+            !$acc enter data create(tau(:), TauPX(:,:), TauPY(:,:), TauPZ(:,:))
 
 				flag_cg_mem_alloc_veloc = .false.
 			 end if
@@ -86,7 +93,11 @@ module mod_solver_incomp
 
             ! Real solver form here
 
+            call species_tau(nelem,npoin,connec,x_u,helem_k,dt,tau)
+
             call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x_u,mu_fluid,mu_e,mu_sgs,Ml,qn_u)
+            call eval_tau_veloc(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x_u,Ml,TauPX,TauPY,TauPZ)
+            call full_stab_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x_u,TauPX,TauPY,TauPZ,tau,Ml,qn_u)
             if(mpi_size.ge.2) then
                call nvtxStartRange("CG_u halo")
                do idime = 1,ndime
@@ -138,6 +149,8 @@ module mod_solver_incomp
            do iter = 1,maxIter
               call nvtxStartRange("Iter_u")
               call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,mu_fluid,mu_e,mu_sgs,Ml,qn_u)
+              call eval_tau_veloc(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,Ml,TauPX,TauPY,TauPZ)
+              call full_stab_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,TauPX,TauPY,TauPZ,tau,Ml,qn_u)
               if(mpi_size.ge.2) then
                do idime = 1,ndime
                   call mpi_halo_atomic_update_real(qn_u(:,idime))
@@ -328,10 +341,10 @@ module mod_solver_incomp
             end if
 
             call nvtxStartRange("CG_p precond")
-            call eval_laplacian_mult(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,x,qn)! A*x0
+            !call eval_laplacian_mult(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,x,qn)! A*x0
            !$acc parallel loop
            do ipoin = 1,npoin_w
-              r0(lpoin_w(ipoin)) = b(lpoin_w(ipoin))-qn(lpoin_w(ipoin)) ! b-A*x0
+              r0(lpoin_w(ipoin)) = b(lpoin_w(ipoin))!-qn(lpoin_w(ipoin)) ! b-A*x0
            end do
             !$acc end parallel loop            
             if (noBoundaries .eqv. .false.) then

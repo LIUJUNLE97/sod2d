@@ -3,7 +3,7 @@ module time_integ_species
 
    use mod_nvtx
    use elem_convec_species
-   use elem_convec , only : generic_scalar_convec_ijk
+   use elem_convec , only : generic_scalar_convec_ijk, generic_scalar_convec_projection_residual_ijk
    use elem_diffu_species
    use mod_solver
    use mod_entropy_viscosity_species
@@ -14,15 +14,14 @@ module time_integ_species
 
    implicit none
 
-   real(rp), allocatable, dimension(:,:,:) :: Reta
-   real(rp), allocatable, dimension(:,:) :: f_eta,gradYk
+   real(rp), allocatable, dimension(:) :: Reta
+   real(rp), allocatable, dimension(:,:) :: f_eta,f_eta2,gradYk
    real(rp), allocatable, dimension(:) :: K2spc
-   real(rp), allocatable, dimension(:) :: Rspc
+   real(rp), allocatable, dimension(:) :: RspcC,RspcD
    real(rp), allocatable, dimension(:) :: auxReta,tau
 
    real(rp), allocatable, dimension(:)   :: a_i, b_i
-   logical :: firstTimeStep = .true.
-
+   
    contains
 
    subroutine init_rk4_ls_species_solver(npoin,nelem)
@@ -34,13 +33,15 @@ module time_integ_species
       allocate(auxReta(npoin))
       !$acc enter data create(auxReta(:))
 
-      allocate(K2spc(npoin),f_eta(npoin,ndime),Reta(npoin,nspecies,2),Rspc(npoin),tau(nelem),gradYk(npoin,ndime))
+      allocate(K2spc(npoin),f_eta(npoin,ndime),f_eta2(npoin,ndime),Reta(npoin),RspcC(npoin),RspcD(npoin),tau(nelem),gradYk(npoin,ndime))
       !$acc enter data create(K2spc(:))
-      !$acc enter data create(Rspc(:))
+      !$acc enter data create(RspcC(:))
+      !$acc enter data create(RspcD(:))
       !$acc enter data create(tau(:))
       !$acc enter data create(f_eta(:,:))
+      !$acc enter data create(f_eta2(:,:))
       !$acc enter data create(gradYk(:,:))
-      !$acc enter data create(Reta(:,:,:))
+      !$acc enter data create(Reta(:))
 
       allocate(a_i(flag_rk_ls_stages),b_i(flag_rk_ls_stages))
       !$acc enter data create(a_i(:))
@@ -98,10 +99,11 @@ module time_integ_species
       deallocate(auxReta)
 
       !$acc exit data delete(K2spc(:))
-      !$acc exit data delete(Rspc(:))
+      !$acc exit data delete(RspcC(:))
+      !$acc exit data delete(RspcD(:))
       !$acc exit data delete(f_eta(:,:))
-      !$acc exit data delete(Reta(:,:,:))
-      deallocate(K2spc,f_eta,Reta,Rspc)
+      !$acc exit data delete(Reta(:))
+      deallocate(K2spc,f_eta,Reta,RspcC,RspcD)
 
       !$acc exit data delete(a_i(:))
       !$acc exit data delete(b_i(:))
@@ -156,31 +158,6 @@ module time_integ_species
             !
             pos = 2 ! Set correction as default value
 
-            if(firstTimeStep .eqv. .true.) then
-               firstTimeStep = .false.
-               
-               !$acc parallel loop
-               do ipoin = 1,npoin_w
-                  f_eta(lpoin_w(ipoin),1) = u(lpoin_w(ipoin),1,1)*eta_Yk(lpoin_w(ipoin),ispc,1)
-                  f_eta(lpoin_w(ipoin),2) = u(lpoin_w(ipoin),2,1)*eta_Yk(lpoin_w(ipoin),ispc,1)
-                  f_eta(lpoin_w(ipoin),3) = u(lpoin_w(ipoin),3,1)*eta_Yk(lpoin_w(ipoin),ispc,1)
-               end do
-               !$acc end parallel loop
-               
-               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta(:,:),eta_Yk(:,ispc,1),u(:,:,1),Reta(:,ispc,1))
-
-               if(mpi_size.ge.2) then
-                  call mpi_halo_atomic_update_real(Reta(:,ispc,1))
-               end if
-               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,ispc,1))   
-
-               call nvtxStartRange("Entropy viscosity evaluation")
-               call species_smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,Reta(:,ispc,1),Ngp,coord,dNgp,gpvol,wgp, &
-                  rho(:,1),u(:,:,1),eta_Yk(:,ispc,1),helem_l,helem,Ml,mu_e_Yk(:,:,ispc),invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
-               call nvtxEndRange
-            end if
-
             !$acc parallel loop 
             do ipoin = 1,npoin
                K2spc(ipoin) = 0.0_rp
@@ -189,6 +166,9 @@ module time_integ_species
             !
             ! Loop over all RK steps
             !
+            
+            call species_tau(nelem,npoin,connec,u(:,:,pos),helem,dt,tau)
+
             call nvtxStartRange("Loop over RK steps")
             do istep = 1,flag_rk_ls_stages
                   !
@@ -204,12 +184,10 @@ module time_integ_species
                   !
                   call nvtxStartRange("CONVDIFFS")
 
-                  call species_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),Yk(:,ispc,pos),mu_fluid,mu_e_Yk(:,:,ispc),mu_sgs,Ml,Rspc(:),.true.,-1.0_rp)
-                  call species_convec_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,pos),Yk(:,ispc,pos),u(:,:,pos),Rspc(:),.false.,-1.0_rp)               
-                 
-                  call species_tau(nelem,npoin,connec,u(:,:,pos),helem,dt,tau)
+                  call species_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),Yk(:,ispc,pos),mu_fluid,mu_e_Yk(:,:,ispc),mu_sgs,Ml,RspcD(:),.true.,-1.0_rp)
+                  call species_convec_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,pos),Yk(:,ispc,pos),u(:,:,pos),RspcC(:),.true.,-1.0_rp)               
                   call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,Yk(:,ispc,pos),gradYk,.true.)
-                  call species_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Yk(:,ispc,1),gradYk,tau,Ml,Rspc,.false.,-1.0_rp)
+                  call species_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Yk(:,ispc,pos),gradYk,Cp,Prt,rho,tau,Ml,RspcD,.false.,1.0_rp)
 
                   call nvtxEndRange
 
@@ -217,7 +195,8 @@ module time_integ_species
                   !TESTING NEW LOCATION FOR MPICOMMS
                   if(mpi_size.ge.2) then
                      call nvtxStartRange("MPI_comms_tI")
-                     call mpi_halo_atomic_update_real(Rspc(:))
+                     call mpi_halo_atomic_update_real(RspcC(:))
+                     call mpi_halo_atomic_update_real(RspcD(:))
                      call nvtxEndRange
                   end if
 
@@ -225,7 +204,8 @@ module time_integ_species
                   ! Call lumped mass matrix solver
                   !
                   call nvtxStartRange("Call solver")
-                  call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rspc(:))
+                  call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,RspcC(:))
+                  call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,RspcD(:))
                   call nvtxEndRange
                   !
                   ! Accumulate the residuals
@@ -233,7 +213,7 @@ module time_integ_species
                   call nvtxStartRange("Accumulate residuals")
                   !$acc parallel loop
                   do ipoin = 1,npoin_w
-                     K2spc(lpoin_w(ipoin)) = a_i(istep)*K2spc(lpoin_w(ipoin)) + Rspc(lpoin_w(ipoin))*dt
+                     K2spc(lpoin_w(ipoin)) = a_i(istep)*K2spc(lpoin_w(ipoin)) + (RspcC(lpoin_w(ipoin))+RspcD(lpoin_w(ipoin))/(rho(lpoin_w(ipoin),pos)*Cp))*dt
                      Yk(lpoin_w(ipoin),ispc,pos) = Yk(lpoin_w(ipoin),ispc,pos) + b_i(istep)*K2spc(lpoin_w(ipoin))
                   end do
                   !$acc end parallel loop
@@ -260,30 +240,20 @@ module time_integ_species
                   eta_Yk(lpoin_w(ipoin),ispc,2) = 0.5_rp*Yk(lpoin_w(ipoin),ispc,pos)*Yk(lpoin_w(ipoin),ispc,pos)
                   !$acc loop seq
                   do idime = 1,ndime
-                     f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta_Yk(lpoin_w(ipoin),ispc,1)
+                     f_eta(lpoin_w(ipoin),idime)  = u(lpoin_w(ipoin),idime,1)*eta_Yk(lpoin_w(ipoin),ispc,1)
                   end do
                end do
                !$acc end parallel loop
                call nvtxEndRange
 
                call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta(:,:),eta_Yk(:,ispc,1),u(:,:,1),Reta(:,ispc,2))
-
+                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta(:,:),eta_Yk(:,ispc,1),u(:,:,1),auxReta)
                if(mpi_size.ge.2) then
-                  call mpi_halo_atomic_update_real(Reta(:,ispc,2))
+                  call mpi_halo_atomic_update_real(auxReta)
                end if
+               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,auxReta)
 
-               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,ispc,2))
-
-               call nvtxStartRange("Entropy residual")
-               !$acc parallel loop
-               do ipoin = 1,npoin_w
-                  auxReta(lpoin_w(ipoin)) = (1.5_rp*Reta(lpoin_w(ipoin),ispc,2)-0.5_rp*Reta(lpoin_w(ipoin),ispc,1)) + &
-                                             (eta_Yk(lpoin_w(ipoin),ispc,2)-eta_Yk(lpoin_w(ipoin),ispc,1))/dt
-                  Reta(lpoin_w(ipoin),ispc,1) = Reta(lpoin_w(ipoin),ispc,2)            
-               end do
-               !$acc end parallel loop
-               call nvtxEndRange
+               call nvtxStartRange("Entropy residual")               
 
                !
                ! Compute entropy viscosity

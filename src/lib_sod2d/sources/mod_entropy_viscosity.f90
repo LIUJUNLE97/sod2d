@@ -30,7 +30,8 @@ module mod_entropy_viscosity
               real(rp)                :: R1, R2, Ve
               real(rp)                :: betae,mu,vol,vol2
               real(rp)                :: L3, aux1, aux2, aux3
-              real(rp)                :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas, maxV, maxC
+              real(rp)                :: maxRho, norm_r,norm, Rgas, maxV, maxC
+              real(8)                 :: maxEta_r,maxEta
               real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe, M, ceM, fact_low_mach =1.0_rp
               integer(4)              :: ii,jj,kk,mm,nn,ll
 
@@ -43,22 +44,22 @@ module mod_entropy_viscosity
              !$acc end kernels
 
               if(flag_normalise_entropy .eq. 1) then
-                 maxEta_r = 0.0_rp
+                  maxEta_r = 0.0d0
                  !$acc parallel loop reduction(+:maxEta_r)
                  do ipoin = 1,npoin_w
-                    maxEta_r = maxEta_r + eta(lpoin_w(ipoin))
+                  maxEta_r = maxEta_r + real(eta(lpoin_w(ipoin)),8)
                  end do
                  !$acc end parallel loop
 
-                 call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
+                 call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
                  call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,app_comm,mpi_err)
 
-                 maxEta = maxEta/real(npoin_w_g,rp)
+                 maxEta = maxEta/real(npoin_w_g,8)
 
                  norm_r = 0.0_rp
                  !$acc parallel loop reduction(max:norm_r)
                  do ipoin = 1,npoin_w
-                    norm_r = max(norm_r, abs(eta(lpoin_w(ipoin))-maxEta))
+                     norm_r = max(norm_r, abs(eta(lpoin_w(ipoin))-real(maxEta,rp)))
                  end do
                  !$acc end parallel loop
 
@@ -142,7 +143,8 @@ module mod_entropy_viscosity
               real(rp)                :: R1, R2, Ve
               real(rp)                :: betae,mu,vol,vol2
               real(rp)                :: L3, aux1, aux2, aux3
-              real(rp)                :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas, maxV, maxC
+              real(rp)                ::  maxRho, norm_r,norm, Rgas, maxV, maxC,maxRl,maxR
+              real(8)                 :: maxEta_r,maxEta
               real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe, M, ceM, fact_low_mach =1.0_rp
               integer(4)              :: ii,jj,kk,mm,nn,ll
 
@@ -156,33 +158,33 @@ module mod_entropy_viscosity
 
               if(flag_normalise_entropy .eq. 1) then
                   if(flag_high_mach) then               
-                     maxEta_r = 100000.0_rp
-                     !$acc parallel loop reduction(min:maxEta_r)
+                     maxRl = 100000.0_rp
+                     !$acc parallel loop reduction(min:maxRl)
                      do ipoin = 1,npoin_w
-                        maxEta_r = min(maxEta_r , rho(lpoin_w(ipoin)))
+                        maxRl = min(maxRl , rho(lpoin_w(ipoin)))
                      end do
                      !$acc end parallel loop
 
-                     call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real,MPI_MIN,app_comm,mpi_err)
-                     norm = maxEta 
+                     call MPI_Allreduce(maxRl,maxR,1,mpi_datatype_real,MPI_MIN,app_comm,mpi_err)
+                     norm = maxR 
                      ce = ce_comp
                   else
-                     maxEta_r = 0.0_rp
+                     maxEta_r = 0.0d0
                      !$acc parallel loop reduction(+:maxEta_r)
                      do ipoin = 1,npoin_w
-                        maxEta_r = maxEta_r + eta(lpoin_w(ipoin))
+                        maxEta_r = maxEta_r + real(eta(lpoin_w(ipoin)),8)
                      end do
                      !$acc end parallel loop
 
-                     call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
+                     call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
                      call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,app_comm,mpi_err)
 
-                     maxEta = maxEta/real(npoin_w_g,rp)
+                     maxEta = maxEta/real(npoin_w_g,8)
 
                      norm_r = 0.0_rp
                      !$acc parallel loop reduction(max:norm_r)
                      do ipoin = 1,npoin_w
-                        norm_r = max(norm_r, abs(eta(lpoin_w(ipoin))-maxEta))
+                        norm_r = max(norm_r, abs(eta(lpoin_w(ipoin))-real(maxEta,rp)))
                      end do
                      !$acc end parallel loop
 

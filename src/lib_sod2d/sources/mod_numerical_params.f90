@@ -29,7 +29,7 @@ module mod_numerical_params
         integer(4)  :: flag_normalise_entropy_species=1
         real(rp) :: ce_comp = 1.0_rp
         real(rp) :: ce = 0.1_rp
-        real(rp) :: ce_species = 1.0_rp
+        real(rp) :: ce_species = 0.1_rp
         real(rp) :: factor_comp = 0.0_rp   
         real(rp) :: cmax = 0.5_rp 
         real(rp) :: cglob =1.0_rp
@@ -57,6 +57,7 @@ module mod_numerical_params
         real(rp) :: nscbc_Cp_inf    = 1.0_rp
         real(rp) :: nscbc_T_H       = 293.0_rp
         real(rp) :: nscbc_T_C       = 293.0_rp
+        real(rp) :: nscbc_T_ref     = 293.0_rp
         real(rp) :: nscbc_delta     = 0.01_rp
         real(rp) :: nscbc_g_x       = 0.0_rp
         real(rp) :: nscbc_g_y       = 0.0_rp

@@ -14,7 +14,7 @@ module mod_constants
 	!
 	! Element characteristics
 	!
-	integer(4), parameter :: porder=4
+	integer(4), parameter :: porder=3
 	integer(4), parameter :: nnode=(porder+1)**3
 	integer(4), parameter :: ngaus=nnode
 	integer(4), parameter :: npbou=(porder+1)**2
@@ -25,7 +25,7 @@ module mod_constants
       real(rp), parameter :: v_pi = 2.0_rp*asin(1.0_rp) ! Value of Pi
 
       ! No of boundary codes
-      integer(4), parameter :: max_num_bou_codes = 17
+      integer(4), parameter :: max_num_bou_codes = 18
 
       ! No of max saved fields (size of pointer arrays)
       integer(4), parameter :: max_num_saved_fields = 50
@@ -45,14 +45,15 @@ module mod_constants
 	integer(4), parameter :: bc_type_non_slip_adiabatic   = 6
 	integer(4), parameter :: bc_type_non_slip_hot         = 7
 	integer(4), parameter :: bc_type_non_slip_cold        = 8
-	integer(4), parameter :: bc_type_symmetry			  = 9
-	integer(4), parameter :: bc_type_slip_adiabatic       = 10
-	integer(4), parameter :: bc_type_slip_isothermal      = 11
-	integer(4), parameter :: bc_type_slip_wall_model      = 12
-	integer(4), parameter :: bc_type_slip_wall_model_iso  = 13
-	integer(4), parameter :: bc_type_slip_atmosphere      = 14
-	integer(4), parameter :: bc_type_unsteady_inlet       = 15
-	integer(4), parameter :: bc_type_far_field_SB         = 16
+	integer(4), parameter :: bc_type_non_slip_isothermal  = 9
+	integer(4), parameter :: bc_type_symmetry			  = 10
+	integer(4), parameter :: bc_type_slip_adiabatic       = 11
+	integer(4), parameter :: bc_type_slip_isothermal      = 12
+	integer(4), parameter :: bc_type_slip_wall_model      = 13
+	integer(4), parameter :: bc_type_slip_wall_model_iso  = 14
+	integer(4), parameter :: bc_type_slip_atmosphere      = 15
+	integer(4), parameter :: bc_type_unsteady_inlet       = 16
+	integer(4), parameter :: bc_type_far_field_SB         = 17
 
 	
 

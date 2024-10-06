@@ -15,6 +15,7 @@ module CFDSolverPeriodicWithBoundariesIncomp_mod
    use mod_geom
    use time_integ_incomp
    use time_integ_species_imex
+   use time_integ_species
    use mod_analysis
    use mod_numerical_params
    use mod_time_ops
@@ -49,6 +50,11 @@ contains
             rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,workingNodesPar,mu_fluid,mue_l, &
             ndofRankPar,numBoundaryNodesRankPar,ldofPar,lbnodesPar,boundPar,bouCodesPar,bouCodesNodesPar, &  
             listBoundsWallModel,wgp_b,boundNormalPar,normalsAtNodes,Yk_buffer)   
+            !call rk_4_ls_species_main(ispc,this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+            !1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Cp,this%Prt, &
+            !rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,workingNodesPar,mu_fluid,mue_l, & 
+            !ndofRankPar,numBoundaryNodesRankPar,ldofPar,lbnodesPar,boundPar,bouCodesPar,bouCodesNodesPar, &  
+            !listBoundsWallModel,wgp_b,boundNormalPar,normalsAtNodes,Yk_buffer) 
          end do
       end if
 

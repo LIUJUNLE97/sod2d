@@ -117,7 +117,7 @@ module CFDSolverBase_mod
       real(rp) , public                   :: dt, Cp, Rgas, gamma_gas,Prt
       real(rp) , public                   :: time, maxPhysTime, initial_avgTime, elapsed_avgTime
       real(rp) , public                   :: loadtimewit=0.0_rp
-      logical  , public                   :: noBoundaries
+      logical  , public                   :: noBoundaries = .false.
 
    contains
       procedure, public :: printDt => CFDSolverBase_printDt
@@ -2429,8 +2429,7 @@ end subroutine CFDSolverBase_findFixPressure
       if(this%isFreshStart) call this%evalFirstOutput()
       call this%flush_log_file()
 
-      if (this%noBoundaries .eqv. .false.)  call  this%normalFacesToNodes()
-
+      call  this%normalFacesToNodes()
 
       ! Eval initial time step
       call this%evalInitialDt()
