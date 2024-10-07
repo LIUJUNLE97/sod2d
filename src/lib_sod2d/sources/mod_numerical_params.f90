@@ -20,14 +20,14 @@ module mod_numerical_params
 
         ! Discretization parameters
         logical :: flag_total_enthalpy = .false.
-        logical :: flag_high_mach = .false.
+        logical :: flag_high_mach = .true.
         logical :: flag_bouyancy_effect = .false.
         logical :: flag_drop_c_in_envit = .false.
         integer(4)  :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
         integer(4)  :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
         integer(4)  :: flag_normalise_entropy=1
         integer(4)  :: flag_normalise_entropy_species=1
-        real(rp) :: ce_comp = 1.0_rp
+        real(rp) :: ce_comp = 0.1_rp
         real(rp) :: ce = 0.1_rp
         real(rp) :: ce_species = 0.1_rp
         real(rp) :: factor_comp = 0.0_rp   
