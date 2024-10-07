@@ -385,7 +385,7 @@ module time_integ_imex
             do ipoin = 1,npoin_w
                eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
                eta(lpoin_w(ipoin),2) = (rho(lpoin_w(ipoin),2)/(gamma_gas-1.0_rp))* &
-                  log(pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)**gamma_gas))
+                  log(max(pr(lpoin_w(ipoin),2),0.0_rp)/(rho(lpoin_w(ipoin),2)**gamma_gas))
                !$acc loop seq
                do idime = 1,ndime
                   f_eta_imex(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
