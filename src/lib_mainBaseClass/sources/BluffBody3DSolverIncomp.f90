@@ -173,6 +173,7 @@ contains
       integer(8) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL
 
+      call nvtxStartRange("BluffBody3D_incomp Init")
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          u(iNodeL,1,2) = this%vo*cos(this%aoa_alpha*v_pi/180.0_rp)*cos(this%aoa_beta*v_pi/180.0_rp)

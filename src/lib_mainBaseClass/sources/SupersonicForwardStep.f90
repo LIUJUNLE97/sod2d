@@ -159,6 +159,7 @@ contains
       integer(4) :: iNodeL
       logical :: readFiles
 
+      call nvtxStartRange("SupersonicForwardStep Init")
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          u(iNodeL,1,2) = 3.0_rp*nscbc_c_inf

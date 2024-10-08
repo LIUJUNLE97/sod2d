@@ -193,6 +193,7 @@ contains
 
       readFiles = .false.
 
+      call nvtxStartRange("ChannelFlow Init")
       if(readFiles) then
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
          write(initialField_filePath,*) ""

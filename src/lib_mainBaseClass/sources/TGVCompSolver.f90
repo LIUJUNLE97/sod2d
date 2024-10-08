@@ -146,7 +146,7 @@ contains
 
       if(mpi_rank.eq.0) write(*,*) "--| TGV - Setting Initial Conditions..."
 
-
+      call nvtxStartRange("TGVComp Init")
       !$acc parallel loop
       do iNodeL=1,numNodesRankPar
          x = coordPar(iNodeL,1)

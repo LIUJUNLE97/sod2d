@@ -141,6 +141,7 @@ contains
 
       readFiles = .true.
 
+      call nvtxStartRange("ThermalChannelFlowSolver Init")
       if(readFiles) then
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
          write(initialField_filePath,*) ""
@@ -239,13 +240,14 @@ contains
       ax3(:) = 0.0_rp
       au(:,:) = 0.0_rp
       !$acc end kernels
-      call nvtxEndRange
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          mu_factor(iNodeL) = flag_mu_factor
       end do
       !$acc end parallel loop
+      call nvtxEndRange
+
    end subroutine ThermalChannelFlowSolver_evalInitialConditions
 
 end module ThermalChannelFlowSolver_mod
