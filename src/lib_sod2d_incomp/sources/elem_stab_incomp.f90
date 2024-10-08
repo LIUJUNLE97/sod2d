@@ -1,4 +1,4 @@
-module elem_diffu_incomp
+module elem_stab_incomp
 
    use mod_nvtx
    use mod_numerical_params
@@ -9,7 +9,7 @@ module elem_diffu_incomp
    use mod_comms
 
       contains
-        subroutine full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,mu_fluid,mu_e,mu_sgs,Ml,Rmom)
+        subroutine full_stab_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,TauPX,TauPY,TauPZ,tau_stab,Ml,Rmom)
              implicit none
 
              integer(4), intent(in)  :: nelem, npoin
@@ -18,8 +18,8 @@ module elem_diffu_incomp
              real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem),dlxigp_ip(ngaus,ndime,porder+1)
              real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
              integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-             real(rp),   intent(in)  :: u(npoin,ndime), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus),Ml(npoin)
-             real(rp),   intent(in)  :: mu_fluid(npoin)
+             real(rp),   intent(in)  :: u(npoin,ndime),Ml(npoin)
+             real(rp),   intent(in)  :: TauPX(npoin,ndime),TauPY(npoin,ndime),TauPZ(npoin,ndime), tau_stab(nelem)
              real(rp),   intent(out) :: Rmom(npoin,ndime)
              integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
              integer(4)              :: ipoin(nnode)
@@ -29,37 +29,33 @@ module elem_diffu_incomp
              real(rp)                :: divDm(ndime)
              real(rp)                :: ul(nnode,ndime), mufluidl(nnode)
              real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
-             real(rp)                :: gradRhol(nnode,ndime),muel(nnode)
+             real(rp)                :: gradRhol(nnode,ndime),muel(nnode),taupxl(nnode,ndime),taupyl(nnode,ndime),taupzl(nnode,ndime),taustabl
 
              call nvtxStartRange("Full diffusion")
-             !$acc kernels
-             Rmom(:,:) = 0.0_rp
-             !$acc end kernels
 
-             !$acc parallel loop gang  private(ipoin,ul,mufluidl,tauXl,tauYl,tauZl,muel)
+             !$acc parallel loop gang  private(ipoin,ul,mufluidl,tauXl,tauYl,tauZl,muel,taupxl,taupyl,taupzl,taustabl)
              do ielem = 1,nelem
                 !$acc loop vector
                 do inode = 1,nnode
                    ipoin(inode) = connec(ielem,inode)
                 end do
-                !$acc loop vector
-                do inode = 1,nnode
-                   mufluidl(inode) = mu_fluid(ipoin(inode))
-                   muel(inode) = mu_e(ielem,inode) + mu_sgs(ielem,inode)!let's remeber to put rho
-                end do
                 !$acc loop vector collapse(2)
                 do inode = 1,nnode
                    do idime = 1,ndime
                       ul(inode,idime) = u(ipoin(inode),idime)
+                      taupxl(inode,idime) = TauPX(ipoin(inode),idime)
+                      taupyl(inode,idime) = TauPY(ipoin(inode),idime)
+                      taupzl(inode,idime) = TauPZ(ipoin(inode),idime)
                    end do
                 end do
                 tauXl(:,:) = 0.0_rp
                 tauYl(:,:) = 0.0_rp
                 tauZl(:,:) = 0.0_rp
 
+                taustabl = tau_stab(ielem)
+
                 !$acc loop vector private(tau,gradU,gradIsoU,divU)
                 do igaus = 1,ngaus
-                   mu_fgp = mufluidl(igaus)+ muel(igaus) 
 
                    isoI = gmshAtoI(igaus) 
                    isoJ = gmshAtoJ(igaus) 
@@ -92,15 +88,15 @@ module elem_diffu_incomp
                    do idime = 1,ndime
                       !$acc loop seq
                       do jdime = 1,ndime
-                           tau(idime,jdime) = (mu_fgp)*(gradU(idime,jdime)+gradU(jdime,idime))
+                           tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
                       end do
                    end do
 
                    !$acc loop seq
                    do idime = 1,ndime
-                      tauXl(igaus,idime) =  tau(1,idime)
-                      tauYl(igaus,idime) =  tau(2,idime)
-                      tauZl(igaus,idime) =  tau(3,idime)
+                      tauXl(igaus,idime) =  taustabl*(taupxl(igaus,idime)-tau(1,idime))
+                      tauYl(igaus,idime) =  taustabl*(taupyl(igaus,idime)-tau(2,idime))
+                      tauZl(igaus,idime) =  taustabl*(taupzl(igaus,idime)-tau(3,idime))
                    end do
                 end do
 
@@ -132,12 +128,12 @@ module elem_diffu_incomp
 
                    do idime = 1,ndime
                       !$acc atomic update
-                      Rmom(ipoin(igaus),idime) = Rmom(ipoin(igaus),idime)+divDm(idime)
+                      Rmom(ipoin(igaus),idime) = Rmom(ipoin(igaus),idime)-divDm(idime)
                       !$acc end atomic
                    end do
                 end do
              end do
              !$acc end parallel loop
             call nvtxEndRange
-        end subroutine full_diffusion_ijk_incomp
-end module elem_diffu_incomp
+        end subroutine full_stab_incomp
+end module elem_stab_incomp

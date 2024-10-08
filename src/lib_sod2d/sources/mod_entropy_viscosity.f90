@@ -30,7 +30,8 @@ module mod_entropy_viscosity
               real(rp)                :: R1, R2, Ve
               real(rp)                :: betae,mu,vol,vol2
               real(rp)                :: L3, aux1, aux2, aux3
-              real(rp)                :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas, maxV, maxC
+              real(rp)                :: maxRho, norm_r,norm, Rgas, maxV, maxC
+              real(8)                 :: maxEta_r,maxEta
               real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe, M, ceM, fact_low_mach =1.0_rp
               integer(4)              :: ii,jj,kk,mm,nn,ll
 
@@ -43,22 +44,22 @@ module mod_entropy_viscosity
              !$acc end kernels
 
               if(flag_normalise_entropy .eq. 1) then
-                 maxEta_r = 0.0_rp
+                  maxEta_r = 0.0d0
                  !$acc parallel loop reduction(+:maxEta_r)
                  do ipoin = 1,npoin_w
-                    maxEta_r = maxEta_r + eta(lpoin_w(ipoin))
+                  maxEta_r = maxEta_r + real(eta(lpoin_w(ipoin)),8)
                  end do
                  !$acc end parallel loop
 
-                 call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
+                 call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
                  call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,app_comm,mpi_err)
 
-                 maxEta = maxEta/real(npoin_w_g,rp)
+                 maxEta = maxEta/real(npoin_w_g,8)
 
                  norm_r = 0.0_rp
                  !$acc parallel loop reduction(max:norm_r)
                  do ipoin = 1,npoin_w
-                    norm_r = max(norm_r, abs(eta(lpoin_w(ipoin))-maxEta))
+                     norm_r = max(norm_r, abs(eta(lpoin_w(ipoin))-real(maxEta,rp)))
                  end do
                  !$acc end parallel loop
 
@@ -69,22 +70,22 @@ module mod_entropy_viscosity
 
               !$acc parallel loop gang
               do ielem = 1,nelem
-                maxJe=0.0_rp
-                minJe=1000000.0_rp
-                maxV = 0.0_rp
-                maxC = 0.0_rp
-                !$acc loop seq
-                do igaus = 1,ngaus
-                   minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                   maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                   maxV = max(maxV,sqrt(dot_product(u(connec(ielem,igaus),:),u(connec(ielem,igaus),:))))
-                   maxC = max(maxC,csound(connec(ielem,igaus)))
-                end do
-                M = maxV/maxC
-                ceM = max(tanh((M**15)*v_pi),ce)
-                ced = max(1.0_rp-(minJe/maxJe)**2,ce)
-                ced = max(ced,ceM) 
-                !ced = ceM
+                !maxJe=0.0_rp
+                !minJe=1000000.0_rp
+                !maxV = 0.0_rp
+                !maxC = 0.0_rp
+                !!$acc loop seq
+                !do igaus = 1,ngaus
+                !   minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
+                !   maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
+                !   maxV = max(maxV,sqrt(dot_product(u(connec(ielem,igaus),:),u(connec(ielem,igaus),:))))
+                !   maxC = max(maxC,csound(connec(ielem,igaus)))
+                !end do
+                !!M = maxV/maxC
+                !ceM = max(tanh((M**15)*v_pi),ce)
+                !ced = max(1.0_rp-(minJe/maxJe)**2,ce)
+                !ced = max(ced,ceM) 
+                ced = ce
 
                 mu = 0.0_rp
                 betae = 0.0_rp
@@ -142,7 +143,8 @@ module mod_entropy_viscosity
               real(rp)                :: R1, R2, Ve
               real(rp)                :: betae,mu,vol,vol2
               real(rp)                :: L3, aux1, aux2, aux3
-              real(rp)                :: maxEta_r,maxEta, maxRho, norm_r,norm, Rgas, maxV, maxC
+              real(rp)                ::  maxRho, norm_r,norm, Rgas, maxV, maxC,maxRl,maxR
+              real(8)                 :: maxEta_r,maxEta
               real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe, M, ceM, fact_low_mach =1.0_rp
               integer(4)              :: ii,jj,kk,mm,nn,ll
 
@@ -158,44 +160,46 @@ module mod_entropy_viscosity
               if(flag_normalise_entropy .eq. 1) then
                   if(flag_high_mach) then
                      call nvtxStartRange("High Mach path")
-                     call nvtxStartRange("maxEta_r")
-                     maxEta_r = 100000.0_rp
-                     !$acc parallel loop reduction(min:maxEta_r)
+                     
+                     call nvtxStartRange("maxEta_r")               
+                     maxRl = 100000.0_rp
+                     !$acc parallel loop reduction(min:maxRl)
                      do ipoin = 1,npoin_w
-                        maxEta_r = min(maxEta_r , rho(lpoin_w(ipoin)))
+                        maxRl = min(maxRl , rho(lpoin_w(ipoin)))
                      end do
                      !$acc end parallel loop
                      call nvtxEndRange
 
                      call nvtxStartRange("MPI_Allreduce | maxEta")
-                     call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real,MPI_MIN,app_comm,mpi_err)
+                     call MPI_Allreduce(maxRl,maxR,1,mpi_datatype_real,MPI_MIN,app_comm,mpi_err)
                      call nvtxEndRange
-                     norm = maxEta
+                     norm = maxR 
                      ce = ce_comp
+
                      call nvtxEndRange
                   else
                      call nvtxStartRange("Low Mach path")
+                     
                      call nvtxStartRange("maxEta_r")
-                     maxEta_r = 0.0_rp
+                     maxEta_r = 0.0d0
+
                      !$acc parallel loop reduction(+:maxEta_r)
                      do ipoin = 1,npoin_w
-                        maxEta_r = maxEta_r + eta(lpoin_w(ipoin))
+                        maxEta_r = maxEta_r + real(eta(lpoin_w(ipoin)),8)
                      end do
                      !$acc end parallel loop
                      call nvtxEndRange
 
-                     call nvtxStartRange("MPI_Allreduce | maxEta & npoin_w_g")
-                     call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
-                     call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,app_comm,mpi_err)
+                     call nvtxStartRange("MPI_Allreduce | maxEta & npoin_w_g")                     
+                     call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
                      call nvtxEndRange
 
-                     call nvtxStartRange("maxEta")
-                     maxEta = maxEta/real(npoin_w_g,rp)
-
+                     call nvtxStartRange("maxEta")                     
+                     maxEta = maxEta/real(npoin_w_g,8)
                      norm_r = 0.0_rp
                      !$acc parallel loop reduction(max:norm_r)
                      do ipoin = 1,npoin_w
-                        norm_r = max(norm_r, abs(eta(lpoin_w(ipoin))-maxEta))
+                        norm_r = max(norm_r, abs(eta(lpoin_w(ipoin))-real(maxEta,rp)))
                      end do
                      !$acc end parallel loop
                      call nvtxEndRange
@@ -213,21 +217,21 @@ module mod_entropy_viscosity
               call nvtxStartRange("Compute mu_e")
               !$acc parallel loop gang
               do ielem = 1,nelem
-                maxJe=0.0_rp
-                minJe=1000000.0_rp
-                maxV = 0.0_rp
-                maxC = 0.0_rp
-                !$acc loop seq
-                do igaus = 1,ngaus
-                   minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                   maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                   maxV = max(maxV,sqrt(dot_product(u(connec(ielem,igaus),:),u(connec(ielem,igaus),:))))
-                   maxC = max(maxC,csound(connec(ielem,igaus)))
-                end do
-                M = maxV/maxC
-                ceM = max(tanh((M**15)*v_pi),ce)
-                ced = max(1.0_rp-(minJe/maxJe)**2,ce)
-                ced = max(ced,ceM) 
+                !maxJe=0.0_rp
+                !minJe=1000000.0_rp
+                !maxV = 0.0_rp
+                !maxC = 0.0_rp
+                !!$acc loop seq
+                !do igaus = 1,ngaus
+                !   minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
+                !   maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
+                !   maxV = max(maxV,sqrt(dot_product(u(connec(ielem,igaus),:),u(connec(ielem,igaus),:))))
+                !   maxC = max(maxC,csound(connec(ielem,igaus)))
+                !end do
+                !M = maxV/maxC
+                !ceM = max(tanh((M**15)*v_pi),ce)
+                !ced = max(1.0_rp-(minJe/maxJe)**2,ce)
+                !ced = max(ced,ceM) 
                 ced = ce
 
                 mu = 0.0_rp
