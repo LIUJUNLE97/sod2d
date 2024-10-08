@@ -27,14 +27,15 @@ module TransientInletSolverIncomp_mod
    implicit none
    private
 
+   integer(8), allocatable, dimension(:,:)   :: matGidSrlOrdered
+   real(rp), allocatable, dimension(:,:)   :: inletDB
+   integer(4), allocatable, dimension(:)   :: ipoinInletDB
+   integer(4), allocatable, dimension(:)   :: myPointsDB
+   integer(4), public :: npoinDB, nStepsDB    
+
    type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: TransientInletSolverIncomp
 
-      real(rp) , public  :: vo, delta, rho0, Re
-      integer(8), allocatable, dimension(:,:)   :: matGidSrlOrdered
-      real(rp), allocatable, dimension(:,:)   :: inletDB
-      integer(4), allocatable, dimension(:)   :: ipoinInletDB
-      integer(4), allocatable, dimension(:)   :: myPointsDB
-      integer(4), public :: npoinDB, nStepsDB                             
+      real(rp) , public  :: vo, delta, rho0, Re          
 
    contains
       procedure, public :: fillBCTypes           =>TransientInletSolverIncomp_fill_BC_Types
@@ -199,32 +200,32 @@ contains
       class(TransientInletSolverIncomp), intent(inout) :: this
       integer(4) :: inode, ipoin,iLine,auxCnt,bcode
 
-      allocate(this%matGidSrlOrdered(numNodesRankPar,2))
+      allocate(matGidSrlOrdered(numNodesRankPar,2))
       !$acc enter data create(matGidSrlOrdered(:,:))
-      call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,this%matGidSrlOrdered)
+      call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
       !$acc update device(matGidSrlOrdered(:,:))
 
       !here we read the npoinDB, nStepsDB
-      allocate(this%inletDB(this%npoinDB*this%nStepsDB,4),this%ipoinInletDB(this%npoinDB),this%myPointsDB(this%npoinDB))
+      allocate(inletDB(npoinDB*nStepsDB,4),ipoinInletDB(npoinDB),myPointsDB(npoinDB))
       !$acc enter data create(inletDB(:,:),ipoinInletDB(:),myPointsDB(:))
 
       !$acc kernels
-      this%myPointsDB(:) = 0
+      myPointsDB(:) = 0
       !$acc end kernels
 
       ! you need to read your files and update to device
 
       auxCnt = 1
       do iLine = 1,totalNumNodesSrl
-         if(iLine.eq.this%matGidSrlOrdered(ipoin,2)) then
-            inode = this%matGidSrlOrdered(auxCnt,1)
+         if(iLine.eq.matGidSrlOrdered(ipoin,2)) then
+            inode = matGidSrlOrdered(auxCnt,1)
             auxCnt=auxCnt+1
             bcode = bouCodesNodesPar(inode) 
             if(bcode .lt. max_num_bou_codes) then
                if (bcode == bc_type_unsteady_inlet) then
-                  do ipoin=1,this%npoinDB
-                     if(auxCnt .eq. this%ipoinInletDB(ipoin)) then
-                        this%myPointsDB(ipoin) = inode
+                  do ipoin=1,npoinDB
+                     if(auxCnt .eq. ipoinInletDB(ipoin)) then
+                        myPointsDB(ipoin) = inode
                      end if
                   end do
                end if
@@ -236,8 +237,8 @@ contains
 
       ! you need to do your fancy interpolation
       !$acc parallel loop
-      do inode = 1,this%npoinDB
-         ipoin = this%myPointsDB(ipoin)
+      do inode = 1,npoinDB
+         ipoin = myPointsDB(ipoin)
          if(ipoin .gt. 0) then
             u_buffer(ipoin,1) = this%vo
             u_buffer(ipoin,2) = 0.0_rp
@@ -255,8 +256,8 @@ contains
 
       ! you need to do your fancy interpolation
       !$acc parallel loop
-      do inode = 1,this%npoinDB
-         ipoin = this%myPointsDB(ipoin)
+      do inode = 1,npoinDB
+         ipoin = myPointsDB(ipoin)
          if(ipoin .gt. 0) then
             u_buffer(ipoin,1) = this%vo
             u_buffer(ipoin,2) = 0.0_rp
