@@ -163,9 +163,10 @@ module time_integ_incomp
 
                if(mpi_size.ge.2) then
                   call nvtxStartRange("AB2 halo update")
-                  do idime = 1,ndime
-                     call mpi_halo_atomic_update_real(Rmom(:,idime,1))
-                  end do
+                  call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,Rmom(:,:,1))
+                  !do idime = 1,ndime
+                  !   call mpi_halo_atomic_update_real(Rmom(:,idime,1))
+                  !end do
                   call nvtxEndRange
                end if               
                !$acc parallel loop
@@ -239,9 +240,10 @@ module time_integ_incomp
 
                if(mpi_size.ge.2) then
                   call nvtxStartRange("AB2 halo update")
-                  do idime = 1,ndime
-                     call mpi_halo_atomic_update_real(Rflux(:,idime))
-                  end do
+                  call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,Rflux(:,:))
+                  !do idime = 1,ndime
+                  !   call mpi_halo_atomic_update_real(Rflux(:,idime))
+                  !end do
                   call nvtxEndRange
                end if
             end if
@@ -256,9 +258,10 @@ module time_integ_incomp
 
                if(mpi_size.ge.2) then
                   call nvtxStartRange("AB2 halo update")
-                  do idime = 1,ndime
-                     call mpi_halo_atomic_update_real(Rsource(:,idime))
-                  end do
+                  call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,Rsource(:,:))
+                  !do idime = 1,ndime
+                  !   call mpi_halo_atomic_update_real(Rsource(:,idime))
+                  !end do
                   call nvtxEndRange
                end if
             end if
@@ -286,9 +289,10 @@ module time_integ_incomp
           
                   if(mpi_size.ge.2) then
                      call nvtxStartRange("AB2 halo update")
-                     do idime = 1,ndime
-                        call mpi_halo_atomic_update_real(Rwmles(:,idime))
-                     end do
+                     call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,Rwmles(:,:))
+                     !do idime = 1,ndime
+                     !   call mpi_halo_atomic_update_real(Rwmles(:,idime))
+                     !end do
                      call nvtxEndRange
                   end if                  
             end if
@@ -307,9 +311,10 @@ module time_integ_incomp
 
             if(mpi_size.ge.2) then
                call nvtxStartRange("AB2 halo update")
-               do idime = 1,ndime
-                  call mpi_halo_atomic_update_real(Rmom(:,idime,2))
-               end do
+               call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,Rmom(:,:,2))
+               !do idime = 1,ndime
+               !   call mpi_halo_atomic_update_real(Rmom(:,idime,2))
+               !end do
                call nvtxEndRange
             end if
 

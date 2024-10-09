@@ -149,9 +149,10 @@ module mod_solver
             !if(mpi_rank.eq.0) write(111,*) "--|[IMEX] CG before atomic"
 			   if(mpi_size.ge.2) then
                call nvtxStartRange("PCG halo")
-               do ivars = 1,nvars 
-                  call mpi_halo_atomic_update_real(qn_vars(:,ivars))
-               end do
+               call mpi_halo_atomic_update_real_arrays_iSendiRcv(nvars,qn_vars(:,:))
+               !do ivars = 1,nvars 
+               !   call mpi_halo_atomic_update_real(qn_vars(:,ivars))
+               !end do
                call nvtxEndRange
             end if
              !$acc parallel loop 
@@ -214,9 +215,10 @@ module mod_solver
               call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),p0_vars(:,1),aux_u_vars,&
                  aux_Tem_vars,mu_fluid,mu_e,mu_sgs,Ml,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2))              
 			      if(mpi_size.ge.2) then
-               	do ivars = 1,nvars 
-                  call mpi_halo_atomic_update_real(qn_vars(:,ivars))
-                end do              
+                  call mpi_halo_atomic_update_real_arrays_iSendiRcv(nvars,qn_vars(:,:))
+               	!do ivars = 1,nvars 
+                  !   call mpi_halo_atomic_update_real(qn_vars(:,ivars))
+                  !end do              
                end if
                
                call nvtxStartRange("PCG qn_vars + PCG alpha")

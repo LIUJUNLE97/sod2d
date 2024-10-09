@@ -16,8 +16,8 @@ module time_integ
 
    implicit none
 
-   real(rp), allocatable, dimension(:)     :: Rmass,Rener,Reta
-   real(rp), allocatable, dimension(:,:)   :: Rmom
+   real(rp), allocatable, target, dimension(:)     :: Rmass,Rener,Reta
+   real(rp), allocatable, target, dimension(:,:)   :: Rmom
    real(rp), allocatable, dimension(:)   :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta,aux_h
    real(rp), allocatable, dimension(:,:) :: aux_u,aux_q
    real(rp), allocatable, dimension(:)   :: Rmass_sum,Rener_sum,Reta_sum,Rdiff_mass,Rdiff_ener
@@ -27,12 +27,15 @@ module time_integ
    real(rp), allocatable, dimension(:,:) :: a_ij
    logical :: firstTimeStep = .true.
 
+   integer(4) :: numArrays2comm
+   type(ptr_array1d_rp),allocatable :: arrays2comm(:)
+
    contains
 
    subroutine init_rk4_solver(npoin)
       implicit none
       integer(4),intent(in) :: npoin
-      integer(4) :: numSteps
+      integer(4) :: numSteps,i
 
       call nvtxStartRange("Init RK4 solver")
 
@@ -93,6 +96,22 @@ module time_integ
       !$acc update device(b_i(:))
       !$acc update device(c_i(:))
 
+      numArrays2comm = 5
+      allocate(arrays2comm(numArrays2comm))
+      
+      arrays2comm(1)%ptr => Rmass(:)
+      arrays2comm(2)%ptr => Rener(:)
+      arrays2comm(3)%ptr => Rmom(:,1)
+      arrays2comm(4)%ptr => Rmom(:,2)
+      arrays2comm(5)%ptr => Rmom(:,3)
+
+      !$acc enter data copyin(arrays2comm(:)) attach(arrays2comm(1)%ptr,arrays2comm(2)%ptr,arrays2comm(3)%ptr,arrays2comm(4)%ptr,arrays2comm(5)%ptr)
+
+      !!!do i=1,numArrays2comm
+      !!!   !$acc enter data copyin(arrays2comm(i)%ptr)
+      !!!   !$acc enter data copyin(arrays2comm(i)) attach(arrays2comm(i)%ptr)
+      !!!end do
+
       call nvtxEndRange
 
    end subroutine init_rk4_solver
@@ -134,6 +153,11 @@ module time_integ
       !$acc exit data delete(b_i(:))
       !$acc exit data delete(c_i(:))
       deallocate(a_i,b_i,c_i)
+
+      !$acc exit data delete(arrays2comm(1)%ptr,arrays2comm(2)%ptr,arrays2comm(3)%ptr,arrays2comm(4)%ptr,arrays2comm(5)%ptr)
+      !$acc exit data delete(arrays2comm(:))
+
+      deallocate(arrays2comm)
 
    end subroutine end_rk4_solver
 
@@ -423,11 +447,19 @@ module time_integ
                !TESTING NEW LOCATION FOR MPICOMMS
                if(mpi_size.ge.2) then
                   call nvtxStartRange("MPI_comms_tI")
+#if 1
+                  call mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv(Rmass(:),Rener(:),Rmom(:,:))
+                  !call mpi_halo_atomic_update_real_arrays_iSendiRcv(numArrays2comm,arrays2comm)
+#else
                   call mpi_halo_atomic_update_real(Rmass(:))
                   call mpi_halo_atomic_update_real(Rener(:))
-                  do idime = 1,ndime
-                     call mpi_halo_atomic_update_real(Rmom(:,idime))
-                  end do
+                  call nvtxStartRange("MPI_mom_comms_new")
+                  call mpi_halo_atomic_update_real_momentum_iSendiRcv(Rmom(:,:))
+                  call nvtxEndRange
+                  !do idime = 1,ndime
+                  !   call mpi_halo_atomic_update_real(Rmom(:,idime))
+                  !end do
+#endif
                   call nvtxEndRange
                end if
 
