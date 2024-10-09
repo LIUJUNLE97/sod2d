@@ -797,8 +797,8 @@ contains
         !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
-            memPos_l = (commsMemPosInLoc(i)-1)*ndime+1
-            memSize  = commsMemSize(i)*ndime
+            memPos_l = (commsMemPosInLoc(i)-1)*numArrays+1
+            memSize  = commsMemSize(i)*numArrays
 
             nccl_stat = ncclRecv(aux_realField_r(memPos_l), memSize, ncclFloat, ngbRank, nccl_comm, nccl_stream)
             nccl_stat = ncclSend(aux_realField_s(memPos_l), memSize, ncclFloat, ngbRank, nccl_comm, nccl_stream)
@@ -812,8 +812,8 @@ contains
         do i=1,numRanksWithComms
             ngbRank  = ranksToComm(i)
             tagComm  = 0
-            memPos_l = (commsMemPosInLoc(i)-1)*ndime+1
-            memSize  = commsMemSize(i)*ndime
+            memPos_l = (commsMemPosInLoc(i)-1)*numArrays+1
+            memSize  = commsMemSize(i)*numArrays
 
             ireq = ireq+1
             call MPI_Irecv(aux_realField_r(memPos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
