@@ -90,9 +90,6 @@ module mod_solver_incomp
             if(mpi_size.ge.2) then
                call nvtxStartRange("CG_u halo")
                call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,qn_u(:,:))
-               !do idime = 1,ndime
-               !   call mpi_halo_atomic_update_real(qn_u(:,idime))
-               !end do
                call nvtxEndRange
             end if
             !$acc parallel loop
@@ -141,9 +138,6 @@ module mod_solver_incomp
                call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,mu_fluid,mu_e,mu_sgs,Ml,qn_u)
                if(mpi_size.ge.2) then
                   call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,qn_u(:,:))
-                  !do idime = 1,ndime
-                  !   call mpi_halo_atomic_update_real(qn_u(:,idime))
-                  !end do
                end if
                !$acc parallel loop
                do ipoin = 1,npoin_w

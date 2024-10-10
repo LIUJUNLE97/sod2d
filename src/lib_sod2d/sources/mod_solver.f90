@@ -150,9 +150,6 @@ module mod_solver
 			   if(mpi_size.ge.2) then
                call nvtxStartRange("PCG halo")
                call mpi_halo_atomic_update_real_arrays_iSendiRcv(nvars,qn_vars(:,:))
-               !do ivars = 1,nvars 
-               !   call mpi_halo_atomic_update_real(qn_vars(:,ivars))
-               !end do
                call nvtxEndRange
             end if
              !$acc parallel loop 
@@ -216,9 +213,6 @@ module mod_solver
                  aux_Tem_vars,mu_fluid,mu_e,mu_sgs,Ml,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2))              
 			      if(mpi_size.ge.2) then
                   call mpi_halo_atomic_update_real_arrays_iSendiRcv(nvars,qn_vars(:,:))
-               	!do ivars = 1,nvars 
-                  !   call mpi_halo_atomic_update_real(qn_vars(:,ivars))
-                  !end do              
                end if
                
                call nvtxStartRange("PCG qn_vars + PCG alpha")
