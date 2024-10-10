@@ -3,7 +3,7 @@ module mod_arrays_wf
 
    implicit none
 
-   real(rp), allocatable :: CT(:), D(:),pos_x(:),pos_y(:),pos_z(:),vol_correct(:),ad_alpha(:)
+   real(rp), allocatable :: CT(:), D(:),pos_x(:),pos_y(:),pos_z(:),vol_correct(:),ad_alpha(:),static_sources(:,:)
 
 end module mod_arrays_wf
 
@@ -38,8 +38,10 @@ module WindFarmSolverIncomp_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: WindFarmSolverIncomp
 
-      real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar,wind_alpha
+      real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar,wind_alpha, lambda_vertical,gamma_free,delta_capping,gamma_inversion,inversion_height,s_ra,nu_ra,latitude,earth_omega,fc,gradP,Ug_x,Ug_y,T_wall,Lz_ra,Ug_alpha
       integer(4), public :: N_ad
+      logical, public :: capping
+
    contains
       procedure, public :: fillBCTypes           => WindFarmSolverIncomp_fill_BC_Types
       procedure, public :: initializeParameters  => WindFarmSolverIncomp_initializeParameters
@@ -172,8 +174,11 @@ end subroutine WindFarmSolverIncomp_readJSONAD
       integer :: iNodeL,idime,iAD
       real(rp) :: x_ad,y_ad,z_ad,radius
       real(8) :: vol_T(this%N_ad),vol_T2(this%N_ad)
+      real(rp) :: vz,N
 
       if(istep == 1) then !esto va a dar problemas en continues
+         allocate(static_sources(numNodesRankPar,3))
+         !$acc enter data create(static_sources(:,:))
          if(this%N_ad .gt. 0) then
             vol_T(:) = 0.0d0
             !! Wind farm pre-processing
@@ -214,39 +219,83 @@ end subroutine WindFarmSolverIncomp_readJSONAD
 
             !$acc parallel loop  
             do iNodeL = 1,numNodesRankPar
-               if(maskMapped(iNodeL) == 0) then
-                  source_term(iNodeL,1) = (this%rho0*this%ustar**2/this%Lz)*cos(this%wind_alpha*v_pi/180.0_rp)
-                  source_term(iNodeL,2) = (this%rho0*this%ustar**2/this%Lz)*sin(this%wind_alpha*v_pi/180.0_rp)
-                  source_term(iNodeL,3) = 0.00_rp
-               else if(ad(iNodeL) .ne. 0) then
+               source_term(iNodeL,1) = this%gradP*cos(this%Ug_alpha*v_pi/180.0_rp)
+               source_term(iNodeL,2) = this%gradP*sin(this%Ug_alpha*v_pi/180.0_rp)
+               source_term(iNodeL,3) = 0.00_rp
+               if(ad(iNodeL) .ne. 0) then
                   iAD = ad(iNodeL)
                   source_term(iNodeL,1) = -0.5_rp*(CT(iAD)/(0.1_rp*D(iAD)))*(this%vinf**2)*vol_correct(iAD)*cos(ad_alpha(iAD)*v_pi/180.0_rp)
                   source_term(iNodeL,2) = -0.5_rp*(CT(iAD)/(0.1_rp*D(iAD)))*(this%vinf**2)*vol_correct(iAD)*sin(ad_alpha(iAD)*v_pi/180.0_rp)
                   source_term(iNodeL,3) = 0.0_rp
-                  !write(111,*) " node ",iNodeL," ID ",iAD," source ",source_term(iNodeL,1)," alpha ",ad_alpha(iAD)
                end if
+               static_sources(iNodeL,1) = source_term(iNodeL,1) 
+               static_sources(iNodeL,2) = source_term(iNodeL,2) 
+               static_sources(iNodeL,3) = source_term(iNodeL,3) 
             end do
             !$acc end parallel loop
          end if
       end if
+      !$acc parallel loop  
+      do iNodeL = 1,numNodesRankPar
+         source_term(iNodeL,1) = static_sources(iNodeL,1) 
+         source_term(iNodeL,2) = static_sources(iNodeL,2) 
+         source_term(iNodeL,3) = static_sources(iNodeL,3) 
+         if(this%capping .eqv. .true.) then
+            source_term(iNodeL,1) = source_term(iNodeL,1) + this%fc*u(iNodeL,2,2)
+            source_term(iNodeL,2) = source_term(iNodeL,2) - this%fc*u(iNodeL,1,2)
+            source_term(iNodeL,3) = source_term(iNodeL,3) - nscbc_rho_inf*((Yk(iNodeL,1,2)-nscbc_T_ref)/nscbc_T_ref)*nscbc_g_z
 
+            !if(coordPar(iNodeL,3) .gt. (this%Lz-this%Lz_ra)) then
+            !   N = sqrt(nscbc_g_z*this%gamma_free/nscbc_T_ref)
+            !   vz = this%nu_ra*N*(1.0_rp - cos((v_pi/this%s_ra)*((coordPar(iNodeL,3)-(this%Lz-this%Lz_ra))/this%Lz_ra)) )
+               
+            !   source_term(iNodeL,1) = source_term(iNodeL,1) + vz*(u(iNodeL,1,2)-this%Ug_x)  
+            !   source_term(iNodeL,2) = source_term(iNodeL,2) + vz*(u(iNodeL,2,2)-this%Ug_y)  
+            !   source_term(iNodeL,3) = source_term(iNodeL,2) + vz*(u(iNodeL,3,2))
+            !end if
+         end if
+      end do
+      !$acc end parallel loop
 
    end subroutine WindFarmSolverIncomp_afterDt
 
    subroutine  WindFarmSolverIncomp_initialBuffer(this)
       class(WindFarmSolverIncomp), intent(inout) :: this
       integer(4) :: iNode
-      real(rp) :: velo,zp
+      real(rp) :: velo,zp, veloMatias(2), ugMatias
       
 
       !$acc parallel loop
       do iNode = 1,numNodesRankPar         
          zp = coordPar(iNode,3)
-         velo =  this%ustar*log(1.0_rp+zp/this%rough)/0.41_rp
+         if(this%capping .eqv. .true.) then
+            ugMatias = sqrt(this%Ug_x**2+this%Ug_y**2)
+            call veloc_abl_new(veloMatias,zp,this%inversion_height,ugMatias, this%Ug_alpha, this%rough)
 
-         u_buffer(iNode,1) = velo*cos(this%wind_alpha*v_pi/180.0_rp)
-         u_buffer(iNode,2) = velo*sin(this%wind_alpha*v_pi/180.0_rp)
-         u_buffer(iNode,3) = 0.0_rp         
+            u_buffer(iNode,1) = veloMatias(1)
+            u_buffer(iNode,2) = veloMatias(2)
+            u_buffer(iNode,3) = 0.0_rp
+         else
+            velo =  this%ustar*log(1.0_rp+zp/this%rough)/0.41_rp
+
+            u_buffer(iNode,1) = velo*cos(this%wind_alpha*v_pi/180.0_rp)
+            u_buffer(iNode,2) = velo*sin(this%wind_alpha*v_pi/180.0_rp)
+            u_buffer(iNode,3) = 0.0_rp   
+         end if
+         
+         if(this%capping .eqv. .true.) then
+            if(zp .lt. this%inversion_height) then
+               Yk_buffer(iNode,1) = this%T_wall
+            else
+               if (zp.lt.(this%inversion_height+this%delta_capping)) then ! capping inversion region of 100m
+                  Yk_buffer(iNode,1) =  this%T_wall +  this%gamma_inversion*(zp-this%inversion_height)
+               else
+                  Yk_buffer(iNode,1) =  this%T_wall   + &
+                                        this%gamma_inversion*this%delta_capping + &
+                                        this%gamma_free*(zp-(this%inversion_height+this%delta_capping))
+               end if
+            end if
+         end if
       end do
       !$acc end parallel loop
 
@@ -302,7 +351,8 @@ end subroutine WindFarmSolverIncomp_readJSONAD
 
    subroutine WindFarmSolverIncomp_initializeSourceTerms(this)
       class(WindFarmSolverIncomp), intent(inout) :: this
-      integer(4) :: iNodeL
+      integer(4) :: iNodeL,idime
+      real(rp) :: vz,N
 
 
       allocate(source_term(numNodesRankPar,ndime))
@@ -310,11 +360,24 @@ end subroutine WindFarmSolverIncomp_readJSONAD
 
 
       !$acc parallel loop  
-      do iNodeL = 1,numNodesRankPar
-         if(maskMapped(iNodeL)==0) then
-            source_term(iNodeL,1) = (this%rho0*this%ustar**2/this%Lz)*cos(this%wind_alpha*v_pi/180.0_rp)
-            source_term(iNodeL,2) = (this%rho0*this%ustar**2/this%Lz)*sin(this%wind_alpha*v_pi/180.0_rp)
-            source_term(iNodeL,3) = 0.00_rp
+      do iNodeL = 1,numNodesRankPar         
+         source_term(iNodeL,1) = this%gradP*cos(this%Ug_alpha*v_pi/180.0_rp)
+         source_term(iNodeL,2) = this%gradP*sin(this%Ug_alpha*v_pi/180.0_rp)
+         source_term(iNodeL,3) = 0.00_rp
+         
+         if(this%capping .eqv. .true.) then
+               source_term(iNodeL,1) = source_term(iNodeL,1) + this%fc*u(iNodeL,2,2)
+               source_term(iNodeL,2) = source_term(iNodeL,2) - this%fc*u(iNodeL,1,2)
+               source_term(iNodeL,3) = source_term(iNodeL,3) - nscbc_rho_inf*((Yk(iNodeL,1,2)-nscbc_T_ref)/nscbc_T_ref)*nscbc_g_z
+               
+               !if(coordPar(iNodeL,3) .gt. (this%Lz-this%Lz_ra)) then
+               !   N = sqrt(nscbc_g_z*this%gamma_free/nscbc_T_ref)
+               !   vz = this%nu_ra*N*(1.0_rp - cos((v_pi/this%s_ra)*((coordPar(iNodeL,3)-(this%Lz-this%Lz_ra))/this%Lz_ra)) )
+            
+               !   source_term(iNodeL,1) = source_term(iNodeL,1) + vz*(u(iNodeL,1,2) - this%Ug_x ) 
+               !   source_term(iNodeL,2) = source_term(iNodeL,2) + vz*(u(iNodeL,2,2) - this%Ug_y ) 
+               !   source_term(iNodeL,3) = source_term(iNodeL,3) + vz*(u(iNodeL,3,2)) 
+               !end if
          end if
       end do
       !$acc end parallel loop
@@ -398,9 +461,10 @@ end subroutine WindFarmSolverIncomp_readJSONAD
       call json%get("Lhub",this%Lhub, found,90.0_rp); call this%checkFound(found,found_aux)
       call json%get("vinf",this%vinf, found,8.0_rp); call this%checkFound(found,found_aux)
       call json%get("rough",this%rough, found,0.1682_rp); call this%checkFound(found,found_aux)
-      call json%get("wind_alpha",this%wind_alpha, found,90.0_rp); call this%checkFound(found,found_aux)
+      call json%get("wind_alpha",this%wind_alpha, found,270.0_rp); call this%checkFound(found,found_aux)
 
-      this%wind_alpha = this%wind_alpha-90.0_rp !North is 0 , East is 90, South is 180 and West is 270 in a x-y axis
+      this%wind_alpha = 270.0_rp-this%wind_alpha !Comming North is 0 , East is 90, South is 180 and West is 270 in a x-y axis
+      this%Ug_alpha = this%wind_alpha + 20.0_rp
 
       !Witness points parameters
       call json%get("have_witness",this%have_witness, found,.false.)
@@ -418,14 +482,55 @@ end subroutine WindFarmSolverIncomp_readJSONAD
          call json%get("continue_witness",this%continue_witness, found,.false.); call this%checkFound(found,found_aux)
       end if  
 
+
       ! fixed by the type of base class parameters
       flag_type_wmles = wmles_type_abl
       nscbc_p_inf = 0.0_rp
       nscbc_u_inf = this%vinf
+      nscbc_rho_inf = this%rho0
 
       this%ustar = this%vinf*0.41_rp/log(1.0_rp+this%Lhub/this%rough)
       incomp_viscosity = 1.81e-5
       flag_mu_factor = 1.0_rp
+
+      call json%get("capping_inversion",this%capping, found,.false.)
+      if(this%capping .eqv. .true.) then
+         flag_use_species = .true.
+         nspecies = 1
+         this%Prt=0.71_rp
+         this%Cp=1004.0_rp
+         this%gamma_free = 0.005_rp
+         this%delta_capping = 100.0_rp
+         this%gamma_inversion = 0.01_rp
+         this%inversion_height = 200.0_rp
+         this%lambda_vertical = 7000.0_rp
+         this%s_ra = 1.5_rp
+         this%nu_ra = 3.0_rp
+         this%latitude = 40.0_rp*v_pi/180.0_rp
+         this%earth_omega = 0.00007272_rp
+         this%T_wall = 280.0_rp
+         nscbc_T_ref = this%T_wall+0.5_rp*this%gamma_inversion*this%delta_capping
+
+         !extra calc
+         this%fc = 2.0_rp*this%earth_omega*sin(this%latitude)
+         this%gradP = 10_rp*this%fc ! 10 is an input: gradP equal to mag(Ug)/fc
+         
+         
+         !this%Ug_x = this%gradP*sin(this%wind_alpha*v_pi/180.0_rp)/this%fc
+         !this%Ug_y = -this%gradP*cos(this%wind_alpha*v_pi/180.0_rp)/this%fc
+         this%Ug_x = this%gradP*cos(this%Ug_alpha*v_pi/180.0_rp)/this%fc
+         this%Ug_y = this%gradP*sin(this%Ug_alpha*v_pi/180.0_rp)/this%fc
+
+         this%Lz_ra = this%lambda_vertical*1.5_rp
+
+         if(mpi_rank.eq.0) write(*,*) "--| gradP :", this%gradP
+         if(mpi_rank.eq.0) write(*,*) "--| Ugx :", this%Ug_x
+         if(mpi_rank.eq.0) write(*,*) "--| Ugy :", this%Ug_y
+         if(mpi_rank.eq.0) write(*,*) "--| fc :", this%fc
+         if(mpi_rank.eq.0) write(*,*) "--| Tref :", nscbc_T_ref
+         if(mpi_rank.eq.0) write(*,*) "--| gz :", nscbc_g_z
+         if(mpi_rank.eq.0) write(*,*) "--| rho :", nscbc_rho_inf
+      end if
 
       call this%readJSONBuffer()
       call this%readJSONAD()
@@ -436,13 +541,14 @@ end subroutine WindFarmSolverIncomp_readJSONAD
       class(WindFarmSolverIncomp), intent(inout) :: this
       integer(8) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL, idime
-      real(rp) :: velo, rti(3), zp,velo_aux1
+      real(rp) :: velo, rti(3), zp,velo_aux1, veloMatias(2), ugMatias
       integer(4)   :: iLine,iNodeGSrl,auxCnt
       logical :: readFiles
       character(512) :: initialField_filePath
 
       readFiles = .false.
 
+      call nvtxStartRange("WindFarm_incomp Init")
       if(readFiles) then
          call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
          write(initialField_filePath,*) ""
@@ -468,11 +574,50 @@ end subroutine WindFarmSolverIncomp_readJSONAD
                auxCnt=auxCnt+1
 
                zp = coordPar(iNodeL,3)
-               velo =  this%ustar*log(1.0_rp+zp/this%rough)/0.41_rp
+               if(this%capping .eqv. .true.) then
+                  ugMatias = sqrt(this%Ug_x**2+this%Ug_y**2)
+                  call veloc_abl_new(veloMatias,zp,this%inversion_height,ugMatias, this%Ug_alpha, this%rough)
+                  
 
-               u(iNodeL,1,2) = velo*(1.0_rp + 0.05_rp*(rti(1) -0.5_rp))*cos(this%wind_alpha*v_pi/180.0_rp)
-               u(iNodeL,2,2) = velo*(0.05_rp*(rti(2) -0.5_rp))*velo*sin(this%wind_alpha*v_pi/180.0_rp)
-               u(iNodeL,3,2) = velo*(0.05_rp*(rti(3) -0.5_rp))
+                  !if(zp .lt. this%inversion_height) then
+                  !   u(iNodeL,1,2) = veloMatias(1)*(1.0_rp + 0.05_rp*(rti(1) -0.5_rp))
+                  !   u(iNodeL,2,2) = veloMatias(2)*(1.0_rp + 0.05_rp*(rti(2) -0.5_rp))
+                  !   u(iNodeL,3,2) = sqrt(veloMatias(1)**2+veloMatias(2)**2)*(0.05_rp*(rti(3) -0.5_rp))
+                  !else
+                     u(iNodeL,1,2) = veloMatias(1)
+                     u(iNodeL,2,2) = veloMatias(2)
+                     u(iNodeL,3,2) = 0.0_rp
+                  !end if
+               else
+                  velo =  this%ustar*log(1.0_rp+zp/this%rough)/0.41_rp
+
+                  u(iNodeL,1,2) = velo*(1.0_rp + 0.05_rp*(rti(1) -0.5_rp))*cos(this%wind_alpha*v_pi/180.0_rp)
+                  u(iNodeL,2,2) = velo*( 0.05_rp*(rti(2) -0.5_rp))*sin(this%wind_alpha*v_pi/180.0_rp)
+                  u(iNodeL,3,2) = velo*(0.05_rp*(rti(3) -0.5_rp))
+               end if
+
+               
+               
+               if(this%capping .eqv. .true.) then
+                  if(zp .lt. this%inversion_height) then
+                     Yk(iNodeL,1,2) = this%T_wall
+                  else
+                     if (zp.lt.(this%inversion_height+this%delta_capping)) then ! capping inversion region of 100m
+                        Yk(iNodeL,1,2) =  this%T_wall +  this%gamma_inversion*(zp-this%inversion_height)
+                     else
+                        Yk(iNodeL,1,2) =  this%T_wall   + &
+                                          this%gamma_inversion*this%delta_capping + &
+                                          this%gamma_free*(zp-(this%inversion_height+this%delta_capping))
+                     end if
+                  end if
+                  Yk(iNodeL,1,1) =  Yk(iNodeL,1,2)
+                  Yk(iNodeL,1,3) =  Yk(iNodeL,1,2)
+                  Yk(iNodeL,1,4) =  Yk(iNodeL,1,2)
+                  eta_Yk(iNodeL,1,1) = 0.5_rp*Yk(iNodeL,1,2)*Yk(iNodeL,1,2)
+                  eta_Yk(iNodeL,1,2) = 0.5_rp*Yk(iNodeL,1,2)*Yk(iNodeL,1,2)
+                  eta_Yk(iNodeL,1,3) = 0.5_rp*Yk(iNodeL,1,2)*Yk(iNodeL,1,2)
+                  eta_Yk(iNodeL,1,4) = 0.5_rp*Yk(iNodeL,1,2)*Yk(iNodeL,1,2)
+               end if
             end if
             if(auxCnt.gt.numNodesRankPar) then
                exit serialLoop
@@ -481,11 +626,24 @@ end subroutine WindFarmSolverIncomp_readJSONAD
          !!!!$acc end parallel loop
 
          !$acc update device(u(:,:,:))
+         !$acc update device(Yk(:,:,:))
+         !$acc update device(eta_Yk(:,:,:))
 
          !$acc parallel loop
          do iNodeL = 1,numNodesRankPar
+            eta(iNodeL,2) =0.5_rp*dot_product(u(iNodeL,1:ndime,2),u(iNodeL,1:ndime,2))
             pr(iNodeL,2) = 0.0_rp 
-            rho(iNodeL,2) = this%rho0        
+            rho(iNodeL,2) = this%rho0     
+            
+            u(iNodeL,1:ndime,3) = u(iNodeL,1:ndime,2)
+            rho(iNodeL,3) = rho(iNodeL,2)
+            eta(iNodeL,3) =  eta(iNodeL,2)
+            pr(iNodeL,3) =  pr(iNodeL,2)  
+
+            u(iNodeL,1:ndime,4) = u(iNodeL,1:ndime,2)
+            rho(iNodeL,4) = rho(iNodeL,2)
+            eta(iNodeL,4) =  eta(iNodeL,2)
+            pr(iNodeL,4) =  pr(iNodeL,2) 
          end do
          !$acc end parallel loop
       end if
@@ -522,5 +680,104 @@ end subroutine WindFarmSolverIncomp_readJSONAD
 
 
    end subroutine WindFarmSolverIncomp_evalInitialConditions
+
+   subroutine veloc_abl(velabl,y,hpbl,vegeo, rough)
+      ! input : 
+      !    y : height over terrain
+      !    hpbl : height of PBL (capping inversion is there)
+      !    vegeo(2):   Geostrophic wind speed
+      !    rough: Roughness
+      ! output velabl
+      !returns velocity profile for ABL, such geostrophic velocity is in the initial condition
+      implicit none
+      real(rp), intent(in) ::  y, hpbl,vegeo(2), rough
+      real(rp), intent(out)::  velabl(2)
+      real(rp)  ux, uy, xi, delta, theta
+      real(rp)  fu, fv, uxd,uyd,uxdr,uydr
+      real(rp)  blend1, blend2,ustar
+
+      ! rotation angle
+      theta = 15.0_rp*v_pi/180.0_rp
+      ! ustar
+      ustar = sqrt(vegeo(1)*vegeo(1) + vegeo(2)*vegeo(2))*1.1_rp*0.41_rp/log(1.0 + 0.5_rp*hpbl/rough)
+      ! 
+      delta =0.4_rp*hpbl ! mergin region width
+      xi = y/hpbl
+      fu = 1.57_rp*xi -2.68_rp*xi*xi
+      fv = 13.2_rp*xi -8.7_rp*xi*xi
+
+      uxd = ustar/0.41_rp*( log(1.0_rp+y/rough)+fu)
+      uyd = - ustar/0.41_rp*fv
+
+
+      !rotation
+      uxdr = uxd*cos(theta) - uyd*sin(theta)
+      uydr = uxd*sin(theta) + uyd*cos(theta)
+
+      blend1 = 0.5_rp*(1.0_rp-tanh((xi-0.7_rp)*2.0_rp*hpbl/delta)) ! between 1 and 0 
+      blend2 = 0.5_rp*(1.0_rp+tanh((xi-0.7_rp)*2.0_rp*hpbl/delta)) ! between 0 and 1
+
+      ux = uxdr*blend1 + vegeo(1)*blend2
+      uy = uydr*blend1 + vegeo(2)*blend2
+
+      velabl(1) = ux
+      velabl(2) = uy
+
+   end subroutine
+
+   subroutine veloc_abl_new(velabl,y,hpbl,Mod_Ugeo, Dir_Geos,  rough)
+      ! input : 
+      !    y : height over terrain
+      !    hpbl : height of PBL (capping inversion is there)
+      !    vegeo(2):   Geostrophic wind speed
+      !    rough: Roughness
+      ! output velabl
+      !returns velocity profile for ABL, such geostrophic velocity is in the initial condition
+      implicit none
+      real(rp), intent(in) ::  y, hpbl,mod_ugeo, dir_geos, rough
+      real(rp), intent(out)::  velabl(2)
+      real(rp)  ux, uy, xi, delta, theta
+      real(rp)  fu, fv, uxd,uyd,uxdr,uydr
+      real(rp)  blend1, blend2,pi, ustar, blend3
+      pi =4.0*atan(1.0)
+
+      ustar =  mod_ugeo*1.1*0.41/log(1.0 + 0.5*hpbl/rough)
+    
+      ! 
+      delta =0.4*hpbl ! mergin region width
+      xi = y/hpbl
+      fu = 1.57*xi -2.68*xi*xi
+      fv = 13.2*xi -11.7*xi*xi
+      !fv = fv*0.4
+      
+      uxd = ustar/0.41*( log(1.0+y/rough)+fu)
+      uyd = - ustar/0.41*fv
+      
+      ! rotation angle of velocity close to ground, uxdown function
+      theta = 20.0*pi/180.0
+      !rotation
+      uxdr = uxd*cos(theta) - uyd*sin(theta)
+      uydr = uxd*sin(theta) + uyd*cos(theta)
+      
+      blend1 = 0.5*(1.0-tanh((xi-0.5)*6.0))!  2.0*hpbl/delta)) ! between 1 and 0 
+      blend2 = 0.5*(1.0+tanh((xi-0.5)*6.0))!  2.0*hpbl/delta)) ! between 0 and 1
+      ! Blending for Uy function
+      blend3 = 0.5*(1.0-tanh((xi-0.75)*15.0))
+
+      uxd = uxdr*blend1 + mod_ugeo*blend2
+      uyd = uydr*blend3 ! + vegeo(2)*blend2
+      
+     
+
+      !rotation to match geos direction
+      theta = (Dir_Geos) * pi/180.0
+      ux = uxd*cos(theta) - uyd*sin(theta)
+      uy = uxd*sin(theta) + uyd*cos(theta)
+      
+      velabl(1) = ux
+      velabl(2) = uy
+    
+  end subroutine veloc_abl_new
+
 
 end module WindFarmSolverIncomp_mod
