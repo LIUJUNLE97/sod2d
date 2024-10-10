@@ -28,14 +28,15 @@ module TransientInletSolverIncomp_mod
    private
 
    integer(8), allocatable, dimension(:,:)   :: matGidSrlOrdered
-   real(rp), allocatable, dimension(:,:)   :: inletDB
+   !real(rp), allocatable, dimension(:,:)   :: inletDB
+   real(rp), allocatable, dimension(:,:) :: uInletDB, vInletDB, wInletDB
    integer(4), allocatable, dimension(:)   :: ipoinInletDB
    integer(4), allocatable, dimension(:)   :: myPointsDB
    integer(4), public :: npoinDB, nStepsDB    
 
    type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: TransientInletSolverIncomp
 
-      real(rp) , public  :: vo, delta, rho0, Re          
+      real(rp) , public  :: vo, delta, rho0, Re, Tp, deltaT          
 
    contains
       procedure, public :: fillBCTypes           =>TransientInletSolverIncomp_fill_BC_Types
@@ -114,6 +115,14 @@ contains
       call json%get("rho0",this%rho0, found,1.0_rp); call this%checkFound(found,found_aux)
       call json%get("Re",this%Re, found,10000.0_rp); call this%checkFound(found,found_aux)
 
+      !----------------------------------------------
+      ! Inlet Database file
+      call json%get("inlet_hdf_file_name",value, found,"inflowTurb"); call this%checkFound(found,found_aux)
+      write(this%inlet_hdf_file_name,*) value
+      ! Read the period T of the inflow velocity
+      call json%get("inlet_hdf_period",this%T, found,1.0_rp); call this%checkFound(found,found_aux)
+      ! Read the time step of the inflow velocity
+      call json%get("inlet_hdf_time_step",this%deltaT, found,1.0_rp); call this%checkFound(found,found_aux)
 
       ! fixed by the type of base class parameters
       incomp_viscosity = (this%rho0*this%delta*this%vo)/this%Re
