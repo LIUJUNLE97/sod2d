@@ -217,6 +217,132 @@ module mod_operators
 
     end subroutine eval_gradient
 
+    subroutine eval_tau_veloc(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,Ml,GradX,GradY,GradZ)
+      implicit none
+
+      integer(4), intent(in)  :: nelem, npoin,npoin_w
+      integer(4), intent(in)  :: connec(nelem,nnode),lpoin_w(npoin_w)
+      real(rp),   intent(in)  :: Ngp(ngaus,nnode)
+      real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem),dlxigp_ip(ngaus,ndime,porder+1)
+      real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
+      integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+      real(rp),   intent(in)  :: u(npoin,ndime),Ml(npoin)
+      real(rp),   intent(out) :: GradX(npoin,ndime), GradY(npoin,ndime), GradZ(npoin,ndime)
+      integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
+      integer(4)              :: ipoin(nnode)
+      real(rp)                :: mu_fgp, mu_egp,divU,nu_e,tau(ndime,ndime)
+      real(rp)                :: gradU(ndime,ndime), tmp1,vol,arho
+      real(rp)                :: gradIsoU(ndime,ndime)
+      real(rp)                :: divDm(ndime)
+      real(rp)                :: ul(nnode,ndime), mufluidl(nnode)
+      real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
+      real(rp)                :: gradRhol(nnode,ndime),muel(nnode)
+
+      call nvtxStartRange("Full diffusion")
+      !$acc kernels
+      GradX(:,:) = 0.0_rp
+      GradY(:,:) = 0.0_rp
+      GradZ(:,:) = 0.0_rp
+      !$acc end kernels
+
+      !$acc parallel loop gang  private(ipoin,ul,mufluidl,tauXl,tauYl,tauZl,muel)
+      do ielem = 1,nelem
+         !$acc loop vector
+         do inode = 1,nnode
+            ipoin(inode) = connec(ielem,inode)
+         end do
+         !$acc loop vector collapse(2)
+         do inode = 1,nnode
+            do idime = 1,ndime
+               ul(inode,idime) = u(ipoin(inode),idime)
+            end do
+         end do
+         tauXl(:,:) = 0.0_rp
+         tauYl(:,:) = 0.0_rp
+         tauZl(:,:) = 0.0_rp
+
+         !$acc loop vector private(tau,gradU,gradIsoU,divU)
+         do igaus = 1,ngaus
+
+            isoI = gmshAtoI(igaus) 
+            isoJ = gmshAtoJ(igaus) 
+            isoK = gmshAtoK(igaus) 
+
+            gradIsoU(:,:) = 0.0_rp
+            !$acc loop seq
+            do ii=1,porder+1
+               !$acc loop seq
+               do idime=1,ndime
+                  gradIsoU(idime,1) = gradIsoU(idime,1) + dlxigp_ip(igaus,1,ii)*ul(invAtoIJK(ii,isoJ,isoK),idime)
+                  gradIsoU(idime,2) = gradIsoU(idime,2) + dlxigp_ip(igaus,2,ii)*ul(invAtoIJK(isoI,ii,isoK),idime)
+                  gradIsoU(idime,3) = gradIsoU(idime,3) + dlxigp_ip(igaus,3,ii)*ul(invAtoIJK(isoI,isoJ,ii),idime)
+               end do
+            end do
+
+            gradU(:,:) = 0.0_rp
+            !$acc loop seq
+            do idime=1, ndime
+               !$acc loop seq
+               do jdime=1, ndime
+                  !$acc loop seq
+                  do kdime=1,ndime
+                     gradU(idime,jdime) = gradU(idime,jdime) + He(jdime,kdime,igaus,ielem) * gradIsoU(idime,kdime)
+                  end do
+               end do
+            end do
+
+            !$acc loop seq
+            do idime = 1,ndime
+               !$acc loop seq
+               do jdime = 1,ndime
+                    tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
+               end do
+            end do
+
+            !$acc loop seq
+            do idime = 1,ndime
+               tauXl(igaus,idime) =  tau(1,idime)
+               tauYl(igaus,idime) =  tau(2,idime)
+               tauZl(igaus,idime) =  tau(3,idime)
+            end do
+         end do
+
+         !$acc loop vector collapse(2)
+         do igaus = 1,ngaus
+            do idime = 1,ndime
+               !$acc atomic update
+               GradX(ipoin(igaus),idime) = GradX(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*tauXl(igaus,idime)
+               !$acc end atomic
+               !$acc atomic update
+               GradY(ipoin(igaus),idime) = GradY(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*tauYl(igaus,idime)
+               !$acc end atomic
+               !$acc atomic update
+               GradZ(ipoin(igaus),idime) = GradZ(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*tauZl(igaus,idime)
+               !$acc end atomic
+            end do
+         end do
+      end do
+      !$acc end parallel loop
+     call nvtxEndRange
+
+     if(mpi_size.ge.2) then
+      call nvtxStartRange("MPI_comms_tI")
+      call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,GradX(:,:))
+      call nvtxEndRange
+     end if
+   
+      !
+      ! Call lumped mass matrix solver
+      !
+
+      call nvtxStartRange("Call solver")
+      call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,gradX(:,:))
+      call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,gradY(:,:))
+      call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,gradZ(:,:))
+      call nvtxEndRange
+
+   end subroutine eval_tau_veloc
+
     subroutine eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,Rmom)
 
             implicit none

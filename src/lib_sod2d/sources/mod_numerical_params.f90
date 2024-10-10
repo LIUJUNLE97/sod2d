@@ -20,20 +20,24 @@ module mod_numerical_params
 
         ! Discretization parameters
         logical :: flag_total_enthalpy = .false.
-        logical :: flag_high_mach = .false.
+        logical :: flag_high_mach = .true.
         logical :: flag_bouyancy_effect = .false.
         logical :: flag_drop_c_in_envit = .false.
         integer(4)  :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
         integer(4)  :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
         integer(4)  :: flag_normalise_entropy=1
+        integer(4)  :: flag_normalise_entropy_species=1
         real(rp) :: ce_comp = 1.0_rp
         real(rp) :: ce = 0.1_rp
-        real(rp) :: factor_comp = 0.0_rp   
+        real(rp) :: ce_species = 0.1_rp
+        real(rp) :: factor_comp = 1.0_rp   
         real(rp) :: cmax = 0.5_rp 
         real(rp) :: cglob =1.0_rp
         real(rp) :: c_rho =1.0_rp
         real(rp) :: c_ener = 1.0_rp
         real(rp) :: flag_mu_factor=1.0_rp
+        real(rp) :: c_species_stab = 0.5_rp
+        logical :: flag_entropy_stab_in_species = .true.
 
         ! Implicit solver
         integer(4) :: maxIter=20
@@ -53,6 +57,7 @@ module mod_numerical_params
         real(rp) :: nscbc_Cp_inf    = 1.0_rp
         real(rp) :: nscbc_T_H       = 293.0_rp
         real(rp) :: nscbc_T_C       = 293.0_rp
+        real(rp) :: nscbc_T_ref     = 293.0_rp
         real(rp) :: nscbc_delta     = 0.01_rp
         real(rp) :: nscbc_g_x       = 0.0_rp
         real(rp) :: nscbc_g_y       = 0.0_rp
@@ -117,4 +122,11 @@ module mod_numerical_params
         logical :: flag_force_2D = .false.
        
         character(len=100) :: json_filename
+
+        !
+        ! species
+        !
+        logical :: flag_use_species = .false.
+        integer(4) ::  nspecies = 0
+
 end module mod_numerical_params

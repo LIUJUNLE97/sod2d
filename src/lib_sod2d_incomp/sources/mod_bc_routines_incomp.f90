@@ -29,7 +29,7 @@ module mod_bc_routines_incomp
                      aux_u(inode,1) = 0.0_rp
                      aux_u(inode,2) = 0.0_rp
                      aux_u(inode,3) = 0.0_rp
-                  else if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic
+                  else if (bcode == bc_type_non_slip_adiabatic .or. bcode == bc_type_non_slip_isothermal) then ! non_slip wall adiabatic
                      aux_u(inode,1) = 0.0_rp
                      aux_u(inode,2) = 0.0_rp
                      aux_u(inode,3) = 0.0_rp
@@ -70,7 +70,7 @@ module mod_bc_routines_incomp
                      aux_u(inode,1) = u_buffer(inode,1)
                      aux_u(inode,2) = u_buffer(inode,2)
                      aux_u(inode,3) = u_buffer(inode,3)
-                  else if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic
+                  else if (bcode == bc_type_non_slip_adiabatic .or. bcode == bc_type_non_slip_isothermal) then ! non_slip wall adiabatic
                      aux_u(inode,1) = 0.0_rp
                      aux_u(inode,2) = 0.0_rp
                      aux_u(inode,3) = 0.0_rp
@@ -158,7 +158,7 @@ module mod_bc_routines_incomp
             do ibound = 1,nboun
                bcode = bouCodes2BCType(bou_code(ibound))
                ! Boundary element code
-               if ((bcode == bc_type_non_slip_adiabatic)) then 
+               if ((bcode == bc_type_non_slip_adiabatic) .or. (bcode == bc_type_slip_wall_model).or. (bcode == bc_type_slip_adiabatic)) then 
                   bnorm(:) = bounorm(ibound,:)
                    !$acc loop vector private(aux)
                   do igaus = 1,npbou

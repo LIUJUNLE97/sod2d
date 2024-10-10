@@ -49,7 +49,7 @@ module mod_analysis
 
 			integer(4), intent(in)   :: nelem, npoin, connec(nelem,nnode)
 			real(rp),    intent(in)  :: leviCivi(3,3,3), rho0, mu_fluid(npoin), u(npoin,ndime), volT
-			real(rp),    intent(in)  :: gpvol(1,ngaus,nelem), He(ndime,ndime,ngaus,nelem), dNgp(ndime,ngaus,nelem),mu_e(nelem,ngaus)
+			real(rp),    intent(in)  :: gpvol(1,ngaus,nelem), He(ndime,ndime,ngaus,nelem), dNgp(ndime,nnode,ngaus),mu_e(nelem,ngaus)
 			real(rp),    intent(out) :: eps_S, eps_D, eps_T
 			integer(4)               :: ielem, igaus, inode, idime, jdime, kdime
 			real(rp)                 :: R1, R2, div2U, curl2U, alpha, aux,aux2
