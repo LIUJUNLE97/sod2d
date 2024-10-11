@@ -207,13 +207,12 @@ contains
 
    subroutine TransientInletSolverIncomp_initialBuffer(this)
       class(TransientInletSolverIncomp), intent(inout) :: this
-      integer(4) :: inode, ipoin,iLine,auxCnt,bcode
+      integer(4) :: inode, ipoin,iLine,auxCnt,bcode,ierr
       integer(hid_t) :: file_id,dataset_id, dataspace_id
-      integer(4) :: ierr
-      integer(hsize_t),dimension(1,1) :: dim_scal
+      integer(hsize_t), dimension(1) :: dim_scal
       integer, dimension(1) :: val_scal
       integer(hsize_t), allocatable, dimension(:) :: dim_id
-      integer(hsize_t), allocatable, dimension(:,:) :: dim_vel
+      integer(hsize_t), dimension(2) :: dim_vel
 
       allocate(matGidSrlOrdered(numNodesRankPar,2))
       !$acc enter data create(matGidSrlOrdered(:,:))
@@ -224,12 +223,14 @@ contains
       ! -------------------------------------------------------------
       ! Open .h5 file
       call h5open_f(ierr)
-      call h5fopen_f(this%inlet_hdf_file_name, H5F_ACC_RDONLY_F, file_id, ierr)
+      call h5fopen_f("inletTurb_interpGLL.h5", H5F_ACC_RDONLY_F, file_id, ierr)
+  
       ! Read the scalar npoinDB
       call h5dopen_f(file_id, "npointDB", dataset_id, ierr)
       call h5dread_f(dataset_id, H5T_NATIVE_INTEGER, val_scal, dim_scal, ierr)
       npoinDB = val_scal(1)
       call h5dclose_f(dataset_id, ierr)
+      
       ! Read the scalar nstepsDB
       call h5dopen_f(file_id, "nstepsDB", dataset_id, ierr)
       call h5dread_f(dataset_id, H5T_NATIVE_INTEGER, val_scal, dim_scal, ierr)
@@ -240,19 +241,19 @@ contains
          write(111,*) "Numer of points: ", npoinDB
          write(111,*) "Numer of steps: ", nstepsDB
       end if
-      ! -------------------------------------------------------------
 
       ! Now allocating arrays with the dimensions of the fields for h5dread_f
-      allocate(dim_id(npoinDB),dim_vel(nstepsDB,npoinDB)) ! not sending to device
-
+      allocate(dim_id(npoinDB))
+      dim_vel(1) = nstepsDB; dim_vel(2) = npoinDB
+      
       ! Here allocating variables for collecting dataset fields
-      allocate(ipoinInletDB(npoinDB),myPointsDB(npoinDB))
-      allocate(uInletDB(nStepsDB,npoinDB),vInletDB(nStepsDB,npoinDB),wInletDB(nStepsDB,npoinDB))
+      allocate(ipoinInletDB(npoinDB))
+      allocate(uInletDB(nstepsDB,npoinDB),vInletDB(nstepsDB,npoinDB),wInletDB(nstepsDB,npoinDB))
 
       !$acc enter data create(ipoinInletDB(:),myPointsDB(:),uInletDB(:,:),vInletDB(:,:),wInletDB(:,:))
 
       !$acc kernels
-      myPointsDB(:) = 0
+         myPointsDB(:) = 0
       !$acc end kernels
 
       ! -------------------------------------------------------------
