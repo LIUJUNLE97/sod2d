@@ -17,15 +17,16 @@ module mod_comms
     !---- for the comms---
     integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size
     integer(KIND=MPI_ADDRESS_KIND) :: memPos_t
-    integer :: worldGroup,commGroup
+    integer(4) :: worldGroup,commGroup
 
     integer(4),dimension(:),allocatable :: aux_intField_s,  aux_intField_r
     real(rp),dimension(:),allocatable   :: aux_realField_s, aux_realField_r
 
-    integer :: window_id_int,window_id_real
-    integer :: window_id_sm
-    integer :: beginFence=0,endFence=0
-    integer :: startAssert=0,postAssert=0
+    integer(4) :: maxIntBufferArraySize=1,maxRealBufferArraySize=1
+    integer(4) :: window_id_int,window_id_real
+    integer(4) :: window_id_sm
+    integer(4) :: beginFence=0,endFence=0
+    integer(4) :: startAssert=0,postAssert=0
 
     logical :: isInt=.false.,isReal=.false.,isIntWindow=.false.,isRealWindow=.false.
     logical :: isLockBarrier,isPSCWBarrier
@@ -42,16 +43,26 @@ contains
 
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
-    subroutine init_comms(useInt,useReal,initWindowsArg)
+    subroutine init_comms(useInt,useReal,intBufferMult,realBufferMult,initWindowsArg)
         implicit none
         logical,intent(in) :: useInt,useReal
+        integer(4),intent(in),optional :: intBufferMult,realBufferMult
         logical,intent(in),optional :: initWindowsArg
         logical :: useFenceFlags,useAssertNoCheckFlags,useLockBarrier,initWindows=.false.
-        integer(4),parameter :: intBufferMult = 1
-        integer(4),parameter :: realBufferMult = 5
 
         if(present(initWindowsArg)) then
            initWindows = initWindowsArg
+        end if
+
+        maxIntBufferArraySize  = 1
+        maxRealBufferArraySize = 1
+
+        if(present(intBufferMult)) then
+            maxIntBufferArraySize = intBufferMult
+        end if
+
+        if(present(realBufferMult)) then
+            maxRealBufferArraySize = realBufferMult
         end if
 
 #if _SENDRCV_
@@ -76,8 +87,8 @@ contains
         if(useInt) then
             isInt = .true.
 
-            allocate(aux_intField_s(intBufferMult*numNodesToComm))
-            allocate(aux_intField_r(intBufferMult*numNodesToComm))
+            allocate(aux_intField_s(maxIntBufferArraySize*numNodesToComm))
+            allocate(aux_intField_r(maxIntBufferArraySize*numNodesToComm))
             !$acc enter data create(aux_intField_s(:))
             !$acc enter data create(aux_intField_r(:))
 
@@ -87,8 +98,8 @@ contains
         if(useReal) then
             isReal = .true.
 
-            allocate(aux_realField_s(realBufferMult*numNodesToComm))
-            allocate(aux_realField_r(realBufferMult*numNodesToComm))
+            allocate(aux_realField_s(maxRealBufferArraySize*numNodesToComm))
+            allocate(aux_realField_r(maxRealBufferArraySize*numNodesToComm))
             !$acc enter data create(aux_realField_s(:))
             !$acc enter data create(aux_realField_r(:))
 
@@ -281,7 +292,7 @@ contains
     subroutine fill_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
         implicit none
         real(rp),intent(in) :: mass(:),ener(:),momentum(:,:)
-        integer(4) :: i,idime,iNodeL,mBegin,mEnd
+        integer(4) :: i,idime,iNodeL
         integer(4),parameter :: nArrays=5
 #if 0
         call nvtxStartRange("fillBuffer_m1")

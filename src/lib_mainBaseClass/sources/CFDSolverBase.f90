@@ -656,9 +656,9 @@ end subroutine CFDSolverBase_findFixPressure
       call load_hdf5_meshfile(this%meshFile_h5_full_name)
 
       ! init comms
-      call init_comms(this%useIntInComms,this%useRealInComms)
+      call init_comms(this%useIntInComms,this%useRealInComms,1,5)
       ! init comms boundaries
-      call init_comms_bnd(this%useIntInComms,this%useRealInComms)
+      call init_comms_bnd(this%useIntInComms,this%useRealInComms,1,5)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
          call save_surface_mesh_hdf5_file(this%meshFile_h5_full_name,this%surface_meshFile_h5_full_name,npbou,mesh_gmsh2ij,mesh_vtk2ij)
