@@ -201,9 +201,7 @@ module mod_operators
             if(lump .eqv. .true.) then
                if(mpi_size.ge.2) then
                   call nvtxStartRange("MPI_comms_tI")
-                  do idime = 1,ndime
-                     call mpi_halo_atomic_update_real(gradX(:,idime))
-                  end do
+                  call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,gradX(:,:))
                   call nvtxEndRange
                end if
                
@@ -329,11 +327,7 @@ module mod_operators
 
      if(mpi_size.ge.2) then
       call nvtxStartRange("MPI_comms_tI")
-      do idime = 1,ndime
-         call mpi_halo_atomic_update_real(GradX(:,idime))
-         call mpi_halo_atomic_update_real(GradY(:,idime))
-         call mpi_halo_atomic_update_real(GradZ(:,idime))
-      end do
+      call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,GradX(:,:))
       call nvtxEndRange
      end if
    
@@ -625,9 +619,7 @@ module mod_operators
 
       if(mpi_size.ge.2) then
          call nvtxStartRange("MPI_comms_post")
-         do idime = 1,ndime
-            call mpi_halo_atomic_update_real(curlU(:,idime))
-         end do
+         call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,curlU(:,:))
          call nvtxEndRange
       end if
 

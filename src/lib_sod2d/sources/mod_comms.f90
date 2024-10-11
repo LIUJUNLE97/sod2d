@@ -1,5 +1,7 @@
 module mod_comms
     use mod_mpi_mesh
+    use mod_custom_types
+    use mod_nvtx
 #ifdef NCCL_COMMS
     use cudafor
     use nccl
@@ -15,15 +17,16 @@ module mod_comms
     !---- for the comms---
     integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size
     integer(KIND=MPI_ADDRESS_KIND) :: memPos_t
-    integer :: worldGroup,commGroup
+    integer(4) :: worldGroup,commGroup
 
     integer(4),dimension(:),allocatable :: aux_intField_s,  aux_intField_r
     real(rp),dimension(:),allocatable   :: aux_realField_s, aux_realField_r
 
-    integer :: window_id_int,window_id_real
-    integer :: window_id_sm
-    integer :: beginFence=0,endFence=0
-    integer :: startAssert=0,postAssert=0
+    integer(4) :: maxIntBufferArraySize=1,maxRealBufferArraySize=1
+    integer(4) :: window_id_int,window_id_real
+    integer(4) :: window_id_sm
+    integer(4) :: beginFence=0,endFence=0
+    integer(4) :: startAssert=0,postAssert=0
 
     logical :: isInt=.false.,isReal=.false.,isIntWindow=.false.,isRealWindow=.false.
     logical :: isLockBarrier,isPSCWBarrier
@@ -40,14 +43,26 @@ contains
 
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
-    subroutine init_comms(useInt,useReal,initWindowsArg)
+    subroutine init_comms(useInt,useReal,intBufferMult,realBufferMult,initWindowsArg)
         implicit none
         logical,intent(in) :: useInt,useReal
+        integer(4),intent(in),optional :: intBufferMult,realBufferMult
         logical,intent(in),optional :: initWindowsArg
         logical :: useFenceFlags,useAssertNoCheckFlags,useLockBarrier,initWindows=.false.
 
         if(present(initWindowsArg)) then
            initWindows = initWindowsArg
+        end if
+
+        maxIntBufferArraySize  = 1
+        maxRealBufferArraySize = 1
+
+        if(present(intBufferMult)) then
+            maxIntBufferArraySize = intBufferMult
+        end if
+
+        if(present(realBufferMult)) then
+            maxRealBufferArraySize = realBufferMult
         end if
 
 #if _SENDRCV_
@@ -72,8 +87,8 @@ contains
         if(useInt) then
             isInt = .true.
 
-            allocate(aux_intField_s(numNodesToComm))
-            allocate(aux_intField_r(numNodesToComm))
+            allocate(aux_intField_s(maxIntBufferArraySize*numNodesToComm))
+            allocate(aux_intField_r(maxIntBufferArraySize*numNodesToComm))
             !$acc enter data create(aux_intField_s(:))
             !$acc enter data create(aux_intField_r(:))
 
@@ -83,8 +98,8 @@ contains
         if(useReal) then
             isReal = .true.
 
-            allocate(aux_realField_s(numNodesToComm))
-            allocate(aux_realField_r(numNodesToComm))
+            allocate(aux_realField_s(maxRealBufferArraySize*numNodesToComm))
+            allocate(aux_realField_r(maxRealBufferArraySize*numNodesToComm))
             !$acc enter data create(aux_realField_s(:))
             !$acc enter data create(aux_realField_r(:))
 
@@ -220,15 +235,17 @@ contains
         integer(4), intent(inout) :: intField(:)
         integer(4) :: i,iNodeL
 
-        !$acc parallel loop
+        !$acc parallel loop async(1)
         do i=1,numNodesToComm
             iNodeL = nodesToComm(i)
             aux_intField_s(i) = intField(iNodeL)
         end do
         !$acc end parallel loop
-        !$acc kernels
+        !$acc kernels async(2)
         aux_intField_r(:)=0
         !$acc end kernels
+
+        !$acc wait
     end subroutine fill_sendBuffer_int
 !-------------------------------------------------------------------------
     subroutine fill_sendBuffer_real(realField)
@@ -236,16 +253,110 @@ contains
         real(rp),intent(inout) :: realField(:)
         integer(4) :: i,iNodeL
 
-        !$acc parallel loop
+        !$acc parallel loop async(1)
         do i=1,numNodesToComm
             iNodeL = nodesToComm(i)
             aux_realField_s(i) = realField(iNodeL)
         end do
         !$acc end parallel loop
-        !$acc kernels
-        aux_realField_r(:)=0.
+        !$acc kernels async(2)
+        aux_realField_r(:)=0.0_rp
         !$acc end kernels
+
+        !$acc wait
     end subroutine fill_sendBuffer_real
+
+    subroutine fill_sendBuffer_arrays_real(numArrays,arrays2comm)
+        implicit none
+        integer(4),intent(in) :: numArrays
+        real(rp),intent(inout) :: arrays2comm(:,:)
+        integer(4) :: i,iArray,iNodeL
+
+        call nvtxStartRange("fillBuffer_arrays")
+        !$acc parallel loop async(1)
+        do i=1,numNodesToComm
+            iNodeL = nodesToComm(i)
+            do iArray = 1,numArrays
+                aux_realField_s((i-1)*numArrays+iArray) = arrays2comm(iNodeL,iArray)
+            end do
+        end do
+        !$acc end parallel loop
+        !$acc kernels async(2)
+        aux_realField_r(:)=0.0_rp
+        !$acc end kernels
+
+        !$acc wait
+        call nvtxEndRange
+    end subroutine fill_sendBuffer_arrays_real
+
+    subroutine fill_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+        implicit none
+        real(rp),intent(in) :: mass(:),ener(:),momentum(:,:)
+        integer(4) :: i,idime,iNodeL
+        integer(4),parameter :: nArrays=5
+#if 0
+        call nvtxStartRange("fillBuffer_m1")
+        !$acc parallel loop async(1)
+        do i=1,numNodesToComm
+            iNodeL = nodesToComm(i)
+            do idime = 1,ndime
+                aux_realField_s((i-1)*nArrays+idime) = momentum(iNodeL,idime)
+            end do
+        end do
+        !$acc end parallel loop
+        !$acc kernels async(2)
+        aux_realField_s((numNodesToComm*3+1):(numNodesToComm*4)) = mass(:)
+        !$acc end kernels
+        !$acc kernels async(3)
+        aux_realField_s((numNodesToComm*4+1):(numNodesToComm*5)) = ener(:)
+        !$acc end kernels
+
+        !$acc wait
+        call nvtxEndRange
+#endif
+        call nvtxStartRange("fillBuffer_async")
+        !$acc parallel loop async(1)
+        do i=1,numNodesToComm
+            iNodeL = nodesToComm(i)
+            do idime = 1,ndime
+                aux_realField_s((i-1)*nArrays+idime) = momentum(iNodeL,idime)
+            end do
+            aux_realField_s((i-1)*nArrays+4) = mass(iNodeL)
+            aux_realField_s((i-1)*nArrays+5) = ener(iNodeL)
+        end do
+        !$acc end parallel loop
+        !$acc kernels async(2)
+        aux_realField_r(:)=0.0_rp
+        !$acc end kernels
+
+        !$acc wait
+        call nvtxEndRange
+    end subroutine fill_sendBuffer_mass_ener_momentum_real
+
+    subroutine fill_sendBuffer_arraysPtr_real(numArrays,arraysPtr2comm)
+        implicit none
+        integer(4), intent(in) :: numArrays
+        type(ptr_array1d_rp),intent(inout) :: arraysPtr2comm(numArrays)
+        integer(4) :: iNode,iArray,iNodeL
+
+        call nvtxStartRange("fillBuffer_arrays")
+        !$acc parallel loop present(arraysPtr2comm(:)) async(1)
+        do iNode=1,numNodesToComm
+            iNodeL = nodesToComm(iNode)
+            do iArray = 1,numArrays
+                aux_realField_s((iNode-1)*numArrays+iArray) = arraysPtr2comm(iArray)%ptr(iNodeL) 
+            end do
+        end do
+        !$acc end parallel loop
+
+        !$acc kernels async(2)
+        aux_realField_r(:)=0.0_rp
+        !$acc end kernels
+
+        !$acc wait
+        call nvtxEndRange
+    end subroutine fill_sendBuffer_arraysPtr_real
+
 !-------------------------------------------------------------------------
 !-------------------------------------------------------------------------
     subroutine fill_sendBuffer_get_int(intField)
@@ -253,15 +364,17 @@ contains
         integer(4), intent(inout) :: intField(:)
         integer(4) :: i,iNodeL
 
-        !$acc parallel loop
+        !$acc parallel loop async(1)
         do i=1,numNodesToComm
             iNodeL = nodesToComm(i)
             aux_intField_r(i) = intField(iNodeL)
         end do
         !$acc end parallel loop
-        !$acc kernels
+        !$acc kernels async(2)
         aux_intField_s(:)=0
         !$acc end kernels
+
+        !$acc wait
     end subroutine fill_sendBuffer_get_int
 !-------------------------------------------------------------------------
     subroutine fill_sendBuffer_get_real(realField)
@@ -269,15 +382,17 @@ contains
         real(rp), intent(inout) :: realField(:)
         integer(4) :: i,iNodeL
 
-        !$acc parallel loop
+        !$acc parallel loop async(1)
         do i=1,numNodesToComm
             iNodeL = nodesToComm(i)
             aux_realField_r(i) = realField(iNodeL)
         end do
         !$acc end parallel loop
-        !$acc kernels
-        aux_realField_s(:)=0.
+        !$acc kernels async(2)
+        aux_realField_s(:)=0.0_rp
         !$acc end kernels
+
+        !$acc wait
     end subroutine fill_sendBuffer_get_real
 !-------------------------------------------------------------------------
 !-------------------------------------------------------------------------
@@ -310,6 +425,67 @@ contains
         end do
         !$acc end parallel loop
     end subroutine copy_from_rcvBuffer_real
+
+    subroutine copy_from_rcvBuffer_arrays_real(numArrays,arrays2comm)
+        implicit none
+        integer(4),intent(in) :: numArrays
+        real(rp),intent(inout) :: arrays2comm(:,:)
+        integer(4) :: i,iArray,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = nodesToComm(i)
+            do iArray = 1,numArrays
+                !$acc atomic update
+                arrays2comm(iNodeL,iArray) = arrays2comm(iNodeL,iArray) + aux_realField_r((i-1)*numArrays+iArray)
+                !$acc end atomic
+            end do
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_rcvBuffer_arrays_real
+
+    subroutine copy_from_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+        implicit none
+        real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
+        integer(4) :: i,idime,iNodeL
+        integer(4),parameter :: nArrays=5
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = nodesToComm(i)
+            do idime = 1,ndime
+                !$acc atomic update
+                momentum(iNodeL,idime) = momentum(iNodeL,idime) + aux_realField_r((i-1)*nArrays+idime)
+                !$acc end atomic
+            end do
+            !$acc atomic update
+            mass(iNodeL) = mass(iNodeL) + aux_realField_r((i-1)*nArrays+4)
+            !$acc end atomic
+            !$acc atomic update
+            ener(iNodeL) = ener(iNodeL) + aux_realField_r((i-1)*nArrays+5)
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_rcvBuffer_mass_ener_momentum_real
+
+    subroutine copy_from_rcvBuffer_arraysPtr_real(numArrays,arraysPtr2comm)
+        implicit none
+        integer(4), intent(in) :: numArrays
+        type(ptr_array1d_rp),intent(inout) :: arraysPtr2comm(numArrays)
+        integer(4) :: iNode,iArray,iNodeL
+
+        !$acc parallel loop present(arraysPtr2comm(:))
+        do iNode=1,numNodesToComm
+            iNodeL = nodesToComm(iNode)
+            do iArray = 1,numArrays
+                !$acc atomic update
+                arraysPtr2comm(iArray)%ptr(iNodeL) = arraysPtr2comm(iArray)%ptr(iNodeL) + aux_realField_r((iNode-1)*numArrays+iArray)
+                !$acc end atomic
+            end do
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_rcvBuffer_arraysPtr_real
+
 !-------------------------------------------------------------------------
 !-------------------------------------------------------------------------
     subroutine copy_from_min_rcvBuffer_real(realField)
@@ -567,6 +743,151 @@ contains
 
         call copy_from_rcvBuffer_real(realField)
     end subroutine mpi_halo_atomic_update_real_iSendiRcv
+
+    !REAL ---------------------------------------------------------
+    subroutine mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv(mass,ener,momentum)
+        implicit none
+        real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*numRanksWithComms)
+        integer(4),parameter :: nArrays=5
+
+        call fill_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+
+#if NCCL_COMMS
+        nccl_stat = ncclGroupStart()
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = (commsMemPosInLoc(i)-1)*nArrays+1
+            memSize  = commsMemSize(i)*nArrays
+
+            nccl_stat = ncclRecv(aux_realField_r(memPos_l), memSize, ncclFloat, ngbRank, nccl_comm, nccl_stream)
+            nccl_stat = ncclSend(aux_realField_s(memPos_l), memSize, ncclFloat, ngbRank, nccl_comm, nccl_stream)
+        end do
+        !$acc end host_data
+        nccl_stat = ncclGroupEnd()
+        cuda_stat = cudaStreamSynchronize(nccl_stream)
+#else
+        ireq=0
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = (commsMemPosInLoc(i)-1)*nArrays+1
+            memSize  = commsMemSize(i)*nArrays
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_realField_r(memPos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+        end do
+        !$acc end host_data
+
+        call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+#endif
+
+        call copy_from_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+    end subroutine mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv
+
+
+    !REAL ---------------------------------------------------------
+    subroutine mpi_halo_atomic_update_real_arrays_iSendiRcv(numArrays,arrays2comm)
+        implicit none
+        integer(4),intent(in) :: numArrays
+        real(rp), intent(inout) :: arrays2comm(:,:)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*numRanksWithComms)
+
+        call fill_sendBuffer_arrays_real(numArrays,arrays2comm)
+
+#if NCCL_COMMS
+        nccl_stat = ncclGroupStart()
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = (commsMemPosInLoc(i)-1)*numArrays+1
+            memSize  = commsMemSize(i)*numArrays
+
+            nccl_stat = ncclRecv(aux_realField_r(memPos_l), memSize, ncclFloat, ngbRank, nccl_comm, nccl_stream)
+            nccl_stat = ncclSend(aux_realField_s(memPos_l), memSize, ncclFloat, ngbRank, nccl_comm, nccl_stream)
+        end do
+        !$acc end host_data
+        nccl_stat = ncclGroupEnd()
+        cuda_stat = cudaStreamSynchronize(nccl_stream)
+#else
+        ireq=0
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = (commsMemPosInLoc(i)-1)*numArrays+1
+            memSize  = commsMemSize(i)*numArrays
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_realField_r(memPos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+        end do
+        !$acc end host_data
+
+        call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+#endif
+
+        call copy_from_rcvBuffer_arrays_real(numArrays,arrays2comm)
+
+    end subroutine mpi_halo_atomic_update_real_arrays_iSendiRcv
+
+    !REAL ---------------------------------------------------------
+    subroutine mpi_halo_atomic_update_real_arraysPtr_iSendiRcv(numArrays,arraysPtr2comm)
+        implicit none
+        integer(4),intent(in) :: numArrays
+        type(ptr_array1d_rp),intent(inout) :: arraysPtr2comm(numArrays)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*numRanksWithComms)
+
+        call fill_sendBuffer_arraysPtr_real(numArrays,arraysPtr2comm)
+
+#if NCCL_COMMS
+        nccl_stat = ncclGroupStart()
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            memPos_l = (commsMemPosInLoc(i)-1)*numArrays+1
+            memSize  = commsMemSize(i)*numArrays
+
+            nccl_stat = ncclRecv(aux_realField_r(memPos_l), memSize, ncclFloat, ngbRank, nccl_comm, nccl_stream)
+            nccl_stat = ncclSend(aux_realField_s(memPos_l), memSize, ncclFloat, ngbRank, nccl_comm, nccl_stream)
+        end do
+        !$acc end host_data
+        nccl_stat = ncclGroupEnd()
+        cuda_stat = cudaStreamSynchronize(nccl_stream)
+#else
+        ireq=0
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = (commsMemPosInLoc(i)-1)*numArrays+1
+            memSize  = commsMemSize(i)*numArrays
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_realField_r(memPos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+        end do
+        !$acc end host_data
+
+        call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+#endif
+
+        call copy_from_rcvBuffer_arraysPtr_real(numArrays,arraysPtr2comm)
+
+    end subroutine mpi_halo_atomic_update_real_arraysPtr_iSendiRcv
+
 
 !------------- conditional average ISEND/IRECV -------------------------------------------
     ! REAL ---------------------------------------------------

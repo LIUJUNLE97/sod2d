@@ -254,9 +254,7 @@ module time_integ_ls
 
             if(mpi_size.ge.2) then
                call nvtxStartRange("MPI_comms_tI")
-               do idime = 1,ndime
-                  call mpi_halo_atomic_update_real(Rwmles(:,idime))
-               end do
+               call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,Rwmles(:,:))
                call nvtxEndRange
             end if
 
@@ -360,14 +358,9 @@ module time_integ_ls
                   end if
                end if
 
-               !TESTING NEW LOCATION FOR MPICOMMS
                if(mpi_size.ge.2) then
                   call nvtxStartRange("MPI_comms_tI")
-                  call mpi_halo_atomic_update_real(Rmass(:))
-                  call mpi_halo_atomic_update_real(Rener(:))
-                  do idime = 1,ndime
-                     call mpi_halo_atomic_update_real(Rmom(:,idime))
-                  end do
+                  call mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv(Rmass(:),Rener(:),Rmom(:,:))
                   call nvtxEndRange
                end if
 
