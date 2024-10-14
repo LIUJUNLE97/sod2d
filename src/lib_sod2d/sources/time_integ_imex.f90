@@ -14,7 +14,10 @@ module time_integ_imex
    use mod_wall_model
    use mod_operators
    use mod_solver
-   use time_integ, only :  updateBuffer
+   use mod_solver_imex
+   use time_integ, only :  updateBuffer   
+   use elem_stab, only : comp_tau
+
 
 
    implicit none
@@ -26,6 +29,8 @@ module time_integ_imex
    real(rp), allocatable, dimension(:,:) :: f_eta_imex, f_eta_imex2
    real(rp), allocatable, dimension(:,:)   :: Rdiff_mass_imex,Rdiff_ener_imex
    real(rp), allocatable, dimension(:) :: auxReta_imex,aux_h
+   real(rp)  , allocatable, dimension(:) 	:: tau_stab_imex
+   real(rp)  , allocatable, dimension(:,:) :: ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex
    integer(4), parameter :: numSteps = 4
    real(rp), dimension(numSteps,numSteps) :: aij_e, aij_i
    real(rp), dimension(numSteps) :: bij_e, bij_i
@@ -57,6 +62,9 @@ module time_integ_imex
 
       allocate(Rdiff_mass_imex(npoin,numSteps),Rdiff_ener_imex(npoin,numSteps))
       !$acc enter data create(Rdiff_mass_imex(:,:),Rdiff_ener_imex(:,:))
+
+      allocate(ProjMass_imex(npoin,ndime),ProjEner_imex(npoin,ndime),ProjMX_imex(npoin,ndime),ProjMY_imex(npoin,ndime),ProjMZ_imex(npoin,ndime),tau_stab_imex(npoin))
+      !$acc enter data create(ProjMass_imex(:,:),ProjEner_imex(:,:),ProjMX_imex(:,:),ProjMY_imex(:,:),ProjMZ_imex(:,:),tau_stab_imex(:))
 
       bij_i(1) = 4.0_rp/15.0_rp 
       bij_i(2) = 1.0_rp/3.0_rp 
@@ -193,8 +201,6 @@ module time_integ_imex
             integer(4)                          :: istep, ipoin, idime,icode,jstep
             real(rp)                            :: umag
 
-            !if(mpi_rank.eq.0) write(111,*)   " all in"
-
             if(firstTimeStep .eqv. .true.) then
                firstTimeStep = .false.
 
@@ -219,6 +225,10 @@ module time_integ_imex
                                     aux_h(:),Rmass_imex(:,1),Rmom_imex(:,:,1),Rener_imex(:,1))
                call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),rho(:,1),u(:,:,1),&
                                        Tem(:,1),mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass_imex(:,1),Rdiff_mom_imex(:,:,1),Rdiff_ener_imex(:,1))
+               call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),u(:,:,1),&
+                                       Tem(:,1),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex)
+               call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),rho(:,1),u(:,:,1),&
+                                       Tem(:,1),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex,tau_stab_imex,Rdiff_mass_imex(:,1),Rdiff_mom_imex(:,:,1),Rdiff_ener_imex(:,1),.false.,-1.0_rp) 
                
                call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,Reta_imex(:,1),Ngp,coord,dNgp,gpvol,wgp, &
                   gamma_gas,rho(:,1),u(:,:,1),csound,Tem(:,1),eta(:,1),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
@@ -290,11 +300,7 @@ module time_integ_imex
                end do
                !$acc end parallel loop
                if(mpi_size.ge.2) then
-                  call mpi_halo_atomic_update_real(rho(:,2))
-                  call mpi_halo_atomic_update_real(E(:,2))
-                  do idime = 1,ndime
-                     call mpi_halo_atomic_update_real(q(:,idime,2))
-                  end do
+                  call mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv(rho(:,2),E(:,2),q(:,:,2))
                end if
                
                !$acc parallel loop
@@ -310,7 +316,7 @@ module time_integ_imex
                !if(mpi_rank.eq.0) write(111,*)   " before cg"
                call nvtxStartRange("IMEX_CONJ_GRAD")
                call conjGrad_imex(aij_i(istep,istep),igtime,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,numBoundsWM,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-                                 dlxigp_ip,He,gpvol,Ngp,Ml,gamma_gas,Rgas,Cp,Prt,mu_fluid,mu_e,mu_sgs,rho(:,1),rho(:,2),E(:,1),E(:,2),q(:,:,1),q(:,:,2), &
+                                 dlxigp_ip,He,gpvol,Ngp,Ml,helem,gamma_gas,Rgas,Cp,Prt,csound,mu_fluid,mu_e,mu_sgs,rho(:,1),rho(:,2),E(:,1),E(:,2),q(:,:,1),q(:,:,2), &
                                  ndof,nbnodes,ldof,lbnodes,lnbn_nodes,bound,bou_codes,bou_codes_nodes,listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer)
                call nvtxEndRange
                !if(mpi_rank.eq.0) write(111,*)   " after cg"
@@ -353,6 +359,8 @@ module time_integ_imex
                end do
                !$acc end parallel loop
                
+               call comp_tau(nelem,npoin,connec,csound,u(:,:,2),helem,dt,tau_stab_imex)
+
                if(flag_total_enthalpy .eqv. .true.) then
                   call full_convec_ijk_H(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),q(:,:,2),rho(:,2),pr(:,2),&
                                     E(:,2),Rmass_imex(:,istep),Rmom_imex(:,:,istep),Rener_imex(:,istep))
@@ -362,14 +370,18 @@ module time_integ_imex
                end if
                call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,2),rho(:,2),u(:,:,2),&
                                     Tem(:,2),mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass_imex(:,istep),Rdiff_mom_imex(:,:,istep),Rdiff_ener_imex(:,istep))
+               call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,2),u(:,:,2),&
+                                    Tem(:,2),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex)
+               call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,2),rho(:,2),u(:,:,2),&
+                                    Tem(:,2),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex,tau_stab_imex,Rdiff_mass_imex(:,istep),Rdiff_mom_imex(:,:,istep),Rdiff_ener_imex(:,istep),.false.,-1.0_rp)                                              
             end do
             !if(mpi_rank.eq.0) write(111,*)   " after in"
-          
+#if 1         
             !$acc parallel loop
             do ipoin = 1,npoin_w
                eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
                eta(lpoin_w(ipoin),2) = (rho(lpoin_w(ipoin),2)/(gamma_gas-1.0_rp))* &
-                  log(pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)**gamma_gas))
+                  log(max(pr(lpoin_w(ipoin),2),0.0_rp)/(rho(lpoin_w(ipoin),2)**gamma_gas))
                !$acc loop seq
                do idime = 1,ndime
                   f_eta_imex(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
@@ -401,6 +413,7 @@ module time_integ_imex
                call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,auxReta_imex)
                call nvtxEndRange
             end if
+#endif
             !
             ! If using Sutherland viscosity model:
             !
@@ -409,7 +422,7 @@ module time_integ_imex
                call sutherland_viscosity(npoin,Tem(:,2),mu_factor,mu_fluid)
                call nvtxEndRange
             end if
-
+#if 1
             !
             ! Compute entropy viscosity
             !
@@ -417,6 +430,7 @@ module time_integ_imex
             call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,auxReta_imex,Ngp,coord,dNgp,gpvol,wgp, &
                gamma_gas,rho(:,2),u(:,:,2),csound,Tem(:,2),eta(:,2),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
             call nvtxEndRange
+#endif     
             !
             ! Compute subgrid viscosity if active
             !

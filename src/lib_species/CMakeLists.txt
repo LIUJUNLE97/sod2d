@@ -1,0 +1,24 @@
+project(lib_species)
+
+set(CMAKE_Fortran_MODULE_DIRECTORY ${CMAKE_BINARY_DIR}/modules)
+
+file(GLOB_RECURSE SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.f90)
+set(SOURCES_DIR ${CMAKE_CURRENT_LIST_DIR}/sources)
+include_directories(${CMAKE_BINARY_DIR}/modules)
+
+add_library(${PROJECT_NAME} ${LIBRARY_TYPE} ${SRC_FILES})
+
+# TODO: check if need to link against lib_sod2d
+
+add_definitions(-D__BUILD_VERSION__="${TEST_VERSION}")
+
+set_mpi()
+set_hdf5()
+
+set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${TEST_VERSION} SOVERSION ${TEST_VERSION_MAJOR})
+set_target_properties(${PROJECT_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+set(${PROJECT_NAME}_INCLUDE_DIRS ${SOURCES_DIR} CACHE INTERNAL "${PROJECT_NAME}: Include Directories" FORCE)
+target_include_directories(${PROJECT_NAME} INTERFACE ${CMAKE_CURRENT_BINARY_DIR})
+
+install(TARGETS ${PROJECT_NAME} DESTINATION lib)

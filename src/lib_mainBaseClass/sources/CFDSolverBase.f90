@@ -38,6 +38,9 @@ module mod_arrays
 
       ! for entropy and sgs visc.
       real(rp),  allocatable :: mue_l(:,:),al_weights(:),am_weights(:),an_weights(:)
+      
+      ! for scalars 
+      real(rp), allocatable :: mu_e_Yk(:,:,:), eta_Yk(:,:,:), Yk(:,:,:), Yk_buffer(:,:)
 
 end module mod_arrays
 
@@ -57,6 +60,8 @@ module CFDSolverBase_mod
       use time_integ
       use time_integ_imex
       use time_integ_ls
+      use time_integ_species_imex
+      use time_integ_species
       use mod_analysis
       use mod_numerical_params
       use mod_time_ops
@@ -112,7 +117,7 @@ module CFDSolverBase_mod
       real(rp) , public                   :: dt, Cp, Rgas, gamma_gas,Prt
       real(rp) , public                   :: time, maxPhysTime, initial_avgTime, elapsed_avgTime
       real(rp) , public                   :: loadtimewit=0.0_rp
-      logical  , public                   :: noBoundaries
+      logical  , public                   :: noBoundaries = .false.
 
    contains
       procedure, public :: printDt => CFDSolverBase_printDt
@@ -509,6 +514,10 @@ end subroutine CFDSolverBase_findFixPressure
             call init_rk4_ls_solver(numNodesRankPar)
          end if
       end if
+      if(flag_use_species .eqv. .true.) then
+         !call init_imex_species_solver(numNodesRankPar,numElemsRankPar)
+         call init_rk4_ls_species_solver(numNodesRankPar,numElemsRankPar)
+      end if
 
    end subroutine CFDSolverBase_initNSSolver
 
@@ -647,9 +656,9 @@ end subroutine CFDSolverBase_findFixPressure
       call load_hdf5_meshfile(this%meshFile_h5_full_name)
 
       ! init comms
-      call init_comms(this%useIntInComms,this%useRealInComms)
+      call init_comms(this%useIntInComms,this%useRealInComms,1,5)
       ! init comms boundaries
-      call init_comms_bnd(this%useIntInComms,this%useRealInComms)
+      call init_comms_bnd(this%useIntInComms,this%useRealInComms,1,5)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
          call save_surface_mesh_hdf5_file(this%meshFile_h5_full_name,this%surface_meshFile_h5_full_name,npbou,mesh_gmsh2ij,mesh_vtk2ij)
@@ -1045,6 +1054,27 @@ end subroutine CFDSolverBase_findFixPressure
       !$acc kernels
       maskMapped(:) = 1 !1 for calculation domain / 0 for recirculating domain where buffer is not applied
       !$acc end kernels
+
+
+      if(flag_use_species .eqv. .true.) then
+         allocate(eta_Yk(numNodesRankPar,nspecies,4))      ! entropy
+         allocate(mu_e_Yk(numElemsRankPar,ngaus,nspecies))  ! Elemental viscosity
+         allocate(Yk(numNodesRankPar,nspecies,4))! SGS viscosity
+         allocate(Yk_buffer(numNodesRankPar,nspecies))
+
+         !$acc enter data create(eta_Yk(:,:,:))
+         !$acc enter data create(mu_e_Yk(:,:,:))
+         !$acc enter data create(Yk(:,:,:))
+         !$acc enter data create(Yk_buffer(:,:))
+         
+         !$acc kernels
+         eta_Yk(:,:,:) = 0.0_rp
+         mu_e_Yk(:,:,:) = 0.0_rp
+         Yk(:,:,:) = 0.0_rp
+         Yk_buffer(:,:) = 0.0_rp
+         !$acc end kernels
+      end if
+
 
       call nvtxEndRange
 
@@ -1659,6 +1689,12 @@ end subroutine CFDSolverBase_findFixPressure
       u_buffer(:,1) = nscbc_u_inf
       !$acc end kernels
 
+      if(flag_use_species .eqv. .true.) then
+            !$acc kernels
+            Yk_buffer(:,:) = 0.0_rp
+            !$acc end kernels
+      end if
+
    end subroutine CFDSolverBase_initialBuffer
 
    subroutine CFDSolverBase_evalTimeIteration(this)
@@ -1693,6 +1729,12 @@ end subroutine CFDSolverBase_findFixPressure
          e_int(:,1) = e_int(:,2)
          eta(:,1) = eta(:,2)
          !$acc end kernels
+         if(flag_use_species .eqv. .true.) then
+            !$acc kernels      
+               eta_Yk(:,:,1) = eta_Yk(:,:,2)
+               Yk(:,:,1) = Yk(:,:,2)
+            !$acc end kernels
+         end if
          call nvtxEndRange
 
          !
@@ -1731,6 +1773,16 @@ end subroutine CFDSolverBase_findFixPressure
          u(:,:,3) = u(:,:,1)
          pr(:,3) = pr(:,1)
          !$acc end kernels
+
+         if(flag_use_species .eqv. .true.) then
+            !$acc kernels      
+               eta_Yk(:,:,4) = eta_Yk(:,:,3)
+               Yk(:,:,4) = Yk(:,:,3)
+
+               eta_Yk(:,:,3) = eta_Yk(:,:,1)
+               Yk(:,:,3) = Yk(:,:,1)
+            !$acc end kernels
+         end if
 
          if(this%doTimerAnalysis) then
             iStepEndTime = MPI_Wtime()
@@ -2342,9 +2394,15 @@ end subroutine CFDSolverBase_findFixPressure
       call init_filters()
 
       ! Setting fields to be saved
-      call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
-                          u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
-                          avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw)
+      if(flag_use_species .eqv. .true.) then
+         call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
+                             u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
+                             avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw,Yk(:,:,2),mu_e_Yk)
+      else
+         call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
+                             u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
+                             avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw)
+      end if
 
       ! Eval or load initial conditions
       call this%evalOrLoadInitialConditions()
@@ -2397,8 +2455,7 @@ end subroutine CFDSolverBase_findFixPressure
       if(this%isFreshStart) call this%evalFirstOutput()
       call this%flush_log_file()
 
-      if (this%noBoundaries .eqv. .false.)  call  this%normalFacesToNodes()
-
+      call  this%normalFacesToNodes()
 
       ! Eval initial time step
       call this%evalInitialDt()

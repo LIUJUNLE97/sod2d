@@ -14,6 +14,7 @@ module CFDSolver3DWithBoundariesIncomp_mod
    use mass_matrix
    use mod_geom
    use time_integ_incomp
+   use time_integ_species_imex
    use mod_analysis
    use mod_numerical_params
    use mod_time_ops
@@ -42,9 +43,22 @@ contains
    subroutine CFDSolver3DWithBoundariesIncomp_callTimeIntegration(this,istep)
       class(CFDSolver3DWithBoundariesIncomp), intent(inout) :: this
       integer(4)        , intent(in)   :: istep
+      integer(4) :: ispc
+
 
 
       this%noBoundaries = .false.
+
+      if(flag_use_species .eqv. .true.) then
+         do ispc = 1,nspecies
+            call imex_species_main(ispc,istep,this%local_step,this%save_logFile_next,this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+            1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Cp,this%Prt, &
+            rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,workingNodesPar,mu_fluid,mue_l, &
+            ndofRankPar,numBoundaryNodesRankPar,ldofPar,lbnodesPar,boundPar,bouCodesPar,bouCodesNodesPar, &  
+            listBoundsWallModel,wgp_b,boundNormalPar,normalsAtNodes,Yk_buffer)  
+         end do 
+      end if
+
       call ab_main_incomp(istep,this%local_step,this%save_logFile_next,this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbnNodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,this%leviCivi,&
             1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
             rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor,mue_l, &

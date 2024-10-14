@@ -4,6 +4,7 @@ module time_integ_ls
    use mod_nvtx
    use elem_convec
    use elem_diffu
+   use elem_stab
    use elem_source
    use mod_solver
    use mod_entropy_viscosity
@@ -13,7 +14,7 @@ module time_integ_ls
    use mod_sgs_ilsa_viscosity
    use mod_bc_routines
    use mod_wall_model
-   use time_integ, only : updateBuffer
+   use time_integ, only : updateBuffer, limit_rho
 
    implicit none
 
@@ -24,6 +25,8 @@ module time_integ_ls
    real(rp), allocatable, dimension(:,:) :: Rmom
    real(rp), allocatable, dimension(:,:) :: Reta
    real(rp), allocatable, dimension(:) :: auxReta
+   real(rp)  , allocatable, dimension(:) 	:: tau_stab_ls
+   real(rp)  , allocatable, dimension(:,:) :: ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls
 
    real(rp), allocatable, dimension(:)   :: a_i, b_i
    logical :: firstTimeStep = .true.
@@ -56,6 +59,10 @@ module time_integ_ls
       allocate(a_i(flag_rk_ls_stages),b_i(flag_rk_ls_stages))
       !$acc enter data create(a_i(:))
       !$acc enter data create(b_i(:))
+
+      allocate(ProjMass_ls(npoin,ndime),ProjEner_ls(npoin,ndime),ProjMX_ls(npoin,ndime),ProjMY_ls(npoin,ndime),ProjMZ_ls(npoin,ndime),tau_stab_ls(npoin))
+      !$acc enter data create(ProjMass_ls(:,:),ProjEner_ls(:,:),ProjMX_ls(:,:),ProjMY_ls(:,:),ProjMZ_ls(:,:),tau_stab_ls(:))
+
 
       if (flag_rk_ls_stages == 5) then
          a_i = [0.0_rp, real( -0.4178904745d0,rp) , real( -1.192151694643d0,rp), real( -1.697784692471d0,rp), real( -1.514183444257d0,rp)]
@@ -191,7 +198,7 @@ module time_integ_ls
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             !
             pos = 2 ! Set correction as default value
-
+#if 1
             if(firstTimeStep .eqv. .true.) then
                firstTimeStep = .false.
                !$acc parallel loop
@@ -215,6 +222,7 @@ module time_integ_ls
                   gamma_gas,rho(:,1),u(:,:,1),csound,Tem(:,1),eta(:,1),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
                call nvtxEndRange
             end if
+#endif
 
             !$acc parallel loop
             do ipoin = 1,npoin
@@ -246,9 +254,7 @@ module time_integ_ls
 
             if(mpi_size.ge.2) then
                call nvtxStartRange("MPI_comms_tI")
-               do idime = 1,ndime
-                  call mpi_halo_atomic_update_real(Rwmles(:,idime))
-               end do
+               call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,Rwmles(:,:))
                call nvtxEndRange
             end if
 
@@ -319,10 +325,17 @@ module time_integ_ls
                ! Compute diffusion terms with values at current substep
                !
                call nvtxStartRange("CONVDIFFS")
+               
+               call comp_tau(nelem,npoin,connec,csound,u(:,:,pos),helem,dt,tau_stab_ls)
 
-               call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),rho(:,pos),u(:,:,pos),Tem(:,pos),mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener,.true.,-1.0_rp)
-               call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),q(:,:,pos),rho(:,pos),pr(:,pos),aux_h,Rmass,Rmom,Rener,.false.,-1.0_rp)               
-               !call full_convec_ijk_H(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),q(:,:,pos),rho(:,pos),pr(:,pos),E(:,pos),Rmass(:),Rmom(:,:),Rener(:),.false.,-1.0_rp)
+               call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),rho(:,pos),u(:,:,pos),&
+                                       Tem(:,pos),mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener,.true.,-1.0_rp)
+               call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),q(:,:,pos),rho(:,pos),&
+                                       pr(:,pos),aux_h,Rmass,Rmom,Rener,.false.,-1.0_rp)               
+               call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),u(:,:,pos),&
+                                    Tem(:,pos),Ml,ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls)
+               call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),rho(:,pos),u(:,:,pos),&
+                                    Tem(:,pos),Ml,ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls,tau_stab_ls,Rmass,Rmom,Rener,.false.,1.0_rp) 
 
                call nvtxEndRange
                !
@@ -345,14 +358,9 @@ module time_integ_ls
                   end if
                end if
 
-               !TESTING NEW LOCATION FOR MPICOMMS
                if(mpi_size.ge.2) then
                   call nvtxStartRange("MPI_comms_tI")
-                  call mpi_halo_atomic_update_real(Rmass(:))
-                  call mpi_halo_atomic_update_real(Rener(:))
-                  do idime = 1,ndime
-                     call mpi_halo_atomic_update_real(Rmom(:,idime))
-                  end do
+                  call mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv(Rmass(:),Rener(:),Rmom(:,:))
                   call nvtxEndRange
                end if
 
@@ -438,7 +446,7 @@ module time_integ_ls
             end do
             !$acc end parallel loop
             call nvtxEndRange
-
+#if 1
             call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
                gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:,2))
 
@@ -463,7 +471,7 @@ module time_integ_ls
                call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,auxReta)
                call nvtxEndRange
             end if
-
+#endif
             !
             ! If using Sutherland viscosity model:
             !
@@ -473,6 +481,7 @@ module time_integ_ls
                call nvtxEndRange
             end if
 
+#if 1
             !
             ! Compute entropy viscosity
             !
@@ -480,7 +489,7 @@ module time_integ_ls
             call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,auxReta,Ngp,coord,dNgp,gpvol,wgp, &
                gamma_gas,rho(:,2),u(:,:,2),csound,Tem(:,2),eta(:,2),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
             call nvtxEndRange
-
+#endif
             !
             ! Compute subgrid viscosity if active
             !
