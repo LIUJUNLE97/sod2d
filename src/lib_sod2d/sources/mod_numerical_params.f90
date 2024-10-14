@@ -29,7 +29,7 @@ module mod_numerical_params
         integer(4)  :: flag_normalise_entropy_species=1
         real(rp) :: ce_comp = 1.0_rp
         real(rp) :: ce = 0.1_rp
-        real(rp) :: ce_species = 0.1_rp
+        real(rp) :: ce_species = 1.0_rp
         real(rp) :: factor_comp = 1.0_rp   
         real(rp) :: cmax = 0.5_rp 
         real(rp) :: cglob =1.0_rp
