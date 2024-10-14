@@ -27,7 +27,7 @@ module mod_numerical_params
         integer(4)  :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
         integer(4)  :: flag_normalise_entropy=1
         integer(4)  :: flag_normalise_entropy_species=1
-        real(rp) :: ce_comp = 1.0_rp
+        real(rp) :: ce_comp = 0.1_rp
         real(rp) :: ce = 0.1_rp
         real(rp) :: ce_species = 0.1_rp
         real(rp) :: factor_comp = 1.0_rp   
