@@ -27,11 +27,11 @@ module elem_hex
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			implicit none
 			integer(4),intent(in) :: mporder,mnnode
-			real(rp),intent(in)   :: xi, eta, zeta
+			real(8),intent(in)   :: xi, eta, zeta
 			integer(4),intent(in) :: atoIJK(mnnode)
-			real(rp),intent(out)  :: N(mnnode), dN(ndime,mnnode),dlxigp_ip(ndime,mporder+1)
-			real(rp),intent(out)  :: N_lagrange(mnnode), dN_lagrange(ndime,mnnode)
-			real(rp)              :: xi_grid(mporder+1)
+			real(8),intent(out)  :: N(mnnode), dN(ndime,mnnode),dlxigp_ip(ndime,mporder+1)
+			real(8),intent(out)  :: N_lagrange(mnnode), dN_lagrange(ndime,mnnode)
+			real(8)              :: xi_grid(mporder+1)
 			call getEquispaced_roots(mporder,xi_grid)
 			call TripleTensorProduct(mporder,mnnode,xi_grid,xi,eta,zeta,atoIJK,N,dN)
 			if (flag_spectralElem == 1) then
@@ -45,13 +45,12 @@ module elem_hex
 		subroutine hexa_edges(mnnode,ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
 			implicit none
 
-			integer(4), intent(in)   :: mnnode,iElem, nelem, npoin
-			integer(4), intent(in)   :: connec(nelem,mnnode)
-			real(rp),   intent(in)   :: coord(npoin,ndime)
-			integer(4), intent(out)  :: ncorner,nedge
-			real(rp),   intent(out)  :: dist(12,ndime)
-			integer(4)               :: ind(mnnode)
-			real(rp)                 :: xp(12,ndime)
+			integer(4),intent(in)  :: mnnode,iElem, nelem, npoin, connec(nelem,mnnode)
+			real(8),intent(in)     :: coord(npoin,ndime)
+			integer(4),intent(out) :: ncorner,nedge
+			real(8),intent(out)    :: dist(12,ndime)
+			integer(4)             :: ind(mnnode)
+			real(8)                :: xp(12,ndime)
 
 			ind = connec(ielem,:)
 			ncorner = 8

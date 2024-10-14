@@ -55,7 +55,7 @@ contains
       integer(4), allocatable :: linkedPerToMapElemsAndFacesSrl(:,:)
       integer(8), allocatable :: listNodesMpiRank_i8(:),connecMpiRank_i8(:,:),masSlaNodesSrl_i8(:,:)
 
-      real(rp), allocatable :: coordNodesMpiRank(:,:)
+      real(8), allocatable :: coordNodesMpiRank(:,:)
       integer(4),allocatable :: numBoundaryNodesMshRank(:),numMpiBoundaryNodes(:),numMshBoundaryNodes(:),numInnerNodes(:),numBoundElemsMshRank(:)
       integer(4),allocatable :: numDoFMshRank(:),numElemsVTKMshRank(:),sizeConnecVTKMshRank(:)
 
@@ -64,11 +64,11 @@ contains
       type(jagged_matrix_int4) :: listElemsBoundFacesMshRank_jm
       type(jagged_matrix_int8) :: connecMshRank_i8_jm,connecOrigBoundFacesMshRank_i8_jm,globalIdSrlOrdered_i8_jm,masSlaRankPar_i8_jm,perMapLinkedNodesRankPar_i8_jm
       type(jagged_matrix_int4) :: connecOrigBoundFacesMshRank_jm,connecBoundFacesMshRank_jm
-      type(jagged_matrix_rp) :: coordMshRank_jm
+      type(jagged_matrix_real8) :: coordMshRank_jm
       integer(8),dimension(0:numMshRanks2Part-1) :: iNodeStartPar_i8
       integer(4),dimension(0:numMshRanks2Part-1) :: vecNumWorkingNodes,vecNumNodesToCommMshRank,vecNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecBndNumMshRanksWithComms
       integer(4),dimension(0:numMshRanks2Part-1) :: vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank
-      real(rp),allocatable :: Ngp_l(:,:),dNgp(:,:,:),wgp(:)
+      real(8),allocatable :: Ngp_l(:,:),dNgp(:,:,:),wgp(:)
       integer(4) :: iMshRank,mshRank
       integer(hid_t) :: gmsh_h5_fileId, sod2dmsh_h5_fileId
       real(8),dimension(10) :: start_time,end_time,elapsed_time_r
@@ -95,7 +95,7 @@ contains
       type(jagged_vector_int4) :: connecVTK_jv
       type(jagged_matrix_int4) :: connecParOrig_jm,connecParWork_jm
 
-      type(jagged_matrix_rp) :: coordPar_jm,coordVTK_jm
+      type(jagged_matrix_real8) :: coordPar_jm,coordVTK_jm
 
       type(jagged_vector_int4) :: workingNodesPar_jv
       integer(4),allocatable :: numWorkingNodesMshRank(:)
@@ -110,7 +110,7 @@ contains
       integer(4), allocatable :: mshRanksInMpiRank(:),mapMshRankToMpiRank(:)
 
       integer(4) :: mapFaceDir
-      real(rp) :: mapFaceGapCoord
+      real(8) :: mapFaceGapCoord
 
 ! ################################################################################################
 ! ------------------------ VARS for MPI COMMS ----------------------------------------------------
@@ -125,12 +125,12 @@ contains
 ! ################################################################################################
 ! ------------------------ VARS for Mesh Quality ----------------------------------------------------
 ! ################################################################################################
-      type(jagged_vector_rp) :: quality_jv
-      real(rp) :: quality_elem,auxAvg,elemVertOrig(3)
+      type(jagged_vector_real8) :: quality_jv
+      real(8) :: quality_elem,auxAvg,elemVertOrig(3)
       integer(4) :: iElem,iNode,iElemVTK,iElemGid
       integer(4) :: numTangledElemsMpiRank,numTangledElemsMshRank,numTangledElemsTotal
-      real(rp) :: maxQuality, minQuality, avgQuality
-      real(rp) :: rankMaxQuality, rankMinQuality, rankAvgQuality
+      real(8) :: maxQuality, minQuality, avgQuality
+      real(8) :: rankMaxQuality, rankMinQuality, rankAvgQuality
       character(len=12) :: aux_numRanks,aux_mpiRank
       character(len=512) :: meshquality_filename,meshqualitySum_filename
 
@@ -190,16 +190,6 @@ contains
       elapsed_time_r(3) = end_time(3) - start_time(3)
 
       call close_hdf5_file(gmsh_h5_fileId)
-
-      !if(isPeriodic) then
-      !   !since now i have the masSlaRankPar_i8_jm with global nodes ids i can deallocate the serial one
-      !   deallocate(masSlaNodesSrl_i8)
-      !   numMasSlaNodesSrl=0
-      !   if(isMapFaces) then
-      !      deallocate(linkedPerToMapElemsAndFacesSrl)
-      !      numMapFacesGmsh=0
-      !   end if
-      !end if
 
       !-----------------------------------------------------------------------
       allocate(boundaryNodes_jv%vector(numMshRanksInMpiRank))
@@ -431,16 +421,16 @@ contains
          call MPI_Barrier(app_comm,mpi_err)
 
          ! Initialize vars to get high-level info about mesh quality
-         maxQuality = 0.0_rp          ! Max absolute
-         minQuality = 0.0_rp     ! Min absolute
-         avgQuality = 0.0_rp          ! Avg across all ranks
-         rankMaxQuality = 0.0_rp      ! Max in this rank
-         rankMinQuality = 100000.0_rp ! Min in this rank
-         rankAvgQuality = 0.0_rp      ! Avg in this rank
+         maxQuality = 0.0d0          ! Max absolute
+         minQuality = 0.0d0     ! Min absolute
+         avgQuality = 0.0d0          ! Avg across all ranks
+         rankMaxQuality = 0.0d0      ! Max in this rank
+         rankMinQuality = 100000.0d0 ! Min in this rank
+         rankAvgQuality = 0.0d0      ! Avg in this rank
          numTangledElemsMpiRank=0
          do iMshRank=1,numMshRanksInMpiRank
             allocate(quality_jv%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
-            auxAvg = 0.0_rp
+            auxAvg = 0.0d0
             numTangledElemsMshRank=0
             do iElem = 1, numElemsMshRank(iMshRank)
                call eval_MeshQuality(mnnode,mngaus,numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),iElem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_elem)
@@ -483,9 +473,9 @@ contains
          close(555)
          ! Compute max, min and avg across all ranks
          call MPI_Allreduce(numTangledElemsMpiRank,numTangledElemsTotal,1,mpi_datatype_int4,MPI_SUM,app_comm,mpi_err)
-         call MPI_Allreduce(rankMaxQuality, maxQuality, 1, mpi_datatype_real, MPI_MAX, app_comm, mpi_err)
-         call MPI_Allreduce(rankMinQuality, minQuality, 1, mpi_datatype_real, MPI_MIN, app_comm, mpi_err)
-         call MPI_Allreduce(rankAvgQuality, avgQuality, 1, mpi_datatype_real, MPI_SUM, app_comm, mpi_err)
+         call MPI_Allreduce(rankMaxQuality, maxQuality, 1, mpi_datatype_real8, MPI_MAX, app_comm, mpi_err)
+         call MPI_Allreduce(rankMinQuality, minQuality, 1, mpi_datatype_real8, MPI_MIN, app_comm, mpi_err)
+         call MPI_Allreduce(rankAvgQuality, avgQuality, 1, mpi_datatype_real8, MPI_SUM, app_comm, mpi_err)
          avgQuality = avgQuality / mpi_size
          ! Write high-level data to file
          if(mpi_rank.eq.0) then
@@ -680,7 +670,7 @@ contains
       integer(4),intent(out) :: numNodesInRank
       integer(8),intent(out) :: connecRank_i8(numElemsInRank,mnnode)
       integer(8),allocatable,intent(inout) :: listNodesRank_i8(:)
-      real(rp),allocatable,intent(inout) :: coordNodesRank(:,:)
+      real(8),allocatable,intent(inout) :: coordNodesRank(:,:)
       integer(4) :: iElem,iNode,nodeCnt,iAux,jAux,iDim
       integer(8) :: iNodeG_i8,prevNodeG_i8
       !-----------------------------------------------------------
@@ -941,7 +931,7 @@ contains
       integer(hid_t),intent(in) :: dset_id,fspace_id,plist_id
       integer(8),intent(in) :: numNodesSrl_i8,listNodesRank_i8(numNodesInRank)
       integer(4),intent(in) :: numNodesInRank
-      real(rp),intent(inout) :: coordNodesRank(:,:)
+      real(8),intent(inout) :: coordNodesRank(:,:)
       !-----------------------------------------------------------------------
       real(8),allocatable :: auxCoords(:,:)
       integer(8) :: nextNodeToRead,nodeCnt,iNode,iNodeG
@@ -1125,15 +1115,15 @@ contains
       integer(hid_t),intent(in) :: gmsh_h5_fileId
       integer(4),intent(in) :: numMapFacesSrl,numElemsInRank,numNodesInRank,numPerFacesInRank,listElemsInRank(numElemsInRank)
       integer(8),intent(in) :: connecInRank_i8(numElemsInRank,mnnode),listNodesInRank_i8(numNodesInRank)
-      real(rp),intent(in) :: coordNodesInRank(numNodesInRank,ndime)
+      real(8),intent(in) :: coordNodesInRank(numNodesInRank,ndime)
       integer(4),intent(in) :: numBoundElemsMpiRank,listBoundElemsMpiRank(numBoundElemsMpiRank)
       integer(4),intent(in) :: listElemsPerFacesInRank(:,:),listPerFacesInRank(:)
       integer(8),intent(in) :: connecPerFacesInRank_i8(:,:)
       integer(4),intent(out) :: linkedPerToMapElemsAndFacesSrl(numMapFacesSrl,4)
       integer(4),intent(out) :: mapFaceDir
-      real(rp),intent(out)  :: mapFaceGapCoord
+      real(8),intent(out)  :: mapFaceGapCoord
       integer(4) :: numMapFacesInRank,h5err
-      real(rp) :: mapFaceGap
+      real(8) :: mapFaceGap
       integer(4),allocatable :: listElemsMapFacesInRank(:,:),listMapFacesInRank(:)
       integer(8),allocatable :: connecMapFacesInRank_i8(:,:)
 
@@ -1178,7 +1168,7 @@ contains
    subroutine read_mapped_dir_and_gap_from_gmsh_h5_file_in_parallel(gmsh_h5_fileId,mapFaceDir,mapFaceGap)
       integer(hid_t), intent(in) :: gmsh_h5_fileId
       integer(4),intent(out) :: mapFaceDir
-      real(rp),intent(out) :: mapFaceGap
+      real(8),intent(out) :: mapFaceGap
 
       character(128) :: dsetname
       integer(hsize_t), dimension(1) :: ms_dims
@@ -1203,7 +1193,7 @@ contains
 
       dsetname = '/mappedInlet/gap'
       call read_dataspace_1d_fp64_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_dims,ms_offset,aux_array_r8)
-      mapFaceGap=real(aux_array_r8(1),rp)
+      mapFaceGap=aux_array_r8(1)
 
       deallocate(aux_array_r8)
 
@@ -2141,15 +2131,15 @@ contains
       integer(4),intent(in) :: listElemsInRank(numElemsInRank),listElemsMapFacesInRank(numElemsInRank,maxBoundsPerElem),listMapFacesInRank(numMapFacesInRank)
       integer(4),intent(in) :: listElemsPerFacesInRank(numElemsInRank,maxBoundsPerElem),listPerFacesInRank(numPerFacesInRank)
       integer(8),intent(in) :: connecMapFacesInRank_i8(numMapFacesInRank,mnpbou),listNodesInRank_i8(numNodesInRank),connecPerFacesInRank_i8(numPerFacesInRank,mnpbou)
-      real(rp),intent(in)   :: mapFaceGap,coordNodesInRank(numNodesInRank,ndime)
+      real(8),intent(in)   :: mapFaceGap,coordNodesInRank(numNodesInRank,ndime)
       integer(4),intent(out) :: linkedPerToMapElemsAndFacesSrl(numMapFacesSrl,4)
-      real(rp),intent(out)  :: mapFaceGapCoord
+      real(8),intent(out)  :: mapFaceGapCoord
 
-      real(rp) :: avgCoordInRank,avgCoordAll,targetCoord,minTargetCoord,maxTargetCoord
-      real(rp) :: minCentroidDist,centroidDistAbs,centroidDist(ndime),faceCentroid(ndime)
+      real(8) :: avgCoordInRank,avgCoordAll,targetCoord,minTargetCoord,maxTargetCoord
+      real(8) :: minCentroidDist,centroidDistAbs,centroidDist(ndime),faceCentroid(ndime)
 
       integer(4) :: numPerFacesToMapInRank,numPerFacesToMapSrl,numMapElemsInRank
-      real(rp), allocatable :: coordsInMapFaceInRank(:),coordsInMapFaceSrl(:)
+      real(8), allocatable :: coordsInMapFaceInRank(:),coordsInMapFaceSrl(:)
 
       integer(4),allocatable :: mapFaceElemInRank(:),mapFaceElemSrl(:),listMapFacesSrl(:)
       integer(4),allocatable :: listPerFacesToMapFacesInRank(:,:),listPerElemsToMapElemsInRank(:,:)
@@ -2157,7 +2147,7 @@ contains
       integer(4),allocatable :: auxListPerFacesSrl(:),auxListMapFacesSrl(:),auxListPerElemsSrl(:),auxListMapElemsSrl(:)
 
       integer(4),dimension(0:mpi_size-1) :: vecNumMapFacesInRank,vecNumPerFacesToMapInRank
-      real(rp),dimension(0:mpi_size-1) :: vecAvgCoordInRank
+      real(8),dimension(0:mpi_size-1) :: vecAvgCoordInRank
 
       integer(4) :: counts_send_mpi,factor_comms_mpi,iMpiRank
       integer(4),dimension(0:mpi_size-1) :: counts_recv_mpi,displacements_mpi
@@ -2186,16 +2176,16 @@ contains
       mapFaceElemInRank(:) = -1
       mapFaceElemSrl(:) = -1
       listMapFacesSrl(:) = -1
-      coordsInMapFaceInRank(:) = 0.0_rp
-      coordsInMapFaceSrl(:) = 0.0_rp
+      coordsInMapFaceInRank(:) = 0.0d0
+      coordsInMapFaceSrl(:) = 0.0d0
       !$acc end kernels
 
       !----------------------------------------------------------------------------------------------------------
       call get_gmshQuadHOVertIndex(mporder,gmshQuadVertInd)
 
-      avgCoordInRank = 0.0_rp
+      avgCoordInRank = 0.0d0
       do iMapFace=1,numMapFacesInRank
-         faceCentroid(:) = 0.0_rp
+         faceCentroid(:) = 0.0d0
          do iVert=1,numQuadVert
             ind_gmsh = gmshQuadVertInd(iVert)
             iNodeG = connecMapFacesInRank_i8(iMapFace,ind_gmsh)
@@ -2208,22 +2198,22 @@ contains
          end do
 
          do idime=1,ndime
-            faceCentroid(idime) = faceCentroid(idime)/real(numQuadVert,rp)
+            faceCentroid(idime) = faceCentroid(idime)/real(numQuadVert,8)
             coordsInMapFaceInRank((iMapFace-1)*ndime+idime) = faceCentroid(idime)
          end do
 
-         avgCoordInRank = (avgCoordInRank*(iMapFace-1) + faceCentroid(mapFaceDir))/real(iMapFace,rp)
+         avgCoordInRank = (avgCoordInRank*(iMapFace-1) + faceCentroid(mapFaceDir))/real(iMapFace,8)
          !write(*,*) 'iMF',iMapFace,'faceC',faceCentroid(:)
       end do
 
       call MPI_Allgather(numMapFacesInRank,1,mpi_datatype_int,vecNumMapFacesInRank,1,mpi_datatype_int4,app_comm,mpi_err)
-      call MPI_Allgather(avgCoordInRank,1,mpi_datatype_real,vecAvgCoordInRank,1,mpi_datatype_real,app_comm,mpi_err)
+      call MPI_Allgather(avgCoordInRank,1,mpi_datatype_real8,vecAvgCoordInRank,1,mpi_datatype_real8,app_comm,mpi_err)
 
-      avgCoordAll = 0.0_rp
+      avgCoordAll = 0.0d0
       do iRank=0,(mpi_size-1)
          avgCoordAll = avgCoordAll + vecNumMapFacesInRank(iRank)*vecAvgCoordInRank(iRank)
       end do
-      avgCoordAll = avgCoordAll/real(numMapFacesSrl,rp)
+      avgCoordAll = avgCoordAll/real(numMapFacesSrl,8)
 
       targetCoord = avgCoordAll - mapFaceGap
       minTargetCoord = targetCoord - abs(mapFaceGap)*0.01
@@ -2279,7 +2269,7 @@ contains
          counts_recv_mpi(iMpiRank)   = vecNumMapFacesInRank(iMpiRank)*factor_comms_mpi
          displacements_mpi(iMpiRank) = displacements_mpi(iMpiRank-1) + counts_recv_mpi(iMpiRank-1)
       end do
-      call MPI_Allgatherv(coordsInMapFaceInRank,counts_send_mpi,mpi_datatype_real,coordsInMapFaceSrl,counts_recv_mpi,displacements_mpi,mpi_datatype_real,app_comm,mpi_err)
+      call MPI_Allgatherv(coordsInMapFaceInRank,counts_send_mpi,mpi_datatype_real8,coordsInMapFaceSrl,counts_recv_mpi,displacements_mpi,mpi_datatype_real8,app_comm,mpi_err)
 
       !------------------------------------------------------------------------------------------------------------
 
@@ -2296,7 +2286,7 @@ contains
             iPerFaceG = listElemsPerFacesInRank(iElem,iBound)
             if(iPerFaceG.ne.0) then
                iPerFace = binarySearch_int_i4(listPerFacesInRank,iPerFaceG)
-               faceCentroid(:) = 0.0_rp
+               faceCentroid(:) = 0.0d0
                do iVert=1,numQuadVert
                   ind_gmsh = gmshQuadVertInd(iVert)
                   iNodeG = connecPerFacesInRank_i8(iPerFace,ind_gmsh)
@@ -2308,7 +2298,7 @@ contains
                end do
 
                do idime=1,ndime
-                  faceCentroid(idime) = faceCentroid(idime)/real(numQuadVert,rp)
+                  faceCentroid(idime) = faceCentroid(idime)/real(numQuadVert,8)
                end do
                if( faceCentroid(mapFaceDir).gt.minTargetCoord .and. faceCentroid(mapFaceDir).lt.maxTargetCoord ) then
                   numPerFacesToMapInRank = numPerFacesToMapInRank + 1
@@ -2630,10 +2620,10 @@ contains
       integer(8),intent(in)     :: numNodesSrl_i8
       integer(4),intent(out)    :: numElemsMpiRank,numNodesMpiRank,numLinkedPerElemsSrl,numPerElemsSrl,numMasSlaNodesSrl
       integer(4),intent(out)    :: mapFaceDir
-      real(rp),intent(out)      :: mapFaceGapCoord
+      real(8),intent(out)       :: mapFaceGapCoord
       integer(8),allocatable,intent(inout) :: listNodesMpiRank_i8(:),connecMpiRank_i8(:,:),masSlaNodesSrl_i8(:,:)
       integer(4),allocatable,intent(inout) :: listElemsMpiRank(:),linkedPerElemsSrl(:,:),listPerElemsSrl(:),linkedPerToMapElemsAndFacesSrl(:,:)
-      real(rp), allocatable, intent(inout) :: coordNodesMpiRank(:,:)
+      real(8), allocatable, intent(inout) :: coordNodesMpiRank(:,:)
 
       integer(4),allocatable :: listElemsPerFacesInRank(:,:),listPerFacesInRank(:),listBoundElemsMpiRank(:)
       integer(8),allocatable :: connecPerFacesInRank_i8(:,:)
@@ -2698,7 +2688,7 @@ contains
             end_time(3) = MPI_Wtime()
          else
             mapFaceDir = 0
-            mapFaceGapCoord = 0.0_rp
+            mapFaceGapCoord = 0.0d0
             allocate(linkedPerToMapElemsAndFacesSrl(0,0))
          end if
 
@@ -2747,26 +2737,22 @@ contains
       integer(4),intent(in) :: numElemsMpiRank,numNodesMpiRank,numMshRanks2Part,numLinkedPerElemsSrl,numPerFacesSrl,numPerElemsSrl
       integer(4),intent(inout) :: numMasSlaNodesSrl,numMapFacesSrl
       integer(4),intent(in) :: numMshRanksInMpiRank,maxNumMshRanks,mshRanksInMpiRank(numMshRanksInMpiRank),mapMshRankToMpiRank(numMshRanks2Part)
-      integer(4),intent(inout),allocatable :: listElemsMpiRank(:)!listElemsMpiRank(numElemsMpiRank)
-      !integer(4),intent(in) :: listElemsMpiRank(numElemsMpiRank)
+      integer(4),intent(inout),allocatable :: listElemsMpiRank(:)
       integer(4),intent(in) :: linkedPerElemsSrl(numLinkedPerElemsSrl,2),listPerElemsSrl(numPerElemsSrl)
       integer(8),intent(inout),allocatable :: listNodesMpiRank_i8(:),connecMpiRank_i8(:,:),masSlaNodesSrl_i8(:,:)
-      !integer(8),intent(in) :: listNodesMpiRank_i8(numNodesMpiRank),connecMpiRank_i8(numElemsMpiRank,mnnode),masSlaNodesSrl_i8(numMasSlaNodesSrl,2)
       integer(4),intent(inout),allocatable :: linkedPerToMapElemsAndFacesSrl(:,:)
-      !integer(4),intent(in) :: linkedPerToMapElemsAndFacesSrl(numMapFacesSrl,4)
-      real(rp),intent(inout),allocatable :: coordNodesMpiRank(:,:)
-      !real(rp),intent(in) :: coordNodesMpiRank(numNodesMpiRank,ndime)
+      real(8),intent(inout),allocatable :: coordNodesMpiRank(:,:)
       integer(4),intent(out) :: maxBoundCode
       integer(4),intent(out),allocatable :: numElemsMshRank(:),numBoundElemsMshRank(:),mshRankElemStart(:),mshRankElemEnd(:),numNodesMshRank(:),numBoundFacesMshRank(:),numPerNodesMshRank(:),numPerMapLinkedNodesMshRank(:)
       type(jagged_vector_int4),intent(out) :: elemGid_jv,listBoundFacesMshRank_jv,boundFacesCodesMshRank_jv,listBoundElemsMshRank_jv
       type(jagged_vector_int8),intent(out) :: listNodesMshRank_i8_jv
       type(jagged_matrix_int8),intent(out) :: connecMshRank_i8_jm,connecBoundFacesMshRank_i8_jm,masSlaRankPar_i8_jm,perMapLinkedNodesRankPar_i8_jm
       type(jagged_matrix_int4),intent(out) :: listElemsBoundFacesMshRank_jm
-      type(jagged_matrix_rp),intent(out) :: coordMshRank_jm
+      type(jagged_matrix_real8),intent(out) :: coordMshRank_jm
 
       integer(4),allocatable :: dummyListElems(:),dummyListBoundFaces(:),dummyBoundFacesCodes(:),dummyListElemsBounds(:,:),dummyListBoundElems(:)
       integer(8),allocatable :: dummyListNodes(:),dummyConnec(:,:),dummyConnecBoundFaces(:,:)
-      real(rp),allocatable :: dummyCoordNodes(:,:)
+      real(8),allocatable :: dummyCoordNodes(:,:)
       integer(4) :: dummyNumNodes,dummyNumBoundFaces,dummyNumBoundElems
 
       real(8), allocatable, dimension(:) :: x,y,z
@@ -2813,18 +2799,18 @@ contains
          iElem = binarySearch_int_i4(listElemsMpiRank,iElemG)
          elemPart(iElem2Part,4) = iElem
 
-         x_a=0.0_rp
-         y_a=0.0_rp
-         z_a=0.0_rp
+         x_a=0.0d0
+         y_a=0.0d0
+         z_a=0.0d0
          do iVert=1,numHexaVert
             m = gmshHexVertInd(iVert)
             iNodeG = connecMpiRank_i8(iElem,m)
 
             iPos = binarySearch_int_i8(listNodesMpiRank_i8,iNodeG)
 
-            x_a = x_a + real(coordNodesMpiRank(iPos,1),8)
-            y_a = y_a + real(coordNodesMpiRank(iPos,2),8)
-            z_a = z_a + real(coordNodesMpiRank(iPos,3),8)
+            x_a = x_a + coordNodesMpiRank(iPos,1)
+            y_a = y_a + coordNodesMpiRank(iPos,2)
+            z_a = z_a + coordNodesMpiRank(iPos,3)
          end do
 
          x(iElem2Part) = x_a/8.0d0
@@ -2893,18 +2879,18 @@ contains
          mshRank  = elemPart(ii,2)-1
          !iElem    = elemPart(ii,4)
 
-         x_a=0.
-         y_a=0.
-         z_a=0.
+         x_a=0.0d0
+         y_a=0.0d0
+         z_a=0.0d0
          do jj=1,numHexaVert
             m = gmshHexVertInd(jj)
             iNodeG = connecMpiRank_i8(iElem,m)
 
             iPos = binarySearch_int_i8(listNodesMpiRank_i8,iNodeG)
 
-            x_a = x_a + real(coordNodesMpiRank(iPos,1),8)
-            y_a = y_a + real(coordNodesMpiRank(iPos,2),8)
-            z_a = z_a + real(coordNodesMpiRank(iPos,3),8)
+            x_a = x_a + coordNodesMpiRank(iPos,1)
+            y_a = y_a + coordNodesMpiRank(iPos,2)
+            z_a = z_a + coordNodesMpiRank(iPos,3)
          end do
          x_a = x_a/8.d0
          y_a = y_a/8.d0
@@ -2955,18 +2941,18 @@ contains
          mshRank = elemPart(ii,2)-1
          iElem   = elemPart(ii,4)
 
-         x_a=0.
-         y_a=0.
-         z_a=0.
+         x_a=0.0d0
+         y_a=0.0d0
+         z_a=0.0d0
          do jj=1,numHexaVert
             m = gmshHexVertInd(jj)
             iNodeG = connecMpiRank_i8(iElem,m)
 
             iPos = binarySearch_int_i8(listNodesMpiRank_i8,iNodeG)
 
-            x_a = x_a + real(coordNodesMpiRank(iPos,1),8)
-            y_a = y_a + real(coordNodesMpiRank(iPos,2),8)
-            z_a = z_a + real(coordNodesMpiRank(iPos,3),8)
+            x_a = x_a + coordNodesMpiRank(iPos,1)
+            y_a = y_a + coordNodesMpiRank(iPos,2)
+            z_a = z_a + coordNodesMpiRank(iPos,3)
          end do
          x_a = x_a/8.d0
          y_a = y_a/8.d0
@@ -3411,7 +3397,7 @@ contains
       integer(4),intent(in) :: elemGidInRank(numElemsInRank)
       integer(8),intent(in) :: listNodesInRank_i8(numNodesInRank)
       integer(8),intent(in) :: connecPerFacesSrl_i8(mnpbou,numPerFacesSrl),connecMapFacesSrl_i8(mnpbou,numMapFacesSrl)
-      real(rp),intent(in)   :: coordNodesInRank(numNodesInRank,ndime)
+      real(8),intent(in)   :: coordNodesInRank(numNodesInRank,ndime)
       integer(4),intent(in) :: linkedPerToMapElemsAndFacesSrl(numMapFacesSrl,4)
       integer(4),intent(out) :: numLinkedMapNodesInRank
       integer(8),allocatable,intent(inout) :: perMapLinkedNodes_i8(:,:)
@@ -3420,7 +3406,7 @@ contains
       integer(4) :: iElem,iElemPerG,iElemMapG,iFacePerG,iFaceMapG,elemPos
       integer(4) :: idime,ip,jp,iPosNodePer,iPosNodeMap,rawCnt
       integer(8) :: iNodePerG,iNodeMapG,minDist_iNodeMapG,iNodePerG2
-      real(rp) :: coordPerNode(ndime),coordMapNode(ndime),minNodeDist,nodeDistAbs,nodeDist(ndime)
+      real(8) :: coordPerNode(ndime),coordMapNode(ndime),minNodeDist,nodeDistAbs,nodeDist(ndime)
       integer(8),allocatable :: rawPerMapLinkedNodes_i8(:,:)
       logical :: keepLooping
       !------------------------------------------------------------------------------------------------------------------
@@ -3460,7 +3446,7 @@ contains
                   iPosNodeMap = binarySearch_int_i8(listNodesInRank_i8,iNodeMapG)
                   coordMapNode(:) = coordNodesInRank(iPosNodeMap,:) 
 
-                  nodeDistAbs = 0.0_rp
+                  nodeDistAbs = 0.0d0
                   do idime=1,ndime
                      nodeDist(idime) = coordPerNode(idime) - coordMapNode(idime)
                      nodeDistAbs     = nodeDistAbs + nodeDist(idime)*nodeDist(idime)
@@ -3625,7 +3611,7 @@ contains
       integer(4), intent(in) :: mshRank,numElemsInRank,numNodesInRank,numBoundsInRank,numMasSlaNodesInRank
       integer(4), intent(in) :: listElemsBoundsInRank(numElemsInRank,maxBoundsPerElem),listBoundFacesInRank(numBoundsInRank)
       integer(8), intent(in) :: listNodesInRank_i8(numNodesInRank),connecInRank_i8(numElemsInRank,mnnode),connecBoundFacesInRank_i8(numBoundsInRank,mnpbou),masSlaNodesInRank_i8(numMasSlaNodesInRank,2)
-      real(rp),intent(in) :: coordInRank(numNodesInRank,3)
+      real(8),intent(in) :: coordInRank(numNodesInRank,3)
 
       integer(4), intent(out) :: numMshBoundNodesRankPar,numMpiBoundNodesRankPar,numInnerNodesRankPar
       integer(8), allocatable, intent(inout) :: mpiBoundaryNodes_i8(:),mshBoundaryNodes_i8(:)
@@ -4854,8 +4840,8 @@ contains
       logical,intent(in) :: isLinealOutput
       integer(4),intent(in) :: mshRank,numElemsInRank,numNodesInRank,connecParOrigMshRank(numElemsInRank,mnnode)
       integer(8),intent(in) :: globalIdSrlInRank_i8(numNodesInRank),listNodesInRank_i8(numNodesInRank)
-      real(rp),intent(in) :: coordInRank(numNodesInRank,3),Ngp_l(mngaus,mnnode)
-      real(rp),intent(out) :: coordParMshRank(numNodesInRank,3),coordVTKMshRank(numNodesInRank,3)
+      real(8),intent(in) :: coordInRank(numNodesInRank,3),Ngp_l(mngaus,mnnode)
+      real(8),intent(out) :: coordParMshRank(numNodesInRank,3),coordVTKMshRank(numNodesInRank,3)
       integer(4) :: iPos,iNodeL
       integer(8) :: iNodeGsrl
 
@@ -4892,9 +4878,9 @@ contains
       implicit none
       integer(4),intent(in) :: mnnode,mnpbou,mngaus
       integer(4),intent(in) :: numElemsInRank,numNodesInRank,connecParOrigMshRank(numElemsInRank,mnnode)
-      real(rp),intent(in) :: Ngp_l(mngaus,mnnode)
-      real(rp),intent(inout) :: coordParMshRank(numNodesInRank,3)
-      real(rp), allocatable :: aux_1(:,:)
+      real(8),intent(in) :: Ngp_l(mngaus,mnnode)
+      real(8),intent(inout) :: coordParMshRank(numNodesInRank,3)
+      real(8), allocatable :: aux_1(:,:)
       integer(4) :: iElem,iNode,idime
 
       !if(mpi_rank.eq.0) write(*,*) "--| Interpolating nodes coordinates..."
@@ -4903,7 +4889,7 @@ contains
       do ielem = 1,numElemsInRank
          do inode = (2**ndime)+1,mnnode
             do idime = 1,ndime
-               call var_interpolate(mnnode,aux_1(connecParOrigMshRank(ielem,:),idime),Ngp_l(inode,:),coordParMshRank(connecParOrigMshRank(ielem,inode),idime))
+               call var_interpolate_real8(mnnode,aux_1(connecParOrigMshRank(ielem,:),idime),Ngp_l(inode,:),coordParMshRank(connecParOrigMshRank(ielem,inode),idime))
             end do
          end do
       end do
@@ -5007,11 +4993,11 @@ contains
    subroutine evalShapeFunctions_Ngp_l(Ngp_l,dNgp,wgp,mporder,mnnode,mngaus,a2ijk)
       integer(4),intent(in) :: mporder,mnnode,mngaus
       integer(4),intent(in) :: a2ijk(mnnode)
-      real(rp),intent(out) :: Ngp_l(mngaus,mnnode), dNgp(ndime,mnnode,mngaus), wgp(mngaus)
-      real(rp) :: s, t, z
+      real(8),intent(out) :: Ngp_l(mngaus,mnnode), dNgp(ndime,mnnode,mngaus), wgp(mngaus)
+      real(8) :: s, t, z
       integer(4) :: igaus
-      real(rp) :: xgp(mngaus,ndime)
-      real(rp) :: Ngp(mngaus,mnnode),dlxigp_ip(mngaus,ndime,mporder+1),dNgp_l(ndime,mnnode,mngaus)
+      real(8) :: xgp(mngaus,ndime)
+      real(8) :: Ngp(mngaus,mnnode),dlxigp_ip(mngaus,ndime,mporder+1),dNgp_l(ndime,mnnode,mngaus)
 
       !*********************************************************
 

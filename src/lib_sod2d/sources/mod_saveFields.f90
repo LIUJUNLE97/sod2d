@@ -18,8 +18,8 @@ module mod_saveFields
 
    character(128) :: nodeScalarNameFields(numNodeScalarFields),nodeVectorNameFields(numNodeVectorFields),elGPScalarNameFields(numElGPScalarFields)
    !------------------------------------------------------------------------------------------------------------------------
-   integer(4), parameter :: indANS_rho = 1, indANS_pr = 2, indANS_mueff = 3
-	integer(4), parameter :: numAvgNodeScalarFields = 3
+   integer(4), parameter :: indANS_rho = 1, indANS_pr = 2, indANS_pr2 = 3, indANS_mueff = 4
+	integer(4), parameter :: numAvgNodeScalarFields = 4
 
    integer(4), parameter :: indANV_vel = 1, indANV_ve2 = 2, indANV_vex = 3, indANV_tw = 4
    integer(4), parameter :: numAvgNodeVectorFields = 4
@@ -49,7 +49,7 @@ module mod_saveFields
    logical :: save_elGPScalarField_muSgs, save_elGPScalarField_muEnvit
    logical :: save_nodeVectorField_vel, save_nodeVectorField_gradRho, save_nodeVectorField_curlU
    
-   logical :: save_avgNodeScalarField_rho, save_avgNodeScalarField_pr, save_avgNodeScalarField_mueff
+   logical :: save_avgNodeScalarField_rho, save_avgNodeScalarField_pr, save_avgNodeScalarField_pr2, save_avgNodeScalarField_mueff
    logical :: save_avgNodeVectorField_vel, save_avgNodeVectorField_ve2, save_avgNodeVectorField_vex, save_avgNodeVectorField_tw
 
 contains
@@ -103,6 +103,7 @@ contains
 
       save_avgNodeScalarField_rho   = .false.
       save_avgNodeScalarField_pr    = .false.
+      save_avgNodeScalarField_pr2   = .false.
       save_avgNodeScalarField_mueff = .false.
       save_avgNodeVectorField_vel   = .false.
       save_avgNodeVectorField_ve2   = .false.
@@ -134,6 +135,7 @@ contains
 
       save_avgNodeScalarField_rho   = .true.
       save_avgNodeScalarField_pr    = .true.
+      save_avgNodeScalarField_pr2   = .true.
       save_avgNodeScalarField_mueff = .true.
       save_avgNodeVectorField_vel   = .true.
       save_avgNodeVectorField_ve2   = .true.
@@ -165,6 +167,7 @@ contains
 
       save_avgNodeScalarField_rho   = .false.
       save_avgNodeScalarField_pr    = .true.
+      save_avgNodeScalarField_pr2   = .true.
       save_avgNodeScalarField_mueff = .true.
       save_avgNodeVectorField_vel   = .true.
       save_avgNodeVectorField_ve2   = .true.
@@ -207,6 +210,7 @@ contains
       !----------------------------------------------------------------------
       avgNodeScalarNameFields(indANS_rho)   = 'avrho'
       avgNodeScalarNameFields(indANS_pr)    = 'avpre'
+      avgNodeScalarNameFields(indANS_pr2)   = 'avpr2'
       avgNodeScalarNameFields(indANS_mueff) = 'avmueff'
       !---------  vectorScalars   -------------------------------------------
       !----------------------------------------------------------------------
@@ -261,6 +265,7 @@ contains
 
       call json_f%get("save_avgNodeScalarField_rho",  save_avgNodeScalarField_rho  , isFound, save_avgNodeScalarField_rho)
       call json_f%get("save_avgNodeScalarField_pr",   save_avgNodeScalarField_pr   , isFound, save_avgNodeScalarField_pr)
+      call json_f%get("save_avgNodeScalarField_pr2",  save_avgNodeScalarField_pr2  , isFound, save_avgNodeScalarField_pr2)
       call json_f%get("save_avgNodeScalarField_mueff",save_avgNodeScalarField_mueff, isFound, save_avgNodeScalarField_mueff)
       call json_f%get("save_avgNodeVectorField_vel",  save_avgNodeVectorField_vel  , isFound, save_avgNodeVectorField_vel)
       call json_f%get("save_avgNodeVectorField_ve2",  save_avgNodeVectorField_ve2  , isFound, save_avgNodeVectorField_ve2)
@@ -271,12 +276,12 @@ contains
    end subroutine
 
    subroutine setFields2Save(rho,mu_fluid,pr,E,eta,csound,machno,divU,qcrit,Tem,u,gradRho,curlU,mu_sgs,mu_e,&
-                             avrho,avpre,avmueff,avvel,avve2,avvex,avtw)
+                             avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw)
       implicit none
       real(rp),intent(in),dimension(:) :: rho,mu_fluid,pr,E,eta,csound,machno,divU,qcrit,Tem
       real(rp),intent(in),dimension(:,:) :: u,gradRho,curlU
       real(rp),intent(in),dimension(:,:) :: mu_sgs,mu_e
-      real(rp_avg),intent(in),dimension(:) :: avrho,avpre,avmueff
+      real(rp_avg),intent(in),dimension(:) :: avrho,avpre,avpre2,avmueff
       real(rp_avg),intent(in),dimension(:,:) :: avvel,avve2,avvex,avtw
 
 
@@ -366,6 +371,10 @@ contains
        !------------------------------------------------------------
       if(save_avgNodeScalarField_pr) then
          call add_avgNodeScalarField2save(avgNodeScalarNameFields(indANS_pr),avpre(:))
+      end if
+      !------------------------------------------------------------
+      if(save_avgNodeScalarField_pr2) then
+         call add_avgNodeScalarField2save(avgNodeScalarNameFields(indANS_pr2),avpre2(:))
       end if
       !------------------------------------------------------------
       if(save_avgNodeScalarField_mueff) then

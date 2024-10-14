@@ -18,12 +18,13 @@ module mod_geom
 			real(rp),intent(out)  :: he
 			integer(4)            :: iedge,ncorner,nedge
 			integer(4)            :: inode,jnode,idime
-			real(rp)              :: dist(12,ndime), dist2, aux
+			real(8)               :: dist(12,ndime), dist2, aux, coord_r8(npoin,ndime)
 
 			!
 			! Compute r = x2-x1 for all element edges
 			!
-			call hexa_edges(mnnode,iElem,nelem,npoin,connec,coord,ncorner,nedge,dist(1:12,1:ndime))
+			coord_r8(:,:) = real(coord(:,:),8)
+			call hexa_edges(mnnode,iElem,nelem,npoin,connec,coord_r8,ncorner,nedge,dist(1:12,1:ndime))
 			!
 			! Obtain ||dist||_2 for all edges and select minimum size as elem. characteristic size
 			!
@@ -32,7 +33,7 @@ module mod_geom
 				aux = sqrt(dot_product(dist(iedge,:),dist(iedge,:)))
 				dist2 = min(dist2,aux)
 			end do
-			he = dist2
+			he = real(dist2,rp)
 
 		end subroutine char_length
 
