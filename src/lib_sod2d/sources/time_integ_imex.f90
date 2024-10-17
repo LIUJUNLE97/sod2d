@@ -38,10 +38,10 @@ module time_integ_imex
 
   contains
 
-   subroutine init_imex_solver(npoin)
+   subroutine init_imex_solver(npoin,nelem)
 
       implicit none
-      integer(4),intent(in) :: npoin
+      integer(4),intent(in) :: npoin, nelem
 
       call nvtxStartRange("Init IMEX solver")
 

@@ -505,7 +505,7 @@ end subroutine CFDSolverBase_findFixPressure
       class(CFDSolverBase), intent(inout) :: this
       if(flag_implicit == 1) then
          if (implicit_solver == implicit_solver_imex) then
-            call init_imex_solver(numNodesRankPar)
+            call init_imex_solver(numNodesRankPar,numElemsRankPar)
          end if
       else 
          if(flag_rk_ls .eqv. .false.) then
