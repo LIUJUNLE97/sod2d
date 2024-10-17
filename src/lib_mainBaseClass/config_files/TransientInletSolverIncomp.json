@@ -36,14 +36,13 @@
    "cfl_conv":0.95,
 
    "v0":1.0,
-   "delta":1.0,
+   "delta":0.420,
    "rho0":1.0,
-   "Re":10000.0,
-   "aoa":0.0,
+   "Re":936000.0,
 
    "inlet_hdf_file_name" : "inletTurb_interpGLL.h5",
    "inlet_hdf_period" : 0.4,
-   "inlet_hdf_time_step" : 0.0005
+   "inlet_hdf_time_step" : 0.0005,
 
 
    "have_witness":false,
@@ -58,15 +57,15 @@
 
    "bouCodes":
    [
-      {"id":1, "bc_type":"bc_type_far_field"},
-      {"id":2, "bc_type":"bc_type_outlet_incomp"},
-      {"id":3, "bc_type":"bc_type_outlet_incomp"},
-      {"id":4, "bc_type":"bc_type_outlet_incomp"},
-      {"id":5, "bc_type":"bc_type_non_slip_adiabatic"}
+      {"id":1, "bc_type":"bc_type_non_slip_adiabatic"},
+      {"id":2, "bc_type":"bc_type_slip_adiabatic"},
+      {"id":3, "bc_type":"bc_type_unsteady_inlet"},
+      {"id":4, "bc_type":"bc_type_outlet_incomp"}
    ],
 
    "buffer":
    [
-      {"type":"east","min":40,"size":10},
+      {"type":"east","min":40,"size":10}
+
    ]
 }

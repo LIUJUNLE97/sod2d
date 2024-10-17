@@ -25,6 +25,7 @@ program main
    use MappedInletIncomp_mod
    use WindFarmSolverIncomp_mod
    use SupersonicForwardStep_mod
+   use TransientInletSolverIncomp_mod
    implicit none
 
    logical :: found
@@ -99,7 +100,9 @@ program main
    else if(value .eq. "WindFarmSolverIncomp") then
       allocate(WindFarmSolverIncomp::solver) 
    else if(value .eq. "SupersonicForwardStep") then
-      allocate(SupersonicForwardStep::solver)       
+      allocate(SupersonicForwardStep::solver)
+   else if(value .eq. "TransientInletSolverIncomp") then
+      allocate(TransientInletSolverIncomp::solver)       
    else
       write(*,*) " Solver not implemented in SOD2D : ",value
       stop 1
