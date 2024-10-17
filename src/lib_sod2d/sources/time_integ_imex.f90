@@ -63,7 +63,7 @@ module time_integ_imex
       allocate(Rdiff_mass_imex(npoin,numSteps),Rdiff_ener_imex(npoin,numSteps))
       !$acc enter data create(Rdiff_mass_imex(:,:),Rdiff_ener_imex(:,:))
 
-      allocate(ProjMass_imex(npoin,ndime),ProjEner_imex(npoin,ndime),ProjMX_imex(npoin,ndime),ProjMY_imex(npoin,ndime),ProjMZ_imex(npoin,ndime),tau_stab_imex(npoin))
+      allocate(ProjMass_imex(npoin,ndime),ProjEner_imex(npoin,ndime),ProjMX_imex(npoin,ndime),ProjMY_imex(npoin,ndime),ProjMZ_imex(npoin,ndime),tau_stab_imex(nelem))
       !$acc enter data create(ProjMass_imex(:,:),ProjEner_imex(:,:),ProjMX_imex(:,:),ProjMY_imex(:,:),ProjMZ_imex(:,:),tau_stab_imex(:))
 
       bij_i(1) = 4.0_rp/15.0_rp 

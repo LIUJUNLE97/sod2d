@@ -59,7 +59,7 @@ module mod_solver_imex
             	!$acc enter data create(x_vars(:,:), r0_vars(:,:), p0_vars(:,:), qn_vars(:,:), b_vars(:,:),z0_vars(:,:),z1_vars(:,:),M_vars(:,:))
 				allocate(aux_u_vars(npoin,ndime), aux_Tem_vars(npoin))
 				!$acc enter data create(aux_u_vars(:,:), aux_Tem_vars(:))
-            allocate(ProjMass(npoin,ndime),ProjEner(npoin,ndime),ProjMX(npoin,ndime),ProjMY(npoin,ndime),ProjMZ(npoin,ndime),tau_stab(npoin))
+            allocate(ProjMass(npoin,ndime),ProjEner(npoin,ndime),ProjMX(npoin,ndime),ProjMY(npoin,ndime),ProjMZ(npoin,ndime),tau_stab(nelem))
             !$acc enter data create(ProjMass(:,:),ProjEner(:,:),ProjMX(:,:),ProjMY(:,:),ProjMZ(:,:),tau_stab(:))
 				flag_cg_mem_alloc_vars = .false.
 			 end if
