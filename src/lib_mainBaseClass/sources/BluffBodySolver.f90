@@ -116,7 +116,7 @@ contains
       call json%get("gamma_gas",this%gamma_gas, found,1.4_rp); call this%checkFound(found,found_aux)
       call json%get("aoa",this%aoa, found,0.0_rp); call this%checkFound(found,found_aux)
 
-      call json%get("flag_rk_ls",flag_rk_ls, found,.false.); 
+      call json%get("flag_rk_ls",flag_rk_ls, found,.true.); 
       call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
       call json%get("c_sgs",c_sgs, found,0.025_rp); 
 

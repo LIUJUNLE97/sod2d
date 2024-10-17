@@ -357,7 +357,7 @@ module time_integ_imex
                                     Tem(:,2),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex,tau_stab_imex,Rdiff_mass_imex(:,istep),Rdiff_mom_imex(:,:,istep),Rdiff_ener_imex(:,istep),.false.,-1.0_rp)                                              
             end do
             !if(mpi_rank.eq.0) write(111,*)   " after in"
-#if 1        
+      
             !$acc parallel loop
             do ipoin = 1,npoin_w
                eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
@@ -365,11 +365,12 @@ module time_integ_imex
                   log(max(pr(lpoin_w(ipoin),2),0.0_rp)/(rho(lpoin_w(ipoin),2)**gamma_gas))
                !$acc loop seq
                do idime = 1,ndime
-                  f_eta_imex(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
+                  f_eta_imex(lpoin_w(ipoin),idime)  = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
+                  f_eta_imex2(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,2)*eta(lpoin_w(ipoin),2)
                end do
             end do
             !$acc end parallel loop
-
+#if 1
             call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
                gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta_imex,eta(:,1),u(:,:,1),Reta_imex(:,2))
 
@@ -402,6 +403,37 @@ module time_integ_imex
             call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,auxReta_imex,Ngp,coord,dNgp,gpvol,wgp, &
                gamma_gas,rho(:,2),u(:,:,2),csound,Tem(:,2),eta(:,2),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
             call nvtxEndRange  
+#else
+            call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+            gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta_imex2,eta(:,2),u(:,:,2),Reta_imex(:,2))
+
+            if(mpi_size.ge.2) then
+               call mpi_halo_atomic_update_real(Reta_imex(:,2))
+            end if
+
+            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta_imex(:,2))
+
+            call generic_scalar_convec_projection_residual_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta_imex,eta(:,1),u(:,:,1),Reta_imex(:,2),auxReta_imex)
+
+            if(mpi_size.ge.2) then
+               call mpi_halo_atomic_update_real(auxReta_imex)
+            end if
+            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,auxReta_imex)    
+
+            if (noBoundaries .eqv. .false.) then
+               call nvtxStartRange("BCS_AFTER_UPDATE")
+               call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,auxReta_imex)
+               call nvtxEndRange
+            end if
+            !
+            ! Compute entropy viscosity
+            !
+            call nvtxStartRange("Entropy viscosity evaluation")
+            call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,auxReta_imex,Ngp,coord,dNgp,gpvol,wgp, &
+               gamma_gas,rho(:,2),u(:,:,2),csound,Tem(:,2),eta(:,2),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
+            call nvtxEndRange   
+
 #endif
             !
             ! If using Sutherland viscosity model:

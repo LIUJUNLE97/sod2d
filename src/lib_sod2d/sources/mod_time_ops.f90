@@ -8,7 +8,7 @@ module mod_time_ops
 
 contains
 
-   subroutine adapt_dt_cfl(nelem,npoin,connec,helem,u,csound,cfl_conv,dt,cfl_diff,mu_fluid,mu_sgs,rho)
+   subroutine adapt_dt_cfl(nelem,npoin,connec,helem,u,csound,cfl_conv,dt,cfl_diff,mu_fluid,mu_sgs,mu_e,rho,Cp,Pr)
 
       implicit none
 
@@ -16,7 +16,7 @@ contains
       real(rp)   , intent(in)           :: helem(nelem)
       real(rp)   , intent(in)           :: u(npoin,ndime), csound(npoin)
       real(rp)   , intent(in)           :: cfl_conv
-      real(rp)   , intent(in), optional :: cfl_diff,mu_fluid(npoin),mu_sgs(nelem,nnode),rho(npoin)
+      real(rp)   , intent(in), optional :: cfl_diff,mu_fluid(npoin),mu_sgs(nelem,nnode),mu_e(nelem,nnode),rho(npoin),Cp,Pr
       real(rp)  , intent(inout)         :: dt
 
       integer(4)                        :: inode,iElem
@@ -46,7 +46,7 @@ contains
                max_MU = 0.0_rp
                !$acc loop vector reduction(max:max_MU)
                do inode = 1,nnode
-                  max_MU = max( max_MU, (rho(connec(ielem,inode))*mu_sgs(ielem,inode)+mu_fluid(connec(ielem,inode)))/rho(connec(ielem,inode)))
+                  max_MU = max( max_MU, (Cp*rho(connec(ielem,inode))*mu_sgs(ielem,inode)/0.9_rp+mu_fluid(connec(ielem,inode))*(Cp/Pr) + mu_e(ielem,inode)*(Cp/Pr))/rho(connec(ielem,inode)))
                end do
                aux4 = cfl_diff*((helem(ielem)/real(2.0_rp*porder+1,rp))**2)/max_MU
                dt_diff = min(dt_diff,aux4)

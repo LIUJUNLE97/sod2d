@@ -198,6 +198,9 @@ module time_integ_ls
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             !
             pos = 2 ! Set correction as default value
+
+            call comp_tau(nelem,npoin,connec,csound,u(:,:,pos),helem,dt,tau_stab_ls)
+
             if(firstTimeStep .eqv. .true.) then
                firstTimeStep = .false.
 
@@ -276,7 +279,6 @@ module time_integ_ls
                end do
                !$acc end parallel loop
                call nvtxEndRange                              
-               !call limit_rho(nelem,npoin,connec,rho(:,pos),epsilon(umag))
             end do
             call nvtxEndRange
 
@@ -326,16 +328,49 @@ module time_integ_ls
                eta(lpoin_w(ipoin),2) = (rho(lpoin_w(ipoin),2)/(gamma_gas-1.0_rp))* &
                   log(pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)**gamma_gas))
                !$acc loop seq
-               do idime = 1,ndime
-                  f_eta(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
+               do idime = 1,ndime                  
+                  f_eta(lpoin_w(ipoin),idime)  = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
                   f_eta2(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,2)*eta(lpoin_w(ipoin),2)
                end do
             end do
             !$acc end parallel loop
             call nvtxEndRange
+
 #if 1
             call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-            gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,2),u(:,:,2),Reta(:,2))
+            gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:,2))
+
+            if(mpi_size.ge.2) then
+               call mpi_halo_atomic_update_real(Reta(:,2))
+            end if
+
+            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,2))
+
+            call nvtxStartRange("Entropy residual")
+            !$acc parallel loop
+            do ipoin = 1,npoin_w
+               auxReta(lpoin_w(ipoin)) = (1.5_rp*Reta(lpoin_w(ipoin),2)-0.5_rp*Reta(lpoin_w(ipoin),1)) + &
+                                             factor_comp*(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+               Reta(lpoin_w(ipoin),1) = Reta(lpoin_w(ipoin),2)            
+            end do
+            !$acc end parallel loop
+            call nvtxEndRange
+
+            if (noBoundaries .eqv. .false.) then
+               call nvtxStartRange("BCS_AFTER_UPDATE")
+               call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,auxReta)
+               call nvtxEndRange
+            end if
+            !
+            ! Compute entropy viscosity
+            !
+            call nvtxStartRange("Entropy viscosity evaluation")
+            call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,auxReta,Ngp,coord,dNgp,gpvol,wgp, &
+               gamma_gas,rho(:,2),u(:,:,2),csound,Tem(:,2),eta(:,2),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
+            call nvtxEndRange   
+#else
+            call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+            gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta2,eta(:,2),u(:,:,2),Reta(:,2))
 
             if(mpi_size.ge.2) then
                call mpi_halo_atomic_update_real(Reta(:,2))
@@ -344,7 +379,7 @@ module time_integ_ls
             call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,2))
 
             call generic_scalar_convec_projection_residual_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta2,eta(:,1),u(:,:,1),Reta(:,2),auxReta)
+               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:,2),auxReta)
 
             if(mpi_size.ge.2) then
                call mpi_halo_atomic_update_real(auxReta)
@@ -362,8 +397,8 @@ module time_integ_ls
             call nvtxStartRange("Entropy viscosity evaluation")
             call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,auxReta,Ngp,coord,dNgp,gpvol,wgp, &
                gamma_gas,rho(:,2),u(:,:,2),csound,Tem(:,2),eta(:,2),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
-            call nvtxEndRange   
-#endif          
+            call nvtxEndRange  
+#endif
             !
             ! If using Sutherland viscosity model:
             !
@@ -501,8 +536,6 @@ module time_integ_ls
             ! Compute diffusion terms with values at current substep
             !
             call nvtxStartRange("CONVDIFFS")
-            
-            call comp_tau(nelem,npoin,connec,csound,u(:,:,pos),helem,dt,tau_stab_ls)
 
             call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),rho(:,pos),u(:,:,pos),&
                                     Tem(:,pos),mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener,.true.,-1.0_rp)
