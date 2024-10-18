@@ -89,7 +89,7 @@ contains
       call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
       call json%get("cfl_diff",this%cfl_diff, found,0.95_rp); call this%checkFound(found,found_aux)
 
-      call json%get("flag_implicit",flag_implicit, found,0); call this%checkFound(found,found_aux)
+      call json%get("flag_implicit",flag_implicit, found,1); call this%checkFound(found,found_aux)
 
       call json%get("maxIter",maxIter, found,200); call this%checkFound(found,found_aux)
       call json%get("tol",tol, found, 0.001d0); call this%checkFound(found,found_aux)
@@ -101,7 +101,7 @@ contains
       call json%get("rho",this%rho0, found, 1.0_rp); call this%checkFound(found,found_aux)
       call json%get("gamma_gas",this%gamma_gas, found, 1.4_rp); call this%checkFound(found,found_aux)
 
-      call json%get("flag_rk_ls",flag_rk_ls, found,.false.); 
+      call json%get("flag_rk_ls",flag_rk_ls, found,.true.); 
       call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
       !Witness points parameters
       call json%get("have_witness",this%have_witness, found,.false.)
