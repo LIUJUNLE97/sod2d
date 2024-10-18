@@ -343,7 +343,7 @@ module mod_bc_routines_incomp
                      aux_u = aux_u + u(inode,idime)*u(inode,idime)
                      aux_s = aux_s + normal(idime)*u(inode,idime)
                   end do 
-                  aux_p = (mu_fgp*aux_p - 0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta)))))*0.0_rp
+                  aux_p = (mu_fgp*aux_p - 0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta)))))
                   p_buffer(inode) = aux_p
                   !aux_ufb = gradU(1,1)+gradU(2,2)+gradU(3,3)
                   !!$acc loop seq
