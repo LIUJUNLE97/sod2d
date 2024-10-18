@@ -227,8 +227,8 @@ module time_integ_incomp
 
                call evalPAtOutlet(nelem,npoin,npoin_w,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,lpoin_w, &
                   bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,mu_e,mu_sgs,rho,u(:,:,1),p_buffer,u_flux_buffer)
-               call bc_routine_momentum_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
-                  bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,u_flux_buffer,Rflux)
+               !call bc_routine_momentum_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
+               !   bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,u_flux_buffer,Rflux)
 
                if(mpi_size.ge.2) then
                   call nvtxStartRange("AB2 halo update")
