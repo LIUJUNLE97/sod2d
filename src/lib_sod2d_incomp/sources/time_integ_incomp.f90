@@ -301,7 +301,6 @@ module time_integ_incomp
                ipoin_w = lpoin_w(ipoin)
                !$acc loop seq   
                do idime = 1,ndime
-                  Rmom(ipoin_w,idime,2) = Rmom(ipoin_w,idime,2) 
                   u(ipoin_w,idime,2) = -(beta(1)*Rmom(ipoin_w,idime,2)+beta(2)*Rmom(ipoin_w,idime,1)+beta(3)*Rmom(ipoin_w,idime,3)) &
                                        - Rsource(ipoin_w,idime)
                   Rmom(ipoin_w,idime,3) = Rmom(ipoin_w,idime,1)
