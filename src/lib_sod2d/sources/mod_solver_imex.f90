@@ -13,7 +13,7 @@ module mod_solver_imex
 	implicit none
       
 	real(rp)  , allocatable, dimension(:,:) :: x_vars, r0_vars, p0_vars, qn_vars, b_vars,z0_vars,z1_vars,M_vars
-	real(rp)  , allocatable, dimension(:,:) :: aux_u_vars,b_stab
+	real(rp)  , allocatable, dimension(:,:) :: aux_u_vars
    real(rp)  , allocatable, dimension(:) 	:: aux_Tem_vars,tau_stab
    real(rp)  , allocatable, dimension(:,:) :: ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ
    logical  :: flag_cg_mem_alloc_vars=.true.
@@ -56,9 +56,9 @@ module mod_solver_imex
           
           if (flag_cg_mem_alloc_vars .eqv. .true.) then
 				allocate(x_vars(npoin,nvars), r0_vars(npoin,nvars), p0_vars(npoin,nvars), qn_vars(npoin,nvars), b_vars(npoin,nvars),z0_vars(npoin,nvars),z1_vars(npoin,nvars),M_vars(npoin,nvars))
-            !$acc enter data create(x_vars(:,:), r0_vars(:,:), p0_vars(:,:), qn_vars(:,:), b_vars(:,:),z0_vars(:,:),z1_vars(:,:),M_vars(:,:))
-				allocate(aux_u_vars(npoin,ndime), aux_Tem_vars(npoin),b_stab(npoin,nvars))
-				!$acc enter data create(aux_u_vars(:,:), aux_Tem_vars(:),b_stab(:,:))
+            	!$acc enter data create(x_vars(:,:), r0_vars(:,:), p0_vars(:,:), qn_vars(:,:), b_vars(:,:),z0_vars(:,:),z1_vars(:,:),M_vars(:,:))
+				allocate(aux_u_vars(npoin,ndime), aux_Tem_vars(npoin))
+				!$acc enter data create(aux_u_vars(:,:), aux_Tem_vars(:))
             allocate(ProjMass(npoin,ndime),ProjEner(npoin,ndime),ProjMX(npoin,ndime),ProjMY(npoin,ndime),ProjMZ(npoin,ndime),tau_stab(nelem))
             !$acc enter data create(ProjMass(:,:),ProjEner(:,:),ProjMX(:,:),ProjMY(:,:),ProjMZ(:,:),tau_stab(:))
 				flag_cg_mem_alloc_vars = .false.
@@ -68,55 +68,68 @@ module mod_solver_imex
            ! Initialize solver
            !
            call nvtxStartRange("PCG init")
+            !$acc parallel loop
+            do ipoin = 1,npoin
+               !$acc loop seq
+               do ivars = 1,nvars           
+                  r0_vars(ipoin,ivars) = 0.0_rp
+                  p0_vars(ipoin,ivars) = 0.0_rp
+                  qn_vars(ipoin,ivars) = 0.0_rp
+                  b_vars(ipoin ,ivars) = 0.0_rp
+                  z0_vars(ipoin,ivars) = 0.0d0
+                  z1_vars(ipoin,ivars) = 0.0d0
+                  M_vars(ipoin ,ivars) = Ml(ipoin)/dt
+               end do
+            end do 
+            !$acc end parallel loop
 
             !$acc parallel loop
             do ipoin = 1,npoin_w
                ipoinl = lpoin_w(ipoin)
-
                b_vars(ipoinl,1) = R_mass(ipoinl)
-               b_vars(ipoinl,2) = R_ener(ipoinl)
                x_vars(ipoinl,1) = Rp0_mass(ipoinl)
+               b_vars(ipoinl,2) = R_ener(ipoinl)
                x_vars(ipoinl,2) = Rp0_ener(ipoinl)
-               rhol = x_vars(ipoinl,1)
-               El = x_vars(ipoinl,2)
-               umag = 0.0_rp
                !$acc loop seq
                do idime = 1,ndime   
                   b_vars(ipoinl,2+idime) = R_mom(ipoinl  ,idime)
                   x_vars(ipoinl,2+idime) = Rp0_mom(ipoinl,idime)
+               end do
+               rhol = x_vars(ipoinl,1)
+               El = x_vars(ipoinl,2)
+               umag = 0.0_rp
+               !$acc loop seq
+               do idime = 1,ndime
                   aux_u_vars(ipoinl,idime) = x_vars(ipoinl,2+idime)/rhol
                   umag = umag + (aux_u_vars(ipoinl,idime)*aux_u_vars(ipoinl,idime))
                end do
                e_int_l = (El/rhol)-0.5_rp*umag
                aux_Tem_vars(ipoinl) = rhol*(gamma_gas-1.0_rp)*e_int_l/(rhol*Rgas)
-               !$acc loop seq
-               do ivars = 1,nvars         
-                  M_vars(ipoinl ,ivars) = Ml(ipoinl)/dt
-               end do
             end do
             !$acc end parallel loop
-
+            
             call comp_tau(nelem,npoin,connec,csound,aux_u_vars,helem_k,dt,tau_stab)
-            call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ)
-            call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),x_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ,tau_stab,b_stab(:,1),b_stab(:,3:nvars),b_stab(:,2),.true.,1.0_rp)
 
+            ! Real solver form here
+
+            !call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ)
+            !call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),x_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ,tau_stab,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.true.,-1.0_rp)
             call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),x_vars(:,1),aux_u_vars,&
-                 aux_Tem_vars,mu_fluid,mu_e,mu_sgs,Ml,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2))
-
-            if(mpi_size.ge.2) then
+                 aux_Tem_vars,mu_fluid,mu_e,mu_sgs,Ml,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.true.,1.0_rp)
+			
+            !if(mpi_rank.eq.0) write(111,*) "--|[IMEX] CG before atomic"
+			   if(mpi_size.ge.2) then
                call nvtxStartRange("PCG halo")
-               call mpi_halo_atomic_update_real_arrays_iSendiRcv(nvars,b_stab(:,:))
                call mpi_halo_atomic_update_real_arrays_iSendiRcv(nvars,qn_vars(:,:))
                call nvtxEndRange
             end if
-            
              !$acc parallel loop 
             do ipoin = 1,npoin_w
                ipoinl = lpoin_w(ipoin)
                !$acc loop seq
                do ivars = 1,nvars
                   qn_vars(ipoinl,ivars) = x_vars(ipoinl ,ivars)*Ml(ipoinl)+qn_vars(ipoinl,ivars)*fact*dt
-                  r0_vars(ipoinl,ivars) = b_vars(ipoinl ,ivars)-qn_vars(ipoinl,ivars)+b_stab(ipoinl,ivars)*fact*dt ! b-A*x0
+                  r0_vars(ipoinl,ivars) = b_vars(ipoinl ,ivars)-qn_vars(ipoinl,ivars) ! b-A*x0
               end do
             end do
             !$acc end parallel loop
@@ -170,7 +183,7 @@ module mod_solver_imex
               !call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,p0_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ)
               !call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),p0_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ,tau_stab,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.true.,-1.0_rp)
               call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),p0_vars(:,1),aux_u_vars,&
-                 aux_Tem_vars,mu_fluid,mu_e,mu_sgs,Ml,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2))              
+                 aux_Tem_vars,mu_fluid,mu_e,mu_sgs,Ml,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.true.,1.0_rp)              
 			      if(mpi_size.ge.2) then
                   call mpi_halo_atomic_update_real_arrays_iSendiRcv(nvars,qn_vars(:,:))
                end if
