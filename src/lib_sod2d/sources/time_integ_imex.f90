@@ -23,15 +23,16 @@ module time_integ_imex
    implicit none
 
    real(rp), allocatable, dimension(:,:,:) :: Rmom_imex
-   real(rp), allocatable, dimension(:,:) :: Rmass_imex, Rener_imex,Reta_imex
+   real(rp), allocatable, dimension(:,:) :: Rmass_imex, Rener_imex,Reta_imex,Rmom_stab
    real(rp), allocatable, dimension(:,:) :: Rsource_imex,Rwmles_imex
    real(rp), allocatable, dimension(:,:,:) :: Rdiff_mom_imex
    real(rp), allocatable, dimension(:,:) :: f_eta_imex, f_eta_imex2
    real(rp), allocatable, dimension(:,:)   :: Rdiff_mass_imex,Rdiff_ener_imex
-   real(rp), allocatable, dimension(:) :: auxReta_imex,aux_h
+   real(rp), allocatable, dimension(:) :: auxReta_imex,aux_h,Rmass_stab,Rener_stab
    real(rp)  , allocatable, dimension(:) 	:: tau_stab_imex
    real(rp)  , allocatable, dimension(:,:) :: ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex
-   integer(4), parameter :: numSteps = 4
+   !integer(4), parameter :: numSteps = 4
+   integer(4), parameter :: numSteps = 3
    real(rp), dimension(numSteps,numSteps) :: aij_e, aij_i
    real(rp), dimension(numSteps) :: bij_e, bij_i
    logical :: firstTimeStep = .true.
@@ -45,8 +46,8 @@ module time_integ_imex
 
       call nvtxStartRange("Init IMEX solver")
 
-      allocate(Rmom_imex(npoin,ndime,numSteps))
-      !$acc enter data create(Rmom_imex(:,:,:))
+      allocate(Rmom_imex(npoin,ndime,numSteps),Rmass_stab(npoin),Rener_stab(npoin),Rmom_stab(npoin,ndime))
+      !$acc enter data create(Rmom_imex(:,:,:),Rmass_stab(:),Rener_stab(:),Rmom_stab(:,:))
 
       allocate(Rmass_imex(npoin,numSteps),Rener_imex(npoin,numSteps),Reta_imex(npoin,2))
       !$acc enter data create(Rmass_imex(:,:),Rener_imex(:,:),Reta_imex(:,:))
@@ -65,7 +66,7 @@ module time_integ_imex
 
       allocate(ProjMass_imex(npoin,ndime),ProjEner_imex(npoin,ndime),ProjMX_imex(npoin,ndime),ProjMY_imex(npoin,ndime),ProjMZ_imex(npoin,ndime),tau_stab_imex(nelem))
       !$acc enter data create(ProjMass_imex(:,:),ProjEner_imex(:,:),ProjMX_imex(:,:),ProjMY_imex(:,:),ProjMZ_imex(:,:),tau_stab_imex(:))
-
+#if 0
       bij_i(1) = 4.0_rp/15.0_rp 
       bij_i(2) = 1.0_rp/3.0_rp 
       bij_i(3) = 7.0_rp/30.0_rp 
@@ -109,6 +110,35 @@ module time_integ_imex
       aij_e(4,2) = bij_e(2)
       aij_e(4,3) = bij_e(3)
       aij_e(4,4) = bij_e(4)
+#else
+   bij_i(1) = real(0.398930808264688d0,rp) 
+   bij_i(2) = real(0.345755244189623d0,rp)  
+   bij_i(3) = real(0.255313947545689d0,rp) 
+
+   bij_e(1) = real(0.398930808264688d0,rp) 
+   bij_e(2) = real(0.345755244189623d0,rp)  
+   bij_e(3) = real(0.255313947545689d0,rp) 
+
+   aij_i(1,1) = 0.0_rp
+   aij_i(1,2) = 0.0_rp
+   aij_i(1,3) = 0.0_rp
+   aij_i(2,1) = real(0.353842865099275d0,rp)
+   aij_i(2,2) = real(0.353842865099275d0,rp)
+   aij_i(2,3) = 0.0_rp
+   aij_i(3,1) = real(0.398930808264689d0,rp)
+   aij_i(3,2) = real(0.345755244189622d0,rp)
+   aij_i(3,3) = real(0.255313947545689d0,rp)
+
+   aij_e(1,1) = 0.0_rp
+   aij_e(1,2) = 0.0_rp
+   aij_e(1,3) = 0.0_rp
+   aij_e(2,1) = real(0.711664700366941d0,rp)
+   aij_e(2,2) = 0.0_rp
+   aij_e(2,3) = 0.0_rp
+   aij_e(3,1) = real(0.077338168947683d0,rp)
+   aij_e(3,2) = real(0.917273367886007d0,rp)
+   aij_e(3,3) = 0.0_rp
+#endif
 
       !$acc enter data copyin(bij_i(:))
       !$acc enter data copyin(bij_e(:))
@@ -203,16 +233,15 @@ module time_integ_imex
 
             if(firstTimeStep .eqv. .true.) then
                firstTimeStep = .false.
-
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  aux_h(lpoin_w(ipoin)) = (gamma_gas/(gamma_gas-1.0_rp))*pr(lpoin_w(ipoin),1)/rho(lpoin_w(ipoin),1)
+               end do
+               !$acc end parallel loop
                call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,1),q(:,:,1),rho(:,1),pr(:,1),&
                                     aux_h(:),Rmass_imex(:,1),Rmom_imex(:,:,1),Rener_imex(:,1))
                call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),rho(:,1),u(:,:,1),&
                                        Tem(:,1),mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass_imex(:,1),Rdiff_mom_imex(:,:,1),Rdiff_ener_imex(:,1))
-               call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),u(:,:,1),&
-                                       Tem(:,1),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex)
-               call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),rho(:,1),u(:,:,1),&
-                                       Tem(:,1),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex,tau_stab_imex,Rdiff_mass_imex(:,1),Rdiff_mom_imex(:,:,1),Rdiff_ener_imex(:,1),.false.,-1.0_rp) 
-
             else 
                !$acc parallel loop
                do ipoin = 1,npoin
@@ -229,23 +258,28 @@ module time_integ_imex
                !$acc end parallel loop
             end if
 
+            call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),u(:,:,1),&
+                              Tem(:,1),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex)
+            call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),rho(:,1),u(:,:,1),&
+                              Tem(:,1),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex,tau_stab_imex,Rmass_stab,Rmom_stab,Rener_stab,.true.,-1.0_rp) 
+
             if(isWallModelOn) then
-                  !$acc kernels
-                  Rwmles_imex(1:npoin,1:ndime) = 0.0_rp
-                  !$acc end kernels
-                  if(numBoundsWM .ne. 0) then
-                     if(flag_type_wmles == wmles_type_reichardt) then
-                        call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
-                           rho(:,1),walave_u(:,:),tauw,Rwmles_imex)
-                     else if (flag_type_wmles == wmles_type_abl) then
-                        call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
-                           rho(:,1),walave_u(:,:),zo,tauw,Rwmles_imex)
-                     end if
+               !$acc kernels
+               Rwmles_imex(1:npoin,1:ndime) = 0.0_rp
+               !$acc end kernels
+               if(numBoundsWM .ne. 0) then
+                  if(flag_type_wmles == wmles_type_reichardt) then
+                     call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
+                        rho(:,2),walave_u(:,:),tauw,Rwmles_imex)
+                  else if (flag_type_wmles == wmles_type_abl) then
+                     call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
+                        rho(:,2),walave_u(:,:),zo,tauw,Rwmles_imex)
                   end if
+               end if
             end if
-            !if(mpi_rank.eq.0) write(111,*)   " before in"
+
             do istep = 2,numSteps 
 
                if(present(source_term) .or.flag_bouyancy_effect) then
@@ -263,19 +297,18 @@ module time_integ_imex
 
                !$acc parallel loop
                do ipoin = 1,npoin
-                  rho(ipoin,2) =  -dt*Rsource_imex(ipoin,1)
-                  E(ipoin,2)   =  -dt*Rsource_imex(ipoin,2)
+                  rho(ipoin,2) =  -dt*Rsource_imex(ipoin,1)-dt*Rmass_stab(ipoin)
+                  E(ipoin,2)   =  -dt*Rsource_imex(ipoin,2)-dt*Rener_stab(ipoin)
                   !$acc loop seq   
                   do idime = 1,ndime
-                     q(ipoin,idime,2) =  -dt*(Rsource_imex(ipoin,idime+2)+Rwmles_imex(ipoin,idime))
+                     q(ipoin,idime,2) =  -dt*(Rsource_imex(ipoin,idime+2)+Rwmles_imex(ipoin,idime)+Rmom_stab(ipoin,idime))
                   end do
                   do jstep = 1, istep-1
                      rho(ipoin,2) = rho(ipoin,2) -dt*aij_e(istep,jstep)*(Rmass_imex(ipoin,jstep)+Rsource_imex(ipoin,1))-dt*aij_i(istep,jstep)*Rdiff_mass_imex(ipoin,jstep)
                      E(ipoin,2)   = E(ipoin,2)   -dt*aij_e(istep,jstep)*(Rener_imex(ipoin,jstep)+Rsource_imex(ipoin,2))-dt*aij_i(istep,jstep)*Rdiff_ener_imex(ipoin,jstep)
                      do idime = 1,ndime
                         q(ipoin,idime,2) = q(ipoin,idime,2) -dt*aij_e(istep,jstep)*(Rmom_imex(ipoin,idime,jstep)+Rsource_imex(ipoin,idime+2)+Rwmles_imex(ipoin,idime)) &
-                                                            -dt*aij_i(istep,jstep)*Rdiff_mom_imex(ipoin,idime,jstep)
-                                           
+                                                            -dt*aij_i(istep,jstep)*Rdiff_mom_imex(ipoin,idime,jstep)                    
                      end do
                   end do
                end do
@@ -351,10 +384,10 @@ module time_integ_imex
                end if
                call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,2),rho(:,2),u(:,:,2),&
                                     Tem(:,2),mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass_imex(:,istep),Rdiff_mom_imex(:,:,istep),Rdiff_ener_imex(:,istep))
-               call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,2),u(:,:,2),&
-                                    Tem(:,2),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex)
-               call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,2),rho(:,2),u(:,:,2),&
-                                    Tem(:,2),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex,tau_stab_imex,Rdiff_mass_imex(:,istep),Rdiff_mom_imex(:,:,istep),Rdiff_ener_imex(:,istep),.false.,-1.0_rp)                                              
+               !call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,2),u(:,:,2),&
+               !                     Tem(:,2),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex)
+               !call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,2),rho(:,2),u(:,:,2),&
+               !                     Tem(:,2),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex,tau_stab_imex,Rmass_imex(:,istep),Rmom_imex(:,:,istep),Rener_imex(:,istep),.false.,-1.0_rp)                                              
             end do
             !if(mpi_rank.eq.0) write(111,*)   " after in"
       

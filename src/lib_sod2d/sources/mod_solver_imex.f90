@@ -112,10 +112,10 @@ module mod_solver_imex
 
             ! Real solver form here
 
-            call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ)
-            call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),x_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ,tau_stab,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.true.,-1.0_rp)
+            !call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ)
+            !call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),x_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ,tau_stab,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.true.,-1.0_rp)
             call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),x_vars(:,1),aux_u_vars,&
-                 aux_Tem_vars,mu_fluid,mu_e,mu_sgs,Ml,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.false.,1.0_rp)
+                 aux_Tem_vars,mu_fluid,mu_e,mu_sgs,Ml,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.true.,1.0_rp)
 			
             !if(mpi_rank.eq.0) write(111,*) "--|[IMEX] CG before atomic"
 			   if(mpi_size.ge.2) then
@@ -180,10 +180,10 @@ module mod_solver_imex
            !
            call nvtxStartRange("PCG iters")
            do iter = 1,maxIter
-              call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,p0_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ)
-              call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),p0_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ,tau_stab,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.true.,-1.0_rp)
+              !call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,p0_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ)
+              !call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),p0_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ,tau_stab,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.true.,-1.0_rp)
               call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),p0_vars(:,1),aux_u_vars,&
-                 aux_Tem_vars,mu_fluid,mu_e,mu_sgs,Ml,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.false.,1.0_rp)              
+                 aux_Tem_vars,mu_fluid,mu_e,mu_sgs,Ml,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.true.,1.0_rp)              
 			      if(mpi_size.ge.2) then
                   call mpi_halo_atomic_update_real_arrays_iSendiRcv(nvars,qn_vars(:,:))
                end if

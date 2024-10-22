@@ -209,36 +209,7 @@ module time_integ_ls
                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&            
                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u,zo)
-            end if
-
-            !
-            ! Evaluate wall models
-
-            if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
-               call nvtxStartRange("WALL MODEL")
-               if(flag_type_wmles == wmles_type_reichardt) then
-                  call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                  bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,rho(:,pos),walave_u(:,:),tauw,Rwmles,-1.0_rp)
-               else if (flag_type_wmles == wmles_type_abl) then
-                  call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                                       bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
-                                       rho(:,pos),walave_u(:,:),zo,tauw,Rwmles,-1.0_rp)
-               end if   
-               call nvtxEndRange                              
-            end if
-
-            if(mpi_size.ge.2) then
-               call nvtxStartRange("MPI_comms_tI")
-               call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,Rwmles(:,:))
-               call nvtxEndRange
-            end if
-
-            !
-            ! Call lumped mass matrix solver
-            !
-            call nvtxStartRange("Call solver")
-            call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rwmles(:,:))
-            call nvtxEndRange            
+            end if           
             
 
             !$acc parallel loop
@@ -559,6 +530,22 @@ module time_integ_ls
                   call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,pos),source_term(:,3:ndime+2),Rmom,-1.0_rp)
                   call ener_source_const(nelem,npoin,connec,Ngp,dNgp,He,gpvol,source_term(:,2),Rener,-1.0_rp)
                end if
+            end if
+
+            !
+            ! Evaluate wall models
+
+            if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
+               call nvtxStartRange("WALL MODEL")
+               if(flag_type_wmles == wmles_type_reichardt) then
+                  call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                  bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,rho(:,pos),walave_u(:,:),tauw,Rmom,-1.0_rp)
+               else if (flag_type_wmles == wmles_type_abl) then
+                  call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                                       bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
+                                       rho(:,pos),walave_u(:,:),zo,tauw,Rmom,-1.0_rp)
+               end if   
+               call nvtxEndRange                              
             end if
 
             if(mpi_size.ge.2) then
