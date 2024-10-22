@@ -335,13 +335,11 @@ module elem_stab
          !$acc end parallel loop
          if(mpi_size.ge.2) then
             call nvtxStartRange("MPI_comms_tI")
-            do idime = 1,ndime
-               call mpi_halo_atomic_update_real(ProjMX(:,idime))
-               call mpi_halo_atomic_update_real(ProjMY(:,idime))
-               call mpi_halo_atomic_update_real(ProjMZ(:,idime))
-               call mpi_halo_atomic_update_real(ProjMass(:,idime))
-               call mpi_halo_atomic_update_real(ProjEner(:,idime))
-            end do
+            call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,ProjMX(:,:))
+            call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,ProjMY(:,:))
+            call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,ProjMZ(:,:))
+            call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,ProjMass(:,:))
+            call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,ProjEner(:,:))
             call nvtxEndRange
          end if
          

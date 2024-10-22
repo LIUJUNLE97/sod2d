@@ -124,6 +124,9 @@ contains
       call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
       call json%get("period_walave",period_walave, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("flag_les_ilsa",flag_les_ilsa, found,0); call this%checkFound(found,found_aux)
+      call json%get("stau",stau, found,0.022_rp); call this%checkFound(found,found_aux)
+      call json%get("T_ilsa",T_ilsa, found,1.0_rp); call this%checkFound(found,found_aux)
 
       call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
 

@@ -118,6 +118,10 @@ contains
       call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
       call json%get("flag_high_mach",flag_high_mach, found,.true.); call this%checkFound(found,found_aux)
+      
+      call json%get("flag_les_ilsa",flag_les_ilsa, found,0); call this%checkFound(found,found_aux)
+      call json%get("stau",stau, found,0.022_rp); call this%checkFound(found,found_aux)
+      call json%get("T_ilsa",T_ilsa, found,1.0_rp); call this%checkFound(found,found_aux)
 
       call json%get("period_walave",period_walave, found,1.0_rp); call this%checkFound(found,found_aux)
       call json%get("flag_walave",flag_walave, found,.true.); call this%checkFound(found,found_aux)
@@ -136,7 +140,7 @@ contains
       call json%get("aoa_alpha",this%aoa_alpha, found,11.0_rp); call this%checkFound(found,found_aux)
       call json%get("aoa_beta",this%aoa_beta, found,0.0_rp); call this%checkFound(found,found_aux)
 
-      call json%get("flag_rk_ls",flag_rk_ls, found,.false.); 
+      call json%get("flag_rk_ls",flag_rk_ls, found,.true.); 
       call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
       call json%get("c_sgs",c_sgs, found,0.025_rp); 
       !Witness points parameters

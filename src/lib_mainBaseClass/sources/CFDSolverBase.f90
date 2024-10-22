@@ -505,7 +505,7 @@ end subroutine CFDSolverBase_findFixPressure
       class(CFDSolverBase), intent(inout) :: this
       if(flag_implicit == 1) then
          if (implicit_solver == implicit_solver_imex) then
-            call init_imex_solver(numNodesRankPar)
+            call init_imex_solver(numNodesRankPar,numElemsRankPar)
          end if
       else 
          if(flag_rk_ls .eqv. .false.) then
@@ -656,9 +656,9 @@ end subroutine CFDSolverBase_findFixPressure
       call load_hdf5_meshfile(this%meshFile_h5_full_name)
 
       ! init comms
-      call init_comms(this%useIntInComms,this%useRealInComms)
+      call init_comms(this%useIntInComms,this%useRealInComms,1,5)
       ! init comms boundaries
-      call init_comms_bnd(this%useIntInComms,this%useRealInComms)
+      call init_comms_bnd(this%useIntInComms,this%useRealInComms,1,5)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
          call save_surface_mesh_hdf5_file(this%meshFile_h5_full_name,this%surface_meshFile_h5_full_name,npbou,mesh_gmsh2ij,mesh_vtk2ij)
@@ -1230,11 +1230,11 @@ end subroutine CFDSolverBase_findFixPressure
       !*********************************************************************!
 
       if(mpi_rank.eq.0) write(111,*) "--| Evaluating initial dt..."
-      if (flag_real_diff == 1) then
-         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
-      else
-         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
-      end if
+      !if (flag_real_diff == 1) then
+         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,mu_e,rho(:,2),this%Cp,this%Prt)
+      !else
+      !   call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
+      !end if
       if(mpi_rank.eq.0) write(111,*) "--| Initial time-step dt := ",this%dt,"s"
 
       call MPI_Barrier(app_comm,mpi_err)
@@ -1244,11 +1244,11 @@ end subroutine CFDSolverBase_findFixPressure
    subroutine CFDSolverBase_evalDt(this)
       class(CFDSolverBase), intent(inout) :: this
 
-      if (flag_real_diff == 1) then
-         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
-      else
-         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
-      end if
+      !if (flag_real_diff == 1) then
+         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,mu_e,rho(:,2),this%Cp,this%Prt)
+      !else
+      !   call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
+      !end if
 
    end subroutine CFDSolverBase_evalDt
 
