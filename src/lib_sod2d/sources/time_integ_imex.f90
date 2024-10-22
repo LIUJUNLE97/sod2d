@@ -31,8 +31,8 @@ module time_integ_imex
    real(rp), allocatable, dimension(:) :: auxReta_imex,aux_h,Rmass_stab,Rener_stab
    real(rp)  , allocatable, dimension(:) 	:: tau_stab_imex
    real(rp)  , allocatable, dimension(:,:) :: ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex
-   integer(4), parameter :: numSteps = 4
-   !integer(4), parameter :: numSteps = 3
+   !integer(4), parameter :: numSteps = 4
+   integer(4), parameter :: numSteps = 3
    real(rp), dimension(numSteps,numSteps) :: aij_e, aij_i
    real(rp), dimension(numSteps) :: bij_e, bij_i
    logical :: firstTimeStep = .true.
@@ -66,7 +66,7 @@ module time_integ_imex
 
       allocate(ProjMass_imex(npoin,ndime),ProjEner_imex(npoin,ndime),ProjMX_imex(npoin,ndime),ProjMY_imex(npoin,ndime),ProjMZ_imex(npoin,ndime),tau_stab_imex(nelem))
       !$acc enter data create(ProjMass_imex(:,:),ProjEner_imex(:,:),ProjMX_imex(:,:),ProjMY_imex(:,:),ProjMZ_imex(:,:),tau_stab_imex(:))
-#if 1
+#if 0
       bij_i(1) = 4.0_rp/15.0_rp 
       bij_i(2) = 1.0_rp/3.0_rp 
       bij_i(3) = 7.0_rp/30.0_rp 
