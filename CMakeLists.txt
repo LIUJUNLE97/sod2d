@@ -19,11 +19,11 @@ option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
 
 option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
 option(USE_MN4 "Compiling in MareNostrum" OFF)
-option(USE_MN5 "Compiling in MareNostrum5" ON)
+option(USE_MN5 "Compiling in MareNostrum5" OFF)
 option(USE_CRAY "Compiling with CrayMpi" OFF)
 option(SHARED_LIBS "Compile using shared libraries" OFF)
 
-option(USE_GPU "Compile using GPU" ON)
+option(USE_GPU "Compile using GPU" OFF)
 option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
 option(USE_NCCL "Compile using NCCL" OFF)
 
