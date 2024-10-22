@@ -92,6 +92,7 @@ contains
       call json%get("save_restartFile_first",this%save_restartFile_first, found,1); call this%checkFound(found,found_aux)
       call json%get("save_restartFile_step" ,this%save_restartFile_step, found,10000); call this%checkFound(found,found_aux)
 
+      call json%get("saveInitialField",this%saveInitialField, found,.true.); call this%checkFound(found,found_aux)
 
       call json%get("loadRestartFile" ,this%loadRestartFile, found, .false.); call this%checkFound(found,found_aux)
       call json%get("restartFile_to_load" ,this%restartFile_to_load, found,1); call this%checkFound(found,found_aux)
@@ -222,8 +223,8 @@ contains
 
    subroutine TransientInletSolverIncomp_beforeTimeIteration(this)
        class(TransientInletSolverIncomp), intent(inout) :: this
-       integer(4) :: inode, ipoin,iLine,auxCnt,bcode,ierr
-       integer(hid_t) :: file_id,dataset_id, dataspace_id
+       integer(4) :: inode, ipoin,iLine,auxCnt,bcode,h5err
+       integer(hid_t) :: file_id,dataset_id, dataspace_id, plist_id
        integer(hsize_t), dimension(1) :: dim_scal
        integer, dimension(1) :: val_scal
        integer(hsize_t), allocatable, dimension(:) :: dim_id
@@ -237,20 +238,22 @@ contains
        ! here we read the npoinDB, nStepsDB
        ! -------------------------------------------------------------
        ! Open .h5 file
-       call h5open_f(ierr)
-       call h5fopen_f("inletTurb_interpGLL.h5", H5F_ACC_RDONLY_F, file_id, ierr)
+       !call h5open_f(h5err)
+       call h5pcreate_f(H5P_FILE_ACCESS_F,plist_id,h5err)
+       call h5pset_fapl_mpio_f(plist_id,app_comm,MPI_INFO_NULL,h5err)
+       call h5fopen_f("inletTurb_interpGLL.h5", H5F_ACC_RDONLY_F, file_id, h5err, access_prp=plist_id)
    
        ! Read the scalar npoinDB
-       call h5dopen_f(file_id, "npointDB", dataset_id, ierr)
-       call h5dread_f(dataset_id, H5T_NATIVE_INTEGER, val_scal, dim_scal, ierr)
+       call h5dopen_f(file_id, "npointDB", dataset_id, h5err)
+       call h5dread_f(dataset_id, H5T_NATIVE_INTEGER, val_scal, dim_scal, h5err)
        npoinDB = val_scal(1)
-       call h5dclose_f(dataset_id, ierr)
+       call h5dclose_f(dataset_id, h5err)
        
        ! Read the scalar nstepsDB
-       call h5dopen_f(file_id, "nstepsDB", dataset_id, ierr)
-       call h5dread_f(dataset_id, H5T_NATIVE_INTEGER, val_scal, dim_scal, ierr)
+       call h5dopen_f(file_id, "nstepsDB", dataset_id, h5err)
+       call h5dread_f(dataset_id, H5T_NATIVE_INTEGER, val_scal, dim_scal, h5err)
        nstepsDB = val_scal(1)
-       call h5dclose_f(dataset_id, ierr)
+       call h5dclose_f(dataset_id, h5err)
  
        if(mpi_rank.eq.0) then
           write(111,*) "Numer of points: ", npoinDB
@@ -262,7 +265,7 @@ contains
        dim_vel(1) = nstepsDB; dim_vel(2) = npoinDB
        
        ! Here allocating variables for collecting dataset fields
-       allocate(ipoinInletDB(npoinDB))
+       allocate(ipoinInletDB(npoinDB),myPointsDB(npoinDB))
        allocate(uInletDB(nstepsDB,npoinDB),vInletDB(nstepsDB,npoinDB),wInletDB(nstepsDB,npoinDB))
  
        !$acc enter data create(ipoinInletDB(:),myPointsDB(:),uInletDB(:,:),vInletDB(:,:),wInletDB(:,:))
@@ -274,54 +277,64 @@ contains
        ! -------------------------------------------------------------
        ! you need to read your files and update to device
        ! Read "ID"
-       call h5dopen_f(file_id, "ID", dataset_id, ierr)
-       call h5dget_space_f(dataset_id, dataspace_id, ierr)
-       call h5dread_f(dataset_id, H5T_NATIVE_INTEGER, ipoinInletDB, dim_id, ierr)
-       call h5dclose_f(dataset_id, ierr)
-       call h5sclose_f(dataspace_id, ierr)
- 
+       call h5dopen_f(file_id, "ID", dataset_id, h5err)
+       call h5dget_space_f(dataset_id, dataspace_id, h5err)
+       call h5dread_f(dataset_id, H5T_NATIVE_INTEGER, ipoinInletDB, dim_id, h5err)
+       call h5dclose_f(dataset_id, h5err)
+       call h5sclose_f(dataspace_id, h5err)
+    
        ! Read "uInletDB"
-       call h5dopen_f(file_id, "u_x", dataset_id, ierr)
-       call h5dget_space_f(dataset_id, dataspace_id, ierr)
-       call h5dread_f(dataset_id, H5T_NATIVE_REAL, uInletDB, dim_vel, ierr)
-       call h5dclose_f(dataset_id, ierr)
-       call h5sclose_f(dataspace_id, ierr)
- 
+       call h5dopen_f(file_id, "u_x", dataset_id, h5err)
+       call h5dget_space_f(dataset_id, dataspace_id, h5err)
+       call h5dread_f(dataset_id, H5T_NATIVE_REAL, uInletDB, dim_vel, h5err)
+       call h5dclose_f(dataset_id, h5err)
+       call h5sclose_f(dataspace_id, h5err)
+    
        ! Read "vInletDB"
-       call h5dopen_f(file_id, "u_y", dataset_id, ierr)
-       call h5dget_space_f(dataset_id, dataspace_id, ierr)
-       call h5dread_f(dataset_id, H5T_NATIVE_REAL, vInletDB, dim_vel, ierr)
-       call h5dclose_f(dataset_id, ierr)
-       call h5sclose_f(dataspace_id, ierr)
- 
+       call h5dopen_f(file_id, "u_y", dataset_id, h5err)
+       call h5dget_space_f(dataset_id, dataspace_id, h5err)
+       call h5dread_f(dataset_id, H5T_NATIVE_REAL, vInletDB, dim_vel, h5err)
+       call h5dclose_f(dataset_id, h5err)
+       call h5sclose_f(dataspace_id, h5err)
+    
        ! Read "wInletDB"
-       call h5dopen_f(file_id, "u_z", dataset_id, ierr)
-       call h5dget_space_f(dataset_id, dataspace_id, ierr)
-       call h5dread_f(dataset_id, H5T_NATIVE_REAL, wInletDB, dim_vel, ierr)
-       call h5dclose_f(dataset_id, ierr)
-       call h5sclose_f(dataspace_id, ierr)
+       call h5dopen_f(file_id, "u_z", dataset_id, h5err)
+       call h5dget_space_f(dataset_id, dataspace_id, h5err)
+       call h5dread_f(dataset_id, H5T_NATIVE_REAL, wInletDB, dim_vel, h5err)
+       call h5dclose_f(dataset_id, h5err)
+       call h5sclose_f(dataspace_id, h5err)
+   
  
        if(mpi_rank.eq.0) then
           write(111,*) "Turbulent inflow correctly read."
+          write(111,*) uInletDB(1,1)
        end if
  
-       !$acc update device(uInletDB(:,:),vInletDB(:,:),wInletDB(:,:))
- 
-       call h5fclose_f(file_id, ierr)
-       call h5close_f(ierr)
+       !$acc update device(uInletDB(:,:),vInletDB(:,:),wInletDB(:,:),ipoinInletDB(:))
+       call h5pclose_f(plist_id, h5err)
+       call h5fclose_f(file_id, h5err)
+       !call h5close_f(h5err)
        ! -------------------------------------------------------------
  
+       !$acc update host(bouCodesNodesPar(:),myPointsDB(:))
+
        auxCnt = 1
+       write(*,*) "unsteady inlet = ", bc_type_unsteady_inlet 
+       write(*,*) "outlet incomp  = ", bc_type_outlet_incomp
        do iLine = 1,totalNumNodesSrl
-          if(iLine.eq.matGidSrlOrdered(ipoin,2)) then
+          if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
              inode = matGidSrlOrdered(auxCnt,1)
+             !write(*,*) inode," is ",auxCnt
              auxCnt=auxCnt+1
-             bcode = bouCodesNodesPar(inode) 
+             bcode = bouCodesNodesPar(inode)
+             write(*,*) "bcode = ", bcode 
              if(bcode .lt. max_num_bou_codes) then
                 if (bcode == bc_type_unsteady_inlet) then
+                   write(*,*) "inlet = ", bcode
                    do ipoin=1,npoinDB
-                      if(auxCnt .eq. ipoinInletDB(ipoin)) then
+                      if(iLine .eq. ipoinInletDB(ipoin)) then
                          myPointsDB(ipoin) = inode
+                         write(*,*) " data base", ipoin," = ",inode
                       end if
                    end do
                 end if
@@ -334,14 +347,17 @@ contains
        ! you need to do your fancy interpolation
        !$acc parallel loop
        do inode = 1,npoinDB
-          ipoin = myPointsDB(ipoin)
+          ipoin = myPointsDB(inode)
           if(ipoin .gt. 0) then
-             u_buffer(ipoin,1) = uInletDB(1,ipoin)
-             u_buffer(ipoin,2) = vInletDB(1,ipoin)
-             u_buffer(ipoin,3) = wInletDB(1,ipoin) 
+             write(*,*) inode, " ", ipoin
+             u_buffer(ipoin,1) = uInletDB(1,inode)
+             u_buffer(ipoin,2) = vInletDB(1,inode)
+             u_buffer(ipoin,3) = wInletDB(1,inode) 
           end if
        end do
        !$acc end parallel loop
+
+       if(mpi_rank.eq.0) write(*,*) 'Ho settato ubuffer in beforeTimeIteration'
 
    end subroutine TransientInletSolverIncomp_beforeTimeIteration
 
@@ -355,6 +371,8 @@ contains
        tStar   = this%time - floor(this%time/this%Tp)*this%Tp
        tIdLow  = floor(tStar/this%deltaT+1)
        tIdUp   = ceiling(tStar/this%deltaT+1)
+
+       if(mpi_rank.eq.0) write(*,*) 'tIdUp ',tIdUp
        
        ! Main idea:
        ! u_buffer(ipoin,1) = u(tIdLow) + ((u(tIdUp) - u(tIdLow))/(deltaT)) * (tStar - (tIdLow - 1)*deltaT)
@@ -362,11 +380,11 @@ contains
        ! you need to do your fancy interpolation
        !$acc parallel loop
        do inode = 1,npoinDB
-          ipoin = myPointsDB(ipoin)
+          ipoin = myPointsDB(inode)
           if(ipoin .gt. 0) then
-             u_buffer(ipoin,1) = uInletDB(tIdLow,ipoin) + ((uInletDB(tIdUp,ipoin) - uInletDB(tIdLow,ipoin))/(this%deltaT)) * (tStar - (tIdLow - 1)*this%deltaT)
-             u_buffer(ipoin,2) = vInletDB(tIdLow,ipoin) + ((vInletDB(tIdUp,ipoin) - vInletDB(tIdLow,ipoin))/(this%deltaT)) * (tStar - (tIdLow - 1)*this%deltaT)
-             u_buffer(ipoin,3) = wInletDB(tIdLow,ipoin) + ((wInletDB(tIdUp,ipoin) - wInletDB(tIdLow,ipoin))/(this%deltaT)) * (tStar - (tIdLow - 1)*this%deltaT)  
+             u_buffer(ipoin,1) = uInletDB(tIdLow,inode) + ((uInletDB(tIdUp,inode) - uInletDB(tIdLow,inode))/(this%deltaT)) * (tStar - (tIdLow - 1)*this%deltaT)
+             u_buffer(ipoin,2) = vInletDB(tIdLow,inode) + ((vInletDB(tIdUp,inode) - vInletDB(tIdLow,inode))/(this%deltaT)) * (tStar - (tIdLow - 1)*this%deltaT)
+             u_buffer(ipoin,3) = wInletDB(tIdLow,inode) + ((wInletDB(tIdUp,inode) - wInletDB(tIdLow,inode))/(this%deltaT)) * (tStar - (tIdLow - 1)*this%deltaT)  
           end if
        end do
        !$acc end parallel loop
