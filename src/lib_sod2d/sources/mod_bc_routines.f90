@@ -14,13 +14,13 @@ module mod_bc_routines
 
       contains
 
-         subroutine temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,aux_rho,aux_q,aux_u,aux_p,aux_E,u_buffer)
+         subroutine temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,aux_rho,aux_q,aux_u,aux_p,aux_E,u_buffer,u_mapped)
 
             implicit none
 
             integer(4), intent(in)     :: npoin, nboun, bou_codes(nboun), bou_codes_nodes(npoin), bound(nboun,npbou)
             integer(4), intent(in)     :: nbnodes, lbnodes(nbnodes),lnbn_nodes(npoin)
-            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime),u_buffer(npoin,ndime)
+            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime),u_buffer(npoin,ndime),u_mapped(npoin,ndime)
             real(rp),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
             real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
@@ -132,18 +132,36 @@ module mod_bc_routines
                         aux_E(inode)   = (nscbc_rho_inf*0.5_rp*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0_rp))
                   else if (bcode == bc_type_recirculation_inlet) then ! recirculation inlet
                      
-                     aux_q(inode,1) = aux_q(lnbn_nodes(inode),1)
-                     aux_q(inode,2) = aux_q(lnbn_nodes(inode),2)
-                     aux_q(inode,3) = aux_q(lnbn_nodes(inode),3)
+                     aux_q(inode,1) = (aux_q(lnbn_nodes(inode),1) - u_mapped(inode,1)*aux_rho(lnbn_nodes(inode)))*(-1.0_rp)
+                     aux_q(inode,2) = aux_q(lnbn_nodes(inode),2) - u_mapped(inode,2)*aux_rho(lnbn_nodes(inode))
+                     aux_q(inode,3) = aux_q(lnbn_nodes(inode),3) - u_mapped(inode,3)*aux_rho(lnbn_nodes(inode))
 
-                     aux_u(inode,1) = aux_u(lnbn_nodes(inode),1)
-                     aux_u(inode,2) = aux_u(lnbn_nodes(inode),2)
-                     aux_u(inode,3) = aux_u(lnbn_nodes(inode),3)
+                     aux_u(inode,1) = (aux_u(lnbn_nodes(inode),1) - u_mapped(inode,1))*(-1.0_rp)
+                     aux_u(inode,2) = aux_u(lnbn_nodes(inode),2) - u_mapped(inode,2)
+                     aux_u(inode,3) = aux_u(lnbn_nodes(inode),3) - u_mapped(inode,3)
+
+                     !aux_rho(inode) = nscbc_rho_inf
+                     !aux_E(inode)   = nscbc_rho_inf*0.5_rp*dot_product(aux_u(inode,:),aux_u(inode,:)) + nscbc_p_inf/(nscbc_rho_inf*(nscbc_gamma_inf-1.0_rp))
 
                      aux_rho(inode) = aux_rho(lnbn_nodes(inode))
-                     aux_E(inode)   = aux_E(lnbn_nodes(inode))
                      aux_p(inode)   = aux_p(lnbn_nodes(inode))
+                     !aux_E(inode)   = aux_E(lnbn_nodes(inode))
+                     aux_E(inode)   = aux_rho(inode)*0.5_rp*dot_product(aux_u(inode,:),aux_u(inode,:)) + aux_p(inode)/(aux_rho(inode)*(nscbc_gamma_inf-1.0_rp))
+
          
+                  else if (bcode == bc_type_non_slip_unsteady) then
+                     
+                     aux_q(inode,1) = u_buffer(inode,1)*nscbc_rho_inf
+                     aux_q(inode,2) = u_buffer(inode,2)*nscbc_rho_inf
+                     aux_q(inode,3) = u_buffer(inode,3)*nscbc_rho_inf
+
+                     aux_u(inode,1) = u_buffer(inode,1)
+                     aux_u(inode,2) = u_buffer(inode,2)
+                     aux_u(inode,3) = u_buffer(inode,3)
+
+                     aux_rho(inode) = nscbc_rho_inf
+                     !aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
+
                   else if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic
 
                      aux_q(inode,1) = 0.0_rp
@@ -154,7 +172,7 @@ module mod_bc_routines
                      aux_u(inode,2) = 0.0_rp
                      aux_u(inode,3) = 0.0_rp
 
-                     aux_rho(inode) = nscbc_rho_inf
+                     !aux_rho(inode) = nscbc_rho_inf
                      !aux_E(inode) = nscbc_p_inf/(nscbc_gamma_inf-1.0_rp)
                      
                   else if (bcode == bc_type_non_slip_hot) then ! non_slip wall hot
@@ -296,6 +314,12 @@ subroutine bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound
                if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
                   bcode = bou_codes_nodes(inode) ! Boundary element code
                   if (bcode == bc_type_non_slip_adiabatic) then ! non_slip wall adiabatic
+                     Rmom(inode,1) = 0.0_rp
+                     Rmom(inode,2) = 0.0_rp
+                     Rmom(inode,3) = 0.0_rp
+
+                     Rmass(inode) = 0.0_rp
+                  else if (bcode == bc_type_non_slip_unsteady) then ! non_slip wall adiabatic
                      Rmom(inode,1) = 0.0_rp
                      Rmom(inode,2) = 0.0_rp
                      Rmom(inode,3) = 0.0_rp
