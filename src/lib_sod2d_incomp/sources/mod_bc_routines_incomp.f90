@@ -343,26 +343,29 @@ module mod_bc_routines_incomp
                      aux_u = aux_u + u(inode,idime)*u(inode,idime)
                      aux_s = aux_s + normal(idime)*u(inode,idime)
                   end do 
-                  aux_p = (mu_fgp*aux_p - 0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta)))))*0.0_rp
+                  aux_p = (mu_fgp*aux_p - 0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta)))))
                   p_buffer(inode) = aux_p
-                  aux_ufb = gradU(1,1)+gradU(2,2)+gradU(3,3)
-                  !$acc loop seq
-                  do idime=1, ndime
-                     u_flux_buffer(inode,idime) =  (aux_p*normal(idime) +  0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta))))*normal(idime) - mu_fgp*aux_ufb*normal(idime))/mu_fgp
-                     !u_flux_buffer(inode,idime) =  (aux_p*normal(idime) +  0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta))))*normal(idime))/mu_fgp
-                  end do 
+                  !aux_ufb = gradU(1,1)+gradU(2,2)+gradU(3,3)
+                  !!$acc loop seq
+                  !do idime=1, ndime
+                  !   u_flux_buffer(inode,idime) =  (aux_p*normal(idime) +  0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta))))*normal(idime) - mu_fgp*aux_ufb*normal(idime))/mu_fgp
+                  !   !u_flux_buffer(inode,idime) =  (aux_p*normal(idime) +  0.5_rp*aux_u*(0.5_rp*(1.0_rp-tanh(aux_s/(nscbc_u_inf*nscbc_delta))))*normal(idime))/mu_fgp
+                  !end do 
                end if
             end if
          end do
-         !$acc end parallel loop   
          if(mpi_size.ge.2) then
-            call nvtxStartRange("MPI_comms_tI")
-            call mpi_halo_max_boundary_update_real_arrays_iSendiRcv(ndime,u_flux_buffer(:,:))
-            !call mpi_halo_max_boundary_update_real_iSendiRcv(u_flux_buffer(:,1))
-            !call mpi_halo_max_boundary_update_real_iSendiRcv(u_flux_buffer(:,2))
-            !call mpi_halo_max_boundary_update_real_iSendiRcv(u_flux_buffer(:,3))
-            call nvtxEndRange
+            call mpi_halo_max_boundary_update_real_iSendiRcv(p_buffer)
          end if
+         !!$acc end parallel loop   
+         !if(mpi_size.ge.2) then
+         !   call nvtxStartRange("MPI_comms_tI")
+         !   call mpi_halo_max_boundary_update_real_arrays_iSendiRcv(ndime,u_flux_buffer(:,:))
+         !   !call mpi_halo_max_boundary_update_real_iSendiRcv(u_flux_buffer(:,1))
+         !   !call mpi_halo_max_boundary_update_real_iSendiRcv(u_flux_buffer(:,2))
+         !   !call mpi_halo_max_boundary_update_real_iSendiRcv(u_flux_buffer(:,3))
+         !   call nvtxEndRange
+         !end if
       end subroutine evalPAtOutlet
 
       end module mod_bc_routines_incomp
