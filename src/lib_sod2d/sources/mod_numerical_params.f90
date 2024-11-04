@@ -62,6 +62,9 @@ module mod_numerical_params
         real(rp) :: nscbc_g_x       = 0.0_rp
         real(rp) :: nscbc_g_y       = 0.0_rp
         real(rp) :: nscbc_g_z       = 9.81_rp
+        real(rp) :: nscbc_sign_ux   = 1.0_rp
+        real(rp) :: nscbc_sign_uy   = 1.0_rp
+        real(rp) :: nscbc_sign_uz   = 1.0_rp
 
 
         !

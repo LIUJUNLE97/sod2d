@@ -51,8 +51,8 @@ contains
       class(SupersonicNozzle), intent(inout) :: this
       integer(4)                 :: iboun,bcode,ipbou,iBoundNode,iNodeL
 
-#if 0  
-!just to reint very experimental
+#if 1
+!0 to reint very experimental, 1 for the first time step
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          if(maskMapped(iNodeL)==1) then
@@ -263,6 +263,7 @@ contains
       nscbc_gamma_inf = this%gamma_gas
       nscbc_T_C = this%to
       nscbc_u_inf = this%vo
+      nscbc_sign_ux = -1.0_rp
 
       call this%readJSONBuffer()
 

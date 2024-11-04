@@ -24,7 +24,7 @@ module mod_bc_routines
             real(rp),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
             real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
-            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm,y,T_inf,p_inf,nscbc_g
+            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm,y,T_inf,p_inf,nscbc_g,aux_u_mag,aux_u_2_mag
 
             nscbc_g = sqrt(nscbc_g_x**2+nscbc_g_y**2+nscbc_g_z**2)
 
@@ -82,13 +82,14 @@ module mod_bc_routines
                   bcode = bou_codes_nodes(inode) ! Boundary element code
                   if (bcode == bc_type_far_field) then ! inlet just for aligened inlets with x
 
+                     aux_u_2_mag = dot_product(aux_u2(inode,:),aux_u2(inode,:))
                      E_inf = (nscbc_rho_inf*0.5_rp*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0_rp))
 
-                     sl = min(nscbc_u_inf-nscbc_c_inf, aux_u2(inode,1) - sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)))
-                     sr =  max(aux_u2(inode,1) + sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)), nscbc_u_inf+nscbc_c_inf)
+                     sl = min(nscbc_u_inf-nscbc_c_inf, aux_u_2_mag - sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)))
+                     sr =  max(aux_u_2_mag + sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)), nscbc_u_inf+nscbc_c_inf)
 
-                     rho_hll = (sr*aux_rho2(inode)-sl*nscbc_rho_inf+nscbc_rho_inf*nscbc_u_inf-aux_q2(inode,1))/(sr-sl)
-                     E_hll   = (sr*aux_E2(inode)-sl*E_inf+nscbc_u_inf*(E_inf+nscbc_p_inf)-aux_u2(inode,1)*(aux_E2(inode)+aux_p2(inode)))/(sr-sl)
+                     rho_hll = (sr*aux_rho2(inode)-sl*nscbc_rho_inf+nscbc_rho_inf*nscbc_u_inf-aux_rho(inode)*aux_u_2_mag)/(sr-sl)
+                     E_hll   = (sr*aux_E2(inode)-sl*E_inf+nscbc_u_inf*(E_inf+nscbc_p_inf)-aux_u_2_mag*(aux_E2(inode)+aux_p2(inode)))/(sr-sl)
 
                      sl = min(u_buffer(inode,1)-nscbc_c_inf, aux_u2(inode,1) - sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)))
                      sr =  max(aux_u2(inode,1) + sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)), u_buffer(inode,1)+nscbc_c_inf)
@@ -132,23 +133,50 @@ module mod_bc_routines
                         aux_E(inode)   = (nscbc_rho_inf*0.5_rp*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0_rp))
                   else if (bcode == bc_type_recirculation_inlet) then ! recirculation inlet
                      
-                     aux_q(inode,1) = (aux_q(lnbn_nodes(inode),1) - u_mapped(inode,1)*aux_rho(lnbn_nodes(inode)))*(-1.0_rp)
-                     aux_q(inode,2) = aux_q(lnbn_nodes(inode),2) - u_mapped(inode,2)*aux_rho(lnbn_nodes(inode))
-                     aux_q(inode,3) = aux_q(lnbn_nodes(inode),3) - u_mapped(inode,3)*aux_rho(lnbn_nodes(inode))
+                     aux_q(inode,1) = (aux_q(lnbn_nodes(inode),1) - u_mapped(inode,1)*aux_rho(lnbn_nodes(inode)))*nscbc_sign_ux
+                     aux_q(inode,2) = (aux_q(lnbn_nodes(inode),2) - u_mapped(inode,2)*aux_rho(lnbn_nodes(inode)))*nscbc_sign_uy
+                     aux_q(inode,3) = (aux_q(lnbn_nodes(inode),3) - u_mapped(inode,3)*aux_rho(lnbn_nodes(inode)))*nscbc_sign_uz
 
-                     aux_u(inode,1) = (aux_u(lnbn_nodes(inode),1) - u_mapped(inode,1))*(-1.0_rp)
-                     aux_u(inode,2) = aux_u(lnbn_nodes(inode),2) - u_mapped(inode,2)
-                     aux_u(inode,3) = aux_u(lnbn_nodes(inode),3) - u_mapped(inode,3)
-
-                     !aux_rho(inode) = nscbc_rho_inf
-                     !aux_E(inode)   = nscbc_rho_inf*0.5_rp*dot_product(aux_u(inode,:),aux_u(inode,:)) + nscbc_p_inf/(nscbc_rho_inf*(nscbc_gamma_inf-1.0_rp))
-
+                     aux_u(inode,1) = (aux_u(lnbn_nodes(inode),1) - u_mapped(inode,1))*nscbc_sign_ux
+                     aux_u(inode,2) = (aux_u(lnbn_nodes(inode),2) - u_mapped(inode,2))*nscbc_sign_uy
+                     aux_u(inode,3) = (aux_u(lnbn_nodes(inode),3) - u_mapped(inode,3))*nscbc_sign_uz
+                     
                      aux_rho(inode) = aux_rho(lnbn_nodes(inode))
                      aux_p(inode)   = aux_p(lnbn_nodes(inode))
-                     !aux_E(inode)   = aux_E(lnbn_nodes(inode))
                      aux_E(inode)   = aux_rho(inode)*0.5_rp*dot_product(aux_u(inode,:),aux_u(inode,:)) + aux_p(inode)/(aux_rho(inode)*(nscbc_gamma_inf-1.0_rp))
-
          
+                     ! riemann fluxes
+                     aux_u_mag = dot_product(aux_u(inode,:),aux_u(inode,:))
+                     aux_u_2_mag = dot_product(aux_u2(inode,:),aux_u2(inode,:))
+                     sl = min(aux_u_mag-sqrt(nscbc_gamma_inf*aux_p(inode)/aux_rho(inode)), aux_u_2_mag - sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)))
+                     sr =  max(aux_u_2_mag + sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)), aux_u_mag+sqrt(nscbc_gamma_inf*aux_p(inode)/aux_rho(inode)))
+
+                     rho_hll = (sr*aux_rho2(inode)-sl*aux_rho(inode)+aux_u_mag*aux_rho(inode)-aux_u_2_mag*aux_rho2(inode))/(sr-sl)
+                     E_hll   = (sr*aux_E2(inode)-sl*aux_E(inode)+aux_u_mag*(aux_E(inode)+aux_p(inode))-aux_u_2_mag*(aux_E2(inode)+aux_p2(inode)))/(sr-sl)
+
+                     sl = min(aux_u(inode,1)-sqrt(nscbc_gamma_inf*aux_p(inode)/aux_rho(inode)), aux_u2(inode,1) - sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)))
+                     sr =  max(aux_u2(inode,1) + sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)), aux_u(inode,1)+sqrt(nscbc_gamma_inf*aux_p(inode)/aux_rho(inode)))
+
+                     q_hll   = (sr*aux_q2(inode,1)-sl*aux_q(inode,1)+aux_q(inode,1)**2-aux_u2(inode,1)*aux_q2(inode,1))/(sr-sl)
+
+                     aux_q(inode,1) = q_hll
+
+                     sl = min(aux_u(inode,2)-sqrt(nscbc_gamma_inf*aux_p(inode)/aux_rho(inode)), aux_u2(inode,2) - sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)))
+                     sr =  max(aux_u2(inode,2) + sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)), aux_u(inode,2)+sqrt(nscbc_gamma_inf*aux_p(inode)/aux_rho(inode)))
+                     q_hll   = (sr*aux_q2(inode,2)-sl*aux_q(inode,2)+aux_q(inode,2)**2-aux_u2(inode,2)*aux_q2(inode,2))/(sr-sl)
+
+
+                     aux_q(inode,2) = q_hll
+
+                     sl = min(aux_u(inode,3)-sqrt(nscbc_gamma_inf*aux_p(inode)/aux_rho(inode)), aux_u2(inode,3) - sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)))
+                     sr =  max(aux_u2(inode,3) + sqrt(nscbc_gamma_inf*aux_p2(inode)/aux_rho2(inode)), aux_u(inode,3)+sqrt(nscbc_gamma_inf*aux_p(inode)/aux_rho(inode)))
+                     q_hll   = (sr*aux_q2(inode,3)-sl*aux_q(inode,3)+aux_q(inode,3)**2-aux_u2(inode,3)*aux_q2(inode,3))/(sr-sl)
+
+                     aux_q(inode,3) = q_hll
+
+                     aux_rho(inode) = rho_hll
+                     aux_E(inode) = E_hll
+
                   else if (bcode == bc_type_non_slip_unsteady) then
                      
                      aux_q(inode,1) = u_buffer(inode,1)*nscbc_rho_inf
