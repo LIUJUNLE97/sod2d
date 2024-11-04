@@ -113,7 +113,7 @@ module time_integ_imex2
             integer(4)                          :: istep,ipoin,idime,icode,iPer,ipoin_w
             real(rp)                            :: umag
 
-
+#if 0
             call nvtxStartRange("AB2 init")
             if(iltime .eq. 1) then  
                !$acc parallel loop
@@ -377,7 +377,7 @@ module time_integ_imex2
                end if
                call nvtxEndRange
             end if
-         
+#endif
          end subroutine imex2_main
 
       end module time_integ_imex2
