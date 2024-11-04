@@ -12,12 +12,13 @@ module mod_comms_boundaries
 
     !---- for the comms---
     integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size
-    integer :: bnd_worldGroup,bnd_commGroup
+    integer(4) :: bnd_worldGroup,bnd_commGroup
 
     integer(4), dimension(:), allocatable :: aux_bnd_intField_s, aux_bnd_intField_r
     real(rp), dimension(:), allocatable :: aux_bnd_realField_s, aux_bnd_realField_r
 
-    integer :: window_id_bnd_int,window_id_bnd_real
+    integer(4) :: maxIntBndBufferArraySize=1,maxRealBndBufferArraySize=1
+    integer(4) :: window_id_bnd_int,window_id_bnd_real
 
     logical :: bnd_isInt,bnd_isReal
 
@@ -30,10 +31,22 @@ module mod_comms_boundaries
 
 contains
 
-    subroutine init_comms_bnd(useInt,useReal)
+    subroutine init_comms_bnd(useInt,useReal,intBufferMult,realBufferMult)
         implicit none
         logical, intent(in) :: useInt,useReal
+        integer(4),intent(in),optional :: intBufferMult,realBufferMult
         logical :: useFenceFlags,useAssertNoCheckFlags,useLockBarrier
+
+        maxIntBndBufferArraySize  = 1
+        maxRealBndBufferArraySize = 1
+
+        if(present(intBufferMult)) then
+            maxIntBndBufferArraySize = intBufferMult
+        end if
+
+        if(present(realBufferMult)) then
+            maxRealBndBufferArraySize = realBufferMult
+        end if
 
 #if _ISENDIRCV_
         if(mpi_rank.eq.0) write(111,*) "--| Boundary Comm. scheme: iSend-iRecv"
@@ -45,8 +58,8 @@ contains
         if(useInt) then
             bnd_isInt = .true.
 
-            allocate(aux_bnd_intField_s(bnd_numNodesToComm))
-            allocate(aux_bnd_intField_r(bnd_numNodesToComm))
+            allocate(aux_bnd_intField_s(maxIntBndBufferArraySize*bnd_numNodesToComm))
+            allocate(aux_bnd_intField_r(maxIntBndBufferArraySize*bnd_numNodesToComm))
             !$acc enter data create(aux_bnd_intField_s(:))
             !$acc enter data create(aux_bnd_intField_r(:))
 
@@ -56,8 +69,8 @@ contains
         if(useReal) then
             bnd_isReal = .true.
 
-            allocate(aux_bnd_realField_s(bnd_numNodesToComm))
-            allocate(aux_bnd_realField_r(bnd_numNodesToComm))
+            allocate(aux_bnd_realField_s(maxRealBndBufferArraySize*bnd_numNodesToComm))
+            allocate(aux_bnd_realField_r(maxRealBndBufferArraySize*bnd_numNodesToComm))
             !$acc enter data create(aux_bnd_realField_s(:))
             !$acc enter data create(aux_bnd_realField_r(:))
 
@@ -145,15 +158,17 @@ contains
         integer(4), intent(inout) :: intField(:)
         integer(4) :: i,iNodeL
 
-        !$acc parallel loop
+        !$acc parallel loop async(1)
         do i=1,bnd_numNodesToComm
             iNodeL = bnd_nodesToComm(i)
             aux_bnd_intField_s(i) = intField(iNodeL)
         end do
         !$acc end parallel loop
-        !$acc kernels
+        !$acc kernels async(2)
         aux_bnd_intField_r(:)=0
         !$acc end kernels
+
+        !$acc wait
     end subroutine fill_boundary_sendBuffer_int
 !-------------------------------------------------------------------------------------
     subroutine fill_boundary_sendBuffer_real(realField)
@@ -161,16 +176,63 @@ contains
         real(rp), intent(inout) :: realField(:)
         integer(4) :: i,iNodeL
 
-        !$acc parallel loop
+        !$acc parallel loop async(1)
         do i=1,bnd_numNodesToComm
             iNodeL = bnd_nodesToComm(i)
             aux_bnd_realField_s(i) = realField(iNodeL)
         end do
         !$acc end parallel loop
-        !$acc kernels
+        !$acc kernels async(2)
         aux_bnd_realField_r(:)=0.
         !$acc end kernels
+
+        !$acc wait
     end subroutine fill_boundary_sendBuffer_real
+!-------------------------------------------------------------------------------------
+    subroutine fill_boundary_sendBuffer_arrays_real(numArrays,arrays2comm)
+        implicit none
+        integer(4),intent(in) :: numArrays
+        real(rp), intent(inout) :: arrays2comm(:,:)
+        integer(4) :: i,iNodeL,iArray
+
+        !$acc parallel loop async(1)
+        do i=1,bnd_numNodesToComm
+            iNodeL = bnd_nodesToComm(i)
+            do iArray = 1,numArrays
+                aux_bnd_realField_s((i-1)*numArrays+iArray) = arrays2comm(iNodeL,iArray)
+            end do
+        end do
+        !$acc end parallel loop
+        !$acc kernels async(2)
+        aux_bnd_realField_r(:)=0.
+        !$acc end kernels
+
+        !$acc wait
+    end subroutine fill_boundary_sendBuffer_arrays_real
+!-------------------------------------------------------------------------------------
+    subroutine fill_boundary_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+        implicit none
+        real(rp),intent(in) :: mass(:),ener(:),momentum(:,:)
+        integer(4) :: i,idime,iNodeL
+        integer(4),parameter :: nArrays=5
+
+        !$acc parallel loop async(1)
+        do i=1,bnd_numNodesToComm
+            iNodeL = bnd_nodesToComm(i)
+            do idime = 1,ndime
+                aux_bnd_realField_s((i-1)*nArrays+idime) = momentum(iNodeL,idime)
+            end do
+            aux_bnd_realField_s((i-1)*nArrays+4) = mass(iNodeL)
+            aux_bnd_realField_s((i-1)*nArrays+5) = ener(iNodeL)
+        end do
+        !$acc end parallel loop
+
+        !$acc kernels async(2)
+        aux_bnd_realField_r(:)=0.
+        !$acc end kernels
+
+        !$acc wait
+    end subroutine fill_boundary_sendBuffer_mass_ener_momentum_real
 
 !-------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
@@ -241,6 +303,49 @@ contains
         end do
         !$acc end parallel loop
     end subroutine copy_from_max_boundary_rcvBuffer_real
+
+    subroutine copy_from_max_boundary_rcvBuffer_arrays_real(numArrays,arrays2comm)
+        implicit none
+        integer(4),intent(in) :: numArrays
+        real(rp), intent(inout) :: arrays2comm(:,:)
+        integer(4) :: i,iNodeL,iArray
+
+        !$acc parallel loop
+        do i=1,bnd_numNodesToComm
+            iNodeL = bnd_nodesToComm(i)
+            do iArray = 1,numArrays
+                !$acc atomic update
+                arrays2comm(iNodeL,iArray) = max(arrays2comm(iNodeL,iArray), aux_bnd_realField_r((i-1)*numArrays+iArray))
+                !$acc end atomic
+            end do
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_max_boundary_rcvBuffer_arrays_real
+
+    subroutine copy_from_max_boundary_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+        implicit none
+        real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
+        integer(4) :: i,idime,iNodeL
+        integer(4),parameter :: numArrays=5
+
+        !$acc parallel loop
+        do i=1,bnd_numNodesToComm
+            iNodeL = bnd_nodesToComm(i)
+            do idime = 1,ndime
+                !$acc atomic update
+                momentum(iNodeL,idime) = max(momentum(iNodeL,idime), aux_bnd_realField_r((i-1)*numArrays+idime))
+                !$acc end atomic
+            end do
+            !$acc atomic update
+            mass(iNodeL) = max(mass(iNodeL), aux_bnd_realField_r((i-1)*numArrays+4))
+            !$acc end atomic
+            !$acc atomic update
+            ener(iNodeL) = max(ener(iNodeL), aux_bnd_realField_r((i-1)*numArrays+5))
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_max_boundary_rcvBuffer_mass_ener_momentum_real
+
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
 
@@ -387,5 +492,66 @@ contains
 
         call copy_from_max_boundary_rcvBuffer_real(realField)
     end subroutine mpi_halo_max_boundary_update_real_iSendiRcv
+
+    subroutine mpi_halo_max_boundary_update_real_arrays_iSendiRcv(numArrays,arrays2comm)
+        implicit none
+        integer(4),intent(in) :: numArrays
+        real(rp), intent(inout) :: arrays2comm(:,:)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*bnd_numRanksWithComms)
+
+        call fill_boundary_sendBuffer_arrays_real(numArrays,arrays2comm)
+
+        ireq=0
+        !$acc host_data use_device (aux_bnd_realField_r(:),aux_bnd_realField_s(:))
+        do i=1,bnd_numRanksWithComms
+            ngbRank  = bnd_ranksToComm(i)
+            tagComm  = 0
+            memPos_l = (bnd_commsMemPosInLoc(i)-1)*numArrays+1
+            memSize  = bnd_commsMemSize(i)*numArrays
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_bnd_realField_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_bnd_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+        end do
+        !$acc end host_data
+
+        call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+        call copy_from_max_boundary_rcvBuffer_arrays_real(numArrays,arrays2comm)
+    end subroutine mpi_halo_max_boundary_update_real_arrays_iSendiRcv
+
+    subroutine mpi_halo_max_boundary_update_real_mass_ener_momentum_iSendiRcv(mass,ener,momentum)
+        implicit none
+        real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*bnd_numRanksWithComms)
+        integer(4),parameter :: numArrays=5
+
+        call fill_boundary_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+
+        ireq=0
+        !$acc host_data use_device (aux_bnd_realField_r(:),aux_bnd_realField_s(:))
+        do i=1,bnd_numRanksWithComms
+            ngbRank  = bnd_ranksToComm(i)
+            tagComm  = 0
+            memPos_l = (bnd_commsMemPosInLoc(i)-1)*numArrays+1
+            memSize  = bnd_commsMemSize(i)*numArrays
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_bnd_realField_r(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_bnd_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+        end do
+        !$acc end host_data
+
+        call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+        call copy_from_max_boundary_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+    end subroutine mpi_halo_max_boundary_update_real_mass_ener_momentum_iSendiRcv
+
 
 end module mod_comms_boundaries

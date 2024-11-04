@@ -157,9 +157,7 @@ module time_integ_incomp
 
                if(mpi_size.ge.2) then
                   call nvtxStartRange("AB2 halo update")
-                  do idime = 1,ndime
-                     call mpi_halo_atomic_update_real(Rmom(:,idime,1))
-                  end do
+                  call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,Rmom(:,:,1))
                   call nvtxEndRange
                end if               
 #if 0               
@@ -229,14 +227,12 @@ module time_integ_incomp
 
                call evalPAtOutlet(nelem,npoin,npoin_w,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,lpoin_w, &
                   bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,mu_e,mu_sgs,rho,u(:,:,1),p_buffer,u_flux_buffer)
-               call bc_routine_momentum_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
-                  bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,u_flux_buffer,Rflux)
+               !call bc_routine_momentum_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
+               !   bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,u_flux_buffer,Rflux)
 
                if(mpi_size.ge.2) then
                   call nvtxStartRange("AB2 halo update")
-                  do idime = 1,ndime
-                     call mpi_halo_atomic_update_real(Rflux(:,idime))
-                  end do
+                  call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,Rflux(:,:))
                   call nvtxEndRange
                end if
             end if
@@ -251,9 +247,7 @@ module time_integ_incomp
 
                if(mpi_size.ge.2) then
                   call nvtxStartRange("AB2 halo update")
-                  do idime = 1,ndime
-                     call mpi_halo_atomic_update_real(Rsource(:,idime))
-                  end do
+                  call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,Rsource(:,:))
                   call nvtxEndRange
                end if
             end if
@@ -278,9 +272,7 @@ module time_integ_incomp
           
                   if(mpi_size.ge.2) then
                      call nvtxStartRange("AB2 halo update")
-                     do idime = 1,ndime
-                        call mpi_halo_atomic_update_real(Rwmles(:,idime))
-                     end do
+                     call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,Rwmles(:,:))
                      call nvtxEndRange
                   end if                  
             end if
@@ -299,9 +291,7 @@ module time_integ_incomp
 
             if(mpi_size.ge.2) then
                call nvtxStartRange("AB2 halo update")
-               do idime = 1,ndime
-                  call mpi_halo_atomic_update_real(Rmom(:,idime,2))
-               end do
+               call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,Rmom(:,:,2))
                call nvtxEndRange
             end if
 
@@ -311,7 +301,6 @@ module time_integ_incomp
                ipoin_w = lpoin_w(ipoin)
                !$acc loop seq   
                do idime = 1,ndime
-                  Rmom(ipoin_w,idime,2) = Rmom(ipoin_w,idime,2) 
                   u(ipoin_w,idime,2) = -(beta(1)*Rmom(ipoin_w,idime,2)+beta(2)*Rmom(ipoin_w,idime,1)+beta(3)*Rmom(ipoin_w,idime,3)) &
                                        - Rsource(ipoin_w,idime)
                   Rmom(ipoin_w,idime,3) = Rmom(ipoin_w,idime,1)
