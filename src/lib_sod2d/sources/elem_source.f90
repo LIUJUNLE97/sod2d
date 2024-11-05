@@ -31,7 +31,6 @@ contains
       real(rp),    intent(inout) :: Rmom(npoin,ndime)
       real(rp), optional, intent(in)  :: fact
       integer(4)                :: ielem, igaus, idime, inode
-      real(rp)                   :: Re(nnode,ndime)
       real(rp)  :: aux_fact = 1.0_rp
 
       call nvtxStartRange("Momentum source term")
@@ -46,7 +45,7 @@ contains
          aux_fact = fact
       end if
 
-      !$acc parallel loop gang private(Re) 
+      !$acc parallel loop gang
       do ielem = 1,nelem
          !$acc loop vector collapse(2)
          do idime = 1,ndime
