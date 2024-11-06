@@ -8,13 +8,16 @@ module mod_comms
 #endif
 
 !-- Select type of communication for mpi_atomic_updates
+#define _SENDRCV_ 0
+#define _ISENDIRCV_ 1
+#define _PUTFENCE_ 0
+#define _NOCUDAAWARE_ 0
+
 #ifdef AUTOCOMP
-  #define _NOCUDAAWARE_ 1
-#else
-  #define _SENDRCV_ 0
-  #define _ISENDIRCV_ 1
-  #define _PUTFENCE_ 0
-  #define _NOCUDAAWARE_ 0
+ #define _NOCUDAAWARE_ 1
+ #define _SENDRCV_ 0
+ #define _ISENDIRCV_ 0
+ #define _PUTFENCE_ 0
 #endif
 
 
@@ -600,7 +603,7 @@ contains
         call MPI_Abort(app_comm,-1,mpi_err)
 #endif
 #if _NOCUDAAWARE_
-        call mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv_noCudaAware(mass,ener,momentum)
+        call mpi_halo_atomic_update_real_mass_ener_mom_iSendiRcv_noCudaAware(mass,ener,momentum)
 #endif
 
     end subroutine mpi_halo_atomic_update_real_mass_ener_momentum
@@ -1476,7 +1479,7 @@ contains
         call copy_from_rcvBuffer_get_real(realField)
     end subroutine mpi_halo_atomic_update_real_get_fence_noCudaAware
 
-    subroutine mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv_noCudaAware(mass,ener,momentum)
+    subroutine mpi_halo_atomic_update_real_mass_ener_mom_iSendiRcv_noCudaAware(mass,ener,momentum)
         implicit none
         real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
         integer(4) :: i,ireq,ngbRank,tagComm
@@ -1504,7 +1507,7 @@ contains
 
         !$acc update device(aux_realField_r(:))
         call copy_from_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
-    end subroutine mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv_noCudaAware
+    end subroutine mpi_halo_atomic_update_real_mass_ener_mom_iSendiRcv_noCudaAware
 
     subroutine mpi_halo_atomic_update_real_arrays_iSendiRcv_noCudaAware(numArrays,arrays2comm)
         implicit none
