@@ -194,7 +194,7 @@ module time_integ
             integer(4)                          :: istep, ipoin, idime,icode
             real(rp),    dimension(npoin)       :: Rrho
             real(rp)                            :: umag
-
+#if 0
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! New version of RK4 using loops                 !
@@ -557,7 +557,7 @@ module time_integ
                end if
                call nvtxEndRange
             end if
-
+#endif
          end subroutine rk_4_main
 
          subroutine updateBuffer(npoin,npoin_w,coord,lpoin_w,maskMapped,rho,q,E,u_buffer)

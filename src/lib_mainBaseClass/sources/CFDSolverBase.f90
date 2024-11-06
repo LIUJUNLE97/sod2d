@@ -28,7 +28,7 @@ module mod_arrays
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
       real(rp), allocatable :: witxi(:,:), Nwit(:,:), buffwit(:,:,:), bufftime(:)
 
-      real(rp), allocatable :: u_buffer(:,:)
+      real(rp), allocatable :: u_buffer(:,:), u_mapped(:,:)
 
       ! exponential average for wall law
       real(rp), allocatable :: walave_u(:,:)
@@ -448,6 +448,8 @@ end subroutine CFDSolverBase_findFixPressure
                   bouCodes2BCType(id) = bc_type_far_field_supersonic
                else if(value .eq. "bc_type_outlet_supersonic") then
                   bouCodes2BCType(id) = bc_type_outlet_supersonic
+               else if(value .eq. "bc_type_non_slip_unsteady") then
+                  bouCodes2BCType(id) = bc_type_non_slip_unsteady
                end if
             else
                if(mpi_rank .eq. 0) then
@@ -899,6 +901,7 @@ end subroutine CFDSolverBase_findFixPressure
       allocate(mu_e(numElemsRankPar,ngaus))  ! Elemental viscosity
       allocate(mu_sgs(numElemsRankPar,ngaus))! SGS viscosity
       allocate(u_buffer(numNodesRankPar,ndime))  ! momentum at the buffer
+      allocate(u_mapped(numNodesRankPar,ndime))  ! velocity correction in mapped nodes
       allocate(mue_l(numElemsRankPar,nnode))
       !$acc enter data create(u(:,:,:))
       !$acc enter data create(q(:,:,:))
@@ -915,6 +918,7 @@ end subroutine CFDSolverBase_findFixPressure
       !$acc enter data create(mu_e(:,:))
       !$acc enter data create(mu_sgs(:,:))
       !$acc enter data create(u_buffer(:,:))
+      !$acc enter data create(u_mapped(:,:))
       !$acc enter data create(mue_l(:,:))
 
       allocate(tauw(numNodesRankPar,ndime))  ! momentum at the buffer
@@ -937,6 +941,7 @@ end subroutine CFDSolverBase_findFixPressure
       mu_sgs(:,:) = 0.0_rp
 
       u_buffer(:,:) = 0.0_rp
+      u_mapped(:,:) = 0.0_rp
       tauw(:,:) = 0.0_rp
       !$acc end kernels
 
