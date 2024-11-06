@@ -116,8 +116,8 @@ contains
          call nvtxStartRange("MPI_comms_post")
          call mpi_halo_atomic_update_real(Qcrit)
          call mpi_halo_atomic_update_real(divU)
-         call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,curlU(:,:))
-         call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,gradRho(:,:))
+         call mpi_halo_atomic_update_real_arrays(ndime,curlU(:,:))
+         call mpi_halo_atomic_update_real_arrays(ndime,gradRho(:,:))
          call nvtxEndRange
       end if
 

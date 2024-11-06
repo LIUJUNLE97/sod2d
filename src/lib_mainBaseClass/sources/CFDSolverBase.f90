@@ -1294,21 +1294,37 @@ end subroutine CFDSolverBase_findFixPressure
       !$acc enter data create(dlxigp_ip(:,:,:))
       !*********************************************************
 
+      xi_gll(:) = 0.0d0 
+      xgp_equi(:,:) = 0.0d0 
+      xgp_r8(:,:) = 0.0d0 
+      wgp_r8(:) = 0.0d0 
+      xgp_b_r8(:,:) = 0.0d0 
+      wgp_b_r8(:) = 0.0d0 
+      Ngp_equi_r8(:,:) = 0.0d0 
+      dNgp_equi_r8(:,:,:) = 0.0d0 
+      Ngp_r8(:,:) = 0.0d0 
+      dNgp_r8(:,:,:) = 0.0d0 
+      Ngp_b_r8(:,:) = 0.0d0 
+      dNgp_b_r8(:,:,:) = 0.0d0 
+      Ngp_l_r8(:,:) = 0.0d0 
+      dNgp_l_r8(:,:,:) = 0.0d0 
+      dlxigp_ip_r8(:,:,:) = 0.0d0 
+
+      !*********************************************************
+
       atoIJK(:) = mesh_a2ijk(:)
       atoIJ(:)  = mesh_a2ij(:)
 
       if(mpi_rank.eq.0) write(111,*) "  --| Generating Gauss-Lobatto-Legendre table..."
+
       call GaussLobattoLegendre_hex(porder,ngaus,atoIJK,xgp_r8,wgp_r8)
-      !$acc kernels
       xgp(:,:) = real(xgp_r8(:,:),rp)
       wgp(:) = real(wgp_r8,rp)
-      !$acc end kernels
       !$acc update device(wgp(:))
+
       call GaussLobattoLegendre_qua(porder,npbou,atoIJ,xgp_b_r8,wgp_b_r8)
-      !$acc kernels
       xgp_b(:,:) = real(xgp_b_r8(:,:),rp)
       wgp_b(:) = real(wgp_b_r8(:),rp)
-      !$acc end kernels
       !$acc update device(wgp_b(:))
 
       !-------------------------------------------------------------------------------
@@ -1326,9 +1342,7 @@ end subroutine CFDSolverBase_findFixPressure
 
          call TripleTensorProduct(porder,nnode,xi_gll,s,t,z,atoIJK,Ngp_equi_r8(igaus,:),dNgp_equi_r8(:,:,igaus))
       end do
-      !$acc kernels
       Ngp_equi(:,:) = real(Ngp_equi_r8(:,:),rp)
-      !$acc end kernels
       !$acc update device(Ngp_equi(:,:))
 
       !-------------------------------------------------------------------------------
@@ -1350,13 +1364,11 @@ end subroutine CFDSolverBase_findFixPressure
          z = xgp(igaus,3)
          call hex_highorder(porder,nnode,s,t,z,atoIJK,Ngp_r8(igaus,:),dNgp_r8(:,:,igaus),Ngp_l_r8(igaus,:),dNgp_l_r8(:,:,igaus),dlxigp_ip_r8(igaus,:,:))
       end do
-      !$acc kernels
-      Ngp(:,:)         = Ngp_r8(:,:)
-      dNgp(:,:,:)      = dNgp_r8(:,:,:)
-      Ngp_l(:,:)       = Ngp_l_r8(:,:)
-      dNgp_l(:,:,:)    = dNgp_l_r8(:,:,:)
-      dlxigp_ip(:,:,:) = dlxigp_ip_r8(:,:,:)
-      !$acc end kernels
+      Ngp(:,:)         = real(Ngp_r8(:,:),rp)
+      dNgp(:,:,:)      = real(dNgp_r8(:,:,:),rp)
+      Ngp_l(:,:)       = real(Ngp_l_r8(:,:),rp)
+      dNgp_l(:,:,:)    = real(dNgp_l_r8(:,:,:),rp)
+      dlxigp_ip(:,:,:) = real(dlxigp_ip_r8(:,:,:),rp)
       !$acc update device(Ngp(:,:))
       !$acc update device(dNgp(:,:,:))
       !$acc update device(Ngp_l(:,:))
@@ -1370,10 +1382,8 @@ end subroutine CFDSolverBase_findFixPressure
          t = xgp_b(igaus,2)
          call quad_highorder(porder,npbou,s,t,atoIJ,Ngp_b_r8(igaus,:),dNgp_b_r8(:,:,igaus))
       end do
-      !$acc kernels
       Ngp_b(:,:)    = Ngp_b_r8(:,:)
       dNgp_b(:,:,:) = dNgp_b_r8(:,:,:)
-      !$acc end kernels
       !$acc update device(Ngp_b(:,:))
       !$acc update device(dNgp_b(:,:,:))
 
@@ -1434,13 +1444,13 @@ end subroutine CFDSolverBase_findFixPressure
 
       call elem_jacobian(numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,dNgp,wgp,gpvol,He)
       call  nvtxEndRange
-      vol_rank  = 0.0
-      vol_tot_d = 0.0
+      vol_rank  = 0.0d8
+      vol_tot_d = 0.0d8
       !$acc parallel loop reduction(+:vol_rank)
       do ielem = 1,numElemsRankPar
          !$acc loop vector
          do igaus = 1,ngaus
-            vol_rank = vol_rank+gpvol(1,igaus,ielem)
+            vol_rank = vol_rank+real(gpvol(1,igaus,ielem),8)
          end do
       end do
       !$acc end parallel loop

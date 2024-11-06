@@ -21,13 +21,12 @@ module time_integ_ls
    real(rp), allocatable, dimension(:)   :: aux_h
    real(rp), allocatable, dimension(:,:) :: f_eta,Rwmles,f_eta2
    real(rp), allocatable, dimension(:)   :: Rmass,Rener
-   real(rp), allocatable, dimension(:,:) :: Rmom
-   real(rp), allocatable, dimension(:,:) :: Reta
-   real(rp), allocatable, dimension(:) :: auxReta
-   real(rp)  , allocatable, dimension(:) 	:: tau_stab_ls
-   real(rp)  , allocatable, dimension(:,:) :: ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls
+   real(rp), allocatable, dimension(:,:) :: Rmom,Reta
+   real(rp), allocatable, dimension(:)   :: auxReta
+   real(rp), allocatable, dimension(:)   :: tau_stab_ls
+   real(rp), allocatable, dimension(:,:) :: ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls
 
-   real(rp), allocatable, dimension(:,:)   :: lambda_ij, gamma_ij
+   real(rp), allocatable, dimension(:,:) :: lambda_ij, gamma_ij
    logical :: firstTimeStep = .true.
 
    contains
@@ -60,6 +59,25 @@ module time_integ_ls
       allocate(ProjMass_ls(npoin,ndime),ProjEner_ls(npoin,ndime),ProjMX_ls(npoin,ndime),ProjMY_ls(npoin,ndime),ProjMZ_ls(npoin,ndime),tau_stab_ls(npoin))
       !$acc enter data create(ProjMass_ls(:,:),ProjEner_ls(:,:),ProjMX_ls(:,:),ProjMY_ls(:,:),ProjMZ_ls(:,:),tau_stab_ls(:))
 
+      !$acc kernels
+      aux_h(:) = 0.0_rp
+      Rmass(:) = 0.0_rp
+      Rener(:) = 0.0_rp
+      auxReta(:) = 0.0_rp
+      Rmom(:,:) = 0.0_rp
+      f_eta(:,:) = 0.0_rp
+      f_eta2(:,:) = 0.0_rp
+      Reta(:,:) = 0.0_rp
+      Rwmles(:,:) = 0.0_rp
+      ProjMass_ls(:,:) = 0.0_rp
+      ProjEner_ls(:,:) = 0.0_rp
+      ProjMX_ls(:,:) = 0.0_rp
+      ProjMY_ls(:,:) = 0.0_rp
+      ProjMZ_ls(:,:) = 0.0_rp
+      tau_stab_ls(:) = 0.0_rp
+      lambda_ij(:,:) = 0.0_rp
+      gamma_ij(:,:)  = 0.0_rp
+      !$acc end kernels
 
       if (flag_rk_ls_stages == 3) then         
          lambda_ij(:,:) = 0.0_rp         
@@ -550,7 +568,7 @@ module time_integ_ls
 
             if(mpi_size.ge.2) then
                call nvtxStartRange("MPI_comms_tI")
-               call mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv(Rmass(:),Rener(:),Rmom(:,:))
+               call mpi_halo_atomic_update_real_mass_ener_momentum(Rmass(:),Rener(:),Rmom(:,:))
                call nvtxEndRange
             end if
 

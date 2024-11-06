@@ -7,14 +7,14 @@ module mod_mesh_quality
 contains
     subroutine ideal_hexa(mnnode, nelem, npoin, ielem, coord, connec, idealJ)
         implicit none
-        integer(4), intent(in) :: mnnode, ielem, npoin, nelem
-        integer(4), intent(in) :: connec(nelem,mnnode)
-        real(8), intent(in)    :: coord(npoin,ndime)
-        real(8), intent(out)   :: idealJ(ndime,ndime)
-        integer(4)             :: ncorner, nedge
-        real(8)                :: dist(12,ndime), dist2(12), h1,h2,h3
+        integer(4),parameter  :: nedge = 12
+        integer(4),intent(in) :: mnnode, ielem, npoin, nelem
+        integer(4),intent(in) :: connec(nelem,mnnode)
+        real(8), intent(in)   :: coord(npoin,ndime)
+        real(8), intent(out)  :: idealJ(ndime,ndime)
+        real(8)               :: dist(nedge,ndime),dist2(nedge),h1,h2,h3
 
-        call hexa_edges(mnnode,ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
+        call get_hexa_edges_dist_r8(mnnode,ielem,nelem,npoin,connec,coord,dist)
         dist2(:) = sqrt(dist(:,1)*dist(:,1)+dist(:,2)*dist(:,2)+dist(:,3)*dist(:,3))
         idealJ(:,:) = 0.0d0
         idealJ(1,1) = 1.0d0/((dist2(1)+dist2(3)+dist2(5)+dist2(7))/4.0d0)

@@ -42,21 +42,39 @@ module elem_hex
 			end if
 		end subroutine hex_highorder
 
-		subroutine hexa_edges(mnnode,ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
+		subroutine get_hexa_edges_dist_rp(mnnode,ielem,nelem,npoin,connec,coord,dist)
 			implicit none
+			integer(4),parameter   :: nedge=12,ncorner=8
+			integer(4),intent(in)  :: mnnode,iElem,nelem,npoin,connec(nelem,mnnode)
+			real(rp),intent(in)    :: coord(npoin,ndime)
+			real(8),intent(out)    :: dist(nedge,ndime)
+			real(8)                :: xp(ncorner,ndime)
 
-			integer(4),intent(in)  :: mnnode,iElem, nelem, npoin, connec(nelem,mnnode)
+			xp(1:ncorner,1:ndime) = real(coord(connec(ielem,1:ncorner),1:ndime),8) ! Corner coordinates
+
+			call get_hexa_edge_distances(xp,dist)
+
+		end subroutine get_hexa_edges_dist_rp
+
+		subroutine get_hexa_edges_dist_r8(mnnode,ielem,nelem,npoin,connec,coord,dist)
+			implicit none
+			integer(4),parameter   :: nedge=12,ncorner=8
+			integer(4),intent(in)  :: mnnode,iElem,nelem,npoin,connec(nelem,mnnode)
 			real(8),intent(in)     :: coord(npoin,ndime)
-			integer(4),intent(out) :: ncorner,nedge
-			real(8),intent(out)    :: dist(12,ndime)
-			integer(4)             :: ind(mnnode)
-			real(8)                :: xp(12,ndime)
+			real(8),intent(out)    :: dist(nedge,ndime)
+			real(8)                :: xp(ncorner,ndime)
 
-			ind = connec(ielem,:)
-			ncorner = 8
-			nedge = 12
+			xp(1:ncorner,1:ndime) = coord(connec(ielem,1:ncorner),1:ndime) ! Corner coordinates
 
-			xp(1:8,1:ndime) = coord(ind(1:8),1:ndime) ! Corner coordinates
+			call get_hexa_edge_distances(xp,dist)
+
+		end subroutine get_hexa_edges_dist_r8
+
+		subroutine get_hexa_edge_distances(xp,dist)
+			implicit none
+			real(8),intent(in)  :: xp(8,ndime)
+			real(8),intent(out) :: dist(12,ndime)
+
 			dist(1,:) = xp(2,:)-xp(1,:)
 			dist(2,:) = xp(3,:)-xp(2,:)
 			dist(3,:) = xp(4,:)-xp(3,:)
@@ -71,6 +89,6 @@ module elem_hex
 			dist(10,:) = xp(6,:)-xp(2,:)
 			dist(11,:) = xp(7,:)-xp(3,:)
 			dist(12,:) = xp(8,:)-xp(4,:)
-		end subroutine hexa_edges
+		end subroutine get_hexa_edge_distances
 
 end module

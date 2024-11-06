@@ -93,15 +93,6 @@ module time_integ
       !$acc update device(b_i(:))
       !$acc update device(c_i(:))
 
-      !!!numArrays2comm = 5
-      !!!allocate(arrays2comm(numArrays2comm))
-      !!!arrays2comm(1)%ptr => Rmass(:)
-      !!!arrays2comm(2)%ptr => Rener(:)
-      !!!arrays2comm(3)%ptr => Rmom(:,1)
-      !!!arrays2comm(4)%ptr => Rmom(:,2)
-      !!!arrays2comm(5)%ptr => Rmom(:,3)
-      !!!!$acc enter data copyin(arrays2comm(:)) attach(arrays2comm(1)%ptr,arrays2comm(2)%ptr,arrays2comm(3)%ptr,arrays2comm(4)%ptr,arrays2comm(5)%ptr)
-
       call nvtxEndRange
 
    end subroutine init_rk4_solver
@@ -143,10 +134,6 @@ module time_integ
       !$acc exit data delete(b_i(:))
       !$acc exit data delete(c_i(:))
       deallocate(a_i,b_i,c_i)
-
-      !!!!!!$acc exit data delete(arrays2comm(1)%ptr,arrays2comm(2)%ptr,arrays2comm(3)%ptr,arrays2comm(4)%ptr,arrays2comm(5)%ptr)
-      !!!!!!$acc exit data delete(arrays2comm(:))
-      !!!!!deallocate(arrays2comm)
 
    end subroutine end_rk4_solver
 
@@ -436,7 +423,7 @@ module time_integ
                !TESTING NEW LOCATION FOR MPICOMMS
                if(mpi_size.ge.2) then
                   call nvtxStartRange("MPI_comms_tI")
-                  call mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv(Rmass(:),Rener(:),Rmom(:,:))
+                  call mpi_halo_atomic_update_real_mass_ener_momentum(Rmass(:),Rener(:),Rmom(:,:))
                   call nvtxEndRange
                end if
 

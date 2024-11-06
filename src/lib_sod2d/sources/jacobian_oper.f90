@@ -1,8 +1,6 @@
 module jacobian_oper
 
 	use mod_numerical_params
-	!use mod_mpi
-	!use mod_mpi_mesh
 
 	contains
 
@@ -14,12 +12,12 @@ module jacobian_oper
 
 			implicit none
 
-			integer(4), intent(in)  :: nelem, npoin
-			integer(4), intent(in)  :: connec(nelem,nnode)
-			real(rp),   intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
-			real(rp),   intent(out) :: gpvol(1,ngaus,nelem), He(ndime,ndime,ngaus,nelem)
-			integer(4)              :: idime, jdime, inode, ielem, igaus, iElemG
-			real(rp)                :: Je(ndime,ndime), a(9), b(9)
+			integer(4),intent(in) :: nelem, npoin
+			integer(4),intent(in) :: connec(nelem,nnode)
+			real(rp),intent(in)   :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
+			real(rp),intent(out)  :: gpvol(1,ngaus,nelem), He(ndime,ndime,ngaus,nelem)
+			integer(4)            :: idime, jdime, inode, ielem, igaus, iElemG
+			real(8)               :: Je(ndime,ndime),a(9),b(9),dot_prod
 
 			!
 			! Initialize He and gpvol
@@ -32,7 +30,7 @@ module jacobian_oper
 			!
 			! Loop over elements
 			!
-			!$acc parallel loop gang private(Je,a,b)
+			!$acc parallel loop gang private(Je,a,b,dot_prod)
 			do ielem = 1,nelem
 				!
 				! Loop over Gauss points
@@ -45,13 +43,17 @@ module jacobian_oper
 					!$acc loop vector collapse(2)
 					do idime = 1,ndime
 						do jdime = 1,ndime
-						Je(idime,jdime) = 0.0_rp
+							Je(idime,jdime) = 0.0d0
 						end do
 					end do
 					!$acc loop vector collapse(2)
 					do idime = 1,ndime
 						do jdime = 1,ndime
-						Je(idime,jdime) = Je(idime,jdime)+dot_product(dNgp(idime,:,igaus),coord(connec(ielem,:),jdime))
+						 	dot_prod = 0.0d0
+						 	do inode = 1,nnode
+						 		dot_prod = dot_prod + (dNgp(idime,inode,igaus)*coord(connec(ielem,inode),jdime))
+						 	end do
+						 	Je(idime,jdime) = Je(idime,jdime)+dot_prod
 						end do
 					end do
 					!
