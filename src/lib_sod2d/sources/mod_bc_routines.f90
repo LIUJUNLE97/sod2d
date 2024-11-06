@@ -145,6 +145,7 @@ module mod_bc_routines
                      aux_p(inode)   = aux_p(lnbn_nodes(inode))
                      aux_E(inode)   = aux_rho(inode)*0.5_rp*dot_product(aux_u(inode,:),aux_u(inode,:)) + aux_p(inode)/(aux_rho(inode)*(nscbc_gamma_inf-1.0_rp))
          
+#if 0
                      ! riemann fluxes
                      aux_u_mag = dot_product(aux_u(inode,:),aux_u(inode,:))
                      aux_u_2_mag = dot_product(aux_u2(inode,:),aux_u2(inode,:))
@@ -176,6 +177,7 @@ module mod_bc_routines
 
                      aux_rho(inode) = rho_hll
                      aux_E(inode) = E_hll
+#endif                     
 
                   else if (bcode == bc_type_non_slip_unsteady) then
                      
