@@ -28,7 +28,7 @@ module mod_arrays
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
       real(rp), allocatable :: witxi(:,:), Nwit(:,:), buffwit(:,:,:), bufftime(:)
 
-      real(rp), allocatable :: u_buffer(:,:)
+      real(rp), allocatable :: u_buffer(:,:), u_mapped(:,:)
 
       ! exponential average for wall law
       real(rp), allocatable :: walave_u(:,:)
@@ -448,6 +448,8 @@ end subroutine CFDSolverBase_findFixPressure
                   bouCodes2BCType(id) = bc_type_far_field_supersonic
                else if(value .eq. "bc_type_outlet_supersonic") then
                   bouCodes2BCType(id) = bc_type_outlet_supersonic
+               else if(value .eq. "bc_type_non_slip_unsteady") then
+                  bouCodes2BCType(id) = bc_type_non_slip_unsteady
                end if
             else
                if(mpi_rank .eq. 0) then
@@ -505,7 +507,7 @@ end subroutine CFDSolverBase_findFixPressure
       class(CFDSolverBase), intent(inout) :: this
       if(flag_implicit == 1) then
          if (implicit_solver == implicit_solver_imex) then
-            call init_imex_solver(numNodesRankPar)
+            call init_imex_solver(numNodesRankPar,numElemsRankPar)
          end if
       else 
          if(flag_rk_ls .eqv. .false.) then
@@ -656,9 +658,9 @@ end subroutine CFDSolverBase_findFixPressure
       call load_hdf5_meshfile(this%meshFile_h5_full_name)
 
       ! init comms
-      call init_comms(this%useIntInComms,this%useRealInComms)
+      call init_comms(this%useIntInComms,this%useRealInComms,1,5)
       ! init comms boundaries
-      call init_comms_bnd(this%useIntInComms,this%useRealInComms)
+      call init_comms_bnd(this%useIntInComms,this%useRealInComms,1,5)
 
       if (isMeshBoundaries .and. this%saveSurfaceResults) then
          call save_surface_mesh_hdf5_file(this%meshFile_h5_full_name,this%surface_meshFile_h5_full_name,npbou,mesh_gmsh2ij,mesh_vtk2ij)
@@ -899,6 +901,7 @@ end subroutine CFDSolverBase_findFixPressure
       allocate(mu_e(numElemsRankPar,ngaus))  ! Elemental viscosity
       allocate(mu_sgs(numElemsRankPar,ngaus))! SGS viscosity
       allocate(u_buffer(numNodesRankPar,ndime))  ! momentum at the buffer
+      allocate(u_mapped(numNodesRankPar,ndime))  ! velocity correction in mapped nodes
       allocate(mue_l(numElemsRankPar,nnode))
       !$acc enter data create(u(:,:,:))
       !$acc enter data create(q(:,:,:))
@@ -915,6 +918,7 @@ end subroutine CFDSolverBase_findFixPressure
       !$acc enter data create(mu_e(:,:))
       !$acc enter data create(mu_sgs(:,:))
       !$acc enter data create(u_buffer(:,:))
+      !$acc enter data create(u_mapped(:,:))
       !$acc enter data create(mue_l(:,:))
 
       allocate(tauw(numNodesRankPar,ndime))  ! momentum at the buffer
@@ -937,6 +941,7 @@ end subroutine CFDSolverBase_findFixPressure
       mu_sgs(:,:) = 0.0_rp
 
       u_buffer(:,:) = 0.0_rp
+      u_mapped(:,:) = 0.0_rp
       tauw(:,:) = 0.0_rp
       !$acc end kernels
 
@@ -1230,11 +1235,11 @@ end subroutine CFDSolverBase_findFixPressure
       !*********************************************************************!
 
       if(mpi_rank.eq.0) write(111,*) "--| Evaluating initial dt..."
-      if (flag_real_diff == 1) then
-         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
-      else
-         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
-      end if
+      !if (flag_real_diff == 1) then
+         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,mu_e,rho(:,2),this%Cp,this%Prt)
+      !else
+      !   call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
+      !end if
       if(mpi_rank.eq.0) write(111,*) "--| Initial time-step dt := ",this%dt,"s"
 
       call MPI_Barrier(app_comm,mpi_err)
@@ -1244,11 +1249,11 @@ end subroutine CFDSolverBase_findFixPressure
    subroutine CFDSolverBase_evalDt(this)
       class(CFDSolverBase), intent(inout) :: this
 
-      if (flag_real_diff == 1) then
-         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,rho(:,2))
-      else
-         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
-      end if
+      !if (flag_real_diff == 1) then
+         call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt,this%cfl_diff,mu_fluid,mu_sgs,mu_e,rho(:,2),this%Cp,this%Prt)
+      !else
+      !   call adapt_dt_cfl(numElemsRankPar,numNodesRankPar,connecParWork,helem,u(:,:,2),csound,this%cfl_conv,this%dt)
+      !end if
 
    end subroutine CFDSolverBase_evalDt
 

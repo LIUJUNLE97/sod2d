@@ -159,7 +159,7 @@ contains
         !$acc enter data create(res_rfield(:))
       end if
 
-      call init_comms(useIntInComms,useRealInComms,initWindows)
+      call init_comms(useIntInComms,useRealInComms,1,1,initWindows)
    end subroutine init_comms_performance
 
    subroutine debug_comms_real(base_resultsFile_h5_full_name)

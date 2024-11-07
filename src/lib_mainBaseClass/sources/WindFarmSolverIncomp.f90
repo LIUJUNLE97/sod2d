@@ -462,6 +462,9 @@ end subroutine WindFarmSolverIncomp_readJSONAD
       call json%get("flag_walave",flag_walave, found,.true.); call this%checkFound(found,found_aux)
       call json%get("period_walave",period_walave, found,3600.0_rp); call this%checkFound(found,found_aux)
       call json%get("flag_fs_fix_pressure",flag_fs_fix_pressure, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("flag_les_ilsa",flag_les_ilsa, found,0); call this%checkFound(found,found_aux)
+      call json%get("stau",stau, found,0.022_rp); call this%checkFound(found,found_aux)
+      call json%get("T_ilsa",T_ilsa, found,300.0_rp); call this%checkFound(found,found_aux)
 
       call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
       
