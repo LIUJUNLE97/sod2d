@@ -2,7 +2,7 @@ module mod_constants
 
       implicit none
 
-	integer(4), parameter :: rp = 8 !(4/8)
+	integer(4), parameter :: rp = 4 !(4/8)
 	integer(4), parameter :: rp_vtk = 4 !(4/8)
 	integer(4), parameter :: rp_avg = 8 !(4/8)
 
@@ -14,7 +14,7 @@ module mod_constants
 	!
 	! Element characteristics
 	!
-	integer(4), parameter :: porder=6
+	integer(4), parameter :: porder=2
 	integer(4), parameter :: nnode=(porder+1)**3
 	integer(4), parameter :: ngaus=nnode
 	integer(4), parameter :: npbou=(porder+1)**2
@@ -39,22 +39,23 @@ module mod_constants
 
 	integer(4), parameter :: bc_type_far_field            = 1
 	integer(4), parameter :: bc_type_far_field_supersonic = 2
-	integer(4), parameter :: bc_type_recirculation_inlet  = 3
-	integer(4), parameter :: bc_type_outlet_incomp        = 4
-	integer(4), parameter :: bc_type_outlet_supersonic    = 5
-	integer(4), parameter :: bc_type_non_slip_adiabatic   = 6
-	integer(4), parameter :: bc_type_non_slip_unsteady    = 7
-	integer(4), parameter :: bc_type_non_slip_hot         = 8
-	integer(4), parameter :: bc_type_non_slip_cold        = 9
-	integer(4), parameter :: bc_type_non_slip_isothermal  = 10
-	integer(4), parameter :: bc_type_symmetry			  = 11
-	integer(4), parameter :: bc_type_slip_adiabatic       = 12
-	integer(4), parameter :: bc_type_slip_isothermal      = 13
-	integer(4), parameter :: bc_type_slip_wall_model      = 14
-	integer(4), parameter :: bc_type_slip_wall_model_iso  = 15
-	integer(4), parameter :: bc_type_slip_atmosphere      = 16
-	integer(4), parameter :: bc_type_unsteady_inlet       = 17
-	integer(4), parameter :: bc_type_far_field_SB         = 18
+	integer(4), parameter :: bc_type_internal_intake      = 3
+	integer(4), parameter :: bc_type_recirculation_inlet  = 4
+	integer(4), parameter :: bc_type_outlet_incomp        = 5
+	integer(4), parameter :: bc_type_outlet_supersonic    = 6
+	integer(4), parameter :: bc_type_non_slip_adiabatic   = 7
+	integer(4), parameter :: bc_type_non_slip_unsteady    = 8
+	integer(4), parameter :: bc_type_non_slip_hot         = 9
+	integer(4), parameter :: bc_type_non_slip_cold        = 10
+	integer(4), parameter :: bc_type_non_slip_isothermal  = 11
+	integer(4), parameter :: bc_type_symmetry			  = 12
+	integer(4), parameter :: bc_type_slip_adiabatic       = 13
+	integer(4), parameter :: bc_type_slip_isothermal      = 14
+	integer(4), parameter :: bc_type_slip_wall_model      = 15
+	integer(4), parameter :: bc_type_slip_wall_model_iso  = 16
+	integer(4), parameter :: bc_type_slip_atmosphere      = 17
+	integer(4), parameter :: bc_type_unsteady_inlet       = 18
+	integer(4), parameter :: bc_type_far_field_SB         = 19
 
 	
 

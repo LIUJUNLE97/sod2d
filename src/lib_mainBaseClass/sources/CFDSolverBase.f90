@@ -31,7 +31,7 @@ module mod_arrays
       real(rp), allocatable :: u_buffer(:,:), u_mapped(:,:)
 
       ! exponential average for wall law
-      real(rp), allocatable :: walave_u(:,:)
+      real(rp), allocatable :: walave_u(:,:),walave_t(:)
 
       ! roughness for wall law
       real(rp), allocatable :: zo(:)
@@ -698,7 +698,7 @@ end subroutine CFDSolverBase_findFixPressure
       numBoundsWMRankPar = 0
       do iBound = 1,numBoundsRankPar
          bcCode = bouCodes2BCType(bouCodesPar(iBound))
-         if(bcCode .eq. bc_type_slip_wall_model) then
+         if((bcCode .eq. bc_type_slip_wall_model) .or. (bcCode .eq. bc_type_slip_wall_model_iso)) then
             numBoundsWMRankPar = numBoundsWMRankPar + 1
          end if
       end do
@@ -709,7 +709,7 @@ end subroutine CFDSolverBase_findFixPressure
       auxBoundCnt = 0
       do iBound = 1,numBoundsRankPar
          bcCode = bouCodes2BCType(bouCodesPar(iBound))
-         if(bcCode .eq. bc_type_slip_wall_model) then
+         if((bcCode .eq. bc_type_slip_wall_model) .or. (bcCode .eq. bc_type_slip_wall_model_iso)) then
             auxBoundCnt = auxBoundCnt + 1
             listBoundsWallModel(auxBoundCnt) = iBound
          end if
@@ -1036,8 +1036,17 @@ end subroutine CFDSolverBase_findFixPressure
          !$acc kernels
          walave_u(:,:) = 0.0_rp
          !$acc end kernels
+
+         if(flag_use_species) then
+            allocate(walave_t(numNodesRankPar))
+            !$acc enter data create(walave_t(:))
+            !$acc kernels
+            walave_t(:) = 0.0_rp
+            !$acc end kernels
+         end if
       else
          allocate(walave_u(0,0)) !dummy allocation
+         allocate(walave_t(0)) !dummy allocation
       end if
 
       if(flag_type_wmles==wmles_type_abl) then
@@ -1729,6 +1738,13 @@ end subroutine CFDSolverBase_findFixPressure
             !$acc kernels
             walave_u(:,:) = dtfact*u(:,:,2) + avwei*walave_u(:,:)
             !$acc end kernels
+
+            if(flag_use_species) then
+               !$acc kernels
+               walave_t(:) = dtfact*(Yk(:,1,2) - Yk_buffer(:,1)) + avwei*walave_t(:)
+               !$acc end kernels
+            end if
+
          end if
          call nvtxEndRange
 
@@ -1777,6 +1793,7 @@ end subroutine CFDSolverBase_findFixPressure
          end if
 
          this%time = this%time+this%dt
+         global_time = this%time
 
          if ((this%save_logFile_next==istep) .and. (this%doGlobalAnalysis)) then
             call volAvg_EK(numElemsRankPar,numNodesRankPar,connecParWork,gpvol,Ngp,nscbc_rho_inf,rho(:,2),u(:,:,2),this%EK)

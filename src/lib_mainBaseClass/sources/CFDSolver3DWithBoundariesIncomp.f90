@@ -55,7 +55,7 @@ contains
             1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Cp,this%Prt, &
             rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,workingNodesPar,mu_fluid,mue_l, &
             ndofRankPar,numBoundaryNodesRankPar,ldofPar,lbnodesPar,boundPar,bouCodesPar,bouCodesNodesPar, &  
-            listBoundsWallModel,wgp_b,boundNormalPar,normalsAtNodes,Yk_buffer)  
+            listBoundsWallModel,wgp_b,boundNormalPar,normalsAtNodes,Yk_buffer,walave_u,walave_t,zo)  
          end do 
       end if
 

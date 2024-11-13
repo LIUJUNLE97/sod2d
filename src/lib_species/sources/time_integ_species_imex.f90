@@ -10,13 +10,14 @@ module time_integ_species_imex
    use mod_numerical_params
    use mod_bc_routines_species
    use mod_operators
+   use mod_wall_model_species
    use time_integ, only :  limit_rho
 
    implicit none
 
    real(rp), allocatable, dimension(:,:,:) :: RYk,f_eta
    real(rp), allocatable, dimension(:,:) ::Reta,Rflux,gradYk
-   real(rp), allocatable, dimension(:) :: auxReta,Rstab,tau
+   real(rp), allocatable, dimension(:) :: auxReta,Rstab,tau, Rwmles
    real(rp), allocatable, dimension(:)   :: beta, alpha
    real(rp) :: gamma0
 
@@ -32,8 +33,8 @@ module time_integ_species_imex
       allocate(RYk(npoin,nspecies,3),f_eta(npoin,ndime,2))
       !$acc enter data create(RYk(:,:,:),f_eta(:,:,:))
 
-      allocate(auxReta(npoin),Reta(npoin,3),gradYk(npoin,ndime),Rstab(npoin),tau(nelem))
-      !$acc enter data create(auxReta(:),Reta(:,:),gradYk(:,:),Rstab(:),tau)
+      allocate(auxReta(npoin),Reta(npoin,3),gradYk(npoin,ndime),Rstab(npoin),tau(nelem),Rwmles(npoin))
+      !$acc enter data create(auxReta(:),Reta(:,:),gradYk(:,:),Rstab(:),tau(:),Rwmles(:))
    
       !$acc kernels
       RYk(1:npoin,1:nspecies,1:3) = 0.0_rp
@@ -58,7 +59,7 @@ module time_integ_species_imex
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Cp,Prt, &
                          rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,lpoin_w,mu_fluid,mue_l, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
-                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,Yk_buffer)  ! Optional args
+                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,Yk_buffer,walave_u,walave_t,zo)  ! Optional args
 
             implicit none
 
@@ -92,6 +93,8 @@ module time_integ_species_imex
             integer(4), optional, intent(in)    :: listBoundsWM(*)
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional,   intent(in)    :: Yk_buffer(npoin,nspecies)
+            real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_t(npoin)
+            real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: istep,ipoin,idime,icode,iPer,ipoin_w
             
             call nvtxStartRange("AB2 init")
@@ -161,6 +164,27 @@ module time_integ_species_imex
             end if
             call nvtxEndRange
 
+
+            if((isWallModelOn) ) then
+               call nvtxStartRange("AB2 wall model")
+               if((numBoundsWM .ne. 0)) then
+                  !$acc kernels
+                  Rwmles(1:npoin) = 0.0_rp
+                  !$acc end kernels
+                  call evalWallModelABLtemp(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,Cp,mu_fluid,&
+                        rho(:,1),walave_u(:,:),walave_t(:),zo,Rwmles)
+               end if
+               call nvtxEndRange
+       
+               if(mpi_size.ge.2) then
+                  call nvtxStartRange("AB2 halo update")
+                  call mpi_halo_atomic_update_real(Rwmles(:))
+                  call nvtxEndRange
+               end if                  
+            end if
+
+
             call species_tau(nelem,npoin,connec,u(:,:,1),helem,dt,tau)
 
             call nvtxStartRange("AB2 species")
@@ -179,7 +203,7 @@ module time_integ_species_imex
             !$acc parallel loop
             do ipoin = 1,npoin_w
                ipoin_w = lpoin_w(ipoin)
-               Yk(ipoin_w,ispc,2) = -(beta(1)*RYk(ipoin_w,ispc,2)+beta(2)*RYk(ipoin_w,ispc,1)+beta(3)*RYk(ipoin_w,ispc,3))
+               Yk(ipoin_w,ispc,2) = -(beta(1)*RYk(ipoin_w,ispc,2)+beta(2)*RYk(ipoin_w,ispc,1)+beta(3)*RYk(ipoin_w,ispc,3)) !- Rwmles(ipoin_w)
                Yk(ipoin_w,ispc,2) = Cp*rho(ipoin_w,2)*Ml(ipoin_w)*(dt*Yk(ipoin_w,ispc,2)/Ml(ipoin_w) + alpha(1)*Yk(ipoin_w,ispc,1) + alpha(2)*Yk(ipoin_w,ispc,3) + alpha(3)*Yk(ipoin_w,ispc,4))/gamma0
                RYk(ipoin_w,ispc,3) = RYk(ipoin_w,ispc,1)
                RYk(ipoin_w,ispc,1) = RYk(ipoin_w,ispc,2)

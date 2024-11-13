@@ -24,7 +24,7 @@ module mod_bc_routines_species
         do inode = 1,npoin
            if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
               bcode = bou_codes_nodes(inode) ! Boundary element code
-              if ((bcode == bc_type_far_field) .or. (bcode == bc_type_non_slip_isothermal) .or. (bcode == bc_type_slip_adiabatic)) then
+              if ((bcode == bc_type_far_field) .or. (bcode == bc_type_non_slip_isothermal) .or. (bcode == bc_type_slip_adiabatic).or. (bcode == bc_type_slip_wall_model)) then
                  aux_Yk(inode) = Yk_buffer(inode)
               end if
             end if

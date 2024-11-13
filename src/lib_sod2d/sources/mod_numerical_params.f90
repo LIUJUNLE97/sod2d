@@ -44,6 +44,8 @@ module mod_numerical_params
         real(8)    :: tol=1e-4
         integer(4) :: flag_use_constant_dt = 0
         integer(4) :: implicit_solver = implicit_solver_imex
+        integer(4) :: flag_imex_stages=4  
+
 
         !
         ! Reference conditions
@@ -131,5 +133,8 @@ module mod_numerical_params
         !
         logical :: flag_use_species = .false.
         integer(4) ::  nspecies = 0
+
+        ! global time
+        real(rp) :: global_time = 0.0_rp
 
 end module mod_numerical_params

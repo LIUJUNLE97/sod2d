@@ -17,12 +17,14 @@ program main
    use BluffBodySolver_mod
    use BluffBodySolverIncomp_mod
    use BluffBody3DSolver_mod
+   use BluffBody3DSolverDim_mod
    use BluffBody3DSolverIncomp_mod
    use BLFlowSolverIncomp_mod
    use BLFlowSolverIncompAFC_mod
    use BLFlowSolverIncompDRL_mod
    use ABlFlowSolverIncomp_mod
    use MappedInletIncomp_mod
+   use WindFarmSolver_mod
    use WindFarmSolverIncomp_mod
    use SupersonicForwardStep_mod
    use SupersonicNozzle_mod
@@ -85,6 +87,8 @@ program main
       allocate(BluffBodySolverIncomp::solver) 
    else if(value .eq. "BluffBody3DSolver") then
       allocate(BluffBody3DSolver::solver) 
+   else if(value .eq. "BluffBody3DSolverDim") then
+      allocate(BluffBody3DSolverDim::solver)       
    else if(value .eq. "BluffBody3DSolverIncomp") then
       allocate(BluffBody3DSolverIncomp::solver) 
    else if(value .eq. "BLFlowSolverIncomp") then
@@ -101,6 +105,8 @@ program main
       allocate(MappedInletIncomp::solver) 
    else if(value .eq. "WindFarmSolverIncomp") then
       allocate(WindFarmSolverIncomp::solver) 
+   else if(value .eq. "WindFarmSolver") then
+      allocate(WindFarmSolver::solver)       
    else if(value .eq. "SupersonicForwardStep") then
       allocate(SupersonicForwardStep::solver)  
    else if(value .eq. "SupersonicNozzle") then

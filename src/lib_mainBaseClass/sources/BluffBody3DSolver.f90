@@ -29,8 +29,8 @@ module BluffBody3DSolver_mod
 
    type, public, extends(CFDSolver3DWithBoundaries) :: BluffBody3DSolver
 
-      real(rp) , public  :: vo, M, delta, rho0, Re, to, po, aoa_alpha, aoa_beta
-
+      real(rp) , public  :: vo, M, delta, rho0, Re, to, po, aoa_alpha, aoa_beta, engine_intake_ux, engine_intake_uy, engine_intake_uz
+      logical , public   :: engine_intake
 
    contains
       procedure, public :: fillBCTypes           =>BluffBody3DSolver_fill_BC_Types
@@ -49,13 +49,24 @@ contains
 
    subroutine BluffBody3DSolver_initialBuffer(this)
       class(BluffBody3DSolver), intent(inout) :: this
-      integer(4) :: iNodeL
+      integer(4) :: iNodeL, bcode
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          u_buffer(iNodeL,1) = this%vo*cos(this%aoa_alpha*v_pi/180.0_rp)*cos(this%aoa_beta*v_pi/180.0_rp)
          u_buffer(iNodeL,2) = this%vo*sin(this%aoa_beta*v_pi/180.0_rp) 
          u_buffer(iNodeL,3) = this%vo*sin(this%aoa_alpha*v_pi/180.0_rp)    
+
+         if(this%engine_intake) then
+            if(bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) then
+               bcode = bouCodesNodesPar(iNodeL)
+               if ((bcode == bc_type_internal_intake)) then ! I am taking advantage that the supersonic one impose the values, so is good for the engine intake
+                  u_buffer(iNodeL,1) = this%engine_intake_ux
+                  u_buffer(iNodeL,2) = this%engine_intake_uy
+                  u_buffer(iNodeL,3) = this%engine_intake_uz
+               end if
+            end if
+         end if
       end do
       !$acc end parallel loop
 
@@ -116,6 +127,7 @@ contains
       call json%get("flag_les",flag_les, found,1); call this%checkFound(found,found_aux)
       call json%get("flag_implicit",flag_implicit, found,0); call this%checkFound(found,found_aux)
       call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
+      call json%get("flag_imex_stages",flag_imex_stages, found,4); call this%checkFound(found,found_aux)
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
       call json%get("flag_high_mach",flag_high_mach, found,.true.); call this%checkFound(found,found_aux)
       
@@ -157,6 +169,14 @@ contains
          call json%get("wit_save_pr",this%wit_save_pr, found,.true.); call this%checkFound(found,found_aux)
          call json%get("wit_save_rho",this%wit_save_rho, found,.true.); call this%checkFound(found,found_aux)
          call json%get("continue_witness",this%continue_witness, found,.false.); call this%checkFound(found,found_aux)
+      end if  
+
+      !Witness points parameters
+      call json%get("engine_intake",this%engine_intake, found,.false.)
+      if(this%engine_intake .eqv. .true.) then         
+         call json%get("engine_intake_ux",this%engine_intake_ux, found,1.0_rp); call this%checkFound(found,found_aux)
+         call json%get("engine_intake_uy",this%engine_intake_uy, found,0.0_rp); call this%checkFound(found,found_aux)
+         call json%get("engine_intake_uz",this%engine_intake_uz, found,0.0_rp); call this%checkFound(found,found_aux)
       end if  
 
       ! fixed by the type of base class parameters
