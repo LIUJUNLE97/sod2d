@@ -56,12 +56,10 @@ contains
       do iNodeL = 1,numNodesRankPar
          source_term(iNodeL,3) = -rho(iNodeL,2)*this%Ug_y*this%fc - this%fc*q(iNodeL,2,2)
          source_term(iNodeL,4) = rho(iNodeL,2)*this%Ug_x*this%fc + this%fc*q(iNodeL,1,2)
-         source_term(iNodeL,5) = (nscbc_rho_inf-rho(iNodeL,2))*nscbc_g_z           
+         source_term(iNodeL,5) = 0.0_rp 
       end do
       !$acc end parallel loop
 
-      !temp =  this%T_wall - 0.25_rp*(this%time/3600.0_rp)
-      !nscbc_rho_inf = nscbc_p_inf/(this%Rgas*temp)
 
    end subroutine WindFarmSolver_afterDt
 
@@ -87,7 +85,7 @@ contains
       do iNodeL = 1,numNodesRankPar         
          source_term(iNodeL,3) = -rho(iNodeL,2)*this%Ug_y*this%fc - this%fc*q(iNodeL,2,2)
          source_term(iNodeL,4) =  rho(iNodeL,2)*this%Ug_x*this%fc + this%fc*q(iNodeL,1,2)
-         source_term(iNodeL,5) = (nscbc_rho_inf-rho(iNodeL,2))*nscbc_g_z                          
+         source_term(iNodeL,5) =  0.0_rp 
       end do
       !$acc end parallel loop
 
@@ -177,7 +175,7 @@ contains
       call json%get("rough",this%rough, found,0.1_rp); call this%checkFound(found,found_aux)
       call json%get("wind_alpha",this%wind_alpha, found,270.0_rp); call this%checkFound(found,found_aux)
       flag_high_mach = .true.
-      flag_bouyancy_effect = .false.
+      flag_bouyancy_effect = .true.
 
       this%wind_alpha = 270.0_rp-this%wind_alpha !Comming North is 0 , East is 90, South is 180 and West is 270 in a x-y axis
       this%Ug_alpha = this%wind_alpha !+ 20.0_rp
@@ -237,7 +235,7 @@ contains
       class(WindFarmSolver), intent(inout) :: this
       integer(8) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL, idime
-      real(rp) :: velo, rti(3), zp,velo_aux1, veloMatias(2), ugMatias
+      real(rp) :: velo, rti(3), zp,velo_aux1, veloMatias(2), ugMatias, theta, p100
       integer(4)   :: iLine,iNodeGSrl,auxCnt
       character(512) :: initialField_filePath
 
@@ -261,14 +259,21 @@ contains
             end if
             u(iNodeL,2,2) = 0.0_rp
             u(iNodeL,3,2) = 0.0_rp
-                        
+            
+            p100 =  nscbc_p_inf*exp(-nscbc_g_z*100.0_rp/(this%Rgas*this%T_wall))
+            
             ! GABLS1
             if (zp.lt.(100.0_rp)) then ! capping inversion region of 100m
-               Tem(iNodeL,2) =  this%T_wall
+               theta =  this%T_wall
+               pr(iNodeL,2) = nscbc_p_inf*exp(-nscbc_g_z*zp/(this%Rgas*this%T_wall))
             else
-               Tem(iNodeL,2) =  this%T_wall   + &
-                                 (zp-100.0_rp)*0.01_rp
+               theta =  this%T_wall   +  (zp-100.0_rp)*0.01_rp      
+               pr(iNodeL,2) = p100*((1.0_rp-0.01_rp*(zp-100.0_rp)/this%T_wall)**(nscbc_g_z/(this%Rgas*0.01_rp)))       
             end if
+            Tem(iNodeL,2) =  theta - (nscbc_g_z/this%Cp)*zp
+            
+            !pr(iNodeL,2) = nscbc_p_inf*((Tem(iNodeL,2)/this%T_wall)**(this%gamma_gas/(this%gamma_gas-1.0_rp)))            
+
          end if
          if(auxCnt.gt.numNodesRankPar) then
             exit serialLoop
@@ -277,10 +282,11 @@ contains
 
       !$acc update device(u(:,:,:))
       !$acc update device(Tem(:,:))
+      !$acc update device(pr(:,:))
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-         pr(iNodeL,2) = nscbc_p_inf
+         
          rho(iNodeL,2) = pr(iNodeL,2)/this%Rgas/Tem(inodeL,2)
          e_int(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp))
          E(iNodeL,2) = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))+e_int(iNodeL,2))
