@@ -12,17 +12,17 @@ endif()
 set(CMAKE_CXX_STANDARD 11)
 
 # Define common C compiler flags
-set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-DNOPRED")
+set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
 set(CMAKE_C_FLAGS_DEBUG "-g -O0")
 set(CMAKE_C_FLAGS_RELEASE "")
 
 # Define common CXX compiler flags
-set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-DNOPRED")
+set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 set(CMAKE_CXX_FLAGS_RELEASE "")
 
 # Define common Fortran compiler flags
-set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-DNOPRED")
+set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS})
 set(CMAKE_Fortran_FLAGS_DEBUG "-g -O0")
 set(CMAKE_Fortran_FLAGS_RELEASE "")
 
@@ -67,11 +67,6 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "Intel" OR CMAKE_C_COMPILER_ID STREQUAL "Int
 		set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "-xSAPPHIRERAPIDS")
 		set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} "-xSAPPHIRERAPIDS")
 		set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "-xSAPPHIRERAPIDS -qopt-zmm-usage=high")
-	elseif(USE_MN4)
-		message("Optimizing for MN4")
-		set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "-xCORE-AVX512 -mtune=skylake")
-		set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} "-xCORE-AVX512 -mtune=skylake")
-		set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "-xCORE-AVX512 -mtune=skylake -qopt-zmm-usage=high")
 	else()
 		set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "-mtune=native")
 		set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} "-mtune=native")
@@ -127,33 +122,33 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "NVHPC" OR CMAKE_C_COMPILER_ID STREQUAL "PGI
 		set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "-DNOACC")
 	endif()
 elseif(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-        message("-- Cray compiler detected")
-        # Common Cray+MPI flags
-        set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "")
-        set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "")
-        set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-eZ")
-        # Debug
-        set(CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS_DEBUG} "")
-        set(CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG} "")
-        set(CMAKE_Fortran_FLAGS_DEBUG ${CMAKE_Fortran_FLAGS_DEBUG} "")
-        # Release
-        set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "")
-        set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} "")
-        set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "")
-        # GPU options
-        if(USE_GPU)
-                message("Setting up ACC flags")
-                message("IMPORTANT: Verify the device compute capability!!!")
-                set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "")
-                set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "")
-                set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-hacc -hlist=a -target-accel=amd_gfx90a")
-        else()
-                message("AMD without GPUs is still not available")
-                #NVIDIA COMPILERS WITHOUT GPUs
-                set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS} "-DNOACC")
-                set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS} "-DNOACC")
-                set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS} "-DNOACC")
-        endif()
+   message("-- Cray compiler detected")
+   # Common Cray+MPI flags
+   set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "")
+   set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "")
+   set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-eZ")
+   # Debug
+   set(CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS_DEBUG} "")
+   set(CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG} "")
+   set(CMAKE_Fortran_FLAGS_DEBUG ${CMAKE_Fortran_FLAGS_DEBUG} "")
+   # Release
+   set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS_RELEASE} "")
+   set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE} "")
+   set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS_RELEASE} "")
+   # GPU options
+   if(USE_GPU)
+      message("Setting up ACC flags")
+      message("IMPORTANT: Verify the device compute capability!!!")
+      set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "")
+      set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "")
+      set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-hacc -hlist=a -target-accel=amd_gfx90a")
+   else()
+      message("AMD without GPUs is still not available")
+      #NVIDIA COMPILERS WITHOUT GPUs
+      set(CMAKE_C_FLAGS_RELEASE ${CMAKE_C_FLAGS} "-DNOACC")
+      set(CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS} "-DNOACC")
+      set(CMAKE_Fortran_FLAGS_RELEASE ${CMAKE_Fortran_FLAGS} "-DNOACC")
+   endif()
 else()
 	message("this shit: " ${CMAKE_C_COMPILER_ID})
 	message(FATAL_ERROR "Unknown compiler")
