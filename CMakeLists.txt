@@ -11,9 +11,9 @@ set(TEST_VERSION "${TEST_VERSION_MAJOR}.${TEST_VERSION_MINOR}.${TEST_VERSION_PAT
 option(UNIT_TESTING "Enable unit tests" OFF)
 option(USE_SMARTREDIS "Compile using SmartRedis" OFF)
 
-option(TOOL_MESHPART "Compiles tool MeshPart" ON)
-option(TOOL_COPYRES  "Compiles tool CopyResults" ON)
-option(TOOL_COMMPERF "Compiles tool CommPerf" ON)
+option(TOOL_MESHPART "Compiles tool MeshPart" OFF)
+option(TOOL_COPYRES  "Compiles tool CopyResults" OFF)
+option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
 
 option(USE_MN5 "Compiling in MareNostrum5" OFF)
 option(USE_CRAY "Compiling with CrayMpi" OFF)
