@@ -235,11 +235,13 @@ contains
       class(WindFarmSolver), intent(inout) :: this
       integer(8) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL, idime
-      real(rp) :: velo, rti(3), zp,velo_aux1, veloMatias(2), ugMatias, theta, p100
+      real(rp) :: velo, rti(3), zp,velo_aux1, veloMatias(2), ugMatias, theta, p100, gcp
       integer(4)   :: iLine,iNodeGSrl,auxCnt
       character(512) :: initialField_filePath
 
       call nvtxStartRange("WindFarm Init")
+
+      gcp = nscbc_g_z/this%Cp
 
       call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
       auxCnt = 1
@@ -260,20 +262,18 @@ contains
             u(iNodeL,2,2) = 0.0_rp
             u(iNodeL,3,2) = 0.0_rp
             
-            p100 =  nscbc_p_inf*exp(-nscbc_g_z*100.0_rp/(this%Rgas*this%T_wall))
+            p100 =  nscbc_p_inf*((1.0_rp-gcp*100.0_rp/this%T_wall)**(this%gamma_gas/(this%gamma_gas-1.0_rp)))
             
             ! GABLS1
             if (zp.lt.(100.0_rp)) then ! capping inversion region of 100m
                theta =  this%T_wall
-               pr(iNodeL,2) = nscbc_p_inf*exp(-nscbc_g_z*zp/(this%Rgas*this%T_wall))
+               pr(iNodeL,2) = nscbc_p_inf*((1.0_rp-gcp*zp/this%T_wall)**(this%gamma_gas/(this%gamma_gas-1.0_rp)))    
+               Tem(iNodeL,2) =  this%T_wall - gcp*zp           
             else
-               theta =  this%T_wall   +  (zp-100.0_rp)*0.01_rp      
-               pr(iNodeL,2) = p100*((1.0_rp-0.01_rp*(zp-100.0_rp)/this%T_wall)**(nscbc_g_z/(this%Rgas*0.01_rp)))       
+               theta =  this%T_wall   -  (zp-100.0_rp)*0.01_rp      
+               pr(iNodeL,2) = p100*((1.0_rp-((0.01_rp+gcp)/(this%T_wall-gcp*100.0_rp))*(zp-100.0_rp))**(this%gamma_gas/(this%gamma_gas-1.0_rp)))
+               Tem(iNodeL,2) =  this%T_wall - (0.01_rp+gcp)*(zp-100.0_rp)  - gcp*100.0_rp
             end if
-            Tem(iNodeL,2) =  theta - (nscbc_g_z/this%Cp)*zp
-            
-            !pr(iNodeL,2) = nscbc_p_inf*((Tem(iNodeL,2)/this%T_wall)**(this%gamma_gas/(this%gamma_gas-1.0_rp)))            
-
          end if
          if(auxCnt.gt.numNodesRankPar) then
             exit serialLoop
