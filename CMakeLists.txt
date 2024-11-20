@@ -50,6 +50,9 @@ endif()
 # Set project name, version and languages
 project(sod2d LANGUAGES C CXX Fortran)
 
+# Obtain git hash and user
+include(git)
+
 # Configure MPI module
 include(mpi)
 
@@ -123,3 +126,6 @@ if(UNIT_TESTING)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+# Provide information on who compiled and which git hash
+set_git_version()
