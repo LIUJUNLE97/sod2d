@@ -118,6 +118,8 @@ if(TOOL_COMMPERF)
     add_subdirectory(tool_commsPerformance)
 endif()
 
+add_subdirectory(utils)
+
 #enable folder unitt
 #add_subdirectory(unitt)
 
