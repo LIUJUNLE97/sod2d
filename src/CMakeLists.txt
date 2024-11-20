@@ -14,4 +14,5 @@ add_subdirectory(app_sod2d)
 
 # Find and install JSON files
 file(GLOB_RECURSE CONFIG_FILES  ${CMAKE_CURRENT_LIST_DIR}/lib_mainBaseClass/config_files/*.json)
-install(FILES   ${CONFIG_FILES} DESTINATION share/config_files)
+add_custom_target(sod2d-config ALL COMMAND cp -r ${CMAKE_CURRENT_LIST_DIR}/lib_mainBaseClass/config_files ${CMAKE_CURRENT_BINARY_DIR})
+install(FILES ${CONFIG_FILES} DESTINATION share/config_files)
