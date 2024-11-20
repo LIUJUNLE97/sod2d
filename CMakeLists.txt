@@ -25,6 +25,11 @@ option(USE_NCCL "Compile using NCCL" OFF)
 
 option(USE_SENSEI "Compile using SENSEI" OFF)
 
+set(USE_PORDER 4 CACHE STRING "Set the element order")
+set(USE_RP     4 CACHE STRING "Set the real precision")
+set(USE_RP_VTK 4 CACHE STRING "Set the real precision for VTK files")
+set(USE_RP_AVG 8 CACHE STRING "Set the real precision for averages")
+
 option(DEBUG_MODE "Set debug mode" OFF)
 
 # Folder with files configuring extra CMake options

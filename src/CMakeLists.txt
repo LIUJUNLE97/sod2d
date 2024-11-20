@@ -1,3 +1,6 @@
+# Configure CONSTANTS
+include(constants)
+
 #libs
 if (SHARED_LIBS)
     add_subdirectory(lib_sod2d)
