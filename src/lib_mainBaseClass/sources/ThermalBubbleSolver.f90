@@ -121,7 +121,7 @@ contains
       call json%get("NumericalParameters.cfl_conv", this%cfl_conv, found, 1.5_rp); call this%checkFound(found,found_aux)
       call json%get("NumericalParameters.cfl_diff", this%cfl_diff, found, 1.5_rp); call this%checkFound(found,found_aux)
 
-      call json%get("NumericalParameters.flag_rk_ls",flag_rk_ls, found,.false.); 
+      call json%get("NumericalParameters.flag_rk_ls",flag_rk_ls, found,.true.); 
       call json%get("NumericalParameters.flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
 
       flag_walave   = .false.
