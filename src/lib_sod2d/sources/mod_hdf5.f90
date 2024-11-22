@@ -5092,6 +5092,8 @@ contains
          call select_dtype_rp(dtype)
          dsetname = '/VTKHDF/CellData/mesh_quality'
          call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+         dsetname = '/VTKHDF/CellData/mesh_quality_cube'
+         call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       end if
 
    end subroutine create_groups_datasets_vtkhdf_unstructuredGrid_meshFile
@@ -5104,7 +5106,7 @@ contains
       integer(4),intent(in) :: numElemsMshRank,numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,mshRankElemStart,mshRankElemEnd
       integer(8),intent(in) :: mshRankNodeStart_i8,mshRankNodeEnd_i8
       integer(4),intent(in) :: numNodesMshRank,connecChunkSize
-      real(rp),intent(in)   :: coordVTKMshRank(numNodesMshRank,3), quality(numVTKElemsPerMshElem)
+      real(rp),intent(in)   :: coordVTKMshRank(numNodesMshRank,3), quality(:,:)
       integer(4),intent(in) :: connecVTKMshRank(sizeConnecVTKMshRank)
 
       integer(hsize_t) :: ms_dims(1),ms_dims2d(2),aux_ms_dims
@@ -5207,8 +5209,10 @@ contains
       call write_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i1)
       !!! Save mesh quality
       if (eval_mesh_quality) then
-         dsetname = '/VTKHDF/CellData/mesh_quality'
-         call write_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,quality)
+         call write_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,quality(:,1))
+         ! print*,quality(:,1)
+         dsetname = '/VTKHDF/CellData/mesh_quality_cube'
+         call write_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,quality(:,2))
       end if
 
 
@@ -5281,6 +5285,8 @@ contains
       !------------------------------------------------------------------------------------------------------
       if (eval_mesh_quality) then
          dsetname = '/VTKHDF/CellData/mesh_quality'
+         call write_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,empty_array1d_rp)
+         dsetname = '/VTKHDF/CellData/mesh_quality_cube'
          call write_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,empty_array1d_rp)
       end if
 

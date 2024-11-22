@@ -125,8 +125,9 @@ contains
 ! ################################################################################################
 ! ------------------------ VARS for Mesh Quality ----------------------------------------------------
 ! ################################################################################################
-      type(jagged_vector_rp) :: quality_jv
+      type(jagged_matrix_rp) :: quality_jv
       real(rp) :: quality_elem,auxAvg,elemVertOrig(3)
+      real(rp) :: quality_vec(2)
       integer(4) :: iElem,iNode,iElemVTK,iElemGid
       integer(4) :: numTangledElemsMpiRank,numTangledElemsMshRank,numTangledElemsTotal
       real(rp) :: maxQuality, minQuality, avgQuality
@@ -409,7 +410,7 @@ contains
       !write(*,*) 'l2[',mpi_rank,']vnbf',vecNumBoundFacesMshRank(:),'vndof',vecNumDoFMshRank(:),'vnbn',vecNumBoundaryNodesMshRank(:)
 
       !----------------------------------------------------------------------------------------------
-      allocate(quality_jv%vector(numMshRanksInMpiRank))
+      allocate(quality_jv%matrix(numMshRanksInMpiRank))
       if(evalMeshQuality) then
          if(numMshRanksInMpiRank .gt. 0) then
             ! Open a file for outputting realted information
@@ -440,13 +441,25 @@ contains
          rankMinQuality = 100000.0_rp ! Min in this rank
          rankAvgQuality = 0.0_rp      ! Avg in this rank
          numTangledElemsMpiRank=0
+         !ABEL:
+         mngaus = 7**3
+         ! deallocate(Ngp_l)
+         deallocate(dNgp)
+         deallocate(wgp)
+         allocate(Ngp_l(mngaus,mnnode))
+         allocate(dNgp(ndime,mnnode,mngaus))
+         allocate(wgp(mngaus))
+         call evalShapeFunctions_Ngp_l_2(Ngp_l,dNgp,wgp,mporder,mnnode,mngaus,a2ijk)
+
          do iMshRank=1,numMshRanksInMpiRank
-            allocate(quality_jv%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
+            allocate(quality_jv%matrix(iMshRank)%elems(numElemsVTKMshRank(iMshRank),2))
             auxAvg = 0.0_rp
             numTangledElemsMshRank=0
             do iElem = 1, numElemsMshRank(iMshRank)
-               call eval_MeshQuality(mnnode,mngaus,numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),iElem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_elem)
+               call eval_MeshQuality(mnnode,mngaus,numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),iElem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_vec)
                ! Compute rank max, min and avg
+               ! print*,quality_vec
+               quality_elem = quality_vec(1)
                rankMaxQuality = max(rankMaxQuality, quality_elem)
                rankMinQuality = min(rankMinQuality, quality_elem)
                auxAvg = auxAvg + quality_elem
@@ -466,33 +479,34 @@ contains
                   write(555,*) "  vertex0",elemVertOrig(:)
                end if
                do iElemVTK = 1, numVTKElemsPerMshElem
-                  quality_jv%vector(iMshRank)%elems((iElem-1)*numVTKElemsPerMshElem + iElemVTK) = quality_elem
+                  quality_jv%matrix(iMshRank)%elems((iElem-1)*numVTKElemsPerMshElem + iElemVTK,:) = quality_vec
+                  ! print*,'vtk ',quality_jv%matrix(iMshRank)%elems((iElem-1)*numVTKElemsPerMshElem + iElemVTK,:)
                end do
             end do
             auxAvg = auxAvg / numElemsMshRank(iMshRank)
             rankAvgQuality = rankAvgQuality + auxAvg
             numTangledElemsMpiRank=numTangledElemsMpiRank+numTangledElemsMshRank
          end do
+         deallocate(Ngp_l)
+
+         rankAvgQuality = rankAvgQuality / numMshRanksInMpiRank
          call MPI_Barrier(app_comm,mpi_err)
-         if(numMshRanksInMpiRank .gt. 0) then
-            rankAvgQuality = rankAvgQuality / numMshRanksInMpiRank
-            write(555,*) "----| End of list of tangled elements"
-            write(555,*) "--| Mesh quality evaluated"
-            write(555,*) "--| Mesh statistics in rank"
-            write(555,*) "----| Num.Tangled Elems:",numTangledElemsMpiRank
-            write(555,*) "----| Max quality:",rankMaxQuality
-            write(555,*) "----| Min quality:",rankMinQuality
-            write(555,*) "----| Avg quality:",rankAvgQuality
-            close(555)
-         end if
+         write(555,*) "----| End of list of tangled elements"
+         write(555,*) "--| Mesh quality evaluated"
+         write(555,*) "--| Mesh statistics in rank"
+         write(555,*) "----| Num.Tangled Elems:",numTangledElemsMpiRank
+         write(555,*) "----| Max quality:",rankMaxQuality
+         write(555,*) "----| Min quality:",rankMinQuality
+         write(555,*) "----| Avg quality:",rankAvgQuality
+         close(555)
          ! Compute max, min and avg across all ranks
-         call MPI_Reduce(numTangledElemsMpiRank,numTangledElemsTotal,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
-         call MPI_Reduce(rankMaxQuality,maxQuality,1,mpi_datatype_real,MPI_MAX,0,app_comm,mpi_err)
-         call MPI_Reduce(rankMinQuality,minQuality,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
-         call MPI_Reduce(rankAvgQuality,avgQuality,1,mpi_datatype_real,MPI_SUM,0,app_comm,mpi_err)
+         call MPI_Allreduce(numTangledElemsMpiRank,numTangledElemsTotal,1,mpi_datatype_int4,MPI_SUM,app_comm,mpi_err)
+         call MPI_Allreduce(rankMaxQuality, maxQuality, 1, mpi_datatype_real, MPI_MAX, app_comm, mpi_err)
+         call MPI_Allreduce(rankMinQuality, minQuality, 1, mpi_datatype_real, MPI_MIN, app_comm, mpi_err)
+         call MPI_Allreduce(rankAvgQuality, avgQuality, 1, mpi_datatype_real, MPI_SUM, app_comm, mpi_err)
+         avgQuality = avgQuality / mpi_size
          ! Write high-level data to file
          if(mpi_rank.eq.0) then
-            avgQuality = avgQuality / numMshRanks2Part
             write(554,*) "--| Mesh statistics"
             write(554,*) "----| Num.Tangled Elems:",numTangledElemsTotal
             write(554,*) "----| Max quality:", maxQuality
@@ -502,7 +516,7 @@ contains
          end if
       else
          do iMshRank=1,numMshRanksInMpiRank
-            allocate(quality_jv%vector(iMshRank)%elems(numElemsVTKMshRank(iMshRank)))
+            allocate(quality_jv%matrix(iMshRank)%elems(numElemsVTKMshRank(iMshRank),2))
          end do
       end if
       !----------------------------------------------------------------------------------------------
@@ -543,7 +557,7 @@ contains
         call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,sod2dmsh_h5_fileId,evalMeshQuality,mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),&
             numElemsVTKMshRank(iMshRank),sizeConnecVTKMshRank(iMshRank),mnnodeVTK,numVTKElemsPerMshElem,&
             mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),&
-            coordVTK_jm%matrix(iMshRank)%elems,connecVTK_jv%vector(iMshRank)%elems,quality_jv%vector(iMshRank)%elems,connecChunkSize)
+            coordVTK_jm%matrix(iMshRank)%elems,connecVTK_jv%vector(iMshRank)%elems,quality_jv%matrix(iMshRank)%elems,connecChunkSize)
       end do
 
       do iMshRank=(numMshRanksInMpiRank+1),maxNumMshRanks
@@ -5029,6 +5043,28 @@ contains
       end do
 
    end subroutine evalShapeFunctions_Ngp_l
+
+   subroutine evalShapeFunctions_Ngp_l_2(Ngp_l,dNgp,wgp,mporder,mnnode,mngaus,a2ijk)
+      integer(4),intent(in) :: mporder,mnnode,mngaus
+      integer(4),intent(in) :: a2ijk(mnnode)
+      real(rp),intent(out) :: Ngp_l(mngaus,mnnode), dNgp(ndime,mnnode,mngaus), wgp(mngaus)
+      real(rp) :: s, t, z
+      integer(4) :: igaus,orderGauss
+      real(rp) :: xgp(mngaus,ndime)
+      real(rp) :: Ngp(mngaus,mnnode),dlxigp_ip(mngaus,ndime,mporder+1),dNgp_l(ndime,mnnode,mngaus)
+
+      !*********************************************************
+      orderGauss = mngaus**(1.0_rp/3.0_rp)-1
+      call GaussLobattoLegendre_hex_2(orderGauss,mngaus,xgp,wgp)
+
+      do igaus = 1,mngaus
+         s = xgp(igaus,1)
+         t = xgp(igaus,2)
+         z = xgp(igaus,3)
+         call hex_highorder(mporder,mnnode,s,t,z,a2ijk,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
+      end do
+
+   end subroutine evalShapeFunctions_Ngp_l_2
 
    subroutine get_listBoundaryElementsInRank_in_parallel(mporder,mnnode,mnpbou,gmsh2ijk,numElemsInRank,numNodesInRank,&
                               listNodesInRank_i8,connecInRank_i8,numBoundElemsRankPar,listBoundElemsRankPar)

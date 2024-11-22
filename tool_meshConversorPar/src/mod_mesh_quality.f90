@@ -28,39 +28,129 @@ contains
 		real(rp),   intent(out) :: eta
 		real(rp)                :: S(ndime,ndime), S2(ndime,ndime), sigma, Sf, detS
         real(rp)             :: d=3.0_rp
-        S     = matmul(elemJ, idealJ)
-        detS  = (S(1,1)*S(2,2)*S(3,3)+S(1,2)*S(2,3)*S(3,1)+S(1,3)*S(2,1)*S(3,2)-S(3,1)*S(2,2)*S(1,3)-S(3,2)*S(2,3)*S(1,1)-S(3,3)*S(2,1)*S(1,2))
+        real(rp)                :: Saux(ndime,ndime),detaux
+        logical :: success
+        !S     = matmul(elemJ, idealJ)
+        Saux     = matmul(elemJ, idealJ)
+        call inverse_matrix_3x3(Saux,S,detaux,success)
+        
+        if(.not.success) eta = huge(1.0_rp)
+
+        !detS  = (S(1,1)*S(2,2)*S(3,3)+S(1,2)*S(2,3)*S(3,1)+S(1,3)*S(2,1)*S(3,2)-S(3,1)*S(2,2)*S(1,3)-S(3,2)*S(2,3)*S(1,1)-S(3,3)*S(2,1)*S(1,2))
+        detS = 1.0_rp/detaux
+
         sigma = (detS + abs(detS))/2
         S2    = matmul(transpose(S), S)
         Sf    = S2(1,1) + S2(2,2) + S2(3,3)
         eta   = Sf/(d*sigma**(2.0_rp/d)) 
     end subroutine
 
-    subroutine eval_MeshQuality(mnnode,mngaus,npoin, nelem, ielem, coordPar, connecParOrig, dNgp, wgp, quality)
+    subroutine eval_MeshQuality(mnnode,mngaus,npoin, nelem, ielem, coordPar, connecParOrig, dNgp, wgp, quality_vec)
         integer(4), intent(in) :: mnnode,mngaus,npoin,nelem,ielem,connecParOrig(nelem,mnnode)
         real(rp), intent(in)  :: coordPar(npoin,ndime),dNgp(ndime,mnnode,mngaus),wgp(mngaus)
-        real(rp), intent(out) :: quality
-        integer(4) :: igaus
+        real(rp), intent(out) :: quality_vec(2)
+        integer(4) :: igaus, idime
         real(rp)   :: elemJ(ndime,ndime),idealJ(ndime,ndime),gpvol
         real(rp)   :: eta,volume,modulus
-        real(rp)   :: eta_elem
+        real(rp)   :: eta_elem, eta_cube, quality
+        real(rp)   :: idealCubeJ(ndime,ndime)
 
+        idealCubeJ = 0.0_rp
+        do idime = 1,ndime
+            idealCubeJ(idime,idime) = 1.0_rp
+        end do
         eta_elem = 0.0_rp
+        eta_cube = 0.0_rp
         volume = 0.0_rp
         call ideal_hexa(mnnode,nelem,npoin,ielem,coordPar,connecParOrig,idealJ) !Assumim que el jacobià de l'element ideal és constant
         do igaus = 1,mngaus
             call compute_jacobian(mnnode,mngaus,nelem,npoin,ielem,igaus,dNgp,wgp(igaus),coordPar,connecParOrig,elemJ,gpvol)
             elemJ = transpose(elemJ)
+
             call shape_measure(elemJ, idealJ, eta)
             eta_elem = eta_elem + eta*eta*gpvol
             volume = volume + 1*1*gpvol
+
+            call shape_measure(elemJ, idealCubeJ, eta)
+            eta_cube = eta_cube + eta*eta*gpvol
+
+            if(eta>100000) then
+                print*,igaus, ' ',eta
+            end if
         end do
+
         eta_elem = sqrt(eta_elem)/sqrt(volume)
         quality = 1.0_rp/eta_elem
         modulus = modulo(quality, 1.0_rp)
         if (int(modulus) .ne. 0) then
             quality = -1.0_rp
         end if
-  
+        quality_vec(1) = quality
+        
+        eta_elem = eta_cube
+        eta_elem = sqrt(eta_elem)/sqrt(volume)
+        quality = 1.0_rp/eta_elem
+        modulus = modulo(quality, 1.0_rp)
+        if (int(modulus) .ne. 0) then
+            quality = -1.0_rp
+        end if
+        quality_vec(2) = quality
+
      end subroutine eval_MeshQuality
+
+     subroutine inverse_matrix_3x3(A, A_inv, det, success)
+        implicit none
+        ! Input
+        real(rp), intent(in) :: A(:,:)         ! Input 3x3 matrix
+        ! Output
+        real(rp), intent(out) :: A_inv(3,3)    ! Inverse of the matrix
+        real(rp), intent(out) :: det           ! Determinant of the matrix
+        logical, intent(out) :: success        ! True if inversion is successful
+    
+        ! Local variables
+        real(rp) :: cof(3, 3)
+        integer :: i, j
+    
+        ! Check matrix dimensions
+        if (size(A, 1) /= 3 .or. size(A, 2) /= 3) then
+            print *, "Error: Input matrix must be 3x3."
+            success = .false.
+            return
+        end if
+    
+        ! Calculate the determinant
+        det = A(1, 1)*(A(2, 2)*A(3, 3) - A(2, 3)*A(3, 2)) &
+            - A(1, 2)*(A(2, 1)*A(3, 3) - A(2, 3)*A(3, 1)) &
+            + A(1, 3)*(A(2, 1)*A(3, 2) - A(2, 2)*A(3, 1))
+    
+        ! Check if the matrix is invertible
+        if (abs(det) < 1.0E-10_rp) then
+            success = .false.
+            return
+        end if
+    
+        ! Calculate the adjugate (transpose of the cofactor matrix)
+        cof(1, 1) =   (A(2, 2)*A(3, 3) - A(2, 3)*A(3, 2))
+        cof(1, 2) = - (A(1, 2)*A(3, 3) - A(1, 3)*A(3, 2))
+        cof(1, 3) =   (A(1, 2)*A(2, 3) - A(1, 3)*A(2, 2))
+    
+        cof(2, 1) = - (A(2, 1)*A(3, 3) - A(2, 3)*A(3, 1))
+        cof(2, 2) =   (A(1, 1)*A(3, 3) - A(1, 3)*A(3, 1))
+        cof(2, 3) = - (A(1, 1)*A(2, 3) - A(1, 3)*A(2, 1))
+    
+        cof(3, 1) =   (A(2, 1)*A(3, 2) - A(2, 2)*A(3, 1))
+        cof(3, 2) = - (A(1, 1)*A(3, 2) - A(1, 2)*A(3, 1))
+        cof(3, 3) =   (A(1, 1)*A(2, 2) - A(1, 2)*A(2, 1))
+    
+        ! Compute the inverse
+        do i = 1, 3
+            do j = 1, 3
+                A_inv(i, j) = cof(i, j) / det
+            end do
+        end do
+    
+        success = .true.
+    end subroutine inverse_matrix_3x3
+    
+
 end module
