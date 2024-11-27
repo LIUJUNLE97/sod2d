@@ -164,7 +164,7 @@ module time_integ_species_imex
             end if
             call nvtxEndRange
 
-
+#if 0
             if((isWallModelOn) ) then
                call nvtxStartRange("AB2 wall model")
                if((numBoundsWM .ne. 0)) then
@@ -184,7 +184,7 @@ module time_integ_species_imex
                end if                  
             end if
 
-
+#endif
             call species_tau(nelem,npoin,connec,u(:,:,1),helem,dt,tau)
 
             call nvtxStartRange("AB2 species")
@@ -223,7 +223,7 @@ module time_integ_species_imex
             !
             ! Compute subgrid viscosity if active
             !
-
+            
             if(flag_entropy_stab_in_species .eqv. .true.) then 
                !$acc parallel loop
                do ipoin = 1,npoin_w

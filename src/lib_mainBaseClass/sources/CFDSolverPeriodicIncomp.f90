@@ -88,8 +88,8 @@ contains
       
       call init_rk4_solver_incomp(numNodesRankPar) 
       if(flag_use_species .eqv. .true.) then
-         call init_imex_species_solver(numNodesRankPar,numElemsRankPar)
-         !call init_rk4_ls_species_solver(numNodesRankPar,numElemsRankPar)
+         !call init_imex_species_solver(numNodesRankPar,numElemsRankPar)
+         call init_rk4_ls_species_solver(numNodesRankPar,numElemsRankPar)
       end if
 
    end subroutine CFDSolverPeriodicIncomp_initNSSolver

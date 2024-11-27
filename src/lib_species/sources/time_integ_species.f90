@@ -158,8 +158,6 @@ module time_integ_species
             !
             pos = 2 ! Set correction as default value
 
-            return
-
             !$acc parallel loop 
             do ipoin = 1,npoin
                K2spc(ipoin) = 0.0_rp

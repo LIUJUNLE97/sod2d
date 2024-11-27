@@ -26,9 +26,11 @@ program main
    use MappedInletIncomp_mod
    use WindFarmSolver_mod
    use WindFarmSolverIncomp_mod
+   use WindFarmSolverIncomp2_mod
    use SupersonicForwardStep_mod
    use SupersonicNozzle_mod
    use TransientInletSolverIncomp_mod
+   use HelicopterSolverIncomp_mod
 
    implicit none
 
@@ -105,6 +107,8 @@ program main
       allocate(MappedInletIncomp::solver) 
    else if(value .eq. "WindFarmSolverIncomp") then
       allocate(WindFarmSolverIncomp::solver) 
+   else if(value .eq. "WindFarmSolverIncomp2") then
+      allocate(WindFarmSolverIncomp2::solver)       
    else if(value .eq. "WindFarmSolver") then
       allocate(WindFarmSolver::solver)       
    else if(value .eq. "SupersonicForwardStep") then
@@ -112,7 +116,9 @@ program main
    else if(value .eq. "SupersonicNozzle") then
       allocate(SupersonicNozzle::solver)      
    else if(value .eq. "TransientInletSolverIncomp") then
-      allocate(TransientInletSolverIncomp::solver)       
+      allocate(TransientInletSolverIncomp::solver)      
+   else if(value .eq. "HelicopterSolverIncomp") then
+      allocate(HelicopterSolverIncomp::solver)      
    else
       write(*,*) " Solver not implemented in SOD2D : ",value
       stop 1

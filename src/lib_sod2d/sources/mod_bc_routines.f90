@@ -297,8 +297,7 @@ module mod_bc_routines
                      do idime = 1,ndime     
                         aux_q(inode,idime) = aux_q(inode,idime) - norm*normalsAtNodes(inode,idime)
                      end do
-                     temp =  nscbc_T_ref - 0.25_rp*(global_time/3600.0_rp)
-                     aux_rho(inode) = nscbc_p_inf/(nscbc_Rgas_inf*temp)
+                     aux_rho(inode) = nscbc_rho_inf
 
                      aux_u(inode,1) = aux_q(inode,1)/aux_rho(inode)
                      aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)

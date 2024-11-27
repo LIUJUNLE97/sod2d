@@ -1,5 +1,5 @@
 
-module WindFarmSolver_mod
+module WindFarmSolverIncomp2_mod
    use mod_arrays
    use mod_arrays_wf
    use mod_nvtx
@@ -24,77 +24,96 @@ module WindFarmSolver_mod
    use mod_mpi
    use mod_mpi_mesh
    use mod_hdf5
-   use CFDSolverPeriodicWithBoundaries_mod
+   use CFDSolverPeriodicWithBoundariesIncomp_mod
    implicit none
    private
 
-   type, public, extends(CFDSolverPeriodicWithBoundaries) :: WindFarmSolver
+   type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: WindFarmSolverIncomp2
 
       real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar,wind_alpha, lambda_vertical,gamma_free,delta_capping,gamma_inversion,inversion_height,s_ra,nu_ra,latitude,earth_omega,fc,gradP,Ug_x,Ug_y,T_wall,Lz_ra,Ug_alpha
       integer(4), public :: N_ad
       logical, public :: capping
 
    contains
-      procedure, public :: fillBCTypes           => WindFarmSolver_fill_BC_Types
-      procedure, public :: initializeParameters  => WindFarmSolver_initializeParameters
-      procedure, public :: initializeSourceTerms => WindFarmSolver_initializeSourceTerms
-      procedure, public :: evalInitialConditions => WindFarmSolver_evalInitialConditions
-      procedure, public :: afterDt => WindFarmSolver_afterDt
-   end type WindFarmSolver
+      procedure, public :: fillBCTypes           => WindFarmSolverIncomp2_fill_BC_Types
+      procedure, public :: initializeParameters  => WindFarmSolverIncomp2_initializeParameters
+      procedure, public :: initializeSourceTerms => WindFarmSolverIncomp2_initializeSourceTerms
+      procedure, public :: evalInitialConditions => WindFarmSolverIncomp2_evalInitialConditions
+      procedure, public :: afterDt => WindFarmSolverIncomp2_afterDt
+      procedure, public :: initialBuffer => WindFarmSolverIncomp2_initialBuffer
+   end type WindFarmSolverIncomp2
 contains
 
-   subroutine WindFarmSolver_afterDt(this,istep)
-      class(WindFarmSolver), intent(inout) :: this
+   subroutine WindFarmSolverIncomp2_initialBuffer(this)
+      class(WindFarmSolverIncomp2), intent(inout) :: this
+      integer :: iNodeL
+
+      !$acc parallel loop  
+      do iNodeL = 1,numNodesRankPar
+         if (coordPar(iNodeL,3).lt.(100.0_rp)) then ! capping inversion region of 100m
+            Yk_buffer(iNodeL,1) =  this%T_wall
+         else
+            Yk_buffer(iNodeL,1) =   this%T_wall  +  (coordPar(iNodeL,3)-100.0_rp)*0.01_rp 
+         end if
+         u_buffer(iNodeL,1)  = this%vinf
+         u_buffer(iNodeL,2)  = 0.0_rp
+         u_buffer(iNodeL,3)  = 0.0_rp
+      end do
+      !$acc end parallel loop
+   end subroutine WindFarmSolverIncomp2_initialBuffer
+
+
+   subroutine WindFarmSolverIncomp2_afterDt(this,istep)
+      class(WindFarmSolverIncomp2), intent(inout) :: this
       integer(4), intent(in) :: istep
-      integer :: iNodeL,idime,iAD
-      real(rp) :: x_ad,y_ad,z_ad,radius
-      real(8) :: vol_T(this%N_ad),vol_T2(this%N_ad)
-      real(rp) :: vz,N,temp
+      integer :: iNodeL
 
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
-         source_term(iNodeL,3) = -rho(iNodeL,2)*this%Ug_y*this%fc - this%fc*q(iNodeL,2,2)
-         source_term(iNodeL,4) = rho(iNodeL,2)*this%Ug_x*this%fc + this%fc*q(iNodeL,1,2)
-         source_term(iNodeL,5) = 0.0_rp 
+         source_term(iNodeL,1) = -rho(iNodeL,2)*this%Ug_y*this%fc - this%fc*rho(iNodeL,2)*u(iNodeL,2,2)
+         source_term(iNodeL,2) = rho(iNodeL,2)*this%Ug_x*this%fc + this%fc*rho(iNodeL,2)*u(iNodeL,1,2)
+         source_term(iNodeL,3) = -nscbc_rho_inf*((Yk(iNodeL,1,2)-nscbc_T_ref)/265.0_rp)*nscbc_g_z 
+
+         if(coordPar(iNodeL,3) .lt. 100_rp) then
+            Yk_buffer(iNodeL,1) = this%T_wall - 0.25_rp*(this%time/3600.0_rp)
+         end if
       end do
       !$acc end parallel loop
+   end subroutine WindFarmSolverIncomp2_afterDt
 
 
-   end subroutine WindFarmSolver_afterDt
-
-
-   subroutine WindFarmSolver_fill_BC_Types(this)
-      class(WindFarmSolver), intent(inout) :: this
+   subroutine WindFarmSolverIncomp2_fill_BC_Types(this)
+      class(WindFarmSolverIncomp2), intent(inout) :: this
 
       call this%readJSONBCTypes()
 
-   end subroutine WindFarmSolver_fill_BC_Types
+   end subroutine WindFarmSolverIncomp2_fill_BC_Types
 
-   subroutine WindFarmSolver_initializeSourceTerms(this)
-      class(WindFarmSolver), intent(inout) :: this
+   subroutine WindFarmSolverIncomp2_initializeSourceTerms(this)
+      class(WindFarmSolverIncomp2), intent(inout) :: this
       integer(4) :: iNodeL,idime
       real(rp) :: vz,N
 
 
-      allocate(source_term(numNodesRankPar,ndime+2))
+      allocate(source_term(numNodesRankPar,ndime))
       !$acc enter data create(source_term(:,:))
 
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar         
-         source_term(iNodeL,3) = -rho(iNodeL,2)*this%Ug_y*this%fc - this%fc*q(iNodeL,2,2)
-         source_term(iNodeL,4) =  rho(iNodeL,2)*this%Ug_x*this%fc + this%fc*q(iNodeL,1,2)
-         source_term(iNodeL,5) =  0.0_rp 
+         source_term(iNodeL,1) = -rho(iNodeL,2)*this%Ug_y*this%fc - this%fc*rho(iNodeL,2)*u(iNodeL,2,2)
+         source_term(iNodeL,2) =  rho(iNodeL,2)*this%Ug_x*this%fc + this%fc*rho(iNodeL,2)*u(iNodeL,1,2)
+         source_term(iNodeL,3) =  -nscbc_rho_inf*((Yk(iNodeL,1,2)-nscbc_T_ref)/265.0_rp)*nscbc_g_z 
       end do
       !$acc end parallel loop
 
-   end subroutine WindFarmSolver_initializeSourceTerms
+   end subroutine WindFarmSolverIncomp2_initializeSourceTerms
 
-   subroutine WindFarmSolver_initializeParameters(this)
+   subroutine WindFarmSolverIncomp2_initializeParameters(this)
       use json_module
       implicit none
-      class(WindFarmSolver), intent(inout) :: this
+      class(WindFarmSolverIncomp2), intent(inout) :: this
       real(rp) :: mur
       logical :: found, found_aux = .false.
       type(json_file) :: json
@@ -157,8 +176,6 @@ contains
       call json%get("flag_les",flag_les, found,1); call this%checkFound(found,found_aux)
       call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
-      call json%get("flag_implicit",flag_implicit, found,0); call this%checkFound(found,found_aux)
-      call json%get("flag_imex_stages",flag_imex_stages, found,4); call this%checkFound(found,found_aux)
       call json%get("flag_walave",flag_walave, found,.true.); call this%checkFound(found,found_aux)
       call json%get("period_walave",period_walave, found,3600.0_rp); call this%checkFound(found,found_aux)
       call json%get("flag_les_ilsa",flag_les_ilsa, found,0); call this%checkFound(found,found_aux)
@@ -166,36 +183,33 @@ contains
       call json%get("T_ilsa",T_ilsa, found,300.0_rp); call this%checkFound(found,found_aux)
 
       call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
-      call json%get("cfl_diff",this%cfl_diff, found,0.95_rp); call this%checkFound(found,found_aux)
 
       
       call json%get("Lz",this%Lz, found,440.0_rp); call this%checkFound(found,found_aux)
       call json%get("Lhub",this%Lhub, found,90.0_rp); call this%checkFound(found,found_aux)
       call json%get("vinf",this%vinf, found,8.0_rp); call this%checkFound(found,found_aux)
       call json%get("rough",this%rough, found,0.1_rp); call this%checkFound(found,found_aux)
-      call json%get("wind_alpha",this%wind_alpha, found,270.0_rp); call this%checkFound(found,found_aux)
-      flag_high_mach = .true.
-      flag_bouyancy_effect = .true.
-      flag_drop_c_in_envit = .false.
+      call json%get("wind_alpha",this%wind_alpha, found,270.0_rp); call this%checkFound(found,found_aux)      
+
+      this%maxPhysTime = 9.0_rp*3600.0_rp
 
       this%wind_alpha = 270.0_rp-this%wind_alpha !Comming North is 0 , East is 90, South is 180 and West is 270 in a x-y axis
       this%Ug_alpha = this%wind_alpha !+ 20.0_rp
 
 
       ! fixed by the type of base class parameters
+      flag_use_species = .true.
+      nspecies = 1
+
       flag_type_wmles = wmles_type_abl
       nscbc_u_inf = this%vinf
+      incomp_viscosity = 1.81e-5
       flag_mu_factor = 1.0_rp
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
-      this%gamma_gas = 1.40_rp
-      nscbc_gamma_inf = this%gamma_gas
-      this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
-      nscbc_Rgas_inf = this%Rgas
-      nscbc_p_inf = 101325.0_rp 
       this%T_wall = 265.0_rp
       nscbc_T_ref = 265.0_rp 
-      nscbc_rho_inf = nscbc_p_inf/(this%Rgas*this%T_wall)
+      nscbc_rho_inf = 1.0_rp
       nscbc_T_C = nscbc_T_ref
       nscbc_g_x = 0.0_rp
       nscbc_g_y = 0.0_rp
@@ -230,21 +244,19 @@ contains
 
       call this%readJSONBuffer()
 
-   end subroutine WindFarmSolver_initializeParameters
+   end subroutine WindFarmSolverIncomp2_initializeParameters
 
-   subroutine WindFarmSolver_evalInitialConditions(this)
-      class(WindFarmSolver), intent(inout) :: this
+   subroutine WindFarmSolverIncomp2_evalInitialConditions(this)
+      class(WindFarmSolverIncomp2), intent(inout) :: this
       integer(8) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL, idime
-      real(rp) :: velo, rti(3), zp,velo_aux1, veloMatias(2), ugMatias, theta, p100, gcp,cpg
+      real(rp) :: velo, rti(3), zp,velo_aux1, veloMatias(2), ugMatias, theta, p100, gcp
       integer(4)   :: iLine,iNodeGSrl,auxCnt
       character(512) :: initialField_filePath
 
       call nvtxStartRange("WindFarm Init")
 
       gcp = nscbc_g_z/this%Cp
-      cpg = this%Cp/nscbc_g_z
-
 
       call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
       auxCnt = 1
@@ -263,19 +275,15 @@ contains
                u(iNodeL,1,2) = this%vinf
             end if
             u(iNodeL,2,2) = 0.0_rp
-            u(iNodeL,3,2) = 0.0_rp
-            
-            p100 =  nscbc_p_inf*((1.0_rp-gcp*100.0_rp/this%T_wall)**(this%gamma_gas/(this%gamma_gas-1.0_rp)))
+            u(iNodeL,3,2) = 0.0_rp            
             
             ! GABLS1
             if (zp.lt.(100.0_rp)) then ! capping inversion region of 100m
-               theta =  this%T_wall
-               pr(iNodeL,2) = nscbc_p_inf*((1.0_rp-gcp*zp/this%T_wall)**(this%gamma_gas/(this%gamma_gas-1.0_rp)))    
-               Tem(iNodeL,2) =  (this%T_wall - gcp*zp)*(1.0_rp + 0.001_rp*(rti(1) -0.5_rp))          
+               theta =  this%T_wall*(1.0_rp + 0.001_rp*(rti(1) -0.5_rp))
+               Yk(iNodeL,1,2) =  theta
             else
-               theta =  this%T_wall   +  (zp-100.0_rp)*0.01_rp      
-               pr(iNodeL,2) = p100*((1.0_rp+((0.01_rp-gcp)/(this%T_wall-gcp*100.0_rp))*(zp-100.0_rp))**((this%gamma_gas/(this%gamma_gas-1.0_rp))*(1.0_rp/(1.0_rp-0.01_rp*cpg))))
-               Tem(iNodeL,2) =  this%T_wall + (0.01_rp-gcp)*(zp-100.0_rp)  - gcp*100.0_rp
+               theta =  this%T_wall  +  (zp-100.0_rp)*0.01_rp      
+               Yk(iNodeL,1,2) =  theta
             end if
          end if
          if(auxCnt.gt.numNodesRankPar) then
@@ -284,24 +292,12 @@ contains
       end do serialLoop
 
       !$acc update device(u(:,:,:))
-      !$acc update device(Tem(:,:))
-      !$acc update device(pr(:,:))
+      !$acc update device(Yk(:,:,:))
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
-         
-         rho(iNodeL,2) = pr(iNodeL,2)/(this%Rgas*Tem(inodeL,2))
-         e_int(iNodeL,2) = pr(iNodeL,2)/(rho(iNodeL,2)*(this%gamma_gas-1.0_rp))
-         E(iNodeL,2) = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))+e_int(iNodeL,2))
-         q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
-         csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
-         eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
-         machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
-
-         q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
-         rho(iNodeL,3) = rho(iNodeL,2)
-         E(iNodeL,3) =  E(iNodeL,2)
-         eta(iNodeL,3) =  eta(iNodeL,2)
+         pr(iNodeL,2) = 0.0_rp
+         rho(iNodeL,2) = nscbc_rho_inf
       end do
       !$acc end parallel loop
       
@@ -337,6 +333,6 @@ contains
       call nvtxEndRange
 
 
-   end subroutine WindFarmSolver_evalInitialConditions
+   end subroutine WindFarmSolverIncomp2_evalInitialConditions
 
-end module WindFarmSolver_mod
+end module WindFarmSolverIncomp2_mod
