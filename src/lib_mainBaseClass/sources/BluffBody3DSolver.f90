@@ -112,9 +112,9 @@ subroutine BluffBody3DSolver_afterDt(this,istep)
 
             source_term(iNodeL,1) = 0.0_rp
             !source_term(iNodeL,2) = 0.0_rp
-            source_term(iNodeL,2) = -q(iNodeL,3)*0.5_rp*(CT(iAD)/(0.05_rp*D(iAD)))*(this%vo**2)*vol_correct(iAD) + &
-                                    -q(iNodeL,1)*rho(iNodeL,2)*omega*(y_ad-pos_y(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD) + &
-                                    q(iNodeL,2)*rho(iNodeL,2)*omega*(x_ad-pos_x(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD)
+            source_term(iNodeL,2) = -q(iNodeL,3,2)*0.5_rp*(CT(iAD)/(0.05_rp*D(iAD)))*(this%vo**2)*vol_correct(iAD) + &
+                                    -q(iNodeL,1,2)*rho(iNodeL,2)*omega*(y_ad-pos_y(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD) + &
+                                    q(iNodeL,2,2)*rho(iNodeL,2)*omega*(x_ad-pos_x(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD)
             source_term(iNodeL,3) = -rho(iNodeL,2)*omega*(y_ad-pos_y(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD)
             source_term(iNodeL,4) =  rho(iNodeL,2)*omega*(x_ad-pos_x(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD)
             source_term(iNodeL,5) = -rho(iNodeL,2)*0.5_rp*(CT(iAD)/(0.05_rp*D(iAD)))*(this%vo**2)*vol_correct(iAD)
