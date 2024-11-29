@@ -25,6 +25,11 @@ option(USE_NCCL "Compile using NCCL" OFF)
 
 option(USE_SENSEI "Compile using SENSEI" OFF)
 
+set(USE_PORDER 4 CACHE STRING "Set the element order")
+set(USE_RP     4 CACHE STRING "Set the real precision")
+set(USE_RP_VTK 4 CACHE STRING "Set the real precision for VTK files")
+set(USE_RP_AVG 8 CACHE STRING "Set the real precision for averages")
+
 option(DEBUG_MODE "Set debug mode" OFF)
 
 # Folder with files configuring extra CMake options
@@ -44,6 +49,9 @@ endif()
 
 # Set project name, version and languages
 project(sod2d LANGUAGES C CXX Fortran)
+
+# Obtain git hash and user
+include(git)
 
 # Configure MPI module
 include(mpi)
@@ -110,6 +118,8 @@ if(TOOL_COMMPERF)
     add_subdirectory(tool_commsPerformance)
 endif()
 
+add_subdirectory(utils)
+
 #enable folder unitt
 #add_subdirectory(unitt)
 
@@ -118,3 +128,6 @@ if(UNIT_TESTING)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+# Provide information on who compiled and which git hash
+set_git_version()
