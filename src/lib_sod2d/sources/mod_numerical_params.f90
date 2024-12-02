@@ -137,4 +137,9 @@ module mod_numerical_params
         ! global time
         real(rp) :: global_time = 0.0_rp
 
+        ! Center for momentum calculations
+        real(rp) :: center_mom_x = 0.0_rp
+        real(rp) :: center_mom_y = 0.0_rp
+        real(rp) :: center_mom_z = 0.0_rp
+
 end module mod_numerical_params

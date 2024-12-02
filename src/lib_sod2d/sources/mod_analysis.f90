@@ -204,12 +204,12 @@ module mod_analysis
 			real(rp),    intent(in)  :: mu_e(nelem,ngaus), mu_sgs(nelem,ngaus), mu_fluid(npoin)
 			real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1),coord(npoin,ndime)
 			real(rp),    intent(out) :: surfArea, Fpr(ndime), Ftau(ndime)
-			real(rp)                :: surfArea_l,surfArea_s,Fpr_l(ndime),Ftau_l(ndime)
+			real(rp)                :: surfArea_l,surfArea_s,Fpr_l(ndime),Ftau_l(ndime),Mforce_l(ndime),mf_x,mf_y,mf_z,mf_x_l,mf_y_l,mf_z_l
 			integer(4)              :: ibound, idime, igaus, ipbou, ielem, jgaus
 			integer(4)              :: numBelem, counter, isoI, isoJ, isoK, ii, jdime, kdime
 			integer(4), allocatable :: lelbo(:)
-			real(rp)                 :: bnorm(npbou*ndime), nmag, prl(npbou), ul(nnode,ndime), rhol(nnode)
-			real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), tau(ndime,ndime), divU
+			real(rp)                 :: bnorm(npbou*ndime), nmag, prl(npbou), ul(nnode,ndime), rhol(nnode),coordl(npbou,ndime), Mforce(ndime)
+			real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), tau(ndime,ndime), divU,force_t(ndime),radius(ndime)
 			real(rp)                :: mu_fgp, mu_egp, mufluidl(nnode),face2centoid(ndime),sig,aux(ndime)
 
 			! Create lelbo for the surface, where lelbo is a list of boundary elements belonging to that surface
@@ -233,19 +233,28 @@ module mod_analysis
 			! Compute surface information through sum of Gaussian quadratures over all boundary elements
 			surfArea_l = 0.0_rp
 			surfArea = 0.0_rp
+			mf_x = 0.0_rp
+			mf_y = 0.0_rp
+			mf_z = 0.0_rp
 			!$acc kernels
 			Fpr_l(:) = 0.0_rp
 			Ftau_l(:) = 0.0_rp
 			Fpr(:) = 0.0_rp
 			Ftau(:) = 0.0_rp
+			Mforce(:) = 0.0_rp
+			Mforce_l(:) = 0.0_rp
 			!$acc end kernels
-			!$acc parallel loop gang private(bnorm,prl) reduction(+:surfArea_l)
+			!$acc parallel loop gang private(bnorm,prl,coordl) reduction(+:surfArea_l,mf_x,mf_y,mf_z)
 			do ibound = 1, numBelem
 				bnorm(1:npbou*ndime) = bounorm(lelbo(ibound),1:npbou*ndime)
 				prl(1:npbou) = pr(bound(lelbo(ibound),1:npbou))
+				coordl(1:npbou,1:ndime) = coord(bound(lelbo(ibound),1:npbou),1:ndime)
 				surfArea_s = 0.0_rp
+				mf_x_l = 0.0_rp 
+				mf_y_l = 0.0_rp 
+				mf_z_l = 0.0_rp
 				! Element area
-				!$acc loop vector private(tau,ul,rhol,mufluidl,gradIsoU,gradU,face2centoid) reduction(+:surfArea_s)
+				!$acc loop vector private(tau,ul,rhol,mufluidl,gradIsoU,gradU,face2centoid,force_t,radius) reduction(+:surfArea_s,mf_x_l,mf_y_l,mf_z_l)
 				do igaus = 1,npbou
 					ielem = point2elem(bound(lelbo(ibound),igaus))
 					jgaus = minloc(abs(connec(ielem,:)-bound(lelbo(ibound),igaus)),1)
@@ -310,6 +319,7 @@ module mod_analysis
 						!$acc atomic update
 						Fpr_l(idime) = Fpr_l(idime)-wgp_b(igaus)*(prl(igaus)-nscbc_p_inf)*bnorm((igaus-1)*ndime+idime)*sig
 						!$acc end atomic
+						force_t(idime) = -wgp_b(igaus)*(prl(igaus)-nscbc_p_inf)*bnorm((igaus-1)*ndime+idime)*sig
 					end do
 					!$acc loop seq
 					do idime = 1,ndime
@@ -318,23 +328,41 @@ module mod_analysis
 							!$acc atomic update
 							Ftau_l(idime) = Ftau_l(idime)+wgp_b(igaus)*tau(idime,jdime)*bnorm((igaus-1)*ndime+jdime)*sig
 							!$acc end atomic
+							force_t(idime) = force_t(idime) + wgp_b(igaus)*tau(idime,jdime)*bnorm((igaus-1)*ndime+jdime)*sig
 						end do
 					end do
+
+					radius(1) = coordl(igaus,1) - center_mom_x
+					radius(2) = coordl(igaus,2) - center_mom_y
+					radius(3) = coordl(igaus,3) - center_mom_z
+					
+					mf_x_l = mf_x_l + radius(2)*force_t(3) - radius(3)*force_t(2)
+					mf_y_l = mf_y_l + radius(3)*force_t(1) - radius(1)*force_t(3)
+					mf_z_l = mf_z_l + radius(1)*force_t(2) - radius(2)*force_t(1)
+					
 					surfArea_s = surfArea_s + nmag*wgp_b(igaus)
 				end do
 				surfArea_l = surfArea_l + surfArea_s
+				mf_x = mf_x + mf_x_l  
+				mf_y = mf_y + mf_y_l
+				mf_z = mf_z + mf_z_l
 			end do
 			!$acc end parallel loop
 			deallocate(lelbo)
 
+			Mforce_l(1) = mf_x
+			Mforce_l(2) = mf_y
+			Mforce_l(3) = mf_z
+
 			call MPI_Allreduce(surfArea_l,surfArea,1,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
 			call MPI_Allreduce(Fpr_l,Fpr,ndime,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
 			call MPI_Allreduce(Ftau_l,Ftau,ndime,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
+			call MPI_Allreduce(Mforce_l,Mforce,ndime,mpi_datatype_real,MPI_SUM,app_comm,mpi_err)
 
 			if((mpi_rank.eq.0) .and. (write_surfFile)) then
 				write(888+surfCode,"(I8,1X,A)",ADVANCE="NO") iter, ","
-				write(888+surfCode,50) time, ",", dble(surfArea), ",", dble(Fpr(1)), ",", dble(Fpr(2)), ",", dble(Fpr(3)), ",", dble(Ftau(1)), ",", dble(Ftau(2)), ",", dble(Ftau(3)), ""
-				50 format(16(1X,ES12.5,1X,A))
+				write(888+surfCode,50) time, ",", dble(surfArea), ",", dble(Fpr(1)), ",", dble(Fpr(2)), ",", dble(Fpr(3)), ",", dble(Ftau(1)), ",", dble(Ftau(2)), ",", dble(Ftau(3)), ",", dble(Mforce(1)), ",", dble(Mforce(2)), ",", dble(Mforce(3)), ""
+				50 format(19(1X,ES12.5,1X,A))
 				!50 format(16(1X,F16.8,1X,A))
 			end if
 		end subroutine surfInfo

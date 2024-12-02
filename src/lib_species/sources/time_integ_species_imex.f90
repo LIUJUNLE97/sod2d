@@ -164,7 +164,7 @@ module time_integ_species_imex
             end if
             call nvtxEndRange
 
-#if 0
+#if 1
             if((isWallModelOn) ) then
                call nvtxStartRange("AB2 wall model")
                if((numBoundsWM .ne. 0)) then
@@ -203,7 +203,7 @@ module time_integ_species_imex
             !$acc parallel loop
             do ipoin = 1,npoin_w
                ipoin_w = lpoin_w(ipoin)
-               Yk(ipoin_w,ispc,2) = -(beta(1)*RYk(ipoin_w,ispc,2)+beta(2)*RYk(ipoin_w,ispc,1)+beta(3)*RYk(ipoin_w,ispc,3)) !- Rwmles(ipoin_w)
+               Yk(ipoin_w,ispc,2) = -(beta(1)*RYk(ipoin_w,ispc,2)+beta(2)*RYk(ipoin_w,ispc,1)+beta(3)*RYk(ipoin_w,ispc,3)) - Rwmles(ipoin_w)
                Yk(ipoin_w,ispc,2) = Cp*rho(ipoin_w,2)*Ml(ipoin_w)*(dt*Yk(ipoin_w,ispc,2)/Ml(ipoin_w) + alpha(1)*Yk(ipoin_w,ispc,1) + alpha(2)*Yk(ipoin_w,ispc,3) + alpha(3)*Yk(ipoin_w,ispc,4))/gamma0
                RYk(ipoin_w,ispc,3) = RYk(ipoin_w,ispc,1)
                RYk(ipoin_w,ispc,1) = RYk(ipoin_w,ispc,2)

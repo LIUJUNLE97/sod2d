@@ -97,7 +97,7 @@ module elem_stab_species
                     isoK = gmshAtoK(igaus) 
 
                     divDy = 0.0_rp
-                    kappa_y = 0.1_rp*tau(ielem)*rhol(igaus)*Cp/Prt
+                    kappa_y = tau(ielem)*rhol(igaus)*Cp/Prt
                     
                     !$acc loop seq
                     do ii=1,porder+1

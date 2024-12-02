@@ -71,9 +71,9 @@ contains
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
-         source_term(iNodeL,1) = -rho(iNodeL,2)*this%Ug_y*this%fc - this%fc*rho(iNodeL,2)*u(iNodeL,2,2)
-         source_term(iNodeL,2) = rho(iNodeL,2)*this%Ug_x*this%fc + this%fc*rho(iNodeL,2)*u(iNodeL,1,2)
-         source_term(iNodeL,3) = -nscbc_rho_inf*((Yk(iNodeL,1,2)-nscbc_T_ref)/265.0_rp)*nscbc_g_z 
+         source_term(iNodeL,1) = -rho(iNodeL,2)*this%Ug_y*this%fc + this%fc*rho(iNodeL,2)*u(iNodeL,2,2)
+         source_term(iNodeL,2) = rho(iNodeL,2)*this%Ug_x*this%fc - this%fc*rho(iNodeL,2)*u(iNodeL,1,2)
+         source_term(iNodeL,3) = -rho(iNodeL,2)*((Yk(iNodeL,1,2)-nscbc_T_ref)/265.0_rp)*nscbc_g_z 
 
          if(coordPar(iNodeL,3) .lt. 100_rp) then
             Yk_buffer(iNodeL,1) = this%T_wall - 0.25_rp*(this%time/3600.0_rp)
@@ -102,8 +102,8 @@ contains
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar         
-         source_term(iNodeL,1) = -rho(iNodeL,2)*this%Ug_y*this%fc - this%fc*rho(iNodeL,2)*u(iNodeL,2,2)
-         source_term(iNodeL,2) =  rho(iNodeL,2)*this%Ug_x*this%fc + this%fc*rho(iNodeL,2)*u(iNodeL,1,2)
+         source_term(iNodeL,1) = -rho(iNodeL,2)*this%Ug_y*this%fc + this%fc*rho(iNodeL,2)*u(iNodeL,2,2)
+         source_term(iNodeL,2) =  rho(iNodeL,2)*this%Ug_x*this%fc - this%fc*rho(iNodeL,2)*u(iNodeL,1,2)
          source_term(iNodeL,3) =  -nscbc_rho_inf*((Yk(iNodeL,1,2)-nscbc_T_ref)/265.0_rp)*nscbc_g_z 
       end do
       !$acc end parallel loop
@@ -207,8 +207,8 @@ contains
       flag_mu_factor = 1.0_rp
       this%Cp = 1004.0_rp
       this%Prt = 0.71_rp
-      this%T_wall = 265.0_rp
-      nscbc_T_ref = 265.0_rp 
+      this%T_wall = 1.0_rp !265.0_rp
+      nscbc_T_ref = 1.0_rp !265.0_rp 
       nscbc_rho_inf = 1.0_rp
       nscbc_T_C = nscbc_T_ref
       nscbc_g_x = 0.0_rp

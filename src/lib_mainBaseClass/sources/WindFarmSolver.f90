@@ -54,8 +54,10 @@ contains
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
-         source_term(iNodeL,3) = -rho(iNodeL,2)*this%Ug_y*this%fc - this%fc*q(iNodeL,2,2)
-         source_term(iNodeL,4) = rho(iNodeL,2)*this%Ug_x*this%fc + this%fc*q(iNodeL,1,2)
+         source_term(iNodeL,1) =  0.0_rp 
+         source_term(iNodeL,2) = q(iNodeL,1,2)*(-rho(iNodeL,2)*this%Ug_y*this%fc + this%fc*q(iNodeL,2,2)) + q(iNodeL,2,2)*(-rho(iNodeL,2)*this%Ug_y*this%fc + this%fc*q(iNodeL,2,2))
+         source_term(iNodeL,3) = -rho(iNodeL,2)*this%Ug_y*this%fc + this%fc*q(iNodeL,2,2)
+         source_term(iNodeL,4) = rho(iNodeL,2)*this%Ug_x*this%fc - this%fc*q(iNodeL,1,2)
          source_term(iNodeL,5) = 0.0_rp 
       end do
       !$acc end parallel loop
@@ -82,9 +84,11 @@ contains
 
 
       !$acc parallel loop  
-      do iNodeL = 1,numNodesRankPar         
-         source_term(iNodeL,3) = -rho(iNodeL,2)*this%Ug_y*this%fc - this%fc*q(iNodeL,2,2)
-         source_term(iNodeL,4) =  rho(iNodeL,2)*this%Ug_x*this%fc + this%fc*q(iNodeL,1,2)
+      do iNodeL = 1,numNodesRankPar       
+         source_term(iNodeL,1) =  0.0_rp 
+         source_term(iNodeL,2) = q(iNodeL,1,2)*(-rho(iNodeL,2)*this%Ug_y*this%fc + this%fc*q(iNodeL,2,2)) + q(iNodeL,2,2)*(-rho(iNodeL,2)*this%Ug_y*this%fc + this%fc*q(iNodeL,2,2))  
+         source_term(iNodeL,3) = -rho(iNodeL,2)*this%Ug_y*this%fc + this%fc*q(iNodeL,2,2)
+         source_term(iNodeL,4) =  rho(iNodeL,2)*this%Ug_x*this%fc - this%fc*q(iNodeL,1,2)
          source_term(iNodeL,5) =  0.0_rp 
       end do
       !$acc end parallel loop
@@ -176,7 +180,7 @@ contains
       call json%get("wind_alpha",this%wind_alpha, found,270.0_rp); call this%checkFound(found,found_aux)
       flag_high_mach = .true.
       flag_bouyancy_effect = .true.
-      flag_drop_c_in_envit = .false.
+      flag_drop_c_in_envit = .true.
 
       this%wind_alpha = 270.0_rp-this%wind_alpha !Comming North is 0 , East is 90, South is 180 and West is 270 in a x-y axis
       this%Ug_alpha = this%wind_alpha !+ 20.0_rp
