@@ -55,10 +55,10 @@ contains
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
          source_term(iNodeL,1) =  0.0_rp 
-         source_term(iNodeL,2) = q(iNodeL,1,2)*(-rho(iNodeL,2)*this%Ug_y*this%fc + this%fc*q(iNodeL,2,2)) + q(iNodeL,2,2)*(-rho(iNodeL,2)*this%Ug_y*this%fc + this%fc*q(iNodeL,2,2))
          source_term(iNodeL,3) = -rho(iNodeL,2)*this%Ug_y*this%fc + this%fc*q(iNodeL,2,2)
-         source_term(iNodeL,4) = rho(iNodeL,2)*this%Ug_x*this%fc - this%fc*q(iNodeL,1,2)
+         source_term(iNodeL,4) = +rho(iNodeL,2)*this%Ug_x*this%fc - this%fc*q(iNodeL,1,2)
          source_term(iNodeL,5) = 0.0_rp 
+         source_term(iNodeL,2) = q(iNodeL,1,2)*(source_term(iNodeL,3)) + q(iNodeL,2,2)*(source_term(iNodeL,4))
       end do
       !$acc end parallel loop
 
@@ -86,10 +86,10 @@ contains
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar       
          source_term(iNodeL,1) =  0.0_rp 
-         source_term(iNodeL,2) = q(iNodeL,1,2)*(-rho(iNodeL,2)*this%Ug_y*this%fc + this%fc*q(iNodeL,2,2)) + q(iNodeL,2,2)*(-rho(iNodeL,2)*this%Ug_y*this%fc + this%fc*q(iNodeL,2,2))  
          source_term(iNodeL,3) = -rho(iNodeL,2)*this%Ug_y*this%fc + this%fc*q(iNodeL,2,2)
-         source_term(iNodeL,4) =  rho(iNodeL,2)*this%Ug_x*this%fc - this%fc*q(iNodeL,1,2)
-         source_term(iNodeL,5) =  0.0_rp 
+         source_term(iNodeL,4) = +rho(iNodeL,2)*this%Ug_x*this%fc - this%fc*q(iNodeL,1,2)
+         source_term(iNodeL,5) = 0.0_rp 
+         source_term(iNodeL,2) = q(iNodeL,1,2)*(source_term(iNodeL,3)) + q(iNodeL,2,2)*(source_term(iNodeL,4))
       end do
       !$acc end parallel loop
 

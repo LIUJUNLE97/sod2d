@@ -319,10 +319,10 @@ module time_integ_incomp
                   ipoin_w = lpoin_w(ipoin)
                   !$acc loop seq   
                   do idime = 1,ndime
-               !      aux_q(ipoin_w,idime) = -mu_fluid(ipoin_w)*(beta(1)*aux_omega(ipoin_w,idime,2)+beta(2)*aux_omega(ipoin_w,idime,1)+beta(3)*aux_omega(ipoin_w,idime,3)) &
-               !                            !-(beta(1)*aux_temp(ipoin_w,idime,2)+beta(2)*aux_temp(ipoin_w,idime,1)+beta(3)*aux_temp(ipoin_w,idime,3)) &
-               !                            !-(beta(1)*Rmom(ipoin_w,idime,2)/Ml(ipoin_w)+beta(2)*Rmom(ipoin_w,idime,1)/Ml(ipoin_w)+beta(3)*Rmom(ipoin_w,idime,3))/Ml(ipoin_w) &
-                     aux_q(ipoin_w,idime) =   source_term(ipoin_w,idime)
+                     aux_q(ipoin_w,idime) = -mu_fluid(ipoin_w)*(beta(1)*aux_omega(ipoin_w,idime,2)+beta(2)*aux_omega(ipoin_w,idime,1)+beta(3)*aux_omega(ipoin_w,idime,3)) &
+            !   !                            !-(beta(1)*aux_temp(ipoin_w,idime,2)+beta(2)*aux_temp(ipoin_w,idime,1)+beta(3)*aux_temp(ipoin_w,idime,3)) &
+            !   !                            !-(beta(1)*Rmom(ipoin_w,idime,2)/Ml(ipoin_w)+beta(2)*Rmom(ipoin_w,idime,1)/Ml(ipoin_w)+beta(3)*Rmom(ipoin_w,idime,3))/Ml(ipoin_w) &
+                                          -   source_term(ipoin_w,idime)
                    end do
                 end do      
                 call bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
@@ -366,12 +366,12 @@ module time_integ_incomp
                if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet_incomp(u(:,:,2))
 
                call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer)
-            !   !$acc kernels
-            !   aux_omega(:,:,3) = aux_omega(:,:,1)
-            !   aux_omega(:,:,1) = aux_omega(:,:,2)
-            !   !$acc end kernels
-            !   call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),aux_q,.true.)
-            !   call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_q,aux_omega(:,:,2),.true.)
+               !$acc kernels
+               aux_omega(:,:,3) = aux_omega(:,:,1)
+               aux_omega(:,:,1) = aux_omega(:,:,2)
+               !$acc end kernels
+               call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),aux_q,.true.)
+               call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_q,aux_omega(:,:,2),.true.)
                !!$acc kernels
                !aux_temp(:,:,3) = aux_temp(:,:,1)
                !aux_temp(:,:,1) = aux_temp(:,:,2)
