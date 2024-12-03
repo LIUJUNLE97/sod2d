@@ -16,14 +16,14 @@ module mod_arrays
       real(rp), allocatable :: xgp(:,:), wgp(:), xgp_b(:,:), wgp_b(:)
       real(rp), allocatable :: Ngp(:,:), dNgp(:,:,:), Ngp_b(:,:), dNgp_b(:,:,:)
       real(rp), allocatable :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
-      real(rp), allocatable :: Ngp_equi(:,:), dNgp_equi(:,:,:)
+      real(rp), allocatable :: Ngp_equi(:,:)
       real(rp), allocatable :: gpvol(:,:,:),Je(:,:), He(:,:,:,:), bou_norm(:,:),Ml(:),mu_factor(:),source_term(:,:)
 
       real(rp), target,allocatable :: gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
       real(rp), target,allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:),tauw(:,:)
       real(rp), target,allocatable :: mu_e(:,:),mu_fluid(:),mu_sgs(:,:)
 
-      real(rp_avg), allocatable :: avrho(:), avpre(:), avvel(:,:), avve2(:,:), avmueff(:),avvex(:,:),avtw(:,:)
+      real(rp_avg), allocatable :: avrho(:), avpre(:), avpre2(:), avvel(:,:), avve2(:,:), avmueff(:),avvex(:,:),avtw(:,:)
       real(rp), allocatable :: kres(:),etot(:),au(:,:),ax1(:),ax2(:),ax3(:)
       real(rp), allocatable :: Fpr(:,:), Ftau(:,:)
       real(rp), allocatable :: witxi(:,:), Nwit(:,:), buffwit(:,:,:), bufftime(:)
@@ -1001,6 +1001,7 @@ end subroutine CFDSolverBase_findFixPressure
 
       allocate(avrho(numNodesRankPar))
       allocate(avpre(numNodesRankPar))
+      allocate(avpre2(numNodesRankPar))
       allocate(avmueff(numNodesRankPar))
       allocate(avvel(numNodesRankPar,ndime))
       allocate(avve2(numNodesRankPar,ndime))
@@ -1008,6 +1009,7 @@ end subroutine CFDSolverBase_findFixPressure
       allocate(avtw(numNodesRankPar,ndime))
       !$acc enter data create(avrho(:))
       !$acc enter data create(avpre(:))
+      !$acc enter data create(avpre2(:))
       !$acc enter data create(avmueff(:))
       !$acc enter data create(avvel(:,:))
       !$acc enter data create(avve2(:,:))
@@ -1017,6 +1019,7 @@ end subroutine CFDSolverBase_findFixPressure
       !$acc kernels
       avrho(:) = 0.0_rp
       avpre(:) = 0.0_rp
+      avpre2(:) = 0.0_rp
       avmueff(:) = 0.0_rp
       avvel(:,:) = 0.0_rp
       avve2(:,:) = 0.0_rp
@@ -1260,8 +1263,13 @@ end subroutine CFDSolverBase_findFixPressure
 
    subroutine CFDSolverBase_evalShapeFunctions(this)
       class(CFDSolverBase), intent(inout) :: this
-      real(rp)   :: s,t,z,xi_gll(porder+1),xgp_equi(ngaus,ndime)
+      real(8)   :: s,t,z,xi_gll(porder+1),xgp_equi(ngaus,ndime)
       integer(4) :: igaus,ii
+      real(8) :: xgp_r8(ngaus,ndime),wgp_r8(ngaus),xgp_b_r8(npbou,ndime-1), wgp_b_r8(npbou)
+      real(8) :: Ngp_equi_r8(ngaus,nnode), dNgp_equi_r8(ndime,nnode,ngaus)
+      real(8) :: Ngp_r8(ngaus,nnode),dNgp_r8(ndime,nnode,ngaus),Ngp_b_r8(npbou,npbou),dNgp_b_r8(ndime-1,npbou,npbou)
+      real(8) :: Ngp_l_r8(ngaus,nnode),dNgp_l_r8(ndime,nnode,ngaus),dlxigp_ip_r8(ngaus,ndime,porder+1)
+
 
       !*********************************************************************!
       ! Generate GLL table                                                  !
@@ -1274,11 +1282,9 @@ end subroutine CFDSolverBase_findFixPressure
       allocate(atoIJ(npbou))
       allocate(atoIJK(nnode))
 
-      allocate(xgp(ngaus,ndime))
-      allocate(wgp(ngaus))
+      allocate(xgp(ngaus,ndime),wgp(ngaus))
       !$acc enter data create(wgp(:))
-      allocate(xgp_b(npbou,ndime-1))
-      allocate(wgp_b(npbou))
+      allocate(xgp_b(npbou,ndime-1),wgp_b(npbou))
       !$acc enter data create(wgp_b(:))
 
       allocate(Ngp(ngaus,nnode),dNgp(ndime,nnode,ngaus))
@@ -1294,21 +1300,43 @@ end subroutine CFDSolverBase_findFixPressure
       !$acc enter data create(dlxigp_ip(:,:,:))
       !*********************************************************
 
+      xi_gll(:) = 0.0d0 
+      xgp_equi(:,:) = 0.0d0 
+      xgp_r8(:,:) = 0.0d0 
+      wgp_r8(:) = 0.0d0 
+      xgp_b_r8(:,:) = 0.0d0 
+      wgp_b_r8(:) = 0.0d0 
+      Ngp_equi_r8(:,:) = 0.0d0 
+      dNgp_equi_r8(:,:,:) = 0.0d0 
+      Ngp_r8(:,:) = 0.0d0 
+      dNgp_r8(:,:,:) = 0.0d0 
+      Ngp_b_r8(:,:) = 0.0d0 
+      dNgp_b_r8(:,:,:) = 0.0d0 
+      Ngp_l_r8(:,:) = 0.0d0 
+      dNgp_l_r8(:,:,:) = 0.0d0 
+      dlxigp_ip_r8(:,:,:) = 0.0d0 
+
+      !*********************************************************
+
       atoIJK(:) = mesh_a2ijk(:)
       atoIJ(:)  = mesh_a2ij(:)
 
       if(mpi_rank.eq.0) write(111,*) "  --| Generating Gauss-Lobatto-Legendre table..."
-      call GaussLobattoLegendre_hex(porder,ngaus,atoIJK,xgp,wgp)
+
+      call GaussLobattoLegendre_hex(porder,ngaus,atoIJK,xgp_r8,wgp_r8)
+      xgp(:,:) = real(xgp_r8(:,:),rp)
+      wgp(:) = real(wgp_r8,rp)
       !$acc update device(wgp(:))
-      call GaussLobattoLegendre_qua(porder,npbou,atoIJ,xgp_b,wgp_b)
+
+      call GaussLobattoLegendre_qua(porder,npbou,atoIJ,xgp_b_r8,wgp_b_r8)
+      xgp_b(:,:) = real(xgp_b_r8(:,:),rp)
+      wgp_b(:) = real(wgp_b_r8(:),rp)
       !$acc update device(wgp_b(:))
 
       !-------------------------------------------------------------------------------
       ! Generating Ngp_equi to interpolate from GLL nodes mesh to Equispace nodes mesh
       allocate(Ngp_equi(ngaus,nnode))
-      allocate(dNgp_equi(ndime,nnode,ngaus))
       !$acc enter data create(Ngp_equi(:,:))
-      !$acc enter data create(dNgp_equi(:,:,:))
 
       call getGaussPoints_equispaced_hex(porder,ngaus,atoIJK,xgp_equi)
       call getGaussLobattoLegendre_roots(porder,xi_gll)
@@ -1318,8 +1346,9 @@ end subroutine CFDSolverBase_findFixPressure
          t = xgp_equi(igaus,2)
          z = xgp_equi(igaus,3)
 
-         call TripleTensorProduct(porder,nnode,xi_gll,s,t,z,atoIJK,Ngp_equi(igaus,:),dNgp_equi(:,:,igaus))
+         call TripleTensorProduct(porder,nnode,xi_gll,s,t,z,atoIJK,Ngp_equi_r8(igaus,:),dNgp_equi_r8(:,:,igaus))
       end do
+      Ngp_equi(:,:) = real(Ngp_equi_r8(:,:),rp)
       !$acc update device(Ngp_equi(:,:))
 
       !-------------------------------------------------------------------------------
@@ -1339,8 +1368,13 @@ end subroutine CFDSolverBase_findFixPressure
          s = xgp(igaus,1)
          t = xgp(igaus,2)
          z = xgp(igaus,3)
-         call hex_highorder(porder,nnode,s,t,z,atoIJK,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
+         call hex_highorder(porder,nnode,s,t,z,atoIJK,Ngp_r8(igaus,:),dNgp_r8(:,:,igaus),Ngp_l_r8(igaus,:),dNgp_l_r8(:,:,igaus),dlxigp_ip_r8(igaus,:,:))
       end do
+      Ngp(:,:)         = real(Ngp_r8(:,:),rp)
+      dNgp(:,:,:)      = real(dNgp_r8(:,:,:),rp)
+      Ngp_l(:,:)       = real(Ngp_l_r8(:,:),rp)
+      dNgp_l(:,:,:)    = real(dNgp_l_r8(:,:,:),rp)
+      dlxigp_ip(:,:,:) = real(dlxigp_ip_r8(:,:,:),rp)
       !$acc update device(Ngp(:,:))
       !$acc update device(dNgp(:,:,:))
       !$acc update device(Ngp_l(:,:))
@@ -1352,8 +1386,10 @@ end subroutine CFDSolverBase_findFixPressure
       do igaus = 1,npbou
          s = xgp_b(igaus,1)
          t = xgp_b(igaus,2)
-         call quad_highorder(porder,npbou,s,t,atoIJ,Ngp_b(igaus,:),dNgp_b(:,:,igaus))
+         call quad_highorder(porder,npbou,s,t,atoIJ,Ngp_b_r8(igaus,:),dNgp_b_r8(:,:,igaus))
       end do
+      Ngp_b(:,:)    = Ngp_b_r8(:,:)
+      dNgp_b(:,:,:) = dNgp_b_r8(:,:,:)
       !$acc update device(Ngp_b(:,:))
       !$acc update device(dNgp_b(:,:,:))
 
@@ -1414,13 +1450,13 @@ end subroutine CFDSolverBase_findFixPressure
 
       call elem_jacobian(numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,dNgp,wgp,gpvol,He)
       call  nvtxEndRange
-      vol_rank  = 0.0
-      vol_tot_d = 0.0
+      vol_rank  = 0.0d8
+      vol_tot_d = 0.0d8
       !$acc parallel loop reduction(+:vol_rank)
       do ielem = 1,numElemsRankPar
          !$acc loop vector
          do igaus = 1,ngaus
-            vol_rank = vol_rank+gpvol(1,igaus,ielem)
+            vol_rank = vol_rank+real(gpvol(1,igaus,ielem),8)
          end do
       end do
       !$acc end parallel loop
@@ -1803,7 +1839,7 @@ end subroutine CFDSolverBase_findFixPressure
                call nvtxStartRange("Accumulate")
 
                call eval_average_iter(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,workingNodesPar,connecParWork,this%dt,this%elapsed_avgTime,&
-                                 rho,u,pr,mu_fluid,mu_e,mu_sgs,tauw,avrho,avpre,avvel,avve2,avvex,avmueff,avtw)
+                                 rho,u,pr,mu_fluid,mu_e,mu_sgs,tauw,avrho,avpre,avpre2,avvel,avve2,avvex,avmueff,avtw)
                call nvtxEndRange
             end if
          end if
@@ -2376,12 +2412,12 @@ end subroutine CFDSolverBase_findFixPressure
       ! Setting fields to be saved
       if(flag_use_species .eqv. .true.) then
          call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
-         u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
-         avrho,avpre,avmueff,avvel,avve2,avvex,avtw,Yk(:,:,2),mu_e_Yk)
+                             u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
+                             avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw,Yk(:,:,2),mu_e_Yk)
       else
          call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
-                          u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
-                          avrho,avpre,avmueff,avvel,avve2,avvex,avtw)
+                             u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
+                             avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw)
       end if
 
       ! Eval or load initial conditions

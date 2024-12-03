@@ -6,7 +6,7 @@ contains
 
    subroutine eval_average_iter(nelem,npoin,npoin_w,lpoin_w,connec,dt,elapsed_avg_time,&
                                  rho,u,pr,mu_fluid,mu_e,mu_sgs,tauw,&
-                                 avrho,avpr,avvel,avve2,avvex,avmueff,avtw)
+                                 avrho,avpr,avpr2,avvel,avve2,avvex,avmueff,avtw)
       implicit none
       integer(4),intent(in)                           :: nelem, npoin, npoin_w, lpoin_w(npoin_w), connec(nelem,nnode)
       real(rp),intent(in)                             :: dt
@@ -14,14 +14,14 @@ contains
       real(rp),intent(in),dimension(npoin)            :: rho, pr, mu_fluid
       real(rp),intent(in),dimension(npoin,ndime)      :: u,tauw
       real(rp),intent(in),dimension(nelem,ngaus)      :: mu_e, mu_sgs
-      real(rp_avg),intent(inout),dimension(npoin)         :: avrho,avpr,avmueff
-      real(rp_avg),intent(inout),dimension(npoin,ndime)   :: avvel,avve2,avvex,avtw
+      real(rp_avg),intent(inout),dimension(npoin)       :: avrho,avpr,avpr2,avmueff
+      real(rp_avg),intent(inout),dimension(npoin,ndime) :: avvel,avve2,avvex,avtw
       integer(4)                                      :: iPoin,iDime,iElem,iNode
       real(rp_avg)                                   :: envit(npoin),mut(npoin)
       real(rp_avg)                                   :: inv_denominator
       real(rp_avg)                                   :: rho_loc, pr_loc, mu_fluid_loc
       real(rp_avg),dimension(ndime)                  :: u_loc, tauw_loc
-      logical                                         :: castVariables=.false.
+      logical                                        :: castVariables=.false.
 
       if (rp_avg.ne.rp) then
          castVariables = .true.
@@ -59,6 +59,9 @@ contains
                                     * inv_denominator
          avpr(lpoin_w(ipoin))    = (avpr(lpoin_w(ipoin))*elapsed_avg_time + &
                                     pr_loc*dt) &
+                                    * inv_denominator
+         avpr2(lpoin_w(ipoin))    = (avpr2(lpoin_w(ipoin))*elapsed_avg_time + &
+                                    (pr_loc*pr_loc)*dt) &
                                     * inv_denominator
          avvex(lpoin_w(ipoin),1) = (avvex(lpoin_w(ipoin),1)*elapsed_avg_time + &
                                     rho_loc*u_loc(1)*u_loc(2)*dt) &

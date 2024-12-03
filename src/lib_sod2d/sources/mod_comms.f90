@@ -11,6 +11,15 @@ module mod_comms
 #define _SENDRCV_ 0
 #define _ISENDIRCV_ 1
 #define _PUTFENCE_ 0
+#define _NOCUDAAWARE_ 0
+
+#ifdef AUTOCOMP
+ #define _NOCUDAAWARE_ 1
+ #define _SENDRCV_ 0
+ #define _ISENDIRCV_ 0
+ #define _PUTFENCE_ 0
+#endif
+
 
     implicit none
 
@@ -74,6 +83,9 @@ contains
 #if _PUTFENCE_
         if(mpi_rank.eq.0) write(111,*) "--| Comm. scheme: Put(Fence)"
         initWindows = .true. !forcing initWindows to true
+#endif
+#if _NOCUDAAWARE_
+        if(mpi_rank.eq.0) write(111,*) "--| Comm. scheme: NO CUDA-Aware iSend-iRecv"
 #endif
 #ifdef NCCL_COMMS
         if(mpi_rank.eq.0) write(111,*) "--| Comm. scheme: NCCL"
@@ -294,26 +306,7 @@ contains
         real(rp),intent(in) :: mass(:),ener(:),momentum(:,:)
         integer(4) :: i,idime,iNodeL
         integer(4),parameter :: nArrays=5
-#if 0
-        call nvtxStartRange("fillBuffer_m1")
-        !$acc parallel loop async(1)
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
-            do idime = 1,ndime
-                aux_realField_s((i-1)*nArrays+idime) = momentum(iNodeL,idime)
-            end do
-        end do
-        !$acc end parallel loop
-        !$acc kernels async(2)
-        aux_realField_s((numNodesToComm*3+1):(numNodesToComm*4)) = mass(:)
-        !$acc end kernels
-        !$acc kernels async(3)
-        aux_realField_s((numNodesToComm*4+1):(numNodesToComm*5)) = ener(:)
-        !$acc end kernels
 
-        !$acc wait
-        call nvtxEndRange
-#endif
         call nvtxStartRange("fillBuffer_async")
         !$acc parallel loop async(1)
         do i=1,numNodesToComm
@@ -559,7 +552,7 @@ contains
     end subroutine copy_from_conditional_ave_rcvBuffer_real
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
-
+!-------------------------------------------------------------------------------------
     subroutine mpi_halo_atomic_update_int(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
@@ -572,8 +565,11 @@ contains
 #if _PUTFENCE_
         call mpi_halo_atomic_update_int_put_fence(intField)
 #endif
+#if _NOCUDAAWARE_
+        call mpi_halo_atomic_update_int_iSendiRcv_noCudaAware(intField)
+#endif
     end subroutine mpi_halo_atomic_update_int
-
+!-------------------------------------------------------------------------------------
     subroutine mpi_halo_atomic_update_real(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
@@ -587,8 +583,51 @@ contains
 #if _PUTFENCE_
         call mpi_halo_atomic_update_real_put_fence(realField)
 #endif
-
+#if _NOCUDAAWARE_
+        call mpi_halo_atomic_update_real_iSendiRcv_noCudaAware(realField)
+#endif
     end subroutine mpi_halo_atomic_update_real
+!-------------------------------------------------------------------------------------
+    subroutine mpi_halo_atomic_update_real_mass_ener_momentum(mass,ener,momentum)
+        implicit none
+        real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
+
+#if _SENDRCV_
+        call mpi_halo_atomic_update_real_mass_ener_momentum_SendRcv(mass,ener,momentum)
+#endif
+#if _ISENDIRCV_
+        call mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv(mass,ener,momentum)
+#endif
+#if _PUTFENCE_
+        write(*,*) 'Crashing. Not Implemented for PUTFENCE option'
+        call MPI_Abort(app_comm,-1,mpi_err)
+#endif
+#if _NOCUDAAWARE_
+        call mpi_halo_atomic_update_real_mass_ener_mom_iSendiRcv_noCudaAware(mass,ener,momentum)
+#endif
+
+    end subroutine mpi_halo_atomic_update_real_mass_ener_momentum
+!-------------------------------------------------------------------------------------
+    subroutine mpi_halo_atomic_update_real_arrays(numArrays,arrays2comm)
+        implicit none
+        integer(4),intent(in) :: numArrays
+        real(rp), intent(inout) :: arrays2comm(:,:)
+
+#if _SENDRCV_
+        call mpi_halo_atomic_update_real_arrays_SendRcv(numArrays,arrays2comm)
+#endif
+#if _ISENDIRCV_
+        call mpi_halo_atomic_update_real_arrays_iSendiRcv(numArrays,arrays2comm)
+#endif
+#if _PUTFENCE_
+        write(*,*) 'Crashing. Not Implemented for PUTFENCE option'
+        call MPI_Abort(app_comm,-1,mpi_err)
+#endif
+#if _NOCUDAAWARE_
+        call mpi_halo_atomic_update_real_arrays_iSendiRcv_noCudaAware(numArrays,arrays2comm)
+#endif
+
+    end subroutine mpi_halo_atomic_update_real_arrays
 
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
@@ -642,7 +681,7 @@ contains
         call copy_from_rcvBuffer_real(realField)
     end subroutine mpi_halo_atomic_update_real_sendRcv
 
-     ! REAL ---------------------------------------------------
+    ! REAL MIN ---------------------------------------------------
     subroutine mpi_halo_atomic_min_update_real_sendRcv(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
@@ -667,6 +706,57 @@ contains
         call copy_from_min_rcvBuffer_real(realField)
     end subroutine mpi_halo_atomic_min_update_real_sendRcv
 
+    ! MASS,ENER,MOMENTUM ---------------------------------------------------
+    subroutine mpi_halo_atomic_update_real_mass_ener_momentum_sendRcv(mass,ener,momentum)
+        implicit none
+        real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
+        integer(4) :: i,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4),parameter :: nArrays=5
+
+        call fill_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = (commsMemPosInLoc(i)-1)*nArrays+1
+            memSize  = commsMemSize(i)*nArrays
+
+            call MPI_Sendrecv(aux_realField_s(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
+                              aux_realField_r(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
+                              app_comm, MPI_STATUS_IGNORE, mpi_err)
+        end do
+        !$acc end host_data
+
+        call copy_from_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+    end subroutine mpi_halo_atomic_update_real_mass_ener_momentum_sendRcv
+
+    ! REAL N-ARRAYS ---------------------------------------------------
+    subroutine mpi_halo_atomic_update_real_arrays_sendRcv(numArrays,arrays2comm)
+        implicit none
+        integer(4),intent(in) :: numArrays
+        real(rp), intent(inout) :: arrays2comm(:,:)
+        integer(4) :: i,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+
+        call fill_sendBuffer_arrays_real(numArrays,arrays2comm)
+
+        !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = (commsMemPosInLoc(i)-1)*numArrays+1
+            memSize  = commsMemSize(i)*numArrays
+
+            call MPI_Sendrecv(aux_realField_s(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
+                              aux_realField_r(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
+                              app_comm, MPI_STATUS_IGNORE, mpi_err)
+        end do
+        !$acc end host_data
+
+        call copy_from_rcvBuffer_arrays_real(numArrays,arrays2comm)
+    end subroutine mpi_halo_atomic_update_real_arrays_sendRcv
 
 !------------- ISEND/IRECV -------------------------------------------
     !INTEGER ---------------------------------------------------------
@@ -837,7 +927,6 @@ contains
 #endif
 
         call copy_from_rcvBuffer_arrays_real(numArrays,arrays2comm)
-
     end subroutine mpi_halo_atomic_update_real_arrays_iSendiRcv
 
     !REAL ---------------------------------------------------------
@@ -1389,6 +1478,94 @@ contains
         !$acc update device(aux_realField_s(:))
         call copy_from_rcvBuffer_get_real(realField)
     end subroutine mpi_halo_atomic_update_real_get_fence_noCudaAware
+
+    subroutine mpi_halo_atomic_update_real_mass_ener_mom_iSendiRcv_noCudaAware(mass,ener,momentum)
+        implicit none
+        real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*numRanksWithComms)
+        integer(4),parameter :: nArrays=5
+
+        call fill_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+
+        ireq=0
+        !$acc update host(aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = (commsMemPosInLoc(i)-1)*nArrays+1
+            memSize  = commsMemSize(i)*nArrays
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_realField_r(memPos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+        end do
+
+        call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+        !$acc update device(aux_realField_r(:))
+        call copy_from_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+    end subroutine mpi_halo_atomic_update_real_mass_ener_mom_iSendiRcv_noCudaAware
+
+    subroutine mpi_halo_atomic_update_real_arrays_iSendiRcv_noCudaAware(numArrays,arrays2comm)
+        implicit none
+        integer(4),intent(in) :: numArrays
+        real(rp), intent(inout) :: arrays2comm(:,:)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*numRanksWithComms)
+
+        call fill_sendBuffer_arrays_real(numArrays,arrays2comm)
+
+        ireq=0
+        !$acc update host(aux_realField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = (commsMemPosInLoc(i)-1)*numArrays+1
+            memSize  = commsMemSize(i)*numArrays
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_realField_r(memPos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+        end do
+
+        call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+        !$acc update device(aux_realField_r(:))
+        call copy_from_rcvBuffer_arrays_real(numArrays,arrays2comm)
+    end subroutine mpi_halo_atomic_update_real_arrays_iSendiRcv_noCudaAware
+
+    subroutine mpi_halo_atomic_update_int_iSendiRcv_noCudaAware(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer(4) :: i,ireq,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+        integer(4) :: requests(2*numRanksWithComms)
+
+        call fill_sendBuffer_int(intField)
+
+        ireq=0
+        !$acc update host(aux_intField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            ireq = ireq+1
+            call MPI_Irecv(aux_intField_r(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+            ireq = ireq+1
+            call MPI_ISend(aux_intField_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
+        end do
+
+        call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+        !$acc update device(aux_intField_r(:))
+        call copy_from_rcvBuffer_int(intField)
+    end subroutine mpi_halo_atomic_update_int_iSendiRcv_noCudaAware
 
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------

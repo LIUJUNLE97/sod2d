@@ -126,7 +126,7 @@ module time_integ_imex2
                
                if(mpi_size.ge.2) then
                   call nvtxStartRange("AB2 halo update")
-                  call mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv(Rmass(:,1),Rener(:,1),Rmom(:,:,1))
+                  call mpi_halo_atomic_update_real_mass_ener_momentum(Rmass(:,1),Rener(:,1),Rmom(:,:,1))
                   call nvtxEndRange
                end if               
 
@@ -203,7 +203,7 @@ module time_integ_imex2
 
                if(mpi_size.ge.2) then
                   call nvtxStartRange("AB2 halo update")
-                  call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime+2,Rsource(:,:))
+                  call mpi_halo_atomic_update_real_arrays(ndime+2,Rsource(:,:))
                   call nvtxEndRange
                end if
             end if
@@ -228,7 +228,7 @@ module time_integ_imex2
           
                   if(mpi_size.ge.2) then
                      call nvtxStartRange("AB2 halo update")
-                     call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,Rwmles(:,:))
+                     call mpi_halo_atomic_update_real_arrays(ndime,Rwmles(:,:))
                      call nvtxEndRange
                   end if                  
             end if
@@ -245,7 +245,7 @@ module time_integ_imex2
 
             if(mpi_size.ge.2) then
                call nvtxStartRange("AB2 halo update")
-               call mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv(Rmass(:,2),Rener(:,2),Rmom(:,:,2))
+               call mpi_halo_atomic_update_real_mass_ener_momentum(Rmass(:,2),Rener(:,2),Rmom(:,:,2))
                call nvtxEndRange
             end if
 

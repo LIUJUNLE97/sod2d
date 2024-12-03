@@ -33,7 +33,7 @@ module mod_witness_points
          close(99)
       end subroutine read_points
 
-      subroutine isocoords(elpoints, wit, atoIJK, xi, isinside, Niwit)
+      subroutine isocoords(elpoints, wit, atoIJK, xi_rp, isinside, Niwit)
          !
          ! Subroutine which computes the isoparametric coordinates of a point in an HEX64 element.
          ! If any of them is outside the bounds of -1 and 1 it means that the point is outside of the element.
@@ -42,13 +42,13 @@ module mod_witness_points
          real(rp), intent(in)   :: elpoints(nnode, ndime)   ! Input 1: coordinates of the element nodes following the gmesh ordering
          real(rp), intent(in)   :: wit(ndime)               ! Input 2: coordinates of the point we are looking the isoparametric coordinates from
          integer(4), intent(in) :: atoIJK(nnode)            ! Input 3: mesh atoIJK
-         real(rp), intent(out)  :: xi(ndime)                ! Output 1: isoparametric coordinates of the point
+         real(rp), intent(out)  :: xi_rp(ndime)             ! Output 1: isoparametric coordinates of the point
          logical,  intent(out)  :: isinside                 ! Output 2: return if the point is inside the element
          real(rp), intent(out)  :: Niwit(nnode)             ! Output 3: shape functions evaluated at the point
-         real(rp)               :: xi_0(ndime), xi_n(ndime)
-         real(rp)               :: N(nnode), N_lagrange(nnode)
-         real(rp)               :: dlxigp_ip(ndime, porder+1)
-         real(rp)               :: dN(ndime, nnode), dN_lagrange(ndime, nnode)
+         real(8)                :: xi(ndime), xi_0(ndime), xi_n(ndime)
+         real(8)                :: N(nnode), N_lagrange(nnode)
+         real(8)                :: dlxigp_ip(ndime, porder+1)
+         real(8)                :: dN(ndime, nnode), dN_lagrange(ndime, nnode)
          real(rp)               :: f(ndime)
          real(rp)               :: a(ndime*ndime), b(ndime*ndime)
          real(rp)               :: j(ndime, ndime), k(ndime, ndime)
@@ -57,7 +57,7 @@ module mod_witness_points
          real(rp), parameter    :: tol_wp = 1e-10, alpha = 1, div = 100
          integer(4), parameter :: maxite = 50
 
-         xi_0(:) = 0
+         xi_0(:) = 0.0d0
          xi(:)   = xi_0(:)
          isinside = .false.
 
@@ -135,6 +135,7 @@ module mod_witness_points
             !
             xi_n(:) = xi(:) - alpha*matmul(k, f)
             xi(:)   = xi_n(:)
+            xi_rp(:)= real(xi(:),rp)
             if (dot_product(f, f) < tol_wp) then
                isinside = .true.
                Niwit    = N

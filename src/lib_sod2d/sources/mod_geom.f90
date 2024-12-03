@@ -16,23 +16,23 @@ module mod_geom
 			integer(4),intent(in) :: connec(nelem,mnnode)
 			real(rp),intent(in)   :: coord(npoin,ndime)
 			real(rp),intent(out)  :: he
-			integer(4)            :: iedge,ncorner,nedge
-			integer(4)            :: inode,jnode,idime
-			real(rp)              :: dist(12,ndime), dist2, aux
+			integer(4)            :: iedge
+			integer(4),parameter  :: nedge = 12
+			real(8)               :: dist(nedge,ndime),dist2,aux
 
 			!
 			! Compute r = x2-x1 for all element edges
 			!
-			call hexa_edges(mnnode,iElem,nelem,npoin,connec,coord,ncorner,nedge,dist(1:12,1:ndime))
+			call get_hexa_edges_dist_rp(mnnode,iElem,nelem,npoin,connec,coord,dist(1:nedge,1:ndime))
 			!
 			! Obtain ||dist||_2 for all edges and select minimum size as elem. characteristic size
 			!
-			dist2 = 1000000000000.0_rp
+			dist2 = 1000000000000.0d0
 			do iedge = 1,nedge
 				aux = sqrt(dot_product(dist(iedge,:),dist(iedge,:)))
 				dist2 = min(dist2,aux)
 			end do
-			he = dist2
+			he = real(dist2,rp)
 
 		end subroutine char_length
 
@@ -108,6 +108,10 @@ module mod_geom
 			integer(4),intent(inout) :: lnbnNodes(npoin)
 			integer(4)               :: ipoin, inode,ielem,bnode,ipbou,iboun,rnode,c,i,j,k,innode
 			integer(4)               :: aux1, aux2
+
+     		!$acc kernels
+     		lnbnNodes(:) = 0
+     		!$acc end kernels
 
 			!$acc parallel loop  
 			do inode = 1,npoin

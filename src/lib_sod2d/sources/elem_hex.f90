@@ -27,11 +27,11 @@ module elem_hex
 			!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			implicit none
 			integer(4),intent(in) :: mporder,mnnode
-			real(rp),intent(in)   :: xi, eta, zeta
+			real(8),intent(in)   :: xi, eta, zeta
 			integer(4),intent(in) :: atoIJK(mnnode)
-			real(rp),intent(out)  :: N(mnnode), dN(ndime,mnnode),dlxigp_ip(ndime,mporder+1)
-			real(rp),intent(out)  :: N_lagrange(mnnode), dN_lagrange(ndime,mnnode)
-			real(rp)              :: xi_grid(mporder+1)
+			real(8),intent(out)  :: N(mnnode), dN(ndime,mnnode),dlxigp_ip(ndime,mporder+1)
+			real(8),intent(out)  :: N_lagrange(mnnode), dN_lagrange(ndime,mnnode)
+			real(8)              :: xi_grid(mporder+1)
 			call getEquispaced_roots(mporder,xi_grid)
 			call TripleTensorProduct(mporder,mnnode,xi_grid,xi,eta,zeta,atoIJK,N,dN)
 			if (flag_spectralElem == 1) then
@@ -42,22 +42,39 @@ module elem_hex
 			end if
 		end subroutine hex_highorder
 
-		subroutine hexa_edges(mnnode,ielem,nelem,npoin,connec,coord,ncorner,nedge,dist)
+		subroutine get_hexa_edges_dist_rp(mnnode,ielem,nelem,npoin,connec,coord,dist)
 			implicit none
+			integer(4),parameter   :: nedge=12,ncorner=8
+			integer(4),intent(in)  :: mnnode,iElem,nelem,npoin,connec(nelem,mnnode)
+			real(rp),intent(in)    :: coord(npoin,ndime)
+			real(8),intent(out)    :: dist(nedge,ndime)
+			real(8)                :: xp(ncorner,ndime)
 
-			integer(4), intent(in)   :: mnnode,iElem, nelem, npoin
-			integer(4), intent(in)   :: connec(nelem,mnnode)
-			real(rp),   intent(in)   :: coord(npoin,ndime)
-			integer(4), intent(out)  :: ncorner,nedge
-			real(rp),   intent(out)  :: dist(12,ndime)
-			integer(4)               :: ind(mnnode)
-			real(rp)                 :: xp(12,ndime)
+			xp(1:ncorner,1:ndime) = real(coord(connec(ielem,1:ncorner),1:ndime),8) ! Corner coordinates
 
-			ind = connec(ielem,:)
-			ncorner = 8
-			nedge = 12
+			call get_hexa_edge_distances(xp,dist)
 
-			xp(1:8,1:ndime) = coord(ind(1:8),1:ndime) ! Corner coordinates
+		end subroutine get_hexa_edges_dist_rp
+
+		subroutine get_hexa_edges_dist_r8(mnnode,ielem,nelem,npoin,connec,coord,dist)
+			implicit none
+			integer(4),parameter   :: nedge=12,ncorner=8
+			integer(4),intent(in)  :: mnnode,iElem,nelem,npoin,connec(nelem,mnnode)
+			real(8),intent(in)     :: coord(npoin,ndime)
+			real(8),intent(out)    :: dist(nedge,ndime)
+			real(8)                :: xp(ncorner,ndime)
+
+			xp(1:ncorner,1:ndime) = coord(connec(ielem,1:ncorner),1:ndime) ! Corner coordinates
+
+			call get_hexa_edge_distances(xp,dist)
+
+		end subroutine get_hexa_edges_dist_r8
+
+		subroutine get_hexa_edge_distances(xp,dist)
+			implicit none
+			real(8),intent(in)  :: xp(8,ndime)
+			real(8),intent(out) :: dist(12,ndime)
+
 			dist(1,:) = xp(2,:)-xp(1,:)
 			dist(2,:) = xp(3,:)-xp(2,:)
 			dist(3,:) = xp(4,:)-xp(3,:)
@@ -72,6 +89,6 @@ module elem_hex
 			dist(10,:) = xp(6,:)-xp(2,:)
 			dist(11,:) = xp(7,:)-xp(3,:)
 			dist(12,:) = xp(8,:)-xp(4,:)
-		end subroutine hexa_edges
+		end subroutine get_hexa_edge_distances
 
 end module

@@ -15,29 +15,24 @@ module mod_maths
    contains
 
       !----------------------------------------------------------------------------------
-      subroutine getGaussLobattoLegendre_roots(mporder,roots)
+      subroutine getGaussLobattoLegendre_roots(mporder,roots_d)
          integer(4),intent(in) :: mporder
-         real(rp),dimension(mporder+1),intent(out) :: roots
-         real(8),dimension(mporder+1) :: roots_d,legendre_aux
+         real(8),dimension(mporder+1),intent(out) :: roots_d
+         real(8),dimension(mporder+1) :: legendre_aux
 
          call ZELEGL(mporder,roots_d,legendre_aux)
-
-         roots = real(roots_d,rp)
 
       end subroutine getGaussLobattoLegendre_roots
       !----------------------------------------------------------------------------------
 
       !----------------------------------------------------------------------------------
-      subroutine getGaussLobattoLegendre_weights_and_roots(mporder,weights,roots)
+      subroutine getGaussLobattoLegendre_weights_and_roots(mporder,weights_d,roots_d)
          integer(4),intent(in) :: mporder
-         real(rp),dimension(mporder+1),intent(out) :: weights,roots
-         real(8),dimension(mporder+1) :: roots_d,weights_d,legendre_aux
+         real(8),dimension(mporder+1),intent(out) :: weights_d,roots_d
+         real(8),dimension(mporder+1) :: legendre_aux
 
          call ZELEGL(mporder,roots_d,legendre_aux)
          call WELEGL(mporder,roots_d,legendre_aux,weights_d)
-
-         roots = real(roots_d,rp)
-         weights = real(weights_d,rp)
 
       end subroutine getGaussLobattoLegendre_weights_and_roots
       !----------------------------------------------------------------------------------
@@ -166,11 +161,11 @@ module mod_maths
          !
          implicit none
          integer(4),intent(in) :: mporder
-         real(rp),intent(out) :: xi_equi(mporder+1)
+         real(8),intent(out) :: xi_equi(mporder+1)
          integer(4) :: i
 
          do i = 1,mporder+1
-            xi_equi(i) = -1.0_rp+(2.0_rp*real(i-1,rp)/real(mporder,rp))
+            xi_equi(i) = -1.0d0+(2.0d0*real(i-1,8)/real(mporder,8))
          end do
 
       end subroutine getEquispaced_roots
@@ -193,9 +188,9 @@ module mod_maths
 
          implicit none
          integer(4),intent(in) :: mporder
-         real(rp),intent(in)   :: xi(mporder+1), xi_p
-         real(rp),intent(out)  :: l_ip(mporder+1)
-         integer(4)            :: i, j, lorder(mporder+1)
+         real(8),intent(in)   :: xi(mporder+1), xi_p
+         real(8),intent(out)  :: l_ip(mporder+1)
+         integer(4)           :: i, j, lorder(mporder+1)
 
          lorder(1) = 1
          lorder(2) = mporder+1
@@ -203,7 +198,7 @@ module mod_maths
             lorder(i) = i-1
          end do
          do i = 0,mporder ! Nodal loop
-            l_ip(i+1) = 1.0_rp
+            l_ip(i+1) = 1.0d0
             do j = 0,mporder ! Product series
                if (j .ne. (lorder(i+1)-1)) then
                   l_ip(i+1) = l_ip(i+1)*((xi_p-xi(j+1))/(xi(lorder(i+1))-xi(j+1)))
@@ -230,10 +225,10 @@ module mod_maths
 
          implicit none
          integer(4),intent(in) :: mporder
-         real(rp),intent(in)   :: xi(mporder+1), xi_p
-         real(rp),intent(out)  :: dl_ip(mporder+1)
+         real(8),intent(in)   :: xi(mporder+1), xi_p
+         real(8),intent(out)  :: dl_ip(mporder+1)
          integer(4)            :: i, j, m, lorder(mporder+1)
-         real(rp)              :: aux
+         real(8)              :: aux
 
          lorder(1) = 1
          lorder(2) = mporder+1
@@ -241,16 +236,16 @@ module mod_maths
             lorder(i) = i-1
          end do
          do i = 0,mporder ! Nodal loop
-            dl_ip(i+1) = 0.0_rp
+            dl_ip(i+1) = 0.0d0
             do j = 0,mporder ! Product series
-               aux = 1.0_rp
+               aux = 1.0d0
                if (j .ne. (lorder(i+1)-1)) then
                   do m = 0,mporder
                      if (m .ne. j .and. m .ne. lorder(i+1)-1) then
                         aux = aux * (xi_p-xi(m+1))/(xi(lorder(i+1))-xi(m+1))
                      end if
                   end do
-                  dl_ip(i+1) = dl_ip(i+1) + (1.0_rp/(xi(lorder(i+1))-xi(j+1)))*aux
+                  dl_ip(i+1) = dl_ip(i+1) + (1.0d0/(xi(lorder(i+1))-xi(j+1)))*aux
                end if
             end do
          end do
@@ -262,12 +257,12 @@ module mod_maths
          implicit none
 
          integer(4),intent(in)         :: mporder,mnnode,atoIJK(mnnode)
-         real(rp),intent(in)           :: s,t,z,xi_grid(mporder+1)
-         real(rp),intent(out)          :: N(mnnode),dN(ndime,mnnode)
-         real(rp),optional,intent(out) :: dlxigp_ip(ndime,mporder+1)
+         real(8),intent(in)           :: s,t,z,xi_grid(mporder+1)
+         real(8),intent(out)          :: N(mnnode),dN(ndime,mnnode)
+         real(8),optional,intent(out) :: dlxigp_ip(ndime,mporder+1)
          integer(4)                    :: i,j,k,c
-         real(rp),dimension(mporder+1) :: lxi_ip, leta_ip, lzeta_ip
-         real(rp),dimension(mporder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
+         real(8),dimension(mporder+1) :: lxi_ip, leta_ip, lzeta_ip
+         real(8),dimension(mporder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
 
          call eval_lagrangePoly(mporder,xi_grid,s,lxi_ip)
          call eval_lagrangePoly(mporder,xi_grid,t,leta_ip)
@@ -312,11 +307,11 @@ module mod_maths
          implicit none
 
          integer(4), intent(in)       :: mporder,mnpbou,atoIJ(mnpbou)
-         real(rp), intent(in)         :: s, t, xi_grid(mporder+1)
-         real(rp), intent(out)        :: N(mnpbou), dN(ndime-1,mnpbou)
+         real(8), intent(in)         :: s, t, xi_grid(mporder+1)
+         real(8), intent(out)        :: N(mnpbou), dN(ndime-1,mnpbou)
          integer(4)                   :: i, j, c
-         real(rp), dimension(mporder+1) :: lxi_ip, leta_ip
-         real(rp), dimension(mporder+1) :: dlxi_ip, dleta_ip
+         real(8), dimension(mporder+1) :: lxi_ip, leta_ip
+         real(8), dimension(mporder+1) :: dlxi_ip, dleta_ip
 
          call eval_lagrangePoly(mporder,xi_grid,s,lxi_ip)
          call eval_lagrangePoly(mporder,xi_grid,t,leta_ip)
@@ -363,5 +358,25 @@ module mod_maths
          end do
 
       end subroutine var_interpolate
+
+      pure subroutine var_interpolate_real8(mnnode,var,Neval,var_a)
+
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         ! like previous subroutine but for real8
+         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         
+         implicit none
+
+         integer(4),intent(in) :: mnnode
+         real(8),intent(in)    :: var(mnnode),Neval(mnnode)
+         real(8),intent(out)   :: var_a
+         integer(4)            :: inode
+
+         var_a = 0.0d0
+         do inode = 1,mnnode
+            var_a = var_a+Neval(inode)*var(inode)
+         end do
+
+      end subroutine var_interpolate_real8
 
 end module mod_maths

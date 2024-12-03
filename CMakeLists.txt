@@ -21,6 +21,7 @@ option(SHARED_LIBS "Compile using shared libraries" OFF)
 
 option(USE_GPU "Compile using GPU" OFF)
 option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
+option(USE_AUTOCOMPARE "Compile with autocompare option" OFF) #IF AUTOCOMPARE ON -> MEM_MANAGED MUST BE OFF
 option(USE_NCCL "Compile using NCCL" OFF)
 
 option(USE_SENSEI "Compile using SENSEI" OFF)
