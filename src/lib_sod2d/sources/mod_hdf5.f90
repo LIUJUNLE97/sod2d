@@ -87,12 +87,16 @@ contains
       meshFile_h5_full_name = trim(adjustl(file_path))//trim(adjustl(file_name))//'-'//trim(aux_numRanks)//'.hdf'
    end subroutine set_hdf5_meshFile_name
 
-   subroutine set_hdf5_surface_meshFile_name(meshFile_h5_full_name,surface_meshFile_h5_full_name)
+   subroutine set_hdf5_surface_meshFile_name(file_path,file_name,numRanks,surface_meshFile_h5_full_name)
       implicit none
-      character(len=*),intent(in) :: meshFile_h5_full_name
+      character(len=*),intent(in) :: file_path,file_name
+      integer,intent(in) :: numRanks
       character(len=*),intent(out) :: surface_meshFile_h5_full_name
+      character(len=12) :: aux_numRanks
 
-      surface_meshFile_h5_full_name = 'surface_'//trim(adjustl(meshFile_h5_full_name))
+      write(aux_numRanks,'(I0)') numRanks
+
+      surface_meshFile_h5_full_name = trim(adjustl(file_path))//'surface_'//trim(adjustl(file_name))//'-'//trim(aux_numRanks)//'.hdf'
    end subroutine set_hdf5_surface_meshFile_name
 
    subroutine set_hdf5_resultsFile_baseName(res_filePath,res_fileName,mesh_fileName,numRanks,base_resultsFile_h5_full_name)
@@ -5419,7 +5423,7 @@ contains
    subroutine save_surface_mesh_hdf5_file(meshFile_h5_full_name,surface_meshFile_h5_full_name,mnpbou,gmsh2ij,vtk2ij)
       implicit none
       character(512),intent(in) :: meshFile_h5_full_name
-      character(512),intent(out) :: surface_meshFile_h5_full_name
+      character(512),intent(in) :: surface_meshFile_h5_full_name
       integer(4),intent(in) :: mnpbou,gmsh2ij(mnpbou),vtk2ij(mnpbou)
       integer(4) :: ds_rank,h5err
       integer(hsize_t),dimension(1) :: ds_dims,ms_dims
@@ -5435,7 +5439,6 @@ contains
       integer(4) :: ii,jj,iBound,iRank,iNodeL
 
       !---------------------------------------------------------------------------------
-      call set_hdf5_surface_meshFile_name(meshFile_h5_full_name,surface_meshFile_h5_full_name)
       call create_hdf5_file(surface_meshFile_h5_full_name,hdf5_fileId)
       call set_vtkhdf_attributes_and_basic_groups(hdf5_fileId)
       !---------------------------------------------------------------------------------

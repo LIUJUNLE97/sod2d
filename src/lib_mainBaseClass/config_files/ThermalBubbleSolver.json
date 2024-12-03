@@ -49,7 +49,7 @@
       "c_sgs"             : 0.025,
       "envit_ce"          : 1.0,
 
-      "flag_rk_ls"        : false,
+      "flag_rk_ls"        : true,
       "flag_rk_ls_stages" : 5,
       "flag_implicit"     : 0,
       "maxIter"           : 20,

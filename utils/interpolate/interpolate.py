@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import numpy as np
 # import mpi4py
 from mpi4py import MPI

@@ -401,15 +401,17 @@ contains
       !----------------------------------------------------------------------------------------------
       allocate(quality_jv%vector(numMshRanksInMpiRank))
       if(evalMeshQuality) then
-         ! Open a file for outputting realted information
-         write(aux_mpiRank,'(I0)') mpi_rank
-         write(aux_numRanks,'(I0)') numMshRanks2Part
-         !-----------------------------------------------------------------------------------------------
-         meshquality_filename = "meshQuality_"//trim(adjustl(mesh_h5_fileName))//'-'//trim(aux_numRanks)//'_rank'//trim(aux_mpiRank)//'.dat'
-         open(unit=555, file=meshquality_filename, status="unknown", action="write", form="formatted")
-         write(555,*) "--| Evaluating mesh quality"
-         write(555,*) "----| List of tangled elements (GMSH global numeration)"
-         call flush(555)
+         if(numMshRanksInMpiRank .gt. 0) then
+            ! Open a file for outputting realted information
+            write(aux_mpiRank,'(I0)') mpi_rank
+            write(aux_numRanks,'(I0)') numMshRanks2Part
+            !-----------------------------------------------------------------------------------------------
+            meshquality_filename = "meshQuality_"//trim(adjustl(mesh_h5_fileName))//'-'//trim(aux_numRanks)//'_rank'//trim(aux_mpiRank)//'.dat'
+            open(unit=555, file=meshquality_filename, status="unknown", action="write", form="formatted")
+            write(555,*) "--| Evaluating mesh quality"
+            write(555,*) "----| List of tangled elements (GMSH global numeration)"
+            call flush(555)
+         end if
          !-----------------------------------------------------------------------------------------------
          if(mpi_rank.eq.0) then
             meshqualitySum_filename = "meshQualitySummary_"//trim(adjustl(mesh_h5_fileName))//'-'//trim(aux_numRanks)//'.dat'
@@ -461,24 +463,26 @@ contains
             rankAvgQuality = rankAvgQuality + auxAvg
             numTangledElemsMpiRank=numTangledElemsMpiRank+numTangledElemsMshRank
          end do
-         rankAvgQuality = rankAvgQuality / numMshRanksInMpiRank
          call MPI_Barrier(app_comm,mpi_err)
-         write(555,*) "----| End of list of tangled elements"
-         write(555,*) "--| Mesh quality evaluated"
-         write(555,*) "--| Mesh statistics in rank"
-         write(555,*) "----| Num.Tangled Elems:",numTangledElemsMpiRank
-         write(555,*) "----| Max quality:",rankMaxQuality
-         write(555,*) "----| Min quality:",rankMinQuality
-         write(555,*) "----| Avg quality:",rankAvgQuality
-         close(555)
+         if(numMshRanksInMpiRank .gt. 0) then
+            rankAvgQuality = rankAvgQuality / numMshRanksInMpiRank
+            write(555,*) "----| End of list of tangled elements"
+            write(555,*) "--| Mesh quality evaluated"
+            write(555,*) "--| Mesh statistics in rank"
+            write(555,*) "----| Num.Tangled Elems:",numTangledElemsMpiRank
+            write(555,*) "----| Max quality:",rankMaxQuality
+            write(555,*) "----| Min quality:",rankMinQuality
+            write(555,*) "----| Avg quality:",rankAvgQuality
+            close(555)
+         end if
          ! Compute max, min and avg across all ranks
-         call MPI_Allreduce(numTangledElemsMpiRank,numTangledElemsTotal,1,mpi_datatype_int4,MPI_SUM,app_comm,mpi_err)
-         call MPI_Allreduce(rankMaxQuality, maxQuality, 1, mpi_datatype_real8, MPI_MAX, app_comm, mpi_err)
-         call MPI_Allreduce(rankMinQuality, minQuality, 1, mpi_datatype_real8, MPI_MIN, app_comm, mpi_err)
-         call MPI_Allreduce(rankAvgQuality, avgQuality, 1, mpi_datatype_real8, MPI_SUM, app_comm, mpi_err)
-         avgQuality = avgQuality / mpi_size
+         call MPI_Reduce(numTangledElemsMpiRank,numTangledElemsTotal,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
+         call MPI_Reduce(rankMaxQuality,maxQuality,1,mpi_datatype_real8,MPI_MAX,0,app_comm,mpi_err)
+         call MPI_Reduce(rankMinQuality,minQuality,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+         call MPI_Reduce(rankAvgQuality,avgQuality,1,mpi_datatype_real8,MPI_SUM,0,app_comm,mpi_err)
          ! Write high-level data to file
          if(mpi_rank.eq.0) then
+            avgQuality = avgQuality / numMshRanks2Part
             write(554,*) "--| Mesh statistics"
             write(554,*) "----| Num.Tangled Elems:",numTangledElemsTotal
             write(554,*) "----| Max quality:", maxQuality
