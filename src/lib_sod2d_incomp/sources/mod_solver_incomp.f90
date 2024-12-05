@@ -277,6 +277,10 @@ module mod_solver_incomp
            integer(4)                :: ipoin, iter,ialpha,ielem
            real(rp)                   :: alphaCG, betaCG
            real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,Q1(2)
+           logical,parameter           :: flag_averageEq0 =.false.
+           logical,save                :: flag_obtain_totalNpoinWork =.true.
+           integer(4),save             :: totalNpoinWork
+           integer(4),allocatable,save :: ownerRank(:)
 
           call nvtxStartRange("CG solver press")
           if (flag_cg_mem_alloc_pres .eqv. .true.) then
@@ -450,6 +454,51 @@ module mod_solver_incomp
               call nvtxEndRange
            end do
            call nvtxEndRange
+
+
+            if(flag_averageEq0 .eqv. .true.) then
+               if(flag_obtain_totalNpoinWork .eqv. .true.) then  ! this first part is only called once
+                  ! obtain ownerRank
+                  allocate(ownerRank(npoin))
+                  !$acc enter data create(ownerRank(:))
+                  ownerRank(1:npoin) = mpi_rank  
+                  call mpi_halo_atomic_min_update_int_sendRcv(ownerRank)
+
+
+                  ! obtain total real (master) nodes totalNpoinWork
+                  ! I reuse auxQ1, auxQ, Q1 to avoide creating new variables
+                  auxQ1 = 0.0
+                  auxQ = 0.0
+                  Q1(1) = 0.0
+                  !$acc parallel loop reduction(+:auxQ1) 
+                  do ipoin = 1,npoin_w   !using npoin_w avoids slaves
+                     if(ownerRank(lpoin_w(ipoin)) == mpi_rank) auxQ1 = auxQ1 + 1.0
+                  end do
+                  !$acc end parallel loop
+                  auxQ(1) = auxQ1
+                  call MPI_Allreduce(auxQ,Q1,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
+                  totalNpoinWork = Q1(1)
+                  flag_obtain_totalNpoinWork=.false.
+               end if
+               ! I reuse auxQ1, auxQ, Q1 to avoide creating new variables
+               auxQ1 = 0.0
+               auxQ = 0.0
+               Q1(1) = 0.0
+               !$acc parallel loop reduction(+:auxQ1) 
+               do ipoin = 1,npoin_w   !using npoin_w avoids slaves
+                  if(ownerRank(lpoin_w(ipoin)) == mpi_rank) auxQ1 = auxQ1 + x(lpoin_w(ipoin)) ! Owned by me
+               end do
+               !$acc end parallel loop
+               !write (*,*) '1:auxQ1, auxQ(1), Q1(1)',auxQ1, auxQ(1), Q1(1)
+               auxQ(1) = auxQ1
+               call MPI_Allreduce(auxQ,Q1,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
+               !write (*,*) '2:auxQ1, auxQ(1), Q1(1)',auxQ1, auxQ(1), Q1(1), totalNpoinWork,npoin_w
+               Q1(1) = Q1(1) / real(totalNpoinWork,rp) 
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  x(lpoin_w(ipoin)) = x(lpoin_w(ipoin)) - Q1(1)
+               end do
+            end if
 
            if (iter == maxIter) then
                if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB

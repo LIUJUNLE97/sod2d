@@ -404,6 +404,21 @@ contains
         !$acc end parallel loop
     end subroutine copy_from_rcvBuffer_int
 !-------------------------------------------------------------------------
+    subroutine copy_from_min_rcvBuffer_int(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer(4) :: i,iNodeL
+
+        !$acc parallel loop
+        do i=1,numNodesToComm
+            iNodeL = nodesToComm(i)
+            !$acc atomic update
+            intField(iNodeL) = min(intField(iNodeL), aux_intField_r(i))
+            !$acc end atomic
+        end do
+        !$acc end parallel loop
+    end subroutine copy_from_min_rcvBuffer_int
+!-------------------------------------------------------------------------
     subroutine copy_from_rcvBuffer_real(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
@@ -656,6 +671,32 @@ contains
 
         call copy_from_rcvBuffer_int(intField)
     end subroutine mpi_halo_atomic_update_int_sendRcv
+
+    !INTEGER MIN ---------------------------------------------------
+    subroutine mpi_halo_atomic_min_update_int_sendRcv(intField)
+        implicit none
+        integer(4), intent(inout) :: intField(:)
+        integer(4) :: i,ngbRank,tagComm
+        integer(4) :: memPos_l,memSize
+
+        call fill_sendBuffer_int(intField)
+
+        !$acc host_data use_device(aux_intField_r(:),aux_intField_s(:))
+        do i=1,numRanksWithComms
+            ngbRank  = ranksToComm(i)
+            tagComm  = 0
+            memPos_l = commsMemPosInLoc(i)
+            memSize  = commsMemSize(i)
+
+            call MPI_Sendrecv(aux_intField_s(mempos_l), memSize, mpi_datatype_int, ngbRank, tagComm, &
+                              aux_intField_r(mempos_l), memSize, mpi_datatype_int, ngbRank, tagComm, &
+                              app_comm, MPI_STATUS_IGNORE, mpi_err)
+        end do
+        !$acc end host_data
+
+        call copy_from_min_rcvBuffer_int(intField)
+    end subroutine mpi_halo_atomic_min_update_int_sendRcv
+    
     ! REAL ---------------------------------------------------
     subroutine mpi_halo_atomic_update_real_sendRcv(realField)
         implicit none

@@ -31,10 +31,8 @@ module time_integ_imex
    real(rp), allocatable, dimension(:) :: auxReta_imex,aux_h,Rmass_stab,Rener_stab
    real(rp)  , allocatable, dimension(:) 	:: tau_stab_imex
    real(rp)  , allocatable, dimension(:,:) :: ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex
-   integer(4), parameter :: numSteps = 4
-   !integer(4), parameter :: numSteps = 3
-   real(rp), dimension(numSteps,numSteps) :: aij_e, aij_i
-   real(rp), dimension(numSteps) :: bij_e, bij_i
+   real(rp), dimension(4,4) :: aij_e, aij_i
+   real(rp), dimension(4) :: bij_e, bij_i
    logical :: firstTimeStep = .true.
 
   contains
@@ -46,99 +44,99 @@ module time_integ_imex
 
       call nvtxStartRange("Init IMEX solver")
 
-      allocate(Rmom_imex(npoin,ndime,numSteps),Rmass_stab(npoin),Rener_stab(npoin),Rmom_stab(npoin,ndime))
+      allocate(Rmom_imex(npoin,ndime,flag_imex_stages),Rmass_stab(npoin),Rener_stab(npoin),Rmom_stab(npoin,ndime))
       !$acc enter data create(Rmom_imex(:,:,:),Rmass_stab(:),Rener_stab(:),Rmom_stab(:,:))
 
-      allocate(Rmass_imex(npoin,numSteps),Rener_imex(npoin,numSteps),Reta_imex(npoin,2))
+      allocate(Rmass_imex(npoin,flag_imex_stages),Rener_imex(npoin,flag_imex_stages),Reta_imex(npoin,2))
       !$acc enter data create(Rmass_imex(:,:),Rener_imex(:,:),Reta_imex(:,:))
 
       allocate(Rsource_imex(npoin,ndime+2),Rwmles_imex(npoin,ndime))
       !$acc enter data create(Rsource_imex(:,:),Rwmles_imex(:,:))
 
-      allocate(Rdiff_mom_imex(npoin,ndime,numSteps))
+      allocate(Rdiff_mom_imex(npoin,ndime,flag_imex_stages))
       !$acc enter data create(Rdiff_mom_imex(:,:,:))
 
       allocate(auxReta_imex(npoin),f_eta_imex(npoin,ndime),f_eta_imex2(npoin,ndime),aux_h(npoin))
       !$acc enter data create(auxReta_imex(:),f_eta_imex(:,:),f_eta_imex2(:,:),aux_h(:))
 
-      allocate(Rdiff_mass_imex(npoin,numSteps),Rdiff_ener_imex(npoin,numSteps))
+      allocate(Rdiff_mass_imex(npoin,flag_imex_stages),Rdiff_ener_imex(npoin,flag_imex_stages))
       !$acc enter data create(Rdiff_mass_imex(:,:),Rdiff_ener_imex(:,:))
 
       allocate(ProjMass_imex(npoin,ndime),ProjEner_imex(npoin,ndime),ProjMX_imex(npoin,ndime),ProjMY_imex(npoin,ndime),ProjMZ_imex(npoin,ndime),tau_stab_imex(nelem))
       !$acc enter data create(ProjMass_imex(:,:),ProjEner_imex(:,:),ProjMX_imex(:,:),ProjMY_imex(:,:),ProjMZ_imex(:,:),tau_stab_imex(:))
-#if 1
-      bij_i(1) = 4.0_rp/15.0_rp 
-      bij_i(2) = 1.0_rp/3.0_rp 
-      bij_i(3) = 7.0_rp/30.0_rp 
-      bij_i(4) = 1.0_rp/6.0_rp 
+      if(flag_imex_stages .eq. 4) then
+         bij_i(1) = 4.0_rp/15.0_rp 
+         bij_i(2) = 1.0_rp/3.0_rp 
+         bij_i(3) = 7.0_rp/30.0_rp 
+         bij_i(4) = 1.0_rp/6.0_rp 
 
-      bij_e(1) = 1.0_rp/4.0_rp 
-      bij_e(2) = 0.0_rp 
-      bij_e(3) = 3.0_rp/4.0_rp 
-      bij_e(4) = 0.0_rp 
+         bij_e(1) = 1.0_rp/4.0_rp 
+         bij_e(2) = 0.0_rp 
+         bij_e(3) = 3.0_rp/4.0_rp 
+         bij_e(4) = 0.0_rp 
 
-      aij_i(1,1) = 0.0_rp
-      aij_i(1,2) = 0.0_rp
-      aij_i(1,3) = 0.0_rp
-      aij_i(1,4) = 0.0_rp
-      aij_i(2,1) = bij_i(1)
-      aij_i(2,2) = bij_i(1)
-      aij_i(2,3) = 0.0_rp
-      aij_i(2,4) = 0.0_rp
-      aij_i(3,1) = bij_i(1)
-      aij_i(3,2) = bij_i(2)
-      aij_i(3,3) = 1.0_rp/15.0_rp
-      aij_i(3,4) = 0.0_rp
-      aij_i(4,1) = bij_i(1)
-      aij_i(4,2) = bij_i(2)
-      aij_i(4,3) = bij_i(3)
-      aij_i(4,4) = bij_i(4)
+         aij_i(1,1) = 0.0_rp
+         aij_i(1,2) = 0.0_rp
+         aij_i(1,3) = 0.0_rp
+         aij_i(1,4) = 0.0_rp
+         aij_i(2,1) = bij_i(1)
+         aij_i(2,2) = bij_i(1)
+         aij_i(2,3) = 0.0_rp
+         aij_i(2,4) = 0.0_rp
+         aij_i(3,1) = bij_i(1)
+         aij_i(3,2) = bij_i(2)
+         aij_i(3,3) = 1.0_rp/15.0_rp
+         aij_i(3,4) = 0.0_rp
+         aij_i(4,1) = bij_i(1)
+         aij_i(4,2) = bij_i(2)
+         aij_i(4,3) = bij_i(3)
+         aij_i(4,4) = bij_i(4)
 
-      aij_e(1,1) = 0.0_rp
-      aij_e(1,2) = 0.0_rp
-      aij_e(1,3) = 0.0_rp
-      aij_e(1,4) = 0.0_rp
-      aij_e(2,1) = 8.0_rp/15.0_rp
-      aij_e(2,2) = 0.0_rp
-      aij_e(2,3) = 0.0_rp
-      aij_e(2,4) = 0.0_rp
-      aij_e(3,1) = bij_e(1)
-      aij_e(3,2) = 5.0_rp/12.0_rp
-      aij_e(3,3) = 0.0_rp
-      aij_e(3,4) = 0.0_rp
-      aij_e(4,1) = bij_e(1)
-      aij_e(4,2) = bij_e(2)
-      aij_e(4,3) = bij_e(3)
-      aij_e(4,4) = bij_e(4)
-#else
-   bij_i(1) = real(0.398930808264688d0,rp) 
-   bij_i(2) = real(0.345755244189623d0,rp)  
-   bij_i(3) = real(0.255313947545689d0,rp) 
+         aij_e(1,1) = 0.0_rp
+         aij_e(1,2) = 0.0_rp
+         aij_e(1,3) = 0.0_rp
+         aij_e(1,4) = 0.0_rp
+         aij_e(2,1) = 8.0_rp/15.0_rp
+         aij_e(2,2) = 0.0_rp
+         aij_e(2,3) = 0.0_rp
+         aij_e(2,4) = 0.0_rp
+         aij_e(3,1) = bij_e(1)
+         aij_e(3,2) = 5.0_rp/12.0_rp
+         aij_e(3,3) = 0.0_rp
+         aij_e(3,4) = 0.0_rp
+         aij_e(4,1) = bij_e(1)
+         aij_e(4,2) = bij_e(2)
+         aij_e(4,3) = bij_e(3)
+         aij_e(4,4) = bij_e(4)
+      else
+         bij_i(1) = real(0.398930808264688d0,rp) 
+         bij_i(2) = real(0.345755244189623d0,rp)  
+         bij_i(3) = real(0.255313947545689d0,rp) 
 
-   bij_e(1) = real(0.398930808264688d0,rp) 
-   bij_e(2) = real(0.345755244189623d0,rp)  
-   bij_e(3) = real(0.255313947545689d0,rp) 
+         bij_e(1) = real(0.398930808264688d0,rp) 
+         bij_e(2) = real(0.345755244189623d0,rp)  
+         bij_e(3) = real(0.255313947545689d0,rp) 
 
-   aij_i(1,1) = 0.0_rp
-   aij_i(1,2) = 0.0_rp
-   aij_i(1,3) = 0.0_rp
-   aij_i(2,1) = real(0.353842865099275d0,rp)
-   aij_i(2,2) = real(0.353842865099275d0,rp)
-   aij_i(2,3) = 0.0_rp
-   aij_i(3,1) = real(0.398930808264689d0,rp)
-   aij_i(3,2) = real(0.345755244189622d0,rp)
-   aij_i(3,3) = real(0.255313947545689d0,rp)
+         aij_i(1,1) = 0.0_rp
+         aij_i(1,2) = 0.0_rp
+         aij_i(1,3) = 0.0_rp
+         aij_i(2,1) = real(0.353842865099275d0,rp)
+         aij_i(2,2) = real(0.353842865099275d0,rp)
+         aij_i(2,3) = 0.0_rp
+         aij_i(3,1) = real(0.398930808264689d0,rp)
+         aij_i(3,2) = real(0.345755244189622d0,rp)
+         aij_i(3,3) = real(0.255313947545689d0,rp)
 
-   aij_e(1,1) = 0.0_rp
-   aij_e(1,2) = 0.0_rp
-   aij_e(1,3) = 0.0_rp
-   aij_e(2,1) = real(0.711664700366941d0,rp)
-   aij_e(2,2) = 0.0_rp
-   aij_e(2,3) = 0.0_rp
-   aij_e(3,1) = real(0.077338168947683d0,rp)
-   aij_e(3,2) = real(0.917273367886007d0,rp)
-   aij_e(3,3) = 0.0_rp
-#endif
+         aij_e(1,1) = 0.0_rp
+         aij_e(1,2) = 0.0_rp
+         aij_e(1,3) = 0.0_rp
+         aij_e(2,1) = real(0.711664700366941d0,rp)
+         aij_e(2,2) = 0.0_rp
+         aij_e(2,3) = 0.0_rp
+         aij_e(3,1) = real(0.077338168947683d0,rp)
+         aij_e(3,2) = real(0.917273367886007d0,rp)
+         aij_e(3,3) = 0.0_rp
+      endif
 
       !$acc enter data copyin(bij_i(:))
       !$acc enter data copyin(bij_e(:))
@@ -245,19 +243,20 @@ module time_integ_imex
             else 
                !$acc parallel loop
                do ipoin = 1,npoin
-                  Rmass_imex(ipoin,1)      =  Rmass_imex(ipoin,numSteps)
-                  Rdiff_mass_imex(ipoin,1) =  Rdiff_mass_imex(ipoin,numSteps)
-                  Rener_imex(ipoin,1)      =  Rener_imex(ipoin,numSteps)
-                  Rdiff_ener_imex(ipoin,1) =  Rdiff_ener_imex(ipoin,numSteps)                  
+                  Rmass_imex(ipoin,1)      =  Rmass_imex(ipoin,flag_imex_stages)
+                  Rdiff_mass_imex(ipoin,1) =  Rdiff_mass_imex(ipoin,flag_imex_stages)
+                  Rener_imex(ipoin,1)      =  Rener_imex(ipoin,flag_imex_stages)
+                  Rdiff_ener_imex(ipoin,1) =  Rdiff_ener_imex(ipoin,flag_imex_stages)                  
                   !$acc loop seq   
                   do idime = 1,ndime
-                     Rmom_imex(ipoin,idime,1)      =  Rmom_imex(ipoin,idime,numSteps)
-                     Rdiff_mom_imex(ipoin,idime,1) =  Rdiff_mom_imex(ipoin,idime,numSteps)  
+                     Rmom_imex(ipoin,idime,1)      =  Rmom_imex(ipoin,idime,flag_imex_stages)
+                     Rdiff_mom_imex(ipoin,idime,1) =  Rdiff_mom_imex(ipoin,idime,flag_imex_stages)  
                   end do
                end do
                !$acc end parallel loop
             end if
 
+            call comp_tau(nelem,npoin,connec,csound,u(:,:,2),helem,dt,tau_stab_imex)
             call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),u(:,:,1),&
                               Tem(:,1),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex)
             call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),rho(:,1),u(:,:,1),&
@@ -280,7 +279,7 @@ module time_integ_imex
                end if
             end if
 
-            do istep = 2,numSteps 
+            do istep = 2,flag_imex_stages 
 
                if(present(source_term) .or.flag_bouyancy_effect) then
                   !$acc kernels
@@ -373,7 +372,7 @@ module time_integ_imex
                end do
                !$acc end parallel loop
                
-               call comp_tau(nelem,npoin,connec,csound,u(:,:,2),helem,dt,tau_stab_imex)
+               !call comp_tau(nelem,npoin,connec,csound,u(:,:,2),helem,dt,tau_stab_imex)
 
                if(flag_total_enthalpy .eqv. .true.) then
                   call full_convec_ijk_H(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),q(:,:,2),rho(:,2),pr(:,2),&

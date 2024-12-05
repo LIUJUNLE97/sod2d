@@ -1,4 +1,4 @@
-module BluffBodySolver_mod
+module BluffBody3DSolverDim_mod
    use mod_arrays
    use mod_nvtx
 #ifndef NOACC
@@ -23,33 +23,60 @@ module BluffBodySolver_mod
    use mod_mpi
    use mod_mpi_mesh
    use mod_hdf5
-   use CFDSolverPeriodicWithBoundaries_mod
+   use CFDSolver3DWithBoundaries_mod
    implicit none
    private
 
-   type, public, extends(CFDSolverPeriodicWithBoundaries) :: BluffBodySolver
+   type, public, extends(CFDSolver3DWithBoundaries) :: BluffBody3DSolverDim
 
-      real(rp) , public  :: vo, M, delta, rho0, Re, to, po, aoa
+      real(rp) , public  :: vo, co, M, rho0, to, po, aoa_alpha, aoa_beta, engine_intake_ux, engine_intake_uy, engine_intake_uz
+      logical , public   :: engine_intake
+
 
    contains
-      procedure, public :: fillBCTypes           =>BluffBodySolver_fill_BC_Types
-      procedure, public :: initializeParameters  => BluffBodySolver_initializeParameters
-      procedure, public :: evalInitialConditions => BluffBodySolver_evalInitialConditions
-      procedure, public :: initialBuffer => BluffBodySolver_initialBuffer
-   end type BluffBodySolver
+      procedure, public :: fillBCTypes           =>BluffBody3DSolverDim_fill_BC_Types
+      procedure, public :: initializeParameters  => BluffBody3DSolverDim_initializeParameters
+      procedure, public :: evalInitialConditions => BluffBody3DSolverDim_evalInitialConditions
+      procedure, public :: initialBuffer => BluffBody3DSolverDim_initialBuffer
+   end type BluffBody3DSolverDim
 contains
 
-   subroutine BluffBodySolver_fill_BC_Types(this)
-      class(BluffBodySolver), intent(inout) :: this
+   subroutine BluffBody3DSolverDim_fill_BC_Types(this)
+      class(BluffBody3DSolverDim), intent(inout) :: this
 
       call this%readJSONBCTypes()
 
-   end subroutine BluffBodySolver_fill_BC_Types
+   end subroutine BluffBody3DSolverDim_fill_BC_Types
 
-   subroutine BluffBodySolver_initializeParameters(this)
+   subroutine BluffBody3DSolverDim_initialBuffer(this)
+      class(BluffBody3DSolverDim), intent(inout) :: this
+      integer(4) :: iNodeL, bcode
+
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         u_buffer(iNodeL,1) = this%vo*cos(this%aoa_alpha*v_pi/180.0_rp)*cos(this%aoa_beta*v_pi/180.0_rp)
+         u_buffer(iNodeL,2) = this%vo*sin(this%aoa_beta*v_pi/180.0_rp) 
+         u_buffer(iNodeL,3) = this%vo*sin(this%aoa_alpha*v_pi/180.0_rp)    
+
+         if(this%engine_intake) then
+            if(bouCodesNodesPar(iNodeL) .lt. max_num_bou_codes) then
+               bcode = bouCodesNodesPar(iNodeL)
+               if ((bcode == bc_type_internal_intake)) then ! I am taking advantage that the supersonic one impose the values, so is good for the engine intake
+                  u_buffer(iNodeL,1) = this%engine_intake_ux
+                  u_buffer(iNodeL,2) = this%engine_intake_uy
+                  u_buffer(iNodeL,3) = this%engine_intake_uz
+               end if
+            end if
+         end if
+      end do
+      !$acc end parallel loop
+
+   end subroutine BluffBody3DSolverDim_initialBuffer
+
+   subroutine BluffBody3DSolverDim_initializeParameters(this)
       use json_module
       implicit none
-      class(BluffBodySolver), intent(inout) :: this
+      class(BluffBody3DSolverDim), intent(inout) :: this
       real(rp) :: mul, mur
       logical :: found, found_aux = .false.
       type(json_file) :: json
@@ -62,7 +89,7 @@ contains
 
       call json%get("mesh_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
       write(this%mesh_h5_file_path,*) value
-      call json%get("mesh_h5_file_name",value, found,"cylin"); call this%checkFound(found,found_aux)
+      call json%get("mesh_h5_file_name",value, found,"cetaceo"); call this%checkFound(found,found_aux)
       write(this%mesh_h5_file_name,*) value
 
       call json%get("results_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
@@ -91,55 +118,42 @@ contains
       call json%get("saveAvgFile" ,this%saveAvgFile, found, .true.); call this%checkFound(found,found_aux)
       call json%get("loadAvgFile" ,this%loadAvgFile, found, .false.); call this%checkFound(found,found_aux)
 
-      call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.true.); call this%checkFound(found,found_aux)
 
       call json%get("doTimerAnalysis",this%doTimerAnalysis, found,.false.)
+      !----------------------------------------------
 
       ! numerical params
+
       call json%get("flag_les",flag_les, found,1); call this%checkFound(found,found_aux)
       call json%get("flag_implicit",flag_implicit, found,0); call this%checkFound(found,found_aux)
       call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
       call json%get("flag_imex_stages",flag_imex_stages, found,4); call this%checkFound(found,found_aux)
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
       call json%get("flag_high_mach",flag_high_mach, found,.true.); call this%checkFound(found,found_aux)
-
+      
       call json%get("flag_les_ilsa",flag_les_ilsa, found,0); call this%checkFound(found,found_aux)
       call json%get("stau",stau, found,0.022_rp); call this%checkFound(found,found_aux)
       call json%get("T_ilsa",T_ilsa, found,1.0_rp); call this%checkFound(found,found_aux)
 
+      call json%get("period_walave",period_walave, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("flag_walave",flag_walave, found,.true.); call this%checkFound(found,found_aux)
 
       call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
       call json%get("cfl_diff",this%cfl_diff, found,0.95_rp); call this%checkFound(found,found_aux)
 
       call json%get("Cp",this%Cp, found,1004.0_rp); call this%checkFound(found,found_aux)
       call json%get("Prt",this%Prt, found,0.71_rp); call this%checkFound(found,found_aux)
-      call json%get("v0",this%vo, found,1.0_rp); call this%checkFound(found,found_aux)
-      call json%get("M",this%M, found,1.0_rp); call this%checkFound(found,found_aux)
-      call json%get("delta",this%delta, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("csound",this%co, found,343.2_rp); call this%checkFound(found,found_aux)
+      call json%get("M",this%M, found,0.2_rp); call this%checkFound(found,found_aux)
       call json%get("rho0",this%rho0, found,1.0_rp); call this%checkFound(found,found_aux)
-      call json%get("Re",this%Re, found,10000.0_rp); call this%checkFound(found,found_aux)
       call json%get("gamma_gas",this%gamma_gas, found,1.4_rp); call this%checkFound(found,found_aux)
-      call json%get("aoa",this%aoa, found,0.0_rp); call this%checkFound(found,found_aux)
+      call json%get("aoa_alpha",this%aoa_alpha, found,11.0_rp); call this%checkFound(found,found_aux)
+      call json%get("aoa_beta",this%aoa_beta, found,0.0_rp); call this%checkFound(found,found_aux)
 
       call json%get("flag_rk_ls",flag_rk_ls, found,.true.); 
       call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
       call json%get("c_sgs",c_sgs, found,0.025_rp); 
-
-      ! fixed by the type of base class parameters
-      mul    = (this%rho0*this%delta*this%vo)/this%Re
-      this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
-      this%to = this%vo*this%vo/(this%gamma_gas*this%Rgas*this%M*this%M)
-      this%po = this%rho0*this%Rgas*this%to
-      mur = 0.000001458_rp*(this%to**1.50_rp)/(this%to+110.40_rp)
-      flag_mu_factor = mul/mur
-
-      nscbc_u_inf = this%vo
-      nscbc_p_inf = this%po
-      nscbc_rho_inf = this%rho0
-      nscbc_gamma_inf = this%gamma_gas
-      nscbc_c_inf = sqrt(this%gamma_gas*this%po/this%rho0)
-      nscbc_Rgas_inf = this%Rgas
-
       !Witness points parameters
       call json%get("have_witness",this%have_witness, found,.false.)
       if(this%have_witness .eqv. .true.) then
@@ -156,27 +170,56 @@ contains
          call json%get("continue_witness",this%continue_witness, found,.false.); call this%checkFound(found,found_aux)
       end if  
 
+      !Witness points parameters
+      call json%get("engine_intake",this%engine_intake, found,.false.)
+      if(this%engine_intake .eqv. .true.) then         
+         call json%get("engine_intake_ux",this%engine_intake_ux, found,1.0_rp); call this%checkFound(found,found_aux)
+         call json%get("engine_intake_uy",this%engine_intake_uy, found,0.0_rp); call this%checkFound(found,found_aux)
+         call json%get("engine_intake_uz",this%engine_intake_uz, found,0.0_rp); call this%checkFound(found,found_aux)
+      end if  
+      
+      ! fixed by the type of base class parameters
+      this%vo = this%co*this%M
+      this%Rgas = this%Cp*(this%gamma_gas-1.0_rp)/this%gamma_gas
+      this%to = this%vo*this%vo/(this%gamma_gas*this%Rgas*this%M*this%M)
+      this%po = this%rho0*this%Rgas*this%to
+      flag_mu_factor = 1.0_rp
+
+      nscbc_u_inf = this%vo
+      nscbc_p_inf = this%po
+      nscbc_rho_inf = this%rho0
+      nscbc_gamma_inf = this%gamma_gas
+      nscbc_c_inf = this%co
+      nscbc_Rgas_inf = this%Rgas
+
       call this%readJSONBuffer()
 
       call json%destroy()
+   end subroutine BluffBody3DSolverDim_initializeParameters
 
-      if(found_aux .and.mpi_rank .eq. 0) write(111,*) 'WARNING! JSON file missing a parameter, overwrtting with the default value'
-   end subroutine BluffBodySolver_initializeParameters
-
-   subroutine BluffBodySolver_evalInitialConditions(this)
-      class(BluffBodySolver), intent(inout) :: this
-      integer(rp) :: matGidSrlOrdered(numNodesRankPar,2)
+   subroutine BluffBody3DSolverDim_evalInitialConditions(this)
+      class(BluffBody3DSolverDim), intent(inout) :: this
+      integer(8) :: matGidSrlOrdered(numNodesRankPar,2)
       integer(4) :: iNodeL
       logical :: readFiles
+      character(512) :: initialField_filePath
 
-      call nvtxStartRange("BluffBodySolver Init")
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
-         u(iNodeL,1,2) = this%vo*cos(this%aoa*v_pi/180.0_rp)
-         u(iNodeL,2,2) = this%vo*sin(this%aoa*v_pi/180.0_rp)
-         u(iNodeL,3,2) = 0.0_rp
-      end do
-      !$acc end parallel loop
+      call nvtxStartRange("BluffBody3DDim Init")
+      readFiles = .false.
+
+      if(readFiles) then
+         call order_matrix_globalIdSrl(numNodesRankPar,globalIdSrl,matGidSrlOrdered)
+         write(initialField_filePath,*) ""
+         call read_veloc_from_file_Par(numElemsRankPar,numNodesRankPar,totalNumNodesSrl,initialField_filePath,u(:,:,2),connecParOrig,Ngp_l,matGidSrlOrdered)
+      else
+         !$acc parallel loop
+         do iNodeL = 1,numNodesRankPar
+            u(iNodeL,1,2) = this%vo*cos(this%aoa_alpha*v_pi/180.0_rp)*cos(this%aoa_beta*v_pi/180.0_rp)
+            u(iNodeL,2,2) = this%vo*sin(this%aoa_beta*v_pi/180.0_rp) 
+            u(iNodeL,3,2) = this%vo*sin(this%aoa_alpha*v_pi/180.0_rp)    
+         end do
+         !$acc end parallel loop
+      end if
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
@@ -188,12 +231,17 @@ contains
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
          eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
-         machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
-
+         
          q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
          rho(iNodeL,3) = rho(iNodeL,2)
          E(iNodeL,3) =  E(iNodeL,2)
          eta(iNodeL,3) = eta(iNodeL,2) 
+      end do
+      !$acc end parallel loop
+
+      !$acc parallel loop
+      do iNodeL = 1,numNodesRankPar
+         machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
       end do
       !$acc end parallel loop
 
@@ -209,21 +257,6 @@ contains
       !$acc end kernels
       call nvtxEndRange
 
-   end subroutine BluffBodySolver_evalInitialConditions
+   end subroutine BluffBody3DSolverDim_evalInitialConditions
 
-
-   subroutine BluffBodySolver_initialBuffer(this)
-      class(BluffBodySolver), intent(inout) :: this
-      integer(4) :: iNodeL
-
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
-            u_buffer(iNodeL,1) = this%vo*cos(this%aoa*v_pi/180.0_rp)
-            u_buffer(iNodeL,2) = this%vo*sin(this%aoa*v_pi/180.0_rp)
-            u_buffer(iNodeL,3) = 0.0_rp  
-      end do
-      !$acc end parallel loop
-
-   end subroutine BluffBodySolver_initialBuffer
-
-end module BluffBodySolver_mod
+end module BluffBody3DSolverDim_mod

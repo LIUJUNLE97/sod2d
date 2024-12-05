@@ -160,26 +160,7 @@ module time_integ_incomp
                   call mpi_halo_atomic_update_real_arrays(ndime,Rmom(:,:,1))
                   call nvtxEndRange
                end if               
-#if 0               
-               !$acc parallel loop
-               do ipoin = 1,npoin_w
-                  ipoin_w = lpoin_w(ipoin)
-                  !$acc loop seq
-                  do idime = 1,ndime
-                     f_eta(ipoin_w,idime) = u(ipoin_w,idime,1)*eta(ipoin_w,1)
-                  end do
-               end do
-               !$acc end parallel loop
 
-               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:,1))
-
-               if(mpi_size.ge.2) then
-                  call mpi_halo_atomic_update_real(Reta(:,1))
-               end if
-
-               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,1))
-#endif
                gamma0 = 1.0_rp
                beta(1) = 1.0_rp
                beta(2) = 0.0_rp
@@ -301,8 +282,7 @@ module time_integ_incomp
                ipoin_w = lpoin_w(ipoin)
                !$acc loop seq   
                do idime = 1,ndime
-                  u(ipoin_w,idime,2) = -(beta(1)*Rmom(ipoin_w,idime,2)+beta(2)*Rmom(ipoin_w,idime,1)+beta(3)*Rmom(ipoin_w,idime,3)) &
-                                       - Rsource(ipoin_w,idime)
+                  u(ipoin_w,idime,2) = -(beta(1)*Rmom(ipoin_w,idime,2)+beta(2)*Rmom(ipoin_w,idime,1)+beta(3)*Rmom(ipoin_w,idime,3))
                   Rmom(ipoin_w,idime,3) = Rmom(ipoin_w,idime,1)
                   Rmom(ipoin_w,idime,1) = Rmom(ipoin_w,idime,2)
               end do
@@ -325,27 +305,29 @@ module time_integ_incomp
                if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet_incomp(u(:,:,2))
                call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer) 
             end if
+            if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
+
 
             call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),pr(:,2))
             !$acc kernels
             pr(:,2) = -gamma0*pr(:,2)/dt
             !$acc end kernels
 
-            !if (noBoundaries .eqv. .false.) then
-            !   !$acc parallel loop 
-            !   do ipoin = 1,npoin_w
-            !      ipoin_w = lpoin_w(ipoin)
-            !      !$acc loop seq   
-            !      do idime = 1,ndime
-            !         aux_q(ipoin_w,idime) = -mu_fluid(ipoin_w)*(beta(1)*aux_omega(ipoin_w,idime,2)+beta(2)*aux_omega(ipoin_w,idime,1)+beta(3)*aux_omega(ipoin_w,idime,3)) &
-            !                              -(beta(1)*aux_temp(ipoin_w,idime,2)+beta(2)*aux_temp(ipoin_w,idime,1)+beta(3)*aux_temp(ipoin_w,idime,3)) &
-            !                              -(beta(1)*Rmom(ipoin_w,idime,2)/Ml(ipoin_w)+beta(2)*Rmom(ipoin_w,idime,1)/Ml(ipoin_w)+beta(3)*Rmom(ipoin_w,idime,3))/Ml(ipoin_w) &
-            !                              - Rsource(ipoin_w,idime)/Ml(ipoin_w)
-            !      end do
-            !   end do      
-            !   call bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
-            !                                 bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,aux_q,pr(:,2))
-            !end if
+            if (noBoundaries .eqv. .false.) then
+               !$acc parallel loop 
+               do ipoin = 1,npoin_w
+                  ipoin_w = lpoin_w(ipoin)
+                  !$acc loop seq   
+                  do idime = 1,ndime
+                     aux_q(ipoin_w,idime) = -mu_fluid(ipoin_w)*(beta(1)*aux_omega(ipoin_w,idime,2)+beta(2)*aux_omega(ipoin_w,idime,1)+beta(3)*aux_omega(ipoin_w,idime,3)) &
+            !   !                            !-(beta(1)*aux_temp(ipoin_w,idime,2)+beta(2)*aux_temp(ipoin_w,idime,1)+beta(3)*aux_temp(ipoin_w,idime,3)) &
+            !   !                            !-(beta(1)*Rmom(ipoin_w,idime,2)/Ml(ipoin_w)+beta(2)*Rmom(ipoin_w,idime,1)/Ml(ipoin_w)+beta(3)*Rmom(ipoin_w,idime,3))/Ml(ipoin_w) &
+                                          -   source_term(ipoin_w,idime)
+                   end do
+                end do      
+                call bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
+                                              bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,aux_q,pr(:,2))
+             end if
             if (noBoundaries .eqv. .false.) then
                call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,1),p_buffer)              
             end if
@@ -364,7 +346,7 @@ module time_integ_incomp
                !$acc loop seq
                do idime = 1,ndime
                   u(ipoin_w,idime,2) = (u(ipoin_w,idime,2)-dt*gradP(ipoin_w,idime)/gamma0)*Ml(ipoin_w) & 
-                                     -dt*Rwmles(ipoin_w,idime)/gamma0-dt*Rflux(ipoin_w,idime)/gamma0 
+                                     -dt*Rwmles(ipoin_w,idime)/gamma0-dt*Rflux(ipoin_w,idime)/gamma0 -dt*Rsource(ipoin_w,idime)/gamma0
                end do
             end do
             !$acc end parallel loop
@@ -373,24 +355,23 @@ module time_integ_incomp
                if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet_incomp(u(:,:,2))
                call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer) 
             end if
+            if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
 
             call conjGrad_veloc_incomp(igtime,1.0_rp/gamma0,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
                                        gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,mu_fluid,mu_e,mu_sgs,u(:,:,1),u(:,:,2),&
                                        bou_codes_nodes,normalsAtNodes,u_buffer)
-
-            if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
 
             if (noBoundaries .eqv. .false.) then
 
                if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet_incomp(u(:,:,2))
 
                call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer)
-               !!$acc kernels
-               !aux_omega(:,:,3) = aux_omega(:,:,1)
-               !aux_omega(:,:,1) = aux_omega(:,:,2)
-               !!$acc end kernels
-               !call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),aux_q,.true.)
-               !call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_q,aux_omega(:,:,2),.true.)
+               !$acc kernels
+               aux_omega(:,:,3) = aux_omega(:,:,1)
+               aux_omega(:,:,1) = aux_omega(:,:,2)
+               !$acc end kernels
+               call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),aux_q,.true.)
+               call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_q,aux_omega(:,:,2),.true.)
                !!$acc kernels
                !aux_temp(:,:,3) = aux_temp(:,:,1)
                !aux_temp(:,:,1) = aux_temp(:,:,2)
@@ -408,44 +389,6 @@ module time_integ_incomp
             !
             ! Compute subgrid viscosity if active
             !
-#if 0
-            !$acc parallel loop
-            do ipoin = 1,npoin_w
-               ipoin_w = lpoin_w(ipoin)
-               eta(ipoin_w,2) = 0.5*(u(ipoin_w,1,2)**2 + u(ipoin_w,2,2)**2 + u(ipoin_w,3,2)**2)
-               !$acc loop seq
-               do idime = 1,ndime
-                  f_eta(ipoin_w,idime) = u(ipoin_w,idime,1)*eta(ipoin_w,1)
-               end do
-            end do
-            !$acc end parallel loop
-
-            call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:,2))
-
-            if(mpi_size.ge.2) then
-               call mpi_halo_atomic_update_real(Reta(:,2))
-            end if
-
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,2))
-
-            !$acc parallel loop
-            do ipoin = 1,npoin_w
-               ipoin_w = lpoin_w(ipoin)
-               auxReta(ipoin_w) =  (beta(1)*Reta(ipoin_w,2)+beta(2)*Reta(ipoin_w,1)+beta(3)*Reta(ipoin_w,3)) + &
-                                   (gamma0*eta(lpoin_w(ipoin),2)-alpha(1)*eta(lpoin_w(ipoin),1)-alpha(2)*eta(lpoin_w(ipoin),3)-alpha(3)*eta(lpoin_w(ipoin),4))/dt
-               Reta(ipoin_w,3) = Reta(ipoin_w,1)
-               Reta(ipoin_w,1) = Reta(ipoin_w,2)
-            end do
-            !$acc end parallel loop
-
-            if (noBoundaries .eqv. .false.) then
-               call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,auxReta)
-            end if
-
-            call smart_visc_spectral_incomp(nelem,npoin,npoin_w,connec,lpoin_w,auxReta,Ngp,coord,dNgp,gpvol,wgp, &
-                                            rho(:,2),u(:,:,2),eta(:,2),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
-#endif
 
             if(flag_les == 1) then
                if(flag_les_ilsa == 1) then

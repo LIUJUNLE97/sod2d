@@ -58,7 +58,6 @@ module elem_stab_species
                     !$acc loop seq
                     do idime=1,ndime
                         gradykl(inode,idime) = gradYk(connec(ielem,inode),idime)
-                        gradYl(inode,idime) = 0.0_rp
                     end do
                 end do
                 

@@ -108,7 +108,7 @@ module mod_solver_imex
             end do
             !$acc end parallel loop
             
-            call comp_tau(nelem,npoin,connec,csound,aux_u_vars,helem_k,dt,tau_stab)
+            !call comp_tau(nelem,npoin,connec,csound,aux_u_vars,helem_k,dt,tau_stab)
 
             ! Real solver form here
 
