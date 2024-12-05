@@ -3948,7 +3948,7 @@ contains
 
    end subroutine save_real_rp_in_rp_avg_dataset_hdf5_file
 
-   subroutine read_real_rp_in_dataset_hdf5_file(file_id,dsetname,real2read)
+   subroutine read_real_rp_vtk_in_rp_dataset_hdf5_file(file_id,dsetname,real2read)
       implicit none
       integer(4),parameter :: ds_rank = 1, ms_rank = 1 !it is forced
       integer(hid_t),intent(in) :: file_id
@@ -3983,7 +3983,7 @@ contains
 
       deallocate(aux_data_array_rp_vtk)
 
-   end subroutine read_real_rp_in_dataset_hdf5_file
+   end subroutine read_real_rp_vtk_in_rp_dataset_hdf5_file
 
 !----------------------------------------------------------------------------------------------------------------------------------
 
@@ -4139,7 +4139,7 @@ contains
 
       ! ----  read time  --------------------------------------------------------------------------
       dsetname = 'time'
-      call read_real_rp_in_dataset_hdf5_file(file_id,dsetname,time)
+      call read_real_rp_vtk_in_rp_dataset_hdf5_file(file_id,dsetname,time)
 
       ! ----  read istep --------------------------------------------------------------------------
       dsetname = 'istep'
@@ -5310,10 +5310,10 @@ contains
       !-----------------------------------------------------------------------------------------------
 
       dsetname = 'elapsed_avgTime'
-      call read_real_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,elapsed_avgTime)
+      call read_real_rp_vtk_in_rp_dataset_hdf5_file(hdf5_fileId,dsetname,elapsed_avgTime)
 
       dsetname = 'initial_avgTime'
-      call read_real_rp_in_dataset_hdf5_file(hdf5_fileId,dsetname,initial_avgTime)
+      call read_real_rp_vtk_in_rp_dataset_hdf5_file(hdf5_fileId,dsetname,initial_avgTime)
 
       !-----------------------------------------------------------------------------------------------
 

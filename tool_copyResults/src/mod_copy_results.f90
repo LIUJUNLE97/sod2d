@@ -154,28 +154,28 @@ contains
          if(type_resultsFile .eq. 1) then
             ! INST RESULTS
             dsetname = 'time'
-            call read_real_rp_in_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,time)
-            call save_real_rp_in_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,time)
+            call read_real_rp_vtk_in_rp_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,time)
+            call save_real_rp_in_rp_vtk_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,time)
          else if(type_resultsFile .eq. 2) then
             dsetname = 'elapsed_avgTime'
-            call read_real_rp_in_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,time)
-            call save_real_rp_in_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,time)
+            call read_real_rp_vtk_in_rp_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,time)
+            call save_real_rp_in_rp_vtk_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,time)
 
             dsetname = 'initial_avgTime'
-            call read_real_rp_in_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,time)
-            call save_real_rp_in_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,time)
+            call read_real_rp_vtk_in_rp_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,time)
+            call save_real_rp_in_rp_vtk_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,time)
          else if(type_resultsFile .eq. 3) then
             dsetname = 'time'
-            call read_real_rp_in_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,time)
-            call save_real_rp_in_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,time)
+            call read_real_rp_vtk_in_rp_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,time)
+            call save_real_rp_in_rp_vtk_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,time)
 
             dsetname = 'istep'
             call read_int4_in_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,load_step)
             call save_int4_in_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,load_step)
          else if(type_resultsFile .eq. 4) then
             dsetname = 'time'
-            call read_real_rp_in_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,time)
-            call save_real_rp_in_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,time)
+            call read_real_rp_vtk_in_rp_dataset_hdf5_file(sourceRes_hdf5_file_id,dsetname,time)
+            call save_real_rp_in_rp_vtk_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,time)
 
             dsetname = 'istep'
             call save_int4_in_dataset_hdf5_file(targetRes_hdf5_file_id,dsetname,res_ii)
@@ -245,8 +245,8 @@ contains
       integer(4),allocatable :: numElemsVTKTrgtRank(:),sizeConnecVTKTrgtRank(:)
       type(jagged_vector_int4) :: listNodesTrgtRankMpiId_jv,connecVTKTrgtRank_jv
       type(jagged_matrix_int4) :: connecTrgtRankMpiId_jm,connecParOrigTrgtRank_jm
-      type(jagged_matrix_rp) :: coordTrgtRank_jm,coordVTKTrgtRank_jm
-      type(jagged_vector_rp) :: quality_jv
+      type(jagged_matrix_real8) :: coordTrgtRank_jm,coordVTKTrgtRank_jm
+      type(jagged_vector_real8) :: quality_jv
 
       integer(8),dimension(0:target_Nprocs-1) :: iNodeStartPar_i8
       integer(4) :: connecChunkSize = 10000000
@@ -341,7 +341,7 @@ contains
                listNodesTrgtRankMpiId_jv%vector(iTrgtRank)%elems,connecTrgtRankMpiId_jm%matrix(iTrgtRank)%elems,&
                iNodeStartPar_i8(iTrgtRank),mapNodeIdTrgtToMpi_jv%vector(iTrgtRank)%elems,&
                connecVTKTrgtRank_jv%vector(iTrgtRank)%elems,connecParOrigTrgtRank_jm%matrix(iTrgtRank)%elems,&
-               coordVTKTrgtRank_jm%matrix(iTrgtRank)%elems,coordTrgtRank_jm%matrix(iTrgtRank)%elems)
+               coordTrgtRank_jm%matrix(iTrgtRank)%elems,coordVTKTrgtRank_jm%matrix(iTrgtRank)%elems)
 
       end do
 
@@ -483,7 +483,7 @@ contains
       integer(4),intent(in) :: mnnode,trgtRank,trgtRankElemStart,trgtRankElemEnd,numElemsTrgtRank
       integer(4),intent(out) :: numNodesTrgtRank
       integer(4),allocatable,intent(inout) :: connecTrgtRank(:,:),listNodesTrgtRank(:)
-      real(rp),allocatable,intent(inout) :: coordNodesTrgtRank(:,:)
+      real(8),allocatable,intent(inout) :: coordNodesTrgtRank(:,:)
 
       integer(4) :: iElemMpiRank,iElemTrgtRank,elemOffset,iNodeMpi,iAux,jAux,nodeCnt
       integer(4),allocatable :: rawNodeListTrgtRank(:)
@@ -542,7 +542,7 @@ contains
             nodeCnt=nodeCnt+1
             iNodeMpi = rawNodeListTrgtRank(iAux)
             listNodesTrgtRank(nodeCnt)    = iNodeMpi
-            coordNodesTrgtRank(nodeCnt,:) = coordPar(iNodeMpi,:)
+            coordNodesTrgtRank(nodeCnt,:) = real(coordPar(iNodeMpi,:),8)
             jAux = rawNodeListTrgtRank(iAux)
          end if
       end do
@@ -555,19 +555,18 @@ contains
 
    subroutine reorder_nodes_in_trgtRank(mporder,mnnode,trgtRank,target_Nprocs,&
                numElemsTrgtRank,numNodesTrgtRank,sizeConnecVTKTrgtRank,linOutput,listNodesTrgtRankMpi,connecTrgtRankMpi,iNodeStartPar_i8,&
-               mapNodeIdNewToOld,connecVTKTrgtRank,connecParOrigTrgtRank,coordVTK,coord)
+               mapNodeIdNewToOld,connecVTKTrgtRank,connecParOrigTrgtRank,coord,coordVTK)
       implicit none
-      integer(4),intent(in) :: mporder,mnnode
-      integer(4),intent(in) :: trgtRank,target_Nprocs,numElemsTrgtRank,numNodesTrgtRank,sizeConnecVTKTrgtRank
-      logical,intent(in)    :: linOutput
+      integer(4),intent(in) :: mporder,mnnode,trgtRank,target_Nprocs,numElemsTrgtRank,numNodesTrgtRank,sizeConnecVTKTrgtRank
+      logical,intent(in) :: linOutput
       integer(4),intent(in) :: listNodesTrgtRankMpi(numNodesTrgtRank),connecTrgtRankMpi(numElemsTrgtRank,mnnode)
       integer(8),dimension(0:target_Nprocs-1),intent(in) :: iNodeStartPar_i8
 
       integer(4),intent(out) :: mapNodeIdNewToOld(numNodesTrgtRank)
       integer(4),intent(out) :: connecVTKTrgtRank(sizeConnecVTKTrgtRank),connecParOrigTrgtRank(numElemsTrgtRank,mnnode)      
-      real(rp),intent(out) :: coordVTK(numNodesTrgtRank,ndime),coord(numNodesTrgtRank,ndime)
-      !integer(8),intent(out) :: globalIdSrlTrgtRank_i8(numNodesTrgtRank),globalIdParTrgtRank_i8(numNodesTrgtRank)
-      !integer(8),intent(out),dimension(numNodesTrgtRank,2) :: globalIdSrlOrderedTrgtRank_i8
+      real(8),intent(in) :: coord(numNodesTrgtRank,ndime)
+      real(8),intent(out) :: coordVTK(numNodesTrgtRank,ndime)
+
 
       integer(4) :: isNodeAdded(numNodesTrgtRank),auxVTKorder(mnnode)
       integer(4) :: m,indConn,indexIJK,indexGMSH,indexNew,nodeIndexCnt,indPosListNodes
