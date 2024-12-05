@@ -313,7 +313,7 @@ module time_integ_imex
                end do
                !$acc end parallel loop
                if(mpi_size.ge.2) then
-                  call mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv(rho(:,2),E(:,2),q(:,:,2))
+                  call mpi_halo_atomic_update_real_mass_ener_momentum(rho(:,2),E(:,2),q(:,:,2))
                end if
                
                !$acc parallel loop

@@ -18,9 +18,9 @@ module quadrature_rules
 
 			implicit none
 			integer(4),intent(in) :: mporder,mnpbou,atoIJ(mnpbou)
-			real(rp),intent(out)  :: xgp(mnpbou,ndime-1),wgp(mnpbou)
+			real(8),intent(out)  :: xgp(mnpbou,ndime-1),wgp(mnpbou)
 			integer(4)            :: inode,i,j,lorder(mporder+1)
-			real(rp)              :: xi(mporder+1),w1d(mporder+1)
+			real(8)               :: xi(mporder+1),w1d(mporder+1)
 
 			call getGaussLobattoLegendre_weights_and_roots(mporder,w1d,xi)
 
@@ -52,9 +52,9 @@ module quadrature_rules
 
 			implicit none
 			integer(4),intent(in) :: mporder,mngaus,atoIJK(mngaus)
-			real(rp),intent(out)  :: xgp(mngaus,ndime),wgp(mngaus)
+			real(8),intent(out)  :: xgp(mngaus,ndime),wgp(mngaus)
 			integer(4)            :: inode,i,j,k,lorder(mporder+1)
-			real(rp)              :: xi(mporder+1),w1d(mporder+1),w0,w1,w2,w3
+			real(8)               :: xi(mporder+1),w1d(mporder+1)
 
 			call getGaussLobattoLegendre_weights_and_roots(mporder,w1d,xi)
 
@@ -81,9 +81,9 @@ module quadrature_rules
 
 			implicit none
 			integer(4),intent(in) :: mporder,mngaus,atoIJK(mngaus)
-			real(rp),intent(out)  :: xgp(mngaus,ndime)
+			real(8),intent(out)   :: xgp(mngaus,ndime)
 			integer(4)            :: inode,i,j,k,lorder(mporder+1)
-			real(rp)              :: xi_equi(mporder+1)
+			real(8)               :: xi_equi(mporder+1)
 
 			call getEquispaced_roots(mporder,xi_equi)
 

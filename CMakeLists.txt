@@ -9,25 +9,27 @@ set(TEST_VERSION "${TEST_VERSION_MAJOR}.${TEST_VERSION_MINOR}.${TEST_VERSION_PAT
 
 # Options
 option(UNIT_TESTING "Enable unit tests" OFF)
-option(USE_MPI "Compile using MPI" ON)
-option(USE_HDF5 "Compile using HDF5" ON)
 option(USE_SMARTREDIS "Compile using SmartRedis" OFF)
 
 option(TOOL_MESHPART "Compiles tool MeshPart" OFF)
 option(TOOL_COPYRES  "Compiles tool CopyResults" OFF)
 option(TOOL_COMMPERF "Compiles tool CommPerf" OFF)
 
-option(USE_PREDEFINED_COMPILERS "Use predefined compilers" OFF)
-option(USE_MN4 "Compiling in MareNostrum" OFF)
 option(USE_MN5 "Compiling in MareNostrum5" OFF)
 option(USE_CRAY "Compiling with CrayMpi" OFF)
 option(SHARED_LIBS "Compile using shared libraries" OFF)
 
 option(USE_GPU "Compile using GPU" OFF)
 option(USE_MEM_MANAGED "Compile using Mem managed" OFF)
+option(USE_AUTOCOMPARE "Compile with autocompare option" OFF) #IF AUTOCOMPARE ON -> MEM_MANAGED MUST BE OFF
 option(USE_NCCL "Compile using NCCL" OFF)
 
 option(USE_SENSEI "Compile using SENSEI" OFF)
+
+set(USE_PORDER 4 CACHE STRING "Set the element order")
+set(USE_RP     4 CACHE STRING "Set the real precision")
+set(USE_RP_VTK 4 CACHE STRING "Set the real precision for VTK files")
+set(USE_RP_AVG 8 CACHE STRING "Set the real precision for averages")
 
 option(DEBUG_MODE "Set debug mode" OFF)
 
@@ -48,6 +50,9 @@ endif()
 
 # Set project name, version and languages
 project(sod2d LANGUAGES C CXX Fortran)
+
+# Obtain git hash and user
+include(git)
 
 # Configure MPI module
 include(mpi)
@@ -103,8 +108,6 @@ endif("${isSystemDir}" STREQUAL "-1")
 add_subdirectory(src)
 
 if(TOOL_MESHPART)
-    #include(gempa)
-    #add_subdirectory(external)
     add_subdirectory(tool_meshConversorPar)
 endif()
 
@@ -116,6 +119,8 @@ if(TOOL_COMMPERF)
     add_subdirectory(tool_commsPerformance)
 endif()
 
+add_subdirectory(utils)
+
 #enable folder unitt
 #add_subdirectory(unitt)
 
@@ -124,3 +129,6 @@ if(UNIT_TESTING)
     enable_testing()
     add_subdirectory(tests)
 endif()
+
+# Provide information on who compiled and which git hash
+set_git_version()

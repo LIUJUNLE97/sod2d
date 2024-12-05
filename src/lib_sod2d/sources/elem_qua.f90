@@ -18,10 +18,10 @@ module elem_qua
 		subroutine quad_highorder(mporder,mnpbou,xi,eta,atoIJ,N,dN)
 			implicit none
 			integer(4),intent(in) :: mporder,mnpbou
-			real(rp),intent(in)   :: xi,eta
+			real(8),intent(in)   :: xi,eta
 			integer(4),intent(in) :: atoIJ(mnpbou)
-			real(rp),intent(out)  :: N(mnpbou), dN(2,mnpbou)
-			real(rp)              :: xi_grid(mporder+1)
+			real(8),intent(out)  :: N(mnpbou), dN(2,mnpbou)
+			real(8)              :: xi_grid(mporder+1)
 			call getGaussLobattoLegendre_roots(mporder,xi_grid)
 			call DoubleTensorProduct(mporder,mnpbou,xi_grid,xi,eta,atoIJ,N,dN)
 		end subroutine quad_highorder

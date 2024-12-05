@@ -100,7 +100,7 @@ module mod_solver_incomp
             call full_stab_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x_u,TauPX,TauPY,TauPZ,tau,Ml,qn_u)
             if(mpi_size.ge.2) then
                call nvtxStartRange("CG_u halo")
-               call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,qn_u(:,:))
+               call mpi_halo_atomic_update_real_arrays(ndime,qn_u(:,:))
                call nvtxEndRange
             end if
             !$acc parallel loop
@@ -150,7 +150,7 @@ module mod_solver_incomp
               call eval_tau_veloc(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,Ml,TauPX,TauPY,TauPZ)
               call full_stab_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,TauPX,TauPY,TauPZ,tau,Ml,qn_u)
               if(mpi_size.ge.2) then
-                  call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,qn_u(:,:))
+                  call mpi_halo_atomic_update_real_arrays(ndime,qn_u(:,:))
                end if
                !$acc parallel loop
                do ipoin = 1,npoin_w
