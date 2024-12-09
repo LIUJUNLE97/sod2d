@@ -25,5 +25,5 @@
 .markdownlint.yaml
 
 # Ignore *.hdf files, except in the Tests directory
-!Tests/*.hdf
 *.hdf
+!/Tests/TGV_Compressible/*.hdf
