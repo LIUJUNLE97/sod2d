@@ -48,7 +48,7 @@ build-GNU-Release:
         # Run the test
         - cd ../Tests/TGV_Compressible/CPU/IMEX
         - ls -lt -h
-        - mpirun -np 4 ../../../../build_gnu_release/src/app_sod2d/sod2d TGVCompSolver.json
+        - mpirun -np 4 --allow-run-as-root ../../../../build_gnu_release/src/app_sod2d/sod2d TGVCompSolver.json
     # Build folder is a dependency for the test jobs
     artifacts:
         paths:
