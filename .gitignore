@@ -13,7 +13,6 @@
 *.h5
 *.log
 *.dat
-*.hdf
 *.sh
 *.err
 *.out
@@ -24,3 +23,7 @@
 .flake8
 .isort.cfg
 .markdownlint.yaml
+
+# Ignore *.hdf files, except in the Tests directory
+!Tests/*.hdf
+*.hdf
