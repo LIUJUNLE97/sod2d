@@ -108,7 +108,7 @@ module mod_solver_imex
             end do
             !$acc end parallel loop
             
-            call comp_tau(nelem,npoin,connec,csound,aux_u_vars,helem_k,dt,tau_stab)
+            !call comp_tau(nelem,npoin,connec,csound,aux_u_vars,helem_k,dt,tau_stab)
 
             ! Real solver form here
 
@@ -120,7 +120,7 @@ module mod_solver_imex
             !if(mpi_rank.eq.0) write(111,*) "--|[IMEX] CG before atomic"
 			   if(mpi_size.ge.2) then
                call nvtxStartRange("PCG halo")
-               call mpi_halo_atomic_update_real_arrays_iSendiRcv(nvars,qn_vars(:,:))
+               call mpi_halo_atomic_update_real_arrays(nvars,qn_vars(:,:))
                call nvtxEndRange
             end if
              !$acc parallel loop 
@@ -185,7 +185,7 @@ module mod_solver_imex
               call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),p0_vars(:,1),aux_u_vars,&
                  aux_Tem_vars,mu_fluid,mu_e,mu_sgs,Ml,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.true.,1.0_rp)              
 			      if(mpi_size.ge.2) then
-                  call mpi_halo_atomic_update_real_arrays_iSendiRcv(nvars,qn_vars(:,:))
+                  call mpi_halo_atomic_update_real_arrays(nvars,qn_vars(:,:))
                end if
                
                call nvtxStartRange("PCG qn_vars + PCG alpha")

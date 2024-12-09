@@ -29,7 +29,7 @@ module mod_numerical_params
         integer(4)  :: flag_normalise_entropy_species=1
         real(rp) :: ce_comp = 1.0_rp
         real(rp) :: ce = 0.1_rp
-        real(rp) :: ce_species = 0.1_rp
+        real(rp) :: ce_species = 1.0_rp
         real(rp) :: factor_comp = 1.0_rp   
         real(rp) :: cmax = 0.5_rp 
         real(rp) :: cglob =1.0_rp
@@ -44,6 +44,8 @@ module mod_numerical_params
         real(8)    :: tol=1e-4
         integer(4) :: flag_use_constant_dt = 0
         integer(4) :: implicit_solver = implicit_solver_imex
+        integer(4) :: flag_imex_stages=4  
+
 
         !
         ! Reference conditions
@@ -131,5 +133,13 @@ module mod_numerical_params
         !
         logical :: flag_use_species = .false.
         integer(4) ::  nspecies = 0
+
+        ! global time
+        real(rp) :: global_time = 0.0_rp
+
+        ! Center for momentum calculations
+        real(rp) :: center_mom_x = 0.0_rp
+        real(rp) :: center_mom_y = 0.0_rp
+        real(rp) :: center_mom_z = 0.0_rp
 
 end module mod_numerical_params

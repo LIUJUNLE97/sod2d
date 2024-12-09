@@ -10,6 +10,7 @@ module mod_solver_species
       use mod_solver
       use mod_operators
       use elem_stab_species
+      use mod_bc_routines_species
 
 
       implicit none
@@ -76,12 +77,19 @@ module mod_solver_species
                call mpi_halo_atomic_update_real(qn)
                call nvtxEndRange
             end if
-            
-            auxT1 = 0.0d0
-            !$acc parallel loop reduction(+:auxT1)
+
+            !$acc parallel loop
             do ipoin = 1,npoin_w
               qn(lpoin_w(ipoin)) = Cp*rho(lpoin_w(ipoin))*x(lpoin_w(ipoin))*Ml(lpoin_w(ipoin))+qn(lpoin_w(ipoin))*fact*dt
               r0(lpoin_w(ipoin)) = b(lpoin_w(ipoin))-qn(lpoin_w(ipoin)) ! b-A*x0
+            end do
+            !$acc end parallel loop
+            if (noBoundaries .eqv. .false.) then
+               call temporary_bc_routine_dirichlet_residual_species(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,r0,Yk_buffer)
+            end if
+            auxT1 = 0.0d0
+            !$acc parallel loop reduction(+:auxT1)
+            do ipoin = 1,npoin_w
               z0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))/M(lpoin_w(ipoin))
               p0(lpoin_w(ipoin)) = z0(lpoin_w(ipoin))
               auxT1 = auxT1+real(r0(lpoin_w(ipoin))*r0(lpoin_w(ipoin)),8)
@@ -116,16 +124,24 @@ module mod_solver_species
               auxQ(2) = auxQ2
               call MPI_Allreduce(auxQ,Q1,2,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
               alphaCG = real(Q1(1)/Q1(2),rp)
-              auxT1 = 0.0d0
-              !$acc parallel loop reduction(+:auxT1)
+              
+              !$acc parallel loop 
               do ipoin = 1,npoin_w
                  x(lpoin_w(ipoin))  = x(lpoin_w(ipoin))+real(alphaCG,rp)*p0(lpoin_w(ipoin)) ! x_k = x_k-1 + alpha*s_k-1
                  r0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))-real(alphaCG,rp)*qn(lpoin_w(ipoin)) ! b-A*p0
+              end do
+              !$acc end parallel loop   
+              if (noBoundaries .eqv. .false.) then
+               call temporary_bc_routine_dirichlet_residual_species(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,r0,Yk_buffer)
+              end if
+              auxT1 = 0.0d0
+              !$acc parallel loop reduction(+:auxT1)
+              do ipoin = 1,npoin_w
                  z1(lpoin_w(ipoin)) = z0(lpoin_w(ipoin)) 
                  z0(lpoin_w(ipoin)) = r0(lpoin_w(ipoin))/M(lpoin_w(ipoin)) 
                  auxT1 = auxT1+real(r0(lpoin_w(ipoin))*r0(lpoin_w(ipoin)),8)
               end do
-              !$acc end parallel loop      
+              !$acc end parallel loop     
 
                call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
               !

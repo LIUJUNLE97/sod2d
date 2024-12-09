@@ -19,6 +19,9 @@ include(hdf5)
 # Configure JFORTRAN module
 include(json-fortran)
 
+# Configure CONSTANTS
+include(constants)
+
 # Set a default build type
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)

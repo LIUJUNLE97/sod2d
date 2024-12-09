@@ -24,7 +24,7 @@ module mod_bc_routines
             real(rp),    intent(inout) :: aux_rho(npoin),aux_q(npoin,ndime),aux_u(npoin,ndime),aux_p(npoin),aux_E(npoin)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
             real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
-            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm,y,T_inf,p_inf,nscbc_g,aux_u_mag,aux_u_2_mag
+            real(rp)                   :: q_hll,rho_hll,E_hll,E_inf,norm,y,T_inf,p_inf,nscbc_g,aux_u_mag,aux_u_2_mag,temp
 
             nscbc_g = sqrt(nscbc_g_x**2+nscbc_g_y**2+nscbc_g_z**2)
 
@@ -119,6 +119,20 @@ module mod_bc_routines
 
                      aux_p(inode) = aux_rho(inode)*(nscbc_gamma_inf-1.0_rp)*((aux_E(inode)/aux_rho(inode))- &
                         0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3))))
+                        
+                  else if (bcode == bc_type_internal_intake) then
+
+                     aux_q(inode,1) = u_buffer(inode,1)*nscbc_rho_inf
+                     aux_q(inode,2) = u_buffer(inode,2)*nscbc_rho_inf
+                     aux_q(inode,3) = u_buffer(inode,3)*nscbc_rho_inf
+   
+                     aux_u(inode,1) = u_buffer(inode,1)
+                     aux_u(inode,2) = u_buffer(inode,2)
+                     aux_u(inode,3) = u_buffer(inode,3)
+   
+                     aux_rho(inode) = nscbc_rho_inf
+                     aux_E(inode)   = (nscbc_rho_inf*0.5_rp*nscbc_u_inf**2 + nscbc_p_inf/(nscbc_gamma_inf-1.0_rp))
+
                   else if (bcode == bc_type_far_field_supersonic) then
                      
                         aux_q(inode,1) = u_buffer(inode,1)*nscbc_rho_inf
@@ -276,9 +290,9 @@ module mod_bc_routines
                      !aux_E(inode) = aux_E(inode) + &
                      !aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
                   else if ((bcode == bc_type_slip_wall_model_iso)) then ! slip
-                     norm = (normalsAtNodes(inode,1)*aux_q(inode,1)) + (normalsAtNodes(inode,2)*aux_q(inode,2)) + (normalsAtNodes(inode,3)*aux_q(inode,3))
+                     norm = (normalsAtNodes(inode,1)*aux_q(inode,1)) + (normalsAtNodes(inode,2)*aux_q(inode,2)) + (normalsAtNodes(inode,3)*aux_q(inode,3))       
                      aux_E(inode) = aux_E(inode) - &
-                     aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
+                     aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))      
                      !$acc loop seq
                      do idime = 1,ndime     
                         aux_q(inode,idime) = aux_q(inode,idime) - norm*normalsAtNodes(inode,idime)
@@ -289,8 +303,8 @@ module mod_bc_routines
                      aux_u(inode,2) = aux_q(inode,2)/aux_rho(inode)
                      aux_u(inode,3) = aux_q(inode,3)/aux_rho(inode)
                      
-                     aux_E(inode) = aux_E(inode) + &
-                     aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
+                     aux_E(inode) =  nscbc_p_inf/(nscbc_gamma_inf-1.0_rp) + &
+                                    aux_rho(inode)*0.5_rp*((aux_u(inode,1)*aux_u(inode,1)) + (aux_u(inode,2)*aux_u(inode,2)) +(aux_u(inode,3)*aux_u(inode,3)))
 
                   else if ((bcode == bc_type_slip_atmosphere)) then ! slip
                      ! Compute value for the density

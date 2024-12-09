@@ -335,11 +335,11 @@ module elem_stab
          !$acc end parallel loop
          if(mpi_size.ge.2) then
             call nvtxStartRange("MPI_comms_tI")
-            call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,ProjMX(:,:))
-            call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,ProjMY(:,:))
-            call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,ProjMZ(:,:))
-            call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,ProjMass(:,:))
-            call mpi_halo_atomic_update_real_arrays_iSendiRcv(ndime,ProjEner(:,:))
+            call mpi_halo_atomic_update_real_arrays(ndime,ProjMX(:,:))
+            call mpi_halo_atomic_update_real_arrays(ndime,ProjMY(:,:))
+            call mpi_halo_atomic_update_real_arrays(ndime,ProjMZ(:,:))
+            call mpi_halo_atomic_update_real_arrays(ndime,ProjMass(:,:))
+            call mpi_halo_atomic_update_real_arrays(ndime,ProjEner(:,:))
             call nvtxEndRange
          end if
          
@@ -369,15 +369,16 @@ module elem_stab
       real(rp),    intent(out) :: tau(nelem)
       integer(4)               :: ielem, inode
       real(rp)                 :: taul
-      real(rp)                 :: aux1
+      real(rp)                 :: aux1, fact_low_mach =1.0_rp
 
+      if(flag_drop_c_in_envit) fact_low_mach = 0.0_rp
 
       !$acc parallel loop gang 
       do ielem = 1,nelem
           taul = 0.0_rp
           !$acc loop vector reduction(max:taul)
           do inode = 1,nnode
-              aux1 = csound(connec(ielem,inode))+sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
+              aux1 = fact_low_mach*csound(connec(ielem,inode))+sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
               taul = max(taul,(helem_k(ielem))*(c_species_stab/real(porder,rp))*aux1)
           end do
           tau(ielem) = taul

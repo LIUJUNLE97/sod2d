@@ -16,6 +16,9 @@ include(mpi)
 # Configure HDF5 module
 include(hdf5)
 
+# Configure CONSTANTS
+include(constants)
+
 # Set a default build type
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)

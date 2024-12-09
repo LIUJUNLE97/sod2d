@@ -14,7 +14,7 @@ module time_integ_species
 
    implicit none
 
-   real(rp), allocatable, dimension(:) :: Reta
+   real(rp), allocatable, dimension(:,:) :: Reta
    real(rp), allocatable, dimension(:,:) :: f_eta,f_eta2,gradYk
    real(rp), allocatable, dimension(:) :: K2spc
    real(rp), allocatable, dimension(:) :: RspcC,RspcD
@@ -33,7 +33,7 @@ module time_integ_species
       allocate(auxReta(npoin))
       !$acc enter data create(auxReta(:))
 
-      allocate(K2spc(npoin),f_eta(npoin,ndime),f_eta2(npoin,ndime),Reta(npoin),RspcC(npoin),RspcD(npoin),tau(nelem),gradYk(npoin,ndime))
+      allocate(K2spc(npoin),f_eta(npoin,ndime),f_eta2(npoin,ndime),Reta(npoin,2),RspcC(npoin),RspcD(npoin),tau(nelem),gradYk(npoin,ndime))
       !$acc enter data create(K2spc(:))
       !$acc enter data create(RspcC(:))
       !$acc enter data create(RspcD(:))
@@ -41,7 +41,7 @@ module time_integ_species
       !$acc enter data create(f_eta(:,:))
       !$acc enter data create(f_eta2(:,:))
       !$acc enter data create(gradYk(:,:))
-      !$acc enter data create(Reta(:))
+      !$acc enter data create(Reta(:,:))
 
       allocate(a_i(flag_rk_ls_stages),b_i(flag_rk_ls_stages))
       !$acc enter data create(a_i(:))
@@ -102,7 +102,7 @@ module time_integ_species
       !$acc exit data delete(RspcC(:))
       !$acc exit data delete(RspcD(:))
       !$acc exit data delete(f_eta(:,:))
-      !$acc exit data delete(Reta(:))
+      !$acc exit data delete(Reta(:,:))
       deallocate(K2spc,f_eta,Reta,RspcC,RspcD)
 
       !$acc exit data delete(a_i(:))
@@ -247,11 +247,19 @@ module time_integ_species
                call nvtxEndRange
 
                call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta(:,:),eta_Yk(:,ispc,1),u(:,:,1),auxReta)
+                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta(:,:),eta_Yk(:,ispc,1),u(:,:,1),Reta(:,2))
                if(mpi_size.ge.2) then
                   call mpi_halo_atomic_update_real(auxReta)
                end if
-               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,auxReta)
+               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,2))
+
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  auxReta(lpoin_w(ipoin)) = (1.5_rp*Reta(lpoin_w(ipoin),2)-0.5_rp*Reta(lpoin_w(ipoin),1)) + &
+                                          (eta_Yk(lpoin_w(ipoin),ispc,2)-eta_Yk(lpoin_w(ipoin),ispc,1))/dt
+                  Reta(lpoin_w(ipoin),1) = Reta(lpoin_w(ipoin),2)            
+               end do
+               !$acc end parallel loop
 
                call nvtxStartRange("Entropy residual")               
 
@@ -262,6 +270,7 @@ module time_integ_species
                call species_smart_visc_spectral(nelem,npoin,npoin_w,connec,lpoin_w,auxReta,Ngp,coord,dNgp,gpvol,wgp, &
                   rho(:,2),u(:,:,2),eta_Yk(:,ispc,2),helem_l,helem,Ml,mu_e_Yk(:,:,ispc),invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
                call nvtxEndRange
+
          end subroutine rk_4_ls_species_main
 
       end module time_integ_species
