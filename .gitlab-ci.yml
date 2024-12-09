@@ -131,7 +131,7 @@ test-TGVComp-CPU-IMEX:
         - cd Tests/TGV_Compressible/CPU/IMEX
         # Run the test using the generated executable in build-GNU-Release
         - cp ../../../../build/src/app_sod2d/sod2d .
-        - mpirun -np 4 ./sod2d TGVCompSolver.json
+        - mpirun -np 4 --allow-run-as-root ./sod2d TGVCompSolver.json
     # Add the dependencies
     dependencies:
         - build-GNU-Release
