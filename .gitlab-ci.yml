@@ -39,7 +39,7 @@ build-GNU-Release:
         - module load gnu/12.3.0/openmpi/4.1.5 hdf5/1.14.0
         - ml list
         # Add a build folder and enter it
-        - mkdir build && cd build_gnu_release
+        - mkdir build_gnu_release && cd build_gnu_release
         # Run CMake
         - cmake -DDEBUG_MODE=OFF ..
         # Run make
