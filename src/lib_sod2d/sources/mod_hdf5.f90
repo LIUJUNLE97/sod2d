@@ -5209,6 +5209,7 @@ contains
       call write_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i1)
       !!! Save mesh quality
       if (eval_mesh_quality) then
+         dsetname = '/VTKHDF/CellData/mesh_quality'
          call write_dataspace_1d_real_rp_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,quality(:,1))
          ! print*,quality(:,1)
          dsetname = '/VTKHDF/CellData/mesh_quality_cube'

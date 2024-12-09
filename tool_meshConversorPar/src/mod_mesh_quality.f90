@@ -30,14 +30,9 @@ contains
         real(rp)             :: d=3.0_rp
         real(rp)                :: Saux(ndime,ndime),detaux
         logical :: success
-        !S     = matmul(elemJ, idealJ)
-        Saux     = matmul(elemJ, idealJ)
-        call inverse_matrix_3x3(Saux,S,detaux,success)
-        
-        if(.not.success) eta = huge(1.0_rp)
+        S     = matmul(elemJ, idealJ)
 
-        !detS  = (S(1,1)*S(2,2)*S(3,3)+S(1,2)*S(2,3)*S(3,1)+S(1,3)*S(2,1)*S(3,2)-S(3,1)*S(2,2)*S(1,3)-S(3,2)*S(2,3)*S(1,1)-S(3,3)*S(2,1)*S(1,2))
-        detS = 1.0_rp/detaux
+        detS  = det_3x3(S)
 
         sigma = (detS + abs(detS))/2
         S2    = matmul(transpose(S), S)
@@ -50,29 +45,36 @@ contains
         real(rp), intent(in)  :: coordPar(npoin,ndime),dNgp(ndime,mnnode,mngaus),wgp(mngaus)
         real(rp), intent(out) :: quality_vec(2)
         integer(4) :: igaus, idime
-        real(rp)   :: elemJ(ndime,ndime),idealJ(ndime,ndime),gpvol
-        real(rp)   :: eta,volume,modulus
+        real(rp)   :: elemJ(ndime,ndime),idealJ(ndime,ndime),gpvol,gpvolIdeal
+        real(rp)   :: eta,volume,volume_cube,modulus
         real(rp)   :: eta_elem, eta_cube, quality
         real(rp)   :: idealCubeJ(ndime,ndime)
+        real(rp)   :: detIdeal,detIdealCube
 
         idealCubeJ = 0.0_rp
         do idime = 1,ndime
             idealCubeJ(idime,idime) = 1.0_rp
         end do
+        detIdealCube = 1.0_rp
         eta_elem = 0.0_rp
         eta_cube = 0.0_rp
         volume = 0.0_rp
+        volume_cube = 0.0_rp
         call ideal_hexa(mnnode,nelem,npoin,ielem,coordPar,connecParOrig,idealJ) !Assumim que el jacobià de l'element ideal és constant
+        detIdeal = det_3x3(idealJ)
+        detIdeal = 1.0_rp/detIdeal
         do igaus = 1,mngaus
             call compute_jacobian(mnnode,mngaus,nelem,npoin,ielem,igaus,dNgp,wgp(igaus),coordPar,connecParOrig,elemJ,gpvol)
             elemJ = transpose(elemJ)
-
+            gpvolIdeal = detIdeal*wgp(igaus)
             call shape_measure(elemJ, idealJ, eta)
-            eta_elem = eta_elem + eta*eta*gpvol
-            volume = volume + 1*1*gpvol
-
+            eta_elem = eta_elem + eta*eta*gpvolIdeal
+            volume = volume + 1*1*gpvolIdeal
+            
+            gpvolIdeal = detIdealCube*wgp(igaus)
             call shape_measure(elemJ, idealCubeJ, eta)
-            eta_cube = eta_cube + eta*eta*gpvol
+            eta_cube = eta_cube + eta*eta*gpvolIdeal
+            volume_cube = volume_cube + 1*1*gpvolIdeal
 
             if(eta>100000) then
                 print*,igaus, ' ',eta
@@ -88,7 +90,7 @@ contains
         quality_vec(1) = quality
         
         eta_elem = eta_cube
-        eta_elem = sqrt(eta_elem)/sqrt(volume)
+        eta_elem = sqrt(eta_elem)/sqrt(volume_cube)
         quality = 1.0_rp/eta_elem
         modulus = modulo(quality, 1.0_rp)
         if (int(modulus) .ne. 0) then
@@ -96,7 +98,17 @@ contains
         end if
         quality_vec(2) = quality
 
-     end subroutine eval_MeshQuality
+    end subroutine eval_MeshQuality
+
+    function det_3x3(A) result(det)
+        implicit none
+        real(rp), intent(in) :: A(:,:)         ! Input 3x3 matrix
+        real(rp) :: det           ! Determinant of the matrix
+    
+        det = A(1, 1)*(A(2, 2)*A(3, 3) - A(2, 3)*A(3, 2)) &
+            - A(1, 2)*(A(2, 1)*A(3, 3) - A(2, 3)*A(3, 1)) &
+            + A(1, 3)*(A(2, 1)*A(3, 2) - A(2, 2)*A(3, 1))
+    end function det_3x3
 
      subroutine inverse_matrix_3x3(A, A_inv, det, success)
         implicit none

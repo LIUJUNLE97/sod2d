@@ -441,15 +441,6 @@ contains
          rankMinQuality = 100000.0_rp ! Min in this rank
          rankAvgQuality = 0.0_rp      ! Avg in this rank
          numTangledElemsMpiRank=0
-         !ABEL:
-         mngaus = 7**3
-         ! deallocate(Ngp_l)
-         deallocate(dNgp)
-         deallocate(wgp)
-         allocate(Ngp_l(mngaus,mnnode))
-         allocate(dNgp(ndime,mnnode,mngaus))
-         allocate(wgp(mngaus))
-         call evalShapeFunctions_Ngp_l_2(Ngp_l,dNgp,wgp,mporder,mnnode,mngaus,a2ijk)
 
          do iMshRank=1,numMshRanksInMpiRank
             allocate(quality_jv%matrix(iMshRank)%elems(numElemsVTKMshRank(iMshRank),2))
@@ -458,7 +449,6 @@ contains
             do iElem = 1, numElemsMshRank(iMshRank)
                call eval_MeshQuality(mnnode,mngaus,numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),iElem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_vec)
                ! Compute rank max, min and avg
-               ! print*,quality_vec
                quality_elem = quality_vec(1)
                rankMaxQuality = max(rankMaxQuality, quality_elem)
                rankMinQuality = min(rankMinQuality, quality_elem)
@@ -487,7 +477,6 @@ contains
             rankAvgQuality = rankAvgQuality + auxAvg
             numTangledElemsMpiRank=numTangledElemsMpiRank+numTangledElemsMshRank
          end do
-         deallocate(Ngp_l)
 
          rankAvgQuality = rankAvgQuality / numMshRanksInMpiRank
          call MPI_Barrier(app_comm,mpi_err)
