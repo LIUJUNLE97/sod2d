@@ -9,7 +9,7 @@ default:
 ## List of stages for jobs, and their order of execution
 stages:
     - build
-    #- test
+    - test
 
 ## before launching the buuilds, get thhe submodules
 before_script:
@@ -45,6 +45,10 @@ build-GNU-Release:
         # Run make
         - make -j 4
         - echo "Compile complete."
+    # Build folder is a dependency for the test jobs
+    artifacts:
+        paths:
+            - build
 
 # build-OneAPI-Release job configuration
 # TODO: re-enable once alll is working
@@ -114,6 +118,23 @@ build-NVHPC-GPU-Release:
         # Run make
         - make -j 4
 
+## Test stage: run the TGV cases located in Tests/TGV_Compressible
+
+# CPU-IMEX configuration using GCC-Release build
+test-TGVComp-CPU-IMEX:
+    stage: test
+    script:
+        # Load necessary modules
+        - module load gnu/12.3.0/openmpi/4.1.5 hdf5/1.14.0
+        - ml list
+        # Enter the testing folder
+        - cd Tests/TGV_Compressible/CPU/IMEX
+        # Run the test using the generated executable in build-GNU-Release
+        - cp ../../../../build/src/app_sod2d/sod2d .
+        - mpirun -np 4 ./sod2d TGVCompSolver.json
+    # Add the dependencies
+    dependencies:
+        - build-GNU-Release
 
 ## This job runs in the test stage.
 #unit-test-job:
