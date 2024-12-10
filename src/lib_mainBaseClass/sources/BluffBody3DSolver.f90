@@ -3,7 +3,10 @@ module mod_arrays_heli_comp
 
    implicit none
 
-   real(rp), allocatable :: CT(:), D(:),pos_x(:),pos_y(:),pos_z(:),vol_correct(:),heli_ad(:)
+   real(rp), allocatable :: CT(:), D(:),pos_x(:),pos_y(:),pos_z(:),vol_correct(:),heli_ad(:), omega_ad(:), type_ad(:)
+   
+   integer(4), parameter :: type_ad_cruise   = 1
+   integer(4), parameter :: type_ad_take_off = 2
 
 end module mod_arrays_heli_comp
 
@@ -59,8 +62,6 @@ subroutine BluffBody3DSolver_beforeTimeIteration(this)
    integer :: iNodeL,idime,iAD
    real(rp) :: x_ad,y_ad,z_ad,radius
    real(8) :: vol_T(this%N_ad),vol_T2(this%N_ad)
-   real(rp) :: omega = 4.0_rp
-   real(rp) :: angle = 0.0_rp
 
    if(this%N_ad .gt. 0) then
       allocate(heli_ad(numNodesRankPar))
@@ -80,11 +81,21 @@ subroutine BluffBody3DSolver_beforeTimeIteration(this)
 
          !$acc loop seq
          do iAD=1,this%N_ad
-            if((z_ad .gt. (pos_z(iAD)-(0.025_rp*D(iAD)))) .and. (z_ad .le. (pos_z(iAD)+(0.025_rp*D(iAD))))) then
-               radius = sqrt( (y_ad-pos_y(iAD))**2 + (x_ad-pos_x(iAD))**2 )
-               if(radius .le. (D(iAD)*0.5_rp)) then 
-                  vol_T(iAD) = vol_T(iAD) + real(Ml(iNodeL),8)
-                  heli_ad(iNodeL) = iAD
+            if(type_ad(iAD) == type_ad_take_off) then
+               if((z_ad .gt. (pos_z(iAD)-(0.025_rp*D(iAD)))) .and. (z_ad .le. (pos_z(iAD)+(0.025_rp*D(iAD))))) then
+                  radius = sqrt( (y_ad-pos_y(iAD))**2 + (x_ad-pos_x(iAD))**2 )
+                  if(radius .le. (D(iAD)*0.5_rp)) then 
+                     vol_T(iAD) = vol_T(iAD) + real(Ml(iNodeL),8)
+                     heli_ad(iNodeL) = iAD
+                  end if
+               end if
+            else if (type_ad(iAD) == type_ad_cruise) then
+               if((x_ad .gt. (pos_x(iAD)-(0.025_rp*D(iAD)))) .and. (x_ad .le. (pos_x(iAD)+(0.025_rp*D(iAD))))) then
+                  radius = sqrt( (y_ad-pos_y(iAD))**2 + (z_ad-pos_z(iAD))**2 )
+                  if(radius .le. (D(iAD)*0.5_rp)) then 
+                     vol_T(iAD) = vol_T(iAD) + real(Ml(iNodeL),8)
+                     heli_ad(iNodeL) = iAD
+                  end if
                end if
             end if
          end do
@@ -108,28 +119,43 @@ subroutine BluffBody3DSolver_afterDt(this,istep)
    integer :: iNodeL,idime,iAD
    real(rp) :: x_ad,y_ad,z_ad,radius
    real(8) :: vol_T(this%N_ad),vol_T2(this%N_ad)
-   real(rp) :: omega = 4.0_rp
-   real(rp) :: angle = 0.0_rp
 
    if(this%N_ad .gt. 0) then
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
          if(heli_ad(iNodeL) .ne. 0) then
             iAD = heli_ad(iNodeL)
-            x_ad =  coordPar(iNodeL,1)
-            y_ad =  coordPar(iNodeL,2)
-            z_ad =  coordPar(iNodeL,3)
-            radius = sqrt((y_ad-pos_y(iAD))**2 + (x_ad-pos_x(iAD))**2)
-            angle = atan((y_ad-pos_y(iAD))/(x_ad-pos_x(iAD))) 
 
-            source_term(iNodeL,1) = 0.0_rp
-            !source_term(iNodeL,2) = 0.0_rp
-            source_term(iNodeL,2) = -q(iNodeL,3,2)*0.5_rp*(CT(iAD)/(0.05_rp*D(iAD)))*(this%vo**2)*vol_correct(iAD) + &
-                                    -q(iNodeL,1,2)*rho(iNodeL,2)*omega*(y_ad-pos_y(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD) + &
-                                    q(iNodeL,2,2)*rho(iNodeL,2)*omega*(x_ad-pos_x(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD)
-            source_term(iNodeL,3) = -rho(iNodeL,2)*omega*(y_ad-pos_y(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD)
-            source_term(iNodeL,4) =  rho(iNodeL,2)*omega*(x_ad-pos_x(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD)
-            source_term(iNodeL,5) = -rho(iNodeL,2)*0.5_rp*(CT(iAD)/(0.05_rp*D(iAD)))*(this%vo**2)*vol_correct(iAD)
+            if(type_ad(iAD) == type_ad_take_off) then
+               x_ad =  coordPar(iNodeL,1)
+               y_ad =  coordPar(iNodeL,2)
+               z_ad =  coordPar(iNodeL,3)
+               radius = sqrt((y_ad-pos_y(iAD))**2 + (x_ad-pos_x(iAD))**2)
+
+               source_term(iNodeL,1) = 0.0_rp
+               source_term(iNodeL,2) = -q(iNodeL,3,2)*0.5_rp*(CT(iAD)/(0.05_rp*D(iAD)))*(this%vo**2)*vol_correct(iAD) + &
+                                       -q(iNodeL,1,2)*rho(iNodeL,2)*omega_ad(iAD)*(y_ad-pos_y(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD) + &
+                                       q(iNodeL,2,2)*rho(iNodeL,2)*omega_ad(iAD)*(x_ad-pos_x(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD)
+               source_term(iNodeL,3) = -rho(iNodeL,2)*omega_ad(iAD)*(y_ad-pos_y(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD)
+               source_term(iNodeL,4) =  rho(iNodeL,2)*omega_ad(iAD)*(x_ad-pos_x(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD)
+               source_term(iNodeL,5) = -rho(iNodeL,2)*0.5_rp*(CT(iAD)/(0.05_rp*D(iAD)))*(this%vo**2)*vol_correct(iAD)
+
+            else if (type_ad(iAD) == type_ad_cruise) then
+               x_ad =  coordPar(iNodeL,1)
+               y_ad =  coordPar(iNodeL,2)
+               z_ad =  coordPar(iNodeL,3)
+               radius = sqrt((y_ad-pos_y(iAD))**2 + (z_ad-pos_z(iAD))**2)
+
+               source_term(iNodeL,1) = 0.0_rp
+               source_term(iNodeL,2) =  q(iNodeL,1,2)*rho(iNodeL,2)*0.5_rp*(CT(iAD)/(0.05_rp*D(iAD)))*(this%vo**2)*vol_correct(iAD) + &
+                                        q(iNodeL,2,2)*rho(iNodeL,2)*omega_ad(iAD)*(z_ad-pos_z(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD) + &
+                                       -q(iNodeL,3,2)*rho(iNodeL,2)*omega_ad(iAD)*(y_ad-pos_y(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD)
+
+               source_term(iNodeL,3) = rho(iNodeL,2)*0.5_rp*(CT(iAD)/(0.05_rp*D(iAD)))*(this%vo**2)*vol_correct(iAD)
+               source_term(iNodeL,4) = rho(iNodeL,2)*omega_ad(iAD)*(z_ad-pos_z(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD)
+               source_term(iNodeL,5) =-rho(iNodeL,2)*omega_ad(iAD)*(y_ad-pos_y(iAD))*(this%vo/(0.05_rp*D(iAD)))*vol_correct(iAD)
+            end if
+
          end if
       end do
       !$acc end parallel loop
@@ -164,7 +190,9 @@ subroutine BluffBody3DSolver_readJSONAD(this)
       allocate(pos_y(this%N_ad))
       allocate(pos_z(this%N_ad))
       allocate(vol_correct(this%N_ad))
-      !$acc enter data create(CT(:),D(:),pos_x(:),pos_y(:),pos_z(:),vol_correct(:))
+      allocate(omega_ad(this%N_ad))
+      allocate(type_ad(this%N_ad))
+      !$acc enter data create(CT(:),D(:),pos_x(:),pos_y(:),pos_z(:),vol_correct(:),omega_ad(:),type_ad(:))
 
       
       do iAD=1, this%N_ad
@@ -229,10 +257,35 @@ subroutine BluffBody3DSolver_readJSONAD(this)
                stop 1      
             end if
          end if
+
+         call jCore%get_child(testPointer, 'omega', p, found)
+         if(found) then
+            call jCore%get(p,omega_ad(id))
+            omega_ad(id) = omega_ad(id)*2.0_rp*v_pi/60.0_rp
+         else
+            if(mpi_rank .eq. 0) then
+               write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define the omega'
+               stop 1      
+            end if
+         end if
+         call jCore%get_child(testPointer, 'type', p, found)
+         if(found) then
+            call jCore%get(p,value)
+            if(value .eq. "type_ad_cruise") then
+               type_ad(id) = type_ad_cruise
+            else if(value .eq. "type_ad_take_off") then
+               type_ad(id) = type_ad_take_off
+            end if
+         else
+            if(mpi_rank .eq. 0) then
+               write(111,*) 'ERROR! JSON file error on the buffer definition, you need to define the type'
+               stop 1      
+            end if
+         end if
       end do
    end if
 
-   !$acc update device(CT(:),D(:),pos_x(:),pos_y(:),pos_z(:))
+   !$acc update device(CT(:),D(:),pos_x(:),pos_y(:),pos_z(:),omega_ad(:))
 
    call json%destroy()
 
