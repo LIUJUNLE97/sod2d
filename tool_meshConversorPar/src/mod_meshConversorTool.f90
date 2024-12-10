@@ -130,8 +130,8 @@ contains
       real(8) :: quality_vec(2)
       integer(4) :: iElem,iNode,iElemVTK,iElemGid
       integer(4) :: numTangledElemsMpiRank,numTangledElemsMshRank,numTangledElemsTotal
-      real(8) :: maxQuality, minQuality, avgQuality
-      real(8) :: rankMaxQuality, rankMinQuality, rankAvgQuality
+      real(8) :: maxQuality(2), minQuality(2), avgQuality(2)
+      real(8) :: rankMaxQuality(2), rankMinQuality(2), rankAvgQuality(2)
       character(len=12) :: aux_numRanks,aux_mpiRank
       character(len=512) :: meshquality_filename,meshqualitySum_filename
 
@@ -424,72 +424,40 @@ contains
          call MPI_Barrier(app_comm,mpi_err)
 
          ! Initialize vars to get high-level info about mesh quality
-         maxQuality = 0.0d0          ! Max absolute
-         minQuality = 0.0d0     ! Min absolute
-         avgQuality = 0.0d0          ! Avg across all ranks
-         rankMaxQuality = 0.0d0      ! Max in this rank
-         rankMinQuality = 100000.0d0 ! Min in this rank
-         rankAvgQuality = 0.0d0      ! Avg in this rank
+         maxQuality(:) = 0.0d0          ! Max absolute
+         minQuality(:) = 0.0d0          ! Min absolute
+         avgQuality(:) = 0.0d0          ! Avg across all ranks
          numTangledElemsMpiRank=0
 
-         do iMshRank=1,numMshRanksInMpiRank
-            allocate(quality_jv%matrix(iMshRank)%elems(numElemsVTKMshRank(iMshRank),2))
-            auxAvg = 0.0d0
-            numTangledElemsMshRank=0
-            do iElem = 1, numElemsMshRank(iMshRank)
-               call eval_MeshQuality(mnnode,mngaus,numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),iElem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_vec)
-               ! Compute rank max, min and avg
-               quality_elem = quality_vec(1)
-               rankMaxQuality = max(rankMaxQuality, quality_elem)
-               rankMinQuality = min(rankMinQuality, quality_elem)
-               auxAvg = auxAvg + quality_elem
-               if (quality_elem < 0) then
-                  numTangledElemsMshRank=numTangledElemsMshRank+1
-                  ! Write data to file
-                  mshRank = mshRanksInMpiRank(iMshRank)
-                  iElemGid = elemGidMshRank_jv%vector(iMshRank)%elems(iElem)
+         call eval_MeshQuality(numMshRanksInMpiRank,numElemsVTKMshRank,numElemsMshRank,numNodesMshRank,mnnode,mngaus, coordPar_jm,connecParOrig_jm,dNgp,wgp,mshRanksInMpiRank,elemGidMshRank_jv,numVTKElemsPerMshElem,quality_jv,rankMaxQuality, rankMinQuality, rankAvgQuality)
 
-                  iNode = connecParOrig_jm%matrix(iMshRank)%elems(iElem,1)
-                  elemVertOrig(:)= coordPar_jm%matrix(iMshRank)%elems(iNode,:)
-
-                  write(555,*) "# Tangled element",numTangledElemsMshRank," found in mshRank",mshRank
-                  write(555,*) "  elem(lid)",iElem
-                  write(555,*) "  elem(gid)",iElemGid
-                  write(555,*) "  quality",quality_elem
-                  write(555,*) "  vertex0",elemVertOrig(:)
-               end if
-               do iElemVTK = 1, numVTKElemsPerMshElem
-                  quality_jv%matrix(iMshRank)%elems((iElem-1)*numVTKElemsPerMshElem + iElemVTK,:) = quality_vec
-                  ! print*,'vtk ',quality_jv%matrix(iMshRank)%elems((iElem-1)*numVTKElemsPerMshElem + iElemVTK,:)
-               end do
-            end do
-            auxAvg = auxAvg / numElemsMshRank(iMshRank)
-            rankAvgQuality = rankAvgQuality + auxAvg
-            numTangledElemsMpiRank=numTangledElemsMpiRank+numTangledElemsMshRank
-         end do
-
-         rankAvgQuality = rankAvgQuality / numMshRanksInMpiRank
          call MPI_Barrier(app_comm,mpi_err)
          write(555,*) "----| End of list of tangled elements"
          write(555,*) "--| Mesh quality evaluated"
          write(555,*) "--| Mesh statistics in rank"
          write(555,*) "----| Num.Tangled Elems:",numTangledElemsMpiRank
-         write(555,*) "----| Max quality:",rankMaxQuality
-         write(555,*) "----| Min quality:",rankMinQuality
-         write(555,*) "----| Avg quality:",rankAvgQuality
+         write(555,*) "----| Quality:          Anisotropic                Isotropic"
+         write(555,*) "----| Max quality:",rankMaxQuality(:)
+         write(555,*) "----| Min quality:",rankMinQuality(:)
+         write(555,*) "----| Avg quality:",rankAvgQuality(:)
          close(555)
          ! Compute max, min and avg across all ranks
          call MPI_Reduce(numTangledElemsMpiRank,numTangledElemsTotal,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
-         call MPI_Reduce(rankMaxQuality,maxQuality,1,mpi_datatype_real8,MPI_MAX,0,app_comm,mpi_err)
-         call MPI_Reduce(rankMinQuality,minQuality,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
-         call MPI_Reduce(rankAvgQuality,avgQuality,1,mpi_datatype_real8,MPI_SUM,0,app_comm,mpi_err)
+         call MPI_Reduce(rankMaxQuality(1),maxQuality(1),1,mpi_datatype_real8,MPI_MAX,0,app_comm,mpi_err)
+         call MPI_Reduce(rankMinQuality(1),minQuality(1),1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+         call MPI_Reduce(rankAvgQuality(1),avgQuality(1),1,mpi_datatype_real8,MPI_SUM,0,app_comm,mpi_err)
+         call MPI_Reduce(rankMaxQuality(2),maxQuality(2),1,mpi_datatype_real8,MPI_MAX,0,app_comm,mpi_err)
+         call MPI_Reduce(rankMinQuality(2),minQuality(2),1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+         call MPI_Reduce(rankAvgQuality(2),avgQuality(2),1,mpi_datatype_real8,MPI_SUM,0,app_comm,mpi_err)
+         avgQuality = avgQuality / mpi_size
          ! Write high-level data to file
          if(mpi_rank.eq.0) then
             write(554,*) "--| Mesh statistics"
             write(554,*) "----| Num.Tangled Elems:",numTangledElemsTotal
-            write(554,*) "----| Max quality:", maxQuality
-            write(554,*) "----| Min quality:", minQuality
-            write(554,*) "----| Avg quality:", avgQuality
+            write(554,*) "----| Quality:          Anisotropic                Isotropic"
+            write(554,*) "----| Max quality:", maxQuality(:)
+            write(554,*) "----| Min quality:", minQuality(:)
+            write(554,*) "----| Avg quality:", avgQuality(:)
             close(554)
          end if
       else
