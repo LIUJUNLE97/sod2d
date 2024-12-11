@@ -125,7 +125,7 @@ contains
 ! ################################################################################################
 ! ------------------------ VARS for Mesh Quality ----------------------------------------------------
 ! ################################################################################################
-      type(jagged_matrix_real8) :: quality_jv
+      type(jagged_matrix_real8) :: quality_jm
       real(8) :: quality_elem,auxAvg,elemVertOrig(3)
       real(8) :: quality_vec(2)
       integer(4) :: iElem,iNode,iElemVTK,iElemGid
@@ -400,7 +400,7 @@ contains
       !write(*,*) 'l2[',mpi_rank,']vnbf',vecNumBoundFacesMshRank(:),'vndof',vecNumDoFMshRank(:),'vnbn',vecNumBoundaryNodesMshRank(:)
 
       !----------------------------------------------------------------------------------------------
-      allocate(quality_jv%matrix(numMshRanksInMpiRank))
+      allocate(quality_jm%matrix(numMshRanksInMpiRank))
       if(evalMeshQuality) then
          if(numMshRanksInMpiRank .gt. 0) then
             ! Open a file for outputting realted information
@@ -429,7 +429,7 @@ contains
          avgQuality(:) = 0.0d0          ! Avg across all ranks
          numTangledElemsMpiRank=0
 
-         call eval_MeshQuality(numMshRanksInMpiRank,numElemsVTKMshRank,numElemsMshRank,numNodesMshRank,mnnode,mngaus, coordPar_jm,connecParOrig_jm,dNgp,wgp,mshRanksInMpiRank,elemGidMshRank_jv,numVTKElemsPerMshElem,quality_jv,rankMaxQuality, rankMinQuality, rankAvgQuality)
+         call eval_MeshQuality(numMshRanksInMpiRank,numElemsVTKMshRank,numElemsMshRank,numNodesMshRank,mnnode,mngaus, coordPar_jm,connecParOrig_jm,dNgp,wgp,mshRanksInMpiRank,elemGidMshRank_jv,numVTKElemsPerMshElem,quality_jm,rankMaxQuality, rankMinQuality, rankAvgQuality)
 
          call MPI_Barrier(app_comm,mpi_err)
          write(555,*) "----| End of list of tangled elements"
@@ -462,7 +462,7 @@ contains
          end if
       else
          do iMshRank=1,numMshRanksInMpiRank
-            allocate(quality_jv%matrix(iMshRank)%elems(numElemsVTKMshRank(iMshRank),2))
+            allocate(quality_jm%matrix(iMshRank)%elems(numElemsVTKMshRank(iMshRank),2))
          end do
       end if
       !----------------------------------------------------------------------------------------------
@@ -503,7 +503,7 @@ contains
         call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,sod2dmsh_h5_fileId,evalMeshQuality,mshRank,numMshRanks2Part,numElemsMshRank(iMshRank),&
             numElemsVTKMshRank(iMshRank),sizeConnecVTKMshRank(iMshRank),mnnodeVTK,numVTKElemsPerMshElem,&
             mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),&
-            coordVTK_jm%matrix(iMshRank)%elems,connecVTK_jv%vector(iMshRank)%elems,quality_jv%matrix(iMshRank)%elems,connecChunkSize)
+            coordVTK_jm%matrix(iMshRank)%elems,connecVTK_jv%vector(iMshRank)%elems,quality_jm%matrix(iMshRank)%elems,connecChunkSize)
       end do
 
       do iMshRank=(numMshRanksInMpiRank+1),maxNumMshRanks

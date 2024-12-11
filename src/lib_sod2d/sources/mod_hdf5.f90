@@ -4276,8 +4276,8 @@ contains
       implicit none
       integer(4),intent(in) :: mnnode,mngaus,connecParW(numElemsRankPar,mnnode),connecParO(numElemsRankPar,mnnode)
       real(rp),intent(in) :: Ngp(mngaus,mnnode)
-      real(rp),intent(in) :: origNodeScalarField_rp_vtk(numNodesRankPar)
-      real(rp_vtk),intent(out) :: interpNodeScalarField_rp(numNodesRankPar)
+      real(rp_vtk),intent(in) :: origNodeScalarField_rp_vtk(numNodesRankPar)
+      real(rp),intent(out) :: interpNodeScalarField_rp(numNodesRankPar)
       integer(4) :: iElem,igp,inode
       real(rp) :: var_rp
 
@@ -4597,8 +4597,8 @@ contains
 
    subroutine copy_scalarField_rp_vtk_to_rp(srcNodeScalarField_rp_vtk,trgtNodeScalarField_rp)
       implicit none
-      real(rp),intent(in) :: srcNodeScalarField_rp_vtk(numNodesRankPar)
-      real(rp_vtk),intent(inout) :: trgtNodeScalarField_rp(numNodesRankPar)
+      real(rp_vtk),intent(in) :: srcNodeScalarField_rp_vtk(numNodesRankPar)
+      real(rp),intent(inout) :: trgtNodeScalarField_rp(numNodesRankPar)
       integer(4) :: iPer
 
       !$acc kernels
@@ -5860,7 +5860,7 @@ contains
       integer(4),intent(in) :: numElemsMshRank,numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,mshRankElemStart,mshRankElemEnd
       integer(8),intent(in) :: mshRankNodeStart_i8,mshRankNodeEnd_i8
       integer(4),intent(in) :: numNodesMshRank,connecChunkSize
-      real(8),intent(in)    :: coordVTKMshRank(numNodesMshRank,3), quality(:,:)
+      real(8),intent(in)    :: coordVTKMshRank(numNodesMshRank,3),quality(:,:)
       integer(4),intent(in) :: connecVTKMshRank(sizeConnecVTKMshRank)
 
       integer(hsize_t) :: ms_dims(1),ms_dims2d(2),aux_ms_dims

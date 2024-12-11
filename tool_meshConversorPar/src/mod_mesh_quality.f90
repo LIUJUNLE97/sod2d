@@ -40,7 +40,7 @@ contains
         eta   = Sf/(d*sigma**(2.0d0/d)) 
     end subroutine
 
-    subroutine eval_MeshQuality(numMshRanksInMpiRank,numElemsVTKMshRank,numElemsMshRank,numNodesMshRank,mnnode,mngaus, coordPar_jm,connecParOrig_jm,dNgp,wgp,mshRanksInMpiRank,elemGidMshRank_jv,numVTKElemsPerMshElem,quality_jv,rankMaxQuality, rankMinQuality, rankAvgQuality)
+    subroutine eval_MeshQuality(numMshRanksInMpiRank,numElemsVTKMshRank,numElemsMshRank,numNodesMshRank,mnnode,mngaus, coordPar_jm,connecParOrig_jm,dNgp,wgp,mshRanksInMpiRank,elemGidMshRank_jv,numVTKElemsPerMshElem,quality_jm,rankMaxQuality, rankMinQuality, rankAvgQuality)
        implicit none
        integer(4), intent(in) :: numMshRanksInMpiRank            
        integer(4), intent(in) :: numElemsVTKMshRank(:)           
@@ -54,7 +54,7 @@ contains
        integer(4), intent(in) :: mshRanksInMpiRank(:)            
        type(jagged_vector_int4), intent(in) :: elemGidMshRank_jv 
        integer(4), intent(in) :: numVTKElemsPerMshElem           
-       type(jagged_matrix_real8), intent(inout) :: quality_jv    
+       type(jagged_matrix_real8), intent(inout) :: quality_jm
        real(8) :: quality_elem, auxAvg(2), elemVertOrig(3)
        real(8) :: quality_vec(2)
        integer(4) :: iElem, iNode, iElemVTK, iElemGid, iMshRank, mshRank
@@ -68,7 +68,7 @@ contains
         numTangledElemsMpiRank=0
 
         do iMshRank=1,numMshRanksInMpiRank
-            allocate(quality_jv%matrix(iMshRank)%elems(numElemsVTKMshRank(iMshRank),2))
+            allocate(quality_jm%matrix(iMshRank)%elems(numElemsVTKMshRank(iMshRank),2))
             auxAvg(:) = 0.0d0
             numTangledElemsMshRank=0
             do iElem = 1, numElemsMshRank(iMshRank)
@@ -98,7 +98,7 @@ contains
                     write(555,*) "  vertex0",elemVertOrig(:)
                 end if
                 do iElemVTK = 1, numVTKElemsPerMshElem
-                    quality_jv%matrix(iMshRank)%elems((iElem-1)*numVTKElemsPerMshElem + iElemVTK,:) = quality_vec
+                    quality_jm%matrix(iMshRank)%elems((iElem-1)*numVTKElemsPerMshElem + iElemVTK,:) = quality_vec
                 end do
             end do
             auxAvg(:) = auxAvg(:) / numElemsMshRank(iMshRank)
