@@ -18,7 +18,7 @@ module time_integ_incomp
 
    implicit none
 
-   real(rp), allocatable, dimension(:,:,:) :: Rmom,aux_omega,aux_temp
+   real(rp), allocatable, dimension(:,:,:) :: Rmom,aux_omega
    real(rp), allocatable, dimension(:,:) :: aux_q,Rsource,Rwmles,u_flux_buffer
    real(rp), allocatable, dimension(:,:) ::GradP,f_eta,Reta,Rflux
    real(rp), allocatable, dimension(:) :: auxReta, p_buffer
@@ -34,8 +34,8 @@ module time_integ_incomp
 
       call nvtxStartRange("Init Incomp solver")
 
-      allocate(Rmom(npoin,ndime,3),aux_omega(npoin,ndime,3),aux_temp(npoin,ndime,3))
-      !$acc enter data create(Rmom(:,:,:),aux_omega(:,:,:),aux_temp(:,:,:))
+      allocate(Rmom(npoin,ndime,3),aux_omega(npoin,ndime,3))
+      !$acc enter data create(Rmom(:,:,:),aux_omega(:,:,:))
 
       allocate(aux_q(npoin,ndime),Rsource(npoin,ndime),Rwmles(npoin,ndime),u_flux_buffer(npoin,ndime),Rflux(npoin,ndime))
       !$acc enter data create(aux_q(:,:),Rsource(:,:),Rwmles(:,:),u_flux_buffer(:,:),Rflux(:,:))
@@ -67,8 +67,7 @@ module time_integ_incomp
 
       !$acc exit data delete(Rmom(:,:,:))
       !$acc exit data delete(aux_omega(:,:,:))
-      !$acc exit data delete(aux_temp(:,:,:))
-      deallocate(Rmom,aux_omega,aux_temp)
+      deallocate(Rmom,aux_omega)
 
       !$acc exit data delete(aux_q(:,:))
       !$acc exit data delete(Rsource(:,:))
@@ -208,8 +207,6 @@ module time_integ_incomp
 
                call evalPAtOutlet(nelem,npoin,npoin_w,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,lpoin_w, &
                   bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,mu_e,mu_sgs,rho,u(:,:,1),p_buffer,u_flux_buffer)
-               !call bc_routine_momentum_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
-               !   bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,u_flux_buffer,Rflux)
 
                if(mpi_size.ge.2) then
                   call nvtxStartRange("AB2 halo update")
@@ -320,9 +317,7 @@ module time_integ_incomp
                   !$acc loop seq   
                   do idime = 1,ndime
                      aux_q(ipoin_w,idime) = -mu_fluid(ipoin_w)*(beta(1)*aux_omega(ipoin_w,idime,2)+beta(2)*aux_omega(ipoin_w,idime,1)+beta(3)*aux_omega(ipoin_w,idime,3)) &
-            !   !                            !-(beta(1)*aux_temp(ipoin_w,idime,2)+beta(2)*aux_temp(ipoin_w,idime,1)+beta(3)*aux_temp(ipoin_w,idime,3)) &
-            !   !                            !-(beta(1)*Rmom(ipoin_w,idime,2)/Ml(ipoin_w)+beta(2)*Rmom(ipoin_w,idime,1)/Ml(ipoin_w)+beta(3)*Rmom(ipoin_w,idime,3))/Ml(ipoin_w) &
-                                          -   source_term(ipoin_w,idime)
+                                            -source_term(ipoin_w,idime)
                    end do
                 end do      
                 call bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
@@ -362,9 +357,7 @@ module time_integ_incomp
                                        bou_codes_nodes,normalsAtNodes,u_buffer)
 
             if (noBoundaries .eqv. .false.) then
-
                if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet_incomp(u(:,:,2))
-
                call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer)
                !$acc kernels
                aux_omega(:,:,3) = aux_omega(:,:,1)
@@ -372,19 +365,6 @@ module time_integ_incomp
                !$acc end kernels
                call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),aux_q,.true.)
                call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_q,aux_omega(:,:,2),.true.)
-               !!$acc kernels
-               !aux_temp(:,:,3) = aux_temp(:,:,1)
-               !aux_temp(:,:,1) = aux_temp(:,:,2)
-               !!$acc end kernels
-               !!$acc parallel loop 
-               !do ipoin = 1,npoin_w
-               !   ipoin_w = lpoin_w(ipoin)
-               !   !$acc loop seq
-               !   do idime = 1,ndime
-               !      aux_temp(ipoin_w,idime,2) = (u(ipoin_w,idime,2)*gamma0 - alpha(1)*u(ipoin_w,idime,1) - alpha(2)*u(ipoin_w,idime,3) - alpha(3)*u(ipoin_w,idime,4))/dt
-               !   end do
-               !end do
-               !!$acc end parallel loop
             end if
             !
             ! Compute subgrid viscosity if active
