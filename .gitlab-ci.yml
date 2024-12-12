@@ -120,7 +120,8 @@ build-NVHPC-GPU-Release:
         # Add a build folder and enter it
         - mkdir build_nvhpc_gpu && cd build_nvhpc_gpu
         # Run CMake
-        - cmake -DUSE_GPU=ON -DUSE_MEM_MANAGED=ON -DDEBUG_MODE=OFF ..
+        - nvidia-smi --query-gpu=compute_cap --format=csv
+        - cmake -DUSE_GPU=OFF -DUSE_MEM_MANAGED=OFF -DDEBUG_MODE=OFF ..
         # Run make
         - make -j 4
     artifacts:
