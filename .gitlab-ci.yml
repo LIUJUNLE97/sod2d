@@ -4,7 +4,7 @@
 default:
     #image: ubuntu:20.04
     #image: lucasbsc21387/sod2d-image:0.1.1
-    image: lucasbsc21387/archlinux-hpc:experimental
+    image: lucasbsc21387/archlinux-hpc:1.0.0
 
 ## List of stages for jobs, and their order of execution
 stages:
@@ -22,7 +22,7 @@ build-GNU-Debug:
     stage: build
     script:
         # Load necessary modules
-        - module load gnu/12.3.0/openmpi/4.1.5 hdf5/1.14.0
+        - module load hdf5
         - ml list
         # Add a build folder and enter it
         - mkdir build && cd build
@@ -36,7 +36,7 @@ build-GNU-Release:
     stage: build
     script:
         # Load necessary modules
-        - module load gnu/12.3.0/openmpi/4.1.5 hdf5/1.14.0
+        - module load hdf5
         - ml list
         # Add a build folder and enter it
         - mkdir build_gnu_release && cd build_gnu_release
@@ -45,10 +45,6 @@ build-GNU-Release:
         # Run make
         - make -j 4
         - echo "Compile complete."
-        # Run the test
-        - cd ../Tests/TGV_Compressible/CPU/IMEX
-        - ls -lt -h
-        - mpirun -np 4 --allow-run-as-root ../../../../build_gnu_release/src/app_sod2d/sod2d TGVCompSolver.json
     # Build folder is a dependency for the test jobs
     artifacts:
         paths:
@@ -60,14 +56,14 @@ build-OneAPI-Release:
     stage: build
     script:
         # Load necessary modules
-        - module load compiler/2023.1.0 mkl/2023.1.0 mpi/2021.9.0 hdf5/1.14.0
+        - module load compiler/2025.0.0 mkl/2025.0 mpi/2021.14 hdf5
         - ml list
         # Set the proper I_MPI compilers
         - export I_MPI_CC=icx
         - export I_MPI_CXX=icpx
-        - export I_MPI_F77=ifort
-        - export I_MPI_F90=ifort
-        - export I_MPI_FC=ifort
+        - export I_MPI_F77=ifx
+        - export I_MPI_F90=ifx
+        - export I_MPI_FC=ifx
         # Add a build folder and enter it
         - mkdir build && cd build
         # Run CMake
@@ -79,14 +75,14 @@ build-OneAPI-Debug:
     stage: build
     script:
         # Load necessary modules
-        - module load compiler/2023.1.0 mkl/2023.1.0 mpi/2021.9.0 hdf5/1.14.0
+        - module load compiler/2025.0.0 mkl/2025.0 mpi/2021.14 hdf5
         - ml list
         # Set the proper I_MPI compilers
         - export I_MPI_CC=icx
         - export I_MPI_CXX=icpx
-        - export I_MPI_F77=ifort
-        - export I_MPI_F90=ifort
-        - export I_MPI_FC=ifort
+        - export I_MPI_F77=ifx
+        - export I_MPI_F90=ifx
+        - export I_MPI_FC=ifx
         # Add a build folder and enter it
         - mkdir build && cd build
         # Run CMake
@@ -99,12 +95,12 @@ build-NVHPC-CPU-Release:
     stage: build
     script:
         # Load necessary modules
-        - module load nvhpc-hpcx-cuda12/23.9 hdf5/1.14.0
+        - module load nvhpc-hpcx-cuda12/24.11 hdf5
         - ml list
         # Add a build folder and enter it
         - mkdir build && cd build
         # Run CMake
-        - cmake -DDEBUG_MODE=OFF -DCMAKE_C_FLAGS="--gcc-toolchain=/home/Apps/GCC12" -DCMAKE_CXX_FLAGS="--gcc-toolchain=/home/Apps/GCC12" -DCMAKE_Fortran_FLAGS="--gcc-toolchain=/home/Apps/GCC12" ..
+        - cmake -DDEBUG_MODE=OFF ..
         # Run make
         - make -j 4
 
@@ -116,11 +112,14 @@ build-NVHPC-GPU-Release:
         - module load nvhpc-hpcx-cuda12/23.9 hdf5/1.14.0
         - ml list
         # Add a build folder and enter it
-        - mkdir build && cd build
+        - mkdir build_nvhpc_gpu && cd build_nvhpc_gpu
         # Run CMake
-        - cmake -DUSE_GPU=ON -DUSE_MEM_MANAGED=ON -DDEBUG_MODE=OFF -DCMAKE_C_FLAGS="--gcc-toolchain=/home/Apps/GCC12" -DCMAKE_CXX_FLAGS="--gcc-toolchain=/home/Apps/GCC12" -DCMAKE_Fortran_FLAGS="--gcc-toolchain=/home/Apps/GCC12" ..
+        - cmake -DUSE_GPU=ON -DUSE_MEM_MANAGED=OFF -DDEBUG_MODE=OFF ..
         # Run make
         - make -j 4
+    artifacts:
+        paths:
+            - build_nvhpc_gpu
 
 ## Test stage: run the TGV cases located in Tests/TGV_Compressible
 
@@ -129,7 +128,7 @@ test-TGVComp-CPU-IMEX:
     stage: test
     script:
         # Load necessary modules
-        - module load gnu/12.3.0/openmpi/4.1.5 hdf5/1.14.0
+        - module hdf5
         - ml list
         # Check that the build folder exists
         - ls build_gnu_release
