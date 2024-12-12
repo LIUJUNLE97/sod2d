@@ -56,7 +56,10 @@ build-OneAPI-Release:
     stage: build
     script:
         # Load necessary modules
-        - module load compiler/2025.0.0 mkl/2025.0 mpi/2021.14 hdf5
+        - module load compiler/2025.0.0
+        - module load mkl/2025.0 
+        - module load mpi/2021.14
+        - module load hdf5
         - ml list
         # Set the proper I_MPI compilers
         - export I_MPI_CC=icx
@@ -75,7 +78,10 @@ build-OneAPI-Debug:
     stage: build
     script:
         # Load necessary modules
-        - module load compiler/2025.0.0 mkl/2025.0 mpi/2021.14 hdf5
+        - module load compiler/2025.0.0
+        - module load mkl/2025.0 
+        - module load mpi/2021.14
+        - module load hdf5
         - ml list
         # Set the proper I_MPI compilers
         - export I_MPI_CC=icx
@@ -109,7 +115,7 @@ build-NVHPC-GPU-Release:
     stage: build
     script:
         # Load necessary modules
-        - module load nvhpc-hpcx-cuda12/23.9 hdf5/1.14.0
+        - module load nvhpc-hpcx-cuda12/24.11 hdf5
         - ml list
         # Add a build folder and enter it
         - mkdir build_nvhpc_gpu && cd build_nvhpc_gpu
