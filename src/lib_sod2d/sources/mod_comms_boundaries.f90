@@ -5,7 +5,7 @@ module mod_comms_boundaries
    use nccl
 #endif
 
-!-- Select type of communication for mpi_boundary_atomic_updates
+!-- Select type of communication for mpi_bnd_atomic
 #define _ISENDIRCV_ 1
 #define _NOCUDAAWARE_ 0
 
@@ -169,7 +169,7 @@ contains
 !-------------------------------------------------------------------------------------
 !   Standard fill boundary buffers
 !-------------------------------------------------------------------------------------
-    subroutine fill_boundary_sendBuffer_int(intField)
+    subroutine fill_bnd_sendBuffer_int(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
         integer(4) :: i,iNodeL
@@ -185,9 +185,9 @@ contains
         !$acc end kernels
 
         !$acc wait
-    end subroutine fill_boundary_sendBuffer_int
+    end subroutine fill_bnd_sendBuffer_int
 !-------------------------------------------------------------------------------------
-    subroutine fill_boundary_sendBuffer_real(realField)
+    subroutine fill_bnd_sendBuffer_real(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
         integer(4) :: i,iNodeL
@@ -203,9 +203,9 @@ contains
         !$acc end kernels
 
         !$acc wait
-    end subroutine fill_boundary_sendBuffer_real
+    end subroutine fill_bnd_sendBuffer_real
 !-------------------------------------------------------------------------------------
-    subroutine fill_boundary_sendBuffer_arrays_real(numArrays,arrays2comm)
+    subroutine fill_bnd_sendBuffer_arrays_real(numArrays,arrays2comm)
         implicit none
         integer(4),intent(in) :: numArrays
         real(rp), intent(inout) :: arrays2comm(:,:)
@@ -224,9 +224,9 @@ contains
         !$acc end kernels
 
         !$acc wait
-    end subroutine fill_boundary_sendBuffer_arrays_real
+    end subroutine fill_bnd_sendBuffer_arrays_real
 !-------------------------------------------------------------------------------------
-    subroutine fill_boundary_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+    subroutine fill_bnd_sendBuffer_massEnerMom_real(mass,ener,momentum)
         implicit none
         real(rp),intent(in) :: mass(:),ener(:),momentum(:,:)
         integer(4) :: i,idime,iNodeL
@@ -248,49 +248,67 @@ contains
         !$acc end kernels
 
         !$acc wait
-    end subroutine fill_boundary_sendBuffer_mass_ener_momentum_real
+    end subroutine fill_bnd_sendBuffer_massEnerMom_real
 
 !-------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
 !   Standard copy boundary buffers
 !-------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
-    subroutine copy_from_boundary_rcvBuffer_int(intField)
-        implicit none
-        integer(4), intent(inout) :: intField(:)
-        integer(4) :: i,iNodeL
+   subroutine copy_from_bnd_rcvBuffer_int(intField)
+      implicit none
+      integer(4), intent(inout) :: intField(:)
+      integer(4) :: i,iNodeL
 
-        !$acc parallel loop
-        do i=1,bnd_numNodesToComm
-            iNodeL = bnd_nodesToComm(i)
-            !$acc atomic update
-            intField(iNodeL) = intField(iNodeL) + aux_bnd_intField_r(i)
-            !$acc end atomic
-        end do
-        !$acc end parallel loop
-    end subroutine copy_from_boundary_rcvBuffer_int
+      !$acc parallel loop
+      do i=1,bnd_numNodesToComm
+         iNodeL = bnd_nodesToComm(i)
+         !$acc atomic update
+         intField(iNodeL) = intField(iNodeL) + aux_bnd_intField_r(i)
+         !$acc end atomic
+      end do
+      !$acc end parallel loop
+   end subroutine copy_from_bnd_rcvBuffer_int
 !-------------------------------------------------------------------------
-    subroutine copy_from_boundary_rcvBuffer_real(realField)
-        implicit none
-        real(rp), intent(inout) :: realField(:)
-        integer(4) :: i,iNodeL
+   subroutine copy_from_bnd_rcvBuffer_real(realField)
+      implicit none
+      real(rp), intent(inout) :: realField(:)
+      integer(4) :: i,iNodeL
 
-        !$acc parallel loop
-        do i=1,bnd_numNodesToComm
-            iNodeL = bnd_nodesToComm(i)
+      !$acc parallel loop
+      do i=1,bnd_numNodesToComm
+         iNodeL = bnd_nodesToComm(i)
+         !$acc atomic update
+         realField(iNodeL) = realField(iNodeL) + aux_bnd_realField_r(i)
+         !$acc end atomic
+      end do
+      !$acc end parallel loop
+   end subroutine copy_from_bnd_rcvBuffer_real
+!-------------------------------------------------------------------------
+   subroutine copy_from_bnd_rcvBuffer_arrays_real(numArrays,arrays2comm)
+      implicit none
+      integer(4),intent(in) :: numArrays
+      real(rp),intent(inout) :: arrays2comm(:,:)
+      integer(4) :: i,iArray,iNodeL
+
+      !$acc parallel loop
+      do i=1,bnd_numNodesToComm
+         iNodeL = bnd_nodesToComm(i)
+         do iArray = 1,numArrays
             !$acc atomic update
-            realField(iNodeL) = realField(iNodeL) + aux_bnd_realField_r(i)
+            arrays2comm(iNodeL,iArray) = arrays2comm(iNodeL,iArray) + aux_bnd_realField_r((i-1)*numArrays+iArray)
             !$acc end atomic
-        end do
-        !$acc end parallel loop
-    end subroutine copy_from_boundary_rcvBuffer_real
+         end do
+      end do
+      !$acc end parallel loop
+   end subroutine copy_from_bnd_rcvBuffer_arrays_real
 
 !-------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
 !   Specialized copy boundary buffers
 !-------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
-    subroutine copy_from_min_boundary_rcvBuffer_int(intField)
+    subroutine copy_from_min_bnd_rcvBuffer_int(intField)
         implicit none
         integer(4), intent(inout) :: intField(:)
         integer(4) :: i,iNodeL
@@ -303,9 +321,9 @@ contains
             !$acc end atomic
         end do
         !$acc end parallel loop
-    end subroutine copy_from_min_boundary_rcvBuffer_int
+    end subroutine copy_from_min_bnd_rcvBuffer_int
 !-------------------------------------------------------------------------
-    subroutine copy_from_max_boundary_rcvBuffer_real(realField)
+    subroutine copy_from_max_bnd_rcvBuffer_real(realField)
         implicit none
         real(rp), intent(inout) :: realField(:)
         integer(4) :: i,iNodeL
@@ -318,9 +336,9 @@ contains
             !$acc end atomic
         end do
         !$acc end parallel loop
-    end subroutine copy_from_max_boundary_rcvBuffer_real
+    end subroutine copy_from_max_bnd_rcvBuffer_real
 
-    subroutine copy_from_max_boundary_rcvBuffer_arrays_real(numArrays,arrays2comm)
+    subroutine copy_from_max_bnd_rcvBuffer_arrays_real(numArrays,arrays2comm)
         implicit none
         integer(4),intent(in) :: numArrays
         real(rp), intent(inout) :: arrays2comm(:,:)
@@ -336,9 +354,9 @@ contains
             end do
         end do
         !$acc end parallel loop
-    end subroutine copy_from_max_boundary_rcvBuffer_arrays_real
+    end subroutine copy_from_max_bnd_rcvBuffer_arrays_real
 
-    subroutine copy_from_max_boundary_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+    subroutine copy_from_max_bnd_rcvBuffer_massEnerMom_real(mass,ener,momentum)
         implicit none
         real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
         integer(4) :: i,idime,iNodeL
@@ -360,43 +378,43 @@ contains
             !$acc end atomic
         end do
         !$acc end parallel loop
-    end subroutine copy_from_max_boundary_rcvBuffer_mass_ener_momentum_real
+    end subroutine copy_from_max_bnd_rcvBuffer_massEnerMom_real
 
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
 
-   subroutine mpi_halo_boundary_atomic_update_int(intField)
+   subroutine mpi_halo_bnd_atomic_int(intField)
       implicit none
       integer(4), intent(inout) :: intField(:)
 
 #if _ISENDIRCV_
-      call mpi_halo_boundary_atomic_update_int_iSendiRcv(intField)
+      call mpi_halo_bnd_atomic_int_iSendiRcv(intField)
 #endif
 #if _NOCUDAAWARE_
-      call mpi_halo_boundary_atomic_update_int_iSendiRcv_noCudaAware(intField)
+      call mpi_halo_bnd_atomic_int_iSendiRcv_noCudaAware(intField)
 #endif
 
-   end subroutine mpi_halo_boundary_atomic_update_int
+   end subroutine mpi_halo_bnd_atomic_int
 
-   subroutine mpi_halo_boundary_atomic_update_real(realField)
+   subroutine mpi_halo_bnd_atomic_real(realField)
       implicit none
       real(rp), intent(inout) :: realField(:)
 
 #if _ISENDIRCV_
-      call mpi_halo_boundary_atomic_update_real_iSendiRcv(realField)
+      call mpi_halo_bnd_atomic_real_iSendiRcv(realField)
 #endif
 #if _NOCUDAAWARE_
-      call mpi_halo_boundary_atomic_update_real_iSendiRcv_noCudaAware(realField)
+      call mpi_halo_bnd_atomic_real_iSendiRcv_noCudaAware(realField)
 #endif
 
-   end subroutine mpi_halo_boundary_atomic_update_real
+   end subroutine mpi_halo_bnd_atomic_real
 
 !-----------------------------------------------------------------------------------------------------------------------
 !--------------------------------------------------------------
 !---------------- MPI BASE BOUNDARY COMMS ---------------------
 !--------------------------------------------------------------
 
-   subroutine mpi_base_boundary_comms_int_iSendiRcv(numArrays)
+   subroutine mpi_base_bnd_comms_int_iSendiRcv(numArrays)
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ireq,ngbRank,tagComm,memPos_l,memSize
@@ -420,9 +438,9 @@ contains
 
       call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
-   end subroutine mpi_base_boundary_comms_int_iSendiRcv
+   end subroutine mpi_base_bnd_comms_int_iSendiRcv
 
-   subroutine mpi_base_boundary_comms_int_iSendiRcv_noCudaAware(numArrays)
+   subroutine mpi_base_bnd_comms_int_iSendiRcv_noCudaAware(numArrays)
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ireq,ngbRank,tagComm,memPos_l,memSize
@@ -445,9 +463,9 @@ contains
 
       call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
-   end subroutine mpi_base_boundary_comms_int_iSendiRcv_noCudaAware
+   end subroutine mpi_base_bnd_comms_int_iSendiRcv_noCudaAware
 
-   subroutine mpi_base_boundary_comms_real_iSendiRcv(numArrays)
+   subroutine mpi_base_bnd_comms_real_iSendiRcv(numArrays)
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ireq,ngbRank,tagComm,memPos_l,memSize
@@ -472,10 +490,10 @@ contains
 
       call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
-   end subroutine mpi_base_boundary_comms_real_iSendiRcv
+   end subroutine mpi_base_bnd_comms_real_iSendiRcv
 
 
-   subroutine mpi_base_boundary_comms_real_iSendiRcv_noCudaAware(numArrays)
+   subroutine mpi_base_bnd_comms_real_iSendiRcv_noCudaAware(numArrays)
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ireq,ngbRank,tagComm,memPos_l,memSize
@@ -498,201 +516,218 @@ contains
 
       call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
 
-   end subroutine mpi_base_boundary_comms_real_iSendiRcv_noCudaAware
+   end subroutine mpi_base_bnd_comms_real_iSendiRcv_noCudaAware
 
 !--------------------------------------------------------------------------------
 !---------------------------- INTEGER -------------------------------------------
    
    !INTEGER :: iSend/iRcv ---------------------------------------------------------
-   subroutine mpi_halo_boundary_atomic_update_int_iSendiRcv(intField)
+   subroutine mpi_halo_bnd_atomic_int_iSendiRcv(intField)
       implicit none
       integer(4), intent(inout) :: intField(:)
       integer(4),parameter :: numArrays=1
       !-----------------------------------------
 
-      call fill_boundary_sendBuffer_int(intField)
+      call fill_bnd_sendBuffer_int(intField)
 
-      call mpi_base_boundary_comms_int_iSendiRcv(numArrays) 
+      call mpi_base_bnd_comms_int_iSendiRcv(numArrays) 
 
-      call copy_from_boundary_rcvBuffer_int(intField)
+      call copy_from_bnd_rcvBuffer_int(intField)
 
-   end subroutine mpi_halo_boundary_atomic_update_int_iSendiRcv
+   end subroutine mpi_halo_bnd_atomic_int_iSendiRcv
 
    !INTEGER-MIN :: iSend/iRcv ---------------------------------------------------------
-   subroutine mpi_halo_min_boundary_update_int_iSendiRcv(intField)
+   subroutine mpi_halo_bnd_atomic_min_int_iSendiRcv(intField)
       implicit none
       integer(4), intent(inout) :: intField(:)
       integer(4),parameter :: numArrays=1
       !-----------------------------------------
 
-      call fill_boundary_sendBuffer_int(intField)
+      call fill_bnd_sendBuffer_int(intField)
 
-      call mpi_base_boundary_comms_int_iSendiRcv(numArrays)
+      call mpi_base_bnd_comms_int_iSendiRcv(numArrays)
 
-      call copy_from_min_boundary_rcvBuffer_int(intField)
+      call copy_from_min_bnd_rcvBuffer_int(intField)
 
-   end subroutine mpi_halo_min_boundary_update_int_iSendiRcv
+   end subroutine mpi_halo_bnd_atomic_min_int_iSendiRcv
 
 !---------------------------- REAL -------------------------------------------
 
    ! REAL :: iSend/iRecv ---------------------------------------------------
-   subroutine mpi_halo_boundary_atomic_update_real_iSendiRcv(realField)
+   subroutine mpi_halo_bnd_atomic_real_iSendiRcv(realField)
       implicit none
       real(rp), intent(inout) :: realField(:)
       integer(4),parameter :: numArrays=1
       !-----------------------------------------
 
-      call fill_boundary_sendBuffer_real(realField)
+      call fill_bnd_sendBuffer_real(realField)
 
-      call mpi_base_boundary_comms_real_iSendiRcv(numArrays)
+      call mpi_base_bnd_comms_real_iSendiRcv(numArrays)
 
-      call copy_from_boundary_rcvBuffer_real(realField)
+      call copy_from_bnd_rcvBuffer_real(realField)
 
-   end subroutine mpi_halo_boundary_atomic_update_real_iSendiRcv
+   end subroutine mpi_halo_bnd_atomic_real_iSendiRcv
 
-   ! REAL-MAX :: iSend/iRecv ---------------------------------------------------
-   subroutine mpi_halo_max_boundary_update_real_iSendiRcv(realField)
-      implicit none
-      real(rp), intent(inout) :: realField(:)
-      integer(4),parameter :: numArrays=1
-      !-----------------------------------------
-
-      call fill_boundary_sendBuffer_real(realField)
-
-      call mpi_base_boundary_comms_real_iSendiRcv(numArrays)
-
-      call copy_from_max_boundary_rcvBuffer_real(realField)
-
-   end subroutine mpi_halo_max_boundary_update_real_iSendiRcv
-
-   ! REAL-MAX N-ARRAYS :: iSend/iRecv ---------------------------------------------------
-   subroutine mpi_halo_max_boundary_update_real_arrays_iSendiRcv(numArrays,arrays2comm)
+   ! REAL N-ARRAYS :: iSend/iRecv ---------------------------------------------------
+   subroutine mpi_halo_bnd_atomic_real_arrays_iSendiRcv(numArrays,arrays2comm)
       implicit none
       integer(4),intent(in) :: numArrays
       real(rp), intent(inout) :: arrays2comm(:,:)
       !-----------------------------------------
 
-      call fill_boundary_sendBuffer_arrays_real(numArrays,arrays2comm)
+      call fill_bnd_sendBuffer_arrays_real(numArrays,arrays2comm)
 
-      call mpi_base_boundary_comms_real_iSendiRcv(numArrays)
+      call mpi_base_bnd_comms_real_iSendiRcv(numArrays)
 
-      call copy_from_max_boundary_rcvBuffer_arrays_real(numArrays,arrays2comm)
+      call copy_from_bnd_rcvBuffer_arrays_real(numArrays,arrays2comm)
 
-   end subroutine mpi_halo_max_boundary_update_real_arrays_iSendiRcv
+   end subroutine mpi_halo_bnd_atomic_real_arrays_iSendiRcv
+
+   ! REAL-MAX :: iSend/iRecv ---------------------------------------------------
+   subroutine mpi_halo_bnd_atomic_max_real_iSendiRcv(realField)
+      implicit none
+      real(rp), intent(inout) :: realField(:)
+      integer(4),parameter :: numArrays=1
+      !-----------------------------------------
+
+      call fill_bnd_sendBuffer_real(realField)
+
+      call mpi_base_bnd_comms_real_iSendiRcv(numArrays)
+
+      call copy_from_max_bnd_rcvBuffer_real(realField)
+
+   end subroutine mpi_halo_bnd_atomic_max_real_iSendiRcv
+
+   ! REAL-MAX N-ARRAYS :: iSend/iRecv ---------------------------------------------------
+   subroutine mpi_halo_bnd_atomic_max_real_arrays_iSendiRcv(numArrays,arrays2comm)
+      implicit none
+      integer(4),intent(in) :: numArrays
+      real(rp), intent(inout) :: arrays2comm(:,:)
+      !-----------------------------------------
+
+      call fill_bnd_sendBuffer_arrays_real(numArrays,arrays2comm)
+
+      call mpi_base_bnd_comms_real_iSendiRcv(numArrays)
+
+      call copy_from_max_bnd_rcvBuffer_arrays_real(numArrays,arrays2comm)
+
+   end subroutine mpi_halo_bnd_atomic_max_real_arrays_iSendiRcv
 
    ! REAL-MAX MASS-ENER-MOM :: iSend/iRecv ---------------------------------------------------
-   subroutine mpi_halo_max_boundary_update_real_mass_ener_momentum_iSendiRcv(mass,ener,momentum)
+   subroutine mpi_halo_bnd_atomic_max_real_massEnerMom_iSendiRcv(mass,ener,momentum)
       implicit none
       real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
       integer(4),parameter :: numArrays=5
       !-----------------------------------------
 
-      call fill_boundary_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call fill_bnd_sendBuffer_massEnerMom_real(mass,ener,momentum)
 
-      call mpi_base_boundary_comms_real_iSendiRcv(numArrays)
+      call mpi_base_bnd_comms_real_iSendiRcv(numArrays)
 
-      call copy_from_max_boundary_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call copy_from_max_bnd_rcvBuffer_massEnerMom_real(mass,ener,momentum)
 
-   end subroutine mpi_halo_max_boundary_update_real_mass_ener_momentum_iSendiRcv
+   end subroutine mpi_halo_bnd_atomic_max_real_massEnerMom_iSendiRcv
 
-   ! NO-CUDA-Aware versions
-   !---------------------------------------------
+!----------------------------------------------------------------------------------
+!        NO-CUDA-Aware versions
+!----------------------------------------------------------------------------------
+
    !INTEGER :: iSend/iRcv ---------------------------------------------------------
-   subroutine mpi_halo_boundary_atomic_update_int_iSendiRcv_noCudaAware(intField)
+   subroutine mpi_halo_bnd_atomic_int_iSendiRcv_noCudaAware(intField)
       implicit none
       integer(4), intent(inout) :: intField(:)
       integer(4),parameter :: numArrays=1
       !-----------------------------------------
 
-      call fill_boundary_sendBuffer_int(intField)
+      call fill_bnd_sendBuffer_int(intField)
 
-      call mpi_base_boundary_comms_int_iSendiRcv_noCudaAware(numArrays) 
+      call mpi_base_bnd_comms_int_iSendiRcv_noCudaAware(numArrays) 
 
       !$acc update device(aux_bnd_intField_r(:))
-      call copy_from_boundary_rcvBuffer_int(intField)
+      call copy_from_bnd_rcvBuffer_int(intField)
       
-   end subroutine mpi_halo_boundary_atomic_update_int_iSendiRcv_noCudaAware
+   end subroutine mpi_halo_bnd_atomic_int_iSendiRcv_noCudaAware
 
    !INTEGER-MIN :: iSend/iRcv ---------------------------------------------------------
-   subroutine mpi_halo_min_boundary_update_int_iSendiRcv_noCudaAware(intField)
+   subroutine mpi_halo_bnd_atomic_min_int_iSendiRcv_noCudaAware(intField)
       implicit none
       integer(4), intent(inout) :: intField(:)
       integer(4),parameter :: numArrays=1
       !-----------------------------------------
 
-      call fill_boundary_sendBuffer_int(intField)
+      call fill_bnd_sendBuffer_int(intField)
 
-      call mpi_base_boundary_comms_int_iSendiRcv_noCudaAware(numArrays)
+      call mpi_base_bnd_comms_int_iSendiRcv_noCudaAware(numArrays)
 
       !$acc update device(aux_bnd_intField_r(:))
-      call copy_from_min_boundary_rcvBuffer_int(intField)
+      call copy_from_min_bnd_rcvBuffer_int(intField)
 
-   end subroutine mpi_halo_min_boundary_update_int_iSendiRcv_noCudaAware
+   end subroutine mpi_halo_bnd_atomic_min_int_iSendiRcv_noCudaAware
 
 !---------------------------- REAL -------------------------------------------
 
    ! REAL :: iSend/iRecv ---------------------------------------------------
-   subroutine mpi_halo_boundary_atomic_update_real_iSendiRcv_noCudaAware(realField)
+   subroutine mpi_halo_bnd_atomic_real_iSendiRcv_noCudaAware(realField)
       implicit none
       real(rp), intent(inout) :: realField(:)
       integer(4),parameter :: numArrays=1
       !-----------------------------------------
 
-      call fill_boundary_sendBuffer_real(realField)
+      call fill_bnd_sendBuffer_real(realField)
 
-      call mpi_base_boundary_comms_real_iSendiRcv_noCudaAware(numArrays)
+      call mpi_base_bnd_comms_real_iSendiRcv_noCudaAware(numArrays)
 
       !$acc update device(aux_bnd_realField_r(:))
-      call copy_from_boundary_rcvBuffer_real(realField)
+      call copy_from_bnd_rcvBuffer_real(realField)
 
-   end subroutine mpi_halo_boundary_atomic_update_real_iSendiRcv_noCudaAware
+   end subroutine mpi_halo_bnd_atomic_real_iSendiRcv_noCudaAware
 
    ! REAL-MAX :: iSend/iRecv ---------------------------------------------------
-   subroutine mpi_halo_max_boundary_update_real_iSendiRcv_noCudaAware(realField)
+   subroutine mpi_halo_bnd_atomic_max_real_iSendiRcv_noCudaAware(realField)
       implicit none
       real(rp), intent(inout) :: realField(:)
       integer(4),parameter :: numArrays=1
       !-----------------------------------------
 
-      call fill_boundary_sendBuffer_real(realField)
+      call fill_bnd_sendBuffer_real(realField)
 
-      call mpi_base_boundary_comms_real_iSendiRcv_noCudaAware(numArrays)
+      call mpi_base_bnd_comms_real_iSendiRcv_noCudaAware(numArrays)
 
       !$acc update device(aux_bnd_realField_r(:))
-      call copy_from_max_boundary_rcvBuffer_real(realField)
+      call copy_from_max_bnd_rcvBuffer_real(realField)
 
-   end subroutine mpi_halo_max_boundary_update_real_iSendiRcv_noCudaAware
+   end subroutine mpi_halo_bnd_atomic_max_real_iSendiRcv_noCudaAware
 
    ! REAL-MAX N-ARRAYS :: iSend/iRecv ---------------------------------------------------
-   subroutine mpi_halo_max_boundary_update_real_arrays_iSendiRcv_noCudaAware(numArrays,arrays2comm)
+   subroutine mpi_halo_bnd_atomic_max_real_arrays_iSendiRcv_noCudaAware(numArrays,arrays2comm)
       implicit none
       integer(4),intent(in) :: numArrays
       real(rp), intent(inout) :: arrays2comm(:,:)
       !-----------------------------------------
 
-      call fill_boundary_sendBuffer_arrays_real(numArrays,arrays2comm)
+      call fill_bnd_sendBuffer_arrays_real(numArrays,arrays2comm)
 
-      call mpi_base_boundary_comms_real_iSendiRcv_noCudaAware(numArrays)
+      call mpi_base_bnd_comms_real_iSendiRcv_noCudaAware(numArrays)
 
       !$acc update device(aux_bnd_realField_r(:))
-      call copy_from_max_boundary_rcvBuffer_arrays_real(numArrays,arrays2comm)
+      call copy_from_max_bnd_rcvBuffer_arrays_real(numArrays,arrays2comm)
 
-   end subroutine mpi_halo_max_boundary_update_real_arrays_iSendiRcv_noCudaAware
+   end subroutine mpi_halo_bnd_atomic_max_real_arrays_iSendiRcv_noCudaAware
 
    ! REAL-MAX MASS-ENER-MOM :: iSend/iRecv ---------------------------------------------------
-   subroutine mpi_halo_max_boundary_update_real_mass_ener_momentum_iSendiRcv_noCudaAware(mass,ener,momentum)
+   subroutine mpi_halo_bnd_atomic_max_real_massEnerMom_iSendiRcv_noCudaAware(mass,ener,momentum)
       implicit none
       real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
       integer(4),parameter :: numArrays=5
       !-----------------------------------------
 
-      call fill_boundary_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call fill_bnd_sendBuffer_massEnerMom_real(mass,ener,momentum)
 
-      call mpi_base_boundary_comms_real_iSendiRcv_noCudaAware(numArrays)
+      call mpi_base_bnd_comms_real_iSendiRcv_noCudaAware(numArrays)
 
       !$acc update device(aux_bnd_realField_r(:))
-      call copy_from_max_boundary_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call copy_from_max_bnd_rcvBuffer_massEnerMom_real(mass,ener,momentum)
 
-   end subroutine mpi_halo_max_boundary_update_real_mass_ener_momentum_iSendiRcv_noCudaAware
+   end subroutine mpi_halo_bnd_atomic_max_real_massEnerMom_iSendiRcv_noCudaAware
 
 end module mod_comms_boundaries

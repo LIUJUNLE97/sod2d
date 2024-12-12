@@ -356,7 +356,7 @@ contains
         call nvtxEndRange
     end subroutine fill_sendBuffer_arrays_real
 !-------------------------------------------------------------------------
-    subroutine fill_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+    subroutine fill_sendBuffer_massEnerMom_real(mass,ener,momentum)
         implicit none
         real(rp),intent(in) :: mass(:),ener(:),momentum(:,:)
         integer(4) :: i,idime,iNodeL
@@ -379,7 +379,7 @@ contains
 
         !$acc wait
         call nvtxEndRange
-    end subroutine fill_sendBuffer_mass_ener_momentum_real
+    end subroutine fill_sendBuffer_massEnerMom_real
 !-------------------------------------------------------------------------
     subroutine fill_sendBuffer_arraysPtr_real(numArrays,arraysPtr2comm)
         implicit none
@@ -471,7 +471,7 @@ contains
         !$acc end parallel loop
     end subroutine copy_from_rcvBuffer_arrays_real
 !-------------------------------------------------------------------------
-    subroutine copy_from_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+    subroutine copy_from_rcvBuffer_massEnerMom_real(mass,ener,momentum)
         implicit none
         real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
         integer(4) :: i,idime,iNodeL
@@ -493,7 +493,7 @@ contains
             !$acc end atomic
         end do
         !$acc end parallel loop
-    end subroutine copy_from_rcvBuffer_mass_ener_momentum_real
+    end subroutine copy_from_rcvBuffer_massEnerMom_real
 !-------------------------------------------------------------------------
     subroutine copy_from_rcvBuffer_arraysPtr_real(numArrays,arraysPtr2comm)
         implicit none
@@ -615,7 +615,7 @@ contains
         !$acc end parallel loop
     end subroutine copy_from_rcvBuffer_arrays_get_real
 !-------------------------------------------------------------------------
-    subroutine copy_from_rcvBuffer_mass_ener_momentum_get_real(mass,ener,momentum)
+    subroutine copy_from_rcvBuffer_massEnerMom_get_real(mass,ener,momentum)
         implicit none
         real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
         integer(4) :: i,idime,iNodeL
@@ -637,7 +637,7 @@ contains
             !$acc end atomic
         end do
         !$acc end parallel loop
-    end subroutine copy_from_rcvBuffer_mass_ener_momentum_get_real
+    end subroutine copy_from_rcvBuffer_massEnerMom_get_real
 
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
@@ -689,29 +689,29 @@ contains
 #endif
    end subroutine mpi_halo_atomic_update_real
 !-------------------------------------------------------------------------------------
-   subroutine mpi_halo_atomic_update_real_mass_ener_momentum(mass,ener,momentum)
+   subroutine mpi_halo_atomic_update_real_massEnerMom(mass,ener,momentum)
       implicit none
       real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
 
 #if _SENDRCV_
-      call mpi_halo_atomic_update_real_mass_ener_momentum_SendRcv(mass,ener,momentum)
+      call mpi_halo_atomic_update_real_massEnerMom_SendRcv(mass,ener,momentum)
 #endif
 #if _ISENDIRCV_
-      call mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv(mass,ener,momentum)
+      call mpi_halo_atomic_update_real_massEnerMom_iSendiRcv(mass,ener,momentum)
 #endif
 #if _NCCL_
-      call mpi_halo_atomic_update_real_mass_ener_momentum_ncclSendRcv(mass,ener,momentum)
+      call mpi_halo_atomic_update_real_massEnerMom_ncclSendRcv(mass,ener,momentum)
 #endif
 #if _PUTFENCE_
-      call mpi_halo_atomic_update_real_mass_ener_momentum_put_fence(mass,ener,momentum)
+      call mpi_halo_atomic_update_real_massEnerMom_put_fence(mass,ener,momentum)
 #endif
 #if _GITFENCE_
-      call mpi_halo_atomic_update_real_mass_ener_momentum_get_fence(mass,ener,momentum)
+      call mpi_halo_atomic_update_real_massEnerMom_get_fence(mass,ener,momentum)
 #endif
 #if _NOCUDAAWARE_
-      call mpi_halo_atomic_update_real_mass_ener_mom_iSendiRcv_noCudaAware(mass,ener,momentum)
+      call mpi_halo_atomic_update_real_massEnerMom_iSendiRcv_noCudaAware(mass,ener,momentum)
 #endif
-    end subroutine mpi_halo_atomic_update_real_mass_ener_momentum
+    end subroutine mpi_halo_atomic_update_real_massEnerMom
 !-------------------------------------------------------------------------------------
    subroutine mpi_halo_atomic_update_real_arrays(numArrays,arrays2comm)
       implicit none
@@ -1484,19 +1484,19 @@ contains
    end subroutine mpi_halo_atomic_update_real_sendRcv
 
    ! REAL MASS-ENER-MOM :: Send/Recv ---------------------------------------------------
-   subroutine mpi_halo_atomic_update_real_mass_ener_momentum_sendRcv(mass,ener,momentum)
+   subroutine mpi_halo_atomic_update_real_massEnerMom_sendRcv(mass,ener,momentum)
       implicit none
       real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
       integer(4),parameter :: numArrays=5
       !--------------------------------------------------------
 
-      call fill_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call fill_sendBuffer_massEnerMom_real(mass,ener,momentum)
 
       call mpi_base_comms_real_sendRcv(numArrays)
 
-      call copy_from_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call copy_from_rcvBuffer_massEnerMom_real(mass,ener,momentum)
 
-   end subroutine mpi_halo_atomic_update_real_mass_ener_momentum_sendRcv
+   end subroutine mpi_halo_atomic_update_real_massEnerMom_sendRcv
 
    ! REAL N-ARRAYS :: Send/Recv ---------------------------------------------------
    subroutine mpi_halo_atomic_update_real_arrays_sendRcv(numArrays,arrays2comm)
@@ -1544,19 +1544,19 @@ contains
    end subroutine mpi_halo_atomic_update_real_iSendiRcv
 
    ! REAL MASS-ENER-MOM :: iSend/iRecv ---------------------------------------------------
-   subroutine mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv(mass,ener,momentum)
+   subroutine mpi_halo_atomic_update_real_massEnerMom_iSendiRcv(mass,ener,momentum)
       implicit none
       real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
       integer(4),parameter :: numArrays=5
       !--------------------------------------------------------
 
-      call fill_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call fill_sendBuffer_massEnerMom_real(mass,ener,momentum)
 
       call mpi_base_comms_real_iSendiRcv(numArrays)
 
-      call copy_from_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call copy_from_rcvBuffer_massEnerMom_real(mass,ener,momentum)
 
-   end subroutine mpi_halo_atomic_update_real_mass_ener_momentum_iSendiRcv
+   end subroutine mpi_halo_atomic_update_real_massEnerMom_iSendiRcv
 
    ! REAL N-ARRAYS :: iSend/iRecv ---------------------------------------------------
    subroutine mpi_halo_atomic_update_real_arrays_iSendiRcv(numArrays,arrays2comm)
@@ -1635,19 +1635,19 @@ contains
    end subroutine mpi_halo_atomic_update_real_ncclSendRcv
 
    ! REAL MASS-ENER-MOM :: NCCL Send/Recv ---------------------------------------------------
-   subroutine mpi_halo_atomic_update_real_mass_ener_momentum_ncclSendRcv(mass,ener,momentum)
+   subroutine mpi_halo_atomic_update_real_massEnerMom_ncclSendRcv(mass,ener,momentum)
       implicit none
       real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
       integer(4),parameter :: numArrays=5
       !--------------------------------------------------------
 
-      call fill_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call fill_sendBuffer_massEnerMom_real(mass,ener,momentum)
 
       call mpi_base_comms_real_ncclSendRcv(numArrays)
 
-      call copy_from_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call copy_from_rcvBuffer_massEnerMom_real(mass,ener,momentum)
 
-   end subroutine mpi_halo_atomic_update_real_mass_ener_momentum_ncclSendRcv
+   end subroutine mpi_halo_atomic_update_real_massEnerMom_ncclSendRcv
 
    ! REAL N-ARRAYS :: NCCL Send/Recv ---------------------------------------------------
    subroutine mpi_halo_atomic_update_real_arrays_ncclSendRcv(numArrays,arrays2comm)
@@ -1697,19 +1697,19 @@ contains
    end subroutine mpi_halo_atomic_update_real_put_fence
 
    ! REAL MASS-ENER-MOM :: Put-fence ---------------------------------------------------
-   subroutine mpi_halo_atomic_update_real_mass_ener_momentum_put_fence(mass,ener,momentum)
+   subroutine mpi_halo_atomic_update_real_massEnerMom_put_fence(mass,ener,momentum)
       implicit none
       real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
       integer(4),parameter :: numArrays=5
       !--------------------------------------------------------
 
-      call fill_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call fill_sendBuffer_massEnerMom_real(mass,ener,momentum)
 
       call mpi_base_comms_real_put_fence(numArrays)
 
-      call copy_from_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call copy_from_rcvBuffer_massEnerMom_real(mass,ener,momentum)
 
-   end subroutine mpi_halo_atomic_update_real_mass_ener_momentum_put_fence
+   end subroutine mpi_halo_atomic_update_real_massEnerMom_put_fence
 
    ! REAL N-ARRAYS :: Put-fence ---------------------------------------------------
    subroutine mpi_halo_atomic_update_real_arrays_put_fence(numArrays,arrays2comm)
@@ -1759,19 +1759,19 @@ contains
    end subroutine mpi_halo_atomic_update_real_put_pscw
 
    ! REAL MASS-ENER-MOM :: Put-fence ---------------------------------------------------
-   subroutine mpi_halo_atomic_update_real_mass_ener_momentum_put_pscw(mass,ener,momentum)
+   subroutine mpi_halo_atomic_update_real_massEnerMom_put_pscw(mass,ener,momentum)
       implicit none
       real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
       integer(4),parameter :: numArrays=5
       !--------------------------------------------------------
 
-      call fill_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call fill_sendBuffer_massEnerMom_real(mass,ener,momentum)
 
       call mpi_base_comms_real_put_pscw(numArrays)
 
-      call copy_from_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call copy_from_rcvBuffer_massEnerMom_real(mass,ener,momentum)
 
-   end subroutine mpi_halo_atomic_update_real_mass_ener_momentum_put_pscw
+   end subroutine mpi_halo_atomic_update_real_massEnerMom_put_pscw
 
    ! REAL N-ARRAYS :: Put-pscw ---------------------------------------------------
    subroutine mpi_halo_atomic_update_real_arrays_put_pscw(numArrays,arrays2comm)
@@ -1821,19 +1821,19 @@ contains
    end subroutine mpi_halo_atomic_update_real_put_lock
 
    ! REAL MASS-ENER-MOM :: Put-lock ---------------------------------------------------
-   subroutine mpi_halo_atomic_update_real_mass_ener_momentum_put_lock(mass,ener,momentum)
+   subroutine mpi_halo_atomic_update_real_massEnerMom_put_lock(mass,ener,momentum)
       implicit none
       real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
       integer(4),parameter :: numArrays=5
       !--------------------------------------------------------
 
-      call fill_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call fill_sendBuffer_massEnerMom_real(mass,ener,momentum)
 
       call mpi_base_comms_real_put_lock(numArrays)
 
-      call copy_from_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call copy_from_rcvBuffer_massEnerMom_real(mass,ener,momentum)
 
-   end subroutine mpi_halo_atomic_update_real_mass_ener_momentum_put_lock
+   end subroutine mpi_halo_atomic_update_real_massEnerMom_put_lock
 
    ! REAL N-ARRAYS :: Put-lock ---------------------------------------------------
    subroutine mpi_halo_atomic_update_real_arrays_put_lock(numArrays,arrays2comm)
@@ -1883,19 +1883,19 @@ contains
    end subroutine mpi_halo_atomic_update_real_get_fence
 
    ! REAL MASS-ENER-MOM :: get-fence ---------------------------------------------------
-   subroutine mpi_halo_atomic_update_real_mass_ener_momentum_get_fence(mass,ener,momentum)
+   subroutine mpi_halo_atomic_update_real_massEnerMom_get_fence(mass,ener,momentum)
       implicit none
       real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
       integer(4),parameter :: numArrays=5
       !--------------------------------------------------------
 
-      call fill_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call fill_sendBuffer_massEnerMom_real(mass,ener,momentum)
 
       call mpi_base_comms_real_get_fence(numArrays)
 
-      call copy_from_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call copy_from_rcvBuffer_massEnerMom_real(mass,ener,momentum)
 
-   end subroutine mpi_halo_atomic_update_real_mass_ener_momentum_get_fence
+   end subroutine mpi_halo_atomic_update_real_massEnerMom_get_fence
 
    ! REAL N-ARRAYS :: get-fence ---------------------------------------------------
    subroutine mpi_halo_atomic_update_real_arrays_get_fence(numArrays,arrays2comm)
@@ -2045,19 +2045,19 @@ contains
 
    end subroutine mpi_halo_atomic_update_real_get_fence_noCudaAware
 
-   subroutine mpi_halo_atomic_update_real_mass_ener_mom_iSendiRcv_noCudaAware(mass,ener,momentum)
+   subroutine mpi_halo_atomic_update_real_massEnerMom_iSendiRcv_noCudaAware(mass,ener,momentum)
       implicit none
       real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
       integer(4),parameter :: numArrays=5
 
-      call fill_sendBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call fill_sendBuffer_massEnerMom_real(mass,ener,momentum)
 
       call mpi_base_comms_real_iSendiRcv_noCudaAware(numArrays)
 
       !$acc update device(aux_realField_r(:))
-      call copy_from_rcvBuffer_mass_ener_momentum_real(mass,ener,momentum)
+      call copy_from_rcvBuffer_massEnerMom_real(mass,ener,momentum)
 
-   end subroutine mpi_halo_atomic_update_real_mass_ener_mom_iSendiRcv_noCudaAware
+   end subroutine mpi_halo_atomic_update_real_massEnerMom_iSendiRcv_noCudaAware
 
    subroutine mpi_halo_atomic_update_real_arrays_iSendiRcv_noCudaAware(numArrays,arrays2comm)
       implicit none
