@@ -3,6 +3,7 @@ module mod_mesh_quality
     use elem_hex
     use quadrature_rules
     use jacobian_oper
+    use mod_custom_types
     implicit none
 contains
     subroutine ideal_hexa(mnnode, nelem, npoin, ielem, coord, connec, idealJ)
@@ -28,39 +29,209 @@ contains
 		real(8),intent(out) :: eta
 		real(8) :: S(ndime,ndime), S2(ndime,ndime), sigma, Sf, detS
         real(8),parameter :: d=3.0d0
+        real(8)                :: Saux(ndime,ndime),detaux
         S     = matmul(elemJ, idealJ)
-        detS  = (S(1,1)*S(2,2)*S(3,3)+S(1,2)*S(2,3)*S(3,1)+S(1,3)*S(2,1)*S(3,2)-S(3,1)*S(2,2)*S(1,3)-S(3,2)*S(2,3)*S(1,1)-S(3,3)*S(2,1)*S(1,2))
+
+        detS  = det_3x3(S)
+
         sigma = (detS + abs(detS))/2
         S2    = matmul(transpose(S), S)
         Sf    = S2(1,1) + S2(2,2) + S2(3,3)
         eta   = Sf/(d*sigma**(2.0d0/d)) 
     end subroutine
 
-    subroutine eval_MeshQuality(mnnode,mngaus,npoin, nelem, ielem, coordPar, connecParOrig, dNgp, wgp, quality)
+    subroutine eval_MeshQuality(numMshRanksInMpiRank,numElemsVTKMshRank,numElemsMshRank,numNodesMshRank,mnnode,mngaus, coordPar_jm,connecParOrig_jm,dNgp,wgp,mshRanksInMpiRank,elemGidMshRank_jv,numVTKElemsPerMshElem,quality_jm,rankMaxQuality, rankMinQuality, rankAvgQuality)
+       implicit none
+       integer(4), intent(in) :: numMshRanksInMpiRank            
+       integer(4), intent(in) :: numElemsVTKMshRank(:)           
+       integer(4), intent(in) :: numElemsMshRank(:)              
+       integer(4), intent(in) :: numNodesMshRank(:)              
+       integer(4), intent(in) :: mnnode, mngaus                  
+       type(jagged_matrix_real8), intent(in) :: coordPar_jm      
+       type(jagged_matrix_int4), intent(in) :: connecParOrig_jm 
+       real(8), intent(in) :: dNgp(mngaus, mnnode)               
+       real(8), intent(in) :: wgp(mngaus)                        
+       integer(4), intent(in) :: mshRanksInMpiRank(:)            
+       type(jagged_vector_int4), intent(in) :: elemGidMshRank_jv 
+       integer(4), intent(in) :: numVTKElemsPerMshElem           
+       type(jagged_matrix_real8), intent(inout) :: quality_jm
+       real(8) :: quality_elem, auxAvg(2), elemVertOrig(3)
+       real(8) :: quality_vec(2)
+       integer(4) :: iElem, iNode, iElemVTK, iElemGid, iMshRank, mshRank
+       integer(4) :: numTangledElemsMpiRank, numTangledElemsMshRank
+       real(8), intent(out) :: rankMaxQuality(2), rankMinQuality(2), rankAvgQuality(2)
+   
+        ! Initialize vars to get high-level info about mesh quality
+        rankMaxQuality(:) = 0.0d0          ! Max absolute
+        rankMinQuality(:) = 100000.0d0     ! Min absolute
+        rankAvgQuality(:) = 0.0d0          ! Avg across all ranks
+        numTangledElemsMpiRank=0
+
+        do iMshRank=1,numMshRanksInMpiRank
+            allocate(quality_jm%matrix(iMshRank)%elems(numElemsVTKMshRank(iMshRank),2))
+            auxAvg(:) = 0.0d0
+            numTangledElemsMshRank=0
+            do iElem = 1, numElemsMshRank(iMshRank)
+                call eval_ElemQuality(mnnode,mngaus,numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),iElem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_vec)
+                ! Compute rank max, min and avg
+                quality_elem = quality_vec(1)
+                rankMaxQuality(1) = max(rankMaxQuality(1), quality_vec(1))
+                rankMinQuality(1) = min(rankMinQuality(1), quality_vec(1))
+                auxAvg(1) = auxAvg(1) + quality_vec(1)
+                rankMaxQuality(2) = max(rankMaxQuality(2), quality_vec(2))
+                rankMinQuality(2) = min(rankMinQuality(2), quality_vec(2))
+                auxAvg(2) = auxAvg(2) + quality_vec(2)
+                if (any(quality_vec < 0)) then
+                    numTangledElemsMshRank=numTangledElemsMshRank+1
+                    ! Write data to file
+                    mshRank = mshRanksInMpiRank(iMshRank)
+                    iElemGid = elemGidMshRank_jv%vector(iMshRank)%elems(iElem)
+
+                    iNode = connecParOrig_jm%matrix(iMshRank)%elems(iElem,1)
+                    elemVertOrig(:)= coordPar_jm%matrix(iMshRank)%elems(iNode,:)
+
+                    write(555,*) "# Tangled element",numTangledElemsMshRank," found in mshRank",mshRank
+                    write(555,*) "  elem(lid)",iElem
+                    write(555,*) "  elem(gid)",iElemGid
+                    write(555,*) "  anisotropic quality",quality_vec(1)
+                    write(555,*) "  isotropic quality",quality_vec(2)
+                    write(555,*) "  vertex0",elemVertOrig(:)
+                end if
+                do iElemVTK = 1, numVTKElemsPerMshElem
+                    quality_jm%matrix(iMshRank)%elems((iElem-1)*numVTKElemsPerMshElem + iElemVTK,:) = quality_vec
+                end do
+            end do
+            auxAvg(:) = auxAvg(:) / numElemsMshRank(iMshRank)
+            rankAvgQuality(:) = rankAvgQuality(:) + auxAvg
+            numTangledElemsMpiRank=numTangledElemsMpiRank+numTangledElemsMshRank
+        end do
+        rankAvgQuality(:) = rankAvgQuality(:) / numMshRanksInMpiRank
+    end subroutine eval_MeshQuality
+
+    subroutine eval_ElemQuality(mnnode,mngaus,npoin, nelem, ielem, coordPar, connecParOrig, dNgp, wgp, quality_vec)
+        implicit none
         integer(4), intent(in) :: mnnode,mngaus,npoin,nelem,ielem,connecParOrig(nelem,mnnode)
         real(8), intent(in) :: coordPar(npoin,ndime),dNgp(ndime,mnnode,mngaus),wgp(mngaus)
-        real(8), intent(out) :: quality
-        integer(4) :: igaus
-        real(8) :: elemJ(ndime,ndime),idealJ(ndime,ndime),gpvol
-        real(8) :: eta,volume,modulus
-        real(8) :: eta_elem
+        real(8), intent(out) :: quality_vec(2)
+        integer(4) :: igaus, idime
+        real(8) :: elemJ(ndime,ndime),idealJ(ndime,ndime),gpvol,gpvolIdeal
+        real(8) :: eta,volume,volume_cube,modulus
+        real(8) :: eta_elem, eta_cube, quality
+        real(8)   :: idealCubeJ(ndime,ndime)
+        real(8)   :: detIdeal,detIdealCube
 
+        idealCubeJ = 0.0d0
+        do idime = 1,ndime
+            idealCubeJ(idime,idime) = 1.0d0
+        end do
+        detIdealCube = 1.0d0
         eta_elem = 0.0d0
+        eta_cube = 0.0d0
         volume = 0.0d0
+        volume_cube = 0.0d0
         call ideal_hexa(mnnode,nelem,npoin,ielem,coordPar,connecParOrig,idealJ) !Assumim que el jacobià de l'element ideal és constant
+        detIdeal = det_3x3(idealJ)
+        detIdeal = 1.0_rp/detIdeal
         do igaus = 1,mngaus
             call compute_jacobian(mnnode,mngaus,nelem,npoin,ielem,igaus,dNgp,wgp(igaus),coordPar,connecParOrig,elemJ,gpvol)
             elemJ = transpose(elemJ)
+            gpvolIdeal = detIdeal*wgp(igaus)
             call shape_measure(elemJ, idealJ, eta)
-            eta_elem = eta_elem + eta*eta*gpvol
-            volume = volume + 1*1*gpvol
+            eta_elem = eta_elem + eta*eta*gpvolIdeal
+            volume = volume + 1*1*gpvolIdeal
+            
+            gpvolIdeal = detIdealCube*wgp(igaus)
+            call shape_measure(elemJ, idealCubeJ, eta)
+            eta_cube = eta_cube + eta*eta*gpvolIdeal
+            volume_cube = volume_cube + 1*1*gpvolIdeal
+
+            if(eta>100000) then
+                print*,igaus, ' ',eta
+            end if
         end do
+
         eta_elem = sqrt(eta_elem)/sqrt(volume)
         quality = 1.0d0/eta_elem
         modulus = modulo(quality, 1.0d0)
         if (int(modulus) .ne. 0) then
             quality = -1.0d0
         end if
-  
-     end subroutine eval_MeshQuality
+        quality_vec(1) = quality
+        
+        eta_elem = eta_cube
+        eta_elem = sqrt(eta_elem)/sqrt(volume_cube)
+        quality = 1.0_rp/eta_elem
+        modulus = modulo(quality, 1.0d0)
+        if (int(modulus) .ne. 0) then
+            quality = -1.0d0
+        end if
+        quality_vec(2) = quality
+
+    end subroutine eval_ElemQuality
+
+    function det_3x3(A) result(det)
+        implicit none
+        real(8), intent(in) :: A(:,:)         ! Input 3x3 matrix
+        real(8) :: det           ! Determinant of the matrix
+    
+        det = A(1, 1)*(A(2, 2)*A(3, 3) - A(2, 3)*A(3, 2)) &
+            - A(1, 2)*(A(2, 1)*A(3, 3) - A(2, 3)*A(3, 1)) &
+            + A(1, 3)*(A(2, 1)*A(3, 2) - A(2, 2)*A(3, 1))
+    end function det_3x3
+
+     subroutine inverse_matrix_3x3(A, A_inv, det, success)
+        implicit none
+        ! Input
+        real(8), intent(in) :: A(:,:)         ! Input 3x3 matrix
+        ! Output
+        real(rp), intent(out) :: A_inv(3,3)    ! Inverse of the matrix
+        real(rp), intent(out) :: det           ! Determinant of the matrix
+        logical, intent(out) :: success        ! True if inversion is successful
+    
+        ! Local variables
+        real(8) :: cof(3, 3)
+        integer :: i, j
+    
+        ! Check matrix dimensions
+        if (size(A, 1) /= 3 .or. size(A, 2) /= 3) then
+            print *, "Error: Input matrix must be 3x3."
+            success = .false.
+            return
+        end if
+    
+        ! Calculate the determinant
+        det = A(1, 1)*(A(2, 2)*A(3, 3) - A(2, 3)*A(3, 2)) &
+            - A(1, 2)*(A(2, 1)*A(3, 3) - A(2, 3)*A(3, 1)) &
+            + A(1, 3)*(A(2, 1)*A(3, 2) - A(2, 2)*A(3, 1))
+    
+        ! Check if the matrix is invertible
+        if (abs(det) < 1.0E-10_rp) then
+            success = .false.
+            return
+        end if
+    
+        ! Calculate the adjugate (transpose of the cofactor matrix)
+        cof(1, 1) =   (A(2, 2)*A(3, 3) - A(2, 3)*A(3, 2))
+        cof(1, 2) = - (A(1, 2)*A(3, 3) - A(1, 3)*A(3, 2))
+        cof(1, 3) =   (A(1, 2)*A(2, 3) - A(1, 3)*A(2, 2))
+    
+        cof(2, 1) = - (A(2, 1)*A(3, 3) - A(2, 3)*A(3, 1))
+        cof(2, 2) =   (A(1, 1)*A(3, 3) - A(1, 3)*A(3, 1))
+        cof(2, 3) = - (A(1, 1)*A(2, 3) - A(1, 3)*A(2, 1))
+    
+        cof(3, 1) =   (A(2, 1)*A(3, 2) - A(2, 2)*A(3, 1))
+        cof(3, 2) = - (A(1, 1)*A(3, 2) - A(1, 2)*A(3, 1))
+        cof(3, 3) =   (A(1, 1)*A(2, 2) - A(1, 2)*A(2, 1))
+    
+        ! Compute the inverse
+        do i = 1, 3
+            do j = 1, 3
+                A_inv(i, j) = cof(i, j) / det
+            end do
+        end do
+    
+        success = .true.
+    end subroutine inverse_matrix_3x3
+    
+
 end module

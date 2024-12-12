@@ -32,8 +32,8 @@
    "final_istep":500001,
    "maxPhysTime":20.0,
 
-   "cfl_conv":0.95,
-   "cfl_diff":0.95,
+   "cfl_conv":0.2,
+   "cfl_diff":0.2,
 
    "flag_implicit":0,
    "maxIter":200,
