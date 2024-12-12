@@ -317,7 +317,7 @@ module time_integ_incomp
                   !$acc loop seq   
                   do idime = 1,ndime
                      aux_q(ipoin_w,idime) = -mu_fluid(ipoin_w)*(beta(1)*aux_omega(ipoin_w,idime,2)+beta(2)*aux_omega(ipoin_w,idime,1)+beta(3)*aux_omega(ipoin_w,idime,3)) &
-                                            -source_term(ipoin_w,idime)
+                                            +source_term(ipoin_w,idime)
                    end do
                 end do      
                 call bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &

@@ -62,7 +62,7 @@ module mod_solver_species
                b(ipoin) = R(ipoin)
                z0(ipoin) = 0.0_rp
                z1(ipoin) = 0.0_rp
-               M(ipoin) = Cp*rho(ipoin)*Ml(ipoin)/dt
+               M(ipoin) = Ml(ipoin)/dt
             end do
             !$acc end parallel loop
 
@@ -80,7 +80,7 @@ module mod_solver_species
 
             !$acc parallel loop
             do ipoin = 1,npoin_w
-              qn(lpoin_w(ipoin)) = Cp*rho(lpoin_w(ipoin))*x(lpoin_w(ipoin))*Ml(lpoin_w(ipoin))+qn(lpoin_w(ipoin))*fact*dt
+              qn(lpoin_w(ipoin)) = x(lpoin_w(ipoin))*Ml(lpoin_w(ipoin))+qn(lpoin_w(ipoin))*fact*dt
               r0(lpoin_w(ipoin)) = b(lpoin_w(ipoin))-qn(lpoin_w(ipoin)) ! b-A*x0
             end do
             !$acc end parallel loop
@@ -115,7 +115,7 @@ module mod_solver_species
               auxQ2 = 0.0d0
               !$acc parallel loop reduction(+:auxQ1,auxQ2)
               do ipoin = 1,npoin_w  
-                  qn(lpoin_w(ipoin)) = Cp*rho(lpoin_w(ipoin))*p0(lpoin_w(ipoin))*Ml(lpoin_w(ipoin))+qn(lpoin_w(ipoin))*fact*dt
+                  qn(lpoin_w(ipoin)) = p0(lpoin_w(ipoin))*Ml(lpoin_w(ipoin))+qn(lpoin_w(ipoin))*fact*dt
                   auxQ1 = auxQ1+real(r0(lpoin_w(ipoin))*z0(lpoin_w(ipoin)),8) ! <s_k-1,r_k-1>
                   auxQ2 = auxQ2+real(p0(lpoin_w(ipoin))*qn(lpoin_w(ipoin)),8) ! <s_k-1,A*s_k-1>
               end do
