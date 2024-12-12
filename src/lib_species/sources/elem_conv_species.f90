@@ -31,7 +31,7 @@ module elem_convec_species
         real(rp),    intent(in)  :: Yk(npoin)
         real(rp),    intent(in)  :: rho(npoin)
         real(rp),    intent(in)  :: u(npoin,ndime)
-        real(rp),    intent(out) :: Rconvec(npoin)
+        real(rp),    intent(inout) :: Rconvec(npoin)
         logical, optional, intent(in)    :: initialze
         real(rp), optional, intent(in)  :: fact        
         integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ii
@@ -50,14 +50,14 @@ module elem_convec_species
                 Rconvec(:) = 0.0_rp
                 !$acc end kernels
             end if
-         else
+        else
             !$acc kernels
             Rconvec(:) = 0.0_rp
             !$acc end kernels
-         end if
-         if(present(fact)) then
+        end if
+        if(present(fact)) then
             aux_fact = fact
-         end if
+        end if
 
         !$acc parallel loop gang  private(Re,fykl,ul,ykl) 
         do ielem = 1,nelem

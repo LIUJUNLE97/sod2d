@@ -28,9 +28,9 @@ module elem_convec
             real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
             integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             real(rp),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), rho(npoin),pr(npoin), E(npoin)
-            real(rp),    intent(out) :: Rmass(npoin)
-            real(rp),    intent(out) :: Rmom(npoin,ndime)
-            real(rp),    intent(out) :: Rener(npoin)
+            real(rp),    intent(inout) :: Rmass(npoin)
+            real(rp),    intent(inout) :: Rmom(npoin,ndime)
+            real(rp),    intent(inout) :: Rener(npoin)
             logical, optional, intent(in)    :: initialze
             real(rp), optional, intent(in)  :: fact
             integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,kdime,ii
@@ -235,9 +235,9 @@ module elem_convec
             real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
             integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             real(rp),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), rho(npoin),pr(npoin), E(npoin)
-            real(rp),    intent(out) :: Rmass(npoin)
-            real(rp),    intent(out) :: Rmom(npoin,ndime)
-            real(rp),    intent(out) :: Rener(npoin)
+            real(rp),    intent(inout) :: Rmass(npoin)
+            real(rp),    intent(inout) :: Rmom(npoin,ndime)
+            real(rp),    intent(inout) :: Rener(npoin)
             logical, optional, intent(in)    :: initialze
             real(rp), optional, intent(in)  :: fact
             integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,kdime,ii
@@ -505,7 +505,7 @@ module elem_convec
             real(rp),    intent(in)  :: q(npoin,ndime)
             real(rp),    intent(in)  :: eta(npoin)
             real(rp),    intent(in)  :: u(npoin,ndime)
-            real(rp),    intent(out) :: Rconvec(npoin)
+            real(rp),    intent(inout) :: Rconvec(npoin)
             logical, optional, intent(in)    :: initialze
             real(rp), optional, intent(in)  :: fact
             integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ii
@@ -629,7 +629,7 @@ module elem_convec
          real(rp),    intent(in)  :: q(npoin,ndime)
          real(rp),    intent(in)  :: eta(npoin),Rproj(npoin)
          real(rp),    intent(in)  :: u(npoin,ndime)
-         real(rp),    intent(out) :: Rconvec(npoin)
+         real(rp),    intent(inout) :: Rconvec(npoin)
          logical, optional, intent(in)    :: initialze
          real(rp), optional, intent(in)  :: fact
          integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ii
@@ -751,9 +751,9 @@ module elem_convec
             real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
             integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             real(rp),   intent(in)  :: q(npoin,ndime), u(npoin,ndime), rho(npoin),pr(npoin), E(npoin)
-            real(rp),   intent(out) :: Rmass(npoin)
-            real(rp),   intent(out) :: Rmom(npoin,ndime)
-            real(rp),   intent(out) :: Rener(npoin)
+            real(rp),   intent(inout) :: Rmass(npoin)
+            real(rp),   intent(inout) :: Rmom(npoin,ndime)
+            real(rp),   intent(inout) :: Rener(npoin)
             integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,kdime,ii
             real(rp)                :: Re_mom(nnode,ndime)
             real(rp)                :: Re_mass(nnode), Re_ener(nnode)
