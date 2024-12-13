@@ -27,7 +27,7 @@ build-GNU-Debug:
         # Add a build folder and enter it
         - mkdir build && cd build
         # Run CMake
-        - cmake -DDEBUG_MODE=ON ..
+        - cmake -DDEBUG_MODE=ON -DTOOL_MESHPART=ON ..
         # Run make
         - make -j 4
 
@@ -41,7 +41,7 @@ build-GNU-Release:
         # Add a build folder and enter it
         - mkdir build_gnu_release && cd build_gnu_release
         # Run CMake
-        - cmake -DDEBUG_MODE=OFF ..
+        - cmake -DDEBUG_MODE=OFF -DTOOL_MESHPART=ON ..
         # Run make
         - make -j 4
         - echo "Compile complete."
@@ -70,7 +70,7 @@ build-OneAPI-Release:
         # Add a build folder and enter it
         - mkdir build && cd build
         # Run CMake
-        - cmake -DDEBUG_MODE=OFF ..
+        - cmake -DDEBUG_MODE=OFF -DTOOL_MESHPART=ON ..
         # Run make
         - make -j 4
 
@@ -92,7 +92,7 @@ build-OneAPI-Debug:
         # Add a build folder and enter it
         - mkdir build && cd build
         # Run CMake
-        - cmake -DDEBUG_MODE=ON ..
+        - cmake -DDEBUG_MODE=ON -DTOOL_MESHPART=ON ..
         # Run make
         - make -j 4
 
@@ -106,7 +106,7 @@ build-NVHPC-CPU-Release:
         # Add a build folder and enter it
         - mkdir build && cd build
         # Run CMake
-        - cmake -DDEBUG_MODE=OFF ..
+        - cmake -DDEBUG_MODE=OFF -DTOOL_MESHPART=ON ..
         # Run make
         - make -j 4
 
