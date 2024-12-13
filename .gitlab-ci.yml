@@ -161,6 +161,31 @@ test-TGVComp-CPU-IMEX:
     dependencies:
         - build-GNU-Release
 
+# CPU-LSRK configuration using GCC-Release build
+test-TGVComp-CPU-LSRK:
+    stage: test
+    script:
+        # Load necessary modules
+        - module load hdf5
+        - ml list
+        # Check that the build folder exists
+        - ls build_gnu_release
+        - ldd build_gnu_release/src/app_sod2d/sod2d
+        # Enter the testing folder
+        - cd Tests/TGV_Compressible/CPU/LS_RK_5
+        - ls -lt -h
+        - ls -lt -h ../../
+        # Run the test using the generated executable in build-GNU-Release
+        - cp ../../../../build_gnu_release/src/app_sod2d/sod2d .
+        - mpirun -np 4 --allow-run-as-root ./sod2d TGVCompSolver.json
+        # install numpy and run the python test
+        - pacman -S python-numpy --noconfirm
+        - python testcheck.py
+    # Add the dependencies
+    dependencies:
+        - build-GNU-Release
+
+
 # GPU-IMEX configuration using NVHPC-GPU-Release build
 test-TGVComp-GPU-IMEX:
     stage: test
@@ -173,6 +198,28 @@ test-TGVComp-GPU-IMEX:
         - ldd build_nvhpc_gpu/src/app_sod2d/sod2d
         # Enter the testing folder
         - cd Tests/TGV_Compressible/GPU/IMEX
+        # Run the test using the generated executable in build-GNU-Release
+        - cp ../../../../build_nvhpc_gpu/src/app_sod2d/sod2d .
+        - mpirun -np 1 --allow-run-as-root ./sod2d TGVCompSolver.json
+        # install numpy and run the python test
+        - pacman -S python-numpy --noconfirm
+        - python testcheck.py
+    # Add the dependencies
+    dependencies:
+        - build-NVHPC-GPU-Release
+
+# GPU-IMEX configuration using NVHPC-GPU-Release build
+test-TGVComp-GPU-LSRK:
+    stage: test
+    script:
+        # Load necessary modules
+        - module load nvhpc-hpcx-cuda12/24.11 hdf5
+        - ml list
+        # Check that the build folder exists
+        - ls build_nvhpc_gpu
+        - ldd build_nvhpc_gpu/src/app_sod2d/sod2d
+        # Enter the testing folder
+        - cd Tests/TGV_Compressible/GPU/LS_RK_5
         # Run the test using the generated executable in build-GNU-Release
         - cp ../../../../build_nvhpc_gpu/src/app_sod2d/sod2d .
         - mpirun -np 1 --allow-run-as-root ./sod2d TGVCompSolver.json
