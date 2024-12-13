@@ -155,7 +155,7 @@ test-TGVComp-CPU-IMEX:
         - cp ../../../../build_gnu_release/src/app_sod2d/sod2d .
         - mpirun -np 4 --allow-run-as-root ./sod2d TGVCompSolver.json
         # install numpy and run the python test
-        - pacman -S python-numpy
+        - pacman -S python-numpy --noconfirm
         - python testcheck.py
     # Add the dependencies
     dependencies:
@@ -177,7 +177,7 @@ test-TGVComp-GPU-IMEX:
         - cp ../../../../build_nvhpc_gpu/src/app_sod2d/sod2d .
         - mpirun -np 1 --allow-run-as-root ./sod2d TGVCompSolver.json
         # install numpy and run the python test
-        - pacman -S python-numpy
+        - pacman -S python-numpy --noconfirm
         - python testcheck.py
     # Add the dependencies
     dependencies:
