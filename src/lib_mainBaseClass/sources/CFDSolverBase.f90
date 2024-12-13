@@ -517,8 +517,8 @@ end subroutine CFDSolverBase_findFixPressure
          end if
       end if
       if(flag_use_species .eqv. .true.) then
-         !call init_imex_species_solver(numNodesRankPar,numElemsRankPar)
-         call init_rk4_ls_species_solver(numNodesRankPar,numElemsRankPar)
+         call init_imex_species_solver(numNodesRankPar,numElemsRankPar)
+         !call init_rk4_ls_species_solver(numNodesRankPar,numElemsRankPar)
       end if
 
    end subroutine CFDSolverBase_initNSSolver
