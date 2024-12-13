@@ -64,7 +64,7 @@ build-OneAPI-Release:
     script:
         # Load necessary modules
         - module load compiler/2025.0.0
-        - module load mkl/2025.0 
+        - module load mkl/2025.0
         - module load mpi/2021.14
         - module load hdf5
         - ml list
@@ -158,15 +158,21 @@ test-TGVComp-CPU-IMEX:
     dependencies:
         - build-GNU-Release
 
-## This job runs in the test stage.
-#unit-test-job:
-#    stage: test    # It only starts when the job in the build stage completes successfully.
-#    script:
-#        - echo "Running unit tests..."
-#        - echo "Testing complete!"
-#
-#code-coverage-job:   # This job also runs in the test stage.
-#    stage: test    # It can run at the same time as unit-test-job (in parallel).
-#    script:
-#        - echo "Checking code coverage..."
-#        - echo "Code coverage check complete!"
+# GPU-IMEX configuration using NVHPC-GPU-Release build
+test-TGVComp-GPU-IMEX:
+    stage: test
+    script:
+        # Load necessary modules
+        - module load nvhpc-hpcx-cuda12/24.11 hdf5
+        - ml list
+        # Check that the build folder exists
+        - ls build_nvhpc_gpu
+        - ldd build_nvhpc_gpu/src/app_sod2d/sod2d
+        # Enter the testing folder
+        - cd Tests/TGV_Compressible/GPU/IMEX
+        # Run the test using the generated executable in build-GNU-Release
+        - cp ../../../../build_nvhpc_gpu/src/app_sod2d/sod2d .
+        - mpirun -np 1 --allow-run-as-root ./sod2d TGVCompSolver.json
+    # Add the dependencies
+    dependencies:
+        - build-NVHPC-GPU-Release
