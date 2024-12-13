@@ -77,6 +77,29 @@ module quadrature_rules
 
 		end subroutine GaussLobattoLegendre_hex
 
+		subroutine GaussLobattoLegendre_hex_2(mporder,mngaus,xgp,wgp)
+
+			implicit none
+			integer(4),intent(in) :: mporder,mngaus
+			real(8),intent(out)  :: xgp(mngaus,ndime),wgp(mngaus)
+			integer(4)            :: inode,i,j,k,lorder(mporder+1)
+			real(8)              :: xi(mporder+1),w1d(mporder+1),w0,w1,w2,w3
+			
+			call getGaussLobattoLegendre_weights_and_roots(mporder,w1d,xi)
+
+			inode = 0
+			do k = 1,mporder+1
+				do i = 1,mporder+1
+					do j = 1,mporder+1
+						inode = inode + 1
+						xgp(inode,1:3) = [xi(i), xi(j), xi(k)]
+						wgp(inode) = w1d(i)*w1d(j)*w1d(k)
+					end do
+				end do
+			end do
+
+		end subroutine GaussLobattoLegendre_hex_2
+
 		subroutine getGaussPoints_equispaced_hex(mporder,mngaus,atoIJK,xgp)
 
 			implicit none
