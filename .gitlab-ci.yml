@@ -8,12 +8,19 @@ default:
 
 ## List of stages for jobs, and their order of execution
 stages:
+    - drivercheck
     - build
     - test
 
 ## before launching the buuilds, get thhe submodules
 before_script:
     - git submodule update --init --recursive
+
+## Driver check stage: check the driver is loading properly
+drivercheck:
+    stage: drivercheck
+    script:
+        - nvidia-smi -L | grep "Quadro P4200"
 
 ## Confgure the build jobs
 
