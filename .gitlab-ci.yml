@@ -121,7 +121,7 @@ build-NVHPC-GPU-Release:
         - mkdir build_nvhpc_gpu && cd build_nvhpc_gpu
         # Run CMake
         - nvidia-smi --query-gpu=compute_cap --format=csv
-        - cmake -DUSE_GPU=OFF -DUSE_MEM_MANAGED=OFF -DDEBUG_MODE=OFF ..
+        - cmake -DUSE_GPU=ON -DUSE_MEM_MANAGED=OFF -DDEBUG_MODE=OFF ..
         # Run make
         - make -j 4
     artifacts:
@@ -135,7 +135,7 @@ test-TGVComp-CPU-IMEX:
     stage: test
     script:
         # Load necessary modules
-        - module hdf5
+        - module load hdf5
         - ml list
         # Check that the build folder exists
         - ls build_gnu_release
