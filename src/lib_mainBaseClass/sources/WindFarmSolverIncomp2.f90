@@ -191,7 +191,7 @@ contains
       call json%get("rough",this%rough, found,0.1_rp); call this%checkFound(found,found_aux)
       call json%get("wind_alpha",this%wind_alpha, found,270.0_rp); call this%checkFound(found,found_aux)      
 
-      this%maxPhysTime = 9.0_rp*3600.0_rp
+      this%maxPhysTime = 10.0_rp*3600.0_rp
 
       this%wind_alpha = 270.0_rp-this%wind_alpha !Comming North is 0 , East is 90, South is 180 and West is 270 in a x-y axis
       this%Ug_alpha = this%wind_alpha !+ 20.0_rp

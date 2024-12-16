@@ -285,7 +285,7 @@ subroutine BluffBody3DSolver_readJSONAD(this)
       end do
    end if
 
-   !$acc update device(CT(:),D(:),pos_x(:),pos_y(:),pos_z(:),omega_ad(:))
+   !$acc update device(CT(:),D(:),pos_x(:),pos_y(:),pos_z(:),omega_ad(:),type_ad(:))
 
    call json%destroy()
 

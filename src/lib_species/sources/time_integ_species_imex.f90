@@ -164,7 +164,7 @@ module time_integ_species_imex
             end if
             call nvtxEndRange
 
-#if 1
+#if 0
             if((isWallModelOn) ) then
                call nvtxStartRange("AB2 wall model")
                if((numBoundsWM .ne. 0)) then
