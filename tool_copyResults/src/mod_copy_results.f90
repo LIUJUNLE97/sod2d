@@ -246,7 +246,7 @@ contains
       type(jagged_vector_int4) :: listNodesTrgtRankMpiId_jv,connecVTKTrgtRank_jv
       type(jagged_matrix_int4) :: connecTrgtRankMpiId_jm,connecParOrigTrgtRank_jm
       type(jagged_matrix_real8) :: coordTrgtRank_jm,coordVTKTrgtRank_jm
-      type(jagged_vector_real8) :: quality_jv
+      type(jagged_matrix_real8) :: quality_jm
 
       integer(8),dimension(0:target_Nprocs-1) :: iNodeStartPar_i8
       integer(4) :: connecChunkSize = 10000000
@@ -288,7 +288,7 @@ contains
       allocate(listNodesTrgtRankMpiId_jv%vector(numTrgtRanksInMpiRank))
       allocate(   connecTrgtRankMpiId_jm%matrix(numTrgtRanksInMpiRank))
       allocate(         coordTrgtRank_jm%matrix(numTrgtRanksInMpiRank))
-      allocate(               quality_jv%vector(numTrgtRanksInMpiRank))
+      allocate(               quality_jm%matrix(numTrgtRanksInMpiRank))
 
       do iTrgtRank=1,numTrgtRanksInMpiRank
          trgtRank = trgtRanksInMpiRank(iTrgtRank)
@@ -359,7 +359,7 @@ contains
         call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,targetMesh_hdf5_file_id,evalMeshQuality,trgtRank,target_Nprocs,&
             numElemsTrgtRank(iTrgtRank),numElemsVTKTrgtRank(iTrgtRank),sizeConnecVTKTrgtRank(iTrgtRank),mesh_VTKnnode,mesh_numVTKElemsPerMshElem,&
             trgtRankElemStart(iTrgtRank),trgtRankElemEnd(iTrgtRank),trgtRankNodeStart_i8(iTrgtRank),trgtRankNodeEnd_i8(iTrgtRank),numNodesTrgtRank(iTrgtRank),&
-            coordVTKTrgtRank_jm%matrix(iTrgtRank)%elems,connecVTKTrgtRank_jv%vector(iTrgtRank)%elems,quality_jv%vector(iTrgtRank)%elems,connecChunkSize)
+            coordVTKTrgtRank_jm%matrix(iTrgtRank)%elems,connecVTKTrgtRank_jv%vector(iTrgtRank)%elems,quality_jm%matrix(iTrgtRank)%elems,connecChunkSize)
       end do
 
       do iTrgtRank=(numTrgtRanksInMpiRank+1),maxNumTrgtRanks
