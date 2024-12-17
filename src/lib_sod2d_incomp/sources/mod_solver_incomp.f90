@@ -462,8 +462,7 @@ module mod_solver_incomp
                   allocate(ownerRank(npoin))
                   !$acc enter data create(ownerRank(:))
                   ownerRank(1:npoin) = mpi_rank  
-                  call mpi_halo_atomic_min_update_int_sendRcv(ownerRank)
-
+                  call mpi_halo_atomic_min_update_int_iSendiRcv(ownerRank)
 
                   ! obtain total real (master) nodes totalNpoinWork
                   ! I reuse auxQ1, auxQ, Q1 to avoide creating new variables

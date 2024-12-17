@@ -17,7 +17,6 @@ program tool_commsPerfomance
     character(128) :: aux_string_mpisize,aux_string_numNodes,aux_string_nodesBound
 
     logical :: useMesh=.false.
-    logical :: useIntInComms=.false.,useRealInComms=.false.
 
     call init_mpi()
 
@@ -39,40 +38,28 @@ program tool_commsPerfomance
     parameter2read = 'numIters'
     call read_inputFile_integer(lineCnt,parameter2read,numIters)
 
-    !2. Use INT in COMMS--------------------------------------------------------------------------
-    parameter2read = 'useIntInComms'
-    call read_inputFile_logical(lineCnt,parameter2read,useIntInComms)
-
-    !3. Use FLOAT in COMMS--------------------------------------------------------------------------
-    parameter2read = 'useRealInComms'
-    call read_inputFile_logical(lineCnt,parameter2read,useRealInComms)
-
-    !4. Use mesh--------------------------------------------------------------------------
+    !2. Use mesh--------------------------------------------------------------------------
     parameter2read = 'useMesh'
     call read_inputFile_logical(lineCnt,parameter2read,useMesh)
 
     if(useMesh) then
-
-        !5. mesh_h5_file_path--------------------------------------------------------------
+        !3. mesh_h5_file_path--------------------------------------------------------------
         parameter2read = 'mesh_h5_file_path'
         call read_inputFile_string(lineCnt,parameter2read,mesh_h5_file_path)
 
-        !6. mesh_h5_file_name--------------------------------------------------------------
+        !4. mesh_h5_file_name--------------------------------------------------------------
         parameter2read = 'mesh_h5_file_name'
         call read_inputFile_string(lineCnt,parameter2read,mesh_h5_file_name)
-
     else
-
-        !5. numNodesSrl--------------------------------------------------------------------------
+        !3. numNodesSrl--------------------------------------------------------------------------
         parameter2read = 'numNodesSrl'
         call read_inputFile_integer(lineCnt,parameter2read,numNodesSrl)
 
-        !6. numNodesB_1r --------------------------------------------------------------------------
+        !4. numNodesB_1r --------------------------------------------------------------------------
         parameter2read = 'numNodesB_1r'
         call read_inputFile_integer(lineCnt,parameter2read,numNodesB_1r)
 
        if(mpi_rank.eq.0) write(*,*) 'numNodesSrl ',numNodesSrl,' numNodesB_1r ',numNodesB_1r,' numIters ',numIters
-
     end if
 
     call close_inputFile()
@@ -86,8 +73,6 @@ program tool_commsPerfomance
         call create_dummy_1Dmesh(numNodesSrl,numNodesB_1r)
     end if
 
-    call init_comms_performance(useIntInComms,useRealInComms)
-
     if(mpi_rank.eq.0) then
         write(aux_string_mpisize,'(I0)') mpi_size
         if(useMesh) then
@@ -100,15 +85,7 @@ program tool_commsPerfomance
         log_file_comms = 'commPerf_'//trim(adjustl(log_file_append))//'-'//trim(aux_string_mpisize)//'.dat'
     end if
 
-   !call debug_comms_float()
    call test_comms_performance_real(numIters,log_file_comms)
-
-
-   !call nvtxStartRange("saxpy loop")
-   !call do_saxpy_loop(numIters)
-   !call nvtxEndRange
-   !call test_mpi_cudaware(numNodesSrl,numIters)
-   !call do_crazy_mpi_test(numNodesSrl,numIters)
 
    call end_comms()
    call end_mpi()

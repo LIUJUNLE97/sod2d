@@ -570,7 +570,7 @@ module time_integ_ls
 
             if(mpi_size.ge.2) then
                call nvtxStartRange("MPI_comms_tI")
-               call mpi_halo_atomic_update_real_mass_ener_momentum(Rmass(:),Rener(:),Rmom(:,:))
+               call mpi_halo_atomic_update_real_massEnerMom(Rmass(:),Rener(:),Rmom(:,:))
                call nvtxEndRange
             end if
 

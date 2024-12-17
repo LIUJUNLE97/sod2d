@@ -778,9 +778,10 @@ end subroutine CFDSolverBase_findFixPressure
       !$acc end parallel loop
 
       if(mpi_size.ge.2) then
-         call mpi_halo_boundary_atomic_update_real(normalsAtNodes(:,1))
-         call mpi_halo_boundary_atomic_update_real(normalsAtNodes(:,2))
-         call mpi_halo_boundary_atomic_update_real(normalsAtNodes(:,3))
+         !call mpi_halo_boundary_atomic_update_real(normalsAtNodes(:,1))
+         !call mpi_halo_boundary_atomic_update_real(normalsAtNodes(:,2))
+         !call mpi_halo_boundary_atomic_update_real(normalsAtNodes(:,3))
+         call mpi_halo_bnd_atomic_real_arrays_iSendiRcv(ndime,normalsAtNodes)
       end if
 
       !$acc parallel loop  private(aux)
@@ -838,7 +839,7 @@ end subroutine CFDSolverBase_findFixPressure
       !$acc end parallel loop
 
       if((isMeshBoundaries).and.(mpi_size.ge.2)) then
-         call mpi_halo_min_boundary_update_int_iSendiRcv(aux1)
+         call mpi_halo_bnd_atomic_min_int_iSendiRcv(aux1)
       end if
 
       !$acc parallel loop

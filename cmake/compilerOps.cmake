@@ -79,9 +79,9 @@ elseif(CMAKE_C_COMPILER_ID STREQUAL "NVHPC" OR CMAKE_C_COMPILER_ID STREQUAL "PGI
 	set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-cpp -lstdc++ -D_USE_NVTX -lnvToolsExt -cuda -Minfo=accel")
 	set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-cpp -lstdc++ -D_USE_NVTX -lnvToolsExt -cuda -Minfo=accel")
 	if(USE_NCCL)
-		set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-DNCCL_COMMS -cudalib=nccl")
-		set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-DNCCL_COMMS -cudalib=nccl")
-		set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-DNCCL_COMMS -cudalib=nccl")
+		set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} "-DNCCL_SUPPORT -cudalib=nccl")
+		set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-DNCCL_SUPPORT -cudalib=nccl")
+		set(CMAKE_Fortran_FLAGS ${CMAKE_Fortran_FLAGS} "-DNCCL_SUPPORT -cudalib=nccl")
 	endif()
 	# Debug
 	set(CMAKE_C_FLAGS_DEBUG ${CMAKE_C_FLAGS_DEBUG} "-Minform=inform -C -traceback -Ktrap=fp")
