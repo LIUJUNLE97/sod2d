@@ -192,6 +192,7 @@ module mod_entropy_viscosity
 
                      call nvtxStartRange("MPI_Allreduce | maxEta & npoin_w_g")                     
                      call MPI_Allreduce(maxEta_r,maxEta,1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
+                     call MPI_Allreduce(npoin_w,npoin_w_g,1,mpi_datatype_int,MPI_SUM,app_comm,mpi_err)
                      call nvtxEndRange
 
                      call nvtxStartRange("maxEta")                     
