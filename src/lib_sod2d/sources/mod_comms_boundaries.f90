@@ -35,25 +35,23 @@ module mod_comms_boundaries
 
 contains
 
-   subroutine init_comms_bnd(useInt,useReal,intBufferMultIn,realBufferMultIn,initWinModeIn)
+   subroutine init_comms_bnd(useInt,useReal,intBndBufferMultIn,realBndBufferMultIn)
       implicit none
       logical, intent(in) :: useInt,useReal
-      integer(4),intent(in),optional :: intBufferMultIn,realBufferMultIn,initWinModeIn
-      integer(4) :: maxIntBndBufferArraySize=1,maxRealBndBufferArraySize=1,winMode
-      logical :: useFenceFlags,useAssertNoCheckFlags,useLockBarrier,initWindows=.false.
+      integer(4),intent(in),optional :: intBndBufferMultIn,realBndBufferMultIn
+      integer(4) :: intBndBufferArraySize,realBndBufferArraySize,intBndBufferMult=1,realBndBufferMult=1
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      logical :: useFenceFlags,useAssertNoCheckFlags,useLockBarrier
 
-      initWindows = .false.
-      winMode = 0
+      intBndBufferMult  = 1
+      realBndBufferMult = 1
 
-      maxIntBndBufferArraySize  = 1
-      maxRealBndBufferArraySize = 1
-
-      if(present(intBufferMultIn)) then
-          maxIntBndBufferArraySize = intBufferMultIn
+      if(present(intBndBufferMultIn)) then
+         intBndBufferMult = intBndBufferMultIn
       end if
 
-      if(present(realBufferMultIn)) then
-          maxRealBndBufferArraySize = realBufferMultIn
+      if(present(realBndBufferMultIn)) then
+         realBndBufferMult = realBndBufferMultIn
       end if
 
 #if _ISENDIRCV_
@@ -69,8 +67,10 @@ contains
       if(useInt) then
          bnd_isInt = .true.
 
-         allocate(aux_bnd_intField_s(maxIntBndBufferArraySize*bnd_numNodesToComm))
-         allocate(aux_bnd_intField_r(maxIntBndBufferArraySize*bnd_numNodesToComm))
+         intBndBufferArraySize = intBndBufferMult*bnd_numNodesToComm 
+
+         allocate(aux_bnd_intField_s(intBndBufferArraySize))
+         allocate(aux_bnd_intField_r(intBndBufferArraySize))
          !$acc enter data create(aux_bnd_intField_s(:))
          !$acc enter data create(aux_bnd_intField_r(:))
 
@@ -80,8 +80,10 @@ contains
       if(useReal) then
          bnd_isReal = .true.
 
-         allocate(aux_bnd_realField_s(maxRealBndBufferArraySize*bnd_numNodesToComm))
-         allocate(aux_bnd_realField_r(maxRealBndBufferArraySize*bnd_numNodesToComm))
+         realBndBufferArraySize = realBndBufferMult*bnd_numNodesToComm 
+
+         allocate(aux_bnd_realField_s(realBndBufferArraySize))
+         allocate(aux_bnd_realField_r(realBndBufferArraySize))
          !$acc enter data create(aux_bnd_realField_s(:))
          !$acc enter data create(aux_bnd_realField_r(:))
 
@@ -108,8 +110,6 @@ contains
           !$acc exit data delete(aux_bnd_intField_r(:))
           deallocate(aux_bnd_intField_s)
           deallocate(aux_bnd_intField_r)
-
-          !call close_window_intField_bnd()
       end if
 
       if(bnd_isReal) then
@@ -117,8 +117,6 @@ contains
          !$acc exit data delete(aux_bnd_realField_r(:))
           deallocate(aux_bnd_realField_s)
           deallocate(aux_bnd_realField_r)
-
-          !call close_window_realField_bnd()
       end if
 
 #ifdef NCCL_SUPPORT
@@ -130,39 +128,119 @@ contains
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
-   subroutine init_window_intField_bnd(windowMode,maxIntBndBufferArraySize)
+
+   subroutine init_bnd_put_window_intField(intBndBufferArraySize)
       implicit none
-      integer(4),intent(in) :: windowMode,maxIntBndBufferArraySize
-      integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size
+      integer(4),intent(in) :: intBndBufferArraySize
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      !------------------------------------------------------------
 
-      window_buffer_size = mpi_integer_size*(maxIntBndBufferArraySize*bnd_numNodesToComm)
+      win_buffer_size = mpi_integer_size*intBndBufferArraySize
 
-      call MPI_Win_create(aux_bnd_intField_r,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id_bnd_int,mpi_err)
-   end subroutine init_window_intField_bnd
+      !$acc host_data use_device(aux_bnd_intField_r(:))
+      call MPI_Win_create(aux_bnd_intField_r,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id_bnd_int,mpi_err)
+      !$acc end host_data
 
-   subroutine close_window_intField_bnd()
+   end subroutine init_bnd_put_window_intField
+
+   subroutine init_bnd_put_window_intField_noCudaAware(intBndBufferArraySize)
+      implicit none
+      integer(4),intent(in) :: intBndBufferArraySize
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      !------------------------------------------------------------
+
+      win_buffer_size = mpi_integer_size*intBndBufferArraySize
+
+      call MPI_Win_create(aux_bnd_intField_r,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id_bnd_int,mpi_err)
+
+   end subroutine init_bnd_put_window_intField_noCudaAware
+
+   subroutine init_bnd_get_window_intField(intBndBufferArraySize)
+      implicit none
+      integer(4),intent(in) :: intBndBufferArraySize
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      !------------------------------------------------------------
+
+      win_buffer_size = mpi_integer_size*intBndBufferArraySize
+
+      !$acc host_data use_device(aux_bnd_intField_s(:))
+      call MPI_Win_create(aux_bnd_intField_s,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id_bnd_int,mpi_err)
+      !$acc end host_data
+
+   end subroutine init_bnd_get_window_intField
+
+   subroutine init_bnd_get_window_intField_noCudaAware(intBndBufferArraySize)
+      implicit none
+      integer(4),intent(in) :: intBndBufferArraySize
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      !------------------------------------------------------------
+
+      win_buffer_size = mpi_integer_size*intBndBufferArraySize
+
+      call MPI_Win_create(aux_bnd_intField_s,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id_bnd_int,mpi_err)
+
+   end subroutine init_bnd_get_window_intField_noCudaAware
+
+   subroutine close_bnd_window_intField()
       implicit none
 
       call MPI_Win_free(window_id_bnd_int,mpi_err)
-   end subroutine close_window_intField_bnd
+   end subroutine close_bnd_window_intField
+
 !-------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
-   subroutine init_window_realField_bnd(windowMode,maxRealBndBufferArraySize)
+
+   subroutine init_bnd_put_window_realField(realBndBufferArraySize)
       implicit none
-      integer(4),intent(in) :: windowMode,maxRealBndBufferArraySize
-      integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size
-      !------------------------------------------
+      integer(4),intent(in) :: realBndBufferArraySize
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      !------------------------------------------------------------
+      
+      win_buffer_size = mpi_real_size*realBndBufferArraySize
 
-      window_buffer_size = mpi_real_size*(maxRealBndBufferArraySize*bnd_numNodesToComm)
+      !$acc host_data use_device(aux_bnd_realField_r(:))
+      call MPI_Win_create(aux_bnd_realField_r,win_buffer_size,mpi_real_size,MPI_INFO_NULL,app_comm,window_id_bnd_real,mpi_err)
+      !$acc end host_data
 
-      call MPI_Win_create(aux_bnd_realField_r,window_buffer_size,mpi_real_size,MPI_INFO_NULL,app_comm,window_id_bnd_real,mpi_err)
-   end subroutine init_window_realField_bnd
+   end subroutine init_bnd_put_window_realField
 
-   subroutine close_window_realField_bnd()
+   subroutine init_bnd_put_window_realField_noCudaAware(realBndBufferArraySize)
+      implicit none
+      integer(4),intent(in) :: realBndBufferArraySize
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      !------------------------------------------------------------
+
+      call MPI_Win_create(aux_bnd_realField_r,win_buffer_size,mpi_real_size,MPI_INFO_NULL,app_comm,window_id_bnd_real,mpi_err)
+
+   end subroutine init_bnd_put_window_realField_noCudaAware
+
+   subroutine init_bnd_get_window_realField(realBndBufferArraySize)
+      implicit none
+      integer(4),intent(in) :: realBndBufferArraySize
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      !------------------------------------------------------------
+
+      !$acc host_data use_device(aux_bnd_realField_s(:))
+      call MPI_Win_create(aux_bnd_realField_s,win_buffer_size,mpi_real_size,MPI_INFO_NULL,app_comm,window_id_bnd_real,mpi_err)
+      !$acc end host_data
+
+   end subroutine init_bnd_get_window_realField
+
+   subroutine init_bnd_get_window_realField_noCudaAware(realBndBufferArraySize)
+      implicit none
+      integer(4),intent(in) :: realBndBufferArraySize
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      !------------------------------------------------------------
+
+      call MPI_Win_create(aux_bnd_realField_s,win_buffer_size,mpi_real_size,MPI_INFO_NULL,app_comm,window_id_bnd_real,mpi_err)
+
+   end subroutine init_bnd_get_window_realField_noCudaAware
+
+   subroutine close_bnd_window_realField()
       implicit none
 
        call MPI_Win_free(window_id_bnd_real,mpi_err)
-   end subroutine close_window_realField_bnd
+   end subroutine close_bnd_window_realField
 
 !-------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
@@ -447,8 +525,9 @@ contains
       integer(4) :: requests(2*bnd_numRanksWithComms)
       !-------------------------------------------------
 
-      ireq=0
       !$acc update host(aux_bnd_intField_s(:))
+
+      ireq=0
       do i=1,bnd_numRanksWithComms
          ngbRank  = bnd_ranksToComm(i)
          tagComm  = 0
@@ -460,8 +539,9 @@ contains
          ireq = ireq+1
          call MPI_ISend(aux_bnd_intField_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
       end do
-
       call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+      !$acc update device(aux_bnd_intField_r(:))
 
    end subroutine mpi_base_bnd_comms_int_iSendiRcv_noCudaAware
 
@@ -500,8 +580,9 @@ contains
       integer(4) :: requests(2*numRanksWithComms)
       !-------------------------------------------------
 
-      ireq=0
       !$acc update host(aux_bnd_realField_s(:))
+
+      ireq=0
       do i=1,bnd_numRanksWithComms
          ngbRank  = bnd_ranksToComm(i)
          tagComm  = 0
@@ -513,8 +594,9 @@ contains
          ireq = ireq+1
          call MPI_ISend(aux_bnd_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
       end do
-
       call MPI_Waitall((2*bnd_numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+      !$acc update device(aux_bnd_realField_r(:))
 
    end subroutine mpi_base_bnd_comms_real_iSendiRcv_noCudaAware
 
@@ -643,7 +725,6 @@ contains
 
       call mpi_base_bnd_comms_int_iSendiRcv_noCudaAware(numArrays) 
 
-      !$acc update device(aux_bnd_intField_r(:))
       call copy_from_bnd_rcvBuffer_int(intField)
       
    end subroutine mpi_halo_bnd_atomic_int_iSendiRcv_noCudaAware
@@ -659,7 +740,6 @@ contains
 
       call mpi_base_bnd_comms_int_iSendiRcv_noCudaAware(numArrays)
 
-      !$acc update device(aux_bnd_intField_r(:))
       call copy_from_min_bnd_rcvBuffer_int(intField)
 
    end subroutine mpi_halo_bnd_atomic_min_int_iSendiRcv_noCudaAware
@@ -677,7 +757,6 @@ contains
 
       call mpi_base_bnd_comms_real_iSendiRcv_noCudaAware(numArrays)
 
-      !$acc update device(aux_bnd_realField_r(:))
       call copy_from_bnd_rcvBuffer_real(realField)
 
    end subroutine mpi_halo_bnd_atomic_real_iSendiRcv_noCudaAware
@@ -693,7 +772,6 @@ contains
 
       call mpi_base_bnd_comms_real_iSendiRcv_noCudaAware(numArrays)
 
-      !$acc update device(aux_bnd_realField_r(:))
       call copy_from_max_bnd_rcvBuffer_real(realField)
 
    end subroutine mpi_halo_bnd_atomic_max_real_iSendiRcv_noCudaAware
@@ -709,7 +787,6 @@ contains
 
       call mpi_base_bnd_comms_real_iSendiRcv_noCudaAware(numArrays)
 
-      !$acc update device(aux_bnd_realField_r(:))
       call copy_from_max_bnd_rcvBuffer_arrays_real(numArrays,arrays2comm)
 
    end subroutine mpi_halo_bnd_atomic_max_real_arrays_iSendiRcv_noCudaAware
@@ -725,7 +802,6 @@ contains
 
       call mpi_base_bnd_comms_real_iSendiRcv_noCudaAware(numArrays)
 
-      !$acc update device(aux_bnd_realField_r(:))
       call copy_from_max_bnd_rcvBuffer_massEnerMom_real(mass,ener,momentum)
 
    end subroutine mpi_halo_bnd_atomic_max_real_massEnerMom_iSendiRcv_noCudaAware

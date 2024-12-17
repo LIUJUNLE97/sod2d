@@ -158,7 +158,6 @@ contains
         !$acc enter data create(res_rfield(:))
       end if
 
-      !call init_comms(useIntInComms,useRealInComms,1,1,winMode)
    end subroutine init_comms_performance
 
    subroutine debug_comms_real(base_resultsFile_h5_full_name)
@@ -182,8 +181,8 @@ contains
       real(8) :: array_timers(40)
       real(rp) :: refValue2check
       integer(4) :: numRanksNodeCnt(numNodesRankPar)
-      integer(4) :: iter,iTimer,iter2check,winMode
-      logical :: isOk
+      integer(4) :: iter,iTimer,iter2check,commModeTest
+      logical :: isOk,isCudaAwareTest
       integer(4),parameter :: log_file_id = 87
 
       iter2check = 5
@@ -270,7 +269,9 @@ contains
 #endif
 #if _SENDRECV_
       !---------------------------------------------------------------
-      call init_comms(useIntInComms,useRealInComms)
+      commModeTest = 1
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -305,7 +306,9 @@ contains
 #endif
 #if _SENDRECV_NOCUDAAWARE_
       !---------------------------------------------------------------
-      call init_comms(useIntInComms,useRealInComms)
+      commModeTest = 1
+      isCudaAwareTest = .false.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -341,7 +344,9 @@ contains
 
 #if _ISENDIRECV_
       !---------------------------------------------------------------
-      call init_comms(useIntInComms,useRealInComms)
+      commModeTest = 2
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -376,7 +381,9 @@ contains
 #endif
 #if _ISENDIRECV_NOCUDAAWARE_
       !---------------------------------------------------------------
-      call init_comms(useIntInComms,useRealInComms)
+      commModeTest = 2
+      isCudaAwareTest = .false.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -411,8 +418,9 @@ contains
 #endif
 #if _PUTFENCEFLAGOFF_
       !---------------------------------------------------------------
-      winMode = 1
-      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,winMode)
+      commModeTest = 3
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -448,8 +456,9 @@ contains
 #endif
 #if _PUTFENCEFLAGOFF_NOCUDAAWARE_
       !---------------------------------------------------------------
-      winMode = 1
-      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,winMode)
+      commModeTest = 3
+      isCudaAwareTest = .false.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -485,8 +494,9 @@ contains
 #endif
 #if _PUTFENCEFLAGON_
       !---------------------------------------------------------------
-      winMode = 1
-      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,winMode)
+      commModeTest = 3
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -522,8 +532,9 @@ contains
 #endif
 #if _PUTFENCEFLAGON_NOCUDAAWARE_
       !---------------------------------------------------------------
-      winMode = 1
-      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,winMode)
+      commModeTest = 3
+      isCudaAwareTest = .false.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -559,8 +570,9 @@ contains
 #endif
 #if _PUTPSCWON_
       !---------------------------------------------------------------
-      winMode = 1
-      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,winMode)
+      commModeTest = 3
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -593,8 +605,9 @@ contains
 #endif
 #if _PUTPSCWOFF_
       !---------------------------------------------------------------
-      winMode = 1
-      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,winMode)
+      commModeTest = 3
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -627,8 +640,9 @@ contains
 #endif
 #if _PUTLOCKBON_
       !---------------------------------------------------------------
-      winMode = 1
-      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,winMode)
+      commModeTest = 3
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -661,8 +675,9 @@ contains
 #endif
 #if _PUTLOCKBOFF_
       !---------------------------------------------------------------
-      winMode = 1
-      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,winMode)
+      commModeTest = 3
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -695,8 +710,9 @@ contains
 #endif
 #if _GETFENCEFLAGOFF_
       !---------------------------------------------------------------
-      winMode = 2
-      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,winMode)
+      commModeTest = 4
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -732,8 +748,9 @@ contains
 #endif
 #if _GETFENCEFLAGOFF_NOCUDAAWARE_
       !---------------------------------------------------------------
-      winMode = 2
-      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,winMode)
+      commModeTest = 4
+      isCudaAwareTest = .false.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -769,8 +786,9 @@ contains
 #endif
 #if _GETFENCEFLAGON_
       !---------------------------------------------------------------
-      winMode = 2
-      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,winMode)
+      commModeTest = 4
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -806,8 +824,9 @@ contains
 #endif
 #if _GETFENCEFLAGON_NOCUDAAWARE_
       !---------------------------------------------------------------
-      winMode = 2
-      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,winMode)
+      commModeTest = 4
+      isCudaAwareTest = .false.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -843,8 +862,9 @@ contains
 #endif
 #if _GETPSCWON_
       !---------------------------------------------------------------
-      winMode = 2
-      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,winMode)
+      commModeTest = 4
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -877,8 +897,9 @@ contains
 #endif
 #if _GETPSCWOFF_
       !---------------------------------------------------------------
-      winMode = 2
-      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,winMode)
+      commModeTest = 4
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -911,8 +932,9 @@ contains
 #endif
 #if _GETLOCKBON_
       !---------------------------------------------------------------
-      winMode = 2
-      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,winMode)
+      commModeTest = 4
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -945,8 +967,9 @@ contains
 #endif
 #if _GETLOCKBOFF_
       !---------------------------------------------------------------
-      winMode = 2
-      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,winMode)
+      commModeTest = 4
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp

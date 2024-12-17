@@ -29,14 +29,12 @@ module mod_comms
    implicit none
 
    !---- for the comms---
-   integer(KIND=MPI_ADDRESS_KIND) :: memPos_t
    integer(4) :: worldGroup,commGroup
 
    integer(4),dimension(:),allocatable :: aux_intField_s,  aux_intField_r
    real(rp),dimension(:),allocatable   :: aux_realField_s, aux_realField_r
 
    integer(4) :: window_id_int,window_id_real
-   integer(4) :: window_id_sm
    integer(4) :: beginFence=0,endFence=0
    integer(4) :: startAssert=0,postAssert=0
 
@@ -55,35 +53,56 @@ contains
 
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
-   subroutine init_comms(useInt,useReal,intBufferMultIn,realBufferMultIn,initWinModeIn)
+   subroutine init_comms(useInt,useReal,intBufferMultIn,realBufferMultIn,commModeTestIn,isWinCudaAwareTestIn)
       implicit none
       logical,intent(in) :: useInt,useReal
-      integer(4),intent(in),optional :: intBufferMultIn,realBufferMultIn,initWinModeIn
-      integer(4) :: maxIntBufferArraySize=1,maxRealBufferArraySize=1,winMode
-      logical :: useFenceFlags,useAssertNoCheckFlags,useLockBarrier,initWindows=.false.
+      integer(4),intent(in),optional :: intBufferMultIn,realBufferMultIn,commModeTestIn
+      logical,intent(in),optional :: isWinCudaAwareTestIn
+      integer(4) :: intBufferArraySize,realBufferArraySize,intBufferMult=1,realBufferMult=1,commModeTest=0
+      logical :: useFenceFlags,useAssertNoCheckFlags,useLockBarrier
+      logical :: initWindowPut=.false.,initWindowGet=.false.,isWinCudaAware=.true.!,initWindows=.false.
 
-      initWindows = .false.
-      winMode = 0
+      !--------------------------
+      !--- Comm. Mode Test ---
+      ! 1. Send/Recv
+      ! 2. iSend/iRecv
+      ! 3. Put
+      ! 4. Get
+      ! 5. NCCL
+      !-----------------------
 
-      if(present(initWinModeIn)) then
-         initWindows = .true.
-         winMode = initWinModeIn
-
-         if((winMode.ne.1).and.(winMode.ne.2)) then
-            write(*,*) 'Crashing in init_comms! Bad winMode:',winMode,' (must be 1 (PUT) or 2 (GET))'
-            call MPI_Abort(app_comm,-1,mpi_err)
-         end if
-      end if
-
-      maxIntBufferArraySize  = 1
-      maxRealBufferArraySize = 1
+      intBufferMult  = 1
+      realBufferMult = 1
+      initWindowPut = .false.
+      initWindowGet = .false.
+      commModeTest = 0
+      isWinCudaAware = .true.
 
       if(present(intBufferMultIn)) then
-         maxIntBufferArraySize = intBufferMultIn
+         intBufferMult = intBufferMultIn
       end if
 
       if(present(realBufferMultIn)) then
-         maxRealBufferArraySize = realBufferMultIn
+         realBufferMult = realBufferMultIn
+      end if
+
+      if(present(commModeTestIn)) then
+         commModeTest = commModeTestIn
+         
+         if((commModeTest.lt.1).or.(commModeTest.gt.5)) then
+            write(*,*) 'Crashing in init_comms! Bad commModeTest:',commModeTest,' (must be 1,2,3,4 or 5)'
+            call MPI_Abort(app_comm,-1,mpi_err)
+         end if
+
+         if(commModeTest.eq.3) then
+            initWindowPut = .true.
+         elseif ( commModeTest .eq.4 ) then
+            initWindowGet = .true.
+         endif
+      end if
+
+      if(present(isWinCudaAwareTestIn)) then
+         isWinCudaAware = isWinCudaAwareTestIn
       end if
 
 #if _SENDRCV_
@@ -94,13 +113,33 @@ contains
 #endif
 #if _PUTFENCE_
       if(mpi_rank.eq.0) write(111,*) "--| Comm. scheme: Put(Fence)"
-      initWindows = .true. !forcing initWindows to true
-      winMode = 1 !forcing winMode 1 (PUT)
+
+      if(commModeTest .eq. 4) then
+         write(*,*) 'Crashing in init_comms! commModeTest 4 not compatible with PUT(Fence)!'
+         call MPI_Abort(app_comm,-1,mpi_err)
+      end if
+
+      if(not(isWinCudaAware)) then
+         write(*,*) 'Crashing in init_comms! isWinCudaAware=.false. not compatible with PUT(Fence)!'
+         call MPI_Abort(app_comm,-1,mpi_err)
+      end if
+
+      initWindowPut = .true. !forcing initWindows to true
 #endif
 #if _GETFENCE_
       if(mpi_rank.eq.0) write(111,*) "--| Comm. scheme: Get(Fence)"
-      initWindows = .true. !forcing initWindows to true
-      winMode = 2 !forcing winMode 2 (GET)
+
+      if(commModeTest .eq. 3) then
+         write(*,*) 'Crashing in init_comms! commModeTest 3 not compatible with Get(Fence)!'
+         call MPI_Abort(app_comm,-1,mpi_err)
+      end if
+
+      if(not(isWinCudaAware)) then
+         write(*,*) 'Crashing in init_comms! isWinCudaAware=.false. not compatible with Get(Fence)!'
+         call MPI_Abort(app_comm,-1,mpi_err)
+      end if
+
+      initWindowGet = .true. !forcing initWindows to true
 #endif
 #if _NCCL_
       if(mpi_rank.eq.0) write(111,*) "--| Comm. scheme: NCCL"
@@ -114,30 +153,65 @@ contains
       isIntWindow  =.false.
       isRealWindow =.false.
 
+      call MPI_Comm_group(app_comm,worldGroup,mpi_err)
+      call MPI_Group_incl(worldGroup,numRanksWithComms,ranksToComm,commGroup,mpi_err);
+
       if(useInt) then
          isInt = .true.
 
-         allocate(aux_intField_s(maxIntBufferArraySize*numNodesToComm))
-         allocate(aux_intField_r(maxIntBufferArraySize*numNodesToComm))
+         intBufferArraySize = intBufferMult*numNodesToComm 
+
+         allocate(aux_intField_s(intBufferArraySize))
+         allocate(aux_intField_r(intBufferArraySize))
          !$acc enter data create(aux_intField_s(:))
          !$acc enter data create(aux_intField_r(:))
 
-         if(initWindows) call init_window_intField(winMode,maxIntBufferArraySize)
+         if(initWindowPut) then
+            isIntWindow = .true.
+            if(isWinCudaAware) then
+               call init_put_window_intField(intBufferArraySize)
+            else
+               call init_put_window_intField_noCudaAware(intBufferArraySize)
+            endif
+         elseif(initWindowGet) then
+            isIntWindow =.true.
+            if(isWinCudaAware) then
+               call init_get_window_intField(intBufferArraySize)
+            else
+               call init_get_window_intField_noCudaAware(intBufferArraySize)
+            endif
+         endif
+            
+         !if(initWindows) call init_window_intField(winMode,maxIntBufferArraySize)
       end if
 
       if(useReal) then
          isReal = .true.
 
-         allocate(aux_realField_s(maxRealBufferArraySize*numNodesToComm))
-         allocate(aux_realField_r(maxRealBufferArraySize*numNodesToComm))
+         realBufferArraySize = realBufferMult*numNodesToComm 
+
+         allocate(aux_realField_s(realBufferArraySize))
+         allocate(aux_realField_r(realBufferArraySize))
          !$acc enter data create(aux_realField_s(:))
          !$acc enter data create(aux_realField_r(:))
 
-         if(initWindows) call init_window_realField(winMode,maxRealBufferArraySize)
-      end if
+         if(initWindowPut) then
+            isRealWindow = .true.
+            if(isWinCudaAware) then
+               call init_put_window_realField(realBufferArraySize)
+            else
+               call init_put_window_realField_noCudaAware(realBufferArraySize)
+            endif
+         elseif(initWindowGet) then
+            isRealWindow = .true.
+            if(isWinCudaAware) then
+               call init_get_window_realField(realBufferArraySize)
+            else
+               call init_get_window_realField_noCudaAware(realBufferArraySize)
+            endif
+         endif
 
-      call MPI_Comm_group(app_comm,worldGroup,mpi_err)
-      call MPI_Group_incl(worldGroup,numRanksWithComms,ranksToComm,commGroup,mpi_err);
+      end if
 
       useFenceFlags=.false. !by default
       useAssertNoCheckFlags=.true. !by default
@@ -194,450 +268,507 @@ contains
 
    end subroutine end_comms
 
-    subroutine setFenceFlags(useFenceFlags)
-        implicit none
-        logical,intent(in) :: useFenceFlags
+   subroutine setFenceFlags(useFenceFlags)
+      implicit none
+      logical,intent(in) :: useFenceFlags
 
-        if(useFenceFlags) then
-            beginFence = MPI_MODE_NOPRECEDE
-            endFence   = IOR(MPI_MODE_NOSTORE,IOR(MPI_MODE_NOPUT,MPI_MODE_NOSUCCEED))
-            !endFence   = IOR(MPI_MODE_NOSTORE,MPI_MODE_NOPUT)
-        else
-            beginFence = 0
-            endFence   = 0
-        end if
-    end subroutine
+      if(useFenceFlags) then
+         beginFence = MPI_MODE_NOPRECEDE
+         endFence   = IOR(MPI_MODE_NOSTORE,IOR(MPI_MODE_NOPUT,MPI_MODE_NOSUCCEED))
+         !endFence   = IOR(MPI_MODE_NOSTORE,MPI_MODE_NOPUT)
+      else
+         beginFence = 0
+         endFence   = 0
+      end if
+   end subroutine
 
-    subroutine setPSCWAssertNoCheckFlags(useAssertNoCheckFlags)
-        implicit none
-        logical,intent(in) :: useAssertNoCheckFlags
+   subroutine setPSCWAssertNoCheckFlags(useAssertNoCheckFlags)
+      implicit none
+      logical,intent(in) :: useAssertNoCheckFlags
 
-        if(useAssertNoCheckFlags) then
-            postAssert  = MPI_MODE_NOCHECK
-            startAssert = MPI_MODE_NOCHECK
-        else
-            postAssert  = 0
-            startAssert = 0
-        endif
-    end subroutine
+      if(useAssertNoCheckFlags) then
+         postAssert  = MPI_MODE_NOCHECK
+         startAssert = MPI_MODE_NOCHECK
+      else
+         postAssert  = 0
+         startAssert = 0
+      endif
+   end subroutine
 
-    subroutine setLockBarrier(useLockBarrier)
-        implicit none
-        logical,intent(in) :: useLockBarrier
+   subroutine setLockBarrier(useLockBarrier)
+      implicit none
+      logical,intent(in) :: useLockBarrier
 
-        isLockBarrier = useLockBarrier
-    end subroutine
+      isLockBarrier = useLockBarrier
+   end subroutine
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
-    subroutine init_window_intField(windowMode,maxIntBufferArraySize)
-        implicit none
-        integer(4),intent(in) :: windowMode,maxIntBufferArraySize
-        integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size
-        !------------------------------------------
 
-        window_buffer_size = mpi_integer_size*(maxIntBufferArraySize*numNodesToComm)
+   subroutine init_put_window_intField(intBufferArraySize)
+      implicit none
+      integer(4),intent(in) :: intBufferArraySize
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      !------------------------------------------------------------
 
-        if(windowMode.eq.1) then !For PUT Comms, the buffer exposed is aux_intField_r
-            !$acc host_data use_device(aux_intField_r(:),aux_intField_s(:))
-            call MPI_Win_create(aux_intField_r,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id_int,mpi_err)
-            !$acc end host_data
-        else if(windowMode.eq.2) then !For GET Comms, the buffer exposed is aux_intField_s
-            !$acc host_data use_device(aux_intField_r(:),aux_intField_s(:))
-            call MPI_Win_create(aux_intField_s,window_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id_int,mpi_err)
-            !$acc end host_data
-        else
-            write(*,*) 'Crashing. Bad windowsMode in init_window_intField! Must be 1 (PUT) or 2 (GET)'
-            call MPI_Abort(app_comm,-1,mpi_err)
-        end if
+      win_buffer_size = mpi_integer_size*intBufferArraySize
 
-        isIntWindow=.true.
+      !$acc host_data use_device(aux_intField_r(:))
+      call MPI_Win_create(aux_intField_r,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id_int,mpi_err)
+      !$acc end host_data
 
-    end subroutine init_window_intField
+   end subroutine init_put_window_intField
 
-    subroutine close_window_intField()
-        implicit none
+   subroutine init_put_window_intField_noCudaAware(intBufferArraySize)
+      implicit none
+      integer(4),intent(in) :: intBufferArraySize
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      !------------------------------------------------------------
 
-        call MPI_Win_free(window_id_int,mpi_err)
-    end subroutine close_window_intField
+      win_buffer_size = mpi_integer_size*intBufferArraySize
+
+      call MPI_Win_create(aux_intField_r,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id_int,mpi_err)
+
+   end subroutine init_put_window_intField_noCudaAware
+
+   subroutine init_get_window_intField(intBufferArraySize)
+      implicit none
+      integer(4),intent(in) :: intBufferArraySize
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      !------------------------------------------------------------
+
+      win_buffer_size = mpi_integer_size*intBufferArraySize
+
+      !$acc host_data use_device(aux_intField_s(:))
+      call MPI_Win_create(aux_intField_s,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id_int,mpi_err)
+      !$acc end host_data
+
+   end subroutine init_get_window_intField
+
+   subroutine init_get_window_intField_noCudaAware(intBufferArraySize)
+      implicit none
+      integer(4),intent(in) :: intBufferArraySize
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      !------------------------------------------------------------
+
+      win_buffer_size = mpi_integer_size*intBufferArraySize
+
+      call MPI_Win_create(aux_intField_s,win_buffer_size,mpi_integer_size,MPI_INFO_NULL,app_comm,window_id_int,mpi_err)
+
+   end subroutine init_get_window_intField_noCudaAware
+
+   subroutine close_window_intField()
+      implicit none
+
+      call MPI_Win_free(window_id_int,mpi_err)
+   end subroutine close_window_intField
+
 !-------------------------------------------------------------------------------------
 !-------------------------------------------------------------------------------------
-    subroutine init_window_realField(windowMode,maxRealBufferArraySize)
-        implicit none
-        integer(4),intent(in) :: windowMode,maxRealBufferArraySize
-        integer(KIND=MPI_ADDRESS_KIND) :: window_buffer_size
-        !------------------------------------------
 
-        window_buffer_size = mpi_real_size*(maxRealBufferArraySize*numNodesToComm)
+   subroutine init_put_window_realField(realBufferArraySize)
+      implicit none
+      integer(4),intent(in) :: realBufferArraySize
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      !------------------------------------------------------------
+      
+      win_buffer_size = mpi_real_size*realBufferArraySize
 
-        if(windowMode.eq.1) then !For PUT Comms, the buffer exposed is aux_intField_r
-            !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
-            call MPI_Win_create(aux_realField_r,window_buffer_size,mpi_real_size,MPI_INFO_NULL,app_comm,window_id_real,mpi_err)
-            !$acc end host_data
-        else if(windowMode .eq. 2) then !For GET Comms, the buffer exposed is aux_intField_s
-            !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
-            call MPI_Win_create(aux_realField_s,window_buffer_size,mpi_real_size,MPI_INFO_NULL,app_comm,window_id_real,mpi_err)
-            !$acc end host_data
-        else
-            write(*,*) 'Crashing. Bad windowsMode in init_window_realField! Must be 1 (PUT) or 2 (GET)'
-            call MPI_Abort(app_comm,-1,mpi_err)
-        end if
+      !$acc host_data use_device(aux_realField_r(:))
+      call MPI_Win_create(aux_realField_r,win_buffer_size,mpi_real_size,MPI_INFO_NULL,app_comm,window_id_real,mpi_err)
+      !$acc end host_data
 
-        isRealWindow=.true.
+   end subroutine init_put_window_realField
 
-    end subroutine init_window_realField
+   subroutine init_put_window_realField_noCudaAware(realBufferArraySize)
+      implicit none
+      integer(4),intent(in) :: realBufferArraySize
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      !------------------------------------------------------------
 
-    subroutine close_window_realField()
-        implicit none
+      win_buffer_size = mpi_real_size*realBufferArraySize
 
-        call MPI_Win_free(window_id_real,mpi_err)
-    end subroutine close_window_realField
+      call MPI_Win_create(aux_realField_r,win_buffer_size,mpi_real_size,MPI_INFO_NULL,app_comm,window_id_real,mpi_err)
+
+   end subroutine init_put_window_realField_noCudaAware
+
+   subroutine init_get_window_realField(realBufferArraySize)
+      implicit none
+      integer(4),intent(in) :: realBufferArraySize
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      !------------------------------------------------------------
+
+      win_buffer_size = mpi_real_size*realBufferArraySize
+
+      !$acc host_data use_device(aux_realField_s(:))
+      call MPI_Win_create(aux_realField_s,win_buffer_size,mpi_real_size,MPI_INFO_NULL,app_comm,window_id_real,mpi_err)
+      !$acc end host_data
+
+   end subroutine init_get_window_realField
+
+   subroutine init_get_window_realField_noCudaAware(realBufferArraySize)
+      implicit none
+      integer(4),intent(in) :: realBufferArraySize
+      integer(kind=mpi_address_kind) :: win_buffer_size
+      !------------------------------------------------------------
+
+      win_buffer_size = mpi_real_size*realBufferArraySize
+
+      call MPI_Win_create(aux_realField_s,win_buffer_size,mpi_real_size,MPI_INFO_NULL,app_comm,window_id_real,mpi_err)
+
+   end subroutine init_get_window_realField_noCudaAware
+
+   subroutine close_window_realField()
+      implicit none
+
+      call MPI_Win_free(window_id_real,mpi_err)
+   end subroutine close_window_realField
 
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
 !-------- Fill Buffer Subroutines ----------------
 !-----------------------------------------------------------------------------------------------------------------------
-    subroutine fill_sendBuffer_int(intField)
-        implicit none
-        integer(4), intent(inout) :: intField(:)
-        integer(4) :: i,iNodeL
+   subroutine fill_sendBuffer_int(intField)
+      implicit none
+      integer(4), intent(inout) :: intField(:)
+      integer(4) :: i,iNodeL
 
-        !$acc parallel loop async(1)
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
-            aux_intField_s(i) = intField(iNodeL)
-        end do
-        !$acc end parallel loop
-        !$acc kernels async(2)
-        aux_intField_r(:)=0
-        !$acc end kernels
+      !$acc parallel loop async(1)
+      do i=1,numNodesToComm
+         iNodeL = nodesToComm(i)
+         aux_intField_s(i) = intField(iNodeL)
+      end do
+      !$acc end parallel loop
+      !$acc kernels async(2)
+      aux_intField_r(:)=0
+      !$acc end kernels
 
-        !$acc wait
-    end subroutine fill_sendBuffer_int
+      !$acc wait
+   end subroutine fill_sendBuffer_int
 !-------------------------------------------------------------------------
-    subroutine fill_sendBuffer_real(realField)
-        implicit none
-        real(rp),intent(inout) :: realField(:)
-        integer(4) :: i,iNodeL
+   subroutine fill_sendBuffer_real(realField)
+      implicit none
+      real(rp),intent(inout) :: realField(:)
+      integer(4) :: i,iNodeL
 
-        !$acc parallel loop async(1)
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
-            aux_realField_s(i) = realField(iNodeL)
-        end do
-        !$acc end parallel loop
-        !$acc kernels async(2)
-        aux_realField_r(:)=0.0_rp
-        !$acc end kernels
+      !$acc parallel loop async(1)
+      do i=1,numNodesToComm
+         iNodeL = nodesToComm(i)
+         aux_realField_s(i) = realField(iNodeL)
+      end do
+      !$acc end parallel loop
+      !$acc kernels async(2)
+      aux_realField_r(:)=0.0_rp
+      !$acc end kernels
 
-        !$acc wait
-    end subroutine fill_sendBuffer_real
-!-------------------------------------------------------------------------
-    subroutine fill_sendBuffer_arrays_real(numArrays,arrays2comm)
-        implicit none
-        integer(4),intent(in) :: numArrays
-        real(rp),intent(inout) :: arrays2comm(:,:)
-        integer(4) :: i,iArray,iNodeL
+      !$acc wait
+   end subroutine fill_sendBuffer_real
+!------------------------------------------------------------------------
+   subroutine fill_sendBuffer_arrays_real(numArrays,arrays2comm)
+      implicit none
+      integer(4),intent(in) :: numArrays
+      real(rp),intent(inout) :: arrays2comm(:,:)
+      integer(4) :: i,iArray,iNodeL
 
-        call nvtxStartRange("fillBuffer_arrays")
-        !$acc parallel loop async(1)
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
-            do iArray = 1,numArrays
-                aux_realField_s((i-1)*numArrays+iArray) = arrays2comm(iNodeL,iArray)
-            end do
-        end do
-        !$acc end parallel loop
-        !$acc kernels async(2)
-        aux_realField_r(:)=0.0_rp
-        !$acc end kernels
+      call nvtxStartRange("fillBuffer_arrays")
+      !$acc parallel loop async(1)
+      do i=1,numNodesToComm
+         iNodeL = nodesToComm(i)
+         do iArray = 1,numArrays
+            aux_realField_s((i-1)*numArrays+iArray) = arrays2comm(iNodeL,iArray)
+         end do
+      end do
+      !$acc end parallel loop
+      !$acc kernels async(2)
+      aux_realField_r(:)=0.0_rp
+      !$acc end kernels
 
-        !$acc wait
-        call nvtxEndRange
-    end subroutine fill_sendBuffer_arrays_real
-!-------------------------------------------------------------------------
-    subroutine fill_sendBuffer_massEnerMom_real(mass,ener,momentum)
-        implicit none
-        real(rp),intent(in) :: mass(:),ener(:),momentum(:,:)
-        integer(4) :: i,idime,iNodeL
-        integer(4),parameter :: nArrays=5
+      !$acc wait
+      call nvtxEndRange
+   end subroutine fill_sendBuffer_arrays_real
+!------------------------------------------------------------------------
+   subroutine fill_sendBuffer_massEnerMom_real(mass,ener,momentum)
+      implicit none
+      real(rp),intent(in) :: mass(:),ener(:),momentum(:,:)
+      integer(4) :: i,idime,iNodeL
+      integer(4),parameter :: nArrays=5
 
-        call nvtxStartRange("fillBuffer_async")
-        !$acc parallel loop async(1)
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
-            do idime = 1,ndime
-                aux_realField_s((i-1)*nArrays+idime) = momentum(iNodeL,idime)
-            end do
-            aux_realField_s((i-1)*nArrays+4) = mass(iNodeL)
-            aux_realField_s((i-1)*nArrays+5) = ener(iNodeL)
-        end do
-        !$acc end parallel loop
-        !$acc kernels async(2)
-        aux_realField_r(:)=0.0_rp
-        !$acc end kernels
+      call nvtxStartRange("fillBuffer_async")
+      !$acc parallel loop async(1)
+      do i=1,numNodesToComm
+         iNodeL = nodesToComm(i)
+         do idime = 1,ndime
+             aux_realField_s((i-1)*nArrays+idime) = momentum(iNodeL,idime)
+         end do
+         aux_realField_s((i-1)*nArrays+4) = mass(iNodeL)
+         aux_realField_s((i-1)*nArrays+5) = ener(iNodeL)
+      end do
+      !$acc end parallel loop
+      !$acc kernels async(2)
+      aux_realField_r(:)=0.0_rp
+      !$acc end kernels
 
-        !$acc wait
-        call nvtxEndRange
-    end subroutine fill_sendBuffer_massEnerMom_real
-!-------------------------------------------------------------------------
-    subroutine fill_sendBuffer_arraysPtr_real(numArrays,arraysPtr2comm)
-        implicit none
-        integer(4), intent(in) :: numArrays
-        type(ptr_array1d_rp),intent(inout) :: arraysPtr2comm(numArrays)
-        integer(4) :: iNode,iArray,iNodeL
+      !$acc wait
+      call nvtxEndRange
+   end subroutine fill_sendBuffer_massEnerMom_real
+!------------------------------------------------------------------------
+   subroutine fill_sendBuffer_arraysPtr_real(numArrays,arraysPtr2comm)
+      implicit none
+      integer(4), intent(in) :: numArrays
+      type(ptr_array1d_rp),intent(inout) :: arraysPtr2comm(numArrays)
+      integer(4) :: iNode,iArray,iNodeL
 
-        call nvtxStartRange("fillBuffer_arrays")
-        !$acc parallel loop present(arraysPtr2comm(:)) async(1)
-        do iNode=1,numNodesToComm
-            iNodeL = nodesToComm(iNode)
-            do iArray = 1,numArrays
-                aux_realField_s((iNode-1)*numArrays+iArray) = arraysPtr2comm(iArray)%ptr(iNodeL)
-            end do
-        end do
-        !$acc end parallel loop
+      call nvtxStartRange("fillBuffer_arrays")
+      !$acc parallel loop present(arraysPtr2comm(:)) async(1)
+      do iNode=1,numNodesToComm
+         iNodeL = nodesToComm(iNode)
+         do iArray = 1,numArrays
+            aux_realField_s((iNode-1)*numArrays+iArray) = arraysPtr2comm(iArray)%ptr(iNodeL)
+         end do
+      end do
+      !$acc end parallel loop
 
-        !$acc kernels async(2)
-        aux_realField_r(:)=0.0_rp
-        !$acc end kernels
+      !$acc kernels async(2)
+      aux_realField_r(:)=0.0_rp
+      !$acc end kernels
 
-        !$acc wait
-        call nvtxEndRange
-    end subroutine fill_sendBuffer_arraysPtr_real
+      !$acc wait
+      call nvtxEndRange
+   end subroutine fill_sendBuffer_arraysPtr_real
 
 !-------------------------------------------------------------------------
 !-------- Copy Buffer Subroutines ----------------
 !-------------------------------------------------------------------------
-    subroutine copy_from_rcvBuffer_int(intField)
-        implicit none
-        integer(4), intent(inout) :: intField(:)
-        integer(4) :: i,iNodeL
+   subroutine copy_from_rcvBuffer_int(intField)
+      implicit none
+      integer(4), intent(inout) :: intField(:)
+      integer(4) :: i,iNodeL
 
-        !$acc parallel loop
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
+      !$acc parallel loop
+      do i=1,numNodesToComm
+         iNodeL = nodesToComm(i)
+         !$acc atomic update
+         intField(iNodeL) = intField(iNodeL) + aux_intField_r(i)
+         !$acc end atomic
+      end do
+      !$acc end parallel loop
+   end subroutine copy_from_rcvBuffer_int
+!------------------------------------------------------------------------
+   subroutine copy_from_min_rcvBuffer_int(intField)
+      implicit none
+      integer(4), intent(inout) :: intField(:)
+      integer(4) :: i,iNodeL
+
+      !$acc parallel loop
+      do i=1,numNodesToComm
+         iNodeL = nodesToComm(i)
+         !$acc atomic update
+         intField(iNodeL) = min(intField(iNodeL), aux_intField_r(i))
+         !$acc end atomic
+      end do
+      !$acc end parallel loop
+   end subroutine copy_from_min_rcvBuffer_int
+!------------------------------------------------------------------------
+   subroutine copy_from_rcvBuffer_real(realField)
+      implicit none
+      real(rp), intent(inout) :: realField(:)
+      integer(4) :: i,iNodeL
+
+      !$acc parallel loop
+      do i=1,numNodesToComm
+         iNodeL = nodesToComm(i)
+         !$acc atomic update
+         realField(iNodeL) = realField(iNodeL) + aux_realField_r(i)
+         !$acc end atomic
+      end do
+      !$acc end parallel loop
+   end subroutine copy_from_rcvBuffer_real
+!------------------------------------------------------------------------
+   subroutine copy_from_rcvBuffer_arrays_real(numArrays,arrays2comm)
+      implicit none
+      integer(4),intent(in) :: numArrays
+      real(rp),intent(inout) :: arrays2comm(:,:)
+      integer(4) :: i,iArray,iNodeL
+
+      !$acc parallel loop
+      do i=1,numNodesToComm
+         iNodeL = nodesToComm(i)
+         do iArray = 1,numArrays
             !$acc atomic update
-            intField(iNodeL) = intField(iNodeL) + aux_intField_r(i)
+            arrays2comm(iNodeL,iArray) = arrays2comm(iNodeL,iArray) + aux_realField_r((i-1)*numArrays+iArray)
             !$acc end atomic
-        end do
-        !$acc end parallel loop
-    end subroutine copy_from_rcvBuffer_int
-!-------------------------------------------------------------------------
-    subroutine copy_from_min_rcvBuffer_int(intField)
-        implicit none
-        integer(4), intent(inout) :: intField(:)
-        integer(4) :: i,iNodeL
+         end do
+      end do
+      !$acc end parallel loop
+   end subroutine copy_from_rcvBuffer_arrays_real
+!------------------------------------------------------------------------
+   subroutine copy_from_rcvBuffer_massEnerMom_real(mass,ener,momentum)
+      implicit none
+      real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
+      integer(4) :: i,idime,iNodeL
+      integer(4),parameter :: nArrays=5
 
-        !$acc parallel loop
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
+      !$acc parallel loop
+      do i=1,numNodesToComm
+         iNodeL = nodesToComm(i)
+         do idime = 1,ndime
             !$acc atomic update
-            intField(iNodeL) = min(intField(iNodeL), aux_intField_r(i))
+            momentum(iNodeL,idime) = momentum(iNodeL,idime) + aux_realField_r((i-1)*nArrays+idime)
             !$acc end atomic
-        end do
-        !$acc end parallel loop
-    end subroutine copy_from_min_rcvBuffer_int
-!-------------------------------------------------------------------------
-    subroutine copy_from_rcvBuffer_real(realField)
-        implicit none
-        real(rp), intent(inout) :: realField(:)
-        integer(4) :: i,iNodeL
+         end do
+         !$acc atomic update
+         mass(iNodeL) = mass(iNodeL) + aux_realField_r((i-1)*nArrays+4)
+         !$acc end atomic
+         !$acc atomic update
+         ener(iNodeL) = ener(iNodeL) + aux_realField_r((i-1)*nArrays+5)
+         !$acc end atomic
+      end do
+      !$acc end parallel loop
+   end subroutine copy_from_rcvBuffer_massEnerMom_real
+!------------------------------------------------------------------------
+   subroutine copy_from_rcvBuffer_arraysPtr_real(numArrays,arraysPtr2comm)
+      implicit none
+      integer(4), intent(in) :: numArrays
+      type(ptr_array1d_rp),intent(inout) :: arraysPtr2comm(numArrays)
+      integer(4) :: iNode,iArray,iNodeL
 
-        !$acc parallel loop
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
+      !$acc parallel loop present(arraysPtr2comm(:))
+      do iNode=1,numNodesToComm
+         iNodeL = nodesToComm(iNode)
+         do iArray = 1,numArrays
             !$acc atomic update
-            realField(iNodeL) = realField(iNodeL) + aux_realField_r(i)
+            arraysPtr2comm(iArray)%ptr(iNodeL) = arraysPtr2comm(iArray)%ptr(iNodeL) + aux_realField_r((iNode-1)*numArrays+iArray)
             !$acc end atomic
-        end do
-        !$acc end parallel loop
-    end subroutine copy_from_rcvBuffer_real
-!-------------------------------------------------------------------------
-    subroutine copy_from_rcvBuffer_arrays_real(numArrays,arrays2comm)
-        implicit none
-        integer(4),intent(in) :: numArrays
-        real(rp),intent(inout) :: arrays2comm(:,:)
-        integer(4) :: i,iArray,iNodeL
+         end do
+      end do
+      !$acc end parallel loop
+   end subroutine copy_from_rcvBuffer_arraysPtr_real
+!------------------------------------------------------------------------
+   subroutine copy_from_min_rcvBuffer_real(realField)
+      implicit none
+      real(rp), intent(inout) :: realField(:)
+      integer(4) :: i,iNodeL
 
-        !$acc parallel loop
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
-            do iArray = 1,numArrays
-                !$acc atomic update
-                arrays2comm(iNodeL,iArray) = arrays2comm(iNodeL,iArray) + aux_realField_r((i-1)*numArrays+iArray)
-                !$acc end atomic
-            end do
-        end do
-        !$acc end parallel loop
-    end subroutine copy_from_rcvBuffer_arrays_real
-!-------------------------------------------------------------------------
-    subroutine copy_from_rcvBuffer_massEnerMom_real(mass,ener,momentum)
-        implicit none
-        real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
-        integer(4) :: i,idime,iNodeL
-        integer(4),parameter :: nArrays=5
+      !$acc parallel loop
+      do i=1,numNodesToComm
+         iNodeL = nodesToComm(i)
+         !$acc atomic update
+         realField(iNodeL) = min(realField(iNodeL) , aux_realField_r(i))
+         !$acc end atomic
+      end do
+      !$acc end parallel loop
+   end subroutine copy_from_min_rcvBuffer_real
+!------------------------------------------------------------------------
+   subroutine copy_from_conditional_ave_rcvBuffer_real(cond,realField)
+      implicit none
+      real(rp),intent(in) :: cond
+      real(rp),intent(inout) :: realField(:)
+      integer(4) :: i,iNodeL
 
-        !$acc parallel loop
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
-            do idime = 1,ndime
-                !$acc atomic update
-                momentum(iNodeL,idime) = momentum(iNodeL,idime) + aux_realField_r((i-1)*nArrays+idime)
-                !$acc end atomic
-            end do
+      !$acc parallel loop
+      do i=1,numNodesToComm
+         iNodeL = nodesToComm(i)
+         if(abs(aux_realField_r(i)).gt. cond) then
+            if(abs(realField(iNodeL)).gt. cond) then
+               !$acc atomic update
+               realField(iNodeL) = realField(iNodeL)+aux_realField_r(i)
+               !$acc end atomic
+            else
+               !$acc atomic write
+               realField(iNodeL) = aux_realField_r(i)
+               !$acc end atomic
+            end if
+         end if
+      end do
+      !$acc end parallel loop
+   end subroutine copy_from_conditional_ave_rcvBuffer_real
+!------------------------------------------------------------------------
+   subroutine copy_from_rcvBuffer_get_int(intField)
+      implicit none
+      integer(4), intent(inout) :: intField(:)
+      integer(4) :: i,iNodeL
+
+      !$acc parallel loop
+      do i=1,numNodesToComm
+         iNodeL = nodesToComm(i)
+         !$acc atomic update
+         intField(iNodeL) = intField(iNodeL) + aux_intField_s(i)
+         !$acc end atomic
+      end do
+      !$acc end parallel loop
+   end subroutine copy_from_rcvBuffer_get_int
+!------------------------------------------------------------------------
+   subroutine copy_from_rcvBuffer_get_real(realField)
+      implicit none
+      real(rp), intent(inout) :: realField(:)
+      integer(4) :: i,iNodeL
+
+      !$acc parallel loop
+      do i=1,numNodesToComm
+         iNodeL = nodesToComm(i)
+         !$acc atomic update
+         realField(iNodeL) = realField(iNodeL) + aux_realField_s(i)
+         !$acc end atomic
+      end do
+      !$acc end parallel loop
+   end subroutine copy_from_rcvBuffer_get_real
+!------------------------------------------------------------------------
+   subroutine copy_from_min_rcvBuffer_get_real(realField)
+      implicit none
+      real(rp), intent(inout) :: realField(:)
+      integer(4) :: i,iNodeL
+
+      !$acc parallel loop
+      do i=1,numNodesToComm
+         iNodeL = nodesToComm(i)
+         !$acc atomic update
+         realField(iNodeL) = min(realField(iNodeL), aux_realField_s(i))
+         !$acc end atomic
+      end do
+      !$acc end parallel loop
+   end subroutine copy_from_min_rcvBuffer_get_real
+!------------------------------------------------------------------------
+   subroutine copy_from_rcvBuffer_arrays_get_real(numArrays,arrays2comm)
+      implicit none
+      integer(4),intent(in) :: numArrays
+      real(rp),intent(inout) :: arrays2comm(:,:)
+      integer(4) :: i,iArray,iNodeL
+
+      !$acc parallel loop
+      do i=1,numNodesToComm
+         iNodeL = nodesToComm(i)
+         do iArray = 1,numArrays
             !$acc atomic update
-            mass(iNodeL) = mass(iNodeL) + aux_realField_r((i-1)*nArrays+4)
+            arrays2comm(iNodeL,iArray) = arrays2comm(iNodeL,iArray) + aux_realField_s((i-1)*numArrays+iArray)
             !$acc end atomic
+         end do
+      end do
+      !$acc end parallel loop
+   end subroutine copy_from_rcvBuffer_arrays_get_real
+!------------------------------------------------------------------------
+   subroutine copy_from_rcvBuffer_massEnerMom_get_real(mass,ener,momentum)
+      implicit none
+      real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
+      integer(4) :: i,idime,iNodeL
+      integer(4),parameter :: nArrays=5
+
+      !$acc parallel loop
+      do i=1,numNodesToComm
+         iNodeL = nodesToComm(i)
+         do idime = 1,ndime
             !$acc atomic update
-            ener(iNodeL) = ener(iNodeL) + aux_realField_r((i-1)*nArrays+5)
+            momentum(iNodeL,idime) = momentum(iNodeL,idime) + aux_realField_s((i-1)*nArrays+idime)
             !$acc end atomic
-        end do
-        !$acc end parallel loop
-    end subroutine copy_from_rcvBuffer_massEnerMom_real
-!-------------------------------------------------------------------------
-    subroutine copy_from_rcvBuffer_arraysPtr_real(numArrays,arraysPtr2comm)
-        implicit none
-        integer(4), intent(in) :: numArrays
-        type(ptr_array1d_rp),intent(inout) :: arraysPtr2comm(numArrays)
-        integer(4) :: iNode,iArray,iNodeL
-
-        !$acc parallel loop present(arraysPtr2comm(:))
-        do iNode=1,numNodesToComm
-            iNodeL = nodesToComm(iNode)
-            do iArray = 1,numArrays
-                !$acc atomic update
-                arraysPtr2comm(iArray)%ptr(iNodeL) = arraysPtr2comm(iArray)%ptr(iNodeL) + aux_realField_r((iNode-1)*numArrays+iArray)
-                !$acc end atomic
-            end do
-        end do
-        !$acc end parallel loop
-    end subroutine copy_from_rcvBuffer_arraysPtr_real
-!-------------------------------------------------------------------------
-    subroutine copy_from_min_rcvBuffer_real(realField)
-        implicit none
-        real(rp), intent(inout) :: realField(:)
-        integer(4) :: i,iNodeL
-
-        !$acc parallel loop
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
-            !$acc atomic update
-            realField(iNodeL) = min(realField(iNodeL) , aux_realField_r(i))
-            !$acc end atomic
-        end do
-        !$acc end parallel loop
-    end subroutine copy_from_min_rcvBuffer_real
-!-------------------------------------------------------------------------
-    subroutine copy_from_conditional_ave_rcvBuffer_real(cond,realField)
-        implicit none
-        real(rp),intent(in) :: cond
-        real(rp),intent(inout) :: realField(:)
-        integer(4) :: i,iNodeL
-
-        !$acc parallel loop
-        do i=1,numNodesToComm
-           iNodeL = nodesToComm(i)
-           if(abs(aux_realField_r(i)).gt. cond) then
-              if(abs(realField(iNodeL)).gt. cond) then
-                 !$acc atomic update
-                 realField(iNodeL) = realField(iNodeL)+aux_realField_r(i)
-                 !$acc end atomic
-              else
-                 !$acc atomic write
-                 realField(iNodeL) = aux_realField_r(i)
-                 !$acc end atomic
-              end if
-           end if
-        end do
-        !$acc end parallel loop
-    end subroutine copy_from_conditional_ave_rcvBuffer_real
-!-------------------------------------------------------------------------
-    subroutine copy_from_rcvBuffer_get_int(intField)
-        implicit none
-        integer(4), intent(inout) :: intField(:)
-        integer(4) :: i,iNodeL
-
-        !$acc parallel loop
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
-            !$acc atomic update
-            intField(iNodeL) = intField(iNodeL) + aux_intField_s(i)
-            !$acc end atomic
-        end do
-        !$acc end parallel loop
-    end subroutine copy_from_rcvBuffer_get_int
-!-------------------------------------------------------------------------
-    subroutine copy_from_rcvBuffer_get_real(realField)
-        implicit none
-        real(rp), intent(inout) :: realField(:)
-        integer(4) :: i,iNodeL
-
-        !$acc parallel loop
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
-            !$acc atomic update
-            realField(iNodeL) = realField(iNodeL) + aux_realField_s(i)
-            !$acc end atomic
-        end do
-        !$acc end parallel loop
-    end subroutine copy_from_rcvBuffer_get_real
-!-------------------------------------------------------------------------
-    subroutine copy_from_min_rcvBuffer_get_real(realField)
-        implicit none
-        real(rp), intent(inout) :: realField(:)
-        integer(4) :: i,iNodeL
-
-        !$acc parallel loop
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
-            !$acc atomic update
-            realField(iNodeL) = min(realField(iNodeL), aux_realField_s(i))
-            !$acc end atomic
-        end do
-        !$acc end parallel loop
-    end subroutine copy_from_min_rcvBuffer_get_real
-!-------------------------------------------------------------------------
-    subroutine copy_from_rcvBuffer_arrays_get_real(numArrays,arrays2comm)
-        implicit none
-        integer(4),intent(in) :: numArrays
-        real(rp),intent(inout) :: arrays2comm(:,:)
-        integer(4) :: i,iArray,iNodeL
-
-        !$acc parallel loop
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
-            do iArray = 1,numArrays
-                !$acc atomic update
-                arrays2comm(iNodeL,iArray) = arrays2comm(iNodeL,iArray) + aux_realField_s((i-1)*numArrays+iArray)
-                !$acc end atomic
-            end do
-        end do
-        !$acc end parallel loop
-    end subroutine copy_from_rcvBuffer_arrays_get_real
-!-------------------------------------------------------------------------
-    subroutine copy_from_rcvBuffer_massEnerMom_get_real(mass,ener,momentum)
-        implicit none
-        real(rp),intent(inout) :: mass(:),ener(:),momentum(:,:)
-        integer(4) :: i,idime,iNodeL
-        integer(4),parameter :: nArrays=5
-
-        !$acc parallel loop
-        do i=1,numNodesToComm
-            iNodeL = nodesToComm(i)
-            do idime = 1,ndime
-                !$acc atomic update
-                momentum(iNodeL,idime) = momentum(iNodeL,idime) + aux_realField_s((i-1)*nArrays+idime)
-                !$acc end atomic
-            end do
-            !$acc atomic update
-            mass(iNodeL) = mass(iNodeL) + aux_realField_s((i-1)*nArrays+4)
-            !$acc end atomic
-            !$acc atomic update
-            ener(iNodeL) = ener(iNodeL) + aux_realField_s((i-1)*nArrays+5)
-            !$acc end atomic
-        end do
-        !$acc end parallel loop
-    end subroutine copy_from_rcvBuffer_massEnerMom_get_real
+         end do
+         !$acc atomic update
+         mass(iNodeL) = mass(iNodeL) + aux_realField_s((i-1)*nArrays+4)
+         !$acc end atomic
+         !$acc atomic update
+         ener(iNodeL) = ener(iNodeL) + aux_realField_s((i-1)*nArrays+5)
+         !$acc end atomic
+      end do
+      !$acc end parallel loop
+   end subroutine copy_from_rcvBuffer_massEnerMom_get_real
 
 !-----------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------
@@ -802,6 +933,8 @@ contains
                            aux_realField_r(mempos_l), memSize, mpi_datatype_real, ngbRank, tagComm, &
                            app_comm, MPI_STATUS_IGNORE, mpi_err)
       end do
+      !$acc update device(aux_realField_r(:))
+
    end subroutine mpi_base_comms_real_sendRcv_noCudaAware
 
 !------------- iSend / iRecv -------------
@@ -839,8 +972,9 @@ contains
       integer(4) :: requests(2*numRanksWithComms)
       !-------------------------------------------------
 
-      ireq=0
       !$acc update host(aux_intField_s(:))
+      ireq=0
+
       do i=1,numRanksWithComms
          ngbRank  = ranksToComm(i)
          tagComm  = 0
@@ -852,8 +986,10 @@ contains
          ireq = ireq+1
          call MPI_ISend(aux_intField_s(mempos_l),memSize,mpi_datatype_int,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
       end do
-
       call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+      !$acc update device(aux_intField_r(:))
+
    end subroutine mpi_base_comms_int_iSendiRcv_noCudaAware
 
    subroutine mpi_base_comms_real_iSendiRcv(numArrays)
@@ -888,8 +1024,9 @@ contains
       integer(4) :: requests(2*numRanksWithComms)
       !-------------------------------------------------
 
-      ireq=0
       !$acc update host(aux_realField_s(:))
+      ireq=0
+
       do i=1,numRanksWithComms
          ngbRank  = ranksToComm(i)
          tagComm  = 0
@@ -902,6 +1039,8 @@ contains
          call MPI_ISend(aux_realField_s(mempos_l),memSize,mpi_datatype_real,ngbRank,tagComm,app_comm,requests(ireq),mpi_err)
       end do
       call MPI_Waitall((2*numRanksWithComms),requests,MPI_STATUSES_IGNORE,mpi_err)
+
+      !$acc update device(aux_realField_r(:))
 
    end subroutine mpi_base_comms_real_iSendiRcv_noCudaAware
 
@@ -966,10 +1105,11 @@ contains
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ngbRank,memPos_l,memSize
+      integer(kind=mpi_address_kind) :: memPos_t
       !---------------------------------------
 
       call MPI_Win_fence(beginFence,window_id_int,mpi_err)
-      !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
+      !$acc host_data use_device(aux_intField_r(:),aux_intField_s(:))
       do i=1,numRanksWithComms
          ngbRank  = ranksToComm(i)
          memPos_l = (commsMemPosInLoc(i)-1)*numArrays+1
@@ -987,6 +1127,7 @@ contains
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ngbRank,memPos_l,memSize
+      integer(kind=mpi_address_kind) :: memPos_t
       !---------------------------------------
 
       call MPI_Win_fence(beginFence,window_id_real,mpi_err)
@@ -1007,21 +1148,25 @@ contains
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ngbRank,memPos_l,memSize
+      integer(kind=mpi_address_kind) :: memPos_t
       !---------------------------------------
+
+      !$acc update host(aux_realField_s(:))
 
       call MPI_Win_fence(beginFence,window_id_real,mpi_err)
 
-      !$acc update host(aux_realField_s(:))
       do i=1,numRanksWithComms
          ngbRank  = ranksToComm(i)
-         memPos_l = commsMemPosInLoc(i)
-         memPos_t = commsMemPosInNgb(i) - 1 !the -1 is because this value is the target displacement
-         memSize  = commsMemSize(i)
+         memPos_l = (commsMemPosInLoc(i)-1)*numArrays+1
+         memPos_t = (commsMemPosInNgb(i)-1)*numArrays !not adding +1 is because this value is the target displacement
+         memSize  = commsMemSize(i)*numArrays
 
          call MPI_Put(aux_realField_s(memPos_l),memSize,mpi_datatype_real,ngbRank,memPos_t,memSize,mpi_datatype_real,window_id_real,mpi_err)
       end do
 
       call MPI_Win_fence(endFence,window_id_real,mpi_err)
+
+      !$acc update device(aux_realField_r(:))
 
    end subroutine mpi_base_comms_real_put_fence_noCudaAware
 
@@ -1031,6 +1176,7 @@ contains
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ngbRank,memPos_l,memSize
+      integer(kind=mpi_address_kind) :: memPos_t
       !---------------------------------------
 
       if(isPSCWBarrier) call MPI_Barrier(app_comm,mpi_err)
@@ -1057,6 +1203,7 @@ contains
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ngbRank,memPos_l,memSize
+      integer(kind=mpi_address_kind) :: memPos_t
       !---------------------------------------
 
       if(isPSCWBarrier) call MPI_Barrier(app_comm,mpi_err)
@@ -1085,6 +1232,7 @@ contains
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ngbRank,memPos_l,memSize
+      integer(kind=mpi_address_kind) :: memPos_t
       !---------------------------------------
 
       !$acc host_data use_device(aux_intField_r(:),aux_intField_s(:))
@@ -1108,6 +1256,7 @@ contains
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ngbRank,memPos_l,memSize
+      integer(kind=mpi_address_kind) :: memPos_t
       !---------------------------------------
 
       !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
@@ -1134,6 +1283,7 @@ contains
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ngbRank,memPos_l,memSize
+      integer(kind=mpi_address_kind) :: memPos_t
       !---------------------------------------
 
       call MPI_Win_fence(beginFence,window_id_int,mpi_err)
@@ -1157,6 +1307,7 @@ contains
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ngbRank,memPos_l,memSize
+      integer(kind=mpi_address_kind) :: memPos_t
       !---------------------------------------
 
       call MPI_Win_fence(beginFence,window_id_real,mpi_err)
@@ -1180,11 +1331,12 @@ contains
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ngbRank,memPos_l,memSize
+      integer(kind=mpi_address_kind) :: memPos_t
       !---------------------------------------
 
-      call MPI_Win_fence(beginFence,window_id_real,mpi_err)
-
       !$acc update host(aux_realField_s(:))
+
+      call MPI_Win_fence(beginFence,window_id_real,mpi_err)
       do i=1,numRanksWithComms
          ngbRank  = ranksToComm(i)
          memPos_l = (commsMemPosInLoc(i)-1)*numArrays+1
@@ -1193,8 +1345,9 @@ contains
 
          call MPI_Get(aux_realField_r(memPos_l),memSize,mpi_datatype_real,ngbRank,memPos_t,memSize,mpi_datatype_real,window_id_real,mpi_err)
       end do
-
       call MPI_Win_fence(endFence,window_id_real,mpi_err)
+
+      !$acc update device(aux_realField_r(:))
 
    end subroutine mpi_base_comms_real_get_fence_noCudaAware
 
@@ -1204,6 +1357,7 @@ contains
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ngbRank,memPos_l,memSize
+      integer(kind=mpi_address_kind) :: memPos_t
       !---------------------------------------
 
       if(isPSCWBarrier) call MPI_Barrier(app_comm,mpi_err)
@@ -1230,6 +1384,7 @@ contains
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ngbRank,memPos_l,memSize
+      integer(kind=mpi_address_kind) :: memPos_t
       !---------------------------------------
 
       if(isPSCWBarrier) call MPI_Barrier(app_comm,mpi_err)
@@ -1258,6 +1413,7 @@ contains
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ngbRank,memPos_l,memSize
+      integer(kind=mpi_address_kind) :: memPos_t
       !---------------------------------------
 
       !$acc host_data use_device(aux_intField_r(:),aux_intField_s(:))
@@ -1281,6 +1437,7 @@ contains
       implicit none
       integer(4),intent(in) :: numArrays
       integer(4) :: i,ngbRank,memPos_l,memSize
+      integer(kind=mpi_address_kind) :: memPos_t
       !---------------------------------------
 
       !$acc host_data use_device(aux_realField_r(:),aux_realField_s(:))
@@ -1995,7 +2152,6 @@ contains
 
       call mpi_base_comms_real_iSendiRcv_noCudaAware(numArrays)
 
-      !$acc update device(aux_realField_r(:))
       call copy_from_rcvBuffer_real(realField)
 
     end subroutine mpi_halo_atomic_update_real_iSendiRcv_noCudaAware
@@ -2010,7 +2166,6 @@ contains
 
       call mpi_base_comms_real_sendRcv_noCudaAware(numArrays)
 
-      !$acc update device(aux_realField_r(:))
       call copy_from_rcvBuffer_real(realField)
 
    end subroutine mpi_halo_atomic_update_real_sendRcv_noCudaAware
@@ -2025,7 +2180,6 @@ contains
 
       call mpi_base_comms_real_put_fence_noCudaAware(numArrays)
 
-      !$acc update device(aux_realField_r(:))
       call copy_from_rcvBuffer_real(realField)
 
    end subroutine mpi_halo_atomic_update_real_put_fence_noCudaAware
@@ -2040,7 +2194,6 @@ contains
 
       call mpi_base_comms_real_get_fence_noCudaAware(numArrays)
 
-      !$acc update device(aux_realField_s(:))
       call copy_from_rcvBuffer_real(realField)
 
    end subroutine mpi_halo_atomic_update_real_get_fence_noCudaAware
@@ -2054,7 +2207,6 @@ contains
 
       call mpi_base_comms_real_iSendiRcv_noCudaAware(numArrays)
 
-      !$acc update device(aux_realField_r(:))
       call copy_from_rcvBuffer_massEnerMom_real(mass,ener,momentum)
 
    end subroutine mpi_halo_atomic_update_real_massEnerMom_iSendiRcv_noCudaAware
@@ -2069,7 +2221,6 @@ contains
 
       call mpi_base_comms_real_iSendiRcv_noCudaAware(numArrays)
 
-      !$acc update device(aux_realField_r(:))
       call copy_from_rcvBuffer_arrays_real(numArrays,arrays2comm)
 
     end subroutine mpi_halo_atomic_update_real_arrays_iSendiRcv_noCudaAware
@@ -2084,7 +2235,6 @@ contains
 
       call mpi_base_comms_int_iSendiRcv_noCudaAware(numArrays)
 
-      !$acc update device(aux_intField_r(:))
       call copy_from_rcvBuffer_int(intField)
 
    end subroutine mpi_halo_atomic_update_int_iSendiRcv_noCudaAware
