@@ -32,6 +32,7 @@ module mod_comms_performance
 #define _GETPSCWOFF_ 0
 #define _GETLOCKBON_ 0
 #define _GETLOCKBOFF_ 0
+#define _NCCL_ 0
 
    implicit none
 
@@ -997,6 +998,43 @@ contains
       call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
       !----------------------------!
       if(mpi_rank.eq.0) write(*,*) 'GET(Lock-BarrierOFF) real time:',elapsed_time,'isOk',isOk
+      !---------------------------------------------------------------
+      call end_comms()
+#endif
+#if _NCCL_
+      !---------------------------------------------------------------
+      commModeTest = 5
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
+      !---------------------------------------------------------------
+      !$acc kernels
+      res_rfield(:) = 0.0_rp
+      !$acc end kernels
+      call MPI_Barrier(app_comm,mpi_err)
+      start_time = MPI_Wtime()
+      do iter=1,numIters
+         call mpi_halo_atomic_update_real_ncclSendRcv(res_rfield)
+      end do
+      end_time = MPI_Wtime()
+      elapsed_time_r = end_time - start_time
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
+      iTimer=iTimer+1
+      array_timers(iTimer) = elapsed_time;
+      !---- CHECK IF WORKS OK -----!
+      !$acc kernels
+      res_rfield(:) = refValue2check
+      !$acc end kernels
+      call MPI_Barrier(app_comm,mpi_err)
+      do iter=1,iter2check
+         call mpi_halo_atomic_update_real_ncclSendRcv(res_rfield)
+         call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
+      end do
+      call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
+      !----------------------------!
+      if(mpi_rank.eq.0) then
+         write(*,*) 'NCCL real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'NCCL',elapsed_time,isOk
+      end if
       !---------------------------------------------------------------
       call end_comms()
 #endif
