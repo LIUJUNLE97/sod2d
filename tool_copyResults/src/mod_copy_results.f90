@@ -112,7 +112,7 @@ contains
       !-----------------------------------------------------------------------------------------------
       !   Generacio de fitxers resultats!
 
-      if(not(generateMesh).and.(type_resultsFile.lt.4)) then
+      if((.not.(generateMesh)).and.(type_resultsFile.lt.4)) then
          if(mpi_rank.eq.0) write(*,*) "Generate mesh and type_resultsFile<4 not yet supported! Aborting!"
     	   call MPI_Abort(app_comm,-1,mpi_err)
       endif
