@@ -4003,9 +4003,9 @@ contains
       integer(4),intent(in) :: indRF_rho,indRF_ux,indRF_uy,indRF_uz,indRF_pr,indRF_ener,&
                                indRF_mut,indRF_mue,indRF_walavex,indRF_walavey,indRF_walavez
 
-      integer(hid_t) :: file_id,plist_id,dtype
-      integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
-      integer(HSSIZE_T), dimension(1) :: ms_offset
+      integer(hid_t) :: file_id
+      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
+      integer(hssize_t), dimension(1) :: ms_offset
       integer(4) :: ds_rank,ms_rank,h5err
       character(512) :: full_fileName,dsetname
 
