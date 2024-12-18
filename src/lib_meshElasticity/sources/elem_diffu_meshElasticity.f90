@@ -22,7 +22,9 @@ module elem_diffu_meshElasticity
              real(rp),   intent(out) :: Rmom(npoin,ndime)
              integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
              integer(4)              :: ipoin(nnode)
-             real(rp)                :: mu_fgp, mu_egp,divU,nu_e,tau(ndime,ndime), C(2*ndime,2*ndime)
+             real(rp)                :: mu_fgp, mu_egp,divU,nu_e,tau(ndime,ndime)
+             real(rp)                :: lambda, mu, Cx(ndime), Cy(ndime), Cz(ndime)
+!              real(rp)                :: C(3*ndime,3*ndime)
              real(rp)                :: gradU(ndime,ndime), tmp1,vol,arho
              real(rp)                :: gradIsoU(ndime,ndime)
              real(rp)                :: divDm(ndime)
@@ -35,20 +37,26 @@ module elem_diffu_meshElasticity
              Rmom(:,:) = 0.0_rp
              !$acc end kernels
 
-             C(:,:) = 0.0_rp
+!              C(:,:) = 0.0_rp
+!
+!              C(1:3,1:3) = nu
+!
+!              C(1,1) = 1.0_rp-nu
+!              C(2,2) = 1.0_rp-nu
+!              C(3,3) = 1.0_rp-nu
+!
+!              C(4,4) = 0.5_rp-nu
+!              C(5,5) = 0.5_rp-nu
+!              C(6,6) = 0.5_rp-nu
              
-             C(1:3,1:3) = nu
-
-             C(1,1) = 1.0_rp-nu
-             C(2,2) = 1.0_rp-nu
-             C(3,3) = 1.0_rp-nu
-
-             C(4,4) = 0.5_rp-nu
-             C(5,5) = 0.5_rp-nu
-             C(6,6) = 0.5_rp-nu
-
+             lambda =  E*nu/((1.0_rp+nu)*(1.0_rp-2.0_rp*nu))
+             mu = E/(2.0_rp*(1.0_rp+nu))
              
-             !$acc parallel loop gang  private(ipoin,ul,tauXl,tauYl,tauZl,muel)
+             Cx = (/lambda+2.0_rp*mu,mu,mu/)
+             Cy = (/mu,lambda+2.0_rp*mu,mu/)
+             Cz = (/mu,mu,lambda+2.0_rp*mu/)
+             
+             !$acc parallel loop gang  private(ipoin,ul,tauXl,tauYl,tauZl,muel,Cx,Cy,Cz)
              do ielem = 1,nelem
                 !$acc loop vector
                 do inode = 1,nnode
@@ -104,10 +112,15 @@ module elem_diffu_meshElasticity
 
                    !$acc loop seq
                    do idime = 1,ndime
-                      tauXl(igaus,idime) =  tau(1,idime) ! per aqui va la C
-                      tauYl(igaus,idime) =  tau(2,idime)
-                      tauZl(igaus,idime) =  tau(3,idime)
+                      tauXl(igaus,idime) =  tau(1,idime)*Cx(idime)
+                      tauYl(igaus,idime) =  tau(2,idime)*Cy(idime)
+                      tauZl(igaus,idime) =  tau(3,idime)*Cz(idime)
                    end do
+                   !$acc parallel
+                   tauXl(igaus,1) =  tauXl(igaus,1) + tau(2,2)*lambda + tau(3,3)*lambda
+                   tauYl(igaus,2) =  tauYl(igaus,2) + tau(1,1)*lambda + tau(3,3)*lambda
+                   tauZl(igaus,3) =  tauZl(igaus,3) + tau(1,1)*lambda + tau(2,2)*lambda
+                   !$acc end parallel
                 end do
 
                 !$acc loop vector private(divDm) 
