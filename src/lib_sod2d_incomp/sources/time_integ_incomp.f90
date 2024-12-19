@@ -89,7 +89,7 @@ module time_integ_incomp
          subroutine ab_main_incomp(igtime,iltime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,leviCivi,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
-                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType,&               ! Optional args
+                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,numBouCodes,bouCodes2BCType,&               ! Optional args
                          listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u,zo)  ! Optional args
 
             implicit none
@@ -132,7 +132,7 @@ module time_integ_incomp
             real(rp),             intent(in)    :: coord(npoin,ndime)
             real(rp),             intent(in)  ::  wgp(ngaus)
             integer(4),            intent(in)    :: numBoundsWM
-            integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*),numBoundCodes
+            integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*),numBouCodes
             integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun), bou_codes_nodes(npoin)
             integer(4), optional, intent(in)    :: listBoundsWM(*),bouCodes2BCType(*)
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
@@ -208,7 +208,7 @@ module time_integ_incomp
 
                call evalPAtOutlet(nelem,npoin,npoin_w,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,lpoin_w, &
                   bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,mu_e,mu_sgs,rho,u(:,:,1),p_buffer,u_flux_buffer)
-               !call bc_routine_momentum_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
+               !call bc_routine_momentum_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBouCodes,bouCodes2BCType, &
                !   bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,u_flux_buffer,Rflux)
 
                if(mpi_size.ge.2) then
@@ -325,7 +325,7 @@ module time_integ_incomp
                                           -   source_term(ipoin_w,idime)
                    end do
                 end do      
-                call bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
+                call bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBouCodes,bouCodes2BCType, &
                                               bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,aux_q,pr(:,2))
              end if
             if (noBoundaries .eqv. .false.) then
