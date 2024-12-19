@@ -24,7 +24,6 @@ module elem_diffu_meshElasticity
              integer(4)              :: ipoin(nnode)
              real(rp)                :: mu_fgp, mu_egp,divU,nu_e,tau(ndime,ndime)
              real(rp)                :: lambda, mu, Cx(ndime), Cy(ndime), Cz(ndime)
-!              real(rp)                :: C(3*ndime,3*ndime)
              real(rp)                :: gradU(ndime,ndime), tmp1,vol,arho
              real(rp)                :: gradIsoU(ndime,ndime)
              real(rp)                :: divDm(ndime)
@@ -36,18 +35,6 @@ module elem_diffu_meshElasticity
              !$acc kernels
              Rmom(:,:) = 0.0_rp
              !$acc end kernels
-
-!              C(:,:) = 0.0_rp
-!
-!              C(1:3,1:3) = nu
-!
-!              C(1,1) = 1.0_rp-nu
-!              C(2,2) = 1.0_rp-nu
-!              C(3,3) = 1.0_rp-nu
-!
-!              C(4,4) = 0.5_rp-nu
-!              C(5,5) = 0.5_rp-nu
-!              C(6,6) = 0.5_rp-nu
              
              lambda =  E*nu/((1.0_rp+nu)*(1.0_rp-2.0_rp*nu))
              mu = E/(2.0_rp*(1.0_rp+nu))
@@ -116,11 +103,10 @@ module elem_diffu_meshElasticity
                       tauYl(igaus,idime) =  tau(2,idime)*Cy(idime)
                       tauZl(igaus,idime) =  tau(3,idime)*Cz(idime)
                    end do
-                   !$acc parallel present(tau, tauXl, tauYl, tauZl, lambda)
+                   ! Do we want an acc parall here?
                    tauXl(igaus, 1) = tauXl(igaus, 1) + tau(2, 2) * lambda + tau(3, 3) * lambda
                    tauYl(igaus, 2) = tauYl(igaus, 2) + tau(1, 1) * lambda + tau(3, 3) * lambda
                    tauZl(igaus, 3) = tauZl(igaus, 3) + tau(1, 1) * lambda + tau(2, 2) * lambda
-                   !$acc end parallel
                 end do
 
                 !$acc loop vector private(divDm) 
