@@ -116,11 +116,9 @@ module elem_diffu_meshElasticity
                       tauYl(igaus,idime) =  tau(2,idime)*Cy(idime)
                       tauZl(igaus,idime) =  tau(3,idime)*Cz(idime)
                    end do
-                   !$acc parallel
                    tauXl(igaus,1) =  tauXl(igaus,1) + tau(2,2)*lambda + tau(3,3)*lambda
                    tauYl(igaus,2) =  tauYl(igaus,2) + tau(1,1)*lambda + tau(3,3)*lambda
                    tauZl(igaus,3) =  tauZl(igaus,3) + tau(1,1)*lambda + tau(2,2)*lambda
-                   !$acc end parallel
                 end do
 
                 !$acc loop vector private(divDm) 
