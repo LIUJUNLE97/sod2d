@@ -56,7 +56,7 @@ module elem_diffu_meshElasticity
              Cy = (/mu,lambda+2.0_rp*mu,mu/)
              Cz = (/mu,mu,lambda+2.0_rp*mu/)
              
-             !$acc parallel loop gang  private(ipoin,ul,tauXl,tauYl,tauZl,muel,Cx,Cy,Cz,lambda)
+             !$acc parallel loop gang  private(ipoin,ul,tauXl,tauYl,tauZl,muel)
              do ielem = 1,nelem
                 !$acc loop vector
                 do inode = 1,nnode
@@ -116,9 +116,11 @@ module elem_diffu_meshElasticity
                       tauYl(igaus,idime) =  tau(2,idime)*Cy(idime)
                       tauZl(igaus,idime) =  tau(3,idime)*Cz(idime)
                    end do
-                   tauXl(igaus,1) =  tauXl(igaus,1) + tau(2,2)*lambda + tau(3,3)*lambda
-                   tauYl(igaus,2) =  tauYl(igaus,2) + tau(1,1)*lambda + tau(3,3)*lambda
-                   tauZl(igaus,3) =  tauZl(igaus,3) + tau(1,1)*lambda + tau(2,2)*lambda
+                   !$acc parallel present(tau, tauXl, tauYl, tauZl, lambda)
+                   tauXl(igaus, 1) = tauXl(igaus, 1) + tau(2, 2) * lambda + tau(3, 3) * lambda
+                   tauYl(igaus, 2) = tauYl(igaus, 2) + tau(1, 1) * lambda + tau(3, 3) * lambda
+                   tauZl(igaus, 3) = tauZl(igaus, 3) + tau(1, 1) * lambda + tau(2, 2) * lambda
+                   !$acc end parallel
                 end do
 
                 !$acc loop vector private(divDm) 
