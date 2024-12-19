@@ -56,7 +56,7 @@ module elem_diffu_meshElasticity
              Cy = (/mu,lambda+2.0_rp*mu,mu/)
              Cz = (/mu,mu,lambda+2.0_rp*mu/)
              
-             !$acc parallel loop gang  private(ipoin,ul,tauXl,tauYl,tauZl,muel,Cx,Cy,Cz)
+             !$acc parallel loop gang  private(ipoin,ul,tauXl,tauYl,tauZl,muel,Cx,Cy,Cz,lambda)
              do ielem = 1,nelem
                 !$acc loop vector
                 do inode = 1,nnode
