@@ -91,7 +91,7 @@ program tool_copy_results
 
         results_last = results_first
         results_step = 1
-    else if(type_resultsFile .le. 4) then
+    else if(type_resultsFile .eq. 4) then
         !8. results_file-----------------------------------------------------------------
         parameter2read = 'results_file'
         call read_inputFile_integer(lineCnt,parameter2read,results_first)
@@ -101,8 +101,12 @@ program tool_copy_results
         call read_inputFile_integer(lineCnt,parameter2read,results_step)
         
         results_last = results_first
+    else if(type_resultsFile .le. 5) then
+        results_first = 0
+        results_step = 0
+        results_last = 0
     else
-        write(*,*) "Wrong type_resultsFile! Must be 1,2 or 3 (1:inst, 2:avg, 3:restart, 4:inst_to_restart[todo])! Aborting!"
+        write(*,*) "Wrong type_resultsFile! Must be 1,2,3,4 or 5 (1:inst, 2:avg, 3:restart, 4:inst_to_restart, 5:mapping)! Aborting!"
        	call MPI_Abort(app_comm,-1,mpi_err)
     end if
 
