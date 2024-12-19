@@ -164,7 +164,7 @@ module time_integ_species_imex
             end if
             call nvtxEndRange
 
-#if 0
+#if 1
             if((isWallModelOn) ) then
                call nvtxStartRange("AB2 wall model")
                if((numBoundsWM .ne. 0)) then
@@ -173,7 +173,7 @@ module time_integ_species_imex
                   !$acc end kernels
                   call evalWallModelABLtemp(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                         bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,Cp,mu_fluid,&
-                        rho(:,1),walave_u(:,:),walave_t(:),zo,Rwmles)
+                        rho(:,1),walave_u(:,:),walave_t(:),Yk_buffer(:,ispc),zo,Rwmles)
                end if
                call nvtxEndRange
        

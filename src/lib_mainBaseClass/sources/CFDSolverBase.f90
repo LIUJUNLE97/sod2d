@@ -1778,7 +1778,7 @@ end subroutine CFDSolverBase_findFixPressure
 
             if(flag_use_species) then
                !$acc kernels
-               walave_t(:) = dtfact*(Yk(:,1,2) - Yk_buffer(:,1)) + avwei*walave_t(:)
+               walave_t(:) = dtfact*Yk(:,1,2) + avwei*walave_t(:)
                !$acc end kernels
             end if
 
