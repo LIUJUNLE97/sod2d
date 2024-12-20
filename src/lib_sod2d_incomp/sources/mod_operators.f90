@@ -328,6 +328,8 @@ module mod_operators
      if(mpi_size.ge.2) then
       call nvtxStartRange("MPI_comms_tI")
       call mpi_halo_atomic_update_real_arrays(ndime,GradX(:,:))
+      call mpi_halo_atomic_update_real_arrays(ndime,GradY(:,:))
+      call mpi_halo_atomic_update_real_arrays(ndime,GradZ(:,:))
       call nvtxEndRange
      end if
    

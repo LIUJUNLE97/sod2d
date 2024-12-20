@@ -279,7 +279,7 @@ module time_integ_incomp
                ipoin_w = lpoin_w(ipoin)
                !$acc loop seq   
                do idime = 1,ndime
-                  u(ipoin_w,idime,2) = -(beta(1)*Rmom(ipoin_w,idime,2)+beta(2)*Rmom(ipoin_w,idime,1)+beta(3)*Rmom(ipoin_w,idime,3))
+                  u(ipoin_w,idime,2) = -(beta(1)*Rmom(ipoin_w,idime,2)+beta(2)*Rmom(ipoin_w,idime,1)+beta(3)*Rmom(ipoin_w,idime,3)) 
                   Rmom(ipoin_w,idime,3) = Rmom(ipoin_w,idime,1)
                   Rmom(ipoin_w,idime,1) = Rmom(ipoin_w,idime,2)
               end do
@@ -341,7 +341,7 @@ module time_integ_incomp
                !$acc loop seq
                do idime = 1,ndime
                   u(ipoin_w,idime,2) = (u(ipoin_w,idime,2)-dt*gradP(ipoin_w,idime)/gamma0)*Ml(ipoin_w) & 
-                                     -dt*Rwmles(ipoin_w,idime)/gamma0-dt*Rflux(ipoin_w,idime)/gamma0 -dt*Rsource(ipoin_w,idime)/gamma0
+                                     -dt*Rwmles(ipoin_w,idime)/gamma0-dt*Rflux(ipoin_w,idime)/gamma0 + dt*Rsource(ipoin_w,idime)/gamma0
                end do
             end do
             !$acc end parallel loop
