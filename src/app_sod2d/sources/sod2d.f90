@@ -31,6 +31,7 @@ program main
    use SupersonicNozzle_mod
    use TransientInletSolverIncomp_mod
    use HelicopterSolverIncomp_mod
+   use MeshElasticitySolver_mod
 
    implicit none
 
@@ -119,6 +120,8 @@ program main
       allocate(TransientInletSolverIncomp::solver)      
    else if(value .eq. "HelicopterSolverIncomp") then
       allocate(HelicopterSolverIncomp::solver)      
+   else if(value .eq. "MeshElasticitySolver") then
+      allocate(MeshElasticitySolver::solver)            
    else
       write(*,*) " Solver not implemented in SOD2D : ",value
       stop 1
