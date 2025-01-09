@@ -72,7 +72,7 @@ contains
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
          source_term(iNodeL,1) = -rho(iNodeL,2)*this%Ug_y*this%fc + rho(iNodeL,2)*u(iNodeL,2,2)*this%fc
-         source_term(iNodeL,2) =  rho(iNodeL,2)*this%Ug_x*this%fc - rho(iNodeL,2)*u(iNodeL,1,2)*this%fc
+         source_term(iNodeL,2) = +rho(iNodeL,2)*this%Ug_x*this%fc - rho(iNodeL,2)*u(iNodeL,1,2)*this%fc
          source_term(iNodeL,3) = -rho(iNodeL,2)*((Yk(iNodeL,1,2)-nscbc_T_ref)/265.0_rp)*nscbc_g_z 
 
          if(coordPar(iNodeL,3) .lt. 100_rp) then
@@ -101,7 +101,7 @@ contains
 
 
       !$acc parallel loop  
-      do iNodeL = 1,numNodesRankPar         
+      do iNodeL = 1,numNodesRankPar    
          source_term(iNodeL,1) = -rho(iNodeL,2)*this%Ug_y*this%fc + rho(iNodeL,2)*u(iNodeL,2,2)*this%fc
          source_term(iNodeL,2) = +rho(iNodeL,2)*this%Ug_x*this%fc - rho(iNodeL,2)*u(iNodeL,1,2)*this%fc
          source_term(iNodeL,3) = -rho(iNodeL,2)*((Yk(iNodeL,1,2)-nscbc_T_ref)/265.0_rp)*nscbc_g_z 
@@ -181,6 +181,8 @@ contains
       call json%get("flag_les_ilsa",flag_les_ilsa, found,0); call this%checkFound(found,found_aux)
       call json%get("stau",stau, found,0.022_rp); call this%checkFound(found,found_aux)
       call json%get("T_ilsa",T_ilsa, found,300.0_rp); call this%checkFound(found,found_aux)
+      call json%get("flag_fs_fix_pressure",flag_fs_fix_pressure, found,.false.); call this%checkFound(found,found_aux)
+
 
       call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
 
@@ -299,6 +301,10 @@ contains
       do iNodeL = 1,numNodesRankPar
          pr(iNodeL,2) = 0.0_rp
          rho(iNodeL,2) = nscbc_rho_inf
+
+         u(iNodeL,1,1) = u(iNodeL,1,2)
+         u(iNodeL,2,1) = u(iNodeL,2,2)
+         u(iNodeL,3,1) = u(iNodeL,3,2)
       end do
       !$acc end parallel loop
       

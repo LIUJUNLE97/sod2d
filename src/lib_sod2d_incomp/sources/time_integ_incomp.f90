@@ -20,8 +20,8 @@ module time_integ_incomp
 
    real(rp), allocatable, dimension(:,:,:) :: Rmom,aux_omega
    real(rp), allocatable, dimension(:,:) :: aux_q,Rsource,Rwmles,u_flux_buffer
-   real(rp), allocatable, dimension(:,:) ::GradP,f_eta,Reta,Rflux
-   real(rp), allocatable, dimension(:) :: auxReta, p_buffer
+   real(rp), allocatable, dimension(:,:) ::GradP,f_eta,Reta
+   real(rp), allocatable, dimension(:) :: auxReta, p_buffer, aux_p
    real(rp), allocatable, dimension(:)   :: beta, alpha
    real(rp) :: gamma0
 
@@ -37,20 +37,19 @@ module time_integ_incomp
       allocate(Rmom(npoin,ndime,3),aux_omega(npoin,ndime,3))
       !$acc enter data create(Rmom(:,:,:),aux_omega(:,:,:))
 
-      allocate(aux_q(npoin,ndime),Rsource(npoin,ndime),Rwmles(npoin,ndime),u_flux_buffer(npoin,ndime),Rflux(npoin,ndime))
-      !$acc enter data create(aux_q(:,:),Rsource(:,:),Rwmles(:,:),u_flux_buffer(:,:),Rflux(:,:))
+      allocate(aux_q(npoin,ndime),Rsource(npoin,ndime),Rwmles(npoin,ndime),u_flux_buffer(npoin,ndime))
+      !$acc enter data create(aux_q(:,:),Rsource(:,:),Rwmles(:,:),u_flux_buffer(:,:))
 
       allocate(gradP(npoin,ndime))
       !$acc enter data create(gradP(:,:))
 
-      allocate(auxReta(npoin),f_eta(npoin,ndime),Reta(npoin,3),p_buffer(npoin))
-      !$acc enter data create(auxReta(:),f_eta(:,:),Reta(:,:),p_buffer(:))
+      allocate(auxReta(npoin),f_eta(npoin,ndime),Reta(npoin,3),p_buffer(npoin),aux_p(npoin))
+      !$acc enter data create(auxReta(:),f_eta(:,:),Reta(:,:),p_buffer(:),aux_p(:))
    
       !$acc kernels
       Rmom(1:npoin,1:ndime,1:3) = 0.0_rp
       Rsource(1:npoin,1:ndime) = 0.0_rp
       Rwmles(1:npoin,1:ndime) = 0.0_rp
-      Rflux(1:npoin,1:ndime) = 0.0_rp
       p_buffer(1:npoin) = nscbc_p_inf
       u_flux_buffer(1:npoin,1:ndime) = 0.0_rp
       !$acc end kernels
@@ -73,8 +72,7 @@ module time_integ_incomp
       !$acc exit data delete(Rsource(:,:))
       !$acc exit data delete(Rwmles(:,:))
       !$acc exit data delete(u_flux_buffer(:,:))
-      !$acc exit data delete(Rflux(:,:))
-      deallocate(aux_q,Rsource,Rwmles,u_flux_buffer,Rflux)
+      deallocate(aux_q,Rsource,Rwmles,u_flux_buffer)
 
 
       !$acc exit data delete(gradP(:,:))
@@ -208,11 +206,6 @@ module time_integ_incomp
                call evalPAtOutlet(nelem,npoin,npoin_w,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,lpoin_w, &
                   bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,mu_e,mu_sgs,rho,u(:,:,1),p_buffer,u_flux_buffer)
 
-               if(mpi_size.ge.2) then
-                  call nvtxStartRange("AB2 halo update")
-                  call mpi_halo_atomic_update_real_arrays(ndime,Rflux(:,:))
-                  call nvtxEndRange
-               end if
             end if
 
             if(present(source_term)) then
@@ -279,6 +272,7 @@ module time_integ_incomp
                ipoin_w = lpoin_w(ipoin)
                !$acc loop seq   
                do idime = 1,ndime
+                  Rmom(ipoin_w,idime,2) = Rmom(ipoin_w,idime,2) - Rsource(ipoin_w,idime)
                   u(ipoin_w,idime,2) = -(beta(1)*Rmom(ipoin_w,idime,2)+beta(2)*Rmom(ipoin_w,idime,1)+beta(3)*Rmom(ipoin_w,idime,3)) 
                   Rmom(ipoin_w,idime,3) = Rmom(ipoin_w,idime,1)
                   Rmom(ipoin_w,idime,1) = Rmom(ipoin_w,idime,2)
@@ -307,7 +301,7 @@ module time_integ_incomp
 
             call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),pr(:,2))
             !$acc kernels
-            pr(:,2) = -gamma0*pr(:,2)/dt
+            pr(:,2) =-gamma0*pr(:,2)/dt
             !$acc end kernels
 
             if (noBoundaries .eqv. .false.) then
@@ -316,13 +310,19 @@ module time_integ_incomp
                   ipoin_w = lpoin_w(ipoin)
                   !$acc loop seq   
                   do idime = 1,ndime
-                     aux_q(ipoin_w,idime) = -mu_fluid(ipoin_w)*(beta(1)*aux_omega(ipoin_w,idime,2)+beta(2)*aux_omega(ipoin_w,idime,1)+beta(3)*aux_omega(ipoin_w,idime,3)) &
-                                            +source_term(ipoin_w,idime)
+                     aux_q(ipoin_w,idime) = -(beta(1)*aux_omega(ipoin_w,idime,2)+beta(2)*aux_omega(ipoin_w,idime,1)+beta(3)*aux_omega(ipoin_w,idime,3))
                    end do
-                end do      
-                call bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
-                                              bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,aux_q,pr(:,2))
-             end if
+               end do 
+               !$acc end parallel loop     
+               call bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
+                                              bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,mu_sgs,rho,aux_q,aux_p)
+               !$acc parallel loop 
+               do ipoin = 1,npoin_w
+                  ipoin_w = lpoin_w(ipoin)
+                  pr(ipoin_w,2) = pr(ipoin_w,2) - aux_p(ipoin_w)
+               end do 
+               !$acc end parallel loop 
+            end if
             if (noBoundaries .eqv. .false.) then
                call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,1),p_buffer)              
             end if
@@ -341,7 +341,7 @@ module time_integ_incomp
                !$acc loop seq
                do idime = 1,ndime
                   u(ipoin_w,idime,2) = (u(ipoin_w,idime,2)-dt*gradP(ipoin_w,idime)/gamma0)*Ml(ipoin_w) & 
-                                     -dt*Rwmles(ipoin_w,idime)/gamma0-dt*Rflux(ipoin_w,idime)/gamma0 + dt*Rsource(ipoin_w,idime)/gamma0
+                                     -dt*Rwmles(ipoin_w,idime)/gamma0
                end do
             end do
             !$acc end parallel loop
