@@ -490,7 +490,7 @@ contains
             iPos = binarySearch_int_i8(globalIdSrlOrdered_i8(:,1),iNodeG)
             if(iPos.ne.0) then
                !if(mpi_rank.eq.0) write(*,*) '[',mpi_rank,']iNodeL',iNodeL,'iNodeG',iNodeG,'iPos',iPos,'trgtRank',trgtRank
-               mapNodeRankTrgt(iNodeL,1) = iPos
+               mapNodeRankTrgt(iNodeL,1) = globalIdSrlOrdered_i8(iPos,2)
                mapNodeRankTrgt(iNodeL,2) = trgtRank
             end if
          end do
