@@ -11,6 +11,7 @@ module time_integ_species
    use mod_bc_routines_species
    use mod_operators
    use elem_stab_species
+   use mod_wall_model_species
 
    implicit none
 
@@ -87,7 +88,7 @@ module time_integ_species
                    ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Cp,Prt, &
                    rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,lpoin_w,mu_fluid,mue_l, &
                    ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
-                   listBoundsWM,wgp_b,bounorm,normalsAtNodes,Yk_buffer)  ! Optional args
+                   listBoundsWM,wgp_b,bounorm,normalsAtNodes,Yk_buffer,walave_u,walave_t,zo)  ! Optional args
 
       implicit none
 
@@ -120,6 +121,8 @@ module time_integ_species
       integer(4), optional, intent(in)    :: listBoundsWM(*)
       real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
       real(rp), optional,   intent(in)    :: Yk_buffer(npoin,nspecies)
+      real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_t(npoin)
+      real(rp), optional, intent(in)      :: zo(npoin)
       integer(4)                          :: pos
       integer(4)                          :: istep, ipoin, idime,icode
       real(rp)                            :: umag, rho_min, rho_avg
@@ -138,7 +141,7 @@ module time_integ_species
                               ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Cp,Prt, &
                               rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,lpoin_w,mu_fluid,mue_l, &
                               ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
-                              listBoundsWM,wgp_b,bounorm,normalsAtNodes,Yk_buffer)
+                              listBoundsWM,wgp_b,bounorm,normalsAtNodes,Yk_buffer,walave_u,walave_t,zo)
       end if           
 
       !$acc parallel loop
@@ -153,7 +156,7 @@ module time_integ_species
                               ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Cp,Prt, &
                               rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,lpoin_w,mu_fluid,mue_l, &
                               ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
-                              listBoundsWM,wgp_b,bounorm,normalsAtNodes,Yk_buffer)
+                              listBoundsWM,wgp_b,bounorm,normalsAtNodes,Yk_buffer,walave_u,walave_t,zo)
 
          !
          ! Accumulate the residuals
@@ -224,7 +227,7 @@ module time_integ_species
                               ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Cp,Prt, &
                               rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,lpoin_w,mu_fluid,mue_l, &
                               ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&                ! Optional args
-                              listBoundsWM,wgp_b,bounorm,normalsAtNodes,Yk_buffer)                       ! Optional args
+                              listBoundsWM,wgp_b,bounorm,normalsAtNodes,Yk_buffer,walave_u,walave_t,zo)                       ! Optional args
 
          implicit none
 
@@ -257,6 +260,8 @@ module time_integ_species
          integer(4), optional, intent(in)    :: listBoundsWM(*)
          real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
          real(rp), optional,   intent(in)    :: Yk_buffer(npoin,nspecies)
+         real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_t(npoin)
+         real(rp), optional, intent(in)      :: zo(npoin)
          integer(4)                          :: pos
          integer(4)                          :: istep, ipoin, idime,icode
          real(rp)                            :: umag, rho_min, rho_avg
@@ -273,6 +278,8 @@ module time_integ_species
            call nvtxEndRange
          end if
 
+               
+
          ! Compute diffusion terms with values at current substep
          !
          call nvtxStartRange("CONVDIFFS")
@@ -281,6 +288,15 @@ module time_integ_species
          call species_convec_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,pos),Yk(:,ispc,pos),u(:,:,pos),Rspc,.false.,-1.0_rp)               
          call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,Yk(:,ispc,pos),gradYk,.true.)
          call species_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Yk(:,ispc,pos),gradYk,Cp,Prt,rho,tau,Ml,Rspc,.false.,1.0_rp)
+
+         if((isWallModelOn) ) then
+            call nvtxStartRange("AB2 wall model")
+            if((numBoundsWM .ne. 0)) then
+               call evalWallModelABLtemp(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                     bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,Cp,mu_fluid,&
+                     rho(:,1),walave_u(:,:),walave_t(:),Yk_buffer(:,ispc),zo,Rspc,-1.0_rp)
+            end if              
+         end if  
 
          call nvtxEndRange
 

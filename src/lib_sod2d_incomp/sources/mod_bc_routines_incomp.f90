@@ -161,7 +161,7 @@ module mod_bc_routines_incomp
             do ibound = 1,nboun
                bcode = bouCodes2BCType(bou_code(ibound))
                ! Boundary element code
-               if ((bcode == bc_type_non_slip_adiabatic) .or. (bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic).or. (bcode == bc_type_symmetry)) then 
+               if ((bcode == bc_type_non_slip_adiabatic) .or. (bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic) .or. (bcode == bc_type_symmetry) .or. (bcode == bc_type_far_field)) then 
                   bnorm(:) = bounorm(ibound,:)
                   !$acc loop vector private(aux)
                   do igaus = 1,npbou

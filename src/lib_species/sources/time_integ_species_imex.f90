@@ -219,6 +219,7 @@ module time_integ_species_imex
             if (noBoundaries .eqv. .false.) then
                call temporary_bc_routine_dirichlet_species(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,Yk(:,ispc,2),Yk_buffer(:,ispc))
             end if
+            if (flag_buffer_on .eqv. .true.) call updateBuffer_species(npoin,npoin_w,coord,lpoin_w,Yk(:,ispc,2),Yk_buffer(:,ispc))
 
             !
             ! Compute subgrid viscosity if active
@@ -263,4 +264,75 @@ module time_integ_species_imex
             end if
          end subroutine imex_species_main
 
+         subroutine updateBuffer_species(npoin,npoin_w,coord,lpoin_w,Yk,Yk_buffer)
+            implicit none
+            integer(4),           intent(in)    :: npoin
+            integer(4),           intent(in)    :: npoin_w
+            real(rp),             intent(in)    :: coord(npoin,ndime)
+            integer(4),           intent(in)    :: lpoin_w(npoin_w)
+            real(rp),             intent(inout) :: Yk(npoin)
+            real(rp), optional,   intent(in)    :: Yk_buffer(npoin)
+            integer(4) :: ipoin
+            real(rp)   :: xs,xb,xi,c1,c2
+
+            c1 = 0.01_rp
+            c2 = 10.0_rp
+
+            call nvtxStartRange("Update buffer")
+            !$acc parallel loop
+            do ipoin = 1,npoin_w
+               xi = 1.0_rp
+                  !east
+                  if(flag_buffer_on_east .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),1)
+                     if(xs>flag_buffer_e_min) then
+                        xb = (xs-flag_buffer_e_min)/flag_buffer_e_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
+                  end if
+                  !west
+                  if(flag_buffer_on_west .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),1)
+                     if(xs<flag_buffer_w_min) then
+                        xb = (flag_buffer_w_min-xs)/flag_buffer_w_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
+                  end if
+                  !north
+                  if(flag_buffer_on_north .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),2)
+                     if(xs>flag_buffer_n_min) then
+                        xb = (xs-flag_buffer_n_min)/flag_buffer_n_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
+                  end if
+                  !south
+                  if(flag_buffer_on_south .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),2)
+                     if(xs<flag_buffer_s_min) then
+                        xb = (flag_buffer_s_min-xs)/flag_buffer_s_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
+                  end if
+                  !top
+                  if(flag_buffer_on_top .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),3)
+                     if(xs>flag_buffer_t_min) then
+                        xb = (xs-flag_buffer_t_min)/flag_buffer_t_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
+                  end if
+                  !bottom
+                  if(flag_buffer_on_bottom .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),3)
+                     if(xs<flag_buffer_b_min) then
+                        xb = (flag_buffer_b_min-xs)/flag_buffer_b_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
+                  end if
+               Yk(lpoin_w(ipoin)) = Yk_buffer(lpoin_w(ipoin)) + xi*(Yk(lpoin_w(ipoin))-Yk_buffer(lpoin_w(ipoin)))
+            end do
+            !$acc end parallel loop
+            call nvtxEndRange
+         end subroutine updateBuffer_species         
        end module time_integ_species_imex
