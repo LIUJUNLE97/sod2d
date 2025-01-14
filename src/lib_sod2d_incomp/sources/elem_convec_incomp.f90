@@ -27,7 +27,7 @@ module elem_convec_incomp
             real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
             integer(4), intent(in)   :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             real(rp),    intent(in)  :: q(npoin,ndime), u(npoin,ndime), rho(npoin)
-            real(rp),    intent(out) :: Rmom(npoin,ndime)
+            real(rp),    intent(inout) :: Rmom(npoin,ndime)
             integer(4)              :: ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,kdime,ii
             integer(4)              :: ipoin(nnode)
             real(rp)                 :: Re_mom(nnode,ndime)

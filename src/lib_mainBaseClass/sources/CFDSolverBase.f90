@@ -424,6 +424,8 @@ end subroutine CFDSolverBase_findFixPressure
                   bouCodes2BCType(id) = bc_type_recirculation_inlet
                else if(value .eq. "bc_type_non_slip_adiabatic") then
                   bouCodes2BCType(id) = bc_type_non_slip_adiabatic
+               else if(value .eq. "bc_type_non_slip_isothermal") then
+                  bouCodes2BCType(id) = bc_type_non_slip_isothermal
                else if(value .eq. "bc_type_non_slip_hot") then
                   bouCodes2BCType(id) = bc_type_non_slip_hot
                else if(value .eq. "bc_type_non_slip_cold") then
@@ -517,8 +519,8 @@ end subroutine CFDSolverBase_findFixPressure
          end if
       end if
       if(flag_use_species .eqv. .true.) then
-         !call init_imex_species_solver(numNodesRankPar,numElemsRankPar)
-         call init_rk4_ls_species_solver(numNodesRankPar,numElemsRankPar)
+         call init_imex_species_solver(numNodesRankPar,numElemsRankPar)
+         !call init_rk4_ls_species_solver(numNodesRankPar,numElemsRankPar)
       end if
 
    end subroutine CFDSolverBase_initNSSolver
@@ -1779,7 +1781,7 @@ end subroutine CFDSolverBase_findFixPressure
 
             if(flag_use_species) then
                !$acc kernels
-               walave_t(:) = dtfact*(Yk(:,1,2) - Yk_buffer(:,1)) + avwei*walave_t(:)
+               walave_t(:) = dtfact*Yk(:,1,2) + avwei*walave_t(:)
                !$acc end kernels
             end if
 

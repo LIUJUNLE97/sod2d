@@ -121,7 +121,7 @@ contains
       if(flag_use_species .eqv. .true.) then
          nspecies = 1
          this%Prt=0.7_rp
-         this%Cp=1000.0_rp
+         this%Cp=1004.0_rp
          write(*,*) ' species load'
       end if
 

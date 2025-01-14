@@ -78,7 +78,7 @@ module mod_bc_routines_incomp
                      aux_u(inode,1) = aux_u(lnbn_nodes(inode),1)
                      aux_u(inode,2) = aux_u(lnbn_nodes(inode),2)
                      aux_u(inode,3) = aux_u(lnbn_nodes(inode),3)
-                  else if ((bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic).or. (bcode == bc_type_symmetry)) then ! slip
+                  else if ((bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic).or. (bcode == bc_type_symmetry).or. (bcode == bc_type_slip_isothermal)) then ! slip
                      norm = (normalsAtNodes(inode,1)*aux_u(inode,1)) + (normalsAtNodes(inode,2)*aux_u(inode,2)) + (normalsAtNodes(inode,3)*aux_u(inode,3))
                      !$acc loop seq
                      do idime = 1,ndime     
@@ -136,7 +136,7 @@ module mod_bc_routines_incomp
          end subroutine temporary_bc_routine_dirichlet_pressure_residual_incomp
 
          subroutine bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_code,bou_codes_nodes,numBouCodes,bouCodes2BCType, &
-                                             bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,omega,bpress)
+                                             bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,mu_sgs,rho,omega,bpress)
 
             implicit none
 
@@ -145,20 +145,23 @@ module mod_bc_routines_incomp
             real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode),bouCodes2BCType(numBouCodes)
             real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)
-            real(rp),   intent(in)  :: rho(npoin),omega(npoin,ndime),mu_fluid(npoin)
+            real(rp),   intent(in)  :: rho(npoin),omega(npoin,ndime),mu_fluid(npoin),mu_sgs(nelem,ngaus)
             real(rp),   intent(in)  :: coord(npoin,ndime), gpvol(1,ngaus,nelem)
             real(rp),   intent(inout) :: bpress(npoin)
-            integer(4)              :: idime,igaus,bcode, inode, ielem,ibound
+            integer(4)              :: idime,igaus,bcode, inode, ielem,ibound,igausV
             real(rp)                :: bnorm(npbou*ndime),nmag
             real(rp)                :: aux(ndime)
             real(rp)                 :: auxmag, sig            
 
+            !$acc kernels
+            bpress(:) = 0.0_rp
+            !$acc end kernels
 
             !$acc parallel loop gang private(bnorm) 
             do ibound = 1,nboun
                bcode = bouCodes2BCType(bou_code(ibound))
                ! Boundary element code
-               if ((bcode == bc_type_non_slip_adiabatic) .or. (bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic).or. (bcode == bc_type_symmetry)) then 
+               if ((bcode == bc_type_non_slip_adiabatic) .or. (bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic) .or. (bcode == bc_type_symmetry) .or. (bcode == bc_type_far_field).or. (bcode == bc_type_slip_isothermal)) then 
                   bnorm(:) = bounorm(ibound,:)
                   !$acc loop vector private(aux)
                   do igaus = 1,npbou
@@ -170,19 +173,26 @@ module mod_bc_routines_incomp
                      inode = bound(ibound,igaus)
                      ielem = point2elem(inode)
                      nmag = dot_product(aux(:), omega(inode,:))
+                     igausV = minloc(abs(connec(ielem,:)-inode),1)
                      if(dot_product(coord(connec(ielem,nnode),:)-coord(inode,:), aux(:)) .lt. 0.0_rp ) then
                         sig=1.0_rp
                      else
                         sig=-1.0_rp
                      end if
                      !$acc atomic update
-                     bpress(inode) = bpress(inode)+auxmag*wgp_b(igaus)*nmag*sig
+                     bpress(inode) = bpress(inode)+auxmag*wgp_b(igaus)*nmag*sig*(mu_fluid(inode)+mu_sgs(ielem,igausV))
                      !$acc end atomic
                   end do
                end if
             end do
             !$acc end parallel loop
-         end subroutine bc_routine_pressure_flux
+            if(mpi_size.ge.2) then
+               call nvtxStartRange("MPI_comms_tI")
+               call mpi_halo_atomic_update_real(bpress(:))
+               call nvtxEndRange
+            end if
+            call nvtxEndRange
+         end subroutine bc_routine_pressure_flux                   
 
          subroutine bc_routine_momentum_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_code,bou_codes_nodes,numBouCodes,bouCodes2BCType, &
                                              bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,u_flux_buffer,R)

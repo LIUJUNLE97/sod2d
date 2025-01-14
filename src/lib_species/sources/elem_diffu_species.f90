@@ -21,7 +21,7 @@ module elem_diffu_species
             integer(4), intent(in)  ::  invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             real(rp),    intent(in)  :: Cp,Pr,rho(npoin), Yk(npoin), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus),Ml(npoin)
             real(rp),    intent(in)  :: mu_fluid(npoin)
-            real(rp),    intent(out) :: RYk(npoin)
+            real(rp),    intent(inout) :: RYk(npoin)
             logical, optional, intent(in)    :: initialze
             real(rp), optional, intent(in)  :: fact
             integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
@@ -56,8 +56,8 @@ module elem_diffu_species
                 do inode = 1,nnode
                     rhol(inode) = rho(connec(ielem,inode))
                     ykl(inode) = Yk(connec(ielem,inode))
-                    mufluidl(inode) = mu_fluid(connec(ielem,inode))*Cp/Pr + Cp*rhol(inode)*mu_sgs(ielem,inode)/0.9_rp
-                    muel(inode) = mu_e(ielem,inode)*Cp/Pr
+                    mufluidl(inode) = mu_fluid(connec(ielem,inode))/Pr + rhol(inode)*mu_sgs(ielem,inode)/0.9_rp
+                    muel(inode) = mu_e(ielem,inode)/Pr
                 end do
                 
                 gradYl(:,:) = 0.0_rp
@@ -92,7 +92,7 @@ module elem_diffu_species
 
                 !$acc loop vector private(divDy) 
                 do igaus = 1,ngaus
-                    kappa_y = mufluidl(igaus) + muel(igaus)
+                    kappa_y = (mufluidl(igaus) + muel(igaus))
 
                     isoI = gmshAtoI(igaus) 
                     isoJ = gmshAtoJ(igaus) 

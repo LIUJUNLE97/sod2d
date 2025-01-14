@@ -48,7 +48,7 @@ contains
          aux_fact = fact
       end if
 
-      !$acc parallel loop gang private(bnorm,uiex,point)
+      !$acc parallel loop gang private(bnorm)
       do iAux = 1,numBoundsWM
          iBound = listBoundsWM(iAux)
          bnorm(1:npbou*ndime) = bounorm(iBound,1:npbou*ndime)
@@ -56,7 +56,7 @@ contains
          uiex(1:ndime) = 0.0_rp
          iElem = point2elem(bound(iBound,atoIJ(npbou))) ! I use an internal face node to be sure is the correct element
 
-         !$acc loop vector private(aux,pointF,normalF,tvelo)
+         !$acc loop vector private(aux,pointF,normalF,tvelo,uiex,point)
          do igaus = 1,npbou
 
             jgaus = minloc(abs(connec(iElem,:)-bound(iBound,atoIJ(npbou))),1)
@@ -438,7 +438,7 @@ contains
          aux_fact = fact
       end if
 
-      !$acc parallel loop gang private(bnorm,uiex,point)
+      !$acc parallel loop gang private(bnorm)
       do iAux = 1,numBoundsWM
          iBound = listBoundsWM(iAux)
          bnorm(1:npbou*ndime) = bounorm(iBound,1:npbou*ndime)
@@ -446,7 +446,7 @@ contains
          uiex(1:ndime) = 0.0_rp
          iElem = point2elem(bound(iBound,atoIJ(npbou))) ! I use an internal face node to be sure is the correct element   
 
-         !$acc loop vector private(aux,pointF,normalF,tvelo)
+         !$acc loop vector private(aux,pointF,normalF,tvelo,uiex,point)
          do igaus = 1,npbou
 
             jgaus = minloc(abs(connec(iElem,:)-bound(iBound,atoIJ(npbou))),1)
