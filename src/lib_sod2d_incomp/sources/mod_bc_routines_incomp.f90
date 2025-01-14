@@ -135,7 +135,7 @@ module mod_bc_routines_incomp
 
          end subroutine temporary_bc_routine_dirichlet_pressure_residual_incomp
 
-         subroutine bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_code,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
+         subroutine bc_routine_pressure_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_code,bou_codes_nodes,numBouCodes,bouCodes2BCType, &
                                              bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,mu_sgs,rho,omega,bpress)
 
             implicit none
