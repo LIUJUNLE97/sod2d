@@ -145,7 +145,7 @@ module mod_bc_routines_incomp
             real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode),bouCodes2BCType(numBouCodes)
             real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)
-            real(rp),   intent(in)  :: rho(npoin),omega(npoin,ndime),mu_fluid(npoin),mu_sgs(ielem,ngaus)
+            real(rp),   intent(in)  :: rho(npoin),omega(npoin,ndime),mu_fluid(npoin),mu_sgs(nelem,ngaus)
             real(rp),   intent(in)  :: coord(npoin,ndime), gpvol(1,ngaus,nelem)
             real(rp),   intent(inout) :: bpress(npoin)
             integer(4)              :: idime,igaus,bcode, inode, ielem,ibound,igausV
