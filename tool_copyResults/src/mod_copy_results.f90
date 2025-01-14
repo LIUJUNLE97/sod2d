@@ -546,7 +546,7 @@ contains
 
       end do
 
-      write(*,*) '[',mpi_rank,']fullNumNodes:',fullNumNodesMapTrgtRank(:),'fullMapNodeCnt',fullMapNodeCnt
+      !write(*,*) '[',mpi_rank,']fullNumNodes:',fullNumNodesMapTrgtRank(:),'fullMapNodeCnt',fullMapNodeCnt
 
       allocate(fullMapNodeRankTrgt(fullMapNodeCnt,3))
 
