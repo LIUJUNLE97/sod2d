@@ -118,6 +118,7 @@ module elem_convec_species
                 end do                
                 
                 Re(igaus) = 0.5_rp*(divFy+ykl(igaus)*divU)
+                !Re(igaus) = 0.5_rp*divFy
                 !$acc loop seq
                 do idime=1, ndime
                     Re(igaus) = Re(igaus) + 0.5_rp*(ul(igaus,idime)*gradYk(idime))

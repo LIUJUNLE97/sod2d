@@ -134,7 +134,7 @@ module time_integ_species
       pos = 2 ! Set correction as default value
 
       call species_tau(nelem,npoin,connec,u(:,:,pos),helem,dt,tau)
-
+      
       if(firstTimeStep .eqv. .true.) then
          firstTimeStep = .false.
          call updateFspecies(ispc,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&

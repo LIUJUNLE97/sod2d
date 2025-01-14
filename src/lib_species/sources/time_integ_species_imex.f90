@@ -186,7 +186,7 @@ module time_integ_species_imex
 
 #endif
             call species_tau(nelem,npoin,connec,u(:,:,1),helem,dt,tau)
-
+            
             call nvtxStartRange("AB2 species")
 
             call species_convec_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,1),Yk(:,ispc,1),u(:,:,1),RYk(:,ispc,2))               
@@ -213,7 +213,7 @@ module time_integ_species_imex
             call nvtxEndRange
             
             call conjGrad_species(ispc,igtime,1.0_rp/gamma0,dt,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
-                             gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e_Yk(:,:,ispc),mu_sgs,tau,Cp,Prt,rho(:,2),Yk(:,ispc,1),Yk(:,ispc,2),&
+                             gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e_Yk(:,:,ispc),mu_sgs,tau,Cp,Prt,rho(:,1),u(:,:,1),Yk(:,ispc,1),Yk(:,ispc,2),&
                              bou_codes,bound,nbnodes,lbnodes,lnbn_nodes,bou_codes_nodes,normalsAtNodes,Yk_buffer)
 
             if (noBoundaries .eqv. .false.) then

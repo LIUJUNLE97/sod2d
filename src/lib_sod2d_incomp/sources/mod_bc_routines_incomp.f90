@@ -78,7 +78,7 @@ module mod_bc_routines_incomp
                      aux_u(inode,1) = aux_u(lnbn_nodes(inode),1)
                      aux_u(inode,2) = aux_u(lnbn_nodes(inode),2)
                      aux_u(inode,3) = aux_u(lnbn_nodes(inode),3)
-                  else if ((bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic).or. (bcode == bc_type_symmetry)) then ! slip
+                  else if ((bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic).or. (bcode == bc_type_symmetry).or. (bcode == bc_type_slip_isothermal)) then ! slip
                      norm = (normalsAtNodes(inode,1)*aux_u(inode,1)) + (normalsAtNodes(inode,2)*aux_u(inode,2)) + (normalsAtNodes(inode,3)*aux_u(inode,3))
                      !$acc loop seq
                      do idime = 1,ndime     
@@ -161,7 +161,7 @@ module mod_bc_routines_incomp
             do ibound = 1,nboun
                bcode = bouCodes2BCType(bou_code(ibound))
                ! Boundary element code
-               if ((bcode == bc_type_non_slip_adiabatic) .or. (bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic) .or. (bcode == bc_type_symmetry) .or. (bcode == bc_type_far_field)) then 
+               if ((bcode == bc_type_non_slip_adiabatic) .or. (bcode == bc_type_slip_wall_model) .or. (bcode == bc_type_slip_adiabatic) .or. (bcode == bc_type_symmetry) .or. (bcode == bc_type_far_field).or. (bcode == bc_type_slip_isothermal)) then 
                   bnorm(:) = bounorm(ibound,:)
                   !$acc loop vector private(aux)
                   do igaus = 1,npbou

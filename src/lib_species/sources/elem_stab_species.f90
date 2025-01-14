@@ -8,7 +8,7 @@ module elem_stab_species
     use mod_hdf5
     use mod_comms
  
-    contains
+    contains 
 
     subroutine species_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Yk,gradYk,Cp,Prt,rho,tau,Ml,RYk,initialze,fact)
             implicit none
@@ -146,6 +146,4 @@ module elem_stab_species
         !$acc end parallel loop
 
     end subroutine species_tau
-
-
 end module elem_stab_species

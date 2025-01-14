@@ -424,6 +424,8 @@ end subroutine CFDSolverBase_findFixPressure
                   bouCodes2BCType(id) = bc_type_recirculation_inlet
                else if(value .eq. "bc_type_non_slip_adiabatic") then
                   bouCodes2BCType(id) = bc_type_non_slip_adiabatic
+               else if(value .eq. "bc_type_non_slip_isothermal") then
+                  bouCodes2BCType(id) = bc_type_non_slip_isothermal
                else if(value .eq. "bc_type_non_slip_hot") then
                   bouCodes2BCType(id) = bc_type_non_slip_hot
                else if(value .eq. "bc_type_non_slip_cold") then
