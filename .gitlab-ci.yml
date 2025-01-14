@@ -4,7 +4,7 @@
 default:
     #image: ubuntu:20.04
     #image: lucasbsc21387/sod2d-image:0.1.1
-    image: lucasbsc21387/archlinux-hpc:1.0.0
+    image: lucasbsc21387/archlinux-hpc:1.0.1
 
 ## List of stages for jobs, and their order of execution
 stages:
@@ -155,7 +155,6 @@ test-TGVComp-CPU-IMEX:
         - cp ../../../../build_gnu_release/src/app_sod2d/sod2d .
         - mpirun -np 4 --allow-run-as-root ./sod2d TGVCompSolver.json
         # install numpy and run the python test
-        - pacman -S python-numpy --noconfirm
         - python testcheck.py
     # Add the dependencies
     dependencies:
@@ -179,7 +178,6 @@ test-TGVComp-CPU-LSRK:
         - cp ../../../../build_gnu_release/src/app_sod2d/sod2d .
         - mpirun -np 4 --allow-run-as-root ./sod2d TGVCompSolver.json
         # install numpy and run the python test
-        - pacman -S python-numpy --noconfirm
         - python testcheck.py
     # Add the dependencies
     dependencies:
@@ -202,7 +200,6 @@ test-TGVComp-GPU-IMEX:
         - cp ../../../../build_nvhpc_gpu/src/app_sod2d/sod2d .
         - mpirun -np 1 --allow-run-as-root ./sod2d TGVCompSolver.json
         # install numpy and run the python test
-        - pacman -S python-numpy --noconfirm
         - python testcheck.py
     # Add the dependencies
     dependencies:
@@ -224,7 +221,6 @@ test-TGVComp-GPU-LSRK:
         - cp ../../../../build_nvhpc_gpu/src/app_sod2d/sod2d .
         - mpirun -np 1 --allow-run-as-root ./sod2d TGVCompSolver.json
         # install numpy and run the python test
-        - pacman -S python-numpy --noconfirm
         - python testcheck.py
     # Add the dependencies
     dependencies:

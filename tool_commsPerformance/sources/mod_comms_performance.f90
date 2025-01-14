@@ -32,6 +32,7 @@ module mod_comms_performance
 #define _GETPSCWOFF_ 0
 #define _GETLOCKBON_ 0
 #define _GETLOCKBOFF_ 0
+#define _NCCL_ 0
 
    implicit none
 
@@ -148,7 +149,6 @@ contains
    subroutine init_comms_performance(useIntInComms,useRealInComms)
       implicit none
       logical, intent(in) :: useIntInComms,useRealInComms
-      logical :: initWindows=.true.
 
       if(useIntInComms) then
          allocate(res_ifield(numNodesRankPar))
@@ -159,7 +159,6 @@ contains
         !$acc enter data create(res_rfield(:))
       end if
 
-      call init_comms(useIntInComms,useRealInComms,1,1,initWindows)
    end subroutine init_comms_performance
 
    subroutine debug_comms_real(base_resultsFile_h5_full_name)
@@ -177,12 +176,14 @@ contains
       implicit none
       integer(4),intent(in) :: numIters
       character(len=*),intent(in) :: log_file_name
+      logical,parameter:: useIntInComms=.false.,useRealInComms=.true.
+      integer(4),parameter :: intBufferMult=1,realBufferMult=1
       real(8) :: start_time,end_time,elapsed_time_r,elapsed_time
       real(8) :: array_timers(40)
       real(rp) :: refValue2check
       integer(4) :: numRanksNodeCnt(numNodesRankPar)
-      integer(4) :: iter,iTimer,iter2check
-      logical :: isOk
+      integer(4) :: iter,iTimer,iter2check,commModeTest
+      logical :: isOk,isCudaAwareTest
       integer(4),parameter :: log_file_id = 87
 
       iter2check = 5
@@ -195,10 +196,13 @@ contains
 
       call evalNumRanksNodeCnt(numRanksNodeCnt)
 
+      call init_comms_performance(useIntInComms,useRealInComms)
+
       call MPI_Barrier(app_comm,mpi_err)
       iTimer = 0
 #if _ONLYBUFFERS1_
       !---------------------------------------------------------------
+      call init_comms(useIntInComms,useRealInComms)
       !$acc kernels
       res_rfield(:) = 0.0_rp
       !$acc end kernels
@@ -228,9 +232,11 @@ contains
          write(log_file_id,*) 'OB1',elapsed_time,isOk
       end if
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _ONLYBUFFERS2_
       !---------------------------------------------------------------
+      call init_comms(useIntInComms,useRealInComms)
       !$acc kernels
       res_rfield(:) = 0.0_rp
       !$acc end kernels
@@ -260,8 +266,13 @@ contains
          write(log_file_id,*) 'OB2',elapsed_time,isOk
       end if
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _SENDRECV_
+      !---------------------------------------------------------------
+      commModeTest = 1
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -292,8 +303,13 @@ contains
          write(log_file_id,*) 'SR(CA)',elapsed_time,isOk
       end if
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _SENDRECV_NOCUDAAWARE_
+      !---------------------------------------------------------------
+      commModeTest = 1
+      isCudaAwareTest = .false.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -324,9 +340,14 @@ contains
          write(log_file_id,*) 'SR(noCA)',elapsed_time,isOk
       end if
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 
 #if _ISENDIRECV_
+      !---------------------------------------------------------------
+      commModeTest = 2
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -357,8 +378,13 @@ contains
          write(log_file_id,*) 'iSR(CA)',elapsed_time,isOk
       end if
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _ISENDIRECV_NOCUDAAWARE_
+      !---------------------------------------------------------------
+      commModeTest = 2
+      isCudaAwareTest = .false.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -389,8 +415,13 @@ contains
          write(log_file_id,*) 'iSR(noCA)',elapsed_time,isOk
       end if
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _PUTFENCEFLAGOFF_
+      !---------------------------------------------------------------
+      commModeTest = 3
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -422,8 +453,13 @@ contains
          write(log_file_id,*) 'PUT(fenceOff,CA)',elapsed_time,isOk
       end if
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _PUTFENCEFLAGOFF_NOCUDAAWARE_
+      !---------------------------------------------------------------
+      commModeTest = 3
+      isCudaAwareTest = .false.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -455,8 +491,13 @@ contains
          write(log_file_id,*) 'PUT(fenceOff,noCA)',elapsed_time,isOk
       end if
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _PUTFENCEFLAGON_
+      !---------------------------------------------------------------
+      commModeTest = 3
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -488,8 +529,13 @@ contains
          write(log_file_id,*) 'PUT(fenceOn,CA)',elapsed_time,isOk
       end if
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _PUTFENCEFLAGON_NOCUDAAWARE_
+      !---------------------------------------------------------------
+      commModeTest = 3
+      isCudaAwareTest = .false.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -521,8 +567,13 @@ contains
          write(log_file_id,*) 'PUT(fenceOn,noCA)',elapsed_time,isOk
       end if
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _PUTPSCWON_
+      !---------------------------------------------------------------
+      commModeTest = 3
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -551,8 +602,13 @@ contains
       !----------------------------!
       if(mpi_rank.eq.0) write(*,*) 'PUT(PSCW-NoCheckON) real time:',elapsed_time,'isOk',isOk
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _PUTPSCWOFF_
+      !---------------------------------------------------------------
+      commModeTest = 3
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -581,8 +637,13 @@ contains
       !----------------------------!
       if(mpi_rank.eq.0) write(*,*) 'PUT(PSCW-NoCheckOFF) real time:',elapsed_time,'isOk',isOk
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _PUTLOCKBON_
+      !---------------------------------------------------------------
+      commModeTest = 3
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -611,8 +672,13 @@ contains
       !----------------------------!
       if(mpi_rank.eq.0) write(*,*) 'PUT(Lock-BarrierON) real time:',elapsed_time,'isOk',isOk
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _PUTLOCKBOFF_
+      !---------------------------------------------------------------
+      commModeTest = 3
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -641,8 +707,13 @@ contains
       !----------------------------!
       if(mpi_rank.eq.0) write(*,*) 'PUT(Lock-BarrierOFF) real time:',elapsed_time,'isOk',isOk
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _GETFENCEFLAGOFF_
+      !---------------------------------------------------------------
+      commModeTest = 4
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -674,8 +745,13 @@ contains
          write(log_file_id,*) 'GET(fenceOff,CA)',elapsed_time,isOk
       end if
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _GETFENCEFLAGOFF_NOCUDAAWARE_
+      !---------------------------------------------------------------
+      commModeTest = 4
+      isCudaAwareTest = .false.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -707,8 +783,13 @@ contains
          write(log_file_id,*) 'GET(fenceOff,noCA)',elapsed_time,isOk
       end if
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _GETFENCEFLAGON_
+      !---------------------------------------------------------------
+      commModeTest = 4
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -740,8 +821,13 @@ contains
          write(log_file_id,*) 'GET(fenceOn,CA)',elapsed_time,isOk
       end if
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _GETFENCEFLAGON_NOCUDAAWARE_
+      !---------------------------------------------------------------
+      commModeTest = 4
+      isCudaAwareTest = .false.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -773,8 +859,13 @@ contains
          write(log_file_id,*) 'GET(fenceOn,noCA)',elapsed_time,isOk
       end if
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _GETPSCWON_
+      !---------------------------------------------------------------
+      commModeTest = 4
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -803,8 +894,13 @@ contains
       !----------------------------!
       if(mpi_rank.eq.0) write(*,*) 'GET(PSCW-NoCheckON) real time:',elapsed_time,'isOk',isOk
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _GETPSCWOFF_
+      !---------------------------------------------------------------
+      commModeTest = 4
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -833,8 +929,13 @@ contains
       !----------------------------!
       if(mpi_rank.eq.0) write(*,*) 'GET(PSCW-NoCheckOFF) real time:',elapsed_time,'isOk',isOk
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _GETLOCKBON_
+      !---------------------------------------------------------------
+      commModeTest = 4
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -863,8 +964,13 @@ contains
       !----------------------------!
       if(mpi_rank.eq.0) write(*,*) 'GET(Lock-BarrierON) real time:',elapsed_time,'isOk',isOk
       !---------------------
+      call end_comms()
 #endif
 #if _GETLOCKBOFF_
+      !---------------------------------------------------------------
+      commModeTest = 4
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -893,8 +999,48 @@ contains
       !----------------------------!
       if(mpi_rank.eq.0) write(*,*) 'GET(Lock-BarrierOFF) real time:',elapsed_time,'isOk',isOk
       !---------------------------------------------------------------
+      call end_comms()
+#endif
+#if _NCCL_
+      !---------------------------------------------------------------
+      commModeTest = 5
+      isCudaAwareTest = .true.
+      call init_comms(useIntInComms,useRealInComms,intBufferMult,realBufferMult,commModeTest,isCudaAwareTest)
+      !---------------------------------------------------------------
+      !$acc kernels
+      res_rfield(:) = 0.0_rp
+      !$acc end kernels
+      call MPI_Barrier(app_comm,mpi_err)
+      start_time = MPI_Wtime()
+      do iter=1,numIters
+         call mpi_halo_atomic_update_real_ncclSendRcv(res_rfield)
+      end do
+      end_time = MPI_Wtime()
+      elapsed_time_r = end_time - start_time
+      call MPI_Allreduce(elapsed_time_r,elapsed_time,1,mpi_datatype_real8,MPI_MAX,app_comm,mpi_err)
+      iTimer=iTimer+1
+      array_timers(iTimer) = elapsed_time;
+      !---- CHECK IF WORKS OK -----!
+      !$acc kernels
+      res_rfield(:) = refValue2check
+      !$acc end kernels
+      call MPI_Barrier(app_comm,mpi_err)
+      do iter=1,iter2check
+         call mpi_halo_atomic_update_real_ncclSendRcv(res_rfield)
+         call normalize_realField_in_sharedNodes(numRanksNodeCnt,res_rfield)
+      end do
+      call check_results_mpi_halo_atomic_update_real(refValue2check,res_rfield,isOk)
+      !----------------------------!
+      if(mpi_rank.eq.0) then
+         write(*,*) 'NCCL real time:',elapsed_time,'isOk',isOk
+         write(log_file_id,*) 'NCCL',elapsed_time,isOk
+      end if
+      !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _ONLYBUFFERS3_
+      !---------------------------------------------------------------
+      call init_comms(useIntInComms,useRealInComms)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -925,8 +1071,11 @@ contains
          write(log_file_id,*) 'OB3',elapsed_time,isOk
       end if
       !---------------------------------------------------------------
+      call end_comms()
 #endif
 #if _ONLYBUFFERS4_
+      !---------------------------------------------------------------
+      call init_comms(useIntInComms,useRealInComms)
       !---------------------------------------------------------------
       !$acc kernels
       res_rfield(:) = 0.0_rp
@@ -957,10 +1106,11 @@ contains
          write(log_file_id,*) 'OB4',elapsed_time,isOk
       end if
       !---------------------------------------------------------------
+      call end_comms()
+#endif
 
       if(mpi_rank.eq.0) close(unit=log_file_id)
 
-#endif
    end subroutine test_comms_performance_real
 
    subroutine check_results_mpi_halo_atomic_update_real(refValue,realField,isOk)

@@ -1,4 +1,4 @@
-message("-- SOD2D constants configuration:")
+message("-- <${PROJECT_NAME}> constants configuration:")
 
 # First checks
 #------------------------------------------------------------------------------------------

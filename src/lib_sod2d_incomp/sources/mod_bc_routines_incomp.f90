@@ -140,10 +140,10 @@ module mod_bc_routines_incomp
 
             implicit none
 
-            integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun),bou_codes_nodes(npoin),numBoundCodes
+            integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun),bou_codes_nodes(npoin),numBouCodes
             integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin)
             real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
-            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode),bouCodes2BCType(numBoundCodes)
+            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode),bouCodes2BCType(numBouCodes)
             real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)
             real(rp),   intent(in)  :: rho(npoin),omega(npoin,ndime),mu_fluid(npoin),mu_sgs(ielem,ngaus)
             real(rp),   intent(in)  :: coord(npoin,ndime), gpvol(1,ngaus,nelem)
@@ -194,13 +194,13 @@ module mod_bc_routines_incomp
             call nvtxEndRange
          end subroutine bc_routine_pressure_flux                   
 
-         subroutine bc_routine_momentum_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_code,bou_codes_nodes,numBoundCodes,bouCodes2BCType, &
+         subroutine bc_routine_momentum_flux(nelem,npoin,nboun,connec,bound,point2elem,bou_code,bou_codes_nodes,numBouCodes,bouCodes2BCType, &
                                              bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,u_flux_buffer,R)
 
             implicit none
 
-            integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun),bou_codes_nodes(npoin),numBoundCodes
-            integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin),bouCodes2BCType(numBoundCodes)
+            integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun),bou_codes_nodes(npoin),numBouCodes
+            integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin),bouCodes2BCType(numBouCodes)
             real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)
@@ -365,17 +365,9 @@ module mod_bc_routines_incomp
             end if
          end do
          if(mpi_size.ge.2) then
-            call mpi_halo_max_boundary_update_real_iSendiRcv(p_buffer)
+            call mpi_halo_bnd_atomic_max_real_iSendiRcv(p_buffer)
          end if
-         !!$acc end parallel loop   
-         !if(mpi_size.ge.2) then
-         !   call nvtxStartRange("MPI_comms_tI")
-         !   call mpi_halo_max_boundary_update_real_arrays_iSendiRcv(ndime,u_flux_buffer(:,:))
-         !   !call mpi_halo_max_boundary_update_real_iSendiRcv(u_flux_buffer(:,1))
-         !   !call mpi_halo_max_boundary_update_real_iSendiRcv(u_flux_buffer(:,2))
-         !   !call mpi_halo_max_boundary_update_real_iSendiRcv(u_flux_buffer(:,3))
-         !   call nvtxEndRange
-         !end if
+
       end subroutine evalPAtOutlet
 
       end module mod_bc_routines_incomp

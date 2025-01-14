@@ -86,7 +86,7 @@ module time_integ_incomp
          subroutine ab_main_incomp(igtime,iltime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,leviCivi,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
-                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,numBoundCodes,bouCodes2BCType,&               ! Optional args
+                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,numBouCodes,bouCodes2BCType,&               ! Optional args
                          listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u,zo)  ! Optional args
 
             implicit none
@@ -129,7 +129,7 @@ module time_integ_incomp
             real(rp),             intent(in)    :: coord(npoin,ndime)
             real(rp),             intent(in)  ::  wgp(ngaus)
             integer(4),            intent(in)    :: numBoundsWM
-            integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*),numBoundCodes
+            integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*),numBouCodes
             integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun), bou_codes_nodes(npoin)
             integer(4), optional, intent(in)    :: listBoundsWM(*),bouCodes2BCType(*)
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
@@ -357,7 +357,6 @@ module time_integ_incomp
             if (noBoundaries .eqv. .false.) then
                if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet_incomp(u(:,:,2))
                call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer)
-               if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
                !$acc kernels
                aux_omega(:,:,3) = aux_omega(:,:,1)
                aux_omega(:,:,1) = aux_omega(:,:,2)
@@ -365,6 +364,8 @@ module time_integ_incomp
                call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),aux_q,.true.)
                call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,aux_q,aux_omega(:,:,2),.true.)
             end if
+            if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
+            
             !
             ! Compute subgrid viscosity if active
             !

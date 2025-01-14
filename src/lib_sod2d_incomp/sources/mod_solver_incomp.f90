@@ -462,8 +462,7 @@ module mod_solver_incomp
                   allocate(ownerRank(npoin))
                   !$acc enter data create(ownerRank(:))
                   ownerRank(1:npoin) = mpi_rank  
-                  call mpi_halo_atomic_min_update_int_sendRcv(ownerRank)
-
+                  call mpi_halo_atomic_min_update_int_iSendiRcv(ownerRank)
 
                   ! obtain total real (master) nodes totalNpoinWork
                   ! I reuse auxQ1, auxQ, Q1 to avoide creating new variables
@@ -520,13 +519,13 @@ module mod_solver_incomp
 
         end subroutine conjGrad_pressure_incomp
 
-        subroutine smoother_cholesky(nelem,npoin,npoin_w,lpoin_w,lelpn,connec,b,x)
+        subroutine smoother_cholesky(nelem,npoin,npoin_w,lpoin_w,lelpn,connec,bs,xs)
 
            implicit none
 
            integer(4), intent(in)    :: nelem, npoin,npoin_w,lpoin_w(npoin),lelpn(npoin),connec(nelem,nnode)
-           real(rp)   , intent(in)    :: b(npoin)
-           real(rp)   , intent(inout) :: x(npoin)
+           real(rp)   , intent(in)    :: bs(npoin)
+           real(rp)   , intent(inout) :: xs(npoin)
            integer(4)                :: inode,ielem
            integer(4)              :: ipoin(nnode),iNodeL,ipoin_w,jnode
            real(rp)                 :: bl(nnode),xl(nnode)
@@ -537,7 +536,7 @@ module mod_solver_incomp
                !$acc loop vector
                do inode = 1,nnode
                   ipoin(inode) = connec(ielem,inode)
-                  bl(inode)  = b(ipoin(inode))
+                  bl(inode)  = bs(ipoin(inode))
                end do
                xl(1) = bl(1)/L(1,1,ielem)
                !$acc loop vector
@@ -546,24 +545,24 @@ module mod_solver_incomp
                   xl(inode) = (bl(inode) - dot_product(L(inode,1:jnode,ielem),xl(1:jnode)))/L(inode,inode,ielem)
                end do
 
-               x(ipoin(nnode)) = xl(nnode)/Lt(nnode,nnode,ielem)
+               xs(ipoin(nnode)) = xl(nnode)/Lt(nnode,nnode,ielem)
 
                !$acc loop vector
                do inode=nnode-1,1,-1
                   jnode = inode+1
-                  x(ipoin(inode)) = (xl(inode) - dot_product(Lt(inode,jnode:nnode,ielem),x(ipoin(jnode:nnode))))/Lt(inode,inode,ielem)
+                  xs(ipoin(inode)) = (xl(inode) - dot_product(Lt(inode,jnode:nnode,ielem),xs(ipoin(jnode:nnode))))/Lt(inode,inode,ielem)
                end do
 
            end do
 
          if(mpi_size.ge.2) then
-            call mpi_halo_atomic_update_real(x)
+            call mpi_halo_atomic_update_real(xs)
          end if
 
          !$acc parallel loop
          do ipoin_w = 1,npoin_w
             iNodeL=lpoin_w(ipoin_w)
-            x(iNodeL) = x(iNodeL)/real(lelpn(iNodeL),rp)
+            xs(iNodeL) = xs(iNodeL)/real(lelpn(iNodeL),rp)
          end do
          !$acc end parallel loop
          call nvtxEndRange
