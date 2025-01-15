@@ -139,7 +139,6 @@ subroutine conjGrad_meshElasticity(igtime,save_logFile_next,noBoundaries,nelem,n
   !
   call nvtxStartRange("CG_u iters")
   do iter = 1,maxIter
-    print*,'iter CG: ',iter,' (maxIt: ',maxIter,')'
     call nvtxStartRange("Iter_u")
     call full_diffusion_ijk_meshElasticity(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,&
       invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
@@ -245,10 +244,10 @@ subroutine conjGrad_meshElasticity(igtime,save_logFile_next,noBoundaries,nelem,n
   R(:,:) = x_u(:,:)
   !$acc end kernels
  
-  print*,'displacement: '
-  print*,minval(x_u(:,1)),' / ',maxval(x_u(:,1))
-  print*,minval(x_u(:,2)),' / ',maxval(x_u(:,2))
-  print*,minval(x_u(:,3)),' / ',maxval(x_u(:,3))
+  print*,'displacement:  min    /     max'
+  print*,'     ',minval(x_u(:,1)),' / ',maxval(x_u(:,1))
+  print*,'     ',minval(x_u(:,2)),' / ',maxval(x_u(:,2))
+  print*,'     ',minval(x_u(:,3)),' / ',maxval(x_u(:,3))
  
   call nvtxEndRange
 

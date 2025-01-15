@@ -1453,22 +1453,17 @@ end subroutine CFDSolverBase_findFixPressure
 
       if(mpi_rank.eq.0) write(111,*) "--| GENERATING JACOBIAN RELATED INFORMATION..."
 
-      print*,'call nvtxSta...'
       call nvtxStartRange("Jacobian info")
-      print*,'allocate(He(...'
       allocate(He(ndime,ndime,ngaus,numElemsRankPar))
       allocate(gpvol(1,ngaus,numElemsRankPar))
       !$acc enter data create(He(:,:,:,:))
       !$acc enter data create(gpvol(:,:,:))
 
-      print*,'call elem_jacobian...'
-      print*,'numElemsRankPar: ',numElemsRankPar
       call elem_jacobian(numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,dNgp,wgp,gpvol,He)
       call  nvtxEndRange
       vol_rank  = 0.0d8
       vol_tot_d = 0.0d8
       !$acc parallel loop reduction(+:vol_rank)
-      print*,'do ielem ...',numElemsRankPar
       do ielem = 1,numElemsRankPar
          !$acc loop vector
          do igaus = 1,ngaus
@@ -1477,7 +1472,6 @@ end subroutine CFDSolverBase_findFixPressure
       end do
       !$acc end parallel loop
 
-      print*,'call MPI_Allreduce...'
       call MPI_Allreduce(vol_rank,vol_tot_d,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
       this%VolTot = real(vol_tot_d,rp)
