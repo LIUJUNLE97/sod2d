@@ -9,7 +9,8 @@ module elem_diffu_meshElasticity
    use mod_comms
 
       contains
-        subroutine full_diffusion_ijk_meshElasticity(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,nu,E,Ml,Rmom)
+        subroutine full_diffusion_ijk_meshElasticity(&
+          nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,nu,E,Ml,Rmom)
              implicit none
 
              integer(4), intent(in)  :: nelem, npoin
@@ -53,6 +54,10 @@ module elem_diffu_meshElasticity
                 do inode = 1,nnode
                    do idime = 1,ndime
                       ul(inode,idime) = u(ipoin(inode),idime)
+                      if(isnan(ul(inode,idime))) then
+                        print*,'ul(inode,idime): ',ul(inode,idime)
+                        stop
+                      end if
                    end do
                 end do
                 tauXl(:,:) = 0.0_rp
@@ -74,6 +79,24 @@ module elem_diffu_meshElasticity
                          gradIsoU(idime,1) = gradIsoU(idime,1) + dlxigp_ip(igaus,1,ii)*ul(invAtoIJK(ii,isoJ,isoK),idime)
                          gradIsoU(idime,2) = gradIsoU(idime,2) + dlxigp_ip(igaus,2,ii)*ul(invAtoIJK(isoI,ii,isoK),idime)
                          gradIsoU(idime,3) = gradIsoU(idime,3) + dlxigp_ip(igaus,3,ii)*ul(invAtoIJK(isoI,isoJ,ii),idime)
+                         if(isnan(gradIsoU(idime,1))) then
+                           print*,dlxigp_ip(igaus,1,ii)
+                           print*,ul(invAtoIJK(ii,isoJ,isoK),idime)
+                           print*,'gradIsoU(idime,1): ',gradIsoU(idime,1)
+                           stop
+                         end if
+                         if(isnan(gradIsoU(idime,2))) then
+                           print*,dlxigp_ip(igaus,2,ii)
+                           print*,ul(invAtoIJK(ii,isoJ,isoK),idime)
+                           print*,'gradIsoU(idime,2): ',gradIsoU(idime,2)
+                           stop
+                         end if
+                         if(isnan(gradIsoU(idime,3))) then
+                           print*,dlxigp_ip(igaus,3,ii)
+                           print*,ul(invAtoIJK(ii,isoJ,isoK),idime)
+                           print*,'gradIsoU(idime,3): ',gradIsoU(idime,3)
+                           stop
+                         end if
                       end do
                    end do
 
@@ -94,6 +117,10 @@ module elem_diffu_meshElasticity
                       !$acc loop seq
                       do jdime = 1,ndime
                            tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
+                           if(isnan(tau(idime,jdime))) then
+                             print*,'gradU(idime,jdime): ',gradU(idime,jdime)
+                             stop
+                           end if
                       end do
                    end do
 
@@ -132,6 +159,14 @@ module elem_diffu_meshElasticity
                          divDm(3) = divDm(3) + He(idime,1,invAtoIJK(ii,isoJ,isoK),ielem)*gpvol(1,invAtoIJK(ii,isoJ,isoK),ielem)*dlxigp_ip(invAtoIJK(ii,isoJ,isoK),1,isoI)*tauZl(invAtoIJK(ii,isoJ,isoK),idime)
                          divDm(3) = divDm(3) + He(idime,2,invAtoIJK(isoI,ii,isoK),ielem)*gpvol(1,invAtoIJK(isoI,ii,isoK),ielem)*dlxigp_ip(invAtoIJK(isoI,ii,isoK),2,isoJ)*tauZl(invAtoIJK(isoI,ii,isoK),idime)
                          divDm(3) = divDm(3) + He(idime,3,invAtoIJK(isoI,isoJ,ii),ielem)*gpvol(1,invAtoIJK(isoI,isoJ,ii),ielem)*dlxigp_ip(invAtoIJK(isoI,isoJ,ii),3,isoK)*tauZl(invAtoIJK(isoI,isoJ,ii),idime)
+
+                         if(isnan(divDm(1)).or.isnan(divDm(2)).or.isnan(divDm(3))) then
+                           print*,'He: ',He(idime,1,invAtoIJK(ii,isoJ,isoK),ielem)
+                           print*,'gp: ',gpvol(1,invAtoIJK(ii,isoJ,isoK),ielem)
+                           print*,'dl: ',dlxigp_ip(invAtoIJK(ii,isoJ,isoK),1,isoI)
+                           print*,'ta: ',tauXl(invAtoIJK(ii,isoJ,isoK),idime)
+                           stop
+                         end if
                       end do
                    end do
 
@@ -139,6 +174,10 @@ module elem_diffu_meshElasticity
                       !$acc atomic update
                       Rmom(ipoin(igaus),idime) = Rmom(ipoin(igaus),idime)+divDm(idime)
                       !$acc end atomic
+                      if(isnan( Rmom(ipoin(igaus),idime) )) then
+                        print*,'Rmom(ipoin(igaus),idime): ',Rmom(ipoin(igaus),idime)
+                        stop
+                      end if
                    end do
                 end do
              end do

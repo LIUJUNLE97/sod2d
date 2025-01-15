@@ -401,7 +401,8 @@ end subroutine CFDSolverBase_findFixPressure
       call json%info("bouCodes",n_children=json_nbouCodes)
       call json%get_core(jCore)
       call json%get('bouCodes', bouCodesPointer, found_aux)
-
+      
+      print*,'CFDSolverBase_readJSONBCTypes:'
       do iBouCodes=1, json_nbouCodes
             call jCore%get_child(bouCodesPointer, iBouCodes, testPointer, found)
             call jCore%get_child(testPointer, 'id', p, found)
@@ -416,6 +417,7 @@ end subroutine CFDSolverBase_findFixPressure
             call jCore%get_child(testPointer, 'bc_type', p, found)
             if(found) then
                call jCore%get(p,value)
+               print*,'   ',value
                if(value .eq. "bc_type_far_field") then
                   bouCodes2BCType(id) = bc_type_far_field
                else if(value .eq. "bc_type_outlet_incomp") then
@@ -1451,17 +1453,22 @@ end subroutine CFDSolverBase_findFixPressure
 
       if(mpi_rank.eq.0) write(111,*) "--| GENERATING JACOBIAN RELATED INFORMATION..."
 
+      print*,'call nvtxSta...'
       call nvtxStartRange("Jacobian info")
+      print*,'allocate(He(...'
       allocate(He(ndime,ndime,ngaus,numElemsRankPar))
       allocate(gpvol(1,ngaus,numElemsRankPar))
       !$acc enter data create(He(:,:,:,:))
       !$acc enter data create(gpvol(:,:,:))
 
+      print*,'call elem_jacobian...'
+      print*,'numElemsRankPar: ',numElemsRankPar
       call elem_jacobian(numElemsRankPar,numNodesRankPar,connecParOrig,coordPar,dNgp,wgp,gpvol,He)
       call  nvtxEndRange
       vol_rank  = 0.0d8
       vol_tot_d = 0.0d8
       !$acc parallel loop reduction(+:vol_rank)
+      print*,'do ielem ...',numElemsRankPar
       do ielem = 1,numElemsRankPar
          !$acc loop vector
          do igaus = 1,ngaus
@@ -1470,6 +1477,7 @@ end subroutine CFDSolverBase_findFixPressure
       end do
       !$acc end parallel loop
 
+      print*,'call MPI_Allreduce...'
       call MPI_Allreduce(vol_rank,vol_tot_d,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
       this%VolTot = real(vol_tot_d,rp)
@@ -1595,6 +1603,7 @@ end subroutine CFDSolverBase_findFixPressure
       character(500) :: tmpname
       integer(4) :: iCode
 
+      print*,'this%saveInitialField: ',this%saveInitialField
       if(this%saveInitialField) then
          call this%saveInstResultsFiles(0)
       end if
