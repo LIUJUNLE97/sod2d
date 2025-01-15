@@ -158,7 +158,6 @@ contains
       call this%evalMass()
 
       ! Eval first output
-      print*,'this%isFreshStart: ',this%isFreshStart
       if(this%isFreshStart) call this%evalFirstOutput()
       call this%flush_log_file()
 
@@ -166,28 +165,9 @@ contains
 
       call this%initialBuffer()
 
-      print*,'this%initialBuffer():   min         /        max'
-      print*,'    ',minval(u_buffer(:,1)),' / ',maxval(u_buffer(:,1))
-      print*,'    ',minval(u_buffer(:,2)),' / ',maxval(u_buffer(:,2))
-      print*,'    ',minval(u_buffer(:,3)),' / ',maxval(u_buffer(:,3))
-      
-      print*,'noBoundaries: ', this%noBoundaries
       if (this%noBoundaries .eqv. .false.) then
-        !if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet_incomp(u(:,:,2))
-!          call temporary_bc_routine_dirichlet_prim_meshElasticity(&
-!            numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,2),u_buffer)
-         print*,' i changed dirichlet bc from u(:,:,2) to u(:,:,1)'
          call temporary_bc_routine_dirichlet_prim_meshElasticity(&
            numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
-
-         print*,'u(:,:,1):   min         /        max'
-         print*,'    ',minval(u(:,1,1)),' / ',maxval(u(:,1,1))
-         print*,'    ',minval(u(:,2,1)),' / ',maxval(u(:,2,1))
-         print*,'    ',minval(u(:,3,1)),' / ',maxval(u(:,3,1))
-         print*,'u(:,:,2):   min         /        max'
-         print*,'    ',minval(u(:,1,2)),' / ',maxval(u(:,1,2))
-         print*,'    ',minval(u(:,2,2)),' / ',maxval(u(:,2,2))
-         print*,'    ',minval(u(:,3,2)),' / ',maxval(u(:,3,2))
       end if
       !if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
       
@@ -230,33 +210,27 @@ contains
       
       real(rp) :: x0,x1,xpoin,ypoin,zpoin,pertx,perty,pertz
 
+      x0=minval(coordPar(:,1)) !it is a cube: assumed!
+      x1=maxval(coordPar(:,1)) !it is a cube: assumed!
+
       !$acc parallel loop
-!       do iNodeL = 1,numNodesRankPar
-!             u_buffer(iNodeL,1) = this%vo*cos(this%aoa*v_pi/180.0_rp)
-!             u_buffer(iNodeL,2) = this%vo*sin(this%aoa*v_pi/180.0_rp)
-!             u_buffer(iNodeL,3) = 0.0_rp
-!       end do
-      
-      x0=minval(coordPar(:,1))
-      x1=maxval(coordPar(:,1))
       do iNodeL=1,numNodesRankPar
         u_buffer(iNodeL,:) = 0.0_rp
         
-        if(coordPar(iNodeL,3)<1e-14) then
+        if(coordPar(iNodeL,3)<1e-14) then ! lower cube boundary, z=0
           xpoin = coordPar(iNodeL,1)
           ypoin = coordPar(iNodeL,2)
           zpoin = coordPar(iNodeL,3)
           
           pertx = (xpoin-x0)*(x1-xpoin)
           perty = (ypoin-x0)*(x1-ypoin)
-          pertz = (pertx*perty)/50.0_rp
-          u_buffer(iNodeL,3) = -pertz*2
+          pertz = (pertx*perty)/25.0_rp
+          u_buffer(iNodeL,3) = -pertz     !quadratic displacement
           
           pertx =  sin(xpoin)
           perty =  sin(ypoin)
           pertz = (pertx*perty)
-          u_buffer(iNodeL,3) = -pertz
-          
+          u_buffer(iNodeL,3) = -pertz     !sinusoidal displacement
         end if
         
       end do
