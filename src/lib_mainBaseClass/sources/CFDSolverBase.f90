@@ -1595,7 +1595,6 @@ end subroutine CFDSolverBase_findFixPressure
       character(500) :: tmpname
       integer(4) :: iCode
 
-      print*,'this%saveInitialField: ',this%saveInitialField
       if(this%saveInitialField) then
          call this%saveInstResultsFiles(0)
       end if
