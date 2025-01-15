@@ -402,7 +402,6 @@ end subroutine CFDSolverBase_findFixPressure
       call json%get_core(jCore)
       call json%get('bouCodes', bouCodesPointer, found_aux)
       
-      print*,'CFDSolverBase_readJSONBCTypes:'
       do iBouCodes=1, json_nbouCodes
             call jCore%get_child(bouCodesPointer, iBouCodes, testPointer, found)
             call jCore%get_child(testPointer, 'id', p, found)
@@ -417,7 +416,6 @@ end subroutine CFDSolverBase_findFixPressure
             call jCore%get_child(testPointer, 'bc_type', p, found)
             if(found) then
                call jCore%get(p,value)
-               print*,'   ',value
                if(value .eq. "bc_type_far_field") then
                   bouCodes2BCType(id) = bc_type_far_field
                else if(value .eq. "bc_type_outlet_incomp") then
