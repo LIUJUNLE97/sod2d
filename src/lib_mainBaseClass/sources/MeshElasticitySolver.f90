@@ -75,6 +75,9 @@ contains
       call json%get("E",this%E_young, found,10.0_rp); call this%checkFound(found,found_aux)
       call json%get("nu",this%nu_poisson, found,0.4_rp); call this%checkFound(found,found_aux)  
 
+      call json%get("saveInitialField",this%saveInitialField, found,.true.); call this%checkFound(found,found_aux)
+      !call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
+      
       call json%destroy()
 
       if(found_aux .and.mpi_rank .eq. 0) write(111,*) 'WARNING! JSON file missing a parameter, overwrtting with the default value'
