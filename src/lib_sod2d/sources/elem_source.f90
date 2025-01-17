@@ -51,7 +51,7 @@ contains
          do idime = 1,ndime
             do inode = 1,nnode
                !$acc atomic update
-               Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)-aux_fact*gpvol(1,inode,ielem)*s(connec(ielem,inode),idime)
+               Rmom(connec(ielem,inode),idime) = Rmom(connec(ielem,inode),idime)+aux_fact*gpvol(1,inode,ielem)*s(connec(ielem,inode),idime)
                !$acc end atomic
             end do
          end do
@@ -93,7 +93,7 @@ contains
          !$acc loop vector 
         do inode = 1,nnode
             !$acc atomic update
-            Rener(connec(ielem,inode)) = Rener(connec(ielem,inode)) - aux_fact*gpvol(1,inode,ielem)*s(connec(ielem,inode))
+            Rener(connec(ielem,inode)) = Rener(connec(ielem,inode)) + aux_fact*gpvol(1,inode,ielem)*s(connec(ielem,inode))
             !$acc end atomic
          end do
       end do

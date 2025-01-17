@@ -30,7 +30,7 @@ module WindFarmSolverIncomp2_mod
 
    type, public, extends(CFDSolverPeriodicWithBoundariesIncomp) :: WindFarmSolverIncomp2
 
-      real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar,wind_alpha, lambda_vertical,gamma_free,delta_capping,gamma_inversion,inversion_height,s_ra,nu_ra,latitude,earth_omega,fc,gradP,Ug_x,Ug_y,T_wall,Lz_ra,Ug_alpha
+      real(rp) , public  :: rough,vinf,Lhub,rho0,Lz,ustar,wind_alpha, lambda_vertical,gamma_free,delta_capping,gamma_inversion,inversion_height,s_ra,nu_ra,latitude,earth_omega,fc,gradP,Ug_x,Ug_y,T_wall,Lz_ra,Ug_alpha,N_bv
       integer(4), public :: N_ad
       logical, public :: capping
 
@@ -67,16 +67,24 @@ contains
       class(WindFarmSolverIncomp2), intent(inout) :: this
       integer(4), intent(in) :: istep
       integer :: iNodeL
+      real(rp) :: d
 
 
       !$acc parallel loop  
       do iNodeL = 1,numNodesRankPar
-         source_term(iNodeL,1) =  rho(iNodeL,2)*this%Ug_y*this%fc - rho(iNodeL,2)*u(iNodeL,2,2)*this%fc
-         source_term(iNodeL,2) = -rho(iNodeL,2)*this%Ug_x*this%fc + rho(iNodeL,2)*u(iNodeL,1,2)*this%fc
-         source_term(iNodeL,3) = rho(iNodeL,2)*((Yk(iNodeL,1,2)-nscbc_T_ref)/265.0_rp)*nscbc_g_z 
+         source_term(iNodeL,1) = -rho(iNodeL,2)*this%Ug_y*this%fc + rho(iNodeL,2)*u(iNodeL,2,2)*this%fc
+         source_term(iNodeL,2) = +rho(iNodeL,2)*this%Ug_x*this%fc - rho(iNodeL,2)*u(iNodeL,1,2)*this%fc
+         source_term(iNodeL,3) = -rho(iNodeL,2)*((Yk(iNodeL,1,2)-nscbc_T_ref)/265.0_rp)*nscbc_g_z 
 
          if(coordPar(iNodeL,3) .lt. 100_rp) then
             Yk_buffer(iNodeL,1) = this%T_wall - 0.25_rp*(this%time/3600.0_rp)
+         end if
+
+         if(coordPar(iNodeL,3) .gt. (this%Lz-this%Lz_ra)) then
+            d = this%nu_ra*this%N_bv*(1.0_rp - cos((v_pi/this%s_ra)*((coordPar(iNodeL,3)-(this%Lz-this%Lz_ra))/this%Lz_ra)) )
+            source_term(iNodeL,1) =  source_term(iNodeL,1) - d*(u(iNodeL,1,2) - this%Ug_x) 
+            source_term(iNodeL,2) =  source_term(iNodeL,2) - d*(u(iNodeL,2,2) - this%Ug_y) 
+            source_term(iNodeL,3) =  source_term(iNodeL,3) - d*(u(iNodeL,3,2)) 
          end if
       end do
       !$acc end parallel loop
@@ -93,7 +101,7 @@ contains
    subroutine WindFarmSolverIncomp2_initializeSourceTerms(this)
       class(WindFarmSolverIncomp2), intent(inout) :: this
       integer(4) :: iNodeL,idime
-      real(rp) :: vz,N
+      real(rp) :: d
 
 
       allocate(source_term(numNodesRankPar,ndime))
@@ -101,10 +109,16 @@ contains
 
 
       !$acc parallel loop  
-      do iNodeL = 1,numNodesRankPar         
-         source_term(iNodeL,1) =  rho(iNodeL,2)*this%Ug_y*this%fc - rho(iNodeL,2)*u(iNodeL,2,2)*this%fc
-         source_term(iNodeL,2) = -rho(iNodeL,2)*this%Ug_x*this%fc + rho(iNodeL,2)*u(iNodeL,1,2)*this%fc
-         source_term(iNodeL,3) =  rho(iNodeL,2)*((Yk(iNodeL,1,2)-nscbc_T_ref)/265.0_rp)*nscbc_g_z 
+      do iNodeL = 1,numNodesRankPar             
+         source_term(iNodeL,1) = -rho(iNodeL,2)*this%Ug_y*this%fc + rho(iNodeL,2)*u(iNodeL,2,2)*this%fc
+         source_term(iNodeL,2) = +rho(iNodeL,2)*this%Ug_x*this%fc - rho(iNodeL,2)*u(iNodeL,1,2)*this%fc
+         source_term(iNodeL,3) = -rho(iNodeL,2)*((Yk(iNodeL,1,2)-nscbc_T_ref)/265.0_rp)*nscbc_g_z 
+         if(coordPar(iNodeL,3) .gt. (this%Lz-this%Lz_ra)) then
+            d = this%nu_ra*this%N_bv*(1.0_rp - cos((v_pi/this%s_ra)*((coordPar(iNodeL,3)-(this%Lz-this%Lz_ra))/this%Lz_ra)) )
+            source_term(iNodeL,1) =  source_term(iNodeL,1) - d*(u(iNodeL,1,2) - this%Ug_x) 
+            source_term(iNodeL,2) =  source_term(iNodeL,2) - d*(u(iNodeL,2,2) - this%Ug_y) 
+            source_term(iNodeL,3) =  source_term(iNodeL,3) - d*(u(iNodeL,3,2)) 
+         end if
       end do
       !$acc end parallel loop
 
@@ -174,6 +188,7 @@ contains
 
       ! numerical params
       call json%get("flag_les",flag_les, found,1); call this%checkFound(found,found_aux)
+      call json%get("c_sgs",c_sgs, found,0.025); call this%checkFound(found,found_aux)
       call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
       call json%get("flag_walave",flag_walave, found,.true.); call this%checkFound(found,found_aux)
@@ -181,6 +196,9 @@ contains
       call json%get("flag_les_ilsa",flag_les_ilsa, found,0); call this%checkFound(found,found_aux)
       call json%get("stau",stau, found,0.022_rp); call this%checkFound(found,found_aux)
       call json%get("T_ilsa",T_ilsa, found,300.0_rp); call this%checkFound(found,found_aux)
+      call json%get("flag_fs_fix_pressure",flag_fs_fix_pressure, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("flag_entropy_stab_in_species",flag_entropy_stab_in_species, found,.true.); call this%checkFound(found,found_aux)
+      call json%get("ce_species",ce_species, found,1.0_rp); call this%checkFound(found,found_aux)
 
       call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
 
@@ -214,10 +232,10 @@ contains
       nscbc_T_C = nscbc_T_ref
       nscbc_g_x = 0.0_rp
       nscbc_g_y = 0.0_rp
-      nscbc_g_z = 9.81_rp
+      nscbc_g_z = -9.81_rp
       
 
-      this%gamma_free = 0.005_rp
+      this%gamma_free = 0.01_rp
       this%delta_capping = 100.0_rp
       this%gamma_inversion = 0.01_rp
       this%inversion_height = 200.0_rp
@@ -226,13 +244,14 @@ contains
       this%nu_ra = 3.0_rp
       this%latitude = 40.0_rp*v_pi/180.0_rp
       this%earth_omega = 0.00007272_rp
+      this%N_bv = sqrt(abs(nscbc_g_z)*this%gamma_free/265.0_rp)
                
       !extra calc
       this%fc =  0.000139_rp !2.0_rp*this%earth_omega*sin(this%latitude)
       this%gradP = 2.0_rp*this%vinf*this%fc ! 10 is an input: gradP equal to mag(Ug)/fc                  
       this%Ug_x = this%vinf
       this%Ug_y = 0.0_rp
-      this%Lz_ra = this%lambda_vertical*1.5_rp
+      this%Lz_ra =  100.0_rp!this%lambda_vertical*1.5_rp
 
       if(mpi_rank.eq.0) write(*,*) "--| gradP :", this%gradP
       if(mpi_rank.eq.0) write(*,*) "--| Ugx :", this%Ug_x
@@ -299,6 +318,10 @@ contains
       do iNodeL = 1,numNodesRankPar
          pr(iNodeL,2) = 0.0_rp
          rho(iNodeL,2) = nscbc_rho_inf
+
+         u(iNodeL,1,1) = u(iNodeL,1,2)
+         u(iNodeL,2,1) = u(iNodeL,2,2)
+         u(iNodeL,3,1) = u(iNodeL,3,2)
       end do
       !$acc end parallel loop
       
