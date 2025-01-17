@@ -1180,6 +1180,9 @@ contains
       ms_dims(1) = 1
       ms_offset(1) = int(mshRank,hssize_t)
 
+      deallocate(aux_array_i4)
+      allocate(aux_array_i4(ms_dims(1)))
+
       dsetname = '/meshOutputInfo/numElemsVTKMshRank'
       aux_array_i4(1) = numElemsVTKMshRank
       call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
@@ -6039,9 +6042,9 @@ contains
 
       !------------------------------------------------------------------------------------------------------
       if (eval_mesh_quality) then
-         dsetname = '/VTKHDF/CellData/mesh_quality'
+         dsetname = '/VTKHDF/CellData/mesh_quality_anisotropic'
          call write_dataspace_1d_real8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,empty_array1d_r8)
-         dsetname = '/VTKHDF/CellData/mesh_quality_cube'
+         dsetname = '/VTKHDF/CellData/mesh_quality_isotropic'
          call write_dataspace_1d_real8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,empty_array1d_r8)
       end if
 
