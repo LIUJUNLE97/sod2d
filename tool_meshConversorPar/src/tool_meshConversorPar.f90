@@ -10,9 +10,8 @@ program tool_meshConversorPar
     character(512) :: gmsh_filePath,gmsh_fileName
     character(512) :: mesh_h5_filePath,mesh_h5_fileName
     character(256) :: parameter2read
-    integer(4) :: lineCnt,num_partitions
+    integer(4) :: lineCnt,num_partitions,eval_mesh_quality
     logical :: lineal_output
-    logical :: eval_mesh_quality
 
 !------------------------------------------------------------------------------------------------------
 
@@ -64,7 +63,7 @@ program tool_meshConversorPar
 
     !7. eval_mesh_quality--------------------------------------------------------------------------
     parameter2read = 'eval_mesh_quality'
-    call read_inputFile_logical(lineCnt,parameter2read,eval_mesh_quality)
+    call read_inputFile_integer(lineCnt,parameter2read,eval_mesh_quality)
 
     call close_inputFile()
     if(mpi_rank.eq.0) write(*,*) '## End of Reading input file: ',trim(adjustl(input_file))
