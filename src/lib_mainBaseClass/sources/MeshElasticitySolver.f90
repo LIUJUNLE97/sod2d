@@ -40,6 +40,7 @@ module MeshElasticitySolver_mod
       procedure, public :: initializeParameters  => MeshElasticitySolver_initializeParameters
       procedure, public :: run                   => MeshElasticitySolver_run
       procedure, public :: initialBuffer         => imposedDisplacement_elasticitySolverBuffer
+      procedure, public :: computeQuality
    end type MeshElasticitySolver
 contains
 
@@ -85,128 +86,188 @@ contains
    end subroutine MeshElasticitySolver_initializeParameters
 
    subroutine MeshElasticitySolver_run(this)
-      implicit none
-      class(MeshElasticitySolver), intent(inout) :: this
+     !
+     implicit none
+     class(MeshElasticitySolver), intent(inout) :: this
+     !
+     ! Init MPI
+     call init_mpi()
 
-      ! Init MPI
-      call init_mpi()
+     ! Init HDF5 interface
+     call init_hdf5_interface()
 
-      ! Init HDF5 interface
-      call init_hdf5_interface()
+     ! Init Save Fields vars and arrays
+     call init_saveFields()
 
-      ! Init Save Fields vars and arrays
-      call init_saveFields()
+     ! Main simulation parameters
+     call this%initializeDefaultParameters()
+     call this%initializeParameters()
 
-      ! Main simulation parameters
-      call this%initializeDefaultParameters()
-      call this%initializeParameters()
+     call this%optimizeParameters()
 
-      call this%optimizeParameters()
+     call read_json_saveFields(json_filename)
 
-      call read_json_saveFields(json_filename)
+     ! Open log file
+     call this%open_log_file()
 
-      ! Open log file
-      call this%open_log_file()
+     ! read the mesh
+     call this%openMesh()
 
-      ! read the mesh
-      call this%openMesh()
+     ! Init hdf5 auxiliar saving arrays
+     call init_hdf5_auxiliar_saving_arrays()
 
-      ! Init hdf5 auxiliar saving arrays
-      call init_hdf5_auxiliar_saving_arrays()
+     ! Open analysis files
+     call this%open_analysis_files
 
-      ! Open analysis files
-      call this%open_analysis_files
+     ! Eval shape Functions
+     call this%evalShapeFunctions()
 
-      ! Eval shape Functions
-      call this%evalShapeFunctions()
+     ! Allocate variables
+     call this%allocateVariables()
 
-      ! Allocate variables
-      call this%allocateVariables()
+     ! Setting fields to be saved
+     if(flag_use_species .eqv. .true.) then
+        call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
+                            u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
+                            avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw,Yk(:,:,2),mu_e_Yk)
+     else
+        call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
+                            u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
+                            avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw)
+     end if
 
-      ! Setting fields to be saved
-      if(flag_use_species .eqv. .true.) then
-         call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
-                             u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
-                             avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw,Yk(:,:,2),mu_e_Yk)
-      else
-         call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
-                             u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
-                             avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw)
-      end if
+     ! Eval or load initial conditions
+     call this%evalOrLoadInitialConditions()
 
-      ! Eval or load initial conditions
-      call this%evalOrLoadInitialConditions()
+     ! Compute characteristic size of the elements
+     call this%evalCharLength()
 
-      ! Compute characteristic size of the elements
-      call this%evalCharLength()
+     ! Eval boundary element normal
+     call this%evalBoundaryNormals()
 
-      ! Eval boundary element normal
-      call this%evalBoundaryNormals()
+     ! Eval Jacobian information
+     call this%evalJacobians()
 
-      ! Eval Jacobian information
-      call this%evalJacobians()
+     ! Eval AtoIJK inverse
+     call this%evalAtoIJKInverse()
 
-      ! Eval AtoIJK inverse
-      call this%evalAtoIJKInverse()
+     ! Eval BoundaryFacesToNodes
+     call  this%boundaryFacesToNodes()
 
-      ! Eval BoundaryFacesToNodes
-      call  this%boundaryFacesToNodes()
+     ! Eval list Elems per Node and Near Boundary Node
+     call this%eval_elemPerNode_and_nearBoundaryNode()
 
-      ! Eval list Elems per Node and Near Boundary Node
-      call this%eval_elemPerNode_and_nearBoundaryNode()
+     call this%set_mappedFaces_linkingNodes()   
 
-      call this%set_mappedFaces_linkingNodes()   
+     ! Eval mass
+     call this%evalMass()
 
-      ! Eval mass
-      call this%evalMass()
+     ! Eval first output
+     if(this%isFreshStart) call this%evalFirstOutput()
+     call this%flush_log_file()
 
-      ! Eval first output
-      if(this%isFreshStart) call this%evalFirstOutput()
-      call this%flush_log_file()
+     call  this%normalFacesToNodes()
+     
+     ! HERE WE CAN DO THE MESH MAGIC
+     call this%initialBuffer()
 
-      call  this%normalFacesToNodes()
+     if (this%noBoundaries .eqv. .false.) then
+        call temporary_bc_routine_dirichlet_prim_meshElasticity(&
+          numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
+     end if
+     !if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
+     
+     call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
+        numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
+        gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
+        this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final 
+        bouCodesNodesPar,normalsAtNodes,u_buffer) 
 
-      call this%initialBuffer()
+     !
+     print*,'Quality before elasticity'
+     call this%computeQuality()
+     print*,'Modifying coords to impose displacement'
+     coordPar = coordPar+u(:,:,2)
+     print*,'Quality after elasticity'
+     call this%computeQuality()
+     !
+     
+     call this%saveInstResultsFiles(1)    
 
-      if (this%noBoundaries .eqv. .false.) then
-         call temporary_bc_routine_dirichlet_prim_meshElasticity(&
-           numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
-      end if
-      !if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
-      
-      call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
-         numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
-         gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
-         this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final 
-         bouCodesNodesPar,normalsAtNodes,u_buffer) 
+     call this%close_log_file()
+     call this%close_analysis_files()
 
-      call this%saveInstResultsFiles(1)    
+     ! Deallocate the variables
+     call this%deallocateVariables()
 
-      call this%close_log_file()
-      call this%close_analysis_files()
+     ! End hdf5 auxiliar saving arrays
+     call end_hdf5_auxiliar_saving_arrays()
 
-      ! Deallocate the variables
-      call this%deallocateVariables()
+     ! End hdf5 interface
+     call end_hdf5_interface()
 
-      ! End hdf5 auxiliar saving arrays
-      call end_hdf5_auxiliar_saving_arrays()
+     ! Finalize InSitu   - bettre done before end_comms
+     call end_InSitu()
 
-      ! End hdf5 interface
-      call end_hdf5_interface()
+     ! End comms
+     call end_comms()
+     call end_comms_bnd()
 
-      ! Finalize InSitu   - bettre done before end_comms
-      call end_InSitu()
-
-      ! End comms
-      call end_comms()
-      call end_comms_bnd()
-
-      ! End MPI
-      call end_mpi()
-
+     ! End MPI
+     call end_mpi()
+     
+     !
+     print*,'Curving process:'
+     print*,' 1- Generate coordinates of the straight mesh'
+     print*,' 2- Compute displacement surface field'
+     print*,' 3- Solve elasticity problem'
+     
+     print*,'TODOs:'
+     print*,' - Do the mesh curving from the "bad" input curved mesh'
+     print*,' Future: '
+     print*,' - Leave an option to impose displacement, to use this for ALE'
+     print*,' - Maybe add an option in the json to read the displacement of the ALE vs do mesh curving'
+     
+     
    end subroutine MeshElasticitySolver_run
-
-
+   
+   subroutine computeQuality(this)
+     
+     use mod_mesh_quality, only: eval_ElemQuality
+     
+     class(MeshElasticitySolver), intent(inout) :: this
+     integer(4) :: ielem
+     real(8)    :: quality_vec(2)
+     real(rp)   :: minQ, maxQ
+     
+!      his%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
+!              numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
+!              gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
+     print*,'I am doing something nasty... created a link in the meshElasticitySOlver folder to the mod_meshquality'
+     print*,'When folder redistribution is done, remove this and link properly the mod_meshquality without link'
+     print*,'Loop on elements and compute their quality'
+     minQ = 1.0_rp
+     maxQ = 0.0_rp
+     do ielem = 1,numElemsRankPar
+       !
+       !numWorkingNodesRankPar or numNodesRankPar?
+       call eval_ElemQuality(size(connecParWork,2),ngaus,numNodesRankPar,numElemsRankPar,&
+         ielem,real(coordPar,8),connecParWork,real(dNgp,8),real(wgp,8),quality_vec)
+       !
+       minQ = min(minQ,real(quality_vec(1),rp))
+       maxQ = max(maxQ,real(quality_vec(1),rp))
+       !
+     end do
+     print*,'Min q: ',minQ
+     print*,'Max q: ',maxQ
+     
+!      call eval_ElemQuality(mnnode,mngaus,numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),&
+!       iElem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_vec)
+!      do ielem = 1,nelem
+!        call eval_ElemQuality(nnode,ngaus,npoin,nelem,ielem,coord,connec,dNgp,wgp,quality_vec)
+!      end do
+   end subroutine computeQuality
+   
    subroutine imposedDisplacement_elasticitySolverBuffer(this)
       class(MeshElasticitySolver), intent(inout) :: this
       integer(4) :: iNodeL, bcode
