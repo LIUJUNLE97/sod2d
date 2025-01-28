@@ -68,7 +68,7 @@ contains
       integer(8),dimension(0:numMshRanks2Part-1) :: iNodeStartPar_i8
       integer(4),dimension(0:numMshRanks2Part-1) :: vecNumWorkingNodes,vecNumNodesToCommMshRank,vecNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecBndNumMshRanksWithComms
       integer(4),dimension(0:numMshRanks2Part-1) :: vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank
-      real(8),allocatable :: Ngp_l(:,:),dNgp(:,:,:),wgp(:)
+      real(8),allocatable :: Ngp(:,:),dNgp(:,:,:),Ngp_l(:,:),dNgp_l(:,:,:),wgp(:)
       integer(4) :: iMshRank,mshRank
       integer(hid_t) :: gmsh_h5_fileId, sod2dmsh_h5_fileId
       real(8),dimension(10) :: start_time,end_time,elapsed_time_r
@@ -150,8 +150,8 @@ contains
       allocate(a2ijk(mnnode))
       allocate(a2ij(mnpbou))
 
-      allocate(Ngp_l(mngaus,mnnode))
-      allocate(dNgp(ndime,mnnode,mngaus))
+      allocate(Ngp(mngaus,mnnode),Ngp_l(mngaus,mnnode))
+      allocate(dNgp(ndime,mnnode,mngaus),dNgp_l(ndime,mnnode,mngaus))
       allocate(wgp(mngaus))
 
       !for the moment we set that the a2ijk is the gmsh2ijk
@@ -232,7 +232,7 @@ contains
       allocate(auxVTKorder(mnnode))
 
       call generate_new_nodeOrder_and_connectivity(mporder,mnnode,gmsh2ijk,vtk2ijk,a2ijk,auxNewOrderIndex,auxVTKorder)
-      call evalShapeFunctions_Ngp_l(Ngp_l,dNgp,wgp,mporder,mnnode,mngaus,a2ijk)
+      call evalShapeFunctions_tool(Ngp,dNgp,Ngp_l,dNgp_l,wgp,mporder,mnnode,mngaus,a2ijk)
 
       allocate(globalIdSrl_i8_jv%vector(numMshRanksInMpiRank))
       allocate(globalIdSrlOrdered_i8_jm%matrix(numMshRanksInMpiRank))
@@ -386,22 +386,22 @@ contains
       call get_vector_with_mshRank_values_for_numMshRanks2Part(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numPerNodesMshRank,vecNumPerNodesMshRank)
       call get_vector_with_mshRank_values_for_numMshRanks2Part(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numPerMapLinkedNodesMshRank,vecNumPerMapLinkedNodesMshRank)
 
-      !write(*,*) 'l1[',mpi_rank,']vnwn',vecNumWorkingNodes(:),'vnntcmr',vecNumNodesToCommMshRank(:),'vnmrwc',vecNumMshRanksWithComms(:)
-      !write(*,*) 'l2[',mpi_rank,']vnbf',vecNumBoundFacesMshRank(:),'vndof',vecNumDoFMshRank(:),'vnbn',vecNumBoundaryNodesMshRank(:)
-
       !----------------------------------------------------------------------------------------------
       allocate(quality_gll_jm%matrix(numMshRanksInMpiRank))
       allocate(quality_equi_jm%matrix(numMshRanksInMpiRank))
       if((meshQualityMode==1).or.(meshQualityMode==2)) then
-         call eval_meshQuality_and_writeInFile(mesh_h5_fileName,numMshRanks2Part,meshQualityMode,mnnode,mngaus,numMshRanksInMpiRank,numVTKElemsPerMshElem,&
+
+         call eval_meshQuality_and_writeInFile(mesh_h5_fileName,numMshRanks2Part,1,mnnode,mngaus,numMshRanksInMpiRank,numVTKElemsPerMshElem,&
                                              numElemsVTKMshRank,numElemsMshRank,numNodesMshRank,mshRanksInMpiRank,&
                                              dNgp,wgp,connecParOrig_jm,elemGidMshRank_jv,coordGll_jm,quality_gll_jm)
       end if
       if(meshQualityMode==2) then
-         call eval_meshQuality_and_writeInFile(mesh_h5_fileName,numMshRanks2Part,meshQualityMode,mnnode,mngaus,numMshRanksInMpiRank,numVTKElemsPerMshElem,&
+
+         call eval_meshQuality_and_writeInFile(mesh_h5_fileName,numMshRanks2Part,2,mnnode,mngaus,numMshRanksInMpiRank,numVTKElemsPerMshElem,&
                                              numElemsVTKMshRank,numElemsMshRank,numNodesMshRank,mshRanksInMpiRank,&
-                                             dNgp,wgp,connecParOrig_jm,elemGidMshRank_jv,coordEqui_jm,quality_equi_jm)
+                                             dNgp_l,wgp,connecParOrig_jm,elemGidMshRank_jv,coordEqui_jm,quality_equi_jm)
       end if
+
       if(meshQualityMode>=3) then
          if(mpi_rank.eq.0) write(*,*) "WARNING! WRONG meshQualityMode(",meshQualityMode,") selected! It must be 0/1/2!"
       end if
@@ -4905,16 +4905,14 @@ contains
 
    end subroutine create_working_lists_parallel
 
-   subroutine evalShapeFunctions_Ngp_l(Ngp_l,dNgp,wgp,mporder,mnnode,mngaus,a2ijk)
+   subroutine evalShapeFunctions_tool(Ngp,dNgp,Ngp_l,dNgp_l,wgp,mporder,mnnode,mngaus,a2ijk)
+      implicit none
       integer(4),intent(in) :: mporder,mnnode,mngaus
       integer(4),intent(in) :: a2ijk(mnnode)
-      real(8),intent(out) :: Ngp_l(mngaus,mnnode), dNgp(ndime,mnnode,mngaus), wgp(mngaus)
-      real(8) :: s, t, z
+      real(8),intent(out) :: Ngp(mngaus,mnnode),Ngp_l(mngaus,mnnode),dNgp(ndime,mnnode,mngaus),dNgp_l(ndime,mnnode,mngaus),wgp(mngaus)
+      real(8) :: s,t,z,xgp(mngaus,ndime),dlxigp_ip(mngaus,ndime,mporder+1)
       integer(4) :: igaus
-      real(8) :: xgp(mngaus,ndime)
-      real(8) :: Ngp(mngaus,mnnode),dlxigp_ip(mngaus,ndime,mporder+1),dNgp_l(ndime,mnnode,mngaus)
-
-      !*********************************************************
+      !------------------------------------------------------------------------
 
       call GaussLobattoLegendre_hex(mporder,mngaus,a2ijk,xgp,wgp)
 
@@ -4925,7 +4923,7 @@ contains
          call hex_highorder(mporder,mnnode,s,t,z,a2ijk,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
       end do
 
-   end subroutine evalShapeFunctions_Ngp_l
+   end subroutine evalShapeFunctions_tool
 
    subroutine evalShapeFunctions_Ngp_l_2(Ngp_l,dNgp,wgp,mporder,mnnode,mngaus,a2ijk)
       integer(4),intent(in) :: mporder,mnnode,mngaus
@@ -4946,7 +4944,6 @@ contains
          z = xgp(igaus,3)
          call hex_highorder(mporder,mnnode,s,t,z,a2ijk,Ngp(igaus,:),dNgp(:,:,igaus),Ngp_l(igaus,:),dNgp_l(:,:,igaus),dlxigp_ip(igaus,:,:))
       end do
-
    end subroutine evalShapeFunctions_Ngp_l_2
 
    subroutine get_listBoundaryElementsInRank_in_parallel(mporder,mnnode,mnpbou,gmsh2ijk,numElemsInRank,numNodesInRank,&

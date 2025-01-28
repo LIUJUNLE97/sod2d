@@ -42,12 +42,12 @@ contains
         eta   = Sf/(d*sigma**(2.0d0/d)) 
     end subroutine
 
-   subroutine eval_meshQuality_and_writeInFile(mesh_fileName,numMshRanks2Part,meshQualityMode,mnnode,mngaus,numMshRanksInMpiRank,numVTKElemsPerMshElem,&
+   subroutine eval_meshQuality_and_writeInFile(mesh_fileName,numMshRanks2Part,typeCoords,mnnode,mngaus,numMshRanksInMpiRank,numVTKElemsPerMshElem,&
                                              numElemsVTKMshRank,numElemsMshRank,numNodesMshRank,mshRanksInMpiRank,&
                                              dNgp,wgp,connecParOrig_jm,elemGidMshRank_jv,coordPar_jm,quality_jm)
       implicit none
       character(len=*),intent(in) :: mesh_fileName
-      integer(4),intent(in) :: numMshRanks2Part,meshQualityMode,mnnode,mngaus,numMshRanksInMpiRank,numVTKElemsPerMshElem
+      integer(4),intent(in) :: numMshRanks2Part,typeCoords,mnnode,mngaus,numMshRanksInMpiRank,numVTKElemsPerMshElem
       integer(4),intent(in),dimension(numMshRanksInMpiRank) :: numElemsVTKMshRank,numElemsMshRank,numNodesMshRank,mshRanksInMpiRank
       real(8),intent(in) :: dNgp(mngaus,mnnode),wgp(mngaus) 
       type(jagged_matrix_int4),intent(in) :: connecParOrig_jm
@@ -59,16 +59,17 @@ contains
       real(8) :: rankMaxQuality(2),rankMinQuality(2),rankAvgQuality(2)
       integer(4) :: iMshRank,numTangledElemsMpiRank,numTangledElemsTotal
       !--------------------------------------------------------------------------------
-      character(len=12) :: aux_numRanks,aux_mpiRank
+      character(len=12) :: aux_numRanks,aux_mpiRank,aux_typeCoord
       character(len=512) :: meshQualityBase,meshQuality_filename,meshQualitySum_filename
       !--------------------------------------------------------------------------------
 
-      if(meshQualityMode==1) then
-         meshQualityBase = 'meshQualityGll'
-      elseif(meshQualityMode==2) then
-         meshQualityBase = 'meshQualityEqui'
+      meshQualityBase = 'meshQuality'
+      if(typeCoords==1) then
+         aux_typeCoord = '_gll_'
+      elseif(typeCoords==2) then
+         aux_typeCoord = '_equi_'
       else
-         meshQualityBase = 'meshQualityError'
+         aux_typeCoord = '_error_'
       endif
 
       if(numMshRanksInMpiRank .gt. 0) then
@@ -76,7 +77,7 @@ contains
          write(aux_mpiRank,'(I0)') mpi_rank
          write(aux_numRanks,'(I0)') numMshRanks2Part
          !-----------------------------------------------------------------------------------------------
-         meshQuality_filename = trim(adjustl(meshQualityBase))//"_"//trim(adjustl(mesh_fileName))//'-'//trim(aux_numRanks)//'_rank'//trim(aux_mpiRank)//'.dat'
+         meshQuality_filename = trim(adjustl(meshQualityBase))//trim(adjustl(aux_typeCoord))//trim(adjustl(mesh_fileName))//'-'//trim(aux_numRanks)//'_rank'//trim(aux_mpiRank)//'.dat'
          open(unit=555, file=meshQuality_filename, status="unknown", action="write", form="formatted")
          write(555,*) "--| Evaluating mesh quality"
          write(555,*) "----| List of tangled elements (GMSH global numeration)"
@@ -84,7 +85,7 @@ contains
       end if
       !-----------------------------------------------------------------------------------------------
       if(mpi_rank.eq.0) then
-         meshQualitySum_filename = trim(adjustl(meshQualityBase))//"_summary_"//trim(adjustl(mesh_fileName))//'-'//trim(aux_numRanks)//'.dat'
+         meshQualitySum_filename = trim(adjustl(meshQualityBase))//trim(adjustl(aux_typeCoord))//"summary_"//trim(adjustl(mesh_fileName))//'-'//trim(aux_numRanks)//'.dat'
          open(unit=554, file=meshQualitySum_filename, status="unknown", action="write", form="formatted")
          write(554,*) "--| Evaluating mesh quality (summary)"
          call flush(554)
@@ -102,25 +103,12 @@ contains
                            connecParOrig_jm,dNgp,wgp,mshRanksInMpiRank,elemGidMshRank_jv,numVTKElemsPerMshElem,quality_jm,&
                            rankMaxQuality, rankMinQuality, rankAvgQuality)
 
-      call MPI_Barrier(app_comm,mpi_err)
-      write(555,*) "----| End of list of tangled elements"
-      write(555,*) "--| Mesh quality evaluated"
-      write(555,*) "--| Mesh statistics in rank"
-      write(555,*) "----| Num.Tangled Elems:",numTangledElemsMpiRank
-      write(555,*) "----| Quality:          Anisotropic                Isotropic"
-      write(555,*) "----| Max quality:",rankMaxQuality(:)
-      write(555,*) "----| Min quality:",rankMinQuality(:)
-      write(555,*) "----| Avg quality:",rankAvgQuality(:)
-      close(555)
       ! Compute max, min and avg across all ranks
       call MPI_Reduce(numTangledElemsMpiRank,numTangledElemsTotal,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
-      call MPI_Reduce(rankMaxQuality(1),maxQuality(1),1,mpi_datatype_real8,MPI_MAX,0,app_comm,mpi_err)
-      call MPI_Reduce(rankMinQuality(1),minQuality(1),1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
-      call MPI_Reduce(rankAvgQuality(1),avgQuality(1),1,mpi_datatype_real8,MPI_SUM,0,app_comm,mpi_err)
-      call MPI_Reduce(rankMaxQuality(2),maxQuality(2),1,mpi_datatype_real8,MPI_MAX,0,app_comm,mpi_err)
-      call MPI_Reduce(rankMinQuality(2),minQuality(2),1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
-      call MPI_Reduce(rankAvgQuality(2),avgQuality(2),1,mpi_datatype_real8,MPI_SUM,0,app_comm,mpi_err)
-      avgQuality = avgQuality / mpi_size
+      call MPI_Reduce(rankMaxQuality,maxQuality,2,mpi_datatype_real8,MPI_MAX,0,app_comm,mpi_err)
+      call MPI_Reduce(rankMinQuality,minQuality,2,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+      call MPI_Reduce(rankAvgQuality,avgQuality,2,mpi_datatype_real8,MPI_SUM,0,app_comm,mpi_err)
+      avgQuality(:) = avgQuality(:) / min(numMshRanks2Part,mpi_size)
       ! Write high-level data to file
       if(mpi_rank.eq.0) then
          write(554,*) "--| Mesh statistics"
@@ -134,75 +122,90 @@ contains
 
    end subroutine eval_meshQuality_and_writeInFile
 
-    subroutine eval_MeshQuality(numMshRanksInMpiRank,numElemsVTKMshRank,numElemsMshRank,numNodesMshRank,mnnode,mngaus,coordPar_jm,&
-                                connecParOrig_jm,dNgp,wgp,mshRanksInMpiRank,elemGidMshRank_jv,numVTKElemsPerMshElem,quality_jm,&
-                                rankMaxQuality,rankMinQuality,rankAvgQuality)
-       implicit none
-       integer(4), intent(in) :: numMshRanksInMpiRank            
-       integer(4), intent(in) :: numElemsVTKMshRank(:)           
-       integer(4), intent(in) :: numElemsMshRank(:)              
-       integer(4), intent(in) :: numNodesMshRank(:)              
-       integer(4), intent(in) :: mnnode, mngaus                  
-       type(jagged_matrix_real8), intent(in) :: coordPar_jm
-       type(jagged_matrix_int4), intent(in) :: connecParOrig_jm 
-       real(8), intent(in) :: dNgp(mngaus, mnnode)               
-       real(8), intent(in) :: wgp(mngaus)                        
-       integer(4), intent(in) :: mshRanksInMpiRank(:)            
-       type(jagged_vector_int4), intent(in) :: elemGidMshRank_jv 
-       integer(4), intent(in) :: numVTKElemsPerMshElem           
-       type(jagged_matrix_real8), intent(inout) :: quality_jm
-       real(8) :: quality_elem, auxAvg(2), elemVertOrig(3)
-       real(8) :: quality_vec(2)
-       integer(4) :: iElem, iNode, iElemVTK, iElemGid, iMshRank, mshRank
-       integer(4) :: numTangledElemsMpiRank, numTangledElemsMshRank
-       real(8), intent(out) :: rankMaxQuality(2), rankMinQuality(2), rankAvgQuality(2)
+   subroutine eval_MeshQuality(numMshRanksInMpiRank,numElemsVTKMshRank,numElemsMshRank,numNodesMshRank,mnnode,mngaus,coordPar_jm,&
+                               connecParOrig_jm,dNgp,wgp,mshRanksInMpiRank,elemGidMshRank_jv,numVTKElemsPerMshElem,quality_jm,&
+                               rankMaxQuality,rankMinQuality,rankAvgQuality)
+      implicit none
+      integer(4), intent(in) :: numMshRanksInMpiRank            
+      integer(4), intent(in) :: numElemsVTKMshRank(:)           
+      integer(4), intent(in) :: numElemsMshRank(:)              
+      integer(4), intent(in) :: numNodesMshRank(:)              
+      integer(4), intent(in) :: mnnode, mngaus                  
+      type(jagged_matrix_real8), intent(in) :: coordPar_jm
+      type(jagged_matrix_int4), intent(in) :: connecParOrig_jm 
+      real(8), intent(in) :: dNgp(mngaus, mnnode)               
+      real(8), intent(in) :: wgp(mngaus)                        
+      integer(4), intent(in) :: mshRanksInMpiRank(:)            
+      type(jagged_vector_int4), intent(in) :: elemGidMshRank_jv 
+      integer(4), intent(in) :: numVTKElemsPerMshElem           
+      type(jagged_matrix_real8), intent(inout) :: quality_jm
+      real(8) :: quality_elem, auxAvg(2), elemVertOrig(3)
+      real(8) :: quality_vec(2)
+      integer(4) :: iElem, iNode, iElemVTK, iElemGid, iMshRank, mshRank
+      integer(4) :: numTangledElemsMpiRank, numTangledElemsMshRank
+      real(8), intent(out) :: rankMaxQuality(2), rankMinQuality(2), rankAvgQuality(2)
    
-        ! Initialize vars to get high-level info about mesh quality
-        rankMaxQuality(:) = 0.0d0          ! Max absolute
-        rankMinQuality(:) = 100000.0d0     ! Min absolute
-        rankAvgQuality(:) = 0.0d0          ! Avg across all ranks
-        numTangledElemsMpiRank=0
+      ! Initialize vars to get high-level info about mesh quality
+      rankMaxQuality(:) = 0.0d0          ! Max absolute
+      rankMinQuality(:) = 100000.0d0     ! Min absolute
+      rankAvgQuality(:) = 0.0d0          ! Avg across all ranks
+      numTangledElemsMpiRank=0
 
-        do iMshRank=1,numMshRanksInMpiRank
-            allocate(quality_jm%matrix(iMshRank)%elems(numElemsVTKMshRank(iMshRank),2))
-            auxAvg(:) = 0.0d0
-            numTangledElemsMshRank=0
-            do iElem = 1, numElemsMshRank(iMshRank)
-                call eval_ElemQuality(mnnode,mngaus,numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),iElem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_vec)
-                ! Compute rank max, min and avg
-                quality_elem = quality_vec(1)
-                rankMaxQuality(1) = max(rankMaxQuality(1), quality_vec(1))
-                rankMinQuality(1) = min(rankMinQuality(1), quality_vec(1))
-                auxAvg(1) = auxAvg(1) + quality_vec(1)
-                rankMaxQuality(2) = max(rankMaxQuality(2), quality_vec(2))
-                rankMinQuality(2) = min(rankMinQuality(2), quality_vec(2))
-                auxAvg(2) = auxAvg(2) + quality_vec(2)
-                if (any(quality_vec < 0)) then
-                    numTangledElemsMshRank=numTangledElemsMshRank+1
-                    ! Write data to file
-                    mshRank = mshRanksInMpiRank(iMshRank)
-                    iElemGid = elemGidMshRank_jv%vector(iMshRank)%elems(iElem)
+      do iMshRank=1,numMshRanksInMpiRank
+          allocate(quality_jm%matrix(iMshRank)%elems(numElemsVTKMshRank(iMshRank),2))
+          auxAvg(:) = 0.0d0
+          numTangledElemsMshRank=0
+          do iElem = 1, numElemsMshRank(iMshRank)
+              call eval_ElemQuality(mnnode,mngaus,numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),iElem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_vec)
+              ! Compute rank max, min and avg
+              quality_elem = quality_vec(1)
+              rankMaxQuality(1) = max(rankMaxQuality(1), quality_vec(1))
+              rankMinQuality(1) = min(rankMinQuality(1), quality_vec(1))
+              auxAvg(1) = auxAvg(1) + quality_vec(1)
+              rankMaxQuality(2) = max(rankMaxQuality(2), quality_vec(2))
+              rankMinQuality(2) = min(rankMinQuality(2), quality_vec(2))
+              auxAvg(2) = auxAvg(2) + quality_vec(2)
+              if (any(quality_vec < 0)) then
+                  numTangledElemsMshRank=numTangledElemsMshRank+1
+                  ! Write data to file
+                  mshRank = mshRanksInMpiRank(iMshRank)
+                  iElemGid = elemGidMshRank_jv%vector(iMshRank)%elems(iElem)
 
-                    iNode = connecParOrig_jm%matrix(iMshRank)%elems(iElem,1)
-                    elemVertOrig(:)= coordPar_jm%matrix(iMshRank)%elems(iNode,:)
+                  iNode = connecParOrig_jm%matrix(iMshRank)%elems(iElem,1)
+                  elemVertOrig(:)= coordPar_jm%matrix(iMshRank)%elems(iNode,:)
 
-                    write(555,*) "# Tangled element",numTangledElemsMshRank," found in mshRank",mshRank
-                    write(555,*) "  elem(lid)",iElem
-                    write(555,*) "  elem(gid)",iElemGid
-                    write(555,*) "  anisotropic quality",quality_vec(1)
-                    write(555,*) "  isotropic quality",quality_vec(2)
-                    write(555,*) "  vertex0",elemVertOrig(:)
-                end if
-                do iElemVTK = 1, numVTKElemsPerMshElem
-                    quality_jm%matrix(iMshRank)%elems((iElem-1)*numVTKElemsPerMshElem + iElemVTK,:) = quality_vec
-                end do
-            end do
-            auxAvg(:) = auxAvg(:) / numElemsMshRank(iMshRank)
-            rankAvgQuality(:) = rankAvgQuality(:) + auxAvg
-            numTangledElemsMpiRank=numTangledElemsMpiRank+numTangledElemsMshRank
-        end do
-        rankAvgQuality(:) = rankAvgQuality(:) / numMshRanksInMpiRank
-    end subroutine eval_MeshQuality
+                  write(555,*) "# Tangled element",numTangledElemsMshRank," found in mshRank",mshRank
+                  write(555,*) "  elem(lid)",iElem
+                  write(555,*) "  elem(gid)",iElemGid
+                  write(555,*) "  anisotropic quality",quality_vec(1)
+                  write(555,*) "  isotropic quality",quality_vec(2)
+                  write(555,*) "  vertex0",elemVertOrig(:)
+              end if
+              do iElemVTK = 1, numVTKElemsPerMshElem
+                  quality_jm%matrix(iMshRank)%elems((iElem-1)*numVTKElemsPerMshElem + iElemVTK,:) = quality_vec
+              end do
+          end do
+          auxAvg(:) = auxAvg(:) / numElemsMshRank(iMshRank)
+          rankAvgQuality(:) = rankAvgQuality(:) + auxAvg(:)
+          numTangledElemsMpiRank=numTangledElemsMpiRank+numTangledElemsMshRank
+      end do
+      if(numMshRanksInMpiRank.gt.0) then
+         rankAvgQuality(:) = rankAvgQuality(:) / numMshRanksInMpiRank
+      end if
+
+      !Final writing in the output files of each rank
+      call MPI_Barrier(app_comm,mpi_err)
+      write(555,*) "----| End of list of tangled elements"
+      write(555,*) "--| Mesh quality evaluated"
+      write(555,*) "--| Mesh statistics in rank"
+      write(555,*) "----| Num.Tangled Elems:",numTangledElemsMpiRank
+      write(555,*) "----| Quality:          Anisotropic                Isotropic"
+      write(555,*) "----| Max quality:",rankMaxQuality(:)
+      write(555,*) "----| Min quality:",rankMinQuality(:)
+      write(555,*) "----| Avg quality:",rankAvgQuality(:)
+      close(555)
+
+   end subroutine eval_MeshQuality
 
     subroutine eval_ElemQuality(mnnode,mngaus,npoin, nelem, ielem, coordPar, connecParOrig, dNgp, wgp, quality_vec)
         implicit none
