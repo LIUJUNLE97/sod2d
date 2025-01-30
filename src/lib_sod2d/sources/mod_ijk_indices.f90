@@ -684,6 +684,9 @@ contains
       if(gmsh_porder.eq.0) then !arrays not initialized
          if(mpi_rank.eq.0) write(*,*) 'Initialising GMSH IJK Tables to order',mporder
 
+         call init_quad_info()
+         call init_hex_info()
+
       else if(gmsh_porder.eq.mporder) then !arrays already initalized to current order, do nothing and exit!
          if(mpi_rank.eq.0) write(*,*) 'GMSH IJK Tables already initialised to order',mporder,'doing nothing! :)'
          return
@@ -700,8 +703,6 @@ contains
       allocate(gmshHexahedraHO_ijkTable(0:mporder,0:mporder,0:mporder))
       allocate(gmshQuadrilateralHO_ijTable(0:mporder,0:mporder) )
 
-      call init_quad_info()
-      call init_hex_info()
       call genHighOrderHexGmsh(mporder,auxHexHOtable)
       call genHighOrderQuadGmsh(mporder,auxQuadHOtable)
 

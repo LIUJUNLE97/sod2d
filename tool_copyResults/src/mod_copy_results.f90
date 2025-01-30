@@ -307,11 +307,10 @@ contains
       type(jagged_vector_int4) :: listNodesTrgtRankMpiId_jv,connecVTKTrgtRank_jv
       type(jagged_matrix_int4) :: connecTrgtRankMpiId_jm,connecParOrigTrgtRank_jm
       type(jagged_matrix_real8) :: coordTrgtRank_jm,coordVTKTrgtRank_jm
-      type(jagged_matrix_real8) :: quality_jm
+      type(jagged_matrix_real8) :: quality_dummy_jm
 
       integer(8),dimension(0:target_Nprocs-1) :: iNodeStartPar_i8
-      integer(4) :: connecChunkSize = 10000000
-      logical :: evalMeshQuality=.false.
+      integer(4),parameter :: meshQualityMode=0,connecChunkSize=10000000
       integer(4) :: iTrgtRank,trgtRank
       integer(hid_t) :: targetMesh_hdf5_file_id
 
@@ -349,7 +348,7 @@ contains
       allocate(listNodesTrgtRankMpiId_jv%vector(numTrgtRanksInMpiRank))
       allocate(   connecTrgtRankMpiId_jm%matrix(numTrgtRanksInMpiRank))
       allocate(         coordTrgtRank_jm%matrix(numTrgtRanksInMpiRank))
-      allocate(               quality_jm%matrix(numTrgtRanksInMpiRank))
+      allocate(         quality_dummy_jm%matrix(numTrgtRanksInMpiRank))
 
       do iTrgtRank=1,numTrgtRanksInMpiRank
          trgtRank = trgtRanksInMpiRank(iTrgtRank)
@@ -411,20 +410,20 @@ contains
 
       call create_hdf5_file(target_meshFile_h5_full_name,targetMesh_hdf5_file_id)
       
-      call create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,targetMesh_hdf5_file_id,isMeshLinealOutput,.false.,&
+      call create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,targetMesh_hdf5_file_id,isMeshLinealOutput,meshQualityMode,&
                                                 target_Nprocs,totalNumElements,numNodesTrgtTotal_i8,mesh_VTKnnode,mesh_numVTKElemsPerMshElem)
 
       do iTrgtRank=1,numTrgtRanksInMpiRank
          trgtRank = trgtRanksInMpiRank(iTrgtRank)
 
-        call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,targetMesh_hdf5_file_id,evalMeshQuality,trgtRank,target_Nprocs,&
+        call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,targetMesh_hdf5_file_id,meshQualityMode,trgtRank,target_Nprocs,&
             numElemsTrgtRank(iTrgtRank),numElemsVTKTrgtRank(iTrgtRank),sizeConnecVTKTrgtRank(iTrgtRank),mesh_VTKnnode,mesh_numVTKElemsPerMshElem,&
             trgtRankElemStart(iTrgtRank),trgtRankElemEnd(iTrgtRank),trgtRankNodeStart_i8(iTrgtRank),trgtRankNodeEnd_i8(iTrgtRank),numNodesTrgtRank(iTrgtRank),&
-            coordVTKTrgtRank_jm%matrix(iTrgtRank)%elems,connecVTKTrgtRank_jv%vector(iTrgtRank)%elems,quality_jm%matrix(iTrgtRank)%elems,connecChunkSize)
+            coordVTKTrgtRank_jm%matrix(iTrgtRank)%elems,connecVTKTrgtRank_jv%vector(iTrgtRank)%elems,quality_dummy_jm%matrix(iTrgtRank)%elems,quality_dummy_jm%matrix(iTrgtRank)%elems,connecChunkSize)
       end do
 
       do iTrgtRank=(numTrgtRanksInMpiRank+1),maxNumTrgtRanks
-        call dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(targetMesh_hdf5_file_id,evalMeshQuality,target_Nprocs,connecChunkSize)
+        call dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(targetMesh_hdf5_file_id,meshQualityMode,target_Nprocs,connecChunkSize)
       end do
 
       call close_hdf5_file(targetMesh_hdf5_file_id)

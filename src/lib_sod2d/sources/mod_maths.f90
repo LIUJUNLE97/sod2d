@@ -148,27 +148,97 @@ module mod_maths
 !----------------------------------------------------------------------------------------------
 
       pure subroutine getEquispaced_roots(mporder,xi_equi)
-
-         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-         ! Computes the equispaced loci for the Lagrange    !
-         ! poly in the interval [-1,1], and includes the    !
-         ! endpoints. Roots are given in the following      !
-         ! order:                                           !
-         !  - xi(1) = -1                                    !
-         !  - xi(2) =  1                                    !
-         !    xi(3:porder+1) = xi(1)+[1:N-1]*(2/N)          !
-         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-         !
+         ! Computes the equispaced roots
          implicit none
          integer(4),intent(in) :: mporder
          real(8),intent(out) :: xi_equi(mporder+1)
-         integer(4) :: i
+         !------------------------------------------
 
-         do i = 1,mporder+1
-            xi_equi(i) = -1.0d0+(2.0d0*real(i-1,8)/real(mporder,8))
-         end do
+         call getEquispaced_roots_bounds(mporder,-1.0d0,1.0d0,xi_equi)
 
       end subroutine getEquispaced_roots
+
+      pure subroutine getEquispaced_roots_bounds(mporder,minBound,maxBound,xi_equi)
+         ! Compute the equally spaced points
+         implicit none
+         integer(4),intent(in) :: mporder
+         real(8),intent(in) :: minBound, maxBound
+         real(8),intent(out) :: xi_equi(mporder+1)
+         real(8) :: h
+         integer(4) :: i
+         !--------------------------------------------
+
+         h = (maxBound - minBound) / real(mporder,8)
+
+         do i = 1,(mporder+1)
+             xi_equi(i) = minBound + real(i-1,8)*h
+         end do
+
+      end subroutine getEquispaced_roots_bounds
+
+		!Newton-Cotes Closed (NCC) quadrature rule
+		!points and weights
+      subroutine getNewtonCotes_weights_and_roots(mporder,minBound,maxBound,xgp,wgp)
+         ! Inputs:
+         ! mporder    - polynomial order
+         ! minBound  - lower bound of the interval
+         ! maxBound  - upper bound of the interval
+         ! Outputs:
+         ! xgp       - array of points (Gauss points)
+         ! wgp       - array of weights
+         implicit none
+         integer, intent(in) :: mporder
+         real(8), intent(in) :: minBound, maxBound
+         real(8), intent(out) :: xgp(:),wgp(:)
+
+         integer :: edgePoints,i,j,k
+         real(8) :: h,y_a,y_b,d(mporder+1)
+
+         ! Calculate the number of edge points
+         edgePoints = mporder + 1
+
+         ! Check for valid number of points
+         if (edgePoints < 2) then
+             print *, "Error: The number of points 'edgePoints' must be at least 2."
+             return
+         end if
+
+         !  Compute the Lagrange basis polynomial which is 1 at X(I),
+         !  and zero at the other nodes.
+         do i = 1,edgePoints
+            d(1:edgePoints) = 0.0d0
+            d(i) = 1.0d0
+
+            do j = 2,edgePoints
+               do k = j,edgePoints
+                  d(edgePoints+j-k) = ( d(edgePoints+j-k-1) - d(edgePoints+j-k) ) / ( xgp(edgePoints+1-k) - xgp(edgePoints+j-k) )
+               end do
+            end do
+
+            do j = 1,(edgePoints - 1)
+               do k = 1,(edgePoints - j)
+                  d(edgePoints-k) = d(edgePoints-k) - xgp(edgePoints-k-j+1) * d(edgePoints-k+1)
+               end do
+            end do
+
+            !  Evaluate the antiderivative of the polynomial at the endpoints.
+            y_a = d(edgePoints)/real(edgePoints,8)
+            do j =(edgePoints-1),1,-1
+              y_a = y_a * minBound + d(j)/real(j,8)
+            end do
+            y_a = y_a * minBound
+
+            y_b = d(edgePoints)/real(edgePoints,8)
+            do j = (edgePoints-1),1,-1
+              y_b = y_b * maxBound + d(j)/real(j,8)
+            end do
+            y_b = y_b * maxBound
+
+            wgp(i) = y_b - y_a
+            write(*,*) '  [',i,']d(:)',d(:)
+         end do
+
+      end subroutine getNewtonCotes_weights_and_roots
 
       pure subroutine eval_lagrangePoly(mporder,xi,xi_p,l_ip)
 
