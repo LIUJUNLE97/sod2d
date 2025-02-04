@@ -59,6 +59,9 @@ contains
       call json%get("results_h5_file_name",value, found,"results"); call this%checkFound(found,found_aux)
       write(this%results_h5_file_name,*) value
 
+      call json%get("io_append_info",value, found,"");
+      write(this%io_append_info,*) value
+
       call json%get("save_logFile_first",this%save_logFile_first, found,1); call this%checkFound(found,found_aux)
       call json%get("save_logFile_step",this%save_logFile_step, found,10); call this%checkFound(found,found_aux)
 
@@ -102,8 +105,10 @@ contains
       call json%get("rho",this%rho0, found, 1.0_rp); call this%checkFound(found,found_aux)
       call json%get("gamma_gas",this%gamma_gas, found, 1.4_rp); call this%checkFound(found,found_aux)
 
-      call json%get("flag_rk_ls",flag_rk_ls, found,.true.); 
-      call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
+      call json%get("flag_high_mach",flag_high_mach, found,.false.);
+      call json%get("flag_rk_ls",flag_rk_ls, found,.true.)
+      call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5) 
+      call json%get("flag_rk_ls_n",flag_rk_ls_n, found, 1)
       !Witness points parameters
       call json%get("have_witness",this%have_witness, found,.false.)
       if(this%have_witness .eqv. .true.) then

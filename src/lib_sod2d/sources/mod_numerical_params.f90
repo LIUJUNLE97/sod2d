@@ -8,6 +8,7 @@ module mod_numerical_params
         integer(4) :: flag_rk_order=4 
         integer(4) :: flag_implicit=0
         integer(4) :: flag_rk_ls_stages=5  
+        integer(4) :: flag_rk_ls_n=4
         logical :: flag_rk_ls = .true.
 
 
