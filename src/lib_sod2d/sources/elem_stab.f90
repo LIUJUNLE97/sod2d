@@ -73,7 +73,7 @@ module elem_stab
                 !$acc loop vector collapse(2)
                 do inode = 1,nnode
                    do idime = 1,ndime
-                      ul(inode,idime) = u(ipoin(inode),idime)
+                      ul(inode,idime) = u(ipoin(inode),idime)*rhol(inode)
                       projMassl(inode,idime) = ProjMass(ipoin(inode),idime)
                       projEnerl(inode,idime) = ProjEner(ipoin(inode),idime)
                       projMXl(inode,idime) = ProjMX(ipoin(inode),idime)
@@ -139,9 +139,10 @@ module elem_stab
                    do idime = 1,ndime
                       !$acc loop seq
                       do jdime = 1,ndime
-                         tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
+                         !tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
+                         tau(idime,jdime) = gradU(idime,jdime)
                       end do
-                      tau(idime,idime) = tau(idime,idime)-twoThirds*divU
+                      !tau(idime,idime) = tau(idime,idime)-twoThirds*divU
                    end do
 
                    !$acc loop seq
@@ -254,7 +255,7 @@ module elem_stab
             !$acc loop vector collapse(2)
             do inode = 1,nnode
                do idime = 1,ndime
-                  ul(inode,idime) = u(ipoin(inode),idime)
+                  ul(inode,idime) = u(ipoin(inode),idime)*rhol(inode)
                end do
             end do
 
@@ -307,9 +308,10 @@ module elem_stab
                do idime = 1,ndime
                   !$acc loop seq
                   do jdime = 1,ndime
-                     tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
+                     !tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
+                     tau(idime,jdime) = gradU(idime,jdime)
                   end do
-                  tau(idime,idime) = tau(idime,idime)-twoThirds*divU
+                  !tau(idime,idime) = tau(idime,idime)-twoThirds*divU
                end do
 
                !$acc loop seq
