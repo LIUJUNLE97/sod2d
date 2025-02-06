@@ -407,6 +407,7 @@ end subroutine BluffBody3DSolver_readJSONAD
 
       call json%get("flag_rk_ls",flag_rk_ls, found,.true.); 
       call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
+      call json%get("flag_rk_ls_n",flag_rk_ls_n, found, 1)
       call json%get("c_sgs",c_sgs, found,0.025_rp); 
       !Witness points parameters
       call json%get("have_witness",this%have_witness, found,.false.)
