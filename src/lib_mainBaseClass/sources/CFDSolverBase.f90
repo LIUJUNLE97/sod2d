@@ -2222,7 +2222,11 @@ end subroutine CFDSolverBase_findFixPressure
          write(111,*) "--------------------------------------------"
          write(111,*) "  # Numerical parameters:"
          write(111,*) "    flag_implicit: ",            flag_implicit
+         write(111,*) "    flag_rk_ls: ",               flag_rk_ls
+         write(111,*) "    flag_rk_ls: ",               flag_rk_ls_stages
+         write(111,*) "    flag_rk_ls_n: ",             flag_rk_ls_n
          write(111,*) "    flag_rk_order: ",            flag_rk_order
+         write(111,*) "    flag_high_mach: ",           flag_high_mach
          write(111,*) "    flag_les: ",                 flag_les
          write(111,*) "    flag_les_ilsa: ",            flag_les_ilsa
          write(111,*) "    flag_solver_type: ",         flag_solver_type
