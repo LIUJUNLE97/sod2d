@@ -47,7 +47,7 @@ contains
                !$acc loop vector reduction(max:max_MU)
                do inode = 1,nnode
                   !max_MU = max( max_MU, (Cp*rho(connec(ielem,inode))*mu_sgs(ielem,inode)/0.9_rp+mu_fluid(connec(ielem,inode))*(Cp/Pr) + mu_e(ielem,inode)*(Cp/Pr))/rho(connec(ielem,inode)))
-                  max_MU = max( max_MU, (mu_sgs(ielem,inode)/0.9_rp+mu_fluid(connec(ielem,inode)) + mu_e(ielem,inode))/rho(connec(ielem,inode)))
+                  max_MU = max( max_MU, (mu_sgs(ielem,inode)+mu_fluid(connec(ielem,inode)) + mu_e(ielem,inode))/rho(connec(ielem,inode)))
                end do
                
                aux4 = cfl_diff*((helem(ielem)/real(2.0_rp*porder+1,rp))**2)/max_MU

@@ -88,7 +88,8 @@ module elem_stab_incomp
                    do idime = 1,ndime
                       !$acc loop seq
                       do jdime = 1,ndime
-                           tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
+                           !tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
+                           tau(idime,jdime) = gradU(idime,jdime)
                       end do
                    end do
 

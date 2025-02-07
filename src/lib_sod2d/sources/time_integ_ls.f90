@@ -1,4 +1,3 @@
-
 module time_integ_ls
 
    use mod_nvtx
@@ -109,16 +108,57 @@ module time_integ_ls
          lambda_ij(2,1) = 1.0_rp
          lambda_ij(3,2) = 1.0_rp
          lambda_ij(4,3) = 1.0_rp
-         lambda_ij(5,1) = real(0.571403511494104d0,rp)
-         lambda_ij(5,4) = real(0.428596488505896d0,rp)
+         lambda_ij(5,4) = 1.0_rp
          lambda_ij(6,5) = 1.0_rp
-
          gamma_ij(:,:) = 0.0_rp
-         gamma_ij(2,1) = real(0.443568244942995d0,rp)
-         gamma_ij(3,2) = real(0.291111420073766d0,rp)
-         gamma_ij(4,3) = real(0.270612601278217d0,rp)
-         gamma_ij(5,4) = real(0.110577759392786d0,rp)
-         gamma_ij(6,5) = real(0.458557505351052d0,rp)
+         select case (flag_rk_ls_n)
+            case (1)
+               !SSP53_2N_1
+               lambda_ij(5,1) = real(0.571403511494104d0,rp)
+               lambda_ij(5,4) = real(0.428596488505896d0,rp)
+
+               gamma_ij(2,1) = real(0.443568244942995d0,rp)
+               gamma_ij(3,2) = real(0.291111420073766d0,rp)
+               gamma_ij(4,3) = real(0.270612601278217d0,rp)
+               gamma_ij(5,4) = real(0.110577759392786d0,rp)
+               gamma_ij(6,5) = real(0.458557505351052d0,rp)
+            case (2)
+               !SSP53_2N_2
+               lambda_ij(4,1) = real(0.682342861037239d0,rp) ! lambda_41
+               lambda_ij(4,3) = real(0.317657138962761d0,rp) ! lambda_43
+               lambda_ij(6,1) = real(0.045230974482400d0,rp) ! lambda_61
+               lambda_ij(6,5) = real(0.954769025517600d0,rp) ! lambda_65
+
+               gamma_ij(2,1) = real(0.465388589249323,rp) ! gamma_21
+               gamma_ij(3,2) = real(0.465388589249323,rp) ! gamma_32
+               gamma_ij(4,3) = real(0.124745797313998,rp) ! gamma_43
+               gamma_ij(5,4) = real(0.465388589249323,rp) ! gamma_54
+               gamma_ij(6,5) = real(0.154263303748666,rp) ! gamma_65
+            case (3)
+               !SSP53_2N_3
+               lambda_ij(5,1) = real(0.592032910942121,rp)
+               lambda_ij(5,4) = 1.0_rp - lambda_ij(5,1)
+               
+               gamma_ij(2,1) = real(0.266541020678955,rp)
+               gamma_ij(3,2) = real(0.548560709048532,rp)
+               gamma_ij(4,3) = real(0.289517014154401,rp)
+               gamma_ij(5,4) = real(0.086408328057923,rp)
+               gamma_ij(6,5) = real(0.462943578481813,rp)
+            case (4)
+               !SSP53_2N_4
+               lambda_ij(4,1) = real(0.707858560931430,rp)
+               lambda_ij(4,3) = 1.0_rp - lambda_ij(4,1)
+               lambda_ij(6,1) = real(0.222853615080669,rp)
+               lambda_ij(6,5) = 1.0_rp - lambda_ij(6,1)
+               
+               gamma_ij(2,1) = real(0.292845746913355,rp)
+               gamma_ij(3,2) = real(0.339532793976408,rp)
+               gamma_ij(4,3) = real(0.200532330324672,rp)
+               gamma_ij(5,4) = real(0.701676169006879,rp)
+               gamma_ij(6,5) = real(0.155278812461877,rp)
+            case default
+               print *, 'wrong option bro!!!'
+         end select
       else
          write(1,*) "--| NOT CODED FOR RK_LS stages > 5 YET!"
          stop 1
@@ -206,7 +246,7 @@ module time_integ_ls
             real(rp), optional, intent(in)      :: source_term(npoin,ndime+2)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
             real(rp), optional, intent(in)      :: zo(npoin)
-            integer(4)                          :: pos
+            integer(4)                          :: pos, ipoin_w
             integer(4)                          :: istep, ipoin, idime,icode
             real(rp),    dimension(npoin)       :: Rrho
             real(rp)                            :: umag, rho_min, rho_avg
@@ -222,6 +262,29 @@ module time_integ_ls
             if(firstTimeStep .eqv. .true.) then
                firstTimeStep = .false.
 
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  ipoin_w = lpoin_w(ipoin)
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     f_eta(ipoin_w,idime) = u(ipoin_w,idime,1)*eta(ipoin_w,1)
+                  end do
+               end do
+               !$acc end parallel loop
+         
+               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:,1))
+         
+               if(mpi_size.ge.2) then
+                  call mpi_halo_atomic_update_real(Reta(:,1))
+               end if
+         
+               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,1))      
+                  
+               call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,Reta(:,1),Ngp,coord,dNgp,gpvol,wgp, &
+               gamma_gas,rho(:,1),u(:,:,1),csound,Tem(:,1),eta(:,1),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)   
+               
+               
                call updateF(noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,&
                         ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
