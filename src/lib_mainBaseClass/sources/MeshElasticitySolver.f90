@@ -34,15 +34,30 @@ module MeshElasticitySolver_mod
 
      real(rp) , public  :: E_young
      real(rp) , public  :: nu_poisson
-
+     
+     real(rp), allocatable :: quality_e(:)!,:)
+     
+     real(rp) ,public:: factor_deformation=1.0_rp ! to analytically increase deformation in tests
+     
    contains
       procedure, public :: fillBCTypes           => MeshElasticitySolver_fill_BC_Types
       procedure, public :: initializeParameters  => MeshElasticitySolver_initializeParameters
       procedure, public :: run                   => MeshElasticitySolver_run
       procedure, public :: initialBuffer         => imposedDisplacement_elasticitySolverBuffer
+      procedure, public :: initializeDefaultSaveFields => CFDSolverBase_initializeDefaultSaveFields_elasticity
+
       procedure, public :: computeQuality
+      procedure, public :: assessElasticityParameters
    end type MeshElasticitySolver
 contains
+  
+
+  subroutine CFDSolverBase_initializeDefaultSaveFields_elasticity(this)
+     class(MeshElasticitySolver), intent(inout) :: this
+
+     call initializeDefaultSaveFieldsElasticity()
+
+  end subroutine CFDSolverBase_initializeDefaultSaveFields_elasticity
 
    subroutine MeshElasticitySolver_fill_BC_Types(this)
       class(MeshElasticitySolver), intent(inout) :: this
@@ -90,6 +105,8 @@ contains
      implicit none
      class(MeshElasticitySolver), intent(inout) :: this
      !
+     real(rp)   :: minQ,maxQ
+     !
      ! Init MPI
      call init_mpi()
 
@@ -126,15 +143,9 @@ contains
      call this%allocateVariables()
 
      ! Setting fields to be saved
-     if(flag_use_species .eqv. .true.) then
-        call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
-                            u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
-                            avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw,Yk(:,:,2),mu_e_Yk)
-     else
-        call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
-                            u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
-                            avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw)
-     end if
+     call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
+       u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
+       avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw)!,quality_e=quality_e)
 
      ! Eval or load initial conditions
      call this%evalOrLoadInitialConditions()
@@ -168,7 +179,10 @@ contains
 
      call  this%normalFacesToNodes()
      
-     ! HERE WE CAN DO THE MESH MAGIC
+     !
+     call this%assessElasticityParameters()
+     !
+     !
      call this%initialBuffer()
 
      if (this%noBoundaries .eqv. .false.) then
@@ -176,22 +190,20 @@ contains
           numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
      end if
      !if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
-     
+     !
+     print*,'Quality before elasticity'
+     call this%computeQuality(minQ,maxQ)
+     !
      call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
         numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
         gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
-        this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final 
-        bouCodesNodesPar,normalsAtNodes,u_buffer) 
-
+        this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
+        bouCodesNodesPar,normalsAtNodes,u_buffer)
      !
-     print*,'Quality before elasticity'
-     call this%computeQuality()
-     print*,'Modifying coords to impose displacement'
      coordPar = coordPar+u(:,:,2)
      print*,'Quality after elasticity'
-     call this%computeQuality()
+     call this%computeQuality(minQ,maxQ)
      !
-     
      call this%saveInstResultsFiles(1)    
 
      call this%close_log_file()
@@ -228,51 +240,123 @@ contains
      print*,' - Leave an option to impose displacement, to use this for ALE'
      print*,' - Maybe add an option in the json to read the displacement of the ALE vs do mesh curving'
      
+     print*,'TODO solve nasty thing:'
+     print*,'   I am doing something nasty... created a link in the meshElasticitySOlver folder to the mod_meshquality'
+     print*,'   When folder redistribution is done, remove this and link properly the mod_meshquality without link'
      
    end subroutine MeshElasticitySolver_run
-   
-   subroutine computeQuality(this)
+   !
+   !
+   !
+   subroutine assessElasticityParameters(this)
+     implicit none
+     class(MeshElasticitySolver), intent(inout) :: this
+     
+     integer(4) :: iyoung,ipoisson,num_young,num_poisson,ideformation
+     real(rp)   :: fact_young, fact_poisson, ini_young, ini_poisson, end_poisson
+     real(rp)   :: minQ,maxQ
+     character(len=2) :: str_name
+     
+     real(rp) :: E_safe, nu_safe
+     
+     nu_safe = this%nu_poisson
+     E_safe  = this%E_young
+     
+     !"E":10, "nu":0.4,
+     num_young   = 8
+     ini_young   = 0.0001_rp
+     fact_young  = 10.0_rp
+     num_poisson = 10
+     ini_poisson = 0.05_rp
+     end_poisson = 0.49_rp
+     fact_poisson= (end_poisson-ini_poisson)/num_poisson
+     
+     do ideformation=1,5
+       this%factor_deformation = real(ideformation,rp)!1.0_rp+real(ideformation,rp)
+       print*,'this%factor_deformation: ',this%factor_deformation
+       
+       ! HERE WE CAN DO THE MESH MAGIC
+       call this%initialBuffer()
+
+       if (this%noBoundaries .eqv. .false.) then
+          call temporary_bc_routine_dirichlet_prim_meshElasticity(&
+            numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
+       end if
+       
+       write(str_name, '(I2)') ideformation 
+       open(unit=666, file="paramQual_"//TRIM(str_name)//'.txt', status="replace", action="write")
+       write(666,*) "      YOUNG            POISSON              MIN_Q             MAX_Q"
+       print*, "                      YOUNG            POISSON              MIN_Q             MAX_Q"
+       do ipoisson = 0,num_poisson
+         do iyoung = 0,num_young
+           this%nu_poisson = ini_poisson + fact_poisson*ipoisson
+           this%E_young    = ini_young * fact_young**iyoung
+           call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
+              numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
+              gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
+              this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
+              bouCodesNodesPar,normalsAtNodes,u_buffer)
+
+           call this%computeQuality(minQ,maxQ)
+
+           write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
+
+           print*,iyoung + (num_young+1)*ipoisson,' -> ',  this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
+
+           u(:,:,2) = 0.0_rp
+         end do
+       end do
+       close(666)
+     end do
+     
+     this%nu_poisson = nu_safe
+     this%E_young = E_safe 
+     
+   end subroutine assessElasticityParameters
+   !
+   !
+   !
+   subroutine computeQuality(this,minQ,maxQ)
      
      use mod_mesh_quality, only: eval_ElemQuality
      
      class(MeshElasticitySolver), intent(inout) :: this
+     real(rp),intent(out)   :: minQ, maxQ
      integer(4) :: ielem
      real(8)    :: quality_vec(2)
-     real(rp)   :: minQ, maxQ
-     
-!      his%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
-!              numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
-!              gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
-     print*,'I am doing something nasty... created a link in the meshElasticitySOlver folder to the mod_meshquality'
-     print*,'When folder redistribution is done, remove this and link properly the mod_meshquality without link'
-     print*,'Loop on elements and compute their quality'
+
      minQ = 1.0_rp
      maxQ = 0.0_rp
      do ielem = 1,numElemsRankPar
        !
        !numWorkingNodesRankPar or numNodesRankPar?
        call eval_ElemQuality(size(connecParWork,2),ngaus,numNodesRankPar,numElemsRankPar,&
-         ielem,real(coordPar,8),connecParWork,real(dNgp,8),real(wgp,8),quality_vec)
+         ielem,real(coordPar+u(:,:,2),8),connecParWork,real(dNgp,8),real(wgp,8),quality_vec)
        !
        minQ = min(minQ,real(quality_vec(1),rp))
        maxQ = max(maxQ,real(quality_vec(1),rp))
        !
      end do
-     print*,'Min q: ',minQ
-     print*,'Max q: ',maxQ
+!      print*,'Min q: ',minQ
+!      print*,'Max q: ',maxQ
+    !print*,' YoungPoissonMinMax ',this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
+    if(minQ<0) minQ = 0.0_rp
+!     open(unit=666, file="paramQual.txt", status="old", action="write")
+!     !open(unit=iunit, file="output.txt", status="old", action="write", iostat=i)
+!     write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
+!     close(666)
      
-!      call eval_ElemQuality(mnnode,mngaus,numNodesMshRank(iMshRank),numElemsMshRank(iMshRank),&
-!       iElem,coordPar_jm%matrix(iMshRank)%elems,connecParOrig_jm%matrix(iMshRank)%elems, dNgp, wgp, quality_vec)
-!      do ielem = 1,nelem
-!        call eval_ElemQuality(nnode,ngaus,npoin,nelem,ielem,coord,connec,dNgp,wgp,quality_vec)
-!      end do
    end subroutine computeQuality
    
    subroutine imposedDisplacement_elasticitySolverBuffer(this)
       class(MeshElasticitySolver), intent(inout) :: this
       integer(4) :: iNodeL, bcode
       
-      real(rp) :: x0,x1,xpoin,ypoin,zpoin,pertx,perty,pertz
+      real(rp) :: x0,x1,xpoin,ypoin,zpoin,pertx,perty,pertz,blend_bou
+      real(rp) :: factor_sincos
+      
+      factor_sincos = this%factor_deformation
+      print*,'factor_sincos: ',factor_sincos,' ---------------------------------------------------------'
 
       x0=minval(coordPar(:,1)) !it is a cube: assumed!
       x1=maxval(coordPar(:,1)) !it is a cube: assumed!
@@ -286,15 +370,17 @@ contains
           ypoin = coordPar(iNodeL,2)
           zpoin = coordPar(iNodeL,3)
           
-          pertx = (xpoin-x0)*(x1-xpoin)
-          perty = (ypoin-x0)*(x1-ypoin)
-          pertz = (pertx*perty)/25.0_rp
-          u_buffer(iNodeL,3) = -pertz     !quadratic displacement
+          pertx = (xpoin-x0)*(x1-xpoin)/((x1-x0)/2.0_rp)**2.0_rp
+          perty = (ypoin-x0)*(x1-ypoin)/((x1-x0)/2.0_rp)**2.0_rp
+          pertz = (pertx*perty)
+          u_buffer(iNodeL,3) = -pertz/25.0_rp     !quadratic displacement
+          
+          blend_bou = pertz**2.0_rp
           
           pertx =  sin(xpoin)
           perty =  sin(ypoin)
           pertz = (pertx*perty)
-          u_buffer(iNodeL,3) = -pertz     !sinusoidal displacement
+          u_buffer(iNodeL,3) = -(pertz*blend_bou) *factor_sincos     !sinusoidal displacement
         end if
         
       end do

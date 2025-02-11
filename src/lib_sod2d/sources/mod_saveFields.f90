@@ -11,8 +11,8 @@ module mod_saveFields
                             indNS_csound = 6, indNS_machno = 7, indNS_divU = 8, indNS_qcrit = 9, indNS_temp = 10
 	integer(4), parameter :: numNodeScalarFields = 10
 
-   integer(4), parameter :: indES_mut = 1, indES_mue = 2 
-   integer(4), parameter :: numElGPScalarFields = 2
+   integer(4), parameter :: indES_mut = 1, indES_mue = 2 !, indES_qua = 3
+   integer(4), parameter :: numElGPScalarFields = 2 !3
 
    integer(4), parameter :: indNV_vel = 1, indNV_gradRho = 2, indNV_curlU = 3
    integer(4), parameter :: numNodeVectorFields = 3
@@ -47,7 +47,7 @@ module mod_saveFields
    logical :: save_nodeScalarField_rho,     save_nodeScalarField_muFluid,  save_nodeScalarField_pr,       save_nodeScalarField_energy, &
               save_nodeScalarField_entropy, save_nodeScalarField_csound,   save_nodeScalarField_machno,   save_nodeScalarField_divU,   &
               save_nodeScalarField_qcrit,   save_nodeScalarField_temp
-   logical :: save_elGPScalarField_muSgs, save_elGPScalarField_muEnvit
+   logical :: save_elGPScalarField_muSgs, save_elGPScalarField_muEnvit!, save_elGPScalarField_quality
    logical :: save_nodeVectorField_vel, save_nodeVectorField_gradRho, save_nodeVectorField_curlU
    
    logical :: save_avgNodeScalarField_rho, save_avgNodeScalarField_pr, save_avgNodeScalarField_pr2, save_avgNodeScalarField_mueff
@@ -98,6 +98,7 @@ contains
       save_nodeScalarField_temp     = .false.
       save_elGPScalarField_muSgs    = .false.
       save_elGPScalarField_muEnvit  = .false.
+!       save_elGPScalarField_quality  = .false.
       save_nodeVectorField_vel      = .false.
       save_nodeVectorField_gradRho  = .false.
       save_nodeVectorField_curlU    = .false.
@@ -111,6 +112,7 @@ contains
       save_avgNodeVectorField_vex   = .false.
       save_avgNodeVectorField_tw    = .false.
 
+      
    end subroutine initializeDefaultSaveFields
 
    subroutine initializeDefaultSaveFieldsCompressible()
@@ -130,6 +132,7 @@ contains
       save_nodeScalarField_temp     = .false.
       save_elGPScalarField_muSgs    = .true.
       save_elGPScalarField_muEnvit  = .true.
+!       save_elGPScalarField_quality  = .false.
       save_nodeVectorField_vel      = .true.
       save_nodeVectorField_gradRho  = .true.
       save_nodeVectorField_curlU    = .true.
@@ -144,7 +147,7 @@ contains
       save_avgNodeVectorField_tw    = .true.
 
    end subroutine initializeDefaultSaveFieldsCompressible
-
+   
    subroutine initializeDefaultSaveFieldsIncompressible()
       implicit none
 
@@ -162,6 +165,7 @@ contains
       save_nodeScalarField_temp     = .false.
       save_elGPScalarField_muSgs    = .true.
       save_elGPScalarField_muEnvit  = .true.
+!       save_elGPScalarField_quality  = .false.
       save_nodeVectorField_vel      = .true.
       save_nodeVectorField_gradRho  = .false.
       save_nodeVectorField_curlU    = .true.
@@ -177,6 +181,40 @@ contains
 
    end subroutine initializeDefaultSaveFieldsIncompressible
 
+   subroutine initializeDefaultSaveFieldsElasticity()
+      implicit none
+
+      call initializeSaveFieldsCnt()
+
+      save_nodeScalarField_rho      = .false.
+      save_nodeScalarField_muFluid  = .false.
+      save_nodeScalarField_pr       = .false.
+      save_nodeScalarField_energy   = .false.
+      save_nodeScalarField_entropy  = .false.
+      save_nodeScalarField_csound   = .false.
+      save_nodeScalarField_machno   = .false.
+      save_nodeScalarField_divU     = .false.
+      save_nodeScalarField_qcrit    = .false.
+      save_nodeScalarField_temp     = .false.
+      save_elGPScalarField_muSgs    = .false.
+      save_elGPScalarField_muEnvit  = .false.
+!       save_elGPScalarField_quality  = .true.
+      save_nodeVectorField_vel      = .true.
+      save_nodeVectorField_gradRho  = .false.
+      save_nodeVectorField_curlU    = .false.
+
+      save_avgNodeScalarField_rho   = .false.
+      save_avgNodeScalarField_pr    = .false.
+      save_avgNodeScalarField_pr2   = .false.
+      save_avgNodeScalarField_mueff = .false.
+      save_avgNodeVectorField_vel   = .false.
+      save_avgNodeVectorField_ve2   = .false.
+      save_avgNodeVectorField_vex   = .false.
+      save_avgNodeVectorField_tw    = .false.
+
+
+   end subroutine initializeDefaultSaveFieldsElasticity
+   
    subroutine initializeNameFields()
       implicit none
 
@@ -204,6 +242,7 @@ contains
       !----------------------------------------------------------------------
       elGPScalarNameFields(indES_mut)     = 'mut'
       elGPScalarNameFields(indES_mue)     = 'mue'
+!       elGPScalarNameFields(indES_qua)     = 'quality'
       !----------------------------------------------------------------------
 
       !----------------------  AVERAGE FIELDS  ------------------------------
@@ -260,6 +299,7 @@ contains
       call json_f%get("save_nodeScalarField_temp",   save_nodeScalarField_temp   , isFound, save_nodeScalarField_temp)
       call json_f%get("save_elGPScalarField_muSgs",  save_elGPScalarField_muSgs  , isFound, save_elGPScalarField_muSgs)
       call json_f%get("save_elGPScalarField_muEnvit",save_elGPScalarField_muEnvit, isFound, save_elGPScalarField_muEnvit)
+!       call json_f%get("save_elGPScalarField_quality",save_elGPScalarField_quality, isFound, save_elGPScalarField_quality)
       call json_f%get("save_nodeVectorField_vel",    save_nodeVectorField_vel    , isFound, save_nodeVectorField_vel)
       call json_f%get("save_nodeVectorField_gradRho",save_nodeVectorField_gradRho, isFound, save_nodeVectorField_gradRho)
       call json_f%get("save_nodeVectorField_curlU",  save_nodeVectorField_curlU  , isFound, save_nodeVectorField_curlU)
@@ -277,7 +317,7 @@ contains
    end subroutine
 
    subroutine setFields2Save(rho,mu_fluid,pr,E,eta,csound,machno,divU,qcrit,Tem,u,gradRho,curlU,mu_sgs,mu_e,&
-                             avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw,Yk,mu_e_Yk)
+                             avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw,Yk,mu_e_Yk)!,quality_e)
       implicit none
       real(rp),intent(in),dimension(:) :: rho,mu_fluid,pr,E,eta,csound,machno,divU,qcrit,Tem
       real(rp),intent(in),dimension(:,:) :: u,gradRho,curlU
@@ -286,6 +326,7 @@ contains
       real(rp_avg),intent(in),dimension(:,:) :: avvel,avve2,avvex,avtw
       real(rp),intent(in),dimension(:,:),optional :: Yk
       real(rp),intent(in),dimension(:,:,:),optional :: mu_e_Yk
+      !real(rp),intent(in),dimension(:),optional :: quality_e ! constant on element, not gauss point!
       integer(4) :: ispc
       character(128) :: dsetname
 
@@ -363,6 +404,10 @@ contains
       if(save_elGPScalarField_muEnvit) then 
          call add_elGPScalarField2save(elGPScalarNameFields(indES_mue),mu_e(:,:))
       end if
+      !----------------------------------------------------------------------
+!       if(save_elGPScalarField_quality) then
+!          call add_elGPScalarField2save(elGPScalarNameFields(indES_qua),quality_e(:,:))
+!       end if
       !----------------------------------------------------------------------
       
       !---------------  Species   -------------------------------------

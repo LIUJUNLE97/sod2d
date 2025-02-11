@@ -244,10 +244,10 @@ subroutine conjGrad_meshElasticity(igtime,save_logFile_next,noBoundaries,nelem,n
   R(:,:) = x_u(:,:)
   !$acc end kernels
  
-  print*,'displacement:  min    /     max'
-  print*,'     ',minval(x_u(:,1)),' / ',maxval(x_u(:,1))
-  print*,'     ',minval(x_u(:,2)),' / ',maxval(x_u(:,2))
-  print*,'     ',minval(x_u(:,3)),' / ',maxval(x_u(:,3))
+!   print*,'displacement:  min    /     max'
+!   print*,'     ',minval(x_u(:,1)),' / ',maxval(x_u(:,1))
+!   print*,'     ',minval(x_u(:,2)),' / ',maxval(x_u(:,2))
+!   print*,'     ',minval(x_u(:,3)),' / ',maxval(x_u(:,3))
  
   call nvtxEndRange
 
