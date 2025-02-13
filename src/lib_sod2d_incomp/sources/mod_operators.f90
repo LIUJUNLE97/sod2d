@@ -48,10 +48,7 @@ module mod_operators
             do ielem = 1,nelem
                 !$acc loop vector
                 do inode = 1,nnode
-                   ipoin(inode) = connec(ielem,inode)
-                end do
-                !$acc loop vector
-                do inode = 1,nnode
+                  ipoin(inode) = connec(ielem,inode)
                    pl(inode) = op_auxP(ipoin(inode))
                 end do
                 gradPl(:,:) = 0.0_rp
@@ -150,10 +147,7 @@ module mod_operators
             do ielem = 1,nelem
                 !$acc loop vector
                 do inode = 1,nnode
-                   ipoin(inode) = connec(ielem,inode)
-                end do
-                !$acc loop vector
-                do inode = 1,nnode
+                  ipoin(inode) = connec(ielem,inode)
                    pl(inode) = x(ipoin(inode))
                 end do
                 !$acc loop vector private(gradIsoP,gradP)
@@ -231,11 +225,9 @@ module mod_operators
       do ielem = 1,nelem
           !$acc loop vector
           do inode = 1,nnode
-             ipoin(inode) = connec(ielem,inode)
-          end do
-          !$acc loop vector
-          do inode = 1,nnode
+            ipoin(inode) = connec(ielem,inode)
              pl(inode) = x(ipoin(inode))
+             !$acc loop seq
              do idime = 1, ndime
                ul(inode,idime) = u(ipoin(inode),idime)
              end do
@@ -305,12 +297,11 @@ module mod_operators
       real(rp),   intent(out) :: GradX(npoin,ndime), GradY(npoin,ndime), GradZ(npoin,ndime)
       integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
       integer(4)              :: ipoin(nnode)
-      real(rp)                :: mu_fgp, mu_egp,divU,nu_e,tau(ndime,ndime)
       real(rp)                :: gradU(ndime,ndime), tmp1,vol,arho
       real(rp)                :: gradIsoU(ndime,ndime)
       real(rp)                :: divDm(ndime)
-      real(rp)                :: ul(nnode,ndime), mufluidl(nnode)
-      real(rp)                :: gradRhol(nnode,ndime),muel(nnode)
+      real(rp)                :: ul(nnode,ndime)
+      real(rp)                :: gradRhol(nnode,ndime)
 
       call nvtxStartRange("Full diffusion")
       !$acc kernels
@@ -319,21 +310,18 @@ module mod_operators
       GradZ(:,:) = 0.0_rp
       !$acc end kernels
 
-      !$acc parallel loop gang  private(ipoin,ul,mufluidl,muel)
+      !$acc parallel loop gang  private(ipoin,ul)
       do ielem = 1,nelem
          !$acc loop vector
          do inode = 1,nnode
             ipoin(inode) = connec(ielem,inode)
-         end do
-         !$acc loop vector
-         do inode = 1,nnode
             !$acc loop seq
             do idime = 1,ndime
                ul(inode,idime) = u(ipoin(inode),idime)
             end do
          end do
 
-         !$acc loop vector private(tau,gradU,gradIsoU,divU)
+         !$acc loop vector private(gradU,gradIsoU)
          do igaus = 1,ngaus
 
             isoI = gmshAtoI(igaus) 
@@ -365,23 +353,14 @@ module mod_operators
 
             !$acc loop seq
             do idime = 1,ndime
-               !$acc loop seq
-               do jdime = 1,ndime
-                    !tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
-                    tau(idime,jdime) = gradU(idime,jdime)
-               end do
-            end do
-
-            !$acc loop seq
-            do idime = 1,ndime
                !$acc atomic update
-               GradX(ipoin(igaus),idime) = GradX(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*tau(1,idime)
+               GradX(ipoin(igaus),idime) = GradX(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*gradU(1,idime)
                !$acc end atomic
                !$acc atomic update
-               GradY(ipoin(igaus),idime) = GradY(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*tau(2,idime)
+               GradY(ipoin(igaus),idime) = GradY(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*gradU(2,idime)
                !$acc end atomic
                !$acc atomic update
-               GradZ(ipoin(igaus),idime) = GradZ(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*tau(3,idime)
+               GradZ(ipoin(igaus),idime) = GradZ(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*gradU(3,idime)
                !$acc end atomic
             end do
          end do
@@ -435,11 +414,8 @@ module mod_operators
                !$acc loop vector
                do inode = 1,nnode
                   ipoin(inode) = connec(ielem,inode)
-               end do
-               !$acc loop vector
-               do idime = 1,ndime
                   !$acc loop seq
-                  do inode = 1,nnode
+                  do idime = 1,ndime                  
                      ul(inode,idime)  = u(ipoin(inode),idime)
                   end do
                end do

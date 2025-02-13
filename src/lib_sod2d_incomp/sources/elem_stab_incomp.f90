@@ -23,24 +23,20 @@ module elem_stab_incomp
              real(rp),   intent(inout) :: Rmom(npoin,ndime)
              integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
              integer(4)              :: ipoin(nnode)
-             real(rp)                :: mu_fgp, mu_egp,divU,nu_e,tau(ndime,ndime)
              real(rp)                :: gradU(ndime,ndime), tmp1,vol,arho
              real(rp)                :: gradIsoU(ndime,ndime)
              real(rp)                :: divDm(ndime)
-             real(rp)                :: ul(nnode,ndime), mufluidl(nnode)
+             real(rp)                :: ul(nnode,ndime)
              real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
-             real(rp)                :: gradRhol(nnode,ndime),muel(nnode),taupxl(nnode,ndime),taupyl(nnode,ndime),taupzl(nnode,ndime),taustabl
+             real(rp)                :: gradRhol(nnode,ndime),taupxl(nnode,ndime),taupyl(nnode,ndime),taupzl(nnode,ndime),taustabl
 
              call nvtxStartRange("Full diffusion")
 
-             !$acc parallel loop gang  private(ipoin,ul,mufluidl,tauXl,tauYl,tauZl,muel,taupxl,taupyl,taupzl,taustabl)
+             !$acc parallel loop gang  private(ipoin,ul,tauXl,tauYl,tauZl,taupxl,taupyl,taupzl)
              do ielem = 1,nelem
                 !$acc loop vector
                 do inode = 1,nnode
-                   ipoin(inode) = connec(ielem,inode)
-                end do
-                !$acc loop vector
-                do inode = 1,nnode
+                  ipoin(inode) = connec(ielem,inode)
                   !$acc loop seq                  
                    do idime = 1,ndime
                       ul(inode,idime) = u(ipoin(inode),idime)
@@ -55,7 +51,7 @@ module elem_stab_incomp
 
                 taustabl = tau_stab(ielem)
 
-                !$acc loop vector private(tau,gradU,gradIsoU,divU)
+                !$acc loop vector private(gradU,gradIsoU)
                 do igaus = 1,ngaus
 
                    isoI = gmshAtoI(igaus) 
@@ -87,18 +83,9 @@ module elem_stab_incomp
 
                    !$acc loop seq
                    do idime = 1,ndime
-                      !$acc loop seq
-                      do jdime = 1,ndime
-                           !tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
-                           tau(idime,jdime) = gradU(idime,jdime)
-                      end do
-                   end do
-
-                   !$acc loop seq
-                   do idime = 1,ndime
-                      tauXl(igaus,idime) =  taustabl*(taupxl(igaus,idime)-tau(1,idime))
-                      tauYl(igaus,idime) =  taustabl*(taupyl(igaus,idime)-tau(2,idime))
-                      tauZl(igaus,idime) =  taustabl*(taupzl(igaus,idime)-tau(3,idime))
+                      tauXl(igaus,idime) =  taustabl*(taupxl(igaus,idime)-gradU(1,idime))
+                      tauYl(igaus,idime) =  taustabl*(taupyl(igaus,idime)-gradU(2,idime))
+                      tauZl(igaus,idime) =  taustabl*(taupzl(igaus,idime)-gradU(3,idime))
                    end do
                 end do
 
