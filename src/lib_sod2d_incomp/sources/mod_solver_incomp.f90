@@ -93,11 +93,15 @@ module mod_solver_incomp
 
             ! Real solver form here
 
-            call species_tau(nelem,npoin,connec,x_u,helem_k,dt,tau)
+            if(flag_lps_stab) then
+               call species_tau(nelem,npoin,connec,x_u,helem_k,dt,tau)
+            end if
 
             call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x_u,mu_fluid,mu_e,mu_sgs,Ml,qn_u)
-            call eval_tau_veloc(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x_u,Ml,TauPX,TauPY,TauPZ)
-            call full_stab_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x_u,TauPX,TauPY,TauPZ,tau,Ml,qn_u)
+            if(flag_lps_stab) then
+               call eval_tau_veloc(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x_u,Ml,TauPX,TauPY,TauPZ)
+               call full_stab_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x_u,TauPX,TauPY,TauPZ,tau,Ml,qn_u)
+            end if
             if(mpi_size.ge.2) then
                call nvtxStartRange("CG_u halo")
                call mpi_halo_atomic_update_real_arrays(ndime,qn_u(:,:))
@@ -147,8 +151,10 @@ module mod_solver_incomp
            do iter = 1,maxIter
               call nvtxStartRange("Iter_u")
               call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,mu_fluid,mu_e,mu_sgs,Ml,qn_u)
-              call eval_tau_veloc(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,Ml,TauPX,TauPY,TauPZ)
-              call full_stab_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,TauPX,TauPY,TauPZ,tau,Ml,qn_u)
+              if(flag_lps_stab) then
+                  call eval_tau_veloc(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,Ml,TauPX,TauPY,TauPZ)
+                  call full_stab_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,TauPX,TauPY,TauPZ,tau,Ml,qn_u)
+              end if
               if(mpi_size.ge.2) then
                   call mpi_halo_atomic_update_real_arrays(ndime,qn_u(:,:))
                end if

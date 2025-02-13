@@ -237,7 +237,11 @@ module time_integ_incomp
                         call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                            bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
                            rho(:,1),walave_u(:,:),zo,tauw,Rwmles)
-                     end if
+                     else if (flag_type_wmles == wmles_type_reichardt_hwm) then
+                        call evalWallModelReichardtFindHWM(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
+                           rho(:,1),walave_u(:,:),tauw,Rwmles)
+                     end if  
                   end if
                   call nvtxEndRange
           

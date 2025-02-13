@@ -39,8 +39,9 @@ module elem_stab_incomp
                 do inode = 1,nnode
                    ipoin(inode) = connec(ielem,inode)
                 end do
-                !$acc loop vector collapse(2)
+                !$acc loop vector
                 do inode = 1,nnode
+                  !$acc loop seq                  
                    do idime = 1,ndime
                       ul(inode,idime) = u(ipoin(inode),idime)
                       taupxl(inode,idime) = TauPX(ipoin(inode),idime)

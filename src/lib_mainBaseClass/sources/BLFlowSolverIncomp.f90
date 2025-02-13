@@ -395,6 +395,9 @@ contains
       call json%get("rho0",this%rho0, found,1.0_rp); call this%checkFound(found,found_aux)
       call json%get("Red0",this%Red0, found,100.0_rp); call this%checkFound(found,found_aux)
 
+      call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+
+
       this%mu = this%rho0*this%d0*this%U0/this%Red0
 
       incomp_viscosity = this%mu

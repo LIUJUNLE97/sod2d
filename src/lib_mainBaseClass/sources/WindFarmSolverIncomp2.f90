@@ -191,8 +191,9 @@ contains
       call json%get("c_sgs",c_sgs, found,0.025_rp); call this%checkFound(found,found_aux)
       call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
-      call json%get("flag_walave",flag_walave, found,.true.); call this%checkFound(found,found_aux)
       call json%get("period_walave",period_walave, found,3600.0_rp); call this%checkFound(found,found_aux)
+      call json%get("flag_type_wmles",flag_type_wmles, found,1); call this%checkFound(found,found_aux)
+      call json%get("wmles_walex",wmles_walex, found,0.1_rp); !optional depending of the model)
       call json%get("flag_les_ilsa",flag_les_ilsa, found,0); call this%checkFound(found,found_aux)
       call json%get("stau",stau, found,0.022_rp); call this%checkFound(found,found_aux)
       call json%get("T_ilsa",T_ilsa, found,300.0_rp); call this%checkFound(found,found_aux)
@@ -208,6 +209,9 @@ contains
       call json%get("vinf",this%vinf, found,8.0_rp); call this%checkFound(found,found_aux)
       call json%get("rough",this%rough, found,0.1_rp); call this%checkFound(found,found_aux)
       call json%get("wind_alpha",this%wind_alpha, found,270.0_rp); call this%checkFound(found,found_aux)      
+
+      call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+
 
       this%maxPhysTime = 9.0_rp*3600.0_rp
 

@@ -62,8 +62,10 @@ module mod_constants
 	!
 	! Type of wall models
 	!
-	integer(4), parameter :: wmles_type_reichardt = 1
-	integer(4), parameter :: wmles_type_abl       = 2
+	integer(4), parameter :: wmles_type_reichardt     = 1
+	integer(4), parameter :: wmles_type_abl       	  = 2
+	integer(4), parameter :: wmles_type_reichardt_hwm = 3
+
 
 	!
 	! Types of implicit solvers

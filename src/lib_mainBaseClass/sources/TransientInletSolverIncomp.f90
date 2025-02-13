@@ -111,12 +111,19 @@ contains
       call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
 
+      call json%get("period_walave",period_walave, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("flag_type_wmles",flag_type_wmles, found,1); call this%checkFound(found,found_aux)
+      call json%get("wmles_walex",wmles_walex, found,0.1_rp); !optional depending of the model
+
       call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
 
       call json%get("v0",this%vo, found,1.0_rp); call this%checkFound(found,found_aux)
       call json%get("delta",this%delta, found,1.0_rp); call this%checkFound(found,found_aux)
       call json%get("rho0",this%rho0, found,1.0_rp); call this%checkFound(found,found_aux)
       call json%get("Re",this%Re, found,10000.0_rp); call this%checkFound(found,found_aux)
+
+      call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+
 
       !----------------------------------------------
       ! Inlet Database file

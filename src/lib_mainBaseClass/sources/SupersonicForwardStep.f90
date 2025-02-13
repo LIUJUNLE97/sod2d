@@ -109,6 +109,9 @@ contains
       call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5) 
       call json%get("flag_rk_ls_n",flag_rk_ls_n, found, 4)
 
+      call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+
+
       this%saveInitialField = .true.
 
       !ce = 100.0_rp
