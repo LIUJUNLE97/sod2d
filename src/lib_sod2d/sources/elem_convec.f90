@@ -270,7 +270,7 @@ module elem_convec
                aux_fact = fact
             end if
 
-            !$acc parallel loop gang private(ipoin,Re_ener,Re_mass,Re_mom,ul,ql,rhol,prl,El,REl,fl,fel,fuel,fuul,kl,Rkl,fkl,fukl) !!vector_length(vecLength)
+            !$acc parallel loop gang private(ipoin,Re_ener,Re_mass,Re_mom,ul,ql,rhol,prl,El,REl,fel,fuel,kl,Rkl,fkl,fukl) !!vector_length(vecLength)
             do ielem = 1,nelem
                !$acc loop vector
                do inode = 1,nnode
@@ -295,15 +295,7 @@ module elem_convec
                      fukl(inode,idime) = kl(inode)*u(ipoin(inode),idime)
                   end do
                end do
-               !$acc loop vector collapse(3)
-               do idime = 1,ndime
-                  do jdime = 1,ndime
-                     do inode = 1,nnode
-                        fl(inode,idime,jdime)  = q(ipoin(inode),idime)*u(ipoin(inode),jdime)
-                        fuul(inode,idime,jdime)  = u(ipoin(inode),idime)*u(ipoin(inode),jdime)
-                     end do
-                  end do
-               end do
+
                !$acc loop vector
                do inode = 1,nnode
                   rhol(inode) = rho(ipoin(inode))
@@ -393,12 +385,12 @@ module elem_convec
 
                         !$acc loop seq
                         do jdime=1, ndime
-                            gradIsoF(idime,jdime,1) = gradIsoF(idime,jdime,1) + dlxi_ip(ii)*fl(invAtoIJK(ii,isoJ,isoK),idime,jdime)
-                            gradIsoF(idime,jdime,2) = gradIsoF(idime,jdime,2) + dleta_ip(ii)*fl(invAtoIJK(isoI,ii,isoK),idime,jdime)
-                            gradIsoF(idime,jdime,3) = gradIsoF(idime,jdime,3) + dlzeta_ip(ii)*fl(invAtoIJK(isoI,isoJ,ii),idime,jdime)
-                            gradIsoFuu(idime,jdime,1) = gradIsoFuu(idime,jdime,1) + dlxi_ip(ii)*fuul(invAtoIJK(ii,isoJ,isoK),idime,jdime)
-                            gradIsoFuu(idime,jdime,2) = gradIsoFuu(idime,jdime,2) + dleta_ip(ii)*fuul(invAtoIJK(isoI,ii,isoK),idime,jdime)
-                            gradIsoFuu(idime,jdime,3) = gradIsoFuu(idime,jdime,3) + dlzeta_ip(ii)*fuul(invAtoIJK(isoI,isoJ,ii),idime,jdime)
+                           gradIsoF(idime,jdime,1) = gradIsoF(idime,jdime,1) + dlxi_ip(ii)*ql(invAtoIJK(ii,isoJ,isoK),idime)*ul(invAtoIJK(ii,isoJ,isoK),jdime)
+                           gradIsoF(idime,jdime,2) = gradIsoF(idime,jdime,2) + dleta_ip(ii)*ql(invAtoIJK(isoI,ii,isoK),idime)*ul(invAtoIJK(isoI,ii,isoK),jdime)
+                           gradIsoF(idime,jdime,3) = gradIsoF(idime,jdime,3) + dlzeta_ip(ii)*ql(invAtoIJK(isoI,isoJ,ii),idime)*ul(invAtoIJK(isoI,isoJ,ii),jdime)
+                           gradIsoFuu(idime,jdime,1) = gradIsoFuu(idime,jdime,1) + dlxi_ip(ii)*ul(invAtoIJK(ii,isoJ,isoK),idime)*ul(invAtoIJK(ii,isoJ,isoK),jdime)
+                           gradIsoFuu(idime,jdime,2) = gradIsoFuu(idime,jdime,2) + dleta_ip(ii)*ul(invAtoIJK(isoI,ii,isoK),idime)*ul(invAtoIJK(isoI,ii,isoK),jdime)
+                           gradIsoFuu(idime,jdime,3) = gradIsoFuu(idime,jdime,3) + dlzeta_ip(ii)*ul(invAtoIJK(isoI,isoJ,ii),idime)*ul(invAtoIJK(isoI,isoJ,ii),jdime)
                         end do
                      end do
                   end do
@@ -457,7 +449,8 @@ module elem_convec
                                                                 fukl(igaus,idime)*gradRho(idime)) 
                      !$acc loop seq
                      do jdime=1, ndime
-                        Re_mom(igaus,idime) = Re_mom(igaus,idime) + 0.25_rp*(fuul(igaus,idime,jdime)*gradRho(jdime)  &
+                        aux = ul(igaus,idime)*ul(igaus,jdime)
+                        Re_mom(igaus,idime) = Re_mom(igaus,idime) + 0.25_rp*(aux*gradRho(jdime)  &
                                                                   + ql(igaus,jdime)*gradU(idime,jdime)+ul(igaus,jdime)*gradQ(idime,jdime))
                      end do
                      Re_mom(igaus,idime) = gpvol(1,igaus,ielem)*Re_mom(igaus,idime)
