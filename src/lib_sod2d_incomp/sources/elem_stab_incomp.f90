@@ -49,7 +49,7 @@ module elem_stab_incomp
                 tauYl(:,:) = 0.0_rp
                 tauZl(:,:) = 0.0_rp
 
-                taustabl = tau_stab(ielem)
+                taustabl = 0.1_rp*tau_stab(ielem)
 
                 !$acc loop vector private(gradU,gradIsoU)
                 do igaus = 1,ngaus
@@ -125,4 +125,5 @@ module elem_stab_incomp
              !$acc end parallel loop
             call nvtxEndRange
         end subroutine full_stab_incomp
+
 end module elem_stab_incomp

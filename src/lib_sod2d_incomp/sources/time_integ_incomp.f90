@@ -174,8 +174,6 @@ module time_integ_incomp
                aux_omega(:,:,1) = 0.0_rp
                !$acc end kernels
 
-               call smart_visc_spectral_incomp(nelem,npoin,npoin_w,connec,lpoin_w,Reta(:,1),Ngp,coord,dNgp,gpvol,wgp, &
-                                            rho(:,1),u(:,:,1),eta(:,1),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
             else 
                if(iltime .eq. 2) then
                   gamma0 = 3.0_rp/2.0_rp

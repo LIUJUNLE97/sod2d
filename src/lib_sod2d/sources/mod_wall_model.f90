@@ -352,7 +352,7 @@ contains
          aux_fact = fact
       end if
 
-      !$acc parallel loop gang private(bnorm)
+      !$acc parallel loop gang private(bnorm)   
       do iAux = 1,numBoundsWM
          iBound = listBoundsWM(iAux)
          bnorm(1:npbou*ndime) = bounorm(iBound,1:npbou*ndime)         
