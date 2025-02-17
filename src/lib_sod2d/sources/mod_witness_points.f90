@@ -33,7 +33,7 @@ module mod_witness_points
          close(99)
       end subroutine read_points
 
-      subroutine isocoords(elpoints, wit, atoIJK, xi_rp, isinside, Niwit)
+      subroutine isocoords(elpoints, wit, atoIJK, xi_rp, isinside, Niwit, helem)
          !
          ! Subroutine which computes the isoparametric coordinates of a point in an HEX64 element.
          ! If any of them is outside the bounds of -1 and 1 it means that the point is outside of the element.
@@ -45,6 +45,7 @@ module mod_witness_points
          real(rp), intent(out)  :: xi_rp(ndime)             ! Output 1: isoparametric coordinates of the point
          logical,  intent(out)  :: isinside                 ! Output 2: return if the point is inside the element
          real(rp), intent(out)  :: Niwit(nnode)             ! Output 3: shape functions evaluated at the point
+         real(rp), intent(in)   :: helem_ielem                    ! input 4:  element length
          real(8)                :: xi(ndime), xi_0(ndime), xi_n(ndime)
          real(8)                :: N(nnode), N_lagrange(nnode)
          real(8)                :: dlxigp_ip(ndime, porder+1)
@@ -54,8 +55,8 @@ module mod_witness_points
          real(rp)               :: j(ndime, ndime), k(ndime, ndime)
          real(rp)               :: detJ
          integer(4)             :: ii, ip
-         real(rp), parameter    :: tol_wp = 1e-10, alpha = 1, div = 100
-         integer(4), parameter :: maxite = 50
+         real(rp), parameter    :: tol_wp = 1.0e-10, alpha = 1.0, div = 100
+         integer(4), parameter  :: maxite = 50
 
          xi_0(:) = 0.0d0
          xi(:)   = xi_0(:)
@@ -136,12 +137,12 @@ module mod_witness_points
             xi_n(:) = xi(:) - alpha*matmul(k, f)
             xi(:)   = xi_n(:)
             xi_rp(:)= real(xi(:),rp)
-            if (dot_product(f, f) < tol_wp) then
+            if (dot_product(f, f) < helem_ielem*helem_ielem*tol_wp) then
                isinside = .true.
                Niwit    = N
                exit
             end if
-            if (dot_product(f, f) > div) then
+            if (dot_product(f, f) > helem_ielem*helem_ielem*div) then
                exit
             end if
          end do
