@@ -37,6 +37,10 @@ module MeshElasticitySolver_mod
      
      real(rp), allocatable :: quality_e(:)!,:)
      
+     real(rp), allocatable :: coord_input_safe(:,:)
+     logical :: is_imposed_displacement = .false.
+     real(rp), allocatable :: imposed_displacement(:,:)
+     
      real(rp) ,public:: factor_deformation=1.0_rp ! to analytically increase deformation in tests
      
    contains
@@ -59,334 +63,463 @@ contains
 
   end subroutine CFDSolverBase_initializeDefaultSaveFields_elasticity
 
-   subroutine MeshElasticitySolver_fill_BC_Types(this)
-      class(MeshElasticitySolver), intent(inout) :: this
+  subroutine MeshElasticitySolver_fill_BC_Types(this)
+     class(MeshElasticitySolver), intent(inout) :: this
 
-     call this%readJSONBCTypes() 
+    call this%readJSONBCTypes() 
 
-   end subroutine MeshElasticitySolver_fill_BC_Types
+  end subroutine MeshElasticitySolver_fill_BC_Types
 
-
-   subroutine MeshElasticitySolver_initializeParameters(this)
-      use json_module
-      implicit none
-      class(MeshElasticitySolver), intent(inout) :: this
-      logical :: found, found_aux = .false.
-      type(json_file) :: json
-      character(len=:) , allocatable :: value
-
-      call json%initialize()
-      call json%load_file(json_filename)
-
-      ! get(label,target,is found?, default value)
-
-      call json%get("mesh_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
-      write(this%mesh_h5_file_path,*) value
-      call json%get("mesh_h5_file_name",value, found,"channel"); call this%checkFound(found,found_aux)
-      write(this%mesh_h5_file_name,*) value
-     
-      call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
-      call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)   
-      
-      call json%get("E",this%E_young, found,10.0_rp); call this%checkFound(found,found_aux)
-      call json%get("nu",this%nu_poisson, found,0.4_rp); call this%checkFound(found,found_aux)  
-
-      call json%get("saveInitialField",this%saveInitialField, found,.true.); call this%checkFound(found,found_aux)
-      !call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
-      
-      call json%destroy()
-
-      if(found_aux .and.mpi_rank .eq. 0) write(111,*) 'WARNING! JSON file missing a parameter, overwrtting with the default value'
-
-   end subroutine MeshElasticitySolver_initializeParameters
-
-   subroutine MeshElasticitySolver_run(this)
-     !
+  subroutine MeshElasticitySolver_initializeParameters(this)
+     use json_module
      implicit none
      class(MeshElasticitySolver), intent(inout) :: this
-     !
-     real(rp)   :: minQ,maxQ
-     !
-     ! Init MPI
-     call init_mpi()
+     logical :: found, found_aux = .false.
+     type(json_file) :: json
+     character(len=:) , allocatable :: value
 
-     ! Init HDF5 interface
-     call init_hdf5_interface()
+     call json%initialize()
+     call json%load_file(json_filename)
 
-     ! Init Save Fields vars and arrays
-     call init_saveFields()
+     ! get(label,target,is found?, default value)
 
-     ! Main simulation parameters
-     call this%initializeDefaultParameters()
-     call this%initializeParameters()
-
-     call this%optimizeParameters()
-
-     call read_json_saveFields(json_filename)
-
-     ! Open log file
-     call this%open_log_file()
-
-     ! read the mesh
-     call this%openMesh()
-
-     ! Init hdf5 auxiliar saving arrays
-     call init_hdf5_auxiliar_saving_arrays()
-
-     ! Open analysis files
-     call this%open_analysis_files
-
-     ! Eval shape Functions
-     call this%evalShapeFunctions()
-
-     ! Allocate variables
-     call this%allocateVariables()
-
-     ! Setting fields to be saved
-     call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
-       u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
-       avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw)!,quality_e=quality_e)
-
-     ! Eval or load initial conditions
-     call this%evalOrLoadInitialConditions()
-
-     ! Compute characteristic size of the elements
-     call this%evalCharLength()
-
-     ! Eval boundary element normal
-     call this%evalBoundaryNormals()
-
-     ! Eval Jacobian information
-     call this%evalJacobians()
-
-     ! Eval AtoIJK inverse
-     call this%evalAtoIJKInverse()
-
-     ! Eval BoundaryFacesToNodes
-     call  this%boundaryFacesToNodes()
-
-     ! Eval list Elems per Node and Near Boundary Node
-     call this%eval_elemPerNode_and_nearBoundaryNode()
-
-     call this%set_mappedFaces_linkingNodes()   
-
-     ! Eval mass
-     call this%evalMass()
-
-     ! Eval first output
-     if(this%isFreshStart) call this%evalFirstOutput()
-     call this%flush_log_file()
-
-     call  this%normalFacesToNodes()
+     call json%get("mesh_h5_file_path",value, found,""); call this%checkFound(found,found_aux)
+     write(this%mesh_h5_file_path,*) value
+     call json%get("mesh_h5_file_name",value, found,"channel"); call this%checkFound(found,found_aux)
+     write(this%mesh_h5_file_name,*) value
+    
+     call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
+     call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)   
      
-     !
-     call this%assessElasticityParameters()
-     !
-     !
-     call this%initialBuffer()
+     call json%get("E",this%E_young, found,10.0_rp); call this%checkFound(found,found_aux)
+     call json%get("nu",this%nu_poisson, found,0.4_rp); call this%checkFound(found,found_aux)  
 
-     if (this%noBoundaries .eqv. .false.) then
-        call temporary_bc_routine_dirichlet_prim_meshElasticity(&
-          numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
-     end if
-     !if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
-     !
-     print*,'Quality before elasticity'
-     call this%computeQuality(minQ,maxQ)
-     !
-     call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
-        numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
-        gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
-        this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
-        bouCodesNodesPar,normalsAtNodes,u_buffer)
-     !
-     coordPar = coordPar+u(:,:,2)
-     print*,'Quality after elasticity'
-     call this%computeQuality(minQ,maxQ)
-     !
-     call this%saveInstResultsFiles(1)    
-
-     call this%close_log_file()
-     call this%close_analysis_files()
-
-     ! Deallocate the variables
-     call this%deallocateVariables()
-
-     ! End hdf5 auxiliar saving arrays
-     call end_hdf5_auxiliar_saving_arrays()
-
-     ! End hdf5 interface
-     call end_hdf5_interface()
-
-     ! Finalize InSitu   - bettre done before end_comms
-     call end_InSitu()
-
-     ! End comms
-     call end_comms()
-     call end_comms_bnd()
-
-     ! End MPI
-     call end_mpi()
+     call json%get("saveInitialField",this%saveInitialField, found,.true.); call this%checkFound(found,found_aux)
+     !call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
      
-     !
-     print*,'Curving process:'
-     print*,' 1- Generate coordinates of the straight mesh'
-     print*,' 2- Compute displacement surface field'
-     print*,' 3- Solve elasticity problem'
-     
-     print*,'TODOs:'
-     print*,' - Do the mesh curving from the "bad" input curved mesh'
-     print*,' Future: '
-     print*,' - Leave an option to impose displacement, to use this for ALE'
-     print*,' - Maybe add an option in the json to read the displacement of the ALE vs do mesh curving'
-     
-     print*,'TODO solve nasty thing:'
-     print*,'   I am doing something nasty... created a link in the meshElasticitySOlver folder to the mod_meshquality'
-     print*,'   When folder redistribution is done, remove this and link properly the mod_meshquality without link'
-     
-   end subroutine MeshElasticitySolver_run
-   !
-   !
-   !
-   subroutine assessElasticityParameters(this)
+     call json%destroy()
+
+     if(found_aux .and.mpi_rank .eq. 0) write(111,*) 'WARNING! JSON file missing a parameter, overwrtting with the default value'
+
+  end subroutine MeshElasticitySolver_initializeParameters
+
+  subroutine MeshElasticitySolver_run(this)
+    !
+    implicit none
+    class(MeshElasticitySolver), intent(inout) :: this
+    !
+    real(rp)   :: minQ,maxQ
+    !
+    ! Init MPI
+    call init_mpi()
+
+    ! Init HDF5 interface
+    call init_hdf5_interface()
+
+    ! Init Save Fields vars and arrays
+    call init_saveFields()
+
+    ! Main simulation parameters
+    call this%initializeDefaultParameters()
+    call this%initializeParameters()
+
+    call this%optimizeParameters()
+
+    call read_json_saveFields(json_filename)
+
+    ! Open log file
+    call this%open_log_file()
+
+    ! read the mesh
+    call this%openMesh()
+
+    ! Init hdf5 auxiliar saving arrays
+    call init_hdf5_auxiliar_saving_arrays()
+
+    ! Open analysis files
+    call this%open_analysis_files
+
+    ! Eval shape Functions
+    call this%evalShapeFunctions()
+
+    ! Allocate variables
+    call this%allocateVariables()
+
+    ! Setting fields to be saved
+    call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
+      u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
+      avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw)!,quality_e=quality_e)
+
+    ! Eval or load initial conditions
+    call this%evalOrLoadInitialConditions()
+
+    ! Compute characteristic size of the elements
+    call this%evalCharLength()
+
+    ! Eval boundary element normal
+    call this%evalBoundaryNormals()
+
+    ! Eval Jacobian information
+    call this%evalJacobians()
+
+    ! Eval AtoIJK inverse
+    call this%evalAtoIJKInverse()
+
+    ! Eval BoundaryFacesToNodes
+    call  this%boundaryFacesToNodes()
+
+    ! Eval list Elems per Node and Near Boundary Node
+    call this%eval_elemPerNode_and_nearBoundaryNode()
+
+    call this%set_mappedFaces_linkingNodes()   
+
+    ! Eval mass
+    call this%evalMass()
+
+    ! Eval first output
+    if(this%isFreshStart) call this%evalFirstOutput()
+    call this%flush_log_file()
+
+    call  this%normalFacesToNodes()
+    
+    !
+    print*,'commented analysis of elasticity parameters'
+    !call this%assessElasticityParameters()
+    !
+    !
+    if(.true.) then ! do_curveFromPrescribedDisplacement
+      !
+      call this%initialBuffer()
+
+      if (this%noBoundaries .eqv. .false.) then
+         call temporary_bc_routine_dirichlet_prim_meshElasticity(&
+           numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
+      end if
+      !if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
+      !
+      print*,'Quality before elasticity'
+      call this%computeQuality(minQ,maxQ)
+      !
+      call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
+         numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
+         gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
+         this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
+         bouCodesNodesPar,normalsAtNodes,u_buffer)
+      !
+      coordPar = coordPar+u(:,:,2)
+      print*,'Quality after elasticity'
+      call this%computeQuality(minQ,maxQ)
+      print*,'    minQ: ',minQ
+      !
+    end if
+    !
+    if(.true.) then ! do_curveInteriorMesh
+      print*,'Input curved mesh quality'
+      call this%computeQuality(minQ,maxQ)
+      print*,'Save input (boundary curved) coordinates'
+      call save_input_coordinates(numNodesRankPar,ndime,coordPar,this%coord_input_safe)
+      print*,'Straighten mesh (coordpar)'
+      call compute_straight_mesh(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,this%coord_input_safe)
+      print*,'Compute displacement of the boundary'
+      call compute_displacement_straight_mesh(numNodesRankPar,ndime,coordPar,this%coord_input_safe,this%imposed_displacement)
+      print*,'Impose elasticity boundary conditions'
+      call this%initialBuffer(this%imposed_displacement)
+      if (this%noBoundaries .eqv. .false.) then
+         call temporary_bc_routine_dirichlet_prim_meshElasticity(&
+           numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
+      end if
+      print*,'Call conjGrad_meshElasticity to compute displacements with linear elasticity'
+      !        call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
+      !           numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
+      !           gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
+      !           this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
+      !           bouCodesNodesPar,normalsAtNodes,u_buffer)
+      print*,'Compute quality???'
+      coordPar = coordPar+u(:,:,2)
+      print*,'Quality after elasticity-based curved mesh'
+      call this%computeQuality(minQ,maxQ)
+    end if
+    !
+    call this%saveInstResultsFiles(1)    
+
+    call this%close_log_file()
+    call this%close_analysis_files()
+
+    ! Deallocate the variables
+    call this%deallocateVariables()
+    
+    if(allocated(this%coord_input_safe)) deallocate(this%coord_input_safe)
+    if(allocated(this%imposed_displacement)) deallocate(this%imposed_displacement)
+
+    ! End hdf5 auxiliar saving arrays
+    call end_hdf5_auxiliar_saving_arrays()
+
+    ! End hdf5 interface
+    call end_hdf5_interface()
+
+    ! Finalize InSitu   - bettre done before end_comms
+    call end_InSitu()
+
+    ! End comms
+    call end_comms()
+    call end_comms_bnd()
+
+    ! End MPI
+    call end_mpi()
+    
+    !
+    print*,'Curving process:'
+    print*,' 1- Generate coordinates of the straight mesh'
+    print*,' 2- Compute displacement surface field'
+    print*,' 3- Solve elasticity problem'
+    
+    print*,'TODOs:'
+    print*,' - Do the mesh curving from the "bad" input curved mesh'
+    print*,' Future: '
+    print*,' - Leave an option to impose displacement, to use this for ALE'
+    print*,' - Maybe add an option in the json to read the displacement of the ALE vs do mesh curving'
+    
+    print*,'TODO solve nasty thing:'
+    print*,'   I am doing something nasty... created a link in the meshElasticitySOlver folder to the mod_meshquality'
+    print*,'   When folder redistribution is done, remove this and link properly the mod_meshquality without link'
+    
+  end subroutine MeshElasticitySolver_run
+  !
+  !
+  !
+  subroutine save_input_coordinates(npoin,ndime,coordinates,coord_input_safe)
+
      implicit none
-     class(MeshElasticitySolver), intent(inout) :: this
-     
-     integer(4) :: iyoung,ipoisson,num_young,num_poisson,ideformation
-     real(rp)   :: fact_young, fact_poisson, ini_young, ini_poisson, end_poisson
-     real(rp)   :: minQ,maxQ
-     character(len=2) :: str_name
-     
-     real(rp) :: E_safe, nu_safe
-     
-     nu_safe = this%nu_poisson
-     E_safe  = this%E_young
-     
-     !"E":10, "nu":0.4,
-     num_young   = 8
-     ini_young   = 0.0001_rp
-     fact_young  = 10.0_rp
-     num_poisson = 10
-     ini_poisson = 0.05_rp
-     end_poisson = 0.49_rp
-     fact_poisson= (end_poisson-ini_poisson)/num_poisson
-     
-     do ideformation=1,5
-       this%factor_deformation = real(ideformation,rp)!1.0_rp+real(ideformation,rp)
-       print*,'this%factor_deformation: ',this%factor_deformation
-       
-       ! HERE WE CAN DO THE MESH MAGIC
-       call this%initialBuffer()
+     !class(MeshElasticitySolver), intent(inout) :: this
 
-       if (this%noBoundaries .eqv. .false.) then
-          call temporary_bc_routine_dirichlet_prim_meshElasticity(&
-            numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
-       end if
-       
-       write(str_name, '(I2)') ideformation 
-       open(unit=666, file="paramQual_"//TRIM(str_name)//'.txt', status="replace", action="write")
-       write(666,*) "      YOUNG            POISSON              MIN_Q             MAX_Q"
-       print*, "                      YOUNG            POISSON              MIN_Q             MAX_Q"
-       do ipoisson = 0,num_poisson
-         do iyoung = 0,num_young
-           this%nu_poisson = ini_poisson + fact_poisson*ipoisson
-           this%E_young    = ini_young * fact_young**iyoung
-           call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
-              numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
-              gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
-              this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
-              bouCodesNodesPar,normalsAtNodes,u_buffer)
-
-           call this%computeQuality(minQ,maxQ)
-
-           write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
-
-           print*,iyoung + (num_young+1)*ipoisson,' -> ',  this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
-
-           u(:,:,2) = 0.0_rp
-         end do
-       end do
-       close(666)
+     integer(4),             intent(in)    :: npoin, ndime
+     real(rp),               intent(in)    :: coordinates(npoin,ndime)
+     real(rp), allocatable,  intent(inout) :: coord_input_safe(:,:) !npoin,ndime)
+     integer(4) :: inode
+     
+     !integer(4),             intent(in)    :: npoin, nboun,  bou_codes_nodes(npoin)
+     !real(rp), allocatable,  intent(inout) :: coord_input_safe(npoin,ndime)
+     !integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
+    
+!      print*,'Getting boundaries bc_type_non_slip_adiabatic, but could use any boundary tag.. '
+    
+     allocate(coord_input_safe(npoin,ndime))
+    
+     !$acc parallel loop  
+     do inode = 1,npoin
+       coord_input_safe(inode,:) = coordinates(inode,:)
+!         if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
+!            bcode = bou_codes_nodes(inode) ! Boundary element code
+!            if (bcode == bc_type_non_slip_adiabatic ) then ! non_slip wall adiabatic -> could be anything
+!               x_bou(inode,1) = 0.0_rp
+!               x_bou(inode,2) = 0.0_rp
+!               x_bou(inode,3) = 0.0_rp
+!            end if
+!         end if ! This guy
      end do
-     
-     this%nu_poisson = nu_safe
-     this%E_young = E_safe 
-     
-   end subroutine assessElasticityParameters
-   !
-   !
-   !
-   subroutine computeQuality(this,minQ,maxQ)
-     
-     use mod_mesh_quality, only: eval_ElemQuality
-     
-     class(MeshElasticitySolver), intent(inout) :: this
-     real(rp),intent(out)   :: minQ, maxQ
-     integer(4) :: ielem
-     real(8)    :: quality_vec(2)
+     !$acc end parallel loop
 
-     minQ = 1.0_rp
-     maxQ = 0.0_rp
-     do ielem = 1,numElemsRankPar
-       !
-       !numWorkingNodesRankPar or numNodesRankPar?
-       call eval_ElemQuality(size(connecParWork,2),ngaus,numNodesRankPar,numElemsRankPar,&
-         ielem,real(coordPar+u(:,:,2),8),connecParWork,real(dNgp,8),real(wgp,8),quality_vec)
-       !
-       minQ = min(minQ,real(quality_vec(1),rp))
-       maxQ = max(maxQ,real(quality_vec(1),rp))
-       !
-     end do
-!      print*,'Min q: ',minQ
-!      print*,'Max q: ',maxQ
-    !print*,' YoungPoissonMinMax ',this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
-    if(minQ<0) minQ = 0.0_rp
-!     open(unit=666, file="paramQual.txt", status="old", action="write")
-!     !open(unit=iunit, file="output.txt", status="old", action="write", iostat=i)
-!     write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
-!     close(666)
-     
-   end subroutine computeQuality
+  end subroutine save_input_coordinates
+  !
+  !
+  !
+  subroutine compute_straight_mesh(npoin,ndime,coords,nelem,nnode,connec,coord_input_safe)
+    implicit none
+
+    integer(4),  intent(in)    :: npoin, ndime, nelem, nnode
+    real(rp),    intent(inout) :: coords(npoin,ndime)
+    integer(4),  intent(in   ) :: connec(nelem,nnode)
+    real(rp),    intent(in   ) :: coord_input_safe(npoin,ndime)
+    integer(4) :: ielem, inode, idime
    
-   subroutine imposedDisplacement_elasticitySolverBuffer(this)
-      class(MeshElasticitySolver), intent(inout) :: this
-      integer(4) :: iNodeL, bcode
-      
-      real(rp) :: x0,x1,xpoin,ypoin,zpoin,pertx,perty,pertz,blend_bou
-      real(rp) :: factor_sincos
-      
-      factor_sincos = this%factor_deformation
-      print*,'factor_sincos: ',factor_sincos,' ---------------------------------------------------------'
-
-      x0=minval(coordPar(:,1)) !it is a cube: assumed!
-      x1=maxval(coordPar(:,1)) !it is a cube: assumed!
-
-      !$acc parallel loop
-      do iNodeL=1,numNodesRankPar
-        u_buffer(iNodeL,:) = 0.0_rp
-        
-        if(coordPar(iNodeL,3)<1e-14) then ! lower cube boundary, z=0
-          xpoin = coordPar(iNodeL,1)
-          ypoin = coordPar(iNodeL,2)
-          zpoin = coordPar(iNodeL,3)
+    !$acc parallel loop  
+    do ielem = 1,nelem
+      ! isoparametric mapping
+      do idime = 1,ndime
+        do inode = 1,nnode
           
-          pertx = (xpoin-x0)*(x1-xpoin)/((x1-x0)/2.0_rp)**2.0_rp
-          perty = (ypoin-x0)*(x1-ypoin)/((x1-x0)/2.0_rp)**2.0_rp
-          pertz = (pertx*perty)
-          u_buffer(iNodeL,3) = -pertz/25.0_rp     !quadratic displacement
-          
-          blend_bou = pertz**2.0_rp
-          
-          pertx =  sin(xpoin)
-          perty =  sin(ypoin)
-          pertz = (pertx*perty)
-          u_buffer(iNodeL,3) = -(pertz*blend_bou) *factor_sincos     !sinusoidal displacement
-        end if
-        
+        end do 
       end do
-      !$acc end parallel loop
+    end do
+    !$acc end parallel loop
+  end subroutine compute_straight_mesh
+  !
+  !
+  !
+  subroutine compute_displacement_straight_mesh(npoin,ndime,coords,coord_input_safe,imposed_displacement)
+    implicit none
+    !
+    integer(4),  intent(in)    :: npoin, ndime
+    real(rp),    intent(in   ) :: coords(npoin,ndime)
+    real(rp),    intent(in   ) :: coord_input_safe(npoin,ndime)
+    real(rp),allocatable, intent(inout) :: imposed_displacement(:,:)
+    integer(4) :: inode
+    !
+    is_imposed_displacement = .true.
+    allocate(imposed_displacement(npoin,ndime))
+    !$acc parallel loop
+    do inode = 1,npoin
+      imposed_displacement(inode,:) = coord_input_safe(inode,:)-coords(inode,:)
+    end do
+    !$acc end parallel loop
+    !
+  end subroutine compute_displacement_straight_mesh
+  !
+  !
+  !
+  subroutine assessElasticityParameters(this)
+    implicit none
+    class(MeshElasticitySolver), intent(inout) :: this
+   
+    integer(4) :: iyoung,ipoisson,num_young,num_poisson,ideformation
+    real(rp)   :: fact_young, fact_poisson, ini_young, ini_poisson, end_poisson
+    real(rp)   :: minQ,maxQ
+    character(len=2) :: str_name
+   
+    real(rp) :: E_safe, nu_safe
+   
+    nu_safe = this%nu_poisson
+    E_safe  = this%E_young
+   
+    !"E":10, "nu":0.4,
+    num_young   = 3!8
+    num_poisson = 3!10
+    ini_young   = 0.001_rp !0.0001_rp
+    fact_young  = 10.0_rp
+    ini_poisson = 0.1_rp ! 0.05_rp
+    end_poisson = 0.49_rp
+    fact_poisson= (end_poisson-ini_poisson)/num_poisson
+   
+    do ideformation=1,5
+      this%factor_deformation = real(ideformation,rp)!1.0_rp+real(ideformation,rp)
+     
+      this%factor_deformation = this%factor_deformation / porder
+     
+      print*,'this%factor_deformation: ',this%factor_deformation
+     
+      ! HERE WE CAN DO THE MESH MAGIC
+      call this%initialBuffer()
 
-   end subroutine imposedDisplacement_elasticitySolverBuffer
+      if (this%noBoundaries .eqv. .false.) then
+         call temporary_bc_routine_dirichlet_prim_meshElasticity(&
+           numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
+      end if
+     
+      write(str_name, '(I2)') ideformation 
+      open(unit=666, file="paramQual_"//TRIM(str_name)//'.txt', status="replace", action="write")
+      write(666,*) "      YOUNG            POISSON              MIN_Q             MAX_Q"
+      print*, "                      YOUNG            POISSON              MIN_Q             MAX_Q"
+      do ipoisson = 0,num_poisson
+        do iyoung = 0,num_young
+          this%nu_poisson = ini_poisson + fact_poisson*ipoisson
+          this%E_young    = ini_young * fact_young**iyoung
+          call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
+             numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
+             gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
+             this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
+             bouCodesNodesPar,normalsAtNodes,u_buffer)
 
+          call this%computeQuality(minQ,maxQ)
 
+          write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
+
+          print*,iyoung + (num_young+1)*ipoisson,' -> ',  this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
+
+          u(:,:,2) = 0.0_rp
+        end do
+      end do
+      close(666)
+    end do
+   
+    this%nu_poisson = nu_safe
+    this%E_young = E_safe 
+   
+  end subroutine assessElasticityParameters
+  !
+  !
+  !
+  subroutine computeQuality(this,minQ,maxQ)
+   
+    use mod_mesh_quality, only: eval_ElemQuality
+   
+    class(MeshElasticitySolver), intent(inout) :: this
+    real(rp),intent(out)   :: minQ, maxQ
+    integer(4) :: ielem
+    real(8)    :: quality_vec(2)
+
+    minQ = 1.0_rp
+    maxQ = 0.0_rp
+    do ielem = 1,numElemsRankPar
+      !
+      !numWorkingNodesRankPar or numNodesRankPar?
+      call eval_ElemQuality(size(connecParWork,2),ngaus,numNodesRankPar,numElemsRankPar,&
+        ielem,real(coordPar+u(:,:,2),8),connecParWork,real(dNgp,8),real(wgp,8),quality_vec)
+      !
+      minQ = min(minQ,real(quality_vec(1),rp))
+      maxQ = max(maxQ,real(quality_vec(1),rp))
+      !
+    end do
+    !      print*,'Min q: ',minQ
+    !      print*,'Max q: ',maxQ
+   !print*,' YoungPoissonMinMax ',this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
+   if(minQ<0) minQ = 0.0_rp
+   !     open(unit=666, file="paramQual.txt", status="old", action="write")
+   !     !open(unit=iunit, file="output.txt", status="old", action="write", iostat=i)
+   !     write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
+   !     close(666)
+   
+  end subroutine computeQuality
+  !
+  !
+  !
+  subroutine imposedDisplacement_elasticitySolverBuffer(this)
+     class(MeshElasticitySolver), intent(inout) :: this
+     !
+     integer(4) :: iNodeL, bcode
+     real(rp) :: x0,x1,xpoin,ypoin,zpoin,pertx,perty,pertz,blend_bou
+     real(rp) :: factor_sincos
+    
+     factor_sincos = this%factor_deformation
+     print*,'factor_sincos: ',factor_sincos,' ---------------------------------------------------------'
+
+     x0=minval(coordPar(:,1)) !it is a cube: assumed!
+     x1=maxval(coordPar(:,1)) !it is a cube: assumed!
+    
+     if(is_imposed_displacement) then
+       !$acc parallel loop
+       do iNodeL=1,numNodesRankPar
+         u_buffer(iNodeL,:) = imposed_displacement(iNodeL,:)
+       end do
+       !$acc end parallel loop
+     else
+       ! TOY ANALYTICA DISPLACEMENT 
+       !$acc parallel loop
+       do iNodeL=1,numNodesRankPar
+         u_buffer(iNodeL,:) = 0.0_rp
+      
+         if(coordPar(iNodeL,3)<1e-14) then ! lower cube boundary, z=0
+           xpoin = coordPar(iNodeL,1)
+           ypoin = coordPar(iNodeL,2)
+           zpoin = coordPar(iNodeL,3)
+        
+           pertx = (xpoin-x0)*(x1-xpoin)/((x1-x0)/2.0_rp)**2.0_rp
+           perty = (ypoin-x0)*(x1-ypoin)/((x1-x0)/2.0_rp)**2.0_rp
+           pertz = (pertx*perty)
+           u_buffer(iNodeL,3) = -pertz/25.0_rp     !quadratic displacement
+        
+           blend_bou = pertz**2.0_rp
+        
+           pertx =  sin(xpoin)
+           perty =  sin(ypoin)
+           pertz = (pertx*perty)
+           u_buffer(iNodeL,3) = -(pertz*blend_bou) *factor_sincos     !sinusoidal displacement
+         end if
+       end do
+       !$acc end parallel loop
+     end if
+
+  end subroutine imposedDisplacement_elasticitySolverBuffer
+  !
+  !
+  !
 end module MeshElasticitySolver_mod

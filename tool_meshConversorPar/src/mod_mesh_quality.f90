@@ -145,9 +145,9 @@ contains
             eta_cube = eta_cube + eta*eta*gpvolIdeal
             volume_cube = volume_cube + 1*1*gpvolIdeal
 
-            if(eta>100000) then
-                print*,igaus, ' ',eta
-            end if
+!             if(eta>100000) then
+!                 print*,igaus, ' ',eta
+!             end if
         end do
 
         eta_elem = sqrt(eta_elem)/sqrt(volume)
