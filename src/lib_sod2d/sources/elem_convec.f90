@@ -306,9 +306,9 @@ module elem_convec
                   gradIsoRho(:) = 0.0_rp
                   gradIsoP(:) = 0.0_rp
                   gradIsoE(:) = 0.0_rp
-                  gradIsoRE(:) = 0.0_rp   
+                  gradIsoRE(:) = 0.0_rp
                   gradIsok(:) = 0.0_rp
-                  gradIsoRk(:) = 0.0_rp              
+                  gradIsoRk(:) = 0.0_rp
                   gradIsoU(:,:) = 0.0_rp
                   gradIsoF(:,:,:) = 0.0_rp
                   gradIsoFuu(:,:,:) = 0.0_rp
@@ -448,14 +448,6 @@ module elem_convec
                !
                ! Final assembly
                !
-               !$acc loop vector collapse(2)
-               do idime = 1,ndime
-                  do inode = 1,nnode
-                     !$acc atomic update
-                     Rmom(ipoin(inode),idime) = Rmom(ipoin(inode),idime)+aux_fact*Re_mom(inode,idime)
-                     !$acc end atomic
-                  end do
-               end do
                !$acc loop vector
                do inode = 1,nnode
                   !$acc atomic update
@@ -464,6 +456,12 @@ module elem_convec
                   !$acc atomic update
                   Rener(ipoin(inode)) = Rener(ipoin(inode))+aux_fact*Re_ener(inode)
                   !$acc end atomic
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     !$acc atomic update
+                     Rmom(ipoin(inode),idime) = Rmom(ipoin(inode),idime)+aux_fact*Re_mom(inode,idime)
+                     !$acc end atomic
+                  end do
                end do
             end do
             !$acc end parallel loop
