@@ -1137,14 +1137,14 @@ contains
       integer(4), allocatable, intent(inout) :: listElemsFacesInRank(:,:),listFacesInRank(:)
       integer(8), allocatable, intent(inout) :: connecFacesInRank_i8(:,:)
 
-      integer(4) :: iFace,iFaceRank,iFaceG,iAuxFaceG,numFacesToRead,iElem,iVert,ind_gmsh,iElemL,iElemG,iAux,jAux,nodeCnt
+      integer(4) :: iFace,iFaceRank,iFaceG,iAuxFaceG,iElem,iVert,ind_gmsh,iElemL,iElemG,iAux,jAux,nodeCnt
       integer(8) :: iNodeG_inFace,iNodeG_inElem,iFaceNodes_i8(mnpbou)
       integer(8),allocatable :: auxFacesInChunk_i8(:,:),auxFacesInRank_i8(:,:),auxTemp_i8(:,:)
       logical :: vertexFound
 
       integer(4) :: numFaces2readInChunk,maxFaces2read=100000,face2sing=50,numFacesChunks
       integer(4) :: iFaceChunk
-      integer(4), allocatable :: vecFacesChunks(:),auxFaces2Read(:,:)
+      integer(4), allocatable :: vecFacesChunks(:)
 
       integer(4),allocatable :: arrayFacesInRank(:),arrayFacesLinkedInRank(:),arrayFacesLinkedTotal(:),matrixFacesLinkedTotal(:,:)
       integer(4) :: iMpiRank,factor_comms_mpi
@@ -1225,7 +1225,7 @@ contains
          ms_dims(2) = int(numFaces2readInChunk,hsize_t)
          allocate(auxFacesInChunk_i8(ms_dims(1)+2,ms_dims(2)))
          auxFacesInChunk_i8(:,:) = 0
-         !write(*,*) '[',mpi_rank,']FLAG1 alloc1',allocated(auxFacesInChunk_i8)
+
          call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err)
          call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
          call h5dread_f(dset_id,dtype,auxFacesInChunk_i8(1:mnpbou,1:numFaces2readInChunk),ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
@@ -1269,7 +1269,6 @@ contains
                   if(.not.(vertexFound)) exit fLoop
                end do fLoop
                if(nodeCnt.ge.4) then
-                  !numFacesLinkedInRank=numFacesLinkedInRank+1
                   numFacesLinkedInChunk=numFacesLinkedInChunk+1
                   !if(mpi_rank.eq.0) write(*,*) '[',mpi_rank,']iFace',iFace,'G',iFaceG,' -> elem ',iElemG
                   auxFacesInChunk_i8(mnpbou+1,iFace)=iFaceG
@@ -1302,90 +1301,20 @@ contains
 
          !deallocating faces read in chunk
          deallocate(auxFacesInChunk_i8)
-         !write(*,*) '[',mpi_rank,']FLAG4 alloc1',allocated(auxTemp_i8),'alloc2',allocated(auxFacesInRank_i8)
+
          call move_alloc(auxTemp_i8, auxFacesInRank_i8)
-         !write(*,*) '[',mpi_rank,']FLAG5 alloc1',allocated(auxTemp_i8),'alloc2',allocated(auxFacesInRank_i8)
 
          ms_offset(2) = ms_offset(2) + ms_dims(2)
       end do
 
       deallocate(vecFacesChunks)
-      !!!faces2readInChunk=numFacesSrl
-      !!!allocate(auxFacesInRank_i8(mnpbou+2,faces2readInChunk))
-      !!!do iFace=1,numFacesLinkedInRank
-      !!!   if(mpi_rank.eq.0) write(*,*) '[',mpi_rank,'](',iFace,')auxFIR"',auxFacesInRank_i8(mnpbou+1,iFace)
-      !!!end do
-      !!!ms_dims(2) = int(faces2readInChunk,hsize_t)
-
-      !!!call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
-      !!!call h5dread_f(dset_id,dtype,auxFacesInRank_i8(1:mnpbou,1:faces2readInChunk),ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
 
       call h5pclose_f(plist_id,h5err)
-      !!!call h5sclose_f(mspace_id,h5err)
       call h5sclose_f(fspace_id,h5err)
       call h5dclose_f(dset_id,h5err)
 
       end_time(1) = MPI_Wtime()
       elapsed_time(1) = end_time(1) - start_time(1)
-
-#if 0
-      numFacesLinkedInRank=0
-
-      !read the chunk
-      iChunk=0
-      do iFace=1,faces2readInChunk
-         if((mpi_rank.eq.0).and.(mod(iFace,face2sing).eq.0)) write(*,*) '  - iFace',iFace,'/',faces2readInChunk
-
-         iFaceG=iFace !REVISAR AIXO QUAN IMPLEMENTI ELS CHUNKS A FULL
-      !do iFace = 1,numFacesSrl
-         !ms_offset(2) = iFace-1
-         !call read_dataspace_int4_hyperslab_parallel(gmsh_h5_fileId,dsetname,ms_rank,ms_dims,ms_offset,iFaceNodes)
-         !-----------------------------------------------------
-         iFaceNodes_i8(:)=auxFacesInRank_i8(1:mnpbou,iFace)
-         !fill the corners of the face to check
-         do iVert=1,numQuadVert
-            ind_gmsh = gmshQuadVertInd(iVert) !gmsh2ij_vertices(iVert)
-            f_iNodeG_i8(iVert) = iFaceNodes_i8(ind_gmsh)
-         end do
-         !write(*,*) '[',mpi_rank,']iFace',iFace,' -> f_iNodeG ',f_iNodeG_i8(:)
-
-         !Search to which element this face belongs
-         elemLoop : do iElem=1,numBoundElemsInRank!numElemsInRank
-            nodeCnt=0
-            iElemL=listBoundElemsInRank(iElem)
-            iElemG=listElemsInRank(iElemL)
-            !fill the corners of the element
-            do iVert=1,numHexaVert
-               ind_gmsh = gmshHexVertInd(iVert)
-               e_iNodeG_i8(iVert) = connecInRank_i8(iElemL,ind_gmsh)
-            end do
-
-            fLoop: do iVert=1,numQuadVert
-               vertexFound=.false.
-               iNodeG_inFace = f_iNodeG_i8(iVert)
-               eLoop: do jAux=1,numHexaVert
-                  iNodeG_inElem = e_iNodeG_i8(jAux)
-                  if(iNodeG_inFace .eq. iNodeG_inElem) then
-                     nodeCnt=nodeCnt+1
-                     vertexFound=.true.
-                     exit eLoop
-                  end if
-               end do eLoop
-               if(.not.(vertexFound)) exit fLoop
-            end do fLoop
-            if(nodeCnt.ge.4) then
-               numFacesLinkedInRank=numFacesLinkedInRank+1
-               !write(*,*) '[',mpi_rank,']iFace',iFace,' -> elem ',iElemG
-               auxFacesInRank_i8(mnpbou+1,iFace)=iFaceG
-               auxFacesInRank_i8(mnpbou+2,iFace)=iElemL
-               exit elemLoop !only adding to first elem (in case inner face)
-            end if
-
-         end do elemLoop
-      end do
-
-
-#endif
       start_time(2) = MPI_Wtime()
 
       if(checkForDuplicatedLinkedFaces) then 
@@ -1577,12 +1506,10 @@ contains
             iElem                        = auxFacesInRank_i8(mnpbou+2,iFace)
             addLoop : do jAux = 1,maxBoundsPerElem
                if(listElemsFacesInRank(iElem,jAux).eq.0) then
-                  !if(mpi_rank.eq.0)write(*,*) '[',mpi_rank,'] adding iFace',iFace,'to elem',iElem,'iAux',iAux
                   listElemsFacesInRank(iElem,jAux) = iFaceG
                   exit addLoop
                end if
             end do addLoop
-
          end if
       end do
 
@@ -1594,8 +1521,8 @@ contains
       call MPI_Reduce(elapsed_time(1),elapsed_time_m(1),3,mpi_datatype_real8,MPI_MAX,0,app_comm,h5err)
 
       if(mpi_rank.eq.0) then
-         write(*,*) '     1.Bounds(readHDF5)',elapsed_time_m(1)
-         write(*,*) '     2.Bounds(linkElemAndFace)',elapsed_time_m(2)
+         write(*,*) '     1.Bounds(read&linking)',elapsed_time_m(1)
+         write(*,*) '     2.Bounds(checkDuplicated)',elapsed_time_m(2)
          write(*,*) '     3.Bounds(genListAndConn)',elapsed_time_m(3)
       end if
 
