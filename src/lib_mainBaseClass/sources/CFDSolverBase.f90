@@ -31,7 +31,8 @@ module mod_arrays
       real(rp), allocatable :: u_buffer(:,:), u_mapped(:,:)
 
       ! exponential average for wall law
-      real(rp), allocatable :: walave_u(:,:),walave_t(:)
+      real(rp), allocatable :: walave_u(:,:),walave_t(:),walave_pr(:)
+      integer(4), allocatable :: wmles_thinBL_fit_d(:) !impose a dirichlet non_slip
 
       ! roughness for wall law
       real(rp), allocatable :: zo(:)
@@ -1044,6 +1045,15 @@ end subroutine CFDSolverBase_findFixPressure
          walave_u(:,:) = 0.0_rp
          !$acc end kernels
 
+         if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then           
+            allocate(walave_pr(numNodesRankPar),wmles_thinBL_fit_d(numNodesRankPar))
+            !$acc enter data create(walave_pr(:),wmles_thinBL_fit_d(:))
+            !$acc kernels
+               walave_pr(:)          = 0.0_rp
+               wmles_thinBL_fit_d(:) = 0
+            !$acc end kernels
+         end if
+
          if(flag_use_species) then
             allocate(walave_t(numNodesRankPar))
             !$acc enter data create(walave_t(:))
@@ -1053,6 +1063,7 @@ end subroutine CFDSolverBase_findFixPressure
          end if
       else
          allocate(walave_u(0,0)) !dummy allocation
+         allocate(walave_pr(0)) !dummy allocation
          allocate(walave_t(0)) !dummy allocation
       end if
 
@@ -1770,7 +1781,7 @@ end subroutine CFDSolverBase_findFixPressure
          !
          call nvtxStartRange("Wall Average")
          if(flag_walave) then
-            !
+            !  
             ! outside acc kernels following pseudo_cfl in next loop
             !
             dtfact = this%dt/(this%dt+period_walave)
@@ -1778,6 +1789,12 @@ end subroutine CFDSolverBase_findFixPressure
             !$acc kernels
             walave_u(:,:) = dtfact*u(:,:,2) + avwei*walave_u(:,:)
             !$acc end kernels
+
+            if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then           
+               !$acc kernels
+                  walave_pr(:) = dtfact*pr(:,2) + avwei*walave_pr(:)
+               !$acc end kernels
+            end if
 
             if(flag_use_species) then
                !$acc kernels

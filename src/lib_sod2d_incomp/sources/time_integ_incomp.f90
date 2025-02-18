@@ -24,6 +24,8 @@ module time_integ_incomp
    real(rp), allocatable, dimension(:) :: auxReta, p_buffer, aux_p
    real(rp), allocatable, dimension(:)   :: beta, alpha
    real(rp) :: gamma0
+   logical :: firstTimeStep = .true.
+
 
    contains
    subroutine init_rk4_solver_incomp(npoin)
@@ -87,7 +89,7 @@ module time_integ_incomp
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,numBouCodes,bouCodes2BCType,&               ! Optional args
-                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u,zo)  ! Optional args
+                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u,walave_pr,wmles_thinBL_fit_d,zo)  ! Optional args
 
             implicit none
 
@@ -136,8 +138,9 @@ module time_integ_incomp
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
             real(rp), optional, intent(in)      :: source_term(npoin,ndime)
-            real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
+            real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_pr(npoin)
             real(rp), optional, intent(in)      :: zo(npoin)
+            integer(4), optional, intent(in)    :: wmles_thinBL_fit_d(npoin)
             integer(4)                          :: istep,ipoin,idime,icode,iPer,ipoin_w
 
             call nvtxStartRange("AB2 init")
@@ -174,6 +177,25 @@ module time_integ_incomp
                aux_omega(:,:,1) = 0.0_rp
                !$acc end kernels
 
+               
+               
+               if(flag_type_wmles == wmles_type_reichardt) then
+                  call evalEXAtFace(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                     bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+               else if (flag_type_wmles == wmles_type_abl) then
+                  call evalEXAtFace(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                     bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+               else if (flag_type_wmles == wmles_type_reichardt_hwm) then
+                  call evalEXAtHWM(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                     bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+               else if (flag_type_wmles == wmles_type_thinBL_fit) then
+                  call evalEXAtFace(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                     bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+               else if (flag_type_wmles == wmles_type_thinBL_fit_hwm) then
+                  call evalEXAtHWM(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+               end if   
+
             else 
                if(iltime .eq. 2) then
                   gamma0 = 3.0_rp/2.0_rp
@@ -197,6 +219,7 @@ module time_integ_incomp
                   !$acc update device(beta(:))              
                end if
             end if
+            
             call nvtxEndRange
 
             if (noBoundaries .eqv. .false.) then
@@ -227,7 +250,7 @@ module time_integ_incomp
                      !$acc kernels
                      Rwmles(1:npoin,1:ndime) = 0.0_rp
                      !$acc end kernels
-                     if(flag_type_wmles == wmles_type_reichardt) then
+                     if((flag_type_wmles == wmles_type_reichardt) .or. (flag_type_wmles == wmles_type_reichardt_hwm)) then
                         call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                            bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
                            rho(:,1),walave_u(:,:),tauw,Rwmles)
@@ -235,11 +258,12 @@ module time_integ_incomp
                         call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                            bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
                            rho(:,1),walave_u(:,:),zo,tauw,Rwmles)
-                     else if (flag_type_wmles == wmles_type_reichardt_hwm) then
-                        call evalWallModelReichardtFindHWM(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                     else if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then
+                        call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,walave_pr(:),gradP,.true.)
+                        call evalWallModelThinBLFit(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                            bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
-                           rho(:,1),walave_u(:,:),tauw,Rwmles)
-                     end if  
+                           rho(:,1),walave_u(:,:),gradP,tauw,wmles_thinBL_fit_d,Rwmles)
+                     end if
                   end if
                   call nvtxEndRange
           
@@ -296,7 +320,7 @@ module time_integ_incomp
 
             if (noBoundaries .eqv. .false.) then
                if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet_incomp(u(:,:,2))
-               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer) 
+               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer,wmles_thinBL_fit_d) 
             end if
             if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
 
@@ -349,16 +373,16 @@ module time_integ_incomp
                         
             if (noBoundaries .eqv. .false.) then
                if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet_incomp(u(:,:,2))
-               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer) 
+               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer,wmles_thinBL_fit_d) 
             end if
 
             call conjGrad_veloc_incomp(igtime,1.0_rp/gamma0,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
                                        gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,mu_fluid,mu_e,mu_sgs,u(:,:,1),u(:,:,2),&
-                                       bou_codes_nodes,normalsAtNodes,u_buffer)
+                                       bou_codes_nodes,normalsAtNodes,u_buffer,wmles_thinBL_fit_d)
 
             if (noBoundaries .eqv. .false.) then
                if(isMappedFaces.and.isMeshPeriodic) call copy_periodicNodes_for_mappedInlet_incomp(u(:,:,2))
-               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer)
+               call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer,wmles_thinBL_fit_d)
                !$acc kernels
                aux_omega(:,:,3) = aux_omega(:,:,1)
                aux_omega(:,:,1) = aux_omega(:,:,2)

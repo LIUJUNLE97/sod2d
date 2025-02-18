@@ -27,7 +27,7 @@ module elem_stab_incomp
              real(rp)                :: gradIsoU(ndime,ndime)
              real(rp)                :: divDm(ndime)
              real(rp)                :: ul(nnode,ndime)
-             real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
+             real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime),tau(ndime,ndime)
              real(rp)                :: gradRhol(nnode,ndime),taupxl(nnode,ndime),taupyl(nnode,ndime),taupzl(nnode,ndime),taustabl
 
              call nvtxStartRange("Full diffusion")
@@ -49,9 +49,9 @@ module elem_stab_incomp
                 tauYl(:,:) = 0.0_rp
                 tauZl(:,:) = 0.0_rp
 
-                taustabl = 0.1_rp*tau_stab(ielem)
+                taustabl = tau_stab(ielem)
 
-                !$acc loop vector private(gradU,gradIsoU)
+                !$acc loop vector private(gradU,gradIsoU,tau)
                 do igaus = 1,ngaus
 
                    isoI = gmshAtoI(igaus) 
@@ -83,9 +83,17 @@ module elem_stab_incomp
 
                    !$acc loop seq
                    do idime = 1,ndime
-                      tauXl(igaus,idime) =  taustabl*(taupxl(igaus,idime)-gradU(1,idime))
-                      tauYl(igaus,idime) =  taustabl*(taupyl(igaus,idime)-gradU(2,idime))
-                      tauZl(igaus,idime) =  taustabl*(taupzl(igaus,idime)-gradU(3,idime))
+                     !$acc loop seq
+                     do jdime = 1,ndime
+                          tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
+                     end do
+                  end do
+
+                   !$acc loop seq
+                   do idime = 1,ndime
+                      tauXl(igaus,idime) =  taustabl*(taupxl(igaus,idime)-tau(1,idime))
+                      tauYl(igaus,idime) =  taustabl*(taupyl(igaus,idime)-tau(2,idime))
+                      tauZl(igaus,idime) =  taustabl*(taupzl(igaus,idime)-tau(3,idime))
                    end do
                 end do
 

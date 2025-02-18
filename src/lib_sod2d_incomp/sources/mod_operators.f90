@@ -298,7 +298,7 @@ module mod_operators
       integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
       integer(4)              :: ipoin(nnode)
       real(rp)                :: gradU(ndime,ndime), tmp1,vol,arho
-      real(rp)                :: gradIsoU(ndime,ndime)
+      real(rp)                :: gradIsoU(ndime,ndime),tau(ndime,ndime)
       real(rp)                :: divDm(ndime)
       real(rp)                :: ul(nnode,ndime)
       real(rp)                :: gradRhol(nnode,ndime)
@@ -321,7 +321,7 @@ module mod_operators
             end do
          end do
 
-         !$acc loop vector private(gradU,gradIsoU)
+         !$acc loop vector private(gradU,gradIsoU,tau)
          do igaus = 1,ngaus
 
             isoI = gmshAtoI(igaus) 
@@ -353,14 +353,22 @@ module mod_operators
 
             !$acc loop seq
             do idime = 1,ndime
+               !$acc loop seq
+               do jdime = 1,ndime
+                    tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
+               end do
+            end do
+
+            !$acc loop seq
+            do idime = 1,ndime
                !$acc atomic update
-               GradX(ipoin(igaus),idime) = GradX(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*gradU(1,idime)
+               GradX(ipoin(igaus),idime) = GradX(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*tau(1,idime)
                !$acc end atomic
                !$acc atomic update
-               GradY(ipoin(igaus),idime) = GradY(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*gradU(2,idime)
+               GradY(ipoin(igaus),idime) = GradY(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*tau(2,idime)
                !$acc end atomic
                !$acc atomic update
-               GradZ(ipoin(igaus),idime) = GradZ(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*gradU(3,idime)
+               GradZ(ipoin(igaus),idime) = GradZ(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*tau(3,idime)
                !$acc end atomic
             end do
          end do
