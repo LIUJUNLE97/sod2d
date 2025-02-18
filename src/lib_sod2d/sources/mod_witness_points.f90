@@ -33,7 +33,7 @@ module mod_witness_points
          close(99)
       end subroutine read_points
 
-      subroutine isocoords(elpoints, wit, atoIJK, xi_rp, isinside, Niwit, helem)
+      subroutine isocoords(elpoints, wit, atoIJK, xi_rp, isinside, Niwit, helem_ielem)
          !
          ! Subroutine which computes the isoparametric coordinates of a point in an HEX64 element.
          ! If any of them is outside the bounds of -1 and 1 it means that the point is outside of the element.
