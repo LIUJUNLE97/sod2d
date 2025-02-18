@@ -187,7 +187,9 @@ contains
     !call this%assessElasticityParameters()
     !
     !
-    if(.true.) then ! do_curveFromPrescribedDisplacement
+    if(.false.) then ! do_curveFromPrescribedDisplacement
+      print*,'curving mesh now with analytical boun, to straighten it later and curve it again ... :-)'
+      print*,'once it works, test in real testcases'
       !
       call this%initialBuffer()
 
@@ -199,6 +201,7 @@ contains
       !
       print*,'Quality before elasticity'
       call this%computeQuality(minQ,maxQ)
+      print*,'    minQ: ',minQ
       !
       call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
          numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
@@ -214,30 +217,36 @@ contains
     end if
     !
     if(.true.) then ! do_curveInteriorMesh
-      print*,'Input curved mesh quality'
+      print*,'1- Input curved mesh quality'
       call this%computeQuality(minQ,maxQ)
-      print*,'Save input (boundary curved) coordinates'
+      print*,'2- Save input (boundary curved) coordinates'
       call save_input_coordinates(numNodesRankPar,ndime,coordPar,this%coord_input_safe)
-      print*,'Straighten mesh (coordpar)'
+      print*,'3- Straighten mesh (coordpar)'
       call compute_straight_mesh(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,this%coord_input_safe)
-      print*,'Compute displacement of the boundary'
-      call compute_displacement_straight_mesh(numNodesRankPar,ndime,coordPar,this%coord_input_safe,this%imposed_displacement)
-      print*,'Impose elasticity boundary conditions'
-      call this%initialBuffer(this%imposed_displacement)
+      print*,'   Quality after elasticity-based curved mesh'
+      call this%computeQuality(minQ,maxQ)
+      print*,'       minQ: ',minQ,'    maxQ: ',maxQ,' ---> should be all one?!?!?'
+      print*,'  ';print*,'  ';
+      print*,'4- Compute displacement of the boundary'
+      call compute_displacement_straight_mesh(numNodesRankPar,ndime,coordPar,this%coord_input_safe,&
+        this%is_imposed_displacement,this%imposed_displacement)
+      print*,'5- Impose elasticity boundary conditions'
+      call this%initialBuffer()
       if (this%noBoundaries .eqv. .false.) then
          call temporary_bc_routine_dirichlet_prim_meshElasticity(&
            numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
       end if
-      print*,'Call conjGrad_meshElasticity to compute displacements with linear elasticity'
-      !        call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
-      !           numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
-      !           gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
-      !           this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
-      !           bouCodesNodesPar,normalsAtNodes,u_buffer)
-      print*,'Compute quality???'
+      print*,'6- Call conjGrad_meshElasticity to compute displacements with linear elasticity'
+      call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
+         numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
+         gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
+         this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
+         bouCodesNodesPar,normalsAtNodes,u_buffer)
+      !
       coordPar = coordPar+u(:,:,2)
-      print*,'Quality after elasticity-based curved mesh'
+      print*,'   Quality after elasticity-based curved mesh'
       call this%computeQuality(minQ,maxQ)
+      print*,'       minQ: ',minQ,'    maxQ: ',maxQ
     end if
     !
     call this%saveInstResultsFiles(1)    
@@ -324,34 +333,76 @@ contains
   !
   !
   subroutine compute_straight_mesh(npoin,ndime,coords,nelem,nnode,connec,coord_input_safe)
+!     use mod_maths!, only:
+    use mod_arrays, only:  xgp ! high-order nodes
     implicit none
 
     integer(4),  intent(in)    :: npoin, ndime, nelem, nnode
     real(rp),    intent(inout) :: coords(npoin,ndime)
     integer(4),  intent(in   ) :: connec(nelem,nnode)
     real(rp),    intent(in   ) :: coord_input_safe(npoin,ndime)
-    integer(4) :: ielem, inode, idime
-   
+    integer(4) :: ielem, inode, idime,i,j,k,id_vertex,theNode,theVertex
+    
+    real(rp) :: Nx,Ny,Nz,N(nnode,8),xnode_lin(3),minus_plus_one(2)
+    
+    ! isoparametric mapping: construct linear shape functions
+    minus_plus_one(1) = -1.0_rp
+    minus_plus_one(2) =  1.0_rp
+    id_vertex = 0
+    do inode = 1,nnode !->eval linear shape functions on master coordinate "inode" of the high-order elem
+      ! compute shape function of linear element
+      do k=1,2
+        Nz = ( 1.0_rp + (minus_plus_one(k) *xgp(inode,3)) )/2.0_rp
+        do j=1,2
+          Ny = ( 1.0_rp + (minus_plus_one(j) *xgp(inode,2)) )/2.0_rp
+          do i=1,2
+            Nx = ( 1.0_rp + (minus_plus_one(i) *xgp(inode,1)) )/2.0_rp
+            
+            ! eval shape fun on master coordinates xgp
+            id_vertex = invAtoIJK(i,j,k)
+            N(inode,id_vertex) = Nx*Ny*Nz
+          
+          end do !i
+        end do !j
+      end do !k
+    end do !inode
+    
     !$acc parallel loop  
     do ielem = 1,nelem
-      ! isoparametric mapping
-      do idime = 1,ndime
-        do inode = 1,nnode
-          
-        end do 
-      end do
-    end do
+      do inode = 1,nnode
+        !for each element and node, we now compute the straight position
+      
+        theNode = connec(ielem,inode)
+        coords(theNode,:) = 0.0_rp
+        
+        do id_vertex=1,8
+          theVertex = connec(ielem,id_vertex)
+          xnode_lin = coord_input_safe(theVertex,:)
+        
+          do idime =1,3
+            coords(theNode,idime) = coords(theNode,idime) + xnode_lin(idime)*N(inode,id_vertex)
+          end do !idime
+        end do
+
+!         print*,'theNode:',theNode,'   ielem: ',ielem,' inode: ',inode
+!         print*,coords(theNode,:)
+!         print*,coord_input_safe(theNode,:)
+        
+      end do!inode
+    end do!ielem
     !$acc end parallel loop
+    !
   end subroutine compute_straight_mesh
   !
   !
   !
-  subroutine compute_displacement_straight_mesh(npoin,ndime,coords,coord_input_safe,imposed_displacement)
+  subroutine compute_displacement_straight_mesh(npoin,ndime,coords,coord_input_safe,is_imposed_displacement,imposed_displacement)
     implicit none
     !
     integer(4),  intent(in)    :: npoin, ndime
     real(rp),    intent(in   ) :: coords(npoin,ndime)
     real(rp),    intent(in   ) :: coord_input_safe(npoin,ndime)
+    logical, intent(inout) :: is_imposed_displacement
     real(rp),allocatable, intent(inout) :: imposed_displacement(:,:)
     integer(4) :: inode
     !
@@ -459,65 +510,70 @@ contains
       maxQ = max(maxQ,real(quality_vec(1),rp))
       !
     end do
-    !      print*,'Min q: ',minQ
-    !      print*,'Max q: ',maxQ
-   !print*,' YoungPoissonMinMax ',this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
-   if(minQ<0) minQ = 0.0_rp
-   !     open(unit=666, file="paramQual.txt", status="old", action="write")
-   !     !open(unit=iunit, file="output.txt", status="old", action="write", iostat=i)
-   !     write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
-   !     close(666)
+    !print*,'Min q: ',minQ
+    !print*,'Max q: ',maxQ
+    !print*,' YoungPoissonMinMax ',this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
+    if(minQ<0) minQ = 0.0_rp
+    !     open(unit=666, file="paramQual.txt", status="old", action="write")
+    !     !open(unit=iunit, file="output.txt", status="old", action="write", iostat=i)
+    !     write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
+    !     close(666)
    
   end subroutine computeQuality
   !
   !
   !
   subroutine imposedDisplacement_elasticitySolverBuffer(this)
-     class(MeshElasticitySolver), intent(inout) :: this
-     !
-     integer(4) :: iNodeL, bcode
-     real(rp) :: x0,x1,xpoin,ypoin,zpoin,pertx,perty,pertz,blend_bou
-     real(rp) :: factor_sincos
-    
-     factor_sincos = this%factor_deformation
-     print*,'factor_sincos: ',factor_sincos,' ---------------------------------------------------------'
+    !
+    class(MeshElasticitySolver), intent(inout) :: this
+    !
+    integer(4) :: iNodeL, bcode
+    real(rp) :: x0,x1,xpoin,ypoin,zpoin,pertx,perty,pertz,blend_bou
+    real(rp) :: factor_sincos
+    !
+    if(this%is_imposed_displacement) then
+      !
+      !$acc parallel loop
+      do iNodeL=1,numNodesRankPar
+        u_buffer(iNodeL,:) = this%imposed_displacement(iNodeL,:)
+      end do
+      !$acc end parallel loop
+      ! 
+    else
+      !
+      factor_sincos = this%factor_deformation
+      print*,'factor_sincos: ',factor_sincos,' ---------------------------------------------------------'
 
-     x0=minval(coordPar(:,1)) !it is a cube: assumed!
-     x1=maxval(coordPar(:,1)) !it is a cube: assumed!
-    
-     if(is_imposed_displacement) then
-       !$acc parallel loop
-       do iNodeL=1,numNodesRankPar
-         u_buffer(iNodeL,:) = imposed_displacement(iNodeL,:)
-       end do
-       !$acc end parallel loop
-     else
-       ! TOY ANALYTICA DISPLACEMENT 
-       !$acc parallel loop
-       do iNodeL=1,numNodesRankPar
-         u_buffer(iNodeL,:) = 0.0_rp
+      x0=minval(coordPar(:,1)) !it is a cube: assumed!
+      x1=maxval(coordPar(:,1)) !it is a cube: assumed!
       
-         if(coordPar(iNodeL,3)<1e-14) then ! lower cube boundary, z=0
-           xpoin = coordPar(iNodeL,1)
-           ypoin = coordPar(iNodeL,2)
-           zpoin = coordPar(iNodeL,3)
-        
-           pertx = (xpoin-x0)*(x1-xpoin)/((x1-x0)/2.0_rp)**2.0_rp
-           perty = (ypoin-x0)*(x1-ypoin)/((x1-x0)/2.0_rp)**2.0_rp
-           pertz = (pertx*perty)
-           u_buffer(iNodeL,3) = -pertz/25.0_rp     !quadratic displacement
-        
-           blend_bou = pertz**2.0_rp
-        
-           pertx =  sin(xpoin)
-           perty =  sin(ypoin)
-           pertz = (pertx*perty)
-           u_buffer(iNodeL,3) = -(pertz*blend_bou) *factor_sincos     !sinusoidal displacement
-         end if
-       end do
-       !$acc end parallel loop
-     end if
-
+      ! TOY ANALYTICA DISPLACEMENT 
+      !$acc parallel loop
+      do iNodeL=1,numNodesRankPar
+        u_buffer(iNodeL,:) = 0.0_rp
+     
+        if(coordPar(iNodeL,3)<1e-14) then ! lower cube boundary, z=0
+          xpoin = coordPar(iNodeL,1)
+          ypoin = coordPar(iNodeL,2)
+          zpoin = coordPar(iNodeL,3)
+       
+          pertx = (xpoin-x0)*(x1-xpoin)/((x1-x0)/2.0_rp)**2.0_rp
+          perty = (ypoin-x0)*(x1-ypoin)/((x1-x0)/2.0_rp)**2.0_rp
+          pertz = (pertx*perty)
+          u_buffer(iNodeL,3) = -pertz/25.0_rp     !quadratic displacement
+       
+          blend_bou = pertz**2.0_rp
+       
+          pertx =  sin(xpoin)
+          perty =  sin(ypoin)
+          pertz = (pertx*perty)
+          u_buffer(iNodeL,3) = -(pertz*blend_bou) *factor_sincos     !sinusoidal displacement
+        end if
+      end do
+      !$acc end parallel loop
+      ! 
+    end if
+    !
   end subroutine imposedDisplacement_elasticitySolverBuffer
   !
   !
