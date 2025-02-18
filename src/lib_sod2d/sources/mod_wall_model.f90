@@ -552,9 +552,9 @@ contains
             Re_fit = k4*( Re_ex**(Beta1) )*( (1.0_rp+(k3*Re_ex)**(-Beta2))**((Beta1-0.5_rp)/Beta2) )
 
 
-            if(gradPproj .lt. 0.0_rp) then
+            if(phiP .lt. 0.0_rp) then
                Re_min = 1.5_rp*((-phiP)**0.39_rp)*(1.0_rp + (1000.0_rp/(-phiP))**2.0_rp)**(-0.055_rp)
-               p_aux = 2.5_rp - 0.6_rp*(1.0_rp + tanh(2.0*(log(-phiP)-6.0_rp)))
+               p_aux = 2.5_rp - 0.6_rp*(1.0_rp + tanh(2.0_rp*(log(-phiP)-6.0_rp)))
                Re_out = ( Re_min**p_aux  + Re_fit**p_aux )**(1.0_rp/p_aux)
             else
                Re_min = 2.5_rp*((phiP)**0.54_rp)*(1.0_rp + (30.0_rp/(phiP))**0.5_rp)**(-0.88_rp)

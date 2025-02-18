@@ -246,6 +246,9 @@ module time_integ_incomp
                   
             if((isWallModelOn) ) then
                   call nvtxStartRange("AB2 wall model")
+                  if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then
+                     call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,walave_pr(:),gradP,.true.)
+                  end if
                   if((numBoundsWM .ne. 0)) then
                      !$acc kernels
                      Rwmles(1:npoin,1:ndime) = 0.0_rp
@@ -259,7 +262,6 @@ module time_integ_incomp
                            bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
                            rho(:,1),walave_u(:,:),zo,tauw,Rwmles)
                      else if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then
-                        call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,walave_pr(:),gradP,.true.)
                         call evalWallModelThinBLFit(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                            bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
                            rho(:,1),walave_u(:,:),gradP,tauw,wmles_thinBL_fit_d,Rwmles)
