@@ -18,161 +18,160 @@ contains
    subroutine evalEXAtFace(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_code, &
       bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
 
-   implicit none
+      implicit none
 
-   integer(4), intent(in)  :: numBoundsWM,listBoundsWM(numBoundsWM)
-   integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun)
-   integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin)
-   real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
-   integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-   real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)
-   real(rp),   intent(in)  :: coord(npoin,ndime), gpvol(1,ngaus,nelem)
-   real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), tau(ndime,ndime), divU
-   integer(4)              :: iBound,iElem,idime,igaus,iAux
-   real(rp)                :: bnorm(npbou*ndime),rhol,tmag
-   real(rp)                :: aux(ndime)
-   ! wall law stuff
-   real(rp)                :: y,ul,nul,uistar,tvelo(ndime),uiex(ndime),auxmag,auxvn,surf
-   integer(4)              :: itera,isoI,isoJ,isoK,jgaus,type_ijk,ii,isoII,isoJJ,isoKK
-   real(rp)                :: xmuit,fdvfr,devfr,point(ndime),pointF(ndime),normalF(ndime)
-   real(rp)                :: vkinv,diffd,parco,yplus,onovu,yplu2
-   real(rp)                :: ypele,expye,expyt,oneoe,firsl,ypel2
-   real(rp)                :: pplus,densi,gradp,grpr2,py,sq,inv,ln4,uplus,vol
-   real(rp)                :: ux,uy,uz,px,pz
-   integer(4)              :: atoIJ(npbou)
-   real(rp)  :: aux_fact = 1.0_rp
+      integer(4), intent(in)  :: numBoundsWM,listBoundsWM(numBoundsWM)
+      integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun)
+      integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin)
+      real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
+      integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+      real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)
+      real(rp),   intent(in)  :: coord(npoin,ndime), gpvol(1,ngaus,nelem)
+      real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), tau(ndime,ndime), divU
+      integer(4)              :: iBound,iElem,idime,igaus,iAux
+      real(rp)                :: bnorm(npbou*ndime),rhol,tmag
+      real(rp)                :: aux(ndime)
+      ! wall law stuff
+      real(rp)                :: y,ul,nul,uistar,tvelo(ndime),uiex(ndime),auxmag,auxvn,surf
+      integer(4)              :: itera,isoI,isoJ,isoK,jgaus,type_ijk,ii,isoII,isoJJ,isoKK
+      real(rp)                :: xmuit,fdvfr,devfr,point(ndime),pointF(ndime),normalF(ndime)
+      real(rp)                :: vkinv,diffd,parco,yplus,onovu,yplu2
+      real(rp)                :: ypele,expye,expyt,oneoe,firsl,ypel2
+      real(rp)                :: pplus,densi,gradp,grpr2,py,sq,inv,ln4,uplus,vol
+      real(rp)                :: ux,uy,uz,px,pz
+      integer(4)              :: atoIJ(npbou)
+      real(rp)  :: aux_fact = 1.0_rp
 
-   atoIJ(:) = mesh_a2ij(:)
+      atoIJ(:) = mesh_a2ij(:)
 
-   allocate(iex(nelem,nnode),extype(nelem,nnode))
-   !$acc enter data create(iex(:,:))
-   !$acc enter data create(extype(:,:))
+      allocate(iex(nelem,nnode),extype(nelem,nnode))
+      !$acc enter data create(iex(:,:))
+      !$acc enter data create(extype(:,:))
 
-   !$acc parallel loop gang 
-   do iAux = 1,numBoundsWM
-      iBound = listBoundsWM(iAux)
-      iElem = point2elem(bound(iBound,atoIJ(npbou))) ! I use an internal face node to be sure is the correct element
+      !$acc parallel loop gang 
+      do iAux = 1,numBoundsWM
+         iBound = listBoundsWM(iAux)
+         iElem = point2elem(bound(iBound,atoIJ(npbou))) ! I use an internal face node to be sure is the correct element
 
-      !$acc loop vector
-      do igaus = 1,npbou
+         !$acc loop vector
+         do igaus = 1,npbou
 
-         jgaus = minloc(abs(connec(iElem,:)-bound(iBound,atoIJ(npbou))),1)
+            jgaus = minloc(abs(connec(iElem,:)-bound(iBound,atoIJ(npbou))),1)
 
-         isoI = gmshAtoI(jgaus) 
-         isoJ = gmshAtoJ(jgaus) 
-         isoK = gmshAtoK(jgaus)
-         type_ijk = 0
-         if((isoI .eq. 1) .or. (isoI .eq. 2)) then
-            type_ijk = 1
-            if(isoI .eq. 1) then
-               isoI = 2
+            isoI = gmshAtoI(jgaus) 
+            isoJ = gmshAtoJ(jgaus) 
+            isoK = gmshAtoK(jgaus)
+            type_ijk = 0
+            if((isoI .eq. 1) .or. (isoI .eq. 2)) then
+               type_ijk = 1
+               if(isoI .eq. 1) then
+                  isoI = 2
+               else
+                  isoI = 1
+               end if
+               iex(ielem,igaus) = isoI
+            else if ((isoJ .eq. 1) .or. (isoJ .eq. 2)) then
+               type_ijk = 2
+               if(isoJ .eq. 1) then
+                  isoJ = 2
+               else
+                  isoJ = 1
+               end if            
+               iex(ielem,igaus) = isoJ
             else
-               isoI = 1
-            end if
-            iex(ielem,igaus) = isoI
-         else if ((isoJ .eq. 1) .or. (isoJ .eq. 2)) then
-            type_ijk = 2
-            if(isoJ .eq. 1) then
-               isoJ = 2
-            else
-               isoJ = 1
-            end if            
-            iex(ielem,igaus) = isoJ
-         else
-            type_ijk = 3
-            if(isoK .eq. 1) then
-               isoK = 2
-            else
-               isoK = 1
-            end if 
-            iex(ielem,igaus) = isoK           
-         end if     
-         extype(ielem,igaus) = type_ijk
+               type_ijk = 3
+               if(isoK .eq. 1) then
+                  isoK = 2
+               else
+                  isoK = 1
+               end if 
+               iex(ielem,igaus) = isoK           
+            end if     
+            extype(ielem,igaus) = type_ijk
+         end do
       end do
-   end do
-   !$acc end parallel loop
+      !$acc end parallel loop
 
    end subroutine evalEXAtFace
 
    subroutine evalEXAt1OffNode(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_code, &
       bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
 
-   implicit none
+      implicit none
 
-   integer(4), intent(in)  :: numBoundsWM,listBoundsWM(numBoundsWM)
-   integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun)
-   integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin)
-   real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
-   integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-   real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)
-   real(rp),   intent(in)  :: coord(npoin,ndime), gpvol(1,ngaus,nelem)
-   real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), tau(ndime,ndime), divU
-   integer(4)              :: iBound,iElem,idime,igaus,iAux
-   real(rp)                :: bnorm(npbou*ndime),rhol,tmag
-   real(rp)                :: aux(ndime)
-   ! wall law stuff
-   real(rp)                :: y,ul,nul,uistar,tvelo(ndime),uiex(ndime),auxmag,auxvn,surf
-   integer(4)              :: itera,isoI,isoJ,isoK,jgaus,type_ijk,ii,isoII,isoJJ,isoKK
-   real(rp)                :: xmuit,fdvfr,devfr,point(ndime),pointF(ndime),normalF(ndime)
-   real(rp)                :: vkinv,diffd,parco,yplus,onovu,yplu2
-   real(rp)                :: ypele,expye,expyt,oneoe,firsl,ypel2
-   real(rp)                :: pplus,densi,gradp,grpr2,py,sq,inv,ln4,uplus,vol
-   real(rp)                :: ux,uy,uz,px,pz
-   integer(4)              :: atoIJ(npbou)
-   real(rp)  :: aux_fact = 1.0_rp
+      integer(4), intent(in)  :: numBoundsWM,listBoundsWM(numBoundsWM)
+      integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun)
+      integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin)
+      real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
+      integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+      real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)
+      real(rp),   intent(in)  :: coord(npoin,ndime), gpvol(1,ngaus,nelem)
+      real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), tau(ndime,ndime), divU
+      integer(4)              :: iBound,iElem,idime,igaus,iAux
+      real(rp)                :: bnorm(npbou*ndime),rhol,tmag
+      real(rp)                :: aux(ndime)
+      ! wall law stuff
+      real(rp)                :: y,ul,nul,uistar,tvelo(ndime),uiex(ndime),auxmag,auxvn,surf
+      integer(4)              :: itera,isoI,isoJ,isoK,jgaus,type_ijk,ii,isoII,isoJJ,isoKK
+      real(rp)                :: xmuit,fdvfr,devfr,point(ndime),pointF(ndime),normalF(ndime)
+      real(rp)                :: vkinv,diffd,parco,yplus,onovu,yplu2
+      real(rp)                :: ypele,expye,expyt,oneoe,firsl,ypel2
+      real(rp)                :: pplus,densi,gradp,grpr2,py,sq,inv,ln4,uplus,vol
+      real(rp)                :: ux,uy,uz,px,pz
+      integer(4)              :: atoIJ(npbou)
+      real(rp)  :: aux_fact = 1.0_rp
 
-   atoIJ(:) = mesh_a2ij(:)
+      atoIJ(:) = mesh_a2ij(:)
 
-   allocate(iex(nelem,nnode),extype(nelem,nnode))
-   !$acc enter data create(iex(:,:))
-   !$acc enter data create(extype(:,:))
+      allocate(iex(nelem,nnode),extype(nelem,nnode))
+      !$acc enter data create(iex(:,:))
+      !$acc enter data create(extype(:,:))
 
-   !$acc parallel loop gang 
-   do iAux = 1,numBoundsWM
-      iBound = listBoundsWM(iAux)
-      iElem = point2elem(bound(iBound,atoIJ(npbou))) ! I use an internal face node to be sure is the correct element
+      !$acc parallel loop gang 
+      do iAux = 1,numBoundsWM
+         iBound = listBoundsWM(iAux)
+         iElem = point2elem(bound(iBound,atoIJ(npbou))) ! I use an internal face node to be sure is the correct element
 
-      !$acc loop vector
-      do igaus = 1,npbou
+         !$acc loop vector
+         do igaus = 1,npbou
 
-         jgaus = minloc(abs(connec(iElem,:)-bound(iBound,atoIJ(npbou))),1)
+            jgaus = minloc(abs(connec(iElem,:)-bound(iBound,atoIJ(npbou))),1)
 
-         isoI = gmshAtoI(jgaus) 
-         isoJ = gmshAtoJ(jgaus) 
-         isoK = gmshAtoK(jgaus)
-         type_ijk = 0
-         if((isoI .eq. 1) .or. (isoI .eq. 2)) then
-            type_ijk = 1
-            if(isoI .eq. 1) then
-               isoI = 3
+            isoI = gmshAtoI(jgaus) 
+            isoJ = gmshAtoJ(jgaus) 
+            isoK = gmshAtoK(jgaus)
+            type_ijk = 0
+            if((isoI .eq. 1) .or. (isoI .eq. 2)) then
+               type_ijk = 1
+               if(isoI .eq. 1) then
+                  isoI = 3
+               else
+                  isoI = porder+1
+               end if
+               iex(ielem,igaus) = isoI
+            else if ((isoJ .eq. 1) .or. (isoJ .eq. 2)) then
+               type_ijk = 2
+               if(isoJ .eq. 1) then
+                  isoJ = 3
+               else
+                  isoJ = porder+1
+               end if            
+               iex(ielem,igaus) = isoJ
             else
-               isoI = porder+1
-            end if
-            iex(ielem,igaus) = isoI
-         else if ((isoJ .eq. 1) .or. (isoJ .eq. 2)) then
-            type_ijk = 2
-            if(isoJ .eq. 1) then
-               isoJ = 3
-            else
-               isoJ = porder+1
-            end if            
-            iex(ielem,igaus) = isoJ
-         else
-            type_ijk = 3
-            if(isoK .eq. 1) then
-               isoK = 3
-            else
-               isoK = porder+1
-            end if 
-            iex(ielem,igaus) = isoK           
-         end if     
-         extype(ielem,igaus) = type_ijk
+               type_ijk = 3
+               if(isoK .eq. 1) then
+                  isoK = 3
+               else
+                  isoK = porder+1
+               end if 
+               iex(ielem,igaus) = isoK           
+            end if     
+            extype(ielem,igaus) = type_ijk
+         end do
       end do
-   end do
-   !$acc end parallel loop
+      !$acc end parallel loop
 
    end subroutine evalEXAt1OffNode
-
 
    subroutine evalEXAtHWM(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_code, &
       bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
@@ -275,8 +274,6 @@ contains
       !$acc end parallel loop
     
    end subroutine evalEXAtHWM   
-
-
 
    subroutine evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_code, &
          bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,ui,tauw,Rdiff,fact)
@@ -551,10 +548,10 @@ contains
       real(rp)                :: aux(ndime)
       ! wall law stuff
       integer(4)              :: itera,isoI,isoJ,isoK,jgaus,type_ijk,ii,isoII,isoJJ,isoKK
-      real(rp)                :: Re_ex, Re_out, N, phiP, gradPproj, Re_min,p_aux, Re_fit
+      real(rp)                :: Re_ex, Re_out, N, phiP, gradPproj, Chi, Re_min,p_aux, Re_fit
       real(rp)                :: y,ul,nul,uistar,tvelo(ndime),uiex(ndime),auxmag,auxvn,surf,auxpn,tgradP(ndime)
       real(rp)                :: point(ndime),pointF(ndime),normalF(ndime)
-      real(rp)                :: Beta1, Beta2, k3, k4, stream(ndime)
+      real(rp)                :: Beta1, Beta2, Alpha, Gamma, Theta, Sigma, Mu, stream(ndime)
       integer(4)              :: atoIJ(npbou)
       real(rp)  :: aux_fact = 1.0_rp
 
@@ -622,37 +619,43 @@ contains
                tgradP(idime) = gradPex(idime) - auxpn*normalF(idime)
             end do
 
+            ! Inputs at the exchange location
             ul = sqrt(tvelo(1)*tvelo(1) + tvelo(2)*tvelo(2) +  tvelo(3)*tvelo(3))
             tvelo(:) = tvelo(:)/ul
-            gradPproj = dot_product(tgradP,tvelo)
-
-            N = gradPproj/rhol
-            phiP = N*(y**3)/(nul**2)
-
             Re_ex = ul*y/nul
+            N = dot_product(tgradP,tvelo)/rhol
+            phiP = N*(y**3)/(nul**2)             
 
-            Beta1 = 1.0_rp/(1.0_rp+0.155_rp/(Re_ex**0.03_rp))
-            Beta2 = 1.7_rp-1.0_rp/(1.0_rp + 36.0_rp/(Re_ex**0.75_rp))
-            k3 = 0.005_rp
-            k4 = k3**(Beta1-0.5_rp)
-            Re_fit = k4*( Re_ex**(Beta1) )*( (1.0_rp+(k3*Re_ex)**(-Beta2))**((Beta1-0.5_rp)/Beta2) )
-
-
-            if(phiP .lt. 0.0_rp) then
-               Re_min = 1.5_rp*((-phiP)**0.39_rp)*(1.0_rp + (1000.0_rp/(-phiP))**2.0_rp)**(-0.055_rp)
-               p_aux = 2.5_rp - 0.6_rp*(1.0_rp + tanh(2.0_rp*(log(-phiP)-6.0_rp)))
-               Re_out = ( Re_min**p_aux  + Re_fit**p_aux )**(1.0_rp/p_aux)               
-            else
-               Re_min = 2.5_rp*((phiP)**0.54_rp)*(1.0_rp + (30.0_rp/(phiP))**0.5_rp)**(-0.88_rp)
-               if(Re_ex .gt. Re_min) then
-                  Re_out = Re_fit*(1.0_rp- 1.0_rp/( (1.0_rp+log(Re_ex/Re_min))**1.9_rp ))
+            ! Fitted expressions
+            ! Equilibrium contribution  
+            Beta1 = 1.0_rp/(1.0_rp+(0.155_rp/(Re_ex**0.03_rp)))
+            Beta2 = 1.7_rp-(1.0_rp/(1.0_rp+(36.0_rp/(Re_ex**0.65_rp))))
+            Re_fit = 0.005_rp**(Beta1-0.5_rp)*(Re_ex**Beta1)*((1.0_rp+(1.0_rp/((0.005_rp*Re_ex)**Beta2)))**((Beta1-0.5_rp)/Beta2))
+            Chi=N*y*((Re_ex/(ul*Re_fit))**2)
+            if(abs(Chi) .lt. 0.2_rp) then 
+               ! Mild pressure gradients      
+               Alpha = 0.0296_rp+(0.15_rp*tanh(Chi-0.2_rp))
+               Mu = 2.25_rp-(0.4_rp*tanh(0.9_rp*Chi))
+               Sigma = 0.5_rp+0.1*tanh(20_rp*Chi)
+               Gamma = Alpha/exp(0.5_rp*(((log(Re_ex)-Mu)/Sigma)**2.0_rp))
+               Theta = 1.0_rp/(1.0_rp+(0.0025_rp*Re_ex))
+               Re_out = Re_fit*((Theta/((1.0_rp+(0.5_rp*Chi))**0.5_rp))+1.0_rp-Theta+Gamma)
+            else 
+               ! Strong pressure gradients  
+               if(phiP .lt. 0.0_rp) then
+                  Re_min = 1.5_rp*((-phiP)**0.39_rp)*(1.0_rp/((1.0_rp+((1000.0_rp/phiP)**2.0_rp))**0.055_rp))
+                  p_aux = 2.5_rp-0.6_rp*(1.0_rp+tanh((2.0_rp*log(-phiP))-6.0_rp))
+                  Re_out = ((Re_min**p_aux)+(Re_fit**p_aux))**(1.0_rp/p_aux)               
                else
-                  Re_out = 0.0_rp
-                  wmles_thinBL_fit_d(bound(iBound,igaus)) = 1
+                  Re_min = 2.5_rp*(phiP**0.54_rp)*(1.0_rp/((1.0_rp +((30.0_rp/phiP)**0.5_rp))**0.88_rp))
+                  if(Re_ex .gt. Re_min) then
+                     Re_out = Re_fit*(1.0_rp-(1.0_rp/((1.0_rp+log(Re_ex/Re_min))**1.9_rp)))
+                  else
+                     Re_out = 0.0_rp
+                     wmles_thinBL_fit_d(bound(iBound,igaus)) = 1
+                  end if
                end if
             end if
-            
-
 
             uistar = ul*(Re_out/Re_ex) 
             tmag = rhol*uistar*uistar
