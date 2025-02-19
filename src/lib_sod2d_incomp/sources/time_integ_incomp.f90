@@ -140,7 +140,7 @@ module time_integ_incomp
             real(rp), optional, intent(in)      :: source_term(npoin,ndime)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_pr(npoin)
             real(rp), optional, intent(in)      :: zo(npoin)
-            integer(4), optional, intent(in)    :: wmles_thinBL_fit_d(npoin)
+            integer(4), optional, intent(inout) :: wmles_thinBL_fit_d(npoin)
             integer(4)                          :: istep,ipoin,idime,icode,iPer,ipoin_w
 
             call nvtxStartRange("AB2 init")
