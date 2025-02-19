@@ -625,13 +625,12 @@ contains
             Re_ex = ul*y/nul
             N = dot_product(tgradP,tvelo)/rhol
             phiP = N*(y**3)/(nul**2) 
-            ! Equilibrium contribution  
-            Beta2 = 1.7_rp-(1.0_rp/(1.0_rp+(36.0_rp/(Re_ex**0.75_rp))))
-            Re_fit = 0.005_rp**(Beta1-0.5_rp)*(Re_ex**Beta1)*((1.0_rp+(1.0_rp/((0.005_rp*Re_ex)**Beta2)))**((Beta1-0.5_rp)/Beta2))
-            Chi=N*y*((Re_ex/(ul*Re_fit))**2)
 
-            ! Fitted expressions
+            ! Equilibrium contribution  
             Beta1 = 1.0_rp/(1.0_rp+(0.155_rp/(Re_ex**0.03_rp)))
+            Beta2 = 1.7_rp-(1.0_rp/(1.0_rp+(36.0_rp/(Re_ex**0.75_rp))))
+            Re_fit = 0.005_rp**(Beta1-0.5_rp)*(Re_ex**Beta1)*((1.0_rp+(1.0_rp/((0.005_rp*Re_ex)**Beta2)))**((Beta1-0.5_rp)/Beta2))                        
+            Chi=N*y*((Re_ex/(ul*Re_fit))**2)
             if(abs(Chi) .lt. 0.2_rp) then 
                ! Equilibrium contribution         
                Beta2 = 1.7_rp-(1.0_rp/(1.0_rp+(36.0_rp/(Re_ex**0.65_rp))))
