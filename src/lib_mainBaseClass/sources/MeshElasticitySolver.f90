@@ -174,14 +174,14 @@ contains
     call this%set_mappedFaces_linkingNodes()   
 
     ! Eval mass
+    print*,'MOVE MASS TO BEFORE CON GRAD'
     call this%evalMass()
 
     ! Eval first output
     if(this%isFreshStart) call this%evalFirstOutput()
     call this%flush_log_file()
 
-    call  this%normalFacesToNodes()
-    
+    !call  this%normalFacesToNodes()
     !
     print*,'commented analysis of elasticity parameters'
     !call this%assessElasticityParameters()
@@ -214,22 +214,28 @@ contains
       call this%computeQuality(minQ,maxQ)
       print*,'    minQ: ',minQ
       !
+      call this%saveInstResultsFiles(1)    
     end if
     !
     if(.true.) then ! do_curveInteriorMesh
+      u(:,:,2) = 0.0_rp
+      call this%saveInstResultsFiles(0)
       print*,'1- Input curved mesh quality'
       call this%computeQuality(minQ,maxQ)
       print*,'2- Save input (boundary curved) coordinates'
       call save_input_coordinates(numNodesRankPar,ndime,coordPar,this%coord_input_safe)
       print*,'3- Straighten mesh (coordpar)'
       call compute_straight_mesh(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,this%coord_input_safe)
+      u(:,:,2) = 0.0_rp
+      call this%saveInstResultsFiles(1)
       print*,'   Quality after elasticity-based curved mesh'
       call this%computeQuality(minQ,maxQ)
-      print*,'       minQ: ',minQ,'    maxQ: ',maxQ,' ---> should be all one?!?!?'
-      print*,'  ';print*,'  ';
+      print*,'       minQ: ',minQ,'    maxQ: ',maxQ!,' ---> should be all one?!?!?'
       print*,'4- Compute displacement of the boundary'
-      call compute_displacement_straight_mesh(numNodesRankPar,ndime,coordPar,this%coord_input_safe,&
+      call compute_displacement_straight_mesh(numNodesRankPar,ndime,coordPar,this%coord_input_safe,bouCodesNodesPar,&
         this%is_imposed_displacement,this%imposed_displacement)
+      u(:,:,2) = this%imposed_displacement
+      call this%saveInstResultsFiles(2)
       print*,'5- Impose elasticity boundary conditions'
       call this%initialBuffer()
       if (this%noBoundaries .eqv. .false.) then
@@ -247,9 +253,10 @@ contains
       print*,'   Quality after elasticity-based curved mesh'
       call this%computeQuality(minQ,maxQ)
       print*,'       minQ: ',minQ,'    maxQ: ',maxQ
+      !u(:,:,2) = coordPar-this%coord_input_safe
+      call this%saveInstResultsFiles(3)
     end if
     !
-    call this%saveInstResultsFiles(1)    
 
     call this%close_log_file()
     call this%close_analysis_files()
@@ -396,21 +403,29 @@ contains
   !
   !
   !
-  subroutine compute_displacement_straight_mesh(npoin,ndime,coords,coord_input_safe,is_imposed_displacement,imposed_displacement)
+  subroutine compute_displacement_straight_mesh(npoin,ndime,coords,coord_input_safe,bou_codes_nodes,&
+    is_imposed_displacement,imposed_displacement)
     implicit none
     !
     integer(4),  intent(in)    :: npoin, ndime
     real(rp),    intent(in   ) :: coords(npoin,ndime)
     real(rp),    intent(in   ) :: coord_input_safe(npoin,ndime)
+    integer(4),  intent(in   ) :: bou_codes_nodes(npoin)
     logical, intent(inout) :: is_imposed_displacement
     real(rp),allocatable, intent(inout) :: imposed_displacement(:,:)
-    integer(4) :: inode
+    integer(4) :: inode, bcode
     !
     is_imposed_displacement = .true.
     allocate(imposed_displacement(npoin,ndime))
     !$acc parallel loop
     do inode = 1,npoin
-      imposed_displacement(inode,:) = coord_input_safe(inode,:)-coords(inode,:)
+      imposed_displacement(inode,:) = 0.0_rp
+      if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
+         bcode = bou_codes_nodes(inode) ! Boundary element code
+         if (bcode == bc_type_non_slip_adiabatic ) then ! non_slip wall adiabatic -> could be anything
+           imposed_displacement(inode,:) = coord_input_safe(inode,:)-coords(inode,:)
+         end if
+      end if
     end do
     !$acc end parallel loop
     !
