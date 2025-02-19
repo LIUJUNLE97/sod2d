@@ -1039,18 +1039,18 @@ end subroutine CFDSolverBase_findFixPressure
 
       ! Exponential average velocity for wall law
       if(flag_walave) then
-         allocate(walave_u(numNodesRankPar,ndime))
-         !$acc enter data create(walave_u(:,:))
+         allocate(walave_u(numNodesRankPar,ndime),wmles_thinBL_fit_d(numNodesRankPar))
+         !$acc enter data create(walave_u(:,:),wmles_thinBL_fit_d(:))
          !$acc kernels
          walave_u(:,:) = 0.0_rp
+         wmles_thinBL_fit_d(:) = 0
          !$acc end kernels
 
          if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then           
-            allocate(walave_pr(numNodesRankPar),wmles_thinBL_fit_d(numNodesRankPar))
-            !$acc enter data create(walave_pr(:),wmles_thinBL_fit_d(:))
+            allocate(walave_pr(numNodesRankPar))
+            !$acc enter data create(walave_pr(:))
             !$acc kernels
                walave_pr(:)          = 0.0_rp
-               wmles_thinBL_fit_d(:) = 0
             !$acc end kernels
          end if
 
@@ -1620,7 +1620,7 @@ end subroutine CFDSolverBase_findFixPressure
             call nvtxStartRange("Surface info")
             call surfInfo(0,0.0_rp,numElemsRankPar,numNodesRankPar,numBoundsRankPar,iCode,connecParWork,boundPar,point2elem,&
                bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),.TRUE.)
+               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),tauw,.TRUE.)
             call nvtxEndRange
          end do
       end if
@@ -1889,7 +1889,7 @@ end subroutine CFDSolverBase_findFixPressure
                   call nvtxStartRange("Surface info")
                   call surfInfo(istep,this%time,numElemsRankPar,numNodesRankPar,numBoundsRankPar,icode,connecParWork,boundPar,point2elem, &
                      bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),.TRUE.)
+                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),tauw,.TRUE.)
 
                   call nvtxEndRange
                   if(mpi_rank.eq.0) call flush(888+icode)

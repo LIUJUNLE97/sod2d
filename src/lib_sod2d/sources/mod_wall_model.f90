@@ -94,6 +94,86 @@ contains
 
    end subroutine evalEXAtFace
 
+   subroutine evalEXAt1OffNode(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_code, &
+      bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+
+   implicit none
+
+   integer(4), intent(in)  :: numBoundsWM,listBoundsWM(numBoundsWM)
+   integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun)
+   integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin)
+   real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
+   integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+   real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem)
+   real(rp),   intent(in)  :: coord(npoin,ndime), gpvol(1,ngaus,nelem)
+   real(rp)                :: gradIsoU(ndime,ndime), gradU(ndime,ndime), tau(ndime,ndime), divU
+   integer(4)              :: iBound,iElem,idime,igaus,iAux
+   real(rp)                :: bnorm(npbou*ndime),rhol,tmag
+   real(rp)                :: aux(ndime)
+   ! wall law stuff
+   real(rp)                :: y,ul,nul,uistar,tvelo(ndime),uiex(ndime),auxmag,auxvn,surf
+   integer(4)              :: itera,isoI,isoJ,isoK,jgaus,type_ijk,ii,isoII,isoJJ,isoKK
+   real(rp)                :: xmuit,fdvfr,devfr,point(ndime),pointF(ndime),normalF(ndime)
+   real(rp)                :: vkinv,diffd,parco,yplus,onovu,yplu2
+   real(rp)                :: ypele,expye,expyt,oneoe,firsl,ypel2
+   real(rp)                :: pplus,densi,gradp,grpr2,py,sq,inv,ln4,uplus,vol
+   real(rp)                :: ux,uy,uz,px,pz
+   integer(4)              :: atoIJ(npbou)
+   real(rp)  :: aux_fact = 1.0_rp
+
+   atoIJ(:) = mesh_a2ij(:)
+
+   allocate(iex(nelem,nnode),extype(nelem,nnode))
+   !$acc enter data create(iex(:,:))
+   !$acc enter data create(extype(:,:))
+
+   !$acc parallel loop gang 
+   do iAux = 1,numBoundsWM
+      iBound = listBoundsWM(iAux)
+      iElem = point2elem(bound(iBound,atoIJ(npbou))) ! I use an internal face node to be sure is the correct element
+
+      !$acc loop vector
+      do igaus = 1,npbou
+
+         jgaus = minloc(abs(connec(iElem,:)-bound(iBound,atoIJ(npbou))),1)
+
+         isoI = gmshAtoI(jgaus) 
+         isoJ = gmshAtoJ(jgaus) 
+         isoK = gmshAtoK(jgaus)
+         type_ijk = 0
+         if((isoI .eq. 1) .or. (isoI .eq. 2)) then
+            type_ijk = 1
+            if(isoI .eq. 1) then
+               isoI = 3
+            else
+               isoI = porder+1
+            end if
+            iex(ielem,igaus) = isoI
+         else if ((isoJ .eq. 1) .or. (isoJ .eq. 2)) then
+            type_ijk = 2
+            if(isoJ .eq. 1) then
+               isoJ = 3
+            else
+               isoJ = porder+1
+            end if            
+            iex(ielem,igaus) = isoJ
+         else
+            type_ijk = 3
+            if(isoK .eq. 1) then
+               isoK = 3
+            else
+               isoK = porder+1
+            end if 
+            iex(ielem,igaus) = isoK           
+         end if     
+         extype(ielem,igaus) = type_ijk
+      end do
+   end do
+   !$acc end parallel loop
+
+   end subroutine evalEXAt1OffNode
+
+
    subroutine evalEXAtHWM(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_code, &
       bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
 
@@ -472,13 +552,16 @@ contains
       ! wall law stuff
       integer(4)              :: itera,isoI,isoJ,isoK,jgaus,type_ijk,ii,isoII,isoJJ,isoKK
       real(rp)                :: Re_ex, Re_out, N, phiP, gradPproj, Re_min,p_aux, Re_fit
-      real(rp)                :: y,ul,nul,uistar,tvelo(ndime),uiex(ndime),auxmag,auxvn,surf
+      real(rp)                :: y,ul,nul,uistar,tvelo(ndime),uiex(ndime),auxmag,auxvn,surf,auxpn,tgradP(ndime)
       real(rp)                :: point(ndime),pointF(ndime),normalF(ndime)
-      real(rp)                :: Beta1, Beta2, k3, k4
+      real(rp)                :: Beta1, Beta2, k3, k4, stream(ndime)
       integer(4)              :: atoIJ(npbou)
       real(rp)  :: aux_fact = 1.0_rp
 
       atoIJ(:) = mesh_a2ij(:)
+      !stream(1) = 1.0_rp
+      !stream(2) = 0.0_rp
+      !stream(3) = 0.0_rp
 
       if(present(fact)) then
          aux_fact = fact
@@ -494,7 +577,7 @@ contains
          bnorm(1:npbou*ndime) = bounorm(iBound,1:npbou*ndime)
          iElem = point2elem(bound(iBound,atoIJ(npbou))) ! I use an internal face node to be sure is the correct element
 
-         !$acc loop vector private(aux,pointF,normalF,tvelo,uiex,point,gradPex)
+         !$acc loop vector private(aux,pointF,normalF,tvelo,uiex,point,gradPex,tgradP)
          do igaus = 1,npbou
 
             jgaus = minloc(abs(connec(iElem,:)-bound(iBound,igaus)),1)
@@ -532,14 +615,17 @@ contains
             y = abs(normalF(1)*(point(1)-pointF(1)) + normalF(2)*(point(2)-pointF(2)) + normalF(3)*(point(3)-pointF(3)))
 
             auxvn = (normalF(1)*uiex(1) + normalF(2)*uiex(2) + normalF(3)*uiex(3))
+            auxpn = (normalF(1)*gradPex(1) + normalF(2)*gradPex(2) + normalF(3)*gradPex(3))
             !$acc loop seq
             do idime = 1,ndime     
-               tvelo(idime) = uiex(idime) - auxvn*normalF(idime)
+               tvelo(idime)  = uiex(idime)    - auxvn*normalF(idime)
+               tgradP(idime) = gradPex(idime) - auxpn*normalF(idime)
             end do
 
             ul = sqrt(tvelo(1)*tvelo(1) + tvelo(2)*tvelo(2) +  tvelo(3)*tvelo(3))
             tvelo(:) = tvelo(:)/ul
-            gradPproj = dot_product(gradPex,tvelo)
+            gradPproj = dot_product(tgradP,tvelo)
+
             N = gradPproj/rhol
             phiP = N*(y**3)/(nul**2)
 
@@ -555,7 +641,7 @@ contains
             if(phiP .lt. 0.0_rp) then
                Re_min = 1.5_rp*((-phiP)**0.39_rp)*(1.0_rp + (1000.0_rp/(-phiP))**2.0_rp)**(-0.055_rp)
                p_aux = 2.5_rp - 0.6_rp*(1.0_rp + tanh(2.0_rp*(log(-phiP)-6.0_rp)))
-               Re_out = ( Re_min**p_aux  + Re_fit**p_aux )**(1.0_rp/p_aux)
+               Re_out = ( Re_min**p_aux  + Re_fit**p_aux )**(1.0_rp/p_aux)               
             else
                Re_min = 2.5_rp*((phiP)**0.54_rp)*(1.0_rp + (30.0_rp/(phiP))**0.5_rp)**(-0.88_rp)
                if(Re_ex .gt. Re_min) then
