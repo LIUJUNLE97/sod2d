@@ -149,7 +149,7 @@ contains
     call setFields2Save(rho(:,2),mu_fluid,pr(:,2),E(:,2),eta(:,2),csound,machno,divU,qcrit,Tem(:,2),&
       u(:,:,2),gradRho,curlU,mu_sgs,mu_e,&
       avrho,avpre,avpre2,avmueff,avvel,avve2,avvex,avtw)!,quality_e=quality_e)
-
+    
     ! Eval or load initial conditions
     call this%evalOrLoadInitialConditions()
 
@@ -182,6 +182,11 @@ contains
     call this%flush_log_file()
 
     !call  this%normalFacesToNodes()
+    !
+
+    !
+    print*,'bouCodes as rho...'
+   rho(:,2) = real(bouCodesNodesPar,rp)
     !
     print*,'commented analysis of elasticity parameters'
     !call this%assessElasticityParameters()
@@ -222,26 +227,31 @@ contains
       call this%saveInstResultsFiles(0)
       print*,'1- Input curved mesh quality'
       call this%computeQuality(minQ,maxQ)
+      print*,'       minQ: ',minQ,'    maxQ: ',maxQ
+      
       print*,'2- Save input (boundary curved) coordinates'
       call save_input_coordinates(numNodesRankPar,ndime,coordPar,this%coord_input_safe)
+      
       print*,'3- Straighten mesh (coordpar)'
       call compute_straight_mesh(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,this%coord_input_safe)
-      u(:,:,2) = 0.0_rp
+      u(:,:,2) = coordPar-this%coord_input_safe ! -> displacement to see in paraview the straight mesh
       call this%saveInstResultsFiles(1)
-      print*,'   Quality after elasticity-based curved mesh'
+      u(:,:,2) = 0.0_rp
+      print*,'   Quality straight-sided mesh'
       call this%computeQuality(minQ,maxQ)
       print*,'       minQ: ',minQ,'    maxQ: ',maxQ!,' ---> should be all one?!?!?'
+      
       print*,'4- Compute displacement of the boundary'
       call compute_displacement_straight_mesh(numNodesRankPar,ndime,coordPar,this%coord_input_safe,bouCodesNodesPar,&
         this%is_imposed_displacement,this%imposed_displacement)
-      u(:,:,2) = this%imposed_displacement
-      call this%saveInstResultsFiles(2)
+        
       print*,'5- Impose elasticity boundary conditions'
       call this%initialBuffer()
       if (this%noBoundaries .eqv. .false.) then
          call temporary_bc_routine_dirichlet_prim_meshElasticity(&
            numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
       end if
+      
       print*,'6- Call conjGrad_meshElasticity to compute displacements with linear elasticity'
       call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
          numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
@@ -253,8 +263,8 @@ contains
       print*,'   Quality after elasticity-based curved mesh'
       call this%computeQuality(minQ,maxQ)
       print*,'       minQ: ',minQ,'    maxQ: ',maxQ
-      !u(:,:,2) = coordPar-this%coord_input_safe
-      call this%saveInstResultsFiles(3)
+      u(:,:,2) = coordPar-this%coord_input_safe ! -> displacement to see in paraview the new curved mesh
+      call this%saveInstResultsFiles(2)
     end if
     !
 
@@ -282,22 +292,17 @@ contains
 
     ! End MPI
     call end_mpi()
-    
     !
-    print*,'Curving process:'
-    print*,' 1- Generate coordinates of the straight mesh'
-    print*,' 2- Compute displacement surface field'
-    print*,' 3- Solve elasticity problem'
-    
-    print*,'TODOs:'
-    print*,' - Do the mesh curving from the "bad" input curved mesh'
-    print*,' Future: '
-    print*,' - Leave an option to impose displacement, to use this for ALE'
-    print*,' - Maybe add an option in the json to read the displacement of the ALE vs do mesh curving'
-    
+    print*,'IMPLEMENTED THINGS: '
+    print*,' - Mesh curving from a "bad" input curved mesh'
+    print*,' - Mesh curving after imposing displacement (ALE)'
+    print*,' FUTURE: '
+    print*,' - Add an option in the json to read the displacement of the ALE vs do mesh curving?'
+    print*,' - Optimization?'
+    print*,' - Think about doing my own stuff in qualities to allow optimization'
     print*,'TODO solve nasty thing:'
-    print*,'   I am doing something nasty... created a link in the meshElasticitySOlver folder to the mod_meshquality'
-    print*,'   When folder redistribution is done, remove this and link properly the mod_meshquality without link'
+    print*,' - I am doing something nasty... created a link in the meshElasticitySOlver folder to the mod_meshquality'
+    print*,' - When Lucas rearranges folders in sod, remove this and do properly'
     
   end subroutine MeshElasticitySolver_run
   !
@@ -414,6 +419,7 @@ contains
     logical, intent(inout) :: is_imposed_displacement
     real(rp),allocatable, intent(inout) :: imposed_displacement(:,:)
     integer(4) :: inode, bcode
+    integer(4) :: iBound,iElem, innerNodeL,bndNodeL,ipbou
     !
     is_imposed_displacement = .true.
     allocate(imposed_displacement(npoin,ndime))
@@ -428,6 +434,18 @@ contains
       end if
     end do
     !$acc end parallel loop
+    
+!     rho(:,2)=0.0_rp
+!     do iBound = 1,numBoundsRankPar
+!       iElem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
+!       innerNodeL = connecParWork(iElem,nnode)         ! internal node
+!       !$acc loop vector private(aux)
+!       do ipbou = 1,npbou
+!          bndNodeL = boundPar(iBound,ipbou) ! node at the boundary
+!          imposed_displacement(bndNodeL,:) = coord_input_safe(bndNodeL,:)-coords(bndNodeL,:)
+!          rho(bndNodeL,2) = 1.0_rp
+!        end do
+!      end do
     !
   end subroutine compute_displacement_straight_mesh
   !
@@ -513,6 +531,8 @@ contains
     integer(4) :: ielem
     real(8)    :: quality_vec(2)
 
+    integer(4) :: id_quality = 2 ! 1 for aniso, 2 for isso cube ideal 
+
     minQ = 1.0_rp
     maxQ = 0.0_rp
     do ielem = 1,numElemsRankPar
@@ -521,8 +541,8 @@ contains
       call eval_ElemQuality(size(connecParWork,2),ngaus,numNodesRankPar,numElemsRankPar,&
         ielem,real(coordPar+u(:,:,2),8),connecParWork,real(dNgp,8),real(wgp,8),quality_vec)
       !
-      minQ = min(minQ,real(quality_vec(1),rp))
-      maxQ = max(maxQ,real(quality_vec(1),rp))
+      minQ = min(minQ,real(quality_vec(id_quality),rp))
+      maxQ = max(maxQ,real(quality_vec(id_quality),rp))
       !
     end do
     !print*,'Min q: ',minQ

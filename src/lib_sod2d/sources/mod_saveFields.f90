@@ -186,7 +186,7 @@ contains
 
       call initializeSaveFieldsCnt()
 
-      save_nodeScalarField_rho      = .false.
+      save_nodeScalarField_rho      = .true.!.false.
       save_nodeScalarField_muFluid  = .false.
       save_nodeScalarField_pr       = .false.
       save_nodeScalarField_energy   = .false.
