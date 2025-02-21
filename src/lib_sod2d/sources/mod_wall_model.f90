@@ -642,9 +642,7 @@ contains
                Gamma = Alpha/exp(0.5_rp*(((log(Re_ex)-Mu)/Sigma)**2.0_rp))
                Theta = 1.0_rp/(1.0_rp+(0.0025_rp*Re_ex))
                Re_out = Re_fit*((Theta/((1.0_rp+(0.5_rp*Chi))**0.5_rp))+1.0_rp-Theta+Gamma)
-
             else 
-
                ! Strong pressure gradients  
                if(phiP .lt. 0.0_rp) then
                   Re_min = 1.5_rp*((-phiP)**0.39_rp)*(1.0_rp/((1.0_rp+((1000.0_rp/phiP)**2.0_rp))**0.055_rp))

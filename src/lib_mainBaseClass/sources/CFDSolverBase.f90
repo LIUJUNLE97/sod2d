@@ -177,6 +177,7 @@ module CFDSolverBase_mod
       procedure, public :: checkFound => CFDSolverBase_checkFound
       procedure, public :: readJSONBCTypes => CFDSolverBase_readJSONBCTypes
       procedure, public :: readJSONBuffer => CFDSolverBase_readJSONBuffer
+      procedure, public :: readJSONWMTypes => CFDSolverBase_readJSONWMTypes
       procedure, public :: eval_vars_after_load_hdf5_resultsFile => CFDSolverBase_eval_vars_after_load_hdf5_resultsFile 
       procedure, public :: findFixPressure => CFDSolverBase_findFixPressure
 
@@ -384,6 +385,53 @@ end subroutine CFDSolverBase_findFixPressure
       call json%destroy()
 
    end subroutine CFDSolverBase_readJSONBuffer
+
+   subroutine CFDSolverBase_readJSONWMTypes(this)
+      use json_module
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      logical :: found, found_aux = .false.
+      type(json_file) :: json
+      integer :: json_nbouCodes,iBouCodes,id
+      TYPE(json_core) :: jCore
+      TYPE(json_value), pointer :: bouCodesPointer, testPointer, p
+      character(len=:) , allocatable :: value
+
+      call json%initialize()
+      call json%load_file(json_filename)
+
+      call json%get('flag_type_wmles', value, found,"wmles_type_reichardt")
+
+      if(found) then
+         call jCore%get(p,value)
+         if(value .eq. "wmles_type_reichardt") then
+            flag_type_wmles = wmles_type_reichardt
+         else if(value .eq. "wmles_type_abl") then
+            flag_type_wmles = wmles_type_abl
+         else if(value .eq. "wmles_type_reichardt_hwm") then
+            flag_type_wmles = wmles_type_reichardt_hwm
+         else if(value .eq. "wmles_type_thinBL_fit") then
+            flag_type_wmles = wmles_type_thinBL_fit
+         else if(value .eq. "wmles_type_thinBL_fit_hwm") then
+            flag_type_wmles = wmles_type_thinBL_fit_hwm
+         end if
+      else
+         if(mpi_rank .eq. 0) then
+            write(111,*) 'ERROR! JSON file error on the flag_type_wmles definition, the model does not exist'
+            stop 1      
+         end if
+      end if
+
+      call json%destroy()
+
+      if((found_aux .eqv. .false.) .and.mpi_rank .eq. 0) then
+         write(111,*) 'ERROR! JSON file missing flag_type_wmles definition'
+         stop 1      
+      end if
+
+   end subroutine CFDSolverBase_readJSONWMTypes
+
+
 
    subroutine CFDSolverBase_readJSONBCTypes(this)
       use json_module
@@ -1620,7 +1668,7 @@ end subroutine CFDSolverBase_findFixPressure
             call nvtxStartRange("Surface info")
             call surfInfo(0,0.0_rp,numElemsRankPar,numNodesRankPar,numBoundsRankPar,iCode,connecParWork,boundPar,point2elem,&
                bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),tauw,.TRUE.)
+               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),tauw,wmles_thinBL_fit_d,.TRUE.)
             call nvtxEndRange
          end do
       end if
@@ -1792,7 +1840,7 @@ end subroutine CFDSolverBase_findFixPressure
 
             if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then           
                !$acc kernels
-                  walave_pr(:) = dtfact*pr(:,2) + avwei*walave_pr(:)
+               walave_pr(:) = dtfact*pr(:,2) + avwei*walave_pr(:)
                !$acc end kernels
             end if
 
@@ -1889,7 +1937,7 @@ end subroutine CFDSolverBase_findFixPressure
                   call nvtxStartRange("Surface info")
                   call surfInfo(istep,this%time,numElemsRankPar,numNodesRankPar,numBoundsRankPar,icode,connecParWork,boundPar,point2elem, &
                      bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),tauw,.TRUE.)
+                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),tauw,wmles_thinBL_fit_d,.TRUE.)
 
                   call nvtxEndRange
                   if(mpi_rank.eq.0) call flush(888+icode)

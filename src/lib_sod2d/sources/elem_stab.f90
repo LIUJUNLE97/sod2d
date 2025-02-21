@@ -31,12 +31,15 @@ module elem_stab
              real(rp)                :: gradIsoRho(ndime),gradIsoT(ndime),gradIsoU(ndime,ndime)
              real(rp)                :: gradRho(ndime),divDm(ndime),divDr,divDe,taustabl
              real(rp)                :: ul(nnode,ndime), rhol(nnode),Teml(nnode),mufluidl(nnode),rhonl(nnode)
-             real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
-             real(rp)                :: gradTl(nnode,ndime),gradRhol(nnode,ndime),tauUl(nnode,ndime)
+             real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime),divU
+             real(rp)                :: gradTl(nnode,ndime),gradRhol(nnode,ndime),tauUl(nnode,ndime),tau(ndime,ndime)
              real(rp)                :: projMassl(nnode,ndime),ProjEnerl(nnode,ndime),ProjMXl(nnode,ndime),ProjMYl(nnode,ndime),ProjMZl(nnode,ndime)
-             real(rp)  :: aux_fact = 1.0_rp
+             real(rp)  :: aux_fact = 1.0_rp, twoThirds
 
-             call nvtxStartRange("Full diffusion")
+
+             twoThirds = 2.0_rp/3.0_rp
+
+             call nvtxStartRange("Full stab")
              if(present(initialze)) then
                if (initialze .eqv. .true.) then
                !$acc kernels
@@ -82,7 +85,7 @@ module elem_stab
 
                 taustabl = tau_stab(ielem)
 
-                !$acc loop vector private(gradU,gradT,gradIsoRho,gradIsoT,gradIsoU,gradRho)
+                !$acc loop vector private(tau,gradU,gradT,gradIsoRho,gradIsoT,gradIsoU,gradRho)
                 do igaus = 1,ngaus
 
                    isoI = gmshAtoI(igaus) 
@@ -126,11 +129,23 @@ module elem_stab
                       end do
                    end do
 
+                   divU = gradU(1,1)+gradU(2,2)+gradU(3,3)
+
                    !$acc loop seq
                    do idime = 1,ndime
-                      tauXl(igaus,idime)    =  0.1_rp*taustabl*(projMXl(igaus,idime) - gradU(1,idime))*rhonl(igaus)
-                      tauYl(igaus,idime)    =  0.1_rp*taustabl*(projMYl(igaus,idime) - gradU(2,idime))*rhonl(igaus)
-                      tauZl(igaus,idime)    =  0.1_rp*taustabl*(projMZl(igaus,idime) - gradU(3,idime))*rhonl(igaus)
+                      !$acc loop seq
+                      do jdime = 1,ndime
+                         tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
+                      end do
+                      tau(idime,idime) = tau(idime,idime)-twoThirds*divU
+                   end do
+
+
+                   !$acc loop seq
+                   do idime = 1,ndime
+                      tauXl(igaus,idime)    =  0.1_rp*taustabl*(projMXl(igaus,idime) - tau(1,idime))*rhonl(igaus)
+                      tauYl(igaus,idime)    =  0.1_rp*taustabl*(projMYl(igaus,idime) - tau(2,idime))*rhonl(igaus)
+                      tauZl(igaus,idime)    =  0.1_rp*taustabl*(projMZl(igaus,idime) - tau(3,idime))*rhonl(igaus)
                       gradTl(igaus,idime)   =  0.1_rp*taustabl*(projEnerl(igaus,idime) - gradT(idime))*rhonl(igaus)*Cp/Pr
                       gradRhol(igaus,idime) =  0.1_rp*taustabl*(projMassl(igaus,idime) - gradRho(idime))
                    end do
@@ -205,13 +220,15 @@ module elem_stab
          integer(4)              :: ipoin(nnode)
          real(rp)                :: gradU(ndime,ndime), gradT(ndime),tmp1,vol,arho
          real(rp)                :: gradIsoRho(ndime),gradIsoT(ndime),gradIsoU(ndime,ndime)
-         real(rp)                :: gradRho(ndime),divDm(ndime),divDr,divDe,taustabl
-         real(rp)                :: ul(nnode,ndime), rhol(nnode),Teml(nnode),mufluidl(nnode)
+         real(rp)                :: gradRho(ndime),divDm(ndime),divDr,divDe,taustabl,divU
+         real(rp)                :: ul(nnode,ndime), rhol(nnode),Teml(nnode),mufluidl(nnode),tau(ndime,ndime)
          real(rp)                :: projMassl(nnode,ndime),ProjEnerl(nnode,ndime),ProjMXl(nnode,ndime),ProjMYl(nnode,ndime),ProjMZl(nnode,ndime)
-         real(rp)  :: aux_fact = 1.0_rp
+         real(rp)  :: aux_fact = 1.0_rp, twoThirds
 
-         call nvtxStartRange("Full diffusion")
+         call nvtxStartRange("Full stab")
          
+         twoThirds = 2.0_rp/3.0_rp
+
          !$acc kernels
          ProjMass(:,:) = 0.0_rp
          ProjEner(:,:) = 0.0_rp
@@ -233,7 +250,7 @@ module elem_stab
                end do
             end do
 
-            !$acc loop vector private(gradU,gradT,gradIsoRho,gradIsoT,gradIsoU,gradRho)
+            !$acc loop vector private(tau,gradU,gradT,gradIsoRho,gradIsoT,gradIsoU,gradRho)
             do igaus = 1,ngaus
                isoI = gmshAtoI(igaus) 
                isoJ = gmshAtoJ(igaus) 
@@ -276,16 +293,28 @@ module elem_stab
                   end do
                end do
 
+               divU = gradU(1,1)+gradU(2,2)+gradU(3,3)
+
+               !$acc loop seq
+               do idime = 1,ndime
+                  !$acc loop seq
+                  do jdime = 1,ndime
+                     tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
+                  end do
+                  tau(idime,idime) = tau(idime,idime)-twoThirds*divU
+               end do
+
+
                !$acc loop seq
                do idime = 1,ndime
                      !$acc atomic update
-                     ProjMX(ipoin(igaus),idime) = ProjMX(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*gradU(1,idime)
+                     ProjMX(ipoin(igaus),idime) = ProjMX(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*tau(1,idime)
                      !$acc end atomic
                      !$acc atomic update
-                     ProjMY(ipoin(igaus),idime) = ProjMY(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*gradU(2,idime)
+                     ProjMY(ipoin(igaus),idime) = ProjMY(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*tau(2,idime)
                      !$acc end atomic
                      !$acc atomic update
-                     ProjMZ(ipoin(igaus),idime) = ProjMZ(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*gradU(3,idime)
+                     ProjMZ(ipoin(igaus),idime) = ProjMZ(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*tau(3,idime)
                      !$acc end atomic
                      !$acc atomic update
                      ProjMass(ipoin(igaus),idime) = ProjMass(ipoin(igaus),idime)+gpvol(1,igaus,ielem)*gradRho(idime)

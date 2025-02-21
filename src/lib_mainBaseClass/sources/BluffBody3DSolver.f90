@@ -390,7 +390,6 @@ end subroutine BluffBody3DSolver_readJSONAD
 
       call json%get("period_walave",period_walave, found,1.0_rp); call this%checkFound(found,found_aux)
       call json%get("flag_walave",flag_walave, found,.true.); call this%checkFound(found,found_aux)
-      call json%get("flag_type_wmles",flag_type_wmles, found,1); call this%checkFound(found,found_aux)
       call json%get("wmles_walex",wmles_walex, found,0.1_rp); !optional depending of the model
 
       call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
@@ -458,6 +457,8 @@ end subroutine BluffBody3DSolver_readJSONAD
       nscbc_Rgas_inf = this%Rgas
 
       call this%readJSONBuffer()
+      call this%readJSONWMTypes()
+
 
       call json%destroy()
       call this%readJSONAD()

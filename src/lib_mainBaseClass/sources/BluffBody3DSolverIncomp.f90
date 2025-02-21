@@ -125,7 +125,6 @@ contains
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
 
       call json%get("period_walave",period_walave, found,1.0_rp); call this%checkFound(found,found_aux)
-      call json%get("flag_type_wmles",flag_type_wmles, found,1); call this%checkFound(found,found_aux)
       call json%get("wmles_walex",wmles_walex, found,0.1_rp); !optional depending of the model
       
       call json%get("flag_les_ilsa",flag_les_ilsa, found,0); call this%checkFound(found,found_aux)
@@ -173,6 +172,8 @@ contains
       nscbc_rho_inf = this%rho0
 
       call this%readJSONBuffer()
+      call this%readJSONWMTypes()
+
 
       call json%destroy()
 
