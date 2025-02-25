@@ -125,8 +125,7 @@ module mod_solver_incomp
             do ipoin = 1,npoin_w
                !$acc loop seq
               do idime = 1,ndime 
-               !auxT1 = auxT1+real(r0_u(lpoin_w(ipoin),idime)*r0_u(lpoin_w(ipoin),idime),8)
-               auxT1 = auxT1+real(b_u(lpoin_w(ipoin),idime)*b_u(lpoin_w(ipoin),idime),8)
+               auxT1 = auxT1+real(r0_u(lpoin_w(ipoin),idime)*r0_u(lpoin_w(ipoin),idime),8)
               end do
             end do
 
