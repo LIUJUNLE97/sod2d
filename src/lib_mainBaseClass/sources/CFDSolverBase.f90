@@ -63,6 +63,7 @@ module CFDSolverBase_mod
       use time_integ_ls
       use time_integ_species_imex
       use time_integ_species
+      use time_integ_euler
       use mod_analysis
       use mod_numerical_params
       use mod_time_ops
@@ -390,7 +391,7 @@ end subroutine CFDSolverBase_findFixPressure
       use json_module
       implicit none
       class(CFDSolverBase), intent(inout) :: this
-      logical :: found, found_aux = .false.
+      logical :: found
       type(json_file) :: json
       integer :: json_nbouCodes,iBouCodes,id
       TYPE(json_core) :: jCore
@@ -403,7 +404,6 @@ end subroutine CFDSolverBase_findFixPressure
       call json%get('flag_type_wmles', value, found,"wmles_type_reichardt")
 
       if(found) then
-         call jCore%get(p,value)
          if(value .eq. "wmles_type_reichardt") then
             flag_type_wmles = wmles_type_reichardt
          else if(value .eq. "wmles_type_abl") then
@@ -423,11 +423,6 @@ end subroutine CFDSolverBase_findFixPressure
       end if
 
       call json%destroy()
-
-      if((found_aux .eqv. .false.) .and.mpi_rank .eq. 0) then
-         write(111,*) 'ERROR! JSON file missing flag_type_wmles definition'
-         stop 1      
-      end if
 
    end subroutine CFDSolverBase_readJSONWMTypes
 
@@ -559,6 +554,8 @@ end subroutine CFDSolverBase_findFixPressure
       if(flag_implicit == 1) then
          if (implicit_solver == implicit_solver_imex) then
             call init_imex_solver(numNodesRankPar,numElemsRankPar)
+         else if (implicit_solver == implicit_steady_euler) then
+            call init_rk_pseudo_solver(numNodesRankPar)
          end if
       else 
          if(flag_rk_ls .eqv. .false.) then
@@ -1086,12 +1083,16 @@ end subroutine CFDSolverBase_findFixPressure
       end if
 
       ! Exponential average velocity for wall law
+      allocate(wmles_thinBL_fit_d(numNodesRankPar))
+      !$acc enter data create(wmles_thinBL_fit_d(:))
+      !$acc kernels
+      wmles_thinBL_fit_d(:) = 0
+      !$acc end kernels
       if(flag_walave) then
-         allocate(walave_u(numNodesRankPar,ndime),wmles_thinBL_fit_d(numNodesRankPar))
-         !$acc enter data create(walave_u(:,:),wmles_thinBL_fit_d(:))
+         allocate(walave_u(numNodesRankPar,ndime))
+         !$acc enter data create(walave_u(:,:))
          !$acc kernels
          walave_u(:,:) = 0.0_rp
-         wmles_thinBL_fit_d(:) = 0
          !$acc end kernels
 
          if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then           

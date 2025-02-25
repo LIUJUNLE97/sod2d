@@ -551,14 +551,11 @@ contains
       real(rp)                :: Re_ex, Re_out, N, phiP, gradPproj, Chi, Re_min,p_aux, Re_fit
       real(rp)                :: y,ul,nul,uistar,tvelo(ndime),uiex(ndime),auxmag,auxvn,surf,auxpn,tgradP(ndime)
       real(rp)                :: point(ndime),pointF(ndime),normalF(ndime)
-      real(rp)                :: Beta1, Beta2, Alpha, Gamma, Theta, Sigma, Mu, stream(ndime)
+      real(rp)                :: Beta1, Beta2, Alpha, Gamma, Theta, Sigma, Mu
       integer(4)              :: atoIJ(npbou)
       real(rp)  :: aux_fact = 1.0_rp
 
       atoIJ(:) = mesh_a2ij(:)
-      !stream(1) = 1.0_rp
-      !stream(2) = 0.0_rp
-      !stream(3) = 0.0_rp
 
       if(present(fact)) then
          aux_fact = fact
@@ -585,17 +582,18 @@ contains
             type_ijk = extype(ielem,igaus)
             if(type_ijk .eq. 1) then
                isoI = iex(ielem,igaus)
-               point(1:ndime) =coord(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
-               uiex(1:ndime) = ui(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
+               point(1:ndime)   = coord(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
+               uiex(1:ndime)    = ui(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
                gradPex(1:ndime) = gradP(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
             else if(type_ijk .eq. 2) then
                isoJ = iex(ielem,igaus)
-               point(1:ndime) =coord(connec(iElem,invAtoIJK(isoII,isoJ,isoKK)),1:ndime)
-               uiex(1:ndime) = ui(connec(iElem,invAtoIJK(isoII,isoJ,isoKK)),1:ndime)
+               point(1:ndime)   = coord(connec(iElem,invAtoIJK(isoII,isoJ,isoKK)),1:ndime)
+               uiex(1:ndime)    = ui(connec(iElem,invAtoIJK(isoII,isoJ,isoKK)),1:ndime)
                gradPex(1:ndime) = gradP(connec(iElem,invAtoIJK(isoII,isoJ,isoKK)),1:ndime)
             else 
                isoK = iex(ielem,igaus)
-               point(1:ndime) =coord(connec(iElem,invAtoIJK(isoII,isoJJ,isoK)),1:ndime)
+               point(1:ndime)   = coord(connec(iElem,invAtoIJK(isoII,isoJJ,isoK)),1:ndime)
+               uiex(1:ndime)    = ui(connec(iElem,invAtoIJK(isoII,isoJJ,isoK)),1:ndime)
                gradPex(1:ndime) = gradP(connec(iElem,invAtoIJK(isoII,isoJJ,isoK)),1:ndime)
             end if          
 
@@ -626,7 +624,7 @@ contains
             N = dot_product(tgradP,tvelo)/rhol
             phiP = N*(y**3)/(nul**2) 
 
-            ! Equilibrium contribution  
+            ! Equilibrium contribution    
             Beta1 = 1.0_rp/(1.0_rp+(0.155_rp/(Re_ex**0.03_rp)))
             Beta2 = 1.7_rp-(1.0_rp/(1.0_rp+(36.0_rp/(Re_ex**0.75_rp))))
             Re_fit = 0.005_rp**(Beta1-0.5_rp)*(Re_ex**Beta1)*((1.0_rp+(1.0_rp/((0.005_rp*Re_ex)**Beta2)))**((Beta1-0.5_rp)/Beta2))                        

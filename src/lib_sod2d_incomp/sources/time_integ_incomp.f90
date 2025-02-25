@@ -3,7 +3,6 @@ module time_integ_incomp
    use mod_nvtx
    use elem_convec
    use elem_convec_incomp
-   use elem_diffu_incomp
    use elem_source
    use mod_solver
    use mod_entropy_viscosity_incomp
@@ -379,7 +378,7 @@ module time_integ_incomp
             end if
 
             call conjGrad_veloc_incomp(igtime,1.0_rp/gamma0,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
-                                       gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,mu_fluid,mu_e,mu_sgs,u(:,:,1),u(:,:,2),&
+                                       gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,helem,mu_fluid,mu_e,mu_sgs,u(:,:,1),u(:,:,2),&
                                        bou_codes_nodes,normalsAtNodes,u_buffer,wmles_thinBL_fit_d)
 
             if (noBoundaries .eqv. .false.) then

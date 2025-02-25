@@ -9,7 +9,7 @@ module elem_stab_incomp
    use mod_comms
 
       contains
-        subroutine full_stab_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,TauPX,TauPY,TauPZ,tau_stab,Ml,Rmom)
+        subroutine full_diff_stab_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,mu_fluid,mu_sgs,TauPX,TauPY,TauPZ,tau_stab,Ml,Rmom)
              implicit none
 
              integer(4), intent(in)  :: nelem, npoin
@@ -19,24 +19,31 @@ module elem_stab_incomp
              real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
              integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
              real(rp),   intent(in)  :: u(npoin,ndime),Ml(npoin)
+             real(rp),   intent(in)  :: mu_fluid(npoin), mu_sgs(nelem,ngaus)
              real(rp),   intent(in)  :: TauPX(npoin,ndime),TauPY(npoin,ndime),TauPZ(npoin,ndime), tau_stab(nelem)
              real(rp),   intent(inout) :: Rmom(npoin,ndime)
              integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
              integer(4)              :: ipoin(nnode)
-             real(rp)                :: gradU(ndime,ndime), tmp1,vol,arho
+             real(rp)                :: gradU(ndime,ndime), tmp1,vol,arho,mu_fgp,muel
              real(rp)                :: gradIsoU(ndime,ndime)
              real(rp)                :: divDm(ndime)
-             real(rp)                :: ul(nnode,ndime)
+             real(rp)                :: ul(nnode,ndime), mufluidl(nnode),musgsl(nnode)
              real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime),tau(ndime,ndime)
              real(rp)                :: gradRhol(nnode,ndime),taupxl(nnode,ndime),taupyl(nnode,ndime),taupzl(nnode,ndime),taustabl
 
-             call nvtxStartRange("Full diffusion")
+             call nvtxStartRange("Full diffusion and stab")
 
-             !$acc parallel loop gang  private(ipoin,ul,tauXl,tauYl,tauZl,taupxl,taupyl,taupzl)
+             !$acc kernels
+             Rmom(:,:) = 0.0_rp
+             !$acc end kernels
+
+             !$acc parallel loop gang  private(ipoin,ul,tauXl,tauYl,tauZl,taupxl,taupyl,taupzl,mufluidl,musgsl)
              do ielem = 1,nelem
                 !$acc loop vector
                 do inode = 1,nnode
                   ipoin(inode) = connec(ielem,inode)
+                  mufluidl(inode) = mu_fluid(ipoin(inode))
+                  musgsl(inode) =  mu_sgs(ielem,inode)
                   !$acc loop seq                  
                    do idime = 1,ndime
                       ul(inode,idime) = u(ipoin(inode),idime)
@@ -53,6 +60,7 @@ module elem_stab_incomp
 
                 !$acc loop vector private(gradU,gradIsoU,tau)
                 do igaus = 1,ngaus
+                   mu_fgp = mufluidl(igaus) + musgsl(igaus) + taustabl
 
                    isoI = gmshAtoI(igaus) 
                    isoJ = gmshAtoJ(igaus) 
@@ -91,9 +99,9 @@ module elem_stab_incomp
 
                    !$acc loop seq
                    do idime = 1,ndime
-                      tauXl(igaus,idime) =  taustabl*(taupxl(igaus,idime)-tau(1,idime))
-                      tauYl(igaus,idime) =  taustabl*(taupyl(igaus,idime)-tau(2,idime))
-                      tauZl(igaus,idime) =  taustabl*(taupzl(igaus,idime)-tau(3,idime))
+                      tauXl(igaus,idime) =  mu_fgp*tau(1,idime) - taustabl*taupxl(igaus,idime)
+                      tauYl(igaus,idime) =  mu_fgp*tau(2,idime) - taustabl*taupyl(igaus,idime)
+                      tauZl(igaus,idime) =  mu_fgp*tau(3,idime) - taustabl*taupzl(igaus,idime)
                    end do
                 end do
 
@@ -125,13 +133,138 @@ module elem_stab_incomp
 
                    do idime = 1,ndime
                       !$acc atomic update
-                      Rmom(ipoin(igaus),idime) = Rmom(ipoin(igaus),idime)-divDm(idime)
+                      Rmom(ipoin(igaus),idime) = Rmom(ipoin(igaus),idime)+divDm(idime)
                       !$acc end atomic
                    end do
                 end do
              end do
              !$acc end parallel loop
             call nvtxEndRange
-        end subroutine full_stab_incomp
+        end subroutine full_diff_stab_incomp
+
+        subroutine full_stab_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,TauPX,TauPY,TauPZ,tau_stab,Ml,Rmom)
+         implicit none
+
+         integer(4), intent(in)  :: nelem, npoin
+         integer(4), intent(in)  :: connec(nelem,nnode)
+         real(rp),   intent(in)  :: Ngp(ngaus,nnode)
+         real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem),dlxigp_ip(ngaus,ndime,porder+1)
+         real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
+         integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+         real(rp),   intent(in)  :: u(npoin,ndime),Ml(npoin)
+         real(rp),   intent(in)  :: TauPX(npoin,ndime),TauPY(npoin,ndime),TauPZ(npoin,ndime), tau_stab(nelem)
+         real(rp),   intent(inout) :: Rmom(npoin,ndime)
+         integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
+         integer(4)              :: ipoin(nnode)
+         real(rp)                :: gradU(ndime,ndime), tmp1,vol,arho
+         real(rp)                :: gradIsoU(ndime,ndime)
+         real(rp)                :: divDm(ndime)
+         real(rp)                :: ul(nnode,ndime)
+         real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime),tau(ndime,ndime)
+         real(rp)                :: gradRhol(nnode,ndime),taupxl(nnode,ndime),taupyl(nnode,ndime),taupzl(nnode,ndime),taustabl
+
+         call nvtxStartRange("Full stab")
+
+         !$acc parallel loop gang  private(ipoin,ul,tauXl,tauYl,tauZl,taupxl,taupyl,taupzl)
+         do ielem = 1,nelem
+            !$acc loop vector
+            do inode = 1,nnode
+              ipoin(inode) = connec(ielem,inode)
+              !$acc loop seq                  
+               do idime = 1,ndime
+                  ul(inode,idime) = u(ipoin(inode),idime)
+                  taupxl(inode,idime) = TauPX(ipoin(inode),idime)
+                  taupyl(inode,idime) = TauPY(ipoin(inode),idime)
+                  taupzl(inode,idime) = TauPZ(ipoin(inode),idime)
+               end do
+            end do
+            tauXl(:,:) = 0.0_rp
+            tauYl(:,:) = 0.0_rp
+            tauZl(:,:) = 0.0_rp
+
+            taustabl = tau_stab(ielem)
+
+            !$acc loop vector private(gradU,gradIsoU,tau)
+            do igaus = 1,ngaus
+
+               isoI = gmshAtoI(igaus) 
+               isoJ = gmshAtoJ(igaus) 
+               isoK = gmshAtoK(igaus) 
+
+               gradIsoU(:,:) = 0.0_rp
+               !$acc loop seq
+               do ii=1,porder+1
+                  !$acc loop seq
+                  do idime=1,ndime
+                     gradIsoU(idime,1) = gradIsoU(idime,1) + dlxigp_ip(igaus,1,ii)*ul(invAtoIJK(ii,isoJ,isoK),idime)
+                     gradIsoU(idime,2) = gradIsoU(idime,2) + dlxigp_ip(igaus,2,ii)*ul(invAtoIJK(isoI,ii,isoK),idime)
+                     gradIsoU(idime,3) = gradIsoU(idime,3) + dlxigp_ip(igaus,3,ii)*ul(invAtoIJK(isoI,isoJ,ii),idime)
+                  end do
+               end do
+
+               gradU(:,:) = 0.0_rp
+               !$acc loop seq
+               do idime=1, ndime
+                  !$acc loop seq
+                  do jdime=1, ndime
+                     !$acc loop seq
+                     do kdime=1,ndime
+                        gradU(idime,jdime) = gradU(idime,jdime) + He(jdime,kdime,igaus,ielem) * gradIsoU(idime,kdime)
+                     end do
+                  end do
+               end do
+
+               !$acc loop seq
+               do idime = 1,ndime
+                 !$acc loop seq
+                 do jdime = 1,ndime
+                      tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
+                 end do
+              end do
+
+               !$acc loop seq
+               do idime = 1,ndime
+                  tauXl(igaus,idime) =  taustabl*(taupxl(igaus,idime)-tau(1,idime))
+                  tauYl(igaus,idime) =  taustabl*(taupyl(igaus,idime)-tau(2,idime))
+                  tauZl(igaus,idime) =  taustabl*(taupzl(igaus,idime)-tau(3,idime))
+               end do
+            end do
+
+            !$acc loop vector private(divDm) 
+            do igaus = 1,ngaus
+               isoI = gmshAtoI(igaus) 
+               isoJ = gmshAtoJ(igaus) 
+               isoK = gmshAtoK(igaus) 
+
+               divDm(:) = 0.0_rp
+               
+               !$acc loop seq
+               do ii=1,porder+1
+                  !$acc loop seq
+                  do idime=1,ndime
+                     divDm(1) = divDm(1) + He(idime,1,invAtoIJK(ii,isoJ,isoK),ielem)*gpvol(1,invAtoIJK(ii,isoJ,isoK),ielem)*dlxigp_ip(invAtoIJK(ii,isoJ,isoK),1,isoI)*tauXl(invAtoIJK(ii,isoJ,isoK),idime)
+                     divDm(1) = divDm(1) + He(idime,2,invAtoIJK(isoI,ii,isoK),ielem)*gpvol(1,invAtoIJK(isoI,ii,isoK),ielem)*dlxigp_ip(invAtoIJK(isoI,ii,isoK),2,isoJ)*tauXl(invAtoIJK(isoI,ii,isoK),idime)
+                     divDm(1) = divDm(1) + He(idime,3,invAtoIJK(isoI,isoJ,ii),ielem)*gpvol(1,invAtoIJK(isoI,isoJ,ii),ielem)*dlxigp_ip(invAtoIJK(isoI,isoJ,ii),3,isoK)*tauXl(invAtoIJK(isoI,isoJ,ii),idime)
+
+                     divDm(2) = divDm(2) + He(idime,1,invAtoIJK(ii,isoJ,isoK),ielem)*gpvol(1,invAtoIJK(ii,isoJ,isoK),ielem)*dlxigp_ip(invAtoIJK(ii,isoJ,isoK),1,isoI)*tauYl(invAtoIJK(ii,isoJ,isoK),idime)
+                     divDm(2) = divDm(2) + He(idime,2,invAtoIJK(isoI,ii,isoK),ielem)*gpvol(1,invAtoIJK(isoI,ii,isoK),ielem)*dlxigp_ip(invAtoIJK(isoI,ii,isoK),2,isoJ)*tauYl(invAtoIJK(isoI,ii,isoK),idime)
+                     divDm(2) = divDm(2) + He(idime,3,invAtoIJK(isoI,isoJ,ii),ielem)*gpvol(1,invAtoIJK(isoI,isoJ,ii),ielem)*dlxigp_ip(invAtoIJK(isoI,isoJ,ii),3,isoK)*tauYl(invAtoIJK(isoI,isoJ,ii),idime)
+
+                     divDm(3) = divDm(3) + He(idime,1,invAtoIJK(ii,isoJ,isoK),ielem)*gpvol(1,invAtoIJK(ii,isoJ,isoK),ielem)*dlxigp_ip(invAtoIJK(ii,isoJ,isoK),1,isoI)*tauZl(invAtoIJK(ii,isoJ,isoK),idime)
+                     divDm(3) = divDm(3) + He(idime,2,invAtoIJK(isoI,ii,isoK),ielem)*gpvol(1,invAtoIJK(isoI,ii,isoK),ielem)*dlxigp_ip(invAtoIJK(isoI,ii,isoK),2,isoJ)*tauZl(invAtoIJK(isoI,ii,isoK),idime)
+                     divDm(3) = divDm(3) + He(idime,3,invAtoIJK(isoI,isoJ,ii),ielem)*gpvol(1,invAtoIJK(isoI,isoJ,ii),ielem)*dlxigp_ip(invAtoIJK(isoI,isoJ,ii),3,isoK)*tauZl(invAtoIJK(isoI,isoJ,ii),idime)
+                  end do
+               end do
+
+               do idime = 1,ndime
+                  !$acc atomic update
+                  Rmom(ipoin(igaus),idime) = Rmom(ipoin(igaus),idime)-divDm(idime)
+                  !$acc end atomic
+               end do
+            end do
+         end do
+         !$acc end parallel loop
+        call nvtxEndRange
+    end subroutine full_stab_incomp        
 
 end module elem_stab_incomp

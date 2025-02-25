@@ -28,7 +28,7 @@ module mod_solver_incomp
       contains
 
             subroutine conjGrad_veloc_incomp(igtime,fact,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
-                                             gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem_k,mu_fluid,mu_e,mu_sgs,Rp0,R, &
+                                             gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,helem_k,mu_fluid,mu_e,mu_sgs,Rp0,R, &
                                              bou_codes_nodes,normalsAtNodes,u_buffer,wmles_thinBL_fit_d) ! Optional args
 
             implicit none
@@ -36,7 +36,7 @@ module mod_solver_incomp
             logical,    intent(in) :: noBoundaries
             integer(4), intent(in) :: igtime,save_logFile_next,wmles_thinBL_fit_d(npoin)
             integer(4), intent(in) :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w),nboun
-            real(rp),   intent(in) :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode),dt,fact
+            real(rp),   intent(in) :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode),dt,fact, dNgp(ndime,nnode,ngaus)
             real(rp),   intent(in) :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin,ndime)
             integer(4), intent(in) :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             real(rp),   intent(in) :: mu_fluid(npoin),helem_k(nelem)
@@ -76,17 +76,9 @@ module mod_solver_incomp
                   b_u(ipoin,idime) = 0.0_rp
                   z0_u(ipoin,idime) = 0.0_rp
                   z1_u(ipoin,idime) = 0.0_rp
-                  M_u(ipoin,idime) = Ml(ipoin)/dt
-               end do
-            end do
-            !$acc end parallel loop
-
-            !$acc parallel loop
-            do ipoin = 1,npoin_w
-               !$acc loop seq
-               do idime = 1,ndime
-                  b_u(lpoin_w(ipoin),idime) = R(lpoin_w(ipoin),idime)
-                  x_u(lpoin_w(ipoin),idime) = Rp0(lpoin_w(ipoin),idime)
+                  M_u(ipoin,idime) = Ml(ipoin)/dt 
+                  x_u(ipoin,idime) = Rp0(ipoin,idime)
+                  b_u(ipoin,idime) = R(ipoin,idime)
                end do
             end do
             !$acc end parallel loop
@@ -95,12 +87,10 @@ module mod_solver_incomp
 
             if(flag_lps_stab) then
                call species_tau(nelem,npoin,connec,x_u,helem_k,dt,tau)
-            end if
-
-            call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x_u,mu_fluid,mu_e,mu_sgs,Ml,qn_u)
-            if(flag_lps_stab) then
                call eval_tau_veloc(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x_u,Ml,TauPX,TauPY,TauPZ)
-               call full_stab_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x_u,TauPX,TauPY,TauPZ,tau,Ml,qn_u)
+               call full_diff_stab_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x_u,mu_fluid,mu_sgs,TauPX,TauPY,TauPZ,tau,Ml,qn_u)
+            else
+               call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x_u,mu_fluid,mu_e,mu_sgs,Ml,qn_u)
             end if
             if(mpi_size.ge.2) then
                call nvtxStartRange("CG_u halo")
@@ -135,7 +125,8 @@ module mod_solver_incomp
             do ipoin = 1,npoin_w
                !$acc loop seq
               do idime = 1,ndime 
-               auxT1 = auxT1+real(r0_u(lpoin_w(ipoin),idime)*r0_u(lpoin_w(ipoin),idime),8)
+               !auxT1 = auxT1+real(r0_u(lpoin_w(ipoin),idime)*r0_u(lpoin_w(ipoin),idime),8)
+               auxT1 = auxT1+real(b_u(lpoin_w(ipoin),idime)*b_u(lpoin_w(ipoin),idime),8)
               end do
             end do
 
@@ -149,11 +140,12 @@ module mod_solver_incomp
            !
            call nvtxStartRange("CG_u iters")
            do iter = 1,maxIter
-              call nvtxStartRange("Iter_u")
-              call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,mu_fluid,mu_e,mu_sgs,Ml,qn_u)
+              call nvtxStartRange("Iter_u")              
               if(flag_lps_stab) then
                   call eval_tau_veloc(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,Ml,TauPX,TauPY,TauPZ)
-                  call full_stab_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,TauPX,TauPY,TauPZ,tau,Ml,qn_u)
+                  call full_diff_stab_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,mu_fluid,mu_sgs,TauPX,TauPY,TauPZ,tau,Ml,qn_u)
+              else
+               call full_diffusion_ijk_incomp(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0_u,mu_fluid,mu_e,mu_sgs,Ml,qn_u)
               end if
               if(mpi_size.ge.2) then
                   call mpi_halo_atomic_update_real_arrays(ndime,qn_u(:,:))

@@ -339,14 +339,14 @@ contains
              !write(*,*) inode," is ",auxCnt
              auxCnt=auxCnt+1
              bcode = bouCodesNodesPar(inode)
-             write(*,*) "bcode = ", bcode 
+             !write(*,*) "bcode = ", bcode 
              if(bcode .lt. max_num_bou_codes) then
                 if (bcode == bc_type_unsteady_inlet) then
-                   write(*,*) "inlet = ", bcode
+                   !write(*,*) "inlet = ", bcode
                    do ipoin=1,npoinDB
                       if(iLine .eq. ipoinInletDB(ipoin)) then
                          myPointsDB(ipoin) = inode
-                         write(*,*) " data base", ipoin," = ",inode
+                         !write(*,*) " data base", ipoin," = ",inode
                       end if
                    end do
                 end if
@@ -361,7 +361,7 @@ contains
        do inode = 1,npoinDB
           ipoin = myPointsDB(inode)
           if(ipoin .gt. 0) then
-             write(*,*) inode, " ", ipoin
+             !write(*,*) inode, " ", ipoin
              u_buffer(ipoin,1) = uInletDB(1,inode)
              u_buffer(ipoin,2) = vInletDB(1,inode)
              u_buffer(ipoin,3) = wInletDB(1,inode) 
@@ -384,7 +384,7 @@ contains
        tIdLow  = floor(tStar/this%deltaT+1)
        tIdUp   = ceiling(tStar/this%deltaT+1)
 
-       if(mpi_rank.eq.0) write(*,*) 'tIdUp ',tIdUp
+       !if(mpi_rank.eq.0) write(*,*) 'tIdUp ',tIdUp
        
        ! Main idea:
        ! u_buffer(ipoin,1) = u(tIdLow) + ((u(tIdUp) - u(tIdLow))/(deltaT)) * (tStar - (tIdLow - 1)*deltaT)
