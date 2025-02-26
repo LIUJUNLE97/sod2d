@@ -417,9 +417,9 @@ end subroutine CFDSolverBase_findFixPressure
          end if
       else
          if(mpi_rank .eq. 0) then
-            write(111,*) 'ERROR! JSON file error on the flag_type_wmles definition, the model does not exist'
-            stop 1      
+            write(111,*) 'WARRNING! JSON file error on the flag_type_wmles definition, the model does not exist, wmles_type_reichardt fixed'
          end if
+         flag_type_wmles = wmles_type_reichardt
       end if
 
       call json%destroy()

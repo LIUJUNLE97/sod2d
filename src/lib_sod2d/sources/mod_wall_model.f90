@@ -10,7 +10,7 @@ module mod_wall_model
 
    implicit none
 
-   integer(rp), allocatable, dimension(:,:) :: iex, extype
+   integer(4), allocatable, dimension(:,:) :: iex, extype
 
 
 contains
@@ -44,7 +44,7 @@ contains
 
       atoIJ(:) = mesh_a2ij(:)
 
-      allocate(iex(nelem,nnode),extype(nelem,nnode))
+      allocate(iex(nboun,npbou),extype(nboun,npbou))
       !$acc enter data create(iex(:,:))
       !$acc enter data create(extype(:,:))
 
@@ -69,7 +69,7 @@ contains
                else
                   isoI = 1
                end if
-               iex(ielem,igaus) = isoI
+               iex(iBound,igaus) = isoI
             else if ((isoJ .eq. 1) .or. (isoJ .eq. 2)) then
                type_ijk = 2
                if(isoJ .eq. 1) then
@@ -77,7 +77,7 @@ contains
                else
                   isoJ = 1
                end if            
-               iex(ielem,igaus) = isoJ
+               iex(iBound,igaus) = isoJ
             else
                type_ijk = 3
                if(isoK .eq. 1) then
@@ -85,9 +85,9 @@ contains
                else
                   isoK = 1
                end if 
-               iex(ielem,igaus) = isoK           
+               iex(iBound,igaus) = isoK           
             end if     
-            extype(ielem,igaus) = type_ijk
+            extype(iBound,igaus) = type_ijk
          end do
       end do
       !$acc end parallel loop
@@ -123,7 +123,7 @@ contains
 
       atoIJ(:) = mesh_a2ij(:)
 
-      allocate(iex(nelem,nnode),extype(nelem,nnode))
+      allocate(iex(nboun,npbou),extype(nboun,npbou))
       !$acc enter data create(iex(:,:))
       !$acc enter data create(extype(:,:))
 
@@ -148,7 +148,7 @@ contains
                else
                   isoI = porder+1
                end if
-               iex(ielem,igaus) = isoI
+               iex(iBound,igaus) = isoI
             else if ((isoJ .eq. 1) .or. (isoJ .eq. 2)) then
                type_ijk = 2
                if(isoJ .eq. 1) then
@@ -156,7 +156,7 @@ contains
                else
                   isoJ = porder+1
                end if            
-               iex(ielem,igaus) = isoJ
+               iex(iBound,igaus) = isoJ
             else
                type_ijk = 3
                if(isoK .eq. 1) then
@@ -164,9 +164,9 @@ contains
                else
                   isoK = porder+1
                end if 
-               iex(ielem,igaus) = isoK           
+               iex(iBound,igaus) = isoK           
             end if     
-            extype(ielem,igaus) = type_ijk
+            extype(iBound,igaus) = type_ijk
          end do
       end do
       !$acc end parallel loop
@@ -206,7 +206,7 @@ contains
 
       atoIJ(:) = mesh_a2ij(:)
 
-      allocate(iex(nelem,nnode),extype(nelem,nnode))
+      allocate(iex(nboun,npbou),extype(nboun,npbou))
       !$acc enter data create(iex(:,:))
       !$acc enter data create(extype(:,:))
    
@@ -239,7 +239,7 @@ contains
                      isoI = i
                   endif
                end do        
-               iex(ielem,igaus) = isoI                 
+               iex(iBound,igaus) = isoI                 
             else if ((isoJ .eq. 1) .or. (isoJ .eq. 2)) then
                type_ijk = 2
                auxVal = 1000000_rp
@@ -252,7 +252,7 @@ contains
                      isoJ = i
                   endif
                end do             
-               iex(ielem,igaus) = isoJ           
+               iex(iBound,igaus) = isoJ           
             else
                type_ijk = 3
                auxVal = 1000000_rp
@@ -265,10 +265,10 @@ contains
                      isoK = i
                   endif
                end do  
-               iex(ielem,igaus) = isoK                        
+               iex(iBound,igaus) = isoK                        
             end if  
 
-            extype(ielem,igaus) = type_ijk
+            extype(iBound,igaus) = type_ijk
          end do
       end do
       !$acc end parallel loop
@@ -326,17 +326,17 @@ contains
             isoII = gmshAtoI(jgaus) 
             isoJJ = gmshAtoJ(jgaus) 
             isoKK = gmshAtoK(jgaus)
-            type_ijk = extype(ielem,igaus)
+            type_ijk = extype(iBound,igaus)
             if(type_ijk .eq. 1) then
-               isoI = iex(ielem,igaus)
+               isoI = iex(iBound,igaus)
                point(1:ndime) =coord(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
                uiex(1:ndime) = ui(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
             else if(type_ijk .eq. 2) then
-               isoJ = iex(ielem,igaus)
+               isoJ = iex(iBound,igaus)
                point(1:ndime) =coord(connec(iElem,invAtoIJK(isoII,isoJ,isoKK)),1:ndime)
                uiex(1:ndime) = ui(connec(iElem,invAtoIJK(isoII,isoJ,isoKK)),1:ndime)
             else 
-               isoK = iex(ielem,igaus)
+               isoK = iex(iBound,igaus)
                point(1:ndime) =coord(connec(iElem,invAtoIJK(isoII,isoJJ,isoK)),1:ndime)
                uiex(1:ndime) = ui(connec(iElem,invAtoIJK(isoII,isoJJ,isoK)),1:ndime)
             end if          
@@ -469,18 +469,18 @@ contains
             isoII = gmshAtoI(jgaus) 
             isoJJ = gmshAtoJ(jgaus) 
             isoKK = gmshAtoK(jgaus)
-            type_ijk = extype(ielem,igaus)
+            type_ijk = extype(iBound,igaus)
 
             if(type_ijk .eq. 1) then
-               isoI = iex(ielem,igaus)
+               isoI = iex(iBound,igaus)
                point(1:ndime) =coord(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
                uiex(1:ndime) = ui(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
             else if(type_ijk .eq. 2) then
-               isoJ = iex(ielem,igaus)
+               isoJ = iex(iBound,igaus)
                point(1:ndime) =coord(connec(iElem,invAtoIJK(isoII,isoJ,isoKK)),1:ndime)
                uiex(1:ndime) = ui(connec(iElem,invAtoIJK(isoII,isoJ,isoKK)),1:ndime)
             else 
-               isoK = iex(ielem,igaus)
+               isoK = iex(iBound,igaus)
                point(1:ndime) =coord(connec(iElem,invAtoIJK(isoII,isoJJ,isoK)),1:ndime)
                uiex(1:ndime) = ui(connec(iElem,invAtoIJK(isoII,isoJJ,isoK)),1:ndime)
             end if          
@@ -579,19 +579,19 @@ contains
             isoII = gmshAtoI(jgaus) 
             isoJJ = gmshAtoJ(jgaus) 
             isoKK = gmshAtoK(jgaus)
-            type_ijk = extype(ielem,igaus)
+            type_ijk = extype(iBound,igaus)
             if(type_ijk .eq. 1) then
-               isoI = iex(ielem,igaus)
+               isoI = iex(iBound,igaus)
                point(1:ndime)   = coord(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
                uiex(1:ndime)    = ui(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
                gradPex(1:ndime) = gradP(connec(iElem,invAtoIJK(isoI,isoJJ,isoKK)),1:ndime)
             else if(type_ijk .eq. 2) then
-               isoJ = iex(ielem,igaus)
+               isoJ = iex(iBound,igaus)
                point(1:ndime)   = coord(connec(iElem,invAtoIJK(isoII,isoJ,isoKK)),1:ndime)
                uiex(1:ndime)    = ui(connec(iElem,invAtoIJK(isoII,isoJ,isoKK)),1:ndime)
                gradPex(1:ndime) = gradP(connec(iElem,invAtoIJK(isoII,isoJ,isoKK)),1:ndime)
             else 
-               isoK = iex(ielem,igaus)
+               isoK = iex(iBound,igaus)
                point(1:ndime)   = coord(connec(iElem,invAtoIJK(isoII,isoJJ,isoK)),1:ndime)
                uiex(1:ndime)    = ui(connec(iElem,invAtoIJK(isoII,isoJJ,isoK)),1:ndime)
                gradPex(1:ndime) = gradP(connec(iElem,invAtoIJK(isoII,isoJJ,isoK)),1:ndime)
