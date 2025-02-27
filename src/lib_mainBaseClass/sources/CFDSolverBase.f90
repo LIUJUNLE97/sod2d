@@ -32,7 +32,6 @@ module mod_arrays
 
       ! exponential average for wall law
       real(rp), allocatable :: walave_u(:,:),walave_t(:),walave_pr(:)
-      integer(4), allocatable :: wmles_thinBL_fit_d(:) !impose a dirichlet non_slip
 
       ! roughness for wall law
       real(rp), allocatable :: zo(:)
@@ -1083,11 +1082,6 @@ end subroutine CFDSolverBase_findFixPressure
       end if
 
       ! Exponential average velocity for wall law
-      allocate(wmles_thinBL_fit_d(numNodesRankPar))
-      !$acc enter data create(wmles_thinBL_fit_d(:))
-      !$acc kernels
-      wmles_thinBL_fit_d(:) = 0
-      !$acc end kernels
       if(flag_walave) then
          allocate(walave_u(numNodesRankPar,ndime))
          !$acc enter data create(walave_u(:,:))
@@ -1669,7 +1663,7 @@ end subroutine CFDSolverBase_findFixPressure
             call nvtxStartRange("Surface info")
             call surfInfo(0,0.0_rp,numElemsRankPar,numNodesRankPar,numBoundsRankPar,iCode,connecParWork,boundPar,point2elem,&
                bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),tauw,wmles_thinBL_fit_d,.TRUE.)
+               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),tauw,.TRUE.)
             call nvtxEndRange
          end do
       end if
@@ -1938,7 +1932,7 @@ end subroutine CFDSolverBase_findFixPressure
                   call nvtxStartRange("Surface info")
                   call surfInfo(istep,this%time,numElemsRankPar,numNodesRankPar,numBoundsRankPar,icode,connecParWork,boundPar,point2elem, &
                      bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),tauw,wmles_thinBL_fit_d,.TRUE.)
+                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),tauw,.TRUE.)
 
                   call nvtxEndRange
                   if(mpi_rank.eq.0) call flush(888+icode)

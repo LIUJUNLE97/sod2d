@@ -526,7 +526,7 @@ contains
    end subroutine evalWallModelABL
 
    subroutine evalWallModelThinBLFit(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_code, &
-      bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,ui,gradP,tauw,wmles_thinBL_fit_d,Rdiff,fact)
+      bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,mu_fluid,rho,ui,gradP,tauw,Rdiff,fact)
 
       implicit none
 
@@ -540,7 +540,6 @@ contains
       real(rp),   intent(inout) :: tauw(npoin,ndime)
       real(rp),   intent(in)  :: coord(npoin,ndime), gpvol(1,ngaus,nelem)
       real(rp),   intent(inout) :: Rdiff(npoin,ndime)
-      integer(4), intent(inout) :: wmles_thinBL_fit_d(npoin)
       real(rp), optional, intent(in)  :: fact
       real(rp)                :: gradPex(ndime)
       integer(4)              :: iBound,iElem,idime,igaus,iAux
@@ -560,10 +559,6 @@ contains
       if(present(fact)) then
          aux_fact = fact
       end if
-
-      !$acc kernels
-      wmles_thinBL_fit_d(1:npoin) = 0
-      !$acc end kernels
 
       !$acc parallel loop gang private(bnorm)
       do iAux = 1,numBoundsWM
@@ -653,7 +648,6 @@ contains
                      Re_out = Re_fit*(1.0_rp-(1.0_rp/((1.0_rp+log(Re_ex/Re_min))**1.9_rp)))
                   else
                      Re_out = 0.0_rp
-                     !wmles_thinBL_fit_d(bound(iBound,igaus)) = 1
                   end if
                end if
             end if
@@ -677,11 +671,6 @@ contains
          end do
       end do
       !$acc end parallel loop
-
-      
-      !if(mpi_size.ge.2) then
-      !   call mpi_halo_bnd_atomic_max_integer_iSendiRcv(wmles_thinBL_fit_d)
-      !end if
 
 end subroutine evalWallModelThinBLFit
 

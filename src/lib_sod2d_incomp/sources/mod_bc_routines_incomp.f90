@@ -10,11 +10,11 @@ module mod_bc_routines_incomp
 
       contains
             
-         subroutine temporary_bc_routine_dirichlet_prim_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,aux_u,u_buffer,wmles_thinBL_fit_d)
+         subroutine temporary_bc_routine_dirichlet_prim_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,aux_u,u_buffer)
 
             implicit none
 
-            integer(4), intent(in)     :: npoin, nboun,  bou_codes_nodes(npoin),wmles_thinBL_fit_d(npoin)
+            integer(4), intent(in)     :: npoin, nboun,  bou_codes_nodes(npoin)
             real(rp), intent(in)     :: normalsAtNodes(npoin,ndime),u_buffer(npoin,ndime)
             real(rp),    intent(inout) :: aux_u(npoin,ndime)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
@@ -43,11 +43,6 @@ module mod_bc_routines_incomp
                      do idime = 1,ndime     
                         aux_u(inode,idime) = aux_u(inode,idime) - norm*normalsAtNodes(inode,idime)
                      end do
-                     if(wmles_thinBL_fit_d(inode) .gt. 0) then
-                        aux_u(inode,1) = 0.0_rp
-                        aux_u(inode,2) = 0.0_rp
-                        aux_u(inode,3) = 0.0_rp  
-                     end if
                   end if
                end if ! This guy
             end do
@@ -55,12 +50,12 @@ module mod_bc_routines_incomp
 
          end subroutine temporary_bc_routine_dirichlet_prim_residual_incomp
 
-         subroutine temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,aux_u,u_buffer,wmles_thinBL_fit_d)
+         subroutine temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,aux_u,u_buffer)
 
             implicit none
 
             integer(4), intent(in)  :: npoin,nboun,bou_codes_nodes(npoin)
-            integer(4), intent(in)  :: lnbn_nodes(npoin),wmles_thinBL_fit_d(npoin)
+            integer(4), intent(in)  :: lnbn_nodes(npoin)
             real(rp), intent(in)    :: normalsAtNodes(npoin,ndime),u_buffer(npoin,ndime)
             real(rp), intent(inout) :: aux_u(npoin,ndime)
             integer(4)              :: iboun,bcode,ipbou,inode,idime,iBoundNode
@@ -89,11 +84,6 @@ module mod_bc_routines_incomp
                      do idime = 1,ndime     
                         aux_u(inode,idime) = aux_u(inode,idime) - norm*normalsAtNodes(inode,idime)
                      end do
-                     if(wmles_thinBL_fit_d(inode) .gt. 0) then
-                        aux_u(inode,1) = 0.0_rp
-                        aux_u(inode,2) = 0.0_rp
-                        aux_u(inode,3) = 0.0_rp  
-                     end if
                   end if
                end if
             end do

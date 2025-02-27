@@ -29,12 +29,12 @@ module mod_solver_incomp
 
             subroutine conjGrad_veloc_incomp(igtime,fact,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
                                              gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,helem_k,mu_fluid,mu_e,mu_sgs,Rp0,R, &
-                                             bou_codes_nodes,normalsAtNodes,u_buffer,wmles_thinBL_fit_d) ! Optional args
+                                             bou_codes_nodes,normalsAtNodes,u_buffer) ! Optional args
 
             implicit none
 
             logical,    intent(in) :: noBoundaries
-            integer(4), intent(in) :: igtime,save_logFile_next,wmles_thinBL_fit_d(npoin)
+            integer(4), intent(in) :: igtime,save_logFile_next
             integer(4), intent(in) :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w),nboun
             real(rp),   intent(in) :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode),dt,fact, dNgp(ndime,nnode,ngaus)
             real(rp),   intent(in) :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin,ndime)
@@ -107,7 +107,7 @@ module mod_solver_incomp
             end do
             !$acc end parallel loop            
             if (noBoundaries .eqv. .false.) then
-               call temporary_bc_routine_dirichlet_prim_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0_u,u_buffer,wmles_thinBL_fit_d)
+               call temporary_bc_routine_dirichlet_prim_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0_u,u_buffer)
             end if            
             !$acc parallel loop
             do ipoin = 1,npoin_w
@@ -189,7 +189,7 @@ module mod_solver_incomp
                end do
                !$acc end parallel loop
                if (noBoundaries .eqv. .false.) then
-                  call temporary_bc_routine_dirichlet_prim_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0_u,u_buffer,wmles_thinBL_fit_d)
+                  call temporary_bc_routine_dirichlet_prim_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,r0_u,u_buffer)
                end if
                !$acc parallel loop
                do ipoin = 1,npoin_w
