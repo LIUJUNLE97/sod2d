@@ -2158,7 +2158,7 @@ end subroutine CFDSolverBase_findFixPressure
          !$acc end kernels
          do ielem = 1, numElemsRankPar
             if (radwit(ielem) < 0) then
-               call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzParCand(iwit,:), atoIJK, xi, isinside, Niwit)
+               call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzParCand(iwit,:), atoIJK, xi, isinside, Niwit, helem(ielem))
                if (isinside .AND. (abs(xi(1)) < 1.0_rp+wittol) .AND. (abs(xi(2)) < 1.0_rp+wittol) .AND. (abs(xi(3)) < 1.0_rp+wittol)) then
                   ifound = ifound+1
                   witel(ifound)   = ielem
@@ -2217,7 +2217,7 @@ end subroutine CFDSolverBase_findFixPressure
                witGlob(this%nwitPar)     = witGlobMiss(iwit)
                witel(this%nwitPar)       = ielem
 	            witxyzPar(this%nwitPar,:) = witxyz(witGlobMiss(iwit),:)
-	            call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzPar(this%nwitPar,:), atoIJK, witxi(this%nwitPar,:), isinside, Nwit(this%nwitPar,:)) 
+	            call isocoords(coordPar(connecParOrig(ielem,:),:), witxyzPar(this%nwitPar,:), atoIJK, witxi(this%nwitPar,:), isinside, Nwit(this%nwitPar,:), helem(ielem)) 
             end if
          end do
          deallocate(witGlobFound2)
