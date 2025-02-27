@@ -69,7 +69,7 @@ module elem_stab
                    Teml(inode) = Tem(ipoin(inode))      
                    !$acc loop seq          
                    do idime = 1,ndime
-                      ul(inode,idime) = u(ipoin(inode),idime)*rhol(inode)
+                      ul(inode,idime) = u(ipoin(inode),idime)
                       projMassl(inode,idime) = ProjMass(ipoin(inode),idime)
                       projEnerl(inode,idime) = ProjEner(ipoin(inode),idime)
                       projMXl(inode,idime) = ProjMX(ipoin(inode),idime)
@@ -255,7 +255,7 @@ module elem_stab
            aux_fact = fact
         end if
 
-         !$acc parallel loop gang  private(ipoin,ul,Teml,rhol,rhonl,mufluidl,mufluidl,gradRhol,gradTl,tauXl,tauYl,tauZl,taustabl,projMassl,ProjEnerl,ProjMXl,ProjMYl,ProjMZl)
+         !$acc parallel loop gang  private(ipoin,ul,Teml,rhol,rhonl,mufluidl,gradRhol,gradTl,tauXl,tauYl,tauZl,taustabl,projMassl,ProjEnerl,ProjMXl,ProjMYl,ProjMZl)
          do ielem = 1,nelem
             !$acc loop vector
             do inode = 1,nnode
@@ -266,7 +266,7 @@ module elem_stab
                mufluidl(inode) = mu_fluid(ipoin(inode)) 
                !$acc loop seq          
                do idime = 1,ndime
-                  ul(inode,idime) = u(ipoin(inode),idime)*rhol(inode)
+                  ul(inode,idime) = u(ipoin(inode),idime)
                   projMassl(inode,idime) = ProjMass(ipoin(inode),idime)
                   projEnerl(inode,idime) = ProjEner(ipoin(inode),idime)
                   projMXl(inode,idime) = ProjMX(ipoin(inode),idime)
@@ -340,7 +340,6 @@ module elem_stab
                   end do
                   tau(idime,idime) = tau(idime,idime)-twoThirds*divU
                end do
-
 
                !$acc loop seq
                do idime = 1,ndime
@@ -471,7 +470,7 @@ module elem_stab
                Teml(inode) = Tem(ipoin(inode))
                !$acc loop seq
                do idime = 1,ndime
-                  ul(inode,idime) = u(ipoin(inode),idime)*rhol(inode)
+                  ul(inode,idime) = u(ipoin(inode),idime)
                end do
             end do
 
