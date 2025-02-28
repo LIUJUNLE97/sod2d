@@ -101,7 +101,7 @@ module mod_numerical_params
         ! Wall model averaging
         !
         real(rp)    :: period_walave   = 1.0_rp
-        logical     :: flag_walave     = .false.
+        logical     :: flag_walave     = .true.
         real(rp)    :: wmles_walex = 0.1_rp
         integer(4)  :: flag_type_wmles = wmles_type_reichardt
 
