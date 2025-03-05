@@ -235,7 +235,7 @@ module elem_stab
 
          twoThirds = 2.0_rp/3.0_rp
 
-         call nvtxStartRange("Full stab")
+         call nvtxStartRange("full_diff_stab_ijk")
          if(present(initialze)) then
            if (initialze .eqv. .true.) then
            !$acc kernels
@@ -449,7 +449,7 @@ module elem_stab
          real(rp)                :: projMassl(nnode,ndime),ProjEnerl(nnode,ndime),ProjMXl(nnode,ndime),ProjMYl(nnode,ndime),ProjMZl(nnode,ndime)
          real(rp)  :: aux_fact = 1.0_rp, twoThirds
 
-         call nvtxStartRange("Full stab")
+         call nvtxStartRange("Full_proj_ijk")
          
          twoThirds = 2.0_rp/3.0_rp
 
@@ -570,6 +570,7 @@ module elem_stab
          call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,ProjMZ(:,:))
          call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,ProjMass(:,:))
          call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,ProjEner(:,:))
+         call nvtxEndRange
          
          call nvtxEndRange
     end subroutine full_proj_ijk

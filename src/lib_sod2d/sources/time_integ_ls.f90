@@ -23,6 +23,7 @@ module time_integ_ls
    real(rp), allocatable, dimension(:)   :: Rmass,Rener
    real(rp), allocatable, dimension(:,:) :: Rmom,Reta
    real(rp), allocatable, dimension(:)   :: auxReta
+   real(rp), allocatable, dimension(:)   :: invMl
    real(rp), allocatable, dimension(:)   :: tau_stab_ls
    real(rp), allocatable, dimension(:,:) :: ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls
 
@@ -39,6 +40,9 @@ module time_integ_ls
 
       allocate(aux_h(npoin))
       !$acc enter data create(aux_h(:))
+
+      allocate(invMl(npoin))
+      !$acc enter data create(invMl(:))
 
       allocate(auxReta(npoin),Rmass(npoin),Rener(npoin))
       !$acc enter data create(Rmass(:))
@@ -60,6 +64,7 @@ module time_integ_ls
       !$acc enter data create(ProjMass_ls(:,:),ProjEner_ls(:,:),ProjMX_ls(:,:),ProjMY_ls(:,:),ProjMZ_ls(:,:),tau_stab_ls(:))
 
       !$acc kernels
+      invMl(:) = 0.0_rp
       aux_h(:) = 0.0_rp
       Rmass(:) = 0.0_rp
       Rener(:) = 0.0_rp
@@ -176,6 +181,9 @@ module time_integ_ls
 
       !$acc exit data delete(aux_h(:))
       deallocate(aux_h)
+
+      !$acc exit data delete(invMl(:))
+      deallocate(invMl)
       
       !$acc exit data delete(Rmass(:))
       !$acc exit data delete(Rener(:))
@@ -247,7 +255,7 @@ module time_integ_ls
             real(rp), optional, intent(in)      :: source_term(npoin,ndime+2)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_pr(npoin)
             real(rp), optional, intent(in)      :: zo(npoin)
-            integer(4)                          :: pos, ipoin_w
+            integer(4)                          :: pos, ipoin_w, ielem, inode
             integer(4)                          :: istep, ipoin, idime,icode
             real(rp),    dimension(npoin)       :: Rrho
             real(rp)                            :: umag, rho_min, rho_avg
@@ -264,6 +272,17 @@ module time_integ_ls
 
             if(firstTimeStep .eqv. .true.) then
                firstTimeStep = .false.
+
+               call nvtxStartRange("Compute invMl")
+               !$acc parallel loop gang
+               do ielem = 1,nelem
+                  !$acc loop vector
+                  do inode = 1,nnode
+                     invMl(connec(ielem,inode)) = 1.0_rp/Ml(connec(ielem,inode))
+                  end do
+               end do
+               !$acc end parallel loop
+               call nvtxEndRange
 
                !$acc parallel loop
                do ipoin = 1,npoin_w
@@ -555,6 +574,8 @@ module time_integ_ls
             real(rp),    dimension(npoin)       :: Rrho
             real(rp)                            :: umag, rho_min, rho_avg
 
+            call nvtxStartRange("UpdateF")
+
             pos = 2
 
             if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,maskMapped,rho(:,pos),q(:,:,pos),E(:,pos),u_buffer)
@@ -612,26 +633,26 @@ module time_integ_ls
             ! Compute diffusion terms with values at current substep
             !
             call nvtxStartRange("CONVDIFFS")
-
-            
             call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),q(:,:,pos),rho(:,pos),&
                                     pr(:,pos),aux_h,Rmass,Rmom,Rener,.true.,-1.0_rp)    
-            if(flag_lps_stab) then           
+            if(flag_lps_stab) then
+               call nvtxStartRange("Stab + Diffu")
                call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),u(:,:,pos),&
                                  Tem(:,pos),Ml,ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls) 
                call full_diff_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),rho(:,pos),u(:,:,pos),&
-                                 Tem(:,pos),mu_fluid,mu_e,mu_sgs,Ml,ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls,tau_stab_ls,Rmass,Rmom,Rener,.false.,-1.0_rp) 
+                                 Tem(:,pos),mu_fluid,mu_e,mu_sgs,Ml,ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls,tau_stab_ls,Rmass,Rmom,Rener,.false.,-1.0_rp)
+               call nvtxEndRange
             else 
                call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),rho(:,pos),u(:,:,pos),&
                                     Tem(:,pos),mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener,.false.,-1.0_rp)                                 
             end if
-
             call nvtxEndRange
             !
             ! Call source term if applicable
             !
             
             if(present(source_term) .or.flag_bouyancy_effect) then
+               call nvtxStartRange("Extra terms")
                if(flag_bouyancy_effect) then
                   call mom_source_bouyancy_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,pos),Rmom,1.0_rp)
                   call ener_source_bouyancy(nelem,npoin,connec,Ngp,dNgp,He,gpvol,q(:,:,pos),Rener,1.0_rp)
@@ -639,32 +660,40 @@ module time_integ_ls
                   call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,pos),source_term(:,3:ndime+2),Rmom,1.0_rp) 
                   call ener_source_const(nelem,npoin,connec,Ngp,dNgp,He,gpvol,source_term(:,2),Rener,1.0_rp)
                end if
+               call nvtxEndRange
             end if
 
             !
             ! Evaluate wall models
 
             if((isWallModelOn) ) then
-               call nvtxStartRange("AB2 wall model")
+               call nvtxStartRange("WALL MODEL")
                if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then
+                  call nvtxStartRange("thinBL_WM_init")
                   call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,walave_pr(:),f_eta2,.true.)
+                  call nvtxEndRange
                end if
                if((numBoundsWM .ne. 0)) then
-                  call nvtxStartRange("WALL MODEL")
                   if((flag_type_wmles == wmles_type_reichardt) .or. (flag_type_wmles == wmles_type_reichardt_hwm)) then
+                     call nvtxStartRange("Reichardt_WM")
                      call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                      bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,rho(:,pos),walave_u(:,:),tauw,Rmom,-1.0_rp)
+                     call nvtxEndRange
                   else if (flag_type_wmles == wmles_type_abl) then
+                     call nvtxStartRange("ABL_WM")
                      call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
                                           rho(:,pos),walave_u(:,:),zo,tauw,Rmom,-1.0_rp)
+                     call nvtxEndRange
                   else if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then
+                     call nvtxStartRange("thinBL_WM")
                      call evalWallModelThinBLFit(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                         bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
                         rho(:,1),walave_u(:,:),f_eta2,tauw,Rmom,-1.0_rp)
-                  end if     
-                  call nvtxEndRange                              
+                     call nvtxEndRange
+                  end if
                end if
+               call nvtxEndRange
             end if
 
             if(mpi_size.ge.2) then
@@ -680,6 +709,8 @@ module time_integ_ls
             call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass(:))
             call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener(:))
             call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom(:,:))
+            call nvtxEndRange
+
             call nvtxEndRange
             
          end subroutine updateF                 
