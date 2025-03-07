@@ -229,10 +229,10 @@ contains
       call this%computeQuality(minQ,maxQ)
       print*,'       minQ: ',minQ,'    maxQ: ',maxQ
       
-      print*,'2- Save input (boundary curved) coordinates'
+!       print*,'2- Save input (boundary curved) coordinates'
       call save_input_coordinates(numNodesRankPar,ndime,coordPar,this%coord_input_safe)
       
-      print*,'3- Straighten mesh (coordpar)'
+!       print*,'3- Straighten mesh (coordpar)'
       call compute_straight_mesh(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,this%coord_input_safe)
       u(:,:,2) = coordPar-this%coord_input_safe ! -> displacement to see in paraview the straight mesh
       call this%saveInstResultsFiles(1)
@@ -241,18 +241,18 @@ contains
       call this%computeQuality(minQ,maxQ)
       print*,'       minQ: ',minQ,'    maxQ: ',maxQ!,' ---> should be all one?!?!?'
       
-      print*,'4- Compute displacement of the boundary'
+!       print*,'4- Compute displacement of the boundary'
       call compute_displacement_straight_mesh(numNodesRankPar,ndime,coordPar,this%coord_input_safe,bouCodesNodesPar,&
         this%is_imposed_displacement,this%imposed_displacement)
         
-      print*,'5- Impose elasticity boundary conditions'
+!       print*,'5- Impose elasticity boundary conditions'
       call this%initialBuffer()
       if (this%noBoundaries .eqv. .false.) then
          call temporary_bc_routine_dirichlet_prim_meshElasticity(&
            numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
       end if
       
-      print*,'6- Call conjGrad_meshElasticity to compute displacements with linear elasticity'
+!       print*,'6- Call conjGrad_meshElasticity to compute displacements with linear elasticity'
       call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
          numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
          gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
@@ -260,7 +260,7 @@ contains
          bouCodesNodesPar,normalsAtNodes,u_buffer)
       !
       coordPar = coordPar+u(:,:,2)
-      print*,'   Quality after elasticity-based curved mesh'
+      print*,'7- Quality after elasticity-based curved mesh'
       call this%computeQuality(minQ,maxQ)
       print*,'       minQ: ',minQ,'    maxQ: ',maxQ
       u(:,:,2) = coordPar-this%coord_input_safe ! -> displacement to see in paraview the new curved mesh
@@ -381,9 +381,10 @@ contains
     
     !$acc parallel loop  
     do ielem = 1,nelem
-      do inode = 1,nnode
+      coords(connec(ielem,1:8),:) = coord_input_safe(connec(ielem,1:8),:)
+      do inode = 9,nnode ! avoid the vertices of the hex
         !for each element and node, we now compute the straight position
-      
+        
         theNode = connec(ielem,inode)
         coords(theNode,:) = 0.0_rp
         
@@ -435,6 +436,7 @@ contains
     end do
     !$acc end parallel loop
     
+    ! I COULD DO THE FOLLOWING TO NOT CHECK ANY BC IN PARTICULAR, AND JUST GET ALL BOUNDARIES
 !     rho(:,2)=0.0_rp
 !     do iBound = 1,numBoundsRankPar
 !       iElem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
