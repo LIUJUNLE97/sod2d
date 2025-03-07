@@ -17,7 +17,7 @@ module mod_arrays
       real(rp), allocatable :: Ngp(:,:), dNgp(:,:,:), Ngp_b(:,:), dNgp_b(:,:,:)
       real(rp), allocatable :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
       real(rp), allocatable :: Ngp_equi(:,:)
-      real(rp), allocatable :: gpvol(:,:,:),Je(:,:), He(:,:,:,:), bou_norm(:,:),Ml(:),mu_factor(:),source_term(:,:)
+      real(rp), allocatable :: gpvol(:,:,:),Je(:,:), He(:,:,:,:), bou_norm(:,:),Ml(:),mu_factor(:),source_term(:,:), invMl(:)
 
       real(rp), target,allocatable :: gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
       real(rp), target,allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:),tauw(:,:)
@@ -1622,7 +1622,7 @@ end subroutine CFDSolverBase_findFixPressure
 
    subroutine CFDSolverBase_evalMass(this)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: iElem
+      integer(4) :: iElem, ipoin
 
       !*********************************************************************!
       ! Compute mass matrix (Lumped and Consistent) and set solver type     !
@@ -1630,9 +1630,18 @@ end subroutine CFDSolverBase_findFixPressure
 
       if(mpi_rank.eq.0) write(111,*) '--| COMPUTING LUMPED MASS MATRIX...'
       call nvtxStartRange("Lumped mass compute")
-      allocate(Ml(numNodesRankPar))
-      !$acc enter data create(Ml(:))
+      allocate(Ml(numNodesRankPar), invMl(numNodesRankPar))
+      !$acc enter data create(Ml(:), invMl(:))
+
+      !$acc kernels
+      invMl(:) = 0.0_rp
+      !$acc end kernels
       call lumped_mass_spectral(numElemsRankPar,numNodesRankPar,connecParWork,gpvol,Ml)
+      !$acc parallel loop
+      do ipoin = 1,numWorkingNodesRankPar
+         invMl(workingNodesPar(ipoin)) = 1.0_rp/Ml(workingNodesPar(ipoin))
+      end do
+      !$acc end parallel loop
       call nvtxEndRange
 
       !charecteristic length for spectral elements for the entropy

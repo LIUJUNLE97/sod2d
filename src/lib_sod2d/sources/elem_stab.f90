@@ -428,8 +428,8 @@ module elem_stab
         call nvtxEndRange
     end subroutine full_diff_stab_ijk        
 
-        subroutine full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Pr,rho,u,Tem,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ)
-         use mod_solver, only : lumped_solver_vect
+        subroutine full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Pr,rho,u,Tem,Ml,invMl,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ)
+         use mod_solver, only : lumped_solver_vect_opt
          implicit none
 
          integer(4), intent(in)  :: nelem, npoin,npoin_w
@@ -438,7 +438,7 @@ module elem_stab
          real(rp),   intent(in)  :: He(ndime,ndime,ngaus,nelem),dlxigp_ip(ngaus,ndime,porder+1)
          real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
          integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-         real(rp),   intent(in)  :: Cp,Pr,rho(npoin),u(npoin,ndime),Tem(npoin),Ml(npoin)
+         real(rp),   intent(in)  :: Cp,Pr,rho(npoin),u(npoin,ndime),Tem(npoin),Ml(npoin), invMl(npoin)
          real(rp),   intent(inout)  :: ProjMass(npoin,ndime),ProjEner(npoin,ndime),ProjMX(npoin,ndime),ProjMY(npoin,ndime),ProjMZ(npoin,ndime)
          integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
          integer(4)              :: ipoin(nnode)
@@ -565,11 +565,11 @@ module elem_stab
          !
       
          call nvtxStartRange("Call solver")
-         call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,ProjMX(:,:))
-         call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,ProjMY(:,:))
-         call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,ProjMZ(:,:))
-         call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,ProjMass(:,:))
-         call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,ProjEner(:,:))
+         call lumped_solver_vect_opt(npoin,npoin_w,lpoin_w,invMl,ProjMX(:,:))
+         call lumped_solver_vect_opt(npoin,npoin_w,lpoin_w,invMl,ProjMY(:,:))
+         call lumped_solver_vect_opt(npoin,npoin_w,lpoin_w,invMl,ProjMZ(:,:))
+         call lumped_solver_vect_opt(npoin,npoin_w,lpoin_w,invMl,ProjMass(:,:))
+         call lumped_solver_vect_opt(npoin,npoin_w,lpoin_w,invMl,ProjEner(:,:))
          call nvtxEndRange
          
          call nvtxEndRange

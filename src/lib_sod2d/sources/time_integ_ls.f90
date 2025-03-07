@@ -23,7 +23,6 @@ module time_integ_ls
    real(rp), allocatable, dimension(:)   :: Rmass,Rener
    real(rp), allocatable, dimension(:,:) :: Rmom,Reta
    real(rp), allocatable, dimension(:)   :: auxReta
-   real(rp), allocatable, dimension(:)   :: invMl
    real(rp), allocatable, dimension(:)   :: tau_stab_ls
    real(rp), allocatable, dimension(:,:) :: ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls
 
@@ -40,9 +39,6 @@ module time_integ_ls
 
       allocate(aux_h(npoin))
       !$acc enter data create(aux_h(:))
-
-      allocate(invMl(npoin))
-      !$acc enter data create(invMl(:))
 
       allocate(auxReta(npoin),Rmass(npoin),Rener(npoin))
       !$acc enter data create(Rmass(:))
@@ -64,7 +60,6 @@ module time_integ_ls
       !$acc enter data create(ProjMass_ls(:,:),ProjEner_ls(:,:),ProjMX_ls(:,:),ProjMY_ls(:,:),ProjMZ_ls(:,:),tau_stab_ls(:))
 
       !$acc kernels
-      invMl(:) = 0.0_rp
       aux_h(:) = 0.0_rp
       Rmass(:) = 0.0_rp
       Rener(:) = 0.0_rp
@@ -182,9 +177,6 @@ module time_integ_ls
       !$acc exit data delete(aux_h(:))
       deallocate(aux_h)
 
-      !$acc exit data delete(invMl(:))
-      deallocate(invMl)
-      
       !$acc exit data delete(Rmass(:))
       !$acc exit data delete(Rener(:))
       !$acc exit data delete(auxReta(:))
@@ -203,7 +195,7 @@ module time_integ_ls
    end subroutine end_rk4_ls_solver
 
          subroutine rk_4_ls_main(noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,&
-                         ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+                         ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
                          listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_mapped,tauw,source_term,walave_u,walave_pr,zo)  ! Optional args
@@ -220,7 +212,7 @@ module time_integ_ls
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
             real(rp),             intent(in)    :: dt, helem(nelem)
             real(rp),             intent(in)    :: helem_l(nelem,nnode)
-            real(rp),             intent(in)    :: Ml(npoin)
+            real(rp),             intent(in)    :: Ml(npoin), invMl(npoin)
             real(rp),             intent(in)    :: mu_factor(npoin)
             real(rp),             intent(in)    :: Rgas, gamma_gas, Cp, Prt
             real(rp),             intent(inout) :: rho(npoin,4)
@@ -273,17 +265,6 @@ module time_integ_ls
             if(firstTimeStep .eqv. .true.) then
                firstTimeStep = .false.
 
-               call nvtxStartRange("Compute invMl")
-               !$acc parallel loop gang
-               do ielem = 1,nelem
-                  !$acc loop vector
-                  do inode = 1,nnode
-                     invMl(connec(ielem,inode)) = 1.0_rp/Ml(connec(ielem,inode))
-                  end do
-               end do
-               !$acc end parallel loop
-               call nvtxEndRange
-
                !$acc parallel loop
                do ipoin = 1,npoin_w
                   ipoin_w = lpoin_w(ipoin)
@@ -326,7 +307,7 @@ module time_integ_ls
                end if
                
                call updateF(noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,&
-                        ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+                        ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&            
                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_mapped,tauw,source_term,walave_u,walave_pr,zo)
@@ -353,7 +334,7 @@ module time_integ_ls
             do istep = 2,flag_rk_ls_stages
 
                call updateF(noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,&
-                        ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+                        ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&            
                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_mapped,tauw,source_term,walave_u,walave_pr,zo)
@@ -517,7 +498,7 @@ module time_integ_ls
          end subroutine rk_4_ls_main        
 
          subroutine updateF(noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,&
-            ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+            ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
             rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
             ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
             listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_mapped,tauw,source_term,walave_u,walave_pr,zo)  ! Optional args
@@ -534,7 +515,7 @@ module time_integ_ls
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
             real(rp),             intent(in)    :: dt, helem(nelem)
             real(rp),             intent(in)    :: helem_l(nelem,nnode)
-            real(rp),             intent(in)    :: Ml(npoin)
+            real(rp),             intent(in)    :: Ml(npoin), invMl(npoin)
             real(rp),             intent(in)    :: mu_factor(npoin)
             real(rp),             intent(in)    :: Rgas, gamma_gas, Cp, Prt
             real(rp),             intent(inout) :: rho(npoin,4)
@@ -638,7 +619,7 @@ module time_integ_ls
             if(flag_lps_stab) then
                call nvtxStartRange("Stab + Diffu")
                call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),u(:,:,pos),&
-                                 Tem(:,pos),Ml,ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls) 
+                                 Tem(:,pos),Ml,invMl,ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls) 
                call full_diff_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),rho(:,pos),u(:,:,pos),&
                                  Tem(:,pos),mu_fluid,mu_e,mu_sgs,Ml,ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls,tau_stab_ls,Rmass,Rmom,Rener,.false.,-1.0_rp)
                call nvtxEndRange
@@ -708,7 +689,8 @@ module time_integ_ls
             call nvtxStartRange("Call solver")
             call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass(:))
             call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener(:))
-            call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom(:,:))
+            !call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom(:,:))
+            call lumped_solver_vect_opt(npoin,npoin_w,lpoin_w,invMl,Rmom(:,:))
             call nvtxEndRange
 
             call nvtxEndRange
