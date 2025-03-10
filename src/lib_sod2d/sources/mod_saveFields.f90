@@ -197,7 +197,7 @@ contains
       save_nodeScalarField_qcrit    = .false.
       save_nodeScalarField_temp     = .false.
       save_elGPScalarField_muSgs    = .false.
-      save_elGPScalarField_muEnvit  = .false.
+      save_elGPScalarField_muEnvit  = .true.!.false.
 !       save_elGPScalarField_quality  = .true.
       save_nodeVectorField_vel      = .true.
       save_nodeVectorField_gradRho  = .false.

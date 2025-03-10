@@ -51,7 +51,8 @@ module MeshElasticitySolver_mod
       procedure, public :: initializeDefaultSaveFields => CFDSolverBase_initializeDefaultSaveFields_elasticity
 
       procedure, public :: computeQuality
-      procedure, public :: assessElasticityParameters
+      procedure, public :: assessElasticityParameters_forDifferentDefs
+      procedure, public :: assessBestElasticityParameters
    end type MeshElasticitySolver
 contains
   
@@ -109,6 +110,7 @@ contains
     class(MeshElasticitySolver), intent(inout) :: this
     !
     real(rp)   :: minQ,maxQ
+    integer(4):: numInv,numLow
     !
     ! Init MPI
     call init_mpi()
@@ -174,7 +176,6 @@ contains
     call this%set_mappedFaces_linkingNodes()   
 
     ! Eval mass
-    print*,'MOVE MASS TO BEFORE CON GRAD'
     call this%evalMass()
 
     ! Eval first output
@@ -183,13 +184,12 @@ contains
 
     !call  this%normalFacesToNodes()
     !
-
     !
-    print*,'bouCodes as rho...'
-   rho(:,2) = real(bouCodesNodesPar,rp)
+    print*,'Exporting bouCodes as rho...'
+    rho(:,2) = real(bouCodesNodesPar,rp)
     !
     print*,'commented analysis of elasticity parameters'
-    !call this%assessElasticityParameters()
+    !call this%assessElasticityParameters_forDifferentDefs()
     !
     !
     if(.false.) then ! do_curveFromPrescribedDisplacement
@@ -205,7 +205,7 @@ contains
       !if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
       !
       print*,'Quality before elasticity'
-      call this%computeQuality(minQ,maxQ)
+      call this%computeQuality(minQ,maxQ,numInv,numLow)
       print*,'    minQ: ',minQ
       !
       call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
@@ -216,7 +216,7 @@ contains
       !
       coordPar = coordPar+u(:,:,2)
       print*,'Quality after elasticity'
-      call this%computeQuality(minQ,maxQ)
+      call this%computeQuality(minQ,maxQ,numInv,numLow)
       print*,'    minQ: ',minQ
       !
       call this%saveInstResultsFiles(1)    
@@ -224,35 +224,38 @@ contains
     !
     if(.true.) then ! do_curveInteriorMesh
       u(:,:,2) = 0.0_rp
-      call this%saveInstResultsFiles(0)
-      print*,'1- Input curved mesh quality'
-      call this%computeQuality(minQ,maxQ)
+      print*,'- Input curved mesh quality'
+      call this%computeQuality(minQ,maxQ,numInv,numLow)
       print*,'       minQ: ',minQ,'    maxQ: ',maxQ
+      call this%saveInstResultsFiles(0)
       
-!       print*,'2- Save input (boundary curved) coordinates'
+!       print*,'- Save input (boundary curved) coordinates'
       call save_input_coordinates(numNodesRankPar,ndime,coordPar,this%coord_input_safe)
       
-!       print*,'3- Straighten mesh (coordpar)'
+      print*,'- Straighten mesh (coordpar)'
       call compute_straight_mesh(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,this%coord_input_safe)
       u(:,:,2) = coordPar-this%coord_input_safe ! -> displacement to see in paraview the straight mesh
       call this%saveInstResultsFiles(1)
       u(:,:,2) = 0.0_rp
       print*,'   Quality straight-sided mesh'
-      call this%computeQuality(minQ,maxQ)
+      call this%computeQuality(minQ,maxQ,numInv,numLow)
       print*,'       minQ: ',minQ,'    maxQ: ',maxQ!,' ---> should be all one?!?!?'
       
-!       print*,'4- Compute displacement of the boundary'
+      !print*,'- Compute displacement of the boundary'
       call compute_displacement_straight_mesh(numNodesRankPar,ndime,coordPar,this%coord_input_safe,bouCodesNodesPar,&
         this%is_imposed_displacement,this%imposed_displacement)
-        
-!       print*,'5- Impose elasticity boundary conditions'
+      !
+      !print*,'- Impose elasticity boundary conditions'
       call this%initialBuffer()
       if (this%noBoundaries .eqv. .false.) then
          call temporary_bc_routine_dirichlet_prim_meshElasticity(&
            numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
       end if
-      
-!       print*,'6- Call conjGrad_meshElasticity to compute displacements with linear elasticity'
+      !
+      print*,'- Assess Best Elasticity Parameters'
+      call this%assessBestElasticityParameters()
+      !
+      print*,'- Call conjGrad_meshElasticity to compute displacements with linear elasticity'
       call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
          numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
          gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
@@ -260,8 +263,8 @@ contains
          bouCodesNodesPar,normalsAtNodes,u_buffer)
       !
       coordPar = coordPar+u(:,:,2)
-      print*,'7- Quality after elasticity-based curved mesh'
-      call this%computeQuality(minQ,maxQ)
+      print*,'- Quality after elasticity-based curved mesh'
+      call this%computeQuality(minQ,maxQ,numInv,numLow)
       print*,'       minQ: ',minQ,'    maxQ: ',maxQ
       u(:,:,2) = coordPar-this%coord_input_safe ! -> displacement to see in paraview the new curved mesh
       call this%saveInstResultsFiles(2)
@@ -453,11 +456,11 @@ contains
   !
   !
   !
-  subroutine assessElasticityParameters(this)
+  subroutine assessElasticityParameters_forDifferentDefs(this)
     implicit none
     class(MeshElasticitySolver), intent(inout) :: this
    
-    integer(4) :: iyoung,ipoisson,num_young,num_poisson,ideformation
+    integer(4) :: iyoung,ipoisson,num_young,num_poisson,ideformation,numInv,numLow
     real(rp)   :: fact_young, fact_poisson, ini_young, ini_poisson, end_poisson
     real(rp)   :: minQ,maxQ
     character(len=2) :: str_name
@@ -505,7 +508,7 @@ contains
              this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
              bouCodesNodesPar,normalsAtNodes,u_buffer)
 
-          call this%computeQuality(minQ,maxQ)
+          call this%computeQuality(minQ,maxQ,numInv,numLow)
 
           write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
 
@@ -520,42 +523,128 @@ contains
     this%nu_poisson = nu_safe
     this%E_young = E_safe 
    
-  end subroutine assessElasticityParameters
+  end subroutine assessElasticityParameters_forDifferentDefs
   !
   !
   !
-  subroutine computeQuality(this,minQ,maxQ)
+
+  subroutine assessBestElasticityParameters(this)
+    implicit none
+    class(MeshElasticitySolver), intent(inout) :: this
+   
+    integer(4) :: iyoung,ipoisson,num_young,num_poisson,numInv,numLow
+    real(rp)   :: fact_young, fact_poisson, ini_young, ini_poisson, end_poisson
+    real(rp)   :: minQ,maxQ
+    character(len=2) :: str_name
+   
+    real(rp) :: E_safe, nu_safe, E_best, nu_best, q_best = 0.0_rp
+   
+    nu_safe = this%nu_poisson
+    E_safe  = this%E_young
+    nu_best = nu_safe 
+    E_best  = E_safe  
+   
+    !"E":10, "nu":0.4,
+    num_young   = 4!8
+    num_poisson = 10!10
+    ini_young   = 0.001_rp !0.0001_rp
+    fact_young  = 3.0_rp ! 10.0_rp
+    ini_poisson = 0.1_rp ! 0.05_rp
+    end_poisson = 0.49_rp
+    fact_poisson= (end_poisson-ini_poisson)/num_poisson
+   
+    ! HERE WE CAN DO THE MESH MAGIC
+!     call this%initialBuffer()
+!
+!     if (this%noBoundaries .eqv. .false.) then
+!        call temporary_bc_routine_dirichlet_prim_meshElasticity(&
+!          numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
+!     end if
+    print*,'Range Poisson: [',ini_poisson,',',ini_poisson + fact_poisson*num_poisson,'] -> num: ', num_poisson+1
+    print*,'Range Young: [',ini_young,',',ini_young * fact_young**num_young,']  -> num: ',num_young+1
+    str_name = "";
+    open(unit=666, file="paramQual"//TRIM(str_name)//'.txt', status="replace", action="write")
+    write(666,*) "      YOUNG            POISSON              MIN_Q             MAX_Q"
+    print*, "                      YOUNG            POISSON              MIN_Q             MAX_Q"
+    do ipoisson = 0,num_poisson
+      do iyoung = 0,num_young
+        
+        this%nu_poisson = ini_poisson + fact_poisson*ipoisson
+        this%E_young    = ini_young * fact_young**iyoung
+        
+        call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
+           numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
+           gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
+           this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
+           bouCodesNodesPar,normalsAtNodes,u_buffer)
+        !
+        coordPar = coordPar+u(:,:,2)
+        call this%computeQuality(minQ,maxQ,numInv,numLow)
+        
+        if(minQ>q_best) then
+          q_best = minQ
+          nu_best = this%nu_poisson
+          E_best  = this%E_young
+        end if
+
+        write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
+        print*,iyoung + (num_young+1)*ipoisson,' -> ',  this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ,&
+        ' ',numInv ,' ',numLow
+
+        coordPar = coordPar-u(:,:,2)
+        u(:,:,2) = 0.0_rp
+      end do
+    end do
+    close(666)
+     
+    print*,'     -> Best parameters: ',nu_best,'  ',E_best
+    this%nu_poisson = nu_best
+    this%E_young = E_best
+   
+  end subroutine assessBestElasticityParameters
+  !
+  !
+  !
+  subroutine computeQuality(this,minQ,maxQ,countInvalid,countLowQ)
    
     use mod_mesh_quality, only: eval_ElemQuality
    
     class(MeshElasticitySolver), intent(inout) :: this
-    real(rp),intent(out)   :: minQ, maxQ
+    real(rp),   intent(out) :: minQ, maxQ
+    integer(4), intent(out) :: countInvalid,countLowQ 
     integer(4) :: ielem
     real(8)    :: quality_vec(2)
 
-    integer(4) :: id_quality = 2 ! 1 for aniso, 2 for isso cube ideal 
-
+    integer(4) :: id_quality = 1 ! 1 for aniso, 2 for isso cube ideal 
+    
+    real(8)   :: q_gauss(ngaus)
+    !
+    countInvalid = 0
+    countLowQ = 0
     minQ = 1.0_rp
     maxQ = 0.0_rp
     do ielem = 1,numElemsRankPar
       !
-      !numWorkingNodesRankPar or numNodesRankPar?
       call eval_ElemQuality(size(connecParWork,2),ngaus,numNodesRankPar,numElemsRankPar,&
-        ielem,real(coordPar+u(:,:,2),8),connecParWork,real(dNgp,8),real(wgp,8),quality_vec)
+        ielem,real(coordPar+u(:,:,2),8),connecParWork,real(dNgp,8),real(wgp,8),&
+        quality_vec,q_gauss)
       !
       minQ = min(minQ,real(quality_vec(id_quality),rp))
       maxQ = max(maxQ,real(quality_vec(id_quality),rp))
       !
+      mu_e(ielem,:) = real(q_gauss,4)
+      !
+      if(real(quality_vec(id_quality),rp)<0) then
+        countInvalid = countInvalid+1
+      end if
+      if(minval(q_gauss)<0) then
+        countLowQ = countLowQ+1
+      end if
     end do
-    !print*,'Min q: ',minQ
-    !print*,'Max q: ',maxQ
-    !print*,' YoungPoissonMinMax ',this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
+    !
     if(minQ<0) minQ = 0.0_rp
-    !     open(unit=666, file="paramQual.txt", status="old", action="write")
-    !     !open(unit=iunit, file="output.txt", status="old", action="write", iostat=i)
-    !     write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
-    !     close(666)
-   
+    print*,'   Num invalid: ',countInvalid,'     Num lowQ: ',countLowQ
+    !
   end subroutine computeQuality
   !
   !

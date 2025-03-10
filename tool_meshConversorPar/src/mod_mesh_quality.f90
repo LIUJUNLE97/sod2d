@@ -23,11 +23,12 @@ contains
         idealJ(3,3) = 1.0d0/((dist2(9)+dist2(10)+dist2(11)+dist2(12))/4.0d0)
     end subroutine
 
-    subroutine shape_measure(elemJ, idealJ, eta)
+    subroutine shape_measure(elemJ, idealJ, eta, isInvalid)
         implicit none
-		real(8),intent(in)  :: elemJ(ndime,ndime), idealJ(ndime,ndime)
-		real(8),intent(out) :: eta
-		real(8) :: S(ndime,ndime), S2(ndime,ndime), sigma, Sf, detS
+        real(8),intent(in)  :: elemJ(ndime,ndime), idealJ(ndime,ndime)
+        real(8),intent(out) :: eta
+        logical, intent(out) :: isInvalid
+        real(8) :: S(ndime,ndime), S2(ndime,ndime), sigma, Sf, detS
         real(8),parameter :: d=3.0d0
         real(8)                :: Saux(ndime,ndime),detaux
         S     = matmul(elemJ, idealJ)
@@ -38,6 +39,8 @@ contains
         S2    = matmul(transpose(S), S)
         Sf    = S2(1,1) + S2(2,2) + S2(3,3)
         eta   = Sf/(d*sigma**(2.0d0/d)) 
+        
+        isInvalid = detS < tiny(1.0d0)
     end subroutine
 
     subroutine eval_MeshQuality(numMshRanksInMpiRank,numElemsVTKMshRank,numElemsMshRank,numNodesMshRank,mnnode,mngaus, coordPar_jm,connecParOrig_jm,dNgp,wgp,mshRanksInMpiRank,elemGidMshRank_jv,numVTKElemsPerMshElem,quality_jm,rankMaxQuality, rankMinQuality, rankAvgQuality)
@@ -108,17 +111,19 @@ contains
         rankAvgQuality(:) = rankAvgQuality(:) / numMshRanksInMpiRank
     end subroutine eval_MeshQuality
 
-    subroutine eval_ElemQuality(mnnode,mngaus,npoin, nelem, ielem, coordPar, connecParOrig, dNgp, wgp, quality_vec)
+    subroutine eval_ElemQuality(mnnode,mngaus,npoin, nelem, ielem, coordPar, connecParOrig, dNgp, wgp, quality_vec,qual_gauss)
         implicit none
         integer(4), intent(in) :: mnnode,mngaus,npoin,nelem,ielem,connecParOrig(nelem,mnnode)
         real(8), intent(in) :: coordPar(npoin,ndime),dNgp(ndime,mnnode,mngaus),wgp(mngaus)
         real(8), intent(out) :: quality_vec(2)
+        real(8), optional, intent(inout) :: qual_gauss(mngaus)
         integer(4) :: igaus, idime
         real(8) :: elemJ(ndime,ndime),idealJ(ndime,ndime),gpvol,gpvolIdeal
         real(8) :: eta,volume,volume_cube,modulus
         real(8) :: eta_elem, eta_cube, quality
-        real(8)   :: idealCubeJ(ndime,ndime)
-        real(8)   :: detIdeal,detIdealCube
+        real(8) :: idealCubeJ(ndime,ndime)
+        real(8) :: detIdeal,detIdealCube
+        logical :: isInvalid
 
         idealCubeJ = 0.0d0
         do idime = 1,ndime
@@ -136,14 +141,22 @@ contains
             call compute_jacobian(mnnode,mngaus,nelem,npoin,ielem,igaus,dNgp,wgp(igaus),coordPar,connecParOrig,elemJ,gpvol)
             elemJ = transpose(elemJ)
             gpvolIdeal = detIdeal*wgp(igaus)
-            call shape_measure(elemJ, idealJ, eta)
+            call shape_measure(elemJ, idealJ, eta, isInvalid)
             eta_elem = eta_elem + eta*eta*gpvolIdeal
             volume = volume + 1*1*gpvolIdeal
             
             gpvolIdeal = detIdealCube*wgp(igaus)
-            call shape_measure(elemJ, idealCubeJ, eta)
+            call shape_measure(elemJ, idealCubeJ, eta, isInvalid)
             eta_cube = eta_cube + eta*eta*gpvolIdeal
             volume_cube = volume_cube + 1*1*gpvolIdeal
+
+!             if(present(qual_gauss)) then
+!               if(isInvalid) then
+!                 qual_gauss(igaus) = huge(1.0d0)
+!               else
+!                 qual_gauss(igaus) = eta!*gpvolIdeal
+!               end if
+!             end if
 
 !             if(eta>100000) then
 !                 print*,igaus, ' ',eta
@@ -158,6 +171,13 @@ contains
         end if
         quality_vec(1) = quality
         
+        if (present(qual_gauss)) then
+          qual_gauss(:) = quality  ! all gauss points the elemental value -> here with respect to cube (isotropic)
+          if (quality<0.01) then
+              qual_gauss(:) = -10000.0d0
+          end if
+        end if
+        
         eta_elem = eta_cube
         eta_elem = sqrt(eta_elem)/sqrt(volume_cube)
         quality = 1.0_rp/eta_elem
@@ -166,7 +186,7 @@ contains
             quality = -1.0d0
         end if
         quality_vec(2) = quality
-
+        
     end subroutine eval_ElemQuality
 
     function det_3x3(A) result(det)
