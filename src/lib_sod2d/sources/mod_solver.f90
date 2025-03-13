@@ -37,6 +37,27 @@ module mod_solver
 
 		end subroutine lumped_solver_scal
 
+		subroutine lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,R)
+
+			implicit none
+
+			integer(4), intent(in)    :: npoin, npoin_w, lpoin_w(npoin_w)
+			real(rp),    intent(in)    :: invMl(npoin)
+			real(rp),    intent(inout) :: R(npoin)
+			integer(4)                :: idime, ipoin, idx
+			real(rp)                  :: aux1, aux2
+
+			!$acc parallel loop private(idx,aux1,aux2)
+			do ipoin = 1,npoin_w
+				idx = lpoin_w(ipoin)
+				aux1 = invMl(idx)
+				aux2 = R(idx)
+				R(idx) = aux2*aux1
+			end do
+			!$acc end  parallel loop
+
+		end subroutine lumped_solver_scal_opt
+
 		subroutine lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,R)
 
 			implicit none

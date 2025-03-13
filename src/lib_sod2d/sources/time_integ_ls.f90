@@ -282,7 +282,7 @@ module time_integ_ls
                   call mpi_halo_atomic_update_real(Reta(:,1))
                end if
          
-               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,1))      
+               call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Reta(:,1))      
                   
                call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,Reta(:,1),Ngp,coord,dNgp,gpvol,wgp, &
                gamma_gas,rho(:,1),u(:,:,1),csound,Tem(:,1),eta(:,1),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)                  
@@ -419,7 +419,7 @@ module time_integ_ls
                call mpi_halo_atomic_update_real(Reta(:,2))
             end if
 
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,2))
+            call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Reta(:,2))
 
             call nvtxStartRange("Entropy residual")
             !$acc parallel loop
@@ -451,7 +451,7 @@ module time_integ_ls
                call mpi_halo_atomic_update_real(Reta(:,2))
             end if
 
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,2))
+            call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Reta(:,2))
 
             call generic_scalar_convec_projection_residual_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
                gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:,2),auxReta)
@@ -459,7 +459,7 @@ module time_integ_ls
             if(mpi_size.ge.2) then
                call mpi_halo_atomic_update_real(auxReta)
             end if
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,auxReta)    
+            call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,auxReta)    
 
             if (noBoundaries .eqv. .false.) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
@@ -687,9 +687,8 @@ module time_integ_ls
             ! Call lumped mass matrix solver
             !
             call nvtxStartRange("Call solver")
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass(:))
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener(:))
-            !call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom(:,:))
+            call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Rmass(:))
+            call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Rener(:))
             call lumped_solver_vect_opt(npoin,npoin_w,lpoin_w,invMl,Rmom(:,:))
             call nvtxEndRange
 
