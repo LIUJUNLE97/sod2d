@@ -127,9 +127,9 @@ contains
       real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
       real(rp) :: yp,up,vp,wp,eta_y,f_y,f_prim_y,sig = 1.0_rp
 
-      call eval_gradient(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,connecParWork,workingNodesPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,q(:,1,2),gradXVel,.true.)
-      call eval_gradient(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,connecParWork,workingNodesPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,q(:,2,2),gradYVel,.true.)
-      call eval_gradient(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,connecParWork,workingNodesPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,q(:,3,2),gradZVel,.true.)
+      call eval_gradient(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,connecParWork,workingNodesPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,invMl,q(:,1,2),gradXVel,.true.)
+      call eval_gradient(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,connecParWork,workingNodesPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,invMl,q(:,2,2),gradYVel,.true.)
+      call eval_gradient(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,connecParWork,workingNodesPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,invMl,q(:,3,2),gradZVel,.true.)
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar

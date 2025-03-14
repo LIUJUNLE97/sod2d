@@ -373,9 +373,6 @@ module time_integ_euler
                   ! Call lumped mass matrix solver
                   !
                   call nvtxStartRange("Call solver")
-                  !call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass)
-                  !call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener)
-                  !call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom)
                   call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Rmass)
                   call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Rener)
                   call lumped_solver_vect_opt(npoin,npoin_w,lpoin_w,invMl,Rmom)
@@ -504,7 +501,7 @@ module time_integ_euler
                end if
 
                call nvtxStartRange("Lumped mass solver on generic")
-               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta)
+               call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Reta)
                call nvtxEndRange
 
                !call nvtxStartRange("Update sign Reta")

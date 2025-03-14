@@ -23,7 +23,7 @@ module mod_solver_species
       contains
 
         subroutine conjGrad_species(ispc,igtime,fact,dt,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
-                                    gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e,mu_sgs,tau,Cp,Prt,rho,u,Rp0,R, &
+                                    gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,invMl,mu_fluid,mu_e,mu_sgs,tau,Cp,Prt,rho,u,Rp0,R, &
                                     bou_codes,bound,nbnodes,lbnodes,lnbn_nodes,bou_codes_nodes,normalsAtNodes,Yk_buffer) ! Optional args
            implicit none
 
@@ -31,7 +31,7 @@ module mod_solver_species
            integer(4),           intent(in)    :: ispc,igtime,save_logFile_next
            integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w)
            real(rp)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode),fact,dt,u(npoin,ndime)
-           real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin),tau(nelem)
+           real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),invMl(npoin),Rp0(npoin),tau(nelem)
            integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
            real(rp)   , intent(inout) :: R(npoin)
            integer(4), intent(in)     :: nboun, nbnodes, lbnodes(*),lnbn_nodes(npoin)
@@ -69,7 +69,7 @@ module mod_solver_species
             ! Real solver form here
 
             call nvtxStartRange("CG_Yk precond")
-            call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,x,grad,.true.)
+            call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,invMl,x,grad,.true.)
             call species_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,x,grad,Cp,Prt,rho,tau,Ml,qn,.true.,-1.0_rp)
             call species_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho,x,mu_fluid,mu_e,mu_sgs,Ml,qn,.false.,1.0_rp)
             if(mpi_size.ge.2) then
@@ -105,7 +105,7 @@ module mod_solver_species
            call nvtxStartRange("CG_p iters")
            do iter = 1,maxIter
               call nvtxStartRange("Iter_p")
-              call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,p0,grad,.true.)
+              call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,invMl,p0,grad,.true.)
               !call eval_u_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,u,p0,grad,.true.)
               call species_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0,grad,Cp,Prt,rho,tau,Ml,qn,.true.,-1.0_rp)
               !call species_stab_2_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,p0,grad,Cp,Prt,rho,u,tau,Ml,qn,.true.,-1.0_rp)

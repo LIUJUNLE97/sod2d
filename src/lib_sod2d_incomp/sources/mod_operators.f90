@@ -123,13 +123,13 @@ module mod_operators
             end if
         end subroutine eval_laplacian_mult
 
-        subroutine eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,x,gradX,lump)
+        subroutine eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,invMl,x,gradX,lump)
 
             implicit none
 
             integer(4), intent(in)   :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
             real(rp),   intent(inout) :: gradX(npoin,ndime)
-            real(rp),   intent(in)    :: Ml(npoin)
+            real(rp),   intent(in)    :: invMl(npoin)
             real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),x(npoin)
             integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             logical,    intent(in)  :: lump
@@ -194,7 +194,7 @@ module mod_operators
                !
             
                call nvtxStartRange("Call solver")
-               call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,gradX(:,:))
+               call lumped_solver_vect_opt(npoin,npoin_w,lpoin_w,invMl,gradX(:,:))
                call nvtxEndRange
             end if
             call nvtxEndRange

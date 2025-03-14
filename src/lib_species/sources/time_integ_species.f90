@@ -85,7 +85,7 @@ module time_integ_species
    end subroutine end_rk4_ls_species_solver
 
    subroutine rk_4_ls_species_main(ispc,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-                   ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Cp,Prt, &
+                   ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Cp,Prt, &
                    rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,lpoin_w,mu_fluid,mue_l, &
                    ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
                    listBoundsWM,wgp_b,bounorm,normalsAtNodes,Yk_buffer,walave_u,walave_t,zo)  ! Optional args
@@ -103,7 +103,7 @@ module time_integ_species
       real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
       real(rp),             intent(in)    :: dt, helem(nelem)
       real(rp),             intent(in)    :: helem_l(nelem,nnode)
-      real(rp),             intent(in)    :: Ml(npoin)
+      real(rp),             intent(in)    :: Ml(npoin), invMl(npoin)
       real(rp),             intent(in)    :: Cp, Prt
       real(rp),             intent(inout) :: rho(npoin,4)
       real(rp),             intent(inout) :: u(npoin,ndime,4)
@@ -138,7 +138,7 @@ module time_integ_species
       if(firstTimeStep .eqv. .true.) then
          firstTimeStep = .false.
          call updateFspecies(ispc,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-                              ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Cp,Prt, &
+                              ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Cp,Prt, &
                               rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,lpoin_w,mu_fluid,mue_l, &
                               ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
                               listBoundsWM,wgp_b,bounorm,normalsAtNodes,Yk_buffer,walave_u,walave_t,zo)
@@ -153,7 +153,7 @@ module time_integ_species
       call nvtxStartRange("Loop over RK steps")
       do istep = 2,5
          call updateFspecies(ispc,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-                              ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Cp,Prt, &
+                              ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Cp,Prt, &
                               rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,lpoin_w,mu_fluid,mue_l, &
                               ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
                               listBoundsWM,wgp_b,bounorm,normalsAtNodes,Yk_buffer,walave_u,walave_t,zo)
@@ -224,7 +224,7 @@ module time_integ_species
    end subroutine rk_4_ls_species_main
 
    subroutine updateFspecies(ispc,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-                              ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Cp,Prt, &
+                              ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Cp,Prt, &
                               rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,lpoin_w,mu_fluid,mue_l, &
                               ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&                ! Optional args
                               listBoundsWM,wgp_b,bounorm,normalsAtNodes,Yk_buffer,walave_u,walave_t,zo)                       ! Optional args
@@ -242,7 +242,7 @@ module time_integ_species
          real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
          real(rp),             intent(in)    :: dt, helem(nelem)
          real(rp),             intent(in)    :: helem_l(nelem,nnode)
-         real(rp),             intent(in)    :: Ml(npoin)
+         real(rp),             intent(in)    :: Ml(npoin), invMl(npoin)
          real(rp),             intent(in)    :: Cp, Prt
          real(rp),             intent(inout) :: rho(npoin,4)
          real(rp),             intent(inout) :: u(npoin,ndime,4)
@@ -286,7 +286,7 @@ module time_integ_species
 
          call species_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),Yk(:,ispc,pos),mu_fluid,mu_e_Yk(:,:,ispc),mu_sgs,Ml,Rspc,.true.,-1.0_rp)
          call species_convec_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,pos),Yk(:,ispc,pos),u(:,:,pos),Rspc,.false.,-1.0_rp)               
-         call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,Yk(:,ispc,pos),gradYk,.true.)
+         call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,invMl,Yk(:,ispc,pos),gradYk,.true.)
          call species_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Yk(:,ispc,pos),gradYk,Cp,Prt,rho,tau,Ml,Rspc,.false.,1.0_rp)
 
          if((isWallModelOn) ) then
