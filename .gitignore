@@ -28,6 +28,7 @@
 *.hdf
 !/Tests/TGV_Compressible/*.hdf
 !/Tests/TGV_Incomp/*.hdf
+!/Tests/TGV_Species/*.hdf
 
 # Ignore *.dat files for the references
 !/Tests/TGV_Compressible/CPU/IMEX/Reference/*.dat
@@ -36,3 +37,5 @@
 !/Tests/TGV_Compressible/GPU/LS_RK_5/Reference/*.dat
 !/Tests/TGV_Incomp/CPU/AB/Reference/*.dat
 !/Tests/TGV_Incomp/GPU/AB/Reference/*.dat
+!/Tests/TGV_Species/CPU/AB/Reference/*.dat
+!/Tests/TGV_Species/GPU/AB/Reference/*.dat
