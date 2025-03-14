@@ -26,7 +26,7 @@ module elem_diffu
              logical, optional, intent(in)    :: initialze
              real(rp), optional, intent(in)  :: fact
              integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
-             integer(4)              :: ipoin(nnode)
+             integer(4)              :: ipoin(nnode), vecLen
              real(rp)                :: kappa_e, mu_fgp, mu_egp,divU, tauU(ndime), twoThirds,nu_e,tau(ndime,ndime)
              real(rp)                :: gradU(ndime,ndime), gradT(ndime),tmp1,vol,arho
              real(rp)                :: gradIsoRho(ndime),gradIsoT(ndime),gradIsoU(ndime,ndime)
@@ -35,6 +35,15 @@ module elem_diffu
              real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
              real(rp)                :: gradTl(nnode,ndime),gradRhol(nnode,ndime),tauUl(nnode,ndime)
              real(rp)  :: aux_fact = 1.0_rp
+
+             ! Compute vecLen
+             vecLen = 32
+             do while( vecLen < nnode )
+                vecLen = vecLen * 2
+                if ( vecLen == 1024) then
+                  exit
+               end if
+             end do
 
              call nvtxStartRange("Full diffusion")
              twoThirds = 2.0_rp/3.0_rp
@@ -57,7 +66,7 @@ module elem_diffu
                aux_fact = fact
             end if
 
-             !$acc parallel loop gang  private(ipoin,ul,Teml,rhol,rhonl,mufluidl,gradRhol,gradTl,tauUl,tauXl,tauYl,tauZl)
+             !$acc parallel loop gang  private(ipoin,ul,Teml,rhol,rhonl,mufluidl,gradRhol,gradTl,tauUl,tauXl,tauYl,tauZl) vector_length(vecLen)
              do ielem = 1,nelem
                 !$acc loop vector
                 do inode = 1,nnode

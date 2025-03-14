@@ -23,7 +23,7 @@ module elem_stab_incomp
              real(rp),   intent(in)  :: TauPX(npoin,ndime),TauPY(npoin,ndime),TauPZ(npoin,ndime), tau_stab(nelem)
              real(rp),   intent(inout) :: Rmom(npoin,ndime)
              integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
-             integer(4)              :: ipoin(nnode)
+             integer(4)              :: ipoin(nnode), vecLen
              real(rp)                :: gradU(ndime,ndime), tmp1,vol,arho,mu_fgp,muel
              real(rp)                :: gradIsoU(ndime,ndime)
              real(rp)                :: divDm(ndime)
@@ -31,13 +31,22 @@ module elem_stab_incomp
              real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime),tau(ndime,ndime)
              real(rp)                :: gradRhol(nnode,ndime),taupxl(nnode,ndime),taupyl(nnode,ndime),taupzl(nnode,ndime),taustabl
 
+             ! Compute the vecLen
+             vecLen = 32
+             do while( vecLen < nnode )
+                vecLen = vecLen * 2
+                if ( vecLen == 1024) then
+                  exit
+               end if
+             end do
+
              call nvtxStartRange("Full diffusion and stab")
 
              !$acc kernels
              Rmom(:,:) = 0.0_rp
              !$acc end kernels
 
-             !$acc parallel loop gang  private(ipoin,ul,tauXl,tauYl,tauZl,taupxl,taupyl,taupzl,mufluidl,musgsl)
+             !$acc parallel loop gang  private(ipoin,ul,tauXl,tauYl,tauZl,taupxl,taupyl,taupzl,mufluidl,musgsl) vector_length(vecLen)
              do ielem = 1,nelem
                 !$acc loop vector
                 do inode = 1,nnode
