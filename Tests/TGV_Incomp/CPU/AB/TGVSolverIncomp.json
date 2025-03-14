@@ -30,7 +30,7 @@
    "saveInitialField":true,
 
    "final_istep":50001,
-   "maxPhysTime":5.0,
+   "maxPhysTime":0.1,
 
    "cfl_conv":0.5,
    "cfl_diff":0.5,
