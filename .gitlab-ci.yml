@@ -269,3 +269,47 @@ test-TGVIncomp-GPU-AB:
     # Add the dependencies
     dependencies:
         - build-NVHPC-GPU-Release
+
+# CPU-Incomp w/ species configuration using GCC-Release build
+test-TGVIncompSpec-CPU-AB:
+    stage: test
+    script:
+        # Load necessary modules
+        - module load hdf5
+        - ml list
+        # Check that the build folder exists
+        - ls build_gnu_release
+        - ldd build_gnu_release/src/app_sod2d/sod2d
+        # Enter the testing folder
+        - cd Tests/TGV_Species/CPU/AB
+        - ls -lt -h
+        - ls -lt -h ../../
+        # Run the test using the generated executable in build-GNU-Release
+        - cp ../../../../build_gnu_release/src/app_sod2d/sod2d .
+        - mpirun -np 4 --allow-run-as-root ./sod2d TGVSolverIncomp.json
+        # install numpy and run the python test
+        - python testcheck.py
+    # Add the dependencies
+    dependencies:
+        - build-GNU-Release
+
+# GPU-Incomp w/ species configuration using NVHPC-GPU-Release build
+test-TGVIncompSpec-GPU-AB:
+    stage: test
+    script:
+        # Load necessary modules
+        - module load nvhpc-hpcx-cuda12/24.11 hdf5
+        - ml list
+        # Check that the build folder exists
+        - ls build_nvhpc_gpu
+        - ldd build_nvhpc_gpu/src/app_sod2d/sod2d
+        # Enter the testing folder
+        - cd Tests/TGV_Species/GPU/AB
+        # Run the test using the generated executable in build-GNU-Release
+        - cp ../../../../build_nvhpc_gpu/src/app_sod2d/sod2d .
+        - mpirun -np 1 --allow-run-as-root ./sod2d TGVSolverIncomp.json
+        # install numpy and run the python test
+        - python testcheck.py
+    # Add the dependencies
+    dependencies:
+        - build-NVHPC-GPU-Release
