@@ -222,7 +222,7 @@ module elem_stab
          logical, optional, intent(in)    :: initialze
          real(rp), optional, intent(in)  :: fact
          integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
-         integer(4)              :: ipoin(nnode)
+         integer(4)              :: ipoin(nnode), vecLen
          real(rp)                :: gradU(ndime,ndime), gradT(ndime),tmp1,vol,arho,tauU(ndime)
          real(rp)                :: gradIsoRho(ndime),gradIsoT(ndime),gradIsoU(ndime,ndime),kappa_e, mu_fgp, mu_egp
          real(rp)                :: gradRho(ndime),divDm(ndime),divDr,divDe,taustabl
@@ -255,7 +255,18 @@ module elem_stab
            aux_fact = fact
         end if
 
-         !$acc parallel loop gang  private(ipoin,ul,Teml,rhol,rhonl,mufluidl,gradRhol,gradTl,tauXl,tauYl,tauZl,taustabl,projMassl,ProjEnerl,ProjMXl,ProjMYl,ProjMZl)
+        ! Compute vecLen based on nnode
+        vecLen = 32
+        do while (vecLen < nnode)
+			! Next power of 2
+			vecLen = vecLen*2
+			! Block cannot be greater than 1024 threads
+			if ( vecLen == 1024 ) then
+				exit
+			end if
+		end do
+
+         !$acc parallel loop gang  private(ipoin,ul,Teml,rhol,rhonl,mufluidl,gradRhol,gradTl,tauXl,tauYl,tauZl,taustabl,projMassl,ProjEnerl,ProjMXl,ProjMYl,ProjMZl) vector_length(vecLen)
          do ielem = 1,nelem
             !$acc loop vector
             do inode = 1,nnode
