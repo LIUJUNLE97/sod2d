@@ -56,7 +56,7 @@ module time_integ_species_imex
    end subroutine end_imex_species_solver
  
          subroutine imex_species_main(ispc,igtime,iltime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-                         ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Cp,Prt, &
+                         ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Cp,Prt, &
                          rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,lpoin_w,mu_fluid,mue_l, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
                          listBoundsWM,wgp_b,bounorm,normalsAtNodes,Yk_buffer,walave_u,walave_t,zo)  ! Optional args
@@ -75,7 +75,7 @@ module time_integ_species_imex
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
             real(rp),             intent(in)    :: dt, helem(nelem)
             real(rp),             intent(in)    :: helem_l(nelem,nnode)
-            real(rp),             intent(in)    :: Ml(npoin)
+            real(rp),             intent(in)    :: Ml(npoin), invMl(npoin)
             real(rp),             intent(in)    :: Cp, Prt
             real(rp),             intent(inout) :: rho(npoin,4)
             real(rp),             intent(inout) :: u(npoin,ndime,4)
@@ -213,7 +213,7 @@ module time_integ_species_imex
             call nvtxEndRange
             
             call conjGrad_species(ispc,igtime,1.0_rp/gamma0,dt,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
-                             gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e_Yk(:,:,ispc),mu_sgs,tau,Cp,Prt,rho(:,1),u(:,:,1),Yk(:,ispc,1),Yk(:,ispc,2),&
+                             gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,invMl,mu_fluid,mu_e_Yk(:,:,ispc),mu_sgs,tau,Cp,Prt,rho(:,1),u(:,:,1),Yk(:,ispc,1),Yk(:,ispc,2),&
                              bou_codes,bound,nbnodes,lbnodes,lnbn_nodes,bou_codes_nodes,normalsAtNodes,Yk_buffer)
 
             if (noBoundaries .eqv. .false.) then

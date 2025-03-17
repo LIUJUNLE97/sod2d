@@ -3,7 +3,6 @@ module time_integ_incomp
    use mod_nvtx
    use elem_convec
    use elem_convec_incomp
-   use elem_diffu_incomp
    use elem_source
    use mod_solver
    use mod_entropy_viscosity_incomp
@@ -24,6 +23,8 @@ module time_integ_incomp
    real(rp), allocatable, dimension(:) :: auxReta, p_buffer, aux_p
    real(rp), allocatable, dimension(:)   :: beta, alpha
    real(rp) :: gamma0
+   logical :: firstTimeStep = .true.
+
 
    contains
    subroutine init_rk4_solver_incomp(npoin)
@@ -84,10 +85,10 @@ module time_integ_incomp
    end subroutine end_rk4_solver_incomp
  
          subroutine ab_main_incomp(igtime,iltime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,leviCivi,&
-                         ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+                         ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,numBouCodes,bouCodes2BCType,&               ! Optional args
-                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u,zo)  ! Optional args
+                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u,walave_pr,zo)  ! Optional args
 
             implicit none
 
@@ -103,7 +104,7 @@ module time_integ_incomp
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
             real(rp),             intent(in)    :: dt, helem(nelem)
             real(rp),             intent(in)    :: helem_l(nelem,nnode)
-            real(rp),             intent(in)    :: Ml(npoin)
+            real(rp),             intent(in)    :: Ml(npoin), invMl(npoin)
             real(rp),             intent(in)    :: mu_factor(npoin)
             real(rp),             intent(in)    :: Rgas, gamma_gas, Cp, Prt
             real(rp),             intent(inout) :: mue_l(nelem,nnode)
@@ -136,7 +137,7 @@ module time_integ_incomp
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
             real(rp), optional, intent(in)      :: source_term(npoin,ndime)
-            real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
+            real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_pr(npoin)
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: istep,ipoin,idime,icode,iPer,ipoin_w
 
@@ -174,8 +175,26 @@ module time_integ_incomp
                aux_omega(:,:,1) = 0.0_rp
                !$acc end kernels
 
-               call smart_visc_spectral_incomp(nelem,npoin,npoin_w,connec,lpoin_w,Reta(:,1),Ngp,coord,dNgp,gpvol,wgp, &
-                                            rho(:,1),u(:,:,1),eta(:,1),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
+               
+               if((isWallModelOn) ) then
+                  if(flag_type_wmles == wmles_type_reichardt) then
+                     call evalEXAtFace(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  else if (flag_type_wmles == wmles_type_abl) then
+                     call evalEXAtFace(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  else if (flag_type_wmles == wmles_type_reichardt_hwm) then
+                     call evalEXAtHWM(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  else if (flag_type_wmles == wmles_type_thinBL_fit) then
+                     call evalEXAt1OffNode(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  else if (flag_type_wmles == wmles_type_thinBL_fit_hwm) then
+                     call evalEXAtHWM(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  end if   
+               end if
+
             else 
                if(iltime .eq. 2) then
                   gamma0 = 3.0_rp/2.0_rp
@@ -199,6 +218,7 @@ module time_integ_incomp
                   !$acc update device(beta(:))              
                end if
             end if
+            
             call nvtxEndRange
 
             if (noBoundaries .eqv. .false.) then
@@ -225,11 +245,14 @@ module time_integ_incomp
                   
             if((isWallModelOn) ) then
                   call nvtxStartRange("AB2 wall model")
+                  if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then
+                     call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,invMl,walave_pr(:),gradP,.true.)
+                  end if
                   if((numBoundsWM .ne. 0)) then
                      !$acc kernels
                      Rwmles(1:npoin,1:ndime) = 0.0_rp
                      !$acc end kernels
-                     if(flag_type_wmles == wmles_type_reichardt) then
+                     if((flag_type_wmles == wmles_type_reichardt) .or. (flag_type_wmles == wmles_type_reichardt_hwm)) then
                         call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                            bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
                            rho(:,1),walave_u(:,:),tauw,Rwmles)
@@ -237,6 +260,10 @@ module time_integ_incomp
                         call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                            bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
                            rho(:,1),walave_u(:,:),zo,tauw,Rwmles)
+                     else if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then
+                        call evalWallModelThinBLFit(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
+                           rho(:,1),walave_u(:,:),gradP,tauw,Rwmles)
                      end if
                   end if
                   call nvtxEndRange
@@ -332,7 +359,7 @@ module time_integ_incomp
                call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,2),p_buffer)              
             end if
  
-            call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,pr(:,2),gradP,.true.)
+            call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,invMl,pr(:,2),gradP,.true.)
                         
             !$acc parallel loop
             do ipoin = 1,npoin_w
@@ -351,7 +378,7 @@ module time_integ_incomp
             end if
 
             call conjGrad_veloc_incomp(igtime,1.0_rp/gamma0,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
-                                       gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,mu_fluid,mu_e,mu_sgs,u(:,:,1),u(:,:,2),&
+                                       gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,helem,mu_fluid,mu_e,mu_sgs,u(:,:,1),u(:,:,2),&
                                        bou_codes_nodes,normalsAtNodes,u_buffer)
 
             if (noBoundaries .eqv. .false.) then

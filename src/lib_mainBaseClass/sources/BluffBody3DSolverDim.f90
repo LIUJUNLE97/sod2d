@@ -177,6 +177,9 @@ contains
          call json%get("engine_intake_uy",this%engine_intake_uy, found,0.0_rp); call this%checkFound(found,found_aux)
          call json%get("engine_intake_uz",this%engine_intake_uz, found,0.0_rp); call this%checkFound(found,found_aux)
       end if  
+
+      call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+
       
       ! fixed by the type of base class parameters
       this%vo = this%co*this%M

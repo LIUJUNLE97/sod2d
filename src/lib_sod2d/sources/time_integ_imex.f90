@@ -15,6 +15,7 @@ module time_integ_imex
    use mod_operators
    use mod_solver
    use mod_solver_imex
+   use mod_operators
    use time_integ, only :  updateBuffer   
    use elem_stab, only : comp_tau
 
@@ -146,6 +147,9 @@ module time_integ_imex
       !$acc kernels
       Rsource_imex(1:npoin,1:ndime+2) = 0.0_rp
       Rwmles_imex(1:npoin,1:ndime) = 0.0_rp
+      Rmass_stab(1:npoin) = 0.0_rp
+      Rener_stab(1:npoin) = 0.0_rp
+      Rmom_stab(1:npoin,1:ndime) = 0.0_rp
       !$acc end kernels
 
       call nvtxEndRange
@@ -173,10 +177,10 @@ module time_integ_imex
 
    end subroutine end_imex_solver
         subroutine imex_main(igtime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,&
-                         ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+                         ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
-                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_mapped,tauw,source_term,walave_u,zo)  ! Optional args
+                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_mapped,tauw,source_term,walave_u,walave_pr,zo)  ! Optional args
 
             implicit none
 
@@ -191,7 +195,7 @@ module time_integ_imex
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
             real(rp),             intent(in)    :: dt, helem(nelem)
             real(rp),             intent(in)    :: helem_l(nelem,nnode)
-            real(rp),             intent(in)    :: Ml(npoin)
+            real(rp),             intent(in)    :: Ml(npoin), invMl(npoin)
             real(rp),             intent(in)    :: mu_factor(npoin)
             real(rp),             intent(in)    :: Rgas, gamma_gas, Cp, Prt
             real(rp),             intent(inout) :: mue_l(nelem,nnode)
@@ -224,7 +228,7 @@ module time_integ_imex
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime), u_mapped(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
             real(rp), optional, intent(in)      :: source_term(npoin,ndime+2)
-            real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
+            real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_pr(npoin)
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: istep, ipoin, idime,icode,jstep,ipoin_w
             real(rp)                            :: umag
@@ -249,7 +253,7 @@ module time_integ_imex
                   call mpi_halo_atomic_update_real(Reta_imex(:,1))
                end if
                
-               call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta_imex(:,1))     
+               call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Reta_imex(:,1))     
                
                call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,Reta_imex(:,1),Ngp,coord,dNgp,gpvol,wgp, &
                gamma_gas,rho(:,1),u(:,:,1),csound,Tem(:,1),eta(:,1),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)   
@@ -264,7 +268,25 @@ module time_integ_imex
                call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),rho(:,1),u(:,:,1),&
                                        Tem(:,1),mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass_imex(:,1),Rdiff_mom_imex(:,:,1),Rdiff_ener_imex(:,1))
 
-
+               if((isWallModelOn) ) then
+                  if(flag_type_wmles == wmles_type_reichardt) then
+                     call evalEXAtFace(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  else if (flag_type_wmles == wmles_type_abl) then
+                     call evalEXAtFace(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  else if (flag_type_wmles == wmles_type_reichardt_hwm) then
+                     call evalEXAtHWM(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  else if (flag_type_wmles == wmles_type_thinBL_fit) then
+                     call evalEXAt1OffNode(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  else if (flag_type_wmles == wmles_type_thinBL_fit_hwm) then
+                     call evalEXAtHWM(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  end if
+               end if
+                                       
             else 
                !$acc parallel loop
                do ipoin = 1,npoin
@@ -281,18 +303,23 @@ module time_integ_imex
                !$acc end parallel loop
             end if
 
-            call comp_tau(nelem,npoin,connec,csound,u(:,:,2),helem,dt,tau_stab_imex)
-            call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),u(:,:,1),&
-                              Tem(:,1),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex)
-            call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),rho(:,1),u(:,:,1),&
+            if(flag_lps_stab) then
+               call comp_tau(nelem,npoin,connec,csound,u(:,:,2),helem,dt,tau_stab_imex)
+               call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),u(:,:,1),&
+                              Tem(:,1),Ml,invMl,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex)
+               call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,1),rho(:,1),u(:,:,1),&
                               Tem(:,1),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex,tau_stab_imex,Rmass_stab,Rmom_stab,Rener_stab,.true.,-1.0_rp) 
+            end if
 
             if(isWallModelOn) then
                !$acc kernels
                Rwmles_imex(1:npoin,1:ndime) = 0.0_rp
                !$acc end kernels
+               if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then
+                  call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,walave_pr(:),f_eta_imex,.true.)
+               end if
                if(numBoundsWM .ne. 0) then
-                  if(flag_type_wmles == wmles_type_reichardt) then
+                  if((flag_type_wmles == wmles_type_reichardt) .or. (flag_type_wmles == wmles_type_reichardt_hwm)) then
                      call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                         bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
                         rho(:,2),walave_u(:,:),tauw,Rwmles_imex)
@@ -300,7 +327,11 @@ module time_integ_imex
                      call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                         bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
                         rho(:,2),walave_u(:,:),zo,tauw,Rwmles_imex)
-                  end if
+                  else if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then
+                     call evalWallModelThinBLFit(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
+                        rho(:,1),walave_u(:,:),f_eta_imex,tauw,Rwmles_imex)
+                  end if  
                end if
             end if
 
@@ -408,10 +439,6 @@ module time_integ_imex
                end if
                call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,2),rho(:,2),u(:,:,2),&
                                     Tem(:,2),mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass_imex(:,istep),Rdiff_mom_imex(:,:,istep),Rdiff_ener_imex(:,istep))
-               !call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,2),u(:,:,2),&
-               !                     Tem(:,2),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex)
-               !call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,2),rho(:,2),u(:,:,2),&
-               !                     Tem(:,2),Ml,ProjMass_imex,ProjEner_imex,ProjMX_imex,ProjMY_imex,ProjMZ_imex,tau_stab_imex,Rmass_imex(:,istep),Rmom_imex(:,:,istep),Rener_imex(:,istep),.false.,-1.0_rp)                                              
             end do
             !if(mpi_rank.eq.0) write(111,*)   " after in"
       
@@ -435,7 +462,7 @@ module time_integ_imex
                call mpi_halo_atomic_update_real(Reta_imex(:,2))
             end if
 
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta_imex(:,2))
+            call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Reta_imex(:,2))
 
             call nvtxStartRange("Entropy residual")
             !$acc parallel loop
@@ -468,7 +495,7 @@ module time_integ_imex
                call mpi_halo_atomic_update_real(Reta_imex(:,2))
             end if
 
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta_imex(:,2))
+            call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Reta_imex(:,2))
 
             call generic_scalar_convec_projection_residual_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
                gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta_imex,eta(:,1),u(:,:,1),Reta_imex(:,2),auxReta_imex)
@@ -476,7 +503,7 @@ module time_integ_imex
             if(mpi_size.ge.2) then
                call mpi_halo_atomic_update_real(auxReta_imex)
             end if
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,auxReta_imex)    
+            call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,auxReta_imex)    
 
             if (noBoundaries .eqv. .false.) then
                call nvtxStartRange("BCS_AFTER_UPDATE")

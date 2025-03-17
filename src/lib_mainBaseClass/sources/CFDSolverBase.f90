@@ -17,7 +17,7 @@ module mod_arrays
       real(rp), allocatable :: Ngp(:,:), dNgp(:,:,:), Ngp_b(:,:), dNgp_b(:,:,:)
       real(rp), allocatable :: Ngp_l(:,:), dNgp_l(:,:,:),dlxigp_ip(:,:,:)
       real(rp), allocatable :: Ngp_equi(:,:)
-      real(rp), allocatable :: gpvol(:,:,:),Je(:,:), He(:,:,:,:), bou_norm(:,:),Ml(:),mu_factor(:),source_term(:,:)
+      real(rp), allocatable :: gpvol(:,:,:),Je(:,:), He(:,:,:,:), bou_norm(:,:),Ml(:),mu_factor(:),source_term(:,:), invMl(:)
 
       real(rp), target,allocatable :: gradRho(:,:), curlU(:,:), divU(:), Qcrit(:)
       real(rp), target,allocatable :: u(:,:,:),q(:,:,:),rho(:,:),pr(:,:),E(:,:),Tem(:,:),e_int(:,:),csound(:),eta(:,:),machno(:),tauw(:,:)
@@ -31,7 +31,7 @@ module mod_arrays
       real(rp), allocatable :: u_buffer(:,:), u_mapped(:,:)
 
       ! exponential average for wall law
-      real(rp), allocatable :: walave_u(:,:),walave_t(:)
+      real(rp), allocatable :: walave_u(:,:),walave_t(:),walave_pr(:)
 
       ! roughness for wall law
       real(rp), allocatable :: zo(:)
@@ -62,6 +62,7 @@ module CFDSolverBase_mod
       use time_integ_ls
       use time_integ_species_imex
       use time_integ_species
+      use time_integ_euler
       use mod_analysis
       use mod_numerical_params
       use mod_time_ops
@@ -176,6 +177,7 @@ module CFDSolverBase_mod
       procedure, public :: checkFound => CFDSolverBase_checkFound
       procedure, public :: readJSONBCTypes => CFDSolverBase_readJSONBCTypes
       procedure, public :: readJSONBuffer => CFDSolverBase_readJSONBuffer
+      procedure, public :: readJSONWMTypes => CFDSolverBase_readJSONWMTypes
       procedure, public :: eval_vars_after_load_hdf5_resultsFile => CFDSolverBase_eval_vars_after_load_hdf5_resultsFile 
       procedure, public :: findFixPressure => CFDSolverBase_findFixPressure
 
@@ -384,6 +386,47 @@ end subroutine CFDSolverBase_findFixPressure
 
    end subroutine CFDSolverBase_readJSONBuffer
 
+   subroutine CFDSolverBase_readJSONWMTypes(this)
+      use json_module
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      logical :: found
+      type(json_file) :: json
+      integer :: json_nbouCodes,iBouCodes,id
+      TYPE(json_core) :: jCore
+      TYPE(json_value), pointer :: bouCodesPointer, testPointer, p
+      character(len=:) , allocatable :: value
+
+      call json%initialize()
+      call json%load_file(json_filename)
+
+      call json%get('flag_type_wmles', value, found,"wmles_type_reichardt")
+
+      if(found) then
+         if(value .eq. "wmles_type_reichardt") then
+            flag_type_wmles = wmles_type_reichardt
+         else if(value .eq. "wmles_type_abl") then
+            flag_type_wmles = wmles_type_abl
+         else if(value .eq. "wmles_type_reichardt_hwm") then
+            flag_type_wmles = wmles_type_reichardt_hwm
+         else if(value .eq. "wmles_type_thinBL_fit") then
+            flag_type_wmles = wmles_type_thinBL_fit
+         else if(value .eq. "wmles_type_thinBL_fit_hwm") then
+            flag_type_wmles = wmles_type_thinBL_fit_hwm
+         end if
+      else
+         if(mpi_rank .eq. 0) then
+            write(111,*) 'WARRNING! JSON file error on the flag_type_wmles definition, the model does not exist, wmles_type_reichardt fixed'
+         end if
+         flag_type_wmles = wmles_type_reichardt
+      end if
+
+      call json%destroy()
+
+   end subroutine CFDSolverBase_readJSONWMTypes
+
+
+
    subroutine CFDSolverBase_readJSONBCTypes(this)
       use json_module
       implicit none
@@ -510,6 +553,8 @@ end subroutine CFDSolverBase_findFixPressure
       if(flag_implicit == 1) then
          if (implicit_solver == implicit_solver_imex) then
             call init_imex_solver(numNodesRankPar,numElemsRankPar)
+         else if (implicit_solver == implicit_steady_euler) then
+            call init_rk_pseudo_solver(numNodesRankPar)
          end if
       else 
          if(flag_rk_ls .eqv. .false.) then
@@ -1044,6 +1089,14 @@ end subroutine CFDSolverBase_findFixPressure
          walave_u(:,:) = 0.0_rp
          !$acc end kernels
 
+         if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then           
+            allocate(walave_pr(numNodesRankPar))
+            !$acc enter data create(walave_pr(:))
+            !$acc kernels
+               walave_pr(:)          = 0.0_rp
+            !$acc end kernels
+         end if
+
          if(flag_use_species) then
             allocate(walave_t(numNodesRankPar))
             !$acc enter data create(walave_t(:))
@@ -1053,6 +1106,7 @@ end subroutine CFDSolverBase_findFixPressure
          end if
       else
          allocate(walave_u(0,0)) !dummy allocation
+         allocate(walave_pr(0)) !dummy allocation
          allocate(walave_t(0)) !dummy allocation
       end if
 
@@ -1568,7 +1622,7 @@ end subroutine CFDSolverBase_findFixPressure
 
    subroutine CFDSolverBase_evalMass(this)
       class(CFDSolverBase), intent(inout) :: this
-      integer(4) :: iElem
+      integer(4) :: iElem, ipoin
 
       !*********************************************************************!
       ! Compute mass matrix (Lumped and Consistent) and set solver type     !
@@ -1576,9 +1630,18 @@ end subroutine CFDSolverBase_findFixPressure
 
       if(mpi_rank.eq.0) write(111,*) '--| COMPUTING LUMPED MASS MATRIX...'
       call nvtxStartRange("Lumped mass compute")
-      allocate(Ml(numNodesRankPar))
-      !$acc enter data create(Ml(:))
+      allocate(Ml(numNodesRankPar), invMl(numNodesRankPar))
+      !$acc enter data create(Ml(:), invMl(:))
+
+      !$acc kernels
+      invMl(:) = 0.0_rp
+      !$acc end kernels
       call lumped_mass_spectral(numElemsRankPar,numNodesRankPar,connecParWork,gpvol,Ml)
+      !$acc parallel loop
+      do ipoin = 1,numWorkingNodesRankPar
+         invMl(workingNodesPar(ipoin)) = 1.0_rp/Ml(workingNodesPar(ipoin))
+      end do
+      !$acc end parallel loop
       call nvtxEndRange
 
       !charecteristic length for spectral elements for the entropy
@@ -1609,7 +1672,7 @@ end subroutine CFDSolverBase_findFixPressure
             call nvtxStartRange("Surface info")
             call surfInfo(0,0.0_rp,numElemsRankPar,numNodesRankPar,numBoundsRankPar,iCode,connecParWork,boundPar,point2elem,&
                bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),.TRUE.)
+               mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),tauw,.TRUE.)
             call nvtxEndRange
          end do
       end if
@@ -1770,7 +1833,7 @@ end subroutine CFDSolverBase_findFixPressure
          !
          call nvtxStartRange("Wall Average")
          if(flag_walave) then
-            !
+            !  
             ! outside acc kernels following pseudo_cfl in next loop
             !
             dtfact = this%dt/(this%dt+period_walave)
@@ -1778,6 +1841,12 @@ end subroutine CFDSolverBase_findFixPressure
             !$acc kernels
             walave_u(:,:) = dtfact*u(:,:,2) + avwei*walave_u(:,:)
             !$acc end kernels
+
+            if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then           
+               !$acc kernels
+               walave_pr(:) = dtfact*pr(:,2) + avwei*walave_pr(:)
+               !$acc end kernels
+            end if
 
             if(flag_use_species) then
                !$acc kernels
@@ -1872,7 +1941,7 @@ end subroutine CFDSolverBase_findFixPressure
                   call nvtxStartRange("Surface info")
                   call surfInfo(istep,this%time,numElemsRankPar,numNodesRankPar,numBoundsRankPar,icode,connecParWork,boundPar,point2elem, &
                      bouCodesPar,boundNormalPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coordPar, &
-                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),.TRUE.)
+                     mu_fluid,mu_e,mu_sgs,rho(:,2),u(:,:,2),pr(:,2),this%surfArea,Fpr(:,iCode),Ftau(:,iCode),tauw,.TRUE.)
 
                   call nvtxEndRange
                   if(mpi_rank.eq.0) call flush(888+icode)

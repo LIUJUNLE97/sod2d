@@ -32,8 +32,8 @@ module elem_convec_incomp
             integer(4)              :: ipoin(nnode)
             real(rp)                 :: Re_mom(nnode,ndime)
             real(rp)                 :: gradIsoRho(ndime), gradIsoF(ndime,ndime,ndime), gradIsoQ(ndime,ndime)
-            real(rp)                 :: gradRho(ndime),gradQ(ndime,ndime),divF(ndime),divU,divQ_star, gradIsoQ_star(ndime,ndime)
-            real(rp)                 :: ul(nnode,ndime), ql(nnode,ndime), rhol(nnode), fl(nnode,ndime,ndime),ql_star(nnode,ndime)
+            real(rp)                 :: gradRho(ndime),gradQ(ndime,ndime),divF(ndime),divU
+            real(rp)                 :: ul(nnode,ndime), ql(nnode,ndime), rhol(nnode)
             real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
 
             call nvtxStartRange("Full convection")
@@ -41,28 +41,18 @@ module elem_convec_incomp
             Rmom(:,:) = 0.0_rp
             !$acc end kernels
 
-            !$acc parallel loop gang private(ipoin,Re_mom,ul,ql,rhol,fl,ql_star)
+            !$acc parallel loop gang private(ipoin,Re_mom,ul,ql,rhol)
             do ielem = 1,nelem
                !$acc loop vector
                do inode = 1,nnode
                   ipoin(inode) = connec(ielem,inode)
-               end do
-               !$acc loop vector collapse(2)
-               do idime = 1,ndime
-                  do inode = 1,nnode
+                  !$acc loop seq
+                  do idime = 1,ndime
                      ul(inode,idime)      = u(ipoin(inode),idime)
                      ql(inode,idime)      = q(ipoin(inode),idime)
                   end do
                end do
-               !$acc loop vector collapse(3)
-               do idime = 1,ndime
-                  do jdime = 1,ndime
-                     do inode = 1,nnode
-                        fl(inode,idime,jdime)  = q(ipoin(inode),idime)*u(ipoin(inode),jdime)
-                     end do
-                  end do
-               end do
-               !$acc loop vector private(dlxi_ip,dleta_ip,dlzeta_ip, gradIsoRho, gradIsoF, gradIsoQ,gradIsoQ_star,gradRho,gradQ,divF,divU)
+               !$acc loop vector private(dlxi_ip,dleta_ip,dlzeta_ip, gradIsoRho, gradIsoF, gradIsoQ,gradRho,gradQ,divF,divU)
                do igaus = 1,ngaus
                   !$acc loop seq
                   do ii=1,porder+1
@@ -86,9 +76,9 @@ module elem_convec_incomp
                         gradIsoQ(idime,3) = gradIsoQ(idime,3) + dlzeta_ip(ii)*ql(invAtoIJK(isoI,isoJ,ii),idime)
                         !$acc loop seq
                         do jdime=1, ndime
-                            gradIsoF(idime,jdime,1) = gradIsoF(idime,jdime,1) + dlxi_ip(ii)*fl(invAtoIJK(ii,isoJ,isoK),idime,jdime)
-                            gradIsoF(idime,jdime,2) = gradIsoF(idime,jdime,2) + dleta_ip(ii)*fl(invAtoIJK(isoI,ii,isoK),idime,jdime)
-                            gradIsoF(idime,jdime,3) = gradIsoF(idime,jdime,3) + dlzeta_ip(ii)*fl(invAtoIJK(isoI,isoJ,ii),idime,jdime)
+                            gradIsoF(idime,jdime,1) = gradIsoF(idime,jdime,1) + dlxi_ip(ii)*ql(invAtoIJK(ii,isoJ,isoK),idime)*ul(invAtoIJK(ii,isoJ,isoK),jdime)
+                            gradIsoF(idime,jdime,2) = gradIsoF(idime,jdime,2) + dleta_ip(ii)*ql(invAtoIJK(isoI,ii,isoK),idime)*ul(invAtoIJK(isoI,ii,isoK),jdime)
+                            gradIsoF(idime,jdime,3) = gradIsoF(idime,jdime,3) + dlzeta_ip(ii)*ql(invAtoIJK(isoI,isoJ,ii),idime)*ul(invAtoIJK(isoI,isoJ,ii),jdime)
                         end do
                      end do
                   end do
@@ -109,8 +99,7 @@ module elem_convec_incomp
                   divU = gradQ(1,1) + gradQ(2,2) + gradQ(3,3)
                   !$acc loop seq
                   do idime=1, ndime
-                     Re_mom(igaus,idime) = 0.5_rp*(divF(idime)+ul(igaus,idime)*divU)
-                     !Re_mom(igaus,idime) = 0.5_rp*(divF(idime))
+                     Re_mom(igaus,idime) = 0.5_rp*(divF(idime)+ul(igaus,idime)*divU)                     
                      !$acc loop seq
                      do jdime=1, ndime
                         Re_mom(igaus,idime) = Re_mom(igaus,idime) + 0.5_rp*(ul(igaus,jdime)*gradQ(idime,jdime))

@@ -24,6 +24,7 @@ module mod_numerical_params
         logical :: flag_high_mach = .true.
         logical :: flag_bouyancy_effect = .false.
         logical :: flag_drop_c_in_envit = .false.
+        logical :: flag_lps_stab = .true.
         integer(4)  :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
         integer(4)  :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
         integer(4)  :: flag_normalise_entropy=1
@@ -100,8 +101,8 @@ module mod_numerical_params
         ! Wall model averaging
         !
         real(rp)    :: period_walave   = 1.0_rp
-        logical     :: flag_walave     = .false.
-        integer(4)  :: flag_walex      = 3
+        logical     :: flag_walave     = .true.
+        real(rp)    :: wmles_walex = 0.1_rp
         integer(4)  :: flag_type_wmles = wmles_type_reichardt
 
         !
@@ -142,5 +143,13 @@ module mod_numerical_params
         real(rp) :: center_mom_x = 0.0_rp
         real(rp) :: center_mom_y = 0.0_rp
         real(rp) :: center_mom_z = 0.0_rp
+
+        !pseduo time stepping steady euler
+        real(rp)    :: pseudo_cfl = 0.1_rp
+        real(rp)    :: pseudo_ftau = 8.0_rp
+        integer(4) :: pseudo_steps=10
+        integer(4) ::  maxIterNonLineal=20
+
+
 
 end module mod_numerical_params
