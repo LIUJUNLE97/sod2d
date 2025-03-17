@@ -31,6 +31,7 @@ module elem_diffu_meshElasticity
              real(rp)                :: ul(nnode,ndime), mufluidl(nnode)
              real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
              real(rp)                :: gradRhol(nnode,ndime),muel(nnode)
+             real(rp) :: t_aux,eigen,hdesired,hz_maz,hz_min
 
              call nvtxStartRange("Full diffusion")
              !$acc kernels
@@ -97,6 +98,18 @@ module elem_diffu_meshElasticity
                            tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
                       end do
                    end do
+                   ! here fake some metric ABEL!!!!
+                   !tau(1,1)= tau(1,1) +1.0_rp -metric11 ! identityt
+                   !tau(2,2)= tau(2,2) +1.0_rp -metric22 ! identty
+                   t_aux = 6.3_rp-coordPar(connec(ielem,igaus),3)
+                   hz_maz = 1.0_rp !riemanian
+                   hz_min = 0.1_rp !riemanian
+                   t_aux = t_aux**1 ! quadratic transition from min (aniso) to max (iso)
+                   hdesired = hz_maz*t_aux  + hz_min*(1-t_aux) ! elem size in between [1 0.1] according to taux
+                   eigen = 1.0_rp/hdesired**2
+                   tau(3,3)= tau(3,3) + 1.0_rp  - eigen
+                   ! here cross M_ij
+                   !tau(i,j)= tau(i,j) -Mij
 
                    !$acc loop seq
                    do idime = 1,ndime

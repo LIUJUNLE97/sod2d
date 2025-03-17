@@ -222,7 +222,7 @@ contains
       call this%saveInstResultsFiles(1)    
     end if
     !
-    if(.true.) then ! do_curveInteriorMesh
+    if(.false.) then ! do_curveInteriorMesh
       u(:,:,2) = 0.0_rp
       print*,'- Input curved mesh quality'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
@@ -268,6 +268,38 @@ contains
       print*,'       minQ: ',minQ,'    maxQ: ',maxQ
       u(:,:,2) = coordPar-this%coord_input_safe ! -> displacement to see in paraview the new curved mesh
       call this%saveInstResultsFiles(2)
+    end if
+    !
+    if(.true.) then ! do_curveFromMetric
+      print*,'use metric in the domain to drive elasticity'
+      this%is_imposed_displacement = .true.
+      allocate(this%imposed_displacement(numNodesRankPar,ndime))
+      this%imposed_displacement = 0.0_rp
+      !
+      call this%initialBuffer()
+
+      if (this%noBoundaries .eqv. .false.) then
+         call temporary_bc_routine_dirichlet_prim_meshElasticity(&
+           numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
+      end if
+      !if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
+      !
+      print*,'Quality before elasticity'
+      call this%computeQuality(minQ,maxQ,numInv,numLow)
+      print*,'    minQ: ',minQ
+      !
+      call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
+         numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
+         gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
+         this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
+         bouCodesNodesPar,normalsAtNodes,u_buffer)
+      !
+      coordPar = coordPar+u(:,:,2)
+      print*,'Quality after elasticity'
+      call this%computeQuality(minQ,maxQ,numInv,numLow)
+      print*,'    minQ: ',minQ
+      !
+      call this%saveInstResultsFiles(1)    
     end if
     !
 
@@ -527,7 +559,6 @@ contains
   !
   !
   !
-
   subroutine assessBestElasticityParameters(this)
     implicit none
     class(MeshElasticitySolver), intent(inout) :: this
@@ -545,11 +576,11 @@ contains
     E_best  = E_safe  
    
     !"E":10, "nu":0.4,
-    num_young   = 4!8
-    num_poisson = 10!10
-    ini_young   = 0.001_rp !0.0001_rp
-    fact_young  = 3.0_rp ! 10.0_rp
-    ini_poisson = 0.1_rp ! 0.05_rp
+    num_young   = 0!8
+    num_poisson = 1!10
+    ini_young   = 0.01_rp !0.0001_rp
+    fact_young  = 10.0_rp ! 10.0_rp
+    ini_poisson = 0.139_rp!0.1_rp ! 0.05_rp
     end_poisson = 0.49_rp
     fact_poisson= (end_poisson-ini_poisson)/num_poisson
    
@@ -643,7 +674,7 @@ contains
     end do
     !
     if(minQ<0) minQ = 0.0_rp
-    print*,'   Num invalid: ',countInvalid,'     Num lowQ: ',countLowQ
+    !print*,'   Num invalid: ',countInvalid,'     Num lowQ: ',countLowQ
     !
   end subroutine computeQuality
   !
@@ -657,6 +688,7 @@ contains
     real(rp) :: x0,x1,xpoin,ypoin,zpoin,pertx,perty,pertz,blend_bou
     real(rp) :: factor_sincos
     !
+    print*,'this%is_imposed_displacement: ',this%is_imposed_displacement
     if(this%is_imposed_displacement) then
       !
       !$acc parallel loop
