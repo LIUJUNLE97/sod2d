@@ -11,10 +11,6 @@ module mod_operators
 
     implicit none
 
-      logical :: allocate_memory_mod_oprators = .true.
-      !for eval_laplacian_mult
-      real(rp),allocatable :: op_auxP(:)
-
        contains
 
         subroutine eval_laplacian_mult(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,p,ResP)
@@ -31,17 +27,9 @@ module mod_operators
             real(rp)                :: gradP(ndime),divDp
             real(rp)                :: pl(nnode),gradPl(nnode,ndime)
 
-            if(allocate_memory_mod_oprators) then
-               allocate_memory_mod_oprators = .false.
-               
-               allocate(op_auxP(npoin))
-               !$acc enter data create(op_auxP(:))
-            end if
-
             call nvtxStartRange("Eval laplacian mult")
             !$acc kernels
              ResP(:) = 0.0_rp
-             op_auxP(:) = p(:)
             !$acc end kernels
 
             !$acc parallel loop gang  private(ipoin,pl,gradPl)
@@ -49,7 +37,7 @@ module mod_operators
                 !$acc loop vector
                 do inode = 1,nnode
                   ipoin(inode) = connec(ielem,inode)
-                   pl(inode) = op_auxP(ipoin(inode))
+                   pl(inode) = p(ipoin(inode))
                 end do
                 gradPl(:,:) = 0.0_rp
 
@@ -122,6 +110,104 @@ module mod_operators
                !$acc end kernels
             end if
         end subroutine eval_laplacian_mult
+
+        subroutine eval_laplacian_mult_random(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,p,ResP)
+
+         implicit none
+
+         integer(4),intent(in)    :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
+         real(rp),  intent(inout) :: ResP(npoin)
+         real(rp),  intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),gpvol(1,ngaus,nelem),p(npoin)
+         integer(4),intent(in)    :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+         integer(4)               :: ii, ielem, igaus, idime, jdime, inode, isoI, isoJ, isoK,ipoin(nnode)
+         !real(rp)                :: p_l(npoin),aux1,auxP(npoin)
+         real(rp)                :: gradIsoP(ndime)
+         real(rp)                :: gradP(ndime),divDp
+         real(rp)                :: pl(nnode),gradPl(nnode,ndime)
+
+         call nvtxStartRange("Eval laplacian mult")
+         !$acc kernels
+          ResP(:) = 0.0_rp
+         !$acc end kernels
+
+         !$acc parallel loop gang  private(ipoin,pl,gradPl)
+         do ielem = 1,nelem
+             !$acc loop vector
+             do inode = 1,nnode
+               ipoin(inode) = connec(ielem,inode)
+                pl(inode) = p(ipoin(inode))
+             end do
+             gradPl(:,:) = 0.0_rp
+
+             !$acc loop vector private(gradIsoP,gradP)
+             do igaus = 1,ngaus
+
+                isoI = gmshAtoI(igaus) 
+                isoJ = gmshAtoJ(igaus) 
+                isoK = gmshAtoK(igaus) 
+
+                gradIsoP(:) = 0.0_rp
+                !$acc loop seq
+                do ii=1,porder+1
+                  gradIsoP(1) = gradIsoP(1) + dlxigp_ip(igaus,1,ii)*pl(invAtoIJK(ii,isoJ,isoK))
+                  gradIsoP(2) = gradIsoP(2) + dlxigp_ip(igaus,2,ii)*pl(invAtoIJK(isoI,ii,isoK))
+                  gradIsoP(3) = gradIsoP(3) + dlxigp_ip(igaus,3,ii)*pl(invAtoIJK(isoI,isoJ,ii))
+                end do
+
+                gradP(:) = 0.0_rp
+                !$acc loop seq
+                do idime=1, ndime
+                   !$acc loop seq
+                   do jdime=1, ndime
+                      gradP(idime) = gradP(idime) + He(idime,jdime,igaus,ielem) * gradIsoP(jdime)
+                   end do
+                end do
+
+                !$acc loop seq
+                do idime = 1,ndime
+                   gradPl(igaus,idime) =  gradP(idime)
+                end do
+             end do
+
+             !$acc loop vector private(divDp) 
+             do igaus = 1,ngaus
+
+                isoI = gmshAtoI(igaus) 
+                isoJ = gmshAtoJ(igaus) 
+                isoK = gmshAtoK(igaus) 
+
+                divDp = 0.0_rp
+                
+                !$acc loop seq
+                do ii=1,porder+1
+                   !$acc loop seq
+                   do idime=1,ndime
+                      divDp = divDp + He(idime,1,invAtoIJK(ii,isoJ,isoK),ielem)*gpvol(1,invAtoIJK(ii,isoJ,isoK),ielem)*dlxigp_ip(invAtoIJK(ii,isoJ,isoK),1,isoI)*gradPl(invAtoIJK(ii,isoJ,isoK),idime)
+                      divDp = divDp + He(idime,2,invAtoIJK(isoI,ii,isoK),ielem)*gpvol(1,invAtoIJK(isoI,ii,isoK),ielem)*dlxigp_ip(invAtoIJK(isoI,ii,isoK),2,isoJ)*gradPl(invAtoIJK(isoI,ii,isoK),idime)
+                      divDp = divDp + He(idime,3,invAtoIJK(isoI,isoJ,ii),ielem)*gpvol(1,invAtoIJK(isoI,isoJ,ii),ielem)*dlxigp_ip(invAtoIJK(isoI,isoJ,ii),3,isoK)*gradPl(invAtoIJK(isoI,isoJ,ii),idime)
+                   end do
+                end do
+
+                !$acc atomic update
+                ResP(ipoin(igaus)) = ResP(ipoin(igaus))+divDp
+                !$acc end atomic
+             end do
+          end do
+          !$acc end parallel loop
+
+         if(mpi_size.ge.2) then
+            call nvtxStartRange("MPI_comms_tI")
+            call mpi_halo_atomic_update_real(ResP(:))
+            call nvtxEndRange
+         end if
+         call nvtxEndRange
+
+         if(flag_fs_fix_pressure) then
+            !$acc kernels
+            ResP(inode_fix_press) = 0.0_rp              
+            !$acc end kernels
+         end if
+     end subroutine eval_laplacian_mult_random        
 
         subroutine eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,invMl,x,gradX,lump)
 

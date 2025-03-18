@@ -95,6 +95,8 @@ contains
       call json%get("Re",this%Re, found,1600.0_rp); call this%checkFound(found,found_aux)
 
       call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+      
+      call json%get("flag_cg_prec_bdc",flag_cg_prec_bdc, found,.false.); call this%checkFound(found,found_aux)      
 
 
       !Witness points parameters
