@@ -14,6 +14,7 @@ module time_integ_incomp
    use mod_wall_model
    use mod_operators
    use mod_solver_incomp
+   use mod_rough_elem
 
    implicit none
 
@@ -230,6 +231,11 @@ module time_integ_incomp
 
             if(present(source_term)) then
                call nvtxStartRange("AB2 source")
+
+               if(flag_trip_element) then
+                  call mom_source_rough_elem(npoin,coord,rho(:,2),u(:,:,2),source_term)
+               end if
+
                !$acc kernels
                Rsource(1:npoin,1:ndime) = 0.0_rp
                !$acc end kernels
