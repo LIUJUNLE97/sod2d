@@ -14,6 +14,7 @@ module time_integ_incomp
    use mod_wall_model
    use mod_operators
    use mod_solver_incomp
+   use mod_rough_elem
 
    implicit none
 
@@ -136,7 +137,7 @@ module time_integ_incomp
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
-            real(rp), optional, intent(in)      :: source_term(npoin,ndime)
+            real(rp), optional, intent(inout)   :: source_term(npoin,ndime)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_pr(npoin)
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: istep,ipoin,idime,icode,iPer,ipoin_w
@@ -230,6 +231,11 @@ module time_integ_incomp
 
             if(present(source_term)) then
                call nvtxStartRange("AB2 source")
+
+               if(flag_trip_element) then
+                  call mom_source_rough_elem(npoin,coord,rho(:,2),u(:,:,2),source_term)
+               end if
+
                !$acc kernels
                Rsource(1:npoin,1:ndime) = 0.0_rp
                !$acc end kernels

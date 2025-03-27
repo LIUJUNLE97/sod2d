@@ -18,6 +18,7 @@ module time_integ_imex
    use mod_operators
    use time_integ, only :  updateBuffer   
    use elem_stab, only : comp_tau
+   use mod_rough_elem
 
 
 
@@ -227,7 +228,7 @@ module time_integ_imex
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime), u_mapped(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
-            real(rp), optional, intent(in)      :: source_term(npoin,ndime+2)
+            real(rp), optional, intent(inout)      :: source_term(npoin,ndime+2)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_pr(npoin)
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: istep, ipoin, idime,icode,jstep,ipoin_w
@@ -338,6 +339,12 @@ module time_integ_imex
             do istep = 2,flag_imex_stages 
 
                if(present(source_term) .or.flag_bouyancy_effect) then
+
+                  if(flag_trip_element) then
+                     call mom_source_rough_elem(npoin,coord,rho(:,2),u(:,:,2),source_term(:,3:ndime+2))
+                     call ener_source_rough_elem(npoin,coord,rho(:,2),q(:,:,2),source_term(:,:))
+                  end if
+
                   !$acc kernels
                   Rsource_imex(1:npoin,1:ndime+2) = 0.0_rp
                   !$acc end kernels
@@ -347,7 +354,7 @@ module time_integ_imex
                   else if(present(source_term)) then
                      call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,1),source_term(:,3:ndime+2),Rsource_imex(:,3:ndime+2),-1.0_rp)
                      call ener_source_const(nelem,npoin,connec,Ngp,dNgp,He,gpvol,source_term(:,2),Rsource_imex(:,2),-1.0_rp)
-                  end if
+                  end if                  
                end if
 
                !$acc parallel loop
