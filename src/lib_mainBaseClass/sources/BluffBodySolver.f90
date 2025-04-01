@@ -130,6 +130,12 @@ contains
 
       call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
 
+      call json%get("flag_trip_element",flag_trip_element, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("x_trip_o",x_trip_o, found,0.0_rp); call this%checkFound(found,found_aux)
+      call json%get("y_trip_o",y_trip_o, found,0.0_rp); call this%checkFound(found,found_aux)
+      call json%get("l_trip_x",l_trip_x, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("l_trip_y",l_trip_y, found,1.0_rp); call this%checkFound(found,found_aux)
+
 
       ! fixed by the type of base class parameters
       mul    = (this%rho0*this%delta*this%vo)/this%Re

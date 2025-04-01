@@ -16,6 +16,9 @@ include(mpi)
 # Configure HDF5 module
 include(hdf5)
 
+# Configure JFORTRAN module
+include(json-fortran)
+
 # Configure CONSTANTS
 include(constants)
 
@@ -28,6 +31,7 @@ endif()
 # Compile
 file(GLOB SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_constants.f90 
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_mpi.f90 
+   ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_ioutils.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_utils.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_custom_types.f90
    ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_maths.f90
@@ -46,11 +50,12 @@ file(GLOB SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_const
 add_executable(${PROJECT_NAME} ${SRC_FILES})   # Build executable from listed sources
 set_property(TARGET ${PROJECT_NAME} PROPERTY LINKER_LANGUAGE Fortran)
 
-set_mpi()
 if(SHARED_LIBS)
     target_link_libraries(${PROJECT_NAME} lib_sod2d)
 else()
+    set_mpi()
     set_hdf5()
+    set_jsonfortran()
 endif()
 set_mpi()
 

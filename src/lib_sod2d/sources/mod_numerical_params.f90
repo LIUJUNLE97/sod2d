@@ -150,6 +150,12 @@ module mod_numerical_params
         integer(4) :: pseudo_steps=10
         integer(4) ::  maxIterNonLineal=20
 
+        ! tripping parameters (rough element)
 
+        logical :: flag_trip_element = .false.
+        real(rp) :: x_trip_o = 0.0_rp
+        real(rp) :: y_trip_o = 0.0_rp
+        real(rp) :: l_trip_x = 1.0_rp
+        real(rp) :: l_trip_y = 1.0_rp
 
 end module mod_numerical_params

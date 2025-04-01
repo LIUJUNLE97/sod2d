@@ -122,7 +122,7 @@ module BluffBody3DSolverEuler_mod
 
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
       call json%get("maxIterNonLineal",maxIterNonLineal, found,100); call this%checkFound(found,found_aux)
-      call json%get("pseudo_cfl",pseudo_cfl, found,0.1); call this%checkFound(found,found_aux)
+      call json%get("pseudo_cfl",pseudo_cfl, found,0.1_rp); call this%checkFound(found,found_aux)
       call json%get("pseudo_steps",pseudo_steps, found,10); call this%checkFound(found,found_aux)
 
       call json%get("Cp",this%Cp, found,1004.0_rp); call this%checkFound(found,found_aux)

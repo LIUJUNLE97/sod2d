@@ -15,6 +15,7 @@ module time_integ_ls
    use mod_wall_model
    use mod_operators
    use time_integ, only : updateBuffer, limit_rho
+   use mod_rough_elem
 
    implicit none
 
@@ -244,7 +245,7 @@ module time_integ_ls
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime), u_mapped(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
-            real(rp), optional, intent(in)      :: source_term(npoin,ndime+2)
+            real(rp), optional, intent(inout)      :: source_term(npoin,ndime+2)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_pr(npoin)
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: pos, ipoin_w, ielem, inode
@@ -547,7 +548,7 @@ module time_integ_ls
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime),u_mapped(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
-            real(rp), optional, intent(in)      :: source_term(npoin,ndime+2)
+            real(rp), optional, intent(inout)      :: source_term(npoin,ndime+2)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_pr(npoin)
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: pos
@@ -634,13 +635,19 @@ module time_integ_ls
             
             if(present(source_term) .or.flag_bouyancy_effect) then
                call nvtxStartRange("Extra terms")
+
+               if(flag_trip_element) then
+                  call mom_source_rough_elem(npoin,coord,rho(:,pos),u(:,:,pos),source_term(:,3:ndime+2))
+                  call ener_source_rough_elem(npoin,coord,rho(:,pos),q(:,:,pos),source_term(:,:))
+               end if
+
                if(flag_bouyancy_effect) then
                   call mom_source_bouyancy_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,pos),Rmom,1.0_rp)
                   call ener_source_bouyancy(nelem,npoin,connec,Ngp,dNgp,He,gpvol,q(:,:,pos),Rener,1.0_rp)
                else if(present(source_term)) then
                   call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,pos),source_term(:,3:ndime+2),Rmom,1.0_rp) 
                   call ener_source_const(nelem,npoin,connec,Ngp,dNgp,He,gpvol,source_term(:,2),Rener,1.0_rp)
-               end if
+               end if               
                call nvtxEndRange
             end if
 
