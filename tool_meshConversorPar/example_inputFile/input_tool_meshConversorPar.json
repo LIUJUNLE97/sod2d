@@ -1,0 +1,11 @@
+{
+   "gmsh_filePath":"",
+   "gmsh_fileName":"cube_per_p4_n10",
+
+   "mesh_h5_filePath":"",
+   "mesh_h5_fileName":"cube_per_p4_n10",
+
+   "num_partitions":4,
+   "lineal_output":true,
+   "eval_mesh_quality":0
+}
