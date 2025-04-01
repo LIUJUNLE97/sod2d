@@ -1,18 +1,20 @@
 
 program tool_meshConversorPar
     use mod_mpi
-    use mod_read_inputFile
+    use mod_ioutils
     use mod_meshConversorTool
+    use json_module
 
     implicit none
 
-    character(999) :: input_file
+    character(512) :: json_input_file
     character(512) :: gmsh_filePath,gmsh_fileName
     character(512) :: mesh_h5_filePath,mesh_h5_fileName
-    character(256) :: parameter2read
-    integer(4) :: lineCnt,num_partitions,eval_mesh_quality
+    integer(4) :: num_partitions,eval_mesh_quality
     logical :: lineal_output
-
+    type(json_file) :: json_f
+    logical :: isFound
+    character(len=:), allocatable :: str_value
 !------------------------------------------------------------------------------------------------------
 
     call init_mpi()
@@ -25,48 +27,44 @@ program tool_meshConversorPar
     !------------------------------------------------------------------------------
     ! Reading input file
     if(command_argument_count() .eq. 1) then
-        call get_command_argument(1, input_file)
-        if(mpi_rank.eq.0) write(*,*) 'Input file: ',trim(adjustl(input_file))
+        call get_command_argument(1, json_input_file)
+        if(mpi_rank.eq.0) write(*,*) 'Input file: ',trim(adjustl(json_input_file))
     else
         if(mpi_rank.eq.0) write(*,*) 'You must call this amazing tool with an input file!!!'
         call MPI_Abort(app_comm,-1,mpi_err)
     endif
     !------------------------------------------------------------------------------
     !------------------------------------------------------------------------------
-    ! Reading the parameters
-    call open_inputFile(input_file)
-    lineCnt = 1
+    ! Opening json file
+    call open_json_file(json_input_file,json_f)
 
     !1. gmsh_filePath--------------------------------------------------------------
-    parameter2read = 'gmsh_filePath'
-    call read_inputFile_string(lineCnt,parameter2read,gmsh_filePath)
+    call json_f%get("gmsh_filePath",str_value,isFound,"")
+    write(gmsh_filePath,*) str_value
 
     !2. gmsh_fileName--------------------------------------------------------------
-    parameter2read = 'gmsh_fileName'
-    call read_inputFile_string(lineCnt,parameter2read,gmsh_fileName)
+    call json_f%get("gmsh_fileName",str_value,isFound,"")
+    write(gmsh_fileName,*) str_value
 
     !3. mesh_h5_filePath--------------------------------------------------------------
-    parameter2read = 'mesh_h5_filePath'
-    call read_inputFile_string(lineCnt,parameter2read,mesh_h5_filePath)
+    call json_f%get("mesh_h5_filePath",str_value,isFound,"")
+    write(mesh_h5_filePath,*) str_value
 
     !4. mesh_h5_fileName--------------------------------------------------------------
-    parameter2read = 'mesh_h5_fileName'
-    call read_inputFile_string(lineCnt,parameter2read,mesh_h5_fileName)
+    call json_f%get("mesh_h5_fileName",str_value,isFound,"")
+    write(mesh_h5_fileName,*) str_value
 
     !5. num_partitions--------------------------------------------------------------------------
-    parameter2read = 'num_partitions'
-    call read_inputFile_integer(lineCnt,parameter2read,num_partitions)
+    call json_f%get("num_partitions",num_partitions,isFound,1);
 
     !6. lineal_output--------------------------------------------------------------------------
-    parameter2read = 'lineal_output'
-    call read_inputFile_logical(lineCnt,parameter2read,lineal_output)
+    call json_f%get("lineal_output",lineal_output,isFound,.true.);
 
     !7. eval_mesh_quality--------------------------------------------------------------------------
-    parameter2read = 'eval_mesh_quality'
-    call read_inputFile_integer(lineCnt,parameter2read,eval_mesh_quality)
+    call json_f%get("eval_mesh_quality",eval_mesh_quality,isFound,0);
 
-    call close_inputFile()
-    if(mpi_rank.eq.0) write(*,*) '## End of Reading input file: ',trim(adjustl(input_file))
+    ! Closing json file
+    call close_json_file(json_f)
 
 !---------------------------------------------------------------------------------------------------------
 

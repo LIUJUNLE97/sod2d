@@ -16,6 +16,9 @@ include(mpi)
 # Configure HDF5 module
 include(hdf5)
 
+# Configure JFORTRAN module
+include(json-fortran)
+
 # Configure CONSTANTS
 include(constants)
 
@@ -35,6 +38,7 @@ else()
                         ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_numerical_params.f90 
                         ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_nvtx.f90 
                         ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_mpi.f90 
+                        ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_ioutils.f90
                         ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_utils.f90
                         ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_ijk_indices.f90
                         ${CMAKE_CURRENT_LIST_DIR}/../src/lib_sod2d/sources/mod_custom_types.f90
@@ -58,12 +62,15 @@ set_property(TARGET ${PROJECT_NAME} PROPERTY LINKER_LANGUAGE Fortran)
 
 add_subdirectory(lib_gempaInterface)
 
-set_mpi()
-set_gempa()
+#set_mpi()
+#set_gempa()
 if(SHARED_LIBS)
     target_link_libraries(${PROJECT_NAME} lib_gempaInterface lib_sod2d)
 else()
+    set_mpi()
     set_hdf5()
+    set_gempa()
+    set_jsonfortran()
     target_link_libraries(${PROJECT_NAME} lib_gempaInterface)
 endif()
 
