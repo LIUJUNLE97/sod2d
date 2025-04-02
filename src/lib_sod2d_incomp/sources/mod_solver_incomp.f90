@@ -16,7 +16,7 @@ module mod_solver_incomp
 
       implicit none
 
-	   real(rp)  , allocatable, dimension(:) :: x, r0, p0, qn, v, b,z0,z1,M,x0,diag,rj
+	   real(rp)  , allocatable, dimension(:) :: x, r0, p0, qn, v, b,z0,z1,M,x0,diag
       real(rp)  , allocatable, dimension(:,:) :: x_u, r0_u, p0_u, qn_u, v_u, b_u,z0_u,z1_u,M_u
       real(rp)  , allocatable, dimension(:,:,:) :: L,Lt
       real(rp)  , allocatable, dimension(:,:) :: TauPX,TauPY,TauPZ
@@ -281,10 +281,22 @@ module mod_solver_incomp
 
           call nvtxStartRange("CG solver press")
           if (flag_cg_mem_alloc_pres .eqv. .true.) then
-				allocate(x(npoin), r0(npoin), p0(npoin), qn(npoin), v(npoin), b(npoin),z0(npoin),z1(npoin),M(npoin),x0(npoin),diag(npoin),rj(npoin))
-            !$acc enter data create(x(:), r0(:), p0(:), qn(:), v(:), b(:),z0(:),z1(:),M(:),x0(:),diag(:),rj(:))
+				allocate(x(npoin), r0(npoin), p0(npoin), qn(npoin), v(npoin), b(npoin),z0(npoin),z1(npoin),M(npoin),x0(npoin),diag(npoin))
+            !$acc enter data create(x(:), r0(:), p0(:), qn(:), v(:), b(:),z0(:),z1(:),M(:),x0(:),diag(:))
 
             call eval_laplacian_diag(nelem,npoin,connec,He,dNgp,gpvol,diag)
+
+            if(flag_cg_prec_bdc .eqv. .true.) then
+               allocate(L(nnode,nnode,nelem),Lt(nnode,nnode,nelem))
+               !$acc enter data create(L(:,:,:),Lt(:,:,:))
+               call eval_laplacian_BDL(nelem,npoin,connec,He,dNgp,invAtoIJK,gpvol,diag,L)
+
+               !$acc parallel loop gang
+               do ielem = 1,nelem
+                  Lt(:,:,ielem) = transpose(L(:,:,ielem))
+               end do
+               !$acc end parallel loop
+            end if
 
 				flag_cg_mem_alloc_pres = .false.
 			 end if
@@ -326,9 +338,10 @@ module mod_solver_incomp
             end if
 
             call nvtxStartRange("CG_p precond")
+            !call eval_laplacian_mult(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,x,qn)! A*x0
            !$acc parallel loop
            do ipoin = 1,npoin_w
-              r0(lpoin_w(ipoin)) = b(lpoin_w(ipoin))
+              r0(lpoin_w(ipoin)) = b(lpoin_w(ipoin))!-qn(lpoin_w(ipoin)) ! b-A*x0
            end do
             !$acc end parallel loop            
             if (noBoundaries .eqv. .false.) then
@@ -341,6 +354,14 @@ module mod_solver_incomp
            end do
             !$acc end parallel loop
 
+            if(flag_cg_prec_bdc .eqv. .true.) then
+               call smoother_cholesky(nelem,npoin,npoin_w,lpoin_w,lelpn,connec,r0,z0)
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  p0(lpoin_w(ipoin)) = z0(lpoin_w(ipoin))
+               end do
+               !$acc end parallel loop
+            end if
             call nvtxEndRange
 
             auxT1 = 0.0d0
@@ -408,12 +429,7 @@ module mod_solver_incomp
               end if
 
                if(flag_cg_prec_bdc .eqv. .true.) then
-                  !!$acc parallel loop
-                  !do ipoin = 1,npoin_w                  
-                  !   z0(lpoin_w(ipoin)) = 0.0_rp 
-                  !end do
-                  !!$acc end parallel loop                            
-                  call smoother_jacobi(noBoundaries,nelem,npoin,npoin_w,connec,lpoin_w,lelpn,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,nboun,bou_codes_nodes,normalsAtNodes,r0,z0)
+                  call smoother_cholesky(nelem,npoin,npoin_w,lpoin_w,lelpn,connec,r0,z0)
                endif
 
               !
@@ -549,36 +565,4 @@ module mod_solver_incomp
          call nvtxEndRange
 
         end subroutine smoother_cholesky
-
-        subroutine smoother_jacobi(noBoundaries,nelem,npoin,npoin_w,connec,lpoin_w,lelpn,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,nboun,bou_codes_nodes,normalsAtNodes,b,x)
-
-         implicit none
-
-         logical,              intent(in)   :: noBoundaries
-         integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w),lelpn(npoin)
-         real(rp)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-         real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin)
-         integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-         integer(4), intent(in)     :: nboun,bou_codes_nodes(npoin)
-         real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
-         real(rp)   , intent(in)    :: b(npoin)
-         real(rp)   , intent(inout) :: x(npoin)
-         integer(4)                :: iter, ipoin         
-
-         call nvtxStartRange("jacobi_cholesky") 
-
-         do iter = 1,10
-            call eval_laplacian_mult_random(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,x,rj)! A*x0
-            !$acc parallel loop
-            do ipoin = 1,npoin_w
-               rj(lpoin_w(ipoin)) = b(lpoin_w(ipoin))-rj(lpoin_w(ipoin)) ! b-A*x0
-               x(lpoin_w(ipoin)) = 0.5_rp*x(lpoin_w(ipoin)) + 0.5_rp*rj(lpoin_w(ipoin))/diag(lpoin_w(ipoin))
-               !x(lpoin_w(ipoin)) = rj(lpoin_w(ipoin))/diag(lpoin_w(ipoin))
-            end do
-            !$acc end parallel loop
-         end do
-
-         call nvtxEndRange
-
-      end subroutine smoother_jacobi
 end module mod_solver_incomp
