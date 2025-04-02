@@ -146,7 +146,7 @@ module mod_numerical_params
 
         !pseduo time stepping steady euler
         real(rp)    :: pseudo_cfl = 0.1_rp
-        real(rp)    :: pseudo_ftau = 8.0_rp
+        real(rp)    :: pseudo_ftau = 15.0_rp
         integer(4) :: pseudo_steps=10
         integer(4) ::  maxIterNonLineal=20
 

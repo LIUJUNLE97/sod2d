@@ -28,6 +28,13 @@ module time_integ_euler
    real(rp), allocatable, dimension(:)   :: b_i, b_i2
    real(rp), allocatable, dimension(:,:) ::a_ij
 
+
+   real(rp), allocatable, dimension(:)   :: Reta, Rrho
+   real(rp), allocatable, dimension(:,:) :: aux_u, aux_q
+   real(rp), allocatable, dimension(:)   :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta,aux_h
+   real(rp), allocatable, dimension(:)   :: Rmass, Rener, Rmass_sum, Rener_sum, alpha,dt_min
+   real(rp), allocatable, dimension(:,:) :: Rmom, Rmom_sum, f_eta
+
    contains
 
    subroutine init_rk_pseudo_solver(npoin)
@@ -47,6 +54,13 @@ module time_integ_euler
 
       allocate(ProjMass_ls(npoin,ndime),ProjEner_ls(npoin,ndime),ProjMX_ls(npoin,ndime),ProjMY_ls(npoin,ndime),ProjMZ_ls(npoin,ndime),tau_stab_ls(npoin))
       !$acc enter data create(ProjMass_ls(:,:),ProjEner_ls(:,:),ProjMX_ls(:,:),ProjMY_ls(:,:),ProjMZ_ls(:,:),tau_stab_ls(:))
+
+      allocate(Reta(npoin), Rrho(npoin), aux_u(npoin,ndime), aux_q(npoin,ndime), aux_rho(npoin), aux_pr(npoin), aux_E(npoin), aux_Tem(npoin), aux_e_int(npoin),aux_eta(npoin),aux_h(npoin))
+      !$acc enter data create(Reta(:), Rrho(:), aux_u(:,:), aux_q(:,:), aux_rho(:), aux_pr(:), aux_E(:), aux_Tem(:), aux_e_int(:),aux_eta(:),aux_h(:))      
+
+      allocate(Rmass(npoin), Rener(npoin), Rmass_sum(npoin), Rener_sum(npoin), alpha(npoin),dt_min(npoin),Rmom(npoin,ndime), Rmom_sum(npoin,ndime), f_eta(npoin,ndime))
+      !$acc enter data create(Rmass(:), Rener(:), Rmass_sum(:), Rener_sum(:), alpha(:),dt_min(:),Rmom(:,:), Rmom_sum(:,:), f_eta(:,:))
+
 
       !$acc kernels
       sigMass(1:npoin,1:2) = 0.0_rp
@@ -74,7 +88,7 @@ module time_integ_euler
 
    end subroutine end_rk_pseudo_solver
 
-   subroutine rk_pseudo_main(noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,&
+   subroutine rk_pseudo_main(save_logFile_step,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,&
       ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
       rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
       ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
@@ -83,6 +97,7 @@ module time_integ_euler
             implicit none
 
             logical,              intent(in)   :: noBoundaries,isWallModelOn
+            integer(4),           intent(in)    :: save_logFile_step 
             integer(4),           intent(in)    :: nelem, nboun, npoin
             integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn_nodes(npoin)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode),gmshAtoJ(nnode),gmshAtoK(nnode)
@@ -127,18 +142,13 @@ module time_integ_euler
             real(rp), optional, intent(in)      :: source_term(npoin,ndime+2)
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_pr(npoin)
             real(rp), optional, intent(in)      :: zo(npoin)
-            integer(4)                          :: pos,maxIterL
+            integer(4)                          :: pos,maxIterL, save_logFile_next
             integer(4)                          :: istep, ipoin, idime,icode,itime,jstep,inode,ielem,npoin_w_g
-            real(rp),    dimension(npoin)       :: Reta, Rrho
-            real(rp),    dimension(npoin,ndime) :: aux_u, aux_q
-            real(rp),    dimension(npoin)       :: aux_rho, aux_pr, aux_E, aux_Tem, aux_e_int,aux_eta,aux_h
-            real(rp),    dimension(npoin)       :: Rmass, Rener, Rmass_sum, Rener_sum, alpha,dt_min
-            real(rp),    dimension(npoin,ndime) :: Rmom, Rmom_sum, f_eta
-            real(rp)                            :: Rdiff_mass(npoin), Rdiff_mom(npoin,ndime), Rdiff_ener(npoin),alfa_pt(5)
-            real(rp)                            :: umag,aux,vol_rank,kappa=1e-6,phi=0.4,xi=0.7,f_save=1.0,f_max=1.02_rp,f_min=0.98_rp,errMax
+            real(rp)                            :: alfa_pt(5)
+            real(rp)                            :: umag,aux,vol_rank,kappa=1e-6,phi=0.4,xi=0.7,f_save=1.0,f_max=2.0_rp,f_min=0.5_rp,errMax
             real(8)                             :: auxN(5),auxN2(5),vol_tot_d, res(2),aux2,res_ini
 
-            !kappa = sqrt(epsilon(kappa))
+            kappa = sqrt(epsilon(kappa))
 
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -260,9 +270,6 @@ module time_integ_euler
             aux_Tem(1:npoin) = 0.0_rp
             aux_e_int(1:npoin) = 0.0_rp
             aux_eta(1:npoin) = 0.0_rp
-            Rdiff_mass(1:npoin) = 0.0_rp
-            Rdiff_mom(1:npoin,1:ndime) = 0.0_rp
-            Rdiff_ener(1:npoin) = 0.0_rp
             Rmass(1:npoin) = 0.0_rp
             Rmom(1:npoin,1:ndime) = 0.0_rp
             Rener(1:npoin) = 0.0_rp
@@ -280,7 +287,7 @@ module time_integ_euler
             !
             call nvtxStartRange("Loop over RK steps")
             maxIterL = maxIterNonLineal
-            !end if
+            save_logFile_next = 1
             do itime =1, maxIterL
                !$acc kernels
                Rmass_sum(1:npoin) = 0.0_rp
@@ -345,18 +352,8 @@ module time_integ_euler
                      call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,aux_rho,aux_rho,aux_u,&
                                        aux_Tem,Ml,ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls,tau_stab_ls,Rmass,Rmom,Rener,.false.,-1.0_rp) 
                   end if
-
-                  ! entropy advection
-                  !
-                  ! Add convection and diffusion terms (Rdiff_* is zero during prediction)
-                  !
-                  call nvtxStartRange("Add convection and diffusion")
-                  !$acc kernels
-                  Rmass(:) = Rmass(:) + Rdiff_mass(:)
-                  Rener(:) = Rener(:) + Rdiff_ener(:)
-                  Rmom(:,:) = Rmom(:,:) + Rdiff_mom(:,:)
-                  !$acc end kernels
-                  call nvtxEndRange
+                  call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,aux_rho,aux_rho,aux_u,&
+                                    aux_Tem,mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener,.false.)                     
 
                   !TESTING NEW LOCATION FOR MPICOMMS
                   if(mpi_size.ge.2) then
@@ -504,13 +501,13 @@ module time_integ_euler
                call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Reta)
                call nvtxEndRange
 
-               !call nvtxStartRange("Update sign Reta")
-               !!$acc parallel loop
-               !do ipoin = 1,npoin_w
-               !   Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))-(3.0_rp*eta(lpoin_w(ipoin),2)-4.0_rp*eta(lpoin_w(ipoin),1)+eta(lpoin_w(ipoin),3))/(2.0_rp*dt)
-               !end do
-               !!$acc end parallel loop
-               !call nvtxEndRange
+               call nvtxStartRange("Update sign Reta")
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))-(3.0_rp*eta(lpoin_w(ipoin),2)-4.0_rp*eta(lpoin_w(ipoin),1)+eta(lpoin_w(ipoin),3))/(2.0_rp*dt)
+               end do
+               !$acc end parallel loop
+               call nvtxEndRange
 
                !
                ! Compute entropy viscosity
@@ -526,15 +523,19 @@ module time_integ_euler
 
                res(1) = sqrt(res(1))
 
-               if(itime .lt. 2) then
+               if(itime .lt. 3) then
                   res_ini = res(1)
                endif
-               errMax = abs(res(1))/abs(res_ini)               
+               !errMax = abs(res(1))/abs(res_ini)    
+               errMax = abs(res(1)-res(2))/abs(res_ini)
+               res(2) = res(1)
+           
 
                if(errMax .lt. tol) exit
-               if(mpi_rank.eq.0) then
+               if(itime==save_logFile_next.and.mpi_rank.eq.0) then
                   write(111,*) " it ",itime," err ",errMax
                   call flush(111)
+                  save_logFile_next = save_logFile_next + save_logFile_step
                end if
             end do
             call nvtxEndRange
