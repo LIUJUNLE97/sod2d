@@ -109,8 +109,8 @@ contains
     implicit none
     class(MeshElasticitySolver), intent(inout) :: this
     !
-    real(rp)   :: minQ,maxQ
-    integer(4):: numInv,numLow
+    real(rp)   :: minQ,maxQ,factor_backtrack
+    integer(4):: numInv,numLow,numBacktracks
     !
     ! Init MPI
     call init_mpi()
@@ -294,10 +294,23 @@ contains
          this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
          bouCodesNodesPar,normalsAtNodes,u_buffer)
       !
-      coordPar = coordPar+u(:,:,2)
+      call save_input_coordinates(numNodesRankPar,ndime,coordPar,this%coord_input_safe)
+      
+      coordPar = this%coord_input_safe+u(:,:,2)
       print*,'Quality after elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
       print*,'    minQ: ',minQ
+      
+      factor_backtrack = 1.2_rp
+      numBacktracks = 0
+      do while(minQ.le.0) 
+        numBacktracks = numBacktracks+1
+        u(:,:,2) = u(:,:,2)/factor_backtrack
+        coordPar = this%coord_input_safe+u(:,:,2)
+        print*,'  Quality after backtrack: ',numBacktracks
+        call this%computeQuality(minQ,maxQ,numInv,numLow)
+        print*,'      minQ: ',minQ
+      end do
       !
       call this%saveInstResultsFiles(1)    
     end if
