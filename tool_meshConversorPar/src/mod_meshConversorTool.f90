@@ -66,7 +66,7 @@ contains
       type(jagged_matrix_int4) :: connecOrigBoundFacesMshRank_jm,connecBoundFacesMshRank_jm
       type(jagged_matrix_real8) :: coordMshRank_jm
       integer(8),dimension(0:numMshRanks2Part-1) :: iNodeStartPar_i8
-      integer(4),dimension(0:numMshRanks2Part-1) :: vecNumWorkingNodes,vecNumNodesToCommMshRank,vecNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecBndNumMshRanksWithComms
+      integer(4),dimension(0:numMshRanks2Part-1) :: vecNumWorkingNodes,vecNumOwnedNodes,vecNumNodesToCommMshRank,vecNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecBndNumMshRanksWithComms
       integer(4),dimension(0:numMshRanks2Part-1) :: vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank
       real(8),allocatable :: Ngp(:,:),dNgp(:,:,:),Ngp_l(:,:),dNgp_l(:,:,:),wgp(:)
       integer(4) :: iMshRank,mshRank
@@ -99,6 +99,9 @@ contains
 
       type(jagged_vector_int4) :: workingNodesPar_jv
       integer(4),allocatable :: numWorkingNodesMshRank(:)
+
+      type(jagged_vector_int4) :: ownedNodesPar_jv
+      integer(4),allocatable :: numOwnedNodesMshRank(:)
 
       type(jagged_matrix_int4) :: masSlaRankPar_jm
       integer(4),allocatable :: numPerNodesMshRank(:)
@@ -244,6 +247,8 @@ contains
       allocate(coordEqui_jm%matrix(numMshRanksInMpiRank))
       allocate(numWorkingNodesMshRank(numMshRanksInMpiRank))
       allocate(workingNodesPar_jv%vector(numMshRanksInMpiRank))
+      allocate(numOwnedNodesMshRank(numMshRanksInMpiRank))
+      allocate(ownedNodesPar_jv%vector(numMshRanksInMpiRank))
       allocate(connecBoundFacesMshRank_jm%matrix(numMshRanksInMpiRank))
 
       allocate(connecOrigBoundFacesMshRank_jm%matrix(numMshRanksInMpiRank))
@@ -359,6 +364,13 @@ contains
                bnd_nodesToComm_jv,bnd_commsMemPosInLoc_jv,bnd_commsMemSize_jv,bnd_commsMemPosInNgb_jv,bnd_ranksToComm_jv,bnd_numNodesToCommMshRank,bnd_numMshRanksWithComms)
 
       do iMshRank=1,numMshRanksInMpiRank
+         mshRank = mshRanksInMpiRank(iMshRank)
+
+         call generate_owned_lists_parallel(mshRank,numNodesMshRank(iMshRank),numWorkingNodesMshRank(iMshRank),workingNodesPar_jv%vector(iMshRank)%elems,&
+                                 numMshRanksWithComms(iMshRank),numNodesToCommMshRank(iMshRank),ranksToComm_jv%vector(iMshRank)%elems,&
+                                 commsMemPosInLoc_jv%vector(iMshRank)%elems,commsMemSize_jv%vector(iMshRank)%elems,nodesToComm_jv%vector(iMshRank)%elems,&
+                                 numOwnedNodesMshRank(iMshRank),ownedNodesPar_jv%vector(iMshRank)%elems)
+
          deallocate(globalIdSrlOrdered_i8_jm%matrix(iMshRank)%elems)
       end do
       deallocate(globalIdSrlOrdered_i8_jm%matrix)
@@ -373,6 +385,7 @@ contains
       call MPI_Barrier(app_comm,mpi_err)
       !----------------------------------------------------------------------------------------------
       call get_vector_with_mshRank_values_for_numMshRanks2Part(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numWorkingNodesMshRank,vecNumWorkingNodes)
+      call get_vector_with_mshRank_values_for_numMshRanks2Part(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numOwnedNodesMshRank,vecNumOwnedNodes)
       call get_vector_with_mshRank_values_for_numMshRanks2Part(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numNodesToCommMshRank,vecNumNodesToCommMshRank)
       call get_vector_with_mshRank_values_for_numMshRanks2Part(numMshRanks2Part,numMshRanksInMpiRank,mshRanksInMpiRank,mapMshRankToMpiRank,numMshRanksWithComms,vecNumMshRanksWithComms)
 
@@ -417,7 +430,7 @@ contains
       call create_hdf5_file(meshFile_h5_full_name,sod2dmsh_h5_fileId)
 
       call create_hdf5_groups_datasets_in_meshFile_from_tool(mnnode,mnpbou,sod2dmsh_h5_fileId,isPeriodic,isBoundaries,isMapFaces,isLinealOutput,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
-               vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank)
+               vecNumWorkingNodes,vecNumOwnedNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank)
 
       call create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,sod2dmsh_h5_fileId,isLinealOutput,meshQualityMode,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,mnnodeVTK,numVTKElemsPerMshElem)
 
@@ -427,18 +440,18 @@ contains
          mshRank = mshRanksInMpiRank(iMshRank)
          call write_mshRank_data_in_hdf5_meshFile_from_tool(mporder,mnnode,mnpbou,sod2dmsh_h5_fileId,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,isMapFaces,isLinealOutput,numElemsGmsh,numBoundFacesGmsh,&
             numElemsMshRank(iMshRank),mshRankElemStart(iMshRank),mshRankElemEnd(iMshRank),mshRankNodeStart_i8(iMshRank),&
-            mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),numWorkingNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),numBoundaryNodesMshRank(iMshRank),numDoFMshRank(iMshRank),maxBoundCode,&
+            mshRankNodeEnd_i8(iMshRank),numNodesMshRank(iMshRank),numWorkingNodesMshRank(iMshRank),numOwnedNodesMshRank(iMshRank),numBoundFacesMshRank(iMshRank),numBoundaryNodesMshRank(iMshRank),numDoFMshRank(iMshRank),maxBoundCode,&
             numElemsVTKMshRank(iMshRank),sizeConnecVTKMshRank(iMshRank),mnnodeVTK,numVTKElemsPerMshElem,mapFaceDir,mapFaceGapCoord,&
             a2ijk,a2ij,gmsh2ijk,gmsh2ij,vtk2ijk,vtk2ij,&
             elemGidMshRank_jv%vector(iMshRank)%elems,globalIdSrl_i8_jv%vector(iMshRank)%elems,globalIdPar_i8_jv%vector(iMshRank)%elems,&
-            connecParOrig_jm%matrix(iMshRank)%elems,connecParWork_jm%matrix(iMshRank)%elems,coordGll_jm%matrix(iMshRank)%elems,workingNodesPar_jv%vector(iMshRank)%elems,&
+            connecParOrig_jm%matrix(iMshRank)%elems,connecParWork_jm%matrix(iMshRank)%elems,coordGll_jm%matrix(iMshRank)%elems,workingNodesPar_jv%vector(iMshRank)%elems,ownedNodesPar_jv%vector(iMshRank)%elems,&
             boundaryNodes_jv%vector(iMshRank)%elems,dofNodes_jv%vector(iMshRank)%elems,boundFacesCodesMshRank_jv%vector(iMshRank)%elems,connecOrigBoundFacesMshRank_jm%matrix(iMshRank)%elems,connecBoundFacesMshRank_jm%matrix(iMshRank)%elems,&
             numPerNodesMshRank(iMshRank),masSlaRankPar_jm%matrix(iMshRank)%elems,numPerMapLinkedNodesMshRank(iMshRank),perMapLinkedNodesRankPar_jm%matrix(iMshRank)%elems,&
             numNodesToCommMshRank(iMshRank),numMshRanksWithComms(iMshRank),nodesToComm_jv%vector(iMshRank)%elems,commsMemPosInLoc_jv%vector(iMshRank)%elems,&
             commsMemSize_jv%vector(iMshRank)%elems,commsMemPosInNgb_jv%vector(iMshRank)%elems,ranksToComm_jv%vector(iMshRank)%elems,&
             bnd_numNodesToCommMshRank(iMshRank),bnd_numMshRanksWithComms(iMshRank),bnd_nodesToComm_jv%vector(iMshRank)%elems,bnd_commsMemPosInLoc_jv%vector(iMshRank)%elems,&
             bnd_commsMemSize_jv%vector(iMshRank)%elems,bnd_commsMemPosInNgb_jv%vector(iMshRank)%elems,bnd_ranksToComm_jv%vector(iMshRank)%elems,&
-            vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank)
+            vecNumWorkingNodes,vecNumOwnedNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank)
 
          !to avoid allocating an aditional array, refurbishing array equi if lineal output is used
          if(isLinealOutput) then
@@ -4784,6 +4797,64 @@ contains
 
    end subroutine generate_dof_and_boundary_mpi_comm_scheme_parallel
 
+   subroutine generate_owned_lists_parallel(mshRank,numNodesInRank,numWorkingNodesInRank,workingNodesInRank,numRanksWithCommsInRank,numNodesToCommInRank,&
+                  ranksToCommInRank,commsMemPosInRank,commsMemSizeInRank,nodesToCommInRank,numOwnedNodesInRank,ownedNodesInRank)
+      implicit none
+      integer(4),intent(in) :: mshRank,numNodesInRank,numWorkingNodesInRank,workingNodesInRank(numWorkingNodesInRank)
+      integer(4),intent(in) :: numRanksWithCommsInRank,numNodesToCommInRank,nodesToCommInRank(numNodesToCommInRank)
+      integer(4),intent(in),dimension(numRanksWithCommsInRank) :: commsMemPosInRank,commsMemSizeInRank,ranksToCommInRank
+      integer(4),intent(out) :: numOwnedNodesInRank
+      integer(4),intent(inout),allocatable :: ownedNodesInRank(:)
+      integer(4) :: ii,jj,ngbRank,memPos_l,memSize,iNodeL,auxCnt
+      integer(4),allocatable :: auxNodeList(:)
+      !-----------------------------------------------------------
+      
+      allocate(auxNodeList(numNodesInRank))
+
+      auxNodeList(:) = 0
+      do ii=1,numWorkingNodesInRank
+         iNodeL = workingNodesInRank(ii)
+         auxNodeList(iNodeL) = iNodeL
+      end do
+
+      !puc fer aqui la prova!
+      do ii=1,numRanksWithCommsInRank
+         ngbRank = ranksToCommInRank(ii)
+
+         if(ngbRank<mshRank) then
+            memPos_l = commsMemPosInRank(ii)
+            memSize  = commsMemSizeInRank(ii)
+
+            do jj=memPos_l,(memPos_l+memSize)
+               iNodeL = nodesToCommInRank(jj)
+               auxNodeList(iNodeL) = 0
+               !write(*,*) 'node',inodeL,'not owned by rank',mpi_rank
+            end do
+         end if
+      end do
+
+      auxCnt=0
+      do ii=1,numNodesInRank
+         if(auxNodeList(ii).ne.0) auxCnt = auxCnt+1
+      end do
+
+      numOwnedNodesInRank = auxCnt
+      allocate(ownedNodesInRank(numOwnedNodesInRank))
+
+      auxCnt=0
+      do ii=1,numNodesInRank
+         if(auxNodeList(ii).ne.0) then
+            auxCnt=auxCnt+1
+            ownedNodesInRank(auxCnt) = auxNodeList(ii)
+            !write(*,*) 'owned[',auxCnt,']:',ownedNodesPar(auxCnt)
+         end if
+      end do
+
+      deallocate(auxNodeList)
+      !write(*,*) '[',mpi_rank,']numOwned',numOwnedNodesRankPar,' numWorking',numWorkingNodesRankPar
+
+   end subroutine generate_owned_lists_parallel
+
 !------------------------------------------------------------------------------------------------------------------------------------
 
    subroutine set_nodesCoordinates(mnnode,mnpbou,mngaus,mshRank,isLinealOutput,numElemsInRank,numNodesInRank,globalIdSrlInRank_i8,listNodesInRank_i8,coordInRank,Ngp_l,connecParOrigMshRank,coordGllMshRank,coordEquiMshRank)
@@ -4848,13 +4919,13 @@ contains
       implicit none
       integer(4),intent(in) :: mnnode,mnpbou
       logical,intent(in) :: isPeriodic
-      integer,intent(in) :: mshRank,numElemsInRank,numNodesInRank,numBoundFacesInRank,connecParOrigInRank(numElemsInRank,mnnode),connecOrigBoundFacesInRank(numBoundFacesInRank,mnpbou)
-      integer,intent(in) :: nPerInRank,masSlaInRank(nPerInRank,2)
-      integer,intent(out) :: connecParWorkInRank(numElemsInRank,mnnode),numWorkingNodesInRank,connecBoundFacesInRank(numBoundFacesInRank,mnpbou)
-      integer,intent(inout),allocatable :: workingNodesInRank(:)
-      integer :: iNode,iNodeL,iElem,iBound,iPer,iAux,iPos
-      integer :: iNodeL_Per,iNodeL_Per_Pair
-      integer, allocatable :: aux_workingNodesInRank(:)
+      integer(4),intent(in) :: mshRank,numElemsInRank,numNodesInRank,numBoundFacesInRank,connecParOrigInRank(numElemsInRank,mnnode),connecOrigBoundFacesInRank(numBoundFacesInRank,mnpbou)
+      integer(4),intent(in) :: nPerInRank,masSlaInRank(nPerInRank,2)
+      integer(4),intent(out) :: connecParWorkInRank(numElemsInRank,mnnode),numWorkingNodesInRank,connecBoundFacesInRank(numBoundFacesInRank,mnpbou)
+      integer(4),intent(inout),allocatable :: workingNodesInRank(:)
+      integer(4) :: iNode,iNodeL,iElem,iBound,iPer,iAux,iPos
+      integer(4) :: iNodeL_Per,iNodeL_Per_Pair
+      integer(4),allocatable :: aux_workingNodesInRank(:)
 
       !if(mpi_rank.eq.0) write(*,*) ' # Creating working lists...'
 

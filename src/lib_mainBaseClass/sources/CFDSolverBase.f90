@@ -189,7 +189,7 @@ module CFDSolverBase_mod
       procedure :: eval_initial_mu_sgs
       procedure :: checkIfWallModelOn
       procedure :: checkIfSymmetryOn
-      procedure :: generate_working_owned_nodes
+      !procedure :: generate_working_owned_nodes
    end type CFDSolverBase
 contains
 
@@ -722,11 +722,11 @@ end subroutine CFDSolverBase_findFixPressure
       ! Initialize InSitu & correct (substract 1)  connecVTK
       call init_InSitu()
 
-
-      call this%generate_working_owned_nodes()
+      !call this%generate_working_owned_nodes()
 
    end subroutine CFDSolverBase_openMesh
 
+#if 0
    subroutine generate_working_owned_nodes(this)
       implicit none
       class(CFDSolverBase), intent(inout) :: this
@@ -779,7 +779,7 @@ end subroutine CFDSolverBase_findFixPressure
       deallocate(auxNodeList)
       !write(*,*) '[',mpi_rank,']numOwned',numOwnedNodesRankPar,' numWorking',numWorkingNodesRankPar
    end subroutine generate_working_owned_nodes
-
+#endif
 
    subroutine CFDSolverBase_fill_BC_Types(this)
       class(CFDSolverBase), intent(inout) :: this
