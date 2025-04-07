@@ -1,7 +1,7 @@
 {
    "type":"TGVSolverIncomp",
 
-   "mesh_h5_file_path":"../../",
+   "mesh_h5_file_path":"../../../mesh_test/",
    "mesh_h5_file_name":"cube",
 
    "results_h5_file_path":"",
