@@ -11,9 +11,6 @@ module mod_solver_incomp
       use elem_stab_incomp
       use elem_stab_species, only : species_tau
 
-#define _OWNEDNODES_ 1
-
-
       implicit none
 
 	   real(rp)  , allocatable, dimension(:) :: x, r0, p0, qn, v, b,z0,z1,M,x0,diag
@@ -122,21 +119,12 @@ module mod_solver_incomp
 
             auxT1 = 0.0d0
             !$acc parallel loop reduction(+:auxT1)
-#if _OWNEDNODES_
             do ipoin = 1,npoin_o
                !$acc loop seq
               do idime = 1,ndime 
                auxT1 = auxT1+real(r0_u(lpoin_o(ipoin),idime)*r0_u(lpoin_o(ipoin),idime),8)
               end do
             end do
-#else
-            do ipoin = 1,npoin_w
-               !$acc loop seq
-              do idime = 1,ndime 
-               auxT1 = auxT1+real(r0_u(lpoin_w(ipoin),idime)*r0_u(lpoin_w(ipoin),idime),8)
-              end do
-            end do
-#endif
             call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
             auxB = sqrt(auxT2)
@@ -167,7 +155,6 @@ module mod_solver_incomp
             
                auxQ1 = 0.0d0
                auxQ2 = 0.0d0
-#if _OWNEDNODES_
                !$acc parallel loop reduction(+:auxQ1,auxQ2)
                do ipoin = 1,npoin_o
                   !$acc loop seq
@@ -176,17 +163,7 @@ module mod_solver_incomp
                      auxQ2 = auxQ2+real(p0_u(lpoin_o(ipoin),idime)*qn_u(lpoin_o(ipoin),idime),8) ! <s_k-1,A*s_k-1>
                   end do
                end do
-#else
-               !$acc parallel loop reduction(+:auxQ1,auxQ2)
-               do ipoin = 1,npoin_w
-                  !$acc loop seq
-                  do idime = 1,ndime
-                     auxQ1 = auxQ1+real(r0_u(lpoin_w(ipoin),idime)*z0_u(lpoin_w(ipoin),idime),8) ! <s_k-1,r_k-1>
-                     auxQ2 = auxQ2+real(p0_u(lpoin_w(ipoin),idime)*qn_u(lpoin_w(ipoin),idime),8) ! <s_k-1,A*s_k-1>
-                  end do
-               end do
                !$acc end parallel loop
-#endif
                auxQ(1) = auxQ1
                auxQ(2) = auxQ2
                call MPI_Allreduce(auxQ,Q1,2,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
@@ -220,7 +197,6 @@ module mod_solver_incomp
                end do
                !$acc end parallel loop
                auxT1 = 0.0d0
-#if _OWNEDNODES_
                !$acc parallel loop reduction(+:auxT1)
                do ipoin = 1,npoin_o
                   !$acc loop seq
@@ -228,15 +204,7 @@ module mod_solver_incomp
                      auxT1 = auxT1+real(r0_u(lpoin_o(ipoin),idime)*r0_u(lpoin_o(ipoin),idime),8)
                   end do
                end do
-#else
-               !$acc parallel loop reduction(+:auxT1)
-               do ipoin = 1,npoin_w
-                  !$acc loop seq
-                  do idime = 1,ndime 
-                     auxT1 = auxT1+real(r0_u(lpoin_w(ipoin),idime)*r0_u(lpoin_w(ipoin),idime),8)
-                  end do
-               end do
-#endif
+
                call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
                !
@@ -250,7 +218,6 @@ module mod_solver_incomp
                ! Update p
                !
                auxT1 = 0.0d0
-#if _OWNEDNODES_
                !$acc parallel loop reduction(+:auxT1)
                do ipoin = 1,npoin_o
                   !$acc loop seq
@@ -258,15 +225,6 @@ module mod_solver_incomp
                      auxT1 = auxT1+real(r0_u(lpoin_o(ipoin),idime)*(z0_u(lpoin_o(ipoin),idime)-z1_u(lpoin_o(ipoin),idime)),8) ! <r_k,A*s_k-1>
                   end do
                end do
-#else
-               !$acc parallel loop reduction(+:auxT1)
-               do ipoin = 1,npoin_w
-                  !$acc loop seq
-                  do idime = 1,ndime 
-                     auxT1 = auxT1+real(r0_u(lpoin_w(ipoin),idime)*(z0_u(lpoin_w(ipoin),idime)-z1_u(lpoin_w(ipoin),idime)),8) ! <r_k,A*s_k-1>
-                  end do
-               end do
-#endif
                !$acc end parallel loop
                call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
                betaCG = real(auxT2/Q1(1),rp)
@@ -400,17 +358,10 @@ module mod_solver_incomp
             call nvtxEndRange
 
             auxT1 = 0.0d0
-#if _OWNEDNODES_
             !$acc parallel loop reduction(+:auxT1)
             do ipoin = 1,npoin_o
                auxT1 = auxT1+real(b(lpoin_o(ipoin))*b(lpoin_o(ipoin)),8)
             end do
-#else
-            !$acc parallel loop reduction(+:auxT1)
-            do ipoin = 1,npoin_w
-               auxT1 = auxT1+real(b(lpoin_w(ipoin))*b(lpoin_w(ipoin)),8)
-            end do
-#endif
 
             call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
@@ -426,21 +377,12 @@ module mod_solver_incomp
               call eval_laplacian_mult(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,p0,qn) ! A*s_k-1           
               auxQ1 = 0.0d0
               auxQ2 = 0.0d0
-#if _OWNEDNODES_
               !$acc parallel loop reduction(+:auxQ1,auxQ2)
               do ipoin = 1,npoin_o
                  auxQ1 = auxQ1+real(r0(lpoin_o(ipoin))*z0(lpoin_o(ipoin)),8) ! <s_k-1,r_k-1>
                  auxQ2 = auxQ2+real(p0(lpoin_o(ipoin))*qn(lpoin_o(ipoin)),8) ! <s_k-1,A*s_k-1>
               end do
               !$acc end parallel loop
-#else
-              !$acc parallel loop reduction(+:auxQ1,auxQ2)
-              do ipoin = 1,npoin_w
-                 auxQ1 = auxQ1+real(r0(lpoin_w(ipoin))*z0(lpoin_w(ipoin)),8) ! <s_k-1,r_k-1>
-                 auxQ2 = auxQ2+real(p0(lpoin_w(ipoin))*qn(lpoin_w(ipoin)),8) ! <s_k-1,A*s_k-1>
-              end do
-              !$acc end parallel loop
-#endif
               auxQ(1) = auxQ1
               auxQ(2) = auxQ2
               call MPI_Allreduce(auxQ,Q1,2,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
@@ -464,19 +406,12 @@ module mod_solver_incomp
               end do
               !$acc end parallel loop                            
               auxT1 = 0.0d0
-#if _OWNEDNODES_
               !$acc parallel loop reduction(+:auxT1)
               do ipoin = 1,npoin_o
                  auxT1 = auxT1+real(r0(lpoin_o(ipoin))*r0(lpoin_o(ipoin)),8)
               end do
               !$acc end parallel loop
-#else
-              !$acc parallel loop reduction(+:auxT1)
-              do ipoin = 1,npoin_w
-                 auxT1 = auxT1+real(r0(lpoin_w(ipoin))*r0(lpoin_w(ipoin)),8)
-              end do
-              !$acc end parallel loop
-#endif
+
                call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
               !
               ! Stop cond
@@ -494,19 +429,11 @@ module mod_solver_incomp
               ! Update p
               !
               auxT1 = 0.0d0
-#if _OWNEDNODES_
               !$acc parallel loop reduction(+:auxT1)
               do ipoin = 1,npoin_o
                  auxT1 = auxT1+real(r0(lpoin_o(ipoin))*(z0(lpoin_o(ipoin))-z1(lpoin_o(ipoin))),8) ! <r_k,A*s_k-1>
               end do
               !$acc end parallel loop
-#else
-              !$acc parallel loop reduction(+:auxT1)
-              do ipoin = 1,npoin_w
-                 auxT1 = auxT1+real(r0(lpoin_w(ipoin))*(z0(lpoin_w(ipoin))-z1(lpoin_w(ipoin))),8) ! <r_k,A*s_k-1>
-              end do
-              !$acc end parallel loop
-#endif
               call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
               betaCG = real(auxT2/Q1(1),rp)
               !$acc parallel loop
