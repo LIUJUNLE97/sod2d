@@ -175,7 +175,8 @@ contains
       call json%get("cfl_diff",this%cfl_diff, found,0.95_rp); call this%checkFound(found,found_aux)
 
       call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
-
+      call json%get("flag_use_ducros",flag_use_ducros, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("ducros_min_val",ducros_min_val, found,0.0_rp); call this%checkFound(found,found_aux)
 
       
       call json%get("Lz",this%Lz, found,440.0_rp); call this%checkFound(found,found_aux)

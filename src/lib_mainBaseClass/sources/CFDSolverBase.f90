@@ -560,7 +560,7 @@ end subroutine CFDSolverBase_findFixPressure
          if(flag_rk_ls .eqv. .false.) then
             call init_rk4_solver(numNodesRankPar)
          else
-            call init_rk4_ls_solver(numNodesRankPar)
+            call init_rk4_ls_solver(numElemsRankPar,numNodesRankPar)
          end if
       end if
       if(flag_use_species .eqv. .true.) then

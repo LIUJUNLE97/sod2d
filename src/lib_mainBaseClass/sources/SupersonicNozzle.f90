@@ -51,19 +51,19 @@ contains
       class(SupersonicNozzle), intent(inout) :: this
       integer(4)                 :: iboun,bcode,ipbou,iBoundNode,iNodeL
 
-#if 1
+#if 0
 !0 to reint very experimental, 1 for the first time step
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          if(maskMapped(iNodeL)==1) then
-            u(iNodeL,1,2) = 0.0_rp
-            u(iNodeL,2,2) = 0.0_rp
-            u(iNodeL,3,2) = 0.0_rp
-            if(coordPar(iNodeL,1) .lt. 3.0_rp) then ! not ideal
+!            u(iNodeL,1,2) = 0.0_rp
+!            u(iNodeL,2,2) = 0.0_rp
+!            u(iNodeL,3,2) = 0.0_rp
+!            if(coordPar(iNodeL,1) .lt. 4.0_rp) then ! not ideal
                u(iNodeL,1,2) = 1.0_rp
                u(iNodeL,2,2) = 0.0_rp
                u(iNodeL,3,2) = 0.0_rp
-            end if
+!            end if
          
             pr(iNodeL,2) = this%po
             rho(iNodeL,2) = this%rho0
@@ -135,13 +135,17 @@ contains
       do iNodeL = 1,numNodesRankPar
          yp = coordPar(iNodeL,2)
          if(maskMapped(iNodeL)==0) then
-            yp = 0.5_rp*this%delta-abs(coordPar(iNodeL,2))
+            !yp = 0.5_rp*this%delta-abs(coordPar(iNodeL,2))
 
-            if(coordPar(iNodeL,2) .gt. 0) sig = -1.0_rp
+            !if(coordPar(iNodeL,2) .gt. 0) sig = -1.0_rp
+
+            source_term(iNodeL,1) = 0.0_rp
 
             source_term(iNodeL,3) = (this%D0)*yp*gradXVel(iNodeL,2)*sig
             source_term(iNodeL,4) = (this%D0)*yp*gradYVel(iNodeL,2)*sig
             source_term(iNodeL,5) = (this%D0)*yp*gradZVel(iNodeL,2)*sig
+
+            source_term(iNodeL,2) = q(iNodeL,1,2)*(source_term(iNodeL,3)) + q(iNodeL,2,2)*(source_term(iNodeL,4)) + q(iNodeL,3,2)*(source_term(iNodeL,5))
          end if
       end do
       !$acc end parallel loop
@@ -241,6 +245,8 @@ contains
       call json%get("deltaBL",this%deltaBL, found,0.1_rp); call this%checkFound(found,found_aux)
 
       call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+      call json%get("flag_use_ducros",flag_use_ducros, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("ducros_min_val",ducros_min_val, found,0.0_rp); call this%checkFound(found,found_aux)
 
 
       this%mu    = (this%rho0*this%delta*this%vo)/this%Re
@@ -292,16 +298,18 @@ contains
          if(iLine.eq.matGidSrlOrdered(auxCnt,2)) then
             iNodeL = matGidSrlOrdered(auxCnt,1)
             auxCnt=auxCnt+1
-            if(coordPar(iNodeL,1) .lt. 0.0_rp) then ! not ideal
+            yp = coordPar(iNodeL,2)
                
-               yp = 0.5_rp*this%delta-abs(coordPar(iNodeL,2))
+            velo = 0.5_rp*this%vo*(1.0_rp + tanh(0.5_rp*this%dia/this%thsl*(1.0_rp-yp/this%dia)))
+            if(coordPar(iNodeL,1) .lt. -14.5_rp) then ! not ideal
                
-               velo = 0.5_rp*this%vo*(1.0_rp + tanh(0.5_rp*this%dia/this%thsl*(1.0_rp-yp/this%dia)))
+               !yp = 0.5_rp*this%delta-abs(coordPar(iNodeL,2))
+               
                u(iNodeL,1,2) = velo*(1.0_rp + 0.1_rp*(rti(1) -0.5_rp))
                u(iNodeL,2,2) = velo*(0.1_rp*(rti(2) -0.5_rp))
                u(iNodeL,3,2) = velo*(0.1_rp*(rti(3) -0.5_rp))
             else 
-               u(iNodeL,1,2) = 0.0_rp
+               u(iNodeL,1,2) = 1.0_rp - velo
                u(iNodeL,2,2) = 0.0_rp
                u(iNodeL,3,2) = 0.0_rp
             end if
@@ -354,15 +362,21 @@ contains
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
          if(maskMapped(iNodeL)==0) then
+            if(coordPar(iNodeL,2) .lt. 1.0_rp) then ! not ideal
+              u_buffer(iNodeL,1) = 1.0_rp
+              u_buffer(iNodeL,2) = 0.0_rp
+              u_buffer(iNodeL,3) = 0.0_rp  
+            else  
+              u_buffer(iNodeL,1) = 0.0_rp
+              u_buffer(iNodeL,2) = 0.0_rp
+              u_buffer(iNodeL,3) = 0.0_rp  
+            end if  
+         else
             u_buffer(iNodeL,1) = 1.0_rp
             u_buffer(iNodeL,2) = 0.0_rp
             u_buffer(iNodeL,3) = 0.0_rp  
-         else
-            u_buffer(iNodeL,1) = 0.0_rp
-            u_buffer(iNodeL,2) = 0.0_rp
-            u_buffer(iNodeL,3) = 0.0_rp  
          end if
-         
+        
          u_mapped(iNodeL,1) = 1.0_rp
          u_mapped(iNodeL,2) = 0.0_rp
          u_mapped(iNodeL,3) = 0.0_rp  

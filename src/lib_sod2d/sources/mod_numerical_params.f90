@@ -158,4 +158,8 @@ module mod_numerical_params
         real(rp) :: l_trip_x = 1.0_rp
         real(rp) :: l_trip_y = 1.0_rp
 
+        ! shock capturing
+        logical :: flag_use_ducros = .false.
+        real(rp) :: ducros_min_val = 0.0_rp
+
 end module mod_numerical_params

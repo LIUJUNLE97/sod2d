@@ -129,6 +129,8 @@ contains
       call json%get("c_sgs",c_sgs, found,0.025_rp); 
 
       call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+      call json%get("flag_use_ducros",flag_use_ducros, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("ducros_min_val",ducros_min_val, found,0.0_rp); call this%checkFound(found,found_aux)
 
       call json%get("flag_trip_element",flag_trip_element, found,.false.); call this%checkFound(found,found_aux)
       call json%get("x_trip_o",x_trip_o, found,0.0_rp); call this%checkFound(found,found_aux)

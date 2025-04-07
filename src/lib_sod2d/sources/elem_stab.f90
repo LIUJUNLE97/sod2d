@@ -260,8 +260,8 @@ module elem_stab
         do while (vecLen < nnode)
 			! Next power of 2
 			vecLen = vecLen*2
-			! Block cannot be greater than 1024 threads
-			if ( vecLen == 1024 ) then
+			! Block cannot be greater than 512 threads
+			if ( vecLen == 512 ) then
 				exit
 			end if
 		end do
@@ -361,8 +361,6 @@ module elem_stab
                   gradRhol(igaus,idime) =  -0.1_rp*taustabl*(projMassl(igaus,idime) - gradRho(idime))
                end do
 
-               divU = gradU(1,1)+gradU(2,2)+gradU(3,3)
-
                tauU(:) = 0.0_rp
                !$acc loop seq
                do idime = 1,ndime
@@ -437,7 +435,8 @@ module elem_stab
          end do
          !$acc end parallel loop
         call nvtxEndRange
-    end subroutine full_diff_stab_ijk        
+    end subroutine full_diff_stab_ijk            
+
 
         subroutine full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Pr,rho,u,Tem,Ml,invMl,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ)
          use mod_solver, only : lumped_solver_vect_opt
