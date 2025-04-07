@@ -416,46 +416,44 @@ contains
      real(rp), allocatable,  intent(inout) :: metric(:,:,:)
      
      integer(4) :: inode
-     real(rp) :: t_aux,eigen,hdesired,hz_maz,hz_min
+     real(rp) :: t_aux,hdesired,hz_maz,hz_min
+     real(rp) :: eigenx,eigeny,eigenz
      
      allocate(metric(ndime,ndime,npoin))
     
      !$acc parallel loop  
      do inode = 1,npoin
-       t_aux = coordinates(inode,3)/6.28319_rp
-       hz_maz = 2.0_rp !riemanian
-       hz_min = 0.1_rp !riemanian
-       t_aux = t_aux**1 ! quadratic transition from min (aniso) to max (iso)
-       ! elem size in between [0.1 1] according to taux (height, normalized)
-       hdesired = hz_maz*t_aux  + hz_min*(1-t_aux) 
-       eigen = 1.0_rp/hdesired**2
-       eigen = hdesired**2
-       
-       metric(:,:,inode) = 0.0_rp
-       metric(1,1,inode) = 1.0_rp
-       metric(2,2,inode) = 1.0_rp
-       metric(3,3,inode) = eigen
-
-!        tau(1,1)= tau(1,1) + 1.0_rp
-!        tau(2,2)= tau(2,2) + 1.0_rp
-!        tau(3,3)= tau(3,3) + eigen
-!
-!        tau(:,3)=tau(:,3)*eigen
-!        tau(1,1)= tau(1,1) - 1.0_rp
-!        tau(2,2)= tau(2,2) - 1.0_rp
-!        tau(3,3)= tau(3,3) - 1.0_rp
-!
-!        hz_maz = 1.0_rp !riemanian
-!        hz_min = 0.05_rp !riemanian
-!        t_aux = sqrt(sum((coordPar(connec(ielem,igaus),:)-3.14)**2)) ! radius on center of cube
-!        t_aux = t_aux/6.28_rp ! t\in[0,1]
-!        !t_aux = t_aux*t_aux
+       !!! ---- boundary layer ------
+!        t_aux = coordinates(inode,3)/6.28319_rp
+!        hz_maz = 2.0_rp !riemanian
+!        hz_min = 0.1_rp !riemanian
+!        t_aux = t_aux**1 ! quadratic transition from min (aniso) to max (iso)
+!        ! elem size in between [0.1 1] according to taux (height, normalized)
 !        hdesired = hz_maz*t_aux  + hz_min*(1-t_aux)
-!        eigen = 1.0_rp/hdesired**2
-!        tau(1,1)= tau(1,1) + 1.0_rp  - eigen
-!        tau(2,2)= tau(2,2) + 1.0_rp  - eigen
-!        tau(3,3)= tau(3,3) + 1.0_rp  - eigen
-!        here cross M_ij
+!
+!        eigenx = 1.0_rp
+!        eigeny = 1.0_rp
+!        !eigenz = 1.0_rp/hdesired**2
+!        eigenz = hdesired**2
+       
+       !!! ---- radial sizing ------
+       hz_maz = 2.0_rp !riemanian
+       hz_min = 0.01_rp !riemanian
+       t_aux = sqrt(sum((coordinates(inode,:)-3.14)**2)) ! radius on center of cube
+       t_aux = t_aux/3.14 ! t\in[0,1]
+       t_aux = t_aux*t_aux
+       hdesired = hz_maz*t_aux  + hz_min*(1-t_aux)
+       
+       !eigenx = 1.0_rp/hdesired**2
+       eigenx = hdesired**2
+       eigeny = eigenx
+       eigenz = eigenx
+       
+       !!! ---- BUILD METIRC ------
+       metric(:,:,inode) = 0.0_rp
+       metric(1,1,inode) = eigenx
+       metric(2,2,inode) = eigeny
+       metric(3,3,inode) = eigenz
      end do
      !$acc end parallel loop
 
