@@ -1,6 +1,7 @@
 
 program tool_commsPerfomance
     use mod_mpi
+    use json_module
     use mod_ioutils
     use mod_mpi_mesh
     use mod_comms
