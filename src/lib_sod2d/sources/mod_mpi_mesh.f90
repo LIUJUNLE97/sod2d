@@ -26,6 +26,9 @@ integer(4),allocatable :: connecParOrig(:,:),connecParWork(:,:)
 integer(4),allocatable :: workingNodesPar(:)
 integer(4) :: numWorkingNodesRankPar
 
+integer(4),allocatable :: ownedNodesPar(:)
+integer(4) :: numOwnedNodesRankPar
+
 integer(4),allocatable :: masSlaRankPar(:,:)
 integer(4) :: nPerRankPar
 logical :: isMeshPeriodic

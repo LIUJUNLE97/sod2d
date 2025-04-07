@@ -85,21 +85,23 @@ module time_integ_incomp
 
    end subroutine end_rk4_solver_incomp
  
-         subroutine ab_main_incomp(igtime,iltime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,leviCivi,&
-                         ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
-                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
-                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,numBouCodes,bouCodes2BCType,&               ! Optional args
-                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u,walave_pr,zo)  ! Optional args
+         subroutine bdfext3_main_incomp(igtime,iltime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,npoin_o,numBoundsWM,&
+                        point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,leviCivi,&
+                        ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+                        rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,lpoin_o,mu_fluid,mu_factor,mue_l, &
+                        ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,numBouCodes,bouCodes2BCType,&     ! Optional args
+                        listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,tauw,source_term,walave_u,walave_pr,zo)  ! Optional args
 
             implicit none
 
-            logical,              intent(in)   :: noBoundaries,isWallModelOn
+            logical,              intent(in)    :: noBoundaries,isWallModelOn
             integer(4),           intent(in)    :: igtime,iltime,save_logFile_next
             integer(4),           intent(in)    :: nelem, nboun, npoin
-            integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn_nodes(npoin),lelpn(npoin)
+            integer(4),           intent(in)    :: connec(nelem,nnode),npoin_w,npoin_o,lpoin_w(npoin_w),lpoin_o(npoin_o)
+            integer(4),           intent(in)    :: point2elem(npoin),lnbn_nodes(npoin),lelpn(npoin)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             integer(4),           intent(in)    :: ppow,maskMapped(npoin)
-            real(rp),              intent(in)   :: leviCivi(ndime,ndime,ndime)
+            real(rp),             intent(in)    :: leviCivi(ndime,ndime,ndime)
             real(rp),             intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
             real(rp),             intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
@@ -129,17 +131,17 @@ module time_integ_incomp
             real(rp),             intent(inout) :: ax2(npoin)
             real(rp),             intent(inout) :: ax3(npoin)
             real(rp),             intent(in)    :: coord(npoin,ndime)
-            real(rp),             intent(in)  ::  wgp(ngaus)
-            integer(4),            intent(in)    :: numBoundsWM
+            real(rp),             intent(in)    :: wgp(ngaus)
+            integer(4),           intent(in)    :: numBoundsWM
             integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*),numBouCodes
             integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun), bou_codes_nodes(npoin)
             integer(4), optional, intent(in)    :: listBoundsWM(*),bouCodes2BCType(*)
-            real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
+            real(rp), optional,   intent(in)    :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
-            real(rp), optional, intent(inout)   :: source_term(npoin,ndime)
-            real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_pr(npoin)
-            real(rp), optional, intent(in)      :: zo(npoin)
+            real(rp), optional,   intent(inout) :: source_term(npoin,ndime)
+            real(rp), optional,   intent(in)    :: walave_u(npoin,ndime),walave_pr(npoin)
+            real(rp), optional,   intent(in)    :: zo(npoin)
             integer(4)                          :: istep,ipoin,idime,icode,iPer,ipoin_w
 
             call nvtxStartRange("AB2 init")
@@ -358,8 +360,8 @@ module time_integ_incomp
             if (noBoundaries .eqv. .false.) then
                call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,1),p_buffer)              
             end if
-            call conjGrad_pressure_incomp(igtime,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,connec,lpoin_w,lelpn,invAtoIJK,gmshAtoI,gmshAtoJ,&
-                                          gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,pr(:,1),pr(:,2), &
+            call conjGrad_pressure_incomp(igtime,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,npoin_o,connec,lpoin_w,lpoin_o,lelpn,invAtoIJK,&
+                                          gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,pr(:,1),pr(:,2),&
                                           nboun,bou_codes_nodes,normalsAtNodes)
             if (noBoundaries .eqv. .false.) then
                call temporary_bc_routine_dirichlet_pressure_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,pr(:,2),p_buffer)              
@@ -383,8 +385,8 @@ module time_integ_incomp
                call temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,u(:,:,2),u_buffer) 
             end if
 
-            call conjGrad_veloc_incomp(igtime,1.0_rp/gamma0,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
-                                       gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,helem,mu_fluid,mu_e,mu_sgs,u(:,:,1),u(:,:,2),&
+            call conjGrad_veloc_incomp(igtime,1.0_rp/gamma0,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,npoin_o,nboun,connec,lpoin_w,lpoin_o,&
+                                       invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,helem,mu_fluid,mu_e,mu_sgs,u(:,:,1),u(:,:,2),&
                                        bou_codes_nodes,normalsAtNodes,u_buffer)
 
             if (noBoundaries .eqv. .false.) then
@@ -413,7 +415,7 @@ module time_integ_incomp
                end if
                call nvtxEndRange
             end if
-         end subroutine ab_main_incomp
+         end subroutine bdfext3_main_incomp
 
          subroutine updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u,u_buffer)
             implicit none
