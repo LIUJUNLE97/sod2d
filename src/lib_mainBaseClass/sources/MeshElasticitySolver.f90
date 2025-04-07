@@ -41,6 +41,8 @@ module MeshElasticitySolver_mod
      logical :: is_imposed_displacement = .false.
      real(rp), allocatable :: imposed_displacement(:,:)
      
+     real(rp), allocatable :: metric(:,:,:)
+     
      real(rp) ,public:: factor_deformation=1.0_rp ! to analytically increase deformation in tests
      
    contains
@@ -49,7 +51,7 @@ module MeshElasticitySolver_mod
       procedure, public :: run                   => MeshElasticitySolver_run
       procedure, public :: initialBuffer         => imposedDisplacement_elasticitySolverBuffer
       procedure, public :: initializeDefaultSaveFields => CFDSolverBase_initializeDefaultSaveFields_elasticity
-
+      
       procedure, public :: computeQuality
       procedure, public :: assessElasticityParameters_forDifferentDefs
       procedure, public :: assessBestElasticityParameters
@@ -288,31 +290,43 @@ contains
       call this%computeQuality(minQ,maxQ,numInv,numLow)
       print*,'    minQ: ',minQ
       !
+      call computeAnalyticalMetric(numNodesRankPar,ndime,coordPar,this%metric)
+      
       call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
          numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
          gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
          this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
-         bouCodesNodesPar,normalsAtNodes,u_buffer)
+         bouCodesNodesPar,normalsAtNodes,u_buffer,this%metric)
       !
       call save_input_coordinates(numNodesRankPar,ndime,coordPar,this%coord_input_safe)
       
-      coordPar = this%coord_input_safe+u(:,:,2)
+      !u(:,:,2) = -u(:,:,2) ! did we solve the problem the other way around?
+      
+      coordPar = this%coord_input_safe + u(:,:,2)
       print*,'Quality after elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
       print*,'    minQ: ',minQ
       
-      factor_backtrack = 1.2_rp
+      coordPar = this%coord_input_safe 
+      call this%saveInstResultsFiles(1)
+      
+      factor_backtrack = 0.9_rp
       numBacktracks = 0
       do while(minQ.le.0) 
         numBacktracks = numBacktracks+1
-        u(:,:,2) = u(:,:,2)/factor_backtrack
-        coordPar = this%coord_input_safe+u(:,:,2)
+        u(:,:,2) = u(:,:,2)*factor_backtrack
+        coordPar = this%coord_input_safe + u(:,:,2)
         print*,'  Quality after backtrack: ',numBacktracks
         call this%computeQuality(minQ,maxQ,numInv,numLow)
         print*,'      minQ: ',minQ
+        print*,'     minMaxUx: ',minval(u(:,1,2)),' / ',maxval(u(:,1,2))
+        print*,'     minMaxUy: ',minval(u(:,2,2)),' / ',maxval(u(:,2,2))
+        print*,'     minMaxUz: ',minval(u(:,3,2)),' / ',maxval(u(:,3,2))
       end do
       !
-      call this%saveInstResultsFiles(1)    
+      coordPar = this%coord_input_safe
+      call this%saveInstResultsFiles(2)
+      
     end if
     !
 
@@ -389,6 +403,63 @@ contains
      !$acc end parallel loop
 
   end subroutine save_input_coordinates
+  !
+  !
+  !
+  subroutine computeAnalyticalMetric(npoin,ndime,coordinates,metric)
+
+     implicit none
+     !class(MeshElasticitySolver), intent(inout) :: this
+
+     integer(4),             intent(in)    :: npoin, ndime
+     real(rp),               intent(in)    :: coordinates(npoin,ndime)
+     real(rp), allocatable,  intent(inout) :: metric(:,:,:)
+     
+     integer(4) :: inode
+     real(rp) :: t_aux,eigen,hdesired,hz_maz,hz_min
+     
+     allocate(metric(ndime,ndime,npoin))
+    
+     !$acc parallel loop  
+     do inode = 1,npoin
+       t_aux = coordinates(inode,3)/6.28319_rp
+       hz_maz = 2.0_rp !riemanian
+       hz_min = 0.1_rp !riemanian
+       t_aux = t_aux**1 ! quadratic transition from min (aniso) to max (iso)
+       ! elem size in between [0.1 1] according to taux (height, normalized)
+       hdesired = hz_maz*t_aux  + hz_min*(1-t_aux) 
+       eigen = 1.0_rp/hdesired**2
+       eigen = hdesired**2
+       
+       metric(:,:,inode) = 0.0_rp
+       metric(1,1,inode) = 1.0_rp
+       metric(2,2,inode) = 1.0_rp
+       metric(3,3,inode) = eigen
+
+!        tau(1,1)= tau(1,1) + 1.0_rp
+!        tau(2,2)= tau(2,2) + 1.0_rp
+!        tau(3,3)= tau(3,3) + eigen
+!
+!        tau(:,3)=tau(:,3)*eigen
+!        tau(1,1)= tau(1,1) - 1.0_rp
+!        tau(2,2)= tau(2,2) - 1.0_rp
+!        tau(3,3)= tau(3,3) - 1.0_rp
+!
+!        hz_maz = 1.0_rp !riemanian
+!        hz_min = 0.05_rp !riemanian
+!        t_aux = sqrt(sum((coordPar(connec(ielem,igaus),:)-3.14)**2)) ! radius on center of cube
+!        t_aux = t_aux/6.28_rp ! t\in[0,1]
+!        !t_aux = t_aux*t_aux
+!        hdesired = hz_maz*t_aux  + hz_min*(1-t_aux)
+!        eigen = 1.0_rp/hdesired**2
+!        tau(1,1)= tau(1,1) + 1.0_rp  - eigen
+!        tau(2,2)= tau(2,2) + 1.0_rp  - eigen
+!        tau(3,3)= tau(3,3) + 1.0_rp  - eigen
+!        here cross M_ij
+     end do
+     !$acc end parallel loop
+
+  end subroutine computeAnalyticalMetric
   !
   !
   !
@@ -670,7 +741,7 @@ contains
     do ielem = 1,numElemsRankPar
       !
       call eval_ElemQuality(size(connecParWork,2),ngaus,numNodesRankPar,numElemsRankPar,&
-        ielem,real(coordPar+u(:,:,2),8),connecParWork,real(dNgp,8),real(wgp,8),&
+        ielem,real(coordPar,8),connecParWork,real(dNgp,8),real(wgp,8),&
         quality_vec,q_gauss)
       !
       minQ = min(minQ,real(quality_vec(id_quality),rp))

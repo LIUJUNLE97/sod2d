@@ -24,7 +24,7 @@ contains
 
 subroutine conjGrad_meshElasticity(igtime,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
   gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem_k,nu,E,Rp0,R, &
-  bou_codes_nodes,normalsAtNodes,u_buffer) ! Optional args
+  bou_codes_nodes,normalsAtNodes,u_buffer,metric) ! Optional args
 
   implicit none
 
@@ -35,6 +35,7 @@ subroutine conjGrad_meshElasticity(igtime,save_logFile_next,noBoundaries,nelem,n
   real(rp),   intent(in) :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin,ndime)
   integer(4), intent(in) :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
   real(rp),   intent(in) :: nu, E,helem_k(nelem)
+  real(rp), optional, intent(in) :: metric(ndime,ndime,npoin)
   integer(4),optional, intent(in) :: bou_codes_nodes(npoin)
   real(rp),optional,   intent(in) :: normalsAtNodes(npoin,ndime)
   real(rp),optional,   intent(in) :: u_buffer(npoin,ndime)
@@ -91,7 +92,7 @@ subroutine conjGrad_meshElasticity(igtime,save_logFile_next,noBoundaries,nelem,n
 
   call full_diffusion_ijk_meshElasticity(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,&
     invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-    x_u,nu,E,Ml,qn_u)
+    x_u,nu,E,Ml,qn_u,metric=metric)
 
   if(mpi_size.ge.2) then
      call nvtxStartRange("CG_u halo")
@@ -142,7 +143,7 @@ subroutine conjGrad_meshElasticity(igtime,save_logFile_next,noBoundaries,nelem,n
     call nvtxStartRange("Iter_u")
     call full_diffusion_ijk_meshElasticity(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,&
       invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-      p0_u,nu,E,Ml,qn_u)
+      p0_u,nu,E,Ml,qn_u,metric=metric)
     if(mpi_size.ge.2) then
         call mpi_halo_atomic_update_real_arrays(ndime,qn_u(:,:))
      end if

@@ -10,7 +10,7 @@ module elem_diffu_meshElasticity
 
       contains
         subroutine full_diffusion_ijk_meshElasticity(&
-          nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,nu,E,Ml,Rmom)
+          nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u,nu,E,Ml,Rmom,metric)
              implicit none
 
              integer(4), intent(in)  :: nelem, npoin
@@ -20,6 +20,7 @@ module elem_diffu_meshElasticity
              real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
              integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
              real(rp),   intent(in)  :: u(npoin,ndime), nu,E,Ml(npoin)
+             real(rp), optional, intent(in) :: metric(ndime,ndime,npoin)
              real(rp),   intent(out) :: Rmom(npoin,ndime)
              integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
              integer(4)              :: ipoin(nnode)
@@ -101,15 +102,49 @@ module elem_diffu_meshElasticity
                    ! here fake some metric ABEL!!!!
                    !tau(1,1)= tau(1,1) +1.0_rp -metric11 ! identityt
                    !tau(2,2)= tau(2,2) +1.0_rp -metric22 ! identty
-                   t_aux = 6.3_rp-coordPar(connec(ielem,igaus),3)
-                   hz_maz = 1.0_rp !riemanian
-                   hz_min = 0.1_rp !riemanian
-                   t_aux = t_aux**1 ! quadratic transition from min (aniso) to max (iso)
-                   hdesired = hz_maz*t_aux  + hz_min*(1-t_aux) ! elem size in between [1 0.1] according to taux
-                   eigen = 1.0_rp/hdesired**2
-                   tau(3,3)= tau(3,3) + 1.0_rp  - eigen
-                   ! here cross M_ij
-                   !tau(i,j)= tau(i,j) -Mij
+                   !t_aux = (6.3_rp-coordPar(connec(ielem,igaus),3))/t_aux
+                   
+                   !
+                   if(present(metric)) then
+                     do idime = 1,ndime
+                       tau(idime,idime)= tau(idime,idime) + 1.0_rp 
+                       do jdime = 1,ndime
+                         tau(idime,jdime)= tau(idime,jdime) - metric(idime,jdime,connec(ielem,igaus))
+                       end do
+                     end do
+                   end if
+
+!                    t_aux = coordPar(connec(ielem,igaus),3)/6.28319_rp
+!                    hz_maz = 2.0_rp !riemanian
+!                    hz_min = 0.1_rp !riemanian
+!                    t_aux = t_aux**1 ! quadratic transition from min (aniso) to max (iso)
+!                    hdesired = hz_maz*t_aux  + hz_min*(1-t_aux) ! elem size in between [0.1 1] according to taux (height, normalized)
+!                    eigen = 1.0_rp/hdesired**2
+!
+!                    tau(3,3)= tau(3,3) + 1.0_rp  - eigen
+! !                    tau(3,3)= tau(3,3) + eigen   - 1.0_rp
+!
+! !                    tau(1,1)= tau(1,1) + 1.0_rp
+! !                    tau(2,2)= tau(2,2) + 1.0_rp
+! !                    tau(3,3)= tau(3,3) + eigen
+!
+! !                    tau(:,3)=tau(:,3)*eigen
+! !                    tau(1,1)= tau(1,1) - 1.0_rp
+! !                    tau(2,2)= tau(2,2) - 1.0_rp
+! !                    tau(3,3)= tau(3,3) - 1.0_rp
+!
+! !                    hz_maz = 1.0_rp !riemanian
+! !                    hz_min = 0.05_rp !riemanian
+! !                    t_aux = sqrt(sum((coordPar(connec(ielem,igaus),:)-3.14)**2)) ! radius on center of cube
+! !                    t_aux = t_aux/6.28_rp ! t\in[0,1]
+! !                    !t_aux = t_aux*t_aux
+! !                    hdesired = hz_maz*t_aux  + hz_min*(1-t_aux)
+! !                    eigen = 1.0_rp/hdesired**2
+! !                    tau(1,1)= tau(1,1) + 1.0_rp  - eigen
+! !                    tau(2,2)= tau(2,2) + 1.0_rp  - eigen
+! !                    tau(3,3)= tau(3,3) + 1.0_rp  - eigen
+!                    ! here cross M_ij
+!                    !tau(i,j)= tau(i,j) -Mij
 
                    !$acc loop seq
                    do idime = 1,ndime
