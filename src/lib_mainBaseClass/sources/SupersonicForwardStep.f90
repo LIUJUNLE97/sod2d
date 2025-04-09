@@ -185,8 +185,9 @@ contains
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
          eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
-         !eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(rho(iNodeL,2)*e_int(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
          machno(iNodeL) = sqrt(dot_product(u(iNodeL,:,2),u(iNodeL,:,2)))/csound(iNodeL)
+         !eta(iNodeL,2) =   dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/(csound(iNodeL)**2)
+         !eta(iNodeL,2) =machno(iNodeL)
 
          q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
          rho(iNodeL,3) = rho(iNodeL,2)

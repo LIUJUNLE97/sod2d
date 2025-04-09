@@ -157,7 +157,9 @@ module mod_entropy_viscosity
              !$acc end kernels
 
               call nvtxStartRange("Norrmallize Entropy")
-              if(flag_normalise_entropy .eq. 1) then
+              !if(flag_normalise_entropy .eq. 0) then  !!! test 
+              if(flag_normalise_entropy .eq. 1) then 
+
                   if(flag_high_mach) then
                      call nvtxStartRange("High Mach path")
                      
@@ -210,7 +212,7 @@ module mod_entropy_viscosity
                      call nvtxEndRange
                      call nvtxEndRange
                   endif
-              else
+              else        
                  norm = 1.0_rp
               end if
               call nvtxEndRange
@@ -240,7 +242,6 @@ module mod_entropy_viscosity
                 !$acc loop vector reduction(max:betae)
                 do inode = 1,nnode
                    aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
-                   !aux3 = fact_low_mach*sqrt(Rgas*gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
                    aux3 = fact_low_mach*csound(connec(ielem,inode))     ! Speed of sound at node
                    aux1 = aux2+aux3
                    betae = max(betae,(rho(connec(ielem,inode))*helem_k(ielem))*(cmax/real(porder,rp))*aux1)
@@ -249,28 +250,28 @@ module mod_entropy_viscosity
                 do inode = 1,nnode
                    R1 = rho(connec(ielem,inode))*abs(Reta(connec(ielem,inode)))/norm
                    Ve = ced*R1*(helem_k(ielem)/real(porder,rp))**2
-                   mue_l(ielem,inode) = cglob*min(Ve,betae)                   
-
+                   mu_e(ielem,inode) = cglob*min(Ve,betae)                   
+                  ! mue_l(ielem,inode) = cglob*min(Ve,betae)                   
                 end do
-                !$acc loop vector collapse(3)
-                do ii=1,porder+1
-                   do jj=1,porder+1
-                      do kk=1,porder+1
-                         aux1 = 0.00_rp
-                         !$acc loop seq
-                         do ll=-1,1
-                            !$acc loop seq
-                            do mm=-1,1
-                               !$acc loop seq
-                               do nn=-1,1
-                                  aux1 =   aux1 +  al_weights(ll)*am_weights(mm)*an_weights(nn)*mue_l(ielem,invAtoIJK(convertIJK(ii+ll),convertIJK(jj+mm),convertIJK(kk+nn)))
-                               end do
-                            end do
-                         end do
-                         mu_e(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk))) = aux1
-                      end do
-                   end do
-                end do
+               !!$acc loop vector collapse(3)
+               !do ii=1,porder+1
+               !   do jj=1,porder+1
+               !      do kk=1,porder+1
+               !         aux1 = 0.00_rp
+               !         !$acc loop seq
+               !         do ll=-1,1
+               !            !$acc loop seq
+               !            do mm=-1,1
+               !               !$acc loop seq
+               !               do nn=-1,1
+               !                  aux1 =   aux1 +  al_weights(ll)*am_weights(mm)*an_weights(nn)*mue_l(ielem,invAtoIJK(convertIJK(ii+ll),convertIJK(jj+mm),convertIJK(kk+nn)))
+               !               end do
+               !            end do
+               !         end do
+               !         mu_e(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk))) = aux1
+               !      end do
+               !   end do
+               !end do
               end do
               !$acc end parallel loop
               call nvtxEndRange
@@ -314,7 +315,7 @@ module mod_entropy_viscosity
 
               divUl = divU(connec(ielem,inode))/Ml(connec(ielem,inode))
               phi  = min( (4.0_rp/3.0_rp)*(divUl**2)/(divUl**2 + dot_product(vorti(connec(ielem,inode),:),vorti(connec(ielem,inode),:)) + epsilon(nscbc_u_inf)) , 1.0_rp)
-              phi2 = (divUl**2)/(divUl**2 + (0.1_rp*aux2/helem(ielem,inode))**2 + epsilon(nscbc_u_inf))
+              phi2 = (divUl**2)/(divUl**2 + (1.0_rp*aux2/helem(ielem,inode))**2 + epsilon(nscbc_u_inf))
 
               mu_e(ielem,inode) = betae*(max(phi-ducros_min_val, 0.0_rp)*phi2 + ducros_min_val)
            end do
@@ -340,7 +341,7 @@ module mod_entropy_viscosity
          integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode),gmshAtoJ(nnode),gmshAtoK(nnode)
          real(rp),intent(inout)  :: mue_l(nelem,nnode)
          integer(4)              :: ielem, inode,igaus,ipoin,npoin_w_g,idime,jdime
-         real(rp)                :: divUl,phi,aux2,aux3,phi2,betae,aux1
+         real(rp)                :: divUl,phi,aux2,aux3,phi2,betae,aux1, fact
 
 
          call nvtxStartRange("Compute mu_e")
@@ -354,8 +355,8 @@ module mod_entropy_viscosity
               aux1 = aux2+aux3
               betae = (rho(connec(ielem,inode))*helem_k(ielem))*(cmax/real(porder,rp))*aux1              
               phi  = min( (4.0_rp/3.0_rp)*(divUl**2)/(divUl**2 + dot_product(vorti(connec(ielem,inode),:),vorti(connec(ielem,inode),:)) + epsilon(nscbc_u_inf)) , 1.0_rp)
-              phi2 = (divUl**2)/(divUl**2 + (0.1_rp*aux2/helem(ielem,inode))**2 + epsilon(nscbc_u_inf))
-              mu_e(ielem,inode) = mu_e(ielem,inode)*(max(phi-0.1_rp, 0.0_rp)*phi2 + 0.1_rp)
+              phi2 = (divUl**2)/(divUl**2 + (1.0_rp*aux2/helem(ielem,inode))**2 + epsilon(nscbc_u_inf))
+              mu_e(ielem,inode) = mu_e(ielem,inode)*(max(phi-ducros_min_val, 0.0_rp)*phi2 + ducros_min_val)
            end do
          end do
          !$acc end parallel loop
@@ -389,7 +390,7 @@ module mod_entropy_viscosity
            !$acc loop vector 
            do inode = 1,nnode            
               divUl = divU(connec(ielem,inode))/Ml(connec(ielem,inode))
-              phi = abs(divUl)/max(0.1_rp*sqrt(dot_product(vorti(connec(ielem,inode),:),vorti(connec(ielem,inode),:))),0.01_rp*csound(connec(ielem,inode))/(Ml(connec(ielem,inode))**0.333_rp))
+              phi = abs(divUl)/max(1.0_rp*sqrt(dot_product(vorti(connec(ielem,inode),:),vorti(connec(ielem,inode),:))),0.01_rp*csound(connec(ielem,inode))/(Ml(connec(ielem,inode))**0.333_rp))
               if(phi .lt. 1.0_rp) then
                phi = 0_rp
               else

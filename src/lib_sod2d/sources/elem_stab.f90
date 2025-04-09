@@ -143,11 +143,11 @@ module elem_stab
 
                    !$acc loop seq
                    do idime = 1,ndime
-                      tauXl(igaus,idime)    =  0.1_rp*taustabl*(projMXl(igaus,idime) - tau(1,idime))*rhonl(igaus)
-                      tauYl(igaus,idime)    =  0.1_rp*taustabl*(projMYl(igaus,idime) - tau(2,idime))*rhonl(igaus)
-                      tauZl(igaus,idime)    =  0.1_rp*taustabl*(projMZl(igaus,idime) - tau(3,idime))*rhonl(igaus)
-                      gradTl(igaus,idime)   =  0.1_rp*taustabl*(projEnerl(igaus,idime) - gradT(idime))*rhonl(igaus)*Cp/Pr
-                      gradRhol(igaus,idime) =  0.1_rp*taustabl*(projMassl(igaus,idime) - gradRho(idime))
+                      tauXl(igaus,idime)    =  c_lps_comp*taustabl*(projMXl(igaus,idime) - tau(1,idime))*rhonl(igaus)
+                      tauYl(igaus,idime)    =  c_lps_comp*taustabl*(projMYl(igaus,idime) - tau(2,idime))*rhonl(igaus)
+                      tauZl(igaus,idime)    =  c_lps_comp*taustabl*(projMZl(igaus,idime) - tau(3,idime))*rhonl(igaus)
+                      gradTl(igaus,idime)   =  c_lps_comp*taustabl*(projEnerl(igaus,idime) - gradT(idime))*rhonl(igaus)*Cp/Pr
+                      gradRhol(igaus,idime) =  c_lps_comp*taustabl*(projMassl(igaus,idime) - gradRho(idime))
                    end do
                 end do
 
@@ -354,11 +354,11 @@ module elem_stab
 
                !$acc loop seq
                do idime = 1,ndime
-                  tauXl(igaus,idime)    =  -0.1_rp*taustabl*(projMXl(igaus,idime) - tau(1,idime))*rhonl(igaus)
-                  tauYl(igaus,idime)    =  -0.1_rp*taustabl*(projMYl(igaus,idime) - tau(2,idime))*rhonl(igaus)
-                  tauZl(igaus,idime)    =  -0.1_rp*taustabl*(projMZl(igaus,idime) - tau(3,idime))*rhonl(igaus)
-                  gradTl(igaus,idime)   =  -0.1_rp*taustabl*(projEnerl(igaus,idime) - gradT(idime))*rhonl(igaus)*Cp/Pr
-                  gradRhol(igaus,idime) =  -0.1_rp*taustabl*(projMassl(igaus,idime) - gradRho(idime))
+                  tauXl(igaus,idime)    =  -c_lps_comp*taustabl*(projMXl(igaus,idime) - tau(1,idime))*rhonl(igaus)
+                  tauYl(igaus,idime)    =  -c_lps_comp*taustabl*(projMYl(igaus,idime) - tau(2,idime))*rhonl(igaus)
+                  tauZl(igaus,idime)    =  -c_lps_comp*taustabl*(projMZl(igaus,idime) - tau(3,idime))*rhonl(igaus)
+                  gradTl(igaus,idime)   =  -c_lps_comp*taustabl*(projEnerl(igaus,idime) - gradT(idime))*rhonl(igaus)*Cp/Pr
+                  gradRhol(igaus,idime) =  -c_lps_comp*taustabl*(projMassl(igaus,idime) - gradRho(idime))
                end do
 
                tauU(:) = 0.0_rp

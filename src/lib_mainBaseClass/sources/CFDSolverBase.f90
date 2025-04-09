@@ -687,6 +687,10 @@ end subroutine CFDSolverBase_findFixPressure
       !   factor_comp = 1.0_rp
       !end if
 
+      !if(flag_use_ducros .eqv. .true.) then
+         c_lps_comp = 0.1_rp
+      !end if
+
    end subroutine CFDSolverBase_optimizeParameters
 
 

@@ -255,8 +255,7 @@ module time_integ_ls
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: pos, ipoin_w, ielem, inode
             integer(4)                          :: istep, ipoin, idime,icode
-            real(rp),    dimension(npoin)       :: Rrho
-            real(rp)                            :: umag, rho_min, rho_avg
+            real(rp)                            :: umag, rho_min, rho_avg, divUl
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! New version of RK4 using loops                 !
@@ -418,7 +417,7 @@ module time_integ_ls
             call nvtxEndRange
 
             if(flag_use_ducros .eqv. .true.) then            
-               
+   
                call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),divU_ls)
                call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),vorti,.true.) 
 
@@ -544,7 +543,6 @@ module time_integ_ls
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: pos
             integer(4)                          :: istep, ipoin, idime,icode
-            real(rp),    dimension(npoin)       :: Rrho
             real(rp)                            :: umag, rho_min, rho_avg
 
             call nvtxStartRange("UpdateF")

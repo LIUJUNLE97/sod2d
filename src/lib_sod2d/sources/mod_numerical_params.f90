@@ -25,6 +25,7 @@ module mod_numerical_params
         logical :: flag_bouyancy_effect = .false.
         logical :: flag_drop_c_in_envit = .false.
         logical :: flag_lps_stab = .true.
+        real :: c_lps_comp = 0.02_rp
         integer(4)  :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
         integer(4)  :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
         integer(4)  :: flag_normalise_entropy=1

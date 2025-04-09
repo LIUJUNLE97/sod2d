@@ -233,7 +233,7 @@ module time_integ_imex
             real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_pr(npoin)
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: istep, ipoin, idime,icode,jstep,ipoin_w
-            real(rp)                            :: umag
+            real(rp)                            :: umag,divUl
 
             if(firstTimeStep .eqv. .true.) then
                firstTimeStep = .false.
@@ -449,10 +449,13 @@ module time_integ_imex
                                     Tem(:,2),mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass_imex(:,istep),Rdiff_mom_imex(:,:,istep),Rdiff_ener_imex(:,istep))
             end do
             !if(mpi_rank.eq.0) write(111,*)   " after in"
-      
+           
+
             !$acc parallel loop
             do ipoin = 1,npoin_w
+
                eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
+
                eta(lpoin_w(ipoin),2) = (rho(lpoin_w(ipoin),2)/(gamma_gas-1.0_rp))* &
                   log(max(pr(lpoin_w(ipoin),2),0.0_rp)/(rho(lpoin_w(ipoin),2)**gamma_gas))
                !$acc loop seq
