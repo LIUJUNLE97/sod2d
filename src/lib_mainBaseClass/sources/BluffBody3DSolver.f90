@@ -461,6 +461,7 @@ end subroutine BluffBody3DSolver_readJSONAD
 
       call this%readJSONBuffer()
       call this%readJSONWMTypes()
+      call this%readJSONEntropyTypes()
 
 
       call json%destroy()

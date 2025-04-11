@@ -200,6 +200,8 @@ contains
       nscbc_Rgas_inf = this%Rgas
 
       call this%readJSONBuffer()
+      call this%readJSONWMTypes()
+      call this%readJSONEntropyTypes()
 
       call json%destroy()
    end subroutine BluffBody3DSolverDim_initializeParameters

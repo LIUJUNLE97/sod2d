@@ -187,6 +187,7 @@ contains
       nscbc_T_C = this%to
       
       call this%readJSONWMTypes()
+      call this%readJSONEntropyTypes()
 
       call json%destroy()
 

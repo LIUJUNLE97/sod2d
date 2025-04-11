@@ -41,6 +41,7 @@ module mod_numerical_params
         real(rp) :: flag_mu_factor=1.0_rp
         real(rp) :: c_species_stab = 0.5_rp
         logical :: flag_entropy_stab_in_species = .true.
+        integer(4)  :: entropy_type=entropy_type_thermo
 
         ! Implicit solver
         integer(4) :: maxIter=20

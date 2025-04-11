@@ -28,7 +28,7 @@ module time_integ_imex
    real(rp), allocatable, dimension(:,:) :: Rmass_imex, Rener_imex,Reta_imex,Rmom_stab
    real(rp), allocatable, dimension(:,:) :: Rsource_imex,Rwmles_imex, vorti_imex
    real(rp), allocatable, dimension(:,:,:) :: Rdiff_mom_imex
-   real(rp), allocatable, dimension(:,:) :: f_eta_imex, f_eta_imex2
+   real(rp), allocatable, dimension(:,:) :: f_eta_imex
    real(rp), allocatable, dimension(:,:)   :: Rdiff_mass_imex,Rdiff_ener_imex
    real(rp), allocatable, dimension(:) :: auxReta_imex,aux_h,Rmass_stab,Rener_stab,divU_imex
    real(rp)  , allocatable, dimension(:) 	:: tau_stab_imex
@@ -58,8 +58,8 @@ module time_integ_imex
       allocate(Rdiff_mom_imex(npoin,ndime,flag_imex_stages))
       !$acc enter data create(Rdiff_mom_imex(:,:,:))
 
-      allocate(auxReta_imex(npoin),f_eta_imex(npoin,ndime),f_eta_imex2(npoin,ndime),aux_h(npoin),divU_imex(npoin))
-      !$acc enter data create(auxReta_imex(:),f_eta_imex(:,:),f_eta_imex2(:,:),aux_h(:),divU_imex(:))
+      allocate(auxReta_imex(npoin),f_eta_imex(npoin,ndime),aux_h(npoin),divU_imex(npoin))
+      !$acc enter data create(auxReta_imex(:),f_eta_imex(:,:),aux_h(:),divU_imex(:))
 
       allocate(Rdiff_mass_imex(npoin,flag_imex_stages),Rdiff_ener_imex(npoin,flag_imex_stages))
       !$acc enter data create(Rdiff_mass_imex(:,:),Rdiff_ener_imex(:,:))
@@ -436,7 +436,6 @@ module time_integ_imex
                end do
                !$acc end parallel loop
                
-               !call comp_tau(nelem,npoin,connec,csound,u(:,:,2),helem,dt,tau_stab_imex)
 
                if(flag_total_enthalpy .eqv. .true.) then
                   call full_convec_ijk_H(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),q(:,:,2),rho(:,2),pr(:,2),&
@@ -448,23 +447,13 @@ module time_integ_imex
                call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,2),rho(:,2),u(:,:,2),&
                                     Tem(:,2),mu_fluid,mu_e,mu_sgs,Ml,Rdiff_mass_imex(:,istep),Rdiff_mom_imex(:,:,istep),Rdiff_ener_imex(:,istep))
             end do
-            !if(mpi_rank.eq.0) write(111,*)   " after in"
-           
+            
+            if(entropy_type .eq. entropy_type_thermo) then
+               call thermo_entropy(npoin,npoin_w,lpoin_w,gamma_gas, rho(:,2),pr(:,2),u(:,:,1),eta,f_eta_imex)
+            else if (entropy_type .eq. entropy_type_mach) then
+               call mach_entropy(npoin,npoin_w,lpoin_w,rho(:,2),machno,csound,u(:,:,1),eta,f_eta_imex)
+            end if
 
-            !$acc parallel loop
-            do ipoin = 1,npoin_w
-
-               eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
-
-               eta(lpoin_w(ipoin),2) = (rho(lpoin_w(ipoin),2)/(gamma_gas-1.0_rp))* &
-                  log(max(pr(lpoin_w(ipoin),2),0.0_rp)/(rho(lpoin_w(ipoin),2)**gamma_gas))
-               !$acc loop seq
-               do idime = 1,ndime
-                  f_eta_imex(lpoin_w(ipoin),idime)  = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
-                  f_eta_imex2(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,2)*eta(lpoin_w(ipoin),2)
-               end do
-            end do
-            !$acc end parallel loop
             if(flag_use_ducros .eqv. .true.) then            
                call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),divU_imex)
                call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,2),vorti_imex,.true.) 

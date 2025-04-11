@@ -138,8 +138,12 @@ contains
       flag_mu_factor = mul/mur
 
       nscbc_p_inf = this%P0
+      nscbc_rho_inf = this%rho0
       nscbc_Rgas_inf = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
+
+      call this%readJSONEntropyTypes()
+
 
       call json%destroy()
 

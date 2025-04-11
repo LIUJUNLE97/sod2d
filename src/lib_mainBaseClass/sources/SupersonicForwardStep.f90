@@ -154,6 +154,7 @@ contains
       nscbc_Rgas_inf = this%Rgas
 
       call this%readJSONBuffer()
+      call this%readJSONEntropyTypes()
 
       call json%destroy()
 

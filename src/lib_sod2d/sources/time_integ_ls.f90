@@ -403,17 +403,15 @@ module time_integ_ls
                umag = sqrt(umag)
                machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
                Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
-
-               eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
-               eta(lpoin_w(ipoin),2) = (rho(lpoin_w(ipoin),2)/(gamma_gas-1.0_rp))* &
-                  log(pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)**gamma_gas))
-               !$acc loop seq
-               do idime = 1,ndime                  
-                  f_eta(lpoin_w(ipoin),idime)  = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
-                  f_eta2(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,2)*eta(lpoin_w(ipoin),2)
-               end do
             end do
             !$acc end parallel loop
+
+            if(entropy_type .eq. entropy_type_thermo) then
+               call thermo_entropy(npoin,npoin_w,lpoin_w,gamma_gas, rho(:,2),pr(:,2),u(:,:,1),eta,f_eta)
+            else if (entropy_type .eq. entropy_type_mach) then
+               call mach_entropy(npoin,npoin_w,lpoin_w,rho(:,2),machno,csound,u(:,:,1),eta,f_eta)
+            end if
+
             call nvtxEndRange
 
             if(flag_use_ducros .eqv. .true.) then            

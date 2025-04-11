@@ -239,6 +239,7 @@ contains
       if(mpi_rank.eq.0) write(*,*) "--| R :", this%Rgas
 
       call this%readJSONBuffer()
+      call this%readJSONEntropyTypes()
 
    end subroutine WindFarmSolver_initializeParameters
 

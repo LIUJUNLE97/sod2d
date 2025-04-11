@@ -70,21 +70,6 @@ module mod_entropy_viscosity
 
               !$acc parallel loop gang
               do ielem = 1,nelem
-                !maxJe=0.0_rp
-                !minJe=1000000.0_rp
-                !maxV = 0.0_rp
-                !maxC = 0.0_rp
-                !!$acc loop seq
-                !do igaus = 1,ngaus
-                !   minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                !   maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                !   maxV = max(maxV,sqrt(dot_product(u(connec(ielem,igaus),:),u(connec(ielem,igaus),:))))
-                !   maxC = max(maxC,csound(connec(ielem,igaus)))
-                !end do
-                !!M = maxV/maxC
-                !ceM = max(tanh((M**15)*v_pi),ce)
-                !ced = max(1.0_rp-(minJe/maxJe)**2,ce)
-                !ced = max(ced,ceM) 
                 ced = ce
 
                 mu = 0.0_rp
@@ -124,6 +109,7 @@ module mod_entropy_viscosity
               end do
               !$acc end parallel loop
       end subroutine smart_visc_spectral
+
        subroutine smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Ngp,coord,dNgp,gpvol,wgp, &
                             gamma_gas,rho,u,csound,Tem,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
 
@@ -157,7 +143,6 @@ module mod_entropy_viscosity
              !$acc end kernels
 
               call nvtxStartRange("Norrmallize Entropy")
-              !if(flag_normalise_entropy .eq. 0) then  !!! test 
               if(flag_normalise_entropy .eq. 1) then 
 
                   if(flag_high_mach) then
@@ -219,24 +204,8 @@ module mod_entropy_viscosity
 
               call nvtxStartRange("Compute mu_e")
               !$acc parallel loop gang
-              do ielem = 1,nelem
-                !maxJe=0.0_rp
-                !minJe=1000000.0_rp
-                !maxV = 0.0_rp
-                !maxC = 0.0_rp
-                !!$acc loop seq
-                !do igaus = 1,ngaus
-                !   minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                !   maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                !   maxV = max(maxV,sqrt(dot_product(u(connec(ielem,igaus),:),u(connec(ielem,igaus),:))))
-                !   maxC = max(maxC,csound(connec(ielem,igaus)))
-                !end do
-                !M = maxV/maxC
-                !ceM = max(tanh((M**15)*v_pi),ce)
-                !ced = max(1.0_rp-(minJe/maxJe)**2,ce)
-                !ced = max(ced,ceM) 
+              do ielem = 1,nelem                
                 ced = ce
-
                 mu = 0.0_rp
                 betae = 0.0_rp
                 !$acc loop vector reduction(max:betae)
@@ -251,27 +220,7 @@ module mod_entropy_viscosity
                    R1 = rho(connec(ielem,inode))*abs(Reta(connec(ielem,inode)))/norm
                    Ve = ced*R1*(helem_k(ielem)/real(porder,rp))**2
                    mu_e(ielem,inode) = cglob*min(Ve,betae)                   
-                  ! mue_l(ielem,inode) = cglob*min(Ve,betae)                   
                 end do
-               !!$acc loop vector collapse(3)
-               !do ii=1,porder+1
-               !   do jj=1,porder+1
-               !      do kk=1,porder+1
-               !         aux1 = 0.00_rp
-               !         !$acc loop seq
-               !         do ll=-1,1
-               !            !$acc loop seq
-               !            do mm=-1,1
-               !               !$acc loop seq
-               !               do nn=-1,1
-               !                  aux1 =   aux1 +  al_weights(ll)*am_weights(mm)*an_weights(nn)*mue_l(ielem,invAtoIJK(convertIJK(ii+ll),convertIJK(jj+mm),convertIJK(kk+nn)))
-               !               end do
-               !            end do
-               !         end do
-               !         mu_e(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk))) = aux1
-               !      end do
-               !   end do
-               !end do
               end do
               !$acc end parallel loop
               call nvtxEndRange
@@ -450,36 +399,61 @@ module mod_entropy_viscosity
               else
                phi = 1.0_rp
               endif
-
-             !mue_l(ielem,inode) = betae*phi
              mu_e(ielem,inode) = betae*phi
-
-           end do
-           
-            !!$acc loop vector collapse(3)
-            !do ii=1,porder+1
-            !   do jj=1,porder+1
-            !      do kk=1,porder+1
-            !         aux1 = 0.00_rp
-            !         !$acc loop seq
-            !         do ll=-1,1
-            !            !$acc loop seq
-            !            do mm=-1,1
-            !               !$acc loop seq
-            !               do nn=-1,1
-            !                  aux1 =   aux1 +  al_weights(ll)*am_weights(mm)*an_weights(nn)*mue_l(ielem,invAtoIJK(convertIJK(ii+ll),convertIJK(jj+mm),convertIJK(kk+nn)))
-            !               end do
-            !            end do
-            !         end do
-            !         mu_e(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk))) = aux1
-            !      end do
-            !   end do
-            !end do
+           end do           
          end do
          !$acc end parallel loop
          call nvtxEndRange
          
       end subroutine larsson_visc_spectral_imex    
 
+
+      subroutine thermo_entropy(npoin,npoin_w,lpoin_w,gamma_gas, rho,pr,u,eta,feta)
+         
+         implicit none
+
+         integer(4), intent(in)     :: npoin,npoin_w,lpoin_w(npoin_w)
+         real(rp),   intent(in)     :: rho(npoin), pr(npoin),gamma_gas,u(npoin,ndime)
+         real(rp),   intent(inout)  :: eta(npoin,2)         
+         real(rp),   intent(inout)  :: feta(npoin,ndime)         
+         integer(4)              :: ipoin,idime
+         
+         !$acc parallel loop
+         do ipoin = 1,npoin_w
+            eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
+            eta(lpoin_w(ipoin),2) = (rho(lpoin_w(ipoin))/(gamma_gas-1.0_rp))* &
+               log(max(pr(lpoin_w(ipoin))/nscbc_p_inf,epsilon(nscbc_p_inf))/((rho(lpoin_w(ipoin))/nscbc_rho_inf)**gamma_gas))
+            !$acc loop seq
+            do idime = 1,ndime
+               feta(lpoin_w(ipoin),idime)  = u(lpoin_w(ipoin),idime)*eta(lpoin_w(ipoin),1)
+            end do
+         end do
+         !$acc end parallel loop
+         
+      end subroutine thermo_entropy          
+
  
+      subroutine mach_entropy(npoin,npoin_w,lpoin_w, rho,mach,csound,u,eta,feta)
+         
+         implicit none
+
+         integer(4), intent(in)     :: npoin,npoin_w,lpoin_w(npoin_w)
+         real(rp),   intent(in)     :: rho(npoin), mach(npoin), csound(npoin),u(npoin,ndime)
+         real(rp),   intent(inout)  :: eta(npoin,2)         
+         real(rp),   intent(inout)  :: feta(npoin,ndime)         
+         integer(4)              :: ipoin,idime
+         
+         !$acc parallel loop
+         do ipoin = 1,npoin_w
+            eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
+            eta(lpoin_w(ipoin),2) = rho(lpoin_w(ipoin))*mach(lpoin_w(ipoin))/csound(lpoin_w(ipoin))
+            !$acc loop seq
+            do idime = 1,ndime
+               feta(lpoin_w(ipoin),idime)  = u(lpoin_w(ipoin),idime)*eta(lpoin_w(ipoin),1)
+            end do
+         end do
+         !$acc end parallel loop
+         
+      end subroutine mach_entropy       
+
 end module mod_entropy_viscosity

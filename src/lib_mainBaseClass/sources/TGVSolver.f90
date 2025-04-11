@@ -140,7 +140,11 @@ contains
 
       nscbc_p_inf = this%po
       nscbc_Rgas_inf = this%Rgas
+      nscbc_rho_inf = this%rho0
       nscbc_gamma_inf = this%gamma_gas
+
+      call this%readJSONEntropyTypes()
+
 
       call json%destroy()
 

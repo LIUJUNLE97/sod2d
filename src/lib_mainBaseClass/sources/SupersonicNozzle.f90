@@ -276,6 +276,7 @@ contains
 
       call this%readJSONBuffer()
       call this%readJSONWMTypes()
+      call this%readJSONEntropyTypes()
 
       call json%destroy()
 
