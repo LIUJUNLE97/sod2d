@@ -158,9 +158,9 @@ contains
 !               end if
 !             end if
 
-!             if(eta>100000) then
-!                 print*,igaus, ' ',eta
-!             end if
+            if(eta>100000) then
+                print*,igaus, ' ',eta
+            end if
         end do
 
         eta_elem = sqrt(eta_elem)/sqrt(volume)

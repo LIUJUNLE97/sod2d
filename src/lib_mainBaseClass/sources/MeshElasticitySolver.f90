@@ -50,7 +50,7 @@ module MeshElasticitySolver_mod
      
      real(rp), allocatable :: metric(:,:,:)
      
-     real(rp), public:: factor_deformation=1.0_rp ! to analytically increase deformation in tests
+     real(rp), public:: factor_deformation=1.0_rp ! to analytically increase deformation in stress tests
      
    contains
       procedure, public :: fillBCTypes           => MeshElasticitySolver_fill_BC_Types
@@ -119,6 +119,7 @@ contains
     class(MeshElasticitySolver), intent(inout) :: this
     !
     real(rp)   :: minQ,maxQ,factor_backtrack
+    real(8)    :: minQTot
     integer(4):: numInv,numLow,numBacktracks
     !
     ! Init MPI
@@ -218,10 +219,10 @@ contains
       !
       if(mpi_rank.eq.0) write(*,*) '  --| Quality before elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
-      !call MPI_Reduce(minQ,minQ,1,mpi_datatype_int4,MPI_MIN,0,app_comm,mpi_err)
-      !if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
-      print*, '  minQ: ', minQ
+      call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+      if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       !
+      if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity...'
       call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
          numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
          gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
@@ -231,9 +232,8 @@ contains
       coordPar = coordPar+u(:,:,2)
       if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
-      !call MPI_Reduce(minQ,minQ,1,mpi_datatype_int4,MPI_MIN,0,app_comm,mpi_err)
-      !if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
-      print*, '  minQ: ', minQ
+      call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+      if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       !
       call this%saveInstResultsFiles(1)    
     end if
@@ -244,9 +244,8 @@ contains
       u(:,:,2) = 0.0_rp
       if(mpi_rank.eq.0) write(*,*) '  --| Input curved mesh quality'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
-!       call MPI_Reduce(minQ,minQ,1,mpi_datatype_int4,MPI_MIN,0,app_comm,mpi_err)
-!       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
-      print*,'       minQ: ',minQ,'    maxQ: ',maxQ
+      call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+      if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       call this%saveInstResultsFiles(0)
       
       call save_input_coordinates(numNodesRankPar,ndime,coordPar,this%coord_input_safe)
@@ -258,9 +257,8 @@ contains
       u(:,:,2) = 0.0_rp
       if(mpi_rank.eq.0) write(*,*) '  --| Quality straight-sided mesh'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
-!       call MPI_Reduce(minQ,minQ,1,mpi_datatype_int4,MPI_MIN,0,app_comm,mpi_err)
-!       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
-      print*,'       minQ: ',minQ,'    maxQ: ',maxQ
+      call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+      if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       
       !print*,'- Compute displacement of the boundary'
       call compute_displacement_straight_mesh(numNodesRankPar,ndime,coordPar,this%coord_input_safe,bouCodesNodesPar,&
@@ -276,7 +274,7 @@ contains
       if(mpi_rank.eq.0) write(*,*) '  --| Assess Best Elasticity Parameters'
       call this%assessBestElasticityParameters()
       !
-      if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity with linear elasticity...'
+      if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity...'
       call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
          numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
          gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
@@ -286,9 +284,8 @@ contains
       coordPar = coordPar+u(:,:,2)
       if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity-based curved mesh'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
-!       call MPI_Reduce(minQ,minQ,1,mpi_datatype_int4,MPI_MIN,0,app_comm,mpi_err)
-!       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
-      print*,'       minQ: ',minQ,'    maxQ: ',maxQ
+      call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+      if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       u(:,:,2) = coordPar-this%coord_input_safe ! -> displacement to see in paraview the new curved mesh
       call this%saveInstResultsFiles(2)
     end if
@@ -297,7 +294,7 @@ contains
       print*,'STOP!!! elasticity_fromMetric STILL NOT IN PRODUCTION'
       stop
       
-      print*,'use metric in the domain to drive elasticity'
+      if(mpi_rank.eq.0) print*,'use metric in the domain to drive elasticity'
       this%is_imposed_displacement = .true.
       allocate(this%imposed_displacement(numNodesRankPar,ndime))
       this%imposed_displacement = 0.0_rp
@@ -310,9 +307,10 @@ contains
       end if
       !if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
       !
-      print*,'Quality before elasticity'
+      if(mpi_rank.eq.0) print*,'Quality before elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
-      print*,'    minQ: ',minQ
+      call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+      if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       !
       call computeAnalyticalMetric(numNodesRankPar,ndime,coordPar,this%metric)
       
@@ -325,12 +323,13 @@ contains
       call save_input_coordinates(numNodesRankPar,ndime,coordPar,this%coord_input_safe)
       
       !u(:,:,2) = -u(:,:,2) ! did we solve the problem the other way around?
-      print*,'Enlarging displacement artificially to emulate optimization'
+      if(mpi_rank.eq.0) print*,'Enlarging displacement artificially to emulate optimization'
       u(:,:,2) = u(:,:,2) * 5
       coordPar = this%coord_input_safe + u(:,:,2)
-      print*,'Quality after elasticity'
+      if(mpi_rank.eq.0) print*,'Quality after elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
-      print*,'    minQ: ',minQ
+      call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+      if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       
       coordPar = this%coord_input_safe 
       call this%saveInstResultsFiles(1)
@@ -341,12 +340,13 @@ contains
         numBacktracks = numBacktracks+1
         u(:,:,2) = u(:,:,2)*factor_backtrack
         coordPar = this%coord_input_safe + u(:,:,2)
-        print*,'  Quality after backtrack: ',numBacktracks
+        if(mpi_rank.eq.0) print*,'  Quality after backtrack: ',numBacktracks
         call this%computeQuality(minQ,maxQ,numInv,numLow)
-        print*,'      minQ: ',minQ
-        print*,'     minMaxUx: ',minval(u(:,1,2)),' / ',maxval(u(:,1,2))
-        print*,'     minMaxUy: ',minval(u(:,2,2)),' / ',maxval(u(:,2,2))
-        print*,'     minMaxUz: ',minval(u(:,3,2)),' / ',maxval(u(:,3,2))
+        call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+        if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
+        if(mpi_rank.eq.0) print*,'     minMaxUx: ',minval(u(:,1,2)),' / ',maxval(u(:,1,2))
+        if(mpi_rank.eq.0) print*,'     minMaxUy: ',minval(u(:,2,2)),' / ',maxval(u(:,2,2))
+        if(mpi_rank.eq.0) print*,'     minMaxUz: ',minval(u(:,3,2)),' / ',maxval(u(:,3,2))
       end do
       !
       coordPar = this%coord_input_safe
@@ -858,8 +858,10 @@ contains
       ! 
     else
       !
+      print*,'IMPOSING AN ANALYTICAL DISPLACEMENT (SHOULD BE READ FROM SOMEWHERE INSTEAD)'
+      
       factor_sincos = this%factor_deformation
-      print*,'factor_sincos: ',factor_sincos,' ---------------------------------------------------------'
+      !print*,'factor_sincos: ',factor_sincos,' ---------------------------------------------------------'
 
       x0=minval(coordPar(:,1)) !it is a cube: assumed!
       x1=maxval(coordPar(:,1)) !it is a cube: assumed!
