@@ -70,21 +70,6 @@ module mod_entropy_viscosity
 
               !$acc parallel loop gang
               do ielem = 1,nelem
-                !maxJe=0.0_rp
-                !minJe=1000000.0_rp
-                !maxV = 0.0_rp
-                !maxC = 0.0_rp
-                !!$acc loop seq
-                !do igaus = 1,ngaus
-                !   minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                !   maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                !   maxV = max(maxV,sqrt(dot_product(u(connec(ielem,igaus),:),u(connec(ielem,igaus),:))))
-                !   maxC = max(maxC,csound(connec(ielem,igaus)))
-                !end do
-                !!M = maxV/maxC
-                !ceM = max(tanh((M**15)*v_pi),ce)
-                !ced = max(1.0_rp-(minJe/maxJe)**2,ce)
-                !ced = max(ced,ceM) 
                 ced = ce
 
                 mu = 0.0_rp
@@ -124,6 +109,7 @@ module mod_entropy_viscosity
               end do
               !$acc end parallel loop
       end subroutine smart_visc_spectral
+
        subroutine smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,Reta,Ngp,coord,dNgp,gpvol,wgp, &
                             gamma_gas,rho,u,csound,Tem,eta,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
 
@@ -157,7 +143,8 @@ module mod_entropy_viscosity
              !$acc end kernels
 
               call nvtxStartRange("Norrmallize Entropy")
-              if(flag_normalise_entropy .eq. 1) then
+              if(flag_normalise_entropy .eq. 1) then 
+
                   if(flag_high_mach) then
                      call nvtxStartRange("High Mach path")
                      
@@ -210,67 +197,263 @@ module mod_entropy_viscosity
                      call nvtxEndRange
                      call nvtxEndRange
                   endif
-              else
+              else        
                  norm = 1.0_rp
               end if
               call nvtxEndRange
 
               call nvtxStartRange("Compute mu_e")
               !$acc parallel loop gang
-              do ielem = 1,nelem
-                !maxJe=0.0_rp
-                !minJe=1000000.0_rp
-                !maxV = 0.0_rp
-                !maxC = 0.0_rp
-                !!$acc loop seq
-                !do igaus = 1,ngaus
-                !   minJe = min(minJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                !   maxJe = max(maxJe,gpvol(1,igaus,ielem)/wgp(igaus))
-                !   maxV = max(maxV,sqrt(dot_product(u(connec(ielem,igaus),:),u(connec(ielem,igaus),:))))
-                !   maxC = max(maxC,csound(connec(ielem,igaus)))
-                !end do
-                !M = maxV/maxC
-                !ceM = max(tanh((M**15)*v_pi),ce)
-                !ced = max(1.0_rp-(minJe/maxJe)**2,ce)
-                !ced = max(ced,ceM) 
+              do ielem = 1,nelem                
                 ced = ce
-
                 mu = 0.0_rp
                 betae = 0.0_rp
                 !$acc loop vector reduction(max:betae)
                 do inode = 1,nnode
                    aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
-                   aux3 = fact_low_mach*sqrt(Rgas*gamma_gas*Tem(connec(ielem,inode)))     ! Speed of sound at node
+                   aux3 = fact_low_mach*csound(connec(ielem,inode))     ! Speed of sound at node
                    aux1 = aux2+aux3
                    betae = max(betae,(rho(connec(ielem,inode))*helem_k(ielem))*(cmax/real(porder,rp))*aux1)
                 end do
                 !$acc loop vector
                 do inode = 1,nnode
                    R1 = rho(connec(ielem,inode))*abs(Reta(connec(ielem,inode)))/norm
-                   Ve = ced*R1*(helem(ielem,inode))**2
-                   mue_l(ielem,inode) = cglob*min(Ve,betae)
-                end do
-                !$acc loop vector collapse(3)
-                do ii=1,porder+1
-                   do jj=1,porder+1
-                      do kk=1,porder+1
-                         aux1 = 0.00_rp
-                         !$acc loop seq
-                         do ll=-1,1
-                            !$acc loop seq
-                            do mm=-1,1
-                               !$acc loop seq
-                               do nn=-1,1
-                                  aux1 =   aux1 +  al_weights(ll)*am_weights(mm)*an_weights(nn)*mue_l(ielem,invAtoIJK(convertIJK(ii+ll),convertIJK(jj+mm),convertIJK(kk+nn)))
-                               end do
-                            end do
-                         end do
-                         mu_e(ielem,invAtoIJK(convertIJK(ii),convertIJK(jj),convertIJK(kk))) = aux1
-                      end do
-                   end do
+                   Ve = ced*R1*(helem_k(ielem)/real(porder,rp))**2
+                   mu_e(ielem,inode) = cglob*min(Ve,betae)                   
                 end do
               end do
               !$acc end parallel loop
               call nvtxEndRange
       end subroutine smart_visc_spectral_imex     
+
+      subroutine ducros_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,coord,dNgp,gpvol,wgp, &
+                                          rho,u,divU,vorti,csound,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
+
+         
+
+         implicit none
+
+         integer(4), intent(in)  :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
+         real(rp),   intent(in)  :: Ngp(ngaus,nnode)
+         real(rp),   intent(in)  :: rho(npoin), u(npoin,ndime),csound(npoin),helem_k(nelem),Ml(npoin),divU(npoin),vorti(npoin,ndime),helem(nelem,nnode)
+         real(rp),   intent(out) :: mu_e(nelem,ngaus)
+         real(rp),   intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
+         real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
+         integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode),gmshAtoJ(nnode),gmshAtoK(nnode)
+         real(rp),intent(inout)  :: mue_l(nelem,nnode)
+         integer(4)              :: ielem, inode,igaus,ipoin,npoin_w_g,idime,jdime
+         real(rp)                :: R1, R2, Ve
+         real(rp)                :: betae,mu,vol,vol2
+         real(rp)                :: L3, aux1, aux2, aux3
+         real(rp)                ::  maxRho, norm_r,norm, Rgas, maxV, maxC,maxRl,maxR
+         real(8)                 :: maxEta_r,maxEta,phi, phi2
+         real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe, M, ceM, fact_low_mach =1.0_rp,divUl
+         integer(4)              :: ii,jj,kk,mm,nn,ll
+
+
+         call nvtxStartRange("Compute mu_e")
+         !$acc parallel loop gang
+         do ielem = 1,nelem           
+           mu = 0.0_rp
+           !$acc loop vector 
+           do inode = 1,nnode
+              aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
+              aux3 = csound(connec(ielem,inode))
+              aux1 = aux2+aux3
+              betae = (rho(connec(ielem,inode))*helem_k(ielem))*(cmax/real(porder,rp))*aux1
+
+              divUl = divU(connec(ielem,inode))/Ml(connec(ielem,inode))
+              phi  = min( (4.0_rp/3.0_rp)*(divUl**2)/(divUl**2 + dot_product(vorti(connec(ielem,inode),:),vorti(connec(ielem,inode),:)) + epsilon(nscbc_u_inf)) , 1.0_rp)
+              phi2 = (divUl**2)/(divUl**2 + (1.0_rp*aux2/helem(ielem,inode))**2 + epsilon(nscbc_u_inf))
+
+              mu_e(ielem,inode) = betae*(max(phi-ducros_min_val, 0.0_rp)*phi2 + ducros_min_val)
+           end do
+         end do
+         !$acc end parallel loop
+         call nvtxEndRange
+         
+      end subroutine ducros_visc_spectral_imex  
+
+      subroutine ducros_visc_limit(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,coord,dNgp,gpvol,wgp, &
+                                          rho,u,divU,vorti,csound,helem,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
+
+         
+
+         implicit none
+
+         integer(4), intent(in)  :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
+         real(rp),   intent(in)  :: Ngp(ngaus,nnode),helem(nelem,nnode)
+         real(rp),   intent(in)  :: rho(npoin), u(npoin,ndime),csound(npoin),helem_k(nelem),Ml(npoin),divU(npoin),vorti(npoin,ndime)
+         real(rp),   intent(inout) :: mu_e(nelem,ngaus)
+         real(rp),   intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
+         real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
+         integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode),gmshAtoJ(nnode),gmshAtoK(nnode)
+         real(rp),intent(inout)  :: mue_l(nelem,nnode)
+         integer(4)              :: ielem, inode,igaus,ipoin,npoin_w_g,idime,jdime
+         real(rp)                :: divUl,phi,aux2,aux3,phi2,betae,aux1, fact
+
+
+         call nvtxStartRange("Compute mu_e")
+         !$acc parallel loop gang
+         do ielem = 1,nelem 
+           !$acc loop vector 
+           do inode = 1,nnode            
+              divUl = divU(connec(ielem,inode))/Ml(connec(ielem,inode))
+              aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
+              aux3 = csound(connec(ielem,inode))
+              aux1 = aux2+aux3
+              betae = (rho(connec(ielem,inode))*helem_k(ielem))*(cmax/real(porder,rp))*aux1              
+              phi  = min( (4.0_rp/3.0_rp)*(divUl**2)/(divUl**2 + dot_product(vorti(connec(ielem,inode),:),vorti(connec(ielem,inode),:)) + epsilon(nscbc_u_inf)) , 1.0_rp)
+              phi2 = (divUl**2)/(divUl**2 + (1.0_rp*aux2/helem(ielem,inode))**2 + epsilon(nscbc_u_inf))
+              mu_e(ielem,inode) = mu_e(ielem,inode)*(max(phi-ducros_min_val, 0.0_rp)*phi2 + ducros_min_val)
+           end do
+         end do
+         !$acc end parallel loop
+         call nvtxEndRange
+         
+      end subroutine ducros_visc_limit    
+
+
+      subroutine larsson_visc_limit(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,coord,dNgp,gpvol,wgp, &
+                                          rho,u,divU,vorti,csound,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
+
+         
+
+         implicit none
+
+         integer(4), intent(in)  :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
+         real(rp),   intent(in)  :: Ngp(ngaus,nnode)
+         real(rp),   intent(in)  :: rho(npoin), u(npoin,ndime),csound(npoin),helem_k(nelem),Ml(npoin),divU(npoin),vorti(npoin,ndime)
+         real(rp),   intent(inout) :: mu_e(nelem,ngaus)
+         real(rp),   intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
+         real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
+         integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode),gmshAtoJ(nnode),gmshAtoK(nnode)
+         real(rp),intent(inout)  :: mue_l(nelem,nnode)
+         integer(4)              :: ielem, inode,igaus,ipoin,npoin_w_g,idime,jdime
+         real(rp)                :: divUl,phi
+
+
+         call nvtxStartRange("Compute mu_e")
+         !$acc parallel loop gang
+         do ielem = 1,nelem 
+           !$acc loop vector 
+           do inode = 1,nnode            
+              divUl = divU(connec(ielem,inode))/Ml(connec(ielem,inode))
+              phi = abs(divUl)/max(1.0_rp*sqrt(dot_product(vorti(connec(ielem,inode),:),vorti(connec(ielem,inode),:))),0.01_rp*csound(connec(ielem,inode))/(Ml(connec(ielem,inode))**0.333_rp))
+              if(phi .lt. 1.0_rp) then
+               phi = 0_rp
+              else
+               phi = 1.0_rp
+              endif
+               mu_e(ielem,inode) = mu_e(ielem,inode)*phi
+              !end if
+           end do
+         end do
+         !$acc end parallel loop
+         call nvtxEndRange
+         
+      end subroutine larsson_visc_limit    
+
+      subroutine larsson_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,coord,dNgp,gpvol,wgp, &
+                                          rho,u,divU,vorti,csound,helem_k,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
+
+         
+
+         implicit none
+
+         integer(4), intent(in)  :: nelem, npoin,npoin_w, connec(nelem,nnode),lpoin_w(npoin_w)
+         real(rp),   intent(in)  :: Ngp(ngaus,nnode)
+         real(rp),   intent(in)  :: rho(npoin), u(npoin,ndime),csound(npoin),helem_k(nelem),Ml(npoin),divU(npoin),vorti(npoin,ndime)
+         real(rp),   intent(out) :: mu_e(nelem,ngaus)
+         real(rp),   intent(in)  :: coord(npoin,ndime), dNgp(ndime,nnode,ngaus), wgp(ngaus)
+         real(rp),   intent(in)  :: gpvol(1,ngaus,nelem)
+         integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode),gmshAtoJ(nnode),gmshAtoK(nnode)
+         real(rp),intent(inout)  :: mue_l(nelem,nnode)
+         integer(4)              :: ielem, inode,igaus,ipoin,npoin_w_g,idime,jdime
+         real(rp)                :: R1, R2, Ve
+         real(rp)                :: betae,mu,vol,vol2
+         real(rp)                :: L3, aux1, aux2, aux3
+         real(rp)                ::  maxRho, norm_r,norm, Rgas, maxV, maxC,maxRl,maxR
+         real(8)                 :: maxEta_r,maxEta,phi
+         real(rp)                :: Je(ndime,ndime), maxJe, minJe,ced,magJe, M, ceM, fact_low_mach =1.0_rp,divUl
+         integer(4)              :: ii,jj,kk,mm,nn,ll
+
+
+         call nvtxStartRange("Compute mu_e")
+         !$acc parallel loop gang
+         do ielem = 1,nelem           
+           mu = 0.0_rp
+           betae = 0.0_rp
+           !$acc loop vector 
+           do inode = 1,nnode
+              aux2 = sqrt(dot_product(u(connec(ielem,inode),:),u(connec(ielem,inode),:))) ! Velocity mag. at element node
+              aux3 = csound(connec(ielem,inode))
+              aux1 = aux2+aux3
+              betae = (rho(connec(ielem,inode))*helem_k(ielem))*(cmax/real(porder,rp))*aux1
+              
+              divUl = divU(connec(ielem,inode))/Ml(connec(ielem,inode))
+
+              phi = abs(divUl)/max(0.1_rp*sqrt(dot_product(vorti(connec(ielem,inode),:),vorti(connec(ielem,inode),:))),0.01_rp*aux3/(Ml(connec(ielem,inode))**0.333_rp))
+              if(phi .lt. 1.0_rp) then
+               phi = 0_rp
+              else
+               phi = 1.0_rp
+              endif
+             mu_e(ielem,inode) = betae*phi
+           end do           
+         end do
+         !$acc end parallel loop
+         call nvtxEndRange
+         
+      end subroutine larsson_visc_spectral_imex    
+
+
+      subroutine thermo_entropy(npoin,npoin_w,lpoin_w,gamma_gas, rho,pr,u,eta,feta)
+         
+         implicit none
+
+         integer(4), intent(in)     :: npoin,npoin_w,lpoin_w(npoin_w)
+         real(rp),   intent(in)     :: rho(npoin), pr(npoin),gamma_gas,u(npoin,ndime)
+         real(rp),   intent(inout)  :: eta(npoin,2)         
+         real(rp),   intent(inout)  :: feta(npoin,ndime)         
+         integer(4)              :: ipoin,idime
+         
+         !$acc parallel loop
+         do ipoin = 1,npoin_w
+            eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
+            eta(lpoin_w(ipoin),2) = (rho(lpoin_w(ipoin))/(gamma_gas-1.0_rp))* &
+               log(max(pr(lpoin_w(ipoin))/nscbc_p_inf,epsilon(nscbc_p_inf))/((rho(lpoin_w(ipoin))/nscbc_rho_inf)**gamma_gas))
+            !$acc loop seq
+            do idime = 1,ndime
+               feta(lpoin_w(ipoin),idime)  = u(lpoin_w(ipoin),idime)*eta(lpoin_w(ipoin),1)
+            end do
+         end do
+         !$acc end parallel loop
+         
+      end subroutine thermo_entropy          
+
+ 
+      subroutine mach_entropy(npoin,npoin_w,lpoin_w, rho,mach,csound,u,eta,feta)
+         
+         implicit none
+
+         integer(4), intent(in)     :: npoin,npoin_w,lpoin_w(npoin_w)
+         real(rp),   intent(in)     :: rho(npoin), mach(npoin), csound(npoin),u(npoin,ndime)
+         real(rp),   intent(inout)  :: eta(npoin,2)         
+         real(rp),   intent(inout)  :: feta(npoin,ndime)         
+         integer(4)              :: ipoin,idime
+         
+         !$acc parallel loop
+         do ipoin = 1,npoin_w
+            eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
+            eta(lpoin_w(ipoin),2) = rho(lpoin_w(ipoin))*mach(lpoin_w(ipoin))/csound(lpoin_w(ipoin))
+            !$acc loop seq
+            do idime = 1,ndime
+               feta(lpoin_w(ipoin),idime)  = u(lpoin_w(ipoin),idime)*eta(lpoin_w(ipoin),1)
+            end do
+         end do
+         !$acc end parallel loop
+         
+      end subroutine mach_entropy       
+
 end module mod_entropy_viscosity

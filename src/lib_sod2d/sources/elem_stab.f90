@@ -143,11 +143,11 @@ module elem_stab
 
                    !$acc loop seq
                    do idime = 1,ndime
-                      tauXl(igaus,idime)    =  0.1_rp*taustabl*(projMXl(igaus,idime) - tau(1,idime))*rhonl(igaus)
-                      tauYl(igaus,idime)    =  0.1_rp*taustabl*(projMYl(igaus,idime) - tau(2,idime))*rhonl(igaus)
-                      tauZl(igaus,idime)    =  0.1_rp*taustabl*(projMZl(igaus,idime) - tau(3,idime))*rhonl(igaus)
-                      gradTl(igaus,idime)   =  0.1_rp*taustabl*(projEnerl(igaus,idime) - gradT(idime))*rhonl(igaus)*Cp/Pr
-                      gradRhol(igaus,idime) =  0.1_rp*taustabl*(projMassl(igaus,idime) - gradRho(idime))
+                      tauXl(igaus,idime)    =  c_lps_comp*taustabl*(projMXl(igaus,idime) - tau(1,idime))*rhonl(igaus)
+                      tauYl(igaus,idime)    =  c_lps_comp*taustabl*(projMYl(igaus,idime) - tau(2,idime))*rhonl(igaus)
+                      tauZl(igaus,idime)    =  c_lps_comp*taustabl*(projMZl(igaus,idime) - tau(3,idime))*rhonl(igaus)
+                      gradTl(igaus,idime)   =  c_lps_comp*taustabl*(projEnerl(igaus,idime) - gradT(idime))*rhonl(igaus)*Cp/Pr
+                      gradRhol(igaus,idime) =  c_lps_comp*taustabl*(projMassl(igaus,idime) - gradRho(idime))
                    end do
                 end do
 
@@ -260,8 +260,8 @@ module elem_stab
         do while (vecLen < nnode)
 			! Next power of 2
 			vecLen = vecLen*2
-			! Block cannot be greater than 1024 threads
-			if ( vecLen == 1024 ) then
+			! Block cannot be greater than 512 threads
+			if ( vecLen == 512 ) then
 				exit
 			end if
 		end do
@@ -354,14 +354,12 @@ module elem_stab
 
                !$acc loop seq
                do idime = 1,ndime
-                  tauXl(igaus,idime)    =  -0.1_rp*taustabl*(projMXl(igaus,idime) - tau(1,idime))*rhonl(igaus)
-                  tauYl(igaus,idime)    =  -0.1_rp*taustabl*(projMYl(igaus,idime) - tau(2,idime))*rhonl(igaus)
-                  tauZl(igaus,idime)    =  -0.1_rp*taustabl*(projMZl(igaus,idime) - tau(3,idime))*rhonl(igaus)
-                  gradTl(igaus,idime)   =  -0.1_rp*taustabl*(projEnerl(igaus,idime) - gradT(idime))*rhonl(igaus)*Cp/Pr
-                  gradRhol(igaus,idime) =  -0.1_rp*taustabl*(projMassl(igaus,idime) - gradRho(idime))
+                  tauXl(igaus,idime)    =  -c_lps_comp*taustabl*(projMXl(igaus,idime) - tau(1,idime))*rhonl(igaus)
+                  tauYl(igaus,idime)    =  -c_lps_comp*taustabl*(projMYl(igaus,idime) - tau(2,idime))*rhonl(igaus)
+                  tauZl(igaus,idime)    =  -c_lps_comp*taustabl*(projMZl(igaus,idime) - tau(3,idime))*rhonl(igaus)
+                  gradTl(igaus,idime)   =  -c_lps_comp*taustabl*(projEnerl(igaus,idime) - gradT(idime))*rhonl(igaus)*Cp/Pr
+                  gradRhol(igaus,idime) =  -c_lps_comp*taustabl*(projMassl(igaus,idime) - gradRho(idime))
                end do
-
-               divU = gradU(1,1)+gradU(2,2)+gradU(3,3)
 
                tauU(:) = 0.0_rp
                !$acc loop seq
@@ -437,7 +435,8 @@ module elem_stab
          end do
          !$acc end parallel loop
         call nvtxEndRange
-    end subroutine full_diff_stab_ijk        
+    end subroutine full_diff_stab_ijk            
+
 
         subroutine full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Pr,rho,u,Tem,Ml,invMl,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ)
          use mod_solver, only : lumped_solver_vect_opt
