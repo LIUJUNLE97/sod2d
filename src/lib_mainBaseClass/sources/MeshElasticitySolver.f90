@@ -29,21 +29,28 @@ module MeshElasticitySolver_mod
    use mod_solver_meshElasticity
    implicit none
    private
-
+   
+   integer(4), parameter :: elasticity_fromBouCurving = 1
+   integer(4), parameter :: elasticity_fromALE        = 2
+   integer(4), parameter :: elasticity_fromMetric     = 3
+   
    type, public, extends(CFDSolverBase) :: MeshElasticitySolver
-
-     real(rp) , public  :: E_young
-     real(rp) , public  :: nu_poisson
      
-     real(rp), allocatable :: quality_e(:)!,:)
+     integer(4), public :: elasticity_problemType = 0
+     
+     real(rp) , public  :: E_young    = 10.0_rp
+     real(rp) , public  :: nu_poisson = 0.4_rp
+     
+     real(rp), allocatable :: quality_e(:)
      
      real(rp), allocatable :: coord_input_safe(:,:)
+     
      logical :: is_imposed_displacement = .false.
      real(rp), allocatable :: imposed_displacement(:,:)
      
      real(rp), allocatable :: metric(:,:,:)
      
-     real(rp) ,public:: factor_deformation=1.0_rp ! to analytically increase deformation in tests
+     real(rp), public:: factor_deformation=1.0_rp ! to analytically increase deformation in tests
      
    contains
       procedure, public :: fillBCTypes           => MeshElasticitySolver_fill_BC_Types
@@ -187,16 +194,19 @@ contains
     !call  this%normalFacesToNodes()
     !
     !
-    print*,'Exporting bouCodes as rho...'
-    rho(:,2) = real(bouCodesNodesPar,rp)
+    !print*,'Exporting bouCodes as rho...'
+    !rho(:,2) = real(bouCodesNodesPar,rp)
     !
-    print*,'commented analysis of elasticity parameters'
+    
+    this%elasticity_problemType = elasticity_fromALE
+    
+    !
+    !print*,'commented analysis of elasticity parameters'
     !call this%assessElasticityParameters_forDifferentDefs()
     !
     !
-    if(.false.) then ! do_curveFromPrescribedDisplacement
-      print*,'curving mesh now with analytical boun, to straighten it later and curve it again ... :-)'
-      print*,'once it works, test in real testcases'
+    if( this%elasticity_problemType == elasticity_fromALE ) then ! do_curveFromPrescribedDisplacement
+      if(mpi_rank.eq.0) write(*,*) '  --| Imposing a prescribed displacement in dirichlet boundaries...'
       !
       call this%initialBuffer()
 
@@ -206,9 +216,11 @@ contains
       end if
       !if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
       !
-      print*,'Quality before elasticity'
+      if(mpi_rank.eq.0) write(*,*) '  --| Quality before elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
-      print*,'    minQ: ',minQ
+      !call MPI_Reduce(minQ,minQ,1,mpi_datatype_int4,MPI_MIN,0,app_comm,mpi_err)
+      !if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
+      print*, '  minQ: ', minQ
       !
       call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
          numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
@@ -217,31 +229,38 @@ contains
          bouCodesNodesPar,normalsAtNodes,u_buffer)
       !
       coordPar = coordPar+u(:,:,2)
-      print*,'Quality after elasticity'
+      if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
-      print*,'    minQ: ',minQ
+      !call MPI_Reduce(minQ,minQ,1,mpi_datatype_int4,MPI_MIN,0,app_comm,mpi_err)
+      !if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
+      print*, '  minQ: ', minQ
       !
       call this%saveInstResultsFiles(1)    
     end if
     !
-    if(.false.) then ! do_curveInteriorMesh
+    if( this%elasticity_problemType == elasticity_fromBouCurving) then ! do_curveInteriorMesh
+      if(mpi_rank.eq.0) write(*,*) '  --| Elasticity for boundary mesh curving...'
+      
       u(:,:,2) = 0.0_rp
-      print*,'- Input curved mesh quality'
+      if(mpi_rank.eq.0) write(*,*) '  --| Input curved mesh quality'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
+!       call MPI_Reduce(minQ,minQ,1,mpi_datatype_int4,MPI_MIN,0,app_comm,mpi_err)
+!       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       print*,'       minQ: ',minQ,'    maxQ: ',maxQ
       call this%saveInstResultsFiles(0)
       
-!       print*,'- Save input (boundary curved) coordinates'
       call save_input_coordinates(numNodesRankPar,ndime,coordPar,this%coord_input_safe)
       
-      print*,'- Straighten mesh (coordpar)'
+      if(mpi_rank.eq.0) write(*,*) '  --| Straighten mesh (coordpar)'
       call compute_straight_mesh(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,this%coord_input_safe)
       u(:,:,2) = coordPar-this%coord_input_safe ! -> displacement to see in paraview the straight mesh
       call this%saveInstResultsFiles(1)
       u(:,:,2) = 0.0_rp
-      print*,'   Quality straight-sided mesh'
+      if(mpi_rank.eq.0) write(*,*) '  --| Quality straight-sided mesh'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
-      print*,'       minQ: ',minQ,'    maxQ: ',maxQ!,' ---> should be all one?!?!?'
+!       call MPI_Reduce(minQ,minQ,1,mpi_datatype_int4,MPI_MIN,0,app_comm,mpi_err)
+!       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
+      print*,'       minQ: ',minQ,'    maxQ: ',maxQ
       
       !print*,'- Compute displacement of the boundary'
       call compute_displacement_straight_mesh(numNodesRankPar,ndime,coordPar,this%coord_input_safe,bouCodesNodesPar,&
@@ -254,10 +273,10 @@ contains
            numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
       end if
       !
-      print*,'- Assess Best Elasticity Parameters'
+      if(mpi_rank.eq.0) write(*,*) '  --| Assess Best Elasticity Parameters'
       call this%assessBestElasticityParameters()
       !
-      print*,'- Call conjGrad_meshElasticity to compute displacements with linear elasticity'
+      if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity with linear elasticity...'
       call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
          numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
          gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
@@ -265,14 +284,19 @@ contains
          bouCodesNodesPar,normalsAtNodes,u_buffer)
       !
       coordPar = coordPar+u(:,:,2)
-      print*,'- Quality after elasticity-based curved mesh'
+      if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity-based curved mesh'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
+!       call MPI_Reduce(minQ,minQ,1,mpi_datatype_int4,MPI_MIN,0,app_comm,mpi_err)
+!       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       print*,'       minQ: ',minQ,'    maxQ: ',maxQ
       u(:,:,2) = coordPar-this%coord_input_safe ! -> displacement to see in paraview the new curved mesh
       call this%saveInstResultsFiles(2)
     end if
     !
-    if(.true.) then ! do_curveFromMetric
+    if( this%elasticity_problemType == elasticity_fromMetric ) then ! do_curveFromMetric
+      print*,'STOP!!! elasticity_fromMetric STILL NOT IN PRODUCTION'
+      stop
+      
       print*,'use metric in the domain to drive elasticity'
       this%is_imposed_displacement = .true.
       allocate(this%imposed_displacement(numNodesRankPar,ndime))
@@ -301,7 +325,8 @@ contains
       call save_input_coordinates(numNodesRankPar,ndime,coordPar,this%coord_input_safe)
       
       !u(:,:,2) = -u(:,:,2) ! did we solve the problem the other way around?
-      
+      print*,'Enlarging displacement artificially to emulate optimization'
+      u(:,:,2) = u(:,:,2) * 5
       coordPar = this%coord_input_safe + u(:,:,2)
       print*,'Quality after elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
@@ -361,7 +386,6 @@ contains
     print*,' FUTURE: '
     print*,' - Add an option in the json to read the displacement of the ALE vs do mesh curving?'
     print*,' - Optimization?'
-    print*,' - Think about doing my own stuff in qualities to allow optimization'
     print*,'TODO solve nasty thing:'
     print*,' - I am doing something nasty... created a link in the meshElasticitySOlver folder to the mod_meshquality'
     print*,' - When Lucas rearranges folders in sod, remove this and do properly'
@@ -418,6 +442,10 @@ contains
      integer(4) :: inode
      real(rp) :: t_aux,hdesired,hz_maz,hz_min
      real(rp) :: eigenx,eigeny,eigenz
+     real(rp) :: h_ref, coords_aux(3),V(3,3),Mnode(3,3)
+     
+     
+     h_ref = 6.28319_rp/8.0_rp ! for the cube mesh...
      
      allocate(metric(ndime,ndime,npoin))
     
@@ -427,33 +455,75 @@ contains
 !        t_aux = coordinates(inode,3)/6.28319_rp
 !        hz_maz = 2.0_rp !riemanian
 !        hz_min = 0.1_rp !riemanian
-!        t_aux = t_aux**1 ! quadratic transition from min (aniso) to max (iso)
+!        !t_aux = t_aux**2 ! quadratic transition from min (aniso) to max (iso)
 !        ! elem size in between [0.1 1] according to taux (height, normalized)
 !        hdesired = hz_maz*t_aux  + hz_min*(1-t_aux)
+!
+!        hdesired = hdesired/h_ref
 !
 !        eigenx = 1.0_rp
 !        eigeny = 1.0_rp
 !        !eigenz = 1.0_rp/hdesired**2
-!        eigenz = hdesired**2
+!        eigenz = hdesired!**2
+!
+!        metric(:,:,inode) = 0.0_rp
+!        metric(1,1,inode) = eigenx
+!        metric(2,2,inode) = eigeny
+!        metric(3,3,inode) = eigenz
        
        !!! ---- radial sizing ------
+!        hz_maz = 2.0_rp !riemanian
+!        hz_min = 0.1_rp !riemanian
+!        t_aux = sqrt(sum((coordinates(inode,:)-3.14)**2)) ! radius on center of cube
+!        t_aux = t_aux/3.14 ! t\in[0,1]
+!        t_aux = t_aux*t_aux
+!        hdesired = hz_maz*t_aux  + hz_min*(1-t_aux)
+!
+!        !eigenx = 1.0_rp/hdesired**2
+!        eigenx = hdesired!**2
+!        eigeny = eigenx
+!        eigenz = eigenx
+!
+!        metric(:,:,inode) = 0.0_rp
+!        metric(1,1,inode) = eigenx
+!        metric(2,2,inode) = eigeny
+!        metric(3,3,inode) = eigenz
+       
+       !!! ---- boundary layer Diagonal------
+       coords_aux = 2*coords_aux/6.28319_rp
+       coords_aux = coords_aux-1
+       t_aux = abs(coords_aux(1) + coords_aux(2))/2!sqrt(2.0_rp)
        hz_maz = 2.0_rp !riemanian
-       hz_min = 0.01_rp !riemanian
-       t_aux = sqrt(sum((coordinates(inode,:)-3.14)**2)) ! radius on center of cube
-       t_aux = t_aux/3.14 ! t\in[0,1]
-       t_aux = t_aux*t_aux
+       hz_min = 0.1_rp !riemanian
+       t_aux = t_aux**2 ! quadratic transition from min (aniso) to max (iso)
        hdesired = hz_maz*t_aux  + hz_min*(1-t_aux)
        
-       !eigenx = 1.0_rp/hdesired**2
-       eigenx = hdesired**2
-       eigeny = eigenx
-       eigenz = eigenx
+       hdesired = hdesired/h_ref
        
-       !!! ---- BUILD METIRC ------
-       metric(:,:,inode) = 0.0_rp
-       metric(1,1,inode) = eigenx
-       metric(2,2,inode) = eigeny
-       metric(3,3,inode) = eigenz
+       eigenx = 1.0_rp
+       eigeny = 1.0_rp
+       eigenz = hdesired!**2
+       
+       Mnode(:,:) = 0.0_rp
+       Mnode(1,1) = eigenx
+       Mnode(2,2) = eigeny
+       Mnode(3,3) = eigenz
+       
+       V(1,:)=(/1.0_rp,-1.0_rp,0.0_rp/)/sqrt(2.0_rp)
+       V(2,:)=(/0.0_rp,0.0_rp,1.0_rp/)
+       V(3,:)=(/1.0_rp,1.0_rp,0.0_rp/)/sqrt(2.0_rp)
+
+       Mnode = matmul(Mnode,transpose(V))
+       metric(:,:,inode) = matmul(V,Mnode)
+       
+       Mnode(:,:) = 0.0_rp
+       Mnode(1,1) = eigenz
+       Mnode(2,2) = eigenz
+       Mnode(3,3) = eigenz
+       metric(:,:,inode) = Mnode ! I am using V to change gradU of basis
+       
+!        print*;'check that I am imposing the sizing correctly... imagina que lestic cagant aqui...'
+!        stop 1
      end do
      !$acc end parallel loop
 
@@ -658,8 +728,8 @@ contains
     E_best  = E_safe  
    
     !"E":10, "nu":0.4,
-    num_young   = 0!8
-    num_poisson = 1!10
+    num_young   = 3!8
+    num_poisson = 3!10
     ini_young   = 0.01_rp !0.0001_rp
     fact_young  = 10.0_rp ! 10.0_rp
     ini_poisson = 0.139_rp!0.1_rp ! 0.05_rp
@@ -673,12 +743,15 @@ contains
 !        call temporary_bc_routine_dirichlet_prim_meshElasticity(&
 !          numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
 !     end if
-    print*,'Range Poisson: [',ini_poisson,',',ini_poisson + fact_poisson*num_poisson,'] -> num: ', num_poisson+1
-    print*,'Range Young: [',ini_young,',',ini_young * fact_young**num_young,']  -> num: ',num_young+1
-    str_name = "";
-    open(unit=666, file="paramQual"//TRIM(str_name)//'.txt', status="replace", action="write")
-    write(666,*) "      YOUNG            POISSON              MIN_Q             MAX_Q"
-    print*, "                      YOUNG            POISSON              MIN_Q             MAX_Q"
+    !
+    if(mpi_rank.eq.0) then
+      print*,'Range Poisson: [',ini_poisson,',',ini_poisson + fact_poisson*num_poisson,'] -> num: ', num_poisson+1
+      print*,'Range Young: [',ini_young,',',ini_young * fact_young**num_young,']  -> num: ',num_young+1
+      str_name = "";
+      open(unit=666, file="paramQual"//TRIM(str_name)//'.txt', status="replace", action="write")
+      write(666,*) "      YOUNG            POISSON              MIN_Q             MAX_Q"
+      print*, "                      YOUNG            POISSON              MIN_Q             MAX_Q"
+    end if
     do ipoisson = 0,num_poisson
       do iyoung = 0,num_young
         
@@ -700,15 +773,19 @@ contains
           E_best  = this%E_young
         end if
 
-        write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
-        print*,iyoung + (num_young+1)*ipoisson,' -> ',  this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ,&
-        ' ',numInv ,' ',numLow
+        if(mpi_rank.eq.0) then
+          write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
+          print*,iyoung + (num_young+1)*ipoisson,' -> ',  this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ,&
+          ' ',numInv ,' ',numLow
+        end if
 
         coordPar = coordPar-u(:,:,2)
         u(:,:,2) = 0.0_rp
       end do
     end do
-    close(666)
+    if(mpi_rank.eq.0) then
+      close(666)
+    end if
      
     print*,'     -> Best parameters: ',nu_best,'  ',E_best
     this%nu_poisson = nu_best

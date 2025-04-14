@@ -33,6 +33,7 @@ module elem_diffu_meshElasticity
              real(rp)                :: tauXl(nnode,ndime), tauYl(nnode,ndime), tauZl(nnode,ndime)
              real(rp)                :: gradRhol(nnode,ndime),muel(nnode)
              real(rp) :: t_aux,eigen,hdesired,hz_maz,hz_min
+!              real(rp) :: V(3,3),vaux(3,1)
 
              call nvtxStartRange("Full diffusion")
              !$acc kernels
@@ -46,22 +47,34 @@ module elem_diffu_meshElasticity
              Cy = (/mu,lambda+2.0_rp*mu,mu/)
              Cz = (/mu,mu,lambda+2.0_rp*mu/)
              
+             ! constant basis for illustrative example
+!              V(1,:)=(/1.0_rp,-1.0_rp,0.0_rp/)/sqrt(2.0_rp)
+!              V(2,:)=(/0.0_rp,0.0_rp,1.0_rp/)
+!              V(3,:)=(/1.0_rp,1.0_rp,0.0_rp/)/sqrt(2.0_rp)
+!              V(:,1)=(/1.0_rp,-1.0_rp,0.0_rp/)/sqrt(2.0_rp)
+!              V(:,2)=(/0.0_rp,0.0_rp,1.0_rp/)
+!              V(:,3)=(/1.0_rp,1.0_rp,0.0_rp/)/sqrt(2.0_rp)
+             
              !$acc parallel loop gang  private(ipoin,ul,tauXl,tauYl,tauZl,muel)
              do ielem = 1,nelem
                 !$acc loop vector
                 do inode = 1,nnode
                    ipoin(inode) = connec(ielem,inode)
                 end do
+                
                 !$acc loop vector collapse(2)
                 do inode = 1,nnode
                    do idime = 1,ndime
                       ul(inode,idime) = u(ipoin(inode),idime)
                    end do
+!                    vaux = reshape(ul(inode,:), (/3,1/) )
+!                    vaux =  matmul(V,vaux )
+!                    ul(inode,:) = reshape(vaux,(/3/)) ! vaux(:)!reshape(vaux,(/1,3/))
                 end do
                 tauXl(:,:) = 0.0_rp
                 tauYl(:,:) = 0.0_rp
                 tauZl(:,:) = 0.0_rp
-
+                
                 !$acc loop vector private(tau,gradU,gradIsoU,divU)
                 do igaus = 1,ngaus
 
@@ -91,7 +104,10 @@ module elem_diffu_meshElasticity
                          end do
                       end do
                    end do
-
+                   
+                   !gradU = matmul(V,gradU)
+!                    gradU = matmul(gradU,V)
+                   
                    !$acc loop seq
                    do idime = 1,ndime
                       !$acc loop seq
@@ -99,19 +115,17 @@ module elem_diffu_meshElasticity
                            tau(idime,jdime) = (gradU(idime,jdime)+gradU(jdime,idime))
                       end do
                    end do
-                   ! here fake some metric ABEL!!!!
-                   !tau(1,1)= tau(1,1) +1.0_rp -metric11 ! identityt
-                   !tau(2,2)= tau(2,2) +1.0_rp -metric22 ! identty
-                   !t_aux = (6.3_rp-coordPar(connec(ielem,igaus),3))/t_aux
-                   
+                   !tau = matmul(V,tau)  ! test here change of basis!!!
                    !
                    if(present(metric)) then
                      do idime = 1,ndime
-                       tau(idime,idime)= tau(idime,idime) + 1.0_rp 
+                       tau(idime,idime)= tau(idime,idime) + 1.0_rp  ! this one is from Id from reference metric
                        do jdime = 1,ndime
                          tau(idime,jdime)= tau(idime,jdime) - metric(idime,jdime,connec(ielem,igaus))
                        end do
                      end do
+!                      tau = matmul(tau,transpose(V))
+!                      tau = matmul(V,tau)
                    end if
 
 !                    t_aux = coordPar(connec(ielem,igaus),3)/6.28319_rp
