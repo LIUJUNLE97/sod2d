@@ -1,3 +1,16 @@
+module mod_arrays_me
+  use mod_constants
+
+  implicit none
+
+  real(rp), allocatable :: quality_e(:)
+  real(rp), allocatable :: coord_input_safe(:,:)
+  real(rp), allocatable :: imposed_displacement(:,:)
+  real(rp), allocatable :: metric(:,:,:)
+  real(rp), allocatable :: N_lin(:,:)
+
+end module mod_arrays_me
+
 module MeshElasticitySolver_mod
    use mod_arrays
    use mod_nvtx
@@ -27,28 +40,16 @@ module MeshElasticitySolver_mod
    use mod_saveFields
    use CFDSolverBase_mod
    use mod_solver_meshElasticity
+   use mod_arrays_me
    implicit none
    private
    
-   integer(4), parameter :: elasticity_fromBouCurving = 1
-   integer(4), parameter :: elasticity_fromALE        = 2
-   integer(4), parameter :: elasticity_fromMetric     = 3
-   
    type, public, extends(CFDSolverBase) :: MeshElasticitySolver
-     
-     integer(4), public :: elasticity_problemType = 0
-     
+          
      real(rp) , public  :: E_young    = 10.0_rp
-     real(rp) , public  :: nu_poisson = 0.4_rp
+     real(rp) , public  :: nu_poisson = 0.4_rp                    
      
-     real(rp), allocatable :: quality_e(:)
-     
-     real(rp), allocatable :: coord_input_safe(:,:)
-     
-     logical :: is_imposed_displacement = .false.
-     real(rp), allocatable :: imposed_displacement(:,:)
-     
-     real(rp), allocatable :: metric(:,:,:)
+     logical :: is_imposed_displacement = .false.               
      
      real(rp), public:: factor_deformation=1.0_rp ! to analytically increase deformation in stress tests
      
@@ -107,6 +108,8 @@ contains
      call json%get("saveInitialField",this%saveInitialField, found,.true.); call this%checkFound(found,found_aux)
      !call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
      
+     call this%readJSONMeshElasticityTypes()
+
      call json%destroy()
 
      if(found_aux .and.mpi_rank .eq. 0) write(111,*) 'WARNING! JSON file missing a parameter, overwrtting with the default value'
@@ -196,17 +199,19 @@ contains
     !
     !
     !print*,'Exporting bouCodes as rho...'
-    !rho(:,2) = real(bouCodesNodesPar,rp)
+    !$acc kernels
+    rho(:,2) = real(bouCodesNodesPar,rp)
+    !$acc end kernels
     !
     
-    this%elasticity_problemType = elasticity_fromALE
+    !this%elasticity_problemType = elasticity_fromALE
     
     !
     !print*,'commented analysis of elasticity parameters'
     !call this%assessElasticityParameters_forDifferentDefs()
     !
     !
-    if( this%elasticity_problemType == elasticity_fromALE ) then ! do_curveFromPrescribedDisplacement
+    if( elasticity_problemType == elasticity_fromALE ) then ! do_curveFromPrescribedDisplacement
       if(mpi_rank.eq.0) write(*,*) '  --| Imposing a prescribed displacement in dirichlet boundaries...'
       !
       call this%initialBuffer()
@@ -229,7 +234,10 @@ contains
          this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
          bouCodesNodesPar,normalsAtNodes,u_buffer)
       !
+      !$acc kernels
       coordPar = coordPar+u(:,:,2)
+      !$acc end kernels
+      
       if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
       call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
@@ -238,31 +246,37 @@ contains
       call this%saveInstResultsFiles(1)    
     end if
     !
-    if( this%elasticity_problemType == elasticity_fromBouCurving) then ! do_curveInteriorMesh
+    if( elasticity_problemType == elasticity_fromBouCurving) then ! do_curveInteriorMesh
       if(mpi_rank.eq.0) write(*,*) '  --| Elasticity for boundary mesh curving...'
       
+      !$acc kernels
       u(:,:,2) = 0.0_rp
+      !$acc end kernels
       if(mpi_rank.eq.0) write(*,*) '  --| Input curved mesh quality'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
       call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       call this%saveInstResultsFiles(0)
       
-      call save_input_coordinates(numNodesRankPar,ndime,coordPar,this%coord_input_safe)
+      call save_input_coordinates(numNodesRankPar,ndime,coordPar,coord_input_safe)
       
       if(mpi_rank.eq.0) write(*,*) '  --| Straighten mesh (coordpar)'
-      call compute_straight_mesh(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,this%coord_input_safe)
-      u(:,:,2) = coordPar-this%coord_input_safe ! -> displacement to see in paraview the straight mesh
+      call compute_straight_mesh(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,coord_input_safe)
+      !$acc kernels
+      u(:,:,2) = coordPar-coord_input_safe ! -> displacement to see in paraview the straight mesh
+      !$acc end kernels
       call this%saveInstResultsFiles(1)
+      !$acc kernels
       u(:,:,2) = 0.0_rp
+      !$acc end kernels
       if(mpi_rank.eq.0) write(*,*) '  --| Quality straight-sided mesh'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
       call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       
       !print*,'- Compute displacement of the boundary'
-      call compute_displacement_straight_mesh(numNodesRankPar,ndime,coordPar,this%coord_input_safe,bouCodesNodesPar,&
-        this%is_imposed_displacement,this%imposed_displacement)
+      call compute_displacement_straight_mesh(numNodesRankPar,ndime,coordPar,coord_input_safe,bouCodesNodesPar,&
+        this%is_imposed_displacement,imposed_displacement)
       !
       !print*,'- Impose elasticity boundary conditions'
       call this%initialBuffer()
@@ -271,8 +285,8 @@ contains
            numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
       end if
       !
-      if(mpi_rank.eq.0) write(*,*) '  --| Assess Best Elasticity Parameters'
-      call this%assessBestElasticityParameters()
+      !if(mpi_rank.eq.0) write(*,*) '  --| Assess Best Elasticity Parameters'
+      !call this%assessBestElasticityParameters()
       !
       if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity...'
       call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
@@ -281,23 +295,29 @@ contains
          this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
          bouCodesNodesPar,normalsAtNodes,u_buffer)
       !
+      !$acc kernels
       coordPar = coordPar+u(:,:,2)
+      !$acc end kernels
       if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity-based curved mesh'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
       call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
-      u(:,:,2) = coordPar-this%coord_input_safe ! -> displacement to see in paraview the new curved mesh
+      u(:,:,2) = coordPar-coord_input_safe ! -> displacement to see in paraview the new curved mesh
       call this%saveInstResultsFiles(2)
     end if
     !
-    if( this%elasticity_problemType == elasticity_fromMetric ) then ! do_curveFromMetric
+    if( elasticity_problemType == elasticity_fromMetric ) then ! do_curveFromMetric
       print*,'STOP!!! elasticity_fromMetric STILL NOT IN PRODUCTION'
       stop
       
       if(mpi_rank.eq.0) print*,'use metric in the domain to drive elasticity'
       this%is_imposed_displacement = .true.
-      allocate(this%imposed_displacement(numNodesRankPar,ndime))
-      this%imposed_displacement = 0.0_rp
+      allocate(imposed_displacement(numNodesRankPar,ndime))
+      !$acc enter data create(imposed_displacement(:,:))
+      
+      !$acc kernels
+      imposed_displacement = 0.0_rp
+      !$acc end kernels
       !
       call this%initialBuffer()
 
@@ -312,26 +332,26 @@ contains
       call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       !
-      call computeAnalyticalMetric(numNodesRankPar,ndime,coordPar,this%metric)
+      call computeAnalyticalMetric(numNodesRankPar,ndime,coordPar,metric)
       
       call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
          numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
          gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
          this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
-         bouCodesNodesPar,normalsAtNodes,u_buffer,this%metric)
+         bouCodesNodesPar,normalsAtNodes,u_buffer,metric)
       !
-      call save_input_coordinates(numNodesRankPar,ndime,coordPar,this%coord_input_safe)
+      call save_input_coordinates(numNodesRankPar,ndime,coordPar,coord_input_safe)
       
       !u(:,:,2) = -u(:,:,2) ! did we solve the problem the other way around?
       if(mpi_rank.eq.0) print*,'Enlarging displacement artificially to emulate optimization'
       u(:,:,2) = u(:,:,2) * 5
-      coordPar = this%coord_input_safe + u(:,:,2)
+      coordPar = coord_input_safe + u(:,:,2)
       if(mpi_rank.eq.0) print*,'Quality after elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
       call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       
-      coordPar = this%coord_input_safe 
+      coordPar = coord_input_safe 
       call this%saveInstResultsFiles(1)
       
       factor_backtrack = 0.9_rp
@@ -339,7 +359,7 @@ contains
       do while(minQ.le.0) 
         numBacktracks = numBacktracks+1
         u(:,:,2) = u(:,:,2)*factor_backtrack
-        coordPar = this%coord_input_safe + u(:,:,2)
+        coordPar = coord_input_safe + u(:,:,2)
         if(mpi_rank.eq.0) print*,'  Quality after backtrack: ',numBacktracks
         call this%computeQuality(minQ,maxQ,numInv,numLow)
         call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
@@ -349,7 +369,7 @@ contains
         if(mpi_rank.eq.0) print*,'     minMaxUz: ',minval(u(:,3,2)),' / ',maxval(u(:,3,2))
       end do
       !
-      coordPar = this%coord_input_safe
+      coordPar = coord_input_safe
       call this%saveInstResultsFiles(2)
       
     end if
@@ -361,8 +381,8 @@ contains
     ! Deallocate the variables
     call this%deallocateVariables()
     
-    if(allocated(this%coord_input_safe)) deallocate(this%coord_input_safe)
-    if(allocated(this%imposed_displacement)) deallocate(this%imposed_displacement)
+    if(allocated(coord_input_safe)) deallocate(coord_input_safe)
+    if(allocated(imposed_displacement)) deallocate(imposed_displacement)
 
     ! End hdf5 auxiliar saving arrays
     call end_hdf5_auxiliar_saving_arrays()
@@ -411,6 +431,7 @@ contains
 !      print*,'Getting boundaries bc_type_non_slip_adiabatic, but could use any boundary tag.. '
     
      allocate(coord_input_safe(npoin,ndime))
+     !$acc enter data create(coord_input_safe(:,:))
     
      !$acc parallel loop  
      do inode = 1,npoin
@@ -425,6 +446,8 @@ contains
 !         end if ! This guy
      end do
      !$acc end parallel loop
+     !$acc update host(coord_input_safe(:,:))
+
 
   end subroutine save_input_coordinates
   !
@@ -448,6 +471,7 @@ contains
      h_ref = 6.28319_rp/8.0_rp ! for the cube mesh...
      
      allocate(metric(ndime,ndime,npoin))
+      !$acc enter data create(metric(:,:,:))
     
      !$acc parallel loop  
      do inode = 1,npoin
@@ -542,8 +566,11 @@ contains
     real(rp),    intent(in   ) :: coord_input_safe(npoin,ndime)
     integer(4) :: ielem, inode, idime,i,j,k,id_vertex,theNode,theVertex
     
-    real(rp) :: Nx,Ny,Nz,N(nnode,8),xnode_lin(3),minus_plus_one(2)
+    real(rp) :: Nx,Ny,Nz,xnode_lin(3),minus_plus_one(2),coordLocal(ndime)
     
+    allocate(N_lin(nnode,nnode))
+    !$acc enter data create(N_lin(:,:))
+
     ! isoparametric mapping: construct linear shape functions
     minus_plus_one(1) = -1.0_rp
     minus_plus_one(2) =  1.0_rp
@@ -556,34 +583,53 @@ contains
           Ny = ( 1.0_rp + (minus_plus_one(j) *xgp(inode,2)) )/2.0_rp
           do i=1,2
             Nx = ( 1.0_rp + (minus_plus_one(i) *xgp(inode,1)) )/2.0_rp
-            
             ! eval shape fun on master coordinates xgp
             id_vertex = invAtoIJK(i,j,k)
-            N(inode,id_vertex) = Nx*Ny*Nz
-          
+            N_lin(inode,id_vertex) = Nx*Ny*Nz
           end do !i
         end do !j
       end do !k
     end do !inode
     
-    !$acc parallel loop  
+    !$acc update device(N_lin(:,:))
+
+    !$acc parallel loop private(coordLocal)
     do ielem = 1,nelem
-      coords(connec(ielem,1:8),:) = coord_input_safe(connec(ielem,1:8),:)
-      do inode = 9,nnode ! avoid the vertices of the hex
-        !for each element and node, we now compute the straight position
+      !coords(connec(ielem,1:8),:) = coord_input_safe(connec(ielem,1:8),:)
+      !$acc loop seq
+!      do inode = 9,nnode ! avoid the vertices of the hex
+      do inode = 1,nnode ! avoid the vertices of the hex
+        !for each element and node, we now compute the straight position        
         
         theNode = connec(ielem,inode)
-        coords(theNode,:) = 0.0_rp
-        
-        do id_vertex=1,8
-          theVertex = connec(ielem,id_vertex)
-          xnode_lin = coord_input_safe(theVertex,:)
-        
-          do idime =1,3
-            coords(theNode,idime) = coords(theNode,idime) + xnode_lin(idime)*N(inode,id_vertex)
-          end do !idime
-        end do
+        !coords(theNode,:) = 0.0_rp
+        coordLocal(:) = 0.0_rp
+        !$acc loop seq
+        do k=1,2
+          !$acc loop seq
+          do j=1,2
+            !$acc loop seq
+            do i=1,2
+        !do id_vertex=1,8
+              !theVertex = connec(ielem,id_vertex)
+              id_vertex = invAtoIJK(i,j,k)
+              theVertex = connec(ielem,id_vertex)
+              xnode_lin = coord_input_safe(theVertex,:)
+                        
+              !$acc loop seq
+              do idime =1,3
+                coordLocal(idime) = coordLocal(idime) + xnode_lin(idime)*N_lin(inode,id_vertex)
+              end do !idime
+            end do
+          end do
+        end do  
 
+        !$acc loop seq        
+        do idime =1,ndime
+          !$acc atomic write
+          coords(theNode, idime) = coordLocal(idime)
+          !$acc end atomic 
+        end do
 !         print*,'theNode:',theNode,'   ielem: ',ielem,' inode: ',inode
 !         print*,coords(theNode,:)
 !         print*,coord_input_safe(theNode,:)
@@ -611,6 +657,7 @@ contains
     !
     is_imposed_displacement = .true.
     allocate(imposed_displacement(npoin,ndime))
+    !$acc enter data create(imposed_displacement(:,:))
     !$acc parallel loop
     do inode = 1,npoin
       imposed_displacement(inode,:) = 0.0_rp
@@ -813,6 +860,9 @@ contains
     countLowQ = 0
     minQ = 1.0_rp
     maxQ = 0.0_rp
+
+    !$acc update host(coordPar(:,:))
+
     do ielem = 1,numElemsRankPar
       !
       call eval_ElemQuality(size(connecParWork,2),ngaus,numNodesRankPar,numElemsRankPar,&
@@ -831,6 +881,9 @@ contains
         countLowQ = countLowQ+1
       end if
     end do
+
+    !$acc update device(mu_e(:,:))
+
     !
     if(minQ<0) minQ = 0.0_rp
     !print*,'   Num invalid: ',countInvalid,'     Num lowQ: ',countLowQ
@@ -852,7 +905,7 @@ contains
       !
       !$acc parallel loop
       do iNodeL=1,numNodesRankPar
-        u_buffer(iNodeL,:) = this%imposed_displacement(iNodeL,:)
+        u_buffer(iNodeL,:) = imposed_displacement(iNodeL,:)
       end do
       !$acc end parallel loop
       ! 

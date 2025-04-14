@@ -176,6 +176,7 @@ module CFDSolverBase_mod
       procedure, public :: checkFound => CFDSolverBase_checkFound
       procedure, public :: readJSONBCTypes => CFDSolverBase_readJSONBCTypes
       procedure, public :: readJSONBuffer => CFDSolverBase_readJSONBuffer
+      procedure, public :: readJSONMeshElasticityTypes => CFDSolverBase_readJSONMeshElasticityTypes
       procedure, public :: eval_vars_after_load_hdf5_resultsFile => CFDSolverBase_eval_vars_after_load_hdf5_resultsFile 
       procedure, public :: findFixPressure => CFDSolverBase_findFixPressure
 
@@ -189,6 +190,40 @@ module CFDSolverBase_mod
       procedure :: checkIfSymmetryOn
    end type CFDSolverBase
 contains
+
+subroutine CFDSolverBase_readJSONMeshElasticityTypes(this)
+   use json_module
+   implicit none
+   class(CFDSolverBase), intent(inout) :: this
+   logical :: found
+   type(json_file) :: json
+   integer :: json_nbouCodes,iBouCodes,id
+   TYPE(json_core) :: jCore
+   TYPE(json_value), pointer :: bouCodesPointer, testPointer, p
+   character(len=:) , allocatable :: value
+
+   call json%initialize()
+   call json%load_file(json_filename)
+
+   call json%get('elasticity_problemType', value, found,"elasticity_non_setup")
+
+   if(found) then
+      if(value .eq. "elasticity_fromBouCurving") then
+         elasticity_problemType = elasticity_fromBouCurving
+      else if(value .eq. "elasticity_fromALE") then
+         elasticity_problemType = elasticity_fromALE
+      end if
+   else
+      if(mpi_rank .eq. 0) then
+         write(111,*) 'WARRNING! JSON file error on the elasticity_problemType definition, the model does not exist, elasticity_non_setup fixed'
+      end if
+      elasticity_problemType = elasticity_non_setup
+   end if
+
+   call json%destroy()
+
+end subroutine CFDSolverBase_readJSONMeshElasticityTypes
+
 
 subroutine CFDSolverBase_findFixPressure(this)
    implicit none

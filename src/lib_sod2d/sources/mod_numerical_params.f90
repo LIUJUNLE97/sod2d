@@ -142,4 +142,9 @@ module mod_numerical_params
         real(rp) :: center_mom_y = 0.0_rp
         real(rp) :: center_mom_z = 0.0_rp
 
+
+        ! Type of mesh elasticity problem
+
+        integer(4), public :: elasticity_problemType = elasticity_non_setup
+
 end module mod_numerical_params
