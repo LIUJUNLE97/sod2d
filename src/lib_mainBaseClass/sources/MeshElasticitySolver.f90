@@ -99,6 +99,8 @@ contains
      call json%get("mesh_h5_file_name",value, found,"channel"); call this%checkFound(found,found_aux)
      write(this%mesh_h5_file_name,*) value
     
+     call json%get("save_logFile_step",this%save_logFile_step, found, 10); call this%checkFound(found,found_aux)
+
      call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
      call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)   
      
