@@ -163,14 +163,19 @@ contains
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
       call json%get("flag_implicit",flag_implicit, found,0); call this%checkFound(found,found_aux)
       call json%get("flag_imex_stages",flag_imex_stages, found,4); call this%checkFound(found,found_aux)
-      call json%get("flag_walave",flag_walave, found,.true.); call this%checkFound(found,found_aux)
       call json%get("period_walave",period_walave, found,3600.0_rp); call this%checkFound(found,found_aux)
+      call json%get("flag_type_wmles",flag_type_wmles, found,1); call this%checkFound(found,found_aux)
+      call json%get("wmles_walex",wmles_walex, found,0.1_rp); !optional depending of the model
       call json%get("flag_les_ilsa",flag_les_ilsa, found,0); call this%checkFound(found,found_aux)
       call json%get("stau",stau, found,0.022_rp); call this%checkFound(found,found_aux)
       call json%get("T_ilsa",T_ilsa, found,300.0_rp); call this%checkFound(found,found_aux)
+      call json%get("flag_rk_ls_n",flag_rk_ls_n, found, 1)
 
       call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
       call json%get("cfl_diff",this%cfl_diff, found,0.95_rp); call this%checkFound(found,found_aux)
+
+      call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+
 
       
       call json%get("Lz",this%Lz, found,440.0_rp); call this%checkFound(found,found_aux)

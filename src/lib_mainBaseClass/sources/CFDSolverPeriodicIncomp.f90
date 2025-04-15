@@ -88,8 +88,8 @@ contains
       
       call init_rk4_solver_incomp(numNodesRankPar) 
       if(flag_use_species .eqv. .true.) then
-         !call init_imex_species_solver(numNodesRankPar,numElemsRankPar)
-         call init_rk4_ls_species_solver(numNodesRankPar,numElemsRankPar)
+         call init_imex_species_solver(numNodesRankPar,numElemsRankPar)
+         !call init_rk4_ls_species_solver(numNodesRankPar,numElemsRankPar)
       end if
 
    end subroutine CFDSolverPeriodicIncomp_initNSSolver
@@ -153,16 +153,16 @@ contains
       if(flag_use_species .eqv. .true.) then
          do ispc = 1,nspecies
             call imex_species_main(ispc,istep,this%local_step,this%save_logFile_next,this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-            1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Cp,this%Prt, &
+            1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,invMl,gpvol,this%dt,helem,helem_l,this%Cp,this%Prt, &
             rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,workingNodesPar,mu_fluid,mue_l)   
             !call rk_4_ls_species_main(ispc,this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbnNodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-            !1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Cp,this%Prt, &
+            !1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,invMl,gpvol,this%dt,helem,helem_l,this%Cp,this%Prt, &
             !rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,workingNodesPar,mu_fluid,mue_l)   
          end do
       end if
 
       call ab_main_incomp(istep,this%local_step,this%save_logFile_next,this%noBoundaries,this%isWallModelOn,numElemsRankPar,numBoundsRankPar,numNodesRankPar,numWorkingNodesRankPar,numBoundsWMRankPar,point2elem,lnbnNodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,this%leviCivi,&
-            1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
+            1,connecParWork,Ngp,dNgp,coordPar,wgp,He,Ml,invMl,gpvol,this%dt,helem,helem_l,this%Rgas,this%gamma_gas,this%Cp,this%Prt, &
             rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,workingNodesPar,mu_fluid,mu_factor,mue_l)
       
 

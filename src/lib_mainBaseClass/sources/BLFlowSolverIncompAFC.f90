@@ -270,7 +270,7 @@ contains
       !Filtering u buffer at the top of the domain
       if(mpi_size.ge.2) then
          call nvtxStartRange("MPI_comms_tI")
-         call mpi_halo_max_boundary_update_real_iSendiRcv(u_buffer(:,1))
+         call mpi_halo_bnd_atomic_max_real_iSendiRcv(u_buffer(:,1))
          call nvtxEndRange
       end if
 
@@ -540,6 +540,9 @@ contains
       call json%get("d0",this%d0, found,1.0_rp); call this%checkFound(found,found_aux)
       call json%get("rho0",this%rho0, found,1.0_rp); call this%checkFound(found,found_aux)
       call json%get("Red0",this%Red0, found,100.0_rp); call this%checkFound(found,found_aux)
+
+      call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+
 
       this%mu = this%rho0*this%d0*this%U0/this%Red0
 

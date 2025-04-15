@@ -1,0 +1,44 @@
+{
+   "type":"TGVSolverIncomp",
+
+   "mesh_h5_file_path":"../../",
+   "mesh_h5_file_name":"cube",
+
+   "results_h5_file_path":"",
+   "results_h5_file_name":"results",
+
+   "doGlobalAnalysis":true,
+   "doTimerAnalysis":true,
+
+   "save_logFile_first":1,
+   "save_logFile_step":10,
+
+   "save_resultsFile_first":1,
+   "save_resultsFile_step":2000,
+
+   "save_restartFile_first":1,
+   "save_restartFile_step":2000,
+
+   "loadRestartFile":false,
+   "restartFile_to_load":1,
+   "continue_oldLogs":false,
+
+   "saveAvgFile":false,
+   "loadAvgFile":false,
+
+   "saveSurfaceResults":false,
+   "saveInitialField":true,
+
+   "final_istep":500001,
+   "maxPhysTime":5.0,
+
+   "cfl_conv":0.5,
+   "cfl_diff":0.5,
+
+   "maxIter":20,
+   "tol":1e-2,
+
+   "Re":1600.0,
+
+   "flag_use_species":true
+}

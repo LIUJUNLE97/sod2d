@@ -20,7 +20,7 @@ module elem_diffu_incomp
              integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
              real(rp),   intent(in)  :: u(npoin,ndime), mu_e(nelem,ngaus), mu_sgs(nelem,ngaus),Ml(npoin)
              real(rp),   intent(in)  :: mu_fluid(npoin)
-             real(rp),   intent(out) :: Rmom(npoin,ndime)
+             real(rp),   intent(inout) :: Rmom(npoin,ndime)
              integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
              integer(4)              :: ipoin(nnode)
              real(rp)                :: mu_fgp, mu_egp,divU,nu_e,tau(ndime,ndime)

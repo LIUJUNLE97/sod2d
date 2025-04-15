@@ -105,11 +105,16 @@ contains
       call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
 
       call json%get("doTimerAnalysis",this%doTimerAnalysis, found,.false.)
+      call json%get("initial_avgTime",this%initial_avgTime, found,3600.0_rp); call this%checkFound(found,found_aux)
+
       !----------------------------------------------
       ! numerical params
       call json%get("flag_les",flag_les, found,1); call this%checkFound(found,found_aux)
       call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
+
+      call json%get("period_walave",period_walave, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("wmles_walex",wmles_walex, found,0.1_rp); !optional depending of the model
 
       call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
 
@@ -117,6 +122,12 @@ contains
       call json%get("delta",this%delta, found,1.0_rp); call this%checkFound(found,found_aux)
       call json%get("rho0",this%rho0, found,1.0_rp); call this%checkFound(found,found_aux)
       call json%get("Re",this%Re, found,10000.0_rp); call this%checkFound(found,found_aux)
+
+      call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+      call json%get("flag_les_ilsa",flag_les_ilsa, found,0); call this%checkFound(found,found_aux)
+      call json%get("stau",stau, found,0.022_rp); call this%checkFound(found,found_aux)
+      call json%get("T_ilsa",T_ilsa, found,1.0_rp); call this%checkFound(found,found_aux)
+
 
       !----------------------------------------------
       ! Inlet Database file
@@ -152,6 +163,7 @@ contains
       end if  
 
       call this%readJSONBuffer()
+      call this%readJSONWMTypes()
 
       call json%destroy()
 
@@ -327,14 +339,14 @@ contains
              !write(*,*) inode," is ",auxCnt
              auxCnt=auxCnt+1
              bcode = bouCodesNodesPar(inode)
-             write(*,*) "bcode = ", bcode 
+             !write(*,*) "bcode = ", bcode 
              if(bcode .lt. max_num_bou_codes) then
                 if (bcode == bc_type_unsteady_inlet) then
-                   write(*,*) "inlet = ", bcode
+                   !write(*,*) "inlet = ", bcode
                    do ipoin=1,npoinDB
                       if(iLine .eq. ipoinInletDB(ipoin)) then
                          myPointsDB(ipoin) = inode
-                         write(*,*) " data base", ipoin," = ",inode
+                         !write(*,*) " data base", ipoin," = ",inode
                       end if
                    end do
                 end if
@@ -349,7 +361,7 @@ contains
        do inode = 1,npoinDB
           ipoin = myPointsDB(inode)
           if(ipoin .gt. 0) then
-             write(*,*) inode, " ", ipoin
+             !write(*,*) inode, " ", ipoin
              u_buffer(ipoin,1) = uInletDB(1,inode)
              u_buffer(ipoin,2) = vInletDB(1,inode)
              u_buffer(ipoin,3) = wInletDB(1,inode) 
@@ -372,7 +384,7 @@ contains
        tIdLow  = floor(tStar/this%deltaT+1)
        tIdUp   = ceiling(tStar/this%deltaT+1)
 
-       if(mpi_rank.eq.0) write(*,*) 'tIdUp ',tIdUp
+       !if(mpi_rank.eq.0) write(*,*) 'tIdUp ',tIdUp
        
        ! Main idea:
        ! u_buffer(ipoin,1) = u(tIdLow) + ((u(tIdUp) - u(tIdLow))/(deltaT)) * (tStar - (tIdLow - 1)*deltaT)

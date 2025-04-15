@@ -8,7 +8,7 @@ module elem_stab_species
     use mod_hdf5
     use mod_comms
  
-    contains
+    contains 
 
     subroutine species_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Yk,gradYk,Cp,Prt,rho,tau,Ml,RYk,initialze,fact)
             implicit none
@@ -20,7 +20,7 @@ module elem_stab_species
             real(rp),    intent(in)  :: gpvol(1,ngaus,nelem)
             integer(4), intent(in)  ::  invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
             real(rp),    intent(in)  :: Yk(npoin), gradYk(npoin,ndime), tau(nelem),Ml(npoin),rho(npoin),Cp,Prt
-            real(rp),    intent(out) :: RYk(npoin)
+            real(rp),    intent(inout) :: RYk(npoin)
             logical, optional, intent(in)    :: initialze
             real(rp), optional, intent(in)  :: fact
             integer(4)              :: ielem, igaus, inode, idime, jdime, isoI, isoJ, isoK,kdime,ii
@@ -97,7 +97,7 @@ module elem_stab_species
                     isoK = gmshAtoK(igaus) 
 
                     divDy = 0.0_rp
-                    kappa_y = tau(ielem)*rhol(igaus)*Cp/Prt
+                    kappa_y = tau(ielem)/Prt
                     
                     !$acc loop seq
                     do ii=1,porder+1
@@ -146,6 +146,4 @@ module elem_stab_species
         !$acc end parallel loop
 
     end subroutine species_tau
-
-
 end module elem_stab_species

@@ -56,7 +56,7 @@ module time_integ_species_imex
    end subroutine end_imex_species_solver
  
          subroutine imex_species_main(ispc,igtime,iltime,save_logFile_next,noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
-                         ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Cp,Prt, &
+                         ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Cp,Prt, &
                          rho,u,Yk,eta_Yk,mu_e_Yk,mu_sgs,lpoin_w,mu_fluid,mue_l, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
                          listBoundsWM,wgp_b,bounorm,normalsAtNodes,Yk_buffer,walave_u,walave_t,zo)  ! Optional args
@@ -75,7 +75,7 @@ module time_integ_species_imex
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
             real(rp),             intent(in)    :: dt, helem(nelem)
             real(rp),             intent(in)    :: helem_l(nelem,nnode)
-            real(rp),             intent(in)    :: Ml(npoin)
+            real(rp),             intent(in)    :: Ml(npoin), invMl(npoin)
             real(rp),             intent(in)    :: Cp, Prt
             real(rp),             intent(inout) :: rho(npoin,4)
             real(rp),             intent(inout) :: u(npoin,ndime,4)
@@ -173,7 +173,7 @@ module time_integ_species_imex
                   !$acc end kernels
                   call evalWallModelABLtemp(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                         bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol,Cp,mu_fluid,&
-                        rho(:,1),walave_u(:,:),walave_t(:),zo,Rwmles)
+                        rho(:,1),walave_u(:,:),walave_t(:),Yk_buffer(:,ispc),zo,Rwmles)
                end if
                call nvtxEndRange
        
@@ -186,7 +186,7 @@ module time_integ_species_imex
 
 #endif
             call species_tau(nelem,npoin,connec,u(:,:,1),helem,dt,tau)
-
+            
             call nvtxStartRange("AB2 species")
 
             call species_convec_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,rho(:,1),Yk(:,ispc,1),u(:,:,1),RYk(:,ispc,2))               
@@ -204,7 +204,7 @@ module time_integ_species_imex
             do ipoin = 1,npoin_w
                ipoin_w = lpoin_w(ipoin)
                Yk(ipoin_w,ispc,2) = -(beta(1)*RYk(ipoin_w,ispc,2)+beta(2)*RYk(ipoin_w,ispc,1)+beta(3)*RYk(ipoin_w,ispc,3)) - Rwmles(ipoin_w)
-               Yk(ipoin_w,ispc,2) = Cp*rho(ipoin_w,2)*Ml(ipoin_w)*(dt*Yk(ipoin_w,ispc,2)/Ml(ipoin_w) + alpha(1)*Yk(ipoin_w,ispc,1) + alpha(2)*Yk(ipoin_w,ispc,3) + alpha(3)*Yk(ipoin_w,ispc,4))/gamma0
+               Yk(ipoin_w,ispc,2) = Ml(ipoin_w)*(dt*Yk(ipoin_w,ispc,2)/Ml(ipoin_w) + alpha(1)*Yk(ipoin_w,ispc,1) + alpha(2)*Yk(ipoin_w,ispc,3) + alpha(3)*Yk(ipoin_w,ispc,4))/gamma0
                RYk(ipoin_w,ispc,3) = RYk(ipoin_w,ispc,1)
                RYk(ipoin_w,ispc,1) = RYk(ipoin_w,ispc,2)
             end do
@@ -213,12 +213,13 @@ module time_integ_species_imex
             call nvtxEndRange
             
             call conjGrad_species(ispc,igtime,1.0_rp/gamma0,dt,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
-                             gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,mu_fluid,mu_e_Yk(:,:,ispc),mu_sgs,tau,Cp,Prt,rho(:,2),Yk(:,ispc,1),Yk(:,ispc,2),&
+                             gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,invMl,mu_fluid,mu_e_Yk(:,:,ispc),mu_sgs,tau,Cp,Prt,rho(:,1),u(:,:,1),Yk(:,ispc,1),Yk(:,ispc,2),&
                              bou_codes,bound,nbnodes,lbnodes,lnbn_nodes,bou_codes_nodes,normalsAtNodes,Yk_buffer)
 
             if (noBoundaries .eqv. .false.) then
                call temporary_bc_routine_dirichlet_species(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,Yk(:,ispc,2),Yk_buffer(:,ispc))
             end if
+            if (flag_buffer_on .eqv. .true.) call updateBuffer_species(npoin,npoin_w,coord,lpoin_w,Yk(:,ispc,2),Yk_buffer(:,ispc))
 
             !
             ! Compute subgrid viscosity if active
@@ -263,4 +264,75 @@ module time_integ_species_imex
             end if
          end subroutine imex_species_main
 
+         subroutine updateBuffer_species(npoin,npoin_w,coord,lpoin_w,Yk,Yk_buffer)
+            implicit none
+            integer(4),           intent(in)    :: npoin
+            integer(4),           intent(in)    :: npoin_w
+            real(rp),             intent(in)    :: coord(npoin,ndime)
+            integer(4),           intent(in)    :: lpoin_w(npoin_w)
+            real(rp),             intent(inout) :: Yk(npoin)
+            real(rp), optional,   intent(in)    :: Yk_buffer(npoin)
+            integer(4) :: ipoin
+            real(rp)   :: xs,xb,xi,c1,c2
+
+            c1 = 0.01_rp
+            c2 = 10.0_rp
+
+            call nvtxStartRange("Update buffer")
+            !$acc parallel loop
+            do ipoin = 1,npoin_w
+               xi = 1.0_rp
+                  !east
+                  if(flag_buffer_on_east .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),1)
+                     if(xs>flag_buffer_e_min) then
+                        xb = (xs-flag_buffer_e_min)/flag_buffer_e_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
+                  end if
+                  !west
+                  if(flag_buffer_on_west .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),1)
+                     if(xs<flag_buffer_w_min) then
+                        xb = (flag_buffer_w_min-xs)/flag_buffer_w_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
+                  end if
+                  !north
+                  if(flag_buffer_on_north .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),2)
+                     if(xs>flag_buffer_n_min) then
+                        xb = (xs-flag_buffer_n_min)/flag_buffer_n_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
+                  end if
+                  !south
+                  if(flag_buffer_on_south .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),2)
+                     if(xs<flag_buffer_s_min) then
+                        xb = (flag_buffer_s_min-xs)/flag_buffer_s_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
+                  end if
+                  !top
+                  if(flag_buffer_on_top .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),3)
+                     if(xs>flag_buffer_t_min) then
+                        xb = (xs-flag_buffer_t_min)/flag_buffer_t_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
+                  end if
+                  !bottom
+                  if(flag_buffer_on_bottom .eqv. .true.) then
+                     xs = coord(lpoin_w(ipoin),3)
+                     if(xs<flag_buffer_b_min) then
+                        xb = (flag_buffer_b_min-xs)/flag_buffer_b_size
+                        xi = min((1.0_rp-c1*xb*xb)*(1.0_rp-(1.0_rp-exp(c2*xb*xb))/(1.0_rp-exp(c2))),xi)
+                     end if
+                  end if
+               Yk(lpoin_w(ipoin)) = Yk_buffer(lpoin_w(ipoin)) + xi*(Yk(lpoin_w(ipoin))-Yk_buffer(lpoin_w(ipoin)))
+            end do
+            !$acc end parallel loop
+            call nvtxEndRange
+         end subroutine updateBuffer_species         
        end module time_integ_species_imex

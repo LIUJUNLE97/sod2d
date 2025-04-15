@@ -8,6 +8,7 @@ module mod_numerical_params
         integer(4) :: flag_rk_order=4 
         integer(4) :: flag_implicit=0
         integer(4) :: flag_rk_ls_stages=5  
+        integer(4) :: flag_rk_ls_n=1
         logical :: flag_rk_ls = .true.
 
 
@@ -23,6 +24,7 @@ module mod_numerical_params
         logical :: flag_high_mach = .true.
         logical :: flag_bouyancy_effect = .false.
         logical :: flag_drop_c_in_envit = .false.
+        logical :: flag_lps_stab = .true.
         integer(4)  :: flag_solver_type=1    ! 1 = Lumped, 2 = APINV, 3 = CG
         integer(4)  :: flag_spectralElem=1  ! 0 for Lagrange type, 1 for Chebyshev type
         integer(4)  :: flag_normalise_entropy=1
@@ -99,8 +101,8 @@ module mod_numerical_params
         ! Wall model averaging
         !
         real(rp)    :: period_walave   = 1.0_rp
-        logical     :: flag_walave     = .false.
-        integer(4)  :: flag_walex      = 3
+        logical     :: flag_walave     = .true.
+        real(rp)    :: wmles_walex = 0.1_rp
         integer(4)  :: flag_type_wmles = wmles_type_reichardt
 
         !
@@ -146,5 +148,19 @@ module mod_numerical_params
         ! Type of mesh elasticity problem
 
         integer(4), public :: elasticity_problemType = elasticity_non_setup
+        
+        !pseduo time stepping steady euler
+        real(rp)    :: pseudo_cfl = 0.1_rp
+        real(rp)    :: pseudo_ftau = 15.0_rp
+        integer(4) :: pseudo_steps=10
+        integer(4) ::  maxIterNonLineal=20
+
+        ! tripping parameters (rough element)
+
+        logical :: flag_trip_element = .false.
+        real(rp) :: x_trip_o = 0.0_rp
+        real(rp) :: y_trip_o = 0.0_rp
+        real(rp) :: l_trip_x = 1.0_rp
+        real(rp) :: l_trip_y = 1.0_rp
 
 end module mod_numerical_params

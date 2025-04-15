@@ -1,4 +1,3 @@
-
 module time_integ_ls
 
    use mod_nvtx
@@ -14,7 +13,9 @@ module time_integ_ls
    use mod_sgs_ilsa_viscosity
    use mod_bc_routines
    use mod_wall_model
+   use mod_operators
    use time_integ, only : updateBuffer, limit_rho
+   use mod_rough_elem
 
    implicit none
 
@@ -109,16 +110,57 @@ module time_integ_ls
          lambda_ij(2,1) = 1.0_rp
          lambda_ij(3,2) = 1.0_rp
          lambda_ij(4,3) = 1.0_rp
-         lambda_ij(5,1) = real(0.571403511494104d0,rp)
-         lambda_ij(5,4) = real(0.428596488505896d0,rp)
+         lambda_ij(5,4) = 1.0_rp
          lambda_ij(6,5) = 1.0_rp
-
          gamma_ij(:,:) = 0.0_rp
-         gamma_ij(2,1) = real(0.443568244942995d0,rp)
-         gamma_ij(3,2) = real(0.291111420073766d0,rp)
-         gamma_ij(4,3) = real(0.270612601278217d0,rp)
-         gamma_ij(5,4) = real(0.110577759392786d0,rp)
-         gamma_ij(6,5) = real(0.458557505351052d0,rp)
+         select case (flag_rk_ls_n)
+            case (1)
+               !SSP53_2N_1
+               lambda_ij(5,1) = real(0.571403511494104d0,rp)
+               lambda_ij(5,4) = real(0.428596488505896d0,rp)
+
+               gamma_ij(2,1) = real(0.443568244942995d0,rp)
+               gamma_ij(3,2) = real(0.291111420073766d0,rp)
+               gamma_ij(4,3) = real(0.270612601278217d0,rp)
+               gamma_ij(5,4) = real(0.110577759392786d0,rp)
+               gamma_ij(6,5) = real(0.458557505351052d0,rp)
+            case (2)
+               !SSP53_2N_2
+               lambda_ij(4,1) = real(0.682342861037239d0,rp) ! lambda_41
+               lambda_ij(4,3) = real(0.317657138962761d0,rp) ! lambda_43
+               lambda_ij(6,1) = real(0.045230974482400d0,rp) ! lambda_61
+               lambda_ij(6,5) = real(0.954769025517600d0,rp) ! lambda_65
+
+               gamma_ij(2,1) = real(0.465388589249323,rp) ! gamma_21
+               gamma_ij(3,2) = real(0.465388589249323,rp) ! gamma_32
+               gamma_ij(4,3) = real(0.124745797313998,rp) ! gamma_43
+               gamma_ij(5,4) = real(0.465388589249323,rp) ! gamma_54
+               gamma_ij(6,5) = real(0.154263303748666,rp) ! gamma_65
+            case (3)
+               !SSP53_2N_3
+               lambda_ij(5,1) = real(0.592032910942121,rp)
+               lambda_ij(5,4) = 1.0_rp - lambda_ij(5,1)
+               
+               gamma_ij(2,1) = real(0.266541020678955,rp)
+               gamma_ij(3,2) = real(0.548560709048532,rp)
+               gamma_ij(4,3) = real(0.289517014154401,rp)
+               gamma_ij(5,4) = real(0.086408328057923,rp)
+               gamma_ij(6,5) = real(0.462943578481813,rp)
+            case (4)
+               !SSP53_2N_4
+               lambda_ij(4,1) = real(0.707858560931430,rp)
+               lambda_ij(4,3) = 1.0_rp - lambda_ij(4,1)
+               lambda_ij(6,1) = real(0.222853615080669,rp)
+               lambda_ij(6,5) = 1.0_rp - lambda_ij(6,1)
+               
+               gamma_ij(2,1) = real(0.292845746913355,rp)
+               gamma_ij(3,2) = real(0.339532793976408,rp)
+               gamma_ij(4,3) = real(0.200532330324672,rp)
+               gamma_ij(5,4) = real(0.701676169006879,rp)
+               gamma_ij(6,5) = real(0.155278812461877,rp)
+            case default
+               print *, 'wrong option bro!!!'
+         end select
       else
          write(1,*) "--| NOT CODED FOR RK_LS stages > 5 YET!"
          stop 1
@@ -135,7 +177,7 @@ module time_integ_ls
 
       !$acc exit data delete(aux_h(:))
       deallocate(aux_h)
-      
+
       !$acc exit data delete(Rmass(:))
       !$acc exit data delete(Rener(:))
       !$acc exit data delete(auxReta(:))
@@ -154,10 +196,10 @@ module time_integ_ls
    end subroutine end_rk4_ls_solver
 
          subroutine rk_4_ls_main(noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,&
-                         ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+                         ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
-                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_mapped,tauw,source_term,walave_u,zo)  ! Optional args
+                         listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_mapped,tauw,source_term,walave_u,walave_pr,zo)  ! Optional args
 
             implicit none
 
@@ -171,7 +213,7 @@ module time_integ_ls
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
             real(rp),             intent(in)    :: dt, helem(nelem)
             real(rp),             intent(in)    :: helem_l(nelem,nnode)
-            real(rp),             intent(in)    :: Ml(npoin)
+            real(rp),             intent(in)    :: Ml(npoin), invMl(npoin)
             real(rp),             intent(in)    :: mu_factor(npoin)
             real(rp),             intent(in)    :: Rgas, gamma_gas, Cp, Prt
             real(rp),             intent(inout) :: rho(npoin,4)
@@ -203,10 +245,10 @@ module time_integ_ls
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime), u_mapped(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
-            real(rp), optional, intent(in)      :: source_term(npoin,ndime+2)
-            real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
+            real(rp), optional, intent(inout)      :: source_term(npoin,ndime+2)
+            real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_pr(npoin)
             real(rp), optional, intent(in)      :: zo(npoin)
-            integer(4)                          :: pos
+            integer(4)                          :: pos, ipoin_w, ielem, inode
             integer(4)                          :: istep, ipoin, idime,icode
             real(rp),    dimension(npoin)       :: Rrho
             real(rp)                            :: umag, rho_min, rho_avg
@@ -217,16 +259,60 @@ module time_integ_ls
             !
             pos = 2 ! Set correction as default value
 
-            call comp_tau(nelem,npoin,connec,csound,u(:,:,pos),helem,dt,tau_stab_ls)
+            if(flag_lps_stab) then
+               call comp_tau(nelem,npoin,connec,csound,u(:,:,pos),helem,dt,tau_stab_ls)
+            end if
 
             if(firstTimeStep .eqv. .true.) then
                firstTimeStep = .false.
 
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  ipoin_w = lpoin_w(ipoin)
+                  !$acc loop seq
+                  do idime = 1,ndime
+                     f_eta(ipoin_w,idime) = u(ipoin_w,idime,1)*eta(ipoin_w,1)
+                  end do
+               end do
+               !$acc end parallel loop
+         
+               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+                  gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:,1))
+         
+               if(mpi_size.ge.2) then
+                  call mpi_halo_atomic_update_real(Reta(:,1))
+               end if
+         
+               call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Reta(:,1))      
+                  
+               call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,Reta(:,1),Ngp,coord,dNgp,gpvol,wgp, &
+               gamma_gas,rho(:,1),u(:,:,1),csound,Tem(:,1),eta(:,1),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)                  
+
+               if((isWallModelOn) ) then
+                  if(flag_type_wmles == wmles_type_reichardt) then
+                     call evalEXAtFace(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  else if (flag_type_wmles == wmles_type_abl) then
+                     call evalEXAtFace(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  else if (flag_type_wmles == wmles_type_reichardt_hwm) then
+                     call evalEXAtHWM(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  else if (flag_type_wmles == wmles_type_thinBL_fit) then
+                     call evalEXAt1OffNode(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  else if (flag_type_wmles == wmles_type_thinBL_fit_hwm) then
+                     call evalEXAtHWM(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                           bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  end if  
+               end if
+               
                call updateF(noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,&
-                        ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+                        ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&            
-                        listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_mapped,tauw,source_term,walave_u,zo)
+                        listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_mapped,tauw,source_term,walave_u,walave_pr,zo)
+                              
             end if           
             
 
@@ -249,10 +335,10 @@ module time_integ_ls
             do istep = 2,flag_rk_ls_stages
 
                call updateF(noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,&
-                        ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+                        ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                         rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                         ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&            
-                        listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_mapped,tauw,source_term,walave_u,zo)
+                        listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_mapped,tauw,source_term,walave_u,walave_pr,zo)
                !
                ! Accumulate the residuals
                !
@@ -334,7 +420,7 @@ module time_integ_ls
                call mpi_halo_atomic_update_real(Reta(:,2))
             end if
 
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,2))
+            call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Reta(:,2))
 
             call nvtxStartRange("Entropy residual")
             !$acc parallel loop
@@ -366,7 +452,7 @@ module time_integ_ls
                call mpi_halo_atomic_update_real(Reta(:,2))
             end if
 
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Reta(:,2))
+            call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Reta(:,2))
 
             call generic_scalar_convec_projection_residual_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
                gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:,2),auxReta)
@@ -374,7 +460,7 @@ module time_integ_ls
             if(mpi_size.ge.2) then
                call mpi_halo_atomic_update_real(auxReta)
             end if
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,auxReta)    
+            call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,auxReta)    
 
             if (noBoundaries .eqv. .false.) then
                call nvtxStartRange("BCS_AFTER_UPDATE")
@@ -413,10 +499,10 @@ module time_integ_ls
          end subroutine rk_4_ls_main        
 
          subroutine updateF(noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,&
-            ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
+            ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
             rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
             ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
-            listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_mapped,tauw,source_term,walave_u,zo)  ! Optional args
+            listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer,u_mapped,tauw,source_term,walave_u,walave_pr,zo)  ! Optional args
 
             implicit none
 
@@ -430,7 +516,7 @@ module time_integ_ls
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
             real(rp),             intent(in)    :: dt, helem(nelem)
             real(rp),             intent(in)    :: helem_l(nelem,nnode)
-            real(rp),             intent(in)    :: Ml(npoin)
+            real(rp),             intent(in)    :: Ml(npoin), invMl(npoin)
             real(rp),             intent(in)    :: mu_factor(npoin)
             real(rp),             intent(in)    :: Rgas, gamma_gas, Cp, Prt
             real(rp),             intent(inout) :: rho(npoin,4)
@@ -462,13 +548,15 @@ module time_integ_ls
             real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
             real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime),u_mapped(npoin,ndime)
             real(rp), optional,   intent(inout) :: tauw(npoin,ndime)
-            real(rp), optional, intent(in)      :: source_term(npoin,ndime+2)
-            real(rp), optional, intent(in)      :: walave_u(npoin,ndime)
+            real(rp), optional, intent(inout)      :: source_term(npoin,ndime+2)
+            real(rp), optional, intent(in)      :: walave_u(npoin,ndime),walave_pr(npoin)
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: pos
             integer(4)                          :: istep, ipoin, idime,icode
             real(rp),    dimension(npoin)       :: Rrho
             real(rp)                            :: umag, rho_min, rho_avg
+
+            call nvtxStartRange("UpdateF")
 
             pos = 2
 
@@ -527,50 +615,78 @@ module time_integ_ls
             ! Compute diffusion terms with values at current substep
             !
             call nvtxStartRange("CONVDIFFS")
-
-            call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),rho(:,pos),u(:,:,pos),&
-                                    Tem(:,pos),mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener,.true.,-1.0_rp)
             call full_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He,gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),q(:,:,pos),rho(:,pos),&
-                                    pr(:,pos),aux_h,Rmass,Rmom,Rener,.false.,-1.0_rp)               
-            call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),u(:,:,pos),&
-                                 Tem(:,pos),Ml,ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls)
-            call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),rho(:,pos),u(:,:,pos),&
-                                 Tem(:,pos),Ml,ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls,tau_stab_ls,Rmass,Rmom,Rener,.false.,1.0_rp) 
-
+                                    pr(:,pos),aux_h,Rmass,Rmom,Rener,.true.,-1.0_rp)    
+            if(flag_lps_stab) then
+               call nvtxStartRange("Stab + Diffu")
+               call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),u(:,:,pos),&
+                                 Tem(:,pos),Ml,invMl,ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls) 
+               call full_diff_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),rho(:,pos),u(:,:,pos),&
+                                 Tem(:,pos),mu_fluid,mu_e,mu_sgs,Ml,ProjMass_ls,ProjEner_ls,ProjMX_ls,ProjMY_ls,ProjMZ_ls,tau_stab_ls,Rmass,Rmom,Rener,.false.,-1.0_rp)
+               call nvtxEndRange
+            else 
+               call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,rho(:,pos),rho(:,pos),u(:,:,pos),&
+                                    Tem(:,pos),mu_fluid,mu_e,mu_sgs,Ml,Rmass,Rmom,Rener,.false.,-1.0_rp)                                 
+            end if
             call nvtxEndRange
             !
             ! Call source term if applicable
             !
             
             if(present(source_term) .or.flag_bouyancy_effect) then
-               if(flag_bouyancy_effect) then
-                  call mom_source_bouyancy_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,pos),Rmom,-1.0_rp)
-                  call ener_source_bouyancy(nelem,npoin,connec,Ngp,dNgp,He,gpvol,q(:,:,pos),Rener,-1.0_rp)
-               else if(present(source_term)) then
-                  call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,pos),source_term(:,3:ndime+2),Rmom,-1.0_rp)
-                  call ener_source_const(nelem,npoin,connec,Ngp,dNgp,He,gpvol,source_term(:,2),Rener,-1.0_rp)
+               call nvtxStartRange("Extra terms")
+
+               if(flag_trip_element) then
+                  call mom_source_rough_elem(npoin,coord,rho(:,pos),u(:,:,pos),source_term(:,3:ndime+2))
+                  call ener_source_rough_elem(npoin,coord,rho(:,pos),q(:,:,pos),source_term(:,:))
                end if
+
+               if(flag_bouyancy_effect) then
+                  call mom_source_bouyancy_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,rho(:,pos),Rmom,1.0_rp)
+                  call ener_source_bouyancy(nelem,npoin,connec,Ngp,dNgp,He,gpvol,q(:,:,pos),Rener,1.0_rp)
+               else if(present(source_term)) then
+                  call mom_source_const_vect(nelem,npoin,connec,Ngp,dNgp,He,gpvol,u(:,1:ndime,pos),source_term(:,3:ndime+2),Rmom,1.0_rp) 
+                  call ener_source_const(nelem,npoin,connec,Ngp,dNgp,He,gpvol,source_term(:,2),Rener,1.0_rp)
+               end if               
+               call nvtxEndRange
             end if
 
             !
             ! Evaluate wall models
 
-            if((isWallModelOn) .and. (numBoundsWM .ne. 0)) then
+            if((isWallModelOn) ) then
                call nvtxStartRange("WALL MODEL")
-               if(flag_type_wmles == wmles_type_reichardt) then
-                  call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                  bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,rho(:,pos),walave_u(:,:),tauw,Rmom,-1.0_rp)
-               else if (flag_type_wmles == wmles_type_abl) then
-                  call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
-                                       bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
-                                       rho(:,pos),walave_u(:,:),zo,tauw,Rmom,-1.0_rp)
-               end if   
-               call nvtxEndRange                              
+               if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then
+                  call nvtxStartRange("thinBL_WM_init")
+                  call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,walave_pr(:),f_eta2,.true.)
+                  call nvtxEndRange
+               end if
+               if((numBoundsWM .ne. 0)) then
+                  if((flag_type_wmles == wmles_type_reichardt) .or. (flag_type_wmles == wmles_type_reichardt_hwm)) then
+                     call nvtxStartRange("Reichardt_WM")
+                     call evalWallModelReichardt(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                     bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,rho(:,pos),walave_u(:,:),tauw,Rmom,-1.0_rp)
+                     call nvtxEndRange
+                  else if (flag_type_wmles == wmles_type_abl) then
+                     call nvtxStartRange("ABL_WM")
+                     call evalWallModelABL(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                                          bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
+                                          rho(:,pos),walave_u(:,:),zo,tauw,Rmom,-1.0_rp)
+                     call nvtxEndRange
+                  else if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then
+                     call nvtxStartRange("thinBL_WM")
+                     call evalWallModelThinBLFit(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
+                        bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
+                        rho(:,1),walave_u(:,:),f_eta2,tauw,Rmom,-1.0_rp)
+                     call nvtxEndRange
+                  end if
+               end if
+               call nvtxEndRange
             end if
 
             if(mpi_size.ge.2) then
                call nvtxStartRange("MPI_comms_tI")
-               call mpi_halo_atomic_update_real_mass_ener_momentum(Rmass(:),Rener(:),Rmom(:,:))
+               call mpi_halo_atomic_update_real_massEnerMom(Rmass(:),Rener(:),Rmom(:,:))
                call nvtxEndRange
             end if
 
@@ -578,9 +694,11 @@ module time_integ_ls
             ! Call lumped mass matrix solver
             !
             call nvtxStartRange("Call solver")
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rmass(:))
-            call lumped_solver_scal(npoin,npoin_w,lpoin_w,Ml,Rener(:))
-            call lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,Rmom(:,:))
+            call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Rmass(:))
+            call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Rener(:))
+            call lumped_solver_vect_opt(npoin,npoin_w,lpoin_w,invMl,Rmom(:,:))
+            call nvtxEndRange
+
             call nvtxEndRange
             
          end subroutine updateF                 

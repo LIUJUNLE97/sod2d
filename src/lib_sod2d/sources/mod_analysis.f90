@@ -191,7 +191,7 @@ module mod_analysis
 		!> @param[out] surfArea The area of the selected surface
 		subroutine surfInfo(iter,time,nelem,npoin,nbound,surfCode,connec,bound,point2elem,bou_code, &
 					bounorm,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,dlxigp_ip,He,coord, &
-					mu_fluid,mu_e,mu_sgs,rho,u,pr,surfArea,Fpr,Ftau,write_surfFile)
+					mu_fluid,mu_e,mu_sgs,rho,u,pr,surfArea,Fpr,Ftau,tauw,write_surfFile)
 
 			implicit none
 
@@ -203,7 +203,7 @@ module mod_analysis
 			real(rp),    intent(in)  :: rho(npoin), u(npoin,ndime), pr(npoin)
 			real(rp),    intent(in)  :: mu_e(nelem,ngaus), mu_sgs(nelem,ngaus), mu_fluid(npoin)
 			real(rp),    intent(in)  :: He(ndime,ndime,ngaus,nelem), dlxigp_ip(ngaus,ndime,porder+1),coord(npoin,ndime)
-			real(rp),    intent(out) :: surfArea, Fpr(ndime), Ftau(ndime)
+			real(rp),    intent(out) :: surfArea, Fpr(ndime), Ftau(ndime),tauw(npoin,ndime)
 			real(rp)                :: surfArea_l,surfArea_s,Fpr_l(ndime),Ftau_l(ndime),Mforce_l(ndime),mf_x,mf_y,mf_z,mf_x_l,mf_y_l,mf_z_l
 			integer(4)              :: ibound, idime, igaus, ipbou, ielem, jgaus
 			integer(4)              :: numBelem, counter, isoI, isoJ, isoK, ii, jdime, kdime

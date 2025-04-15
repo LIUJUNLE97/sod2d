@@ -1,81 +1,65 @@
 
 program tool_commsPerfomance
     use mod_mpi
-    use mod_read_inputFile
+    use mod_ioutils
     use mod_mpi_mesh
     use mod_comms
     use mod_hdf5
     use mod_comms_performance
     implicit none
 
-    character(999) :: input_file
-    integer :: lineCnt
+    character(512) :: json_input_file
     integer :: numNodesSrl,numNodesB_1r,numIters
-    character(256) :: parameter2read
     character(512) :: mesh_h5_file_path,mesh_h5_file_name,meshFile_h5_full_name
     character(1024) :: log_file_comms,log_file_append
     character(128) :: aux_string_mpisize,aux_string_numNodes,aux_string_nodesBound
-
     logical :: useMesh=.false.
-    logical :: useIntInComms=.false.,useRealInComms=.false.
+    type(json_file) :: json_f
+    logical :: isFound
+    character(len=:), allocatable :: str_value
+!------------------------------------------------------------------------------------------------------
 
     call init_mpi()
 
     !------------------------------------------------------------------------------
     ! Reading input file
     if(command_argument_count() .eq. 1) then
-        call get_command_argument(1, input_file)
-        if(mpi_rank.eq.0) write(*,*) '# Input file: ',trim(adjustl(input_file))
+        call get_command_argument(1, json_input_file)
+        if(mpi_rank.eq.0) write(*,*) '# Input file: ',trim(adjustl(json_input_file))
     else
         if(mpi_rank.eq.0) write(*,*) 'You must call Tool COMMS PERFROMANCE with an input file!'
         call MPI_Abort(app_comm,-1,mpi_err)
     endif
     !------------------------------------------------------------------------------
-    ! Reading the parameters
-    call open_inputFile(input_file)
-    lineCnt = 1
+    ! Opening json file
+    call open_json_file(json_input_file,json_f)
 
     !1. numIters--------------------------------------------------------------------------
-    parameter2read = 'numIters'
-    call read_inputFile_integer(lineCnt,parameter2read,numIters)
+    call json_f%get("numIters",numIters,isFound,1000)
 
-    !2. Use INT in COMMS--------------------------------------------------------------------------
-    parameter2read = 'useIntInComms'
-    call read_inputFile_logical(lineCnt,parameter2read,useIntInComms)
-
-    !3. Use FLOAT in COMMS--------------------------------------------------------------------------
-    parameter2read = 'useRealInComms'
-    call read_inputFile_logical(lineCnt,parameter2read,useRealInComms)
-
-    !4. Use mesh--------------------------------------------------------------------------
-    parameter2read = 'useMesh'
-    call read_inputFile_logical(lineCnt,parameter2read,useMesh)
+    !2. Use mesh--------------------------------------------------------------------------
+    call json_f%get("useMesh",useMesh,isFound,.true.);
 
     if(useMesh) then
+        !3. mesh_h5_file_path--------------------------------------------------------------
+        call json_f%get("mesh_h5_file_path",str_value,isFound,"")
+        write(mesh_h5_file_path,*) str_value
 
-        !5. mesh_h5_file_path--------------------------------------------------------------
-        parameter2read = 'mesh_h5_file_path'
-        call read_inputFile_string(lineCnt,parameter2read,mesh_h5_file_path)
-
-        !6. mesh_h5_file_name--------------------------------------------------------------
-        parameter2read = 'mesh_h5_file_name'
-        call read_inputFile_string(lineCnt,parameter2read,mesh_h5_file_name)
-
+        !4. mesh_h5_file_name--------------------------------------------------------------
+        call json_f%get("mesh_h5_file_name",str_value,isFound,"")
+        write(mesh_h5_file_name,*) str_value
     else
+        !3. numNodesSrl--------------------------------------------------------------------------
+        call json_f%get("numNodesSrl",numNodesSrl,isFound,100000)
 
-        !5. numNodesSrl--------------------------------------------------------------------------
-        parameter2read = 'numNodesSrl'
-        call read_inputFile_integer(lineCnt,parameter2read,numNodesSrl)
-
-        !6. numNodesB_1r --------------------------------------------------------------------------
-        parameter2read = 'numNodesB_1r'
-        call read_inputFile_integer(lineCnt,parameter2read,numNodesB_1r)
+        !4. numNodesB_1r --------------------------------------------------------------------------
+        call json_f%get("numNodesB_1r",numNodesB_1r,isFound,100)
 
        if(mpi_rank.eq.0) write(*,*) 'numNodesSrl ',numNodesSrl,' numNodesB_1r ',numNodesB_1r,' numIters ',numIters
-
     end if
 
-    call close_inputFile()
+    ! Closing json file
+    call close_json_file(json_f)
 
     !-----------------------------------------------------------------------------------
     if(useMesh) then
@@ -85,8 +69,6 @@ program tool_commsPerfomance
     else
         call create_dummy_1Dmesh(numNodesSrl,numNodesB_1r)
     end if
-
-    call init_comms_performance(useIntInComms,useRealInComms)
 
     if(mpi_rank.eq.0) then
         write(aux_string_mpisize,'(I0)') mpi_size
@@ -100,15 +82,7 @@ program tool_commsPerfomance
         log_file_comms = 'commPerf_'//trim(adjustl(log_file_append))//'-'//trim(aux_string_mpisize)//'.dat'
     end if
 
-   !call debug_comms_float()
    call test_comms_performance_real(numIters,log_file_comms)
-
-
-   !call nvtxStartRange("saxpy loop")
-   !call do_saxpy_loop(numIters)
-   !call nvtxEndRange
-   !call test_mpi_cudaware(numNodesSrl,numIters)
-   !call do_crazy_mpi_test(numNodesSrl,numIters)
 
    call end_comms()
    call end_mpi()

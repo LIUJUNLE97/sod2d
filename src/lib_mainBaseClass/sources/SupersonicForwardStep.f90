@@ -104,11 +104,15 @@ contains
       call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
       call json%get("cfl_diff",this%cfl_diff, found,0.95_rp); call this%checkFound(found,found_aux)
 
-      call json%get("flag_rk_ls",flag_rk_ls, found,.true.); 
-      call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
-      call json%get("flag_high_mach",flag_high_mach, found,.true.); call this%checkFound(found,found_aux)
+      call json%get("flag_high_mach",flag_high_mach, found,.true.);
+      call json%get("flag_rk_ls",flag_rk_ls, found,.true.)
+      call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5) 
+      call json%get("flag_rk_ls_n",flag_rk_ls_n, found, 4)
 
-      this%saveInitialField = .false.
+      call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+
+
+      this%saveInitialField = .true.
 
       !ce = 100.0_rp
       this%maxPhysTime = 5

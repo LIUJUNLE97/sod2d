@@ -62,13 +62,17 @@ module mod_constants
 	!
 	! Type of wall models
 	!
-	integer(4), parameter :: wmles_type_reichardt = 1
-	integer(4), parameter :: wmles_type_abl       = 2
+	integer(4), parameter :: wmles_type_reichardt      = 1
+	integer(4), parameter :: wmles_type_abl       	   = 2
+	integer(4), parameter :: wmles_type_reichardt_hwm  = 3
+	integer(4), parameter :: wmles_type_thinBL_fit     = 4
+	integer(4), parameter :: wmles_type_thinBL_fit_hwm = 5
 
 	!
 	! Types of implicit solvers
 	!
-	integer(4), parameter :: implicit_solver_imex = 1
+	integer(4), parameter :: implicit_solver_imex  = 1
+	integer(4), parameter :: implicit_steady_euler = 2
 
 
 	! Types meshElasticity

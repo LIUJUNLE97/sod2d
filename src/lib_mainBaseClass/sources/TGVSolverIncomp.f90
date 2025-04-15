@@ -94,6 +94,11 @@ contains
 
       call json%get("Re",this%Re, found,1600.0_rp); call this%checkFound(found,found_aux)
 
+      call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+      
+      call json%get("flag_cg_prec_bdc",flag_cg_prec_bdc, found,.false.); call this%checkFound(found,found_aux)      
+
+
       !Witness points parameters
       call json%get("have_witness",this%have_witness, found,.false.)
       if(this%have_witness .eqv. .true.) then
@@ -121,7 +126,7 @@ contains
       if(flag_use_species .eqv. .true.) then
          nspecies = 1
          this%Prt=0.7_rp
-         this%Cp=1000.0_rp
+         this%Cp=1004.0_rp
          write(*,*) ' species load'
       end if
 

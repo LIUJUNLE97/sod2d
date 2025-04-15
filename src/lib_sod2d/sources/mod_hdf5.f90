@@ -1180,6 +1180,9 @@ contains
       ms_dims(1) = 1
       ms_offset(1) = int(mshRank,hssize_t)
 
+      deallocate(aux_array_i4)
+      allocate(aux_array_i4(ms_dims(1)))
+
       dsetname = '/meshOutputInfo/numElemsVTKMshRank'
       aux_array_i4(1) = numElemsVTKMshRank
       call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
@@ -4037,9 +4040,9 @@ contains
       integer(4),intent(in) :: indRF_rho,indRF_ux,indRF_uy,indRF_uz,indRF_pr,indRF_ener,&
                                indRF_mut,indRF_mue,indRF_walavex,indRF_walavey,indRF_walavez
 
-      integer(hid_t) :: file_id,plist_id,dtype
-      integer(HSIZE_T), dimension(1) :: ds_dims,ms_dims
-      integer(HSSIZE_T), dimension(1) :: ms_offset
+      integer(hid_t) :: file_id
+      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
+      integer(hssize_t), dimension(1) :: ms_offset
       integer(4) :: ds_rank,ms_rank,h5err
       character(512) :: full_fileName,dsetname
 
@@ -5810,11 +5813,11 @@ contains
 
 !-------------------------------------------------------------------------------------------------------------------------------------------
 
-   subroutine create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,file_id,isLinealOutput,evalMeshQuality,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,mnnodeVTK,numVTKElemsPerMshElem)
+   subroutine create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,file_id,isLinealOutput,meshQualityMode,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,mnnodeVTK,numVTKElemsPerMshElem)
       implicit none
       integer(hid_t),intent(in) :: file_id
-      logical,intent(in) :: isLinealOutput,evalMeshQuality
-      integer(4),intent(in) :: mporder,mnnode,numMshRanks2Part,numElemsGmsh,mnnodeVTK,numVTKElemsPerMshElem
+      logical,intent(in) :: isLinealOutput
+      integer(4),intent(in) :: mporder,mnnode,meshQualityMode,numMshRanks2Part,numElemsGmsh,mnnodeVTK,numVTKElemsPerMshElem
       integer(8),intent(in) :: numNodesParTotal_i8
       integer(hid_t) :: dtype
       integer(hsize_t) :: ds_dims(1),ds_dims2d(2),aux_ds_dims
@@ -5876,25 +5879,30 @@ contains
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
 
       !-----------------------------------------------------------------------------
-      if (evalMeshQuality) then
-         call select_dtype_rp(dtype)
-         dsetname = '/VTKHDF/CellData/mesh_quality_anisotropic'
+      call select_dtype_rp(dtype)
+      if((meshQualityMode==1).or.(meshQualityMode==2)) then
+         dsetname = '/VTKHDF/CellData/mesh_quality_gll_anisotropic'
          call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
-         dsetname = '/VTKHDF/CellData/mesh_quality_isotropic'
+         dsetname = '/VTKHDF/CellData/mesh_quality_gll_isotropic'
+         call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      end if
+      if(meshQualityMode==2) then
+         dsetname = '/VTKHDF/CellData/mesh_quality_equi_anisotropic'
+         call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+         dsetname = '/VTKHDF/CellData/mesh_quality_equi_isotropic'
          call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       end if
 
    end subroutine create_groups_datasets_vtkhdf_unstructuredGrid_meshFile
 
-   subroutine write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,file_id,eval_mesh_quality,mshRank,numMshRanks2Part,numElemsMshRank,numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,mshRankElemStart,mshRankElemEnd,mshRankNodeStart_i8,mshRankNodeEnd_i8,numNodesMshRank,coordVTKMshRank,connecVTKMshRank,quality,connecChunkSize)
+   subroutine write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,file_id,meshQualityMode,mshRank,numMshRanks2Part,numElemsMshRank,numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,mshRankElemStart,mshRankElemEnd,mshRankNodeStart_i8,mshRankNodeEnd_i8,numNodesMshRank,coordVTKMshRank,connecVTKMshRank,quality_gll,quality_equi,connecChunkSize)
       implicit none
       integer(hid_t),intent(in) :: file_id
-      logical, intent(in) :: eval_mesh_quality
-      integer(4),intent(in) :: mporder,mnnode,mshRank,numMshRanks2Part
+      integer(4),intent(in) :: mporder,mnnode,meshQualityMode,mshRank,numMshRanks2Part
       integer(4),intent(in) :: numElemsMshRank,numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,mshRankElemStart,mshRankElemEnd
       integer(8),intent(in) :: mshRankNodeStart_i8,mshRankNodeEnd_i8
       integer(4),intent(in) :: numNodesMshRank,connecChunkSize
-      real(8),intent(in)    :: coordVTKMshRank(numNodesMshRank,3),quality(:,:)
+      real(8),intent(in)    :: coordVTKMshRank(numNodesMshRank,3),quality_gll(:,:),quality_equi(:,:)
       integer(4),intent(in) :: connecVTKMshRank(sizeConnecVTKMshRank)
 
       integer(hsize_t) :: ms_dims(1),ms_dims2d(2),aux_ms_dims
@@ -5995,25 +6003,29 @@ contains
          aux_array_i1(iElemL) = int(mshRank,1)
       end do
       call write_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array_i1)
-      !!! Save mesh quality
-      if (eval_mesh_quality) then
-         dsetname = '/VTKHDF/CellData/mesh_quality_anisotropic'
-         call write_dataspace_1d_real8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,quality(:,1))
-         ! print*,quality(:,1)
-         dsetname = '/VTKHDF/CellData/mesh_quality_isotropic'
-         call write_dataspace_1d_real8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,quality(:,2))
-      end if
-
 
       deallocate(aux_array_i1)
+      !------------------------------------------------------------------------------------------------------
+      ! ## mesh quality ##
+      if((meshQualityMode==1).or.(meshQualityMode==2)) then
+         dsetname = '/VTKHDF/CellData/mesh_quality_gll_anisotropic'
+         call write_dataspace_1d_real8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,quality_gll(:,1))
+         dsetname = '/VTKHDF/CellData/mesh_quality_gll_isotropic'
+         call write_dataspace_1d_real8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,quality_gll(:,2))
+      end if
+      if(meshQualityMode==2) then
+         dsetname = '/VTKHDF/CellData/mesh_quality_equi_anisotropic'
+         call write_dataspace_1d_real8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,quality_equi(:,1))
+         dsetname = '/VTKHDF/CellData/mesh_quality_equi_isotropic'
+         call write_dataspace_1d_real8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,quality_equi(:,2))
+      end if
 
    end subroutine write_mshRank_data_vtkhdf_unstructuredGrid_meshFile
 
-   subroutine dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(file_id,eval_mesh_quality,numMshRanks2Part,connecChunkSize)
+   subroutine dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(file_id,meshQualityMode,numMshRanks2Part,connecChunkSize)
       implicit none
       integer(hid_t),intent(in) :: file_id
-      integer(4),intent(in) :: numMshRanks2Part,connecChunkSize
-      logical,intent(in) :: eval_mesh_quality
+      integer(4),intent(in) :: meshQualityMode,numMshRanks2Part,connecChunkSize
       integer(hsize_t), dimension(1) :: ms_dims
       integer(hsize_t), dimension(2) :: ms_dims2d
       integer(hssize_t), dimension(1) :: ms_offset
@@ -6072,13 +6084,20 @@ contains
       call write_dataspace_1d_uint1_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,empty_array_i1)
 
       !------------------------------------------------------------------------------------------------------
-      if (eval_mesh_quality) then
-         dsetname = '/VTKHDF/CellData/mesh_quality'
+      if((meshQualityMode==1).or.(meshQualityMode==2)) then
+         dsetname = '/VTKHDF/CellData/mesh_quality_gll_anisotropic'
          call write_dataspace_1d_real8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,empty_array1d_r8)
-         dsetname = '/VTKHDF/CellData/mesh_quality_cube'
+         dsetname = '/VTKHDF/CellData/mesh_quality_gll_isotropic'
+         call write_dataspace_1d_real8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,empty_array1d_r8)
+      end if
+      if(meshQualityMode==2) then
+         dsetname = '/VTKHDF/CellData/mesh_quality_equi_anisotropic'
+         call write_dataspace_1d_real8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,empty_array1d_r8)
+         dsetname = '/VTKHDF/CellData/mesh_quality_equi_isotropic'
          call write_dataspace_1d_real8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,empty_array1d_r8)
       end if
 
+      !------------------------------------------------------------------------------------------------------
       deallocate(empty_array_i1)
       deallocate(empty_array_i8)
       deallocate(empty_array2d_r8)

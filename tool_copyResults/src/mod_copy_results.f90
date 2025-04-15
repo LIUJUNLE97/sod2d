@@ -20,15 +20,16 @@ contains
       character(512) :: source_meshFile_h5_full_name,target_meshFile_h5_full_name
       character(512) :: source_base_resultsFile_h5,target_base_resultsFile_h5
       character(512) :: source_full_resultsFile_h5,target_full_resultsFile_h5
+      character(512) :: mappingFile_h5_full_name
       integer(4) :: mporder,mnnode,mngaus,mnpbou,res_ii,res_step,restart_file,load_step
       real(rp) :: time
       character(128) :: dsetname
 
-      integer(4) :: numTrgtRanksInMpiRank,maxNumTrgtRanks
-      integer(4),allocatable :: numNodesTrgtRank(:)
+      integer(4) :: numTrgtRanksInMpiRank,maxNumTrgtRanks,fullMapNodeCnt
 
       integer(8) :: numNodesTrgtTotal_i8
       integer(8),allocatable :: trgtRankNodeStart_i8(:),trgtRankNodeEnd_i8(:)
+      integer(4),allocatable :: numNodesTrgtRank(:),mapNodeRankTrgt(:,:),numNodesMapTrgtRank(:),fullMapNodeRankTrgt(:,:),fullNumNodesMapTrgtRank(:)
       type(jagged_vector_int4) :: mapNodeIdTrgtToMpi_jv
 
       integer(hid_t) :: targetRes_hdf5_file_id,sourceRes_hdf5_file_id
@@ -37,9 +38,30 @@ contains
       character(len=256),allocatable :: dsetsScalarFieldsOrig(:),dsetsVectorFieldsOrig(:),dsetsV2SFieldsOrig(:)
       character(len=256),allocatable :: dsetsScalarFieldsTrgt(:),dsetsVectorFieldsTrgt(:),dsetsV2SFieldsTrgt(:,:)
 
+      integer(4) :: iRank,app_comm_group,smallWorld_group,smallWorld_comm
+      integer(4),allocatable :: smallWorldMpiRanks(:)
+
+
       !----------------------------------------------------------------------------------------------
       call init_hdf5_interface()
       !----------------------------------------------------------------------------------------------
+
+      !--- inital check -------------
+      if(generateMesh) then
+         if(mpi_size.gt.target_Nprocs) then
+            write(*,*) "If generateMesh=.true. then must be (mpi_size<=target_Nprocs).",&
+                       "Fix current values mpi_size",mpi_size,"target_Nprocs",target_Nprocs,&
+                       "Aborting!"
+       	   call MPI_Abort(app_comm,-1,mpi_err)
+         endif
+      else
+         if(target_Nprocs.gt.mpi_size) then
+            write(*,*) "If generateMesh=.false. then must be (target_Nprocs<=mpi_size).",&
+                       "Fix current values mpi_size",mpi_size,"target_Nprocs",target_Nprocs,&
+                       "Aborting!"
+           call MPI_Abort(app_comm,-1,mpi_err)
+         endif
+      endif
 
       call init_saveFields()
 
@@ -54,10 +76,16 @@ contains
       call get_mesh_porder_from_hdf5(source_meshFile_h5_full_name,mporder)
       call get_porder_values(mporder,mnnode,mngaus,mnpbou)
 
-      !Loading original mesh file
+      !Loading source mesh file
       call load_hdf5_meshFile(source_meshFile_h5_full_name)
 
       if(generateMesh) then
+
+         if(mpi_size.eq.target_Nprocs) then
+            if(mpi_rank.eq.0) write(*,*) "For generateMesh .true. is not allowed mpi_size == target_Nranks! Aborting!"
+       	   call MPI_Abort(app_comm,-1,mpi_err)
+         end if
+
          call generate_new_mesh_for_viz(target_meshFile_h5_full_name,mporder,mnnode,target_Nprocs,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
                                        numNodesTrgtRank,numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8,mapNodeIdTrgtToMpi_jv)
 
@@ -66,16 +94,41 @@ contains
             call do_naive_one_to_one_mapping(numTrgtRanksInMpiRank,maxNumTrgtRanks,numNodesTrgtRank,&
                                        numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8,mapNodeIdTrgtToMpi_jv)
          else
-            write(*,*) "OPTION NOT YET IMPLEMENTED! Aborting!"
-       	   call MPI_Abort(app_comm,-1,mpi_err)
-            !call open_mesh_and_do_mapping(target_meshFile_h5_full_name,mporder,mnnode,target_Nprocs,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
-            !                              numNodesTrgtRank,trgtRanksInMpiRank,mapTrgtRankToMpiRank,&
-            !                              numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8,mapNodeIdTrgtToMpi_jv)
+
+            call open_target_mesh_and_do_mapping(target_meshFile_h5_full_name,target_Nprocs,&
+                                                mapNodeRankTrgt,numNodesMapTrgtRank,fullMapNodeCnt,fullMapNodeRankTrgt,fullNumNodesMapTrgtRank,&
+                                                numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8)
+
+            if(type_resultsFile.eq.5) then
+
+               call set_hdf5_mappingFile_name(mesh_h5_filePath,mesh_h5_fileName,mpi_size,target_Nprocs,mappingFile_h5_full_name)
+
+               call save_mapping_file(mappingFile_h5_full_name,mapNodeRankTrgt)
+
+               call end_hdf5_interface()
+               
+               deallocate(mapNodeRankTrgt,numNodesMapTrgtRank,fullMapNodeRankTrgt,fullNumNodesMapTrgtRank)
+               return
+            else
+               deallocate(mapNodeRankTrgt,numNodesMapTrgtRank)
+            end if
+
          end if
       end if
       
       !-----------------------------------------------------------------------------------------------
       !   Generacio de fitxers resultats!
+
+      if(type_resultsFile.eq.4) then
+         if(generateMesh) then
+            if(mpi_rank.eq.0) write(*,*) "For type_resultsFile=4 only generateMesh=.false. supported! Aborting!"
+       	   call MPI_Abort(app_comm,-1,mpi_err)
+         end if
+         if(mpi_size.ne.target_Nprocs) then
+            if(mpi_rank.eq.0) write(*,*) "For type_resultsFile=4 only mpi_size == target_Nranks supported! Aborting!"
+       	   call MPI_Abort(app_comm,-1,mpi_err)
+         end if
+      endif
 
       res_step = results_step
 
@@ -94,7 +147,7 @@ contains
          restart_file = results_step
          res_step = 1
       else
-         write(*,*) "Wrong type_resultsFile! Must be 1,2,3 or 4 (1:inst, 2:avg, 3:restart, 4:inst_2_restart)! Aborting!"
+         write(*,*) "Wrong type_resultsFile! Must be 1,2,3, 4 or 5 (1:inst, 2:avg, 3:restart, 4:inst_2_restart, 5:mapping)! Aborting!"
        	call MPI_Abort(app_comm,-1,mpi_err)
       end if
 
@@ -141,11 +194,19 @@ contains
                numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S,&
                dsetsScalarFieldsTrgt,dsetsVectorFieldsTrgt,dsetsV2SFieldsTrgt)
 
-         call copy_dsets_results_from_source_to_target(sourceRes_hdf5_file_id,targetRes_hdf5_file_id,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
-                  numNodesTrgtRank,trgtRankNodeStart_i8,numNodesTrgtTotal_i8,mapNodeIdTrgtToMpi_jv,&
-                  numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S,&
-                  dsetsScalarFieldsOrig,dsetsVectorFieldsOrig,dsetsV2SFieldsOrig,&
-                  dsetsScalarFieldsTrgt,dsetsVectorFieldsTrgt,dsetsV2SFieldsTrgt)
+         if(mpi_size.le.target_Nprocs) then
+            call copy_dsets_results_for_generated_mesh(sourceRes_hdf5_file_id,targetRes_hdf5_file_id,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
+                     numNodesTrgtRank,trgtRankNodeStart_i8,numNodesTrgtTotal_i8,mapNodeIdTrgtToMpi_jv,&
+                     numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S,&
+                     dsetsScalarFieldsOrig,dsetsVectorFieldsOrig,dsetsV2SFieldsOrig,&
+                     dsetsScalarFieldsTrgt,dsetsVectorFieldsTrgt,dsetsV2SFieldsTrgt)
+         else
+            call copy_dsets_results_for_loaded_mesh(sourceRes_hdf5_file_id,targetRes_hdf5_file_id,target_Nprocs,&
+                     fullMapNodeCnt,fullMapNodeRankTrgt,fullNumNodesMapTrgtRank,trgtRankNodeStart_i8,numNodesTrgtTotal_i8,&
+                     numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S,&
+                     dsetsScalarFieldsOrig,dsetsVectorFieldsOrig,dsetsV2SFieldsOrig,&
+                     dsetsScalarFieldsTrgt,dsetsVectorFieldsTrgt,dsetsV2SFieldsTrgt)
+         end if
 
          deallocate(dsetsScalarFieldsOrig,dsetsVectorFieldsOrig)
          deallocate(dsetsScalarFieldsTrgt,dsetsVectorFieldsTrgt)
@@ -196,8 +257,8 @@ contains
 
    end subroutine copy_results_same_mesh_Npartitions
 
-   subroutine do_naive_one_to_one_mapping(numTrgtRanksInMpiRank,maxNumTrgtRanks,&
-                                       numNodesTrgtRank,numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8,mapNodeIdTrgtToMpi_jv)
+   subroutine do_naive_one_to_one_mapping(numTrgtRanksInMpiRank,maxNumTrgtRanks,numNodesTrgtRank,numNodesTrgtTotal_i8,&
+                                       trgtRankNodeStart_i8,trgtRankNodeEnd_i8,mapNodeIdTrgtToMpi_jv)
       implicit none
       integer(4),intent(inout) :: numTrgtRanksInMpiRank,maxNumTrgtRanks
       integer(4),intent(inout),allocatable :: numNodesTrgtRank(:)
@@ -225,7 +286,7 @@ contains
          mapNodeIdTrgtToMpi_jv%vector(1)%elems(iNode) = iNode
       end do
 
-   end subroutine
+   end subroutine do_naive_one_to_one_mapping
 
    subroutine generate_new_mesh_for_viz(target_meshFile_h5_full_name,mporder,mnnode,target_Nprocs,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
                                        numNodesTrgtRank,numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8,mapNodeIdTrgtToMpi_jv)
@@ -246,11 +307,10 @@ contains
       type(jagged_vector_int4) :: listNodesTrgtRankMpiId_jv,connecVTKTrgtRank_jv
       type(jagged_matrix_int4) :: connecTrgtRankMpiId_jm,connecParOrigTrgtRank_jm
       type(jagged_matrix_real8) :: coordTrgtRank_jm,coordVTKTrgtRank_jm
-      type(jagged_matrix_real8) :: quality_jm
+      type(jagged_matrix_real8) :: quality_dummy_jm
 
       integer(8),dimension(0:target_Nprocs-1) :: iNodeStartPar_i8
-      integer(4) :: connecChunkSize = 10000000
-      logical :: evalMeshQuality=.false.
+      integer(4),parameter :: meshQualityMode=0,connecChunkSize=10000000
       integer(4) :: iTrgtRank,trgtRank
       integer(hid_t) :: targetMesh_hdf5_file_id
 
@@ -288,7 +348,7 @@ contains
       allocate(listNodesTrgtRankMpiId_jv%vector(numTrgtRanksInMpiRank))
       allocate(   connecTrgtRankMpiId_jm%matrix(numTrgtRanksInMpiRank))
       allocate(         coordTrgtRank_jm%matrix(numTrgtRanksInMpiRank))
-      allocate(               quality_jm%matrix(numTrgtRanksInMpiRank))
+      allocate(         quality_dummy_jm%matrix(numTrgtRanksInMpiRank))
 
       do iTrgtRank=1,numTrgtRanksInMpiRank
          trgtRank = trgtRanksInMpiRank(iTrgtRank)
@@ -350,20 +410,20 @@ contains
 
       call create_hdf5_file(target_meshFile_h5_full_name,targetMesh_hdf5_file_id)
       
-      call create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,targetMesh_hdf5_file_id,isMeshLinealOutput,.false.,&
+      call create_groups_datasets_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,targetMesh_hdf5_file_id,isMeshLinealOutput,meshQualityMode,&
                                                 target_Nprocs,totalNumElements,numNodesTrgtTotal_i8,mesh_VTKnnode,mesh_numVTKElemsPerMshElem)
 
       do iTrgtRank=1,numTrgtRanksInMpiRank
          trgtRank = trgtRanksInMpiRank(iTrgtRank)
 
-        call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,targetMesh_hdf5_file_id,evalMeshQuality,trgtRank,target_Nprocs,&
+        call write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(mporder,mnnode,targetMesh_hdf5_file_id,meshQualityMode,trgtRank,target_Nprocs,&
             numElemsTrgtRank(iTrgtRank),numElemsVTKTrgtRank(iTrgtRank),sizeConnecVTKTrgtRank(iTrgtRank),mesh_VTKnnode,mesh_numVTKElemsPerMshElem,&
             trgtRankElemStart(iTrgtRank),trgtRankElemEnd(iTrgtRank),trgtRankNodeStart_i8(iTrgtRank),trgtRankNodeEnd_i8(iTrgtRank),numNodesTrgtRank(iTrgtRank),&
-            coordVTKTrgtRank_jm%matrix(iTrgtRank)%elems,connecVTKTrgtRank_jv%vector(iTrgtRank)%elems,quality_jm%matrix(iTrgtRank)%elems,connecChunkSize)
+            coordVTKTrgtRank_jm%matrix(iTrgtRank)%elems,connecVTKTrgtRank_jv%vector(iTrgtRank)%elems,quality_dummy_jm%matrix(iTrgtRank)%elems,quality_dummy_jm%matrix(iTrgtRank)%elems,connecChunkSize)
       end do
 
       do iTrgtRank=(numTrgtRanksInMpiRank+1),maxNumTrgtRanks
-        call dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(targetMesh_hdf5_file_id,evalMeshQuality,target_Nprocs,connecChunkSize)
+        call dummy_write_mshRank_data_vtkhdf_unstructuredGrid_meshFile(targetMesh_hdf5_file_id,meshQualityMode,target_Nprocs,connecChunkSize)
       end do
 
       call close_hdf5_file(targetMesh_hdf5_file_id)
@@ -371,33 +431,60 @@ contains
 
    end subroutine generate_new_mesh_for_viz
 
-   subroutine open_mesh_and_do_mapping(target_meshFile_h5_full_name,mporder,mnnode,target_Nprocs,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
-                                       numNodesTrgtRank,trgtRanksInMpiRank,mapTrgtRankToMpiRank,&
-                                       numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8,mapNodeIdTrgtToMpi_jv)
+   subroutine open_target_mesh_and_do_mapping(target_meshFile_h5_full_name,target_Nprocs,&
+                                             mapNodeRankTrgt,numNodesMapTrgtRank,fullMapNodeCnt,fullMapNodeRankTrgt,fullNumNodesMapTrgtRank,&
+                                             numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8)
       implicit none
       character(*),intent(in) :: target_meshFile_h5_full_name
-      integer(4),intent(in) :: mporder,mnnode,target_Nprocs,numTrgtRanksInMpiRank,maxNumTrgtRanks
-      integer(4),intent(in) :: trgtRanksInMpiRank(numTrgtRanksInMpiRank),mapTrgtRankToMpiRank(numTrgtRanksInMpiRank)
-      integer(4),intent(inout) :: numNodesTrgtRank(numTrgtRanksInMpiRank)
-      integer(8),intent(inout) :: numNodesTrgtTotal_i8,trgtRankNodeStart_i8(numTrgtRanksInMpiRank),trgtRankNodeEnd_i8(numTrgtRanksInMpiRank)
-      type(jagged_vector_int4),intent(inout) :: mapNodeIdTrgtToMpi_jv
+      integer(4),intent(in) :: target_Nprocs
+      integer(4),intent(out) :: fullMapNodeCnt
+      integer(4),intent(inout),allocatable :: mapNodeRankTrgt(:,:),numNodesMapTrgtRank(:)
+      integer(4),intent(inout),allocatable :: fullMapNodeRankTrgt(:,:),fullNumNodesMapTrgtRank(:)
+      integer(8),intent(inout) :: numNodesTrgtTotal_i8
+      integer(8),intent(inout),allocatable :: trgtRankNodeStart_i8(:),trgtRankNodeEnd_i8(:)
+      !-------------------------------------------------------
+      integer(4) :: numNodesTrgtRank(target_Nprocs),iNodeL
+      integer(8) :: iNodeG
 
-      integer(4) :: iTrgtRank,trgtRank
-      integer(8) :: rankNodeMax_i8
-      integer(8),allocatable :: aux_array_i8(:)
+      integer(4) :: iTrgtRank,trgtRank,iPos,h5err
+      integer(4),allocatable :: rawMapNodeRankTrgt(:,:)
+      integer(8),allocatable :: aux_array_i8(:),globalIdSrlOrdered_i8(:,:)
 
       character(128) :: dsetname
-      integer(hid_t) :: targetMesh_hdf5_file_id
-      integer(hsize_t), dimension(1) :: ms_dims
+      integer(hid_t) :: targetMesh_hdf5_file_id,dset_id,fspace_id
+      integer(hsize_t), dimension(1) :: ms_dims,fs_dims,fs_maxdims
       integer(hssize_t), dimension(1) :: ms_offset
 
       if(mpi_rank.eq.0) write(*,*) '# Opening target mesh file:',trim(target_meshFile_h5_full_name)
 
       call open_hdf5_file(target_meshFile_h5_full_name,targetMesh_hdf5_file_id)
 
-      rankNodeMax_i8 = 0
-      do iTrgtRank=1,numTrgtRanksInMpiRank
-         trgtRank = trgtRanksInMpiRank(iTrgtRank)
+      !------------------------------------------------------------------------
+      dsetname = '/globalIds/globalIdSrl'
+      call h5dopen_f(targetMesh_hdf5_file_id,dsetname,dset_id,h5err)
+      call h5dget_space_f(dset_id,fspace_id,h5err)
+      call h5sget_simple_extent_dims_f(fspace_id,fs_dims,fs_maxdims,h5err)
+      call h5sclose_f(fspace_id,h5err)
+      call h5dclose_f(dset_id,h5err)
+
+      numNodesTrgtTotal_i8 = fs_dims(1)
+      !------------------------------------------------------------------------
+
+      allocate(mapNodeRankTrgt(numNodesRankPar,2))
+      allocate(numNodesMapTrgtRank(0:target_Nprocs-1))
+      allocate(fullNumNodesMapTrgtRank(0:target_Nprocs-1))
+      allocate(trgtRankNodeStart_i8(target_Nprocs))
+      allocate(trgtRankNodeEnd_i8(target_Nprocs))
+
+      allocate(rawMapNodeRankTrgt(numNodesRankPar*2,3))
+
+      mapNodeRankTrgt(:,:) = 0
+      numNodesMapTrgtRank(:) = 0
+      fullNumNodesMapTrgtRank(:) = 0
+      fullMapNodeCnt = 0
+
+      do iTrgtRank=1,target_Nprocs
+         trgtRank = (iTrgtRank-1)
 
          ms_dims(1) = 1
          ms_offset(1) = int(trgtRank,hssize_t)
@@ -414,44 +501,118 @@ contains
 
          numNodesTrgtRank(iTrgtRank) = trgtRankNodeEnd_i8(iTrgtRank) - trgtRankNodeStart_i8(iTrgtRank) + 1
 
-         rankNodeMax_i8 = max(rankNodeMax_i8,trgtRankNodeEnd_i8(iTrgtRank))
+         deallocate(aux_array_i8)
 
-         !write(*,*) 'trgtRank',trgtRank,'tRNS',trgtRankNodeStart_i8(iTrgtRank),'tRNE',trgtRankNodeEnd_i8(iTrgtRank),'nNTR',numNodesTrgtRank(iTrgtRank)
+         !---------------------------------------------------------------------------------------------------------------
+
+         ms_dims(1) = int(numNodesTrgtRank(iTrgtRank),hsize_t)
+         ms_offset(1) = int(trgtRankNodeStart_i8(iTrgtRank),hssize_t)-1
+
+         allocate(aux_array_i8(numNodesTrgtRank(iTrgtRank)))
+         allocate(globalIdSrlOrdered_i8(numNodesTrgtRank(iTrgtRank),2))
+
+         dsetname = '/globalIds/globalIdSrl'
+         call read_dataspace_1d_int8_hyperslab_parallel(targetMesh_hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
+
+         do iNodeL=1,numNodesTrgtRank(iTrgtRank)
+            globalIdSrlOrdered_i8(iNodeL,1) = aux_array_i8(iNodeL)
+            globalIdSrlOrdered_i8(iNodeL,2) = iNodeL
+         end do
+
+         call quicksort_matrix_int8(globalIdSrlOrdered_i8,1)
 
          deallocate(aux_array_i8)
 
-         !!!!allocate(trgtGlobalIdSrl(numNodesTrgtRank(iTrgtRank)))
-         !!!!ms_dims(1) = int(numNodesTrgtRank(iTrgtRank),hsize_t)
-         !!!!ms_offset(1) = int(trgtRankNodeStart_i8(iTrgtRank),hssize_t)-1
+         do iNodeL=1,numNodesRankPar
+            iNodeG = globalIdSrl(iNodeL)
 
-         !!!!dsetname = '/globalIds/globalIdSrl'
-         !!!!call read_dataspace_1d_int8_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,globalIdSrl)
+            iPos = binarySearch_int_i8(globalIdSrlOrdered_i8(:,1),iNodeG)
+            if(iPos.ne.0) then
+               mapNodeRankTrgt(iNodeL,1) = globalIdSrlOrdered_i8(iPos,2)
+               mapNodeRankTrgt(iNodeL,2) = trgtRank
 
+               fullNumNodesMapTrgtRank(trgtRank) = fullNumNodesMapTrgtRank(trgtRank) + 1
+               fullMapNodeCnt = fullMapNodeCnt + 1
+               rawMapNodeRankTrgt(fullMapNodeCnt,1) = iNodeL
+               rawMapNodeRankTrgt(fullMapNodeCnt,2) = globalIdSrlOrdered_i8(iPos,2)
+               rawMapNodeRankTrgt(fullMapNodeCnt,3) = trgtRank
 
+               !if(mpi_rank.eq.0) write(*,*) '[',mpi_rank,']iNodeL',iNodeL,'iNodeG',iNodeG,'iPos',iPos,'trgtRank',trgtRank,'numNiTR',numNodesMapTrgtRank(iTrgtRank)
+            end if
+         end do
+
+         deallocate(globalIdSrlOrdered_i8)
 
       end do
 
-      do iTrgtRank=(numTrgtRanksInMpiRank+1),maxNumTrgtRanks
+      !write(*,*) '[',mpi_rank,']fullNumNodes:',fullNumNodesMapTrgtRank(:),'fullMapNodeCnt',fullMapNodeCnt
 
-         ms_dims(1) = 0
-         ms_offset(1) = 0
-         allocate(aux_array_i8(0))
+      allocate(fullMapNodeRankTrgt(fullMapNodeCnt,3))
 
-         dsetname = '/Parallel_data/rankNodeStart'
-         call read_dataspace_1d_int8_hyperslab_parallel(targetMesh_hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
+      fullMapNodeRankTrgt(:,:) = rawMapNodeRankTrgt(1:fullMapNodeCnt,:)
 
-         dsetname = '/Parallel_data/rankNodeEnd'
-         call read_dataspace_1d_int8_hyperslab_parallel(targetMesh_hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i8)
+      deallocate(rawMapNodeRankTrgt)
 
-         deallocate(aux_array_i8)
+      do iNodeL=1,numNodesRankPar
+         trgtRank = mapNodeRankTrgt(iNodeL,2)
+         numNodesMapTrgtRank(trgtRank) = numNodesMapTrgtRank(trgtRank) + 1
       end do
 
-      call MPI_Allreduce(rankNodeMax_i8,numNodesTrgtTotal_i8,1,mpi_datatype_int8,MPI_MAX,app_comm, mpi_err)
-      !write(*,*) 'numNodesTrgtTotal_i8',numNodesTrgtTotal_i8
+      !write(*,*) '[',mpi_rank,']numNodesMapTrgtRank:',numNodesMapTrgtRank(:),'numNodesRankPar',numNodesRankPar
+      !do iNodeL=1,numNodesRankPar
+      !   if(mpi_rank.eq.0) write(*,*) '[',mpi_rank,']iNodeL',iNodeL,'->iNL',mapNodeRankTrgt(iNodeL,1),'iTR',mapNodeRankTrgt(iNodeL,2)
+      !end do
 
       call close_hdf5_file(targetMesh_hdf5_file_id)
 
+   end subroutine open_target_mesh_and_do_mapping
+
+   subroutine save_mapping_file(mappingFile_h5_full_name,mapNodeRankTrgt)
+      implicit none
+      character(512),intent(in) :: mappingFile_h5_full_name
+      integer(4),intent(in) :: mapNodeRankTrgt(numNodesRankPar,2)
+      integer(4),parameter :: ds_rank=1
+      integer(hid_t) :: mapping_hdf5_file_id
+      character(128) :: dsetname
+      integer(hid_t) :: dtype
+      integer(hsize_t),dimension(ds_rank) :: ms_dims,ds_dims
+      integer(hssize_t),dimension(ds_rank) :: ms_offset
+      !------------------------------------------------------------------------------------------------
+
+      if(mpi_rank.eq.0) write(*,*) 'Saving mapping in: ',trim(mappingFile_h5_full_name)
+
+      call create_hdf5_file(mappingFile_h5_full_name,mapping_hdf5_file_id)
+
+      !-----------------------------------------------------------------------------------------------
+      dtype = h5_datatype_int4
+      ds_dims(1) = int(totalNumNodesPar,hsize_t)
+      ms_dims(1) = int(numNodesRankPar,hsize_t)
+      ms_offset(1) = int(rankNodeStart,hssize_t)-1
+      !-----------------------------------------------------------------------------------------------
+
+      dsetname = '/mappingNode'
+      call create_dataspace_hdf5(mapping_hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_1d_int4_hyperslab_parallel(mapping_hdf5_file_id,dsetname,ms_dims,ms_offset,mapNodeRankTrgt(:,1))
+
+      dsetname = '/mappingRank'
+      call create_dataspace_hdf5(mapping_hdf5_file_id,dsetname,ds_rank,ds_dims,dtype)
+      call write_dataspace_1d_int4_hyperslab_parallel(mapping_hdf5_file_id,dsetname,ms_dims,ms_offset,mapNodeRankTrgt(:,2))
+
+      call close_hdf5_file(mapping_hdf5_file_id)
+
    end subroutine
+
+   subroutine set_hdf5_mappingFile_name(file_path,file_name,numSrcRanks,numTrgtRanks,mappingFile_h5_full_name)
+      implicit none
+      character(len=*),intent(in) :: file_path,file_name
+      integer,intent(in) :: numSrcRanks,numTrgtRanks
+      character(len=*),intent(out) :: mappingFile_h5_full_name
+      character(len=12) :: aux_srcRanks,aux_trgtRanks
+
+      write(aux_srcRanks,'(I0)') numSrcRanks
+      write(aux_trgtRanks,'(I0)') numTrgtRanks
+      mappingFile_h5_full_name = trim(adjustl(file_path))//trim(adjustl(file_name))//'-mapping-'//trim(aux_srcRanks)//'-to-'//trim(aux_trgtRanks)//'.hdf'
+   end subroutine set_hdf5_mappingFile_name
 
    subroutine get_mesh_porder_from_hdf5(meshFile_h5_full_name,mporder)
       implicit none
@@ -732,7 +893,7 @@ contains
 
    end subroutine reorder_nodes_in_trgtRank
 
-   subroutine copy_dsets_results_from_source_to_target(source_file_id,target_file_id,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
+   subroutine copy_dsets_results_for_generated_mesh(source_file_id,target_file_id,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
                            numNodesTrgtRank,trgtRankNodeStart,numNodesTrgtTotal,mapNodeIdTrgtToMpi_jv,&
                            numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S,&
                            dsetsScalarFieldsOrig,dsetsVectorFieldsOrig,dsetsV2SFieldsOrig,dsetsScalarFieldsTrgt,dsetsVectorFieldsTrgt,dsetsV2SFieldsTrgt)
@@ -780,8 +941,7 @@ contains
          end do
       end do
 
-
-   end subroutine copy_dsets_results_from_source_to_target
+   end subroutine copy_dsets_results_for_generated_mesh
 
    subroutine copy_scalarfield_dataset_results_in_target(dsetname,sourceScalarField,target_file_id,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
                                              numNodesTrgtRank,trgtRankNodeStart,numNodesTrgtTotal,mapNodeIdTrgtToMpi_jv)
@@ -835,6 +995,271 @@ contains
 
    end subroutine copy_vectorfield_dataset_results_in_target
 
+   subroutine copy_dsets_results_for_loaded_mesh(source_file_id,target_file_id,target_Nprocs,&
+                           fullMapNodeCnt,fullMapNodeRankTrgt,fullNumNodesMapTrgtRank,trgtRankNodeStart,numNodesTrgtTotal,&
+                           numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S,&
+                           dsetsScalarFieldsOrig,dsetsVectorFieldsOrig,dsetsV2SFieldsOrig,dsetsScalarFieldsTrgt,dsetsVectorFieldsTrgt,dsetsV2SFieldsTrgt)
+      implicit none
+      integer(hid_t),intent(in) :: source_file_id,target_file_id
+      integer(4),intent(in) :: target_Nprocs,fullMapNodeCnt,fullMapNodeRankTrgt(fullMapNodeCnt,3),fullNumNodesMapTrgtRank(0:target_Nprocs-1)
+      integer(8),intent(in) :: trgtRankNodeStart(target_Nprocs),numNodesTrgtTotal
+      integer(4),intent(in) :: numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S
+      character(256),intent(in) :: dsetsScalarFieldsOrig(maxNumDsetSca),dsetsVectorFieldsOrig(maxNumDsetVec),dsetsV2SFieldsOrig(maxNumDsetV2S)
+      character(256),intent(in) :: dsetsScalarFieldsTrgt(maxNumDsetSca),dsetsVectorFieldsTrgt(maxNumDsetVec),dsetsV2SFieldsTrgt(maxNumDsetV2S,ndime)
+
+      real(rp_vtk) :: sourceScalarField(numNodesRankPar),sourceVectorField(numNodesRankPar,ndime)
+      integer(4) :: iSca,iVec,iDim
+      character(512) :: dsetnameOrig,dsetnameTrgt
+
+      do iSca=1,numDsetSca
+         dsetnameOrig = dsetsScalarFieldsOrig(iSca)
+         dsetnameTrgt = dsetsScalarFieldsTrgt(iSca)
+         if(mpi_rank.eq.0) write(*,*) ' # Copying scalar field ',trim(adjustl(dsetnameOrig)),' (id',iSca,')...'
+         call read_and_load_source_scalarfield(dsetnameOrig,source_file_id,sourceScalarField)
+         call copy_scalarfield_dataset_results_for_loaded_mesh(dsetnameTrgt,sourceScalarField,target_file_id,target_Nprocs,&
+                  fullMapNodeCnt,fullMapNodeRankTrgt,fullNumNodesMapTrgtRank,trgtRankNodeStart,numNodesTrgtTotal)
+      end do
+
+      do iVec=1,numDsetVec
+         dsetnameOrig = dsetsVectorFieldsOrig(iVec)
+         dsetnameTrgt = dsetsVectorFieldsTrgt(iVec)
+         if(mpi_rank.eq.0) write(*,*) ' # Copying vector field ',trim(adjustl(dsetnameOrig)),' (id',iVec,')...'
+         call read_and_load_source_vectorfield(dsetnameOrig,source_file_id,sourceVectorField)
+         call copy_vectorfield_dataset_results_for_loaded_mesh(dsetnameTrgt,sourceVectorField,target_file_id,target_Nprocs,&
+                  fullMapNodeCnt,fullMapNodeRankTrgt,fullNumNodesMapTrgtRank,trgtRankNodeStart,numNodesTrgtTotal)
+      end do
+
+      do iVec=1,numDsetV2S
+         dsetnameOrig = dsetsV2SFieldsOrig(iVec)
+         if(mpi_rank.eq.0) write(*,*) ' # Copying vector field ',trim(adjustl(dsetnameOrig)),' (id',iVec,')...'
+         call read_and_load_source_vectorfield(dsetnameOrig,source_file_id,sourceVectorField)
+         do iDim=1,ndime
+            dsetnameTrgt = dsetsV2SFieldsTrgt(iVec,iDim)
+            if(mpi_rank.eq.0) write(*,*) '  - in scalar field ',trim(adjustl(dsetnameOrig)),' (dim',iDim,')...'
+            call copy_scalarfield_dataset_results_for_loaded_mesh(dsetnameTrgt,sourceVectorField(:,iDim),target_file_id,target_Nprocs,&
+                     fullMapNodeCnt,fullMapNodeRankTrgt,fullNumNodesMapTrgtRank,trgtRankNodeStart,numNodesTrgtTotal)
+         end do
+      end do
+
+   end subroutine copy_dsets_results_for_loaded_mesh
+
+   subroutine copy_scalarfield_dataset_results_for_loaded_mesh(dsetname,sourceScalarField,target_file_id,&
+                                             target_Nprocs,fullMapNodeCnt,fullMapNodeRankTrgt,fullNumNodesMapTrgtRank,&
+                                             trgtRankNodeStart,numNodesTrgtTotal)
+      implicit none
+      character(len=*),intent(in) :: dsetname
+      integer(hid_t),intent(in) :: target_file_id
+      integer(4),intent(in) :: target_Nprocs,fullMapNodeCnt,fullMapNodeRankTrgt(fullMapNodeCnt,3),fullNumNodesMapTrgtRank(0:target_Nprocs-1)
+      integer(8),intent(in) :: trgtRankNodeStart(target_Nprocs),numNodesTrgtTotal
+      real(rp_vtk),intent(in) :: sourceScalarField(numNodesRankPar)
+
+      integer(4) :: iNode,iNodeSrc,iNodeTrgt,iRank,iRankTrgt,iNodeCnt,trgtRank,numNodesInTrgt
+      integer(8) :: trgtRankOffset
+
+      real(rp_vtk),allocatable :: targetScalarField(:),empty_array(:)
+
+      integer(hsize_t),allocatable :: ms_coords(:,:)
+      integer(4),parameter :: ms_rank=1
+      integer(4) :: h5err
+      integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id,dtype
+      integer(hsize_t) :: ms_numElems,ms_dims(ms_rank)
+      integer(hssize_t) :: ms_offset(ms_rank)
+	   !--------------------------------------------------------------------------------
+
+      allocate(empty_array(0))
+
+      ! Create property list for collective dataset write
+      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err)
+      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+
+      do trgtRank=0,target_Nprocs-1
+
+         numNodesInTrgt = fullNumNodesMapTrgtRank(trgtRank)
+
+         allocate(targetScalarField(numNodesInTrgt))
+         allocate(ms_coords(ms_rank,numNodesInTrgt))
+
+         targetScalarField(:) = 0
+         ms_coords(:,:) = 1
+
+         iNodeCnt = 0
+         do iNode=1,fullMapNodeCnt
+            if(fullMapNodeRankTrgt(iNode,3).eq.trgtRank) then
+               iNodeSrc  = fullMapNodeRankTrgt(iNode,1) 
+               iNodeTrgt = fullMapNodeRankTrgt(iNode,2)
+               iRankTrgt = fullMapNodeRankTrgt(iNode,3)
+               trgtRankOffset = trgtRankNodeStart(iRankTrgt+1) - 1
+               
+               iNodeCnt = iNodeCnt + 1
+
+               targetScalarField(iNodeCnt) = sourceScalarField(iNodeSrc)
+
+               ms_coords(1,iNodeCnt) = iNodeTrgt + trgtRankOffset
+               !if(mpi_rank.gt.0) ms_coords(1,iNodeCnt) = iNodeTrgt + trgtRankOffset!iNodeTrgt
+               !write(*,*) 'iNodeCnt',iNodeCnt,'ms_c',ms_coords(1,iNodeCnt)!,'iSrc',iNodeSrc,'iTrgt',iNodeTrgt,'iRank',iRankTrgt,'offs',trgtRankOffset
+            end if
+         end do
+ 
+         !--------------------------------------------------------------------
+         call select_dtype_rp_vtk(dtype)
+
+         !------------------------------------------------------------------------------------------------------
+         call h5dopen_f(target_file_id, dsetname, dset_id, h5err)
+
+         !get filespace of the dataset
+         call h5dget_space_f(dset_id, fspace_id, h5err)
+
+         do iRank=0,mpi_size
+
+            if((numNodesInTrgt.gt.0).and.(mpi_rank.eq.iRank)) then
+               ms_numElems = int(numNodesInTrgt,hsize_t)
+               ms_dims(1) = int(numNodesInTrgt,hsize_t)
+
+               call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err)
+               call h5sselect_elements_f(fspace_id,H5S_SELECT_SET_F,ms_rank,ms_numElems,ms_coords,h5err)
+
+               call h5dwrite_f(dset_id,dtype,targetScalarField,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+
+               call h5sclose_f(mspace_id,h5err)
+
+            else
+               ms_offset(1) = 0
+               ms_dims(1) = 0
+
+               ! Each process defines dataset in memory and writes it to the hyperslab in the file.
+               call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err)
+               call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
+
+               call h5dwrite_f(dset_id,dtype,empty_array,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+
+               call h5sclose_f(mspace_id,h5err)
+            endif
+         end do
+
+         !------------------------------------------------------------------------------------------------------
+         call h5sclose_f(fspace_id,h5err)
+         call h5dclose_f(dset_id,h5err)
+
+         deallocate(targetScalarField,ms_coords)
+      end do
+
+      call h5pclose_f(plist_id,h5err)
+      deallocate(empty_array)
+
+   end subroutine copy_scalarfield_dataset_results_for_loaded_mesh
+
+   subroutine copy_vectorfield_dataset_results_for_loaded_mesh(dsetname,sourceVectorField,target_file_id,&
+                                             target_Nprocs,fullMapNodeCnt,fullMapNodeRankTrgt,fullNumNodesMapTrgtRank,&
+                                             trgtRankNodeStart,numNodesTrgtTotal)
+      implicit none
+      character(len=*),intent(in) :: dsetname
+      integer(hid_t),intent(in) :: target_file_id
+      integer(4),intent(in) :: target_Nprocs,fullMapNodeCnt,fullMapNodeRankTrgt(fullMapNodeCnt,3),fullNumNodesMapTrgtRank(0:target_Nprocs-1)
+      integer(8),intent(in) :: trgtRankNodeStart(target_Nprocs),numNodesTrgtTotal
+      real(rp_vtk),intent(in) :: sourceVectorField(numNodesRankPar,ndime)
+
+      integer(4) :: iNode,iNodeSrc,iNodeTrgt,iRank,iRankTrgt,iNodeCnt,idim,iCoordCnt,trgtRank,numNodesInTrgt
+      integer(8) :: trgtRankOffset
+
+      real(rp_vtk),allocatable :: targetVectorField(:,:),empty_array(:,:)
+
+      integer(hsize_t),allocatable :: ms_coords(:,:)
+      integer(4),parameter :: ms_rank=2
+      integer(4) :: h5err
+      integer(hid_t) :: dset_id,fspace_id,mspace_id,plist_id,dtype
+      integer(hsize_t) :: ms_numElems,ms_dims(ms_rank)
+      integer(hssize_t) :: ms_offset(ms_rank)
+	   !--------------------------------------------------------------------------------
+
+      allocate(empty_array(0,ndime))
+      ! Create property list for collective dataset write
+      call h5pcreate_f(H5P_DATASET_XFER_F,plist_id,h5err)
+      call h5pset_dxpl_mpio_f(plist_id, H5FD_MPIO_COLLECTIVE_F,h5err)
+
+      do trgtRank=0,target_Nprocs-1
+
+         numNodesInTrgt = fullNumNodesMapTrgtRank(trgtRank)
+
+         allocate(targetVectorField(ndime,numNodesInTrgt)) !transposed!!!
+         allocate(ms_coords(ms_rank,ndime*numNodesInTrgt))
+
+         targetVectorField(:,:) = 0
+         ms_coords(:,:) = 1
+         
+         iCoordCnt=0
+         iNodeCnt = 0
+         do iNode=1,fullMapNodeCnt
+            if(fullMapNodeRankTrgt(iNode,3).eq.trgtRank) then
+               iNodeSrc  = fullMapNodeRankTrgt(iNode,1) 
+               iNodeTrgt = fullMapNodeRankTrgt(iNode,2)
+               iRankTrgt = fullMapNodeRankTrgt(iNode,3)
+               trgtRankOffset = trgtRankNodeStart(iRankTrgt+1) - 1
+               
+               iNodeCnt = iNodeCnt + 1
+
+               do idim=1,ndime
+                  !copying & transposing the vector for hdf5
+                  targetVectorField(idim,iNodeCnt) = sourceVectorField(iNodeSrc,idim)
+
+                  iCoordCnt = iCoordCnt + 1
+                  ms_coords(1,iCoordCnt) = idim
+                  ms_coords(2,iCoordCnt) = iNodeTrgt + trgtRankOffset
+               end do
+            end if
+         end do
+
+         !--------------------------------------------------------------------
+         call select_dtype_rp_vtk(dtype)
+
+         !------------------------------------------------------------------------------------------------------
+         call h5dopen_f(target_file_id, dsetname, dset_id, h5err)
+
+         !get filespace of the dataset
+         call h5dget_space_f(dset_id, fspace_id, h5err)
+
+         do iRank=0,mpi_size
+
+            if((numNodesInTrgt.gt.0).and.(mpi_rank.eq.iRank)) then
+               ms_numElems = int(ndime*numNodesInTrgt,hsize_t)
+               ms_dims(1) = int(ndime,hsize_t)
+               ms_dims(2) = int(numNodesInTrgt,hsize_t)
+
+               call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err)
+               call h5sselect_elements_f(fspace_id,H5S_SELECT_SET_F,ms_rank,ms_numElems,ms_coords,h5err)
+
+               call h5dwrite_f(dset_id,dtype,targetVectorField,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+
+               call h5sclose_f(mspace_id,h5err)
+
+            else
+               ms_offset(1) = 0
+               ms_offset(2) = 0
+               ms_dims(1) = 0
+               ms_dims(2) = 0
+
+               ! Each process defines dataset in memory and writes it to the hyperslab in the file.
+               call h5screate_simple_f(ms_rank,ms_dims,mspace_id,h5err)
+               call h5sselect_hyperslab_f(fspace_id,H5S_SELECT_SET_F,ms_offset,ms_dims,h5err)
+
+               call h5dwrite_f(dset_id,dtype,empty_array,ms_dims,h5err,file_space_id=fspace_id,mem_space_id=mspace_id,xfer_prp=plist_id)
+
+               call h5sclose_f(mspace_id,h5err)
+            endif
+
+         end do
+         !------------------------------------------------------------------------------------------------------
+         call h5sclose_f(fspace_id,h5err)
+         call h5dclose_f(dset_id,h5err)
+
+         !--------------------
+         deallocate(targetVectorField,ms_coords)
+
+      end do
+
+      call h5pclose_f(plist_id,h5err)
+      deallocate(empty_array)
+
+   end subroutine copy_vectorfield_dataset_results_for_loaded_mesh
 
    subroutine read_and_load_source_scalarfield(dsetname,source_file_id,sourceScalarField)
       implicit none

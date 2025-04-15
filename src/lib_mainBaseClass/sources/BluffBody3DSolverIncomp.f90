@@ -123,7 +123,10 @@ contains
       call json%get("flag_les",flag_les, found,1); call this%checkFound(found,found_aux)
       call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
+
       call json%get("period_walave",period_walave, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("wmles_walex",wmles_walex, found,0.1_rp); !optional depending of the model
+      
       call json%get("flag_les_ilsa",flag_les_ilsa, found,0); call this%checkFound(found,found_aux)
       call json%get("stau",stau, found,0.022_rp); call this%checkFound(found,found_aux)
       call json%get("T_ilsa",T_ilsa, found,1.0_rp); call this%checkFound(found,found_aux)
@@ -138,6 +141,9 @@ contains
       call json%get("aoa_beta",this%aoa_beta, found,0.0_rp); call this%checkFound(found,found_aux)
 
       call json%get("c_sgs",c_sgs, found,0.025_rp); 
+
+      call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+
 
       !Witness points parameters
       call json%get("have_witness",this%have_witness, found,.false.)
@@ -166,6 +172,8 @@ contains
       nscbc_rho_inf = this%rho0
 
       call this%readJSONBuffer()
+      call this%readJSONWMTypes()
+
 
       call json%destroy()
 

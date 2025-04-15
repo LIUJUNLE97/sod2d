@@ -113,6 +113,18 @@ contains
 
       call json%get("c_sgs",c_sgs, found,0.025_rp); 
 
+      call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+
+      call json%get("period_walave",period_walave, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("wmles_walex",wmles_walex, found,0.1_rp); !optional depending of the model
+
+
+      call json%get("flag_trip_element",flag_trip_element, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("x_trip_o",x_trip_o, found,0.0_rp); call this%checkFound(found,found_aux)
+      call json%get("y_trip_o",y_trip_o, found,0.0_rp); call this%checkFound(found,found_aux)
+      call json%get("l_trip_x",l_trip_x, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("l_trip_y",l_trip_y, found,1.0_rp); call this%checkFound(found,found_aux)
+
       ! fixed by the type of base class parameters
       incomp_viscosity = (this%rho0*this%delta*this%vo)/this%Re
       flag_mu_factor = 1.0_rp
@@ -138,6 +150,7 @@ contains
       end if  
 
       call this%readJSONBuffer()
+      call this%readJSONWMTypes()
 
       call json%destroy()
 

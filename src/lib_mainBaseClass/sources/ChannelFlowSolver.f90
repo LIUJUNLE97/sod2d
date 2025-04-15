@@ -131,8 +131,8 @@ contains
       call json%get("stau",stau, found,0.022_rp); call this%checkFound(found,found_aux)
       call json%get("T_ilsa",T_ilsa, found,1.0_rp); call this%checkFound(found,found_aux)
        
-      call json%get("flag_walave",flag_walave, found,.false.); call this%checkFound(found,found_aux)
-      call json%get("period_walave",period_walave, found,200.0_rp); call this%checkFound(found,found_aux)
+      call json%get("period_walave",period_walave, found,20.0_rp); call this%checkFound(found,found_aux)
+      call json%get("wmles_walex",wmles_walex, found,0.1_rp); !optional depending of the model
 
       call json%get("cfl_conv",this%cfl_conv, found,1.5_rp); call this%checkFound(found,found_aux)
       call json%get("cfl_diff",this%cfl_diff, found,1.5_rp); call this%checkFound(found,found_aux)
@@ -148,7 +148,11 @@ contains
 
       call json%get("flag_rk_ls",flag_rk_ls, found,.true.); 
       call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
+      call json%get("flag_rk_ls_n",flag_rk_ls_n, found, 1)
       call json%get("c_sgs",c_sgs, found,0.025_rp); 
+
+      call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+
       !Witness points parameters
       call json%get("have_witness",this%have_witness, found,.false.)
       if(this%have_witness .eqv. .true.) then
@@ -179,6 +183,8 @@ contains
       nscbc_Rgas_inf = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
       nscbc_T_C = this%to
+      
+      call this%readJSONWMTypes()
 
       call json%destroy()
 

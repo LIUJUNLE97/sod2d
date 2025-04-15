@@ -320,7 +320,7 @@ contains
       !Filtering u buffer at the top of the domain
       if(mpi_size.ge.2) then
          call nvtxStartRange("MPI_comms_tI")
-         call mpi_halo_max_boundary_update_real_iSendiRcv(u_buffer(:,1))
+         call mpi_halo_bnd_atomic_max_real_iSendiRcv(u_buffer(:,1))
          call nvtxEndRange
       end if
 

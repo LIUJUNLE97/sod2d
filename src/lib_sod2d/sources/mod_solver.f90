@@ -37,6 +37,27 @@ module mod_solver
 
 		end subroutine lumped_solver_scal
 
+		subroutine lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,R)
+
+			implicit none
+
+			integer(4), intent(in)    :: npoin, npoin_w, lpoin_w(npoin_w)
+			real(rp),    intent(in)    :: invMl(npoin)
+			real(rp),    intent(inout) :: R(npoin)
+			integer(4)                :: idime, ipoin, idx
+			real(rp)                  :: aux1, aux2
+
+			!$acc parallel loop private(idx,aux1,aux2)
+			do ipoin = 1,npoin_w
+				idx = lpoin_w(ipoin)
+				aux1 = invMl(idx)
+				aux2 = R(idx)
+				R(idx) = aux2*aux1
+			end do
+			!$acc end  parallel loop
+
+		end subroutine lumped_solver_scal_opt
+
 		subroutine lumped_solver_vect(npoin,npoin_w,lpoin_w,Ml,R)
 
 			implicit none
@@ -56,5 +77,31 @@ module mod_solver
 			!$acc end  parallel loop
 
 		end subroutine lumped_solver_vect
+
+		subroutine lumped_solver_vect_opt(npoin,npoin_w,lpoin_w,invMl,R)
+
+			implicit none
+
+			integer(4), intent(in)    :: npoin, npoin_w, lpoin_w(npoin_w)
+			real(rp),    intent(in)    :: invMl(npoin)
+			real(rp),    intent(inout) :: R(npoin,ndime)
+			integer(4)                :: idime, ipoin, idx
+			real(rp)                  :: aux1, aux2(ndime)
+
+			!$acc parallel loop private(idx,aux1,aux2)
+			do ipoin = 1,npoin_w
+				idx = lpoin_w(ipoin)
+				aux1 = invMl(idx)
+				aux2(1) = R(idx,1)
+				aux2(2) = R(idx,2)
+				aux2(3) = R(idx,3)
+				R(idx,1) = aux2(1)*aux1
+				R(idx,2) = aux2(2)*aux1
+				R(idx,3) = aux2(3)*aux1
+			end do
+			!$acc end  parallel loop
+
+		end subroutine lumped_solver_vect_opt
+
 
 end module mod_solver

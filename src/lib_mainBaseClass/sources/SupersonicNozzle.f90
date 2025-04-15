@@ -127,9 +127,9 @@ contains
       real(rp), dimension(porder+1) :: dlxi_ip, dleta_ip, dlzeta_ip
       real(rp) :: yp,up,vp,wp,eta_y,f_y,f_prim_y,sig = 1.0_rp
 
-      call eval_gradient(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,connecParWork,workingNodesPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,q(:,1,2),gradXVel,.true.)
-      call eval_gradient(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,connecParWork,workingNodesPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,q(:,2,2),gradYVel,.true.)
-      call eval_gradient(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,connecParWork,workingNodesPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,q(:,3,2),gradZVel,.true.)
+      call eval_gradient(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,connecParWork,workingNodesPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,invMl,q(:,1,2),gradXVel,.true.)
+      call eval_gradient(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,connecParWork,workingNodesPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,invMl,q(:,2,2),gradYVel,.true.)
+      call eval_gradient(numElemsRankPar,numNodesRankPar,numWorkingNodesRankPar,connecParWork,workingNodesPar,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,invMl,q(:,3,2),gradZVel,.true.)
 
       !$acc parallel loop
       do iNodeL = 1,numNodesRankPar
@@ -217,8 +217,8 @@ contains
       call json%get("stau",stau, found,0.022_rp); call this%checkFound(found,found_aux)
       call json%get("T_ilsa",T_ilsa, found,1.0_rp); call this%checkFound(found,found_aux)
        
-      call json%get("flag_walave",flag_walave, found,.false.); call this%checkFound(found,found_aux)
-      call json%get("period_walave",period_walave, found,200.0_rp); call this%checkFound(found,found_aux)
+      call json%get("period_walave",period_walave, found,1.0_rp); call this%checkFound(found,found_aux)
+      call json%get("wmles_walex",wmles_walex, found,0.1_rp); !optional depending of the model
 
       call json%get("cfl_conv",this%cfl_conv, found,0.95_rp); call this%checkFound(found,found_aux)
       call json%get("cfl_diff",this%cfl_diff, found,0.95_rp); call this%checkFound(found,found_aux)
@@ -239,6 +239,8 @@ contains
       call json%get("RetRef",this%RetRef, found,1000.0_rp); call this%checkFound(found,found_aux)
       call json%get("Uinfp",this%Uinfp, found,22.0_rp); call this%checkFound(found,found_aux)
       call json%get("deltaBL",this%deltaBL, found,0.1_rp); call this%checkFound(found,found_aux)
+
+      call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
 
 
       this%mu    = (this%rho0*this%delta*this%vo)/this%Re
@@ -267,6 +269,7 @@ contains
       nscbc_sign_ux = -1.0_rp
 
       call this%readJSONBuffer()
+      call this%readJSONWMTypes()
 
       call json%destroy()
 

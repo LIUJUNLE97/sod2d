@@ -1,0 +1,7 @@
+{
+   "numIters":10000,
+   "useMesh":false,
+   "numNodesSrmesh_h5_file_path":10000,
+   "numNodesB_1r":100
+}
+

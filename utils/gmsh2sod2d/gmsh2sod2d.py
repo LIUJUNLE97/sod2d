@@ -7,88 +7,19 @@
 # Last rev: 14/03/2023
 from __future__ import print_function, division
 
-# Please do not delete this part otherwise it will not work
-# you have been warned after a long weekend of debugging
-import mpi4py
-mpi4py.rc.recv_mprobe = False
-from mpi4py import MPI
-
 #import os, sys, itertools, argparse, numpy as np
 import h5py, argparse, numpy as np
 
-MPI_RANK = MPI.COMM_WORLD.Get_rank()
-MPI_SIZE = MPI.COMM_WORLD.Get_size()
-
-
-def _reduce(v1,v2,dtype):
-	'''
-	v1 and v2 are two arrays that contain
-	v1[:,0] -> index of the minimum
-	v1[:,1] -> value of the minimum
-	They have both the same size
-	'''
-	valmat = np.vstack([v1,v2])
-	imax   = np.argmax(valmat,axis=0)
-	return np.array([valmat[imax[i],i] for i in range(imax.shape[0])],v1.dtype)
-
-gmsh_reduce = MPI.Op.Create(_reduce, commute=True)
-
-def find_node_in_elems(inode,conec):
-	'''
-	Finds if a node ID is inside a connectivity list
-	and returns which element has the node.
-	'''
-	return np.where(np.any(np.isin(conec,inode),axis=1))[0]
 
 #------------------------------------------------------------------------------------------------------------------------    
 #------------------------------------------------------------------------------------------------------------------------
 
-def raiseError(errmsg,all=True):
+def raiseError(errmsg):
 	'''
 	Raise a controlled error and abort execution on
 	all processes.
 	'''
-	if all:
-		print('Error: %d - %s' % (MPI_RANK,errmsg),file=sys.stderr,flush=True)
-	else:
-		if MPI_RANK == 0 or MPI_SIZE == 1:
-			print('Error: %d - %s' % (MPI_RANK,errmsg),file=sys.stderr,flush=True)
-	MPI_COMM.Abort(1)
-
-def h5_save_field(fname,xyz,varDict,mpio=True,write_master=False,metadata={}):
-	'''
-	Save a field in HDF5
-	'''
-	if mpio and not MPI_SIZE == 1:
-		h5_save_field_mpio(fname,xyz,varDict,write_master,metadata)
-	else:
-		h5_save_field_serial(fname,xyz,varDict,metadata)
-
-def h5_save_field_serial(fname,xyz,varDict,metadata={}):
-	'''
-	Save a field in HDF5 in serial mode
-	'''
-	# Open file for writing
-	file = h5py.File(fname,'w')
-	# Metadata
-	meta_group = file.create_group('metadata')
-	# Store number of points
-	dset = meta_group.create_dataset('npoints',(1,),dtype='i')
-	dset[:] = xyz.shape[0]
-	# Store metadata
-	for var in metadata.keys():
-		if var in meta_group:
-			dset = meta_group[var]
-		else:
-			dset = meta_group.create_dataset(var,(1,),dtype=metadata[var][1])
-		dset[:] = metadata[var][0]
-	# Store xyz coordinates
-	file.create_dataset('xyz',xyz.shape,dtype=xyz.dtype,data=xyz)
-	# Store the variables
-	for var in varDict.keys():
-		v = varDict[var]
-		file.create_dataset(var,v.shape,dtype=v.dtype,data=v)
-	file.close()
+	raise ValueError(errmsg)
 
 #------------------------------------------------------------------------------------------------------------------------    
 #------------------------------------------------------------------------------------------------------------------------
