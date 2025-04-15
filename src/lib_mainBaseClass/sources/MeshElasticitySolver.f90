@@ -228,7 +228,7 @@ contains
       !if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
       !
       if(mpi_rank.eq.0) write(*,*) '  --| Quality before elasticity'
-      call this%computeQuality(minQ,maxQ,numInv,numLow)
+      !call this%computeQuality(minQ,maxQ,numInv,numLow)
       call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       !
