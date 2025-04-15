@@ -3341,6 +3341,40 @@ contains
 
    end subroutine load_coordinates_hdf5
 
+   subroutine save_coordinates_hdf5(meshFile_h5_full_name)
+      implicit none
+      character(len=*),intent(in) :: meshFile_h5_full_name
+      character(128) :: dsetname
+      integer(hsize_t), dimension(1) :: ds_dims,ms_dims
+      integer(hsize_t), dimension(2) :: ds_dims2d,ms_dims2d
+      integer(hssize_t), dimension(1) :: ms_offset
+      integer(hssize_t), dimension(2) :: ms_offset2d
+      integer(hid_t)  :: file_id
+
+      call open_hdf5_file(meshFile_h5_full_name,file_id)
+
+      if(mpi_rank.eq.0) write(*,*) 'Saving mesh Coordinates data hdf5...'
+
+      !$acc update host(coordPar(:,:))
+
+      ds_dims2d(1) = int(ndime,hsize_t)
+      ds_dims2d(2) = int(totalNumNodesPar,hsize_t)
+      ms_dims2d(1) = int(ndime,hsize_t)
+      ms_dims2d(2) = int(numNodesRankPar,hsize_t)
+      ms_offset2d(1) = 0
+      ms_offset2d(2) = int(rankNodeStart,hssize_t)-1
+
+      if(isMeshLinealOutput) then
+         dsetname = '/VTKHDF/Points'
+      else
+         dsetname = '/Coords/Points'
+      end if
+      call save_array2D_tr_rp_in_rp_vtk_dataset_hdf5_file(file_id,dsetname,ds_dims2d,ms_dims2d,ms_offset2d,coordPar)
+
+      call close_hdf5_file(file_id)
+
+   end subroutine save_coordinates_hdf5
+
    subroutine load_globalIds_hdf5(file_id)
       implicit none
       integer(hid_t),intent(in) :: file_id

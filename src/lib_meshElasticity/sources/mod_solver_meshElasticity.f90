@@ -73,7 +73,7 @@ subroutine conjGrad_meshElasticity(igtime,save_logFile_next,noBoundaries,nelem,n
         b_u(ipoin,idime) = 0.0_rp
         z0_u(ipoin,idime) = 0.0_rp
         z1_u(ipoin,idime) = 0.0_rp
-        M_u(ipoin,idime) = Ml(ipoin)
+        M_u(ipoin,idime) = 1.0_rp!Ml(ipoin)
      end do
   end do
   !$acc end parallel loop
@@ -232,6 +232,7 @@ subroutine conjGrad_meshElasticity(igtime,save_logFile_next,noBoundaries,nelem,n
      end do
      !$acc end parallel loop
      call nvtxEndRange
+     if(mpi_rank.eq.0) write(111,*) "--|[veloc] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
   end do
   call nvtxEndRange
 

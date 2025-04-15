@@ -50,6 +50,7 @@ module MeshElasticitySolver_mod
      real(rp) , public  :: nu_poisson = 0.4_rp                    
      
      logical :: is_imposed_displacement = .false.               
+     logical :: saveNewCoords = .false.       
      
      real(rp), public:: factor_deformation=1.0_rp ! to analytically increase deformation in stress tests
      
@@ -109,6 +110,8 @@ contains
 
      call json%get("saveInitialField",this%saveInitialField, found,.true.); call this%checkFound(found,found_aux)
      !call json%get("saveSurfaceResults",this%saveSurfaceResults, found,.false.); call this%checkFound(found,found_aux)
+
+     call json%get("saveNewCoords",this%saveNewCoords, found,.false.); call this%checkFound(found,found_aux)
      
      call this%readJSONMeshElasticityTypes()
 
@@ -255,7 +258,7 @@ contains
       u(:,:,2) = 0.0_rp
       !$acc end kernels
       if(mpi_rank.eq.0) write(*,*) '  --| Input curved mesh quality'
-      call this%computeQuality(minQ,maxQ,numInv,numLow)
+      !call this%computeQuality(minQ,maxQ,numInv,numLow)
       call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       call this%saveInstResultsFiles(0)
@@ -272,7 +275,7 @@ contains
       u(:,:,2) = 0.0_rp
       !$acc end kernels
       if(mpi_rank.eq.0) write(*,*) '  --| Quality straight-sided mesh'
-      call this%computeQuality(minQ,maxQ,numInv,numLow)
+      !call this%computeQuality(minQ,maxQ,numInv,numLow)
       call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       
@@ -301,11 +304,13 @@ contains
       coordPar = coordPar+u(:,:,2)
       !$acc end kernels
       if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity-based curved mesh'
-      call this%computeQuality(minQ,maxQ,numInv,numLow)
+      !call this%computeQuality(minQ,maxQ,numInv,numLow)
       call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       u(:,:,2) = coordPar-coord_input_safe ! -> displacement to see in paraview the new curved mesh
       call this%saveInstResultsFiles(2)
+      
+      if(this%saveNewCoords) call save_coordinates_hdf5(this%meshFile_h5_full_name)
     end if
     !
     if( elasticity_problemType == elasticity_fromMetric ) then ! do_curveFromMetric
