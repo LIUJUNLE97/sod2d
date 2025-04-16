@@ -851,7 +851,7 @@ contains
   !
   subroutine computeQuality(this,minQ,maxQ,countInvalid,countLowQ)
    
-    use mod_mesh_quality, only: eval_ElemQuality
+    use mod_quality, only: eval_ElemQuality
    
     class(MeshElasticitySolver), intent(inout) :: this
     real(rp),   intent(out) :: minQ, maxQ
