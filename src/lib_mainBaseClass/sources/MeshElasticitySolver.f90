@@ -407,17 +407,168 @@ contains
     ! End MPI
     call end_mpi()
     !
-    print*,'IMPLEMENTED THINGS: '
-    print*,' - Mesh curving from a "bad" input curved mesh'
-    print*,' - Mesh curving after imposing displacement (ALE)'
-    print*,' FUTURE: '
-    print*,' - Add an option in the json to read the displacement of the ALE vs do mesh curving?'
-    print*,' - Optimization?'
-    print*,'TODO solve nasty thing:'
-    print*,' - I am doing something nasty... created a link in the meshElasticitySOlver folder to the mod_meshquality'
-    print*,' - When Lucas rearranges folders in sod, remove this and do properly'
+    if(mpi_rank.eq.0) then
+      print*,'IMPLEMENTED THINGS: '
+      print*,' - Mesh curving from a "bad" input curved mesh'
+      print*,' - Mesh curving after imposing displacement (ALE)'
+      print*,' FUTURE: '
+      print*,' - Add an option in the json to read the displacement of the ALE vs do mesh curving?'
+      print*,' - Optimization?'
+      print*,'TODO solve nasty thing:'
+      print*,' - I am doing something nasty... created a link in the meshElasticitySOlver folder to the mod_meshquality'
+      print*,' - When Lucas rearranges folders in sod, remove this and do properly'
+    end if
     
   end subroutine MeshElasticitySolver_run
+  !
+  !
+  !
+  subroutine compute_displacement_straight_mesh(npoin,ndime,coords,coord_input_safe,bou_codes_nodes,&
+    is_imposed_displacement,imposed_displacement)
+    implicit none
+    !
+    integer(4),  intent(in)    :: npoin, ndime
+    real(rp),    intent(in   ) :: coords(npoin,ndime)
+    real(rp),    intent(in   ) :: coord_input_safe(npoin,ndime)
+    integer(4),  intent(in   ) :: bou_codes_nodes(npoin)
+    logical, intent(inout) :: is_imposed_displacement
+    real(rp),allocatable, intent(inout) :: imposed_displacement(:,:)
+    integer(4) :: inode, bcode
+    integer(4) :: iBound,iElem, innerNodeL,bndNodeL,ipbou
+    !
+    is_imposed_displacement = .true.
+    allocate(imposed_displacement(npoin,ndime))
+    !$acc enter data create(imposed_displacement(:,:))
+    !$acc parallel loop
+    do inode = 1,npoin
+      imposed_displacement(inode,:) = 0.0_rp
+      if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
+         bcode = bou_codes_nodes(inode) ! Boundary element code
+         if (bcode == bc_type_non_slip_adiabatic ) then ! non_slip wall adiabatic -> could be anything
+           imposed_displacement(inode,:) = coord_input_safe(inode,:)-coords(inode,:)
+         end if
+      end if
+    end do
+    !$acc end parallel loop
+    
+    ! I COULD DO THE FOLLOWING TO NOT CHECK ANY BC IN PARTICULAR, AND JUST GET ALL BOUNDARIES
+!     rho(:,2)=0.0_rp
+!     do iBound = 1,numBoundsRankPar
+!       iElem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
+!       innerNodeL = connecParWork(iElem,nnode)         ! internal node
+!       !$acc loop vector private(aux)
+!       do ipbou = 1,npbou
+!          bndNodeL = boundPar(iBound,ipbou) ! node at the boundary
+!          imposed_displacement(bndNodeL,:) = coord_input_safe(bndNodeL,:)-coords(bndNodeL,:)
+!          rho(bndNodeL,2) = 1.0_rp
+!        end do
+!      end do
+    !
+  end subroutine compute_displacement_straight_mesh
+  !
+  !
+  !
+  subroutine computeQuality(this,minQ,maxQ,countInvalid,countLowQ)
+   
+    use mod_quality, only: eval_ElemQuality_simple
+   
+    class(MeshElasticitySolver), intent(inout) :: this
+    real(rp),   intent(out) :: minQ, maxQ
+    integer(4), intent(out) :: countInvalid,countLowQ 
+    integer(4) :: ielem,mnode
+    real(rp)   :: quality,distortion
+    real(rp)   :: coordElem(size(connecParWork,2),ndime)
+
+    integer(4) :: id_quality = 1 ! 1 for aniso, 2 for isso cube ideal 
+    
+    real(8)   :: q_gauss(ngaus)
+    !
+    countInvalid = 0
+    countLowQ = 0
+    minQ = 1.0_rp
+    maxQ = 0.0_rp
+
+    mnode = size(connecParWork,2)
+
+    !$acc update host(coordPar(:,:))
+
+    !!!!$acc parallel loop
+    do ielem = 1,numElemsRankPar
+      !
+      coordElem = coordPar(connecParWork(ielem,:),:)
+      call eval_ElemQuality_simple(mnode,ngaus,coordElem,dNgp,wgp,quality,distortion)
+      !
+      minQ = min(minQ,quality)
+      maxQ = max(maxQ,quality)
+      !
+      mu_e(ielem,:) = quality
+      !
+      if(quality<0) then
+        countInvalid = countInvalid+1
+      end if
+      if(distortion>1e10) then
+        countLowQ = countLowQ+1
+      end if
+    end do
+    !!!$acc end parallel loop
+
+    !$acc update device(mu_e(:,:))
+
+    !
+    if(minQ<0) minQ = 0.0_rp
+    !print*,'   Num invalid: ',countInvalid,'     Num lowQ: ',countLowQ
+    !
+  end subroutine computeQuality
+  !
+  !
+  !
+  subroutine computeQuality_old(this,minQ,maxQ,countInvalid,countLowQ)
+   
+    use mod_quality, only: eval_ElemQuality
+   
+    class(MeshElasticitySolver), intent(inout) :: this
+    real(rp),   intent(out) :: minQ, maxQ
+    integer(4), intent(out) :: countInvalid,countLowQ 
+    integer(4) :: ielem
+    real(8)    :: quality_vec(2)
+
+    integer(4) :: id_quality = 1 ! 1 for aniso, 2 for isso cube ideal 
+    
+    real(8)   :: q_gauss(ngaus)
+    !
+    countInvalid = 0
+    countLowQ = 0
+    minQ = 1.0_rp
+    maxQ = 0.0_rp
+
+    !$acc update host(coordPar(:,:))
+
+    do ielem = 1,numElemsRankPar
+      !
+      call eval_ElemQuality(size(connecParWork,2),ngaus,numNodesRankPar,numElemsRankPar,&
+        ielem,real(coordPar,8),connecParWork,real(dNgp,8),real(wgp,8),&
+        quality_vec,q_gauss)
+      !
+      minQ = min(minQ,real(quality_vec(id_quality),rp))
+      maxQ = max(maxQ,real(quality_vec(id_quality),rp))
+      !
+      mu_e(ielem,:) = real(q_gauss,4)
+      !
+      if(real(quality_vec(id_quality),rp)<0) then
+        countInvalid = countInvalid+1
+      end if
+      if(minval(q_gauss)<0) then
+        countLowQ = countLowQ+1
+      end if
+    end do
+
+    !$acc update device(mu_e(:,:))
+
+    !
+    if(minQ<0) minQ = 0.0_rp
+    !print*,'   Num invalid: ',countInvalid,'     Num lowQ: ',countLowQ
+    !
+  end subroutine computeQuality_old
   !
   !
   !
@@ -649,51 +800,6 @@ contains
   !
   !
   !
-  subroutine compute_displacement_straight_mesh(npoin,ndime,coords,coord_input_safe,bou_codes_nodes,&
-    is_imposed_displacement,imposed_displacement)
-    implicit none
-    !
-    integer(4),  intent(in)    :: npoin, ndime
-    real(rp),    intent(in   ) :: coords(npoin,ndime)
-    real(rp),    intent(in   ) :: coord_input_safe(npoin,ndime)
-    integer(4),  intent(in   ) :: bou_codes_nodes(npoin)
-    logical, intent(inout) :: is_imposed_displacement
-    real(rp),allocatable, intent(inout) :: imposed_displacement(:,:)
-    integer(4) :: inode, bcode
-    integer(4) :: iBound,iElem, innerNodeL,bndNodeL,ipbou
-    !
-    is_imposed_displacement = .true.
-    allocate(imposed_displacement(npoin,ndime))
-    !$acc enter data create(imposed_displacement(:,:))
-    !$acc parallel loop
-    do inode = 1,npoin
-      imposed_displacement(inode,:) = 0.0_rp
-      if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
-         bcode = bou_codes_nodes(inode) ! Boundary element code
-         if (bcode == bc_type_non_slip_adiabatic ) then ! non_slip wall adiabatic -> could be anything
-           imposed_displacement(inode,:) = coord_input_safe(inode,:)-coords(inode,:)
-         end if
-      end if
-    end do
-    !$acc end parallel loop
-    
-    ! I COULD DO THE FOLLOWING TO NOT CHECK ANY BC IN PARTICULAR, AND JUST GET ALL BOUNDARIES
-!     rho(:,2)=0.0_rp
-!     do iBound = 1,numBoundsRankPar
-!       iElem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
-!       innerNodeL = connecParWork(iElem,nnode)         ! internal node
-!       !$acc loop vector private(aux)
-!       do ipbou = 1,npbou
-!          bndNodeL = boundPar(iBound,ipbou) ! node at the boundary
-!          imposed_displacement(bndNodeL,:) = coord_input_safe(bndNodeL,:)-coords(bndNodeL,:)
-!          rho(bndNodeL,2) = 1.0_rp
-!        end do
-!      end do
-    !
-  end subroutine compute_displacement_straight_mesh
-  !
-  !
-  !
   subroutine assessElasticityParameters_forDifferentDefs(this)
     implicit none
     class(MeshElasticitySolver), intent(inout) :: this
@@ -846,56 +952,6 @@ contains
     this%E_young = E_best
    
   end subroutine assessBestElasticityParameters
-  !
-  !
-  !
-  subroutine computeQuality(this,minQ,maxQ,countInvalid,countLowQ)
-   
-    use mod_quality, only: eval_ElemQuality
-   
-    class(MeshElasticitySolver), intent(inout) :: this
-    real(rp),   intent(out) :: minQ, maxQ
-    integer(4), intent(out) :: countInvalid,countLowQ 
-    integer(4) :: ielem
-    real(8)    :: quality_vec(2)
-
-    integer(4) :: id_quality = 1 ! 1 for aniso, 2 for isso cube ideal 
-    
-    real(8)   :: q_gauss(ngaus)
-    !
-    countInvalid = 0
-    countLowQ = 0
-    minQ = 1.0_rp
-    maxQ = 0.0_rp
-
-    !$acc update host(coordPar(:,:))
-
-    do ielem = 1,numElemsRankPar
-      !
-      call eval_ElemQuality(size(connecParWork,2),ngaus,numNodesRankPar,numElemsRankPar,&
-        ielem,real(coordPar,8),connecParWork,real(dNgp,8),real(wgp,8),&
-        quality_vec,q_gauss)
-      !
-      minQ = min(minQ,real(quality_vec(id_quality),rp))
-      maxQ = max(maxQ,real(quality_vec(id_quality),rp))
-      !
-      mu_e(ielem,:) = real(q_gauss,4)
-      !
-      if(real(quality_vec(id_quality),rp)<0) then
-        countInvalid = countInvalid+1
-      end if
-      if(minval(q_gauss)<0) then
-        countLowQ = countLowQ+1
-      end if
-    end do
-
-    !$acc update device(mu_e(:,:))
-
-    !
-    if(minQ<0) minQ = 0.0_rp
-    !print*,'   Num invalid: ',countInvalid,'     Num lowQ: ',countLowQ
-    !
-  end subroutine computeQuality
   !
   !
   !

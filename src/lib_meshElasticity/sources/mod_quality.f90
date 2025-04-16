@@ -43,19 +43,38 @@ contains
         isInvalid = detS < tiny(1.0d0)
     end subroutine
 
-
-    subroutine eval_ElemQuality_simple(mnnode,mngaus,npoin, nelem, ielem, coordPar, connecParOrig, dNgp, wgp, quality_vec,qual_gauss)
+    subroutine shape_measure_rp(elemJ, idealJ, eta, isInvalid)
         implicit none
-        integer(4), intent(in) :: mnnode,mngaus,npoin,nelem,ielem,connecParOrig(nelem,mnnode)
-        real(8), intent(in) :: coordPar(npoin,ndime),dNgp(ndime,mnnode,mngaus),wgp(mngaus)
-        real(8), intent(out) :: quality_vec(2)
-        real(8), optional, intent(inout) :: qual_gauss(mngaus)
-        integer(4) :: igaus, idime
-        real(8) :: elemJ(ndime,ndime),idealJ(ndime,ndime),gpvol,gpvolIdeal
-        real(8) :: eta,volume,volume_cube,modulus
-        real(8) :: eta_elem, eta_cube, quality
-        real(8) :: idealCubeJ(ndime,ndime)
-        real(8) :: detIdeal,detIdealCube
+        real(rp),intent(in)  :: elemJ(ndime,ndime), idealJ(ndime,ndime)
+        real(rp),intent(out) :: eta
+        logical, intent(out) :: isInvalid
+        real(rp) :: S(ndime,ndime), S2(ndime,ndime), sigma, Sf, detS
+        real(rp),parameter :: d=3.0_rp
+        real(rp)                :: Saux(ndime,ndime),detaux
+        S     = matmul(elemJ, idealJ)
+
+        detS  = det_3x3_rp(S)
+
+        sigma = (detS + abs(detS))/2
+        S2    = matmul(transpose(S), S)
+        Sf    = S2(1,1) + S2(2,2) + S2(3,3)
+        eta   = Sf/(d*sigma**(2.0d0/d)) 
+        
+        isInvalid = detS < tiny(1.0d0)
+    end subroutine
+
+    subroutine eval_ElemQuality_simple(mnnode,mngaus,coordElem,dNgp,wgp,quality,distortion)
+        implicit none
+        !
+        integer(4), intent(in) :: mnnode,mngaus
+        real(rp), intent(in) :: coordElem(mnnode,ndime),dNgp(ndime,mnnode,mngaus),wgp(mngaus)
+        real(rp), intent(out) :: quality, distortion
+        !
+        integer(4) :: igaus, idime, jdime
+        real(rp) :: elemJ(ndime,ndime)
+        real(rp) :: eta,eta_elem,volume,modulus,gpvol,gpvolIdeal
+        real(rp) :: idealCubeJ(ndime,ndime)
+        real(rp) :: detIdeal,detIdealCube
         logical :: isInvalid
 
         idealCubeJ = 0.0d0
@@ -64,63 +83,35 @@ contains
         end do
         detIdealCube = 1.0d0
         eta_elem = 0.0d0
-        eta_cube = 0.0d0
         volume = 0.0d0
-        volume_cube = 0.0d0
-        call ideal_hexa(mnnode,nelem,npoin,ielem,coordPar,connecParOrig,idealJ) !Assumim que el jacobià de l'element ideal és constant
-        detIdeal = det_3x3(idealJ)
-        detIdeal = 1.0_rp/detIdeal
         do igaus = 1,mngaus
-            call compute_jacobian(mnnode,mngaus,nelem,npoin,ielem,igaus,dNgp,wgp(igaus),coordPar,connecParOrig,elemJ,gpvol)
-            elemJ = transpose(elemJ)
-            gpvolIdeal = detIdeal*wgp(igaus)
-            call shape_measure(elemJ, idealJ, eta, isInvalid)
-            eta_elem = eta_elem + eta*eta*gpvolIdeal
+            !subroutine compute_jacobian(mnnode,mngaus,nelem,npoin,ielem,igaus,dNgp,wigp,coord,connec,Je,gpvol)
+            elemJ(:,:) = 0.0_rp
+            do idime = 1,ndime
+                do jdime = 1,ndime
+                    ! transposed with respect to original implementation in compute_jacobian 
+                    elemJ(jdime,idime) = dot_product(dNgp(idime,:,igaus),coordElem(:,jdime))
+                end do
+            end do
+           
+            gpvolIdeal  = detIdealCube*wgp(igaus)
+            call shape_measure_rp(elemJ, idealCubeJ, eta, isInvalid)
+            eta_elem    = eta_elem + eta*eta*gpvolIdeal
             volume = volume + 1*1*gpvolIdeal
-            
-            gpvolIdeal = detIdealCube*wgp(igaus)
-            call shape_measure(elemJ, idealCubeJ, eta, isInvalid)
-            eta_cube = eta_cube + eta*eta*gpvolIdeal
-            volume_cube = volume_cube + 1*1*gpvolIdeal
-
-!             if(present(qual_gauss)) then
-!               if(isInvalid) then
-!                 qual_gauss(igaus) = huge(1.0d0)
-!               else
-!                 qual_gauss(igaus) = eta!*gpvolIdeal
-!               end if
-!             end if
-
-            if(eta>100000) then
-                print*,igaus, ' ',eta
-            end if
         end do
 
-        eta_elem = sqrt(eta_elem)/sqrt(volume)
-        quality = 1.0d0/eta_elem
+        distortion = sqrt(eta_elem)/sqrt(volume)
+        quality = 1.0d0/distortion
         modulus = modulo(quality, 1.0d0)
         if (int(modulus) .ne. 0) then
             quality = -1.0d0
+            distortion = 1e10
         end if
-        quality_vec(1) = quality
-        
-        if (present(qual_gauss)) then
-          qual_gauss(:) = quality  ! all gauss points the elemental value -> here with respect to cube (isotropic)
-          if (quality<0.01) then
-              qual_gauss(:) = -10000.0d0
-          end if
-        end if
-        
-        eta_elem = eta_cube
-        eta_elem = sqrt(eta_elem)/sqrt(volume_cube)
-        quality = 1.0_rp/eta_elem
-        modulus = modulo(quality, 1.0d0)
-        if (int(modulus) .ne. 0) then
-            quality = -1.0d0
-        end if
-        quality_vec(2) = quality
         
     end subroutine eval_ElemQuality_simple
+
+
+
 
     subroutine eval_ElemQuality(mnnode,mngaus,npoin, nelem, ielem, coordPar, connecParOrig, dNgp, wgp, quality_vec,qual_gauss)
         implicit none
@@ -209,6 +200,16 @@ contains
             - A(1, 2)*(A(2, 1)*A(3, 3) - A(2, 3)*A(3, 1)) &
             + A(1, 3)*(A(2, 1)*A(3, 2) - A(2, 2)*A(3, 1))
     end function det_3x3
+
+    function det_3x3_rp(A) result(det)
+        implicit none
+        real(rp), intent(in) :: A(:,:)         ! Input 3x3 matrix
+        real(rp) :: det           ! Determinant of the matrix
+    
+        det = A(1, 1)*(A(2, 2)*A(3, 3) - A(2, 3)*A(3, 2)) &
+            - A(1, 2)*(A(2, 1)*A(3, 3) - A(2, 3)*A(3, 1)) &
+            + A(1, 3)*(A(2, 1)*A(3, 2) - A(2, 2)*A(3, 1))
+    end function det_3x3_rp
 
      subroutine inverse_matrix_3x3(A, A_inv, det, success)
         implicit none
