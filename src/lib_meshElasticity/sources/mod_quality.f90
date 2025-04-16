@@ -78,6 +78,7 @@ contains
 
     subroutine eval_ElemQuality_simple(mnnode,mngaus,coordElem,dNgp,wgp,quality,distortion)
         !$acc routine seq
+        !
         implicit none
         !
         integer(4), intent(in) :: mnnode,mngaus
@@ -99,7 +100,6 @@ contains
         eta_elem = 0.0d0
         volume = 0.0d0
         do igaus = 1,mngaus
-            !subroutine compute_jacobian(mnnode,mngaus,nelem,npoin,ielem,igaus,dNgp,wigp,coord,connec,Je,gpvol)
             elemJ(:,:) = 0.0_rp
             do idime = 1,ndime
                 do jdime = 1,ndime

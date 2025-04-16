@@ -266,22 +266,19 @@ contains
       
       if(mpi_rank.eq.0) write(*,*) '  --| Straighten mesh (coordpar)'
       call compute_straight_mesh(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,coord_input_safe)
+      if(mpi_rank.eq.0) write(*,*) '  --| Quality straight-sided mesh'
+      call this%computeQuality(minQ,maxQ,numInv,numLow)
+      if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
+
       !$acc kernels
       u(:,:,2) = coordPar-coord_input_safe ! -> displacement to see in paraview the straight mesh
       !$acc end kernels
       call this%saveInstResultsFiles(1)
-      !$acc kernels
-      u(:,:,2) = 0.0_rp
-      !$acc end kernels
-      if(mpi_rank.eq.0) write(*,*) '  --| Quality straight-sided mesh'
-      call this%computeQuality(minQ,maxQ,numInv,numLow)
-      if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       
       !print*,'- Compute displacement of the boundary'
       call compute_displacement_straight_mesh(numNodesRankPar,ndime,coordPar,coord_input_safe,bouCodesNodesPar,&
         this%is_imposed_displacement,imposed_displacement)
       !
-      !print*,'- Impose elasticity boundary conditions'
       call this%initialBuffer()
       if (this%noBoundaries .eqv. .false.) then
          call temporary_bc_routine_dirichlet_prim_meshElasticity(&
@@ -304,6 +301,7 @@ contains
       if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity-based curved mesh'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
+
       !$acc kernels
       u(:,:,2) = coordPar-coord_input_safe ! -> displacement to see in paraview the new curved mesh
       !$acc end kernels
@@ -380,7 +378,6 @@ contains
       
     end if
     !
-
     call this%close_log_file()
     call this%close_analysis_files()
 
@@ -516,8 +513,10 @@ contains
 
     !$acc update host(coordPar(:,:))
 
+    print*,"numElemsRankPar: ",numElemsRankPar,' switched to test how it works'
+
     !$acc parallel loop private(coordElem)
-    do ielem = 1,numElemsRankPar
+    do ielem = 1,1e5!numElemsRankPar
       !
       coordElem = coordPar(connecParWork(ielem,:),:)
       call eval_ElemQuality_simple(mnode,ngaus,coordElem,dNgp,wgp,quality(ielem),distortion(ielem))
@@ -533,20 +532,16 @@ contains
     do ielem = 1,numElemsRankPar
         if (quality(ielem) < 0.0d0) countInvalid = countInvalid + 1
     end do
-    
     countLowQ = 0
     !$acc parallel loop reduction(+:countLowQ)
     do ielem = 1,numElemsRankPar
         if (distortion(ielem) > 1.0d10) countLowQ = countLowQ + 1
     end do
-    
-    
     minQ = 1.0d30
     !$acc parallel loop reduction(min:minQ)
     do ielem = 1,numElemsRankPar
         minQ = min(minQ, quality(ielem))
     end do
-    
     maxQ = -1.0d30
     !$acc parallel loop reduction(max:maxQ)
     do ielem = 1,numElemsRankPar
@@ -966,7 +961,6 @@ contains
     real(rp) :: x0,x1,xpoin,ypoin,zpoin,pertx,perty,pertz,blend_bou
     real(rp) :: factor_sincos
     !
-    print*,'this%is_imposed_displacement: ',this%is_imposed_displacement
     if(this%is_imposed_displacement) then
       !
       !$acc parallel loop
@@ -977,7 +971,7 @@ contains
       ! 
     else
       !
-      print*,'IMPOSING AN ANALYTICAL DISPLACEMENT (SHOULD BE READ FROM SOMEWHERE INSTEAD)'
+      if(mpi_rank.eq.0)  print*,'IMPOSING AN ANALYTICAL DISPLACEMENT (SHOULD BE READ FROM SOMEWHERE INSTEAD)'
       
       factor_sincos = this%factor_deformation
       !print*,'factor_sincos: ',factor_sincos,' ---------------------------------------------------------'
