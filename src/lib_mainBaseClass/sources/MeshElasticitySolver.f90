@@ -127,7 +127,7 @@ contains
     class(MeshElasticitySolver), intent(inout) :: this
     !
     real(rp)   :: minQ,maxQ,factor_backtrack
-    real(8)    :: minQTot
+    real(rp)   :: minQTot
     integer(4):: numInv,numLow,numBacktracks
     !
     ! Init MPI
@@ -228,8 +228,8 @@ contains
       !if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
       !
       if(mpi_rank.eq.0) write(*,*) '  --| Quality before elasticity'
-      !call this%computeQuality(minQ,maxQ,numInv,numLow)
-      call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+      call this%computeQuality(minQ,maxQ,numInv,numLow)
+      !call MPI_Reduce(minQ,minQTot,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       !
       if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity...'
@@ -245,7 +245,7 @@ contains
       
       if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
-      call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+      !call MPI_Reduce(minQ,minQTot,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       !
       call this%saveInstResultsFiles(1)    
@@ -258,8 +258,7 @@ contains
       u(:,:,2) = 0.0_rp
       !$acc end kernels
       if(mpi_rank.eq.0) write(*,*) '  --| Input curved mesh quality'
-      !call this%computeQuality(minQ,maxQ,numInv,numLow)
-      call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+      call this%computeQuality(minQ,maxQ,numInv,numLow)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       call this%saveInstResultsFiles(0)
       
@@ -275,8 +274,7 @@ contains
       u(:,:,2) = 0.0_rp
       !$acc end kernels
       if(mpi_rank.eq.0) write(*,*) '  --| Quality straight-sided mesh'
-      !call this%computeQuality(minQ,maxQ,numInv,numLow)
-      call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+      call this%computeQuality(minQ,maxQ,numInv,numLow)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       
       !print*,'- Compute displacement of the boundary'
@@ -304,10 +302,11 @@ contains
       coordPar = coordPar+u(:,:,2)
       !$acc end kernels
       if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity-based curved mesh'
-      !call this%computeQuality(minQ,maxQ,numInv,numLow)
-      call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+      call this%computeQuality(minQ,maxQ,numInv,numLow)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
+      !$acc kernels
       u(:,:,2) = coordPar-coord_input_safe ! -> displacement to see in paraview the new curved mesh
+      !$acc end kernels
       call this%saveInstResultsFiles(2)
       
       if(this%saveNewCoords) call save_coordinates_hdf5(this%meshFile_h5_full_name)
@@ -336,7 +335,7 @@ contains
       !
       if(mpi_rank.eq.0) print*,'Quality before elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
-      call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+      !call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       !
       call computeAnalyticalMetric(numNodesRankPar,ndime,coordPar,metric)
@@ -355,7 +354,7 @@ contains
       coordPar = coord_input_safe + u(:,:,2)
       if(mpi_rank.eq.0) print*,'Quality after elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
-      call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+      !call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
       
       coordPar = coord_input_safe 
@@ -369,7 +368,7 @@ contains
         coordPar = coord_input_safe + u(:,:,2)
         if(mpi_rank.eq.0) print*,'  Quality after backtrack: ',numBacktracks
         call this%computeQuality(minQ,maxQ,numInv,numLow)
-        call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
+        !call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
         if(mpi_rank.eq.0) write(*,*) '  --| minQ: ',minQ
         if(mpi_rank.eq.0) print*,'     minMaxUx: ',minval(u(:,1,2)),' / ',maxval(u(:,1,2))
         if(mpi_rank.eq.0) print*,'     minMaxUy: ',minval(u(:,2,2)),' / ',maxval(u(:,2,2))
@@ -411,8 +410,8 @@ contains
       print*,'IMPLEMENTED THINGS: '
       print*,' - Mesh curving from a "bad" input curved mesh'
       print*,' - Mesh curving after imposing displacement (ALE)'
+      print*,' - r-adaptation though an analytical metric (isotropic)'
       print*,' FUTURE: '
-      print*,' - Add an option in the json to read the displacement of the ALE vs do mesh curving?'
       print*,' - Optimization?'
       print*,'TODO solve nasty thing:'
       print*,' - I am doing something nasty... created a link in the meshElasticitySOlver folder to the mod_meshquality'
@@ -423,53 +422,7 @@ contains
   !
   !
   !
-  subroutine compute_displacement_straight_mesh(npoin,ndime,coords,coord_input_safe,bou_codes_nodes,&
-    is_imposed_displacement,imposed_displacement)
-    implicit none
-    !
-    integer(4),  intent(in)    :: npoin, ndime
-    real(rp),    intent(in   ) :: coords(npoin,ndime)
-    real(rp),    intent(in   ) :: coord_input_safe(npoin,ndime)
-    integer(4),  intent(in   ) :: bou_codes_nodes(npoin)
-    logical, intent(inout) :: is_imposed_displacement
-    real(rp),allocatable, intent(inout) :: imposed_displacement(:,:)
-    integer(4) :: inode, bcode
-    integer(4) :: iBound,iElem, innerNodeL,bndNodeL,ipbou
-    !
-    is_imposed_displacement = .true.
-    allocate(imposed_displacement(npoin,ndime))
-    !$acc enter data create(imposed_displacement(:,:))
-    !$acc parallel loop
-    do inode = 1,npoin
-      imposed_displacement(inode,:) = 0.0_rp
-      if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
-         bcode = bou_codes_nodes(inode) ! Boundary element code
-         if (bcode == bc_type_non_slip_adiabatic ) then ! non_slip wall adiabatic -> could be anything
-           imposed_displacement(inode,:) = coord_input_safe(inode,:)-coords(inode,:)
-         end if
-      end if
-    end do
-    !$acc end parallel loop
-    
-    ! I COULD DO THE FOLLOWING TO NOT CHECK ANY BC IN PARTICULAR, AND JUST GET ALL BOUNDARIES
-!     rho(:,2)=0.0_rp
-!     do iBound = 1,numBoundsRankPar
-!       iElem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
-!       innerNodeL = connecParWork(iElem,nnode)         ! internal node
-!       !$acc loop vector private(aux)
-!       do ipbou = 1,npbou
-!          bndNodeL = boundPar(iBound,ipbou) ! node at the boundary
-!          imposed_displacement(bndNodeL,:) = coord_input_safe(bndNodeL,:)-coords(bndNodeL,:)
-!          rho(bndNodeL,2) = 1.0_rp
-!        end do
-!      end do
-    !
-  end subroutine compute_displacement_straight_mesh
-  !
-  !
-  !
   subroutine compute_straight_mesh(npoin,ndime,coords,nelem,nnode,connec,coord_input_safe)
-  !     use mod_maths!, only:
       use mod_arrays, only:  xgp ! high-order nodes
       implicit none
   
@@ -508,14 +461,11 @@ contains
   
       !$acc parallel loop private(coordLocal)
       do ielem = 1,nelem
-        !coords(connec(ielem,1:8),:) = coord_input_safe(connec(ielem,1:8),:)
         !$acc loop seq
-  !      do inode = 9,nnode ! avoid the vertices of the hex
         do inode = 1,nnode ! avoid the vertices of the hex
-          !for each element and node, we now compute the straight position        
+          !For each element and node, we now compute the straight position
           
-          theNode = connec(ielem,inode)
-          !coords(theNode,:) = 0.0_rp
+          !Contributions of the straight (linear) hexahedral element (loop on linear vertices):
           coordLocal(:) = 0.0_rp
           !$acc loop seq
           do k=1,2
@@ -523,12 +473,10 @@ contains
             do j=1,2
               !$acc loop seq
               do i=1,2
-          !do id_vertex=1,8
-                !theVertex = connec(ielem,id_vertex)
                 id_vertex = invAtoIJK(i,j,k)
                 theVertex = connec(ielem,id_vertex)
                 xnode_lin = coord_input_safe(theVertex,:)
-                          
+
                 !$acc loop seq
                 do idime =1,3
                   coordLocal(idime) = coordLocal(idime) + xnode_lin(idime)*N_lin(inode,id_vertex)
@@ -537,16 +485,14 @@ contains
             end do
           end do  
   
+          theNode = connec(ielem,inode)
           !$acc loop seq        
           do idime =1,ndime
             !$acc atomic write
             coords(theNode, idime) = coordLocal(idime)
             !$acc end atomic 
           end do
-  !         print*,'theNode:',theNode,'   ielem: ',ielem,' inode: ',inode
-  !         print*,coords(theNode,:)
-  !         print*,coord_input_safe(theNode,:)
-          
+         
         end do!inode
       end do!ielem
       !$acc end parallel loop
@@ -563,13 +509,8 @@ contains
     real(rp),   intent(out) :: minQ, maxQ
     integer(4), intent(out) :: countInvalid,countLowQ 
     integer(4) :: ielem,mnode
-    !real(rp)   :: quality,distortion
     real(rp)   :: coordElem(size(connecParWork,2),ndime)
     real(rp)   :: quality(numElemsRankPar),distortion(numElemsRankPar)
-
-    integer(4) :: id_quality = 1 ! 1 for aniso, 2 for isso cube ideal 
-    
-    real(8)   :: q_gauss(ngaus)
     !
     mnode = size(connecParWork,2)
 
@@ -587,26 +528,40 @@ contains
 
     !$acc update device(mu_e(:,:))
     
-    !$acc kernels
-    countInvalid = count(quality<0)
-    !$acc end kernels
-    !$acc kernels
-    countLowQ    = count(distortion>1e10)
-    !$acc end kernels
-    !$acc kernels
-    minQ         = minval(quality)
-    !$acc end kernels
-    !$acc kernels
-    maxQ         = maxval(quality)
-    !$acc end kernels
+    countInvalid = 0
+    !$acc parallel loop reduction(+:countInvalid)
+    do ielem = 1,numElemsRankPar
+        if (quality(ielem) < 0.0d0) countInvalid = countInvalid + 1
+    end do
+    
+    countLowQ = 0
+    !$acc parallel loop reduction(+:countLowQ)
+    do ielem = 1,numElemsRankPar
+        if (distortion(ielem) > 1.0d10) countLowQ = countLowQ + 1
+    end do
+    
+    
+    minQ = 1.0d30
+    !$acc parallel loop reduction(min:minQ)
+    do ielem = 1,numElemsRankPar
+        minQ = min(minQ, quality(ielem))
+    end do
+    
+    maxQ = -1.0d30
+    !$acc parallel loop reduction(max:maxQ)
+    do ielem = 1,numElemsRankPar
+        maxQ = max(maxQ, quality(ielem))
+    end do
     !
     call MPI_Reduce(countInvalid,countInvalid,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
-    call MPI_Reduce(countLowQ,countLowQ,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
-    call MPI_Reduce(minQ,minQ,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
-    call MPI_Reduce(maxQ,maxQ,1,mpi_datatype_real,MPI_MAX,0,app_comm,mpi_err)
-
+    call MPI_Reduce(countLowQ   ,countLowQ   ,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
+    call MPI_Reduce(minQ        ,minQ        ,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
+    call MPI_Reduce(maxQ        ,maxQ        ,1,mpi_datatype_real,MPI_MAX,0,app_comm,mpi_err)
     !
-    if(minQ<0) minQ = 0.0_rp
+    if(minQ<0) minQ = 0.0_rp        
+            !
+    print*,'qelems: ',quality(1:10)
+    print*,minQ,maxQ,countLowQ,countInvalid
     !
   end subroutine computeQuality
   !
@@ -659,6 +614,51 @@ contains
     !print*,'   Num invalid: ',countInvalid,'     Num lowQ: ',countLowQ
     !
   end subroutine computeQuality_old
+  !
+  !
+  !
+  subroutine compute_displacement_straight_mesh(npoin,ndime,coords,coord_input_safe,bou_codes_nodes,&
+    is_imposed_displacement,imposed_displacement)
+    implicit none
+    !
+    integer(4),  intent(in)    :: npoin, ndime
+    real(rp),    intent(in   ) :: coords(npoin,ndime)
+    real(rp),    intent(in   ) :: coord_input_safe(npoin,ndime)
+    integer(4),  intent(in   ) :: bou_codes_nodes(npoin)
+    logical, intent(inout) :: is_imposed_displacement
+    real(rp),allocatable, intent(inout) :: imposed_displacement(:,:)
+    integer(4) :: inode, bcode
+    integer(4) :: iBound,iElem, innerNodeL,bndNodeL,ipbou
+    !
+    is_imposed_displacement = .true.
+    allocate(imposed_displacement(npoin,ndime))
+    !$acc enter data create(imposed_displacement(:,:))
+    !$acc parallel loop
+    do inode = 1,npoin
+      imposed_displacement(inode,:) = 0.0_rp
+      if(bou_codes_nodes(inode) .lt. max_num_bou_codes) then
+         bcode = bou_codes_nodes(inode) ! Boundary element code
+         if (bcode == bc_type_non_slip_adiabatic ) then ! non_slip wall adiabatic -> could be anything
+           imposed_displacement(inode,:) = coord_input_safe(inode,:)-coords(inode,:)
+         end if
+      end if
+    end do
+    !$acc end parallel loop
+    
+    ! I COULD DO THE FOLLOWING TO NOT CHECK ANY BC IN PARTICULAR, AND JUST GET ALL BOUNDARIES
+!     rho(:,2)=0.0_rp
+!     do iBound = 1,numBoundsRankPar
+!       iElem = point2elem(boundPar(iBound,npbou)) ! I use an internal face node to be sure is the correct element
+!       innerNodeL = connecParWork(iElem,nnode)         ! internal node
+!       !$acc loop vector private(aux)
+!       do ipbou = 1,npbou
+!          bndNodeL = boundPar(iBound,ipbou) ! node at the boundary
+!          imposed_displacement(bndNodeL,:) = coord_input_safe(bndNodeL,:)-coords(bndNodeL,:)
+!          rho(bndNodeL,2) = 1.0_rp
+!        end do
+!      end do
+    !
+  end subroutine compute_displacement_straight_mesh
   !
   !
   !
