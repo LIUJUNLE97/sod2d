@@ -45,9 +45,8 @@ contains
     end subroutine
 
     function det_3x3_rp(A) result(det)
-        !$acc routine seq
         implicit none
-        real(rp), intent(in) :: A(:,:)         ! Input 3x3 matrix
+        real(rp), intent(in) :: A(3,3)         ! Input 3x3 matrix
         real(rp) :: det           ! Determinant of the matrix
     
         det = A(1, 1)*(A(2, 2)*A(3, 3) - A(2, 3)*A(3, 2)) &
@@ -56,28 +55,90 @@ contains
     end function det_3x3_rp
 
     subroutine shape_measure_rp(elemJ, idealJ, eta, isInvalid)
-        !$acc routine seq
+        !$acc routine gang 
+
         implicit none
         real(rp),intent(in)  :: elemJ(ndime,ndime), idealJ(ndime,ndime)
         real(rp),intent(out) :: eta
         logical, intent(out) :: isInvalid
-        real(rp) :: S(ndime,ndime), S2(ndime,ndime), sigma, Sf, detS
+        real(rp) :: S(ndime,ndime), StS(ndime,ndime), sigma, Sf, detS
         real(rp),parameter :: d=3.0_rp
-        real(rp)                :: Saux(ndime,ndime),detaux
+        
         S     = matmul(elemJ, idealJ)
-
-        detS  = det_3x3_rp(S)
-
+        detS = S(1, 1)*(S(2, 2)*S(3, 3) - S(2, 3)*S(3, 2)) &
+            - S(1, 2)*(S(2, 1)*S(3, 3) - S(2, 3)*S(3, 1)) &
+            + S(1, 3)*(S(2, 1)*S(3, 2) - S(2, 2)*S(3, 1))
         sigma = (detS + abs(detS))/2
-        S2    = matmul(transpose(S), S)
-        Sf    = S2(1,1) + S2(2,2) + S2(3,3)
+        StS   = matmul(transpose(S), S)
+        Sf    = StS(1,1) + StS(2,2) + StS(3,3)
         eta   = Sf/(d*sigma**(2.0d0/d)) 
         
         isInvalid = detS < tiny(1.0d0)
-    end subroutine
+    end subroutine shape_measure_rp
 
-    subroutine eval_ElemQuality_simple(mnnode,mngaus,coordElem,dNgp,wgp,quality,distortion)
-        !$acc routine seq
+
+    subroutine eval_ElemQuality_simple(mnnode, mngaus, coordElem, dNgp, wgp, quality, distortion)
+        !$acc routine gang 
+        implicit none
+    
+        integer(4), intent(in) :: mnnode, mngaus
+        real(rp), intent(in) :: coordElem(mnnode, ndime), dNgp(ndime, mnnode, mngaus), wgp(mngaus)
+        real(rp), intent(out) :: quality, distortion
+    
+        integer(4) :: igaus, idime, jdime
+        real(rp) :: elemJ(ndime, ndime)
+        real(rp) :: eta, eta_elem, volume, modulus, gpvolIdeal
+        real(rp) :: idealCubeJ(ndime, ndime)
+        real(rp) :: detIdeal, detIdealCube
+
+        real(rp) :: S(ndime,ndime), StS(ndime,ndime), sigma, Sf, detS
+        real(rp),parameter :: d=3.0_rp
+    
+        idealCubeJ = 0.0_rp
+        do idime = 1, ndime
+            idealCubeJ(idime, idime) = 1.0_rp
+        end do
+        detIdealCube = 1.0_rp
+        eta_elem = 0.0_rp
+        volume = 0.0_rp
+    
+        !$acc parallel loop private(elemJ, eta, idime, jdime, gpvolIdeal) reduction(+:eta_elem, volume)
+        do igaus = 1, mngaus
+            elemJ(:, :) = 0.0_rp
+            do idime = 1, ndime
+                do jdime = 1, ndime
+                    elemJ(jdime, idime) = dot_product(dNgp(idime, :, igaus), coordElem(:, jdime))
+                end do
+            end do
+    
+            ! SHAPE MEASURE
+            S     = matmul(elemJ, idealCubeJ)
+            detS  = S(1,1)*(S(2,2)*S(3,3) - S(2,3)*S(3,2)) &
+                  - S(1,2)*(S(2,1)*S(3,3) - S(2,3)*S(3,1)) &
+                  + S(1,3)*(S(2,1)*S(3,2) - S(2,2)*S(3,1))
+            sigma = (detS + abs(detS))/2
+            StS   = matmul(transpose(S), S)
+            Sf    = StS(1,1) + StS(2,2) + StS(3,3)
+            eta   = Sf/(d*sigma**(2.0d0/d)) 
+
+            gpvolIdeal = detIdealCube * wgp(igaus)
+            eta_elem   = eta_elem + eta * eta * gpvolIdeal
+            volume     = volume + 1.0_rp * 1.0_rp * gpvolIdeal
+        end do
+        !$acc end parallel loop
+    
+        distortion = sqrt(eta_elem) / sqrt(volume)
+        quality = 1.0_rp / distortion
+        modulus = modulo(quality, 1.0_rp)
+        if (int(modulus) .ne. 0) then
+            quality = -1.0_rp
+            distortion = 1.0e10_rp
+        end if
+    end subroutine eval_ElemQuality_simple
+
+
+    subroutine eval_ElemQuality_simple_seq(mnnode,mngaus,coordElem,dNgp,wgp,quality,distortion)
+        !!$acc routine seq
         !
         implicit none
         !
@@ -122,10 +183,7 @@ contains
             distortion = 1e10
         end if
         
-    end subroutine eval_ElemQuality_simple
-
-
-
+    end subroutine eval_ElemQuality_simple_seq
 
     subroutine eval_ElemQuality(mnnode,mngaus,npoin, nelem, ielem, coordPar, connecParOrig, dNgp, wgp, quality_vec,qual_gauss)
         implicit none

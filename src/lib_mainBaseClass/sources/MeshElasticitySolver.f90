@@ -516,7 +516,7 @@ contains
     print*,"numElemsRankPar: ",numElemsRankPar,' switched to test how it works'
 
     !$acc parallel loop private(coordElem)
-    do ielem = 1,1e5!numElemsRankPar
+    do ielem = 1,1e4!numElemsRankPar
       !
       coordElem = coordPar(connecParWork(ielem,:),:)
       call eval_ElemQuality_simple(mnode,ngaus,coordElem,dNgp,wgp,quality(ielem),distortion(ielem))
