@@ -468,6 +468,93 @@ contains
   !
   !
   !
+  subroutine compute_straight_mesh(npoin,ndime,coords,nelem,nnode,connec,coord_input_safe)
+  !     use mod_maths!, only:
+      use mod_arrays, only:  xgp ! high-order nodes
+      implicit none
+  
+      integer(4),  intent(in)    :: npoin, ndime, nelem, nnode
+      real(rp),    intent(inout) :: coords(npoin,ndime)
+      integer(4),  intent(in   ) :: connec(nelem,nnode)
+      real(rp),    intent(in   ) :: coord_input_safe(npoin,ndime)
+      integer(4) :: ielem, inode, idime,i,j,k,id_vertex,theNode,theVertex
+      
+      real(rp) :: Nx,Ny,Nz,xnode_lin(3),minus_plus_one(2),coordLocal(ndime)
+      
+      allocate(N_lin(nnode,nnode))
+      !$acc enter data create(N_lin(:,:))
+  
+      ! isoparametric mapping: construct linear shape functions
+      minus_plus_one(1) = -1.0_rp
+      minus_plus_one(2) =  1.0_rp
+      id_vertex = 0
+      do inode = 1,nnode !->eval linear shape functions on master coordinate "inode" of the high-order elem
+        ! compute shape function of linear element
+        do k=1,2
+          Nz = ( 1.0_rp + (minus_plus_one(k) *xgp(inode,3)) )/2.0_rp
+          do j=1,2
+            Ny = ( 1.0_rp + (minus_plus_one(j) *xgp(inode,2)) )/2.0_rp
+            do i=1,2
+              Nx = ( 1.0_rp + (minus_plus_one(i) *xgp(inode,1)) )/2.0_rp
+              ! eval shape fun on master coordinates xgp
+              id_vertex = invAtoIJK(i,j,k)
+              N_lin(inode,id_vertex) = Nx*Ny*Nz
+            end do !i
+          end do !j
+        end do !k
+      end do !inode
+      
+      !$acc update device(N_lin(:,:))
+  
+      !$acc parallel loop private(coordLocal)
+      do ielem = 1,nelem
+        !coords(connec(ielem,1:8),:) = coord_input_safe(connec(ielem,1:8),:)
+        !$acc loop seq
+  !      do inode = 9,nnode ! avoid the vertices of the hex
+        do inode = 1,nnode ! avoid the vertices of the hex
+          !for each element and node, we now compute the straight position        
+          
+          theNode = connec(ielem,inode)
+          !coords(theNode,:) = 0.0_rp
+          coordLocal(:) = 0.0_rp
+          !$acc loop seq
+          do k=1,2
+            !$acc loop seq
+            do j=1,2
+              !$acc loop seq
+              do i=1,2
+          !do id_vertex=1,8
+                !theVertex = connec(ielem,id_vertex)
+                id_vertex = invAtoIJK(i,j,k)
+                theVertex = connec(ielem,id_vertex)
+                xnode_lin = coord_input_safe(theVertex,:)
+                          
+                !$acc loop seq
+                do idime =1,3
+                  coordLocal(idime) = coordLocal(idime) + xnode_lin(idime)*N_lin(inode,id_vertex)
+                end do !idime
+              end do
+            end do
+          end do  
+  
+          !$acc loop seq        
+          do idime =1,ndime
+            !$acc atomic write
+            coords(theNode, idime) = coordLocal(idime)
+            !$acc end atomic 
+          end do
+  !         print*,'theNode:',theNode,'   ielem: ',ielem,' inode: ',inode
+  !         print*,coords(theNode,:)
+  !         print*,coord_input_safe(theNode,:)
+          
+        end do!inode
+      end do!ielem
+      !$acc end parallel loop
+      !
+    end subroutine compute_straight_mesh
+  !
+  !
+  !
   subroutine computeQuality(this,minQ,maxQ,countInvalid,countLowQ)
    
     use mod_quality, only: eval_ElemQuality_simple
@@ -476,47 +563,50 @@ contains
     real(rp),   intent(out) :: minQ, maxQ
     integer(4), intent(out) :: countInvalid,countLowQ 
     integer(4) :: ielem,mnode
-    real(rp)   :: quality,distortion
+    !real(rp)   :: quality,distortion
     real(rp)   :: coordElem(size(connecParWork,2),ndime)
+    real(rp)   :: quality(numElemsRankPar),distortion(numElemsRankPar)
 
     integer(4) :: id_quality = 1 ! 1 for aniso, 2 for isso cube ideal 
     
     real(8)   :: q_gauss(ngaus)
     !
-    countInvalid = 0
-    countLowQ = 0
-    minQ = 1.0_rp
-    maxQ = 0.0_rp
-
     mnode = size(connecParWork,2)
 
     !$acc update host(coordPar(:,:))
 
-    !!!!$acc parallel loop
+    !$acc parallel loop private(coordElem)
     do ielem = 1,numElemsRankPar
       !
       coordElem = coordPar(connecParWork(ielem,:),:)
-      call eval_ElemQuality_simple(mnode,ngaus,coordElem,dNgp,wgp,quality,distortion)
+      call eval_ElemQuality_simple(mnode,ngaus,coordElem,dNgp,wgp,quality(ielem),distortion(ielem))
       !
-      minQ = min(minQ,quality)
-      maxQ = max(maxQ,quality)
-      !
-      mu_e(ielem,:) = quality
-      !
-      if(quality<0) then
-        countInvalid = countInvalid+1
-      end if
-      if(distortion>1e10) then
-        countLowQ = countLowQ+1
-      end if
+      mu_e(ielem,:) = quality(ielem)
     end do
-    !!!$acc end parallel loop
+    !$acc end parallel loop
 
     !$acc update device(mu_e(:,:))
+    
+    !$acc kernels
+    countInvalid = count(quality<0)
+    !$acc end kernels
+    !$acc kernels
+    countLowQ    = count(distortion>1e10)
+    !$acc end kernels
+    !$acc kernels
+    minQ         = minval(quality)
+    !$acc end kernels
+    !$acc kernels
+    maxQ         = maxval(quality)
+    !$acc end kernels
+    !
+    call MPI_Reduce(countInvalid,countInvalid,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
+    call MPI_Reduce(countLowQ,countLowQ,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
+    call MPI_Reduce(minQ,minQ,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
+    call MPI_Reduce(maxQ,maxQ,1,mpi_datatype_real,MPI_MAX,0,app_comm,mpi_err)
 
     !
     if(minQ<0) minQ = 0.0_rp
-    !print*,'   Num invalid: ',countInvalid,'     Num lowQ: ',countLowQ
     !
   end subroutine computeQuality
   !
@@ -710,93 +800,6 @@ contains
      !$acc end parallel loop
 
   end subroutine computeAnalyticalMetric
-  !
-  !
-  !
-  subroutine compute_straight_mesh(npoin,ndime,coords,nelem,nnode,connec,coord_input_safe)
-!     use mod_maths!, only:
-    use mod_arrays, only:  xgp ! high-order nodes
-    implicit none
-
-    integer(4),  intent(in)    :: npoin, ndime, nelem, nnode
-    real(rp),    intent(inout) :: coords(npoin,ndime)
-    integer(4),  intent(in   ) :: connec(nelem,nnode)
-    real(rp),    intent(in   ) :: coord_input_safe(npoin,ndime)
-    integer(4) :: ielem, inode, idime,i,j,k,id_vertex,theNode,theVertex
-    
-    real(rp) :: Nx,Ny,Nz,xnode_lin(3),minus_plus_one(2),coordLocal(ndime)
-    
-    allocate(N_lin(nnode,nnode))
-    !$acc enter data create(N_lin(:,:))
-
-    ! isoparametric mapping: construct linear shape functions
-    minus_plus_one(1) = -1.0_rp
-    minus_plus_one(2) =  1.0_rp
-    id_vertex = 0
-    do inode = 1,nnode !->eval linear shape functions on master coordinate "inode" of the high-order elem
-      ! compute shape function of linear element
-      do k=1,2
-        Nz = ( 1.0_rp + (minus_plus_one(k) *xgp(inode,3)) )/2.0_rp
-        do j=1,2
-          Ny = ( 1.0_rp + (minus_plus_one(j) *xgp(inode,2)) )/2.0_rp
-          do i=1,2
-            Nx = ( 1.0_rp + (minus_plus_one(i) *xgp(inode,1)) )/2.0_rp
-            ! eval shape fun on master coordinates xgp
-            id_vertex = invAtoIJK(i,j,k)
-            N_lin(inode,id_vertex) = Nx*Ny*Nz
-          end do !i
-        end do !j
-      end do !k
-    end do !inode
-    
-    !$acc update device(N_lin(:,:))
-
-    !$acc parallel loop private(coordLocal)
-    do ielem = 1,nelem
-      !coords(connec(ielem,1:8),:) = coord_input_safe(connec(ielem,1:8),:)
-      !$acc loop seq
-!      do inode = 9,nnode ! avoid the vertices of the hex
-      do inode = 1,nnode ! avoid the vertices of the hex
-        !for each element and node, we now compute the straight position        
-        
-        theNode = connec(ielem,inode)
-        !coords(theNode,:) = 0.0_rp
-        coordLocal(:) = 0.0_rp
-        !$acc loop seq
-        do k=1,2
-          !$acc loop seq
-          do j=1,2
-            !$acc loop seq
-            do i=1,2
-        !do id_vertex=1,8
-              !theVertex = connec(ielem,id_vertex)
-              id_vertex = invAtoIJK(i,j,k)
-              theVertex = connec(ielem,id_vertex)
-              xnode_lin = coord_input_safe(theVertex,:)
-                        
-              !$acc loop seq
-              do idime =1,3
-                coordLocal(idime) = coordLocal(idime) + xnode_lin(idime)*N_lin(inode,id_vertex)
-              end do !idime
-            end do
-          end do
-        end do  
-
-        !$acc loop seq        
-        do idime =1,ndime
-          !$acc atomic write
-          coords(theNode, idime) = coordLocal(idime)
-          !$acc end atomic 
-        end do
-!         print*,'theNode:',theNode,'   ielem: ',ielem,' inode: ',inode
-!         print*,coords(theNode,:)
-!         print*,coord_input_safe(theNode,:)
-        
-      end do!inode
-    end do!ielem
-    !$acc end parallel loop
-    !
-  end subroutine compute_straight_mesh
   !
   !
   !

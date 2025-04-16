@@ -23,6 +23,7 @@ contains
         idealJ(3,3) = 1.0d0/((dist2(9)+dist2(10)+dist2(11)+dist2(12))/4.0d0)
     end subroutine
 
+
     subroutine shape_measure(elemJ, idealJ, eta, isInvalid)
         implicit none
         real(8),intent(in)  :: elemJ(ndime,ndime), idealJ(ndime,ndime)
@@ -43,7 +44,19 @@ contains
         isInvalid = detS < tiny(1.0d0)
     end subroutine
 
+    function det_3x3_rp(A) result(det)
+        !$acc routine seq
+        implicit none
+        real(rp), intent(in) :: A(:,:)         ! Input 3x3 matrix
+        real(rp) :: det           ! Determinant of the matrix
+    
+        det = A(1, 1)*(A(2, 2)*A(3, 3) - A(2, 3)*A(3, 2)) &
+            - A(1, 2)*(A(2, 1)*A(3, 3) - A(2, 3)*A(3, 1)) &
+            + A(1, 3)*(A(2, 1)*A(3, 2) - A(2, 2)*A(3, 1))
+    end function det_3x3_rp
+
     subroutine shape_measure_rp(elemJ, idealJ, eta, isInvalid)
+        !$acc routine seq
         implicit none
         real(rp),intent(in)  :: elemJ(ndime,ndime), idealJ(ndime,ndime)
         real(rp),intent(out) :: eta
@@ -64,6 +77,7 @@ contains
     end subroutine
 
     subroutine eval_ElemQuality_simple(mnnode,mngaus,coordElem,dNgp,wgp,quality,distortion)
+        !$acc routine seq
         implicit none
         !
         integer(4), intent(in) :: mnnode,mngaus
@@ -200,16 +214,6 @@ contains
             - A(1, 2)*(A(2, 1)*A(3, 3) - A(2, 3)*A(3, 1)) &
             + A(1, 3)*(A(2, 1)*A(3, 2) - A(2, 2)*A(3, 1))
     end function det_3x3
-
-    function det_3x3_rp(A) result(det)
-        implicit none
-        real(rp), intent(in) :: A(:,:)         ! Input 3x3 matrix
-        real(rp) :: det           ! Determinant of the matrix
-    
-        det = A(1, 1)*(A(2, 2)*A(3, 3) - A(2, 3)*A(3, 2)) &
-            - A(1, 2)*(A(2, 1)*A(3, 3) - A(2, 3)*A(3, 1)) &
-            + A(1, 3)*(A(2, 1)*A(3, 2) - A(2, 2)*A(3, 1))
-    end function det_3x3_rp
 
      subroutine inverse_matrix_3x3(A, A_inv, det, success)
         implicit none
