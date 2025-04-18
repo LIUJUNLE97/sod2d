@@ -516,19 +516,20 @@ contains
     !
     !$acc update host(coordPar(:,:))
 
-    !$acc parallel loop gang  private(coordElem,eta_elem,volume,idealCubeJ,detIdealCube)
+    idealCubeJ = 0.0_rp
+    do idime = 1, ndime
+        idealCubeJ(idime, idime) = 1.0_rp
+    end do
+    detIdealCube = 1.0_rp
+    !$acc enter data copyin(idealCubeJ,detIdealCube)
+
+    !$acc parallel loop gang  private(coordElem,eta_elem,volume)
     do ielem = 1,numElemsRankPar
       !
       coordElem = coordPar(connecParWork(ielem,:),:)
       !
-      idealCubeJ = 0.0_rp
-      do idime = 1, ndime
-          idealCubeJ(idime, idime) = 1.0_rp
-      end do
-      detIdealCube = 1.0_rp
-      !
       eta_elem = 0.0_rp
-      volume = 0.0_rp
+      volume   = 0.0_rp
       !$acc loop vector private(elemJ,S,detS,sigma,StS,Sf,eta_g,gpvolIdeal) reduction(+:eta_elem, volume)
       do igaus = 1, ngaus
           elemJ(:, :) = 0.0_rp
