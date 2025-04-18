@@ -571,12 +571,12 @@ contains
     
     countInvalid = 0
     countLowQ    = 0
-    minQ         = 1.0d30
+    minQ         =  1.0d30
     maxQ         = -1.0d30
     !$acc parallel loop reduction(+:countInvalid,countLowQ) reduction(min:minQ) reduction(max:maxQ)
     do ielem = 1, numElemsRankPar
-        if (quality(ielem)    < 0.0d0  ) countInvalid = countInvalid + 1
-        if (distortion(ielem) > 1.0d10 ) countLowQ    = countLowQ + 1
+        if (quality(ielem)    < 0.0d0 ) countInvalid = countInvalid + 1
+        if (distortion(ielem) > 1.0d6 ) countLowQ    = countLowQ + 1
         minQ = min(minQ, quality(ielem))
         maxQ = max(maxQ, quality(ielem))
     end do
