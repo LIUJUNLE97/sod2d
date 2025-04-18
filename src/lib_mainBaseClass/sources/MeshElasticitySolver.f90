@@ -224,7 +224,7 @@ contains
       if(mpi_rank.eq.0) write(*,*) '  --| Quality before elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
       !call MPI_Reduce(minQ,minQTot,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
-      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ
+      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       !
       if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity...'
       call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
@@ -240,7 +240,7 @@ contains
       if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
       !call MPI_Reduce(minQ,minQTot,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
-      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ
+      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       !
       call this%saveInstResultsFiles(1)    
     end if
@@ -253,7 +253,7 @@ contains
       !$acc end kernels
       if(mpi_rank.eq.0) write(*,*) '  --| Input curved mesh quality'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
-      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ
+      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       call this%saveInstResultsFiles(0)
       
       call save_input_coordinates(numNodesRankPar,ndime,coordPar,coord_input_safe)
@@ -262,7 +262,7 @@ contains
       call compute_straight_mesh(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,coord_input_safe)
       if(mpi_rank.eq.0) write(*,*) '  --| Quality straight-sided mesh'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
-      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ
+      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
 
       !$acc kernels
       u(:,:,2) = coordPar-coord_input_safe ! -> displacement to see in paraview the straight mesh
@@ -294,7 +294,7 @@ contains
       !$acc end kernels
       if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity-based curved mesh'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
-      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ
+      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
 
       !$acc kernels
       u(:,:,2) = coordPar-coord_input_safe ! -> displacement to see in paraview the new curved mesh
@@ -328,7 +328,7 @@ contains
       if(mpi_rank.eq.0) print*,'Quality before elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
       !call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
-      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ
+      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       !
       call computeAnalyticalMetric(numNodesRankPar,ndime,coordPar,metric)
       
@@ -347,7 +347,7 @@ contains
       if(mpi_rank.eq.0) print*,'Quality after elasticity'
       call this%computeQuality(minQ,maxQ,numInv,numLow)
       !call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
-      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ
+      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       
       coordPar = coord_input_safe 
       call this%saveInstResultsFiles(1)
@@ -361,7 +361,7 @@ contains
         if(mpi_rank.eq.0) print*,'  Quality after backtrack: ',numBacktracks
         call this%computeQuality(minQ,maxQ,numInv,numLow)
         !call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
-        if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ
+        if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
         if(mpi_rank.eq.0) print*,'     minMaxUx: ',minval(u(:,1,2)),' / ',maxval(u(:,1,2))
         if(mpi_rank.eq.0) print*,'     minMaxUy: ',minval(u(:,2,2)),' / ',maxval(u(:,2,2))
         if(mpi_rank.eq.0) print*,'     minMaxUz: ',minval(u(:,3,2)),' / ',maxval(u(:,3,2))
@@ -399,14 +399,13 @@ contains
     !
     if(mpi_rank.eq.0) then
       print*,'IMPLEMENTED THINGS: '
-      print*,' - Mesh curving from a "bad" input curved mesh'
+      print*,' - Curving of the interior of a mesh from a mesh with curved boundary'
       print*,' - Mesh curving after imposing displacement (ALE)'
-      print*,' - r-adaptation though an analytical metric (isotropic)'
-      print*,' FUTURE: '
-      print*,' - Optimization?'
-      print*,'TODO solve nasty thing:'
-      print*,' - I am doing something nasty... created a link in the meshElasticitySOlver folder to the mod_meshquality'
-      print*,' - When Lucas rearranges folders in sod, remove this and do properly'
+      print*,' - r-adaptation though a metric (status: analytical, isotropic)'
+      print*,' TODOs: '
+      print*,' - Optimization for elastic parameters'
+      print*,' - Optimization for direction combination?'
+      print*,' - Anisotropic metric'
     end if
     
   end subroutine MeshElasticitySolver_run
@@ -545,17 +544,18 @@ contains
           StS   = matmul(transpose(S), S)
           Sf    = StS(1,1) + StS(2,2) + StS(3,3)
           eta_g = Sf/(d*sigma**(2.0d0/d)) 
-          gpvolIdeal = detIdealCube * wgp(igaus)
 
+          ! INTEGRATION
+          gpvolIdeal = detIdealCube * wgp(igaus)
           eta_elem   = eta_elem + eta_g * eta_g * gpvolIdeal
           volume     = volume + 1.0_rp * 1.0_rp * gpvolIdeal
       end do
-  
+      !
       distortion(ielem) = sqrt(eta_elem) / sqrt(volume)
       quality(ielem)    = 1.0_rp / distortion(ielem)
       modulus = modulo(quality(ielem), 1.0_rp)
-      if (int(modulus) .ne. 0) then
-          quality(ielem) = -1.0_rp
+      if( int(modulus) .ne. 0 ) then
+          quality(ielem)    = -1.0_rp
           distortion(ielem) = 1.0e10_rp
       end if
       !
@@ -566,6 +566,7 @@ contains
 
     !$acc update device(mu_e)
     
+    ! OUTPUT AND STATS
     countInvalid = 0
     countLowQ    = 0
     minQ         =  1.0d30
@@ -573,7 +574,7 @@ contains
     !$acc parallel loop reduction(+:countInvalid,countLowQ) reduction(min:minQ) reduction(max:maxQ)
     do ielem = 1, numElemsRankPar
         if ( quality(ielem)    < 0.0d0 ) countInvalid = countInvalid + 1
-        if ( distortion(ielem) > 1.0d6 ) countLowQ    = countLowQ + 1
+        if ( distortion(ielem) > 1.0d6 ) countLowQ    = countLowQ    + 1
         minQ = min(minQ, quality(ielem))
         maxQ = max(maxQ, quality(ielem))
     end do
