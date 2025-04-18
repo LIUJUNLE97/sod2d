@@ -499,15 +499,20 @@ contains
   !
   !
   subroutine computeQuality(this,minQ,maxQ,countInvalid,countLowQ)
-   
-    use mod_quality, only: eval_ElemQuality_simple
-   
+      
     class(MeshElasticitySolver), intent(inout) :: this
     real(rp),   intent(out) :: minQ, maxQ
     integer(4), intent(out) :: countInvalid,countLowQ 
     integer(4) :: ielem,mnode
     real(rp)   :: coordElem(size(connecParWork,2),ndime)
     real(rp)   :: quality(numElemsRankPar),distortion(numElemsRankPar)
+    ! variables from eval_ElemQuality_simple subroutine
+    integer(4) :: igaus, idime, jdime
+    real(rp) :: eta, eta_elem, volume, modulus, gpvolIdeal, detIdeal, detIdealCube
+    real(rp) :: elemJ(ndime, ndime), idealCubeJ(ndime, ndime)
+    ! variables from shape quality subroutine
+    real(rp) :: S(ndime,ndime), StS(ndime,ndime), sigma, Sf, detS
+    real(rp),parameter :: d=3.0_rp
     !
     mnode = size(connecParWork,2)
 
@@ -515,11 +520,55 @@ contains
 
     print*,"numElemsRankPar: ",numElemsRankPar,' switched to test how it works'
 
-    !$acc parallel loop private(coordElem)
-    do ielem = 1,1e4!numElemsRankPar
+    ! !$acc parallel loop private(coordElem,elemJ,S,detS,sigma,StS,Sf,eta,gpvolIdeal,eta_elem,volume)
+    !$acc parallel loop gang  private(coordElem,eta_elem,volume,idealCubeJ,detIdealCube)
+    do ielem = 1,min(1e4,numElemsRankPar)
       !
       coordElem = coordPar(connecParWork(ielem,:),:)
-      call eval_ElemQuality_simple(mnode,ngaus,coordElem,dNgp,wgp,quality(ielem),distortion(ielem))
+      !
+      idealCubeJ = 0.0_rp
+      do idime = 1, ndime
+          idealCubeJ(idime, idime) = 1.0_rp
+      end do
+      detIdealCube = 1.0_rp
+      !
+      !call eval_ElemQuality_simple(mnode,ngaus,coordElem,dNgp,wgp,quality(ielem),distortion(ielem))
+      !!$acc parallel loop private(elemJ,S,detS,sigma,StS,Sf,eta,gpvolIdeal) reduction(+:eta_elem, volume)
+      eta_elem = 0.0_rp
+      volume = 0.0_rp
+      !$acc loop vector private(elemJ,S,detS,sigma,StS,Sf,eta,gpvolIdeal) reduction(+:eta_elem, volume)
+      do igaus = 1, ngaus
+          elemJ(:, :) = 0.0_rp
+          !$acc loop seq
+          do idime = 1, ndime
+              !$acc loop seq
+              do jdime = 1, ndime
+                  elemJ(jdime, idime) = dot_product(dNgp(idime, :, igaus), coordElem(:, jdime))
+              end do
+          end do
+  
+          ! SHAPE MEASURE
+          S     = matmul(elemJ, idealCubeJ)
+          detS  = S(1,1)*(S(2,2)*S(3,3) - S(2,3)*S(3,2)) &
+                - S(1,2)*(S(2,1)*S(3,3) - S(2,3)*S(3,1)) &
+                + S(1,3)*(S(2,1)*S(3,2) - S(2,2)*S(3,1))
+          sigma = (detS + abs(detS))/2
+          StS   = matmul(transpose(S), S)
+          Sf    = StS(1,1) + StS(2,2) + StS(3,3)
+          eta   = Sf/(d*sigma**(2.0d0/d)) 
+          gpvolIdeal = detIdealCube * wgp(igaus)
+
+          eta_elem   = eta_elem + eta * eta * gpvolIdeal
+          volume     = volume + 1.0_rp * 1.0_rp * gpvolIdeal
+      end do
+  
+      distortion(ielem) = sqrt(eta_elem) / sqrt(volume)
+      quality(ielem) = 1.0_rp / distortion(ielem)
+      modulus = modulo(quality(ielem), 1.0_rp)
+      if (int(modulus) .ne. 0) then
+          quality(ielem) = -1.0_rp
+          distortion(ielem) = 1.0e10_rp
+      end if
       !
       mu_e(ielem,:) = quality(ielem)
     end do
@@ -559,6 +608,71 @@ contains
     print*,minQ,maxQ,countLowQ,countInvalid
     !
   end subroutine computeQuality
+  !
+  !
+  !
+  subroutine computeQualitykk(this,minQ,maxQ,countInvalid,countLowQ)
+   
+    !use mod_quality, only: eval_ElemQuality_simple
+   
+    class(MeshElasticitySolver), intent(inout) :: this
+    real(rp),   intent(out) :: minQ, maxQ
+    integer(4), intent(out) :: countInvalid,countLowQ 
+    integer(4) :: ielem,mnode
+    real(rp)   :: coordElem(size(connecParWork,2),ndime)
+    real(rp)   :: quality(numElemsRankPar),distortion(numElemsRankPar)
+    !
+    mnode = size(connecParWork,2)
+
+    !$acc update host(coordPar(:,:))
+
+    print*,"numElemsRankPar: ",numElemsRankPar,' switched to test how it works'
+
+    ! !$acc data copyin(dNgp, wgp, coordPar, connecParWork)  ! Copy dNgp, wgp, coordPar, and connecParWork to the device
+    !$acc parallel loop private(coordElem)
+    do ielem = 1,1e4!numElemsRankPar
+      !
+      coordElem = coordPar(connecParWork(ielem,:),:)
+      !call eval_ElemQuality_simple(mnode,ngaus,coordElem,dNgp,wgp,quality(ielem),distortion(ielem))
+      !
+      mu_e(ielem,:) = quality(ielem)
+    end do
+    !$acc end parallel loop
+
+    !$acc update device(mu_e(:,:))
+    
+    countInvalid = 0
+    !$acc parallel loop reduction(+:countInvalid)
+    do ielem = 1,numElemsRankPar
+        if (quality(ielem) < 0.0d0) countInvalid = countInvalid + 1
+    end do
+    countLowQ = 0
+    !$acc parallel loop reduction(+:countLowQ)
+    do ielem = 1,numElemsRankPar
+        if (distortion(ielem) > 1.0d10) countLowQ = countLowQ + 1
+    end do
+    minQ = 1.0d30
+    !$acc parallel loop reduction(min:minQ)
+    do ielem = 1,numElemsRankPar
+        minQ = min(minQ, quality(ielem))
+    end do
+    maxQ = -1.0d30
+    !$acc parallel loop reduction(max:maxQ)
+    do ielem = 1,numElemsRankPar
+        maxQ = max(maxQ, quality(ielem))
+    end do
+    !
+    call MPI_Reduce(countInvalid,countInvalid,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
+    call MPI_Reduce(countLowQ   ,countLowQ   ,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
+    call MPI_Reduce(minQ        ,minQ        ,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
+    call MPI_Reduce(maxQ        ,maxQ        ,1,mpi_datatype_real,MPI_MAX,0,app_comm,mpi_err)
+    !
+    if(minQ<0) minQ = 0.0_rp        
+            !
+    print*,'qelems: ',quality(1:10)
+    print*,minQ,maxQ,countLowQ,countInvalid
+    !
+  end subroutine computeQualitykk
   !
   !
   !

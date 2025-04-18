@@ -78,7 +78,7 @@ contains
 
 
     subroutine eval_ElemQuality_simple(mnnode, mngaus, coordElem, dNgp, wgp, quality, distortion)
-        !$acc routine gang 
+        ! !$acc routine gang 
         implicit none
     
         integer(4), intent(in) :: mnnode, mngaus
@@ -86,10 +86,8 @@ contains
         real(rp), intent(out) :: quality, distortion
     
         integer(4) :: igaus, idime, jdime
-        real(rp) :: elemJ(ndime, ndime)
-        real(rp) :: eta, eta_elem, volume, modulus, gpvolIdeal
-        real(rp) :: idealCubeJ(ndime, ndime)
-        real(rp) :: detIdeal, detIdealCube
+        real(rp) :: eta, eta_elem, volume, modulus, gpvolIdeal, detIdeal, detIdealCube
+        real(rp) :: elemJ(ndime, ndime), idealCubeJ(ndime, ndime)
 
         real(rp) :: S(ndime,ndime), StS(ndime,ndime), sigma, Sf, detS
         real(rp),parameter :: d=3.0_rp
@@ -102,7 +100,7 @@ contains
         eta_elem = 0.0_rp
         volume = 0.0_rp
     
-        !$acc parallel loop private(elemJ, eta, idime, jdime, gpvolIdeal) reduction(+:eta_elem, volume)
+        !  !$acc parallel loop private(elemJ, S, StS) reduction(+:eta_elem, volume)
         do igaus = 1, mngaus
             elemJ(:, :) = 0.0_rp
             do idime = 1, ndime
@@ -125,7 +123,7 @@ contains
             eta_elem   = eta_elem + eta * eta * gpvolIdeal
             volume     = volume + 1.0_rp * 1.0_rp * gpvolIdeal
         end do
-        !$acc end parallel loop
+        ! !$acc end parallel loop
     
         distortion = sqrt(eta_elem) / sqrt(volume)
         quality = 1.0_rp / distortion
