@@ -61,7 +61,6 @@ module MeshElasticitySolver_mod
       procedure, public :: initialBuffer         => imposedDisplacement_elasticitySolverBuffer
       procedure, public :: initializeDefaultSaveFields => CFDSolverBase_initializeDefaultSaveFields_elasticity
       
-      procedure, public :: computeQuality
       procedure, public :: assessElasticityParameters_forDifferentDefs
       procedure, public :: assessBestElasticityParameters
    end type MeshElasticitySolver
@@ -229,7 +228,7 @@ contains
       !if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
       !
       if(mpi_rank.eq.0) write(*,*) '  --| Quality before elasticity'
-      call this%computeQuality(minQ,maxQ,numInv,numLow)
+      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
       !call MPI_Reduce(minQ,minQTot,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       !
@@ -245,7 +244,7 @@ contains
       !$acc end kernels
       
       if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity'
-      call this%computeQuality(minQ,maxQ,numInv,numLow)
+      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
       !call MPI_Reduce(minQ,minQTot,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       !
@@ -259,7 +258,7 @@ contains
       u(:,:,2) = 0.0_rp
       !$acc end kernels
       if(mpi_rank.eq.0) write(*,*) '  --| Input curved mesh quality'
-      call this%computeQuality(minQ,maxQ,numInv,numLow)
+      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       call this%saveInstResultsFiles(0)
       
@@ -268,7 +267,7 @@ contains
       if(mpi_rank.eq.0) write(*,*) '  --| Straighten mesh (coordpar)'
       call compute_straight_mesh(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,coord_input_safe)
       if(mpi_rank.eq.0) write(*,*) '  --| Quality straight-sided mesh'
-      call this%computeQuality(minQ,maxQ,numInv,numLow)
+      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
 
       !$acc kernels
@@ -300,7 +299,7 @@ contains
       coordPar = coordPar+u(:,:,2)
       !$acc end kernels
       if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity-based curved mesh'
-      call this%computeQuality(minQ,maxQ,numInv,numLow)
+      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
 
       !$acc kernels
@@ -333,7 +332,7 @@ contains
       !if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
       !
       if(mpi_rank.eq.0) print*,'Quality before elasticity'
-      call this%computeQuality(minQ,maxQ,numInv,numLow)
+      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
       !call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       !
@@ -352,7 +351,7 @@ contains
       u(:,:,2) = u(:,:,2) * 5
       coordPar = coord_input_safe + u(:,:,2)
       if(mpi_rank.eq.0) print*,'Quality after elasticity'
-      call this%computeQuality(minQ,maxQ,numInv,numLow)
+      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
       !call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       
@@ -366,7 +365,7 @@ contains
         u(:,:,2) = u(:,:,2)*factor_backtrack
         coordPar = coord_input_safe + u(:,:,2)
         if(mpi_rank.eq.0) print*,'  Quality after backtrack: ',numBacktracks
-        call this%computeQuality(minQ,maxQ,numInv,numLow)
+        call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
         !call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
         if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
         if(mpi_rank.eq.0) print*,'     minMaxUx: ',minval(u(:,1,2)),' / ',maxval(u(:,1,2))
@@ -498,11 +497,14 @@ contains
   !
   !
   !
-  subroutine computeQuality(this,minQ,maxQ,countInvalid,countLowQ)
+  subroutine computeQuality(npoin,ndime,coords,nelem,nnode,connec,minQ,maxQ,countInvalid,countLowQ)
     !
-    class(MeshElasticitySolver), intent(inout) :: this
-    real(rp),   intent(out) :: minQ, maxQ
-    integer(4), intent(out) :: countInvalid,countLowQ 
+    integer(4),  intent(in   ) :: npoin, ndime, nelem, nnode
+    real(rp),    intent(inout) :: coords(npoin,ndime)
+    integer(4),  intent(in   ) :: connec(nelem,nnode)
+    real(rp),    intent(out  ) :: minQ, maxQ
+    integer(4),  intent(out  ) :: countInvalid,countLowQ 
+    !
     integer(4) :: ielem
     real(rp)   :: coordElem(size(connecParWork,2),ndime)
     real(rp)   :: quality(numElemsRankPar),distortion(numElemsRankPar)
@@ -826,7 +828,7 @@ contains
         !$acc kernels
         coordPar = coordPar+u(:,:,2)
         !$acc end kernels
-        call this%computeQuality(minQ,maxQ,numInv,numLow)
+        call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
         
         if(minQ>q_best) then
           q_best = minQ
@@ -971,7 +973,7 @@ contains
              this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
              bouCodesNodesPar,normalsAtNodes,u_buffer)
 
-          call this%computeQuality(minQ,maxQ,numInv,numLow)
+          call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
 
           write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
 
