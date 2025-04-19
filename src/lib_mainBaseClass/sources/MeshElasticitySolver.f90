@@ -41,6 +41,8 @@ module MeshElasticitySolver_mod
    use CFDSolverBase_mod
    use mod_solver_meshElasticity
    use mod_arrays_me
+
+   use mod_quality, only: computeQuality
    implicit none
    private
    
@@ -419,298 +421,81 @@ contains
   !
   !
   subroutine compute_straight_mesh(npoin,ndime,coords,nelem,nnode,connec,coord_input_safe)
-      use mod_arrays, only:  xgp ! high-order nodes
-      implicit none
-  
-      integer(4),  intent(in)    :: npoin, ndime, nelem, nnode
-      real(rp),    intent(inout) :: coords(npoin,ndime)
-      integer(4),  intent(in   ) :: connec(nelem,nnode)
-      real(rp),    intent(in   ) :: coord_input_safe(npoin,ndime)
-      integer(4) :: ielem, inode, idime,i,j,k,id_vertex,theNode,theVertex
-      
-      real(rp) :: Nx,Ny,Nz,xnode_lin(3),minus_plus_one(2),coordLocal(ndime)
-      
-      allocate(N_lin(nnode,nnode))
-      !$acc enter data create(N_lin(:,:))
-  
-      ! isoparametric mapping: construct linear shape functions
-      minus_plus_one(1) = -1.0_rp
-      minus_plus_one(2) =  1.0_rp
-      id_vertex = 0
-      do inode = 1,nnode !->eval linear shape functions on master coordinate "inode" of the high-order elem
-        ! compute shape function of linear element
-        do k=1,2
-          Nz = ( 1.0_rp + (minus_plus_one(k) *xgp(inode,3)) )/2.0_rp
-          do j=1,2
-            Ny = ( 1.0_rp + (minus_plus_one(j) *xgp(inode,2)) )/2.0_rp
-            do i=1,2
-              Nx = ( 1.0_rp + (minus_plus_one(i) *xgp(inode,1)) )/2.0_rp
-              ! eval shape fun on master coordinates xgp
-              id_vertex = invAtoIJK(i,j,k)
-              N_lin(inode,id_vertex) = Nx*Ny*Nz
-            end do !i
-          end do !j
-        end do !k
-      end do !inode
-      
-      !$acc update device(N_lin(:,:))
-  
-      !$acc parallel loop private(coordLocal)
-      do ielem = 1,nelem
-        !$acc loop seq
-        do inode = 1,nnode ! avoid the vertices of the hex
-          !For each element and node, we now compute the straight position
-          
-          !Contributions of the straight (linear) hexahedral element (loop on linear vertices):
-          coordLocal(:) = 0.0_rp
-          !$acc loop seq
-          do k=1,2
-            !$acc loop seq
-            do j=1,2
-              !$acc loop seq
-              do i=1,2
-                id_vertex = invAtoIJK(i,j,k)
-                theVertex = connec(ielem,id_vertex)
-                xnode_lin = coord_input_safe(theVertex,:)
+    use mod_arrays, only:  xgp ! high-order nodes
+    implicit none
 
-                !$acc loop seq
-                do idime =1,3
-                  coordLocal(idime) = coordLocal(idime) + xnode_lin(idime)*N_lin(inode,id_vertex)
-                end do !idime
-              end do
-            end do
-          end do  
-  
-          theNode = connec(ielem,inode)
-          !$acc loop seq        
-          do idime =1,ndime
-            !$acc atomic write
-            coords(theNode, idime) = coordLocal(idime)
-            !$acc end atomic 
-          end do
-         
-        end do!inode
-      end do!ielem
-      !$acc end parallel loop
-      !
-    end subroutine compute_straight_mesh
-  !
-  !
-  !
-  subroutine computeQuality(npoin,ndime,coords,nelem,nnode,connec,minQ,maxQ,countInvalid,countLowQ)
-    !
-    integer(4),  intent(in   ) :: npoin, ndime, nelem, nnode
+    integer(4),  intent(in)    :: npoin, ndime, nelem, nnode
     real(rp),    intent(inout) :: coords(npoin,ndime)
     integer(4),  intent(in   ) :: connec(nelem,nnode)
-    real(rp),    intent(out  ) :: minQ, maxQ
-    integer(4),  intent(out  ) :: countInvalid,countLowQ 
-    !
-    integer(4) :: ielem
-    real(rp)   :: coordElem(size(connecParWork,2),ndime)
-    real(rp)   :: quality(numElemsRankPar),distortion(numElemsRankPar)
-    ! variables from eval_ElemQuality_simple subroutine
-    integer(4) :: igaus, idime, jdime
-    real(rp) :: eta_g, eta_elem, volume, modulus, gpvolIdeal, detIdeal, detIdealCube
-    real(rp) :: elemJ(ndime, ndime), idealCubeJ(ndime, ndime)
-    ! variables from shape quality subroutine
-    real(rp) :: S(ndime,ndime), StS(ndime,ndime), sigma, Sf, detS
-    real(rp),parameter :: d=3.0_rp
-    !
-    !$acc update host(coordPar(:,:))
-    !
-    idealCubeJ = 0.0_rp
-    do idime = 1, ndime
-        idealCubeJ(idime, idime) = 1.0_rp
-    end do
-    detIdealCube = 1.0_rp
-    !$acc enter data copyin(idealCubeJ,detIdealCube)
+    real(rp),    intent(in   ) :: coord_input_safe(npoin,ndime)
+    integer(4) :: ielem, inode, idime,i,j,k,id_vertex,theNode,theVertex
+    
+    real(rp) :: Nx,Ny,Nz,xnode_lin(3),minus_plus_one(2),coordLocal(ndime)
+    
+    allocate(N_lin(nnode,nnode))
+    !$acc enter data create(N_lin(:,:))
 
-    !$acc parallel loop gang  private(coordElem,eta_elem,volume)
-    do ielem = 1,numElemsRankPar
-      !
-      coordElem = coordPar(connecParWork(ielem,:),:)
-      !
-      eta_elem = 0.0_rp
-      volume   = 0.0_rp
-      !$acc loop vector private(elemJ,S,detS,sigma,StS,Sf,eta_g,gpvolIdeal) reduction(+:eta_elem, volume)
-      do igaus = 1, ngaus
-          ! JACOBIAN MASTER-PHYSICAL MAPPING
-          elemJ(:, :) = 0.0_rp
+    ! isoparametric mapping: construct linear shape functions
+    minus_plus_one(1) = -1.0_rp
+    minus_plus_one(2) =  1.0_rp
+    id_vertex = 0
+    do inode = 1,nnode !->eval linear shape functions on master coordinate "inode" of the high-order elem
+      ! compute shape function of linear element
+      do k=1,2
+        Nz = ( 1.0_rp + (minus_plus_one(k) *xgp(inode,3)) )/2.0_rp
+        do j=1,2
+          Ny = ( 1.0_rp + (minus_plus_one(j) *xgp(inode,2)) )/2.0_rp
+          do i=1,2
+            Nx = ( 1.0_rp + (minus_plus_one(i) *xgp(inode,1)) )/2.0_rp
+            ! eval shape fun on master coordinates xgp
+            id_vertex = invAtoIJK(i,j,k)
+            N_lin(inode,id_vertex) = Nx*Ny*Nz
+          end do !i
+        end do !j
+      end do !k
+    end do !inode
+    
+    !$acc update device(N_lin(:,:))
+
+    !$acc parallel loop private(coordLocal)
+    do ielem = 1,nelem
+      !$acc loop seq
+      do inode = 1,nnode ! avoid the vertices of the hex
+        !For each element and node, we now compute the straight position
+        
+        !Contributions of the straight (linear) hexahedral element (loop on linear vertices):
+        coordLocal(:) = 0.0_rp
+        !$acc loop seq
+        do k=1,2
           !$acc loop seq
-          do idime = 1, ndime
+          do j=1,2
+            !$acc loop seq
+            do i=1,2
+              id_vertex = invAtoIJK(i,j,k)
+              theVertex = connec(ielem,id_vertex)
+              xnode_lin = coord_input_safe(theVertex,:)
+
               !$acc loop seq
-              do jdime = 1, ndime
-                  elemJ(jdime, idime) = dot_product(dNgp(idime, :, igaus), coordElem(:, jdime))
-              end do
+              do idime =1,3
+                coordLocal(idime) = coordLocal(idime) + xnode_lin(idime)*N_lin(inode,id_vertex)
+              end do !idime
+            end do
           end do
-  
-          ! SHAPE MEASURE
-          S     = matmul(elemJ, idealCubeJ)
-          detS  = S(1,1)*(S(2,2)*S(3,3) - S(2,3)*S(3,2)) &
-                - S(1,2)*(S(2,1)*S(3,3) - S(2,3)*S(3,1)) &
-                + S(1,3)*(S(2,1)*S(3,2) - S(2,2)*S(3,1))
-          sigma = (detS + abs(detS))/2
-          StS   = matmul(transpose(S), S)
-          Sf    = StS(1,1) + StS(2,2) + StS(3,3)
-          eta_g = Sf/(d*sigma**(2.0d0/d)) 
+        end do  
 
-          ! INTEGRATION
-          gpvolIdeal = detIdealCube * wgp(igaus)
-          eta_elem   = eta_elem + eta_g * eta_g * gpvolIdeal
-          volume     = volume + 1.0_rp * 1.0_rp * gpvolIdeal
-      end do
-      !
-      distortion(ielem) = sqrt(eta_elem) / sqrt(volume)
-      quality(ielem)    = 1.0_rp / distortion(ielem)
-      modulus = modulo(quality(ielem), 1.0_rp)
-      if( int(modulus) .ne. 0 ) then
-          quality(ielem)    = -1.0_rp
-          distortion(ielem) = 1.0e10_rp
-      end if
-      !
-      mu_e(ielem,:) = quality(ielem) ! for postprocessing
-      !
-    end do
+        theNode = connec(ielem,inode)
+        !$acc loop seq        
+        do idime =1,ndime
+          !$acc atomic write
+          coords(theNode, idime) = coordLocal(idime)
+          !$acc end atomic 
+        end do
+       
+      end do!inode
+    end do!ielem
     !$acc end parallel loop
-
-    !$acc update device(mu_e)
-    
-    ! OUTPUT AND STATS
-    countInvalid = 0
-    countLowQ    = 0
-    minQ         =  1.0d30
-    maxQ         = -1.0d30
-    !$acc parallel loop reduction(+:countInvalid,countLowQ) reduction(min:minQ) reduction(max:maxQ)
-    do ielem = 1, numElemsRankPar
-        if ( quality(ielem)    < 0.0d0 ) countInvalid = countInvalid + 1
-        if ( distortion(ielem) > 1.0d6 ) countLowQ    = countLowQ    + 1
-        minQ = min(minQ, quality(ielem))
-        maxQ = max(maxQ, quality(ielem))
-    end do
     !
-    call MPI_Reduce(countInvalid,countInvalid,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
-    call MPI_Reduce(countLowQ   ,countLowQ   ,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
-    call MPI_Reduce(minQ        ,minQ        ,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
-    call MPI_Reduce(maxQ        ,maxQ        ,1,mpi_datatype_real,MPI_MAX,0,app_comm,mpi_err)
-    !
-    if(minQ<0) minQ = 0.0_rp        
-    !
-  end subroutine computeQuality
-  !
-  !
-  !
-  subroutine computeQualitykk(this,minQ,maxQ,countInvalid,countLowQ)
-   
-    !use mod_quality, only: eval_ElemQuality_simple
-   
-    class(MeshElasticitySolver), intent(inout) :: this
-    real(rp),   intent(out) :: minQ, maxQ
-    integer(4), intent(out) :: countInvalid,countLowQ 
-    integer(4) :: ielem,mnode
-    real(rp)   :: coordElem(size(connecParWork,2),ndime)
-    real(rp)   :: quality(numElemsRankPar),distortion(numElemsRankPar)
-    !
-    mnode = size(connecParWork,2)
-
-    !$acc update host(coordPar(:,:))
-
-    print*,"numElemsRankPar: ",numElemsRankPar,' switched to test how it works'
-
-    ! !$acc data copyin(dNgp, wgp, coordPar, connecParWork)  ! Copy dNgp, wgp, coordPar, and connecParWork to the device
-    !$acc parallel loop private(coordElem)
-    do ielem = 1,1e4!numElemsRankPar
-      !
-      coordElem = coordPar(connecParWork(ielem,:),:)
-      !call eval_ElemQuality_simple(mnode,ngaus,coordElem,dNgp,wgp,quality(ielem),distortion(ielem))
-      !
-      mu_e(ielem,:) = quality(ielem)
-    end do
-    !$acc end parallel loop
-
-    !$acc update device(mu_e(:,:))
-    
-    countInvalid = 0
-    !$acc parallel loop reduction(+:countInvalid)
-    do ielem = 1,numElemsRankPar
-        if (quality(ielem) < 0.0d0) countInvalid = countInvalid + 1
-    end do
-    countLowQ = 0
-    !$acc parallel loop reduction(+:countLowQ)
-    do ielem = 1,numElemsRankPar
-        if (distortion(ielem) > 1.0d10) countLowQ = countLowQ + 1
-    end do
-    minQ = 1.0d30
-    !$acc parallel loop reduction(min:minQ)
-    do ielem = 1,numElemsRankPar
-        minQ = min(minQ, quality(ielem))
-    end do
-    maxQ = -1.0d30
-    !$acc parallel loop reduction(max:maxQ)
-    do ielem = 1,numElemsRankPar
-        maxQ = max(maxQ, quality(ielem))
-    end do
-    !
-    call MPI_Reduce(countInvalid,countInvalid,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
-    call MPI_Reduce(countLowQ   ,countLowQ   ,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
-    call MPI_Reduce(minQ        ,minQ        ,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
-    call MPI_Reduce(maxQ        ,maxQ        ,1,mpi_datatype_real,MPI_MAX,0,app_comm,mpi_err)
-    !
-    if(minQ<0) minQ = 0.0_rp        
-            !
-    print*,'qelems: ',quality(1:10)
-    print*,minQ,maxQ,countLowQ,countInvalid
-    !
-  end subroutine computeQualitykk
-  !
-  !
-  !
-  subroutine computeQuality_old(this,minQ,maxQ,countInvalid,countLowQ)
-   
-    use mod_quality, only: eval_ElemQuality
-   
-    class(MeshElasticitySolver), intent(inout) :: this
-    real(rp),   intent(out) :: minQ, maxQ
-    integer(4), intent(out) :: countInvalid,countLowQ 
-    integer(4) :: ielem
-    real(8)    :: quality_vec(2)
-
-    integer(4) :: id_quality = 1 ! 1 for aniso, 2 for isso cube ideal 
-    
-    real(8)   :: q_gauss(ngaus)
-    !
-    countInvalid = 0
-    countLowQ = 0
-    minQ = 1.0_rp
-    maxQ = 0.0_rp
-
-    !$acc update host(coordPar(:,:))
-
-    do ielem = 1,numElemsRankPar
-      !
-      call eval_ElemQuality(size(connecParWork,2),ngaus,numNodesRankPar,numElemsRankPar,&
-        ielem,real(coordPar,8),connecParWork,real(dNgp,8),real(wgp,8),&
-        quality_vec,q_gauss)
-      !
-      minQ = min(minQ,real(quality_vec(id_quality),rp))
-      maxQ = max(maxQ,real(quality_vec(id_quality),rp))
-      !
-      mu_e(ielem,:) = real(q_gauss,4)
-      !
-      if(real(quality_vec(id_quality),rp)<0) then
-        countInvalid = countInvalid+1
-      end if
-      if(minval(q_gauss)<0) then
-        countLowQ = countLowQ+1
-      end if
-    end do
-
-    !$acc update device(mu_e(:,:))
-
-    !
-    if(minQ<0) minQ = 0.0_rp
-    !print*,'   Num invalid: ',countInvalid,'     Num lowQ: ',countLowQ
-    !
-  end subroutine computeQuality_old
+  end subroutine compute_straight_mesh
   !
   !
   !
@@ -811,7 +596,7 @@ contains
       str_name = "";
       open(unit=666, file="paramQual"//TRIM(str_name)//'.txt', status="replace", action="write")
       write(666,*) "      YOUNG            POISSON              MIN_Q             MAX_Q"
-      print*, "                      YOUNG            POISSON              MIN_Q             MAX_Q"
+      print*, "                      YOUNG            POISSON              MIN_Q"!             MAX_Q"
     end if
     do ipoisson = 0,num_poisson
       do iyoung = 0,num_young
@@ -831,14 +616,15 @@ contains
         call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
         
         if(minQ>q_best) then
-          q_best = minQ
+          q_best  = minQ
           nu_best = this%nu_poisson
           E_best  = this%E_young
         end if
 
         if(mpi_rank.eq.0) then
           write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
-          print*,iyoung + (num_young+1)*ipoisson,' -> ',  this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
+          print*,iyoung + (num_young+1)*ipoisson,' -> ',  this%E_young,' ',this%nu_poisson ,' ',minQ
+          !,' ',maxQ
           !,&
           !' ',numInv ,' ',numLow
         end if
@@ -854,7 +640,7 @@ contains
     end do
     if(mpi_rank.eq.0) then
       close(666)
-      print*,'     -> Best parameters: ',nu_best,'  ',E_best,'  minQ: ',minQ
+      print*,'   -> Best param: ',nu_best,' ',E_best,' minQ: ',minQ
     end if
      
     this%nu_poisson = nu_best
