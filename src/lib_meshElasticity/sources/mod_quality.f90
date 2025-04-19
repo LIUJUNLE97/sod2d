@@ -96,6 +96,7 @@ subroutine computeQuality(npoin,ndime,coords,nelem,nnode,connec,minQ,maxQ,countI
     countLowQ    = 0
     minQ         =  1.0d30
     maxQ         = -1.0d30
+    !$acc data copy(minQ, maxQ, countInvalid, countLowQ)
     !$acc parallel loop reduction(+:countInvalid,countLowQ) reduction(min:minQ) reduction(max:maxQ)
     do ielem = 1, nelem
         if ( quality(ielem)    < 0.0d0 ) countInvalid = countInvalid + 1
@@ -103,6 +104,9 @@ subroutine computeQuality(npoin,ndime,coords,nelem,nnode,connec,minQ,maxQ,countI
         minQ = min(minQ, quality(ielem))
         maxQ = max(maxQ, quality(ielem))
     end do
+    !$acc end parallel loop
+    !$acc end data 
+    !!$acc update host(minQ,maxQ,countInvalid,countLowQ)
     !
     call MPI_Reduce(countInvalid,countInvalid,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
     call MPI_Reduce(countLowQ   ,countLowQ   ,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
