@@ -230,7 +230,7 @@ contains
       !if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
       !
       if(mpi_rank.eq.0) write(*,*) '  --| Quality before elasticity'
-      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
+      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
       !call MPI_Reduce(minQ,minQTot,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       !
@@ -246,7 +246,7 @@ contains
       !$acc end kernels
       
       if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity'
-      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
+      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
       !call MPI_Reduce(minQ,minQTot,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       !
@@ -260,7 +260,7 @@ contains
       u(:,:,2) = 0.0_rp
       !$acc end kernels
       if(mpi_rank.eq.0) write(*,*) '  --| Input curved mesh quality'
-      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
+      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       call this%saveInstResultsFiles(0)
       
@@ -269,7 +269,7 @@ contains
       if(mpi_rank.eq.0) write(*,*) '  --| Straighten mesh (coordpar)'
       call compute_straight_mesh(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,coord_input_safe)
       if(mpi_rank.eq.0) write(*,*) '  --| Quality straight-sided mesh'
-      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
+      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
 
       !$acc kernels
@@ -301,7 +301,7 @@ contains
       coordPar = coordPar+u(:,:,2)
       !$acc end kernels
       if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity-based curved mesh'
-      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
+      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
 
       !$acc kernels
@@ -334,7 +334,7 @@ contains
       !if (flag_buffer_on .eqv. .true.) call updateBuffer_incomp(npoin,npoin_w,coord,lpoin_w,maskMapped,u(:,:,2),u_buffer)
       !
       if(mpi_rank.eq.0) print*,'Quality before elasticity'
-      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
+      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
       !call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       !
@@ -353,7 +353,7 @@ contains
       u(:,:,2) = u(:,:,2) * 5
       coordPar = coord_input_safe + u(:,:,2)
       if(mpi_rank.eq.0) print*,'Quality after elasticity'
-      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
+      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
       !call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       
@@ -367,7 +367,7 @@ contains
         u(:,:,2) = u(:,:,2)*factor_backtrack
         coordPar = coord_input_safe + u(:,:,2)
         if(mpi_rank.eq.0) print*,'  Quality after backtrack: ',numBacktracks
-        call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
+        call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
         !call MPI_Reduce(real(minQ,8),minQTot,1,mpi_datatype_real8,MPI_MIN,0,app_comm,mpi_err)
         if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
         if(mpi_rank.eq.0) print*,'     minMaxUx: ',minval(u(:,1,2)),' / ',maxval(u(:,1,2))
@@ -582,8 +582,8 @@ contains
     E_best  = E_safe  
    
     !"E":10, "nu":0.4,
-    num_young   = 4!8
-    num_poisson = 4!10
+    num_young   = 3!8
+    num_poisson = 3!10
     ini_young   = 0.01_rp !0.0001_rp
     fact_young  = 10.0_rp ! 10.0_rp
     ini_poisson = 0.139_rp!0.1_rp ! 0.05_rp
@@ -613,20 +613,21 @@ contains
         !$acc kernels
         coordPar = coordPar+u(:,:,2)
         !$acc end kernels
-        call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
+        call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
         
-        if(minQ>q_best) then
-          q_best  = minQ
-          nu_best = this%nu_poisson
-          E_best  = this%E_young
-        end if
-
         if(mpi_rank.eq.0) then
           write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
           print*,iyoung + (num_young+1)*ipoisson,' -> ',  this%E_young,' ',this%nu_poisson ,' ',minQ
           !,' ',maxQ
           !,&
           !' ',numInv ,' ',numLow
+        end if
+
+        if(minQ>q_best) then
+          q_best  = minQ
+          nu_best = this%nu_poisson
+          E_best  = this%E_young
+          if(mpi_rank.eq.0) print*,'Improved Q:',q_best,'-> nu:',nu_best,' E:',E_best
         end if
 
         !$acc kernels
@@ -640,7 +641,7 @@ contains
     end do
     if(mpi_rank.eq.0) then
       close(666)
-      print*,'   -> Best param: ',nu_best,' ',E_best,' minQ: ',minQ
+      print*,'   -> Best param: ',nu_best,' ',E_best,' minQ: ',q_best
     end if
      
     this%nu_poisson = nu_best
@@ -759,7 +760,7 @@ contains
              this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
              bouCodesNodesPar,normalsAtNodes,u_buffer)
 
-          call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow)
+          call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
 
           write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
 

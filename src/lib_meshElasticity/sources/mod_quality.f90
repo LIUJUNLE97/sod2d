@@ -13,11 +13,12 @@ contains
 !
 !
 !
-subroutine computeQuality(npoin,ndime,coords,nelem,nnode,connec,minQ,maxQ,countInvalid,countLowQ)
+subroutine computeQuality(npoin,ndime,coords,nelem,nnode,connec,minQ,maxQ,countInvalid,countLowQ,value_gauss_postp)
     !
     integer(4),  intent(in   ) :: npoin, ndime, nelem, nnode
     real(rp),    intent(inout) :: coords(npoin,ndime)
     integer(4),  intent(in   ) :: connec(nelem,nnode)
+    real(rp),    intent(inout) :: value_gauss_postp(nelem,ngaus)
     real(rp),    intent(out  ) :: minQ, maxQ
     integer(4),  intent(out  ) :: countInvalid,countLowQ 
     !
@@ -84,12 +85,10 @@ subroutine computeQuality(npoin,ndime,coords,nelem,nnode,connec,minQ,maxQ,countI
           distortion(ielem) = 1.0e10_rp
       end if
       !
-      !mu_e(ielem,:) = quality(ielem) ! for postprocessing
+      value_gauss_postp(ielem,:) = quality(ielem) ! for postprocessing
       !
     end do
     !$acc end parallel loop
-
-    ! !$acc update device(mu_e)
     
     ! OUTPUT AND STATS
     countInvalid = 0
@@ -113,7 +112,7 @@ subroutine computeQuality(npoin,ndime,coords,nelem,nnode,connec,minQ,maxQ,countI
     call MPI_Reduce(minQ        ,minQ        ,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
     call MPI_Reduce(maxQ        ,maxQ        ,1,mpi_datatype_real,MPI_MAX,0,app_comm,mpi_err)
     !
-    if(minQ<0) minQ = 0.0_rp        
+    !if(minQ<0) minQ = 0.0_rp        
     !
 end subroutine computeQuality
 !
