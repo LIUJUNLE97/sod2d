@@ -445,11 +445,11 @@ contains
       !$acc end kernels
 
       if(mpi_rank.eq.0) write(*,*) '  --| Bad quality for default E,nu: try to find better elasticity parameters'
-      call this%assessBestElasticityParameters(4,minQ)
+      call this%assessBestElasticityParameters(3,minQ)
 
       if(minQ<1e-6_rp) then
         if(mpi_rank.eq.0) write(*,*) '  --| Bad quality for default E,nu: try to find better elasticity parameters again'
-        call this%assessBestElasticityParameters(10,minQ)
+        call this%assessBestElasticityParameters(9,minQ)
       end if
 
       if(minQ<1e-6_rp) then
