@@ -3,7 +3,6 @@
 !-----------------------------------------------------------------------------------------
 module mod_ioutils
    use mod_mpi
-   use json_module
    implicit none
 
 contains
@@ -12,6 +11,7 @@ contains
    !    JSON
    !-------------------------------------------------------------
    subroutine trim_extension_json_file(json_filename)
+      use json_module
       implicit none
       character(len=*),intent(inout) :: json_filename
      
@@ -29,6 +29,7 @@ contains
    end subroutine
 
    subroutine open_json_file(json_filename,json_f)
+      use json_module
       implicit none
       character(len=*),intent(inout) :: json_filename
       type(json_file),intent(inout) :: json_f
@@ -47,6 +48,7 @@ contains
    end subroutine
 
    subroutine close_json_file(json_f)
+      use json_module
       implicit none
       type(json_file),intent(inout) :: json_f
   
