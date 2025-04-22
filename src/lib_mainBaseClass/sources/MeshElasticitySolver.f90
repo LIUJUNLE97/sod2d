@@ -251,9 +251,7 @@ contains
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       !
       call this%saveInstResultsFiles(1)    
-    end if
-    !
-    if( elasticity_problemType == elasticity_fromBouCurving) then ! do_curveInteriorMesh
+    else  if( elasticity_problemType == elasticity_fromBouCurving) then ! do_curveInteriorMesh
       if(mpi_rank.eq.0) write(*,*) '  --| Elasticity for boundary mesh curving...'
       
       !$acc kernels
@@ -287,9 +285,6 @@ contains
            numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
       end if
       !
-      if(mpi_rank.eq.0) write(*,*) '  --| Assess Best Elasticity Parameters'
-      call this%assessBestElasticityParameters()
-      !
       if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity...'
       call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
          numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
@@ -304,15 +299,32 @@ contains
       call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
 
+      if(minQ<1e-6_rp) then
+        if(mpi_rank.eq.0) write(*,*) '  --| Bad quality for default E,nu: try to find better elasticity parameters'
+        call this%assessBestElasticityParameters()
+
+        if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity for best parameters...'
+        call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
+           numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
+           gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
+           this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
+           bouCodesNodesPar,normalsAtNodes,u_buffer)
+        !
+        !$acc kernels
+        coordPar = coordPar+u(:,:,2)
+        !$acc end kernels
+        if(mpi_rank.eq.0) write(*,*) '  --| Quality after best elasticity-based curved mesh'
+        call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
+        if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
+      end if
+
       !$acc kernels
       u(:,:,2) = coordPar-coord_input_safe ! -> displacement to see in paraview the new curved mesh
       !$acc end kernels
       call this%saveInstResultsFiles(2)
       
       if(this%saveNewCoords) call save_coordinates_hdf5(this%meshFile_h5_full_name)
-    end if
-    !
-    if( elasticity_problemType == elasticity_fromMetric ) then ! do_curveFromMetric
+    else if( elasticity_problemType == elasticity_fromMetric ) then ! do_curveFromMetric
       print*,'STOP!!! elasticity_fromMetric STILL NOT IN PRODUCTION'
       stop
       
@@ -377,7 +389,14 @@ contains
       !
       coordPar = coord_input_safe
       call this%saveInstResultsFiles(2)
-      
+    else
+      if(mpi_rank.eq.0) then
+        print*,'Not correct elasticity_problemType, only options: '
+        print*,' - elasticity_fromBouCurving'
+        print*,' - elasticity_fromALE'
+        print*,' - elasticity_fromMetric'
+      end if
+      stop 1
     end if
     !
     call this%close_log_file()
@@ -582,8 +601,8 @@ contains
     E_best  = E_safe  
    
     !"E":10, "nu":0.4,
-    num_young   = 3!8
-    num_poisson = 3!10
+    num_young   = 4!8
+    num_poisson = 4!10
     ini_young   = 0.01_rp !0.0001_rp
     fact_young  = 10.0_rp ! 10.0_rp
     ini_poisson = 0.139_rp!0.1_rp ! 0.05_rp
@@ -598,6 +617,11 @@ contains
       write(666,*) "      YOUNG            POISSON              MIN_Q             MAX_Q"
       print*, "                      YOUNG            POISSON              MIN_Q"!             MAX_Q"
     end if
+
+    !$acc kernels
+    u(:,:,2) = 0.0_rp
+    !$acc end kernels
+
     do ipoisson = 0,num_poisson
       do iyoung = 0,num_young
         

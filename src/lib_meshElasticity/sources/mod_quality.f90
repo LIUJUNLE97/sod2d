@@ -13,43 +13,43 @@ contains
 !
 !
 !
-subroutine computeQualityStats(npoin,ndime,coords,nelem,nnode,connec,minQ,maxQ,countInvalid,countLowQ,value_gauss_postp)
-    implicit none
-    !
-    integer(4),  intent(in   ) :: npoin, ndime, nelem, nnode
-    real(rp),    intent(inout) :: coords(npoin,ndime)
-    integer(4),  intent(in   ) :: connec(nelem,nnode)
-    real(rp),    intent(inout) :: value_gauss_postp(nelem,ngaus)
-    real(rp),    intent(out  ) :: minQ, maxQ
-    integer(4),  intent(out  ) :: countInvalid,countLowQ 
-    !
-    call computeQuality(npoin,ndime,coords,nelem,nnode,connec,minQ,maxQ,countInvalid,countLowQ,value_gauss_postp)
-    ! call computeQualityElems
-    ! and then:
-    ! ! OUTPUT AND STATS
-    ! countInvalid = 0
-    ! countLowQ    = 0
-    ! minQ         =  1.0d30
-    ! maxQ         = -1.0d30
-    ! !$acc data copy(minQ, maxQ, countInvalid, countLowQ)
-    ! !$acc parallel loop reduction(+:countInvalid,countLowQ) reduction(min:minQ) reduction(max:maxQ)
-    ! do ielem = 1, nelem
-    !     if ( quality(ielem)    < 0.0d0 ) countInvalid = countInvalid + 1
-    !     if ( distortion(ielem) > 1.0d6 ) countLowQ    = countLowQ    + 1
-    !     minQ = min(minQ, quality(ielem))
-    !     maxQ = max(maxQ, quality(ielem))
-    ! end do
-    ! !$acc end parallel loop
-    ! !$acc end data 
-    ! !
-    ! call MPI_Reduce(countInvalid,countInvalid,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
-    ! call MPI_Reduce(countLowQ   ,countLowQ   ,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
-    ! call MPI_Reduce(minQ        ,minQ        ,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
-    ! call MPI_Reduce(maxQ        ,maxQ        ,1,mpi_datatype_real,MPI_MAX,0,app_comm,mpi_err)
-    ! !
-    ! !if(minQ<0) minQ = 0.0_rp      
-    !
-end subroutine computeQualityStats
+! subroutine computeQualityStats(npoin,ndime,coords,nelem,nnode,connec,minQ,maxQ,countInvalid,countLowQ,value_gauss_postp)
+!     implicit none
+!     !
+!     integer(4),  intent(in   ) :: npoin, ndime, nelem, nnode
+!     real(rp),    intent(inout) :: coords(npoin,ndime)
+!     integer(4),  intent(in   ) :: connec(nelem,nnode)
+!     real(rp),    intent(inout) :: value_gauss_postp(nelem,ngaus)
+!     real(rp),    intent(out  ) :: minQ, maxQ
+!     integer(4),  intent(out  ) :: countInvalid,countLowQ 
+!     !
+!     call computeQuality(npoin,ndime,coords,nelem,nnode,connec,minQ,maxQ,countInvalid,countLowQ,value_gauss_postp)
+!     ! call computeQualityElems
+!     ! and then:
+!     ! ! OUTPUT AND STATS
+!     ! countInvalid = 0
+!     ! countLowQ    = 0
+!     ! minQ         =  1.0d30
+!     ! maxQ         = -1.0d30
+!     ! !$acc data copy(minQ, maxQ, countInvalid, countLowQ)
+!     ! !$acc parallel loop reduction(+:countInvalid,countLowQ) reduction(min:minQ) reduction(max:maxQ)
+!     ! do ielem = 1, nelem
+!     !     if ( quality(ielem)    < 0.0d0 ) countInvalid = countInvalid + 1
+!     !     if ( distortion(ielem) > 1.0d6 ) countLowQ    = countLowQ    + 1
+!     !     minQ = min(minQ, quality(ielem))
+!     !     maxQ = max(maxQ, quality(ielem))
+!     ! end do
+!     ! !$acc end parallel loop
+!     ! !$acc end data 
+!     ! !
+!     ! call MPI_Reduce(countInvalid,countInvalid,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
+!     ! call MPI_Reduce(countLowQ   ,countLowQ   ,1,mpi_datatype_int4,MPI_SUM,0,app_comm,mpi_err)
+!     ! call MPI_Reduce(minQ        ,minQ        ,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
+!     ! call MPI_Reduce(maxQ        ,maxQ        ,1,mpi_datatype_real,MPI_MAX,0,app_comm,mpi_err)
+!     ! !
+!     ! !if(minQ<0) minQ = 0.0_rp      
+!     !
+! end subroutine computeQualityStats
 
 !
 !
