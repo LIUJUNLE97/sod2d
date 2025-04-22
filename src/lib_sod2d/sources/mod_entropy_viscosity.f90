@@ -446,7 +446,7 @@ module mod_entropy_viscosity
          !$acc parallel loop
          do ipoin = 1,npoin_w
             eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
-            eta(lpoin_w(ipoin),2) = rho(lpoin_w(ipoin))*mach(lpoin_w(ipoin))/csound(lpoin_w(ipoin))
+            eta(lpoin_w(ipoin),2) = rho(lpoin_w(ipoin))*mach(lpoin_w(ipoin))
             !$acc loop seq
             do idime = 1,ndime
                feta(lpoin_w(ipoin),idime)  = u(lpoin_w(ipoin),idime)*eta(lpoin_w(ipoin),1)
