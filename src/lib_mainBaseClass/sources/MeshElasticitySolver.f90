@@ -268,12 +268,12 @@ contains
       !
       call this%solveLinearElasticity()
       !
-      !$acc kernels
-      coordPar = coordPar+u(:,:,2)
-      !$acc end kernels
-      if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity-based curved mesh'
-      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
-      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
+      ! !$acc kernels
+      ! coordPar = coordPar+u(:,:,2)
+      ! !$acc end kernels
+      ! if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity-based curved mesh'
+      ! call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
+      ! if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       !
       if(this%saveNewCoords) then
         call save_coordinates_hdf5(this%meshFile_h5_full_name)
@@ -444,11 +444,15 @@ contains
       coordPar = coordPar-u(:,:,2)
       !$acc end kernels
 
-      if(mpi_rank.eq.0) write(*,*) '  --| Bad quality for default E,nu: try to find better elasticity parameters'
-      call this%assessBestElasticityParameters(3,minQ)
+      !$acc kernels
+      u(:,:,2) = 0.0_rp
+      !$acc end kernels
+
+      if(mpi_rank.eq.0) write(*,*) '  --| Bad quality for default E,nu: find better elasticity parameters'
+      call this%assessBestElasticityParameters(2,minQ)
 
       if(minQ<1e-6_rp) then
-        if(mpi_rank.eq.0) write(*,*) '  --| Bad quality for default E,nu: try to find better elasticity parameters again'
+        if(mpi_rank.eq.0) write(*,*) '  --| Bad quality for default E,nu: find better elasticity parameters again'
         call this%assessBestElasticityParameters(9,minQ)
       end if
 
@@ -457,10 +461,6 @@ contains
         stop 1
       end if
 
-      !$acc kernels
-      u(:,:,2) = 0.0_rp
-      !$acc end kernels
-      
       if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity for best parameters...'
       call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
           numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
@@ -668,10 +668,6 @@ contains
       print*, "                      YOUNG            POISSON              MIN_Q"!             MAX_Q"
     end if
 
-    !$acc kernels
-    u(:,:,2) = 0.0_rp
-    !$acc end kernels
-
     do ipoisson = 0,num_poisson
       do iyoung = 0,num_young
         
@@ -689,6 +685,14 @@ contains
         !$acc end kernels
         call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
         
+        !$acc kernels
+        coordPar = coordPar-u(:,:,2)
+        !$acc end kernels
+        
+        !$acc kernels
+        u(:,:,2) = 0.0_rp
+        !$acc end kernels
+
         if(mpi_rank.eq.0) then
           write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
           print*,iyoung + (num_young+1)*ipoisson,' -> ',  this%E_young,' ',this%nu_poisson ,' ',minQ
@@ -702,13 +706,6 @@ contains
           if(mpi_rank.eq.0) print*,'Improved Q:',q_best,'-> nu:',nu_best,' E:',E_best
         end if
 
-        !$acc kernels
-        coordPar = coordPar-u(:,:,2)
-        !$acc end kernels
-
-        !$acc kernels
-        u(:,:,2) = 0.0_rp
-        !$acc end kernels
       end do
     end do
     if(mpi_rank.eq.0) then
