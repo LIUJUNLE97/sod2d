@@ -146,6 +146,11 @@ module mod_numerical_params
         real(rp) :: center_mom_y = 0.0_rp
         real(rp) :: center_mom_z = 0.0_rp
 
+
+        ! Type of mesh elasticity problem
+
+        integer(4), public :: elasticity_problemType = elasticity_non_setup
+        
         !pseduo time stepping steady euler
         real(rp)    :: pseudo_cfl = 0.1_rp
         real(rp)    :: pseudo_ftau = 15.0_rp

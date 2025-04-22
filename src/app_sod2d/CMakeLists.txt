@@ -6,6 +6,7 @@ if(SHARED_LIBS)
    file(GLOB_RECURSE SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/*.f90)
 else()
    file(GLOB SRC_FILES ${CMAKE_CURRENT_LIST_DIR}/../lib_sod2d/sources/*.f90
+                       ${CMAKE_CURRENT_LIST_DIR}/../lib_meshElasticity/sources/*.f90
                        ${CMAKE_CURRENT_LIST_DIR}/../lib_sod2d_incomp/sources/*.f90
                        ${CMAKE_CURRENT_LIST_DIR}/../lib_species/sources/*.f90
                        ${CMAKE_CURRENT_LIST_DIR}/../lib_mainBaseClass/sources/*.f90

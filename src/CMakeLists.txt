@@ -4,6 +4,7 @@ include(constants)
 #libs
 if (SHARED_LIBS)
     add_subdirectory(lib_sod2d)
+    add_subdirectory(lib_meshElasticity)
     add_subdirectory(lib_sod2d_incomp)
     add_subdirectory(lib_species)
     add_subdirectory(lib_mainBaseClass)

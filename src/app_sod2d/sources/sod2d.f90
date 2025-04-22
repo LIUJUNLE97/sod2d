@@ -30,6 +30,8 @@ program main
    use SupersonicForwardStep_mod
    use SupersonicNozzle_mod
    use TransientInletSolverIncomp_mod
+   use HelicopterSolverIncomp_mod
+   use MeshElasticitySolver_mod
    use BluffBody3DSolverEuler_mod
 
    implicit none
@@ -117,6 +119,10 @@ program main
       allocate(SupersonicNozzle::solver)      
    else if(value .eq. "TransientInletSolverIncomp") then
       allocate(TransientInletSolverIncomp::solver)      
+   else if(value .eq. "HelicopterSolverIncomp") then
+      allocate(HelicopterSolverIncomp::solver)      
+   else if(value .eq. "MeshElasticitySolver") then
+      allocate(MeshElasticitySolver::solver)            
    else if(value .eq. "BluffBody3DSolverEuler") then
       allocate(BluffBody3DSolverEuler::solver)      
    else
