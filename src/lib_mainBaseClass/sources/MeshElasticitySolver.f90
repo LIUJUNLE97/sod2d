@@ -267,7 +267,14 @@ contains
       end if
       !
       call this%solveLinearElasticity()
-
+      !
+      !$acc kernels
+      coordPar = coordPar+u(:,:,2)
+      !$acc end kernels
+      if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity-based curved mesh'
+      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
+      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
+      !
       if(this%saveNewCoords) then
         call save_coordinates_hdf5(this%meshFile_h5_full_name)
         ! REWRITE POSTPROCESSING FILES WITH RESPECT TO THE NEW MESH
@@ -414,6 +421,10 @@ contains
     real(rp)   :: minQTot
     integer(4):: numInv,numLow,numBacktracks
     !
+    !$acc kernels
+    u(:,:,2) = 0.0_rp
+    !$acc end kernels
+
     if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity...'
     call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
     numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
@@ -429,6 +440,10 @@ contains
     if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
 
     if(minQ<1e-6_rp) then
+      !$acc kernels
+      coordPar = coordPar-u(:,:,2)
+      !$acc end kernels
+
       if(mpi_rank.eq.0) write(*,*) '  --| Bad quality for default E,nu: try to find better elasticity parameters'
       call this%assessBestElasticityParameters(4,minQ)
 
@@ -442,6 +457,10 @@ contains
         stop 1
       end if
 
+      !$acc kernels
+      u(:,:,2) = 0.0_rp
+      !$acc end kernels
+      
       if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity for best parameters...'
       call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
           numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
@@ -625,12 +644,11 @@ contains
     nu_best = nu_safe 
     E_best  = E_safe  
    
+    !Defaults -> "E":10, "nu":0.4
     ini_young   = 0.01_rp !0.0001_rp
     end_young = 100.0_rp
-    !fact_young  = 10.0_rp ! 10.0_rp
     ini_poisson = 0.139_rp!0.1_rp ! 0.05_rp
     end_poisson = 0.49_rp
-    !"E":10, "nu":0.4,
     if(present(ngrid_param)) then
       num_young   = ngrid_param
       num_poisson = ngrid_param
@@ -674,9 +692,7 @@ contains
         if(mpi_rank.eq.0) then
           write(666, *) this%E_young,' ',this%nu_poisson ,' ',minQ,' ',maxQ
           print*,iyoung + (num_young+1)*ipoisson,' -> ',  this%E_young,' ',this%nu_poisson ,' ',minQ
-          !,' ',maxQ
-          !,&
-          !' ',numInv ,' ',numLow
+          !,' ',maxQ,' ',numInv ,' ',numLow
         end if
 
         if(minQ>q_best) then
