@@ -63,6 +63,8 @@ module MeshElasticitySolver_mod
       procedure, public :: initialBuffer         => imposedDisplacement_elasticitySolverBuffer
       procedure, public :: initializeDefaultSaveFields => CFDSolverBase_initializeDefaultSaveFields_elasticity
       
+      procedure, public :: solveLinearElasticity
+
       procedure, public :: assessElasticityParameters_forDifferentDefs
       procedure, public :: assessBestElasticityParameters
    end type MeshElasticitySolver
@@ -220,9 +222,8 @@ contains
     !
     if( elasticity_problemType == elasticity_fromALE ) then ! do_curveFromPrescribedDisplacement
       if(mpi_rank.eq.0) write(*,*) '  --| Imposing a prescribed displacement in dirichlet boundaries...'
-      !
       call this%initialBuffer()
-
+      !
       if (this%noBoundaries .eqv. .false.) then
          call temporary_bc_routine_dirichlet_prim_meshElasticity(&
            numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
@@ -231,51 +232,31 @@ contains
       !
       if(mpi_rank.eq.0) write(*,*) '  --| Quality before elasticity'
       call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
-      !call MPI_Reduce(minQ,minQTot,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       !
-      if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity...'
-      call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
-         numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
-         gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
-         this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
-         bouCodesNodesPar,normalsAtNodes,u_buffer)
+      call this%solveLinearElasticity()
       !
-      !$acc kernels
-      coordPar = coordPar+u(:,:,2)
-      !$acc end kernels
-      
-      if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity'
-      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
-      !call MPI_Reduce(minQ,minQTot,1,mpi_datatype_real,MPI_MIN,0,app_comm,mpi_err)
-      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
-      !
-      call this%saveInstResultsFiles(1)    
+      call this%saveInstResultsFiles(1)  
+      !  
     else  if( elasticity_problemType == elasticity_fromBouCurving) then ! do_curveInteriorMesh
       if(mpi_rank.eq.0) write(*,*) '  --| Elasticity for boundary mesh curving...'
+      call save_input_coordinates(numNodesRankPar,ndime,coordPar,coord_input_safe)
       
-      !$acc kernels
-      u(:,:,2) = 0.0_rp
-      !$acc end kernels
       if(mpi_rank.eq.0) write(*,*) '  --| Input curved mesh quality'
       call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
       call this%saveInstResultsFiles(0)
-      
-      call save_input_coordinates(numNodesRankPar,ndime,coordPar,coord_input_safe)
       
       if(mpi_rank.eq.0) write(*,*) '  --| Straighten mesh (coordpar)'
       call compute_straight_mesh(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,coord_input_safe)
       if(mpi_rank.eq.0) write(*,*) '  --| Quality straight-sided mesh'
       call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
       if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
-
       !$acc kernels
       u(:,:,2) = coordPar-coord_input_safe ! -> displacement to see in paraview the straight mesh
       !$acc end kernels
       call this%saveInstResultsFiles(1)
-      
-      !print*,'- Compute displacement of the boundary'
+      !
       call compute_displacement_straight_mesh(numNodesRankPar,ndime,coordPar,coord_input_safe,bouCodesNodesPar,&
         this%is_imposed_displacement,imposed_displacement)
       !
@@ -285,45 +266,30 @@ contains
            numNodesRankPar,numBoundsRankPar,bouCodesNodesPar,lbnodesPar,normalsAtNodes,u(:,:,1),u_buffer)
       end if
       !
-      if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity...'
-      call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
-         numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
-         gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
-         this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
-         bouCodesNodesPar,normalsAtNodes,u_buffer)
-      !
-      !$acc kernels
-      coordPar = coordPar+u(:,:,2)
-      !$acc end kernels
-      if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity-based curved mesh'
-      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
-      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
+      call this%solveLinearElasticity()
 
-      if(minQ<1e-6_rp) then
-        if(mpi_rank.eq.0) write(*,*) '  --| Bad quality for default E,nu: try to find better elasticity parameters'
-        call this%assessBestElasticityParameters()
-
-        if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity for best parameters...'
-        call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
-           numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
-           gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
-           this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
-           bouCodesNodesPar,normalsAtNodes,u_buffer)
-        !
+      if(this%saveNewCoords) then
+        call save_coordinates_hdf5(this%meshFile_h5_full_name)
+        ! REWRITE POSTPROCESSING FILES WITH RESPECT TO THE NEW MESH
         !$acc kernels
-        coordPar = coordPar+u(:,:,2)
+        u(:,:,2) = -1.0_rp*u(:,:,2)
         !$acc end kernels
-        if(mpi_rank.eq.0) write(*,*) '  --| Quality after best elasticity-based curved mesh'
-        call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
-        if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
+        call this%saveInstResultsFiles(1)
+        !$acc kernels
+        u(:,:,2) = coord_input_safe-coordPar 
+        !$acc end kernels
+        call this%saveInstResultsFiles(0)
+        !$acc kernels
+        u(:,:,2) = 0.0 
+        !$acc end kernels
+        call this%saveInstResultsFiles(2)
+      else
+        ! POSTPROCESS WITH RESPECT TO INPUT MESH
+        !$acc kernels
+        u(:,:,2) = coordPar-coord_input_safe 
+        !$acc end kernels
+        call this%saveInstResultsFiles(2)
       end if
-
-      !$acc kernels
-      u(:,:,2) = coordPar-coord_input_safe ! -> displacement to see in paraview the new curved mesh
-      !$acc end kernels
-      call this%saveInstResultsFiles(2)
-      
-      if(this%saveNewCoords) call save_coordinates_hdf5(this%meshFile_h5_full_name)
     else if( elasticity_problemType == elasticity_fromMetric ) then ! do_curveFromMetric
       print*,'STOP!!! elasticity_fromMetric STILL NOT IN PRODUCTION'
       stop
@@ -436,6 +402,62 @@ contains
     end if
     
   end subroutine MeshElasticitySolver_run
+  !
+  !
+  !
+  subroutine solveLinearElasticity(this)
+    implicit none
+    !
+    class(MeshElasticitySolver), intent(inout) :: this
+    !
+    real(rp)   :: minQ,maxQ,factor_backtrack
+    real(rp)   :: minQTot
+    integer(4):: numInv,numLow,numBacktracks
+    !
+    if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity...'
+    call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
+    numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
+    gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
+    this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
+    bouCodesNodesPar,normalsAtNodes,u_buffer)
+    !
+    !$acc kernels
+    coordPar = coordPar+u(:,:,2)
+    !$acc end kernels
+    if(mpi_rank.eq.0) write(*,*) '  --| Quality after elasticity-based curved mesh'
+    call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
+    if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
+
+    if(minQ<1e-6_rp) then
+      if(mpi_rank.eq.0) write(*,*) '  --| Bad quality for default E,nu: try to find better elasticity parameters'
+      call this%assessBestElasticityParameters(4,minQ)
+
+      if(minQ<1e-6_rp) then
+        if(mpi_rank.eq.0) write(*,*) '  --| Bad quality for default E,nu: try to find better elasticity parameters again'
+        call this%assessBestElasticityParameters(10,minQ)
+      end if
+
+      if(minQ<1e-6_rp) then
+        print*,'Not possible to find valid configuration... best minQ: ',minQ
+        stop 1
+      end if
+
+      if(mpi_rank.eq.0) write(*,*) '  --| conjGrad_meshElasticity for best parameters...'
+      call conjGrad_meshElasticity(1,this%save_logFile_next,this%noBoundaries,numElemsRankPar,numNodesRankPar,&
+          numWorkingNodesRankPar,numBoundsRankPar,connecParWork,workingNodesPar,invAtoIJK,&
+          gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,Ml,helem,&
+          this%nu_poisson,this%E_young,u(:,:,1),u(:,:,2), &!u1 condicion inicial u2 terme font y solucio final
+          bouCodesNodesPar,normalsAtNodes,u_buffer)
+      !
+      !$acc kernels
+      coordPar = coordPar+u(:,:,2)
+      !$acc end kernels
+      if(mpi_rank.eq.0) write(*,*) '  --| Quality after best elasticity-based curved mesh'
+      call computeQuality(numNodesRankPar,ndime,coordPar,numElemsRankPar,nnode,connecParWork,minQ,maxQ,numInv,numLow,mu_e)
+      if(mpi_rank.eq.0) write(*,*) '  --|   minQ: ',minQ,'     maxQ: ',maxQ
+    end if
+
+  end subroutine solveLinearElasticity
   !
   !
   !
@@ -584,12 +606,15 @@ contains
   !
   !
   !
-  subroutine assessBestElasticityParameters(this)
+  subroutine assessBestElasticityParameters(this,ngrid_param,minQ_best)
     implicit none
     class(MeshElasticitySolver), intent(inout) :: this
-   
+    
+    integer(4),intent(in),  optional :: ngrid_param
+    real(rp),  intent(out), optional :: minQ_best
+
     integer(4) :: iyoung,ipoisson,num_young,num_poisson,numInv,numLow
-    real(rp)   :: fact_young, fact_poisson, ini_young, ini_poisson, end_poisson
+    real(rp)   :: fact_young, fact_poisson, ini_young, end_young, ini_poisson, end_poisson
     real(rp)   :: minQ,maxQ
     character(len=2) :: str_name
    
@@ -600,14 +625,21 @@ contains
     nu_best = nu_safe 
     E_best  = E_safe  
    
-    !"E":10, "nu":0.4,
-    num_young   = 4!8
-    num_poisson = 4!10
     ini_young   = 0.01_rp !0.0001_rp
-    fact_young  = 10.0_rp ! 10.0_rp
+    end_young = 100.0_rp
+    !fact_young  = 10.0_rp ! 10.0_rp
     ini_poisson = 0.139_rp!0.1_rp ! 0.05_rp
     end_poisson = 0.49_rp
+    !"E":10, "nu":0.4,
+    if(present(ngrid_param)) then
+      num_young   = ngrid_param
+      num_poisson = ngrid_param
+    else
+      num_young   = 4!8
+      num_poisson = 4!10
+    end if
     fact_poisson= (end_poisson-ini_poisson)/num_poisson
+    fact_young = (end_young / ini_young)**(1.0_rp / num_young)
    
     if(mpi_rank.eq.0) then
       print*,'Range Poisson: [',ini_poisson,',',ini_poisson + fact_poisson*num_poisson,'] -> num: ', num_poisson+1
@@ -670,7 +702,11 @@ contains
      
     this%nu_poisson = nu_best
     this%E_young = E_best
-   
+    
+    if(present(minQ_best)) then
+      minQ_best =q_best
+    end if
+
   end subroutine assessBestElasticityParameters
   !
   !
