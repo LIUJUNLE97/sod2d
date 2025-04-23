@@ -22,52 +22,52 @@ module mod_solver_imex
 
 	contains
            
-		subroutine conjGrad_imex(fact,igtime,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,numBoundsWM,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
+		subroutine conjGrad_imex(fact,igtime,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,npoin_o,nboun,numBoundsWM,connec,lpoin_w,lpoin_o,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,&
                                              dlxigp_ip,He,gpvol,Ngp,Ml,helem_k,gamma_gas,Rgas,Cp,Prt,csound,mu_fluid,mu_e,mu_sgs,Rp0_mass,R_mass,Rp0_ener,R_ener,Rp0_mom,R_mom, &
                                              ndof,nbnodes,ldof,lbnodes,lnbn_nodes,bound,bou_codes,bou_codes_nodes,&                   ! Optional args
                                              listBoundsWM,wgp_b,bounorm,normalsAtNodes,u_buffer) ! Optional args
 
-           implicit none
+            implicit none
 
-           logical,              intent(in)   :: noBoundaries
-           integer(4),           intent(in)    :: igtime,save_logFile_next
-           integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w),nboun,lnbn_nodes(npoin)
-           real(rp)   , intent(in)    :: fact,gpvol(1,ngaus,nelem), Ngp(ngaus,nnode),dt,gamma_gas,Rgas,Cp,Prt
-           real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),helem_k(nelem)
-           integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-            real(rp),             intent(inout) :: mu_fluid(npoin),csound(npoin)
-            real(rp),             intent(inout) :: mu_e(nelem,ngaus)
-            real(rp),             intent(inout) :: mu_sgs(nelem,ngaus)
-            integer(4),            intent(in)    :: numBoundsWM
-            integer(4), optional, intent(in)    :: ndof, nbnodes, ldof(*), lbnodes(*)
-            integer(4), optional, intent(in)    :: bound(nboun,npbou), bou_codes(nboun), bou_codes_nodes(npoin)
-            integer(4), optional, intent(in)    :: listBoundsWM(*)
-            real(rp), optional, intent(in)      :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
-            real(rp), optional,   intent(in)    :: u_buffer(npoin,ndime) 
-			real(rp),   intent(in)    :: Rp0_mass(npoin),Rp0_ener(npoin)
-            real(rp)   , intent(inout) :: R_mass(npoin),R_ener(npoin)
-		   	real(rp),   intent(in)    :: Rp0_mom(npoin,ndime)
-            real(rp)   , intent(inout) :: R_mom(npoin,ndime)
-           integer(4)                :: ipoin, iter,ialpha,idime,ivars, ipoinl
-           real(rp)                   :: alphaCG, betaCG,umag,rhol,El,e_int_l
-           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,alpha(5),alpha2(5),aux_alpha,Q1(2)
+            logical,intent(in)     :: noBoundaries
+            integer(4),intent(in)  :: igtime,save_logFile_next
+            integer(4),intent(in)  :: nelem,npoin,npoin_w,npoin_o,connec(nelem,nnode),lpoin_w(npoin_w),lpoin_o(npoin_o),nboun,lnbn_nodes(npoin)
+            real(rp),intent(in)    :: fact,gpvol(1,ngaus,nelem), Ngp(ngaus,nnode),dt,gamma_gas,Rgas,Cp,Prt
+            real(rp),intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),helem_k(nelem)
+            integer(4),intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+            real(rp),intent(inout) :: mu_fluid(npoin),csound(npoin)
+            real(rp),intent(inout) :: mu_e(nelem,ngaus)
+            real(rp),intent(inout) :: mu_sgs(nelem,ngaus)
+            integer(4),intent(in)  :: numBoundsWM
+            integer(4),optional,intent(in) :: ndof, nbnodes, ldof(*), lbnodes(*)
+            integer(4),optional,intent(in) :: bound(nboun,npbou), bou_codes(nboun), bou_codes_nodes(npoin)
+            integer(4),optional,intent(in) :: listBoundsWM(*)
+            real(rp),optional,intent(in)   :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
+            real(rp),optional,intent(in)   :: u_buffer(npoin,ndime) 
+            real(rp),intent(in)    :: Rp0_mass(npoin),Rp0_ener(npoin)
+            real(rp),intent(inout) :: R_mass(npoin),R_ener(npoin)
+  	         real(rp),intent(in)    :: Rp0_mom(npoin,ndime)
+            real(rp),intent(inout) :: R_mom(npoin,ndime)
+            integer(4) :: ipoin, iter,ialpha,idime,ivars, ipoinl
+            real(rp) :: alphaCG, betaCG,umag,rhol,El,e_int_l
+            real(8) :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,alpha(5),alpha2(5),aux_alpha,Q1(2)
 
-           !if(mpi_rank.eq.0) write(111,*) "--|[IMEX] CG begin"
+            !if(mpi_rank.eq.0) write(111,*) "--|[IMEX] CG begin"
           
-          if (flag_cg_mem_alloc_vars .eqv. .true.) then
-				allocate(x_vars(npoin,nvars), r0_vars(npoin,nvars), p0_vars(npoin,nvars), qn_vars(npoin,nvars), b_vars(npoin,nvars),z0_vars(npoin,nvars),z1_vars(npoin,nvars),M_vars(npoin,nvars))
-            	!$acc enter data create(x_vars(:,:), r0_vars(:,:), p0_vars(:,:), qn_vars(:,:), b_vars(:,:),z0_vars(:,:),z1_vars(:,:),M_vars(:,:))
-				allocate(aux_u_vars(npoin,ndime), aux_Tem_vars(npoin))
-				!$acc enter data create(aux_u_vars(:,:), aux_Tem_vars(:))
-            allocate(ProjMass(npoin,ndime),ProjEner(npoin,ndime),ProjMX(npoin,ndime),ProjMY(npoin,ndime),ProjMZ(npoin,ndime),tau_stab(nelem))
-            !$acc enter data create(ProjMass(:,:),ProjEner(:,:),ProjMX(:,:),ProjMY(:,:),ProjMZ(:,:),tau_stab(:))
-				flag_cg_mem_alloc_vars = .false.
-			 end if
+            if (flag_cg_mem_alloc_vars .eqv. .true.) then
+               allocate(x_vars(npoin,nvars), r0_vars(npoin,nvars), p0_vars(npoin,nvars), qn_vars(npoin,nvars), b_vars(npoin,nvars),z0_vars(npoin,nvars),z1_vars(npoin,nvars),M_vars(npoin,nvars))
+               !$acc enter data create(x_vars(:,:), r0_vars(:,:), p0_vars(:,:), qn_vars(:,:), b_vars(:,:),z0_vars(:,:),z1_vars(:,:),M_vars(:,:))
+               allocate(aux_u_vars(npoin,ndime), aux_Tem_vars(npoin))
+               !$acc enter data create(aux_u_vars(:,:), aux_Tem_vars(:))
+               allocate(ProjMass(npoin,ndime),ProjEner(npoin,ndime),ProjMX(npoin,ndime),ProjMY(npoin,ndime),ProjMZ(npoin,ndime),tau_stab(nelem))
+               !$acc enter data create(ProjMass(:,:),ProjEner(:,:),ProjMX(:,:),ProjMY(:,:),ProjMZ(:,:),tau_stab(:))
+               flag_cg_mem_alloc_vars = .false.
+            end if
 
-           !
-           ! Initialize solver
-           !
-           call nvtxStartRange("PCG init")
+            !
+            ! Initialize solver
+            !
+            call nvtxStartRange("PCG init")
             !$acc parallel loop
             do ipoin = 1,npoin
                !$acc loop seq
@@ -147,134 +147,161 @@ module mod_solver_imex
                !$acc end parallel loop
               end if
 
-            auxT1 = 0.0d0
-            !$acc parallel loop reduction(+:auxT1) 
+            !$acc parallel loop
             do ipoin = 1,npoin_w
                ipoinl = lpoin_w(ipoin)
                !$acc loop seq
                do ivars = 1,nvars
                   z0_vars(ipoinl,ivars) = r0_vars(ipoinl,ivars)/M_vars(ipoinl,ivars)
                   p0_vars(ipoinl,ivars) = z0_vars(ipoinl,ivars)
-                  auxT1 = auxT1+real(r0_vars(ipoinl,ivars)*r0_vars(ipoinl,ivars),8)
-              end do
-              rhol = x_vars(ipoinl,1)
-              El = p0_vars(ipoinl,2)
-              umag = 0.0_rp
-              !$acc loop seq
-              do idime = 1,ndime
-                 aux_u_vars(ipoinl,idime) = p0_vars(ipoinl,2+idime)/rhol
-                 umag = umag + (aux_u_vars(ipoinl,idime)*aux_u_vars(ipoinl,idime))
-              end do
-              e_int_l = (El/rhol)-0.5_rp*umag
-              aux_Tem_vars(ipoinl) = rhol*(gamma_gas-1.0_rp)*e_int_l/(rhol*Rgas)
+               end do
+               rhol = x_vars(ipoinl,1)
+               El = p0_vars(ipoinl,2)
+               umag = 0.0_rp
+               !$acc loop seq
+               do idime = 1,ndime
+                  aux_u_vars(ipoinl,idime) = p0_vars(ipoinl,2+idime)/rhol
+                  umag = umag + (aux_u_vars(ipoinl,idime)*aux_u_vars(ipoinl,idime))
+               end do
+               e_int_l = (El/rhol)-0.5_rp*umag
+               aux_Tem_vars(ipoinl) = rhol*(gamma_gas-1.0_rp)*e_int_l/(rhol*Rgas)
             end do
             !$acc end parallel loop
-
+            
+            auxT1 = 0.0d0
+            !$acc parallel loop reduction(+:auxT1) 
+            do ipoin = 1,npoin_o
+               ipoinl = lpoin_o(ipoin)
+               !$acc loop seq
+               do ivars = 1,nvars
+                  auxT1 = auxT1+real(r0_vars(ipoinl,ivars)*r0_vars(ipoinl,ivars),8)
+               end do
+            end do
+            !$acc end parallel loop
             call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
             auxB = sqrt(auxT2)
 
             call nvtxEndRange
 
-           !
-           ! Start iterations
-           !
-           call nvtxStartRange("PCG iters")
-           do iter = 1,maxIter
-              !call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,p0_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ)
-              !call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),p0_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ,tau_stab,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.true.,-1.0_rp)
-              call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),p0_vars(:,1),aux_u_vars,&
-                 aux_Tem_vars,mu_fluid,mu_e,mu_sgs,Ml,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.true.,1.0_rp)              
+            !
+            ! Start iterations
+            !
+            call nvtxStartRange("PCG iters")
+            do iter = 1,maxIter
+               !call full_proj_ijk(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,p0_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ)
+               !call full_stab_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),p0_vars(:,1),aux_u_vars,aux_Tem_vars,Ml,ProjMass,ProjEner,ProjMX,ProjMY,ProjMZ,tau_stab,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.true.,-1.0_rp)
+               call full_diffusion_ijk(nelem,npoin,connec,Ngp,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,Cp,Prt,x_vars(:,1),p0_vars(:,1),aux_u_vars,&
+                  aux_Tem_vars,mu_fluid,mu_e,mu_sgs,Ml,qn_vars(:,1),qn_vars(:,3:nvars),qn_vars(:,2),.true.,1.0_rp)              
 			      if(mpi_size.ge.2) then
                   call mpi_halo_atomic_update_real_arrays(nvars,qn_vars(:,:))
                end if
                
                call nvtxStartRange("PCG qn_vars + PCG alpha")
                
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  ipoinl = lpoin_w(ipoin)
+                  !$acc loop seq
+                  do ivars = 1,nvars   
+                     qn_vars(ipoinl,ivars) = p0_vars(ipoinl,ivars)*Ml(ipoinl)+qn_vars(ipoinl,ivars)*fact*dt
+                  end do
+               end do
+               !$acc end parallel loop
+
                auxQ1 = 0.0d0
                auxQ2 = 0.0d0
                !$acc parallel loop reduction(+:auxQ1,auxQ2) 
-               do ipoin = 1,npoin_w
-                  ipoinl = lpoin_w(ipoin)
-                 !$acc loop seq
-                 do ivars = 1,nvars   
-                    qn_vars(ipoinl,ivars) = p0_vars(ipoinl,ivars)*Ml(ipoinl)+qn_vars(ipoinl,ivars)*fact*dt
-                    auxQ1 = auxQ1+real(r0_vars(ipoinl,ivars)*z0_vars(ipoinl,ivars),8) ! <s_k-1,r_k-1>
-                    auxQ2 = auxQ2+real(p0_vars(ipoinl,ivars)*qn_vars(ipoinl,ivars),8) ! <s_k-1,A*s_k-1>
-                end do
+               do ipoin = 1,npoin_o
+                  ipoinl = lpoin_o(ipoin)
+                  !$acc loop seq
+                  do ivars = 1,nvars   
+                     auxQ1 = auxQ1+real(r0_vars(ipoinl,ivars)*z0_vars(ipoinl,ivars),8) ! <s_k-1,r_k-1>
+                     auxQ2 = auxQ2+real(p0_vars(ipoinl,ivars)*qn_vars(ipoinl,ivars),8) ! <s_k-1,A*s_k-1>
+                  end do
                end do
                !$acc end parallel loop
-                        
-              auxQ(1) = auxQ1
-              auxQ(2) = auxQ2
-              call MPI_Allreduce(auxQ,Q1,2,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
-              alphaCG = Q1(1)/Q1(2)
-              call nvtxEndRange
+               auxQ(1) = auxQ1
+               auxQ(2) = auxQ2
+               call MPI_Allreduce(auxQ,Q1,2,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
+               alphaCG = Q1(1)/Q1(2)
+               call nvtxEndRange
 
-              call nvtxStartRange("PCG x^[n+1] + PCG r^[n+1]")
-              !$acc parallel loop
-              do ipoin = 1,npoin_w
+               call nvtxStartRange("PCG x^[n+1] + PCG r^[n+1]")
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
                   ipoinl = lpoin_w(ipoin)
-                 !$acc loop seq
+                  !$acc loop seq
                   do ivars = 1,nvars 
                      x_vars(ipoinl,ivars) = x_vars(ipoinl,ivars)+real(alphaCG,rp)*p0_vars(ipoinl,ivars) ! x_k = x_k-1 + alpha*s_k-1
                      r0_vars(ipoinl,ivars) = r0_vars(ipoinl,ivars)-real(alphaCG,rp)*qn_vars(ipoinl,ivars) ! b-A*p0
                   end do
-              end do
-              !$acc end parallel loop
-
-              if (noBoundaries .eqv. .false.) then
-               call nvtxStartRange("BCS_AFTER_UPDATE")
-               call bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,r0_vars(:,1),r0_vars(:,3:5),r0_vars(:,2))
-               call nvtxEndRange
-              end if            
-              
-              if(flag_force_2D) then
-               !$acc parallel loop
-               do ipoin = 1,npoin
-                  r0_vars(ipoin,5) =  0.0_rp
                end do
                !$acc end parallel loop
-              end if
 
-              auxT1 = 0.0d0
-              !$acc parallel loop reduction(+:auxT1)
-              do ipoin = 1,npoin_w
-               ipoinl = lpoin_w(ipoin)
-               !$acc loop seq
-               do ivars = 1,nvars 
-                  z1_vars(ipoinl,ivars) = z0_vars(ipoinl,ivars) 
-                  z0_vars(ipoinl,ivars) = r0_vars(ipoinl,ivars)/M_vars(ipoinl,ivars)
-                  auxT1 = auxT1+real(r0_vars(ipoinl,ivars)*r0_vars(ipoinl,ivars),8)
+               if (noBoundaries .eqv. .false.) then
+                  call nvtxStartRange("BCS_AFTER_UPDATE")
+                  call bc_fix_dirichlet_residual(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,r0_vars(:,1),r0_vars(:,3:5),r0_vars(:,2))
+                  call nvtxEndRange
+               end if            
+              
+               if(flag_force_2D) then
+                  !$acc parallel loop
+                  do ipoin = 1,npoin
+                     r0_vars(ipoin,5) =  0.0_rp
+                  end do
+                  !$acc end parallel loop
+               end if
+
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  ipoinl = lpoin_w(ipoin)
+                  !$acc loop seq
+                  do ivars = 1,nvars 
+                     z1_vars(ipoinl,ivars) = z0_vars(ipoinl,ivars) 
+                     z0_vars(ipoinl,ivars) = r0_vars(ipoinl,ivars)/M_vars(ipoinl,ivars)
+                  end do
                end do
-              end do
-              !$acc end parallel loop
-              call nvtxEndRange
+               !$acc end parallel loop
+               call nvtxEndRange
+
+               auxT1 = 0.0d0
+               !$acc parallel loop reduction(+:auxT1)
+               do ipoin = 1,npoin_o
+                  ipoinl = lpoin_o(ipoin)
+                  !$acc loop seq
+                  do ivars = 1,nvars 
+                     auxT1 = auxT1+real(r0_vars(ipoinl,ivars)*r0_vars(ipoinl,ivars),8)
+                  end do
+               end do
+               !$acc end parallel loop
+               call nvtxEndRange
 
                call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
-              !
-              ! Stop cond
-              !
-              if (sqrt(auxT2) .lt. (tol*auxB)) then
-                 exit
-              end if
-              !
-              ! Update p
-              !
-              call nvtxStartRange("PCG p^[k+1]")
-              auxT1 = 0.0d0
-              !$acc parallel loop reduction(+:auxT1)
-              do ipoin = 1,npoin
-                 !$acc loop seq
+               !
+               ! Stop cond
+               !
+               if (sqrt(auxT2) .lt. (tol*auxB)) then
+                  exit
+               end if
+               !
+               ! Update p
+               !
+               call nvtxStartRange("PCG p^[k+1]")
+               auxT1 = 0.0d0
+               !$acc parallel loop reduction(+:auxT1)
+               do ipoin = 1,npoin_o
+                  ipoinl = lpoin_o(ipoin)
+                  !$acc loop seq
                   do ivars = 1,nvars  
-                     auxT1 = auxT1+real(r0_vars(ipoin,ivars)*(z0_vars(ipoin,ivars)-z1_vars(ipoin,ivars)),8) ! <r_k,A*s_k-1>
+                     auxT1 = auxT1+real(r0_vars(ipoinl,ivars)*(z0_vars(ipoinl,ivars)-z1_vars(ipoinl,ivars)),8) ! <r_k,A*s_k-1>
                   end do
-              end do
-              !$acc end parallel loop
-              call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
-              betaCG = auxT2/Q1(1)
-              !$acc parallel loop 
-              do ipoin = 1,npoin_w
+               end do
+               !$acc end parallel loop
+               call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
+               betaCG = auxT2/Q1(1)
+               !$acc parallel loop 
+               do ipoin = 1,npoin_w
                   ipoinl = lpoin_w(ipoin)
                   !$acc loop seq
                   do ivars = 1,nvars 
@@ -291,18 +318,14 @@ module mod_solver_imex
                   end do
                   e_int_l = (El/rhol)-0.5_rp*umag
                   aux_Tem_vars(ipoinl) = rhol*(gamma_gas-1.0_rp)*e_int_l/(rhol*Rgas)
-              end do
-              !$acc end parallel loop
+               end do
+               !$acc end parallel loop
       
-              call nvtxEndRange
-           end do
-           call nvtxEndRange
+               call nvtxEndRange
+            end do
+            call nvtxEndRange
 
-           if (iter == maxIter) then
-               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[IMEX] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
-           else
-               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[IMEX] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
-           endif
+            if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[IMEX] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
             
 			   !$acc parallel loop
             do ipoin = 1,npoin
@@ -316,8 +339,6 @@ module mod_solver_imex
             !$acc end parallel loop
             
             !if(mpi_rank.eq.0) write(111,*) "--|[IMEX] CG end loop"
-           
-
         end subroutine conjGrad_imex
 
 

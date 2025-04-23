@@ -191,6 +191,7 @@ module CFDSolverBase_mod
       procedure :: eval_initial_mu_sgs
       procedure :: checkIfWallModelOn
       procedure :: checkIfSymmetryOn
+      !procedure :: generate_working_owned_nodes
    end type CFDSolverBase
 contains
 
@@ -792,7 +793,64 @@ end subroutine CFDSolverBase_findFixPressure
       ! Initialize InSitu & correct (substract 1)  connecVTK
       call init_InSitu()
 
+      !call this%generate_working_owned_nodes()
+
    end subroutine CFDSolverBase_openMesh
+
+#if 0
+   subroutine generate_working_owned_nodes(this)
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      integer(4) :: ii,jj,ngbRank,memPos_l,memSize,iNodeL,auxCnt
+
+      integer(4),allocatable :: auxNodeList(:)
+      !-----------------------------------------------------------
+      
+      allocate(auxNodeList(numNodesRankPar))
+
+      auxNodeList(:) = 0
+      do ii=1,numWorkingNodesRankPar
+         iNodeL = workingNodesPar(ii)
+         auxNodeList(iNodeL) = iNodeL
+      end do
+
+      !puc fer aqui la prova!
+      do ii=1,numRanksWithComms
+         ngbRank = ranksToComm(ii)
+
+         if(ngbRank<mpi_rank) then
+            memPos_l = commsMemPosInLoc(ii)
+            memSize  = commsMemSize(ii)
+
+            do jj=memPos_l,(memPos_l+memSize)
+               iNodeL = nodesToComm(jj)
+               auxNodeList(iNodeL) = 0
+               !write(*,*) 'node',inodeL,'not owned by rank',mpi_rank
+            end do
+         end if
+      end do
+
+      auxCnt=0
+      do ii=1,numNodesRankPar
+         if(auxNodeList(ii).ne.0) auxCnt = auxCnt+1
+      end do
+
+      numOwnedNodesRankPar = auxCnt
+      allocate(ownedNodesPar(numOwnedNodesRankPar))
+
+      auxCnt=0
+      do ii=1,numNodesRankPar
+         if(auxNodeList(ii).ne.0) then
+            auxCnt=auxCnt+1
+            ownedNodesPar(auxCnt) = auxNodeList(ii)
+            !write(*,*) 'owned[',auxCnt,']:',ownedNodesPar(auxCnt)
+         end if
+      end do
+
+      deallocate(auxNodeList)
+      !write(*,*) '[',mpi_rank,']numOwned',numOwnedNodesRankPar,' numWorking',numWorkingNodesRankPar
+   end subroutine generate_working_owned_nodes
+#endif
 
    subroutine CFDSolverBase_fill_BC_Types(this)
       class(CFDSolverBase), intent(inout) :: this

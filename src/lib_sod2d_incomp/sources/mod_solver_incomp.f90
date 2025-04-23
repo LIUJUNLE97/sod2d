@@ -11,9 +11,6 @@ module mod_solver_incomp
       use elem_stab_incomp
       use elem_stab_species, only : species_tau
 
-
-
-
       implicit none
 
 	   real(rp)  , allocatable, dimension(:) :: x, r0, p0, qn, v, b,z0,z1,M,x0,diag
@@ -27,15 +24,15 @@ module mod_solver_incomp
 
       contains
 
-            subroutine conjGrad_veloc_incomp(igtime,fact,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,nboun,connec,lpoin_w,invAtoIJK,&
-                                             gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,helem_k,mu_fluid,mu_e,mu_sgs,Rp0,R, &
+            subroutine conjGrad_veloc_incomp(igtime,fact,save_logFile_next,noBoundaries,dt,nelem,npoin,npoin_w,npoin_o,nboun,connec,lpoin_w,lpoin_o,&
+                                             invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,helem_k,mu_fluid,mu_e,mu_sgs,Rp0,R,&
                                              bou_codes_nodes,normalsAtNodes,u_buffer) ! Optional args
 
             implicit none
 
             logical,    intent(in) :: noBoundaries
             integer(4), intent(in) :: igtime,save_logFile_next
-            integer(4), intent(in) :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w),nboun
+            integer(4), intent(in) :: nelem,npoin,npoin_w,npoin_o,connec(nelem,nnode),lpoin_w(npoin_w),lpoin_o(npoin_o),nboun
             real(rp),   intent(in) :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode),dt,fact, dNgp(ndime,nnode,ngaus)
             real(rp),   intent(in) :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin,ndime)
             integer(4), intent(in) :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
@@ -50,21 +47,21 @@ module mod_solver_incomp
             real(rp)   :: alphaCG,betaCG
             real(8)    :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,alpha(5),alpha2(5),aux_alpha,Q1(2)
           
-          call nvtxStartRange("CG solver veloc")
-          if (flag_cg_mem_alloc_veloc .eqv. .true.) then
-				allocate(x_u(npoin,ndime), r0_u(npoin,ndime), p0_u(npoin,ndime), qn_u(npoin,ndime), v_u(npoin,ndime), b_u(npoin,ndime),z0_u(npoin,ndime),z1_u(npoin,ndime),M_u(npoin,ndime))
-            !$acc enter data create(x_u(:,:), r0_u(:,:), p0_u(:,:), qn_u(:,:), v_u(:,:), b_u(:,:),z0_u(:,:),z1_u(:,:),M_u(:,:))
+            call nvtxStartRange("CG solver veloc")
+            if (flag_cg_mem_alloc_veloc .eqv. .true.) then
+			      allocate(x_u(npoin,ndime), r0_u(npoin,ndime), p0_u(npoin,ndime), qn_u(npoin,ndime), v_u(npoin,ndime), b_u(npoin,ndime),z0_u(npoin,ndime),z1_u(npoin,ndime),M_u(npoin,ndime))
+               !$acc enter data create(x_u(:,:), r0_u(:,:), p0_u(:,:), qn_u(:,:), v_u(:,:), b_u(:,:),z0_u(:,:),z1_u(:,:),M_u(:,:))
 
-            allocate(tau(nelem),TauPX(npoin,ndime),TauPY(npoin,ndime),TauPZ(npoin,ndime))
-            !$acc enter data create(tau(:), TauPX(:,:), TauPY(:,:), TauPZ(:,:))
+               allocate(tau(nelem),TauPX(npoin,ndime),TauPY(npoin,ndime),TauPZ(npoin,ndime))
+               !$acc enter data create(tau(:), TauPX(:,:), TauPY(:,:), TauPZ(:,:))
 
-				flag_cg_mem_alloc_veloc = .false.
-			 end if
+			      flag_cg_mem_alloc_veloc = .false.
+			   end if
 
-           !
-           ! Initialize solver
-           !
-           call nvtxStartRange("CG_u init")
+            !
+            ! Initialize solver
+            !
+            call nvtxStartRange("CG_u init")
             !$acc parallel loop
             do ipoin = 1,npoin
                !$acc loop seq
@@ -122,13 +119,12 @@ module mod_solver_incomp
 
             auxT1 = 0.0d0
             !$acc parallel loop reduction(+:auxT1)
-            do ipoin = 1,npoin_w
+            do ipoin = 1,npoin_o
                !$acc loop seq
               do idime = 1,ndime 
-               auxT1 = auxT1+real(r0_u(lpoin_w(ipoin),idime)*r0_u(lpoin_w(ipoin),idime),8)
+               auxT1 = auxT1+real(r0_u(lpoin_o(ipoin),idime)*r0_u(lpoin_o(ipoin),idime),8)
               end do
             end do
-
             call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
 
             auxB = sqrt(auxT2)
@@ -160,11 +156,11 @@ module mod_solver_incomp
                auxQ1 = 0.0d0
                auxQ2 = 0.0d0
                !$acc parallel loop reduction(+:auxQ1,auxQ2)
-               do ipoin = 1,npoin_w
+               do ipoin = 1,npoin_o
                   !$acc loop seq
                   do idime = 1,ndime
-                     auxQ1 = auxQ1+real(r0_u(lpoin_w(ipoin),idime)*z0_u(lpoin_w(ipoin),idime),8) ! <s_k-1,r_k-1>
-                     auxQ2 = auxQ2+real(p0_u(lpoin_w(ipoin),idime)*qn_u(lpoin_w(ipoin),idime),8) ! <s_k-1,A*s_k-1>
+                     auxQ1 = auxQ1+real(r0_u(lpoin_o(ipoin),idime)*z0_u(lpoin_o(ipoin),idime),8) ! <s_k-1,r_k-1>
+                     auxQ2 = auxQ2+real(p0_u(lpoin_o(ipoin),idime)*qn_u(lpoin_o(ipoin),idime),8) ! <s_k-1,A*s_k-1>
                   end do
                end do
                !$acc end parallel loop
@@ -202,10 +198,10 @@ module mod_solver_incomp
                !$acc end parallel loop
                auxT1 = 0.0d0
                !$acc parallel loop reduction(+:auxT1)
-               do ipoin = 1,npoin_w
+               do ipoin = 1,npoin_o
                   !$acc loop seq
                   do idime = 1,ndime 
-                     auxT1 = auxT1+real(r0_u(lpoin_w(ipoin),idime)*r0_u(lpoin_w(ipoin),idime),8)
+                     auxT1 = auxT1+real(r0_u(lpoin_o(ipoin),idime)*r0_u(lpoin_o(ipoin),idime),8)
                   end do
                end do
 
@@ -223,10 +219,10 @@ module mod_solver_incomp
                !
                auxT1 = 0.0d0
                !$acc parallel loop reduction(+:auxT1)
-               do ipoin = 1,npoin_w
+               do ipoin = 1,npoin_o
                   !$acc loop seq
                   do idime = 1,ndime 
-                     auxT1 = auxT1+real(r0_u(lpoin_w(ipoin),idime)*(z0_u(lpoin_w(ipoin),idime)-z1_u(lpoin_w(ipoin),idime)),8) ! <r_k,A*s_k-1>
+                     auxT1 = auxT1+real(r0_u(lpoin_o(ipoin),idime)*(z0_u(lpoin_o(ipoin),idime)-z1_u(lpoin_o(ipoin),idime)),8) ! <r_k,A*s_k-1>
                   end do
                end do
                !$acc end parallel loop
@@ -244,11 +240,7 @@ module mod_solver_incomp
             end do
             call nvtxEndRange
 
-            if (iter == maxIter) then
-               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[veloc] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
-            else
-               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[veloc] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
-            endif
+            if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[veloc] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
 
             !$acc kernels
             R(:,:) = x_u(:,:)
@@ -258,25 +250,26 @@ module mod_solver_incomp
 
         end subroutine conjGrad_veloc_incomp
 
-        subroutine conjGrad_pressure_incomp(igtime,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,connec,lpoin_w,lelpn,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,Rp0,R,nboun,bou_codes_nodes,normalsAtNodes)
+        subroutine conjGrad_pressure_incomp(igtime,save_logFile_next,noBoundaries,nelem,npoin,npoin_w,npoin_o,connec,lpoin_w,lpoin_o,lelpn,invAtoIJK,&
+                                          gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ngp,dNgp,Ml,Rp0,R,nboun,bou_codes_nodes,normalsAtNodes)
 
            implicit none
 
-           logical,              intent(in)   :: noBoundaries
-           integer(4),           intent(in)    :: igtime,save_logFile_next
-           integer(4), intent(in)    :: nelem, npoin, npoin_w, connec(nelem,nnode), lpoin_w(npoin_w),lelpn(npoin)
-           real(rp)   , intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
-           real(rp),   intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin)
-           integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
-           real(rp)   , intent(inout) :: R(npoin)
-           integer(4), intent(in)     :: nboun,bou_codes_nodes(npoin)
-           real(rp), intent(in)     :: normalsAtNodes(npoin,ndime)
-           integer(4)                :: ipoin, iter,ialpha,ielem
-           real(rp)                   :: alphaCG, betaCG
-           real(8)                     :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,Q1(2)
-           logical,parameter           :: flag_averageEq0 =.false.
-           logical,save                :: flag_obtain_totalNpoinWork =.true.
-           integer(4),save             :: totalNpoinWork
+           logical, intent(in)    :: noBoundaries
+           integer(4),intent(in)  :: igtime,save_logFile_next
+           integer(4),intent(in)  :: nelem,npoin,npoin_w,npoin_o,connec(nelem,nnode),lpoin_w(npoin_w),lpoin_o(npoin_o),lelpn(npoin)
+           real(rp),intent(in)    :: gpvol(1,ngaus,nelem), Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus)
+           real(rp),intent(in)    :: dlxigp_ip(ngaus,ndime,porder+1),He(ndime,ndime,ngaus,nelem),Ml(npoin),Rp0(npoin)
+           integer(4),intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+           real(rp),intent(inout) :: R(npoin)
+           integer(4),intent(in)  :: nboun,bou_codes_nodes(npoin)
+           real(rp),intent(in)    :: normalsAtNodes(npoin,ndime)
+           integer(4)             :: ipoin, iter,ialpha,ielem
+           real(rp)               :: alphaCG, betaCG
+           real(8)                :: auxT1,auxT2,auxQ(2),auxQ1,auxQ2,auxB,Q1(2)
+           logical,parameter      :: flag_averageEq0 =.false.
+           logical,save           :: flag_obtain_totalNpoinWork =.true.
+           integer(4),save        :: totalNpoinWork
            integer(4),allocatable,save :: ownerRank(:)
 
           call nvtxStartRange("CG solver press")
@@ -366,8 +359,8 @@ module mod_solver_incomp
 
             auxT1 = 0.0d0
             !$acc parallel loop reduction(+:auxT1)
-            do ipoin = 1,npoin_w
-               auxT1 = auxT1+real(b(lpoin_w(ipoin))*b(lpoin_w(ipoin)),8)
+            do ipoin = 1,npoin_o
+               auxT1 = auxT1+real(b(lpoin_o(ipoin))*b(lpoin_o(ipoin)),8)
             end do
 
             call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
@@ -385,9 +378,9 @@ module mod_solver_incomp
               auxQ1 = 0.0d0
               auxQ2 = 0.0d0
               !$acc parallel loop reduction(+:auxQ1,auxQ2)
-              do ipoin = 1,npoin_w
-                 auxQ1 = auxQ1+real(r0(lpoin_w(ipoin))*z0(lpoin_w(ipoin)),8) ! <s_k-1,r_k-1>
-                 auxQ2 = auxQ2+real(p0(lpoin_w(ipoin))*qn(lpoin_w(ipoin)),8) ! <s_k-1,A*s_k-1>
+              do ipoin = 1,npoin_o
+                 auxQ1 = auxQ1+real(r0(lpoin_o(ipoin))*z0(lpoin_o(ipoin)),8) ! <s_k-1,r_k-1>
+                 auxQ2 = auxQ2+real(p0(lpoin_o(ipoin))*qn(lpoin_o(ipoin)),8) ! <s_k-1,A*s_k-1>
               end do
               !$acc end parallel loop
               auxQ(1) = auxQ1
@@ -414,8 +407,8 @@ module mod_solver_incomp
               !$acc end parallel loop                            
               auxT1 = 0.0d0
               !$acc parallel loop reduction(+:auxT1)
-              do ipoin = 1,npoin_w
-                 auxT1 = auxT1+real(r0(lpoin_w(ipoin))*r0(lpoin_w(ipoin)),8)
+              do ipoin = 1,npoin_o
+                 auxT1 = auxT1+real(r0(lpoin_o(ipoin))*r0(lpoin_o(ipoin)),8)
               end do
               !$acc end parallel loop
 
@@ -437,8 +430,8 @@ module mod_solver_incomp
               !
               auxT1 = 0.0d0
               !$acc parallel loop reduction(+:auxT1)
-              do ipoin = 1,npoin_w
-                 auxT1 = auxT1+real(r0(lpoin_w(ipoin))*(z0(lpoin_w(ipoin))-z1(lpoin_w(ipoin))),8) ! <r_k,A*s_k-1>
+              do ipoin = 1,npoin_o
+                 auxT1 = auxT1+real(r0(lpoin_o(ipoin))*(z0(lpoin_o(ipoin))-z1(lpoin_o(ipoin))),8) ! <r_k,A*s_k-1>
               end do
               !$acc end parallel loop
               call MPI_Allreduce(auxT1,auxT2,1,mpi_datatype_real8,MPI_SUM,app_comm,mpi_err)
@@ -496,11 +489,7 @@ module mod_solver_incomp
                end do
             end if
 
-           if (iter == maxIter) then
-               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
-           else
-               if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
-           endif
+            if(igtime==save_logFile_next.and.mpi_rank.eq.0) write(111,*) "--|[pres] CG, iters: ",iter," tol ",sqrt(auxT2)/auxB
 
             !$acc kernels
             R(:) = x0(:)+x(:)

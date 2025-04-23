@@ -26,9 +26,7 @@
 
 # Ignore *.hdf files, except in the Tests directory
 *.hdf
-!/Tests/TGV_Compressible/*.hdf
-!/Tests/TGV_Incomp/*.hdf
-!/Tests/TGV_Species/*.hdf
+!/Tests/meshes/*.hdf
 
 # Ignore *.dat files for the references
 !/Tests/TGV_Compressible/CPU/IMEX/Reference/*.dat

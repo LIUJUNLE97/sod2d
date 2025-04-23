@@ -216,7 +216,7 @@ contains
 !---------------------------------------------------------------------------------------------------------------
 
    subroutine create_hdf5_groups_datasets_in_meshFile_from_tool(mnnode,mnpbou,hdf5_file_id,isPeriodic,isBoundaries,isMapFaces,isLinealOutput,numMshRanks2Part,numElemsGmsh,numNodesParTotal_i8,&
-               vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,&
+               vecNumWorkingNodes,vecNumOwnedNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,&
                vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank)
       implicit none
       integer(4),intent(in) :: mnnode,mnpbou
@@ -224,7 +224,7 @@ contains
       logical,intent(in) :: isPeriodic,isBoundaries,isMapFaces,isLinealOutput
       integer(4),intent(in) :: numMshRanks2Part,numElemsGmsh
       integer(8),intent(in) :: numNodesParTotal_i8
-      integer(4),intent(in),dimension(0:numMshRanks2Part-1) :: vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank
+      integer(4),intent(in),dimension(0:numMshRanks2Part-1) :: vecNumWorkingNodes,vecNumOwnedNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank
       integer(4),intent(in),dimension(0:numMshRanks2Part-1) :: vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank
       integer(4),intent(in),dimension(0:numMshRanks2Part-1) :: vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank
       integer(4),intent(in),dimension(0:numMshRanks2Part-1) :: vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank
@@ -265,7 +265,7 @@ contains
          call create_dataspace_hdf5(hdf5_file_id,dsetname,ds_rank,ds_dims2d,dtype)
       end if
       !--------------------------------------------------------------------------------
-      call create_groups_datasets_connectivity_workingNodes_hdf5(mnnode,hdf5_file_id,numMshRanks2Part,numElemsGmsh,vecNumWorkingNodes)
+      call create_groups_datasets_connectivity_hdf5(mnnode,hdf5_file_id,numMshRanks2Part,numElemsGmsh,vecNumWorkingNodes,vecNumOwnedNodes)
 
       if(isBoundaries) then
          call create_groups_datasets_boundary_data_hdf5(mnpbou,hdf5_file_id,numMshRanks2Part,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank)
@@ -346,11 +346,11 @@ contains
 
    end subroutine create_hdf5_groups_datasets_in_meshFile_from_tool
 
-   subroutine create_groups_datasets_connectivity_workingNodes_hdf5(mnnode,file_id,numMshRanks2Part,numElemsGmsh,vecNumWorkingNodes)
+   subroutine create_groups_datasets_connectivity_hdf5(mnnode,file_id,numMshRanks2Part,numElemsGmsh,vecNumWorkingNodes,vecNumOwnedNodes)
       implicit none
       integer(hid_t),intent(in) :: file_id
       integer(4),intent(in) :: mnnode,numMshRanks2Part,numElemsGmsh
-      integer(4),intent(in),dimension(0:numMshRanks2Part-1) :: vecNumWorkingNodes
+      integer(4),intent(in),dimension(0:numMshRanks2Part-1) :: vecNumWorkingNodes,vecNumOwnedNodes
       character(128) :: groupname,dsetname
       integer(hsize_t), dimension(1) :: ds_dims
       integer(hid_t) :: dtype
@@ -376,18 +376,28 @@ contains
 
       dsetname = '/Connectivity/numWorkingNodesRankPar'
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+
+      dsetname = '/Connectivity/numOwnedNodesRankPar'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       !-----------------------------------------------------------------------------------------------------
       ds_dims(1)=0
       do mshRank=0,numMshRanks2Part-1
          ds_dims(1)=ds_dims(1)+int(vecNumWorkingNodes(mshRank),hsize_t)
       end do
-      !if(mpi_rank.eq.0) write(*,*) 'debug workingNodesPar ds_dims',ds_dims(1)
 
       dsetname = '/Connectivity/workingNodesPar'
       call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
       !-----------------------------------------------------------------------------------------------------
+      ds_dims(1)=0
+      do mshRank=0,numMshRanks2Part-1
+         ds_dims(1)=ds_dims(1)+int(vecNumOwnedNodes(mshRank),hsize_t)
+      end do
 
-   end subroutine create_groups_datasets_connectivity_workingNodes_hdf5
+      dsetname = '/Connectivity/ownedNodesPar'
+      call create_dataspace_hdf5(file_id,dsetname,ds_rank,ds_dims,dtype)
+      !-----------------------------------------------------------------------------------------------------
+
+   end subroutine create_groups_datasets_connectivity_hdf5
 
    subroutine create_groups_datasets_parallel_data_hdf5(file_id,numMshRanks2Part,vecNumMshRanksWithComms,vecNumNodesToCommMshRank)
       implicit none
@@ -659,28 +669,28 @@ contains
    end subroutine create_groups_datasets_boundary_data_hdf5
 
    subroutine write_mshRank_data_in_hdf5_meshFile_from_tool(mporder,mnnode,mnpbou,hdf5_file_id,mshRank,numMshRanks2Part,isPeriodic,isBoundaries,isMapFaces,isLinealOutput,numElemsGmsh,numBoundFacesGmsh,&
-         numElemsMshRank,mshRankElemStart,mshRankElemEnd,mshRankNodeStart_i8,mshRankNodeEnd_i8,numNodesMshRank,numWorkingNodesMshRank,numBoundFacesMshRank,numBoundaryNodesMshRank,numDoFMshRank,maxBoundCode,&
+         numElemsMshRank,mshRankElemStart,mshRankElemEnd,mshRankNodeStart_i8,mshRankNodeEnd_i8,numNodesMshRank,numWorkingNodesMshRank,numOwnedNodesMshRank,numBoundFacesMshRank,numBoundaryNodesMshRank,numDoFMshRank,maxBoundCode,&
          numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem,mapFaceDir,mapFaceGapCoord,&
          a2ijk,a2ij,gmsh2ijk,gmsh2ij,vtk2ijk,vtk2ij,&
-         elemGidMshRank,globalIdSrlMshRank_i8,globalIdParMshRank_i8,connecParOrigMshRank,connecParWorkMshRank,coordParMshRank,workingNodesMshRank,&
+         elemGidMshRank,globalIdSrlMshRank_i8,globalIdParMshRank_i8,connecParOrigMshRank,connecParWorkMshRank,coordParMshRank,workingNodesMshRank,ownedNodesMshRank,&
          boundaryNodesMshRank,dofNodesMshRank,boundFacesCodesMshRank,boundFacesOrigMshRank,boundFacesMshRank,&
          numPerNodesMshRank,masSlaNodesMshRank,numPerMapLinkedNodesMshRank,perMapLinkedNodesMshRank,&
          numNodesToCommMshRank,numMshRanksWithComms,nodesToCommMshRank,commsMemPosInLocMshRank,commsMemSizeMshRank,commsMemPosInNgbMshRank,ranksToCommMshRank,&
          bnd_numNodesToCommMshRank,bnd_numMshRanksWithComms,bnd_nodesToCommMshRank,bnd_commsMemPosInLocMshRank,bnd_commsMemSizeMshRank,bnd_commsMemPosInNgbMshRank,bnd_ranksToCommMshRank,&
-         vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank)
+         vecNumWorkingNodes,vecNumOwnedNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank,vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank)
       implicit none
       integer(hid_t),intent(in) :: hdf5_file_id
       logical,intent(in) :: isPeriodic,isBoundaries,isMapFaces,isLinealOutput
       integer(4),intent(in) :: mporder,mnnode,mnpbou,mshRank,numMshRanks2Part,numElemsGmsh,numBoundFacesGmsh
       integer(4),intent(in) :: numElemsMshRank,mshRankElemStart,mshRankElemEnd
       integer(8),intent(in) :: mshRankNodeStart_i8,mshRankNodeEnd_i8
-      integer(4),intent(in) :: numNodesMshRank,numWorkingNodesMshRank,numPerNodesMshRank,numPerMapLinkedNodesMshRank
+      integer(4),intent(in) :: numNodesMshRank,numWorkingNodesMshRank,numOwnedNodesMshRank,numPerNodesMshRank,numPerMapLinkedNodesMshRank
       integer(4),intent(in) :: numBoundFacesMshRank,numBoundaryNodesMshRank,numDoFMshRank
       integer(4),intent(in) :: maxBoundCode,numElemsVTKMshRank,sizeConnecVTKMshRank,mnnodeVTK,numVTKElemsPerMshElem
 
       integer(4),intent(in),dimension(mnnode) :: a2ijk,gmsh2ijk,vtk2ijk
       integer(4),intent(in),dimension(mnpbou) :: a2ij,gmsh2ij,vtk2ij
-      integer(4),intent(in) :: elemGidMshRank(numElemsMshRank),workingNodesMshRank(numWorkingNodesMshRank)
+      integer(4),intent(in) :: elemGidMshRank(numElemsMshRank),workingNodesMshRank(numWorkingNodesMshRank),ownedNodesMshRank(numOwnedNodesMshRank)
       integer(8),intent(in) :: globalIdSrlMshRank_i8(numNodesMshRank),globalIdParMshRank_i8(numNodesMshRank)
       integer(4),intent(in) :: connecParOrigMshRank(numElemsMshRank,mnnode),connecParWorkMshRank(numElemsMshRank,mnnode)
       real(8),intent(in)    :: coordParMshRank(numNodesMshRank,3)
@@ -694,7 +704,7 @@ contains
       integer(4),intent(in) :: bnd_numNodesToCommMshRank,bnd_numMshRanksWithComms
       integer(4),intent(in),dimension(bnd_numMshRanksWithComms) :: bnd_nodesToCommMshRank,bnd_commsMemPosInLocMshRank,bnd_commsMemSizeMshRank,bnd_commsMemPosInNgbMshRank,bnd_ranksToCommMshRank
 
-      integer,intent(in),dimension(0:numMshRanks2Part-1) :: vecNumWorkingNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank
+      integer,intent(in),dimension(0:numMshRanks2Part-1) :: vecNumWorkingNodes,vecNumOwnedNodes,vecNumMshRanksWithComms,vecNumNodesToCommMshRank,vecBndNumMshRanksWithComms,vecBndNumNodesToCommMshRank
       integer,intent(in),dimension(0:numMshRanks2Part-1) :: vecNumBoundFacesMshRank,vecNumDoFMshRank,vecNumBoundaryNodesMshRank,vecNumPerNodesMshRank,vecNumPerMapLinkedNodesMshRank
       !-------------------------------------------------------------------------------------------------------------------------------
       character(128) :: dsetname
@@ -950,6 +960,11 @@ contains
       dsetname = '/Connectivity/numWorkingNodesRankPar'
       aux_array_i4(1)=numWorkingNodesMshRank
       call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+
+      dsetname = '/Connectivity/numOwnedNodesRankPar'
+      aux_array_i4(1)=numOwnedNodesMshRank
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,aux_array_i4)
+
       deallocate(aux_array_i4)
       !------------------------------------------------------------------------------------------------------------------------
       !  SAVING connecParOrig(:,:)
@@ -990,6 +1005,15 @@ contains
 
       dsetname = '/Connectivity/workingNodesPar'
       call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,workingNodesMshRank)
+      !-----------------------------------------------------------------------------------------------------
+      ms_offset(1)=0
+      do i=0,mshRank-1 !from rank 0 mpi_rank-1
+         ms_offset(1)=ms_offset(1)+int(vecNumOwnedNodes(i),hssize_t)
+      end do
+      ms_dims(1)=int(numOwnedNodesMshRank,hsize_t)
+
+      dsetname = '/Connectivity/ownedNodesPar'
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,ownedNodesMshRank)
       !-----------------------------------------------------------------------------------------------------
 
       !------------------------------------------------------------------------------------------------------------------------
@@ -1344,6 +1368,10 @@ contains
       call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
       !----------------------------------------------------------------------------------------------------------------
 
+      dsetname = '/Connectivity/numOwnedNodesRankPar'
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
+      !----------------------------------------------------------------------------------------------------------------
+
       dsetname = '/Connectivity/connecParOrig'
       call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
       !---------------------------------------------------------------------------------------------
@@ -1353,6 +1381,10 @@ contains
       !---------------------------------------------------------------------------------------------
 
       dsetname = '/Connectivity/workingNodesPar'
+      call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
+      !-----------------------------------------------------------------------------------------------------
+
+      dsetname = '/Connectivity/ownedNodesPar'
       call write_dataspace_1d_int4_hyperslab_parallel(hdf5_file_id,dsetname,ms_dims,ms_offset,empty_array_i4)
       !-----------------------------------------------------------------------------------------------------
 
@@ -2722,13 +2754,20 @@ contains
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
       numWorkingNodesRankPar=aux_array(1)
 
+      !LOADING numOwnedNodesRankPar
+      dsetname = '/Connectivity/numOwnedNodesRankPar'
+      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
+      numOwnedNodesRankPar=aux_array(1)
+
       deallocate(aux_array)
       !--------------------------------------------------------------------------------------------------------
-      !LOADING workingNodesPar
+      allocate(aux_array(mpi_size))
+
+      !loading workingNodesPar
+      !-------------------------------------------------------------
       allocate(workingNodesPar(numWorkingNodesRankPar))
       !$acc enter data create(workingNodesPar(:))
 
-      allocate(aux_array(mpi_size))
       ms_dims(1) = int(mpi_size,hsize_t)
       ms_offset(1) = 0
       !read data set numWorkingNodesRankPar of all ranks
@@ -2743,9 +2782,31 @@ contains
 
       dsetname = '/Connectivity/workingNodesPar'
       call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,workingNodesPar)
+      !$acc update device(workingNodesPar(:))
+
+      !loading ownedNodesPar
+      !-------------------------------------------------------------
+      allocate(ownedNodesPar(numOwnedNodesRankPar))
+      !$acc enter data create(ownedNodesPar(:))
+
+      ms_dims(1) = int(mpi_size,hsize_t)
+      ms_offset(1) = 0
+      !read data set numOwnedNodesRankPar of all ranks
+      dsetname = '/Connectivity/numOwnedNodesRankPar'
+      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,aux_array)
+
+      ms_offset(1)=0
+      do i=1,(mpi_rank) !from rank 0 mpi_rank-1
+         ms_offset(1)=ms_offset(1)+int(aux_array(i),hssize_t)
+      end do
+      ms_dims(1)=int(numOwnedNodesRankPar,hsize_t)
+
+      dsetname = '/Connectivity/ownedNodesPar'
+      call read_dataspace_1d_int4_hyperslab_parallel(file_id,dsetname,ms_dims,ms_offset,ownedNodesPar)
+      !$acc update device(ownedNodesPar(:))
+
       deallocate(aux_array)
       !-------------------------------------------------------------------------------------------------------
-      !$acc update device(workingNodesPar(:))
 
    end subroutine load_connectivity_hdf5
 
