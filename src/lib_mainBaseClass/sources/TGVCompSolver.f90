@@ -104,6 +104,9 @@ contains
       call json%get("flag_rk_ls_stages",flag_rk_ls_stages, found,5); 
 
       call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+      
+      call json%get("flag_use_ducros",flag_use_ducros, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("ducros_min_val",ducros_min_val, found,0.1_rp); call this%checkFound(found,found_aux)
 
 
       !Witness points parameters
@@ -135,8 +138,12 @@ contains
       flag_mu_factor = mul/mur
 
       nscbc_p_inf = this%P0
+      nscbc_rho_inf = this%rho0
       nscbc_Rgas_inf = this%Rgas
       nscbc_gamma_inf = this%gamma_gas
+
+      call this%readJSONEntropyTypes()
+
 
       call json%destroy()
 
@@ -174,7 +181,10 @@ contains
          E(iNodeL,2) = rho(iNodeL,2)*(0.5_rp*dot_product(u(iNodeL,:,2),u(iNodeL,:,2))+e_int(iNodeL,2))
          q(iNodeL,1:ndime,2) = rho(iNodeL,2)*u(iNodeL,1:ndime,2)
          csound(iNodeL) = sqrt(this%gamma_gas*pr(iNodeL,2)/rho(iNodeL,2))
+         machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
          eta(iNodeL,2) = (rho(iNodeL,2)/(this%gamma_gas-1.0_rp))*log(pr(iNodeL,2)/(rho(iNodeL,2)**this%gamma_gas))
+         !eta(iNodeL,2) =   dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/(csound(iNodeL)**2)
+         !eta(iNodeL,2) = machno(iNodeL)
 
          q(iNodeL,1:ndime,3) = q(iNodeL,1:ndime,2)
          rho(iNodeL,3) = rho(iNodeL,2)
@@ -183,11 +193,6 @@ contains
       end do
       !$acc end parallel loop
 
-      !$acc parallel loop
-      do iNodeL = 1,numNodesRankPar
-         machno(iNodeL) = dot_product(u(iNodeL,:,2),u(iNodeL,:,2))/csound(iNodeL)
-      end do
-      !$acc end parallel loop
 
       !$acc kernels
       mu_e(:,:) = 0.0_rp ! Element syabilization viscosity

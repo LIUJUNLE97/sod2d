@@ -74,4 +74,19 @@ module mod_constants
 	integer(4), parameter :: implicit_solver_imex  = 1
 	integer(4), parameter :: implicit_steady_euler = 2
 
+
+	! Types meshElasticity
+
+	integer(4), parameter :: elasticity_non_setup      = 0
+	integer(4), parameter :: elasticity_fromBouCurving = 1
+	integer(4), parameter :: elasticity_fromALE        = 2
+	integer(4), parameter :: elasticity_fromMetric     = 3
+
+	!
+	! Types of entropy definitions
+	!
+	integer(4), parameter :: entropy_type_thermo  = 1
+	integer(4), parameter :: entropy_type_mach    = 2
+
+
 end module mod_constants

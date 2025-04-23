@@ -144,8 +144,8 @@ module time_integ_euler
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: pos,maxIterL, save_logFile_next
             integer(4)                          :: istep, ipoin, idime,icode,itime,jstep,inode,ielem,npoin_w_g
-            real(rp)                            :: alfa_pt(5)
-            real(rp)                            :: umag,aux,vol_rank,kappa=1e-6,phi=0.4,xi=0.7,f_save=1.0,f_max=2.0_rp,f_min=0.5_rp,errMax
+            real(rp)                            :: alfa_pt(5),aux_dt
+            real(rp)                            :: umag,aux,vol_rank,kappa=1e-6,phi=0.4,xi=0.7,f_save=1.0,f_max=1.01_rp,f_min=0.98_rp,errMax
             real(8)                             :: auxN(5),auxN2(5),vol_tot_d, res(2),aux2,res_ini
 
             kappa = sqrt(epsilon(kappa))
@@ -160,7 +160,12 @@ module time_integ_euler
             pos = 2 ! Set correction as default value
 
             call nvtxStartRange("Updating local dt")
-            call adapt_local_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,pseudo_cfl,dt_min,pseudo_cfl,mu_fluid,mu_sgs,rho(:,2))
+            !call adapt_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,pseudo_cfl,aux_dt)
+            call adapt_local_dt_cfl(nelem,npoin,connec,helem,u(:,:,2),csound,pseudo_cfl,dt_min)
+
+            !write(111,*) " initial dt ",aux_dt
+            !call flush(111)
+
             call nvtxEndRange()
 
                call nvtxStartRange("Initialize pt")
@@ -170,6 +175,8 @@ module time_integ_euler
                pt(:,3) = dt_min(:)
                pt(:,4) = dt_min(:)
                pt(:,5) = dt_min(:)
+
+               !pt(:,:) = aux_dt
                !$acc end kernels
                call nvtxEndRange()
             !
@@ -325,7 +332,16 @@ module time_integ_euler
                   !$acc end parallel loop
                   call nvtxEndRange
 
+
                   if (flag_buffer_on .eqv. .true.) call updateBuffer(npoin,npoin_w,coord,lpoin_w,maskMapped,aux_rho,aux_q,aux_E,u_buffer)
+                  !
+                  ! Apply bcs after update
+                  !
+                  if (noBoundaries .eqv. .false.) then
+                          call nvtxStartRange("BCS_AFTER_UPDATE")
+                          call temporary_bc_routine_dirichlet_prim(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,aux_rho,aux_q,aux_u,aux_pr,aux_E,u_buffer,u_mapped)
+                          call nvtxEndRange
+                  end if
                   
                   call nvtxStartRange("Update u and EOS")
                   !$acc parallel loop
@@ -500,15 +516,6 @@ module time_integ_euler
                call nvtxStartRange("Lumped mass solver on generic")
                call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Reta)
                call nvtxEndRange
-
-               call nvtxStartRange("Update sign Reta")
-               !$acc parallel loop
-               do ipoin = 1,npoin_w
-                  Reta(lpoin_w(ipoin)) = -Reta(lpoin_w(ipoin))-(3.0_rp*eta(lpoin_w(ipoin),2)-4.0_rp*eta(lpoin_w(ipoin),1)+eta(lpoin_w(ipoin),3))/(2.0_rp*dt)
-               end do
-               !$acc end parallel loop
-               call nvtxEndRange
-
                !
                ! Compute entropy viscosity
                !
@@ -521,9 +528,9 @@ module time_integ_euler
                call MPI_Allreduce(aux2,res(1),1,mpi_datatype_real8,MPI_SUM,MPI_COMM_WORLD,mpi_err)
                call nvtxEndRange
 
-               res(1) = sqrt(res(1))
+               res(1) = sqrt(res(1))/(5.0d0*real(totalNumNodesPar,rp))
 
-               if(itime .lt. 3) then
+               if(itime .lt. 2) then
                   res_ini = res(1)
                endif
                !errMax = abs(res(1))/abs(res_ini)    
@@ -531,7 +538,7 @@ module time_integ_euler
                res(2) = res(1)
            
 
-               if(errMax .lt. tol) exit
+               if((errMax .lt. tol) .and. (itime .gt. 3)) exit
                if(itime==save_logFile_next.and.mpi_rank.eq.0) then
                   write(111,*) " it ",itime," err ",errMax
                   call flush(111)

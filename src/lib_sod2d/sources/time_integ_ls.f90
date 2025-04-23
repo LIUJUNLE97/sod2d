@@ -15,12 +15,13 @@ module time_integ_ls
    use mod_wall_model
    use mod_operators
    use time_integ, only : updateBuffer, limit_rho
+   use mod_operators , only:eval_divergence,compute_vorticity
    use mod_rough_elem
 
    implicit none
 
-   real(rp), allocatable, dimension(:)   :: aux_h
-   real(rp), allocatable, dimension(:,:) :: f_eta,Rwmles,f_eta2
+   real(rp), allocatable, dimension(:)   :: aux_h,divU_ls
+   real(rp), allocatable, dimension(:,:) :: f_eta,Rwmles,f_eta2,vorti, phiD
    real(rp), allocatable, dimension(:)   :: Rmass,Rener
    real(rp), allocatable, dimension(:,:) :: Rmom,Reta
    real(rp), allocatable, dimension(:)   :: auxReta
@@ -32,32 +33,34 @@ module time_integ_ls
 
    contains
 
-   subroutine init_rk4_ls_solver(npoin)
+   subroutine init_rk4_ls_solver(nelem,npoin)
       implicit none
-      integer(4),intent(in) :: npoin
+      integer(4),intent(in) :: nelem,npoin
 
       call nvtxStartRange("Init RK_LS solver")
 
-      allocate(aux_h(npoin))
-      !$acc enter data create(aux_h(:))
+      allocate(aux_h(npoin), divU_ls(npoin))
+      !$acc enter data create(aux_h(:),divU_ls(:))
 
       allocate(auxReta(npoin),Rmass(npoin),Rener(npoin))
       !$acc enter data create(Rmass(:))
       !$acc enter data create(Rener(:))
       !$acc enter data create(auxReta(:))
 
-      allocate(f_eta(npoin,ndime),f_eta2(npoin,ndime),Reta(npoin,2),Rmom(npoin,ndime),Rwmles(npoin,ndime))
+      allocate(f_eta(npoin,ndime),f_eta2(npoin,ndime),Reta(npoin,2),Rmom(npoin,ndime),Rwmles(npoin,ndime),vorti(npoin,ndime),phiD(nelem,nnode))
       !$acc enter data create(Rmom(:,:))
       !$acc enter data create(f_eta(:,:))
       !$acc enter data create(f_eta2(:,:))
       !$acc enter data create(Reta(:,:))
       !$acc enter data create(Rwmles(:,:))
+      !$acc enter data create(vorti(:,:))
+      !$acc enter data create(phiD(:,:))
 
       allocate(lambda_ij(flag_rk_ls_stages+1,flag_rk_ls_stages+1),gamma_ij(flag_rk_ls_stages+1,flag_rk_ls_stages+1))
       !$acc enter data create(lambda_ij(:,:))
       !$acc enter data create(gamma_ij(:,:))
 
-      allocate(ProjMass_ls(npoin,ndime),ProjEner_ls(npoin,ndime),ProjMX_ls(npoin,ndime),ProjMY_ls(npoin,ndime),ProjMZ_ls(npoin,ndime),tau_stab_ls(npoin))
+      allocate(ProjMass_ls(npoin,ndime),ProjEner_ls(npoin,ndime),ProjMX_ls(npoin,ndime),ProjMY_ls(npoin,ndime),ProjMZ_ls(npoin,ndime),tau_stab_ls(nelem))
       !$acc enter data create(ProjMass_ls(:,:),ProjEner_ls(:,:),ProjMX_ls(:,:),ProjMY_ls(:,:),ProjMZ_ls(:,:),tau_stab_ls(:))
 
       !$acc kernels
@@ -78,6 +81,7 @@ module time_integ_ls
       tau_stab_ls(:) = 0.0_rp
       lambda_ij(:,:) = 0.0_rp
       gamma_ij(:,:)  = 0.0_rp
+      phiD(:,:) = 0.0_rp
       !$acc end kernels
 
       if (flag_rk_ls_stages == 3) then         
@@ -195,7 +199,7 @@ module time_integ_ls
 
    end subroutine end_rk4_ls_solver
 
-         subroutine rk_4_ls_main(noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,&
+         subroutine rk_4_ls_main(noBoundaries,isWallModelOn,nelem,nboun,npoin,npoin_w,numBoundsWM,point2elem,lnbn_nodes,lelpn,dlxigp_ip,xgp,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,maskMapped,leviCivi,&
                          ppow,connec,Ngp,dNgp,coord,wgp,He,Ml,invMl,gpvol,dt,helem,helem_l,Rgas,gamma_gas,Cp,Prt, &
                          rho,u,q,pr,E,Tem,csound,machno,e_int,eta,mu_e,mu_sgs,kres,etot,au,ax1,ax2,ax3,lpoin_w,mu_fluid,mu_factor,mue_l, &
                          ndof,nbnodes,ldof,lbnodes,bound,bou_codes,bou_codes_nodes,&               ! Optional args
@@ -205,9 +209,10 @@ module time_integ_ls
 
             logical,              intent(in)   :: noBoundaries,isWallModelOn
             integer(4),           intent(in)    :: nelem, nboun, npoin
-            integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn_nodes(npoin)
+            integer(4),           intent(in)    :: connec(nelem,nnode), npoin_w, lpoin_w(npoin_w),point2elem(npoin),lnbn_nodes(npoin),lelpn(npoin)
             integer(4),           intent(in)    :: atoIJK(nnode),invAtoIJK(porder+1,porder+1,porder+1),gmshAtoI(nnode),gmshAtoJ(nnode),gmshAtoK(nnode)
             integer(4),           intent(in)    :: ppow,maskMapped(npoin)
+            real(rp),              intent(in)   :: leviCivi(ndime,ndime,ndime)
             real(rp),             intent(in)    :: Ngp(ngaus,nnode), dNgp(ndime,nnode,ngaus),dlxigp_ip(ngaus,ndime,porder+1)
             real(rp),             intent(in)    :: He(ndime,ndime,ngaus,nelem),xgp(ngaus,ndime)
             real(rp),             intent(in)    :: gpvol(1,ngaus,nelem)
@@ -250,8 +255,7 @@ module time_integ_ls
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: pos, ipoin_w, ielem, inode
             integer(4)                          :: istep, ipoin, idime,icode
-            real(rp),    dimension(npoin)       :: Rrho
-            real(rp)                            :: umag, rho_min, rho_avg
+            real(rp)                            :: umag, rho_min, rho_avg, divUl
 
             !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             ! New version of RK4 using loops                 !
@@ -399,82 +403,66 @@ module time_integ_ls
                umag = sqrt(umag)
                machno(lpoin_w(ipoin)) = umag/csound(lpoin_w(ipoin))
                Tem(lpoin_w(ipoin),pos) = pr(lpoin_w(ipoin),pos)/(rho(lpoin_w(ipoin),pos)*Rgas)
+            end do
+            !$acc end parallel loop
 
-               eta(lpoin_w(ipoin),1) = eta(lpoin_w(ipoin),2)
-               eta(lpoin_w(ipoin),2) = (rho(lpoin_w(ipoin),2)/(gamma_gas-1.0_rp))* &
-                  log(pr(lpoin_w(ipoin),2)/(rho(lpoin_w(ipoin),2)**gamma_gas))
-               !$acc loop seq
-               do idime = 1,ndime                  
-                  f_eta(lpoin_w(ipoin),idime)  = u(lpoin_w(ipoin),idime,1)*eta(lpoin_w(ipoin),1)
-                  f_eta2(lpoin_w(ipoin),idime) = u(lpoin_w(ipoin),idime,2)*eta(lpoin_w(ipoin),2)
+            if(entropy_type .eq. entropy_type_thermo) then
+               call thermo_entropy(npoin,npoin_w,lpoin_w,gamma_gas, rho(:,2),pr(:,2),u(:,:,1),eta,f_eta)
+            else if (entropy_type .eq. entropy_type_mach) then
+               call mach_entropy(npoin,npoin_w,lpoin_w,rho(:,2),machno,csound,u(:,:,1),eta,f_eta)
+            end if
+
+            call nvtxEndRange
+
+            if(flag_use_ducros .eqv. .true.) then            
+   
+               call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),divU_ls)
+               call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),vorti,.true.) 
+
+               call ducros_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,coord,dNgp,gpvol,wgp, &               
+                  rho(:,2),u(:,:,2),divU_ls,vorti,csound,helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
+
+            else
+
+               call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
+               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:,2))
+
+               if(mpi_size.ge.2) then
+                  call mpi_halo_atomic_update_real(Reta(:,2))
+               end if
+
+               call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Reta(:,2))
+
+               call nvtxStartRange("Entropy residual")
+               !$acc parallel loop
+               do ipoin = 1,npoin_w
+                  auxReta(lpoin_w(ipoin)) = (1.5_rp*Reta(lpoin_w(ipoin),2)-0.5_rp*Reta(lpoin_w(ipoin),1)) + &
+                                                factor_comp*(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
+                  Reta(lpoin_w(ipoin),1) = Reta(lpoin_w(ipoin),2)            
                end do
-            end do
-            !$acc end parallel loop
-            call nvtxEndRange
-
-#if 1
-            call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-            gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:,2))
-
-            if(mpi_size.ge.2) then
-               call mpi_halo_atomic_update_real(Reta(:,2))
-            end if
-
-            call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Reta(:,2))
-
-            call nvtxStartRange("Entropy residual")
-            !$acc parallel loop
-            do ipoin = 1,npoin_w
-               auxReta(lpoin_w(ipoin)) = (1.5_rp*Reta(lpoin_w(ipoin),2)-0.5_rp*Reta(lpoin_w(ipoin),1)) + &
-                                             factor_comp*(eta(lpoin_w(ipoin),2)-eta(lpoin_w(ipoin),1))/dt
-               Reta(lpoin_w(ipoin),1) = Reta(lpoin_w(ipoin),2)            
-            end do
-            !$acc end parallel loop
-            call nvtxEndRange
-
-            if (noBoundaries .eqv. .false.) then
-               call nvtxStartRange("BCS_AFTER_UPDATE")
-               call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,auxReta)
+               !$acc end parallel loop
                call nvtxEndRange
-            end if
-            !
-            ! Compute entropy viscosity
-            !
-            call nvtxStartRange("Entropy viscosity evaluation")
-            call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,auxReta,Ngp,coord,dNgp,gpvol,wgp, &
-               gamma_gas,rho(:,2),u(:,:,2),csound,Tem(:,2),eta(:,2),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
-            call nvtxEndRange   
-#else
-            call generic_scalar_convec_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-            gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta2,eta(:,2),u(:,:,2),Reta(:,2))
 
-            if(mpi_size.ge.2) then
-               call mpi_halo_atomic_update_real(Reta(:,2))
-            end if
+               if (noBoundaries .eqv. .false.) then
+                  call nvtxStartRange("BCS_AFTER_UPDATE")
+                  call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,auxReta)
+                  call nvtxEndRange
+               end if
+               !
+               ! Compute entropy viscosity
+               !
+               call nvtxStartRange("Entropy viscosity evaluation")
+               call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,auxReta,Ngp,coord,dNgp,gpvol,wgp, &
+                  gamma_gas,rho(:,2),u(:,:,2),csound,Tem(:,2),eta(:,2),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
+               call nvtxEndRange   
 
-            call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,Reta(:,2))
+               call eval_divergence(nelem,npoin,connec,He,gpvol,dlxigp_ip,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),divU_ls)
+               call compute_vorticity(nelem,npoin,npoin_w,lpoin_w,connec,lelpn,He,dNgp,leviCivi,dlxigp_ip,atoIJK,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,u(:,:,pos),vorti,.true.) 
 
-            call generic_scalar_convec_projection_residual_ijk(nelem,npoin,connec,Ngp,dNgp,He, &
-               gpvol,dlxigp_ip,xgp,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,f_eta,eta(:,1),u(:,:,1),Reta(:,2),auxReta)
+               call ducros_visc_limit(nelem,npoin,npoin_w,connec,lpoin_w,Ngp,coord,dNgp,gpvol,wgp, &               
+                  rho(:,2),u(:,:,2),divU_ls,vorti,csound,helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
 
-            if(mpi_size.ge.2) then
-               call mpi_halo_atomic_update_real(auxReta)
-            end if
-            call lumped_solver_scal_opt(npoin,npoin_w,lpoin_w,invMl,auxReta)    
-
-            if (noBoundaries .eqv. .false.) then
-               call nvtxStartRange("BCS_AFTER_UPDATE")
-               call bc_fix_dirichlet_residual_entropy(npoin,nboun,bou_codes,bou_codes_nodes,bound,nbnodes,lbnodes,lnbn_nodes,normalsAtNodes,auxReta)
-               call nvtxEndRange
-            end if
-            !
-            ! Compute entropy viscosity
-            !
-            call nvtxStartRange("Entropy viscosity evaluation")
-            call smart_visc_spectral_imex(nelem,npoin,npoin_w,connec,lpoin_w,auxReta,Ngp,coord,dNgp,gpvol,wgp, &
-               gamma_gas,rho(:,2),u(:,:,2),csound,Tem(:,2),eta(:,2),helem_l,helem,Ml,mu_e,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,mue_l)
-            call nvtxEndRange  
-#endif
+         end if
             !
             ! If using Sutherland viscosity model:
             !
@@ -553,7 +541,6 @@ module time_integ_ls
             real(rp), optional, intent(in)      :: zo(npoin)
             integer(4)                          :: pos
             integer(4)                          :: istep, ipoin, idime,icode
-            real(rp),    dimension(npoin)       :: Rrho
             real(rp)                            :: umag, rho_min, rho_avg
 
             call nvtxStartRange("UpdateF")

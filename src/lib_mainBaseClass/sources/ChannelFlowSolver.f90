@@ -152,6 +152,8 @@ contains
       call json%get("c_sgs",c_sgs, found,0.025_rp); 
 
       call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+      call json%get("flag_use_ducros",flag_use_ducros, found,.false.); call this%checkFound(found,found_aux)
+      call json%get("ducros_min_val",ducros_min_val, found,0.1_rp); call this%checkFound(found,found_aux)
 
       !Witness points parameters
       call json%get("have_witness",this%have_witness, found,.false.)
@@ -185,6 +187,7 @@ contains
       nscbc_T_C = this%to
       
       call this%readJSONWMTypes()
+      call this%readJSONEntropyTypes()
 
       call json%destroy()
 

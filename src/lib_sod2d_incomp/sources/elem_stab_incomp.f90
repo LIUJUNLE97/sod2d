@@ -35,7 +35,7 @@ module elem_stab_incomp
              vecLen = 32
              do while( vecLen < nnode )
                 vecLen = vecLen * 2
-                if ( vecLen == 1024) then
+                if ( vecLen == 512) then
                   exit
                end if
              end do

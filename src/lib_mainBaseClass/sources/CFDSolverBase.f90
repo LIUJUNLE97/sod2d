@@ -177,7 +177,9 @@ module CFDSolverBase_mod
       procedure, public :: checkFound => CFDSolverBase_checkFound
       procedure, public :: readJSONBCTypes => CFDSolverBase_readJSONBCTypes
       procedure, public :: readJSONBuffer => CFDSolverBase_readJSONBuffer
+      procedure, public :: readJSONMeshElasticityTypes => CFDSolverBase_readJSONMeshElasticityTypes
       procedure, public :: readJSONWMTypes => CFDSolverBase_readJSONWMTypes
+      procedure, public :: readJSONEntropyTypes => CFDSolverBase_readJSONEntropyTypes
       procedure, public :: eval_vars_after_load_hdf5_resultsFile => CFDSolverBase_eval_vars_after_load_hdf5_resultsFile 
       procedure, public :: findFixPressure => CFDSolverBase_findFixPressure
 
@@ -192,6 +194,40 @@ module CFDSolverBase_mod
       !procedure :: generate_working_owned_nodes
    end type CFDSolverBase
 contains
+
+subroutine CFDSolverBase_readJSONMeshElasticityTypes(this)
+   use json_module
+   implicit none
+   class(CFDSolverBase), intent(inout) :: this
+   logical :: found
+   type(json_file) :: json
+   integer :: json_nbouCodes,iBouCodes,id
+   TYPE(json_core) :: jCore
+   TYPE(json_value), pointer :: bouCodesPointer, testPointer, p
+   character(len=:) , allocatable :: value
+
+   call json%initialize()
+   call json%load_file(json_filename)
+
+   call json%get('elasticity_problemType', value, found,"elasticity_non_setup")
+
+   if(found) then
+      if(value .eq. "elasticity_fromBouCurving") then
+         elasticity_problemType = elasticity_fromBouCurving
+      else if(value .eq. "elasticity_fromALE") then
+         elasticity_problemType = elasticity_fromALE
+      end if
+   else
+      if(mpi_rank .eq. 0) then
+         write(111,*) 'WARRNING! JSON file error on the elasticity_problemType definition, the model does not exist, elasticity_non_setup fixed'
+      end if
+      elasticity_problemType = elasticity_non_setup
+   end if
+
+   call json%destroy()
+
+end subroutine CFDSolverBase_readJSONMeshElasticityTypes
+
 
 subroutine CFDSolverBase_findFixPressure(this)
    implicit none
@@ -426,7 +462,38 @@ end subroutine CFDSolverBase_findFixPressure
 
    end subroutine CFDSolverBase_readJSONWMTypes
 
+   subroutine CFDSolverBase_readJSONEntropyTypes(this)
+      use json_module
+      implicit none
+      class(CFDSolverBase), intent(inout) :: this
+      logical :: found
+      type(json_file) :: json
+      integer :: json_nbouCodes,iBouCodes,id
+      TYPE(json_core) :: jCore
+      TYPE(json_value), pointer :: bouCodesPointer, testPointer, p
+      character(len=:) , allocatable :: value
 
+      call json%initialize()
+      call json%load_file(json_filename)
+
+      call json%get('entropy_type', value, found,"entropy_type_thermo")
+
+      if(found) then
+         if(value .eq. "entropy_type_thermo") then
+            entropy_type = entropy_type_thermo
+         else if(value .eq. "wmles_type_abl") then
+            entropy_type = entropy_type_mach
+         end if
+      else
+         if(mpi_rank .eq. 0) then
+            write(111,*) 'WARRNING! JSON file error on the entropy_type definition, the model does not exist, entropy_type_thermo fixed'
+         end if
+         entropy_type = entropy_type_thermo
+      end if
+
+      call json%destroy()
+
+   end subroutine CFDSolverBase_readJSONEntropyTypes
 
    subroutine CFDSolverBase_readJSONBCTypes(this)
       use json_module
@@ -445,7 +512,7 @@ end subroutine CFDSolverBase_findFixPressure
       call json%info("bouCodes",n_children=json_nbouCodes)
       call json%get_core(jCore)
       call json%get('bouCodes', bouCodesPointer, found_aux)
-
+      
       do iBouCodes=1, json_nbouCodes
             call jCore%get_child(bouCodesPointer, iBouCodes, testPointer, found)
             call jCore%get_child(testPointer, 'id', p, found)
@@ -561,7 +628,7 @@ end subroutine CFDSolverBase_findFixPressure
          if(flag_rk_ls .eqv. .false.) then
             call init_rk4_solver(numNodesRankPar)
          else
-            call init_rk4_ls_solver(numNodesRankPar)
+            call init_rk4_ls_solver(numElemsRankPar,numNodesRankPar)
          end if
       end if
       if(flag_use_species .eqv. .true.) then
@@ -686,6 +753,10 @@ end subroutine CFDSolverBase_findFixPressure
 
       !if(flag_high_mach) then !too less disipation in complex scenarious
       !   factor_comp = 1.0_rp
+      !end if
+
+      !if(flag_use_ducros .eqv. .true.) then
+         c_lps_comp = 0.1_rp
       !end if
 
    end subroutine CFDSolverBase_optimizeParameters
