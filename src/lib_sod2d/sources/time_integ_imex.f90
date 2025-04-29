@@ -320,7 +320,7 @@ module time_integ_imex
                Rwmles_imex(1:npoin,1:ndime) = 0.0_rp
                !$acc end kernels
                if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then
-                  call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,walave_pr(:),f_eta_imex,.true.)
+                  call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,invMl,walave_pr(:),f_eta_imex,.true.)
                end if
                if(numBoundsWM .ne. 0) then
                   if((flag_type_wmles == wmles_type_reichardt) .or. (flag_type_wmles == wmles_type_reichardt_hwm)) then
