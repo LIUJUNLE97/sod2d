@@ -645,7 +645,7 @@ module time_integ_ls
                call nvtxStartRange("WALL MODEL")
                if ((flag_type_wmles == wmles_type_thinBL_fit) .or. (flag_type_wmles == wmles_type_thinBL_fit_hwm)) then
                   call nvtxStartRange("thinBL_WM_init")
-                  call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,Ml,walave_pr(:),f_eta2,.true.)
+                  call eval_gradient(nelem,npoin,npoin_w,connec,lpoin_w,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,dlxigp_ip,He,gpvol,invMl,walave_pr(:),f_eta2,.true.)
                   call nvtxEndRange
                end if
                if((numBoundsWM .ne. 0)) then
