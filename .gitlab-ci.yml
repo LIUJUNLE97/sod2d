@@ -6,6 +6,9 @@ default:
     #image: lucasbsc21387/sod2d-image:0.1.1
     image: lucasbsc21387/archlinux-hpc:1.0.1
 
+variables:
+    GIT_SUBMODULE_STRATEGY: recursive
+
 ## List of stages for jobs, and their order of execution
 stages:
     - drivercheck
