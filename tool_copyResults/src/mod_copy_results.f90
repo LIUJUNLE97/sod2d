@@ -54,13 +54,6 @@ contains
                        "Aborting!"
        	   call MPI_Abort(app_comm,-1,mpi_err)
          endif
-      else
-         if(target_Nprocs.gt.mpi_size) then
-            write(*,*) "If generateMesh=.false. then must be (target_Nprocs<=mpi_size).",&
-                       "Fix current values mpi_size",mpi_size,"target_Nprocs",target_Nprocs,&
-                       "Aborting!"
-           call MPI_Abort(app_comm,-1,mpi_err)
-         endif
       endif
 
       call init_saveFields()
@@ -91,8 +84,9 @@ contains
 
       else
          if(mpi_size .eq. target_Nprocs) then
-            call do_naive_one_to_one_mapping(numTrgtRanksInMpiRank,maxNumTrgtRanks,numNodesTrgtRank,&
-                                       numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8,mapNodeIdTrgtToMpi_jv)
+
+            call do_naive_one_to_one_mapping(fullMapNodeCnt,fullMapNodeRankTrgt,fullNumNodesMapTrgtRank,&
+                                             numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8)
          else
 
             call open_target_mesh_and_do_mapping(target_meshFile_h5_full_name,target_Nprocs,&
@@ -122,10 +116,6 @@ contains
       if(type_resultsFile.eq.4) then
          if(generateMesh) then
             if(mpi_rank.eq.0) write(*,*) "For type_resultsFile=4 only generateMesh=.false. supported! Aborting!"
-       	   call MPI_Abort(app_comm,-1,mpi_err)
-         end if
-         if(mpi_size.ne.target_Nprocs) then
-            if(mpi_rank.eq.0) write(*,*) "For type_resultsFile=4 only mpi_size == target_Nranks supported! Aborting!"
        	   call MPI_Abort(app_comm,-1,mpi_err)
          end if
       endif
@@ -194,7 +184,7 @@ contains
                numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S,&
                dsetsScalarFieldsTrgt,dsetsVectorFieldsTrgt,dsetsV2SFieldsTrgt)
 
-         if(mpi_size.le.target_Nprocs) then
+         if(generateMesh) then
             call copy_dsets_results_for_generated_mesh(sourceRes_hdf5_file_id,targetRes_hdf5_file_id,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
                      numNodesTrgtRank,trgtRankNodeStart_i8,numNodesTrgtTotal_i8,mapNodeIdTrgtToMpi_jv,&
                      numDsetSca,numDsetVec,numDsetV2S,maxNumDsetSca,maxNumDsetVec,maxNumDsetV2S,&
@@ -257,7 +247,7 @@ contains
 
    end subroutine copy_results_same_mesh_Npartitions
 
-   subroutine do_naive_one_to_one_mapping(numTrgtRanksInMpiRank,maxNumTrgtRanks,numNodesTrgtRank,numNodesTrgtTotal_i8,&
+   subroutine do_naive_one_to_one_mapping_old(numTrgtRanksInMpiRank,maxNumTrgtRanks,numNodesTrgtRank,numNodesTrgtTotal_i8,&
                                        trgtRankNodeStart_i8,trgtRankNodeEnd_i8,mapNodeIdTrgtToMpi_jv)
       implicit none
       integer(4),intent(inout) :: numTrgtRanksInMpiRank,maxNumTrgtRanks
@@ -286,7 +276,7 @@ contains
          mapNodeIdTrgtToMpi_jv%vector(1)%elems(iNode) = iNode
       end do
 
-   end subroutine do_naive_one_to_one_mapping
+   end subroutine do_naive_one_to_one_mapping_old
 
    subroutine generate_new_mesh_for_viz(target_meshFile_h5_full_name,mporder,mnnode,target_Nprocs,numTrgtRanksInMpiRank,maxNumTrgtRanks,&
                                        numNodesTrgtRank,numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8,mapNodeIdTrgtToMpi_jv)
@@ -430,6 +420,43 @@ contains
       !----------------------------------------------------------------------------------------------------------------------------------     
 
    end subroutine generate_new_mesh_for_viz
+
+   subroutine do_naive_one_to_one_mapping(fullMapNodeCnt,fullMapNodeRankTrgt,fullNumNodesMapTrgtRank,&
+                                          numNodesTrgtTotal_i8,trgtRankNodeStart_i8,trgtRankNodeEnd_i8)
+      implicit none
+      integer(4),intent(out) :: fullMapNodeCnt
+      integer(4),intent(inout),allocatable :: fullMapNodeRankTrgt(:,:),fullNumNodesMapTrgtRank(:)
+      integer(8),intent(inout) :: numNodesTrgtTotal_i8
+      integer(8),intent(inout),allocatable :: trgtRankNodeStart_i8(:),trgtRankNodeEnd_i8(:)
+      !-------------------------------------------------------
+      integer(4) :: iNodeL
+
+      !target_Nprocs = mpi_size
+      allocate(trgtRankNodeStart_i8(mpi_size))
+      allocate(trgtRankNodeEnd_i8(mpi_size))
+      allocate(fullNumNodesMapTrgtRank(0:mpi_size-1)) 
+
+      numNodesTrgtTotal_i8 = totalNumNodesPar
+
+      trgtRankNodeStart_i8(:) = 0
+      trgtRankNodeEnd_i8(:)   = 0
+      fullNumNodesMapTrgtRank(:) = 0
+
+      trgtRankNodeStart_i8(mpi_rank+1) = rankNodeStart
+      trgtRankNodeEnd_i8(mpi_rank+1)   = rankNodeEnd
+      fullNumNodesMapTrgtRank(mpi_rank) = numNodesRankPar
+
+      fullMapNodeCnt = numNodesRankPar
+
+      allocate(fullMapNodeRankTrgt(numNodesRankPar,3))
+
+      do iNodeL=1,numNodesRankPar
+         fullMapNodeRankTrgt(iNodeL,1) = iNodeL
+         fullMapNodeRankTrgt(iNodeL,2) = iNodeL!globalIdSrlOrdered_i8(iPos,2)
+         fullMapNodeRankTrgt(iNodeL,3) = mpi_rank
+      end do
+
+   end subroutine do_naive_one_to_one_mapping
 
    subroutine open_target_mesh_and_do_mapping(target_meshFile_h5_full_name,target_Nprocs,&
                                              mapNodeRankTrgt,numNodesMapTrgtRank,fullMapNodeCnt,fullMapNodeRankTrgt,fullNumNodesMapTrgtRank,&
