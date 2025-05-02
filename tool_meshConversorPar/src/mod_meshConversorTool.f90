@@ -4825,7 +4825,7 @@ contains
             memPos_l = commsMemPosInRank(ii)
             memSize  = commsMemSizeInRank(ii)
 
-            do jj=memPos_l,(memPos_l+memSize)
+            do jj=memPos_l,(memPos_l+memSize-1)
                iNodeL = nodesToCommInRank(jj)
                auxNodeList(iNodeL) = 0
                !write(*,*) 'node',inodeL,'not owned by rank',mpi_rank
