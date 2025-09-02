@@ -47,6 +47,7 @@ module mod_bc_routines_incomp
                         aux_u(inode,idime) = aux_u(inode,idime) - norm*normalsAtNodes(inode,idime)
                      end do
                   ! add new here, and attention
+                  ! Jim's changes
                   else if (bcode == bc_routine_robin_slipnormal_custom) then
                      ! Custom slip+normal BC with wall-model correction
                      ! Step 1: compute normal velocity from buffer (original flow field)

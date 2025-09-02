@@ -674,7 +674,7 @@ contains
       !$acc end parallel loop
 
    end subroutine evalWallModelThinBLFit
-
+! Jim's changes
 subroutine evalWallModelCustom(numBoundsWM, listBoundsWM, nelem, npoin, nboun, connec, bound, point2elem, bou_code, &
          bounorm, normalsAtNodes, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, coord, dlxigp_ip, He, gpvol, &
          mu_fluid, mu_turbulent, rho, ui, zo, tauw, Rdiff, fact)

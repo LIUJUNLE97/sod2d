@@ -451,6 +451,7 @@ end subroutine CFDSolverBase_findFixPressure
          else if(value .eq. "wmles_type_thinBL_fit_hwm") then
             flag_type_wmles = wmles_type_thinBL_fit_hwm
          ! Add new here attention
+         ! Jim's changes
          else if(value .eq. "wmles_type_slipnormal_custom") then 
             flag_type_wmles = wmles_type_slipnormal_custom
             print *, "Wall model flag_type_wmles =", flag_type_wmles
@@ -568,6 +569,7 @@ end subroutine CFDSolverBase_findFixPressure
                else if(value .eq. "bc_type_non_slip_unsteady") then
                   bouCodes2BCType(id) = bc_type_non_slip_unsteady
                ! Add new here Attention
+               ! Jim's changes
                else if (value .eq. "bc_routine_robin_slipnormal_custom") then 
                   bouCodes2BCType(id) = bc_routine_robin_slipnormal_custom
                end if

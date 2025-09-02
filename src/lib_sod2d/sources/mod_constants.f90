@@ -59,6 +59,7 @@ module mod_constants
 	integer(4), parameter :: bc_type_unsteady_inlet       = 18
 	integer(4), parameter :: bc_type_far_field_SB         = 19
 	! add new heere
+	! Jim's changes
 	integer(4), parameter :: bc_routine_robin_slipnormal_custom = 20
 
 	!
@@ -70,6 +71,7 @@ module mod_constants
 	integer(4), parameter :: wmles_type_thinBL_fit     = 4
 	integer(4), parameter :: wmles_type_thinBL_fit_hwm = 5
 	! add new here
+	! Jim's changes
 	integer(4), parameter :: wmles_type_slipnormal_custom = 6
 
 	!

@@ -195,6 +195,7 @@ module time_integ_incomp
                   else if (flag_type_wmles == wmles_type_thinBL_fit_hwm) then
                      call evalEXAtHWM(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                            bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  ! Jim's changes
                   else if (flag_type_wmles == wmles_type_slipnormal_custom) then
                      call evalEXAtFace(numBoundsWM, listBoundsWM, nelem, npoin, nboun, connec, bound, point2elem, bou_codes, &
                           bounorm, normalsAtNodes, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, coord, dlxigp_ip, He, gpvol)
