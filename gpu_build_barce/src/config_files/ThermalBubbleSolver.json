@@ -1,0 +1,92 @@
+{
+   "type":"ThermalBubbleSolver",
+
+   "FileParameters" : {
+      "mesh_h5_file_path"    : "",
+      "mesh_h5_file_name"    : "bubble",
+   
+      "results_h5_file_path" : "",
+      "results_h5_file_name" : "results"
+   },
+
+   "IOParameters":{
+      "maxPhysTime"               : 1200.0,
+      "final_istep"               : 5000001,
+
+      "save_logFile_first"        : 1,
+      "save_logFile_step"         : 10,
+   
+      "save_resultsFile_first"    : 1,
+      "save_resultsFile_step"     : 5000,
+
+      "save_restartFile_first"    : 1,
+      "save_restartFile_step"     : 5000,
+
+      "loadRestartFile"           : false,
+      "restartFile_to_load"       : 1,
+   
+      "continue_oldLogs"          : false
+   },
+
+   "save_nodeScalarField_rho"     : true, 
+   "save_nodeScalarField_pr"      : true,
+   "save_nodeScalarField_energy"  : true,
+   "save_nodeScalarField_muFluid" : false,
+   "save_nodeScalarField_entropy" : true,
+   "save_nodeScalarField_csound"  : false, 
+   "save_nodeScalarField_machno"  : false, 
+   "save_nodeScalarField_divU"    : false, 
+   "save_nodeScalarField_qcrit"   : false, 
+   "save_nodeScalarField_temp"    : true,
+   "save_elGPScalarField_muSgs"   : false, 
+   "save_elGPScalarField_muEnvit" : true,
+   "save_nodeVectorField_vel"     : true,
+   "save_nodeVectorField_gradRho" : false,
+   "save_nodeVectorField_curlU"   : false,
+
+   "NumericalParameters" : {
+      "flag_les"          : 0,
+      "c_sgs"             : 0.025,
+      "envit_ce"          : 1.0,
+
+      "flag_rk_ls"        : true,
+      "flag_rk_ls_stages" : 5,
+      "flag_implicit"     : 0,
+      "maxIter"           : 20,
+      "tol"               : 1e-3,
+
+      "cfl_conv"          : 0.5,
+      "cfl_diff"          : 0.5
+   },
+
+   "AtmosphericParameters" : {
+      "type" : "adiabatic",
+      "p"    : 101325.0,
+      "T"    : 288.15,
+      "gx"   : 0.0,
+      "gy"   : 9.81,
+      "gz"   : 0.0
+   },
+
+   "ThermodynamicParameters" : {
+      "Cp"  : 1005.2,
+      "Cv"  : 717.1,
+      "R"   : 287.0,
+      "Prt" : 0.71,
+      "mu"  : 0.0
+   },
+   
+   "BubbleParameters": {
+      "shape" : "cosine3D",
+      "Tc"    : 0.5,
+      "rc"    : 250.0,
+      "xc"    : 500.0,
+      "yc"    : 260.0,
+      "zc"    : 500.0
+   },
+
+   "bouCodes":
+   [
+      {"id":1, "bc_type":"bc_type_slip_atmosphere"}
+   ]
+}

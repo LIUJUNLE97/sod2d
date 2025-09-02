@@ -1,0 +1,56 @@
+{
+   "type":"MappedInletIncomp",
+
+   "mesh_h5_file_path":"",
+   "mesh_h5_file_name":"channel",
+
+   "results_h5_file_path":"",
+   "results_h5_file_name":"results",
+
+   "final_istep":5000001,
+
+   "save_logFile_first":1,
+   "save_logFile_step":10,
+
+   "save_resultsFile_first":1,
+   "save_resultsFile_step":10000,
+
+   "save_restartFile_first":1,
+   "save_restartFile_step":10000,
+
+   "loadRestartFile":true,
+   "restartFile_to_load":1,
+
+   "continue_oldLogs":false,
+
+   "saveAvgFile":true,
+   "loadAvgFile":false,
+
+   "saveSurfaceResults":false,
+
+   "flag_les":1,
+   "maxIter":20,
+   "tol":1e-3,
+   "flag_walave":false,
+   "period_walave":200.0,
+
+   "cfl_conv":0.95,
+
+   "v0":1.0,
+   "delta":1.0,
+   "rho0":1.0,
+   "Retau":950.0,
+
+   "bouCodes":
+   [
+      {"id":2, "bc_type":"bc_type_non_slip_adiabatic"},
+      {"id":3, "bc_type":"bc_type_non_slip_adiabatic"},
+      {"id":4, "bc_type":"bc_type_recirculation_inlet"},
+      {"id":5, "bc_type":"bc_type_outlet_incomp"}
+   ],
+
+   "buffer":
+   [
+      {"type":"east","min":12,"size":1}
+   ]
+}

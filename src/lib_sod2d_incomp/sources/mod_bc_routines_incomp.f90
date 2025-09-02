@@ -11,11 +11,14 @@ module mod_bc_routines_incomp
       contains
             
          subroutine temporary_bc_routine_dirichlet_prim_residual_incomp(npoin,nboun,bou_codes_nodes,normalsAtNodes,aux_u,u_buffer)
+            use mod_wall_model, only: uwn_out
 
             implicit none
-
+            
             integer(4), intent(in)     :: npoin, nboun,  bou_codes_nodes(npoin)
-            real(rp), intent(in)     :: normalsAtNodes(npoin,ndime),u_buffer(npoin,ndime)
+            real(rp), intent(in)       :: normalsAtNodes(npoin,ndime),u_buffer(npoin,ndime)
+            ! new added here, used to get the wall model output 
+            !real(rp), intent(in)       :: uwn_out(npoin) 
             real(rp),    intent(inout) :: aux_u(npoin,ndime)
             integer(4)                 :: iboun,bcode,ipbou,inode,idime,iBoundNode
             real(rp)                   :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
@@ -43,6 +46,24 @@ module mod_bc_routines_incomp
                      do idime = 1,ndime     
                         aux_u(inode,idime) = aux_u(inode,idime) - norm*normalsAtNodes(inode,idime)
                      end do
+                  ! add new here, and attention
+                  else if (bcode == bc_routine_robin_slipnormal_custom) then
+                     ! Custom slip+normal BC with wall-model correction
+                     ! Step 1: compute normal velocity from buffer (original flow field)
+                     print *, "uwn_out in BC:", uwn_out(1:10)
+                     ! norm = dot_product(normalsAtNodes(inode,:), u_buffer(inode,:)) ! u_buffer is 0 anywhere
+                     norm = (normalsAtNodes(inode,1)*aux_u(inode,1)) + (normalsAtNodes(inode,2)*aux_u(inode,2)) + (normalsAtNodes(inode,3)*aux_u(inode,3))
+                     ! Step 2: keep tangential components only
+                     !$acc loop seq
+                     do idime = 1, ndime
+                        aux_u(inode,idime) = u_buffer(inode,idime) - norm * normalsAtNodes(inode,idime)
+                     end do
+
+                     ! Step 3: add corrected wall-model normal velocity
+                     !$acc loop seq
+                     do idime = 1, ndime
+                        aux_u(inode,idime) = aux_u(inode,idime) + uwn_out(inode) * normalsAtNodes(inode,idime)
+                     end do
                   end if
                end if ! This guy
             end do
@@ -52,11 +73,16 @@ module mod_bc_routines_incomp
 
          subroutine temporary_bc_routine_dirichlet_prim_incomp(npoin,nboun,bou_codes_nodes,lnbn_nodes,normalsAtNodes,aux_u,u_buffer)
 
+            use mod_wall_model, only: uwn_out
             implicit none
+            
 
             integer(4), intent(in)  :: npoin,nboun,bou_codes_nodes(npoin)
             integer(4), intent(in)  :: lnbn_nodes(npoin)
             real(rp), intent(in)    :: normalsAtNodes(npoin,ndime),u_buffer(npoin,ndime)
+            ! new added here
+            ! real(rp), intent(in)       :: uwn_out(npoin)
+            ! attention: this is the new added variable, which is used to store the wall model output
             real(rp), intent(inout) :: aux_u(npoin,ndime)
             integer(4)              :: iboun,bcode,ipbou,inode,idime,iBoundNode
             real(rp)                :: cin,R_plus,R_minus,v_b,c_b,s_b,rho_b,p_b,rl,rr, sl, sr
@@ -84,6 +110,28 @@ module mod_bc_routines_incomp
                      do idime = 1,ndime     
                         aux_u(inode,idime) = aux_u(inode,idime) - norm*normalsAtNodes(inode,idime)
                      end do
+
+                  ! Add new here, and attention
+                  ! Jim's changes
+                  else if (bcode == bc_routine_robin_slipnormal_custom) then
+                     aux_u(inode,1) = u_buffer(inode,1)
+                     aux_u(inode,2) = u_buffer(inode,2)
+                     aux_u(inode,3) = u_buffer(inode,3)
+                     ! Custom slip+normal BC with wall-model correction
+                     ! Step 1: compute normal velocity from buffer (original flow field)
+                     !norm = dot_product(normalsAtNodes(inode,:), u_buffer(inode,:))
+
+                     ! Step 2: keep tangential components only
+                     !!$acc loop seq
+                     !do idime = 1, ndime
+                     !   aux_u(inode,idime) = u_buffer(inode,idime) - norm * normalsAtNodes(inode,idime)
+                     !end do
+
+                     ! Step 3: add corrected wall-model normal velocity
+                     !!$acc loop seq
+                     !do idime = 1, ndime
+                      !  aux_u(inode,idime) = aux_u(inode,idime) + uwn_out(inode) * normalsAtNodes(inode,idime)
+                     !end do
                   end if
                end if
             end do

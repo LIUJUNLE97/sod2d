@@ -1,0 +1,1 @@
+/scratch/muma/libs/nvhpc/Linux_x86_64/24.5/comm_libs/mpi/bin/mpicxx -cpp -lstdc++ -D_USE_NVTX -lnvToolsExt -cuda -Minfo=accel -DNOACC -cpp -lstdc++ -lnvToolsExt -acc -cuda -Minfo=accel -fast -DNOACC -fast -O3 CMakeFiles/example_3d.dir/example_3d.cpp.o -o example_3d  -Wl,-rpath,/scratch/junle/CODE_SOD2D/sod2d_gitlab/cpu_build_barce_p6/external/gempa ../../libgempa.so 

@@ -18,6 +18,9 @@ module mod_numerical_params
         real(rp) :: c_sgs = 0.025_rp
         real(rp) :: stau   = 0.022_rp
         real(rp) :: T_ilsa = 1.0_rp
+        ! new added here 
+        ! real(rp) :: c_les = 0.1_rp
+        ! real(rp) :: c_les_sgs = 0.1_rp
 
         ! Discretization parameters
         logical :: flag_total_enthalpy = .false.

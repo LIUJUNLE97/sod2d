@@ -58,6 +58,8 @@ module mod_constants
 	integer(4), parameter :: bc_type_slip_atmosphere      = 17
 	integer(4), parameter :: bc_type_unsteady_inlet       = 18
 	integer(4), parameter :: bc_type_far_field_SB         = 19
+	! add new heere
+	integer(4), parameter :: bc_routine_robin_slipnormal_custom = 20
 
 	!
 	! Type of wall models
@@ -67,6 +69,8 @@ module mod_constants
 	integer(4), parameter :: wmles_type_reichardt_hwm  = 3
 	integer(4), parameter :: wmles_type_thinBL_fit     = 4
 	integer(4), parameter :: wmles_type_thinBL_fit_hwm = 5
+	! add new here
+	integer(4), parameter :: wmles_type_slipnormal_custom = 6
 
 	!
 	! Types of implicit solvers

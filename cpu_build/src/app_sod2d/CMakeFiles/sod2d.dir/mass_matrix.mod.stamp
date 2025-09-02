@@ -1,0 +1,292 @@
+V34 :0x24 mass_matrix
+15 mass_matrix.f90 S624 0
+05/23/2025  14:37:04
+use mod_numerical_params public 0 direct
+use mpi public 0 indirect
+use mod_constants public 0 indirect
+use mod_mpi public 0 direct
+use mod_utils public 0 indirect
+use mod_mpi_mesh public 0 direct
+use mod_custom_types public 0 indirect
+use iso_c_binding public 0 indirect
+use mod_nvtx public 0 direct
+use mod_comms public 0 direct
+use iso_fortran_env private
+enduse
+D 60 26 831 8 830 7
+D 69 26 834 8 833 7
+D 90 23 6 1 11 11 0 0 0 0 0
+ 0 11 11 11 11 11
+D 93 23 6 1 11 11 0 0 0 0 0
+ 0 11 11 11 11 11
+D 96 23 6 1 11 292 0 0 0 0 0
+ 0 292 11 11 292 292
+D 99 23 6 1 11 292 0 0 0 0 0
+ 0 292 11 11 292 292
+D 102 23 6 1 11 292 0 0 0 0 0
+ 0 292 11 11 292 292
+D 105 23 6 1 11 292 0 0 0 0 0
+ 0 292 11 11 292 292
+D 108 23 6 1 11 293 0 0 0 0 0
+ 0 293 11 11 293 293
+D 111 23 6 1 11 293 0 0 0 0 0
+ 0 293 11 11 293 293
+D 3150 26 8569 152 8567 7
+D 3162 22 7
+D 3167 26 8578 152 8576 7
+D 3179 22 7
+D 3184 26 8588 200 8585 7
+D 3196 22 7
+D 3201 26 8598 200 8595 7
+D 3213 22 7
+D 3218 26 8607 152 8605 7
+D 3230 22 7
+D 3235 26 8617 200 8614 7
+D 3247 22 7
+D 3252 26 8626 152 8624 7
+D 3264 22 7
+D 3269 26 8636 200 8633 7
+D 3281 22 7
+D 3286 26 8645 152 8643 7
+D 3298 22 7
+D 3303 26 8654 152 8652 7
+D 3315 22 7
+D 3320 26 8663 152 8661 7
+D 3332 22 7
+D 3337 26 8672 152 8670 7
+D 3349 22 7
+D 3354 26 8681 152 8679 7
+D 3366 22 7
+D 3371 26 8690 152 8688 7
+D 3383 22 7
+D 3388 26 8699 152 8697 7
+D 3400 22 7
+D 3405 26 8708 152 8706 7
+D 3417 22 7
+D 3910 23 6 2 2611 2616 0 0 1 0 0
+ 0 2613 11 11 2614 2614
+ 0 2615 2614 11 2615 2615
+D 3913 23 9 3 2617 2616 0 0 1 0 0
+ 0 11 11 11 11 11
+ 0 2615 11 11 2615 2615
+ 0 2613 2615 11 2614 2614
+D 3916 23 9 1 11 2620 0 0 1 0 0
+ 0 2619 11 11 2620 2620
+S 624 24 0 0 0 6 1 0 5012 10005 0 A 0 0 0 0 B 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 mass_matrix
+S 631 3 0 0 0 6 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 6
+S 632 3 0 0 0 6 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 8 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 6
+S 636 3 0 0 0 6 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 6
+R 830 25 7 iso_c_binding c_ptr
+R 831 5 8 iso_c_binding val c_ptr
+R 833 25 10 iso_c_binding c_funptr
+R 834 5 11 iso_c_binding val c_funptr
+R 868 6 45 iso_c_binding c_null_ptr$ac
+R 870 6 47 iso_c_binding c_null_funptr$ac
+R 871 26 48 iso_c_binding ==
+R 873 26 50 iso_c_binding !=
+S 915 3 0 0 0 7 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7
+S 916 3 0 0 0 7 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7
+R 919 7 3 iso_fortran_env character_kinds$ac
+R 941 7 25 iso_fortran_env integer_kinds$ac
+R 943 7 27 iso_fortran_env logical_kinds$ac
+R 945 7 29 iso_fortran_env real_kinds$ac
+S 8176 3 0 0 0 7 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 17 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7
+S 8500 3 0 0 0 7 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 23 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7
+R 8567 25 67 mod_custom_types vector_int4
+R 8569 5 69 mod_custom_types elems vector_int4
+R 8570 5 70 mod_custom_types elems$sd vector_int4
+R 8571 5 71 mod_custom_types elems$p vector_int4
+R 8572 5 72 mod_custom_types elems$o vector_int4
+R 8576 25 76 mod_custom_types vector_int8
+R 8578 5 78 mod_custom_types elems vector_int8
+R 8579 5 79 mod_custom_types elems$sd vector_int8
+R 8580 5 80 mod_custom_types elems$p vector_int8
+R 8581 5 81 mod_custom_types elems$o vector_int8
+R 8585 25 85 mod_custom_types matrix_int4
+R 8588 5 88 mod_custom_types elems matrix_int4
+R 8589 5 89 mod_custom_types elems$sd matrix_int4
+R 8590 5 90 mod_custom_types elems$p matrix_int4
+R 8591 5 91 mod_custom_types elems$o matrix_int4
+R 8595 25 95 mod_custom_types matrix_int8
+R 8598 5 98 mod_custom_types elems matrix_int8
+R 8599 5 99 mod_custom_types elems$sd matrix_int8
+R 8600 5 100 mod_custom_types elems$p matrix_int8
+R 8601 5 101 mod_custom_types elems$o matrix_int8
+R 8605 25 105 mod_custom_types vector_rp
+R 8607 5 107 mod_custom_types elems vector_rp
+R 8608 5 108 mod_custom_types elems$sd vector_rp
+R 8609 5 109 mod_custom_types elems$p vector_rp
+R 8610 5 110 mod_custom_types elems$o vector_rp
+R 8614 25 114 mod_custom_types matrix_rp
+R 8617 5 117 mod_custom_types elems matrix_rp
+R 8618 5 118 mod_custom_types elems$sd matrix_rp
+R 8619 5 119 mod_custom_types elems$p matrix_rp
+R 8620 5 120 mod_custom_types elems$o matrix_rp
+R 8624 25 124 mod_custom_types vector_real8
+R 8626 5 126 mod_custom_types elems vector_real8
+R 8627 5 127 mod_custom_types elems$sd vector_real8
+R 8628 5 128 mod_custom_types elems$p vector_real8
+R 8629 5 129 mod_custom_types elems$o vector_real8
+R 8633 25 133 mod_custom_types matrix_real8
+R 8636 5 136 mod_custom_types elems matrix_real8
+R 8637 5 137 mod_custom_types elems$sd matrix_real8
+R 8638 5 138 mod_custom_types elems$p matrix_real8
+R 8639 5 139 mod_custom_types elems$o matrix_real8
+R 8643 25 143 mod_custom_types jagged_vector_int4
+R 8645 5 145 mod_custom_types vector jagged_vector_int4
+R 8646 5 146 mod_custom_types vector$sd jagged_vector_int4
+R 8647 5 147 mod_custom_types vector$p jagged_vector_int4
+R 8648 5 148 mod_custom_types vector$o jagged_vector_int4
+R 8652 25 152 mod_custom_types jagged_matrix_int4
+R 8654 5 154 mod_custom_types matrix jagged_matrix_int4
+R 8655 5 155 mod_custom_types matrix$sd jagged_matrix_int4
+R 8656 5 156 mod_custom_types matrix$p jagged_matrix_int4
+R 8657 5 157 mod_custom_types matrix$o jagged_matrix_int4
+R 8661 25 161 mod_custom_types jagged_vector_int8
+R 8663 5 163 mod_custom_types vector jagged_vector_int8
+R 8664 5 164 mod_custom_types vector$sd jagged_vector_int8
+R 8665 5 165 mod_custom_types vector$p jagged_vector_int8
+R 8666 5 166 mod_custom_types vector$o jagged_vector_int8
+R 8670 25 170 mod_custom_types jagged_matrix_int8
+R 8672 5 172 mod_custom_types matrix jagged_matrix_int8
+R 8673 5 173 mod_custom_types matrix$sd jagged_matrix_int8
+R 8674 5 174 mod_custom_types matrix$p jagged_matrix_int8
+R 8675 5 175 mod_custom_types matrix$o jagged_matrix_int8
+R 8679 25 179 mod_custom_types jagged_vector_rp
+R 8681 5 181 mod_custom_types vector jagged_vector_rp
+R 8682 5 182 mod_custom_types vector$sd jagged_vector_rp
+R 8683 5 183 mod_custom_types vector$p jagged_vector_rp
+R 8684 5 184 mod_custom_types vector$o jagged_vector_rp
+R 8688 25 188 mod_custom_types jagged_matrix_rp
+R 8690 5 190 mod_custom_types matrix jagged_matrix_rp
+R 8691 5 191 mod_custom_types matrix$sd jagged_matrix_rp
+R 8692 5 192 mod_custom_types matrix$p jagged_matrix_rp
+R 8693 5 193 mod_custom_types matrix$o jagged_matrix_rp
+R 8697 25 197 mod_custom_types jagged_vector_real8
+R 8699 5 199 mod_custom_types vector jagged_vector_real8
+R 8700 5 200 mod_custom_types vector$sd jagged_vector_real8
+R 8701 5 201 mod_custom_types vector$p jagged_vector_real8
+R 8702 5 202 mod_custom_types vector$o jagged_vector_real8
+R 8706 25 206 mod_custom_types jagged_matrix_real8
+R 8708 5 208 mod_custom_types matrix jagged_matrix_real8
+R 8709 5 209 mod_custom_types matrix$sd jagged_matrix_real8
+R 8710 5 210 mod_custom_types matrix$p jagged_matrix_real8
+R 8711 5 211 mod_custom_types matrix$o jagged_matrix_real8
+S 9592 23 5 0 0 0 9598 624 52495 0 0 A 0 0 0 0 B 0 11 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 lumped_mass_spectral
+S 9593 6 3 1 0 6 1 9592 52516 800004 3000 A 0 0 0 0 B 0 11 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 nelem
+S 9594 6 3 1 0 6 1 9592 52522 800004 3000 A 0 0 0 0 B 0 11 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 npoin
+S 9595 7 3 1 0 3910 1 9592 52528 800204 3000 A 0 0 0 0 B 0 11 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 connec
+S 9596 7 3 1 0 3913 1 9592 52535 800204 3000 A 0 0 0 0 B 0 11 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 gpvol
+S 9597 7 3 2 0 3916 1 9592 52541 800204 3000 A 0 0 0 0 B 0 11 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 ml
+S 9598 14 5 0 0 0 1 9592 52495 200 400000 A 0 0 0 0 B 0 11 0 0 0 0 0 5581 5 0 0 0 0 0 0 0 0 0 0 0 0 11 0 624 0 0 0 0 lumped_mass_spectral lumped_mass_spectral 
+F 9598 5 9593 9594 9595 9596 9597
+S 9599 3 0 0 0 7 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 125 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7
+S 9600 6 1 0 0 7 1 9592 52544 40800006 3000 A 0 0 0 0 B 0 15 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2612
+S 9601 6 1 0 0 7 1 9592 52553 40800006 3000 A 0 0 0 0 B 0 15 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2615
+S 9602 6 1 0 0 7 1 9592 52562 40800006 3000 A 0 0 0 0 B 0 15 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2617
+S 9603 3 0 0 0 7 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 127 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7
+S 9604 6 1 0 0 7 1 9592 52571 40800006 3000 A 0 0 0 0 B 0 17 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2621
+A 13 2 0 0 0 6 631 0 0 0 13 0 0 0 0 0 0 0 0 0 0 0
+A 16 2 0 0 0 6 632 0 0 0 16 0 0 0 0 0 0 0 0 0 0 0
+A 34 2 0 0 0 6 636 0 0 0 34 0 0 0 0 0 0 0 0 0 0 0
+A 248 1 0 0 0 60 868 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 251 1 0 0 0 69 870 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 292 2 0 0 143 7 915 0 0 0 292 0 0 0 0 0 0 0 0 0 0 0
+A 293 2 0 0 144 7 916 0 0 0 293 0 0 0 0 0 0 0 0 0 0 0
+A 296 1 0 1 2 90 919 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 302 1 0 3 0 96 941 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 308 1 0 3 0 102 943 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 312 1 0 5 0 108 945 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 1554 2 0 0 983 7 8176 0 0 0 1554 0 0 0 0 0 0 0 0 0 0 0
+A 1893 2 0 0 0 7 8500 0 0 0 1893 0 0 0 0 0 0 0 0 0 0 0
+A 2611 1 0 0 167 7 9602 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2612 1 0 0 158 6 9593 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2613 7 0 0 711 7 2612 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2614 1 0 0 1185 7 9600 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2615 2 0 0 2514 7 9599 0 0 0 2615 0 0 0 0 0 0 0 0 0 0 0
+A 2616 1 0 0 1186 7 9601 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2617 2 0 0 0 7 9603 0 0 0 2617 0 0 0 0 0 0 0 0 0 0 0
+A 2618 1 0 0 159 6 9594 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2619 7 0 0 717 7 2618 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2620 1 0 0 169 7 9604 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Z
+J 133 1 1
+V 248 60 7 0
+S 0 60 0 0 0
+A 0 6 0 0 1 2 0
+J 134 1 1
+V 251 69 7 0
+S 0 69 0 0 0
+A 0 6 0 0 1 2 0
+J 29 1 1
+V 296 90 7 0
+R 0 93 0 0
+A 0 6 0 0 1 3 0
+J 75 1 1
+V 302 96 7 0
+R 0 99 0 0
+A 0 6 0 0 1 3 1
+A 0 6 0 0 1 34 1
+A 0 6 0 0 1 13 1
+A 0 6 0 0 1 16 0
+J 77 1 1
+V 308 102 7 0
+R 0 105 0 0
+A 0 6 0 0 1 3 1
+A 0 6 0 0 1 34 1
+A 0 6 0 0 1 13 1
+A 0 6 0 0 1 16 0
+J 80 1 1
+V 312 108 7 0
+R 0 111 0 0
+A 0 6 0 0 1 13 1
+A 0 6 0 0 1 16 0
+T 8567 3150 0 0 0 0
+A 8571 7 3162 0 1 2 1
+A 8570 7 0 1554 1 10 0
+T 8576 3167 0 0 0 0
+A 8580 7 3179 0 1 2 1
+A 8579 7 0 1554 1 10 0
+T 8585 3184 0 0 0 0
+A 8590 7 3196 0 1 2 1
+A 8589 7 0 1893 1 10 0
+T 8595 3201 0 0 0 0
+A 8600 7 3213 0 1 2 1
+A 8599 7 0 1893 1 10 0
+T 8605 3218 0 0 0 0
+A 8609 7 3230 0 1 2 1
+A 8608 7 0 1554 1 10 0
+T 8614 3235 0 0 0 0
+A 8619 7 3247 0 1 2 1
+A 8618 7 0 1893 1 10 0
+T 8624 3252 0 0 0 0
+A 8628 7 3264 0 1 2 1
+A 8627 7 0 1554 1 10 0
+T 8633 3269 0 0 0 0
+A 8638 7 3281 0 1 2 1
+A 8637 7 0 1893 1 10 0
+T 8643 3286 0 0 0 0
+A 8647 7 3298 0 1 2 1
+A 8646 7 0 1554 1 10 0
+T 8652 3303 0 0 0 0
+A 8656 7 3315 0 1 2 1
+A 8655 7 0 1554 1 10 0
+T 8661 3320 0 0 0 0
+A 8665 7 3332 0 1 2 1
+A 8664 7 0 1554 1 10 0
+T 8670 3337 0 0 0 0
+A 8674 7 3349 0 1 2 1
+A 8673 7 0 1554 1 10 0
+T 8679 3354 0 0 0 0
+A 8683 7 3366 0 1 2 1
+A 8682 7 0 1554 1 10 0
+T 8688 3371 0 0 0 0
+A 8692 7 3383 0 1 2 1
+A 8691 7 0 1554 1 10 0
+T 8697 3388 0 0 0 0
+A 8701 7 3400 0 1 2 1
+A 8700 7 0 1554 1 10 0
+T 8706 3405 0 0 0 0
+A 8710 7 3417 0 1 2 1
+A 8709 7 0 1554 1 10 0
+Z

@@ -112,7 +112,7 @@ contains
       call json%get("save_restartFile_first",this%save_restartFile_first, found,1); call this%checkFound(found,found_aux)
       call json%get("save_restartFile_step" ,this%save_restartFile_step, found,10000); call this%checkFound(found,found_aux)
 
-
+      ! add new lines here
       call json%get("loadRestartFile" ,this%loadRestartFile, found, .true.); call this%checkFound(found,found_aux)
       call json%get("restartFile_to_load" ,this%restartFile_to_load, found,1); call this%checkFound(found,found_aux)
 
@@ -129,7 +129,7 @@ contains
       call json%get("flag_les",flag_les, found,1); call this%checkFound(found,found_aux)
       call json%get("maxIter",maxIter, found,20); call this%checkFound(found,found_aux)
       call json%get("tol",tol, found,0.001d0); call this%checkFound(found,found_aux)
-
+      
       call json%get("period_walave",period_walave, found,20.0_rp); call this%checkFound(found,found_aux)
       call json%get("wmles_walex",wmles_walex, found,0.1_rp); !optional depending of the model
 
@@ -147,6 +147,10 @@ contains
       call json%get("c_sgs",c_sgs, found,0.025_rp); 
 
       call json%get("flag_lps_stab",flag_lps_stab, found,.true.); call this%checkFound(found,found_aux)
+      ! add new here
+      ! Jim's changes
+      call json%get('flag_type_wmles', value, found,1); call this%checkFound(found,found_aux)
+
 
 
       !Witness points parameters

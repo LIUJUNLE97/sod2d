@@ -1,0 +1,76 @@
+{
+   "type":"BluffBodySolver",
+
+   "mesh_h5_file_path":"",
+   "mesh_h5_file_name":"cylin",
+
+   "results_h5_file_path":"",
+   "results_h5_file_name":"results",
+
+   "final_istep":1000001,
+
+   "save_logFile_first":1,
+   "save_logFile_step":10,
+
+   "save_resultsFile_first":1,
+   "save_resultsFile_step":10000,
+
+   "save_restartFile_first":1,
+   "save_restartFile_step":10000,
+
+   "loadRestartFile":false,
+   "restartFile_to_load":1,
+
+   "continue_oldLogs":false,
+
+   "saveAvgFile":true,
+   "loadAvgFile":false,
+
+   "saveSurfaceResults":false,
+
+   "flag_les":1,
+
+   "flag_implicit":0,
+   "maxIter":20,
+   "tol":1e-3,
+
+   "cfl_conv":1.5,
+   "cfl_diff":1.5,
+
+   "Cp":1004.0,
+   "Prt":0.71,
+   "v0":1.0,
+   "M":0.2,
+   "delta":1.0,
+   "rho0":1.0,
+   "Re":10000.0,
+   "gamma_gas":1.4,
+   "aoa":0.0,
+
+   "have_witness":false,
+   "witness_inp_file_name":"witness.txt",
+   "witness_h5_file_name":"resultwit.h5",
+   "leapwit":1,
+   "nwit":17986,
+   "wit_save_u_i":true,
+   "wit_save_pr":true,
+   "wit_save_rho":true,
+   "continue_witness":false,
+
+   "bouCodes":
+   [
+      {"id":1, "bc_type":"bc_type_far_field"},
+      {"id":2, "bc_type":"bc_type_far_field"},
+      {"id":3, "bc_type":"bc_type_far_field"},
+      {"id":4, "bc_type":"bc_type_far_field"},
+      {"id":5, "bc_type":"bc_type_non_slip_adiabatic"}
+   ],
+
+   "buffer":
+   [
+      {"type":"east","min":40,"size":10},
+      {"type":"west","min":-20,"size":10},
+      {"type":"north","min":20,"size":10},
+      {"type":"south","min":-20,"size":10}
+   ]
+}

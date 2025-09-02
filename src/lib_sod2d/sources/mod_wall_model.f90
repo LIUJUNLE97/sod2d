@@ -11,6 +11,7 @@ module mod_wall_model
    implicit none
 
    integer(4), allocatable, dimension(:,:) :: iex, extype
+   real(rp), allocatable :: uwn_out(:)
 
 
 contains
@@ -672,6 +673,172 @@ contains
       end do
       !$acc end parallel loop
 
-end subroutine evalWallModelThinBLFit
+   end subroutine evalWallModelThinBLFit
+
+subroutine evalWallModelCustom(numBoundsWM, listBoundsWM, nelem, npoin, nboun, connec, bound, point2elem, bou_code, &
+         bounorm, normalsAtNodes, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, coord, dlxigp_ip, He, gpvol, &
+         mu_fluid, mu_turbulent, rho, ui, zo, tauw, Rdiff, fact)
+
+  ! Robust implementation of a slip + normal-velocity wall model
+  ! Keeps the original interface but adds numeric protections and consistent indexing.
+  !use mod_wall_model, only: uwn_out
+  implicit none
+
+  ! Input/Output
+  !integer(4), intent(in)  :: numBoundsWM, listBoundsWM(numBoundsWM)
+  !integer(4), intent(in)  :: npoin, nboun, bound(nboun, *), bou_code(nboun)
+  !integer(4), intent(in)  :: nelem, connec(nelem, *), point2elem(npoin)
+  !real(rp),   intent(in)  :: wgp_b(*), bounorm(nboun, *), normalsAtNodes(npoin, :)
+
+   integer(4), intent(in)  :: numBoundsWM,listBoundsWM(numBoundsWM)
+   integer(4), intent(in)  :: npoin,nboun,bound(nboun,npbou),bou_code(nboun)
+   integer(4), intent(in)  :: nelem,connec(nelem,nnode),point2elem(npoin)
+   real(rp),   intent(in)  :: wgp_b(npbou), bounorm(nboun,ndime*npbou),normalsAtNodes(npoin,ndime)
+
+  integer(4), intent(in)  :: invAtoIJK(porder+1,porder+1,porder+1), gmshAtoI(nnode), gmshAtoJ(nnode), gmshAtoK(nnode)
+  real(rp),   intent(in)  :: dlxigp_ip(ngaus,ndime,porder+1), He(ndime,ndime,ngaus,nelem), gpvol(ngaus,nelem,porder+1)
+  real(rp),   intent(in)  :: rho(npoin), ui(npoin, 3), mu_fluid(npoin), mu_turbulent(npoin), zo(npoin)
+  real(rp),   intent(inout):: tauw(npoin, 3)
+  real(rp),   intent(inout):: Rdiff(npoin, 3)
+  !real(rp),   intent(inout) :: uwn_out(npoin)
+  real(rp),   intent(in)  :: coord(npoin, 3)
+  real(rp),   optional, intent(in) :: fact
+  
+
+  ! Local variables
+  integer(4) :: iAux, iBound, iElem, idime, igaus, jgaus
+  integer(4) :: isoI, isoJ, isoK, isoII, isoJJ, isoKK
+  integer(4) :: iNode_ex
+  real(rp) :: point(3), pointF(3), normalF(3), uiex(3), tvelo(3)
+  real(rp) :: auxvn, ul, mu, mu_t, mu_star, delta, dVplus, Ls, Lst, Lsn, uwt, uwn
+  real(rp) :: auxmag, rhol, y, ustar, tmag, aux_fact
+
+  real(rp), parameter :: kappa = 0.41_rp, Dplus = 5.0_rp, Cs = 0.16_rp
+  real(rp), parameter :: c_st = 1.0_rp, c_sn = 0.0_rp
+  real(rp) :: MAX_TAUW
+
+  ! Numerical protection parameters
+  real(rp), parameter :: eps_y = 1.0e-12_rp
+  real(rp), parameter :: eps_u = 1.0e-12_rp
+  real(rp), parameter :: eps_L = 1.0e-12_rp
+  real(rp), parameter :: U_clip_factor = 50.0_rp
+  real(rp), parameter :: LARGE_THRESHOLD = 1.0e30_rp
+  
+
+  logical :: present_fact
+  MAX_TAUW = 1.0e5_rp
+
+  present_fact = present(fact)
+  aux_fact = 1.0_rp
+  if (present_fact) aux_fact = fact
+  print *, "uwn_out before BC:", uwn_out(1:10)
+  ! initialize outputs to safe values to avoid leftover data
+  uwn_out(:) = 0.0_rp
+
+  do iAux = 1, numBoundsWM
+    iBound = listBoundsWM(iAux)
+    iElem  = point2elem(bound(iBound,1))
+   ! this need to change
+    do igaus = 1, npbou
+
+      ! find local position of the boundary node within the element
+      jgaus = minloc(abs(connec(iElem,:) - bound(iBound,igaus)),1)
+
+      ! get I/J/K indices for that local node
+      isoII = gmshAtoI(jgaus)
+      isoJJ = gmshAtoJ(jgaus)
+      isoKK = gmshAtoK(jgaus)
+
+      ! start with the local IJK equal to the boundary node
+      isoI = isoII
+      isoJ = isoJJ
+      isoK = isoKK
+
+      ! Select exchange node index inside the element. Ideally move one index
+      ! towards interior if p-order known; here keep same node but ensure
+      ! consistent indexing when reading quantities.
+      iNode_ex = connec(iElem, invAtoIJK(isoI, isoJ, isoK))
+
+      ! read fields at the exchange point (consistent indexing)
+      point(:) = coord(iNode_ex, :)
+      uiex(:)  = ui(iNode_ex, :)
+      rhol     = rho(iNode_ex)
+      mu       = mu_fluid(iNode_ex)
+      mu_t     = mu_turbulent(iNode_ex)
+
+      ! boundary point and normal
+      pointF(:)  = coord(bound(iBound, igaus), :)
+      normalF(:) = normalsAtNodes(bound(iBound, igaus), :)
+
+      ! normalize normal if necessary
+      auxmag = sqrt(max(sum(normalF**2), eps_u))
+      if (abs(auxmag - 1.0_rp) > 1.0e-6_rp) normalF = normalF / auxmag
+
+      ! wall-normal distance y (protect against zero)
+      y = abs(dot_product(normalF, point - pointF))
+      if (y < eps_y) y = eps_y
+
+      ! decompose velocity into normal and tangential components
+      auxvn = dot_product(normalF, uiex)
+      tvelo(:) = uiex(:) - auxvn * normalF(:)
+
+      ul = sqrt(max(sum(tvelo(:)**2), 0.0_rp))
+      if (ul < eps_u) ul = eps_u
+
+      ! effective viscosity
+      mu_star = mu + max(mu_t, 0.0_rp)
+      if (mu <= 0.0_rp) mu = eps_u
+      if (mu_star <= 0.0_rp) mu_star = mu
+
+      ! viscous lengthscale (protected)
+      dVplus = (1.0_rp / kappa) * log(max(mu_star / mu, 1.0_rp)) + Dplus
+      delta = y
+      Ls = Cs * delta * dVplus
+      if (Ls < eps_L) Ls = eps_L
+      Lst = max(c_st * Ls, eps_L)
+      Lsn = max(c_sn * Ls, eps_L)
+
+      ! target tangential and normal wall velocities (with protection)
+      uwt = ul / (1.0_rp + y / Lst)
+      uwn = auxvn / (1.0_rp + y / Lsn)
+
+      ! apply global scale/relaxation factor
+      uwt = aux_fact * uwt
+      uwn = aux_fact * uwn
+
+      ! clip uwn to avoid unrealistically large normal velocities
+      auxmag = max(sqrt(sum(uiex**2)), eps_u)
+      if (uwn >  U_clip_factor * auxmag) uwn =  U_clip_factor * auxmag
+      if (uwn < -U_clip_factor * auxmag) uwn = -U_clip_factor * auxmag
+
+      ! write back normal velocity at the boundary DOF
+      ! changed here
+      ! uwn_out(bound(iBound, igaus)) = uwn
+      u_buffer (:, 1) = uwt
+      u_buffer (:, 2) = uwn
+      u_buffer (:, 3) = uwt
+
+      ! compute tmag safely (avoid division by zero or NaN)
+      tmag = mu_star * uwt / Lst
+      if (tmag /= tmag) then
+        tmag = 0.0_rp
+      end if
+      if (abs(tmag) > LARGE_THRESHOLD) then
+        tmag = MAX_TAUW
+      end if
+
+      do idime = 1, 3
+        ! Rdiff(bound(iBound, igaus), idime) = Rdiff(bound(iBound, igaus), idime) + aux_fact * wgp_b(igaus) * tmag * tvelo(idime)
+        ! tauw(bound(iBound, igaus), idime)  = tmag * tvelo(idime)
+        tauw(bound(iBound, igaus), idime) = max(min(tmag*tvelo(idime), MAX_TAUW), -MAX_TAUW)
+        Rdiff(bound(iBound, igaus), idime) = Rdiff(bound(iBound, igaus), idime) + aux_fact*wgp_b(igaus)*tmag*tvelo(idime)
+      end do
+
+    end do
+  end do
+
+end subroutine evalWallModelCustom
+
+
 
 end module mod_wall_model

@@ -1,0 +1,1 @@
+/scratch/muma/libs/nvhpc/Linux_x86_64/24.5/comm_libs/mpi/bin/mpif90 -cpp -lstdc++ -D_USE_NVTX -lnvToolsExt -cuda -Minfo=accel -DNOACC -fast -DNOACC CMakeFiles/jf_test_40.dir/src/tests/jf_test_40.F90.o -o bin/jf_test_40  -Wl,-rpath,/scratch/junle/CODE_SOD2D/sod2d_gitlab/cpu_build_bi_p4_new_WM/external/json-fortran/lib lib/libjsonfortran.so.8.3.0 

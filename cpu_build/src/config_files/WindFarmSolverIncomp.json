@@ -1,0 +1,84 @@
+{
+   "type":"WindFarmSolverIncomp",
+
+   "mesh_h5_file_path":"",
+   "mesh_h5_file_name":"wf",
+
+   "results_h5_file_path":"",
+   "results_h5_file_name":"results",
+
+   "final_istep":10000001,
+
+   "saveInitialField":true,
+
+   "save_logFile_first":1,
+   "save_logFile_step":10,
+
+   "save_resultsFile_first":1,
+   "save_resultsFile_step":10000,
+
+   "save_restartFile_first":1,
+   "save_restartFile_step":10000,
+
+   "loadRestartFile":false,
+   "restartFile_to_load":1,
+
+   "continue_oldLogs":false,
+
+   "saveAvgFile":true,
+   "loadAvgFile":false,
+
+   "initial_avgTime": 3600.0,
+
+   "saveSurfaceResults":true,
+
+   "flag_les":1,
+   "maxIter":20,
+   "tol":1e-5,
+   "flag_walave":true,
+   "period_walave":3600.0,
+   "flag_fs_fix_pressure":true,  
+
+   "cfl_conv":0.5,
+
+   "rho0":1.0,
+   "Lz":1500.0,
+   "Lhub":90.0,
+   "vinf":8.0,
+   "rough":0.1682,
+   "wind_alpha": 90.0,
+
+   "AD":
+   [
+      {"id":1,"CT":0.78,"D":126.0,"x":500.0,"y":600.0,"z":90.0,"ad_alpha":120.0},
+      {"id":2,"CT":0.78,"D":126.0,"x":500.0,"y":978.0,"z":90.0,"ad_alpha":90.0},
+      {"id":3,"CT":0.78,"D":126.0,"x":500.0,"y":1356.0,"z":90.0,"ad_alpha":90.0},
+      {"id":4,"CT":0.78,"D":126.0,"x":500.0,"y":1734.0,"z":90.0,"ad_alpha":45.0},
+
+      {"id":5,"CT":0.78,"D":126.0,"x":1508.0,"y":600.0,"z":90.0,"ad_alpha":90.0},
+      {"id":6,"CT":0.78,"D":126.0,"x":1508.0,"y":978.0,"z":90.0,"ad_alpha":90.0},
+      {"id":7,"CT":0.78,"D":126.0,"x":1508.0,"y":1356.0,"z":90.0,"ad_alpha":90.0},
+      {"id":8,"CT":0.78,"D":126.0,"x":1508.0,"y":1734.0,"z":90.0,"ad_alpha":90.0},
+
+      {"id":9, "CT":0.78,"D":126.0,"x":2516.0,"y":600.0,"z":90.0,"ad_alpha":90.0},
+      {"id":10,"CT":0.78,"D":126.0,"x":2516.0,"y":978.0,"z":90.0,"ad_alpha":90.0},
+      {"id":11,"CT":0.78,"D":126.0,"x":2516.0,"y":1356.0,"z":90.0,"ad_alpha":90.0},
+      {"id":12,"CT":0.78,"D":126.0,"x":2516.0,"y":1734.0,"z":90.0,"ad_alpha":90.0},
+
+      {"id":13,"CT":0.78,"D":126.0,"x":3524.0,"y":600.0,"z":90.0,"ad_alpha":90.0},
+      {"id":14,"CT":0.78,"D":126.0,"x":3524.0,"y":978.0,"z":90.0,"ad_alpha":90.0},
+      {"id":15,"CT":0.78,"D":126.0,"x":3524.0,"y":1356.0,"z":90.0,"ad_alpha":90.0},
+      {"id":16,"CT":0.78,"D":126.0,"x":3524.0,"y":1734.0,"z":90.0,"ad_alpha":90.0}
+   ],
+   "bouCodes":
+   [
+      {"id":1, "bc_type":"bc_type_slip_wall_model"},
+      {"id":2, "bc_type":"bc_type_slip_adiabatic"},
+      {"id":4, "bc_type":"bc_type_outlet_incomp"},
+      {"id":3, "bc_type":"bc_type_recirculation_inlet"}
+   ],
+   "buffer":
+   [
+      {"type":"east","min":6500,"size":500}
+   ]
+}

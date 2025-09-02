@@ -1,0 +1,368 @@
+V34 :0x24 mod_bc_routines_species
+27 mod_bc_routines_species.f90 S624 0
+08/27/2025  17:08:11
+use mod_numerical_params public 0 direct
+use mod_custom_types public 0 indirect
+use mod_comms public 0 direct
+use mpi public 0 indirect
+use mod_constants public 0 indirect
+use mod_mpi public 0 direct
+use mod_utils public 0 indirect
+use mod_mpi_mesh public 0 indirect
+use mod_comms_boundaries public 0 direct
+use iso_c_binding public 0 indirect
+use mod_nvtx public 0 direct
+use iso_fortran_env private
+enduse
+D 58 26 649 8 648 7
+D 67 26 652 8 651 7
+D 76 23 6 1 11 11 0 0 0 0 0
+ 0 11 11 11 11 11
+D 79 23 6 1 11 11 0 0 0 0 0
+ 0 11 11 11 11 11
+D 82 23 6 1 11 114 0 0 0 0 0
+ 0 114 11 11 114 114
+D 85 23 6 1 11 114 0 0 0 0 0
+ 0 114 11 11 114 114
+D 88 23 6 1 11 114 0 0 0 0 0
+ 0 114 11 11 114 114
+D 91 23 6 1 11 114 0 0 0 0 0
+ 0 114 11 11 114 114
+D 94 23 6 1 11 115 0 0 0 0 0
+ 0 115 11 11 115 115
+D 97 23 6 1 11 115 0 0 0 0 0
+ 0 115 11 11 115 115
+D 3138 26 8560 152 8558 7
+D 3150 22 7
+D 3155 26 8569 152 8567 7
+D 3167 22 7
+D 3172 26 8579 200 8576 7
+D 3184 22 7
+D 3189 26 8589 200 8586 7
+D 3201 22 7
+D 3206 26 8598 152 8596 7
+D 3218 22 7
+D 3223 26 8608 200 8605 7
+D 3235 22 7
+D 3240 26 8617 152 8615 7
+D 3252 22 7
+D 3257 26 8627 200 8624 7
+D 3269 22 7
+D 3274 26 8636 152 8634 7
+D 3286 22 7
+D 3291 26 8645 152 8643 7
+D 3303 22 7
+D 3308 26 8654 152 8652 7
+D 3320 22 7
+D 3325 26 8663 152 8661 7
+D 3337 22 7
+D 3342 26 8672 152 8670 7
+D 3354 22 7
+D 3359 26 8681 152 8679 7
+D 3371 22 7
+D 3376 26 8690 152 8688 7
+D 3388 22 7
+D 3393 26 8699 152 8697 7
+D 3405 22 7
+D 4072 23 6 1 11 2813 0 0 1 0 0
+ 0 2812 11 11 2813 2813
+D 4075 23 6 1 11 2816 0 0 1 0 0
+ 0 2815 11 11 2816 2816
+D 4078 23 6 2 2817 2819 0 0 1 0 0
+ 0 2812 11 11 2813 2813
+ 0 2818 2813 11 2818 2818
+D 4081 23 6 1 11 2822 0 0 1 0 0
+ 0 2821 11 11 2822 2822
+D 4084 23 6 1 11 2816 0 0 1 0 0
+ 0 2815 11 11 2816 2816
+D 4087 23 9 2 2823 2824 0 0 1 0 0
+ 0 2815 11 11 2816 2816
+ 0 709 2816 11 709 709
+D 4090 23 9 1 11 2816 0 0 1 0 0
+ 0 2815 11 11 2816 2816
+D 4093 23 9 1 11 2816 0 0 1 0 0
+ 0 2815 11 11 2816 2816
+D 4096 23 6 1 11 2827 0 0 1 0 0
+ 0 2826 11 11 2827 2827
+D 4099 23 6 1 11 2830 0 0 1 0 0
+ 0 2829 11 11 2830 2830
+D 4102 23 6 2 2831 2832 0 0 1 0 0
+ 0 2826 11 11 2827 2827
+ 0 2818 2827 11 2818 2818
+D 4105 23 6 1 11 2835 0 0 1 0 0
+ 0 2834 11 11 2835 2835
+D 4108 23 6 1 11 2830 0 0 1 0 0
+ 0 2829 11 11 2830 2830
+D 4111 23 9 2 2836 2837 0 0 1 0 0
+ 0 2829 11 11 2830 2830
+ 0 709 2830 11 709 709
+D 4114 23 9 1 11 2830 0 0 1 0 0
+ 0 2829 11 11 2830 2830
+D 4117 23 9 1 11 2830 0 0 1 0 0
+ 0 2829 11 11 2830 2830
+S 624 24 0 0 0 6 1 0 5012 10005 0 A 0 0 0 0 B 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 mod_bc_routines_species
+S 631 3 0 0 0 6 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 6
+S 632 3 0 0 0 6 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 6
+S 633 3 0 0 0 6 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 8 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 6
+R 648 25 7 iso_c_binding c_ptr
+R 649 5 8 iso_c_binding val c_ptr
+R 651 25 10 iso_c_binding c_funptr
+R 652 5 11 iso_c_binding val c_funptr
+R 686 6 45 iso_c_binding c_null_ptr$ac
+R 688 6 47 iso_c_binding c_null_funptr$ac
+R 689 26 48 iso_c_binding ==
+R 691 26 50 iso_c_binding !=
+S 723 3 0 0 0 7 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 4 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7
+S 724 3 0 0 0 7 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 2 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7
+R 727 7 3 iso_fortran_env character_kinds$ac
+R 749 7 25 iso_fortran_env integer_kinds$ac
+R 751 7 27 iso_fortran_env logical_kinds$ac
+R 753 7 29 iso_fortran_env real_kinds$ac
+S 836 3 0 0 0 7 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 3 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7
+S 8167 3 0 0 0 7 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 17 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7
+S 8491 3 0 0 0 7 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 23 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7
+R 8558 25 67 mod_custom_types vector_int4
+R 8560 5 69 mod_custom_types elems vector_int4
+R 8561 5 70 mod_custom_types elems$sd vector_int4
+R 8562 5 71 mod_custom_types elems$p vector_int4
+R 8563 5 72 mod_custom_types elems$o vector_int4
+R 8567 25 76 mod_custom_types vector_int8
+R 8569 5 78 mod_custom_types elems vector_int8
+R 8570 5 79 mod_custom_types elems$sd vector_int8
+R 8571 5 80 mod_custom_types elems$p vector_int8
+R 8572 5 81 mod_custom_types elems$o vector_int8
+R 8576 25 85 mod_custom_types matrix_int4
+R 8579 5 88 mod_custom_types elems matrix_int4
+R 8580 5 89 mod_custom_types elems$sd matrix_int4
+R 8581 5 90 mod_custom_types elems$p matrix_int4
+R 8582 5 91 mod_custom_types elems$o matrix_int4
+R 8586 25 95 mod_custom_types matrix_int8
+R 8589 5 98 mod_custom_types elems matrix_int8
+R 8590 5 99 mod_custom_types elems$sd matrix_int8
+R 8591 5 100 mod_custom_types elems$p matrix_int8
+R 8592 5 101 mod_custom_types elems$o matrix_int8
+R 8596 25 105 mod_custom_types vector_rp
+R 8598 5 107 mod_custom_types elems vector_rp
+R 8599 5 108 mod_custom_types elems$sd vector_rp
+R 8600 5 109 mod_custom_types elems$p vector_rp
+R 8601 5 110 mod_custom_types elems$o vector_rp
+R 8605 25 114 mod_custom_types matrix_rp
+R 8608 5 117 mod_custom_types elems matrix_rp
+R 8609 5 118 mod_custom_types elems$sd matrix_rp
+R 8610 5 119 mod_custom_types elems$p matrix_rp
+R 8611 5 120 mod_custom_types elems$o matrix_rp
+R 8615 25 124 mod_custom_types vector_real8
+R 8617 5 126 mod_custom_types elems vector_real8
+R 8618 5 127 mod_custom_types elems$sd vector_real8
+R 8619 5 128 mod_custom_types elems$p vector_real8
+R 8620 5 129 mod_custom_types elems$o vector_real8
+R 8624 25 133 mod_custom_types matrix_real8
+R 8627 5 136 mod_custom_types elems matrix_real8
+R 8628 5 137 mod_custom_types elems$sd matrix_real8
+R 8629 5 138 mod_custom_types elems$p matrix_real8
+R 8630 5 139 mod_custom_types elems$o matrix_real8
+R 8634 25 143 mod_custom_types jagged_vector_int4
+R 8636 5 145 mod_custom_types vector jagged_vector_int4
+R 8637 5 146 mod_custom_types vector$sd jagged_vector_int4
+R 8638 5 147 mod_custom_types vector$p jagged_vector_int4
+R 8639 5 148 mod_custom_types vector$o jagged_vector_int4
+R 8643 25 152 mod_custom_types jagged_matrix_int4
+R 8645 5 154 mod_custom_types matrix jagged_matrix_int4
+R 8646 5 155 mod_custom_types matrix$sd jagged_matrix_int4
+R 8647 5 156 mod_custom_types matrix$p jagged_matrix_int4
+R 8648 5 157 mod_custom_types matrix$o jagged_matrix_int4
+R 8652 25 161 mod_custom_types jagged_vector_int8
+R 8654 5 163 mod_custom_types vector jagged_vector_int8
+R 8655 5 164 mod_custom_types vector$sd jagged_vector_int8
+R 8656 5 165 mod_custom_types vector$p jagged_vector_int8
+R 8657 5 166 mod_custom_types vector$o jagged_vector_int8
+R 8661 25 170 mod_custom_types jagged_matrix_int8
+R 8663 5 172 mod_custom_types matrix jagged_matrix_int8
+R 8664 5 173 mod_custom_types matrix$sd jagged_matrix_int8
+R 8665 5 174 mod_custom_types matrix$p jagged_matrix_int8
+R 8666 5 175 mod_custom_types matrix$o jagged_matrix_int8
+R 8670 25 179 mod_custom_types jagged_vector_rp
+R 8672 5 181 mod_custom_types vector jagged_vector_rp
+R 8673 5 182 mod_custom_types vector$sd jagged_vector_rp
+R 8674 5 183 mod_custom_types vector$p jagged_vector_rp
+R 8675 5 184 mod_custom_types vector$o jagged_vector_rp
+R 8679 25 188 mod_custom_types jagged_matrix_rp
+R 8681 5 190 mod_custom_types matrix jagged_matrix_rp
+R 8682 5 191 mod_custom_types matrix$sd jagged_matrix_rp
+R 8683 5 192 mod_custom_types matrix$p jagged_matrix_rp
+R 8684 5 193 mod_custom_types matrix$o jagged_matrix_rp
+R 8688 25 197 mod_custom_types jagged_vector_real8
+R 8690 5 199 mod_custom_types vector jagged_vector_real8
+R 8691 5 200 mod_custom_types vector$sd jagged_vector_real8
+R 8692 5 201 mod_custom_types vector$p jagged_vector_real8
+R 8693 5 202 mod_custom_types vector$o jagged_vector_real8
+R 8697 25 206 mod_custom_types jagged_matrix_real8
+R 8699 5 208 mod_custom_types matrix jagged_matrix_real8
+R 8700 5 209 mod_custom_types matrix$sd jagged_matrix_real8
+R 8701 5 210 mod_custom_types matrix$p jagged_matrix_real8
+R 8702 5 211 mod_custom_types matrix$o jagged_matrix_real8
+S 9933 23 5 0 0 0 9945 624 55169 0 0 A 0 0 0 0 B 0 13 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 temporary_bc_routine_dirichlet_species
+S 9934 6 3 1 0 6 1 9933 55208 800004 3000 A 0 0 0 0 B 0 13 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 npoin
+S 9935 6 3 1 0 6 1 9933 55214 800004 3000 A 0 0 0 0 B 0 13 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 nboun
+S 9936 7 3 1 0 4072 1 9933 55220 800204 3000 A 0 0 0 0 B 0 13 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 bou_codes
+S 9937 7 3 1 0 4075 1 9933 55230 800204 3000 A 0 0 0 0 B 0 13 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 bou_codes_nodes
+S 9938 7 3 1 0 4078 1 9933 55246 800204 3000 A 0 0 0 0 B 0 13 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 bound
+S 9939 6 3 1 0 6 1 9933 55252 800004 3000 A 0 0 0 0 B 0 13 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 nbnodes
+S 9940 7 3 1 0 4081 1 9933 55260 800204 3000 A 0 0 0 0 B 0 13 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 lbnodes
+S 9941 7 3 1 0 4084 1 9933 55268 800204 3000 A 0 0 0 0 B 0 13 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 lnbn_nodes
+S 9942 7 3 1 0 4087 1 9933 55279 800204 3000 A 0 0 0 0 B 0 13 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 normalsatnodes
+S 9943 7 3 3 0 4093 1 9933 55294 800204 3000 A 0 0 0 0 B 0 13 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 aux_yk
+S 9944 7 3 1 0 4090 1 9933 55301 800204 3000 A 0 0 0 0 B 0 13 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 yk_buffer
+S 9945 14 5 0 0 0 1 9933 55169 200 400000 A 0 0 0 0 B 0 13 0 0 0 0 0 5679 11 0 0 0 0 0 0 0 0 0 0 0 0 13 0 624 0 0 0 0 temporary_bc_routine_dirichlet_species temporary_bc_routine_dirichlet_species 
+F 9945 11 9934 9935 9936 9937 9938 9939 9940 9941 9942 9943 9944
+S 9946 6 1 0 0 7 1 9933 55311 40800006 3000 A 0 0 0 0 B 0 17 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2812
+S 9947 6 1 0 0 7 1 9933 55320 40800006 3000 A 0 0 0 0 B 0 17 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2815
+S 9948 3 0 0 0 7 1 1 0 0 0 A 0 0 0 0 B 0 0 0 0 0 0 0 0 0 25 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 7
+S 9949 6 1 0 0 7 1 9933 55329 40800006 3000 A 0 0 0 0 B 0 17 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2818
+S 9950 6 1 0 0 7 1 9933 55338 40800006 3000 A 0 0 0 0 B 0 17 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2820
+S 9951 6 1 0 0 7 1 9933 55347 40800006 3000 A 0 0 0 0 B 0 18 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2823
+S 9952 6 1 0 0 7 1 9933 55356 40800006 3000 A 0 0 0 0 B 0 19 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2825
+S 9953 6 1 0 0 7 1 9933 55365 40800006 3000 A 0 0 0 0 B 0 19 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2827
+S 9954 23 5 0 0 0 9966 624 55374 0 0 A 0 0 0 0 B 0 36 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 temporary_bc_routine_dirichlet_residual_species
+S 9955 6 3 1 0 6 1 9954 55208 800004 3000 A 0 0 0 0 B 0 36 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 npoin
+S 9956 6 3 1 0 6 1 9954 55214 800004 3000 A 0 0 0 0 B 0 36 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 nboun
+S 9957 7 3 1 0 4096 1 9954 55220 800204 3000 A 0 0 0 0 B 0 36 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 bou_codes
+S 9958 7 3 1 0 4099 1 9954 55230 800204 3000 A 0 0 0 0 B 0 36 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 bou_codes_nodes
+S 9959 7 3 1 0 4102 1 9954 55246 800204 3000 A 0 0 0 0 B 0 36 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 bound
+S 9960 6 3 1 0 6 1 9954 55252 800004 3000 A 0 0 0 0 B 0 36 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 nbnodes
+S 9961 7 3 1 0 4105 1 9954 55260 800204 3000 A 0 0 0 0 B 0 36 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 lbnodes
+S 9962 7 3 1 0 4108 1 9954 55268 800204 3000 A 0 0 0 0 B 0 36 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 lnbn_nodes
+S 9963 7 3 1 0 4111 1 9954 55279 800204 3000 A 0 0 0 0 B 0 36 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 normalsatnodes
+S 9964 7 3 3 0 4117 1 9954 55294 800204 3000 A 0 0 0 0 B 0 36 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 aux_yk
+S 9965 7 3 1 0 4114 1 9954 55301 800204 3000 A 0 0 0 0 B 0 36 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 yk_buffer
+S 9966 14 5 0 0 0 1 9954 55374 200 400000 A 0 0 0 0 B 0 36 0 0 0 0 0 5691 11 0 0 0 0 0 0 0 0 0 0 0 0 36 0 624 0 0 0 0 temporary_bc_routine_dirichlet_residual_species temporary_bc_routine_dirichlet_residual_species 
+F 9966 11 9955 9956 9957 9958 9959 9960 9961 9962 9963 9964 9965
+S 9967 6 1 0 0 7 1 9954 55422 40800006 3000 A 0 0 0 0 B 0 40 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2826
+S 9968 6 1 0 0 7 1 9954 55431 40800006 3000 A 0 0 0 0 B 0 40 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2829
+S 9969 6 1 0 0 7 1 9954 55440 40800006 3000 A 0 0 0 0 B 0 40 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2831
+S 9970 6 1 0 0 7 1 9954 55449 40800006 3000 A 0 0 0 0 B 0 40 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2833
+S 9971 6 1 0 0 7 1 9954 55458 40800006 3000 A 0 0 0 0 B 0 41 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2836
+S 9972 6 1 0 0 7 1 9954 55467 40800006 3000 A 0 0 0 0 B 0 42 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2838
+S 9973 6 1 0 0 7 1 9954 55476 40800006 3000 A 0 0 0 0 B 0 42 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 z_e_2840
+A 13 2 0 0 0 6 631 0 0 0 13 0 0 0 0 0 0 0 0 0 0 0
+A 15 2 0 0 0 6 632 0 0 0 15 0 0 0 0 0 0 0 0 0 0 0
+A 17 2 0 0 0 6 633 0 0 0 17 0 0 0 0 0 0 0 0 0 0 0
+A 68 1 0 0 0 58 686 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 71 1 0 0 0 67 688 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 114 2 0 0 0 7 723 0 0 0 114 0 0 0 0 0 0 0 0 0 0 0
+A 115 2 0 0 0 7 724 0 0 0 115 0 0 0 0 0 0 0 0 0 0 0
+A 118 1 0 1 0 76 727 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 124 1 0 3 0 82 749 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 130 1 0 3 0 88 751 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 134 1 0 5 0 94 753 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 709 2 0 0 0 7 836 0 0 0 709 0 0 0 0 0 0 0 0 0 0 0
+A 1556 2 0 0 1414 7 8167 0 0 0 1556 0 0 0 0 0 0 0 0 0 0 0
+A 1895 2 0 0 0 7 8491 0 0 0 1895 0 0 0 0 0 0 0 0 0 0 0
+A 2811 1 0 0 1070 6 9935 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2812 7 0 0 0 7 2811 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2813 1 0 0 498 7 9946 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2814 1 0 0 486 6 9934 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2815 7 0 0 1537 7 2814 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2816 1 0 0 1075 7 9947 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2817 1 0 0 503 7 9950 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2818 2 0 0 330 7 9948 0 0 0 2818 0 0 0 0 0 0 0 0 0 0 0
+A 2819 1 0 0 502 7 9949 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2820 1 0 0 1072 6 9939 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2821 7 0 0 0 7 2820 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2822 1 0 0 504 7 9951 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2823 1 0 0 508 7 9953 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2824 1 0 0 1077 7 9952 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2825 1 0 0 0 6 9956 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2826 7 0 0 0 7 2825 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2827 1 0 0 0 7 9967 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2828 1 0 0 1078 6 9955 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2829 7 0 0 1105 7 2828 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2830 1 0 0 0 7 9968 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2831 1 0 0 0 7 9970 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2832 1 0 0 0 7 9969 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2833 1 0 0 0 6 9960 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2834 7 0 0 0 7 2833 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2835 1 0 0 0 7 9971 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2836 1 0 0 1086 7 9973 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 2837 1 0 0 1085 7 9972 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Z
+J 133 1 1
+V 68 58 7 0
+S 0 58 0 0 0
+A 0 6 0 0 1 2 0
+J 134 1 1
+V 71 67 7 0
+S 0 67 0 0 0
+A 0 6 0 0 1 2 0
+J 29 1 1
+V 118 76 7 0
+R 0 79 0 0
+A 0 6 0 0 1 3 0
+J 75 1 1
+V 124 82 7 0
+R 0 85 0 0
+A 0 6 0 0 1 3 1
+A 0 6 0 0 1 15 1
+A 0 6 0 0 1 13 1
+A 0 6 0 0 1 17 0
+J 77 1 1
+V 130 88 7 0
+R 0 91 0 0
+A 0 6 0 0 1 3 1
+A 0 6 0 0 1 15 1
+A 0 6 0 0 1 13 1
+A 0 6 0 0 1 17 0
+J 80 1 1
+V 134 94 7 0
+R 0 97 0 0
+A 0 6 0 0 1 13 1
+A 0 6 0 0 1 17 0
+T 8558 3138 0 0 0 0
+A 8562 7 3150 0 1 2 1
+A 8561 7 0 1556 1 10 0
+T 8567 3155 0 0 0 0
+A 8571 7 3167 0 1 2 1
+A 8570 7 0 1556 1 10 0
+T 8576 3172 0 0 0 0
+A 8581 7 3184 0 1 2 1
+A 8580 7 0 1895 1 10 0
+T 8586 3189 0 0 0 0
+A 8591 7 3201 0 1 2 1
+A 8590 7 0 1895 1 10 0
+T 8596 3206 0 0 0 0
+A 8600 7 3218 0 1 2 1
+A 8599 7 0 1556 1 10 0
+T 8605 3223 0 0 0 0
+A 8610 7 3235 0 1 2 1
+A 8609 7 0 1895 1 10 0
+T 8615 3240 0 0 0 0
+A 8619 7 3252 0 1 2 1
+A 8618 7 0 1556 1 10 0
+T 8624 3257 0 0 0 0
+A 8629 7 3269 0 1 2 1
+A 8628 7 0 1895 1 10 0
+T 8634 3274 0 0 0 0
+A 8638 7 3286 0 1 2 1
+A 8637 7 0 1556 1 10 0
+T 8643 3291 0 0 0 0
+A 8647 7 3303 0 1 2 1
+A 8646 7 0 1556 1 10 0
+T 8652 3308 0 0 0 0
+A 8656 7 3320 0 1 2 1
+A 8655 7 0 1556 1 10 0
+T 8661 3325 0 0 0 0
+A 8665 7 3337 0 1 2 1
+A 8664 7 0 1556 1 10 0
+T 8670 3342 0 0 0 0
+A 8674 7 3354 0 1 2 1
+A 8673 7 0 1556 1 10 0
+T 8679 3359 0 0 0 0
+A 8683 7 3371 0 1 2 1
+A 8682 7 0 1556 1 10 0
+T 8688 3376 0 0 0 0
+A 8692 7 3388 0 1 2 1
+A 8691 7 0 1556 1 10 0
+T 8697 3393 0 0 0 0
+A 8701 7 3405 0 1 2 1
+A 8700 7 0 1556 1 10 0
+Z

@@ -195,6 +195,12 @@ module time_integ_incomp
                   else if (flag_type_wmles == wmles_type_thinBL_fit_hwm) then
                      call evalEXAtHWM(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                            bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
+                  else if (flag_type_wmles == wmles_type_slipnormal_custom) then
+                     call evalEXAtFace(numBoundsWM, listBoundsWM, nelem, npoin, nboun, connec, bound, point2elem, bou_codes, &
+                          bounorm, normalsAtNodes, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, coord, dlxigp_ip, He, gpvol)
+                  !else if (flag_type_wmles == wmles_type_slipnormal_custom) then 
+                   !  call evalWallModelCustom(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_code, &
+                    !       bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol)
                   end if   
                end if
 
@@ -272,6 +278,14 @@ module time_integ_incomp
                         call evalWallModelThinBLFit(numBoundsWM,listBoundsWM,nelem,npoin,nboun,connec,bound,point2elem,bou_codes,&
                            bounorm,normalsAtNodes,invAtoIJK,gmshAtoI,gmshAtoJ,gmshAtoK,wgp_b,coord,dlxigp_ip,He,gpvol, mu_fluid,&
                            rho(:,1),walave_u(:,:),gradP,tauw,Rwmles)
+                     ! add new here  execute the new wall model based on your input & selection
+                     ! Jim' changes
+                     else if (flag_type_wmles == wmles_type_slipnormal_custom) then
+                        if (mpi_rank == 0) print *, ">>> Running evalWallModelCustom <<<"
+                        call evalWallModelCustom(numBoundsWM, listBoundsWM, nelem, npoin, nboun, connec, bound, point2elem, bou_codes, &
+                        bounorm, normalsAtNodes, invAtoIJK, gmshAtoI, gmshAtoJ, gmshAtoK, wgp_b, coord, dlxigp_ip, He, gpvol, &
+                        mu_fluid, rho(:,1), walave_u(:,:), zo, tauw, uwn_out, Rwmles)
+                        print *, "Inside evalWallModelCustom, numBoundsWM=", numBoundsWM
                      end if
                   end if
                   call nvtxEndRange
@@ -493,4 +507,5 @@ module time_integ_incomp
             !$acc end parallel loop
             call nvtxEndRange
          end subroutine updateBuffer_incomp
+
       end module time_integ_incomp

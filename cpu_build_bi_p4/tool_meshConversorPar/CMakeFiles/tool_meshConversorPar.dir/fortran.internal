@@ -1,0 +1,23 @@
+# The fortran modules provided by this target.
+provides
+ elem_hex.mod
+ elem_qua.mod
+ jacobian_oper.mod
+ mod_comms.mod
+ mod_comms_boundaries.mod
+ mod_constants.mod
+ mod_custom_types.mod
+ mod_hdf5.mod
+ mod_ijk_indices.mod
+ mod_ioutils.mod
+ mod_maths.mod
+ mod_mesh_quality.mod
+ mod_meshconversortool.mod
+ mod_mpi.mod
+ mod_mpi_mesh.mod
+ mod_numerical_params.mod
+ mod_nvtx.mod
+ mod_partimer.mod
+ mod_partition_utils.mod
+ mod_utils.mod
+ quadrature_rules.mod

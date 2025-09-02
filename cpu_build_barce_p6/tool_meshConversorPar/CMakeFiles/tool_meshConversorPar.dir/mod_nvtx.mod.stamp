@@ -1,0 +1,50 @@
+V34 :0x24 mod_nvtx
+12 mod_nvtx.f90 S624 0
+05/28/2025  17:34:57
+use iso_c_binding public 0 direct
+enduse
+B 525 iso_c_binding c_loc
+B 526 iso_c_binding c_funloc
+B 527 iso_c_binding c_associated
+B 528 iso_c_binding c_f_pointer
+B 529 iso_c_binding c_f_procpointer
+B 608 iso_c_binding c_sizeof
+D 58 26 644 8 643 7
+D 67 26 647 8 646 7
+S 624 24 0 0 0 6 1 0 5012 10005 0 A 0 0 0 0 B 0 106 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 106 0 0 0 0 0 0 mod_nvtx
+R 643 25 7 iso_c_binding c_ptr
+R 644 5 8 iso_c_binding val c_ptr
+R 646 25 10 iso_c_binding c_funptr
+R 647 5 11 iso_c_binding val c_funptr
+R 681 6 45 iso_c_binding c_null_ptr$ac
+R 683 6 47 iso_c_binding c_null_funptr$ac
+R 684 26 48 iso_c_binding ==
+R 686 26 50 iso_c_binding !=
+S 711 23 5 0 0 0 714 624 5739 0 0 A 0 0 0 0 B 0 111 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 nvtxstartrange
+S 712 1 3 0 0 30 1 711 5754 4 43000 A 0 0 0 0 B 0 111 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 name
+S 713 1 3 0 0 6 1 711 5759 80000004 3000 A 0 0 0 0 B 0 111 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 id
+S 714 14 5 0 0 0 1 711 5739 0 400000 A 0 0 0 0 B 0 111 0 0 0 0 0 14 2 0 0 0 0 0 0 0 0 0 0 0 0 111 0 624 0 0 0 0 nvtxstartrange nvtxstartrange 
+F 714 2 712 713
+S 715 23 5 0 0 0 716 624 5762 0 0 A 0 0 0 0 B 0 116 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 nvtxendrange
+S 716 14 5 0 0 0 1 715 5762 0 400000 A 0 0 0 0 B 0 116 0 0 0 0 0 17 0 0 0 0 0 0 0 0 0 0 0 0 0 116 0 624 0 0 0 0 nvtxendrange nvtxendrange 
+F 716 0
+S 717 23 5 0 0 0 720 624 5775 0 0 A 0 0 0 0 B 0 119 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 nvtxstartrangeasync
+S 718 1 3 0 0 30 1 717 5754 4 43000 A 0 0 0 0 B 0 119 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 name
+S 719 1 3 0 0 6 1 717 5759 80000004 3000 A 0 0 0 0 B 0 119 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 id
+S 720 14 5 0 0 0 1 717 5775 0 400000 A 0 0 0 0 B 0 119 0 0 0 0 0 18 2 0 0 0 0 0 0 0 0 0 0 0 0 119 0 624 0 0 0 0 nvtxstartrangeasync nvtxstartrangeasync 
+F 720 2 718 719
+S 721 23 5 0 0 0 722 624 5795 0 0 A 0 0 0 0 B 0 124 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 nvtxendrangeasync
+S 722 14 5 0 0 0 1 721 5795 0 400000 A 0 0 0 0 B 0 124 0 0 0 0 0 21 0 0 0 0 0 0 0 0 0 0 0 0 0 124 0 624 0 0 0 0 nvtxendrangeasync nvtxendrangeasync 
+F 722 0
+A 68 1 0 0 0 58 681 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+A 71 1 0 0 0 67 683 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Z
+J 133 1 1
+V 68 58 7 0
+S 0 58 0 0 0
+A 0 6 0 0 1 2 0
+J 134 1 1
+V 71 67 7 0
+S 0 67 0 0 0
+A 0 6 0 0 1 2 0
+Z
